@@ -1,0 +1,49 @@
+repos:
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.22.0
+    hooks:
+      - id: commitlint
+        name: Check commit message
+        stages: [commit-msg]
+        additional_dependencies:
+          - '@commitlint/config-conventional'
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        name: Check large files
+        args: [--maxkb=800]
+      - id: check-symlinks
+        name: Check symlinks
+      - id: destroyed-symlinks
+        name: Detect destroyed symlinks
+      - id: fix-byte-order-marker
+        name: Fix BOM
+      - id: end-of-file-fixer
+        name: Fix EOF
+      - id: mixed-line-ending
+        name: Check mixed line endings
+      - id: check-case-conflict
+        name: Check case conflicts
+      - id: check-executables-have-shebangs
+        name: Check executable shebangs
+      - id: check-shebang-scripts-are-executable
+        name: Check files with shebangs being executable
+      - id: trailing-whitespace
+        name: Fix trailing whitespace
+      - id: pretty-format-json
+        name: Format JSON
+        args: [--autofix, --no-sort-keys]
+      - id: check-json
+        name: Check JSON
+      - id: check-toml
+        name: Check TOML
+      - id: check-xml
+        name: Check XML
+      - id: check-yaml
+        name: Check YAML
+      - id: detect-private-key
+        name: Detect private keys
+      - id: check-merge-conflict
+        name: Check merge conflicts
