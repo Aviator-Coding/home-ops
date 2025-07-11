@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/budimanjojo/talhelper/master/pkg/config/schemas/talconfig.json
+---
+clusterName: kubernetes
+
+talosVersion: "${talosVersion}"
+kubernetesVersion: "${kubernetesVersion}"
+
+endpoint: https://10.10.3.10:6443
+additionalApiServerCertSans: &sans
+  - "127.0.0.1"
+  - "10.10.3.10"
+  - "talos.sklab.dev"
+additionalMachineCertSans: *sans
+
+clusterPodNets: ["10.42.0.0/16"]
+clusterSvcNets: ["10.43.0.0/16"]
+
+# Disable built-in CNI to use Cilium
+cniConfig:
+  name: none
+
+nodes:
+  - hostname: "talos-1"
+    ipAddress: "10.10.3.11"
+    installDisk: "/dev/nvme2n1"
+    machineSpec:
+      secureboot: false
+    talosImageURL: factory.talos.dev/installer/87852f18d74de68e251318d324cbb7490c6ce717114cc8d8425f6098af256700
+    controlPlane: true
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "58:47:ca:78:c3:06"
+        vlans:
+          - vlanId: 1003
+            addresses:
+              - "10.10.3.11/24"
+            mtu: 9000
+            routes:
+              - network: "0.0.0.0/0"
+                gateway: "10.10.3.1"
+            vip:
+              ip: "10.10.3.10"
+  - hostname: "talos-2"
+    ipAddress: "10.10.3.12"
+    installDisk: "/dev/nvme2n1"
+    machineSpec:
+      secureboot: false
+    talosImageURL: factory.talos.dev/installer/87852f18d74de68e251318d324cbb7490c6ce717114cc8d8425f6098af256700
+    controlPlane: true
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "58:47:ca:78:c8:9a"
+        vlans:
+          - vlanId: 1003
+            addresses:
+              - "10.10.3.12/24"
+            mtu: 9000
+            routes:
+              - network: "0.0.0.0/0"
+                gateway: "10.10.3.1"
+            vip:
+              ip: "10.10.3.10"
+  - hostname: "talos-3"
+    ipAddress: "10.10.3.13"
+    installDisk: "/dev/nvme2n1"
+    machineSpec:
+      secureboot: false
+    talosImageURL: factory.talos.dev/installer/87852f18d74de68e251318d324cbb7490c6ce717114cc8d8425f6098af256700
+    controlPlane: true
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "58:47:ca:77:f4:3e"
+        vlans:
+          - vlanId: 1003
+            addresses:
+              - "10.10.3.13/24"
+            mtu: 9000
+            routes:
+              - network: "0.0.0.0/0"
+                gateway: "10.10.3.1"
+            vip:
+              ip: "10.10.3.10"
+
+# Global patches
+patches:
+  - "@./patches/global/machine-files.yaml"
+  - "@./patches/global/machine-kubelet.yaml"
+  - "@./patches/global/machine-network.yaml"
+  - "@./patches/global/machine-sysctls.yaml"
+  - "@./patches/global/machine-time.yaml"
+
+# Controller patches
+controlPlane:
+  patches:
+    - "@./patches/controller/admission-controller-patch.yaml"
+    - "@./patches/controller/cluster.yaml"
