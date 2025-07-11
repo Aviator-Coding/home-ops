@@ -5,7 +5,7 @@ rules:
   type-enum:
     - 2
     - always
-    - [feat, update, fix, perf, refactor, style, test, revert]
+    - [feat, update, fix, perf, refactor, style, test, revert, chore, docs, ci, build, misc]
 
   scope-enum:
     - 2
