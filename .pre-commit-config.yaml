@@ -43,6 +43,7 @@ repos:
         name: Check XML
       - id: check-yaml
         name: Check YAML
+        args: [--allow-multiple-documents]
       - id: detect-private-key
         name: Detect private keys
       - id: check-merge-conflict
