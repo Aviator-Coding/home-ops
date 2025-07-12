@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/budimanjojo/talhelper/master/pkg/config/schemas/talconfig.json
 ---
-clusterName: kubernetes
+clusterName: &clusterName kubernetes
 
 talosVersion: "${talosVersion}"
 kubernetesVersion: "${kubernetesVersion}"
@@ -8,7 +8,7 @@ kubernetesVersion: "${kubernetesVersion}"
 endpoint: https://10.10.3.10:6443
 additionalApiServerCertSans: &sans
   - "127.0.0.1"
-  - "10.10.3.10"
+  - &talosControlplaneVip 10.10.3.10
   - "talos.sklab.dev"
 additionalMachineCertSans: *sans
 
@@ -20,69 +20,196 @@ cniConfig:
   name: none
 
 nodes:
-  - hostname: "talos-1"
+  #------------------------------------------------
+  # # Talos 1
+  #------------------------------------------------
+  - &talos-k8s-mixed
+    hostname: "talos-1"
     ipAddress: "10.10.3.11"
     installDisk: "/dev/nvme2n1"
+    # installDiskSelector:
+    #   # `/*` suffix is needed until
+    #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
+    #   busPath: /pci0000:00/0000:00:1d.3/0000:5a:00.0/nvme/* # M.2 slot Wifi Slot
     machineSpec:
       secureboot: false
-    talosImageURL: factory.talos.dev/installer/87852f18d74de68e251318d324cbb7490c6ce717114cc8d8425f6098af256700
     controlPlane: true
     networkInterfaces:
-      - deviceSelector:
-          hardwareAddr: "58:47:ca:78:c3:06"
-        vlans:
-          - vlanId: 1003
-            addresses:
-              - "10.10.3.11/24"
-            mtu: 9000
-            routes:
-              - network: "0.0.0.0/0"
-                gateway: "10.10.3.1"
-            vip:
-              ip: "10.10.3.10"
-  - hostname: "talos-2"
-    ipAddress: "10.10.3.12"
+      # Disable unused/problematic interfaces
+      - interface: enp87s0
+        dhcp: false
+
+      - interface: enp89s0
+        dhcp: false
+
+      # Disable Thunderbolt network adapters that compete with bond
+      - interface: enx026f5593b684
+        dhcp: false
+
+      - interface: enx0291a50d25d0
+        dhcp: false
+
+      - interface: enp2s0f0np0
+        driver: i40e
+        hwAddr: 58:47:ca:78:c8:9b
+        mtu: 9000
+
+      - interface: enp2s0f1np1
+        driver: i40e
+        hwAddr: 58:47:ca:78:c8:9c
+        mtu: 9000
+
+      - interface: bond0
+        bond:
+          interfaces:
+            - enp2s0f0np0
+            - enp2s0f1np1
+          mode: 802.3ad
+          lacpRate: fast
+          xmitHashPolicy: layer3+4
+          miimon: 100
+        mtu: 9000
+        addresses:
+          - 10.10.3.11/24
+        vip:
+          ip: *talosControlplaneVip
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 10.10.3.1
+      - interface: lo
+        routes:
+          - network: 169.254.7.127/32
+          - network: 169.254.116.108/32
+
+  #------------------------------------------------
+  # # Talos 2
+  #------------------------------------------------
+  - hostname: talos-2
+    ipAddress: 10.10.3.12
     installDisk: "/dev/nvme2n1"
+    # installDiskSelector:
+    #   # `/*` suffix is needed until
+    #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
+    #   busPath: /pci0000:00/0000:00:1d.3/0000:5a:00.0/nvme/* # M.2 slot Wifi Slot
     machineSpec:
       secureboot: false
-    talosImageURL: factory.talos.dev/installer/87852f18d74de68e251318d324cbb7490c6ce717114cc8d8425f6098af256700
     controlPlane: true
     networkInterfaces:
-      - deviceSelector:
-          hardwareAddr: "58:47:ca:78:c8:9a"
-        vlans:
-          - vlanId: 1003
-            addresses:
-              - "10.10.3.12/24"
-            mtu: 9000
-            routes:
-              - network: "0.0.0.0/0"
-                gateway: "10.10.3.1"
-            vip:
-              ip: "10.10.3.10"
-  - hostname: "talos-3"
-    ipAddress: "10.10.3.13"
+      # Disable unused/problematic interfaces
+      - interface: enp87s0
+        ignore: true
+
+      - interface: enp89s0
+        ignore: true
+
+      # Disable Thunderbolt network adapters that compete with bond
+      - interface: enx026f5593b684
+        ignore: true
+
+      - interface: enx0291a50d25d0
+        ignore: true
+
+      - interface: enp2s0f0np0
+        driver: i40e
+        hwAddr: 58:47:ca:78:c8:9a
+        mtu: 9000
+
+      - interface: enp2s0f1np1
+        driver: i40e
+        hwAddr: 58:47:ca:78:c8:9b
+        mtu: 9000
+
+      - interface: bond0
+        bond:
+          interfaces:
+            - enp2s0f0np0
+            - enp2s0f1np1
+          mode: 802.3ad
+          lacpRate: fast
+          xmitHashPolicy: layer3+4
+          miimon: 100
+        mtu: 9000
+        addresses:
+          - 10.10.3.12/24
+        vip:
+          ip: *talosControlplaneVip
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 10.10.3.1
+
+      - interface: lo
+        routes:
+          - network: 169.254.7.127/32
+          - network: 169.254.116.108/32
+
+  #------------------------------------------------
+  # # Talos 3
+  #------------------------------------------------
+  - hostname: talos-3
+    ipAddress: 10.10.3.13
     installDisk: "/dev/nvme2n1"
+    # installDiskSelector:
+    #   # `/*` suffix is needed until
+    #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
+    #   busPath: /pci0000:00/0000:00:1d.3/0000:5a:00.0/nvme/* # M.2 slot Wifi Slot
     machineSpec:
       secureboot: false
-    talosImageURL: factory.talos.dev/installer/87852f18d74de68e251318d324cbb7490c6ce717114cc8d8425f6098af256700
     controlPlane: true
     networkInterfaces:
-      - deviceSelector:
-          hardwareAddr: "58:47:ca:77:f4:3e"
-        vlans:
-          - vlanId: 1003
-            addresses:
-              - "10.10.3.13/24"
-            mtu: 9000
-            routes:
-              - network: "0.0.0.0/0"
-                gateway: "10.10.3.1"
-            vip:
-              ip: "10.10.3.10"
+      # Disable unused/problematic interfaces
+      - interface: enp87s0
+        ignore: true
+
+      - interface: enp89s0
+        ignore: true
+
+      # Disable Thunderbolt network adapters that compete with bond
+      - interface: enx026f5593b684
+        ignore: true
+
+      - interface: enx0291a50d25d0
+        ignore: true
+
+      - interface: enp2s0f0np0
+        driver: i40e
+        hwAddr: 58:47:ca:77:f4:3e
+        mtu: 9000
+
+      - interface: enp2s0f1np1
+        driver: i40e
+        hwAddr: 58:47:ca:77:f4:3f
+        mtu: 9000
+
+      - interface: bond0
+        bond:
+          interfaces:
+            - enp2s0f0np0
+            - enp2s0f1np1
+          mode: 802.3ad
+          lacpRate: fast
+          xmitHashPolicy: layer3+4
+          miimon: 100
+        mtu: 9000
+        addresses:
+          - 10.10.3.13/24
+        vip:
+          ip: *talosControlplaneVip
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 10.10.3.1
+
+      - interface: lo
+        routes:
+          - network: 169.254.7.127/32
+          - network: 169.254.116.108/32
 
 # Global patches
 patches:
+  # Don't include the kernel args for non-ISO boot. Otherwise the image is
+  # invalidated and secure boot won't load it.
+  - |-
+    - op: remove
+      path: /machine/install/extraKernelArgs
   - "@./patches/global/machine-files.yaml"
   - "@./patches/global/machine-kubelet.yaml"
   - "@./patches/global/machine-network.yaml"
@@ -91,6 +218,25 @@ patches:
 
 # Controller patches
 controlPlane:
+  nodeLabels:
+    topology.kubernetes.io/region: *clusterName
+    topology.kubernetes.io/zone: m
+
+  schematic:
+    customization:
+      extraKernelArgs:
+        - -selinux       # Less security, more speed
+        - apparmor=0     # Less security, more speed
+        - intel_iommu=on # PCI Passthrough
+        - iommu=pt       # PCI Passthrough
+        - net.ifnames=1  # Enable predictable NIC naming
+      systemExtensions:
+        officialExtensions:
+          - siderolabs/i915
+          - siderolabs/intel-ucode
+          - siderolabs/thunderbolt
+          - siderolabs/mei # Intel 12 gen & newer
+
   patches:
     - "@./patches/controller/admission-controller-patch.yaml"
     - "@./patches/controller/cluster.yaml"
