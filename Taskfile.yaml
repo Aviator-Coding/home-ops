@@ -22,6 +22,9 @@ includes:
   bootstrap: .taskfiles/bootstrap
   talos: .taskfiles/talos
   template: .taskfiles/template
+  1password: .taskfiles/1password
+  k8s: .taskfiles/k8s
+  flux: .taskfiles/flux
 
 tasks:
 
