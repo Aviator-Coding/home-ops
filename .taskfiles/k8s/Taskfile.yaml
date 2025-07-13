@@ -1,0 +1,45 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+tasks:
+
+  flux:branch-deploy:
+    desc: "Temporarily point Flux to current Git branch, reconcile, then revert to main"
+    cmds:
+      - |
+        echo "🔍 Detecting current git branch..."
+        export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        echo "🌀 Current Git branch: $GIT_BRANCH"
+
+        if [[ "$GIT_BRANCH" == "main" ]]; then
+          echo "❌ You're already on 'main'. This task is for feature branches only."
+          exit 1
+        fi
+
+        echo "🚀 Patching Flux GitRepository to use branch: $GIT_BRANCH"
+        kubectl patch gitrepository flux-system \
+          -n flux-system \
+          --type merge \
+          -p "{\"spec\": {\"ref\": {\"branch\": \"$GIT_BRANCH\"}}}"
+
+        echo "🔁 Reconciling GitRepository and Kustomization"
+        flux reconcile source git flux-system -n flux-system
+        flux reconcile kustomization flux-system -n flux-system
+
+        echo "✅ Flux is now using branch: $GIT_BRANCH"
+
+        echo "🕒 Waiting 15 seconds before reverting to 'main'..."
+        sleep 15
+
+        echo "♻️ Reverting Flux GitRepository back to 'main'"
+        kubectl patch gitrepository flux-system \
+          -n flux-system \
+          --type merge \
+          -p '{"spec": {"ref": {"branch": "main"}}}'
+
+        echo "🔁 Reconciling back to main"
+        flux reconcile source git flux-system -n flux-system
+        flux reconcile kustomization flux-system -n flux-system
+
+        echo "✅ Done! Flux is back on 'main'"
