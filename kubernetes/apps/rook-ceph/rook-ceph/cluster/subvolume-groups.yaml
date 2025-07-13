@@ -1,0 +1,22 @@
+---
+apiVersion: ceph.rook.io/v1
+kind: CephFilesystemSubVolumeGroup
+metadata:
+  name: media-csi
+  namespace: rook-ceph
+spec:
+  name: media
+  filesystemName: ceph-filesystem
+  pinning:
+    distributed: 1
+---
+apiVersion: ceph.rook.io/v1
+kind: CephFilesystemSubVolumeGroup
+metadata:
+  name: documents-csi
+  namespace: rook-ceph
+spec:
+  name: documents
+  filesystemName: ceph-filesystem
+  pinning:
+    distributed: 1

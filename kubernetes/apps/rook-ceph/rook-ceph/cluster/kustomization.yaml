@@ -5,3 +5,6 @@ kind: Kustomization
 resources:
   - ./ocirepository.yaml
   - ./helmrelease.yaml
+  - ./subvolume-groups.yaml
+  - ./storage-classes.yaml
+  - ./httproute.yaml

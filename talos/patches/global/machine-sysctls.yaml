@@ -2,5 +2,29 @@ machine:
   sysctls:
     fs.inotify.max_user_watches: "1048576" # Watchdog
     fs.inotify.max_user_instances: "8192"  # Watchdog
-    net.core.rmem_max: "7500000" # Cloudflared | QUIC
-    net.core.wmem_max: "7500000" # Cloudflared | QUIC
+
+    # Memory management optimizations for Ceph
+    vm.dirty_ratio: 15                    # Default: 20, reduced for faster writes
+    vm.dirty_background_ratio: 5          # Default: 10, reduced for background sync
+    vm.dirty_expire_centisecs: 12000      # Default: 3000, allow longer dirty time
+    vm.dirty_writeback_centisecs: 1500    # Default: 500, less aggressive writeback
+    vm.swappiness: 1                      # Default: 60, minimize swapping
+    vm.vfs_cache_pressure: 50             # Default: 100, keep more dentry cache
+
+    # Network optimizations for Ceph inter-node communication (and Cloudflared QUIC)
+    net.core.rmem_max: 134217728          # 128MB receive buffer (higher than 7.5MB for Ceph)
+    net.core.wmem_max: 134217728          # 128MB send buffer (higher than 7.5MB for Ceph)
+    net.core.rmem_default: 262144         # 256KB default receive
+    net.core.wmem_default: 262144         # 256KB default send
+    net.core.netdev_max_backlog: 5000     # Handle more packets
+
+    # TCP optimizations for Ceph
+    net.ipv4.tcp_congestion_control: bbr  # Better congestion control
+    net.ipv4.tcp_rmem: "4096 87380 134217728"
+    net.ipv4.tcp_wmem: "4096 65536 134217728"
+    net.ipv4.tcp_window_scaling: 1
+    net.ipv4.tcp_timestamps: 1
+
+    # File system optimizations
+    fs.file-max: 1048576                  # More file handles
+    fs.aio-max-nr: 1048576                # More async I/O

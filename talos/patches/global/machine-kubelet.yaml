@@ -2,6 +2,15 @@ machine:
   kubelet:
     extraConfig:
       serializeImagePulls: false
+      maxPods: 250
+      kubeReserved:
+        cpu: "500m"
+        memory: "1Gi"
+        ephemeral-storage: "2Gi"
+      systemReserved:
+        cpu: "500m"
+        memory: "1Gi"
+        ephemeral-storage: "2Gi"
     nodeIP:
       validSubnets:
         - 10.10.3.0/24
