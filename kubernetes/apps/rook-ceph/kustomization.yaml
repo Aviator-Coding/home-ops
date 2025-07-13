@@ -6,6 +6,6 @@ namespace: rook-ceph
 resources:
   - ./rook-ceph/ks.yaml
 components:
-  - ../../components/namespace
+  - ../../components/common
  # @todo: Uncomment when flux alerts are ready
  #  - ../../components/flux/alerts
