@@ -1,0 +1,8 @@
+machine:
+  udev:
+    rules:
+      # NVMe scheduler optimization (none scheduler for NVMe)
+      - SUBSYSTEM=="block", KERNEL=="nvme*", ACTION=="add|change", ATTR{queue/scheduler}="none"
+      - SUBSYSTEM=="block", KERNEL=="nvme*", ACTION=="add|change", ATTR{queue/nr_requests}="1024"
+      - SUBSYSTEM=="block", KERNEL=="nvme*", ACTION=="add|change", ATTR{queue/read_ahead_kb}="256"
+      - SUBSYSTEM=="block", KERNEL=="nvme*", ACTION=="add|change", ATTR{queue/rq_affinity}="2"

@@ -2,11 +2,10 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: external-secrets
+namespace: rook-ceph
 resources:
-  - ./external-secrets/ks.yaml
-  - ./onepassword-connect/ks.yaml
+  - ./rook-ceph/ks.yaml
 components:
   - ../../components/common
-  # @todo: Uncomment when flux alerts are ready
-  # - ../../components/flux/alerts
+ # @todo: Uncomment when flux alerts are ready
+ #  - ../../components/flux/alerts

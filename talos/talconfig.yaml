@@ -26,7 +26,7 @@ nodes:
   - &talos-k8s-mixed
     hostname: "talos-1"
     ipAddress: "10.10.3.11"
-    installDisk: "/dev/nvme2n1"
+    installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800127"
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
@@ -86,7 +86,7 @@ nodes:
   #------------------------------------------------
   - hostname: talos-2
     ipAddress: 10.10.3.12
-    installDisk: "/dev/nvme2n1"
+    installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800809"
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
@@ -147,7 +147,7 @@ nodes:
   #------------------------------------------------
   - hostname: talos-3
     ipAddress: 10.10.3.13
-    installDisk: "/dev/nvme2n1"
+    installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800007"
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
@@ -214,6 +214,7 @@ patches:
   - "@./patches/global/machine-kubelet.yaml"
   - "@./patches/global/machine-network.yaml"
   - "@./patches/global/machine-sysctls.yaml"
+  - "@./patches/global/machine-udev.yaml"
   - "@./patches/global/machine-time.yaml"
 
 # Controller patches

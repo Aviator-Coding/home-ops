@@ -1,0 +1,248 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: rook-ceph-cluster
+spec:
+  interval: 1h
+  timeout: 15m
+  chartRef:
+    kind: OCIRepository
+    name: rook-ceph-cluster
+  dependsOn:
+    - name: rook-ceph
+      namespace: rook-ceph
+    - name: snapshot-controller
+      namespace: kube-system
+  install:
+    remediation:
+        retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    monitoring:
+      enabled: true
+      createPrometheusRules: true
+    toolbox:
+      enabled: false
+    cephClusterSpec:
+      cephConfig:
+        global:
+          bdev_enable_discard: "true"
+          bdev_async_discard_threads: "1"
+          osd_class_update_on_start: "false"
+          device_failure_prediction_mode: local
+
+          # Compression (good space savings)
+          bluestore_compression_algorithm: zstd
+          bluestore_compression_mode: aggressive
+          bluestore_compression_required_ratio: "0.875"
+
+          # Reasonable cache size for homelab
+          bluestore_cache_size: "1073741824"  # 1GB per OSD
+
+        mgr:
+          mgr/crash/warn_recent_interval: "7200"
+
+        osd:
+          # Keep it simple for homelab
+          osd_pool_default_compression_algorithm: zstd
+          osd_pool_default_compression_mode: aggressive
+          osd_recovery_max_active: "3"  # Don't overwhelm homelab hardware
+      crashCollector:
+        disable: false
+      dashboard:
+        enabled: true
+        urlPrefix: /
+        ssl: false
+        prometheusEndpoint: http://prometheus-operated.monitoring.svc.cluster.local:9090
+      mgr:
+        modules:
+          - name: diskprediction_local
+            enabled: true
+          - name: insights
+            enabled: true
+          - name: pg_autoscaler
+            enabled: true
+          - name: rook
+            enabled: true
+      network:
+        provider: host
+        connections:
+          requireMsgr2: true
+      resources:
+        mgr:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        mon:
+          requests:
+            cpu: 50m
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+        osd:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            memory: 6Gi
+        mgr-sidecar:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 256Mi
+      storage:
+        useAllNodes: false
+        useAllDevices: false
+        nodes:
+          - name: "talos-1"
+            devices:
+              - name: "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NME714W100393P2202"
+              - name: "/dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W412707M"
+          - name: "talos-2"
+            devices:
+              - name: "/dev/disk/by-id/nvme-Samsung_SSD_990_PRO_2TB_S7KHNJ0WC55436E"
+              - name: "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NME714W101694P2202"
+          - name: "talos-3"
+            devices:
+              - name: "/dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S69ENL0TC06068B"
+              - name: "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NL1948W100519P2202"
+        config:
+          osdsPerDevice: "1"
+    cephBlockPools:
+      - name: ceph-blockpool
+        spec:
+          failureDomain: host
+          replicated:
+            size: 3
+          # Enable compression at the pool level
+          compressionMode: aggressive
+          parameters:
+            compression_algorithm: zstd
+            compression_mode: aggressive
+        storageClass:
+          enabled: true
+          name: ceph-block
+          isDefault: true
+          reclaimPolicy: Delete
+          allowVolumeExpansion: true
+          volumeBindingMode: Immediate
+          parameters:
+            compression_mode: aggressive
+            compression_algorithm: zstd
+            imageFormat: "2"
+            imageFeatures: layering,fast-diff,object-map,deep-flatten,exclusive-lock
+            csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+            csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+            csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+            csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/fstype: ext4
+    cephBlockPoolsVolumeSnapshotClass:
+      enabled: true
+      name: csi-ceph-blockpool
+      isDefault: false
+      deletionPolicy: Delete
+    cephFileSystems:
+      - name: &cephFileSystemName ceph-filesystem
+        spec:
+          preserveFilesystemOnDelete: true
+          metadataPool:
+            failureDomain: host
+            replicated:
+              size: 3
+            parameters:
+              compression_algorithm: zstd
+              compression_mode: aggressive
+          dataPools:
+            - name: data0
+              failureDomain: host
+              replicated:
+                size: 3
+              parameters:
+                compression_algorithm: zstd
+                compression_mode: aggressive
+          metadataServer:
+            activeCount: 1
+            activeStandby: true
+            priorityClassName: system-cluster-critical
+            placement:
+              topologySpreadConstraints:
+                - maxSkew: 1
+                  topologyKey: kubernetes.io/hostname
+                  whenUnsatisfiable: DoNotSchedule
+                  labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: ceph-mds
+                      app.kubernetes.io/part-of: *cephFileSystemName
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                memory: 4Gi
+        storageClass:
+          enabled: true
+          isDefault: false
+          name: ceph-filesystem
+          pool: data0
+          reclaimPolicy: Delete
+          allowVolumeExpansion: true
+          parameters:
+            csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+            csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+            csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+            csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/fstype: ext4
+    cephFileSystemVolumeSnapshotClass:
+      enabled: true
+      name: csi-ceph-filesystem
+      isDefault: false
+      deletionPolicy: Delete
+    cephObjectStores:
+      - name: &cephObjectStoreName ceph-objectstore
+        spec:
+          metadataPool:
+            failureDomain: host
+            replicated:
+              size: 3
+            parameters:
+              compression_algorithm: zstd
+              compression_mode: aggressive
+          dataPool:
+            failureDomain: host
+            replicated:
+              size: 3
+            parameters:
+              compression_algorithm: zstd
+              compression_mode: aggressive
+          preservePoolsOnDelete: false
+          gateway:
+            port: 80
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                memory: 3Gi
+            instances: 1
+            priorityClassName: system-cluster-critical
+          healthCheck:
+            bucket:
+              interval: 60s
+        storageClass:
+          enabled: true
+          name: ceph-bucket
+          reclaimPolicy: Delete
+          parameters:
+            region: us-east-1

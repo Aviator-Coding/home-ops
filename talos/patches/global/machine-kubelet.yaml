@@ -2,6 +2,18 @@ machine:
   kubelet:
     extraConfig:
       serializeImagePulls: false
+      maxPods: 250
+      # Add this to handle single filesystem scenario
+      imageGCHighThresholdPercent: 85
+      imageGCLowThresholdPercent: 80
+      kubeReserved:
+        cpu: "500m"
+        memory: "1Gi"
+        ephemeral-storage: "2Gi"
+      systemReserved:
+        cpu: "500m"
+        memory: "1Gi"
+        ephemeral-storage: "2Gi"
     nodeIP:
       validSubnets:
         - 10.10.3.0/24
