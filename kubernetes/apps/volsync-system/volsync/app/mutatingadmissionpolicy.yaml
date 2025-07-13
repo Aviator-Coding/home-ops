@@ -98,8 +98,8 @@ spec:
               value: Object.spec.template.spec.volumes{
                 name: "repository",
                 nfs: Object.spec.template.spec.volumes.nfs{
-                  server: "expanse.internal",
-                  path: "/mnt/eros/Volsync"
+                  server: "nas.${SECRET_DOMAIN}",
+                  path: "/mnt/pool_ssd/Home-Ops/Volsync"
                 }
               }
             }
