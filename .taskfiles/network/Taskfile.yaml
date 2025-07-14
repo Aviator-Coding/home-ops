@@ -1,0 +1,265 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  TALOS_NODE_1: "10.10.3.11"  # talos-1
+  TALOS_NODE_2: "10.10.3.12"  # talos-2
+  TALOS_NODE_3: "10.10.3.13"  # talos-3
+  IPERF3_IMAGE: "networkstatic/iperf3:latest"
+  TEST_DURATION: "30"
+  TEST_PARALLEL: "4"
+
+tasks:
+
+  check-network-config:
+    desc: "Check network configuration on all Talos nodes"
+    cmds:
+      - echo "🔍 Checking network configuration on all nodes..."
+      - echo "📡 Node 1 (talos-1) - {{.TALOS_NODE_1}}:"
+      - talosctl -n {{.TALOS_NODE_1}} get links
+      - echo ""
+      - echo "📡 Node 2 (talos-2) - {{.TALOS_NODE_2}}:"
+      - talosctl -n {{.TALOS_NODE_2}} get links
+      - echo ""
+      - echo "📡 Node 3 (talos-3) - {{.TALOS_NODE_3}}:"
+      - talosctl -n {{.TALOS_NODE_3}} get links
+
+  check-bond-status:
+    desc: "Check bond interface status on all nodes"
+    cmds:
+      - echo "🔗 Checking bond interface status..."
+      - echo "📡 Node 1 (talos-1):"
+      - talosctl -n {{.TALOS_NODE_1}} read /proc/net/bonding/bond0 2>/dev/null || echo "❌ No bond0 interface found"
+      - echo ""
+      - echo "📡 Node 2 (talos-2):"
+      - talosctl -n {{.TALOS_NODE_2}} read /proc/net/bonding/bond0 2>/dev/null || echo "❌ No bond0 interface found"
+      - echo ""
+      - echo "📡 Node 3 (talos-3):"
+      - talosctl -n {{.TALOS_NODE_3}} read /proc/net/bonding/bond0 2>/dev/null || echo "❌ No bond0 interface found"
+
+  check-routes:
+    desc: "Check routing table on all nodes"
+    cmds:
+      - echo "🗺️ Checking routing tables..."
+      - echo "📡 Node 1 (talos-1):"
+      - talosctl -n {{.TALOS_NODE_1}} get routes
+      - echo ""
+      - echo "📡 Node 2 (talos-2):"
+      - talosctl -n {{.TALOS_NODE_2}} get routes
+      - echo ""
+      - echo "📡 Node 3 (talos-3):"
+      - talosctl -n {{.TALOS_NODE_3}} get routes
+
+  ping-test:
+    desc: "Test basic connectivity between all nodes"
+    cmds:
+      - echo "🏓 Testing basic connectivity between nodes..."
+      - echo "talos-1 to talos-2:"
+      - talosctl -n {{.TALOS_NODE_1}} list -l -r {{.TALOS_NODE_2}} >/dev/null 2>&1 && echo "✅ Connected" || echo "❌ Failed"
+      - echo "talos-1 to talos-3:"
+      - talosctl -n {{.TALOS_NODE_1}} list -l -r {{.TALOS_NODE_3}} >/dev/null 2>&1 && echo "✅ Connected" || echo "❌ Failed"
+      - echo "talos-2 to talos-3:"
+      - talosctl -n {{.TALOS_NODE_2}} list -l -r {{.TALOS_NODE_3}} >/dev/null 2>&1 && echo "✅ Connected" || echo "❌ Failed"
+
+  deploy-iperf3-server:
+    desc: "Deploy iperf3 server pods on all nodes"
+    cmds:
+      - echo "🚀 Deploying iperf3 server pods..."
+      - |
+        kubectl apply -f - <<EOF
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: network-test
+        ---
+        apiVersion: apps/v1
+        kind: DaemonSet
+        metadata:
+          name: iperf3-server
+          namespace: network-test
+        spec:
+          selector:
+            matchLabels:
+              app: iperf3-server
+          template:
+            metadata:
+              labels:
+                app: iperf3-server
+            spec:
+              hostNetwork: true
+              nodeSelector:
+                kubernetes.io/os: linux
+              tolerations:
+                - operator: Exists
+              containers:
+                - name: iperf3-server
+                  image: {{.IPERF3_IMAGE}}
+                  command: ["iperf3", "-s", "-p", "5201"]
+                  ports:
+                    - containerPort: 5201
+                      hostPort: 5201
+                      protocol: TCP
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 128Mi
+                    limits:
+                      cpu: 1000m
+                      memory: 256Mi
+        EOF
+      - echo "⏳ Waiting for iperf3 servers to be ready..."
+      - kubectl wait --for=condition=ready pod -l app=iperf3-server -n network-test --timeout=60s
+
+  cleanup-iperf3:
+    desc: "Clean up iperf3 test resources"
+    cmds:
+      - echo "🧹 Cleaning up iperf3 resources..."
+      - kubectl delete namespace network-test --ignore-not-found=true
+      - echo "✅ Cleanup completed"
+
+  speed-test-all:
+    desc: "Run comprehensive speed test between all nodes"
+    deps: [deploy-iperf3-server]
+    cmds:
+      - echo "🚀 Running comprehensive network speed tests..."
+      - echo "Test parameters Duration=30s, Parallel=4 streams"
+      - echo ""
+      - task: speed-test-1-to-2
+      - task: speed-test-1-to-3
+      - task: speed-test-2-to-1
+      - task: speed-test-2-to-3
+      - task: speed-test-3-to-1
+      - task: speed-test-3-to-2
+      - task: cleanup-iperf3
+
+  speed-test-1-to-2:
+    desc: "Test speed from talos-1 to talos-2"
+    internal: true
+    cmds:
+      - echo "Testing talos-1 ({{.TALOS_NODE_1}}) to talos-2 ({{.TALOS_NODE_2}})"
+      - |
+        kubectl run iperf3-client-1-to-2 --rm -i --restart=Never --image={{.IPERF3_IMAGE}} \
+          --overrides='{"spec":{"hostNetwork":true,"nodeSelector":{"kubernetes.io/hostname":"talos-1"}}}' \
+          --namespace=network-test \
+          -- iperf3 -c {{.TALOS_NODE_2}} -t {{.TEST_DURATION}} -P {{.TEST_PARALLEL}} --format m
+      - echo ""
+
+  speed-test-1-to-3:
+    desc: "Test speed from talos-1 to talos-3"
+    internal: true
+    cmds:
+      - echo "Testing talos-1 ({{.TALOS_NODE_1}}) to talos-3 ({{.TALOS_NODE_3}})"
+      - |
+        kubectl run iperf3-client-1-to-3 --rm -i --restart=Never --image={{.IPERF3_IMAGE}} \
+          --overrides='{"spec":{"hostNetwork":true,"nodeSelector":{"kubernetes.io/hostname":"talos-1"}}}' \
+          --namespace=network-test \
+          -- iperf3 -c {{.TALOS_NODE_3}} -t {{.TEST_DURATION}} -P {{.TEST_PARALLEL}} --format m
+      - echo ""
+
+  speed-test-2-to-1:
+    desc: "Test speed from talos-2 to talos-1"
+    internal: true
+    cmds:
+      - echo "Testing talos-2 ({{.TALOS_NODE_2}}) to talos-1 ({{.TALOS_NODE_1}})"
+      - |
+        kubectl run iperf3-client-2-to-1 --rm -i --restart=Never --image={{.IPERF3_IMAGE}} \
+          --overrides='{"spec":{"hostNetwork":true,"nodeSelector":{"kubernetes.io/hostname":"talos-2"}}}' \
+          --namespace=network-test \
+          -- iperf3 -c {{.TALOS_NODE_1}} -t {{.TEST_DURATION}} -P {{.TEST_PARALLEL}} --format m
+      - echo ""
+
+  speed-test-2-to-3:
+    desc: "Test speed from talos-2 to talos-3"
+    internal: true
+    cmds:
+      - echo "Testing talos-2 ({{.TALOS_NODE_2}}) to talos-3 ({{.TALOS_NODE_3}})"
+      - |
+        kubectl run iperf3-client-2-to-3 --rm -i --restart=Never --image={{.IPERF3_IMAGE}} \
+          --overrides='{"spec":{"hostNetwork":true,"nodeSelector":{"kubernetes.io/hostname":"talos-2"}}}' \
+          --namespace=network-test \
+          -- iperf3 -c {{.TALOS_NODE_3}} -t {{.TEST_DURATION}} -P {{.TEST_PARALLEL}} --format m
+      - echo ""
+
+  speed-test-3-to-1:
+    desc: "Test speed from talos-3 to talos-1"
+    internal: true
+    cmds:
+      - echo "Testing talos-3 ({{.TALOS_NODE_3}}) to talos-1 ({{.TALOS_NODE_1}})"
+      - |
+        kubectl run iperf3-client-3-to-1 --rm -i --restart=Never --image={{.IPERF3_IMAGE}} \
+          --overrides='{"spec":{"hostNetwork":true,"nodeSelector":{"kubernetes.io/hostname":"talos-3"}}}' \
+          --namespace=network-test \
+          -- iperf3 -c {{.TALOS_NODE_1}} -t {{.TEST_DURATION}} -P {{.TEST_PARALLEL}} --format m
+      - echo ""
+
+  speed-test-3-to-2:
+    desc: "Test speed from talos-3 to talos-2"
+    internal: true
+    cmds:
+      - echo "Testing talos-3 ({{.TALOS_NODE_3}}) to talos-2 ({{.TALOS_NODE_2}})"
+      - |
+        kubectl run iperf3-client-3-to-2 --rm -i --restart=Never --image={{.IPERF3_IMAGE}} \
+          --overrides='{"spec":{"hostNetwork":true,"nodeSelector":{"kubernetes.io/hostname":"talos-3"}}}' \
+          --namespace=network-test \
+          -- iperf3 -c {{.TALOS_NODE_2}} -t {{.TEST_DURATION}} -P {{.TEST_PARALLEL}} --format m
+      - echo ""
+
+  ceph-network-test:
+    desc: "Test Ceph-specific network performance"
+    cmds:
+      - echo "🔷 Testing Ceph network performance..."
+      - echo "📊 Checking Ceph network configuration:"
+      - kubectl rook-ceph --namespace rook-ceph ceph config dump | grep -E "(public_network|cluster_network|ms_type)"
+      - echo ""
+      - echo "📊 Checking Ceph monitor connectivity:"
+      - kubectl rook-ceph --namespace rook-ceph ceph mon stat
+      - echo ""
+      - echo "📊 Checking OSD network stats:"
+      - kubectl rook-ceph --namespace rook-ceph ceph osd stat
+      - echo ""
+      - echo "📊 Checking cluster network performance:"
+      - kubectl rook-ceph --namespace rook-ceph ceph tell osd.* perf dump | grep -A5 -B5 "ms_"
+
+  bandwidth-test:
+    desc: "Quick bandwidth test between nodes"
+    cmds:
+      - echo "⚡ Quick bandwidth test using dd and nc..."
+      - echo "Testing talos-1 to talos-2"
+      - |
+        kubectl run bandwidth-server --rm -i --restart=Never --image=busybox \
+          --overrides='{"spec":{"hostNetwork":true,"nodeSelector":{"kubernetes.io/hostname":"talos-2"}}}' \
+          --command -- sh -c "nc -l -p 9999 > /dev/null" &
+        SERVER_PID=$!
+        sleep 2
+        kubectl run bandwidth-client --rm -i --restart=Never --image=busybox \
+          --overrides='{"spec":{"hostNetwork":true,"nodeSelector":{"kubernetes.io/hostname":"talos-1"}}}' \
+          --command -- sh -c "dd if=/dev/zero bs=1M count=1000 | nc {{.TALOS_NODE_2}} 9999" 2>&1 | tail -1
+        kill $SERVER_PID 2>/dev/null || true
+
+  network-summary:
+    desc: "Display comprehensive network summary"
+    cmds:
+      - echo "🌐 Network Configuration Summary"
+      - echo "================================="
+      - task: check-network-config
+      - echo ""
+      - task: check-bond-status
+      - echo ""
+      - task: check-routes
+      - echo ""
+      - task: ping-test
+      - echo ""
+      - task: ceph-network-test
+
+  full-test:
+    desc: "Run complete network performance test suite"
+    cmds:
+      - echo "🚀 Starting comprehensive network performance testing..."
+      - echo "⏱️ This will take approximately 30 minutes to complete"
+      - echo ""
+      - task: network-summary
+      - echo ""
+      - task: speed-test-all
+      - echo ""
+      - echo "✅ Network performance testing completed!"

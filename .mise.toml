@@ -32,6 +32,7 @@ MISE_LIST_ALL_VERSIONS = "false"
 "aqua:nektos/act" = "0.2.79"
 uv = "0.7.19"
 1password-cli = "2.30.3"
+krew = "0.4.5"
 
 [tasks.install-hooks]
 description = "Install pre-commit hooks"

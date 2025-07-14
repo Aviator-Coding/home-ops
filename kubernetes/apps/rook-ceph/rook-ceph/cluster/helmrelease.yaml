@@ -49,8 +49,8 @@ spec:
 
         osd:
           # Keep it simple for homelab
-          osd_pool_default_compression_algorithm: zstd
-          osd_pool_default_compression_mode: aggressive
+          # osd_pool_default_compression_algorithm: zstd
+          # osd_pool_default_compression_mode: aggressive
           osd_recovery_max_active: "3"  # Don't overwhelm homelab hardware
       crashCollector:
         disable: false
@@ -58,7 +58,8 @@ spec:
         enabled: true
         urlPrefix: /
         ssl: false
-        prometheusEndpoint: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        # @todo: Enable once we have the monitoring stack in place
+        #prometheusEndpoint: http://prometheus-operated.monitoring.svc.cluster.local:9090
       mgr:
         modules:
           - name: diskprediction_local

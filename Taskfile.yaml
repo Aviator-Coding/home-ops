@@ -25,6 +25,8 @@ includes:
   1password: .taskfiles/1password
   k8s: .taskfiles/k8s
   flux: .taskfiles/flux
+  rook: .taskfiles/rook
+  network: .taskfiles/network
 
 tasks:
 
