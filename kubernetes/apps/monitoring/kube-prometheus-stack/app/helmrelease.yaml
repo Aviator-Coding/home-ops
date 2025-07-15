@@ -131,6 +131,8 @@ spec:
         serviceMonitorSelectorNilUsesHelmValues: false
         storageSpec:
           volumeClaimTemplate:
+            metadata:
+              name: storage-prometheus-db
             spec:
               storageClassName: ceph-block
               resources:
