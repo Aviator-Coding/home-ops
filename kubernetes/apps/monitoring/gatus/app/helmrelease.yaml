@@ -21,6 +21,8 @@ spec:
       gatus:
         annotations:
           reloader.stakater.com/auto: "true"
+        serviceAccount:
+          identifier: gatus
         initContainers:
           init-config:
             image:
@@ -103,8 +105,7 @@ spec:
               - name: *app
                 port: *port
     serviceAccount:
-      create: true
-      name: gatus
+      gatus: {}
     persistence:
       config:
         existingClaim: storage-gatus
