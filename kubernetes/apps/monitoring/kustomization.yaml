@@ -15,3 +15,5 @@ resources:
   - ./loki/ks.yaml
   - ./prometheus-operator/ks.yaml
   - ./promtail/ks.yaml
+  - ./gatus/ks.yaml
+  - ./kromgo/ks.yaml
