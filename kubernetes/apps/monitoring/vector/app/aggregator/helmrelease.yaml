@@ -47,9 +47,7 @@ spec:
     service:
       app:
         controller: vector-aggregator
-        type: LoadBalancer
-        annotations:
-          lbipam.cilium.io/ips: "10.10.3.120"
+        type: ClusterIP   # Change from LoadBalancer
         ports:
           http:
             primary: true
