@@ -66,8 +66,7 @@ spec:
             port: 1514
             protocol: UDP
     serviceAccount:
-      create: true
-      name: vector-agent
+      vector-agent: {}
     persistence:
       config:
         enabled: true
