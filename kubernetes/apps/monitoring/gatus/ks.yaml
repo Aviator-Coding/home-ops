@@ -22,10 +22,6 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
-    substitute:
-      APP: *app
-      GATUS_SUBDOMAIN: status
-      SECRET_DOMAIN: ${SECRET_DOMAIN}
   prune: true
   retryInterval: 2m
   sourceRef:
