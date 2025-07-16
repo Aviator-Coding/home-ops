@@ -9,6 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/gatus/external
   dependsOn:
     - name: rook-ceph-cluster
       namespace: rook-ceph
@@ -22,6 +24,9 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+    substitute:
+      APP: *app
+      GATUS_SUBDOMAIN: status
   prune: true
   retryInterval: 2m
   sourceRef:
