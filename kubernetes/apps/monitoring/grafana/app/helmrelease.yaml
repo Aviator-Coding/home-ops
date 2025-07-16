@@ -131,12 +131,17 @@ spec:
             - name: VAR_REPLICATIONDESTNAME
               value: ".*-bootstrap"
 
-        zfs:
-          # renovate: dashboardName="ZFS"
-          gnetId: 7845
-          revision: 4
-          datasource: Prometheus
+        victoriametrics:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/victoriametrics.json
 
+        vmagent:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/vmagent.json
+        vmlogs:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/victorialogs.json
+        vmalert:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/vmalert.json
+        vmoperator:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/operator.json
       ceph:
         ceph-cluster:
           # renovate: dashboardName="Ceph Cluster"
@@ -244,6 +249,19 @@ spec:
             url: http://alertmanager.monitoring.svc.cluster.local:9093
             jsonData:
               implementation: prometheus
+          # VictoriaMetrics
+          - name: VictoriaMetrics
+            type: prometheus
+            uid: prometheus
+            access: proxy
+            url: http://vmsingle-vmetrics-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8429
+            jsonData:
+              prometheusType: Prometheus
+              timeInterval: 1m
+            isDefault: true
+          - name: VictoriaLogs
+            type: victoriametrics-logs-datasource
+            url: http://victorialogs-victoria-logs-single-server.monitoring.svc:9428
 
         deleteDatasources:
           - name: Alertmanager
