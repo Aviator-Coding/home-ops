@@ -9,11 +9,18 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   components:
     - ../../../../components/gatus/external
   interval: 1h
   path: ./kubernetes/apps/monitoring/kromgo/app
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *app
       GATUS_PATH: /talos_version
