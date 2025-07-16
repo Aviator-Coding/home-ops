@@ -58,9 +58,7 @@ spec:
     service:
       app:
         controller: vector-agent
-        type: LoadBalancer
-        annotations:
-          lbipam.cilium.io/ips: "10.10.3.121"
+        type: ClusterIP
         ports:
           mikrotik:
             port: 1514

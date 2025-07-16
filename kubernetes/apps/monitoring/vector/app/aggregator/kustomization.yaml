@@ -5,7 +5,7 @@ kind: Kustomization
 resources:
   - ./externalsecret.yaml
   - ./helmrelease.yaml
-  - ./tcp-route.yaml
+  - ./route.yaml
 configMapGenerator:
   - name: vector-aggregator-configmap
     files:

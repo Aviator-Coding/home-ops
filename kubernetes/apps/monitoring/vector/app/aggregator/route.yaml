@@ -1,0 +1,42 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: vector-aggregator-gateway
+  namespace: monitoring
+spec:
+  gatewayClassName: cilium
+  listeners:
+    - name: http
+      port: 8686
+      protocol: TCP
+    - name: mikrotik
+      port: 6000
+      protocol: TCP
+    - name: k8s
+      port: 6001
+      protocol: TCP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: TCPRoute
+metadata:
+  name: vector-aggregator-tcproute
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: vector-aggregator-gateway
+      sectionName: http
+    - name: vector-aggregator-gateway
+      sectionName: mikrotik
+    - name: vector-aggregator-gateway
+      sectionName: k8s
+  rules:
+    - backendRefs:
+        - name: vector-aggregator
+          port: 8686
+    - backendRefs:
+        - name: vector-aggregator
+          port: 6000
+    - backendRefs:
+        - name: vector-aggregator
+          port: 6001
