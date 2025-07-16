@@ -8,3 +8,15 @@ resources:
   - ./alerts
   - ./prometheusrules
   - ./scrapeconfigs
+patches:
+  - target:
+      kind: StatefulSet
+      name: prometheus-kube-prometheus-stack
+      namespace: monitoring
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/metadata/name
+        value: storage-prometheus-db
+      - op: replace
+        path: /metadata/name
+        value: prometheus
