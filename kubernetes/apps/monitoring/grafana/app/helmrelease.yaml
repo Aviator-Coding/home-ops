@@ -245,7 +245,7 @@ spec:
             name: Prometheus
             type: prometheus
             url: http://prometheus-operated.monitoring.svc.cluster.local:9090
-            isDefault: true
+            isDefault: false
             jsonData:
               prometheusType: Prometheus
           - access: proxy
