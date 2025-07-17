@@ -72,6 +72,14 @@ spec:
               path: /var/lib/grafana/dashboards/unpoller
             orgId: 1
             type: file
+          - name: VictoriaMetrics
+            orgId: 1
+            folder: "Victoria Metrics"
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/victoriametrics
 
     dashboards:
       default:
@@ -131,9 +139,9 @@ spec:
             - name: VAR_REPLICATIONDESTNAME
               value: ".*-bootstrap"
 
+      victoriametrics:
         victoriametrics:
           url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/victoriametrics.json
-
         vmagent:
           url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/vmagent.json
         vmlogs:
@@ -142,6 +150,7 @@ spec:
           url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/vmalert.json
         vmoperator:
           url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/operator.json
+
       ceph:
         ceph-cluster:
           # renovate: dashboardName="Ceph Cluster"
@@ -300,6 +309,7 @@ spec:
       - natel-discrete-panel
       - pr0ps-trackmap-panel
       - vonage-status-panel
+      - victoriametrics-logs-datasource
 
     rbac:
       pspEnabled: false
