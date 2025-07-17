@@ -260,7 +260,7 @@ spec:
               implementation: prometheus
           # VictoriaMetrics
           - name: VictoriaMetrics
-            type: prometheus
+            type: victoriametrics-metrics-datasource
             uid: prometheus
             access: proxy
             url: http://vmsingle-vmetrics-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8429
@@ -310,6 +310,7 @@ spec:
       - pr0ps-trackmap-panel
       - vonage-status-panel
       - victoriametrics-logs-datasource
+      - victoriametrics-metrics-datasource
 
     rbac:
       pspEnabled: false
