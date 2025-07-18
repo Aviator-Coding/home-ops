@@ -4,7 +4,6 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app coder
-  namespace: &namespace coder
 spec:
   commonMetadata:
     labels:
@@ -16,9 +15,9 @@ spec:
     - name: crunchy-postgres-operator
       namespace: database
     - name: volsync
-      namespace: flux-system
+      namespace: volsync-system
     - name: external-secrets-stores
-      namespace: flux-system
+      namespace: external-secrets
   interval: 30m
   path: ./kubernetes/apps/coder/app
   postBuild:
@@ -29,6 +28,6 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: *app
+  targetNamespace: coder
   timeout: 5m
   wait: true
