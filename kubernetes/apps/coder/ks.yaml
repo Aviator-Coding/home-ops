@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app coder
+  namespace: &namespace flux-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  components:
+    - ../../../components/common
+    - ../../../components/gatus/guarded
+    - ../../../components/postgres
+  dependsOn:
+    - name: crunchy-postgres-operator
+      namespace: database
+    - name: volsync
+      namespace: flux-system
+    - name: external-secrets-stores
+      namespace: flux-system
+  interval: 30m
+  path: ./kubernetes/apps/coder/app
+  postBuild:
+    substitute:
+      APP: *app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: coder
+  timeout: 5m
+  wait: true

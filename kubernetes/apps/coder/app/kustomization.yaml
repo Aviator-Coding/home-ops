@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./externalsecret.yaml
+  - ./helmrelease.yaml
+  - ./servicemonitor.yaml
+  - ./rules
+configMapGenerator:
+  - name: coder-dashboards
+    options:
+      labels:
+        grafana_dashboard: "true"
+      annotations:
+        grafana_folder: "Coder"
+    files:
+      - ./dashboards/coderd.json
+      - ./dashboards/provisionerd.json
+      - ./dashboards/status.json
+      - ./dashboards/workspace_detail.json
+      - ./dashboards/workspaces.json
+  - name: coder-runbooks
+    options:
+      labels:
+        runbook_docs: "true"
+      annotations:
+        runbook_folder: "coder"
+    files:
+      - ./runbooks/coderd.md
+      - ./runbooks/provisionerd.md
+generatorOptions:
+  disableNameSuffixHash: true
