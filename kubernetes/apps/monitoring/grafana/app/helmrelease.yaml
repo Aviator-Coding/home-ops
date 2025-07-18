@@ -245,7 +245,7 @@ spec:
             name: Prometheus
             type: prometheus
             url: http://prometheus-operated.monitoring.svc.cluster.local:9090
-            isDefault: false
+            isDefault: true
             jsonData:
               prometheusType: Prometheus
           - access: proxy
@@ -260,6 +260,15 @@ spec:
               implementation: prometheus
           # VictoriaMetrics
           - name: VictoriaMetrics
+            type: prometheus
+            uid: prometheus
+            access: proxy
+            url: http://vmsingle-vmetrics-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8429
+            jsonData:
+              prometheusType: Prometheus
+              timeInterval: 1m
+            isDefault: false
+          - name: VictoriaMetrics
             type: victoriametrics-metrics-datasource
             uid: prometheus
             access: proxy
@@ -267,7 +276,7 @@ spec:
             jsonData:
               prometheusType: Prometheus
               timeInterval: 1m
-            isDefault: true
+            isDefault: false
           - name: VictoriaLogs
             type: victoriametrics-logs-datasource
             url: http://victorialogs-victoria-logs-single-server.monitoring.svc:9428
