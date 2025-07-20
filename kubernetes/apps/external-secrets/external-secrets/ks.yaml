@@ -50,7 +50,7 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &appname kubernetes-store
+  name: &appname database-secrets
   namespace: &namespace external-secrets
 spec:
   targetNamespace: *namespace
@@ -59,7 +59,7 @@ spec:
       app.kubernetes.io/name: *appname
   interval: 30m
   timeout: 5m
-  path: "./kubernetes/apps/external-secrets/external-secrets/stores/kubernetes"
+  path: "./kubernetes/apps/external-secrets/external-secrets/stores/database-secrets"
   prune: true
   sourceRef:
     kind: GitRepository

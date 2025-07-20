@@ -3,16 +3,16 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: crunchy-postgres-operator
+  name: &app crunchy-postgres-userinit
 spec:
   interval: 30m
   chart:
     spec:
-      chart: pgo
-      version: 5.7.4
+      chart: crunchy-userinit-controller
+      version: 0.0.4
       sourceRef:
         kind: HelmRepository
-        name: crunchydata
+        name: crunchy-userinit
         namespace: flux-system
   maxHistory: 2
   install:
@@ -27,7 +27,4 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    monitoring: true
-    install:
-      clusterLabels:
-        app.kubernetes.io/name: pgo
+    fullnameOverride: *app
