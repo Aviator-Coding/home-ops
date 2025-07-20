@@ -49,7 +49,7 @@ spec:
   # Grant necessary permissions for bucket operations
   capabilities:
     user: "read, write"
-    bucket: "read, write, delete"
+    bucket: "*"
     metadata: "read, write"
     usage: "read"
     zone: "read"
