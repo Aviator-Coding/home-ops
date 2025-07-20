@@ -15,7 +15,6 @@ apiVersion: ceph.rook.io/v1
 kind: CephObjectStoreUser
 metadata:
   name: crunchy-postgres-user
-  namespace: rook-ceph # namespace:cluster
 spec:
   store: ceph-objectstore
   displayName: "Crunchy Postgres S3 User"
