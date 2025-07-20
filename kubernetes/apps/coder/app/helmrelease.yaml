@@ -21,9 +21,14 @@ metadata:
   name: &app coder
 spec:
   interval: 30m
-  chartRef:
-    kind: OCIRepository
-    name: coder
+  chart:
+    spec:
+      chart: coder
+      version: 2.23.1
+      sourceRef:
+        kind: HelmRepository
+        name: coder-charts
+        namespace: flux-system
   install:
     remediation:
       retries: 3
