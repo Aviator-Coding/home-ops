@@ -109,7 +109,7 @@ spec:
         - name: repo2
           s3: &repo2
             bucket: crunchy-postgres
-            endpoint: "{{ .R2_S3_ENDPOINT }}"
+            endpoint: "{{ .R2_K8S_ENDPOINT_URL }}"
             region: us-east-1
           schedules:
             full: "30 2 * * 0" # Weekly full Sunday 02:30 (R2)
