@@ -1,36 +1,97 @@
 ---
+# ObjectBucketClaim for dynamic bucket creation
+# This will automatically create a bucket with the specified name prefix
 apiVersion: objectbucket.io/v1alpha1
 kind: ObjectBucketClaim
 metadata:
   name: ceph-bucket-crunchy-postgres
+  labels:
+    app.kubernetes.io/name: crunchy-postgres
+    app.kubernetes.io/component: object-storage
 spec:
   generateBucketName: crunchy-postgres
   storageClassName: ceph-bucket
+  # Optional: Add bucket policies or additional configuration
+  additionalConfig:
+    # Enable versioning for the bucket
+    versioning: "true"
+    # Set lifecycle policies if needed
+    # lifecycle: |
+    #   {
+    #     "Rules": [
+    #       {
+    #         "ID": "DeleteOldVersions",
+    #         "Status": "Enabled",
+    #         "Expiration": {
+    #           "Days": 30
+    #         }
+    #       }
+    #     ]
+    #   }
 ---
-#################################################################################################################
-# Create an object store user for access to the s3 endpoint.
-#  kubectl create -f object-user.yaml
-#################################################################################################################
+# CephObjectStoreUser for S3 access credentials
+# This creates a user with access to the object store
 apiVersion: ceph.rook.io/v1
 kind: CephObjectStoreUser
 metadata:
   name: crunchy-postgres-user
+  labels:
+    app.kubernetes.io/name: crunchy-postgres
+    app.kubernetes.io/component: object-storage
 spec:
   store: ceph-objectstore
   displayName: "Crunchy Postgres S3 User"
-  # Quotas set on the user
-  # quotas:
-  #   maxBuckets: 100
-  #   maxSize: 10G
-  #   maxObjects: 10000
-  # Additional permissions given to the user
-  # capabilities:
-  #   user: "*"
-  #   bucket: "*"
-  #   metadata: "*"
-  #   usage: "*"
-  #   zone: "*"
-  # If the CephObjectStoreUser is created in a namespace other than the Rook cluster namespace,
-  # specify the namespace where the cluster and object store are found.
-  # "allowUsersInNamespaces" must include this namespace to enable this feature.
+  # Set quotas for the user to prevent resource abuse
+  quotas:
+    maxBuckets: 10
+    maxSize: 100G
+    maxObjects: 100000
+  # Grant necessary permissions for bucket operations
+  capabilities:
+    user: "read, write"
+    bucket: "read, write, delete"
+    metadata: "read, write"
+    usage: "read"
+    zone: "read"
+  # Specify the cluster namespace if different from current namespace
   # clusterNamespace: rook-ceph
+---
+# Additional ObjectBucketClaim template for creating more buckets dynamically
+# This can be used as a template for creating additional buckets
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dynamic-bucket-template
+  labels:
+    app.kubernetes.io/name: crunchy-postgres
+    app.kubernetes.io/component: object-storage
+data:
+  bucket-template.yaml: |
+    apiVersion: objectbucket.io/v1alpha1
+    kind: ObjectBucketClaim
+    metadata:
+      name: ceph-bucket-${BUCKET_NAME}
+      labels:
+        app.kubernetes.io/name: ${APP_NAME}
+        app.kubernetes.io/component: object-storage
+        bucket.rook.io/type: dynamic
+    spec:
+      generateBucketName: ${BUCKET_NAME}
+      storageClassName: ceph-bucket
+      additionalConfig:
+        versioning: "true"
+  create-bucket.sh: |
+    #!/bin/bash
+    # Script to create a new bucket dynamically
+    # Usage: ./create-bucket.sh <bucket-name> <app-name>
+
+    BUCKET_NAME=${1:-"default-bucket"}
+    APP_NAME=${2:-"default-app"}
+
+    # Replace variables in template
+    sed -e "s/\${BUCKET_NAME}/$BUCKET_NAME/g" \
+        -e "s/\${APP_NAME}/$APP_NAME/g" \
+        bucket-template.yaml | kubectl apply -f -
+
+    echo "Created ObjectBucketClaim for bucket: $BUCKET_NAME"
+    echo "Check status with: kubectl get obc ceph-bucket-$BUCKET_NAME"
