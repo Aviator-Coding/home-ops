@@ -1,0 +1,24 @@
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: ceph-bucket-coder-postgres
+spec:
+  generateBucketName: coder-postgres
+  storageClassName: ceph-bucket
+---
+#################################################################################################################
+# Create an object store user for access to the s3 endpoint.
+#################################################################################################################
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: coder-user
+  namespace: rook-ceph # namespace:cluster
+spec:
+  store: ceph-objectstore
+  displayName: "Coder Postgres S3 User"
+  # If the CephObjectStoreUser is created in a namespace other than the Rook cluster namespace,
+  # specify the namespace where the cluster and object store are found.
+  # "allowUsersInNamespaces" must include this namespace to enable this feature.
+  # clusterNamespace: rook-ceph

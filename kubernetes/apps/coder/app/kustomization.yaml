@@ -6,7 +6,10 @@ resources:
   - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./servicemonitor.yaml
+  - ./ceph-objectstore.yaml
   - ./rules
+components:
+  - ../../../components/postgres
 configMapGenerator:
   - name: coder-dashboards
     options:
@@ -31,3 +34,18 @@ configMapGenerator:
       - ./runbooks/provisionerd.md
 generatorOptions:
   disableNameSuffixHash: true
+patches:
+  - target:
+      kind: ExternalSecret
+      name: "${APP}-crunchy-postgres"
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: coder-crunchy-postgres
+  - target:
+      kind: PostgresCluster
+      name: "${APP}"
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: coder
