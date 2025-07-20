@@ -117,7 +117,7 @@ spec:
         - name: repo3
           s3: &repo3
             bucket: crunchy-postgres
-            endpoint: "{{ .MINIO_HOME_OPS_CRUNCHY_POSTGRES_ENDPOINT_URL }}"
+            endpoint: "{{ .MINIO_HOME_OPS_ENDPOINT_URL }}"
             region: nas
           schedules:
             full: "30 3 * * 0" # Weekly full Sunday 03:30 (Minio)
