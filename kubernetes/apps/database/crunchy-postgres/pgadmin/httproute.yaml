@@ -23,9 +23,4 @@ spec:
   rules:
     - backendRefs:
         - name: *name
-          namespace: database
           port: 5050
-      matches:
-        - path:
-            type: PathPrefix
-            value: /
