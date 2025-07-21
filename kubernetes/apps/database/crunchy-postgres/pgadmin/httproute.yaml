@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://github.com/datreeio/CRDs-catalog/raw/refs/heads/main/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: &name pgadmin
+  annotations:
+    gethomepage.dev/description: Postgres Database Manager
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Management
+    gethomepage.dev/icon: si-postgresql
+    gethomepage.dev/name: pgAdmin
+  labels:
+    postgres-operator.crunchydata.com/pgadmin: pgadmin
+    postgres-operator.crunchydata.com/role: pgadmin
+spec:
+  hostnames:
+    - pgadmin.${SECRET_DOMAIN}
+  parentRefs:
+    - name: internal
+      namespace: kube-system
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: *name
+          namespace: database
+          port: 5050
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
