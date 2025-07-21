@@ -12,9 +12,9 @@ spec:
   components:
     - ../../../components/gatus/guarded
   dependsOn:
-    - name: crunchy-postgres-cluster
+    - name: crunchy-postgres-operator-cluster
       namespace: database
-    - name: external-secrets-stores
+    - name: onepassword-store
       namespace: external-secrets
   interval: 30m
   path: ./kubernetes/apps/coder/app
