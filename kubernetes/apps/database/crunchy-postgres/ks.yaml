@@ -128,3 +128,4 @@ spec:
   dependsOn:
     - name: crunchy-postgres-operator-cluster
     - name: external-secrets
+      namespace: external-secrets
