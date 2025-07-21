@@ -117,10 +117,10 @@ spec:
   #       s3: *minio
   proxy:
     pgBouncer:
-      # service:
-      #   metadata:
-      #     annotations:
-      #       external-dns.alpha.kubernetes.io/hostname: postgres.${SECRET_DOMAIN}
+      service:
+        metadata:
+          annotations:
+            external-dns.alpha.kubernetes.io/hostname: postgres.${SECRET_DOMAIN}
             # lbipam.cilium.io/ips: ${SVC_POSTGRES_ADDR}
         # type: LoadBalancer
       metadata:
