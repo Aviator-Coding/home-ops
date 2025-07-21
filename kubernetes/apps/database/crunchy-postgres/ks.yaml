@@ -40,6 +40,12 @@ spec:
   interval: 30m
   path: ./kubernetes/apps/database/crunchy-postgres/cluster
   prune: true
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
   sourceRef:
     kind: GitRepository
     name: flux-system
