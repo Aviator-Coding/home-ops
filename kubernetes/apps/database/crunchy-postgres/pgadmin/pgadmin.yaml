@@ -9,7 +9,7 @@ spec:
   dataVolumeClaimSpec:
     storageClassName: ceph-block
     accessModes:
-      - "ReadWriteMany"
+      - "ReadWriteOnce"
     resources:
       requests:
         storage: 500Mi
