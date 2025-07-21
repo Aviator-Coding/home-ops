@@ -7,7 +7,7 @@ metadata:
   namespace: postgres-operator
 spec:
   dataVolumeClaimSpec:
-    storageClassName: openebs-hostpath
+    storageClassName: ceph-block
     accessModes:
       - "ReadWriteOnce"
     resources:
