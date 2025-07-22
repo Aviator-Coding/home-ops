@@ -61,7 +61,12 @@ spec:
     server:
       podAnnotations:
         secret.reloader.stakater.com/reload:
-
+      initContainers:
+        - name: init-db
+          image: ghcr.io/onedr0p/postgres-init:16.8
+          envFrom:
+            - secretRef:
+                name: *secret
     route:
       main:
       enabled: true
