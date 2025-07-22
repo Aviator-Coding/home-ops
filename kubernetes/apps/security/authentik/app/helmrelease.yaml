@@ -51,7 +51,7 @@ spec:
     authentik:
       log_level: debug
       redis:
-        host: dragonfly.database.svc.cluster.local
+        host: authentik-dragonfly.security.svc.cluster.local
       session_storage: db
       worker:
         concurrency: 4
