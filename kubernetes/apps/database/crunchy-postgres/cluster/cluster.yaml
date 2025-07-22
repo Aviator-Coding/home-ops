@@ -64,7 +64,7 @@ spec:
       databases: [*dbc]
       password: *pw
 
-    - name: &authentik coder
+    - name: &authentik authentik
       databases: [*authentik]
       password: *pw
 
