@@ -6,5 +6,5 @@ namespace: database
 components:
   - ../../components/common
 resources:
-  - ./crunchy-postgres/ks.yaml
+  - ./cloudnative-pg/ks.yaml
   - ./dragonfly/ks.yaml
