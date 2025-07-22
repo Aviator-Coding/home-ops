@@ -11,6 +11,7 @@ spec:
     - --cluster_mode=emulated
     - --default_lua_flags=allow-undeclared-keys
     - --s3_endpoint=$(AWS_ENDPOINT_URL)
+    - --s3_use_https=true
   env:
     - name: MAX_MEMORY
       valueFrom:
