@@ -1,0 +1,94 @@
+---
+# yaml-language-server: $schema=https://crd.movishell.pl/source.toolkit.fluxcd.io/ocirepository_v1beta2.json
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: OCIRepository
+metadata:
+  name: authentik
+spec:
+  interval: 1h
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    tag: 2025.4.0
+  url: oci://ghcr.io/goauthentik/helm-charts/authentik
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: authentik
+  interval: 30m
+  values:
+    global:
+      deploymentAnnotations:
+        secret.reloader.stakater.com/reload: &secret authentik-secret
+      envFrom:
+        - secretRef:
+            name: *secret
+      resources:
+        requests:
+          cpu: 50m
+          memory: 500Mi
+        limits:
+          memory: 800Mi
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    worker:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 500Mi
+        limits:
+          memory: 1200Mi
+    authentik:
+      log_level: debug
+      redis:
+        host: dragonfly.database.svc.cluster.local
+      session_storage: db
+      worker:
+        concurrency: 4
+    prometheus:
+      rules:
+        enabled: true
+    server:
+      podAnnotations:
+        secret.reloader.stakater.com/reload:
+
+    route:
+      main:
+      enabled: true
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/group: Security
+        gethomepage.dev/name: Authentik
+        gethomepage.dev/icon: authentik.png
+        gethomepage.dev/pod-selector: app.kubernetes.io/name=authentik
+        gethomepage.dev/widget.type: authentik
+        gethomepage.dev/widget.url: http://authentik-server.security
+        gethomepage.dev/widget.key: "{{HOMEPAGE_VAR_AUTHENTIK_TOKEN}}"
+      hostnames: ["auth.${SECRET_DOMAIN}"]
+      parentRefs:
+        - name: internal
+          namespace: kube-system
+          sectionName: https
+
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+
+    # Need to sort out the storage
+    # persistence:
+    #   config:
+    #     enabled: true
+    #     existingClaim: *app
+    #     globalMounts:
+    #       - path: /data/config
