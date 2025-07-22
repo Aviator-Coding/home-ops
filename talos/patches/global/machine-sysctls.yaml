@@ -28,3 +28,5 @@ machine:
     # File system optimizations
     fs.file-max: 1048576                  # More file handles
     fs.aio-max-nr: 1048576                # More async I/O
+
+    vm.nr_hugepages: 1024                  # PostgreSQL

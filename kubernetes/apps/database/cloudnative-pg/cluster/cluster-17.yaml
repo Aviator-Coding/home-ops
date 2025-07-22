@@ -35,7 +35,8 @@ spec:
 
   # Note: previousCluster needs to be set to the name of the previous
   # cluster when recovering from an existing cnpg cluster
-  # bootstrap:
+  bootstrap:
+    initdb:
   #   recovery:
   #     source: &previousCluster postgres17-v0
 
