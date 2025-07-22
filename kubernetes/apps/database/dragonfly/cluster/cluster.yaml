@@ -42,8 +42,8 @@ spec:
       cpu: 100m
     limits:
       memory: 512Mi
-  snapshot:
-    dir: "s3://home-ops-dragonfly"
+  # snapshot:
+  #   dir: "s3://home-ops-dragonfly"
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: "kubernetes.io/hostname"
