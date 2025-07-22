@@ -1,0 +1,95 @@
+---
+# yaml-language-server: $schema=https://crd.movishell.pl/postgresql.cnpg.io/cluster_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-17
+  labels:
+    pgadmin: enabled
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2-22
+  # Pod affinity Rules
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
+    nodeSelector:
+      kubernetes.io/os: linux
+  # - unsupervised: automated update of the primary once all
+  #                 replicas have been upgraded (default)
+  # - supervised: requires manual supervision to perform
+  #               the switchover of the primary
+  primaryUpdateStrategy: unsupervised
+  primaryUpdateMethod: switchover
+
+  # Storage configuration
+  storage:
+    size: 100Gi
+    storageClass: ceph-block
+
+  # Superuser configuration
+  superuserSecret:
+    name: cloudnative-pg-secret
+  enableSuperuserAccess: true
+
+  # Note: previousCluster needs to be set to the name of the previous
+  # cluster when recovering from an existing cnpg cluster
+  bootstrap:
+    recovery:
+      source: &previousCluster postgres17-v2
+
+  # Configuration of the PostgreSQL server
+  postgresql:
+    shared_preload_libraries: ["vectors.so"]
+    parameters:
+      max_connections: "300"
+      work_mem: 64MB
+      shared_buffers: 128MB
+
+  # Pod resource boundaries
+  resources:
+    requests:
+      cpu: 500m
+    limits:
+      hugepages-2Mi: 2Gi # Requires sysctl set on the host
+      memory: 4Gi
+
+  # Prometheus Exporter
+  monitoring:
+    enablePodMonitor: true
+    # https://github.com/cloudnative-pg/cloudnative-pg/issues/2501
+    # Need to change in Grafana dashboards cluster to cnpg_cluster in the Variable Cluster
+    podMonitorMetricRelabelings:
+      - { sourceLabels: [ "cluster" ], targetLabel: cnpg_cluster, action: replace }
+      - { regex: cluster, action: labeldrop }
+
+  # Backup Configuration
+  backup:
+    retentionPolicy: 30d
+    barmanObjectStore: &barmanObjectStore
+      data:
+        compression: bzip2
+      wal:
+        compression: bzip2
+        maxParallel: 4
+      destinationPath: s3://home-ops-postgres-cluster/
+      endpointURL: https://s3.${PRIVATE_DOMAIN}
+      # Note: serverName version needs to be incremented
+      # when recovering from an existing cnpg cluster
+      serverName: &currentCluster postgres17-v0
+      s3Credentials:
+        accessKeyId:
+          name: cloudnative-pg-secret
+          key: aws-access-key-id
+        secretAccessKey:
+          name: cloudnative-pg-secret
+          key: aws-secret-access-key
+
+
+  # Note: externalClusters is needed when recovering from an existing cnpg cluster
+  externalClusters:
+    - name: *previousCluster
+      barmanObjectStore:
+        <<: *barmanObjectStore
+        serverName: *previousCluster
