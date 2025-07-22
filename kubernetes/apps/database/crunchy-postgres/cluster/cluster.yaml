@@ -64,6 +64,10 @@ spec:
       databases: [*dbc]
       password: *pw
 
+    - name: &authentik coder
+      databases: [*authentik]
+      password: *pw
+
     - name: &dbg grafana
       databases: [*dbg]
       password: *pw
