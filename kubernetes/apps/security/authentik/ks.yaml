@@ -27,7 +27,7 @@ spec:
       failed: status.phase != 'ready'
       current: status.phase == 'ready'
   dependsOn:
-    - name: crunchy-postgres-operator-cluster
+    - name: postgres-cluster
       namespace: database
     - name: onepassword-store
       namespace: external-secrets
