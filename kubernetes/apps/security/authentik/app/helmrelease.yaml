@@ -67,6 +67,7 @@ spec:
           envFrom:
             - secretRef:
                 name: *secret
+    # @todo D:\Development\homelab-ops\samip5-cluster\k8s\nebula\apps\security\authentik
     route:
       main:
       enabled: true
