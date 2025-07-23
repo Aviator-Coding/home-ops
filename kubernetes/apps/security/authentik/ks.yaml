@@ -39,4 +39,5 @@ spec:
         kind: Secret
     substitute:
       APP: *app
+      POSTGRES_DB: postgres-17-app
       GATUS_SUBDOMAIN: auth
