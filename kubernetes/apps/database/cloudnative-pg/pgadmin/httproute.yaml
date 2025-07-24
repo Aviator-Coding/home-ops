@@ -23,4 +23,4 @@ spec:
     - backendRefs:
         - name: pgadmin
           namespace: database
-          port: 5050
+          port: 80
