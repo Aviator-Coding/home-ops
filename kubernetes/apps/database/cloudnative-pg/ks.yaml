@@ -17,6 +17,10 @@ spec:
     name: flux-system
     namespace: flux-system
   targetNamespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
   wait: true
 ---
 # yaml-language-server: $schema=https://crd.movishell.pl/kustomize.toolkit.fluxcd.io/kustomization_v1.json
@@ -48,6 +52,10 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
   targetNamespace: *namespace
   wait: true
 ---
@@ -80,6 +88,10 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
   targetNamespace: *namespace
   wait: true
 ---
@@ -100,6 +112,10 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
   targetNamespace: *namespace
   wait: true
 ---
