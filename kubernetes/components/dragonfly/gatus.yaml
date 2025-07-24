@@ -10,7 +10,7 @@ data:
     endpoints:
       - name: Redis (${APP})
         group: Services
-        url: tcp://${APP}-dragonfly.${NAMESPACE}.svc.cluster.local:6379
+        url: tcp://${APP}-dragonfly.${NAMESPACE:=database}.svc.cluster.local:6379
         interval: 1m
         ui:
           hide-url: true
