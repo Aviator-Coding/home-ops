@@ -2,9 +2,27 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres-lb
+  name: postgres-16-lb
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: "postgres.${SECRET_DOMAIN}"
+    external-dns.alpha.kubernetes.io/hostname: "postgres-16.${SECRET_DOMAIN}"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: postgres
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+  selector:
+    cnpg.io/cluster: postgres-16
+    cnpg.io/instanceRole: primary
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-17-lb
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "postgres-17.${SECRET_DOMAIN}"
 spec:
   type: LoadBalancer
   ports:
