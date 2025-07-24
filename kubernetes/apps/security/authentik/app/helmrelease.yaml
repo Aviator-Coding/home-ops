@@ -27,7 +27,36 @@ spec:
     global:
       deploymentAnnotations:
         secret.reloader.stakater.com/reload: &secret authentik-secret
+      env:
+        # Media file storage
+        - name: AUTHENTIK_STORAGE__MEDIA__BACKEND
+          value: s3
+        - name: AUTHENTIK_STORAGE__MEDIA__S3__USE_SSL
+          value: "true"
+        - name: AUTHENTIK_STORAGE__MEDIA__S3__SECURE_URLS
+          value: "true"
+        - name: AUTHENTIK_STORAGE__MEDIA__S3__ENDPOINT
+          value: https://$(BUCKET_HOST)
+        - name: AUTHENTIK_STORAGE__MEDIA__S3__ACCESS_KEY
+          value: $(AWS_ACCESS_KEY_ID)
+        - name: AUTHENTIK_STORAGE__MEDIA__S3__SECRET_KEY
+          value: $(AWS_SECRET_ACCESS_KEY)
+        - name: AUTHENTIK_STORAGE__MEDIA__S3__BUCKET_NAME
+          value: $(BUCKET_NAME)
+        - name: AUTHENTIK_STORAGE__MEDIA__S3__CUSTOM_DOMAIN
+          value: $(BUCKET_HOST):$(BUCKET_PORT)/$(BUCKET_NAME)
+          # Authentik
+        - name: AUTHENTIK_DISABLE_STARTUP_ANALYTICS
+          value: "false"
+        - name: AUTHENTIK_DISABLE_UPDATE_CHECK
+          value: "true"
+        - name: AUTHENTIK_ERROR_REPORTING__ENABLED
+          value: "false"
       envFrom:
+        - configMapRef:
+            name: authentik-media
+        - secretRef:
+            name: authentik-media
         - secretRef:
             name: *secret
       resources:
