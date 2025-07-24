@@ -144,6 +144,9 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+    substitute:
+      APP: *app
+      GATUS_SUBDOMAIN: pgadmin
   prune: true
   sourceRef:
     kind: GitRepository
