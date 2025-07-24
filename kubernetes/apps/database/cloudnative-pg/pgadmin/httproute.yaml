@@ -3,7 +3,14 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: pgadmin
+  name: &app pgadmin
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Services
+    gethomepage.dev/name: *app
+    gethomepage.dev/icon: si-postgresql
+    gethomepage.dev/siteMonitor: pgadmin.${SERVER_DOMAIN}
+    gethomepage.dev/description: "PostgreSQL administration"
 spec:
   hostnames:
   - "pgadmin.${SERVER_DOMAIN}"
