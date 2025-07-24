@@ -36,13 +36,12 @@ spec:
   # Note: previousCluster needs to be set to the name of the previous
   # cluster when recovering from an existing cnpg cluster
   bootstrap:
-    initdb: {}
-      # database: app
-      # owner: app
-      # secret:
-      #   name: app-secret
-    # recovery:
-    #   source: &previousCluster postgres16-v0
+    initdb:
+      postInitSQL:
+        - ALTER SYSTEM SET search_path TO "$user", public, vectors;
+        - CREATE EXTENSION IF NOT EXISTS "vectors";
+        - CREATE EXTENSION IF NOT EXISTS "cube";
+        - CREATE EXTENSION IF NOT EXISTS "earthdistance";
   #   recovery:
   #     source: &previousCluster postgres17-v0
 
