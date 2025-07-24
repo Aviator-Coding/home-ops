@@ -10,30 +10,13 @@ spec:
     - --proactor_threads=2
     - --cluster_mode=emulated
     - --default_lua_flags=allow-undeclared-keys
-    - --s3_endpoint=$(AWS_ENDPOINT_URL)
-    - --s3_use_https=true
   env:
     - name: MAX_MEMORY
       valueFrom:
         resourceFieldRef:
           resource: limits.memory
           divisor: 1Mi
-    - name: AWS_ACCESS_KEY_ID
-      valueFrom:
-        secretKeyRef:
-          key: AWS_ACCESS_KEY_ID
-          name: dragonfly-secret
-    - name: AWS_SECRET_ACCESS_KEY
-      valueFrom:
-        secretKeyRef:
-          key: AWS_SECRET_ACCESS_KEY
-          name: dragonfly-secret
-    - name: AWS_ENDPOINT_URL
-      valueFrom:
-        secretKeyRef:
-          name: dragonfly-secret
-          key: AWS_ENDPOINT_URL
-  image: ghcr.io/dragonflydb/dragonfly:v1.29.0
+  image: ghcr.io/dragonflydb/dragonfly:v1.31.2
   labels:
     dragonflydb.io/cluster: dragonfly
   replicas: 3
