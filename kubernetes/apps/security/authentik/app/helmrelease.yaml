@@ -68,23 +68,22 @@ spec:
             - secretRef:
                 name: *secret
     # @todo D:\Development\homelab-ops\samip5-cluster\k8s\nebula\apps\security\authentik
-    route:
-      main:
-      enabled: true
-      annotations:
-        gethomepage.dev/enabled: "true"
-        gethomepage.dev/group: Security
-        gethomepage.dev/name: Authentik
-        gethomepage.dev/icon: authentik.png
-        gethomepage.dev/pod-selector: app.kubernetes.io/name=authentik
-        gethomepage.dev/widget.type: authentik
-        gethomepage.dev/widget.url: http://authentik-server.security
-        gethomepage.dev/widget.key: "{{HOMEPAGE_VAR_AUTHENTIK_TOKEN}}"
-      hostnames: ["auth.${SECRET_DOMAIN}"]
-      parentRefs:
-        - name: internal
-          namespace: kube-system
-          sectionName: https
+    # route:
+    #   enabled: true
+    #   annotations:
+    #     gethomepage.dev/enabled: "true"
+    #     gethomepage.dev/group: Security
+    #     gethomepage.dev/name: Authentik
+    #     gethomepage.dev/icon: authentik.png
+    #     gethomepage.dev/pod-selector: app.kubernetes.io/name=authentik
+    #     # gethomepage.dev/widget.type: authentik
+    #     # gethomepage.dev/widget.url: http://authentik-server.security
+    #     # gethomepage.dev/widget.key: "{{HOMEPAGE_VAR_AUTHENTIK_TOKEN}}"
+    #   hostnames: ["auth.${SECRET_DOMAIN}"]
+    #   parentRefs:
+    #     - name: internal
+    #       namespace: kube-system
+    #       sectionName: https
 
       metrics:
         enabled: true
