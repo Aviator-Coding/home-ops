@@ -95,9 +95,7 @@ spec:
     persistence:
       config:
         enabled: true
-        size: 1Gi
-        storageClass: ceph-block
-        accessMode: ReadWriteOnce
+        existingClaim: pgadmin
         advancedMounts:
           pgadmin:
             app:
