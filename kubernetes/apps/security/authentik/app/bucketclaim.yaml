@@ -6,7 +6,7 @@ metadata:
   name: authentik-media
 spec:
   generateBucketName: authentik-media
-  storageClassName: ceph-objectstore
+  storageClassName: ceph-bucket
   additionalConfig:
     maxObjects: "1000"
     maxSize: 10G
