@@ -21,4 +21,4 @@ spec:
     - backendRefs:
         - name: authentik-server
           namespace: security
-          port: 80
+          port: 443
