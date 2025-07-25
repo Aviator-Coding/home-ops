@@ -6,3 +6,5 @@ resources:
   - ./helmrelease.yaml
   - ./mutatingadmissionpolicy.yaml
   - ./prometheusrule.yaml
+  - ./crds/replicationdestinations-volsync.yaml
+  - ./crds/replicationsources-volsync.yaml
