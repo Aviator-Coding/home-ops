@@ -107,6 +107,7 @@ spec:
         enabled: true
         type: secret
         name: pgadmin-secret
+        defaultMode: 0600
         advancedMounts:
           pgadmin:
             app:
