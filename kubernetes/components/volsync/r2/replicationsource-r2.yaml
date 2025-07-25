@@ -3,25 +3,24 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: "${APP}"
+  name: "${APP}-r2"
 spec:
-  sourcePVC: "${APP}-nas-nfs"
+  sourcePVC: "${APP}"
   trigger:
-    schedule: "15 * * * *"
+    schedule: "0 2 * * *"  # Daily at 2 AM - off-site cloud backups
   restic:
+    pruneIntervalDays: 30
+    repository: "${APP}-volsync-r2-secret"
     copyMethod: "${VOLSYNC_COPYMETHOD:-Snapshot}"
-    pruneIntervalDays: 14
-    repository: "${APP}-volsync-secret"
     volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:-csi-ceph-blockpool}"
-    cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:-2Gi}"
     cacheStorageClassName: "${VOLSYNC_CACHE_SNAPSHOTCLASS:-ceph-block}"
     cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:-ReadWriteOnce}"]
-    storageClassName: "${VOLSYNC_STORAGECLASS:-ceph-block}"
-    accessModes: ["${VOLSYNC_SNAP_ACCESSMODES:-ReadWriteOnce}"]
+    cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:-2Gi}"
     moverSecurityContext:
       runAsUser: ${VOLSYNC_PUID:-1000}
       runAsGroup: ${VOLSYNC_PGID:-1000}
       fsGroup: ${VOLSYNC_PGID:-1000}
     retain:
-      hourly: 24
-      daily: 20
+      daily: 30    # Keep 30 daily snapshots (1 month)
+      weekly: 12   # Keep 12 weekly snapshots (3 months)
+      monthly: 12  # Keep 12 monthly snapshots (1 year)

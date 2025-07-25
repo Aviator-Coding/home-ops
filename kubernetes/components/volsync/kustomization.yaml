@@ -1,10 +1,11 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
-apiVersion: kustomize.config.k8s.io/v1alpha1
-kind: Component
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
 resources:
-  - ./local
-  - ./remote-nas-minio
-  - ./remote-nas-nfs
-  - ./remote-cloudflare-r2
+  - ./minio/externalsecret-minio.yaml
+  - ./r2/externalsecret-r2.yaml
+  - ./minio/replicationsource-minio.yaml
+  - ./r2/replicationsource-r2.yaml
+  - ./replicationdestination.yaml
   - ./pvc.yaml
