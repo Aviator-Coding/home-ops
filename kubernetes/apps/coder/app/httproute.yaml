@@ -26,4 +26,4 @@ spec:
     - backendRefs:
         - name: coder
           namespace: coder
-          port: 80
+          port: 8080
