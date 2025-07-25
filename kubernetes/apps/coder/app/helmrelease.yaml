@@ -90,6 +90,7 @@ spec:
           value: "*.coder.${SECRET_DOMAIN}"
         - name: CODER_UPDATE_CHECK
           value: "false"
+
       # service:
       #   loadBalancerIP: ${SVC_CODER_ADDR}
       #   annotations:

@@ -6,6 +6,7 @@ resources:
   - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./servicemonitor.yaml
+  - ./httproute.yaml
   - ./rules
 configMapGenerator:
   - name: coder-dashboards
