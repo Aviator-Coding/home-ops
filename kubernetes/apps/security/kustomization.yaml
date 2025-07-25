@@ -6,4 +6,6 @@ namespace: security
 components:
   - ../../components/common
 resources:
+  - ./external-secrets/ks.yaml
+  - ./onepassword-connect/ks.yaml
   - ./authentik/ks.yaml

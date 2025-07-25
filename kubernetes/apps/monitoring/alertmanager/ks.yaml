@@ -29,4 +29,4 @@ spec:
   wait: false
   dependsOn:
     - name: onepassword-store
-      namespace: external-secrets
+      namespace: security

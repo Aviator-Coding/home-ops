@@ -15,7 +15,7 @@ spec:
     - name: postgres-cluster-17
       namespace: database
     - name: onepassword-store
-      namespace: external-secrets
+      namespace: security
     - name: rook-ceph
       namespace: rook-ceph
   interval: 30m

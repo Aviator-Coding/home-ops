@@ -39,7 +39,7 @@ spec:
     - name: rook-ceph
       namespace: rook-ceph
     - name: external-secrets
-      namespace: external-secrets
+      namespace: security
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
@@ -75,7 +75,7 @@ spec:
     - name: rook-ceph
       namespace: rook-ceph
     - name: external-secrets
-      namespace: external-secrets
+      namespace: security
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
@@ -139,7 +139,7 @@ spec:
     - name: rook-ceph
       namespace: rook-ceph
     - name: external-secrets
-      namespace: external-secrets
+      namespace: security
   path: ./kubernetes/apps/database/cloudnative-pg/pgadmin
   postBuild:
     substituteFrom:
