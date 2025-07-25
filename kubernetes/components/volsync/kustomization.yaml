@@ -7,5 +7,5 @@ resources:
   - ./r2/externalsecret-r2.yaml
   - ./minio/replicationsource-minio.yaml
   - ./r2/replicationsource-r2.yaml
-  # - ./replicationdestination.yaml
+  - ./replicationdestination.yaml
   - ./pvc.yaml
