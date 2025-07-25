@@ -131,7 +131,7 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/gatus/guarded
-    - ../../../../components/volsync
+    # - ../../../../components/volsync  # Temporarily disabled until pgadmin is running
   interval: 30m
   dependsOn:
     - name: cloudnative-pg
