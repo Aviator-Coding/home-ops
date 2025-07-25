@@ -31,6 +31,12 @@ spec:
             image:
               repository: dpage/pgadmin4
               tag: "9.5"
+            command:
+              - sh
+              - -c
+              - |
+                chmod 600 /pgadmin4/pgpass 2>/dev/null || true
+                exec /entrypoint.sh
             env:
               PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
               PGADMIN_DISABLE_POSTFIX: "true"
