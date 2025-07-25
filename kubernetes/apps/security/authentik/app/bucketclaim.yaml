@@ -3,9 +3,9 @@
 apiVersion: objectbucket.io/v1alpha1
 kind: ObjectBucketClaim
 metadata:
-  name: authentik-media
+  name: &name authentik-media
 spec:
-  generateBucketName: authentik-media
+  bucketName: *name
   storageClassName: ceph-bucket
   additionalConfig:
     maxObjects: "1000"
