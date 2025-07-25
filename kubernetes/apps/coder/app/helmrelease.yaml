@@ -92,20 +92,12 @@ spec:
           value: "false"
 
       # service:
-      #   loadBalancerIP: ${SVC_CODER_ADDR}
-      #   annotations:
-      #     io.cilium/lb-ipam-ips: ${SVC_CODER_ADDR}
-      route:
-        main:
+      service:
           enabled: true
-          hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
-          parentRefs:
-            - name: internal
-              namespace: kube-system
-              sectionName: https
-            - name: external
-              namespace: kube-system
-              sectionName: https
+          ports:
+            http:
+              port: 8080
+          type: ClusterIP
       # ingress:
       #   enable: true
       #   className: internal
