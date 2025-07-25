@@ -68,7 +68,7 @@ spec:
           value: |
             {"Admins": "CoderAdmins"}
         - name: CODER_OIDC_ICON_URL
-          value: "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/svg/authelia.svg"
+          value: "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/refs/heads/main/svg/authentik.svg"
         - name: CODER_OIDC_ISSUER_URL
           value: "https://auth.${SECRET_DOMAIN}/application/o/coder/"
         - name: CODER_OIDC_ROLE_FIELD
@@ -76,7 +76,7 @@ spec:
         - name: CODER_OIDC_SCOPES
           value: "openid,profile,email,groups,offline_access"
         - name: CODER_OIDC_SIGN_IN_TEXT
-          value: "Sign in with Authelia"
+          value: "Sign in with Authentik"
         - name: CODER_OIDC_USER_ROLE_MAPPING
           value: |
             {"Admins": ["owner"]}
