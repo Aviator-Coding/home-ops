@@ -25,5 +25,5 @@ spec:
   rules:
     - backendRefs:
         - name: coder
-          namespace: database
+          namespace: coder
           port: 80
