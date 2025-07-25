@@ -26,4 +26,12 @@ spec:
     name: flux-system
     namespace: flux-system
   targetNamespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CAPACITY: 1Gi
+      GATUS_SUBDOMAIN: pgadmin
   timeout: 5m
