@@ -5,7 +5,7 @@ kind: ReplicationSource
 metadata:
   name: "${APP}-minio"
 spec:
-  sourcePVC: "${APP}"
+  sourcePVC: "${VOLSYNC_CLAIM:-${APP}}"
   trigger:
     schedule: "0 */3 * * *"  # Every 3 hours - regular NAS backups
   restic:
