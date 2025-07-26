@@ -28,6 +28,9 @@ spec:
     - ../../../../components/volsync
     - ../../../../components/gatus/guarded
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *appname
       APP_UID: "1000"
