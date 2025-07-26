@@ -151,7 +151,7 @@ spec:
             gethomepage.dev/app: prometheus
             gethomepage.dev/description: Monitoring Scrape Service
             gethomepage.dev/widget.type: prometheus
-            gethomepage.dev/widget.url: http://kube-prometheus-stack-prometheus.observability:9090
+            gethomepage.dev/widget.url: http://kube-prometheus-stack-prometheus.monitoring:9090
           hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
           parentRefs:
             - name: internal

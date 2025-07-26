@@ -71,6 +71,14 @@ spec:
           - port: http
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Management
+          gethomepage.dev/name: Echo Service
+          gethomepage.dev/icon: echo
+          gethomepage.dev/description: Echo HTTP Service
+          gethomepage.dev/widget.type: echo
+          gethomepage.dev/widget.url: http://echo.${SECRET_DOMAIN}
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: external
