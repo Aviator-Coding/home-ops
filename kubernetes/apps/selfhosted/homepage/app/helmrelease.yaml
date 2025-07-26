@@ -55,7 +55,7 @@ spec:
             port: 3000
 
     route:
-      Homepage:
+      homepage:
         labels:
           app.kubernetes.io/name: *app
         annotations:
@@ -73,8 +73,8 @@ spec:
         rules:
           - backendRefs:
               - name: *app
-                namespace: "{{ .Release.Namespace }}"
-                port: 3000
+                namespace: selfhosted
+                port: 80
 
     persistence:
       config:
