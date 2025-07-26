@@ -10,7 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   interval: 30m
-  path: ./kubernetes/main/apps/flux-system/headlamp/app
+  path: ./kubernetes/apps/flux-system/headlamp/app
   prune: true
   postBuild:
     substituteFrom:
