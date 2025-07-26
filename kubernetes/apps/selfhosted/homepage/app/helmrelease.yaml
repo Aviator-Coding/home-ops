@@ -25,8 +25,14 @@ spec:
               repository: ghcr.io/gethomepage/homepage
               tag: v1.3.2
             env:
-              TZ: ${CONFIG_TIMEZONE}
-              # LOG_LEVEL: debug
+              - name: HOMEPAGE_ALLOWED_HOSTS
+                value: "{{ .Release.Name }}.${SECRET_DOMAIN}"
+              - name: TZ
+                value: ${CONFIG_TIMEZONE}
+            ports:
+              - name: http
+                containerPort: 3000
+                protocol: TCP
             envFrom:
               - secretRef:
                   name: *secret
@@ -50,6 +56,14 @@ spec:
 
     route:
       main:
+        labels:
+          app.kubernetes.io/name: homepage
+        annotations:
+          gethomepage.dev/description: Dynamically Detected Homepage
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Cluster Management
+          gethomepage.dev/icon: homepage.png
+          gethomepage.dev/name: Homepage
         enabled: true
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
