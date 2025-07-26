@@ -26,7 +26,7 @@ spec:
               tag: v1.3.2
             env:
               - name: HOMEPAGE_ALLOWED_HOSTS
-                value: "{{ .Release.Name }}.${SECRET_DOMAIN}"
+                value: "*"
               - name: TZ
                 value: ${CONFIG_TIMEZONE}
             ports:
