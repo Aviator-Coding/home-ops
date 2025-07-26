@@ -9,7 +9,7 @@ metadata:
     gethomepage.dev/group: Services
     gethomepage.dev/name: *app
     gethomepage.dev/icon: si-postgresql
-    gethomepage.dev/siteMonitor: pgadmin.${SECRET_DOMAIN}
+    gethomepage.dev/siteMonitor: "pgadmin.${SECRET_DOMAIN}"
     gethomepage.dev/description: "PostgreSQL administration"
 spec:
   hostnames:
