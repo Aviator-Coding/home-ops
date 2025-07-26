@@ -31,27 +31,26 @@ spec:
   uninstall:
     keepHistory: false
   values:
-values:
-  kube-rbac-proxy:
-    resources:
-      requests:
-        cpu: 10m
-        memory: 128Mi
-      limits:
-        memory: 128Mi
-  manager:
-    image:
-      repository: ghcr.io/dragonflydb/operator
-    resources:
-      requests:
-        cpu: 10m
-        memory: 128Mi
-      limits:
-        memory: 128Mi
-  # serviceMonitor:
-  #   enabled: false
-  grafanaDashboard:
-    enabled: true
-    folder: data  # lowercase recommended
-    annotations:
-      grafana_folder: data
+    kube-rbac-proxy:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 128Mi
+        limits:
+          memory: 128Mi
+    manager:
+      image:
+        repository: ghcr.io/dragonflydb/operator
+      resources:
+        requests:
+          cpu: 10m
+          memory: 128Mi
+        limits:
+          memory: 128Mi
+    # serviceMonitor:
+    #   enabled: false
+    grafanaDashboard:
+      enabled: true
+      folder: data  # lowercase recommended
+      annotations:
+        grafana_folder: data
