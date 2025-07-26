@@ -93,6 +93,15 @@ spec:
           - port: http
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Observability
+          gethomepage.dev/name: Gatus
+          gethomepage.dev/icon: gatus
+          gethomepage.dev/description: Status Page
+          gethomepage.dev/widget.type: gatus
+          gethomepage.dev/widget.url: http://gatus.${SECRET_DOMAIN}
+          # external-dns.alpha.kubernetes.io/target: external.${SECRET_DOMAIN}
         hostnames:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
           - status.${SECRET_DOMAIN}

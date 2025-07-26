@@ -75,6 +75,14 @@ spec:
 
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/description: Alerting system that works with Prometheus
+          gethomepage.dev/group: Observability
+          gethomepage.dev/icon: alertmanager
+          gethomepage.dev/name: Alertmanager
+          gethomepage.dev/weight: "10" # optional
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=alertmanager
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: internal

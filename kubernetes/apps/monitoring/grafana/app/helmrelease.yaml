@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: grafana
+  name: &app grafana
 spec:
   chartRef:
     kind: OCIRepository
@@ -333,6 +333,18 @@ spec:
 
     route:
       main:
+        labels:
+          app.kubernetes.io/name: *app
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/icon: grafana.svg
+          gethomepage.dev/name: Grafana
+          gethomepage.dev/group: Observability
+          gethomepage.dev/description: Monitoring Dashboards
+          gethomepage.dev/widget.type: grafana
+          gethomepage.dev/widget.url: "http://grafana.${SECRET_DOMAIN}"
+          gethomepage.dev/widget.username: '{{`{{HOMEPAGE_VAR_GRAFANA_USERNAME}}`}}'
+          gethomepage.dev/widget.password: '{{`{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}`}}'
         enabled: true
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
