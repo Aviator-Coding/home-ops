@@ -27,6 +27,9 @@ data:
   docker.yaml: ""
   kubernetes.yaml: |
     mode: cluster
+    ingress: false # default, enable ingress
+    traefik: false # enable traefik ingressRoute
+    gateway: true
   services.yaml: |
     - Calendar:
         # - Calendar:
