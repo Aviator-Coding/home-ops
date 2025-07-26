@@ -8,9 +8,10 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/group: Services
     gethomepage.dev/name: *app
-    gethomepage.dev/icon: si-postgresql
+    gethomepage.dev/icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/f222c55843b888a82e9f2fe2697365841cbe6025/svg/coder.svg
     gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
     gethomepage.dev/description: "Coder Platform"
+    gethomepage.dev/pod-selector: app.kubernetes.io/name=coder
 spec:
   hostnames:
   - "coder.${SECRET_DOMAIN}"

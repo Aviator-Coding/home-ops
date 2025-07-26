@@ -8,8 +8,9 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/group: Services
     gethomepage.dev/name: *app
+    gethomepage.dev/pod-selector: app.kubernetes.io/name=pgadmin
     gethomepage.dev/icon: si-postgresql
-    gethomepage.dev/siteMonitor: "pgadmin.${SECRET_DOMAIN}"
+    # gethomepage.dev/siteMonitor: "pgadmin.${SECRET_DOMAIN}"
     gethomepage.dev/description: "PostgreSQL administration"
 spec:
   hostnames:
