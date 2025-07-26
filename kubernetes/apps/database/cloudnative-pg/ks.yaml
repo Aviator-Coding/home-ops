@@ -142,6 +142,11 @@ spec:
       namespace: system
     - name: external-secrets
       namespace: security
+    # Add health check to wait for PVC to be bound
+  healthCheckExprs:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      current: status.phase == 'Bound'
   path: ./kubernetes/apps/database/cloudnative-pg/pgadmin
   postBuild:
     substituteFrom:
