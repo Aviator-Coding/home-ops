@@ -19,6 +19,9 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
   prune: true
   retryInterval: 2m
   sourceRef:
