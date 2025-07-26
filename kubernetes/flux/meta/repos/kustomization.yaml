@@ -7,3 +7,4 @@ resources:
   - ./crunchydata.yaml
   - ./coder.yaml
   - ./external-dns.yaml
+  - ./headlanmp.yaml
