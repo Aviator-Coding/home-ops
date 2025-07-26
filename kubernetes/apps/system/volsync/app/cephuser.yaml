@@ -1,0 +1,18 @@
+---
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: volsync
+  namespace: system # Replace with your Rook namespace
+spec:
+  name: volsync-user
+  store: ceph-objectstore  # Replace with your CephObjectStore name
+  clusterNamespace: rook-ceph
+  displayName: "VolSync Backup User"
+  quotas:
+    maxBuckets: 10000
+    maxSize: 20G
+    maxObjects: 100000
+  capabilities:
+    user: "*"
+    bucket: "*"
