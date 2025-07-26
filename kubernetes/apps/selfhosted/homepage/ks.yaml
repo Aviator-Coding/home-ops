@@ -7,7 +7,7 @@ metadata:
   namespace: &namespace selfhosted
 spec:
   components:
-    - ../../../../components/gatus/internal
+    - ../../../../components/gatus/guarded
   path: ./kubernetes/apps/selfhosted/homepage/app
   targetNamespace: *namespace
   sourceRef:
@@ -24,5 +24,8 @@ spec:
     - name: onepassword-store
       namespace: security
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *app
