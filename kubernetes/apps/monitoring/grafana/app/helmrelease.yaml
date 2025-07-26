@@ -333,8 +333,6 @@ spec:
 
     route:
       main:
-        labels:
-          app.kubernetes.io/name: *app
         annotations:
           gethomepage.dev/enabled: "true"
           gethomepage.dev/icon: grafana.svg
