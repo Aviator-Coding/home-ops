@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/backube/volsync/refs/heads/main/config/crd/bases/volsync.backube_replicationsources.yaml
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: "${APP}-ceph"
+spec:
+  sourcePVC: "${APP}"
+  trigger:
+    schedule: "*/30 * * * *"  # Every 30 minutes
+  restic:
+    pruneIntervalDays: 14
+    repository: "${APP}-volsync-ceph-secret"
+    copyMethod: "${VOLSYNC_COPYMETHOD:-Snapshot}"
+    volumeSnapshotClassName: "${VOLSYNC_SNAPSHOTCLASS:-csi-ceph-blockpool}"
+    cacheStorageClassName: "${VOLSYNC_CACHE_SNAPSHOTCLASS:-ceph-block}"
+    cacheAccessModes: ["${VOLSYNC_CACHE_ACCESSMODES:-ReadWriteOnce}"]
+    cacheCapacity: "${VOLSYNC_CACHE_CAPACITY:-2Gi}"
+    moverSecurityContext:
+      runAsUser: ${VOLSYNC_PUID:-1000}
+      runAsGroup: ${VOLSYNC_PGID:-1000}
+      fsGroup: ${VOLSYNC_PGID:-1000}
+    retain:
+      hourly: 24    # Keep 24 hourly snapshots (1 day)
+      daily: 30    # Keep 30 daily snapshots (1 month)
+      weekly: 10    # Keep 10 weekly snapshots (2 months)
+      monthly: 6   # Keep 6 monthly snapshots

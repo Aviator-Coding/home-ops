@@ -3,9 +3,8 @@
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 resources:
-  - ./minio/externalsecret-minio.yaml
-  - ./r2/externalsecret-r2.yaml
-  - ./minio/replicationsource-minio.yaml
-  - ./r2/replicationsource-r2.yaml
+  - ./ceph
+  - ./minio
+  - ./r2
   - ./replicationdestination.yaml
   - ./pvc.yaml
