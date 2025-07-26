@@ -1,0 +1,138 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-config
+data:
+  bookmarks.yaml: |
+    - Developer:
+        - Github:
+            - abbr: GH
+              href: https://github.com/
+    - Media:
+        - YouTube:
+            - href: https://youtube.com/feed/subscriptions
+        - Rumble:
+            - href: https://rumble.com
+    - Tech:
+        - HackerNews:
+            - href: https://news.ycombinator.com
+        - Anandtech:
+            - href: https://www.anandtech.com
+        - Moronix:
+            - href: https://www.phoronix.com
+    - Social:
+        - Kiwi:
+            - href: https://kiwifarms.st
+  docker.yaml: ""
+  kubernetes.yaml: |
+    mode: cluster
+  services.yaml: |
+    - Calendar:
+        # - Calendar:
+        #     widget:
+        #       type: calendar
+        #       firstDayInWeek: sunday # optional - defaults to monday
+        #       view: monthly # optional - possible values monthly, agenda
+        #       maxEvents: 10 # optional - defaults to 10
+        #       integrations: # optional
+        #         - type: sonarr # active widget type that is currently enabled on homepage - possible values: radarr, sonarr, lidarr, readarr
+        #           service_group: Downloads # group name where widget exists
+        #           service_name: Sonarr # service name for that widget
+        #         - type: radarr # active widget type that is currently enabled on homepage - possible values: radarr, sonarr, lidarr, readarr
+        #           service_group: Downloads # group name where widget exists
+        #           service_name: Radarr # service name for that widget
+        #         - type: readarr # active widget type that is currently enabled on homepage - possible values: radarr, sonarr, lidarr, readarr
+        #           service_group: Downloads # group name where widget exists
+        #           service_name: Readarr # service name for that
+        # - Agenda:
+        #     widget:
+        #       type: calendar
+        #       view: agenda # optional - possible values monthly, agenda
+        #       maxEvents: 20 # optional - defaults to 10
+        #       integrations: # optional
+        #         - type: sonarr # active widget type that is currently enabled on homepage - possible values: radarr, sonarr>
+        #           service_group: Downloads # group name where widget exists
+        #           service_name: Sonarr # service name for that widget
+        #         - type: radarr # active widget type that is currently enabled on homepage - possible values: radarr, sonarr>
+        #           service_group: Downloads # group name where widget exists
+        #           service_name: Radarr # service name for that widget
+    - Infrastructure:
+        - Unifi:
+            href: {{HOMEPAGE_VAR_UNIFI_HOST_URL}}
+            icon: unifi.png
+            widget:
+              type: unifi
+              url: {{HOMEPAGE_VAR_UNIFI_HOST_URL}}
+              key: {{HOMEPAGE_VAR_UNIFI_API_KEY}}
+        - TrueNAS:
+            href: https://nas.${SECRET_DOMAIN}
+            icon: truenas.png
+            widget:
+              type: truenas
+              url: https://nas.${SECRET_DOMAIN}
+              key: {{HOMEPAGE_VAR_TRUENAS_TOKEN}}
+              enablePools: true
+              nasType: scale
+  settings.yaml: |
+    title: Dashboard
+    background: https://images.unsplash.com/photo-1502790671504-542ad42d5189?auto=format&fit=crop&w=2560&q=80
+    theme: dark
+    color: slate
+    headerStyle: boxed
+    layout:
+      Calendar:
+        style: columns
+      Automation:
+        style: columns
+      Media:
+        style: columns
+        columns: 3
+      Selfhosted:
+        style: row
+        columns: 2
+      Security:
+        style: row
+        columns: 2
+      Downloads:
+        style: row
+        columns: 3
+      Games:
+        style: row
+      Infrastructure:
+        style: row
+        columns: 2
+      Monitoring:
+        style: row
+        columns: 3
+  widgets.yaml: |
+    - resources:
+        backend: kubernetes
+        cpu: true
+        expanded: true
+        memory: true
+    - search:
+        provider: [brave, bing]
+        focus: false
+        target: _blank
+    - kubernetes:
+        cluster:
+          cpu: true
+          memory: true
+          show: true
+          showLabel: true
+        nodes:
+          cpu: true
+          memory: true
+          show: false
+          showLabel: true
+    - openmeteo:
+        label: Home
+        units: metric
+        cache: 5
+    - datetime:
+        text_size: l
+        format:
+          dateStyle: long
+          timeStyle: short
+          hourCycle: h23

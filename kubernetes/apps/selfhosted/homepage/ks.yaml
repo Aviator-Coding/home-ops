@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app homepage
+  namespace: &namespace selfhosted
+spec:
+  components:
+    - ../../../../components/gatus/internal
+  path: ./kubernetes/apps/selfhosted/homepage/app
+  targetNamespace: *namespace
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  prune: true
+  wait: false
+  interval: 10m
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
+  postBuild:
+    substitute:
+      APP: *app
