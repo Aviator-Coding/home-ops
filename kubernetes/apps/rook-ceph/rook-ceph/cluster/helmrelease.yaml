@@ -211,8 +211,6 @@ spec:
       deletionPolicy: Delete
     cephObjectStores:
       - name: &cephObjectStoreName ceph-objectstore
-        allowUsersInNamespaces:
-          - "*"
         spec:
           metadataPool:
             failureDomain: host
@@ -229,6 +227,8 @@ spec:
               compression_algorithm: zstd
               compression_mode: aggressive
           preservePoolsOnDelete: false
+          allowUsersInNamespaces:
+            - "*"
           gateway:
             port: 80
             resources:
