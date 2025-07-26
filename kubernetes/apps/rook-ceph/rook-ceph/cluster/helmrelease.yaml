@@ -211,6 +211,8 @@ spec:
       deletionPolicy: Delete
     cephObjectStores:
       - name: &cephObjectStoreName ceph-objectstore
+        allowUsersInNamespaces:
+          - "*"
         spec:
           metadataPool:
             failureDomain: host
