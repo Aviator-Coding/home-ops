@@ -7,3 +7,4 @@ resources:
   - ./helmrelease.yaml
   - ./mutatingadmissionpolicy.yaml
   - ./prometheusrule.yaml
+  - ../backend/ceph-bucket.yaml
