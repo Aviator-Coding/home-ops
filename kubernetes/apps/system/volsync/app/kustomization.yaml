@@ -3,8 +3,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ./cephuser.yaml
+  - ../backend
   - ./helmrelease.yaml
   - ./mutatingadmissionpolicy.yaml
   - ./prometheusrule.yaml
-  - ../backend/ceph-bucket.yaml

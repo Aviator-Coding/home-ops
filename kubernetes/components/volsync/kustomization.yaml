@@ -6,5 +6,4 @@ resources:
   - ./ceph
   - ./minio
   - ./r2
-  - ./replicationdestination.yaml
   - ./pvc.yaml
