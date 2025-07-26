@@ -73,12 +73,12 @@ spec:
       app:
         annotations:
           gethomepage.dev/enabled: "true"
-          gethomepage.dev/group: Management
-          gethomepage.dev/name: Echo Service
-          gethomepage.dev/icon: echo
-          gethomepage.dev/description: Echo HTTP Service
-          gethomepage.dev/widget.type: echo
-          gethomepage.dev/widget.url: http://echo.${SECRET_DOMAIN}
+          gethomepage.dev/parent: Applications
+          gethomepage.dev/group: Network
+          gethomepage.dev/name: "Echo Server"
+          gethomepage.dev/icon: si-codemirror
+          gethomepage.dev/description: "HTTP/HTTPS Echo Server"
+          gethomepage.dev/href: "https://echo-server.${SECRET_DOMAIN}"
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: external
