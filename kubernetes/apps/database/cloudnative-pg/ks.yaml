@@ -138,6 +138,8 @@ spec:
       namespace: database
     - name: rook-ceph
       namespace: rook-ceph
+    - name: volsync
+      namespace: system
     - name: external-secrets
       namespace: security
   path: ./kubernetes/apps/database/cloudnative-pg/pgadmin
