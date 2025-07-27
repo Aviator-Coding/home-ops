@@ -116,6 +116,8 @@ spec:
               - name: "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NL1948W100519P2202"
         config:
           osdsPerDevice: "1"
+#---------------------------------------------
+#-- Ceph Block Pool Storage configuration
     cephBlockPools:
       - name: ceph-blockpool
         spec:
@@ -146,11 +148,14 @@ spec:
             csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
             csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
             csi.storage.k8s.io/fstype: ext4
+
     cephBlockPoolsVolumeSnapshotClass:
       enabled: true
       name: csi-ceph-blockpool
       isDefault: false
       deletionPolicy: Delete
+#---------------------------------------------
+#-- Ceph File System Storage configuration
     cephFileSystems:
       - name: &cephFileSystemName ceph-filesystem
         spec:
@@ -163,20 +168,11 @@ spec:
               compression_algorithm: zstd
               compression_mode: aggressive
           dataPools:
-            - name: data0
+            - name: nvme-replicated-data0
               failureDomain: host
               deviceClass: nvme
               replicated:
                 size: 3
-              parameters:
-                compression_algorithm: zstd
-                compression_mode: aggressive
-            - name: erasurecoded
-              failureDomain: host
-              deviceClass: nvme
-              erasureCoded:
-                dataChunks: 4
-                codingChunks: 2
               parameters:
                 compression_algorithm: zstd
                 compression_mode: aggressive
@@ -199,11 +195,12 @@ spec:
                 memory: 1Gi
               limits:
                 memory: 4Gi
+
         storageClass:
           enabled: true
           isDefault: false
           name: ceph-filesystem
-          pool: data0
+          pool: nvme-replicated-data0
           reclaimPolicy: Delete
           allowVolumeExpansion: true
           parameters:
@@ -214,11 +211,14 @@ spec:
             csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
             csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
             csi.storage.k8s.io/fstype: ext4
+
     cephFileSystemVolumeSnapshotClass:
       enabled: true
       name: csi-ceph-filesystem
       isDefault: false
       deletionPolicy: Delete
+#---------------------------------------------
+#-- Ceph Object Store configuration
     cephObjectStores:
       - name: &cephObjectStoreName ceph-objectstore
         spec:
@@ -252,6 +252,7 @@ spec:
           healthCheck:
             bucket:
               interval: 60s
+
         storageClass:
           enabled: true
           name: ceph-bucket
