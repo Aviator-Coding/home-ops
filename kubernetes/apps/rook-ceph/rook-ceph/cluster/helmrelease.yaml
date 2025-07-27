@@ -168,7 +168,7 @@ spec:
               compression_algorithm: zstd
               compression_mode: aggressive
           dataPools:
-            - name: nvme-replicated-data0
+            - name: data0
               failureDomain: host
               deviceClass: nvme
               replicated:
@@ -200,7 +200,7 @@ spec:
           enabled: true
           isDefault: false
           name: ceph-filesystem
-          pool: nvme-replicated-data0
+          pool: data0
           reclaimPolicy: Delete
           allowVolumeExpansion: true
           parameters:
