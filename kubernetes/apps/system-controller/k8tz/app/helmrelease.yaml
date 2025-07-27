@@ -15,7 +15,7 @@ spec:
         name: k8tz
   interval: 30m
   values:
-    namespace: system-controllers
+    namespace: system-controller
 
     replicaCount: 2
 
