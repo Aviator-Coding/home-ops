@@ -6,4 +6,5 @@ namespace: system-controller
 components:
   - ../../components/common
 resources:
+  - ./k8tz/ks.yaml
   - ./snapshot-controller/ks.yaml
