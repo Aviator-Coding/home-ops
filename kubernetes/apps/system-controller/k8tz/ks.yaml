@@ -4,7 +4,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &appname k8tz
-  namespace: &namespace system-controllers
+  namespace: &namespace system-controller
 spec:
   targetNamespace: *namespace
   commonMetadata:
