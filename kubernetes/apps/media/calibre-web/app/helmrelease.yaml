@@ -73,7 +73,8 @@ spec:
 
     persistence:
       config:
-        existingClaim: ${VOLSYNC_CLAIM:-*app}
+        # existingClaim: ${VOLSYNC_CLAIM:-*app}
+        existingClaim: *app
         advancedMounts:
           calibre-web:
             app:

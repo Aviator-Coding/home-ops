@@ -20,8 +20,6 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
-    - name: cloudnative-pg
-      namespace: database
     - name: rook-ceph
       namespace: rook-ceph
     - name: external-secrets
