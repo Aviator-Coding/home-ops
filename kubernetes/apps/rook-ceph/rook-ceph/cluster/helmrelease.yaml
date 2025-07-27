@@ -170,6 +170,15 @@ spec:
               parameters:
                 compression_algorithm: zstd
                 compression_mode: aggressive
+            - name: erasurecoded
+              failureDomain: host
+              deviceClass: ssd
+              erasureCoded:
+                dataChunks: 4
+                codingChunks: 2
+              parameters:
+                compression_algorithm: zstd
+                compression_mode: aggressive
           metadataServer:
             activeCount: 1
             activeStandby: true
