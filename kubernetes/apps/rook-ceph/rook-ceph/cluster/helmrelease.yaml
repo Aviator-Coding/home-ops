@@ -165,6 +165,7 @@ spec:
           dataPools:
             - name: data0
               failureDomain: host
+              deviceClass: nvme
               replicated:
                 size: 3
               parameters:
@@ -172,7 +173,7 @@ spec:
                 compression_mode: aggressive
             - name: erasurecoded
               failureDomain: host
-              deviceClass: ssd
+              deviceClass: nvme
               erasureCoded:
                 dataChunks: 4
                 codingChunks: 2
