@@ -12,6 +12,9 @@ spec:
       app.kubernetes.io/name: *appname
   interval: 30m
   timeout: 5m
+  components:
+    - ../../../../components/volsync
+    - ../../../../components/gatus/guarded
   path: "./kubernetes/apps/media/calibre-web/app"
   prune: true
   sourceRef:
