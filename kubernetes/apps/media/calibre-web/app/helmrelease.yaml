@@ -87,7 +87,7 @@ spec:
         advancedMounts:
           calibre-web:
             app:
-              - path: /mnt/storage/PARA/3-Resources/Literature
+              - path: /Library/Books
 
       # CephFS folder mounts
       # media:
