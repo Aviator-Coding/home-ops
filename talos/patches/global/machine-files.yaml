@@ -1,5 +1,6 @@
 machine:
   files:
+    # This is needed by spegel see https://spegel.dev/docs/getting-started/#talos
     - op: create
       path: /etc/cri/conf.d/20-customization.part
       permissions: 0o644
