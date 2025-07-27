@@ -44,7 +44,7 @@ spec:
       enabled: true
       accessModes: ["ReadWriteMany"]
       size: 1Gi
-      storageClassName: ceph-filesystem
+      storageClassName: ceph-block
     serviceAccount:
       create: false
       name: headlamp-admin
