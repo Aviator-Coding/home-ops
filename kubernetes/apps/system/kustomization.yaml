@@ -8,5 +8,6 @@ components:
 resources:
   - ./descheduler/ks.yaml
   - ./fstrim/ks.yaml
+  - ./intel-device-plugin-operator/ks.yaml
   - ./volsync/ks.yaml
   - ./openebs-hostpath/ks.yaml
