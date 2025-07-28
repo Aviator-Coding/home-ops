@@ -44,3 +44,27 @@ tasks:
     preconditions:
       - test -f {{.KUBECONFIG}}
       - which flux
+
+  cleanup-failed-pods:
+    desc: Remove all failed/error pods (keeps completed pods)
+    cmd: kubectl delete pods --all-namespaces --field-selector=status.phase=Failed
+
+  cleanup-succeeded-pods:
+    desc: Remove old succeeded pods (keeps recent ones from last 24h)
+    cmd: kubectl get pods --all-namespaces --field-selector=status.phase=Succeeded -o json | ConvertFrom-Json | % { $_.items | ? { $_.metadata.creationTimestamp -lt (Get-Date).AddDays(-1) } | % { kubectl delete pod $_.metadata.name -n $_.metadata.namespace } }
+
+  cleanup-error-pods:
+    desc: Remove all pods in Error state
+    cmd: kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded,status.phase!=Pending --no-headers -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name" | ForEach-Object { $parts = $_.Split(); kubectl delete pod $parts[1] -n $parts[0] }
+
+  cleanup-replicasets:
+    desc: Remove old ReplicaSets with 0 desired replicas (excludes intentionally scaled ones)
+    cmd: kubectl get rs --all-namespaces -o json | ConvertFrom-Json | ForEach-Object { $_.items | Where-Object { $_.spec.replicas -eq 0 -and $_.status.replicas -eq 0 -and $_.metadata.creationTimestamp -lt (Get-Date).AddDays(-1) } | ForEach-Object { kubectl delete rs $_.metadata.name -n $_.metadata.namespace } }
+
+  cleanup-all:
+    desc: Clean up all failed pods, error pods, and unused replicasets
+    cmds:
+      - task: cleanup-failed-pods
+      - task: cleanup-succeeded-pods
+      - task: cleanup-error-pods
+      - task: cleanup-replicasets
