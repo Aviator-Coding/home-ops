@@ -1,0 +1,59 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app arc-aviator-coding
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: gha-runner-scale-set
+  driftDetection:
+    mode: enabled
+  dependsOn:
+    - name: actions-runner-controller
+      namespace: actions-runner-system
+    - name: openebs
+      namespace: openebs
+  valuesFrom:
+    - kind: Secret
+      name: actions-runner-controller-secret
+      valuesKey: github_app_id
+      targetPath: githubConfigSecret.github_app_id
+    - kind: Secret
+      name: actions-runner-controller-secret
+      valuesKey: github_app_installation_id
+      targetPath: githubConfigSecret.github_app_installation_id
+    - kind: Secret
+      name: actions-runner-controller-secret
+      valuesKey: github_app_private_key
+      targetPath: githubConfigSecret.github_app_private_key
+  values:
+    githubConfigUrl: https://github.com/aviator-coding
+
+    minRunners: 0
+    maxRunners: 6
+
+    containerMode:
+      type: kubernetes
+      kubernetesModeWorkVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: ceph-block
+        resources:
+          requests:
+            storage: 5Gi
+
+    controllerServiceAccount:
+      name: actions-runner-controller
+      namespace: actions-runner-system
+  ######################################################################################################
+    template:
+      spec:
+        containers:
+          - name: runner
+            image: ghcr.io/onedr0p/actions-runner:2.322.0@sha256:9db27092b7caab08b1dc08d5e639a3340f6e0d6ae2f91aaf93e740bd28ad9306
+            command: ["/home/runner/run.sh"]
+  ######################################################################################################
+    serviceAccountName: actions-runner
