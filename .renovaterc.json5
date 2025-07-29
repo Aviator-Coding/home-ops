@@ -11,8 +11,11 @@
   ],
   dependencyDashboard: true,
   dependencyDashboardTitle: "Renovate Dashboard 🤖",
-  schedule: ["every weekend"],
+  schedule: ["before 6am on monday", "every weekend"],
   ignorePaths: ["**/*.sops.*"],
+  vulnerabilityAlerts: {
+    enabled: true,
+  },
   flux: {
     managerFilePatterns: ["/(^|/)kubernetes/.+\\.ya?ml(?:\\.j2)?$/"],
   },
@@ -64,6 +67,28 @@
       groupName: "Spegel",
       matchDatasources: ["docker"],
       matchPackageNames: ["/spegel/"],
+      group: {
+        commitMessageTopic: "{{{groupName}}} group",
+      },
+    },
+    {
+      description: "Actions Runner Controller Group",
+      groupName: "Actions Runner Controller",
+      matchPackageNames: [
+        "ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller",
+        "ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set",
+      ],
+      group: {
+        commitMessageTopic: "{{{groupName}}} group",
+      },
+    },
+    {
+      description: "External DNS Group",
+      groupName: "External DNS",
+      matchPackageNames: [
+        "external-dns",
+        "ghcr.io/home-operations/charts-mirror/external-dns",
+      ],
       group: {
         commitMessageTopic: "{{{groupName}}} group",
       },
