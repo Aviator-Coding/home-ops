@@ -28,6 +28,9 @@
   kustomize: {
     managerFilePatterns: ["/^kustomization\\.ya?ml(?:\\.j2)?$/"],
   },
+  mise: {
+    enabled: true,
+  },
   packageRules: [
     {
       description: "Cert-Manager Group",
