@@ -11,7 +11,7 @@
   ],
   dependencyDashboard: true,
   dependencyDashboardTitle: "Renovate Dashboard 🤖",
-  schedule: ["at 11:30 in America/New_York"],
+  schedule: ["* 9 * * *"],
   ignorePaths: ["**/*.sops.*"],
   vulnerabilityAlerts: {
     enabled: true,
