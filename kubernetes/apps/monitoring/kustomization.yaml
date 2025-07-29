@@ -20,3 +20,4 @@ resources:
   - ./victoriametrics/ks.yaml
   - ./victorialogs/ks.yaml
   - ./vector/ks.yaml
+  - ./unpoller/ks.yaml
