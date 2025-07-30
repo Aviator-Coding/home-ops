@@ -43,6 +43,8 @@ spec:
         name: openebs-hostpath
         isDefaultClass: false
         basePath: *hostPath
+      defaultStorageConfig:
+        enabled: false
       helperPod:
         image:
           registry: quay.io/
