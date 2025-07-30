@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  # Ref: https://raw.githubusercontent.com/Supporterino/truenas-graphite-to-prometheus/refs/heads/main/dashboards/truenas_scale.json
+  - name: truenas-scale-dashboard
+    files:
+      - truenas-scale.json
+  # Ref: https://raw.githubusercontent.com/Supporterino/truenas-graphite-to-prometheus/refs/heads/main/dashboards/truenas_scale_disk_insights.json
+  - name: truenas-scale-disk-insights
+    files:
+      - truenas-scale-disk-insights.json
+  # Ref: https://raw.githubusercontent.com/Supporterino/truenas-graphite-to-prometheus/refs/heads/main/dashboards/truenas_scale_temperatures.json
+  - name: truenas-scale-temperatures
+    files:
+      - truenas-scale-temperatures.json
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    helm.sh/chart: app-template-3.6.0
+    helm.toolkit.fluxcd.io/name: graphite-exporter
+    helm.toolkit.fluxcd.io/namespace: observability
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+    grafana_folder: TrueNas
+  labels:
+    grafana_dashboard: "true"
+    helm.sh/chart: app-template-3.6.0
+    helm.toolkit.fluxcd.io/name: graphite-exporter
+    helm.toolkit.fluxcd.io/namespace: observability
