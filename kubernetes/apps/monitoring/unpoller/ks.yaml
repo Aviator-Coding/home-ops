@@ -13,6 +13,8 @@ spec:
   dependsOn:
     - name: external-secrets
       namespace: security
+    - name: kube-prometheus-stack
+      namespace: monitoring
   path: ./kubernetes/apps/monitoring/unpoller/app
   prune: true
   sourceRef:
