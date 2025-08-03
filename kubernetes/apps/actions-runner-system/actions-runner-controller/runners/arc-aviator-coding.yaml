@@ -32,7 +32,7 @@ spec:
   values:
     githubConfigUrl: https://github.com/aviator-coding
 
-    minRunners: 0
+    minRunners: 1
     maxRunners: 6
 
     containerMode:
