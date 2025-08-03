@@ -32,7 +32,7 @@ spec:
       retries: 3
   values:
     githubConfigUrl: https://github.com/aviator-coding/home-ops
-    githubConfigSecret: aviator-coding-home-ops-runner-secret
+    githubConfigSecret: aviator-coding-runner-secret
     minRunners: 1
     maxRunners: 6
 
@@ -68,8 +68,8 @@ spec:
                 name: talos
                 readOnly: true
   ######################################################################################################
-    serviceAccountName: *name
+    serviceAccountName: aviator-coding-runner
     volumes:
       - name: talos
         secret:
-          secretName: *name
+          secretName: aviator-coding-runner
