@@ -93,7 +93,8 @@ jobs:
     if: ${{ needs.diff.outputs.images != '[]' }}
     needs: diff
     name: Image Pull - Pull Images
-    runs-on: home-ops-runner
+    # runs-on: home-ops-runner
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         image: ${{ fromJSON(needs.diff.outputs.images) }}
