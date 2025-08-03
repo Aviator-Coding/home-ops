@@ -216,6 +216,7 @@ patches:
   - "@./patches/global/machine-sysctls.yaml"
   - "@./patches/global/machine-udev.yaml"
   - "@./patches/global/machine-time.yaml"
+  - "@./patches/global/machine-features.yaml"
 
 # Controller patches
 controlPlane:
