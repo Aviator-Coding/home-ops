@@ -65,5 +65,9 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: status.hostIP
+            volumeMounts:
+              - mountPath: /var/run/secrets/talos.dev
+                name: talos
+                readOnly: true
   ######################################################################################################
     serviceAccountName: *name
