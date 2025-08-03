@@ -71,3 +71,7 @@ spec:
                 readOnly: true
   ######################################################################################################
     serviceAccountName: *name
+    volumes:
+      - name: talos
+        secret:
+          secretName: *name
