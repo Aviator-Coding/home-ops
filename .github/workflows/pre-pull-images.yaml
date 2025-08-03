@@ -20,8 +20,8 @@ env:
 jobs:
   filter-changes:
     name: Filter changes
-    #runs-on: ubuntu-latest
-    runs-on: aviator-coding-home-ops-runner
+    runs-on: ubuntu-latest
+    #runs-on: aviator-coding-home-ops-runner
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
     steps:
