@@ -31,7 +31,7 @@ spec:
     remediation:
       retries: 3
   values:
-    githubConfigUrl: https://github.com/aviator-coding
+    githubConfigUrl: https://github.com/aviator-coding/home-ops
     githubConfigSecret: aviator-coding-runner-secret
     minRunners: 1
     maxRunners: 6
