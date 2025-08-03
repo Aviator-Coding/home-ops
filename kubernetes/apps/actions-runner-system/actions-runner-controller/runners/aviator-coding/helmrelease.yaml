@@ -1,37 +1,40 @@
 ---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: gha-runner-scale-set
+spec:
+  interval: 5m
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    tag: 0.12.1
+  url: oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app arc-aviator-coding
+  name: &name aviator-coding-runner
 spec:
   interval: 30m
   chartRef:
     kind: OCIRepository
     name: gha-runner-scale-set
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
   driftDetection:
     mode: enabled
-  dependsOn:
-    - name: actions-runner-controller
-      namespace: actions-runner-system
-    - name: openebs
-      namespace: openebs
-  valuesFrom:
-    - kind: Secret
-      name: actions-runner-controller-secret
-      valuesKey: github_app_id
-      targetPath: githubConfigSecret.github_app_id
-    - kind: Secret
-      name: actions-runner-controller-secret
-      valuesKey: github_app_installation_id
-      targetPath: githubConfigSecret.github_app_installation_id
-    - kind: Secret
-      name: actions-runner-controller-secret
-      valuesKey: github_app_private_key
-      targetPath: githubConfigSecret.github_app_private_key
   values:
     githubConfigUrl: https://github.com/aviator-coding
-
+    githubConfigSecret: aviator-coding-runner-secret
     minRunners: 1
     maxRunners: 6
 
@@ -43,7 +46,7 @@ spec:
         storageClassName: ceph-block
         resources:
           requests:
-            storage: 5Gi
+            storage: 25Gi
 
     controllerServiceAccount:
       name: actions-runner-controller
@@ -63,4 +66,4 @@ spec:
                   fieldRef:
                     fieldPath: status.hostIP
   ######################################################################################################
-    serviceAccountName: actions-runner
+    serviceAccountName: *name
