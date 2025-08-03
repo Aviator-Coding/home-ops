@@ -17,7 +17,7 @@ spec:
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &name aviator-coding-runner
+  name: &name aviator-coding-home-ops-runner
 spec:
   interval: 30m
   chartRef:
@@ -32,7 +32,7 @@ spec:
       retries: 3
   values:
     githubConfigUrl: https://github.com/aviator-coding/home-ops
-    githubConfigSecret: aviator-coding-runner-secret
+    githubConfigSecret: aviator-coding-home-ops-runner-secret
     minRunners: 1
     maxRunners: 6
 
