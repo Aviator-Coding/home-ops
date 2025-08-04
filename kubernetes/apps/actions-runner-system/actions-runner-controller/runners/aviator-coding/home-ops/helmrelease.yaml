@@ -67,9 +67,9 @@ spec:
             #   - mountPath: /var/run/secrets/talos.dev
             #     name: talos
             #     readOnly: true
-        # serviceAccountName: aviator-coding-runner
-        # volumes:
-        #   - name: talos
-        #     secret:
-        #       secretName: aviator-coding-runner
+        serviceAccountName: aviator-coding-runner
+        volumes:
+          - name: talos
+            secret:
+              secretName: aviator-coding-runner
   ######################################################################################################
