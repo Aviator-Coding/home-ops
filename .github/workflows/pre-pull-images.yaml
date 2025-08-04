@@ -20,7 +20,8 @@ env:
 jobs:
   filter-changes:
     name: Filter changes
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest
+    runs-on: aviator-coding-home-ops-runner
     #runs-on: aviator-coding-home-ops-runner
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
@@ -35,7 +36,8 @@ jobs:
   extract-images:
     if: ${{ needs.filter-changes.outputs.changed-files != '[]' }}
     name: Extract Images
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest
+    runs-on: aviator-coding-home-ops-runner
     needs:
       - filter-changes
     strategy:
@@ -73,7 +75,8 @@ jobs:
   compare-images:
     if: ${{ needs.extract-images.outputs.default != needs.extract-images.outputs.pull }}
     name: Compare Images
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest
+    runs-on: aviator-coding-home-ops-runner
     needs:
       - extract-images
     outputs:
@@ -134,7 +137,8 @@ jobs:
     needs:
       - pre-pull-images
     name: Pre-pull Images Successful
-    runs-on: ubuntu-latest
+        # runs-on: ubuntu-latest
+    runs-on: aviator-coding-home-ops-runner
     steps:
       - name: Check job status
         if: ${{ contains(needs.*.result, 'failure') }}
