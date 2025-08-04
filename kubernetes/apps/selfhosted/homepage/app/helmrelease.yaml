@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: ghcr.io/gethomepage/homepage
-              tag: v1.4.1
+              tag: v1.4.3
             env:
               - name: HOMEPAGE_ALLOWED_HOSTS
                 value: "*"
