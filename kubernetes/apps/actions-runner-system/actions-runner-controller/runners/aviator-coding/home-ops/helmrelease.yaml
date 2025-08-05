@@ -23,6 +23,8 @@ spec:
   chartRef:
     kind: OCIRepository
     name: gha-runner-scale-set
+  driftDetection:
+    mode: enabled
   install:
     remediation:
       retries: -1
@@ -31,8 +33,10 @@ spec:
     remediation:
       retries: 3
   values:
+    annotations:
+      secret.reloader.stakater.com/reload: &secret aviator-coding-runner-secret
     githubConfigUrl: https://github.com/aviator-coding/home-ops
-    githubConfigSecret: aviator-coding-runner-secret
+    githubConfigSecret: *secret
     minRunners: 1
     maxRunners: 6
 
@@ -63,10 +67,10 @@ spec:
             env:
               - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
                 value: "false"
-            #   - name: NODE
-            #     valueFrom:
-            #       fieldRef:
-            #         fieldPath: status.hostIP
+              - name: NODE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.hostIP
             # volumeMounts:
             #   - mountPath: /var/run/secrets/talos.dev
             #     name: talos
@@ -77,9 +81,9 @@ spec:
               runAsNonRoot: false
               runAsUser: 0
               runAsGroup: 0
-        serviceAccountName: aviator-coding-runner
-        volumes:
-          - name: talos
-            secret:
-              secretName: aviator-coding-runner
+        serviceAccountName: actions-runner
+        # volumes:
+        #   - name: talos
+        #     secret:
+        #       secretName: aviator-coding-runner
   ######################################################################################################
