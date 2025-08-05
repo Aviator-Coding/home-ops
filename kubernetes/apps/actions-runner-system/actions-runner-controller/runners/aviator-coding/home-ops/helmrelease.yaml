@@ -52,6 +52,10 @@ spec:
   ######################################################################################################
     template:
       spec:
+        securityContext:
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1001
         containers:
           - name: runner
             image: ghcr.io/home-operations/actions-runner:2.327.1
@@ -67,6 +71,12 @@ spec:
             #   - mountPath: /var/run/secrets/talos.dev
             #     name: talos
             #     readOnly: true
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              runAsNonRoot: true
+              runAsUser: 1001
+              runAsGroup: 1001
         serviceAccountName: aviator-coding-runner
         volumes:
           - name: talos
