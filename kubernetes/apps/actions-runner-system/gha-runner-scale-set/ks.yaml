@@ -15,7 +15,7 @@ spec:
       namespace: *namespace
     - name: rook-ceph-cluster
       namespace: rook-ceph
-  path: ./kubernetes/main/apps/actions-runner-system/gha-runner-scale-set/app
+  path: ./kubernetes/apps/actions-runner-system/gha-runner-scale-set/app
   prune: true
   retryInterval: 2m
   sourceRef:
