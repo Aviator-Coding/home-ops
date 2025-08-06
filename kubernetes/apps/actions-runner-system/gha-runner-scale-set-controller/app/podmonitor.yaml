@@ -5,12 +5,13 @@ metadata:
   name: action-runner-controller
 spec:
   podMetricsEndpoints:
-    - interval: 15s
+    - port: metrics
       path: /metrics
-      targetPort: 8080
+      interval: 15s
+      scrapeTimeout: 5s
   selector:
     matchLabels:
-      app.kubernetes.io/name: actions-runner-controller
+      app.kubernetes.io/name: gha-rs-controller
   namespaceSelector:
     matchNames:
       - actions-runner-system
