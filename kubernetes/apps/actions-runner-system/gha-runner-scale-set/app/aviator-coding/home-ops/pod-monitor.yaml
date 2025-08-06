@@ -1,0 +1,14 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: &app gha-runner-scale-set-aviator-coding-home-ops
+spec:
+  selector:
+    matchLabels:
+      helm.toolkit.fluxcd.io/name: *app
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 5s
