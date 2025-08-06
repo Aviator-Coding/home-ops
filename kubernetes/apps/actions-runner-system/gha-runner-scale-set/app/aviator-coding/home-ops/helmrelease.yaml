@@ -68,6 +68,7 @@ spec:
               - name: talos
                 mountPath: /var/run/secrets/talos.dev
                 readOnly: true
+        serviceAccountName: actions-runner
         volumes:
           - name: work
             ephemeral:
@@ -80,7 +81,7 @@ spec:
                       storage: 20Gi
           - name: talos
             secret:
-              secretName: aviator-coding-runner
+              secretName: actions-runner
   ######################################################################################################
     controllerServiceAccount:
       name: gha-runner-scale-set-controller
