@@ -11,7 +11,7 @@ spec:
       scrapeTimeout: 5s
   selector:
     matchLabels:
-      app.kubernetes.io/name: gha-rs-controller
+      app.kubernetes.io/part-of: gha-rs-controller
   namespaceSelector:
     matchNames:
       - actions-runner-system
