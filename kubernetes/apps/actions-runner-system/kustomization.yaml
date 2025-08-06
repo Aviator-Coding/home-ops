@@ -6,4 +6,5 @@ namespace: actions-runner-system
 components:
   - ../../components/common
 resources:
-  - ./actions-runner-controller/ks.yaml
+  - ./gha-runner-scale-set-controller/ks.yaml
+  - ./gha-runner-scale-set/ks.yaml

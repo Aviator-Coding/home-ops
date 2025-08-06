@@ -1,0 +1,86 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &name gha-runner-scale-set-aviator-coding-home-ops
+  interval: 30m
+  chart:
+    spec:
+      chart: gha-runner-scale-set
+      version: 0.12.1
+      sourceRef:
+        kind: HelmRepository
+        name: actions-runner-controller
+        namespace: flux-system
+  driftDetection:
+    mode: enabled
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    annotations:
+      secret.reloader.stakater.com/reload: &secret aviator-coding-runner-secret
+    githubConfigUrl: https://github.com/aviator-coding/home-ops
+    githubConfigSecret: *secret
+    minRunners: 1
+    maxRunners: 6
+    # containerMode:
+    #   type: kubernetes
+    #   kubernetesModeWorkVolumeClaim:
+    #     accessModes:
+    #       - ReadWriteOnce
+    #     storageClassName: ceph-block
+    #     resources:
+    #       requests:
+    #         storage: 25Gi
+    template:
+      spec:
+        # securityContext:
+        #   runAsUser: 1001
+        #   runAsGroup: 1001
+        #   fsGroup: 1001
+        containers:
+          - name: runner
+            image: ghcr.io/home-operations/actions-runner:2.327.1
+            command: ["/home/runner/run.sh"]
+            env:
+              - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+                value: "false"
+              - name: NODE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.hostIP
+            # securityContext:
+            #   allowPrivilegeEscalation: true
+            #   readOnlyRootFilesystem: false
+            #   runAsNonRoot: false
+            #   runAsUser: 0
+            #   runAsGroup: 0
+            volumeMounts:
+              - name: work
+                mountPath: /home/runner/_work
+              - name: talos
+                mountPath: /var/run/secrets/talos.dev
+                readOnly: true
+        volumes:
+          - name: work
+            ephemeral:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: [ "ReadWriteOnce" ]
+                  storageClassName: ceph-block
+                  resources:
+                    requests:
+                      storage: 20Gi
+          - name: talos
+            secret:
+              secretName: aviator-coding-runner
+  ######################################################################################################
+    controllerServiceAccount:
+      name: gha-runner-scale-set-controller
+      namespace: actions-runner-system
