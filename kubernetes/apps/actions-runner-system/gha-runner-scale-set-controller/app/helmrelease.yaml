@@ -29,5 +29,5 @@ spec:
     metrics:
       controllerManagerAddr: ":8080"
       listenerAddr: ":8080"
-      listenerEndpoint: "/metrics"
+      listenerEndpoint: /metrics
     replicaCount: 2
