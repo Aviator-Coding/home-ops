@@ -15,5 +15,29 @@
   "yaml.schemas": {
     "kubernetes": "./kubernetes/**/*.yaml"
   },
+  "material-icon-theme.files.associations": {
+    "helmfile.yaml": "helm",
+    "kubeconfig": "kubernetes",
+    "talosconfig": "kubernetes"
+  },
+  "material-icon-theme.folders.associations": {
+    "bootstrap": "seeders",
+    "flux": "pipe",
+    "talos": "linux",
+    ".github/renovate": "robot",
+    ".github/workflows": "ci",
+    "actions-runner-system": "github",
+    "cert-manager": "guard",
+    "external-secrets": "secure",
+    "flux-system": "pipe",
+    "kube-system": "kubernetes",
+    "media": "video",
+    "monitoring": "event",
+    "networking": "connection",
+    "openebs-system": "base",
+    "rook-ceph": "dump",
+    "system-upgrade": "update",
+    "volsync-system": "aws"
+  },
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv"
 }
