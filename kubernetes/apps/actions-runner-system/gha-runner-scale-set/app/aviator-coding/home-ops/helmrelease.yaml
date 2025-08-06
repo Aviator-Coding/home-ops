@@ -4,6 +4,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: &name gha-runner-scale-set-aviator-coding-home-ops
+spec:
   interval: 30m
   chart:
     spec:
