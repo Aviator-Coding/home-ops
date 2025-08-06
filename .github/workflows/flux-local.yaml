@@ -17,8 +17,8 @@ permissions:
 jobs:
   filter-changes:
     name: Filter changes
-    # runs-on: ubuntu-latest
-    runs-on: aviator-coding-home-ops-runner
+    runs-on: ubuntu-latest
+    # runs-on: aviator-coding-home-ops-runner
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
     steps:
@@ -32,8 +32,8 @@ jobs:
   test:
     if: ${{ needs.filter-changes.outputs.changed-files != '[]' }}
     name: Flux Local Test
-    # runs-on: ubuntu-latest
-    runs-on: aviator-coding-home-ops-runner
+    runs-on: ubuntu-latest
+    # runs-on: aviator-coding-home-ops-runner
     needs:
       - filter-changes
     steps:
@@ -48,8 +48,8 @@ jobs:
   diff:
     if: ${{ needs.filter-changes.outputs.changed-files != '[]' }}
     name: Flux Local Diff
-    # runs-on: ubuntu-latest
-    runs-on: aviator-coding-home-ops-runner
+    runs-on: ubuntu-latest
+    # runs-on: aviator-coding-home-ops-runner
     needs:
       - filter-changes
     permissions:
@@ -128,8 +128,8 @@ jobs:
       - diff
     if: ${{ !cancelled() }}
     name: Flux Local successful
-    # runs-on: ubuntu-latest
-    runs-on: aviator-coding-home-ops-runner
+    runs-on: ubuntu-latest
+    # runs-on: aviator-coding-home-ops-runner
     steps:
       - name: Check job status
         if: ${{ contains(needs.*.result, 'failure') }}
