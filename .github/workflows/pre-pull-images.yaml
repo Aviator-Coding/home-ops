@@ -102,7 +102,7 @@ jobs:
     if: ${{ needs.compare-images.outputs.images != '[]' }}
     name: Pre-pull Images
     # runs-on: ubuntu-latest
-    runs-on: aviator-coding-home-ops-runner
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     needs:
       - compare-images
     strategy:

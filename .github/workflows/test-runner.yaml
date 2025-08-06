@@ -1,0 +1,221 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Test Self-Hosted Runner
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test-runner-basic:
+    name: Basic Runner Tests
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: System Information
+        run: |
+          echo "## System Information" >> $GITHUB_STEP_SUMMARY
+          echo "**OS:** $(uname -a)" >> $GITHUB_STEP_SUMMARY
+          echo "**Hostname:** $(hostname)" >> $GITHUB_STEP_SUMMARY
+          echo "**Whoami:** $(whoami)" >> $GITHUB_STEP_SUMMARY
+          echo "**PWD:** $(pwd)" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check Available Resources
+        run: |
+          echo "## Resource Information" >> $GITHUB_STEP_SUMMARY
+          echo "**CPU Info:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          nproc >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "**Memory Info:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          free -h >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "**Disk Space:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          df -h >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Check Network Connectivity
+        run: |
+          echo "## Network Connectivity Tests" >> $GITHUB_STEP_SUMMARY
+          echo "**GitHub API:**" >> $GITHUB_STEP_SUMMARY
+          if curl -s https://api.github.com > /dev/null; then
+            echo "✅ GitHub API reachable" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ GitHub API unreachable" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "**Docker Hub:**" >> $GITHUB_STEP_SUMMARY
+          if curl -s https://hub.docker.com > /dev/null; then
+            echo "✅ Docker Hub reachable" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Docker Hub unreachable" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Test Environment Variables
+        run: |
+          echo "## Environment Variables" >> $GITHUB_STEP_SUMMARY
+          echo "**GITHUB_WORKSPACE:** $GITHUB_WORKSPACE" >> $GITHUB_STEP_SUMMARY
+          echo "**GITHUB_REPOSITORY:** $GITHUB_REPOSITORY" >> $GITHUB_STEP_SUMMARY
+          echo "**GITHUB_REF:** $GITHUB_REF" >> $GITHUB_STEP_SUMMARY
+          echo "**GITHUB_SHA:** $GITHUB_SHA" >> $GITHUB_STEP_SUMMARY
+          echo "**RUNNER_NAME:** $RUNNER_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**RUNNER_OS:** $RUNNER_OS" >> $GITHUB_STEP_SUMMARY
+          echo "**RUNNER_ARCH:** $RUNNER_ARCH" >> $GITHUB_STEP_SUMMARY
+
+  test-runner-tools:
+    name: Test Available Tools
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Check Docker
+        run: |
+          echo "## Docker Tests" >> $GITHUB_STEP_SUMMARY
+          if command -v docker &> /dev/null; then
+            echo "✅ Docker available" >> $GITHUB_STEP_SUMMARY
+            echo "**Docker Version:**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            docker --version >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+
+            echo "**Docker Info:**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            docker info --format "{{.ServerVersion}}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Docker not available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check Git
+        run: |
+          echo "## Git Tests" >> $GITHUB_STEP_SUMMARY
+          if command -v git &> /dev/null; then
+            echo "✅ Git available" >> $GITHUB_STEP_SUMMARY
+            echo "**Git Version:**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            git --version >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Git not available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check Common Tools
+        run: |
+          echo "## Common Tools Check" >> $GITHUB_STEP_SUMMARY
+
+          tools=("curl" "wget" "jq" "yq" "kubectl" "helm" "talosctl")
+
+          for tool in "${tools[@]}"; do
+            if command -v "$tool" &> /dev/null; then
+              version=$($tool --version 2>&1 | head -n1 || echo "Version unavailable")
+              echo "✅ **$tool:** $version" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **$tool:** Not available" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+  test-runner-docker:
+    name: Test Docker Functionality
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    steps:
+      - name: Test Docker Pull and Run
+        run: |
+          echo "## Docker Functionality Test" >> $GITHUB_STEP_SUMMARY
+
+          # Test pulling a small image
+          echo "**Pulling hello-world image:**" >> $GITHUB_STEP_SUMMARY
+          if docker pull hello-world:latest; then
+            echo "✅ Docker pull successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Docker pull failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Test running the image
+          echo "**Running hello-world container:**" >> $GITHUB_STEP_SUMMARY
+          if docker run --rm hello-world; then
+            echo "✅ Docker run successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Docker run failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Clean up
+          docker rmi hello-world:latest || true
+
+  test-runner-file-operations:
+    name: Test File Operations
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Test File System Operations
+        run: |
+          echo "## File System Tests" >> $GITHUB_STEP_SUMMARY
+
+          # Create test directory
+          mkdir -p test-runner-workspace
+          cd test-runner-workspace
+
+          # Test file creation
+          echo "Hello from self-hosted runner!" > test-file.txt
+          if [[ -f test-file.txt ]]; then
+            echo "✅ File creation successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ File creation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Test file reading
+          content=$(cat test-file.txt)
+          if [[ "$content" == "Hello from self-hosted runner!" ]]; then
+            echo "✅ File reading successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ File reading failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Test permissions
+          chmod +x test-file.txt
+          if [[ -x test-file.txt ]]; then
+            echo "✅ File permissions change successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ File permissions change failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Clean up
+          cd ..
+          rm -rf test-runner-workspace
+
+  test-runner-success:
+    if: ${{ !cancelled() }}
+    needs:
+      - test-runner-basic
+      - test-runner-tools
+      - test-runner-docker
+      - test-runner-file-operations
+    name: Test Runner Success
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    steps:
+      - name: Check All Jobs Status
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "❌ Some tests failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "✅ All tests passed successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "🎉 Self-hosted runner is working correctly!" >> $GITHUB_STEP_SUMMARY
+          fi
