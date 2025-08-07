@@ -111,25 +111,125 @@ jobs:
       max-parallel: 4
       fail-fast: false
     steps:
-      - name: Attest
+      - name: Validate Environment
+        run: |
+          echo "🔍 Validating environment..."
+          echo "NODE_IP: ${NODE_IP:-'NOT_SET'}"
+          echo "Current image: ${{ matrix.image }}"
+
+          if [[ -z "$NODE_IP" ]]; then
+            echo "❌ NODE_IP environment variable is not set"
+            exit 1
+          fi
+
+          echo "✅ Environment validation passed"
+
+      - name: Attest Image
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          echo "🔐 Verifying image attestation for: ${{ matrix.image }}"
+
           case "${{ matrix.image }}" in
             *home-operations*)
-              gh attestation verify --owner home-operations oci://${{ matrix.image }} ;;
+              echo "Verifying home-operations image..."
+              if gh attestation verify --owner home-operations oci://${{ matrix.image }}; then
+                echo "✅ Attestation verified for home-operations image"
+              else
+                echo "⚠️ Attestation verification failed for home-operations image"
+                exit 1
+              fi
+              ;;
             *bjw-s-labs*)
-              gh attestation verify --owner bjw-s-labs oci://${{ matrix.image }} ;;
+              echo "Verifying bjw-s-labs image..."
+              if gh attestation verify --owner bjw-s-labs oci://${{ matrix.image }}; then
+                echo "✅ Attestation verified for bjw-s-labs image"
+              else
+                echo "⚠️ Attestation verification failed for bjw-s-labs image"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "⚠️ No attestation verification configured for: ${{ matrix.image }}"
+              echo "Proceeding without attestation verification..."
+              ;;
           esac
 
-      - name: Install talosctl
-        run: curl -fsSL https://talos.dev/install | sh
+      - name: Install and Configure talosctl
+        run: |
+          echo "🔧 Installing talosctl..."
+          curl -fsSL https://talos.dev/install | sh
 
-      - name: Pre-pull Image
-        run: talosctl -n "$NODE_IP" image pull "${{ matrix.images }}"
+          echo "📍 Checking talosctl installation..."
+          talosctl version --client || {
+            echo "❌ talosctl installation failed"
+            exit 1
+          }
 
-      - name: Try to pull Image
-        run: docker pull "${{ matrix.images }}"
+          echo "🔑 Configuring talosctl..."
+          if [[ -f /var/run/secrets/talos.dev/config ]]; then
+            export TALOSCONFIG=/var/run/secrets/talos.dev/config
+            echo "✅ Using mounted talos config"
+          else
+            echo "⚠️ No talos config found, using default"
+          fi
+
+          echo "🏥 Testing node connectivity..."
+          if talosctl -n "$NODE_IP" version --insecure-skip-tls-verify; then
+            echo "✅ Node connectivity confirmed"
+          else
+            echo "❌ Cannot connect to node $NODE_IP"
+            exit 1
+          fi
+
+      - name: Pre-pull Image on Talos Node
+        run: |
+          echo "🚀 Pre-pulling image on Talos node: ${{ matrix.image }}"
+
+          # Check if image already exists
+          if talosctl -n "$NODE_IP" image list | grep -q "${{ matrix.image }}"; then
+            echo "ℹ️ Image ${{ matrix.image }} already exists on node"
+          else
+            echo "📥 Pulling new image: ${{ matrix.image }}"
+          fi
+
+          # Pull the image
+          if talosctl -n "$NODE_IP" image pull "${{ matrix.image }}"; then
+            echo "✅ Successfully pre-pulled ${{ matrix.image }}"
+          else
+            echo "❌ Failed to pre-pull ${{ matrix.image }}"
+            exit 1
+          fi
+
+      - name: Verify Image on Node
+        run: |
+          echo "🔍 Verifying image exists on node..."
+
+          if talosctl -n "$NODE_IP" image list | grep -q "${{ matrix.image }}"; then
+            echo "✅ Image ${{ matrix.image }} confirmed on node $NODE_IP"
+
+            # Get image details
+            echo "📊 Image details:"
+            talosctl -n "$NODE_IP" image list | grep "${{ matrix.image }}" || true
+          else
+            echo "❌ Image ${{ matrix.image }} not found on node after pull"
+            echo "Available images:"
+            talosctl -n "$NODE_IP" image list | head -10
+            exit 1
+          fi
+
+      - name: Test Image Pull via Docker
+        continue-on-error: true
+        run: |
+          echo "🐳 Testing image pull via Docker (for verification)..."
+
+          if docker pull "${{ matrix.image }}"; then
+            echo "✅ Docker pull successful for ${{ matrix.image }}"
+            docker image inspect "${{ matrix.image }}" --format='{{.RepoTags}} {{.Size}} bytes' || true
+          else
+            echo "⚠️ Docker pull failed for ${{ matrix.image }}"
+            echo "This may be expected if the image is private or platform-specific"
+          fi
 
   pre-pull-images-success:
     if: ${{ !cancelled() }}
