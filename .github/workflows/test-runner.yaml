@@ -29,6 +29,16 @@ jobs:
           echo "**PWD:** $(pwd)" >> $GITHUB_STEP_SUMMARY
           echo "**Date:** $(date)" >> $GITHUB_STEP_SUMMARY
 
+      - name: Show UID and GID
+        run: |
+          echo "## UID and GID" >> $GITHUB_STEP_SUMMARY
+          echo "**UID:** $(id -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**GID:** $(id -g)" >> $GITHUB_STEP_SUMMARY
+          echo "**Full id output:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          id >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
       - name: Check Available Resources
         run: |
           echo "## Resource Information" >> $GITHUB_STEP_SUMMARY
