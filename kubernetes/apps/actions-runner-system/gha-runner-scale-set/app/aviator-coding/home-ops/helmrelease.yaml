@@ -124,8 +124,6 @@ spec:
                     fieldPath: status.hostIP
               - name: TALOSCONFIG
                 value: "/var/run/secrets/talos.dev/talosconfig"
-              - name: RUNNER_ALLOW_RUNASROOT
-                value: "1"
               - name: ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT
                 value: "1"
             resources:
