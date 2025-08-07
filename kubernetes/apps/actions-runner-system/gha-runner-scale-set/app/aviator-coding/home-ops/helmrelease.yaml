@@ -122,6 +122,19 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: status.hostIP
+              - name: TALOSCONFIG
+                value: "/var/run/secrets/talos.dev/talosconfig"
+              - name: RUNNER_ALLOW_RUNASROOT
+                value: "1"
+              - name: ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT
+                value: "1"
+            resources:
+              requests:
+                cpu: "1"
+                memory: "2Gi"
+              limits:
+                cpu: "4"
+                memory: "8Gi"
             # securityContext:
             #   allowPrivilegeEscalation: true
             #   readOnlyRootFilesystem: false
