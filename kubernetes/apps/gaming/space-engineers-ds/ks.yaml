@@ -47,4 +47,4 @@ spec:
     - name: space-engineers-ds
       namespace: gaming
     - name: volsync
-      namespace: volsync-system
+      namespace: system
