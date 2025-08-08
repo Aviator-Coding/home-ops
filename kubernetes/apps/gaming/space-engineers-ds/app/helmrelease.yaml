@@ -117,6 +117,16 @@ spec:
         globalMounts:
           - path: /appdata/space-engineers/instances
 
+      se-dedicated-server:
+        enabled: true
+        type: persistentVolumeClaim
+        storageClass: ceph-block
+        accessMode: ReadWriteOnce
+        size: 50Gi
+        retain: true
+        globalMounts:
+          - path: /appdata/space-engineers/SpaceEngineersDedicated
+
       plugins:
         enabled: true
         type: persistentVolumeClaim
