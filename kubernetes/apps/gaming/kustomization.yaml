@@ -6,4 +6,4 @@ namespace: gaming
 components:
   - ../../components/common
 resources:
-  - ./flux-instance/ks.yaml
+  - ./space-engineers-ds/ks.yaml
