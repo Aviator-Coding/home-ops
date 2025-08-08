@@ -18,7 +18,7 @@ spec:
     copyMethod: Clone
     accessModes:
       - ReadWriteMany
-    cacheStorageClassName: ceph-block
+    cacheStorageClassName: ceph-filesystem
     cacheCapacity: 2Gi
     moverSecurityContext:
       runAsUser: 1000
