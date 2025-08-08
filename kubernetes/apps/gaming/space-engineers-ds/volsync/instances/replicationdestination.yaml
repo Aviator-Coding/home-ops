@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/volsync.backube/replicationdestination_v1alpha1.json
+# This is an example for manual disaster recovery restore
+# To use: kubectl patch replicationdestination space-engineers-ds-instances-restore \
+#   --type merge --patch '{"spec":{"trigger":{"manual":"restore-'$(date +%s)'"}}}'
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: space-engineers-ds-instances-restore
+spec:
+  trigger:
+    manual: restore-once
+  restic:
+    repository: space-engineers-ds-minio-secret
+    destinationPVC: space-engineers-ds-restored
+    storageClassName: ceph-block
+    capacity: 50Gi
+    copyMethod: Snapshot
+    volumeSnapshotClassName: csi-rbdplugin-snapclass
+    cacheStorageClassName: ceph-block
+    cacheCapacity: 8Gi
+    moverSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000

@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/volsync.backube/replicationdestination_v1alpha1.json
+# This is an example for manual plugin restore
+# To use: kubectl patch replicationdestination space-engineers-ds-plugins-restore \
+#   --type merge --patch '{"spec":{"trigger":{"manual":"restore-'$(date +%s)'"}}}'
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: space-engineers-ds-plugins-restore
+spec:
+  trigger:
+    manual: restore-once
+  restic:
+    repository: space-engineers-ds-plugins-minio-secret
+    destinationPVC: space-engineers-ds-plugins-restored
+    storageClassName: ceph-filesystem
+    capacity: 10Gi
+    copyMethod: Clone
+    accessModes:
+      - ReadWriteMany
+    cacheStorageClassName: ceph-block
+    cacheCapacity: 2Gi
+    moverSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000

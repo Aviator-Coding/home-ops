@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/volsync.backube/replicationsource_v1alpha1.json
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: space-engineers-ds-plugins
+spec:
+  sourcePVC: space-engineers-ds-plugins
+  trigger:
+    schedule: "30 */6 * * *" # Every 6 hours for plugins (less critical)
+  restic:
+    pruneIntervalDays: 14
+    repository: space-engineers-ds-plugins-minio-secret
+    copyMethod: Clone # Use Clone for RWX CephFS
+    storageClassName: ceph-filesystem
+    cacheStorageClassName: ceph-block
+    cacheCapacity: 2Gi
+    moverSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+    retain:
+      daily: 14
+      weekly: 8
+      monthly: 6
