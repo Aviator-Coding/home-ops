@@ -22,8 +22,8 @@ spec:
         containers:
           app:
             image:
-              repository: deividgdt/space-engineers-dedicated-server
-              tag: 1.203.021
+              repository: devidian/spaceengineers
+              tag: winestaging
             env:
               # Basic server configuration
               INSTANCE_NAME: "Home-Ops Space Engineers Server"
