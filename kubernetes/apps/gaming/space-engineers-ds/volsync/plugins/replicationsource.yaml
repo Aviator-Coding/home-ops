@@ -13,7 +13,7 @@ spec:
     repository: space-engineers-ds-plugins-minio-secret
     copyMethod: Clone # Use Clone for RWX CephFS
     storageClassName: ceph-filesystem
-    cacheStorageClassName: ceph-block
+    cacheStorageClassName: ceph-filesystem # Cache must also be RWX for Clone method
     cacheCapacity: 2Gi
     moverSecurityContext:
       runAsUser: 1000
