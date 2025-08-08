@@ -109,13 +109,21 @@ spec:
     persistence:
       instances:
         enabled: true
-        existingClaim: space-engineers-ds
+        type: persistentVolumeClaim
+        storageClass: ceph-block
+        accessMode: ReadWriteOnce
+        size: 50Gi
+        retain: true
         globalMounts:
           - path: /appdata/space-engineers/instances
 
       plugins:
         enabled: true
-        existingClaim: space-engineers-ds-plugins
+        type: persistentVolumeClaim
+        storageClass: ceph-filesystem
+        accessMode: ReadWriteMany
+        size: 10Gi
+        retain: true
         advancedMounts:
           space-engineers-ds:
             app:
