@@ -175,7 +175,7 @@ jobs:
           fi
 
           echo "🏥 Testing node connectivity..."
-          if talosctl -n "$NODE_IP" version --insecure-skip-tls-verify; then
+          if talosctl -n "$NODE_IP" version ; then
             echo "✅ Node connectivity confirmed"
           else
             echo "❌ Cannot connect to node $NODE_IP"

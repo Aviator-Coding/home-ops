@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/volsync.backube/replicationsource_v1alpha1.json
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: space-engineers-ds-instances
+spec:
+  sourcePVC: space-engineers-ds
+  trigger:
+    schedule: "0 */4 * * *" # Every 4 hours for critical game data
+  restic:
+    pruneIntervalDays: 14
+    repository: space-engineers-ds-minio-secret
+    volumeSnapshotClassName: csi-rbdplugin-snapclass
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    cacheStorageClassName: ceph-block
+    cacheCapacity: 8Gi
+    moverSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+    retain:
+      hourly: 24
+      daily: 7
+      weekly: 5
