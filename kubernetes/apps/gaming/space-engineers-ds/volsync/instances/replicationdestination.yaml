@@ -16,7 +16,7 @@ spec:
     storageClassName: ceph-block
     capacity: 50Gi
     copyMethod: Snapshot
-    volumeSnapshotClassName: csi-rbdplugin-snapclass
+    volumeSnapshotClassName: csi-ceph-blockpool
     cacheStorageClassName: ceph-block
     cacheCapacity: 8Gi
     moverSecurityContext:
