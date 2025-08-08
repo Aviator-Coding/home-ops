@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: devidian/spaceengineers
-              tag: winestaging
+              tag: latest
             securityContext:
               runAsUser: 0
               runAsGroup: 0
