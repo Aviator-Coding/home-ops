@@ -198,4 +198,4 @@ spec:
           - backendRefs:
               - name: space-engineers-ds
                 namespace: gaming
-                port: 8080
+                port: 8081
