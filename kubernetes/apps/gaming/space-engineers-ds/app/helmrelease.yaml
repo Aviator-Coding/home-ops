@@ -29,18 +29,30 @@ spec:
               runAsGroup: 0
               runAsNonRoot: false
             env:
+              # Container specific settings
+              WINEDEBUG: "-all"
+              PUBLIC_IP: "0.0.0.0" # Required for healthcheck
+
               # Basic server configuration
-              INSTANCE_NAME: "Home-Ops Space Engineers Server"
+              INSTANCE_NAME: "Moon Base"
               MAX_PLAYERS: "20"
-              SERVER_NAME: "Home-Ops SE"
-              WORLD_NAME: "HomeOpsWorld"
+              SERVER_NAME: "Wubba Lubba Hull Breach"
+              WORLD_NAME: "Moon Base"
               # Password can be set via secret if needed
               # SERVER_PASSWORD: ""
+
+              # World generation settings
+              # WORLD_TYPE: "Star System"
+              # SCENARIO: "Empty World"
 
               # Performance settings
               VIEW_DISTANCE: "15000"
               SYNC_DISTANCE: "3000"
-              MAX_BACKUP_SAVES: "5"
+              MAX_BACKUP_SAVES: "15"
+
+              # Remote API on different port to avoid conflict with FileBrowser
+              REMOTE_API_ENABLED: "true"
+              REMOTE_API_PORT: "8080"
 
               # Plugin support
               ENABLE_WORKSHOP: "true"
@@ -56,6 +68,9 @@ spec:
                 protocol: UDP
               - name: game-tcp
                 containerPort: 27016
+                protocol: TCP
+              - name: remote-api
+                containerPort: 8081
                 protocol: TCP
 
             resources:
@@ -79,10 +94,10 @@ spec:
               FB_ROOT: "/srv"
               FB_LOG: "stdout"
               FB_ADDRESS: "0.0.0.0"
-              FB_PORT: "8080"
+              FB_PORT: "8081"
             ports:
               - name: http
-                containerPort: 8080
+                containerPort: 8081
                 protocol: TCP
             resources:
               requests:
@@ -110,8 +125,11 @@ spec:
           game-tcp:
             port: 27016
             protocol: TCP
-          filebrowser:
+          remote-api:
             port: 8080
+            protocol: TCP
+          filebrowser:
+            port: 8081
             protocol: TCP
 
     persistence:
