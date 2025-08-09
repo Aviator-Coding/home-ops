@@ -140,8 +140,12 @@ spec:
         accessMode: ReadWriteOnce
         size: 50Gi
         retain: true
-        globalMounts:
-          - path: /appdata/space-engineers/instances
+        advancedMounts:
+          space-engineers-ds:
+            app:
+              - path: /appdata/space-engineers/instances
+            filebrowser:
+              - path: /srv/instances
 
       se-dedicated-server:
         enabled: true
@@ -150,8 +154,12 @@ spec:
         accessMode: ReadWriteOnce
         size: 50Gi
         retain: true
-        globalMounts:
-          - path: /appdata/space-engineers/SpaceEngineersDedicated
+        advancedMounts:
+          space-engineers-ds:
+            app:
+              - path: /appdata/space-engineers/SpaceEngineersDedicated
+            filebrowser:
+              - path: /srv/SpaceEngineersDedicated
 
       plugins:
         enabled: true
@@ -165,7 +173,7 @@ spec:
             app:
               - path: /appdata/space-engineers/plugins
             filebrowser:
-              - path: /srv
+              - path: /srv/plugins
 
       filebrowser-db:
         enabled: true
