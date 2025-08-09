@@ -34,7 +34,7 @@ spec:
               PUBLIC_IP: "0.0.0.0" # Required for healthcheck
 
               # Basic server configuration
-              INSTANCE_NAME: "Wubba Lubba Hull Breach"
+              INSTANCE_NAME: "WubbaLubbaHullBreach"
               # MAX_PLAYERS: "20"
               # SERVER_NAME: "Wubba Lubba Hull Breach"
               # WORLD_NAME: "Moon Base"
