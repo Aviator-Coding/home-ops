@@ -69,7 +69,7 @@ spec:
           filebrowser:
             image:
               repository: filebrowser/filebrowser
-              tag: v2.31.2
+              tag: v2.42.3
             securityContext:
               runAsUser: 1000
               runAsGroup: 1000
