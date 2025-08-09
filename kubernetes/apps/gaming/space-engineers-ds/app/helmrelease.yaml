@@ -34,10 +34,10 @@ spec:
               PUBLIC_IP: "0.0.0.0" # Required for healthcheck
 
               # Basic server configuration
-              INSTANCE_NAME: "Moon Base"
-              MAX_PLAYERS: "20"
-              SERVER_NAME: "Wubba Lubba Hull Breach"
-              WORLD_NAME: "Moon Base"
+              INSTANCE_NAME: "Wubba Lubba Hull Breach"
+              # MAX_PLAYERS: "20"
+              # SERVER_NAME: "Wubba Lubba Hull Breach"
+              # WORLD_NAME: "Moon Base"
               # Password can be set via secret if needed
               # SERVER_PASSWORD: ""
 
@@ -46,21 +46,21 @@ spec:
               # SCENARIO: "Empty World"
 
               # Performance settings
-              VIEW_DISTANCE: "15000"
-              SYNC_DISTANCE: "3000"
-              MAX_BACKUP_SAVES: "15"
+              # VIEW_DISTANCE: "15000"
+              # SYNC_DISTANCE: "3000"
+              # MAX_BACKUP_SAVES: "15"
 
-              # Remote API on different port to avoid conflict with FileBrowser
-              REMOTE_API_ENABLED: "true"
-              REMOTE_API_PORT: "8080"
+              # # Remote API on different port to avoid conflict with FileBrowser
+              # REMOTE_API_ENABLED: "true"
+              # REMOTE_API_PORT: "8080"
 
-              # Plugin support
-              ENABLE_WORKSHOP: "true"
-              WORKSHOP_ITEMS: "" # Add workshop mod IDs here
+              # # Plugin support
+              # ENABLE_WORKSHOP: "true"
+              # WORKSHOP_ITEMS: "" # Add workshop mod IDs here
 
-              # Performance and stability
-              AUTO_RESTART: "true"
-              AUTO_UPDATE: "true"
+              # # Performance and stability
+              # AUTO_RESTART: "true"
+              # AUTO_UPDATE: "true"
 
             ports:
               - name: game
