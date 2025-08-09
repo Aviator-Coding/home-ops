@@ -86,9 +86,9 @@ spec:
               repository: filebrowser/filebrowser
               tag: v2.42.3
             securityContext:
-              runAsUser: 1000
-              runAsGroup: 1000
-              runAsNonRoot: true
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
             env:
               FB_DATABASE: "/database/filebrowser.db"
               FB_ROOT: "/srv"
@@ -109,9 +109,8 @@ spec:
 
     defaultPodOptions:
       securityContext:
-        # Let individual containers override as needed
-        # Space Engineers needs root, FileBrowser can use 1000
-        fsGroup: 1000
+        # Both containers run as root to avoid permission conflicts
+        fsGroup: 0
         fsGroupChangePolicy: "OnRootMismatch"
 
     service:
