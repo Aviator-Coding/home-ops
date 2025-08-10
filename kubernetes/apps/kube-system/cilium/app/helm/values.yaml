@@ -18,6 +18,10 @@ cgroup:
 cni:
   # Required for pairing with Multus CNI
   exclusive: false
+dashboards:
+  enabled: true
+  annotations:
+    grafana_folder: Cilium
 cluster:
   id: 1
   name: home-ops-prod
@@ -47,6 +51,20 @@ loadBalancer:
   algorithm: maglev
   mode: dsr
 localRedirectPolicy: true
+operator:
+  dashboards:
+    enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  replicas: 2
+  rollOutPods: true
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    trustCRDsExist: true
 rollOutCiliumPods: true
 routingMode: native
 securityContext:
