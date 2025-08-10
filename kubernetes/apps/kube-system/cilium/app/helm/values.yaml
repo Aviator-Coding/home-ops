@@ -33,8 +33,6 @@ gatewayAPI:
   enabled: true
   enableAlpn: true
   xffNumTrustedHops: 1
-hubble:
-  enabled: false
 ipam:
   mode: kubernetes
 ipv4NativeRoutingCIDR: "10.42.0.0/16"
@@ -43,26 +41,12 @@ k8sServicePort: 7445
 kubeProxyReplacement: true
 kubeProxyReplacementHealthzBindAddr: 0.0.0.0:10256
 l2announcements:
-  enabled: true
+  enabled: false
 loadBalancer:
   acceleration: best-effort
   algorithm: maglev
   mode: dsr
 localRedirectPolicy: true
-operator:
-  dashboards:
-    enabled: true
-  prometheus:
-    enabled: true
-    serviceMonitor:
-      enabled: true
-  replicas: 1
-  rollOutPods: true
-prometheus:
-  enabled: true
-  serviceMonitor:
-    enabled: true
-    trustCRDsExist: true
 rollOutCiliumPods: true
 routingMode: native
 securityContext:
