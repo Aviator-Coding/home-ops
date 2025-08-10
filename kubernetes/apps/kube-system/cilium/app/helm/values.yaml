@@ -18,9 +18,9 @@ cgroup:
 cni:
   # Required for pairing with Multus CNI
   exclusive: false
-# cluster:
-#   id: 1
-#   name: home-ops-prod
+cluster:
+  id: 1
+  name: home-ops-prod
 enableIPv4BIGTCP: true
 endpointRoutes:
   enabled: true
