@@ -29,7 +29,7 @@ servers:
       - name: autopath
         parameters: "@kubernetes"
       - name: forward
-        parameters: . /etc/resolv.conf
+        parameters: . 10.10.3.1 8.8.8.8 8.8.4.4
       - name: cache
         configBlock: |-
           prefetch 20
