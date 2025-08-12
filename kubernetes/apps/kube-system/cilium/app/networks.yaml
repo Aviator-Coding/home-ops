@@ -60,24 +60,24 @@ spec:
       advertisements:
         matchLabels:
           advertise: bgp
----
-apiVersion: cilium.io/v2alpha1
-kind: CiliumBGPPeeringPolicy
-metadata:
-  name: node-to-node-mesh
-spec:
-  nodeSelector:
-    matchLabels:
-      kubernetes.io/os: linux
-  virtualRouters:
-  - localASN: 64514
-    neighbors:
-    - peerAddress: '10.10.3.11/32'
-      peerASN: 64514
-    - peerAddress: '10.10.3.12/32'
-      peerASN: 64514
-    - peerAddress: '10.10.3.13/32'
-      peerASN: 64514
+# ---
+# apiVersion: cilium.io/v2alpha1
+# kind: CiliumBGPPeeringPolicy
+# metadata:
+#   name: node-to-node-mesh
+# spec:
+#   nodeSelector:
+#     matchLabels:
+#       kubernetes.io/os: linux
+#   virtualRouters:
+#   - localASN: 64514
+#     neighbors:
+#     - peerAddress: '10.10.3.11/32'
+#       peerASN: 64514
+#     - peerAddress: '10.10.3.12/32'
+#       peerASN: 64514
+#     - peerAddress: '10.10.3.13/32'
+#       peerASN: 64514
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumbgpclusterconfig_v2.json
 apiVersion: cilium.io/v2
