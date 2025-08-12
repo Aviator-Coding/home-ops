@@ -1,16 +1,4 @@
 ---
-# yaml-language-s# ---
-# # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliuml2announcementpolicy_v2alpha1.json
-# apiVersion: cilium.io/v2alpha1
-# kind: CiliumL2AnnouncementPolicy
-# metadata:
-#   name: l2-policy
-# spec:
-#   loadBalancerIPs: true
-#   interfaces: ["^enp.*"]
-#   nodeSelector:
-#     matchLabels:
-#       kubernetes.io/os: linuxma=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliumloadbalancerippool_v2alpha1.json
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool
 metadata:
@@ -18,19 +6,7 @@ metadata:
 spec:
   allowFirstLastIPs: "No"
   blocks:
-    # - cidr: "10.10.3.0/24"
     - cidr: "10.44.0.0/16"
----
-# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliumloadbalancerippool_v2alpha1.json
-# apiVersion: cilium.io/v2alpha1
-# kind: CiliumLoadBalancerIPPool
-# metadata:
-#   name: pool-2
-# spec:
-#   allowFirstLastIPs: "No"
-#   blocks:
-#     - cidr: "10.10.4.0/24"
-# Commented out L2 announcement policy since we're using BGP
 ---
 # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliuml2announcementpolicy_v2alpha1.json
 apiVersion: cilium.io/v2alpha1
@@ -72,24 +48,6 @@ spec:
       advertisements:
         matchLabels:
           advertise: bgp
-# ---
-# apiVersion: cilium.io/v2alpha1
-# kind: CiliumBGPPeeringPolicy
-# metadata:
-#   name: node-to-node-mesh
-# spec:
-#   nodeSelector:
-#     matchLabels:
-#       kubernetes.io/os: linux
-#   virtualRouters:
-#   - localASN: 64514
-#     neighbors:
-#     - peerAddress: '10.10.3.11/32'
-#       peerASN: 64514
-#     - peerAddress: '10.10.3.12/32'
-#       peerASN: 64514
-#     - peerAddress: '10.10.3.13/32'
-#       peerASN: 64514
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumbgpclusterconfig_v2.json
 apiVersion: cilium.io/v2
