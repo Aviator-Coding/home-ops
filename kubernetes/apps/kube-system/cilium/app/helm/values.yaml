@@ -67,6 +67,8 @@ prometheus:
     trustCRDsExist: true
 rollOutCiliumPods: true
 routingMode: native
+tunneling:
+  mtu: 9000
 securityContext:
   capabilities:
     ciliumAgent:
