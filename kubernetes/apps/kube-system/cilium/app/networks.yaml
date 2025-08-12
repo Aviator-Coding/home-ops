@@ -1,5 +1,16 @@
 ---
-# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliumloadbalancerippool_v2alpha1.json
+# yaml-language-s# ---
+# # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliuml2announcementpolicy_v2alpha1.json
+# apiVersion: cilium.io/v2alpha1
+# kind: CiliumL2AnnouncementPolicy
+# metadata:
+#   name: l2-policy
+# spec:
+#   loadBalancerIPs: true
+#   interfaces: ["^enp.*"]
+#   nodeSelector:
+#     matchLabels:
+#       kubernetes.io/os: linuxma=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliumloadbalancerippool_v2alpha1.json
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool
 metadata:
