@@ -8,6 +8,16 @@ spec:
   allowFirstLastIPs: "No"
   blocks:
     - cidr: "10.10.3.0/24"
+---
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliumloadbalancerippool_v2alpha1.json
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: pool-2
+spec:
+  allowFirstLastIPs: "No"
+  blocks:
+    - cidr: "10.10.4.0/24"
 # Commented out L2 announcement policy since we're using BGP
 # ---
 # # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliuml2announcementpolicy_v2alpha1.json
