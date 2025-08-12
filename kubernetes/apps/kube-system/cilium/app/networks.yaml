@@ -19,18 +19,18 @@ spec:
   blocks:
     - cidr: "10.10.4.0/24"
 # Commented out L2 announcement policy since we're using BGP
-# ---
-# # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliuml2announcementpolicy_v2alpha1.json
-# apiVersion: cilium.io/v2alpha1
-# kind: CiliumL2AnnouncementPolicy
-# metadata:
-#   name: l2-policy
-# spec:
-#   loadBalancerIPs: true
-#   interfaces: ["^enp.*"]
-#   nodeSelector:
-#     matchLabels:
-#       kubernetes.io/os: linux
+---
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/cilium.io/ciliuml2announcementpolicy_v2alpha1.json
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: l2-policy
+spec:
+  loadBalancerIPs: true
+  interfaces: ["^enp.*"]
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/os: linux
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumbgpadvertisement_v2.json
 apiVersion: cilium.io/v2
