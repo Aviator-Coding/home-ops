@@ -7,7 +7,7 @@ bpf:
   datapathMode: netkit
   masquerade: true
   preallocateMaps: true
-  # tproxy: true
+  tproxy: true
 bpfClockProbe: true
 bgpControlPlane:
   enabled: true
@@ -49,7 +49,7 @@ l2announcements:
 devices: ["^bond.*"]
 loadBalancer:
   acceleration: best-effort
-  algorithm: maglev
+  # algorithm: maglev
   mode: dsr
 localRedirectPolicy: true
 operator:
