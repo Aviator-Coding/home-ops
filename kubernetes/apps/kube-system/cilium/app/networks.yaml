@@ -74,3 +74,6 @@ spec:
           peerAddress: 10.10.3.1
           peerConfigRef:
             name: l3-bgp-peer-config
+          import:
+            - afi: ipv4
+              safi: unicast
