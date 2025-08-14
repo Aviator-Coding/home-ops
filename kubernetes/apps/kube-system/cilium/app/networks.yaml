@@ -44,6 +44,7 @@ kind: CiliumBGPPeerConfig
 metadata:
   name: l3-bgp-peer-config
 spec:
+  ebgpMultihop: 2
   gracefulRestart:
     enabled: true
     restartTimeSeconds: 15
