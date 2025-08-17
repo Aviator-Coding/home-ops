@@ -68,12 +68,12 @@ spec:
   bgpInstances:
     - name: cilium
       localASN: 64514
+      import:
+        - afi: ipv4
+          safi: unicast
       peers:
         - name: unifi
           peerASN: 64513
           peerAddress: 10.0.0.1
           peerConfigRef:
             name: l3-bgp-peer-config
-          import:
-            - afi: ipv4
-              safi: unicast
