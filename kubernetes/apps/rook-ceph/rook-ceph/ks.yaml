@@ -10,6 +10,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *appname
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
   interval: 30m
   timeout: 5m
   path: "./kubernetes/apps/rook-ceph/rook-ceph/operator"
@@ -31,10 +34,6 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *appname
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-age
   interval: 30m
   timeout: 5m
   path: "./kubernetes/apps/rook-ceph/rook-ceph/cluster"
@@ -42,6 +41,9 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+  dependsOn:
+  - name: onepassword-store
+    namespace: security
   prune: false # Never delete this
   sourceRef:
     kind: GitRepository
@@ -70,14 +72,13 @@ metadata:
   name: &appname rook-cephfs-subvolumens
   namespace: &namespace rook-ceph
 spec:
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
   targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *appname
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-age
   interval: 30m
   timeout: 5m
   path: "./kubernetes/apps/rook-ceph/rook-ceph/cephfs"
