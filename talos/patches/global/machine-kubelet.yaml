@@ -25,4 +25,4 @@ machine:
         ephemeral-storage: "2Gi"
     nodeIP:
       validSubnets:
-        - 10.10.3.0/24
+        - 10.10.10.0/24

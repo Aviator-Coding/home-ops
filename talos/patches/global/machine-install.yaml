@@ -1,0 +1,5 @@
+# machine:
+#   install:
+#     extraKernelArgs:
+#       - bonding.mode=802.3ad
+#       - bonding.miimon=100

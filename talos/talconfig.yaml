@@ -5,10 +5,10 @@ clusterName: &clusterName kubernetes
 talosVersion: "${talosVersion}"
 kubernetesVersion: "${kubernetesVersion}"
 
-endpoint: https://10.10.3.10:6443
+endpoint: https://10.10.10.10:6443
 additionalApiServerCertSans: &sans
   - "127.0.0.1"
-  - &talosControlplaneVip 10.10.3.10
+  - &talosControlplaneVip 10.10.10.10
   - "talos.sklab.dev"
 additionalMachineCertSans: *sans
 
@@ -25,7 +25,7 @@ nodes:
   #------------------------------------------------
   - &talos-k8s-mixed
     hostname: "talos-1"
-    ipAddress: "10.10.3.11"
+    ipAddress: "10.10.10.11"
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800127"
     # installDiskSelector:
     #   # `/*` suffix is needed until
@@ -35,57 +35,45 @@ nodes:
       secureboot: false
     controlPlane: true
     networkInterfaces:
-      # Disable unused/problematic interfaces
-      - interface: enp87s0
-        dhcp: false
-
+      # Explicitly tell Talos not to use the extra onboard NIC V-Pro
       - interface: enp89s0
         dhcp: false
-
-      # Disable Thunderbolt network adapters that compete with bond
-      - interface: enx026f5593b684
-        dhcp: false
-
-      - interface: enx0291a50d25d0
-        dhcp: false
-
-      - interface: enp2s0f0np0
-        driver: i40e
-        hwAddr: 58:47:ca:78:c8:9b
-        mtu: 9000
-
-      - interface: enp2s0f1np1
-        driver: i40e
-        hwAddr: 58:47:ca:78:c8:9c
-        mtu: 9000
+        addresses: []
+        routes: []
 
       - interface: bond0
         bond:
-          interfaces:
-            - enp2s0f0np0
-            - enp2s0f1np1
+          # interfaces:
+          #   - enp2s0f0np0
+          #   - enp2s0f1np1
           mode: 802.3ad
+          deviceSelectors:
+            - permanentAddr: '58:47:ca:78:c8:9a'
+            - permanentAddr: '58:47:ca:78:c8:9b'
           lacpRate: fast
           xmitHashPolicy: layer3+4
           miimon: 100
+          updelay: 200
+          downdelay: 200
+        dhcp: true
         mtu: 9000
-        addresses:
-          - 10.10.3.11/24
+        # addresses:
+        #   - 10.10.10.11/24
         vip:
           ip: *talosControlplaneVip
-        routes:
-          - network: 0.0.0.0/0
-            gateway: 10.10.3.1
-      - interface: lo
-        routes:
-          - network: 169.254.7.127/32
-          - network: 169.254.116.108/32
+        # routes:
+        #   - network: 0.0.0.0/0
+        #     gateway: 10.10.10.1
+      # - interface: lo
+      #   routes:
+      #     - network: 169.254.7.127/32
+      #     - network: 169.254.116.108/32
 
   #------------------------------------------------
   # # Talos 2
   #------------------------------------------------
   - hostname: talos-2
-    ipAddress: 10.10.3.12
+    ipAddress: 10.10.10.12
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800809"
     # installDiskSelector:
     #   # `/*` suffix is needed until
@@ -95,29 +83,11 @@ nodes:
       secureboot: false
     controlPlane: true
     networkInterfaces:
-      # Disable unused/problematic interfaces
-      - interface: enp87s0
-        ignore: true
-
+      # Explicitly tell Talos not to use the extra onboard NIC V-Pro
       - interface: enp89s0
-        ignore: true
-
-      # Disable Thunderbolt network adapters that compete with bond
-      - interface: enx026f5593b684
-        ignore: true
-
-      - interface: enx0291a50d25d0
-        ignore: true
-
-      - interface: enp2s0f0np0
-        driver: i40e
-        hwAddr: 58:47:ca:78:c8:9a
-        mtu: 9000
-
-      - interface: enp2s0f1np1
-        driver: i40e
-        hwAddr: 58:47:ca:78:c8:9b
-        mtu: 9000
+        dhcp: false
+        addresses: []
+        routes: []
 
       - interface: bond0
         bond:
@@ -128,25 +98,28 @@ nodes:
           lacpRate: fast
           xmitHashPolicy: layer3+4
           miimon: 100
+          updelay: 200
+          downdelay: 200
+        dhcp: true
         mtu: 9000
-        addresses:
-          - 10.10.3.12/24
+        # addresses:
+        #   - 10.10.10.12/24
         vip:
           ip: *talosControlplaneVip
-        routes:
-          - network: 0.0.0.0/0
-            gateway: 10.10.3.1
+        # routes:
+        #   - network: 0.0.0.0/0
+        #     gateway: 10.10.10.1
 
-      - interface: lo
-        routes:
-          - network: 169.254.7.127/32
-          - network: 169.254.116.108/32
+      # - interface: lo
+      #   routes:
+      #     - network: 169.254.7.127/32
+      #     - network: 169.254.116.108/32
 
   #------------------------------------------------
   # # Talos 3
   #------------------------------------------------
   - hostname: talos-3
-    ipAddress: 10.10.3.13
+    ipAddress: 10.10.10.13
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800007"
     # installDiskSelector:
     #   # `/*` suffix is needed until
@@ -156,29 +129,11 @@ nodes:
       secureboot: false
     controlPlane: true
     networkInterfaces:
-      # Disable unused/problematic interfaces
-      - interface: enp87s0
-        ignore: true
-
+        # Explicitly tell Talos not to use the extra onboard NIC V-Pro
       - interface: enp89s0
-        ignore: true
-
-      # Disable Thunderbolt network adapters that compete with bond
-      - interface: enx026f5593b684
-        ignore: true
-
-      - interface: enx0291a50d25d0
-        ignore: true
-
-      - interface: enp2s0f0np0
-        driver: i40e
-        hwAddr: 58:47:ca:77:f4:3e
-        mtu: 9000
-
-      - interface: enp2s0f1np1
-        driver: i40e
-        hwAddr: 58:47:ca:77:f4:3f
-        mtu: 9000
+        dhcp: false
+        addresses: []
+        routes: []
 
       - interface: bond0
         bond:
@@ -189,19 +144,22 @@ nodes:
           lacpRate: fast
           xmitHashPolicy: layer3+4
           miimon: 100
+          updelay: 200
+          downdelay: 200
+        dhcp: true
         mtu: 9000
-        addresses:
-          - 10.10.3.13/24
+        # addresses:
+        #   - 10.10.10.13/24
         vip:
           ip: *talosControlplaneVip
         routes:
-          - network: 0.0.0.0/0
-            gateway: 10.10.3.1
+      #     - network: 0.0.0.0/0
+      #       gateway: 10.10.10.1
 
-      - interface: lo
-        routes:
-          - network: 169.254.7.127/32
-          - network: 169.254.116.108/32
+      # - interface: lo
+      #   routes:
+      #     - network: 169.254.7.127/32
+      #     - network: 169.254.116.108/32
 
 # Global patches
 patches:
@@ -216,6 +174,7 @@ patches:
   - "@./patches/global/machine-sysctls.yaml"
   - "@./patches/global/machine-udev.yaml"
   - "@./patches/global/machine-time.yaml"
+  # - "@./patches/global/machine-install.yaml"
   - "@./patches/global/machine-features.yaml"
 
 # Controller patches
