@@ -40,16 +40,17 @@ nodes:
         dhcp: false
         addresses: []
         routes: []
+        # ignore: true
 
       - interface: bond0
         bond:
-          # interfaces:
-          #   - enp2s0f0np0
-          #   - enp2s0f1np1
+          interfaces:
+            - enp2s0f0np0
+            - enp2s0f1np1
           mode: 802.3ad
-          deviceSelectors:
-            - permanentAddr: '58:47:ca:78:c8:9a'
-            - permanentAddr: '58:47:ca:78:c8:9b'
+          # deviceSelectors:
+          #   - permanentAddr: '58:47:ca:78:c8:9a'
+          #   - permanentAddr: '58:47:ca:78:c8:9b'
           lacpRate: fast
           xmitHashPolicy: layer3+4
           miimon: 100
@@ -88,6 +89,7 @@ nodes:
         dhcp: false
         addresses: []
         routes: []
+        # ignore: true
 
       - interface: bond0
         bond:
@@ -134,6 +136,7 @@ nodes:
         dhcp: false
         addresses: []
         routes: []
+        # ignore: true
 
       - interface: bond0
         bond:
