@@ -68,9 +68,6 @@ spec:
   bgpInstances:
     - name: cilium
       localASN: 64514
-      families:
-        - afi: ipv4
-          safi: unicast
       peers:
         - name: unifi
           peerASN: 64513
