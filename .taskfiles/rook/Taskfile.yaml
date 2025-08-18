@@ -14,7 +14,7 @@ vars:
   CLUSTER: "{{.cluster | default \"admin@kubernetes\"}}"
   # Node mappings - hostnames for Kubernetes, IPs for Talos
   TALOS_NODE_NAMES: [talos-1, talos-2, talos-3]
-  TALOS_NODE_IPS: [10.10.3.11, 10.10.3.12, 10.10.3.13]
+  TALOS_NODE_IPS: [10.10.10.11, 10.10.10.12, 10.10.10.13]
   # Disk mappings for easier maintenance
   TALOS_1_DISKS:
     - /dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NME714W100393P2202
