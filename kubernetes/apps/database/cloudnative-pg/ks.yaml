@@ -22,48 +22,12 @@ spec:
       - name: cluster-secrets
         kind: Secret
   wait: true
----
-# yaml-language-server: $schema=https://crd.movishell.pl/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: &app postgres-cluster-16
-  namespace: &namespace database
-spec:
-  commonMetadata:
-    labels:
-      app.kubernetes.io/name: *app
-  dependsOn:
-    - name: cloudnative-pg
-      namespace: database
-    - name: rook-ceph
-      namespace: rook-ceph
-    - name: external-secrets
-      namespace: security
-  healthCheckExprs:
-    - apiVersion: postgresql.cnpg.io/v1
-      kind: Cluster
-      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
-      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')
-  interval: 30m
-  path: ./kubernetes/apps/database/cloudnative-pg/cluster-16
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-    namespace: flux-system
-  postBuild:
-    substituteFrom:
-      - name: cluster-secrets
-        kind: Secret
-  targetNamespace: *namespace
-  wait: true
 # ---
-# # yaml-language-server: $schema=https://crd.movishell.pl/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# yaml-language-server: $schema=https://crd.movishell.pl/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 # apiVersion: kustomize.toolkit.fluxcd.io/v1
 # kind: Kustomization
 # metadata:
-#   name: &app postgres-cluster-17
+#   name: &app postgres-cluster-16
 #   namespace: &namespace database
 # spec:
 #   commonMetadata:
@@ -82,7 +46,7 @@ spec:
 #       current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
 #       failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')
 #   interval: 30m
-#   path: ./kubernetes/apps/database/cloudnative-pg/cluster-17
+#   path: ./kubernetes/apps/database/cloudnative-pg/cluster-16
 #   prune: true
 #   sourceRef:
 #     kind: GitRepository
@@ -94,6 +58,42 @@ spec:
 #         kind: Secret
 #   targetNamespace: *namespace
 #   wait: true
+---
+# yaml-language-server: $schema=https://crd.movishell.pl/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app postgres-cluster-17
+  namespace: &namespace database
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: cloudnative-pg
+      namespace: database
+    - name: rook-ceph
+      namespace: rook-ceph
+    - name: external-secrets
+      namespace: security
+  healthCheckExprs:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
+      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')
+  interval: 30m
+  path: ./kubernetes/apps/database/cloudnative-pg/cluster-17
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  targetNamespace: *namespace
+  wait: true
 ---
 # yaml-language-server: $schema=https://crd.movishell.pl/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
