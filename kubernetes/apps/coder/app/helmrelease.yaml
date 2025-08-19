@@ -70,7 +70,7 @@ spec:
         - name: CODER_OIDC_ICON_URL
           value: "https://raw.githubusercontent.com/homarr-labs/dashboard-icons/refs/heads/main/svg/authentik.svg"
         - name: CODER_OIDC_ISSUER_URL
-          value: "http://authentik-server.security.svc.cluster.local/application/o/coder/"
+          value: "https://auth.${SECRET_DOMAIN}/application/o/coder/"
         - name: CODER_OIDC_ROLE_FIELD
           value: "groups"
         - name: CODER_OIDC_SCOPES
