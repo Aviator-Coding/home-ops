@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - ./ceph-user.yaml
   - ./ceph-bucket.yaml
+  - ./pushsecret.yaml
