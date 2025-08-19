@@ -29,8 +29,6 @@ enableIPv4BIGTCP: true
 endpointRoutes:
   enabled: true
 envoy:
-  enabled: true
-  externalEnvoyProxy: false
   rollOutPods: true
   prometheus:
     serviceMonitor:
@@ -38,7 +36,7 @@ envoy:
 gatewayAPI:
   enabled: true
   enableAlpn: true
-  xffNumTrustedHops: 1
+  xffNumTrustedHops: 4
 ipam:
   mode: kubernetes
 ipv4NativeRoutingCIDR: "10.42.0.0/16"
