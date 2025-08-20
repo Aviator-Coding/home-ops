@@ -10,13 +10,14 @@ metadata:
     gethomepage.dev/name: Authentik
     gethomepage.dev/icon: authentik.png
     gethomepage.dev/pod-selector: app.kubernetes.io/name=authentik
+    external-dns.alpha.kubernetes.io/target: "internal.sklab.dev"
 spec:
   hostnames: ["auth.sklab.dev"]
   parentRefs:
-    - name: external
+    - name: internal
       namespace: kube-system
       sectionName: https
-    - name: internal
+    - name: external
       namespace: kube-system
       sectionName: https
   rules:
