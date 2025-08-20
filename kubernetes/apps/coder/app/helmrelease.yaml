@@ -74,9 +74,11 @@ spec:
         - name: CODER_OIDC_ROLE_FIELD
           value: "groups"
         - name: CODER_OIDC_SCOPES
-          value: "openid,profile,email"
+          value: "openid,profile,email,offline_access"
         - name: CODER_OIDC_SIGN_IN_TEXT
           value: "Sign in with Authentik"
+        - name: CODER_OIDC_AUTH_URL_PARAMS
+          value: ""
         - name: CODER_OIDC_USER_ROLE_MAPPING
           value: |
             {"Admins": ["owner"]}
