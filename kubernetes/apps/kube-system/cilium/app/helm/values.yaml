@@ -49,7 +49,7 @@ l2announcements:
 devices: [bond+]
 loadBalancer:
   acceleration: best-effort
-  # algorithm: maglev
+  algorithm: maglev
   mode: dsr
 localRedirectPolicy: true
 operator:
