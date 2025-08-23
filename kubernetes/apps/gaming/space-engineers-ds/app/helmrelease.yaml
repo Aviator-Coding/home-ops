@@ -179,7 +179,7 @@ spec:
         type: persistentVolumeClaim
         storageClass: ceph-block
         accessMode: ReadWriteOnce
-        size: 1Gi
+        size: 100M
         retain: true
         advancedMounts:
           space-engineers-ds:
