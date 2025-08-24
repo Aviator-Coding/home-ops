@@ -5,6 +5,10 @@ originRequest:
 ingress:
   - hostname: "${SECRET_DOMAIN}"
     service: &svc https://cilium-gateway-external.kube-system.svc.cluster.local
+  - hostname: "se-tcp.${SECRET_DOMAIN}"
+    service: tcp://space-engineers-ds.gaming.svc.cluster.local:27016
+    originRequest:
+      bastionMode: true
   - hostname: "*.${SECRET_DOMAIN}"
     service: *svc
   - service: http_status:404
