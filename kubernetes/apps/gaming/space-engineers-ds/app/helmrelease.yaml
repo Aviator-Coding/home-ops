@@ -95,8 +95,6 @@ spec:
         type: LoadBalancer
         annotations:
           io.cilium/lb-ipam-ips: 10.50.0.120
-        externalIPs:
-          - 75.36.88.253 # Your public IP
         ports:
           game-udp:
             port: 27016
