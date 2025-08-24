@@ -123,21 +123,28 @@ spec:
         controller: space-engineers-ds
         type: LoadBalancer
         externalTrafficPolicy: Local
+        loadBalancerClass: io.cilium/lb
+        ipFamilyPolicy: SingleStack
+        ipFamilies: [IPv4]
         annotations:
-          io.cilium/lb-ipam-ips: 10.50.0.120
+          io.cilium/lb-ipam-ips: "10.50.0.120"
         ports:
           game-udp:
             port: 27016
             protocol: UDP
+            targetPort: game # -> containerPort name in app container
           game-tcp:
             port: 27016
             protocol: TCP
+            targetPort: game-tcp # -> containerPort name in app container
           remote-api:
+            port: 8081 # expose 8081 as remote API
+            protocol: TCP
+            targetPort: remote-api # -> containerPort name in app container
+          playit-http: # was "filebrowser" before; rename to what it is
             port: 8080
             protocol: TCP
-          filebrowser:
-            port: 8081
-            protocol: TCP
+            targetPort: http # -> containerPort name in playit container
 
     persistence:
       instances:
