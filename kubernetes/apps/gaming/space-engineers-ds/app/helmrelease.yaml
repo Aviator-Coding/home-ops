@@ -80,32 +80,6 @@ spec:
               limits:
                 cpu: "6"
                 memory: "12Gi"
-          # FileBrowser sidecar for plugin management
-          filebrowser:
-            image:
-              repository: filebrowser/filebrowser
-              tag: v2.42.3
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
-            env:
-              FB_DATABASE: "/database/filebrowser.db"
-              FB_ROOT: "/srv"
-              FB_LOG: "stdout"
-              FB_ADDRESS: "0.0.0.0"
-              FB_PORT: "8081"
-            ports:
-              - name: http
-                containerPort: 8081
-                protocol: TCP
-            resources:
-              requests:
-                cpu: "50m"
-                memory: "128Mi"
-              limits:
-                cpu: "200m"
-                memory: "512Mi"
 
     defaultPodOptions:
       securityContext:
@@ -173,36 +147,3 @@ spec:
               - path: /appdata/space-engineers/plugins
             filebrowser:
               - path: /srv/plugins
-
-      filebrowser-db:
-        enabled: true
-        type: persistentVolumeClaim
-        storageClass: ceph-block
-        accessMode: ReadWriteOnce
-        size: 100M
-        retain: true
-        advancedMounts:
-          space-engineers-ds:
-            filebrowser:
-              - path: /database
-
-    # HTTPRoute for FileBrowser admin interface
-    route:
-      filebrowser:
-        annotations:
-          gethomepage.dev/enabled: "true"
-          gethomepage.dev/group: Gaming
-          gethomepage.dev/name: Space Engineers Plugin Manager
-          gethomepage.dev/icon: space-engineers.svg
-          gethomepage.dev/description: Plugin file management for Space Engineers
-        hostnames:
-          - "se-admin.${SECRET_DOMAIN}"
-        parentRefs:
-          - name: internal
-            namespace: kube-system
-            sectionName: https
-        rules:
-          - backendRefs:
-              - name: space-engineers-ds
-                namespace: gaming
-                port: 8081
