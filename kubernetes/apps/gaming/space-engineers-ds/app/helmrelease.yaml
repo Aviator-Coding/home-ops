@@ -92,7 +92,9 @@ spec:
     service:
       app:
         controller: space-engineers-ds
-        type: ClusterIP
+        type: LoadBalancer
+        annotations:
+          io.cilium/lb-ipam-ips: 10.50.0.120
         ports:
           game-udp:
             port: 27016
