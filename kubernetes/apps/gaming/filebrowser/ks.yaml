@@ -28,5 +28,5 @@ spec:
   dependsOn:
     - name: rook-ceph-cluster
       namespace: rook-ceph
-    - name: space-engineers-ds
-      namespace: gaming
+    # - name: space-engineers-ds
+    #   namespace: gaming
