@@ -22,6 +22,35 @@ spec:
           labels:
             ingress.home.arpa/playit: allow
         containers:
+          playit:
+            nameOverride: playit
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            envFrom:
+              - secretRef:
+                  name: playit-env
+            image:
+              repository: ghcr.io/playit-cloud/playit-agent
+              tag: 0.16.2
+            ports:
+              - name: http
+                containerPort: 8080
+                protocol: TCP
+            resources:
+              requests:
+                cpu: 10m
+                memory: 150Mi
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
+
           app:
             image:
               repository: devidian/spaceengineers
