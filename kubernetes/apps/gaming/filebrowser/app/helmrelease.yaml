@@ -65,21 +65,21 @@ spec:
         existingClaim: space-engineers-ds-instances
         advancedMounts:
           filebrowser:
-            se-instances:
+            filebrowser:
               - path: /srv/instances
 
       se-dedicated-server:
         existingClaim: space-engineers-ds-se-dedicated-server
         advancedMounts:
           filebrowser:
-            se-plugins:
+            filebrowser:
               - path: /srv/SpaceEngineersDedicated
 
       plugins:
         existingClaim: space-engineers-ds-plugins
         advancedMounts:
           filebrowser:
-            se-plugins:
+            filebrowser:
               - path: /srv/plugins
 
       filebrowser-db:
