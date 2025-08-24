@@ -61,26 +61,26 @@ spec:
             protocol: TCP
 
     persistence:
-      instances:
+      space-engineers-ds-instances:
         existingClaim: space-engineers-ds-instances
         advancedMounts:
           filebrowser:
             filebrowser:
-              - path: /srv/instances
+              - path: /srv/space-engineers-ds/instances
 
-      se-dedicated-server:
+      space-engineers-ds-server:
         existingClaim: space-engineers-ds-se-dedicated-server
         advancedMounts:
           filebrowser:
             filebrowser:
-              - path: /srv/SpaceEngineersDedicated
+              - path: /srv/space-engineers-ds/SpaceEngineersDedicated
 
-      plugins:
+      space-engineers-ds-plugins:
         existingClaim: space-engineers-ds-plugins
         advancedMounts:
           filebrowser:
             filebrowser:
-              - path: /srv/plugins
+              - path: /srv/space-engineers-ds/plugins
 
       filebrowser-db:
         enabled: true
