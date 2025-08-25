@@ -22,35 +22,6 @@ spec:
           labels:
             ingress.home.arpa/playit: allow
         containers:
-          playit:
-            nameOverride: playit
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities:
-                drop: [ALL]
-            envFrom:
-              - secretRef:
-                  name: playit-env
-            image:
-              repository: ghcr.io/playit-cloud/playit-agent
-              tag: 0.16.2
-            ports:
-              - name: http
-                containerPort: 8080
-                protocol: TCP
-            resources:
-              requests:
-                cpu: 10m
-                memory: 150Mi
-            probes:
-              liveness:
-                enabled: false
-              readiness:
-                enabled: false
-              startup:
-                enabled: false
-
           app:
             image:
               repository: devidian/spaceengineers
@@ -103,6 +74,12 @@ spec:
               - name: remote-api
                 containerPort: 8081
                 protocol: TCP
+              - name: steam-udp
+                containerPort: 8766
+                protocol: UDP
+              - name: steam2-udp
+                containerPort: 27015
+                protocol: UDP
 
             resources:
               requests:
@@ -121,13 +98,13 @@ spec:
     service:
       app:
         controller: space-engineers-ds
-        type: LoadBalancer
-        externalTrafficPolicy: Local
-        loadBalancerClass: io.cilium/lb
-        ipFamilyPolicy: SingleStack
-        ipFamilies: [IPv4]
-        annotations:
-          io.cilium/lb-ipam-ips: "10.50.0.120"
+        type: ClusterIP
+        # externalTrafficPolicy: Local
+        # loadBalancerClass: io.cilium/lb
+        # ipFamilyPolicy: SingleStack
+        # ipFamilies: [IPv4]
+        # annotations:
+        #   io.cilium/lb-ipam-ips: "10.50.0.120"
         ports:
           game-udp:
             port: 27016
@@ -141,11 +118,14 @@ spec:
             port: 8081 # expose 8081 as remote API
             protocol: TCP
             targetPort: remote-api # -> containerPort name in app container
-          playit-http: # was "filebrowser" before; rename to what it is
-            port: 8080
-            protocol: TCP
-            targetPort: http # -> containerPort name in playit container
-
+          steam-udp:
+            port: 8766
+            protocol: UDP
+            targetPort: 8766
+          steam2-udp:
+            port: 27015
+            protocol: UDP
+            targetPort: 27015
     persistence:
       instances:
         enabled: true

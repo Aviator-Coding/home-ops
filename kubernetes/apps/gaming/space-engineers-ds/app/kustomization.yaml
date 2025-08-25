@@ -6,5 +6,6 @@ namespace: gaming
 # components:
 #   - ../../../../components/volsync
 resources:
+  - ./gateway.yaml
   - ./helmrelease.yaml
   - ./externalsecret.yaml
