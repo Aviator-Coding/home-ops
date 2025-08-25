@@ -34,7 +34,7 @@ spec:
 
               # Basic server configuration
               INSTANCE_NAME: "WubbaLubbaHullBreach"
-              # MAX_PLAYERS: "20"
+              MAX_PLAYERS: "20"
               # SERVER_NAME: "Wubba Lubba Hull Breach"
               # WORLD_NAME: "Moon Base"
               # Password can be set via secret if needed
