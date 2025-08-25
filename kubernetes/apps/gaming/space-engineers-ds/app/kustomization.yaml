@@ -6,6 +6,6 @@ namespace: gaming
 # components:
 #   - ../../../../components/volsync
 resources:
-  - ./gateway.yaml
+  # - ./gateway.yaml  # Gateway API doesn't support UDP/TCP for game servers
   - ./helmrelease.yaml
   - ./externalsecret.yaml
