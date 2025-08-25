@@ -83,13 +83,28 @@ spec:
           enabled: true
 
           egress:
+            # Allow DNS queries
+            - to: []
+              ports:
+                - port: 53
+                  protocol: UDP
+                - port: 53
+                  protocol: TCP
+            # Allow VPN traffic to any external IP
             - to:
                 - ipBlock:
                     cidr: 0.0.0.0/0
               ports:
-                # VPN traffic
+                # WireGuard traffic
                 - port: &vpn_port 1637
                   protocol: UDP
+                # Allow HTTPS for health checks
+                - port: 443
+                  protocol: TCP
+                # Allow HTTP for health checks
+                - port: 80
+                  protocol: TCP
+            # Allow internal cluster traffic
             - to:
                 - ipBlock:
                     cidr: 10.0.0.0/8
