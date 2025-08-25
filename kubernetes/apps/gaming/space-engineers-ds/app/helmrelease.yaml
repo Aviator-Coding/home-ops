@@ -18,9 +18,6 @@ spec:
       space-engineers-ds:
         annotations:
           reloader.stakater.com/auto: "true"
-        pod:
-          labels:
-            ingress.home.arpa/playit: allow
         containers:
           app:
             image:
