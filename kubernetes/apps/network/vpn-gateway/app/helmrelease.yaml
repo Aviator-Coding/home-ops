@@ -1,0 +1,113 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: vpn-gateway
+  labels:
+    # Avoid variable substitution of shell variables bellow
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: pod-gateway
+      version: 6.5.1
+      interval: 15m
+      sourceRef:
+        kind: HelmRepository
+        name: angelnu-helm-charts
+        namespace: flux-system
+  #See https://github.com/angelnu/helm-charts/blob/main/charts/apps/pod-gatewa/values.yaml
+  values:
+    image:
+      repository: ghcr.io/angelnu/pod-gateway
+      # I am using dev version for testing - others should be using latest
+      tag: dev@sha256:8e6c14db2f63eeb59cc13aee918d7524d320e84a48b36915ad2d4a59a42550dd
+    webhook:
+      image:
+        repository: ghcr.io/angelnu/gateway-admision-controller
+        # Use dev version
+        pullPolicy: Always
+        tag: dev
+    addons:
+      vpn:
+        enabled: true
+        type: gluetun
+        gluetun:
+          image:
+            repository: docker.io/qmcgaw/gluetun
+            tag: latest@sha256:29be3ff9a71ecc5ddb6716b5a4859b1af5712a6debe90ca69b100ef784845bbc
+
+        env:
+          - name: VPN_SERVICE_PROVIDER
+            value: nordvpn
+          - name: VPN_TYPE
+            value: wireguard
+          - name: VPN_INTERFACE
+            value: wg0
+          - name: FIREWALL
+            value: "off"
+          - name: DOT
+            value: "off"
+          # - name:  WIREGUARD_PRIVATE_KEY
+          #   value: set in secret
+          # - name:  WIREGUARD_PRESHARED_KEY
+          #   value: set in secret
+          # - name:  WIREGUARD_ADDRESSES
+          #   value: set in secret
+          - name: SERVER_COUNTRIES
+            value: US
+          - name: SERVER_CITIES
+            value: "New York, Atlanta"
+
+        envFrom:
+          - secretRef:
+              name: nordvpn
+
+        livenessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - if [ $(wget -q -O- https://ipinfo.io/country) == 'BE' ]; then exit 0; else exit $?; fi
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          failureThreshold: 3
+
+        networkPolicy:
+          enabled: true
+
+          egress:
+            - to:
+                - ipBlock:
+                    cidr: 0.0.0.0/0
+              ports:
+                # VPN traffic
+                - port: &vpn_port 1637
+                  protocol: UDP
+            - to:
+                - ipBlock:
+                    cidr: 10.0.0.0/8
+
+    routed_namespaces:
+      - vpn
+
+    settings:
+      # -- If using a VPN, interface name created by it
+      VPN_INTERFACE: wg0
+      # -- Prevent non VPN traffic to leave the gateway
+      VPN_BLOCK_OTHER_TRAFFIC: true
+      # -- If VPN_BLOCK_OTHER_TRAFFIC is true, allow VPN traffic over this port
+      VPN_TRAFFIC_PORT: *vpn_port
+      # -- Traffic to these IPs will be send through the K8S gateway
+      VPN_LOCAL_CIDRS: "10.0.0.0/8 192.168.0.0/16"
+
+    # -- settings to expose ports, usually through a VPN provider.
+    # NOTE: if you change it you will need to manually restart the gateway POD
+    # publicPorts:
+    #   - hostname: qbittorrent
+    #     IP: 10
+    #     ports:
+    #       - type: udp
+    #         port: 18289
+    #       - type: tcp
+    #         port: 18289
