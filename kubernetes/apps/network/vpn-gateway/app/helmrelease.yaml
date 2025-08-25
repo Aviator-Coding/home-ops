@@ -36,6 +36,10 @@ spec:
           image:
             repository: docker.io/qmcgaw/gluetun
             tag: latest@sha256:29be3ff9a71ecc5ddb6716b5a4859b1af5712a6debe90ca69b100ef784845bbc
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
 
         env:
           - name: VPN_SERVICE_PROVIDER
@@ -68,8 +72,15 @@ spec:
             command:
               - sh
               - -c
-              - if [ $(wget -q -O- https://ipinfo.io/country) == 'US' ]; then exit 0; else exit $?; fi
-          initialDelaySeconds: 30
+              - |
+                country=$(wget -q -O- https://ipinfo.io/country 2>/dev/null || echo "FAIL")
+                if [ "$country" = "US" ]; then
+                  exit 0
+                else
+                  echo "Expected US, got: $country"
+                  exit 1
+                fi
+          initialDelaySeconds: 90
           periodSeconds: 60
           failureThreshold: 3
 
