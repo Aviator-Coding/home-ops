@@ -20,26 +20,19 @@ spec:
   values:
     image:
       repository: ghcr.io/angelnu/pod-gateway
-      # I am using dev version for testing - others should be using latest
-      tag: dev@sha256:8e6c14db2f63eeb59cc13aee918d7524d320e84a48b36915ad2d4a59a42550dd
+      tag: v1.11.1@sha256:0617304f085bc98529f0c5cd0c40c63bb019380a026a277c812bd13f78b4bc5d
     webhook:
       image:
         repository: ghcr.io/angelnu/gateway-admision-controller
-        # Use dev version
-        pullPolicy: Always
-        tag: dev
+        tag: v3.10.0@sha256:a8ed630613de277244dfe203cd11d05905d7eeba8d8c41e399b02ee9a847b2f5
     addons:
       vpn:
         enabled: true
         type: gluetun
         gluetun:
           image:
-            repository: docker.io/qmcgaw/gluetun
-            tag: latest@sha256:29be3ff9a71ecc5ddb6716b5a4859b1af5712a6debe90ca69b100ef784845bbc
-          securityContext:
-            capabilities:
-              add:
-                - NET_ADMIN
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.40.0@sha256:2b42bfa046757145a5155acece417b65b4443c8033fb88661a8e9dcf7fda5a00
 
         env:
           - name: VPN_SERVICE_PROVIDER
@@ -48,16 +41,14 @@ spec:
             value: wireguard
           - name: VPN_INTERFACE
             value: wg0
-          - name: FIREWALL
+          - name: FIREWALL_ENABLED_DISABLING_IT_SHOOTS_YOU_IN_YOUR_FOOT
             value: "off"
           - name: DOT
             value: "off"
-          # - name:  WIREGUARD_PRIVATE_KEY
-          #   value: set in secret
-          # - name:  WIREGUARD_PRESHARED_KEY
-          #   value: set in secret
-          # - name:  WIREGUARD_ADDRESSES
-          #   value: set in secret
+          - name: HTTP_CONTROL_SERVER_ADDRESS
+            value: ":80"
+          - name: HTTP_CONTROL_SERVER_LOG
+            value: "off"
           - name: SERVER_COUNTRIES
             value: US
           - name: SERVER_CITIES
@@ -66,6 +57,10 @@ spec:
         envFrom:
           - secretRef:
               name: nordvpn
+
+        securityContext:
+          capabilities:
+            add: ["NET_ADMIN"]
 
         livenessProbe:
           exec:
