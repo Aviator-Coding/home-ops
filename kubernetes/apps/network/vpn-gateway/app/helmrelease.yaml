@@ -50,7 +50,7 @@ spec:
           - name: HTTP_CONTROL_SERVER_LOG
             value: "off"
           - name: SERVER_COUNTRIES
-            value: US
+            value: "United States"
           - name: SERVER_CITIES
             value: "New York, Atlanta"
 
@@ -75,7 +75,7 @@ spec:
                   echo "Expected US, got: $country"
                   exit 1
                 fi
-          initialDelaySeconds: 90
+          initialDelaySeconds: 120
           periodSeconds: 60
           failureThreshold: 3
 
