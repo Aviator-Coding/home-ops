@@ -21,7 +21,7 @@ spec:
       protocol: HTTP
       port: 8081
 ---
-apiVersion: gateway.networking.k8s.io/v1
+apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: UDPRoute
 metadata:
   name: se-udp-27016
@@ -39,7 +39,7 @@ spec:
         - name: steam2-udp
           port: 27015
 ---
-apiVersion: gateway.networking.k8s.io/v1
+apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TCPRoute
 metadata:
   name: se-tcp-27016
