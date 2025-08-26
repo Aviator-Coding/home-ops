@@ -69,7 +69,7 @@ spec:
                 containerPort: 27016
                 protocol: TCP
               - name: remote-api
-                containerPort: 8081
+                containerPort: 8080
                 protocol: TCP
               - name: steam-udp
                 containerPort: 8766
