@@ -6,6 +6,8 @@ metadata:
   name: setup-media-folders
   namespace: rook-ceph
 spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300 # Clean up job after 5 minutes
   template:
     spec:
       containers:
@@ -14,34 +16,41 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
+              echo "Starting media folder structure setup..."
+              echo "Current working directory: $(pwd)"
+              echo "Available disk space:"
+              df -h /media
+
               echo "Creating media folder structure..."
               mkdir -p /media/movies
               mkdir -p /media/tv
+              mkdir -p /media/music
+              mkdir -p /media/downloads
+              mkdir -p /media/books
 
-              # Set permissions
+              # Set proper permissions
               chmod -R 755 /media
 
               echo "Media folder structure created successfully:"
               find /media -type d | sort
+
+              echo "Verifying write permissions..."
+              touch /media/test-write && rm /media/test-write && echo "Write test: SUCCESS" || echo "Write test: FAILED"
+
+              echo "Final directory listing:"
+              ls -la /media/
           volumeMounts:
             - name: media-storage
               mountPath: /media
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
       volumes:
         - name: media-storage
           persistentVolumeClaim:
-            claimName: media-global-setup
+            claimName: media-pvc
       restartPolicy: OnFailure
----
-# PVC for the setup job
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: media-global-setup
-  namespace: rook-ceph
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 1Ti
-  storageClassName: cephfs-media
