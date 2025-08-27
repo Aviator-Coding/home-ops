@@ -43,5 +43,5 @@ spec:
     - ReadWriteMany
   resources:
     requests:
-      storage: 1TB
+      storage: 1Ti
   storageClassName: cephfs-media
