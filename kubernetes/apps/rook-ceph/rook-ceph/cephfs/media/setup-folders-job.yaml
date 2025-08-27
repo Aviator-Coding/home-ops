@@ -1,0 +1,47 @@
+---
+# One-time job to create the media folder structure
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: setup-media-folders
+  namespace: rook-ceph
+spec:
+  template:
+    spec:
+      containers:
+        - name: setup
+          image: busybox:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Creating media folder structure..."
+              mkdir -p /media/movies
+              mkdir -p /media/tv
+
+              # Set permissions
+              chmod -R 755 /media
+
+              echo "Media folder structure created successfully:"
+              find /media -type d | sort
+          volumeMounts:
+            - name: media-storage
+              mountPath: /media
+      volumes:
+        - name: media-storage
+          persistentVolumeClaim:
+            claimName: media-global-setup
+      restartPolicy: OnFailure
+---
+# PVC for the setup job
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-global-setup
+  namespace: rook-ceph
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1TB
+  storageClassName: cephfs-media
