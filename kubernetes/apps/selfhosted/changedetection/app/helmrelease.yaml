@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: changedetection
+  name: &app changedetection
 spec:
   interval: 1h
   chartRef:
@@ -55,13 +55,19 @@ spec:
             port: *port
     route:
       internal:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Selfhosted
+          gethomepage.dev/name: *app
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: internal
             namespace: kube-system
             sectionName: https
         rules:
-          - backendRefs: [{}]
+          - backendRefs:
+              - name: *app
+                port: *port
     persistence:
       config:
         enabled: true
