@@ -12,9 +12,9 @@
     },
     "fetch": {
       "type": "stdio",
-      "command": "npx",
+      "command": "uvx",
       "args": [
-        "mcp-server-fetch@1.0.2"
+        "mcp-server-fetch"
       ]
     }
   },
