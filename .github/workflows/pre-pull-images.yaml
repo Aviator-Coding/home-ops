@@ -186,18 +186,35 @@ jobs:
         run: |
           echo "🚀 Pre-pulling image on Talos node: ${{ matrix.image }}"
 
-          # Check if image already exists
-          if talosctl -n "$NODE_IP" image list | grep -q "${{ matrix.image }}"; then
-            echo "ℹ️ Image ${{ matrix.image }} already exists on node"
+          # Extract image name for better logging
+          image_name=$(echo "${{ matrix.image }}" | cut -d':' -f1-2)
+
+          # Check if image already exists (flexible matching)
+          echo "🔍 Checking if image already exists..."
+          if talosctl -n "$NODE_IP" image list | grep -q "$image_name"; then
+            echo "ℹ️ Found existing versions of $image_name on node:"
+            talosctl -n "$NODE_IP" image list | grep "$image_name" || true
           else
-            echo "📥 Pulling new image: ${{ matrix.image }}"
+            echo "📥 No existing versions of $image_name found"
           fi
 
-          # Pull the image
+          echo "📥 Pulling image: ${{ matrix.image }}"
+
+          # Pull the image with more verbose output
           if talosctl -n "$NODE_IP" image pull "${{ matrix.image }}"; then
             echo "✅ Successfully pre-pulled ${{ matrix.image }}"
+
+            # Immediately check what was actually stored
+            echo "🔍 Image now stored as:"
+            talosctl -n "$NODE_IP" image list | grep "$image_name" | head -5 || echo "No matching images found after pull"
+
+            # Small delay to ensure image list is updated
+            echo "⏳ Waiting 2 seconds for image list to update..."
+            sleep 2
           else
             echo "❌ Failed to pre-pull ${{ matrix.image }}"
+            echo "📊 Current images on node:"
+            talosctl -n "$NODE_IP" image list | head -10
             exit 1
           fi
 
@@ -205,16 +222,35 @@ jobs:
         run: |
           echo "🔍 Verifying image exists on node..."
 
-          if talosctl -n "$NODE_IP" image list | grep -q "${{ matrix.image }}"; then
+          # Extract image name without tag/digest for more flexible matching
+          image_name=$(echo "${{ matrix.image }}" | cut -d':' -f1-2)
+          image_tag=$(echo "${{ matrix.image }}" | cut -d':' -f3 | cut -d'@' -f1)
+
+          echo "🔍 Looking for image: $image_name"
+          echo "🔍 With tag: $image_tag"
+
+          # Try multiple matching strategies
+          if talosctl -n "$NODE_IP" image list | grep -q "$image_name:$image_tag" || \
+             talosctl -n "$NODE_IP" image list | grep -q "$image_name@" || \
+             talosctl -n "$NODE_IP" image list | grep -q "${{ matrix.image }}"; then
             echo "✅ Image ${{ matrix.image }} confirmed on node $NODE_IP"
 
-            # Get image details
+            # Get image details - show all matches for this image
             echo "📊 Image details:"
-            talosctl -n "$NODE_IP" image list | grep "${{ matrix.image }}" || true
+            echo "All variants of this image on node:"
+            talosctl -n "$NODE_IP" image list | grep "$image_name" || true
           else
             echo "❌ Image ${{ matrix.image }} not found on node after pull"
-            echo "Available images:"
-            talosctl -n "$NODE_IP" image list | head -10
+            echo "🔍 Searched for patterns:"
+            echo "  - $image_name:$image_tag"
+            echo "  - $image_name@"
+            echo "  - ${{ matrix.image }}"
+            echo ""
+            echo "Available images (first 15):"
+            talosctl -n "$NODE_IP" image list | head -15
+            echo ""
+            echo "🔍 All images containing '$image_name':"
+            talosctl -n "$NODE_IP" image list | grep "$image_name" || echo "No matches found"
             exit 1
           fi
 
@@ -223,12 +259,25 @@ jobs:
         run: |
           echo "🐳 Testing image pull via Docker (for verification)..."
 
+          # Test basic image accessibility
+          image_name_tag=$(echo "${{ matrix.image }}" | cut -d'@' -f1)
+          echo "🔍 Testing basic image access: $image_name_tag"
+
+          if docker pull "$image_name_tag"; then
+            echo "✅ Docker pull successful for $image_name_tag"
+            docker image inspect "$image_name_tag" --format='{{.RepoTags}} {{.RepoDigests}} {{.Size}} bytes' || true
+          else
+            echo "⚠️ Docker pull failed for $image_name_tag"
+          fi
+
+          echo ""
+          echo "🔍 Testing exact image with digest: ${{ matrix.image }}"
           if docker pull "${{ matrix.image }}"; then
             echo "✅ Docker pull successful for ${{ matrix.image }}"
-            docker image inspect "${{ matrix.image }}" --format='{{.RepoTags}} {{.Size}} bytes' || true
+            docker image inspect "${{ matrix.image }}" --format='{{.RepoTags}} {{.RepoDigests}} {{.Size}} bytes' || true
           else
             echo "⚠️ Docker pull failed for ${{ matrix.image }}"
-            echo "This may be expected if the image is private or platform-specific"
+            echo "This may indicate the specific digest is not available for this platform"
           fi
 
   pre-pull-images-success:
