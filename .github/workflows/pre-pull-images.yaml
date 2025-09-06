@@ -186,16 +186,20 @@ jobs:
         run: |
           echo "🚀 Pre-pulling image on Talos node: ${{ matrix.image }}"
 
-          # Extract image name for better logging
-          image_name=$(echo "${{ matrix.image }}" | cut -d':' -f1-2)
+          # Extract image name for better logging - split on @ first, then get repo:tag
+          image_name_tag=$(echo "${{ matrix.image }}" | cut -d'@' -f1)
+          image_repo=$(echo "$image_name_tag" | cut -d':' -f1)
+
+          echo "🔍 Image repository: $image_repo"
+          echo "🔍 Image with tag: $image_name_tag"
 
           # Check if image already exists (flexible matching)
           echo "🔍 Checking if image already exists..."
-          if talosctl -n "$NODE_IP" image list | grep -q "$image_name"; then
-            echo "ℹ️ Found existing versions of $image_name on node:"
-            talosctl -n "$NODE_IP" image list | grep "$image_name" || true
+          if talosctl -n "$NODE_IP" image list | grep -q "$image_repo"; then
+            echo "ℹ️ Found existing versions of $image_repo on node:"
+            talosctl -n "$NODE_IP" image list | grep "$image_repo" || true
           else
-            echo "📥 No existing versions of $image_name found"
+            echo "📥 No existing versions of $image_repo found"
           fi
 
           echo "📥 Pulling image: ${{ matrix.image }}"
@@ -206,7 +210,7 @@ jobs:
 
             # Immediately check what was actually stored
             echo "🔍 Image now stored as:"
-            talosctl -n "$NODE_IP" image list | grep "$image_name" | head -5 || echo "No matching images found after pull"
+            talosctl -n "$NODE_IP" image list | grep "$image_repo" | head -5 || echo "No matching images found after pull"
 
             # Small delay to ensure image list is updated
             echo "⏳ Waiting 2 seconds for image list to update..."
@@ -222,35 +226,37 @@ jobs:
         run: |
           echo "🔍 Verifying image exists on node..."
 
-          # Extract image name without tag/digest for more flexible matching
-          image_name=$(echo "${{ matrix.image }}" | cut -d':' -f1-2)
-          image_tag=$(echo "${{ matrix.image }}" | cut -d':' -f3 | cut -d'@' -f1)
+          # Extract image name without digest for more flexible matching
+          image_name_tag=$(echo "${{ matrix.image }}" | cut -d'@' -f1)
+          image_repo=$(echo "$image_name_tag" | cut -d':' -f1)
+          image_tag=$(echo "$image_name_tag" | cut -d':' -f2)
 
-          echo "🔍 Looking for image: $image_name"
+          echo "🔍 Looking for image repository: $image_repo"
           echo "🔍 With tag: $image_tag"
+          echo "🔍 Full image with tag: $image_name_tag"
 
           # Try multiple matching strategies
-          if talosctl -n "$NODE_IP" image list | grep -q "$image_name:$image_tag" || \
-             talosctl -n "$NODE_IP" image list | grep -q "$image_name@" || \
+          if talosctl -n "$NODE_IP" image list | grep -q "$image_name_tag" || \
+             talosctl -n "$NODE_IP" image list | grep -q "$image_repo@" || \
              talosctl -n "$NODE_IP" image list | grep -q "${{ matrix.image }}"; then
             echo "✅ Image ${{ matrix.image }} confirmed on node $NODE_IP"
 
             # Get image details - show all matches for this image
             echo "📊 Image details:"
             echo "All variants of this image on node:"
-            talosctl -n "$NODE_IP" image list | grep "$image_name" || true
+            talosctl -n "$NODE_IP" image list | grep "$image_repo" || true
           else
             echo "❌ Image ${{ matrix.image }} not found on node after pull"
             echo "🔍 Searched for patterns:"
-            echo "  - $image_name:$image_tag"
-            echo "  - $image_name@"
+            echo "  - $image_name_tag"
+            echo "  - $image_repo@"
             echo "  - ${{ matrix.image }}"
             echo ""
             echo "Available images (first 15):"
             talosctl -n "$NODE_IP" image list | head -15
             echo ""
-            echo "🔍 All images containing '$image_name':"
-            talosctl -n "$NODE_IP" image list | grep "$image_name" || echo "No matches found"
+            echo "🔍 All images containing '$image_repo':"
+            talosctl -n "$NODE_IP" image list | grep "$image_repo" || echo "No matches found"
             exit 1
           fi
 
