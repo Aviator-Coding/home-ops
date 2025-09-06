@@ -12,10 +12,10 @@ metadata:
     # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
     gethomepage.dev/description: "Coder Platform"
     gethomepage.dev/pod-selector: app.kubernetes.io/name=coder
+    external-dns.alpha.kubernetes.io/target: "internal.sklab.dev"
 spec:
   hostnames:
   - "coder.${SECRET_DOMAIN}"
-  - "*.coder.${SECRET_DOMAIN}"
   parentRefs:
     - name: internal
       namespace: kube-system

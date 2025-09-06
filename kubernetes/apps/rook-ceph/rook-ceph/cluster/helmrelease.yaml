@@ -46,6 +46,9 @@ spec:
 
         mgr:
           mgr/crash/warn_recent_interval: "7200"
+          # Fix dashboard binding to listen on all interfaces
+          mgr/dashboard/server_addr: "0.0.0.0"
+          mgr/dashboard/server_port: "7000"
 
         osd:
           # Keep it simple for homelab

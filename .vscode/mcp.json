@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "kubernetes": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "mcp-server-kubernetes@2.8.0"
+      ],
+      "env": {
+        "ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS": "true"
+      }
+    }
+  },
+  "inputs": []
+}

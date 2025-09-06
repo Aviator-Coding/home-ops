@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: *app
-      version: 2.25.1
+      version: 2.26.0
       sourceRef:
         kind: HelmRepository
         name: *app
@@ -74,9 +74,11 @@ spec:
         - name: CODER_OIDC_ROLE_FIELD
           value: "groups"
         - name: CODER_OIDC_SCOPES
-          value: "openid,profile,email,groups,offline_access"
+          value: "openid,profile,email,offline_access"
         - name: CODER_OIDC_SIGN_IN_TEXT
           value: "Sign in with Authentik"
+        - name: CODER_OIDC_AUTH_URL_PARAMS
+          value: ""
         - name: CODER_OIDC_USER_ROLE_MAPPING
           value: |
             {"Admins": ["owner"]}

@@ -18,7 +18,6 @@ spec:
       space-engineers-ds:
         annotations:
           reloader.stakater.com/auto: "true"
-
         containers:
           app:
             image:
@@ -35,7 +34,7 @@ spec:
 
               # Basic server configuration
               INSTANCE_NAME: "WubbaLubbaHullBreach"
-              # MAX_PLAYERS: "20"
+              MAX_PLAYERS: "20"
               # SERVER_NAME: "Wubba Lubba Hull Breach"
               # WORLD_NAME: "Moon Base"
               # Password can be set via secret if needed
@@ -70,8 +69,14 @@ spec:
                 containerPort: 27016
                 protocol: TCP
               - name: remote-api
-                containerPort: 8081
+                containerPort: 8080
                 protocol: TCP
+              - name: steam-udp
+                containerPort: 8766
+                protocol: UDP
+              - name: steam2-udp
+                containerPort: 27015
+                protocol: UDP
 
             resources:
               requests:
@@ -80,32 +85,6 @@ spec:
               limits:
                 cpu: "6"
                 memory: "12Gi"
-          # FileBrowser sidecar for plugin management
-          filebrowser:
-            image:
-              repository: filebrowser/filebrowser
-              tag: v2.42.3
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
-            env:
-              FB_DATABASE: "/database/filebrowser.db"
-              FB_ROOT: "/srv"
-              FB_LOG: "stdout"
-              FB_ADDRESS: "0.0.0.0"
-              FB_PORT: "8081"
-            ports:
-              - name: http
-                containerPort: 8081
-                protocol: TCP
-            resources:
-              requests:
-                cpu: "50m"
-                memory: "128Mi"
-              limits:
-                cpu: "200m"
-                memory: "512Mi"
 
     defaultPodOptions:
       securityContext:
@@ -116,27 +95,36 @@ spec:
     service:
       app:
         controller: space-engineers-ds
-        type: ClusterIP
+        type: LoadBalancer
+        annotations:
+          io.cilium/lb-ipam-ips: 10.50.0.120
         ports:
           game-udp:
             port: 27016
             protocol: UDP
+            targetPort: game # -> containerPort name in app container
           game-tcp:
             port: 27016
             protocol: TCP
+            targetPort: game-tcp # -> containerPort name in app container
           remote-api:
-            port: 8080
+            port: 8080 # expose 8081 as remote API
             protocol: TCP
-          filebrowser:
-            port: 8081
-            protocol: TCP
-
+            targetPort: remote-api # -> containerPort name in app container
+          steam-udp:
+            port: 8766
+            protocol: UDP
+            targetPort: 8766
+          steam2-udp:
+            port: 27015
+            protocol: UDP
+            targetPort: 27015
     persistence:
       instances:
         enabled: true
         type: persistentVolumeClaim
-        storageClass: ceph-block
-        accessMode: ReadWriteOnce
+        storageClass: ceph-filesystem
+        accessMode: ReadWriteMany
         size: 50Gi
         retain: true
         advancedMounts:
@@ -149,8 +137,8 @@ spec:
       se-dedicated-server:
         enabled: true
         type: persistentVolumeClaim
-        storageClass: ceph-block
-        accessMode: ReadWriteOnce
+        storageClass: ceph-filesystem
+        accessMode: ReadWriteMany
         size: 50Gi
         retain: true
         advancedMounts:
@@ -173,36 +161,3 @@ spec:
               - path: /appdata/space-engineers/plugins
             filebrowser:
               - path: /srv/plugins
-
-      filebrowser-db:
-        enabled: true
-        type: persistentVolumeClaim
-        storageClass: ceph-block
-        accessMode: ReadWriteOnce
-        size: 1Gi
-        retain: true
-        advancedMounts:
-          space-engineers-ds:
-            filebrowser:
-              - path: /database
-
-    # HTTPRoute for FileBrowser admin interface
-    route:
-      filebrowser:
-        annotations:
-          gethomepage.dev/enabled: "true"
-          gethomepage.dev/group: Gaming
-          gethomepage.dev/name: Space Engineers Plugin Manager
-          gethomepage.dev/icon: space-engineers.svg
-          gethomepage.dev/description: Plugin file management for Space Engineers
-        hostnames:
-          - "se-admin.${SECRET_DOMAIN}"
-        parentRefs:
-          - name: internal
-            namespace: kube-system
-            sectionName: https
-        rules:
-          - backendRefs:
-              - name: space-engineers-ds
-                namespace: gaming
-                port: 8081
