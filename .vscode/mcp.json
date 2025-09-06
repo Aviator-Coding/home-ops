@@ -9,6 +9,13 @@
       "env": {
         "ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS": "true"
       }
+    },
+    "fetch": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "mcp-server-fetch@1.0.2"
+      ]
     }
   },
   "inputs": []

@@ -1,4 +1,5 @@
 # Secrets
+/tmp
 *.pub
 *.key
 *.decrypted~*.yaml

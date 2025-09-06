@@ -23,5 +23,17 @@
       ],
       datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
     },
+    {
+      customType: "regex",
+      description: "Process MCP server npm packages",
+      managerFilePatterns: [
+        "/(^|/).vscode/mcp\\.json$/",
+      ],
+      matchStrings: [
+        // Match: "mcp-server-kubernetes@2.8.0"
+        '"(?<depName>mcp-server-[^"@]+)@(?<currentValue>[^"]+)"',
+      ],
+      datasourceTemplate: "npm",
+    },
   ],
 }
