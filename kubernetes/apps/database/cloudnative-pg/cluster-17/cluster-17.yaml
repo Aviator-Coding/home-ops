@@ -35,15 +35,18 @@ spec:
 
   # Note: previousCluster needs to be set to the name of the previous
   # cluster when recovering from an existing cnpg cluster
-  bootstrap:
+  # bootstrap:
   #   initdb:
   #     postInitSQL:
   #       - ALTER SYSTEM SET search_path TO "$user", public, vectors;
   #       - CREATE EXTENSION IF NOT EXISTS "vectors";
   #       - CREATE EXTENSION IF NOT EXISTS "cube";
   #       - CREATE EXTENSION IF NOT EXISTS "earthdistance";
-    recovery:
-      source: &previousCluster postgres17-v0
+
+  # Revocery configuration
+  # bootstrap:
+  #   recovery:
+  #     source: &previousCluster postgres17-v0
 
   # Configuration of the PostgreSQL server
   postgresql:
@@ -67,7 +70,11 @@ spec:
     # https://github.com/cloudnative-pg/cloudnative-pg/issues/2501
     # Need to change in Grafana dashboards cluster to cnpg_cluster in the Variable Cluster
     podMonitorMetricRelabelings:
-      - { sourceLabels: [ "cluster" ], targetLabel: cnpg_cluster, action: replace }
+      - {
+          sourceLabels: ["cluster"],
+          targetLabel: cnpg_cluster,
+          action: replace,
+        }
       - { regex: cluster, action: labeldrop }
 
   # Backup Configuration
@@ -92,10 +99,9 @@ spec:
           name: cloudnative-pg-secret
           key: aws-secret-access-key
 
-
   # Note: externalClusters is needed when recovering from an existing cnpg cluster
-  externalClusters:
-    - name: *previousCluster
-      barmanObjectStore:
-        <<: *barmanObjectStore
-        serverName: *previousCluster
+  # externalClusters:
+  #   - name: *previousCluster
+  #     barmanObjectStore:
+  #       <<: *barmanObjectStore
+  #       serverName: *previousCluster
