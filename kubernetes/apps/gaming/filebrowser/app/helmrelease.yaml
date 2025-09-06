@@ -1,0 +1,116 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app filebrowser
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  dependsOn:
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+  values:
+    controllers:
+      filebrowser:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          filebrowser:
+            image:
+              repository: filebrowser/filebrowser
+              tag: v2.42.3
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+            env:
+              FB_DATABASE: "/database/filebrowser.db"
+              FB_ROOT: "/srv"
+              FB_LOG: "stdout"
+              FB_ADDRESS: "0.0.0.0"
+              FB_PORT: "8080"
+            ports:
+              - name: http
+                containerPort: 8080
+                protocol: TCP
+            resources:
+              requests:
+                cpu: "50m"
+                memory: "128Mi"
+              limits:
+                cpu: "200m"
+                memory: "512Mi"
+
+    defaultPodOptions:
+      securityContext:
+        # Both containers run as root to avoid permission conflicts
+        fsGroup: 0
+        fsGroupChangePolicy: "OnRootMismatch"
+
+    service:
+      app:
+        controller: filebrowser
+        type: ClusterIP
+        ports:
+          filebrowser:
+            port: 8080
+            protocol: TCP
+
+    persistence:
+      space-engineers-ds-instances:
+        existingClaim: space-engineers-ds-instances
+        advancedMounts:
+          filebrowser:
+            filebrowser:
+              - path: /srv/space-engineers-ds/instances
+
+      space-engineers-ds-server:
+        existingClaim: space-engineers-ds-se-dedicated-server
+        advancedMounts:
+          filebrowser:
+            filebrowser:
+              - path: /srv/space-engineers-ds/SpaceEngineersDedicated
+
+      space-engineers-ds-plugins:
+        existingClaim: space-engineers-ds-plugins
+        advancedMounts:
+          filebrowser:
+            filebrowser:
+              - path: /srv/space-engineers-ds/plugins
+
+      filebrowser-db:
+        enabled: true
+        type: persistentVolumeClaim
+        storageClass: ceph-block
+        accessMode: ReadWriteOnce
+        size: 100M
+        retain: true
+        advancedMounts:
+          filebrowser:
+            filebrowser:
+              - path: /database
+
+    # HTTPRoute for FileBrowser admin interface
+    route:
+      filebrowser:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Gaming
+          gethomepage.dev/name: FileBrowser
+          gethomepage.dev/icon: filebrowser.svg
+          gethomepage.dev/description: Filebrowser
+        hostnames:
+          - "filebrowser.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: internal
+            namespace: kube-system
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: filebrowser
+                namespace: gaming
+                port: 8080

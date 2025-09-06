@@ -1,0 +1,81 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: se-gateway
+  namespace: gaming
+  annotations:
+    io.cilium/lb-ipam-ips: "10.50.0.120"
+spec:
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: 10.50.0.120
+  listeners:
+    - name: se-udp-27016
+      protocol: UDP
+      port: 27016
+    - name: se-udp-8766
+      protocol: UDP
+      port: 8766
+    - name: se-udp-27015
+      protocol: UDP
+      port: 27015
+    - name: se-tcp-27016
+      protocol: TCP
+      port: 27016
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: UDPRoute
+metadata:
+  name: se-udp-27016
+  namespace: gaming
+spec:
+  parentRefs:
+    - name: se-gateway
+      sectionName: se-udp-27016
+  rules:
+    - backendRefs:
+        - name: space-engineers-ds
+          port: 27016
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: UDPRoute
+metadata:
+  name: se-udp-8766
+  namespace: gaming
+spec:
+  parentRefs:
+    - name: se-gateway
+      sectionName: se-udp-8766
+  rules:
+    - backendRefs:
+        - name: space-engineers-ds
+          port: 8766
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: UDPRoute
+metadata:
+  name: se-udp-27015
+  namespace: gaming
+spec:
+  parentRefs:
+    - name: se-gateway
+      sectionName: se-udp-27015
+  rules:
+    - backendRefs:
+        - name: space-engineers-ds
+          port: 27015
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: se-tcp-27016
+  namespace: gaming
+spec:
+  parentRefs:
+    - name: se-gateway
+      sectionName: se-tcp-27016
+  rules:
+    - backendRefs:
+        - name: space-engineers-ds
+          port: 27016

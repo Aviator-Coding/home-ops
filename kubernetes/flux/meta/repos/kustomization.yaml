@@ -9,3 +9,4 @@ resources:
   - ./coder.yaml
   - ./external-dns.yaml
   - ./headlamp.yaml
+  - ./angelnu-helm-charts.yaml
