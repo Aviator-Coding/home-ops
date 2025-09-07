@@ -5,3 +5,5 @@ kind: Kustomization
 resources:
   - ./storageclass.yaml
   - ./subvolumegroup.yaml
+  - ./claims.yaml
+  - ./setup-structure-job.yaml

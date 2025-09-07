@@ -17,7 +17,7 @@ spec:
       namespace: system-controller
   install:
     remediation:
-        retries: -1
+      retries: -1
   upgrade:
     cleanupOnFail: true
     remediation:
@@ -42,7 +42,7 @@ spec:
           bluestore_compression_required_ratio: "0.875"
 
           # Reasonable cache size for homelab
-          bluestore_cache_size: "1073741824"  # 1GB per OSD
+          bluestore_cache_size: "1073741824" # 1GB per OSD
 
         mgr:
           mgr/crash/warn_recent_interval: "7200"
@@ -54,7 +54,7 @@ spec:
           # Keep it simple for homelab
           # osd_pool_default_compression_algorithm: zstd
           # osd_pool_default_compression_mode: aggressive
-          osd_recovery_max_active: "3"  # Don't overwhelm homelab hardware
+          osd_recovery_max_active: "3" # Don't overwhelm homelab hardware
       crashCollector:
         disable: false
       dashboard:
@@ -119,8 +119,8 @@ spec:
               - name: "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NL1948W100519P2202"
         config:
           osdsPerDevice: "1"
-#---------------------------------------------
-#-- Ceph Block Pool Storage configuration
+    #---------------------------------------------
+    #-- Ceph Block Pool Storage configuration
     cephBlockPools:
       - name: ceph-blockpool
         spec:
@@ -157,8 +157,8 @@ spec:
       name: csi-ceph-blockpool
       isDefault: false
       deletionPolicy: Delete
-#---------------------------------------------
-#-- Ceph File System Storage configuration
+    #---------------------------------------------
+    #-- Ceph File System Storage configuration
     cephFileSystems:
       - name: &cephFileSystemName ceph-filesystem
         spec:
@@ -171,6 +171,7 @@ spec:
               compression_algorithm: zstd
               compression_mode: aggressive
           dataPools:
+            # Single pool for all data - identical performance on all-NVMe
             - name: data0
               failureDomain: host
               deviceClass: nvme
@@ -220,8 +221,8 @@ spec:
       name: csi-ceph-filesystem
       isDefault: false
       deletionPolicy: Delete
-#---------------------------------------------
-#-- Ceph Object Store configuration
+    #---------------------------------------------
+    #-- Ceph Object Store configuration
     cephObjectStores:
       - name: &cephObjectStoreName ceph-objectstore
         spec:
