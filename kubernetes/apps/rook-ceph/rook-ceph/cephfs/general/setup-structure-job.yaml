@@ -4,6 +4,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: setup-homeops-structure
+  annotations:
+    k8tz.io/inject: "false"
 spec:
   backoffLimit: 3
   ttlSecondsAfterFinished: 300 # Clean up job after 5 minutes
