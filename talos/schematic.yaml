@@ -1,0 +1,28 @@
+---
+customization:
+  extraKernelArgs:
+    - -init_on_alloc # Less security, faster puter
+    - -init_on_free # Less security, faster puter
+    - -selinux # Less security, faster puter
+    - apparmor=0 # Less security, faster puter
+    - i915.enable_guc=3 # Meteor Lake CPU & Intel iGPU
+    - init_on_alloc=0 # Less security, faster puter
+    - init_on_free=0 # Less security, faster puter
+    - intel_iommu=on # PCI Passthrough
+    - iommu=pt # PCI Passthrough
+    - mitigations=off # Less security, faster puter
+    - module_blacklist=igc # Disable onboard NIC
+    # - module_blacklist=thunderbolt # Prevent Thunderbolt NIC driver from loading during early boot
+    - security=none # Less security, faster puter
+    - sysctl.kernel.kexec_load_disabled=1 # Meteor Lake CPU & Intel iGPU
+    - talos.auditd.disabled=1 # Less security, faster puter
+    # Bond interface kernel parameters for early network initialization
+    # - bond=bond0:enp2s0f0np0,enp2s0f1np1:mode=802.3ad:miimon=100:lacp_rate=1:xmit_hash_policy=layer3+4:updelay=200:downdelay=200
+    # - ip=bond0:dhcp # Enable DHCP on bond0 during early boot
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/i915 # Intel iGPU
+      - siderolabs/intel-ucode # Intel iGPU
+      - siderolabs/mei # Intel iGPU
+      - siderolabs/nfsrahead # NFS Performance
+      - siderolabs/thunderbolt #intentionally removed to avoid Thunderbolt NIC getting unwanted DHCP address at early boot
