@@ -27,6 +27,8 @@ nodes:
     hostname: "talos-1"
     ipAddress: "10.10.10.11"
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800127"
+    # Use factory image with custom kernel args and system extensions
+    talosImageURL: factory.talos.dev/installer/05b4a47a70bc97786ed83d200567dcc8a13f731b164537ba59d5397d668851fa
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
@@ -76,6 +78,8 @@ nodes:
   - hostname: talos-2
     ipAddress: 10.10.10.12
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800809"
+    # Use factory image with custom kernel args and system extensions
+    talosImageURL: factory.talos.dev/installer/05b4a47a70bc97786ed83d200567dcc8a13f731b164537ba59d5397d668851fa
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
@@ -123,6 +127,8 @@ nodes:
   - hostname: talos-3
     ipAddress: 10.10.10.13
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800007"
+    # Use factory image with custom kernel args and system extensions
+    talosImageURL: factory.talos.dev/installer/05b4a47a70bc97786ed83d200567dcc8a13f731b164537ba59d5397d668851fa
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
@@ -165,40 +171,23 @@ nodes:
 
 # Global patches
 patches:
-  # Don't include the kernel args for non-ISO boot. Otherwise the image is
-  # invalidated and secure boot won't load it.
-  - |-
-    - op: remove
-      path: /machine/install/extraKernelArgs
+  # All kernel args are now in the factory image (schematic.yaml)
+  # No need to remove extraKernelArgs as they don't exist in machine config
   - "@./patches/global/machine-files.yaml"
   - "@./patches/global/machine-kubelet.yaml"
   - "@./patches/global/machine-network.yaml"
   - "@./patches/global/machine-sysctls.yaml"
   - "@./patches/global/machine-udev.yaml"
   - "@./patches/global/machine-time.yaml"
-  # - "@./patches/global/machine-install.yaml"
   - "@./patches/global/machine-features.yaml"
+  # - "@./patches/global/user-volume-config.yaml"
 
 # Controller patches
 controlPlane:
   nodeLabels:
     topology.kubernetes.io/region: *clusterName
+    intel.feature.node.kubernetes.io/gpu: "true"
     topology.kubernetes.io/zone: m
-
-  schematic:
-    customization:
-      extraKernelArgs:
-        - -selinux # Less security, more speed
-        - apparmor=0 # Less security, more speed
-        - intel_iommu=on # PCI Passthrough
-        - iommu=pt # PCI Passthrough
-        - net.ifnames=1 # Enable predictable NIC naming
-      systemExtensions:
-        officialExtensions:
-          - siderolabs/i915
-          - siderolabs/intel-ucode
-          - siderolabs/thunderbolt
-          - siderolabs/mei # Intel 12 gen & newer
 
   patches:
     - "@./patches/controller/admission-controller-patch.yaml"

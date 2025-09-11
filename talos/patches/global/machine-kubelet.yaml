@@ -6,23 +6,25 @@ machine:
         type: bind
         source: /var/openebs/local
         options:
-          - bind
+          - rbind
           - rshared
           - rw
     extraConfig:
       serializeImagePulls: false
       maxPods: 250
+      featureGates:
+        ImageVolume: true
       # Add this to handle single filesystem scenario
-      imageGCHighThresholdPercent: 85
-      imageGCLowThresholdPercent: 80
-      kubeReserved:
-        cpu: "500m"
-        memory: "1Gi"
-        ephemeral-storage: "2Gi"
-      systemReserved:
-        cpu: "500m"
-        memory: "1Gi"
-        ephemeral-storage: "2Gi"
+      # imageGCHighThresholdPercent: 85
+      # imageGCLowThresholdPercent: 80
+      # kubeReserved:
+      #   cpu: "500m"
+      #   memory: "1Gi"
+      #   ephemeral-storage: "2Gi"
+      # systemReserved:
+      #   cpu: "500m"
+      #   memory: "1Gi"
+      #   ephemeral-storage: "2Gi"
     nodeIP:
       validSubnets:
         - 10.10.10.0/24

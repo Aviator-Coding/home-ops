@@ -16,6 +16,16 @@
       "args": [
         "mcp-server-fetch"
       ]
+    },
+    "awesome-copilot": {
+      "type": "stdio",
+      "command": "podman",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/microsoft/mcp-dotnet-samples/awesome-copilot:latest"
+      ]
     }
   },
   "inputs": []
