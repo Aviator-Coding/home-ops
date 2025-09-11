@@ -29,8 +29,6 @@ spec:
     toolbox:
       enabled: true
     cephClusterSpec:
-      # Enable host networking for all daemons
-      hostNetwork: true
       cephConfig:
         global:
           bdev_enable_discard: "true"
@@ -77,11 +75,7 @@ spec:
       network:
         provider: host
         connections:
-          requireMsgr2: false
-          compression:
-            enabled: false
-        # Add explicit subnet config for host networking
-        hostNetwork: true
+          requireMsgr2: true
       resources:
         mgr:
           requests:
