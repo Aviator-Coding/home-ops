@@ -46,9 +46,9 @@ spec:
   # Recovery configuration
   bootstrap:
     recovery:
-      source: &previousCluster postgres17-v1
-      recoveryTarget:
-        backupID: "20250904T000005"
+      source: &previousCluster postgres17-v0
+      # recoveryTarget:
+      #   backupID: "20250904T000005"
 
   # Configuration of the PostgreSQL server
   postgresql:
