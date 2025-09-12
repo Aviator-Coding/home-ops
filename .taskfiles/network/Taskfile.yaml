@@ -3,9 +3,9 @@
 version: '3'
 
 vars:
-  TALOS_NODE_1: "10.10.3.11"  # talos-1
-  TALOS_NODE_2: "10.10.3.12"  # talos-2
-  TALOS_NODE_3: "10.10.3.13"  # talos-3
+  TALOS_NODE_1: "10.10.10.11"  # talos-1
+  TALOS_NODE_2: "10.10.10.12"  # talos-2
+  TALOS_NODE_3: "10.10.10.13"  # talos-3
   IPERF3_IMAGE: "networkstatic/iperf3:latest"
   TEST_DURATION: "30"
   TEST_PARALLEL: "4"
