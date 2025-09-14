@@ -1,0 +1,71 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: matter-server
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  values:
+    controllers:
+      matter-server:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          annotations:
+            k8s.v1.cni.cncf.io/networks: |
+              [{
+                "name":"multus-iot",
+                "namespace": "network",
+                "ips": ["10.40.0.101/16"],
+                "mac": "3e:59:e4:f7:43:11"
+              }]
+          securityContext:
+            runAsUser: 0 # Must be run as root user
+            runAsGroup: 0
+            runAsNonRoot: false # Must be run as root user
+            fsGroup: 0
+            fsGroupChangePolicy: "OnRootMismatch"
+            supplementalGroups:
+              - 34
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-assistant-libs/python-matter-server
+              tag: 7.0.1
+            env:
+              MATTER_SERVER__INSTANCE_NAME: matter-server
+              MATTER_SERVER__PORT: &wsPort 5580
+              MATTER_SERVER__APPLICATION_URL: &host matter.${SECRET_DOMAIN}
+              MATTER_SERVER__LOG_LEVEL: debug
+    service:
+      matter-server:
+        controller: matter-server
+        ports:
+          ws:
+            port: *wsPort
+    route:
+      matter-server:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: "Home Automation"
+          gethomepage.dev/name: matter-server
+          gethomepage.dev/icon: matter.svg
+        hostnames:
+          - "hass.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: internal
+            namespace: kube-system
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: matter-server
+                namespace: selfhosted
+                port: *wsPort
+
+    persistence:
+      data:
+        existingClaim: ${VOLSYNC_CLAIM:-*app}
