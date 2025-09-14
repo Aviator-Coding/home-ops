@@ -9,14 +9,7 @@ spec:
   chartRef:
     kind: OCIRepository
     name: app-template
-  install:
-    remediation:
-      retries: 3
-  upgrade:
-    cleanupOnFail: true
-    remediation:
-      strategy: rollback
-      retries: 3
+    namespace: flux-system
   dependsOn:
     - name: rook-ceph-external
       namespace: rook-ceph
@@ -39,7 +32,7 @@ spec:
           app:
             image:
               repository: ghcr.io/onedr0p/home-assistant
-              tag: 2025.3.3@sha256:9e2a7177b4600653d6cb46dff01b1598189a5ae93be0b99242fbc039d32d79f1
+              tag: 2025.4.4
             env:
               TZ: America/New_York
               HASS_HTTP_TRUSTED_PROXY_1: 10.10.10.0/24
@@ -59,7 +52,7 @@ spec:
           code-server:
             image:
               repository: ghcr.io/coder/code-server
-              tag: 4.97.2@sha256:6ff0e9cf5a553b3961ece200be75e21e8c887ed0ae28a7c28213722dccf74b0c
+              tag: 4.99.4@sha256:316b7f60051b44b81fdf8972293735c2b0fda9a2b1e88fb6b77195df0c9b9b78
             args:
               [
                 "--auth",
@@ -93,16 +86,16 @@ spec:
             port: 8123
           code-server:
             port: 12321
-      homebridge:
-        primary: false
-        controller: "home-assistant"
-        type: LoadBalancer
-        annotations:
-          "io.cilium/lb-ipam-ips": "10.40.0.100/16"
-        ports:
-          homekit:
-            port: 21061
-            protocol: TCP
+      # homebridge:
+      #   primary: false
+      #   controller: "home-assistant"
+      #   type: LoadBalancer
+      #   annotations:
+      #     "io.cilium/lb-ipam-ips": "10.40.0.100/16"
+      #   ports:
+      #     homekit:
+      #       port: 21061
+      #       protocol: TCP
 
     route:
       app:
