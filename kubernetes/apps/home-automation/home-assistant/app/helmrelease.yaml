@@ -136,7 +136,7 @@ spec:
     persistence:
       config:
         enabled: true
-        existingClaim: ${VOLSYNC_CLAIM:-*app}
+        existingClaim: ${VOLSYNC_CLAIM:-home-assistant}
         globalMounts:
           - path: /config
       logs:

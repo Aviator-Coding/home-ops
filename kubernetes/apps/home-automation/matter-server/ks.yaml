@@ -28,6 +28,7 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: 1Gi
+      VOLSYNC_CLAIM: matter-server
   dependsOn:
     # - name: topolvm
     - name: volsync

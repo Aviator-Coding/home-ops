@@ -68,4 +68,4 @@ spec:
 
     persistence:
       data:
-        existingClaim: ${VOLSYNC_CLAIM:-*app}
+        existingClaim: ${VOLSYNC_CLAIM:-matter-server}
