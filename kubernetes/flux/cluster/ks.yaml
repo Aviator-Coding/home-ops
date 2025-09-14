@@ -41,9 +41,9 @@ spec:
   prune: true
   postBuild:
     substituteFrom:
-      - name: cluster-settings
-        kind: ConfigMap
-        optional: false
+      # - name: cluster-settings
+      #   kind: ConfigMap
+      #   optional: false
       - name: cluster-secrets
         kind: Secret
         optional: false
