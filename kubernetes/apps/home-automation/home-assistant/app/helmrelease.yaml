@@ -113,7 +113,7 @@ spec:
         rules:
           - backendRefs:
               - name: app
-                namespace: selfhosted
+                namespace: home-automation
                 port: http
       code-server:
         annotations:
@@ -130,7 +130,7 @@ spec:
         rules:
           - backendRefs:
               - name: coder-server
-                namespace: selfhosted
+                namespace: home-automation
                 port: http
 
     persistence:

@@ -63,7 +63,7 @@ spec:
         rules:
           - backendRefs:
               - name: matter-server
-                namespace: selfhosted
+                namespace: home-automation
                 port: *wsPort
 
     persistence:
