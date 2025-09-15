@@ -40,7 +40,7 @@ spec:
               HASS_HTTP_TRUSTED_PROXY_2: 10.69.0.0/16
             envFrom:
               - secretRef:
-                  name: home-assistant-secret
+                  name: home-assistant
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
