@@ -31,7 +31,7 @@ spec:
         containers:
           app:
             image:
-              repository: docker pull ghcr.io/home-operations/home-assistant
+              repository: ghcr.io/home-operations/home-assistant
               tag: 2025.9.3
 
             env:
