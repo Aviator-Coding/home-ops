@@ -113,7 +113,7 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: app
+              - name: home-assistant
                 port: 8123
       code-server:
         annotations:
@@ -129,7 +129,7 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: app
+              - name: home-assistant
                 port: 12321
 
     persistence:
