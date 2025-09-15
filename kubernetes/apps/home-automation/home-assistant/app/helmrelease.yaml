@@ -113,7 +113,7 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: http
+              - name: app
                 port: 8123
       code-server:
         annotations:
