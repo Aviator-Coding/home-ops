@@ -31,8 +31,9 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/onedr0p/home-assistant
-              tag: 2025.4.4
+              repository: docker pull ghcr.io/home-operations/home-assistant
+              tag: 2025.9.3
+
             env:
               TZ: America/New_York
               HASS_HTTP_TRUSTED_PROXY_1: 10.10.10.0/24
