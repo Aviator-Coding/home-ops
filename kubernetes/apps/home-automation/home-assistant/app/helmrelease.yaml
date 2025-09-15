@@ -113,7 +113,7 @@ spec:
         rules:
           - backendRefs:
               - name: app
-                port: http
+                port: 8123
       code-server:
         annotations:
           gethomepage.dev/enabled: "true"
@@ -129,7 +129,7 @@ spec:
         rules:
           - backendRefs:
               - name: app
-                port: code-server
+                port: 12321
 
     persistence:
       config:
