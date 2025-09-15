@@ -79,7 +79,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile: { type: RuntimeDefault }
     service:
-      &serviceName app:
+      app:
         controller: home-assistant
         ports:
           http:
@@ -112,7 +112,7 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: *serviceName
+              - name: app
                 port: http
       code-server:
         annotations:
@@ -128,7 +128,7 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: *serviceName
+              - name: app
                 port: code-server
 
     persistence:
