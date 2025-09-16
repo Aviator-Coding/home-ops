@@ -55,7 +55,7 @@ spec:
           gethomepage.dev/name: matter-server
           gethomepage.dev/icon: matter.svg
         hostnames:
-          - "hass.${SECRET_DOMAIN}"
+          - *host
         parentRefs:
           - name: internal
             namespace: kube-system
