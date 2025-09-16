@@ -12,6 +12,7 @@ spec:
       app.kubernetes.io/name: *app
   dependsOn:
     - name: cilium
+      namespace: kube-system
   path: ./kubernetes/apps/network/multus/app
   prune: true
   sourceRef:
