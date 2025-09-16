@@ -64,6 +64,13 @@ nodes:
         #   - 10.10.10.11/24
         vip:
           ip: *talosControlplaneVip
+        vlans:
+          - &vlan3
+            vlanId: 3
+            mtu: 1500
+            dhcp: false
+            dhcpOptions:
+              routeMetric: 4096
         # routes:
         #   - network: 0.0.0.0/0
         #     gateway: 10.10.10.1
@@ -112,6 +119,8 @@ nodes:
         #   - 10.10.10.12/24
         vip:
           ip: *talosControlplaneVip
+        vlans:
+          - *vlan3
         # routes:
         #   - network: 0.0.0.0/0
         #     gateway: 10.10.10.1
@@ -161,6 +170,8 @@ nodes:
         #   - 10.10.10.13/24
         vip:
           ip: *talosControlplaneVip
+        vlans:
+          - *vlan3
       #     - network: 0.0.0.0/0
       #       gateway: 10.10.10.1
 
