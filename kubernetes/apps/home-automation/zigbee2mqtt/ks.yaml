@@ -29,6 +29,9 @@ spec:
   components:
     - ../../../../components/volsync
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *appname
       VOLSYNC_CLAIM: zigbee2mqtt-data
