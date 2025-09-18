@@ -14,5 +14,5 @@ spec:
   rules:
     - backendRefs:
         - name: emqx-dashboard
-          namespace: home-automation
+          namespace: database
           port: 18083
