@@ -48,7 +48,8 @@ spec:
               OLLAMA_INTEL_GPU: "true"
               OLLAMA_NUM_GPU: "999"
               ZES_ENABLE_SYSMAN: "1"
-
+              # Memory hint for Intel GPUs (optional)
+              OLLAMA_GPU_OVERHEAD: "2048" # 2GB overhead for system shared memory
             resources:
               requests:
                 cpu: "2"
