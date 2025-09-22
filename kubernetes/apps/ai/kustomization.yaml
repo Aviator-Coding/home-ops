@@ -11,4 +11,4 @@ resources:
   # - ./perplexica/ks.yaml
   - ./ollama/ks.yaml
   - ./qdrant/ks.yaml
-  # - ./searxng/ks.yaml
+  - ./searxng/ks.yaml
