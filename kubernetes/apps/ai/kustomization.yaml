@@ -9,5 +9,6 @@ resources:
   # - ./litellm/ks.yaml
   # - ./open-webui/ks.yaml
   # - ./perplexica/ks.yaml
+  - ./ollama/ks.yaml
   - ./qdrant/ks.yaml
   # - ./searxng/ks.yaml
