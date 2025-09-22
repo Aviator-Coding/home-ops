@@ -6,6 +6,7 @@ namespace: ai
 components:
   - ../../components/common
 resources:
+  - ./kokoro/ks.yaml
   # - ./litellm/ks.yaml
   # - ./open-webui/ks.yaml
   # - ./perplexica/ks.yaml
