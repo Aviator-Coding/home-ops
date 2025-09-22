@@ -87,7 +87,7 @@ spec:
             port: *grpc-port
     route:
       app:
-        hostnames: ["{{ .Release.Name }}.{$SECRET_DOMAIN}"]
+        hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal
             namespace: network
