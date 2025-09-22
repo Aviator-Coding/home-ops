@@ -108,6 +108,8 @@ spec:
           ephemeral:
             volumeClaimTemplate:
               spec:
+                accessModes:
+                  - ReadWriteOnce
                 storageClassName: ceph-block
                 resources:
                   requests:
