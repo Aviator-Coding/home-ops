@@ -4,7 +4,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app searxng
-  name:space: &namespace ai
+  namespace: &namespace ai
 spec:
   commonMetadata:
     labels:
