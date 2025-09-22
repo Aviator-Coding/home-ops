@@ -16,7 +16,7 @@ spec:
     - name: onepassword-store
       namespace: security
   interval: 1h
-  path: ./kubernetes/apps/ai/qdrant
+  path: ./kubernetes/apps/ai/qdrant/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets
