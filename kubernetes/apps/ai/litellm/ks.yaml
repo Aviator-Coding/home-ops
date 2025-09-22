@@ -11,7 +11,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../components/dragonfly
+    - ../../../../components/dragonfly
     - ../../../../components/volsync
     - ../../../../components/gatus/guarded
   dependsOn:
