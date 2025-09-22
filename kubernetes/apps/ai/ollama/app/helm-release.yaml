@@ -107,10 +107,10 @@ spec:
         volumeSpec:
           ephemeral:
             volumeClaimTemplate:
+              metadata:
+                name: ollama-data
               spec:
-                accessModes:
-                  - ReadWriteOnce
-                storageClassName: "openebs-hostpath"
+                storageClassName: ceph-block
                 resources:
                   requests:
                     storage: 50Gi
