@@ -32,6 +32,8 @@ spec:
               SEARXNG_BASE_URL: "https://search.${SECRET_DOMAIN}"
               SEARXNG_PORT: &port 8080
               SEARXNG_REDIS_URL: redis://searxng-dragonfly:6379
+              UWSGI_WORKERS: "4"
+              UWSGI_THREADS: "2"
             envFrom:
               - secretRef:
                   name: *app
@@ -62,9 +64,9 @@ spec:
             resources:
               requests:
                 cpu: 10m
-                memory: 256Mi
+                memory: 512Mi
               limits:
-                memory: 1Gi
+                memory: 2Gi
     # TODO: Add defaultPodOptions for pod-level security
     # defaultPodOptions:
     #   securityContext:

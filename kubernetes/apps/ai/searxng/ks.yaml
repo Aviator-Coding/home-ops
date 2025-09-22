@@ -17,11 +17,6 @@ spec:
       namespace: database
     - name: onepassword-store
       namespace: security
-  healthCheckExprs:
-    - apiVersion: dragonflydb.io/v1alpha1
-      kind: Dragonfly
-      failed: status.phase != 'ready'
-      current: status.phase == 'ready'
   interval: 1h
   path: ./kubernetes/apps/ai/searxng
   postBuild:
