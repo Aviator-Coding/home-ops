@@ -43,7 +43,8 @@ spec:
               OLLAMA_MODELS: &modelPath /models
               OLLAMA_HOST: "0.0.0.0"
               no_proxy: "localhost,127.0.0.1"
-              DEVICE: "Arc"
+              # DEVICE: "Arc"
+              DEVICE: "GPU"
               OLLAMA_INTEL_GPU: "true"
               OLLAMA_NUM_GPU: "999"
               ZES_ENABLE_SYSMAN: "1"
