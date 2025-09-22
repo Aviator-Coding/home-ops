@@ -24,7 +24,8 @@ spec:
       ollama:
         pod:
           nodeSelector:
-            intel.feature.node.kubernetes.io/gpu-product: "arc"
+            # intel.feature.node.kubernetes.io/gpu-product: "arc"
+            intel.feature.node.kubernetes.io/gpu: "true"
 
         containers:
           app:
