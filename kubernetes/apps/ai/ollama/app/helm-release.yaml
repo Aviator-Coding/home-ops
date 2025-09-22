@@ -107,8 +107,6 @@ spec:
         volumeSpec:
           ephemeral:
             volumeClaimTemplate:
-              metadata:
-                name: ollama-data
               spec:
                 storageClassName: ceph-block
                 resources:
