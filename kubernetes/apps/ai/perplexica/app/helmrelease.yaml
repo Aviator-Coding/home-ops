@@ -77,7 +77,7 @@ spec:
       app:
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
-          - name: interal
+          - name: internal
             namespace: kube-system
             sectionName: https
     persistence:
