@@ -10,10 +10,9 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../components/dragonfly
-    - ../../../components/gatus/external
-    # - ../../../components/postgres
-    - ../../../components/volsync
+    - ../../../../components/dragonfly
+    - ../../../../components/gatus/external
+    - ../../../../components/volsync
   dependsOn:
     - name: dragonfly-operator
       namespace: database
