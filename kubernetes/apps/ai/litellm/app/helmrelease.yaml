@@ -47,7 +47,7 @@ spec:
               tag: main-v1.77.2-stable
             args:
               - --host
-              - "::"
+              - "0.0.0.0"
               - --port
               - "4000"
               - --config
