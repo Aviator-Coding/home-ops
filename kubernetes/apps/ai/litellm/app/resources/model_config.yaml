@@ -161,6 +161,67 @@ model_list:
     api_key: ${XAI_API_KEY}
     aliases: [general_xai, vision_xai]
 
+  # Gemine Models
+  - model_name: "Gemini: gemini-2.0-flash"
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: gemini-2.0-flash-lite"
+    litellm_params:
+      model: gemini/gemini-2.0-flash-lite
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: gemini-2.5-pro"
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: gemini-2.5-flash"
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: gemini-2.5-flash-lite"
+    litellm_params:
+      model: gemini/gemini-2.5-flash-lite
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: gemini-2.5-flash-native-audio"
+    litellm_params:
+      model: gemini/gemini-2.5-flash-native-audio
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: gemini-2.5-flash-image-preview"
+    litellm_params:
+      model: gemini/gemini-2.5-flash-image-preview
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: imagen-3"
+    litellm_params:
+      model: gemini/imagen-3
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: veo-3"
+    litellm_params:
+      model: gemini/veo-3
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
+  - model_name: "Gemini: veo-3-fast"
+    litellm_params:
+      model: gemini/veo-3-fast
+      api_key: ${GEMINI_API_KEY}
+    aliases: []
+
 # Fallback Groups
 # Each group is a list of model aliases (not full names!)
 # These groups are referenced by `router_model_list` virtual models
