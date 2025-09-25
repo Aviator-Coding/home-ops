@@ -10,14 +10,23 @@ general_settings:
   disable_spend_logs: false
   disable_error_logs: false
 
-  background_health_checks: true
+  background_health_checks: false # Temporarily disable while debugging
   health_check_interval: 300
+  health_check_details: true # Add detailed health check info
 
   store_model_in_db: true
 
   max_budget: 150 # Set monthly budget in USD
   budget_duration: "monthly"
   track_cost_callback: true
+
+  # Health check bypass configuration
+  allow_routes_without_auth:
+    ["/health", "/health/readiness", "/health/liveness", "/v1/health"]
+
+  # Debug settings
+  enforce_user_param: false # Don't enforce user params for debugging
+  disable_auth: false # Keep auth enabled but bypass for health checks
 
 litellm_settings:
   proxy_server: true
@@ -31,9 +40,13 @@ litellm_settings:
   # enable_preview_features: true
   redact_user_api_key_info: true
   turn_off_message_logging: false
-  set_verbose: true
+  set_verbose: false # Changed to reduce log noise
   drop_params: true
   routing_strategy: "usage-based-routing-v2"
+
+  # Health check configuration
+  disable_health_check_auth: true # Bypass auth for health checks
+  health_check_models: ["general_groq"] # Use fast models for health checks
 
   # Caching settings
   cache: true
