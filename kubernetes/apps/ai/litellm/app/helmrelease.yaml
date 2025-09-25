@@ -54,7 +54,7 @@ spec:
               - /app/config.yaml
             env:
               TZ: America/New_York
-              REDIS_HOST: redis://litellm-dragonfly:6379
+              # REDIS_HOST: redis://litellm-dragonfly:6379  # Available for future use
               STORE_MODEL_IN_DB: True
               LITELLM_LOG: "DEBUG"
               LITELLM_MODE: "production"
