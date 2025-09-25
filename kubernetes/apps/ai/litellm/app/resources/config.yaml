@@ -12,7 +12,7 @@ general_settings:
 
   background_health_checks: true # Re-enable with proper configuration
   health_check_interval: 600 # Increase interval to reduce load
-  health_check_details: false # Disable detailed checks to avoid issues
+  health_check_details: false # Disable detailed checks to avoid auth issues
 
   store_model_in_db: true
 
@@ -35,27 +35,31 @@ litellm_settings:
   retry_delay: 1
   request_timeout: 600
   json_logs: true
-  success_callback: ["langfuse", "prometheus"] # Add monitoring
-  failure_callback: ["langfuse"]
+  success_callback: ["prometheus"] # Temporarily disable langfuse due to auth issues
+  failure_callback: [] # Temporarily disable langfuse
   # enable_preview_features: true
   redact_user_api_key_info: true
   turn_off_message_logging: false
   set_verbose: false # Changed to reduce log noise
   drop_params: true
-  routing_strategy: "usage-based-routing-v2"
+  routing_strategy: "simple-shuffle" # Use simpler strategy to avoid conflicts
 
   # Health check configuration
   disable_health_check_auth: true # Bypass auth for health checks
-  health_check_models: ["general_groq", "general_deepseek", "general_anthropic"] # Use simple, reliable models
+  health_check_models: ["general_groq", "general_deepseek"] # Use simple, reliable models
   exclude_health_check_models: [
       "general_openai_5",
       "vision_openai_5",
       "education_5",
       "embedding_openai",
       "whisper-1",
+      "gemini-tts-flash",
+      "gemini-tts-pro",
+      "image_gen_gemini",
+      "video_gen_gemini",
+      "video_gen_gemini_fast",
     ] # Exclude problematic models
   health_check_timeout: 30 # Add timeout for health checks
-  health_check_mode: "basic" # Use basic health check mode
 
   # Caching settings
   cache: true

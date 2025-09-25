@@ -85,9 +85,9 @@ model_list:
     provider: openai
     litellm_params:
       model: openai/text-embedding-3-small
-      mode: embedding # Required for embeddings
     api_key: ${OPENAI_API_KEY}
     model_info:
+      mode: embedding # Required for embeddings
       max_tokens: 8192
       input_cost_per_1k_tokens: 0.00002
     aliases: [embedding_openai]
@@ -542,7 +542,6 @@ model_groups:
 
   # New specialized model groups for Gemini capabilities
   audio_tasks:
-    - audio_gemini # Gemini 2.5 Flash Native Audio
     - gemini-tts-flash # Gemini 2.5 Flash TTS
     - gemini-tts-pro # Gemini 2.5 Pro TTS
 
