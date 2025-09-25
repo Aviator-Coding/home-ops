@@ -10,7 +10,7 @@ general_settings:
   disable_spend_logs: false
   disable_error_logs: false
 
-  background_health_checks: true # Re-enable with proper configuration
+  background_health_checks: false # Re-enable with proper configuration
   health_check_interval: 600 # Increase interval to reduce load
   health_check_details: false # Disable detailed checks to avoid auth issues
 
