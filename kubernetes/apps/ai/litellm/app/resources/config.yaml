@@ -61,27 +61,32 @@ litellm_settings:
     ] # Exclude problematic models
   health_check_timeout: 30 # Add timeout for health checks
 
-  # Caching settings
+  # Caching settings - Hybrid approach for optimal performance
   cache: true
   cache_params:
-    type: qdrant-semantic # redis, s3, redis-semantic, qdrant-semantic, disk, () not specificed = In memory
+    # Primary: Fast Redis cache for exact matches
+    type: redis
+    redis_host: "litellm-dragonfly"
+    redis_port: 6379
+    redis_db: 0
+    redis_ttl: 7200 # 2 hours for exact matches
 
-    # https://docs.litellm.ai/docs/caching/all_caches#updating-cache-params-redis-host-port-etc
-
-    # Optional - Qdrant Semantic Cache Settings
-    qdrant_semantic_cache_embedding_model: embedding_openai # FIXED: Use correct alias
+    # Secondary: Semantic cache for similar queries (keeping your optimized settings)
+    semantic_cache: true
+    semantic_cache_type: qdrant-semantic
+    qdrant_semantic_cache_embedding_model: embedding_openai
     qdrant_collection_name: litellm_cache
-    qdrant_quantization_config: binary
-    similarity_threshold: 0.95 # similarity threshold for semantic cache
+    qdrant_quantization_config: binary # Reduces memory usage
+    similarity_threshold: 0.90 # Slightly lower threshold for more cache hits
+    semantic_cache_ttl: 3600 # 1 hour for semantic matches
+
+    # Cache hierarchy: Redis (exact) → Qdrant (semantic) → LLM API
+    cache_strategy: hybrid_fallback
 
     # Common Cache settings
-    # Optional - Supported call types for caching
-
     supported_call_types:
       ["acompletion", "atext_completion", "aembedding", "atranscription"]
-      # /chat/completions, /completions, /embeddings, /audio/transcriptions
-    mode: default_on # if default_off, you need to opt in to caching on a per call basis
-    ttl: 1800 # ttl for caching
+    mode: default_on
 
 router:
   # Your existing vision routing
