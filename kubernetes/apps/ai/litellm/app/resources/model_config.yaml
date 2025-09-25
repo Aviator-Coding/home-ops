@@ -34,6 +34,12 @@ model_list:
     litellm_params:
       model: anthropic/claude-3-5-haiku-20241022
     api_key: ${ANTHROPIC_API_KEY}
+    model_info:
+      max_tokens: 200000
+      input_cost_per_1k_tokens: 0.0008
+      output_cost_per_1k_tokens: 0.004
+      supports_vision: true
+      supports_function_calling: true
     aliases: [general_anthropic, vision_anthropic]
 
   # Deepseek Models
@@ -42,6 +48,11 @@ model_list:
     litellm_params:
       model: deepseek/deepseek-chat
     api_key: ${DEEPSEEK_API_KEY}
+    model_info:
+      max_tokens: 65536
+      input_cost_per_1k_tokens: 0.00027
+      output_cost_per_1k_tokens: 0.0011
+      supports_function_calling: true
     aliases: [general_deepseek]
 
   - model_name: "Deepseek: Coder"
@@ -49,6 +60,11 @@ model_list:
     litellm_params:
       model: deepseek/deepseek-coder
     api_key: ${DEEPSEEK_API_KEY}
+    model_info:
+      max_tokens: 128000
+      input_cost_per_1k_tokens: 0.00014
+      output_cost_per_1k_tokens: 0.00028
+      supports_function_calling: true
     aliases: [code_deepseek]
 
   - model_name: "Deepseek: Reasoner"
@@ -56,6 +72,12 @@ model_list:
     litellm_params:
       model: deepseek/deepseek-reasoner
     api_key: ${DEEPSEEK_API_KEY}
+    model_info:
+      max_tokens: 65536
+      input_cost_per_1k_tokens: 0.00055
+      output_cost_per_1k_tokens: 0.00219
+      supports_function_calling: true
+      supports_reasoning: true
     aliases: [reasoner_deepseek]
 
   # Open AI Models
@@ -65,6 +87,9 @@ model_list:
       model: openai/text-embedding-3-small
       mode: embedding # Required for embeddings
     api_key: ${OPENAI_API_KEY}
+    model_info:
+      max_tokens: 8192
+      input_cost_per_1k_tokens: 0.00002
     aliases: [embedding_openai]
 
   - model_name: "OpenAI: gpt-5"
@@ -72,6 +97,13 @@ model_list:
     litellm_params:
       model: openai/gpt-5
     api_key: ${OPENAI_API_KEY}
+    model_info:
+      max_tokens: 400000
+      input_cost_per_1k_tokens: 0.00125
+      output_cost_per_1k_tokens: 0.01
+      supports_vision: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [general_openai_5, vision_openai_5, education_5]
 
   - model_name: "OpenAI: gpt-5-mini"
@@ -79,6 +111,13 @@ model_list:
     litellm_params:
       model: openai/gpt-5-mini
     api_key: ${OPENAI_API_KEY}
+    model_info:
+      max_tokens: 400000
+      input_cost_per_1k_tokens: 0.00025
+      output_cost_per_1k_tokens: 0.002
+      supports_vision: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [gpt-4.1, general_openai, vision_openai]
 
   - model_name: "OpenAI: gpt-5-nano"
@@ -86,6 +125,13 @@ model_list:
     litellm_params:
       model: openai/gpt-5-nano
     api_key: ${OPENAI_API_KEY}
+    model_info:
+      max_tokens: 400000
+      input_cost_per_1k_tokens: 0.00005
+      output_cost_per_1k_tokens: 0.0004
+      supports_vision: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [general_openai_5, vision_openai_5, education_5]
 
   - model_name: "OpenAI: gpt-5-codex"
@@ -95,6 +141,11 @@ model_list:
     api_key: ${OPENAI_API_KEY}
     model_info:
       mode: chat
+      max_tokens: 272000
+      input_cost_per_1k_tokens: 0.00125
+      output_cost_per_1k_tokens: 0.01
+      supports_vision: true
+      supports_function_calling: true
     aliases: [general_openai_5, vision_openai_5, education_5]
 
   - model_name: "OpenAI: gpt-4.1-mini"
@@ -102,6 +153,12 @@ model_list:
     litellm_params:
       model: openai/gpt-4.1-mini
     api_key: ${OPENAI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.0004
+      output_cost_per_1k_tokens: 0.0016
+      supports_vision: true
+      supports_function_calling: true
     aliases: [gpt-4.1, general_openai, vision_openai]
 
   - model_name: "OpenAI: gpt-4o"
@@ -109,6 +166,12 @@ model_list:
     litellm_params:
       model: openai/gpt-4o
     api_key: ${OPENAI_API_KEY}
+    model_info:
+      max_tokens: 128000
+      input_cost_per_1k_tokens: 0.0025
+      output_cost_per_1k_tokens: 0.01
+      supports_vision: true
+      supports_function_calling: true
     aliases: [general_openai_4o, vision_openai_4o, education_4o]
 
   - model_name: "OpenAI: Whisper-1"
@@ -119,8 +182,8 @@ model_list:
     model_info:
       id: whisper-1
       mode: audio_transcription
-      input_cost_per_token: 0.000000006 # USD $0.006 per million tokens (input)
-    aliases: [general_openai_4o, vision_openai_4o, education_4o, whisper-1]
+      input_cost_per_minute: 0.006 # Assuming cost is per minute for audio
+    aliases: [whisper-1]
 
   # TogetherAI Models
 
@@ -132,8 +195,8 @@ model_list:
     model_info:
       id: Qwen2.5-Coder-32B-Instruct
       mode: chat
-      input_cost_per_token: 0.0000008 # USD $0.80 per million tokens (input)
-      output_cost_per_token: 0.0000008 # USD $0.80 per million tokens (output)
+      input_cost_per_1k_tokens: 0.0008
+      output_cost_per_1k_tokens: 0.0008
       max_tokens: 16384
     aliases: [code_together]
 
@@ -144,6 +207,11 @@ model_list:
       model: groq/llama-3.3-70b-versatile
       drop_params: true
     api_key: ${GROQ_API_KEY}
+    model_info:
+      max_tokens: 128000
+      input_cost_per_1k_tokens: 0.00059
+      output_cost_per_1k_tokens: 0.00079
+      supports_function_calling: true
     aliases: [general_groq, code_groq]
 
   - model_name: "Groq: Meta gemma2-9b-it"
@@ -152,6 +220,10 @@ model_list:
       model: groq/gemma2-9b-it
       drop_params: true
     api_key: ${GROQ_API_KEY}
+    model_info:
+      max_tokens: 8192
+      input_cost_per_1k_tokens: 0.0002
+      output_cost_per_1k_tokens: 0.0002
     aliases: [general_groq]
 
   - model_name: "Groq: Meta llama-3.1-8b-instant"
@@ -160,6 +232,11 @@ model_list:
       model: groq/llama-3.1-8b-instant
       drop_params: true
     api_key: ${GROQ_API_KEY}
+    model_info:
+      max_tokens: 128000
+      input_cost_per_1k_tokens: 0.00005
+      output_cost_per_1k_tokens: 0.00008
+      supports_function_calling: true
     aliases: [code_groq]
 
   - model_name: "Groq: Meta compound-mini [No-Limits]"
@@ -209,6 +286,13 @@ model_list:
       model: xai/grok-4-fast-reasoning
       api_base: "https://api.x.ai/v1" # Required endpoint for xAI
     api_key: ${XAI_API_KEY}
+    model_info:
+      max_tokens: 2000000
+      input_cost_per_1k_tokens: 0.0002
+      output_cost_per_1k_tokens: 0.0005
+      supports_web_search: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [code_grok]
 
   - model_name: "xAI: grok-3-mini-beta"
@@ -217,6 +301,13 @@ model_list:
       model: xai/grok-3-mini-beta
       api_base: "https://api.x.ai/v1" # Required endpoint for xAI
     api_key: ${XAI_API_KEY}
+    model_info:
+      max_tokens: 131072
+      input_cost_per_1k_tokens: 0.0003
+      output_cost_per_1k_tokens: 0.0005
+      supports_web_search: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [general_xai, vision_xai]
 
   # Gemini Models
@@ -225,36 +316,59 @@ model_list:
     litellm_params:
       model: gemini/gemini-2.5-pro
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.00125
+      output_cost_per_1k_tokens: 0.01
+      supports_vision: true
+      supports_web_search: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [general_gemini, reasoning_gemini, vision_gemini]
 
   - model_name: "Gemini: 2.5 Flash"
     litellm_params:
       model: gemini/gemini-2.5-flash
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.0003
+      output_cost_per_1k_tokens: 0.0025
+      supports_vision: true
+      supports_web_search: true
+      supports_url_context: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [general_gemini_fast, vision_gemini_fast]
 
   - model_name: "Gemini: 2.5 Flash Lite"
     litellm_params:
       model: gemini/gemini-2.5-flash-lite
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.0001
+      output_cost_per_1k_tokens: 0.0004
+      supports_vision: true
+      supports_web_search: true
+      supports_url_context: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [general_gemini_lite]
-
-  - model_name: "Gemini: 2.5 Flash Live"
-    litellm_params:
-      model: gemini/gemini-2.5-flash-live
-      api_key: ${GEMINI_API_KEY}
-    aliases: [live_gemini]
-
-  - model_name: "Gemini: 2.5 Flash Native Audio"
-    litellm_params:
-      model: gemini/gemini-2.5-flash-native-audio-preview-09-2025
-      api_key: ${GEMINI_API_KEY}
-    aliases: [audio_gemini]
 
   - model_name: "Gemini: 2.5 Flash Image Preview"
     litellm_params:
       model: gemini/gemini-2.5-flash-image-preview
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      mode: image_generation
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.0003
+      output_cost_per_image: 0.03 # Assuming cost is per image
+      supports_vision: true
+      supports_web_search: true
+      supports_url_context: true
+      supports_function_calling: true
     aliases: [image_gen_gemini]
 
   - model_name: "Gemini: 2.5 Flash Preview TTS"
@@ -263,6 +377,13 @@ model_list:
       api_key: ${GEMINI_API_KEY}
     model_info:
       mode: tts
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.00015
+      output_cost_per_1k_tokens: 0.0006
+      supports_vision: true
+      supports_web_search: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [gemini-tts-flash]
 
   - model_name: "Gemini: 2.5 Pro Preview TTS"
@@ -271,6 +392,12 @@ model_list:
       api_key: ${GEMINI_API_KEY}
     model_info:
       mode: tts
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.00125
+      output_cost_per_1k_tokens: 0.01
+      supports_vision: true
+      supports_web_search: true
+      supports_function_calling: true
     aliases: [gemini-tts-pro]
 
   # Gemini 2.0 Models
@@ -278,6 +405,14 @@ model_list:
     litellm_params:
       model: gemini/gemini-2.0-flash
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.0001
+      output_cost_per_1k_tokens: 0.0004
+      supports_vision: true
+      supports_web_search: true
+      supports_url_context: true
+      supports_function_calling: true
     aliases: [general_gemini_2, vision_gemini_2]
 
   - model_name: "Gemini: 2.0 Flash Preview Image Generation"
@@ -286,18 +421,40 @@ model_list:
       api_key: ${GEMINI_API_KEY}
     model_info:
       mode: image_generation
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.0001
+      output_cost_per_1k_tokens: 0.0004
+      supports_vision: true
+      supports_web_search: true
+      supports_function_calling: true
     aliases: [gemini-image-gen-2]
 
   - model_name: "Gemini: 2.0 Flash Lite"
     litellm_params:
       model: gemini/gemini-2.0-flash-lite
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.00007
+      output_cost_per_1k_tokens: 0.0003
+      supports_vision: true
+      supports_web_search: true
+      supports_function_calling: true
     aliases: [general_gemini_2_lite]
 
   - model_name: "Gemini: 2.0 Flash Live"
     litellm_params:
       model: gemini/gemini-2.0-flash-live-001
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.00035
+      output_cost_per_1k_tokens: 0.0015
+      supports_vision: true
+      supports_web_search: true
+      supports_url_context: true
+      supports_reasoning: true
+      supports_function_calling: true
     aliases: [live_gemini_2]
 
   # Gemini 1.5 Models (Still Supported)
@@ -305,12 +462,24 @@ model_list:
     litellm_params:
       model: gemini/gemini-1.5-flash
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.00007
+      output_cost_per_1k_tokens: 0.0003
+      supports_vision: true
+      supports_function_calling: true
     aliases: [general_gemini_legacy, vision_gemini_legacy]
 
   - model_name: "Gemini: 1.5 Pro"
     litellm_params:
       model: gemini/gemini-1.5-pro
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 2097152
+      input_cost_per_1k_tokens: 0.0035
+      output_cost_per_1k_tokens: 0.0105
+      supports_vision: true
+      supports_function_calling: true
     aliases: [reasoning_gemini_legacy]
 
   # Specialized Gemini Models
