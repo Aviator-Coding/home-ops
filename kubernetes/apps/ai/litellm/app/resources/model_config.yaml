@@ -135,6 +135,71 @@ model_list:
       max_tokens: 16384
     aliases: [code_together]
 
+  # Groq Models
+  - model_name: "Groq: Meta llama-3.3-70b-versatile"
+    provider: groq
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      drop_params: true
+    api_key: ${GROQ_API_KEY}
+    aliases: [general_groq, code_groq]
+
+  - model_name: "Groq: Meta gemma2-9b-it"
+    provider: groq
+    litellm_params:
+      model: groq/gemma2-9b-it
+      drop_params: true
+    api_key: ${GROQ_API_KEY}
+    aliases: [general_groq]
+
+  - model_name: "Groq: Meta llama-3.1-8b-instant"
+    provider: groq
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      drop_params: true
+    api_key: ${GROQ_API_KEY}
+    aliases: [code_groq]
+
+  - model_name: "Groq: Meta compound-mini [No-Limits]"
+    provider: groq
+    litellm_params:
+      model: groq/compound-mini
+      drop_params: true
+    api_key: ${GROQ_API_KEY}
+    aliases: [general_groq, reasoning_groq]
+
+  - model_name: "Groq: Meta compound [No-Limits]"
+    provider: groq
+    litellm_params:
+      model: groq/compound
+      drop_params: true
+    api_key: ${GROQ_API_KEY}
+    aliases: [general_groq, reasoning_groq]
+
+  - model_name: "Groq: gpt-oss-120b"
+    provider: groq
+    litellm_params:
+      model: openai/gpt-oss-120b
+      drop_params: true
+    api_key: ${GROQ_API_KEY}
+    aliases: [general_groq, code_groq]
+
+  - model_name: "Groq: gpt-oss-20b"
+    provider: groq
+    litellm_params:
+      model: openai/gpt-oss-20b
+      drop_params: true
+    api_key: ${GROQ_API_KEY}
+    aliases: [general_groq, code_groq]
+
+  - model_name: "Groq: qwen3-32b"
+    provider: groq
+    litellm_params:
+      model: qwen/qwen3-32b
+      drop_params: true
+    api_key: ${GROQ_API_KEY}
+    aliases: [general_groq, code_groq]
+
   # xAI Models
   - model_name: "xAI: Grok 4 Fast"
     provider: xai
@@ -142,7 +207,7 @@ model_list:
       model: xai/grok-4-fast-reasoning
       api_base: "https://api.x.ai/v1" # Required endpoint for xAI
     api_key: ${XAI_API_KEY}
-    aliases: [code_groq]
+    aliases: [code_grok]
 
   - model_name: "xAI: grok-3-mini-beta"
     provider: xai
@@ -269,6 +334,7 @@ model_groups:
     - code_deepseek # Strong code reasoning
     - code_together # Big context + strong code skills
     - general_gemini # Gemini 2.5 Pro for code reasoning
+    - code_grok # xAI Grok 4 Fast for code reasoning
 
   general_tasks:
     - general_openai_4o # GPT-4o – multilingual, expressive
@@ -278,6 +344,7 @@ model_groups:
     - general_gemini_fast # Gemini 2.5 Flash – fast and efficient
     - general_xai # Grok 3 – experimental fallback
     - general_deepseek # DeepSeek Chat – strong reasoning
+    - general_groq # Groq models – fast and efficient general tasks
 
   vision_tasks:
     - vision_openai_4o # GPT-4o – best visual model for accuracy
@@ -294,6 +361,7 @@ model_groups:
     - general_anthropic # Claude 3.5 – empathetic and capable in tutoring
     - general_xai # Grok 3 – fallback if others fail
     - reasoner_deepseek # DeepSeek Reasoner – strong reasoning for educational tasks
+    - reasoning_groq # Groq compound models – fast reasoning for education
 
   # New specialized model groups for Gemini capabilities
   audio_tasks:
@@ -313,3 +381,19 @@ model_groups:
   video_generation:
     - video_gen_gemini # Veo 3
     - video_gen_gemini_fast # Veo 3 Fast
+
+  no_limits:
+    - reasoning_groq # Groq compound models with no limits
+
+  reasoning_tasks:
+    - reasoner_deepseek # Best for complex reasoning
+    - reasoning_groq # No-limits compound models
+    - general_gemini # Strong reasoning capabilities
+    - general_openai_5 # GPT-5 for advanced reasoning
+    - general_openai_4o # GPT-4o fallback
+
+  cost_efficient:
+    - general_groq # Fastest & cheapest
+    - general_deepseek # Good balance
+    - general_gemini_fast # Fast Gemini
+    - general_openai # GPT-4.1 Mini
