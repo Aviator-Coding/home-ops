@@ -15,6 +15,7 @@ general_settings:
   health_check_details: false # Disable detailed checks to avoid auth issues
 
   store_model_in_db: true
+  store_prompts_in_spend_logs: true
 
   max_budget: 150 # Set monthly budget in USD
   budget_duration: "monthly"

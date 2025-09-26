@@ -324,6 +324,7 @@ model_list:
       supports_web_search: true
       supports_reasoning: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [general_gemini, reasoning_gemini, vision_gemini]
 
   - model_name: "Gemini: 2.5 Flash"
@@ -339,6 +340,7 @@ model_list:
       supports_url_context: true
       supports_reasoning: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [general_gemini_fast, vision_gemini_fast]
 
   - model_name: "Gemini: 2.5 Flash Lite"
@@ -354,6 +356,7 @@ model_list:
       supports_url_context: true
       supports_reasoning: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [general_gemini_lite]
 
   - model_name: "Gemini: 2.5 Flash Image Preview"
@@ -369,6 +372,7 @@ model_list:
       supports_web_search: true
       supports_url_context: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [image_gen_gemini]
 
   - model_name: "Gemini: 2.5 Flash Preview TTS"
@@ -384,6 +388,7 @@ model_list:
       supports_web_search: true
       supports_reasoning: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [gemini-tts-flash]
 
   - model_name: "Gemini: 2.5 Pro Preview TTS"
@@ -398,6 +403,7 @@ model_list:
       supports_vision: true
       supports_web_search: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [gemini-tts-pro]
 
   # Gemini 2.0 Models
@@ -413,6 +419,7 @@ model_list:
       supports_web_search: true
       supports_url_context: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [general_gemini_2, vision_gemini_2]
 
   - model_name: "Gemini: 2.0 Flash Preview Image Generation"
@@ -427,6 +434,7 @@ model_list:
       supports_vision: true
       supports_web_search: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [gemini-image-gen-2]
 
   - model_name: "Gemini: 2.0 Flash Lite"
@@ -455,6 +463,7 @@ model_list:
       supports_url_context: true
       supports_reasoning: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [live_gemini_2]
 
   # Gemini 1.5 Models (Still Supported)
@@ -468,6 +477,7 @@ model_list:
       output_cost_per_1k_tokens: 0.0003
       supports_vision: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [general_gemini_legacy, vision_gemini_legacy]
 
   - model_name: "Gemini: 1.5 Pro"
@@ -480,6 +490,7 @@ model_list:
       output_cost_per_1k_tokens: 0.0105
       supports_vision: true
       supports_function_calling: true
+      disable_background_health_check: true
     aliases: [reasoning_gemini_legacy]
 
   # Specialized Gemini Models
@@ -487,18 +498,24 @@ model_list:
     litellm_params:
       model: gemini/imagen-3
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      disable_background_health_check: true
     aliases: [image_gen_imagen]
 
   - model_name: "Gemini: Veo 3"
     litellm_params:
       model: gemini/veo-3
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      disable_background_health_check: true
     aliases: [video_gen_gemini]
 
   - model_name: "Gemini: Veo 3 Fast"
     litellm_params:
       model: gemini/veo-3-fast
       api_key: ${GEMINI_API_KEY}
+    model_info:
+      disable_background_health_check: true
     aliases: [video_gen_gemini_fast]
 
 # Fallback Groups
