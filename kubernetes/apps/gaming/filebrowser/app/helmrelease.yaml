@@ -22,7 +22,7 @@ spec:
           filebrowser:
             image:
               repository: filebrowser/filebrowser
-              tag: v2.42.5
+              tag: v2.44.0
             securityContext:
               runAsUser: 0
               runAsGroup: 0
