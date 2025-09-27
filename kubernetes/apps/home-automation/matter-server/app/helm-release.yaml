@@ -35,7 +35,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-assistant-libs/python-matter-server
-              tag: 7.0.1
+              tag: 8.1.0
             env:
               MATTER_SERVER__INSTANCE_NAME: matter-server
               MATTER_SERVER__PORT: &wsPort 5580
