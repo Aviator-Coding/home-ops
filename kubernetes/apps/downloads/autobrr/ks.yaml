@@ -21,9 +21,11 @@ spec:
   wait: false
   dependsOn:
     - name: onepassword-store
-      namespace: external-secrets
+      namespace: security
     - name: volsync
       namespace: system
+    - name: postgres-cluster-17
+      namespace: database
   components:
     - ../../../../components/volsync
   postBuild:
