@@ -8,7 +8,7 @@ components:
 resources:
   - ./cephfs-claims/ks.yaml
   - ./flaresolverr/ks.yaml
-  # - ./flood/ks.yaml
+  - ./flood/ks.yaml
   # - ./lidarr/ks.yaml
   # - ./prowlarr/ks.yaml
   # - ./radarr/ks.yaml
