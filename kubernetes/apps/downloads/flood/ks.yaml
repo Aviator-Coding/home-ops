@@ -14,7 +14,7 @@ spec:
     - ../../../../components/volsync
   dependsOn:
     - name: volsync
-      namespace: storage
+      namespace: system
   interval: 30m
   path: ./kubernetes/apps/downloads/flood/app
   postBuild:
