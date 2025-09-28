@@ -6,20 +6,13 @@ namespace: downloads
 components:
   - ../../components/common
 resources:
-  - ./cephfs-claims/ks.yaml
-  - ./flaresolverr/ks.yaml
-  - ./flood/ks.yaml
-  # - ./lidarr/ks.yaml
-  # - ./prowlarr/ks.yaml
-  # - ./radarr/ks.yaml
-  # - ./readarr/ks.yaml
-  # - ./sabnzbd/ks.yaml
-  # - ./sonarr/ks.yaml
-# patches:
-#   - # Add volsync annotation
-#     patch: |
-#       - op: add
-#         path: "/metadata/annotations/volsync.backube~1privileged-movers"
-#         value: "true"
-#     target:
-#       kind: Namespace
+  # Flux-Kustomizations
+  - ./autobrr/ks.yaml
+  - ./bazarr/ks.yaml
+  - ./cross-seed/ks.yaml
+  - ./prowlarr/ks.yaml
+  - ./qbittorrent/ks.yaml
+  - ./radarr/ks.yaml
+  - ./recyclarr/ks.yaml
+  - ./sabnzbd/ks.yaml
+  - ./sonarr/ks.yaml
