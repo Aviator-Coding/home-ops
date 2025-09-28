@@ -43,10 +43,12 @@ spec:
   #       - CREATE EXTENSION IF NOT EXISTS "cube";
   #       - CREATE EXTENSION IF NOT EXISTS "earthdistance";
 
-  # Revocery configuration
+  # Recovery configuration
   # bootstrap:
   #   recovery:
   #     source: &previousCluster postgres17-v0
+  #     # recoveryTarget:
+  #     #   backupID: "20250904T000005"
 
   # Configuration of the PostgreSQL server
   postgresql:
@@ -90,7 +92,7 @@ spec:
       endpointURL: https://nas.${SECRET_DOMAIN}:9000
       # Note: serverName version needs to be incremented
       # when recovering from an existing cnpg cluster
-      serverName: &currentCluster postgres17-v1
+      serverName: &currentCluster postgres17-v2
       s3Credentials:
         accessKeyId:
           name: cloudnative-pg-secret

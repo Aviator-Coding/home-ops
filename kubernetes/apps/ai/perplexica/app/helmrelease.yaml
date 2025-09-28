@@ -1,0 +1,104 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app perplexica
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      perplexica:
+        replicas: 1
+        strategy: RollingUpdate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: itzcrazykns1337/perplexica
+              tag: main@sha256:6014eaaa50ebb1aa1cef58fcf7421b203adab664a0c9222b1b20509b962fff28
+            env:
+              SEARXNG_API_URL: http://searxng:8080
+              DATA_DIR: /home/perplexica
+            # TODO: Add envFrom for secrets management
+            # envFrom:
+            #   - secretRef:
+            #       name: perplexica-secret
+            # TODO: Add probes for health checks
+            # probes:
+            #   liveness: &probes
+            #     enabled: true
+            #     custom: true
+            #     spec:
+            #       httpGet:
+            #         path: /
+            #         port: 3000
+            #       initialDelaySeconds: 0
+            #       periodSeconds: 10
+            #       timeoutSeconds: 1
+            #       failureThreshold: 3
+            #   readiness: *probes
+            # TODO: Add securityContext for container security
+            # securityContext:
+            #   allowPrivilegeEscalation: false
+            #   readOnlyRootFilesystem: true
+            #   capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 25m
+                memory: 192Mi
+              limits:
+                memory: 512Mi
+    # TODO: Add defaultPodOptions for pod-level security
+    # defaultPodOptions:
+    #   securityContext:
+    #     runAsNonRoot: true
+    #     runAsUser: 568
+    #     runAsGroup: 568
+    #     fsGroup: 568
+    #     fsGroupChangePolicy: OnRootMismatch
+    service:
+      app:
+        ports:
+          http:
+            port: &port 3000
+    route:
+      app:
+        hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: internal
+            namespace: kube-system
+            sectionName: https
+    persistence:
+      dbstore:
+        enabled: true
+        existingClaim: perplexica-dbstore
+        globalMounts:
+          - path: /home/perplexica/data
+      uploads:
+        enabled: true
+        existingClaim: perplexica-uploads
+        globalMounts:
+          - path: /home/perplexica/uploads
+      config:
+        type: secret
+        name: perplexica-secret
+        globalMounts:
+          - path: /home/perplexica/config.toml
+            subPath: config.toml
+      tmpfs:
+        enabled: true
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

@@ -1,12 +1,14 @@
 ---
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
-version: '3'
+version: "3"
+
+vars:
+  TALOS_SCHEMATIC_FILE: "{{.TALOS_DIR}}/schematic.yaml"
 
 tasks:
-
   generate-config:
     desc: Generate Talos configuration
-    dir: '{{.TALOS_DIR}}'
+    dir: "{{.TALOS_DIR}}"
     cmd: talhelper genconfig
     preconditions:
       - test -f {{.TALOS_DIR}}/talconfig.yaml
@@ -16,7 +18,7 @@ tasks:
 
   apply-node:
     desc: Apply Talos config to a node [IP=required]
-    dir: '{{.TALOS_DIR}}'
+    dir: "{{.TALOS_DIR}}"
     cmd: talhelper gencommand apply --node {{.IP}} --extra-flags '--mode={{.MODE}}' | bash
     vars:
       MODE: '{{.MODE | default "auto"}}'
@@ -30,7 +32,7 @@ tasks:
 
   upgrade-node:
     desc: Upgrade Talos on a single node [IP=required]
-    dir: '{{.TALOS_DIR}}'
+    dir: "{{.TALOS_DIR}}"
     cmd: talhelper gencommand upgrade --node {{.IP}} --extra-flags "--image='{{.TALOS_IMAGE}}:{{.TALOS_VERSION}}' --timeout=10m" | bash
     vars:
       TALOS_IMAGE:
@@ -47,7 +49,7 @@ tasks:
 
   upgrade-k8s:
     desc: Upgrade Kubernetes
-    dir: '{{.TALOS_DIR}}'
+    dir: "{{.TALOS_DIR}}"
     cmd: talhelper gencommand upgrade-k8s --extra-flags "--to '{{.KUBERNETES_VERSION}}'" | bash
     vars:
       KUBERNETES_VERSION:
@@ -59,8 +61,46 @@ tasks:
 
   reset:
     desc: Resets nodes back to maintenance mode
-    dir: '{{.TALOS_DIR}}'
+    dir: "{{.TALOS_DIR}}"
     prompt: This will destroy your cluster and reset the nodes back to maintenance mode... continue?
     cmd: talhelper gencommand reset --extra-flags="--reboot {{- if eq .CLI_FORCE false }} --system-labels-to-wipe STATE --system-labels-to-wipe EPHEMERAL{{ end }} --graceful=false --wait=false" | bash
     preconditions:
       - which talhelper
+
+  reset-node:
+    desc: Reset a single node [IP=required,PRESERVE_DATA=false,GRACEFUL=true]
+    dir: "{{.TALOS_DIR}}"
+    cmd: |
+      echo "Resetting node {{.IP}} with options:"
+      echo "  - Preserve data: {{.PRESERVE_DATA}}"
+      echo "  - Graceful: {{.GRACEFUL}}"
+      echo "  - Reboot: true"
+      {{- if eq .PRESERVE_DATA "true" }}
+      echo "  - Will preserve user data and configuration"
+      talosctl reset --nodes {{.IP}} --graceful={{.GRACEFUL}} --reboot
+      {{- else }}
+      echo "  - Will wipe STATE and EPHEMERAL partitions"
+      talosctl reset --nodes {{.IP}} --graceful={{.GRACEFUL}} --reboot --system-labels-to-wipe STATE --system-labels-to-wipe EPHEMERAL
+      {{- end }}
+    vars:
+      PRESERVE_DATA: '{{.PRESERVE_DATA | default "false"}}'
+      GRACEFUL: '{{.GRACEFUL | default "true"}}'
+    requires:
+      vars: [IP]
+    preconditions:
+      - talosctl config info
+      - test -f {{.TALOSCONFIG}}
+      - which talosctl
+
+  generate-schematic:
+    desc: Generate the Schematic ID for a Talos cluster [VERSION=required]
+    cmd: |
+      SCHEMATIC=$(curl --silent -X POST --data-binary @{{.TALOS_SCHEMATIC_FILE}} https://factory.talos.dev/schematics | jq --raw-output '.id')
+      echo "${SCHEMATIC}"
+      curl -L -o {{.TALOS_DIR}}/talos-{{.VERSION}}-${SCHEMATIC:0:8}.iso \
+        "https://factory.talos.dev/image/${SCHEMATIC}/{{.VERSION}}/metal-amd64.iso"
+    requires:
+      vars: [VERSION]
+    preconditions:
+      - test -f {{.TALOS_SCHEMATIC_FILE}}
+      - which curl jq

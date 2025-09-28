@@ -5,6 +5,6 @@ kind: Kustomization
 namespace: gaming
 components:
   - ../../components/common
-resources:
-  - ./filebrowser/ks.yaml
-  - ./space-engineers-ds/ks.yaml
+resources: []
+  # - ./filebrowser/ks.yaml
+  # - ./space-engineers-ds/ks.yaml

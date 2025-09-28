@@ -1,0 +1,179 @@
+include:
+  - model_config.yaml
+
+general_settings:
+  user_header_name: X-OpenWebUI-User-Id
+
+  proxy_batch_write_at: 60
+  database_connection_pool_limit: 10
+
+  disable_spend_logs: false
+  disable_error_logs: false
+
+  background_health_checks: false # Re-enable with proper configuration
+  health_check_interval: 600 # Increase interval to reduce load
+  health_check_details: false # Disable detailed checks to avoid auth issues
+
+  store_model_in_db: true
+  store_prompts_in_spend_logs: true
+
+  max_budget: 150 # Set monthly budget in USD
+  budget_duration: "monthly"
+  track_cost_callback: true
+
+  # Health check bypass configuration
+  allow_routes_without_auth:
+    ["/health", "/health/readiness", "/health/liveness", "/v1/health"]
+
+  # Debug settings
+  enforce_user_param: false # Don't enforce user params for debugging
+  disable_auth: false # Keep auth enabled but bypass for health checks
+
+litellm_settings:
+  proxy_server: true
+  max_parallel_requests: 100
+  max_retries: 2
+  retry_delay: 1
+  request_timeout: 600
+  json_logs: true
+  success_callback: [] #
+  failure_callback: [] # Temporarily disable langfuse
+  # enable_preview_features: true
+  redact_user_api_key_info: true
+  turn_off_message_logging: false
+  set_verbose: false # Changed to reduce log noise
+  drop_params: true
+  routing_strategy: "simple-shuffle" # Use simpler strategy to avoid conflicts
+
+  # Health check configuration
+  disable_health_check_auth: true # Bypass auth for health checks
+  health_check_models: ["general_groq", "general_deepseek"] # Use simple, reliable models
+  exclude_health_check_models: [
+      "general_openai_5",
+      "vision_openai_5",
+      "education_5",
+      "embedding_openai",
+      "whisper-1",
+      "gemini-tts-flash",
+      "gemini-tts-pro",
+      "image_gen_gemini",
+      "video_gen_gemini",
+      "video_gen_gemini_fast",
+    ] # Exclude problematic models
+  health_check_timeout: 30 # Add timeout for health checks
+
+  # Caching settings
+  cache: true
+  cache_params:
+    type: qdrant-semantic # redis, s3, redis-semantic, qdrant-semantic, disk, () not specificed = In memory
+
+    # https://docs.litellm.ai/docs/caching/all_caches#updating-cache-params-redis-host-port-etc
+
+    # Optional - Qdrant Semantic Cache Settings
+    qdrant_semantic_cache_embedding_model: embedding_openai # FIXED: Use correct alias
+    qdrant_collection_name: litellm_cache
+    qdrant_quantization_config: binary
+    similarity_threshold: 0.95 # similarity threshold for semantic cache
+
+    # Common Cache settings
+    # Optional - Supported call types for caching
+
+    supported_call_types:
+      ["acompletion", "atext_completion", "aembedding", "atranscription"]
+      # /chat/completions, /completions, /embeddings, /audio/transcriptions
+    mode: default_on # if default_off, you need to opt in to caching on a per call basis
+    ttl: 1800 # ttl for caching
+
+router:
+  # Your existing vision routing
+  - destination: vision_openai
+    if:
+      contains:
+        - "data:image"
+        - "image analysis"
+        - "describe this image"
+        - "photo"
+        - "diagram"
+
+  # Add these new routing rules:
+  - destination: code_groq
+    if:
+      contains:
+        - "def "
+        - "function"
+        - "class "
+        - "import "
+        - "coding"
+        - "programming"
+        - "debug"
+        - "refactor"
+
+  - destination: reasoning_groq
+    if:
+      contains:
+        - "step by step"
+        - "reasoning"
+        - "analyze"
+        - "logic"
+        - "problem solving"
+
+  - destination: general_groq # Fast & cheap for simple queries
+    if:
+      contains:
+        - "hello"
+        - "what is"
+        - "how are"
+        - "quick question"
+
+router_settings:
+  fallbacks:
+    # Vision fallbacks
+    - vision_openai_4o:
+        - vision_gemini
+        - vision_gemini_fast
+        - vision_openai
+        - vision_anthropic
+
+    # Code fallbacks
+    - code_groq:
+        - code_deepseek
+        - code_together
+        - code_grok
+
+    # General fallbacks (cost-optimized order)
+    - general_groq:
+        - general_deepseek
+        - general_gemini_fast
+        - general_openai
+        - general_anthropic
+
+    # Reasoning fallbacks
+    - reasoner_deepseek:
+        - reasoning_groq
+        - general_gemini
+        - general_openai_4o
+
+  routers:
+    - router_model_name: reasoning-router
+      model_group: reasoning_tasks
+      litellm_params:
+        temperature: 0.1 # Lower for consistent reasoning
+      metadata:
+        label: "Advanced Reasoning Assistant"
+        capabilities: ["reasoning", "analysis", "problem-solving"]
+
+    - router_model_name: cost-optimized-router
+      model_group: cost_efficient
+      litellm_params:
+        temperature: 0.3
+      metadata:
+        label: "Cost-Efficient Assistant"
+        capabilities: ["chat", "general", "cost-optimized"]
+
+    - router_model_name: audio-router
+      model_group: audio_tasks
+      litellm_params:
+        temperature: 0.4
+      metadata:
+        label: "Audio Processing Assistant"
+        capabilities: ["audio", "transcription", "tts"]

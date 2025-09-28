@@ -22,6 +22,6 @@
       "extensions": []
     }
   },
-  "postCreateCommand": "",
+  "postCreateCommand": "echo 'eval \"$(mise activate zsh)\"' >> ~/.zshrc",
   "remoteUser": "vscode"
 }

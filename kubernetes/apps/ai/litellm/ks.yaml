@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app litellm
+  namespace: &namespace ai
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/dragonfly
+    - ../../../../components/volsync
+    - ../../../../components/gatus/guarded
+  dependsOn:
+    - name: dragonfly-operator
+      namespace: database
+    - name: onepassword-store
+      namespace: security
+    - name: volsync
+      namespace: system
+    - name: postgres-cluster-17
+      namespace: database
+  # healthCheckExprs:
+  #   - apiVersion: postgres-operator.crunchydata.com/v1beta1
+  #     kind: PostgresCluster
+  #     failed: status.conditions.filter(e, e.type == 'ProxyAvailable').all(e, e.status == 'False')
+  #     current: status.conditions.filter(e, e.type == 'ProxyAvailable').all(e, e.status == 'True')
+  interval: 1h
+  path: ./kubernetes/apps/ai/litellm/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      GATUS_GROUP: *namespace
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  timeout: 5m
+  wait: false
