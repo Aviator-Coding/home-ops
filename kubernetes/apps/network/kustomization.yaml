@@ -11,4 +11,4 @@ resources:
   - ./k8s-gateway/ks.yaml
   - ./multus/ks.yaml
   - ./unifi-dns/ks.yaml
-  - ./vpn-gateway/ks.yaml
+  # - ./vpn-gateway/ks.yaml
