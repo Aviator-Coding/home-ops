@@ -27,5 +27,8 @@ spec:
   components:
     - ../../../../components/volsync
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *appname
