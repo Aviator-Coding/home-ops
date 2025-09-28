@@ -10,11 +10,12 @@ general_settings:
   disable_spend_logs: false
   disable_error_logs: false
 
-  background_health_checks: true # Re-enable with proper configuration
+  background_health_checks: false # Re-enable with proper configuration
   health_check_interval: 600 # Increase interval to reduce load
   health_check_details: false # Disable detailed checks to avoid auth issues
 
   store_model_in_db: true
+  store_prompts_in_spend_logs: true
 
   max_budget: 150 # Set monthly budget in USD
   budget_duration: "monthly"
@@ -35,7 +36,7 @@ litellm_settings:
   retry_delay: 1
   request_timeout: 600
   json_logs: true
-  success_callback: ["prometheus"] # Temporarily disable langfuse due to auth issues
+  success_callback: [] #
   failure_callback: [] # Temporarily disable langfuse
   # enable_preview_features: true
   redact_user_api_key_info: true
