@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: radarr
+  name: &app radarr
 spec:
   interval: 30m
   chartRef:
@@ -29,6 +29,15 @@ spec:
             supplementalGroups:
               - 65542 # gladius:external-services
 
+        initContainers:
+          init-db:
+            image:
+              repository: ghcr.io/home-operations/postgres-init
+              tag: 17.6@sha256:86a1992d46273c58fd4ad95b626081dfaabfe16bd56944675169e406d1a660dd
+            envFrom: &envFrom
+              - secretRef:
+                  name: radarr-secret
+
         containers:
           app:
             image:
@@ -36,17 +45,13 @@ spec:
               tag: 5.23.1.9914
             env:
               RADARR__APP__INSTANCENAME: Radarr
-              RADARR__AUTH__APIKEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: radarr-secret
-                    key: api_key
               RADARR__AUTH__METHOD: External
               RADARR__AUTH__REQUIRED: DisabledForLocalAddresses
               RADARR__LOG__DBENABLED: "False"
               RADARR__LOG__LEVEL: info
               RADARR__SERVER__PORT: &port 7878
               RADARR__UPDATE__BRANCH: develop
+            envFrom: *envFrom
             probes:
               liveness: &probes
                 enabled: true
@@ -69,13 +74,11 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities:
-                drop:
-                  - ALL
+              capabilities: { drop: ["ALL"] }
 
     service:
       app:
-        controller: radarr
+        controller: *app
         ports:
           http:
             port: *port
@@ -89,20 +92,28 @@ spec:
         type: emptyDir
       media:
         type: nfs
-        server: gladius.bjw-s.internal
-        path: /mnt/tank/Media
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media
         globalMounts:
           - path: /data/nas-media
 
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Downloads
+          gethomepage.dev/name: *app
+          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/radarr.svg
+          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
+          gethomepage.dev/description: "Radarr is a PVR for Usenet and BitTorrent users to manage and download movies."
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=radarr
         hostnames:
-          - radarr.bjw-s.dev
+          - radarr.${SECRET_DOMAIN}
         parentRefs:
           - name: internal
             namespace: kube-system
             sectionName: https
         rules:
           - backendRefs:
-              - name: radarr
+              - name: *app
                 port: *port
