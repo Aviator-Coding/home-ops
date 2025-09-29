@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: prowlarr
+  name: &app prowlarr
 spec:
   interval: 30m
   chartRef:
@@ -34,16 +34,15 @@ spec:
               tag: 1.35.1.5034
             env:
               PROWLARR__APP__INSTANCENAME: Prowlarr
-              PROWLARR__AUTH__APIKEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: prowlarr-secret
-                    key: api_key
+              PROWLARR__APP__THEME: dark
               PROWLARR__AUTH__METHOD: External
               PROWLARR__LOG__DBENABLED: "False"
               PROWLARR__LOG__LEVEL: info
               PROWLARR__SERVER__PORT: &port 9696
               PROWLARR__UPDATE__BRANCH: develop
+            envFrom:
+              - secretRef:
+                  name: prowlarr-secret
             probes:
               liveness: &probes
                 enabled: true
@@ -66,13 +65,11 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities:
-                drop:
-                  - ALL
+              capabilities: { drop: ["ALL"] }
 
     service:
       app:
-        controller: prowlarr
+        controller: *app
         ports:
           http:
             port: *port
@@ -83,13 +80,21 @@ spec:
 
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Downloads
+          gethomepage.dev/name: *app
+          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/prowlarr.svg
+          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
+          gethomepage.dev/description: "Prowlarr is a Usenet and BitTorrent indexer manager/proxy built on the popular Radarr/Sonarr/NzbGet/Lidarr stack."
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=prowlarr
         hostnames:
-          - prowlarr.bjw-s.dev
+          - prowlarr.${SECRET_DOMAIN}
         parentRefs:
           - name: internal
             namespace: kube-system
             sectionName: https
         rules:
           - backendRefs:
-              - name: prowlarr
+              - name: *app
                 port: *port
