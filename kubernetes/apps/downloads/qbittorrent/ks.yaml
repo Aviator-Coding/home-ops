@@ -27,6 +27,9 @@ spec:
   components:
     - ../../../../components/volsync
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *appname
       VOLSYNC_CAPACITY: 2Gi
@@ -51,7 +54,7 @@ spec:
     name: flux-system
     namespace: flux-system
   wait: false
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-age
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
