@@ -1,13 +1,3 @@
-${SECRET_DOMAIN}:53 {
-    bind 127.0.0.2
-    rewrite stop type AAAA A
-    errors
-    log {
-        class error
-    }
-    forward . 10.0.0.1 10.10.10.1
-}
-
 .:53 {
     bind 127.0.0.2
     rewrite stop type AAAA A
