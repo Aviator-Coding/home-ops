@@ -97,6 +97,15 @@ spec:
 
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Downloads
+          gethomepage.dev/name: *app
+          gethomepage.dev/icon: blob:https://github.com/63f539ee-302a-4ea9-bd30-b4fde6eef11c
+          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
+          gethomepage.dev/description: "Autobrr - Automated Bittorrent Client Management"
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=autobrr
+          external-dns.alpha.kubernetes.io/target: "internal.sklab.dev"
         hostnames:
           - autobrr.${SECRET_DOMAIN}
         parentRefs:
