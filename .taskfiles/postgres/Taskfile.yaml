@@ -1,0 +1,262 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  # Default values
+  CLUSTER: '{{.cluster | default "postgres-17"}}'
+  NAMESPACE: '{{.namespace | default "database"}}'
+  KUBECTL_CONTEXT: '{{.context | default "admin@kubernetes"}}'
+
+tasks:
+  # Basic health checks
+  status:
+    desc: Check PostgreSQL cluster overall status
+    cmds:
+      - echo "🔍 Checking PostgreSQL cluster status..."
+      - kubectl get cluster {{.CLUSTER}} -n {{.NAMESPACE}} -o wide
+      - echo ""
+      - kubectl get cluster {{.CLUSTER}} -n {{.NAMESPACE}} -o jsonpath='{.status.phase}'
+      - echo " (Phase Status)"
+
+  pods:
+    desc: Check PostgreSQL pod status and readiness
+    cmds:
+      - echo "🔍 Checking PostgreSQL pods..."
+      - kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}} -o wide
+      - echo ""
+      - echo "📊 Pod readiness summary:"
+      - |
+        kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}} --no-headers | \
+        awk '{ready+=($2=="1/1"?1:0); total++} END {print "Ready: " ready "/" total " pods"}'
+
+  services:
+    desc: Check PostgreSQL services
+    cmds:
+      - echo "🔍 Checking PostgreSQL services..."
+      - kubectl get svc -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}}
+
+  endpoints:
+    desc: Check PostgreSQL service endpoints
+    cmds:
+      - echo "🔍 Checking PostgreSQL service endpoints..."
+      - kubectl get endpoints -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}}
+
+  # Storage checks
+  storage:
+    desc: Check PostgreSQL storage (PVCs)
+    cmds:
+      - echo "🔍 Checking PostgreSQL storage..."
+      - kubectl get pvc -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}}
+      - echo ""
+      - echo "📊 Storage usage summary:"
+      - |
+        kubectl get pvc -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}} --no-headers | \
+        while read name status volume capacity access storageclass age; do
+          echo "  $name: $capacity ($status)"
+        done
+
+  # Connectivity tests
+  connectivity:
+    desc: Test PostgreSQL connectivity
+    cmds:
+      - echo "🔍 Testing PostgreSQL connectivity..."
+      - |
+        PRIMARY_POD=$(kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}},cnpg.io/instanceRole=primary --no-headers -o custom-columns=":metadata.name" | head -n1)
+        if [ -n "$PRIMARY_POD" ]; then
+          echo "Primary pod: $PRIMARY_POD"
+          echo "Testing connection to primary..."
+          kubectl exec -n {{.NAMESPACE}} $PRIMARY_POD -c postgres -- psql -U postgres -c "SELECT version();" || echo "❌ Connection failed"
+        else
+          echo "❌ No primary pod found"
+        fi
+
+  # Replication status
+  replication:
+    desc: Check PostgreSQL replication status
+    cmds:
+      - echo "🔍 Checking PostgreSQL replication status..."
+      - |
+        PRIMARY_POD=$(kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}},cnpg.io/instanceRole=primary --no-headers -o custom-columns=":metadata.name" | head -n1)
+        if [ -n "$PRIMARY_POD" ]; then
+          echo "Primary pod: $PRIMARY_POD"
+          echo "Replication slots:"
+          kubectl exec -n {{.NAMESPACE}} $PRIMARY_POD -c postgres -- psql -U postgres -c "SELECT slot_name, slot_type, active, restart_lsn FROM pg_replication_slots;" || echo "❌ Failed to query replication slots"
+          echo ""
+          echo "Replica status:"
+          kubectl exec -n {{.NAMESPACE}} $PRIMARY_POD -c postgres -- psql -U postgres -c "SELECT client_addr, state, sync_state FROM pg_stat_replication;" || echo "❌ Failed to query replication status"
+        else
+          echo "❌ No primary pod found"
+        fi
+
+  # Database checks
+  databases:
+    desc: List databases and basic info
+    cmds:
+      - echo "🔍 Checking databases..."
+      - |
+        PRIMARY_POD=$(kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}},cnpg.io/instanceRole=primary --no-headers -o custom-columns=":metadata.name" | head -n1)
+        if [ -n "$PRIMARY_POD" ]; then
+          echo "Databases:"
+          kubectl exec -n {{.NAMESPACE}} $PRIMARY_POD -c postgres -- psql -U postgres -c "SELECT datname, pg_size_pretty(pg_database_size(datname)) as size FROM pg_database ORDER BY pg_database_size(datname) DESC;" || echo "❌ Failed to query databases"
+        else
+          echo "❌ No primary pod found"
+        fi
+
+  # Performance metrics
+  metrics:
+    desc: Show PostgreSQL performance metrics
+    cmds:
+      - echo "🔍 Checking PostgreSQL metrics..."
+      - |
+        PRIMARY_POD=$(kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}},cnpg.io/instanceRole=primary --no-headers -o custom-columns=":metadata.name" | head -n1)
+        if [ -n "$PRIMARY_POD" ]; then
+          echo "Connection stats:"
+          kubectl exec -n {{.NAMESPACE}} $PRIMARY_POD -c postgres -- psql -U postgres -c "SELECT state, count(*) FROM pg_stat_activity GROUP BY state;" || echo "❌ Failed to query connection stats"
+          echo ""
+          echo "Top 5 largest tables:"
+          kubectl exec -n {{.NAMESPACE}} $PRIMARY_POD -c postgres -- psql -U postgres -c "SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size FROM pg_tables ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC LIMIT 5;" || echo "❌ Failed to query table sizes"
+        else
+          echo "❌ No primary pod found"
+        fi
+
+  # Logs
+  logs:
+    desc: Show recent logs from primary PostgreSQL pod
+    cmds:
+      - echo "🔍 Showing recent PostgreSQL logs..."
+      - |
+        PRIMARY_POD=$(kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}},cnpg.io/instanceRole=primary --no-headers -o custom-columns=":metadata.name" | head -n1)
+        if [ -n "$PRIMARY_POD" ]; then
+          echo "Recent logs from primary pod: $PRIMARY_POD"
+          kubectl logs -n {{.NAMESPACE}} $PRIMARY_POD -c postgres --tail=20
+        else
+          echo "❌ No primary pod found"
+        fi
+
+  logs-replica:
+    desc: Show recent logs from replica PostgreSQL pods
+    cmds:
+      - echo "🔍 Showing recent logs from replica pods..."
+      - |
+        kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}},cnpg.io/instanceRole=replica --no-headers -o custom-columns=":metadata.name" | while read pod; do
+          if [ -n "$pod" ]; then
+            echo "=== Logs from replica: $pod ==="
+            kubectl logs -n {{.NAMESPACE}} $pod -c postgres --tail=10
+            echo ""
+          fi
+        done
+
+  # Backup status
+  backup:
+    desc: Check backup status and schedule
+    cmds:
+      - echo "🔍 Checking backup status..."
+      - |
+        echo "Last successful backup:"
+        kubectl get cluster {{.CLUSTER}} -n {{.NAMESPACE}} -o jsonpath='{.status.lastSuccessfulBackup}' && echo ""
+      - |
+        echo "Last failed backup:"
+        kubectl get cluster {{.CLUSTER}} -n {{.NAMESPACE}} -o jsonpath='{.status.lastFailedBackup}' && echo ""
+      - echo "Backup configuration:"
+      - kubectl get cluster {{.CLUSTER}} -n {{.NAMESPACE}} -o jsonpath='{.spec.backup}' | jq . || echo "No backup configuration found"
+
+  # Events
+  events:
+    desc: Show recent events related to PostgreSQL cluster
+    cmds:
+      - echo "🔍 Checking recent events..."
+      - kubectl get events -n {{.NAMESPACE}} --field-selector involvedObject.name={{.CLUSTER}} --sort-by='.lastTimestamp' | tail -10
+
+  # Comprehensive health check
+  health:
+    desc: Run comprehensive PostgreSQL health check
+    cmds:
+      - echo "🏥 PostgreSQL Comprehensive Health Check"
+      - echo "========================================="
+      - task: status
+      - echo ""
+      - task: pods
+      - echo ""
+      - task: storage
+      - echo ""
+      - task: connectivity
+      - echo ""
+      - task: replication
+      - echo ""
+      - echo "✅ Health check completed!"
+
+  # Quick health check
+  quick:
+    desc: Quick PostgreSQL health check
+    cmds:
+      - echo "⚡ PostgreSQL Quick Health Check"
+      - echo "================================"
+      - task: status
+      - echo ""
+      - task: pods
+      - echo ""
+      - task: connectivity
+      - echo ""
+      - echo "✅ Quick check completed!"
+
+  # Troubleshooting helpers
+  debug:
+    desc: Debug PostgreSQL issues
+    cmds:
+      - echo "🔧 PostgreSQL Debug Information"
+      - echo "==============================="
+      - task: status
+      - echo ""
+      - task: pods
+      - echo ""
+      - task: events
+      - echo ""
+      - task: logs
+      - echo ""
+      - echo "📋 Debug information collected!"
+
+  # Node status
+  nodes:
+    desc: Check cluster nodes and their PostgreSQL assignments
+    cmds:
+      - echo "🔍 Checking cluster nodes..."
+      - kubectl get nodes -o wide
+      - echo ""
+      - echo "PostgreSQL pod node assignments:"
+      - |
+        kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}} -o wide --no-headers | \
+        awk '{print $1 ": " $7}'
+
+  # Cluster timeline info
+  timeline:
+    desc: Check PostgreSQL cluster timeline information
+    cmds:
+      - echo "🔍 Checking cluster timeline information..."
+      - |
+        kubectl get pods -n {{.NAMESPACE}} -l cnpg.io/cluster={{.CLUSTER}} --no-headers -o custom-columns=":metadata.name" | while read pod; do
+          if [ -n "$pod" ]; then
+            echo "=== Timeline info for: $pod ==="
+            kubectl exec -n {{.NAMESPACE}} $pod -c postgres -- psql -U postgres -c "SELECT pg_current_wal_lsn(), timeline_id FROM pg_control_checkpoint();" 2>/dev/null || echo "❌ Failed to get timeline info"
+            echo ""
+          fi
+        done
+
+  # Check cluster readiness
+  ready:
+    desc: Check if cluster is ready for operations
+    cmds:
+      - echo "🔍 Checking cluster readiness..."
+      - |
+        PHASE=$(kubectl get cluster {{.CLUSTER}} -n {{.NAMESPACE}} -o jsonpath='{.status.phase}')
+        READY_INSTANCES=$(kubectl get cluster {{.CLUSTER}} -n {{.NAMESPACE}} -o jsonpath='{.status.readyInstances}')
+        TOTAL_INSTANCES=$(kubectl get cluster {{.CLUSTER}} -n {{.NAMESPACE}} -o jsonpath='{.status.instances}')
+
+        echo "Cluster Phase: $PHASE"
+        echo "Ready Instances: $READY_INSTANCES/$TOTAL_INSTANCES"
+
+        if [ "$PHASE" = "Cluster in healthy state" ] && [ "$READY_INSTANCES" = "$TOTAL_INSTANCES" ]; then
+          echo "✅ Cluster is ready for operations!"
+        else
+          echo "❌ Cluster is not fully ready"
+        fi
