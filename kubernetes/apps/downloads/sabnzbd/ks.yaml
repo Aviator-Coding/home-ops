@@ -21,12 +21,15 @@ spec:
   wait: false
   dependsOn:
     - name: onepassword-store
-      namespace: external-secrets
+      namespace: security
     - name: volsync
       namespace: system
   components:
     - ../../../../components/volsync
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *appname
       VOLSYNC_CLAIM: sabnzbd-config

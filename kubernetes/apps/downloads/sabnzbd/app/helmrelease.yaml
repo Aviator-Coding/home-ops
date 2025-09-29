@@ -44,24 +44,12 @@ spec:
                 sabnzbd.downloads.svc,
                 sabnzbd.downloads.svc.cluster,
                 sabnzbd.downloads.svc.cluster.local,
-                sabnzbd.bjw-s.dev
-              SABNZBD__API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: sabnzbd-secret
-                    key: api_key
-              SABNZBD__NZB_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: sabnzbd-secret
-                    key: nzb_key
+                sabnzbd.${SECRET_DOMAIN}
               XSEED_HOST: cross-seed.downloads.svc.cluster.local
               XSEED_PORT: 2468
-              XSEED_APIKEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: sabnzbd-secret
-                    key: xseed_api_key
+            envFrom:
+              - secretRef:
+                  name: sabnzbd-secret
             probes:
               liveness: &probes
                 enabled: true
@@ -104,8 +92,8 @@ spec:
               - path: /config
       downloads:
         type: nfs
-        server: gladius.bjw-s.internal
-        path: /mnt/tank/Media
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media
         globalMounts:
           - path: /data/nas-media/Downloads/sabnzbd
             subPath: Downloads/sabnzbd
@@ -143,8 +131,16 @@ spec:
 
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Downloads
+          gethomepage.dev/name: *app
+          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/sonarr.svg
+          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
+          gethomepage.dev/description: "SABnzbd is an open source binary newsreader written in Python. It simplifies the process of downloading from Usenet."
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=sabnzbd
         hostnames:
-          - sabnzbd.bjw-s.dev
+          - sabnzbd.${SECRET_DOMAIN}
         parentRefs:
           - name: internal
             namespace: kube-system
