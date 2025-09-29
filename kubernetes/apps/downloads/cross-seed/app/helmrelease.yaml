@@ -81,8 +81,8 @@ spec:
             readOnly: true
       media:
         type: nfs
-        server: gladius.bjw-s.internal
-        path: /mnt/tank/Media
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media
         advancedMounts:
           cross-seed:
             app:
