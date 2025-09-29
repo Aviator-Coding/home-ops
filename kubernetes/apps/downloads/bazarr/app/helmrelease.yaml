@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: bazarr
+  name: &app bazarr
 spec:
   interval: 30m
   chartRef:
@@ -65,7 +65,7 @@ spec:
 
     service:
       app:
-        controller: bazarr
+        controller: *app
         ports:
           http:
             port: *port
@@ -82,6 +82,15 @@ spec:
 
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Downloads
+          gethomepage.dev/name: *app
+          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/bazarr.svg
+          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
+          gethomepage.dev/description: "Bazarr - Subtitle Management"
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=bazarr
+          external-dns.alpha.kubernetes.io/target: "internal.sklab.dev"
         hostnames:
           - bazarr.${SECRET_DOMAIN}
         parentRefs:
@@ -90,5 +99,5 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: bazarr
+              - name: *app
                 port: *port
