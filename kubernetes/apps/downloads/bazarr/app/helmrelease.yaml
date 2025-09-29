@@ -75,15 +75,15 @@ spec:
         existingClaim: bazarr-config
       media:
         type: nfs
-        server: gladius.bjw-s.internal
-        path: /mnt/tank/Media
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media
         globalMounts:
           - path: /data/nas-media
 
     route:
       app:
         hostnames:
-          - bazarr.bjw-s.dev
+          - bazarr.${SECRET_DOMAIN}
         parentRefs:
           - name: internal
             namespace: kube-system
