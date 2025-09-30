@@ -45,8 +45,8 @@ spec:
               repository: ghcr.io/qdm12/gluetun
               tag: v3.40.0
             env:
-              DOT: "off"
-              DNS_PLAINTEXT_ADDRESS: "1.1.1.1"
+              DOT: "on"
+              DOT_PROVIDERS: "cloudflare"
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
