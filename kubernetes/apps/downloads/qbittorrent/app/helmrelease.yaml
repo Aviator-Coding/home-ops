@@ -60,6 +60,8 @@ spec:
               FIREWALL_VPN_INPUT_PORTS: 8080
               # Allow DNS traffic for privacy - DoT (853) and fallback DNS (53)
               FIREWALL_VPN_OUTBOUND_PORTS: 53,853
+              # Temporarily allow all VPN outbound for testing
+              FIREWALL_OUTBOUND_SUBNETS_ONLY: "off"
               # Force use of custom CoreDNS to prevent DNS leaks
               DNS_KEEP_NAMESERVER: "off"
               DNS_UPDATE_DELAY: "5s"
