@@ -57,21 +57,20 @@ spec:
               VPN_PORT_FORWARDING: "off"
               FIREWALL_INPUT_PORTS: 8080
               FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16 # Allow access to k8s subnets
+              FIREWALL_VPN_INPUT_PORTS: 8080
+              FIREWALL: "on"
               PUBLICIP_API: ip2location
-              HEALTH_TARGET_ADDRESS: "cloudflare.com:443"
+              HEALTH_TARGET_ADDRESS: "1.1.1.1:443"  # Use IP instead of domain
               HEALTH_VPN_DURATION_INITIAL: "60s"
               HEALTH_VPN_DURATION_ADDITION: "30s"
               UPDATER_PERIOD: "24h"
+              # Ensure all traffic goes through VPN
+              BLOCK_MALICIOUS: "on"
+              BLOCK_ADS: "off"
+              BLOCK_SURVEILLANCE: "off"
             envFrom: &envFrom
               - secretRef:
                   name: qbittorrent-secret
-            lifecycle:
-              postStart:
-                exec:
-                  command:
-                    - /bin/sh
-                    - -c
-                    - (ip rule del table 51820; ip -6 rule del table 51820) || true
             # resources:
             #   limits:
             #     squat.ai/tun: "1"
