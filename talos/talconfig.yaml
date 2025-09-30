@@ -71,6 +71,10 @@ nodes:
             dhcp: false
             dhcpOptions:
               routeMetric: 4096
+          - &vlan90 # VPN
+            vlanId: 90
+            dhcp: false
+            mtu: 9000
         # routes:
         #   - network: 0.0.0.0/0
         #     gateway: 10.10.10.1
@@ -121,6 +125,7 @@ nodes:
           ip: *talosControlplaneVip
         vlans:
           - *vlan3
+          - *vlan90
         # routes:
         #   - network: 0.0.0.0/0
         #     gateway: 10.10.10.1
@@ -172,6 +177,7 @@ nodes:
           ip: *talosControlplaneVip
         vlans:
           - *vlan3
+          - *vlan90
       #     - network: 0.0.0.0/0
       #       gateway: 10.10.10.1
 
