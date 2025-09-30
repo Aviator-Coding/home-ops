@@ -45,7 +45,7 @@ spec:
               repository: ghcr.io/qdm12/gluetun
               tag: v3.40.0
             env:
-              DOT: "off"
+              DOT: "on"
               DNS_ADDRESS: "127.0.0.2"
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
@@ -58,6 +58,10 @@ spec:
               FIREWALL_INPUT_PORTS: 8080
               FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16,10.42.0.0/16 # Allow access to k8s subnets and pod network
               FIREWALL_VPN_INPUT_PORTS: 8080
+              # Allow DNS traffic for privacy - DoT (853) and fallback DNS (53)
+              FIREWALL_VPN_OUTBOUND_PORTS: 53,853
+              DNS_KEEP_NAMESERVER: "on"
+              DNS_UPDATE_DELAY: "5s"
               FIREWALL: "on"
               HEALTH_VPN_DURATION_INITIAL: "300s" # Increase to prevent frequent restarts
               HEALTH_VPN_DURATION_ADDITION: "60s"
