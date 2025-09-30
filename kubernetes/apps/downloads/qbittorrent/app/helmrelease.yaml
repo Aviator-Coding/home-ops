@@ -60,7 +60,7 @@ spec:
               FIREWALL_VPN_INPUT_PORTS: 8080
               FIREWALL: "on"
               PUBLICIP_API: ip2location
-              HEALTH_TARGET_ADDRESS: "1.1.1.1:443"  # Use IP instead of domain
+              HEALTH_TARGET_ADDRESS: "1.1.1.1:443" # Use IP instead of domain
               HEALTH_VPN_DURATION_INITIAL: "60s"
               HEALTH_VPN_DURATION_ADDITION: "30s"
               UPDATER_PERIOD: "24h"
