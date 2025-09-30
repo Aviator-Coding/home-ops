@@ -58,7 +58,7 @@ spec:
               FIREWALL_INPUT_PORTS: 8080
               FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16 # Allow access to k8s subnets
               PUBLICIP_API: ip2location
-              HEALTH_TARGET_ADDRESS: "cloudflare.com:443"
+              HEALTH_TARGET_ADDRESS: "1.1.1.1:53"
               HEALTH_VPN_DURATION_INITIAL: "60s"
               HEALTH_VPN_DURATION_ADDITION: "30s"
               UPDATER_PERIOD: "24h"
