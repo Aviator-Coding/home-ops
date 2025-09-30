@@ -56,13 +56,13 @@ spec:
               SERVER_CITIES: "New York,Chicago,Los Angeles,Miami"
               VPN_PORT_FORWARDING: "off"
               FIREWALL_INPUT_PORTS: 8080
-              FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16 # Allow access to k8s subnets
+              FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16,10.42.0.0/16 # Allow access to k8s subnets and pod network
               FIREWALL_VPN_INPUT_PORTS: 8080
               FIREWALL: "on"
+              HEALTH_VPN_DURATION_INITIAL: "300s" # Increase to prevent frequent restarts
+              HEALTH_VPN_DURATION_ADDITION: "60s"
               PUBLICIP_API: ip2location
               HEALTH_TARGET_ADDRESS: "1.1.1.1:443" # Use IP instead of domain
-              HEALTH_VPN_DURATION_INITIAL: "60s"
-              HEALTH_VPN_DURATION_ADDITION: "30s"
               UPDATER_PERIOD: "24h"
               # Ensure all traffic goes through VPN
               BLOCK_MALICIOUS: "on"
