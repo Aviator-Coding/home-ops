@@ -57,8 +57,7 @@ spec:
               WIREGUARD_MTU: 1280
               SERVER_COUNTRIES: "United States"
               # Try specific servers instead of cities
-              # SERVER_CITIES: "New York,Chicago,Los Angeles,Miami"
-              SERVER_HOSTNAMES: "us10677.nordvpn.com,us10676.nordvpn.com"
+              SERVER_CITIES: "New York,Chicago,Los Angeles,Miami"
               VPN_PORT_FORWARDING: "off"
               FIREWALL_INPUT_PORTS: 8080
               FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16,10.42.0.0/16 # Allow access to k8s subnets and pod network
@@ -69,7 +68,7 @@ spec:
               # Use Gluetun's internal DNS instead of custom CoreDNS
               DNS_KEEP_NAMESERVER: "off"
               DNS_UPDATE_DELAY: "5s"
-              FIREWALL: "on"
+              FIREWALL: "off"
               HEALTH_VPN_DURATION_INITIAL: "300s" # Increase to prevent frequent restarts
               HEALTH_VPN_DURATION_ADDITION: "60s"
               PUBLICIP_API: ip2location
