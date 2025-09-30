@@ -48,8 +48,8 @@ spec:
               tag: v3.40.0
             env:
               DOT: "on"
-              # Set explicit DNS servers for NordVPN
-              DNS_ADDRESS: "103.86.96.100,103.86.99.100"
+              # Use single DNS server for NordVPN
+              DNS_ADDRESS: "103.86.96.100"
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
