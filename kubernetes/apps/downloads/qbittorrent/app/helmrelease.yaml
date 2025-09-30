@@ -51,16 +51,17 @@ spec:
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
               VPN_INTERFACE: wg0
-              WIREGUARD_MTU: 1320
-              SERVER_REGIONS: United States
-              SERVER_CITIES: "New York, Atlanta"
+              WIREGUARD_MTU: 1280
+              SERVER_COUNTRIES: "United States"
+              SERVER_CITIES: "New York,Chicago,Los Angeles,Miami"
               VPN_PORT_FORWARDING: "off"
               FIREWALL_INPUT_PORTS: 8080
               FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16 # Allow access to k8s subnets
               PUBLICIP_API: ip2location
-              HEALTH_TARGET_ADDRESS: "1.1.1.1:53"
+              HEALTH_TARGET_ADDRESS: "cloudflare.com:443"
               HEALTH_VPN_DURATION_INITIAL: "60s"
               HEALTH_VPN_DURATION_ADDITION: "30s"
+              UPDATER_PERIOD: "24h"
             envFrom: &envFrom
               - secretRef:
                   name: qbittorrent-secret
