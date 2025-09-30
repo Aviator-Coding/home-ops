@@ -65,7 +65,7 @@ spec:
               # Force use of custom CoreDNS to prevent DNS leaks
               DNS_KEEP_NAMESERVER: "off"
               DNS_UPDATE_DELAY: "5s"
-              FIREWALL: "on"
+              FIREWALL: "off"
               HEALTH_VPN_DURATION_INITIAL: "300s" # Increase to prevent frequent restarts
               HEALTH_VPN_DURATION_ADDITION: "60s"
               PUBLICIP_API: ip2location
