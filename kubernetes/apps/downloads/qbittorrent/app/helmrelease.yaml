@@ -96,13 +96,43 @@ spec:
             probes:
               liveness:
                 enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - "pgrep qbittorrent-nox > /dev/null"
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
               readiness:
                 enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - "pgrep qbittorrent-nox > /dev/null && netstat -tln | grep ':8080 ' > /dev/null"
+                  initialDelaySeconds: 15
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
               startup:
                 enabled: true
+                custom: true
                 spec:
-                  failureThreshold: 30
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - "pgrep qbittorrent-nox > /dev/null"
+                  initialDelaySeconds: 5
                   periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 60
             resources:
               requests:
                 cpu: 150m
