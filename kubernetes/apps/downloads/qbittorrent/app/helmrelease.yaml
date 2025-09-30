@@ -45,22 +45,36 @@ spec:
               repository: ghcr.io/qdm12/gluetun
               tag: v3.40.0
             env:
-              DNS_KEEP_NAMESERVER: "on"
-              HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
               VPN_INTERFACE: wg0
-              WIREGUARD_MTU: 1280
-              SERVER_COUNTRIES: "United States"
+              WIREGUARD_MTU: 1320
+              SERVER_REGIONS: United States
               SERVER_CITIES: "New York,Chicago,Los Angeles,Miami"
-              VPN_PORT_FORWARDING: "off"
-              FIREWALL_INPUT_PORTS: 8080
-              FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16 # Allow access to k8s subnets
+              FIREWALL_ENABLED_DISABLING_IT_SHOOTS_YOU_IN_YOUR_FOOT: off
+              DOT: off
+              HTTP_CONTROL_SERVER_ADDRESS: ":80"
+              HTTP_CONTROL_SERVER_LOG: off
               PUBLICIP_API: ip2location
-              HEALTH_TARGET_ADDRESS: "127.0.0.1:8000"
-              HEALTH_VPN_DURATION_INITIAL: "120s"
-              HEALTH_VPN_DURATION_ADDITION: "60s"
-              UPDATER_PERIOD: "24h"
+              # FIREWALL_INPUT_PORTS: 8080
+              # FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16 # Allow access to k8s subnets
+
+              # DNS_KEEP_NAMESERVER: "on"
+              # HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
+              # VPN_SERVICE_PROVIDER: nordvpn
+              # VPN_TYPE: wireguard
+              # VPN_INTERFACE: wg0
+              # WIREGUARD_MTU: 1280
+              # SERVER_COUNTRIES: "United States"
+              # SERVER_CITIES: "New York,Chicago,Los Angeles,Miami"
+              # VPN_PORT_FORWARDING: "off"
+              # FIREWALL_INPUT_PORTS: 8080
+              # FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16 # Allow access to k8s subnets
+              # PUBLICIP_API: ip2location
+              # HEALTH_TARGET_ADDRESS: "127.0.0.1:8000"
+              # HEALTH_VPN_DURATION_INITIAL: "120s"
+              # HEALTH_VPN_DURATION_ADDITION: "60s"
+              # UPDATER_PERIOD: "24h"
             envFrom: &envFrom
               - secretRef:
                   name: qbittorrent-secret
