@@ -47,6 +47,11 @@ spec:
             env:
               DOT: "on"
               DOT_PROVIDERS: "cloudflare"
+              DOT_CACHING: "on"
+              BLOCK_MALICIOUS: "off"
+              BLOCK_SURVEILLANCE: "off"
+              BLOCK_ADS: "off"
+              DNS_UPDATE_PERIOD: "0"
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
