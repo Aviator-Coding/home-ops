@@ -47,34 +47,31 @@ spec:
               repository: ghcr.io/qdm12/gluetun
               tag: v3.40.0
             env:
-              DOT: "on"
-              # Use single DNS server for NordVPN
-              DNS_ADDRESS: "103.86.96.100"
+              # Let Gluetun use WIREGUARD_DNS from secret - no manual DNS_ADDRESS
+              # DOT: "on"
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
               VPN_INTERFACE: wg0
               WIREGUARD_MTU: 1280
               SERVER_COUNTRIES: "United States"
-              # Try specific servers instead of cities
               SERVER_CITIES: "New York,Chicago,Los Angeles,Miami"
               VPN_PORT_FORWARDING: "off"
+              # Enable firewall for proper VPN routing (critical fix)
+              FIREWALL: "on"
               FIREWALL_INPUT_PORTS: 8080
-              FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16,10.42.0.0/16 # Allow access to k8s subnets and pod network
+              FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16,10.42.0.0/16
               FIREWALL_VPN_INPUT_PORTS: 8080
-              # Let Gluetun handle DNS internally - remove custom DNS setup
-              # FIREWALL_VPN_OUTBOUND_PORTS: 53,853
-              # FIREWALL_OUTBOUND_SUBNETS_ONLY: "off"
-              # Use Gluetun's internal DNS instead of custom CoreDNS
+              # DNS settings - let Gluetun handle everything
               DNS_KEEP_NAMESERVER: "off"
               DNS_UPDATE_DELAY: "5s"
-              FIREWALL: "off"
-              HEALTH_VPN_DURATION_INITIAL: "300s" # Increase to prevent frequent restarts
+              # Health check and monitoring
+              HEALTH_VPN_DURATION_INITIAL: "300s"
               HEALTH_VPN_DURATION_ADDITION: "60s"
+              HEALTH_TARGET_ADDRESS: "1.1.1.1:443"
               PUBLICIP_API: ip2location
-              HEALTH_TARGET_ADDRESS: "1.1.1.1:443" # Use IP instead of domain
               UPDATER_PERIOD: "24h"
-              # Ensure all traffic goes through VPN
+              # Security settings
               BLOCK_MALICIOUS: "on"
               BLOCK_ADS: "off"
               BLOCK_SURVEILLANCE: "off"
