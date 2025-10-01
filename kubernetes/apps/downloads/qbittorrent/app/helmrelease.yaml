@@ -51,7 +51,7 @@ spec:
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
               VPN_INTERFACE: wg0
-              SERVER_REGIONS: United States
+              SERVER_REGIONS: "United States"
               SERVER_CITIES: "New York, Atlanta"
               WIREGUARD_ENDPOINT_PORT: 51820
               # VPN_PORT_FORWARDING: on
