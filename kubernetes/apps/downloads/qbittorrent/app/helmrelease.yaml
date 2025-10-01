@@ -89,26 +89,20 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - "pgrep qbittorrent-nox"
-                  initialDelaySeconds: 60
+                  tcpSocket:
+                    port: 8080
+                  initialDelaySeconds: 120
                   periodSeconds: 30
-                  timeoutSeconds: 5
+                  timeoutSeconds: 10
                   successThreshold: 1
                   failureThreshold: 3
               readiness:
                 enabled: true
                 custom: true
                 spec:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - "pgrep qbittorrent-nox && curl -f http://localhost:8080/ || curl -f http://127.0.0.1:8080/"
-                  initialDelaySeconds: 30
+                  tcpSocket:
+                    port: 8080
+                  initialDelaySeconds: 60
                   periodSeconds: 10
                   timeoutSeconds: 5
                   successThreshold: 1
@@ -117,16 +111,13 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - "pgrep qbittorrent-nox"
-                  initialDelaySeconds: 10
-                  periodSeconds: 5
-                  timeoutSeconds: 3
+                  tcpSocket:
+                    port: 8080
+                  initialDelaySeconds: 60
+                  periodSeconds: 10
+                  timeoutSeconds: 5
                   successThreshold: 1
-                  failureThreshold: 60
+                  failureThreshold: 30
             resources:
               requests:
                 cpu: 150m
