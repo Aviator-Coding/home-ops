@@ -49,8 +49,8 @@ spec:
               # OpenVPN configuration for NordVPN with US servers
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
-              VPN_TYPE: openvpn
-              OPENVPN_PROTOCOL: udp
+              VPN_TYPE: wireguard
+              # OPENVPN_PROTOCOL: udp
               SERVER_COUNTRIES: "United States"
               # Clear specific hostname to let Gluetun pick from US servers
               SERVER_HOSTNAMES: ""
