@@ -28,7 +28,7 @@ spec:
             supplementalGroups:
               - 65542 # gladius:external-services
 
-        initContainers:
+        # initContainers:
           # Remove CoreDNS - let Gluetun handle DNS internally
           # coredns:
           #   image:
@@ -46,22 +46,22 @@ spec:
               tag: v3.40.0
             env:
               # Minimal baseline for NordVPN WireGuard
-              HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
+              # HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
               VPN_INTERFACE: wg0
               WIREGUARD_MTU: 1420
               SERVER_COUNTRIES: "United States"
-              VPN_PORT_FORWARDING: "off"
-              # Start with firewall off to validate connectivity; we'll re-enable once stable
-              FIREWALL: "off"
-              # Keep kube subnets allowed only if firewall is enabled; ignored when off
-              FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16,10.42.0.0/16
-              # Disable DoT and nameserver manipulation for baseline
-              DOT: "off"
-              DNS_KEEP_NAMESERVER: "off"
-              # Simpler health check
-              HEALTH_TARGET_ADDRESS: "1.1.1.1:53"
+              # VPN_PORT_FORWARDING: "off"
+              # # Start with firewall off to validate connectivity; we'll re-enable once stable
+              # FIREWALL: "off"
+              # # Keep kube subnets allowed only if firewall is enabled; ignored when off
+              # FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16,10.42.0.0/16
+              # # Disable DoT and nameserver manipulation for baseline
+              # DOT: "off"
+              # DNS_KEEP_NAMESERVER: "off"
+              # # Simpler health check
+              # HEALTH_TARGET_ADDRESS: "1.1.1.1:53"
             envFrom: &envFrom
               - secretRef:
                   name: qbittorrent-secret
@@ -82,46 +82,46 @@ spec:
               XSEED_HOST: cross-seed.downloads.svc.cluster.local
               XSEED_PORT: 2468
             envFrom: *envFrom
-            probes:
-              liveness:
-                enabled: true
-                custom: true
-                spec:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - "pgrep qbittorrent-nox > /dev/null"
-                  initialDelaySeconds: 30
-                  periodSeconds: 30
-                  timeoutSeconds: 5
-                  failureThreshold: 3
-              readiness:
-                enabled: true
-                custom: true
-                spec:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - "pgrep qbittorrent-nox > /dev/null && netstat -tln | grep ':8080 ' > /dev/null"
-                  initialDelaySeconds: 15
-                  periodSeconds: 10
-                  timeoutSeconds: 5
-                  failureThreshold: 3
-              startup:
-                enabled: true
-                custom: true
-                spec:
-                  exec:
-                    command:
-                      - /bin/sh
-                      - -c
-                      - "pgrep qbittorrent-nox > /dev/null"
-                  initialDelaySeconds: 5
-                  periodSeconds: 5
-                  timeoutSeconds: 5
-                  failureThreshold: 60
+            # probes:
+            #   liveness:
+            #     enabled: true
+            #     custom: true
+            #     spec:
+            #       exec:
+            #         command:
+            #           - /bin/sh
+            #           - -c
+            #           - "pgrep qbittorrent-nox > /dev/null"
+            #       initialDelaySeconds: 30
+            #       periodSeconds: 30
+            #       timeoutSeconds: 5
+            #       failureThreshold: 3
+            #   readiness:
+            #     enabled: true
+            #     custom: true
+            #     spec:
+            #       exec:
+            #         command:
+            #           - /bin/sh
+            #           - -c
+            #           - "pgrep qbittorrent-nox > /dev/null && netstat -tln | grep ':8080 ' > /dev/null"
+            #       initialDelaySeconds: 15
+            #       periodSeconds: 10
+            #       timeoutSeconds: 5
+            #       failureThreshold: 3
+            #   startup:
+            #     enabled: true
+            #     custom: true
+            #     spec:
+            #       exec:
+            #         command:
+            #           - /bin/sh
+            #           - -c
+            #           - "pgrep qbittorrent-nox > /dev/null"
+            #       initialDelaySeconds: 5
+            #       periodSeconds: 5
+            #       timeoutSeconds: 5
+            #       failureThreshold: 60
             resources:
               requests:
                 cpu: 150m
