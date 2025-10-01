@@ -39,10 +39,8 @@ spec:
           #     - /etc/coredns/Corefile
           #   restartPolicy: Always
 
+        containers:
           gluetun:
-            # Remove dependency on CoreDNS
-            # dependsOn:
-            #   - coredns
             image:
               repository: ghcr.io/qdm12/gluetun
               tag: v3.40.0
@@ -53,7 +51,7 @@ spec:
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
               VPN_INTERFACE: wg0
-              WIREGUARD_MTU: 1280
+              WIREGUARD_MTU: 1420
               SERVER_COUNTRIES: "United States"
               SERVER_CITIES: "New York,Chicago,Los Angeles,Miami"
               VPN_PORT_FORWARDING: "off"
@@ -78,17 +76,12 @@ spec:
             envFrom: &envFrom
               - secretRef:
                   name: qbittorrent-secret
-            # resources:
-            #   limits:
-            #     squat.ai/tun: "1"
-            restartPolicy: Always
             securityContext:
               capabilities:
                 add:
                   - NET_ADMIN
               allowPrivilegeEscalation: false
 
-        containers:
           app:
             nameOverride: qbittorrent
             image:
