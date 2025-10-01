@@ -50,7 +50,12 @@ spec:
               VPN_TYPE: wireguard
               VPN_INTERFACE: wg0
               WIREGUARD_MTU: 1320
-              SERVER_COUNTRIES: "United States"
+              # Use exact endpoint provided by Nord config; avoid random selection
+              SERVER_HOSTNAMES: "us10014.nordvpn.com"
+              # Clear any country/city selection to avoid conflicts with static keys
+              SERVER_COUNTRIES: ""
+              # Optional but commonly set with Nord .conf
+              WIREGUARD_PERSISTENT_KEEPALIVE: 25
               # Keep firewall off for baseline testing; re-enable after we have connectivity
               FIREWALL: "off"
               DOT: "off"
