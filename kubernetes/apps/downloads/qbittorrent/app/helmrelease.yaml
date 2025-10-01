@@ -45,21 +45,22 @@ spec:
               repository: ghcr.io/qdm12/gluetun
               tag: v3.40.0
             env:
-              # OpenVPN configuration for NordVPN
+              # WireGuard configuration for NordVPN
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
-              VPN_TYPE: openvpn
-              OPENVPN_PROTOCOL: udp
+              VPN_TYPE: wireguard
+              VPN_INTERFACE: wg0
+              WIREGUARD_MTU: 1320
               SERVER_HOSTNAMES: "us10014.nordvpn.com"
-              # Clear any country/city selection to avoid conflicts
+              # Clear any country/city selection to avoid conflicts with static keys
               SERVER_COUNTRIES: ""
+              # Optional but commonly set with Nord .conf
+              WIREGUARD_PERSISTENT_KEEPALIVE: 25
               # Keep firewall off for baseline testing; re-enable after we have connectivity
               FIREWALL: "off"
               DOT: "off"
               DNS_KEEP_NAMESERVER: "off"
               HEALTH_TARGET_ADDRESS: "1.1.1.1:53"
-              # TUN device settings
-              TUN: "on"
             envFrom:
               - secretRef:
                   name: qbittorrent-secret
