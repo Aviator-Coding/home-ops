@@ -45,8 +45,7 @@ spec:
               repository: ghcr.io/qdm12/gluetun
               tag: v3.40.0
             env:
-              # Let Gluetun use WIREGUARD_DNS from secret - no manual DNS_ADDRESS
-              # DOT: "on"
+              # Minimal baseline for NordVPN WireGuard
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
               VPN_SERVICE_PROVIDER: nordvpn
               VPN_TYPE: wireguard
@@ -54,24 +53,15 @@ spec:
               WIREGUARD_MTU: 1420
               SERVER_COUNTRIES: "United States"
               VPN_PORT_FORWARDING: "off"
-              # Enable firewall for proper VPN routing (critical fix)
-              FIREWALL: "on"
-              FIREWALL_INPUT_PORTS: 8080
+              # Start with firewall off to validate connectivity; we'll re-enable once stable
+              FIREWALL: "off"
+              # Keep kube subnets allowed only if firewall is enabled; ignored when off
               FIREWALL_OUTBOUND_SUBNETS: 10.96.0.0/12,10.244.0.0/16,10.42.0.0/16
-              FIREWALL_VPN_INPUT_PORTS: 8080
-              # DNS settings - let Gluetun handle everything
+              # Disable DoT and nameserver manipulation for baseline
+              DOT: "off"
               DNS_KEEP_NAMESERVER: "off"
-              DNS_UPDATE_DELAY: "5s"
-              # Health check and monitoring
-              HEALTH_VPN_DURATION_INITIAL: "300s"
-              HEALTH_VPN_DURATION_ADDITION: "60s"
-              HEALTH_TARGET_ADDRESS: "1.1.1.1:443"
-              PUBLICIP_API: ip2location
-              UPDATER_PERIOD: "24h"
-              # Security settings
-              BLOCK_MALICIOUS: "on"
-              BLOCK_ADS: "off"
-              BLOCK_SURVEILLANCE: "off"
+              # Simpler health check
+              HEALTH_TARGET_ADDRESS: "1.1.1.1:53"
             envFrom: &envFrom
               - secretRef:
                   name: qbittorrent-secret
