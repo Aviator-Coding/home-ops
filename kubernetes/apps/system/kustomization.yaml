@@ -7,7 +7,8 @@ components:
   - ../../components/common
 resources:
   - ./descheduler/ks.yaml
-  - ./fstrim/ks.yaml
+  - ./fstrim/ks.yaml\
+  - ./generic-device-plugin/ks.yaml
   - ./intel-device-plugin-operator/ks.yaml
   - ./volsync/ks.yaml
   - ./openebs-hostpath/ks.yaml
