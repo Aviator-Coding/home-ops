@@ -8,7 +8,8 @@
     log {
         class error
     }
-    forward . 103.86.96.100 103.86.99.100 {
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+        tls_servername tls.cloudflare-dns.com
         policy sequential
         health_check 5s
     }
