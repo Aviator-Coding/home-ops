@@ -176,9 +176,10 @@ spec:
       downloads:
         type: nfs
         server: nas.${SECRET_DOMAIN}
-        path: /mnt/storage/Media/Downloads/qbittorrent
+        path: /mnt/storage/Media
         globalMounts:
           - path: /data/
+            subPath: Downloads/qbittorrent
       gluetun-auth:
         type: secret
         name: qbittorrent-gluetun-secret
