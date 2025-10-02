@@ -178,8 +178,8 @@ spec:
         server: nas.${SECRET_DOMAIN}
         path: /mnt/storage/Media
         globalMounts:
-          - path: /data/
-            # subPath: Downloads/qbittorrent
+          - path: /data/nas-media/Downloads/qbittorrent
+            subPath: Downloads/qbittorrent
       gluetun-auth:
         type: secret
         name: qbittorrent-gluetun-secret
