@@ -91,7 +91,7 @@ spec:
       downloads:
         type: nfs
         server: nas.${SECRET_DOMAIN}
-        path: /mnt/storage/Media/Downloads/qbittorrent
+        path: /mnt/storage/Media/Downloads/sabnzbd
         globalMounts:
           - path: /data/nas-media/Downloads/sabnzbd
 
