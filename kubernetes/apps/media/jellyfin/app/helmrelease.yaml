@@ -82,7 +82,7 @@ spec:
           gethomepage.dev/description: "Jellyfin is a free software media system that puts you in control of managing and streaming your media."
           gethomepage.dev/pod-selector: app.kubernetes.io/name={{ .Release.Name }}
         hostnames:
-          - "{{ .Release.Name }}.turbo.ac"
+          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
         parentRefs:
           - name: internal
             namespace: kube-system
