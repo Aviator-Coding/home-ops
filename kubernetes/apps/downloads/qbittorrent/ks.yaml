@@ -49,6 +49,9 @@ spec:
   timeout: 5m
   path: "./kubernetes/apps/downloads/qbittorrent/tools"
   prune: true
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
   sourceRef:
     kind: GitRepository
     name: flux-system
