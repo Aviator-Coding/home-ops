@@ -6,12 +6,9 @@ provisioner: rook-ceph.cephfs.csi.ceph.com
 volumeBindingMode: Immediate
 allowVolumeExpansion: true
 reclaimPolicy: Retain
-# # Performance optimizations for CephFS
-# mountOptions:
-#   - cache=strict # Enable strict caching
-#   - fsc # Enable local file cache
-#   - readdir_max_bytes=1048576 # Increase readdir buffer
-#   - readdir_max_entries=8192 # Increase readdir entries
+# Basic mount options for CephFS compatibility with Talos
+mountOptions:
+  - _netdev # Wait for network before mount
 parameters:
   fsName: ceph-filesystem
   pool: ceph-filesystem-media
