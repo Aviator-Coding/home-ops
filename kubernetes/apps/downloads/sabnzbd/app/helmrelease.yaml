@@ -119,25 +119,6 @@ spec:
             app:
               - path: /media-shared
 
-      downloads:
-        existingClaim: downloads-pvc
-        advancedMounts:
-          sabnzbd:
-            init-dirs:
-              - path: /data/ceph-fs/download
-            app:
-              - path: /data/ceph-fs/download
-
-      # Fast block storage for downloads
-      downloads-block:
-        existingClaim: sabnzbd-block-pvc
-        advancedMounts:
-          sabnzbd:
-            init-dirs:
-              - path: /download
-            app:
-              - path: /download
-
       temp:
         type: emptyDir
         advancedMounts:
