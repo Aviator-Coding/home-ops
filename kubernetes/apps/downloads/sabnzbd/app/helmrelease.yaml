@@ -124,6 +124,24 @@ spec:
             app:
               - path: /data/cephfs-media/Downloads/sabnzbd
 
+      downloads-fast:
+        type: custom
+        volumeSpec:
+          ephemeral:
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                storageClassName: "ceph-block"
+                resources:
+                  requests:
+                    storage: 2Ti # Increased for active downloads
+        advancedMounts:
+          sabnzbd:
+            app:
+              - path: /downloads
+                subPath: sabnzbd
+
       temp:
         type: emptyDir
         advancedMounts:
