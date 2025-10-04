@@ -5,4 +5,5 @@ kind: Kustomization
 resources:
   - ./media-pvc.yaml
   - ./storageclass.yaml
+  - ./shared-media-static-pv.yaml
   - ./shared-media-pvc.yaml
