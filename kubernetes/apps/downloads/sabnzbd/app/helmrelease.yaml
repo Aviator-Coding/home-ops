@@ -111,7 +111,7 @@ spec:
               - path: /config
 
       media-shared:
-        existingClaim: shared-media-pvc
+        existingClaim: shared-media-{{ .Release.Namespace }}-pvc
         advancedMounts:
           sabnzbd:
             init-dirs:

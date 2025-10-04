@@ -28,6 +28,7 @@ spec:
       namespace: system
   components:
     - ../../../../components/volsync
+    - ../../../../components/shared-media
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -35,3 +36,7 @@ spec:
     substitute:
       APP: *appname
       VOLSYNC_CLAIM: sabnzbd-config
+      NAMESPACE: *namespace
+      # Optional overrides:
+      # SHARED_MEDIA_CLAIM: "my-custom-pvc-name"
+      # SHARED_MEDIA_CAPACITY: "10Ti"

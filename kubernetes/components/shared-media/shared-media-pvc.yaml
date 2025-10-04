@@ -1,0 +1,15 @@
+---
+# Template PVC for shared media storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${SHARED_MEDIA_CLAIM:-shared-media-pvc}
+  namespace: ${NAMESPACE}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: "" # Empty for static binding
+  volumeName: shared-media-${NAMESPACE:-default}-pv
+  resources:
+    requests:
+      storage: ${SHARED_MEDIA_CAPACITY:-5Ti}
