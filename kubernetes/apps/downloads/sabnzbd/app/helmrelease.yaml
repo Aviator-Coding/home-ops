@@ -36,8 +36,8 @@ spec:
               - sh
               - -c
               - |
-                mkdir -p /download/incomplete
-                mkdir -p /download/complete
+                mkdir -p /data/ceph-fs/download/incomplete
+                mkdir -p /data/ceph-fs/download/complete
                 echo "Created directories successfully"
             securityContext:
               runAsUser: 2000
@@ -109,6 +109,15 @@ spec:
           sabnzbd:
             app:
               - path: /config
+
+      downloads:
+        existingClaim: downloads-pvc
+        advancedMounts:
+          sabnzbd:
+            init-dirs:
+              - path: /data/ceph-fs/download
+            app:
+              - path: /data/ceph-fs/download
 
       # Fast block storage for downloads
       downloads-block:
