@@ -8,7 +8,7 @@ allowVolumeExpansion: true
 reclaimPolicy: Retain
 parameters:
   fsName: ceph-filesystem
-  pool: media
+  pool: ceph-filesystem-media
   clusterID: rook-ceph
   csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
   csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
