@@ -110,23 +110,6 @@ spec:
             app:
               - path: /config
 
-      # Fast RBD storage for SABnzbd downloads
-      downloads-fast:
-        type: custom
-        volumeSpec:
-          ephemeral:
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                storageClassName: "ceph-block"
-                resources:
-                  requests:
-                    storage: 1Ti
-        advancedMounts:
-          sabnzbd:
-            init-dirs:
-              - path: /download
       # Fast block storage for downloads
       downloads-block:
         existingClaim: sabnzbd-block-pvc
