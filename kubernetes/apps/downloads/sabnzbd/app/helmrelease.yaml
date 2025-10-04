@@ -27,6 +27,28 @@ spec:
             fsGroup: 2000
             fsGroupChangePolicy: OnRootMismatch
 
+        initContainers:
+          init-dirs:
+            image:
+              repository: alpine
+              tag: latest
+            command:
+              - sh
+              - -c
+              - |
+                mkdir -p /data/cephfs-media/Downloads/sabnzbd/complete
+                mkdir -p /data/cephfs-media/Downloads/sabnzbd/incoming
+                echo "Created directories successfully"
+            securityContext:
+              runAsUser: 2000
+              runAsGroup: 2000
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+
         containers:
           app:
             image:
@@ -97,6 +119,8 @@ spec:
         existingClaim: sabnzbd-pvc
         advancedMounts:
           sabnzbd:
+            init-dirs:
+              - path: /data/cephfs-media/Downloads/sabnzbd
             app:
               - path: /data/cephfs-media/Downloads/sabnzbd
 
