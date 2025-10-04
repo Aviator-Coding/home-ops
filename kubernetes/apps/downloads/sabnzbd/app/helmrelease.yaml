@@ -36,8 +36,8 @@ spec:
               - sh
               - -c
               - |
-                mkdir -p /data/cephfs-media/Downloads/sabnzbd/complete
-                mkdir -p /data/cephfs-media/Downloads/sabnzbd/incomplete
+                mkdir -p /download/complete
+                mkdir -p /download/incomplete
                 echo "Created directories successfully"
             securityContext:
               runAsUser: 2000
@@ -115,14 +115,14 @@ spec:
       #   globalMounts:
       #     - path: /data/nas-media/Downloads/sabnzbd
 
-      downloads-ceph:
-        existingClaim: sabnzbd-pvc
-        advancedMounts:
-          sabnzbd:
-            init-dirs:
-              - path: /data/cephfs-media/Downloads/sabnzbd
-            app:
-              - path: /data/cephfs-media/Downloads/sabnzbd
+      # downloads-ceph:
+      #   existingClaim: sabnzbd-pvc
+      #   advancedMounts:
+      #     sabnzbd:
+      #       init-dirs:
+      #         - path: /data/cephfs-media/Downloads/sabnzbd
+      #       app:
+      #         - path: /data/cephfs-media/Downloads/sabnzbd
 
       downloads-fast:
         type: custom
@@ -138,9 +138,10 @@ spec:
                     storage: 2Ti # Increased for active downloads
         advancedMounts:
           sabnzbd:
+            init-dirs:
+              - path: /download
             app:
-              - path: /downloads
-                subPath: sabnzbd
+              - path: /download
 
       temp:
         type: emptyDir
