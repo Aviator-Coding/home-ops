@@ -83,9 +83,10 @@ spec:
               readiness: *probes
             resources:
               requests:
-                cpu: 5m
+                cpu: 500m # Increased from 5m to 500m
                 memory: 1024Mi
               limits:
+                cpu: 2000m # Added CPU limit
                 memory: 6144Mi
             securityContext:
               allowPrivilegeEscalation: false
