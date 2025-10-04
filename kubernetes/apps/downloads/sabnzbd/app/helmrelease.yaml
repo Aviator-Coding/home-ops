@@ -37,7 +37,7 @@ spec:
               - -c
               - |
                 mkdir -p /data/cephfs-media/Downloads/sabnzbd/complete
-                mkdir -p /data/cephfs-media/Downloads/sabnzbd/incoming
+                mkdir -p /data/cephfs-media/Downloads/sabnzbd/incomplete
                 echo "Created directories successfully"
             securityContext:
               runAsUser: 2000
