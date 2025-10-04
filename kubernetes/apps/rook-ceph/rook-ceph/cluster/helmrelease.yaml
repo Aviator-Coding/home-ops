@@ -28,6 +28,12 @@ spec:
       createPrometheusRules: true
     toolbox:
       enabled: true
+    csi:
+      cephfs:
+        kernelMountOptions: "ms_mode=prefer-crc"
+        # fuseMountOptions: "debug"
+        # # Disable kernel mount and force FUSE
+        # forceCephFSKernelClient: false
     cephClusterSpec:
       cephConfig:
         global:
