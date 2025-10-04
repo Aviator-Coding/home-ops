@@ -3,7 +3,7 @@ kind: StorageClass
 metadata:
   name: cephfs-media
 provisioner: rook-ceph.cephfs.csi.ceph.com
-volumeBindingMode: WaitForFirstConsumer
+volumeBindingMode: Immediate
 allowVolumeExpansion: true
 reclaimPolicy: Retain
 parameters:
