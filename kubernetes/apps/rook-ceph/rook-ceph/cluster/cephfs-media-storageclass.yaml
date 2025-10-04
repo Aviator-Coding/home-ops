@@ -2,7 +2,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: cephfs-media
-provisioner: cephfs.csi.ceph.com
+provisioner: rook-ceph.cephfs.csi.ceph.com
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 reclaimPolicy: Retain
