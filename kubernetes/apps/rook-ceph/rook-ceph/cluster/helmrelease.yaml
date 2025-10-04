@@ -226,26 +226,6 @@ spec:
             csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
             csi.storage.k8s.io/fstype: ext4
 
-        # Additional StorageClass definitions for this CephFS (chart support may vary)
-        storageClasses:
-          - enabled: true
-            name: cephfs-media
-            isDefault: false
-            pool: media
-            reclaimPolicy: Retain
-            allowVolumeExpansion: true
-            volumeBindingMode: WaitForFirstConsumer
-            parameters:
-              fsName: ceph-filesystem
-              pool: media
-              csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
-              csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
-              csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
-              csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
-              csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
-              csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
-              csi.storage.k8s.io/fstype: ext4
-
     cephFileSystemVolumeSnapshotClass:
       enabled: true
       name: csi-ceph-filesystem
