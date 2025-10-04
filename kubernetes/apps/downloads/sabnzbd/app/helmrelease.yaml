@@ -36,8 +36,8 @@ spec:
               - sh
               - -c
               - |
-                mkdir -p /data/ceph-fs/download/incomplete
-                mkdir -p /data/ceph-fs/download/complete
+                mkdir -p /media-shared/download/sabnzbd/incomplete
+                mkdir -p /media-shared/download/sabnzbd/complete
                 echo "Created directories successfully"
             securityContext:
               runAsUser: 2000
@@ -109,6 +109,15 @@ spec:
           sabnzbd:
             app:
               - path: /config
+
+      media-shared:
+        existingClaim: shared-media-pvc
+        advancedMounts:
+          sabnzbd:
+            init-dirs:
+              - path: /media-shared
+            app:
+              - path: /media-shared
 
       downloads:
         existingClaim: downloads-pvc
