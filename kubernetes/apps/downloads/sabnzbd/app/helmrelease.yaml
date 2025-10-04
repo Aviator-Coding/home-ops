@@ -108,12 +108,12 @@ spec:
           sabnzbd:
             app:
               - path: /config
-      downloads:
-        type: nfs
-        server: nas.${SECRET_DOMAIN}
-        path: /mnt/storage/Media/Downloads/sabnzbd
-        globalMounts:
-          - path: /data/nas-media/Downloads/sabnzbd
+      # downloads:
+      #   type: nfs
+      #   server: nas.${SECRET_DOMAIN}
+      #   path: /mnt/storage/Media/Downloads/sabnzbd
+      #   globalMounts:
+      #     - path: /data/nas-media/Downloads/sabnzbd
 
       downloads-ceph:
         existingClaim: sabnzbd-pvc
