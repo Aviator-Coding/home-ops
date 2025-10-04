@@ -1,0 +1,24 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cephfs-media
+provisioner: rook-ceph.cephfs.csi.ceph.com
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+# Performance optimizations for CephFS
+mountOptions:
+  - cache=strict # Enable strict caching
+  - fsc # Enable local file cache
+  - readdir_max_bytes=1048576 # Increase readdir buffer
+  - readdir_max_entries=8192 # Increase readdir entries
+parameters:
+  fsName: ceph-filesystem
+  pool: ceph-filesystem-media
+  clusterID: rook-ceph
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph

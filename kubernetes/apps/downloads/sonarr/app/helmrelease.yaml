@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: sonarr
+  name: &app sonarr
 spec:
   interval: 30m
   chartRef:
@@ -28,25 +28,29 @@ spec:
             fsGroupChangePolicy: "OnRootMismatch"
             supplementalGroups:
               - 65542 # gladius:external-services
-
+        initContainers:
+          init-db:
+            image:
+              repository: ghcr.io/home-operations/postgres-init
+              tag: 17.6@sha256:86a1992d46273c58fd4ad95b626081dfaabfe16bd56944675169e406d1a660dd
+            envFrom: &envFrom
+              - secretRef:
+                  name: sonarr-secret
         containers:
           app:
             image:
               repository: ghcr.io/home-operations/sonarr
-              tag: 4.0.14.2938
+              tag: 4.0.15.2940
             env:
               SONARR__APP__INSTANCENAME: Sonarr
-              SONARR__AUTH__APIKEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: sonarr-secret
-                    key: api_key
+              SONARR__APP__THEME: dark
               SONARR__AUTH__METHOD: External
               SONARR__AUTH__REQUIRED: DisabledForLocalAddresses
               SONARR__LOG__DBENABLED: "False"
               SONARR__LOG__LEVEL: info
               SONARR__SERVER__PORT: &port 8989
               SONARR__UPDATE__BRANCH: develop
+            envFrom: *envFrom
             probes:
               liveness: &probes
                 enabled: true
@@ -69,13 +73,11 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities:
-                drop:
-                  - ALL
+              capabilities: { drop: ["ALL"] }
 
     service:
       app:
-        controller: sonarr
+        controller: *app
         ports:
           http:
             port: *port
@@ -89,20 +91,28 @@ spec:
         type: emptyDir
       media:
         type: nfs
-        server: gladius.bjw-s.internal
-        path: /mnt/tank/Media
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media
         globalMounts:
           - path: /data/nas-media
 
     route:
       app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Downloads
+          gethomepage.dev/name: *app
+          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/sonarr.svg
+          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
+          gethomepage.dev/description: "Sonarr is a PVR for Usenet and BitTorrent users to manage and download TV shows."
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=sonarr
         hostnames:
-          - sonarr.bjw-s.dev
+          - sonarr.${SECRET_DOMAIN}
         parentRefs:
           - name: internal
             namespace: kube-system
             sectionName: https
         rules:
           - backendRefs:
-              - name: sonarr
+              - name: *app
                 port: *port

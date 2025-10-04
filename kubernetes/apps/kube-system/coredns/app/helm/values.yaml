@@ -28,6 +28,10 @@ servers:
           fallthrough in-addr.arpa ip6.arpa
       - name: autopath
         parameters: "@kubernetes"
+      - name: hosts
+        configBlock: |-
+          10.10.0.40 nas.${SECRET_DOMAIN}
+          fallthrough
       - name: forward
         parameters: . 10.0.0.1 10.10.10.1 8.8.8.8 8.8.4.4
       - name: cache

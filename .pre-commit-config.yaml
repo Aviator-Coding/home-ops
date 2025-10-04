@@ -6,7 +6,7 @@ repos:
         name: Check commit message
         stages: [commit-msg]
         additional_dependencies:
-          - '@commitlint/config-conventional'
+          - "@commitlint/config-conventional"
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -43,7 +43,7 @@ repos:
         name: Check XML
       - id: check-yaml
         name: Check YAML
-        args: [--allow-multiple-documents]
+        args: [--allow-multiple-documents, --unsafe]
       - id: detect-private-key
         name: Detect private keys
       - id: check-merge-conflict

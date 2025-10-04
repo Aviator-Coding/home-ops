@@ -5,5 +5,5 @@ kind: Kustomization
 resources:
   - ./ocirepository.yaml
   - ./helmrelease.yaml
-  # - ./subvolume-groups.yaml
   - ./httproute.yaml
+  - ./cephfs-media-storageclass.yaml

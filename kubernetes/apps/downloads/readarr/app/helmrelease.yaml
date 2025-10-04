@@ -1,0 +1,105 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app readarr
+spec:
+  interval: 30m
+  # renovate: registryUrl=http://bjw-s.github.io/helm-charts/
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    controllers:
+      readarr:
+        replicas: 1
+        annotations:
+          secret.reloader.stakater.com/reload: &secret readarr-secret
+        initContainers:
+          init-db:
+            image:
+              repository: ghcr.io/home-operations/postgres-init
+              tag: 17.6@sha256:86a1992d46273c58fd4ad95b626081dfaabfe16bd56944675169e406d1a660dd
+            envFrom:
+              - secretRef:
+                  name: *secret
+        containers:
+          app:
+            image:
+              repository: quay.io/nklmilojevic/readarr-develop
+              tag: 0.4.15.2787@sha256:093843cf5cc503cd35de0c60a1ef73c7243600ebdc93cc7328a23e191015514c
+
+            env:
+              TZ: "Europe/Belgrade"
+              READARR__APP__INSTANCENAME: Readarr
+              READARR__APP__THEME: dark
+              READARR__AUTH__METHOD: External
+              READARR__AUTH__REQUIRED: DisabledForLocalAddresses
+              READARR__LOG__DBENABLED: "False"
+              READARR__LOG__LEVEL: info
+              READARR__SERVER__PORT: &port 8787
+              READARR__UPDATE__BRANCH: develop
+            envFrom:
+              - secretRef:
+                  name: *secret
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
+        pod:
+          securityContext:
+            runAsUser: 2000
+            runAsGroup: 2000
+            runAsNonRoot: true
+            fsGroup: 2000
+            fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        controller: readarr
+        ports:
+          http:
+            port: &port 8787
+
+    route:
+      app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Downloads
+          gethomepage.dev/name: *app
+          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/readarer.svg
+          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
+          gethomepage.dev/description: "readarer is a movie collection manager for Usenet and BitTorrent users."
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=readarr
+        hostnames:
+          - readarr.${SECRET_DOMAIN}
+        parentRefs:
+          - name: internal
+            namespace: kube-system
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: readarr
+                port: *port
+
+    persistence:
+      config:
+        existingClaim: readarr-config
+      media:
+        type: nfs
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media
+        globalMounts:
+          - path: /data/nas-media

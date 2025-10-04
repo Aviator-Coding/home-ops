@@ -180,8 +180,18 @@ spec:
               parameters:
                 compression_algorithm: zstd
                 compression_mode: aggressive
+            - name: media
+              failureDomain: host
+              deviceClass: nvme
+              replicated:
+                size: 2
+              parameters:
+                # Media files (video/audio/images) are typically already compressed.
+                # Disabling pool-level compression avoids extra CPU overhead and latency.
+                compression_algorithm: none
+                compression_mode: none
           metadataServer:
-            activeCount: 1
+            activeCount: 2
             activeStandby: true
             priorityClassName: system-cluster-critical
             placement:
