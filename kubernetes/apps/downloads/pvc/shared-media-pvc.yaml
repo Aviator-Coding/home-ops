@@ -1,0 +1,15 @@
+---
+# Shared media PVC for downloads namespace
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-media-pvc
+  namespace: downloads
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: cephfs-media-shared
+  volumeName: shared-media-pv # Binds to our named PV
+  resources:
+    requests:
+      storage: 5Ti
