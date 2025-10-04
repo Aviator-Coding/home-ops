@@ -14,8 +14,16 @@ spec:
       namespace: rook-ceph
   interval: 1h
   path: ./kubernetes/apps/downloads/pvc/app
+  components:
+    - ../../../../components/shared-media
   prune: true
   retryInterval: 2m
+  postBuild:
+    substitute:
+      NAMESPACE: *namespace
+      # Optional overrides:
+      # SHARED_MEDIA_CLAIM: "my-custom-pvc-name"
+      # SHARED_MEDIA_CAPACITY: "10Ti"
   sourceRef:
     kind: GitRepository
     name: flux-system
