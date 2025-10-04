@@ -36,8 +36,8 @@ spec:
               - sh
               - -c
               - |
-                mkdir -p /download/complete
                 mkdir -p /download/incomplete
+                mkdir -p /download/complete
                 echo "Created directories successfully"
             securityContext:
               runAsUser: 2000
@@ -109,22 +109,8 @@ spec:
           sabnzbd:
             app:
               - path: /config
-      # downloads:
-      #   type: nfs
-      #   server: nas.${SECRET_DOMAIN}
-      #   path: /mnt/storage/Media/Downloads/sabnzbd
-      #   globalMounts:
-      #     - path: /data/nas-media/Downloads/sabnzbd
 
-      # downloads-ceph:
-      #   existingClaim: sabnzbd-pvc
-      #   advancedMounts:
-      #     sabnzbd:
-      #       init-dirs:
-      #         - path: /data/cephfs-media/Downloads/sabnzbd
-      #       app:
-      #         - path: /data/cephfs-media/Downloads/sabnzbd
-
+      # Fast RBD storage for SABnzbd downloads
       downloads-fast:
         type: custom
         volumeSpec:
@@ -136,7 +122,14 @@ spec:
                 storageClassName: "ceph-block"
                 resources:
                   requests:
-                    storage: 2Ti # Increased for active downloads
+                    storage: 1Ti
+        advancedMounts:
+          sabnzbd:
+            init-dirs:
+              - path: /download
+      # Fast block storage for downloads
+      downloads-block:
+        existingClaim: sabnzbd-block-pvc
         advancedMounts:
           sabnzbd:
             init-dirs:
@@ -150,23 +143,6 @@ spec:
           sabnzbd:
             app:
               - path: /tmp
-      ephemeral:
-        type: custom
-        volumeSpec:
-          ephemeral:
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                storageClassName: "ceph-block"
-                resources:
-                  requests:
-                    storage: 100Gi
-        advancedMounts:
-          sabnzbd:
-            app:
-              - path: /incomplete
-                subPath: incomplete
       scripts:
         type: configMap
         name: sabnzbd-scripts
