@@ -8,4 +8,4 @@ spec:
   storageClassName: cephfs-media
   resources:
     requests:
-      storage: 2ti
+      storage: 2Ti
