@@ -1,0 +1,23 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cephfs-media-shared
+provisioner: rook-ceph.cephfs.csi.ceph.com
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+# Basic mount options for CephFS compatibility with Talos
+mountOptions:
+  - _netdev # Wait for network before mount
+parameters:
+  fsName: ceph-filesystem
+  pool: ceph-filesystem-media
+  clusterID: rook-ceph
+  # Use the media subvolume group for better organization
+  subvolumeGroup: media
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
