@@ -27,6 +27,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
+      VOLSYNC_CLAIM: readarr-config
   prune: true
   sourceRef:
     kind: GitRepository
