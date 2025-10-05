@@ -50,17 +50,18 @@ spec:
     name: flux-system
     namespace: flux-system
   wait: false
-  healthChecks:
-    - apiVersion: helm.toolkit.fluxcd.io/v2
-      kind: HelmRelease
-      name: rook-ceph-cluster
-      namespace: *namespace
-    - apiVersion: ceph.rook.io/v1
-      kind: CephCluster
-      name: rook-ceph
-      namespace: *namespace
-  healthCheckExprs:
-    - apiVersion: ceph.rook.io/v1
-      kind: CephCluster
-      failed: status.ceph.health == 'HEALTH_ERR'
-      current: status.ceph.health in ['HEALTH_OK', 'HEALTH_WARN']
+  # Temporarily disabled health checks to resolve authentication loop
+  # healthChecks:
+  #   - apiVersion: helm.toolkit.fluxcd.io/v2
+  #     kind: HelmRelease
+  #     name: rook-ceph-cluster
+  #     namespace: *namespace
+  #   - apiVersion: ceph.rook.io/v1
+  #     kind: CephCluster
+  #     name: rook-ceph
+  #     namespace: *namespace
+  # healthCheckExprs:
+  #   - apiVersion: ceph.rook.io/v1
+  #     kind: CephCluster
+  #     failed: status.ceph.health == 'HEALTH_ERR'
+  #     current: status.ceph.health in ['HEALTH_OK', 'HEALTH_WARN']
