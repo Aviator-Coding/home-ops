@@ -45,6 +45,12 @@ spec:
           osd_class_update_on_start: "false"
           device_failure_prediction_mode: local
 
+          # Authentication configuration to fix method mismatch
+          auth_client_required: "cephx"
+          auth_cluster_required: "cephx"
+          auth_service_required: "cephx"
+          auth_supported: "cephx"
+
           # Compression (good space savings)
           bluestore_compression_algorithm: zstd
           bluestore_compression_mode: aggressive
