@@ -44,11 +44,11 @@ spec:
   #       - CREATE EXTENSION IF NOT EXISTS "earthdistance";
 
   # Recovery configuration
-  bootstrap:
-    recovery:
-      source: &previousCluster postgres17-v2
-      # recoveryTarget:
-      #   backupID: "20250904T000005"
+  # bootstrap:
+  #   recovery:
+  #     source: &previousCluster postgres17-v2
+  #     # recoveryTarget:
+  #     #   backupID: "20250904T000005"
 
   # Configuration of the PostgreSQL server
   postgresql:
@@ -102,8 +102,8 @@ spec:
           key: aws-secret-access-key
 
   # Note: externalClusters is needed when recovering from an existing cnpg cluster
-  externalClusters:
-    - name: *previousCluster
-      barmanObjectStore:
-        <<: *barmanObjectStore
-        serverName: *previousCluster
+  # externalClusters:
+  #   - name: *previousCluster
+  #     barmanObjectStore:
+  #       <<: *barmanObjectStore
+  #       serverName: *previousCluster
