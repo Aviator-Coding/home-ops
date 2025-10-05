@@ -42,8 +42,8 @@ spec:
       - name: cluster-secrets
         kind: Secret
   dependsOn:
-  - name: onepassword-store
-    namespace: security
+    - name: onepassword-store
+      namespace: security
   prune: false # Never delete this
   sourceRef:
     kind: GitRepository
