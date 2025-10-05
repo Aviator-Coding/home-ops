@@ -28,9 +28,9 @@ spec:
           serviceAccountName: rook-ceph-backup
           containers:
             - name: backup
-              image: bitnami/kubectl:latest
+              image: alpine/k8s:1.31.1
               command:
-                - /bin/bash
+                - /bin/sh
                 - -c
                 - |
                   set -euo pipefail
@@ -45,9 +45,6 @@ spec:
                   kubectl get secret rook-ceph-mon -n rook-ceph -o yaml > "${BACKUP_DIR}/rook-ceph-mon.yaml" || echo "No rook-ceph-mon secret found"
                   kubectl get secret rook-ceph-admin-keyring -n rook-ceph -o yaml > "${BACKUP_DIR}/rook-ceph-admin-keyring.yaml" || echo "No admin keyring found"
 
-                  # Backup all Ceph-related secrets
-                  kubectl get secrets -n rook-ceph -l app=rook-ceph-mon -o yaml > "${BACKUP_DIR}/all-ceph-secrets.yaml" || echo "No Ceph secrets found"
-
                   # Backup CephCluster configuration
                   kubectl get cephcluster -n rook-ceph -o yaml > "${BACKUP_DIR}/cephcluster.yaml" || echo "No CephCluster found"
 
@@ -56,17 +53,6 @@ spec:
 
                   # Get cluster FSID for documentation
                   kubectl get secret rook-ceph-mon -n rook-ceph -o jsonpath='{.data.fsid}' | base64 -d > "${BACKUP_DIR}/cluster-fsid.txt" || echo "No FSID found"
-
-                  # Backup monitor data from nodes (if monitors are running)
-                  for node in talos-1 talos-2 talos-3; do
-                    MON_POD=$(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --field-selector spec.nodeName=$node -o name 2>/dev/null | head -1)
-                    if [ -n "$MON_POD" ]; then
-                      echo "Backing up monitor data from $node"
-                      kubectl exec -n rook-ceph $MON_POD -- tar czf - /var/lib/rook/rook-ceph/ 2>/dev/null > "${BACKUP_DIR}/mon-${node}.tar.gz" || echo "Failed to backup monitor data from $node"
-                    else
-                      echo "No monitor pod found on $node"
-                    fi
-                  done
 
                   # Create backup manifest with metadata
                   cat > "${BACKUP_DIR}/backup-manifest.yaml" <<EOF
