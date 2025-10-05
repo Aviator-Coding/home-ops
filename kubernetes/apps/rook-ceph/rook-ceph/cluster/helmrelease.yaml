@@ -35,6 +35,8 @@ spec:
         # # Disable kernel mount and force FUSE
         # forceCephFSKernelClient: false
     cephClusterSpec:
+      # Use the original FSID to recognize existing OSDs with data
+      fsid: e997a509-6499-47ce-bf6d-127bbfeaace5
       cephVersion:
         image: quay.io/ceph/ceph:v19.2.3
         allowUnsupported: false
