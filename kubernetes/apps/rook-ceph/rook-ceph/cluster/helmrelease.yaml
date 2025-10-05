@@ -50,6 +50,10 @@ spec:
           auth_cluster_required: "cephx"
           auth_service_required: "cephx"
           auth_supported: "cephx"
+          # Force authentication method compatibility
+          ms_crc_data: "false"
+          ms_crc_header: "false"
+          auth_allow_insecure_global_id_reclaim: "true"
 
           # Compression (good space savings)
           bluestore_compression_algorithm: zstd
