@@ -35,9 +35,9 @@ spec:
         # # Disable kernel mount and force FUSE
         # forceCephFSKernelClient: false
     cephClusterSpec:
-      # cephVersion:
-      #   image: quay.io/ceph/ceph:v19.2.3
-      #   allowUnsupported: false
+      cephVersion:
+        image: quay.io/ceph/ceph:v19.2.3
+        allowUnsupported: false
       cephConfig:
         global:
           bdev_enable_discard: "true"
