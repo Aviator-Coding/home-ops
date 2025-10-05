@@ -36,8 +36,8 @@ spec:
               - sh
               - -c
               - |
-                mkdir -p /media-shared/download/sabnzbd/incomplete
-                mkdir -p /media-shared/download/sabnzbd/complete
+                mkdir -p /data/downloads/sabnzbd/incomplete
+                mkdir -p /data/downloads/sabnzbd/complete
                 echo "Created directories successfully"
             securityContext:
               runAsUser: 2000
@@ -110,14 +110,14 @@ spec:
             app:
               - path: /config
 
-      media-shared:
-        existingClaim: shared-media-pvc
+      downloads:
+        existingClaim: shared-downloads-pvc
         advancedMounts:
           sabnzbd:
             init-dirs:
-              - path: /media-shared
+              - path: /data/downloads
             app:
-              - path: /media-shared
+              - path: /data/downloads
 
       temp:
         type: emptyDir

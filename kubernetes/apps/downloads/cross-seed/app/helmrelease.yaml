@@ -79,6 +79,12 @@ spec:
           - path: /config/config.js
             subPath: config.js
             readOnly: true
+      downloads:
+        existingClaim: shared-downloads-pvc
+        advancedMounts:
+          cross-seed:
+            app:
+              - path: /data/downloads
       media:
         type: nfs
         server: nas.${SECRET_DOMAIN}

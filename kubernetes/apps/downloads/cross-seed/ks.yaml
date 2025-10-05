@@ -20,6 +20,8 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
+    - name: downloads-pvc
+      namespace: downloads
     - name: onepassword-store
       namespace: security
     - name: volsync

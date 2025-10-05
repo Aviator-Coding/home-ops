@@ -13,6 +13,8 @@ spec:
     - ../../../../components/gatus/guarded
     - ../../../../components/volsync
   dependsOn:
+    - name: downloads-pvc
+      namespace: downloads
     - name: onepassword-store
       namespace: security
     - name: volsync

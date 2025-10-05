@@ -97,6 +97,10 @@ spec:
     persistence:
       config:
         existingClaim: readarr-config
+      downloads:
+        existingClaim: shared-downloads-pvc
+        globalMounts:
+          - path: /data/downloads
       media:
         type: nfs
         server: nas.${SECRET_DOMAIN}
