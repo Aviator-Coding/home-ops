@@ -113,11 +113,32 @@ spec:
           - backendRefs:
               - name: *app
                 port: *port
+    rbac:
+      roles:
+        gatus:
+          type: ClusterRole
+          rules:
+            - apiGroups:
+                - ""
+              resources:
+                - configmaps
+                - secrets
+              verbs:
+                - get
+                - watch
+                - list
+      bindings:
+        gatus:
+          type: ClusterRoleBinding
+          roleRef:
+            identifier: gatus
+          subjects:
+            - identifier: gatus
     serviceAccount:
       name: *app
     persistence:
       config:
-        existingClaim: storage-gatus
+        type: emptyDir
       config-file:
         type: configMap
         name: gatus-configmap
