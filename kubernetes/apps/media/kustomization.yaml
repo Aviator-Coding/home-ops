@@ -8,4 +8,3 @@ components:
 resources:
   - ./calibre-web/ks.yaml
   - ./jellyfin/ks.yaml
-  - ./pvc/ks.yaml

@@ -17,8 +17,6 @@ spec:
       namespace: system
     - name: rook-ceph-cluster
       namespace: rook-ceph
-    - name: media-pvc
-      namespace: media
   interval: 1h
   path: ./kubernetes/apps/media/jellyfin/app
   postBuild:
