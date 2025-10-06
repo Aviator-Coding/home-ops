@@ -16,6 +16,9 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
+  postBuild:
+    substitute:
+      APP: *app
   targetNamespace: *namespace
   wait: true
 #  We defined this as a component to load it individual as needed
