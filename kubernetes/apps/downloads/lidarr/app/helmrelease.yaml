@@ -112,7 +112,7 @@ spec:
       downloads:
         existingClaim: shared-downloads-pvc
         advancedMounts:
-          sabnzbd:
+          lidarr:
             init-dirs:
               - path: /data/downloads
             app:
