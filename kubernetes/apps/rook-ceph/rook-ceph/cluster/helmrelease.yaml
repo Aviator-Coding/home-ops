@@ -137,6 +137,7 @@ spec:
     #-- Ceph Block Pool Storage configuration
     cephBlockPools:
       - name: ceph-blockpool
+        enableRBDStats: true
         spec:
           failureDomain: host
           replicated:
