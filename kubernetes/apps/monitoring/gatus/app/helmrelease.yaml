@@ -135,7 +135,7 @@ spec:
           subjects:
             - identifier: gatus
     serviceAccount:
-      name: *app
+      gatus: {}
     persistence:
       config:
         type: emptyDir
