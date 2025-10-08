@@ -36,8 +36,15 @@ spec:
               - sh
               - -c
               - |
-                mkdir -p /data/downloads/sabnzbd/incomplete
-                mkdir -p /data/downloads/sabnzbd/complete
+                mkdir -p /data/downloads/usenet/complete/movies
+                mkdir -p /data/downloads/usenet/complete/tv
+                mkdir -p /data/downloads/usenet/complete/music
+                mkdir -p /data/downloads/usenet/complete/books
+                mkdir -p /data/downloads/usenet/complete/audiobooks
+                mkdir -p /data/downloads/usenet/complete/comics
+                mkdir -p /data/downloads/usenet/complete/magazines
+                mkdir -p /data/downloads/usenet/complete/other
+                mkdir -p /data/downloads/usenet/incomplete
                 echo "Created directories successfully"
             securityContext:
               runAsUser: 2000

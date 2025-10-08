@@ -91,8 +91,7 @@ spec:
               - sh
               - -c
               - |
-                mkdir -p /data/downloads/qbittorrent/incomplete
-                mkdir -p /data/downloads/qbittorrent/complete
+                mkdir -p /data/downloads/torrents
                 echo "Created directories successfully"
             securityContext:
               runAsUser: 2000
@@ -210,12 +209,6 @@ spec:
               - path: /data/downloads
             app:
               - path: /data/downloads
-      downloads:
-        type: nfs
-        server: nas.${SECRET_DOMAIN}
-        path: /mnt/storage/Media/Downloads/qbittorrent
-        globalMounts:
-          - path: /data/nas-media/Downloads/qbittorrent
 
       gluetun-auth:
         type: secret
