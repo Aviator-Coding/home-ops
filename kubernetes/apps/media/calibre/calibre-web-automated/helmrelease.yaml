@@ -19,10 +19,18 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    # defaultPodOptions:
+    #   securityContext:
+    #     runAsUser: 0
+    #     runAsGroup: 0
+    #     runAsNonRoot: false
+    #     seccompProfile: { type: RuntimeDefault }
     defaultPodOptions:
       securityContext:
-        runAsUser: 0
-        runAsGroup: 0
+        runAsUser: 2000
+        runAsGroup: 2000
+        fsGroup: 2000
+        fsGroupChangePolicy: OnRootMismatch
         runAsNonRoot: false
         seccompProfile: { type: RuntimeDefault }
     controllers:
@@ -38,6 +46,9 @@ spec:
               NETWORK_SHARE_MODE: true
               S6_YES_I_WANT_A_WORLD_WRITABLE_RUN_BECAUSE_KUBERNETES: 1
               S6_READ_ONLY_ROOT: 1
+            envFrom:
+              - secretRef:
+                  name: "{{ .Release.Name }}-secret"
             securityContext:
               allowPrivilegeEscalation: true
               readOnlyRootFilesystem: false
