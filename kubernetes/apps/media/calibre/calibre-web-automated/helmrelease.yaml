@@ -79,7 +79,7 @@ spec:
           gethomepage.dev/icon: calibre-web.png
           gethomepage.dev/name: *app
           gethomepage.dev/group: media
-        hostnames: ["calibre.${SECRET_EXTERNAL_DOMAIN}"]
+        hostnames: ["calibre.${SECRET_DOMAIN}"]
         parentRefs:
           - name: internal
             namespace: kube-system
