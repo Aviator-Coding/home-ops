@@ -26,6 +26,9 @@ spec:
   interval: 30m
   timeout: 3m
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: 20Gi
@@ -53,5 +56,8 @@ spec:
   interval: 30m
   timeout: 3m
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *app
