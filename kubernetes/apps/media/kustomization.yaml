@@ -6,5 +6,5 @@ namespace: media
 components:
   - ../../components/common
 resources:
-  - ./calibre-web/ks.yaml
+  - ./calibre/ks.yaml
   - ./jellyfin/ks.yaml

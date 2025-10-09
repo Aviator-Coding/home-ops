@@ -4,18 +4,19 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app flaresolverr
+  namespace: &ns network
 spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   interval: 1h
-  path: ./kubernetes/apps/downloads/flaresolverr/app
+  path: ./kubernetes/apps/network/flaresolverr/app
   prune: true
   retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: downloads
+  targetNamespace: *ns
   timeout: 5m
   wait: false
