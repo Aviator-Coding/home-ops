@@ -35,6 +35,8 @@ spec:
               repository: ghcr.io/calibrain/calibre-web-automated-book-downloader-extbp
               tag: v0.2.2@sha256:60a2dc0e8340776ff593523a7b883243fb63e684a3eb8e59aff60e0ec009a011
             env:
+              UID: "2000"
+              GID: "2000"
               FLASK_PORT: &port 8084
               INGEST_DIR: &ingest /cwa-book-ingest
               BOOK_LANGUAGE: en
@@ -42,7 +44,7 @@ spec:
               USE_BOOK_TITLE: true
               LOG_LEVEL: debug
               # Use flaresolverr instead of integrated chromium
-              EXT_BYPASSER_URL: http://flaresolverr.network:8191
+              EXT_BYPASSER_URL: http://flaresolverr.network.svc.cluster.local:8191
             command:
               - /bin/sh
               - -c
