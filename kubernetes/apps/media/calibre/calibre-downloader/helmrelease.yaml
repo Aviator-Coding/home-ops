@@ -44,6 +44,7 @@ spec:
               USE_BOOK_TITLE: true
               LOG_LEVEL: debug
               AA_BASE_URL: https://annas-archive.li
+              HTTP_PROXY: http://flaresolverr.network.svc.cluster.local:8191
               # Use flaresolverr instead of integrated chromium
               EXT_BYPASSER_URL: http://flaresolverr.network.svc.cluster.local:8191
             command:
