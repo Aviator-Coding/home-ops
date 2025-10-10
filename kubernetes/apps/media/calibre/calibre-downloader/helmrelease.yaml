@@ -45,8 +45,8 @@ spec:
               LOG_LEVEL: debug
               AA_BASE_URL: https://annas-archive.li
               # Use flaresolverr instead of integrated chromium
-              CUSTOM_DNS: cloudflare
-              USE_CF_BYPASS: true # Enable Cloudflare bypass (default: true)
+              # CUSTOM_DNS: cloudflare
+              # USE_CF_BYPASS: true # Enable Cloudflare bypass (default: true)
               # External Cloudflare Bypass environment variables
               EXT_BYPASSER_URL: "http://flaresolverr.network.svc.cluster.local:8191" # URL of the external Cloudflare resolver service (used FlareSolverr)
               EXT_BYPASSER_PATH: "/v1" # Path for external Cloudflare resolver API (default: /v1)

@@ -30,6 +30,10 @@ spec:
               tag: v3.4.2
             # env:
             #   TZ: Europe/Warsaw
+            env:
+              LOG_LEVEL: info
+              LOG_HTML: false
+              CAPTCHA_SOLVER: none
             probes:
               liveness: &probes
                 enabled: true
