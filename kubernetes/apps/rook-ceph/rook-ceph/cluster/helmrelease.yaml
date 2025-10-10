@@ -86,6 +86,8 @@ spec:
             enabled: true
           - name: rook
             enabled: true
+          - name: nfs
+            enabled: true
       network:
         provider: host
         connections:
