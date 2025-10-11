@@ -155,6 +155,22 @@
       ignoreTests: true,
     },
     {
+      description: "Auto-merge any package from github-releases with area/mise label",
+      matchDatasources: [
+        "github-releases"
+      ],
+      automerge: true,
+      automergeType: "branch",
+      matchUpdateTypes: [
+        "minor",
+        "patch"
+      ],
+      requiredLabels: [
+        "area/mise"
+      ],
+      ignoreTests: true,
+    },
+    {
       description: "Never auto-merge critical infrastructure",
       matchPackageNames: [
         "/rook-ceph/",
