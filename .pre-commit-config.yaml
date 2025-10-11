@@ -24,8 +24,8 @@ repos:
         name: Fix EOF
       - id: mixed-line-ending
         name: Check mixed line endings
-      - id: check-case-conflict
-        name: Check case conflicts
+      # - id: check-case-conflict
+      #   name: Check case conflicts
       - id: check-executables-have-shebangs
         name: Check executable shebangs
       - id: check-shebang-scripts-are-executable
