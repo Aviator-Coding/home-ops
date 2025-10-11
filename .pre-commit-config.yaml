@@ -1,12 +1,12 @@
 repos:
-  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
-    rev: v9.22.0
-    hooks:
-      - id: commitlint
-        name: Check commit message
-        stages: [commit-msg]
-        additional_dependencies:
-          - "@commitlint/config-conventional"
+  # - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+  #   rev: v9.22.0
+  #   hooks:
+  #     - id: commitlint
+  #       name: Check commit message
+  #       stages: [commit-msg]
+  #       additional_dependencies:
+  #         - "@commitlint/config-conventional"
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

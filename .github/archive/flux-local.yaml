@@ -1,0 +1,138 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Flux Local
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  filter-changes:
+    name: Filter changes
+    runs-on: ubuntu-latest
+    # runs-on: aviator-coding-home-ops-runner
+    outputs:
+      changed-files: ${{ steps.changed-files.outputs.changed_files }}
+    steps:
+      - name: Get changed files
+        id: changed-files
+        uses: bjw-s-labs/action-changed-files@930cef8463348e168cab7235c47fe95a7a235f65 # v0.3.3
+        with:
+          patterns: |-
+            kubernetes/**/*
+
+  test:
+    if: ${{ needs.filter-changes.outputs.changed-files != '[]' }}
+    name: Flux Local Test
+    runs-on: ubuntu-latest
+    # runs-on: aviator-coding-home-ops-runner
+    needs:
+      - filter-changes
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Run flux-local test
+        uses: docker://ghcr.io/allenporter/flux-local:v7.7.1
+        with:
+          args: test --enable-helm --all-namespaces --path /github/workspace/kubernetes/flux/cluster -v
+        continue-on-error: false
+        timeout-minutes: 10
+
+  diff:
+    if: ${{ needs.filter-changes.outputs.changed-files != '[]' }}
+    name: Flux Local Diff
+    runs-on: ubuntu-latest
+    # runs-on: aviator-coding-home-ops-runner
+    needs:
+      - filter-changes
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      matrix:
+        resources:
+          - helmrelease
+          - kustomization
+      max-parallel: 4
+      fail-fast: false
+    steps:
+      - name: Checkout Pull Request Branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: pull
+
+      - name: Checkout Default Branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: "${{ github.event.repository.default_branch }}"
+          path: default
+
+      - name: Run flux-local diff
+        uses: docker://ghcr.io/allenporter/flux-local:v7.7.1
+        with:
+          args: >-
+            diff ${{ matrix.resources }}
+            --unified 6
+            --path /github/workspace/pull/kubernetes/flux/cluster
+            --path-orig /github/workspace/default/kubernetes/flux/cluster
+            --strip-attrs "helm.sh/chart,checksum/config,app.kubernetes.io/version,chart"
+            --limit-bytes 10000
+            --all-namespaces
+            --sources "flux-system"
+            --output-file diff.patch
+
+      - name: Generate Diff
+        id: diff
+        run: |
+          {
+              echo 'diff<<EOF'
+              cat diff.patch
+              echo EOF
+          } >> "${GITHUB_OUTPUT}";
+          {
+              echo "## Flux ${{ matrix.resources }} diff"
+              echo '```diff'
+              cat diff.patch
+              echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Generate Token
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository && steps.diff.outputs.diff != '' }}
+        id: app-token
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
+      - if: ${{ steps.diff.outputs.diff != '' }}
+        name: Add Comment
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
+        with:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          header: ${{ github.event.pull_request.number }}/kubernetes/${{ matrix.resources }}
+          message: |
+            ```diff
+            ${{ steps.diff.outputs.diff }}
+            ```
+
+  flux-local-success:
+    needs:
+      - test
+      - diff
+    if: ${{ !cancelled() }}
+    name: Flux Local successful
+    runs-on: ubuntu-latest
+    # runs-on: aviator-coding-home-ops-runner
+    steps:
+      - name: Check job status
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
