@@ -117,9 +117,6 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: status.podIP
-              QBT_Preferences__WebUI__AuthSubnetWhitelistEnabled: true
-              QBT_Preferences__WebUI__AuthSubnetWhitelist: |-
-                192.168.0.0/16, 0.0.0.0/0
               XSEED_HOST: cross-seed.downloads.svc.cluster.local
               XSEED_PORT: 2468
               XSEED_APIKEY:
