@@ -72,6 +72,14 @@ spec:
             editable: true
             options:
               path: /var/lib/grafana/dashboards/postgres
+          - name: emqx
+            orgId: 1
+            folder: EMQX
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/emqx
           - name: unpoller
             disableDeletion: false
             editable: true
