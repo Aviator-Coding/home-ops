@@ -2,192 +2,20 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
-      description: "Auto-merge trusted container digests",
-      matchDatasources: [
-        "docker"
-      ],
+      description: "Auto merge container digests",
+      matchDatasources: ["docker"],
       automerge: true,
-      automergeType: "pr",
-      matchUpdateTypes: [
-        "digest"
-      ],
-      matchPackageNames: [
-        "/home-operations/",
-        "/ghcr.io/",
-        "/docker.io/",
-        "/public.ecr.aws/",
-        "/quay.io/",
-        "/registry.k8s.io/"
-      ],
+      matchUpdateTypes: ["digest"],
+      matchPackagePrefixes: ["ghcr.io/home-operations", "ghcr.io/onedr0p", "ghcr.io/bjw-s", "ghcr.io/bjw-s-labs"],
       ignoreTests: false,
     },
     {
-      description: "Auto-merge trusted patch updates",
-      matchDatasources: [
-        "docker"
-      ],
+      description: "Auto merge KPS minors and patches",
+      matchDatasources: ["helm", "docker"],
       automerge: true,
-      automergeType: "pr",
-      matchUpdateTypes: [
-        "patch"
-      ],
-      matchPackageNames: [
-        "/home-operations/",
-        "/ghcr.io/bjw-s-labs/",
-        "/ghcr.io/onedr0p/",
-        "/ghcr.io/linuxserver/",
-        "/docker.io/library/",
-        "/ghcr.io/external-secrets/",
-        "/ghcr.io/fluxcd/",
-        "/ghcr.io/siderolabs/",
-        "/public.ecr.aws/emqx/",
-        "/ghcr.io/twin/gatus",
-        "/ghcr.io/dragonflydb/dragonfly",
-        "/ghcr.io/koenkk/zigbee2mqtt"
-      ],
-      minimumReleaseAge: "1 days",
+      matchUpdateTypes: ["minor", "patch"],
+      matchDepNames: ["kube-prometheus-stack"],
       ignoreTests: false,
-    },
-    {
-      description: "Auto-merge OCI Charts",
-      matchDatasources: [
-        "docker"
-      ],
-      automerge: true,
-      automergeType: "pr",
-      matchUpdateTypes: [
-        "minor",
-        "patch"
-      ],
-      matchPackageNames: [
-        "/kube-prometheus-stack/",
-        "/grafana/"
-      ],
-      ignoreTests: false,
-    },
-    {
-      description: "Auto-merge Talos system updates",
-      matchDatasources: [
-        "docker"
-      ],
-      automerge: true,
-      automergeType: "pr",
-      matchUpdateTypes: [
-        "minor",
-        "patch"
-      ],
-      matchPackageNames: [
-        "/siderolabs/"
-      ],
-      minimumReleaseAge: "3 days",
-      ignoreTests: false,
-    },
-    {
-      description: "Auto-merge safe infrastructure components",
-      matchDatasources: [
-        "docker"
-      ],
-      automerge: true,
-      automergeType: "pr",
-      matchUpdateTypes: [
-        "patch"
-      ],
-      matchPackageNames: [
-        "/cert-manager/",
-        "/cilium/",
-        "/external-secrets/",
-        "/multus-cni/",
-        "/cni-plugins/"
-      ],
-      minimumReleaseAge: "2 days",
-      ignoreTests: false,
-    },
-    {
-      description: "Auto-merge GitHub Actions",
-      matchManagers: [
-        "github-actions"
-      ],
-      automerge: true,
-      automergeType: "branch",
-      matchUpdateTypes: [
-        "minor",
-        "patch",
-        "digest"
-      ],
-      minimumReleaseAge: "3 days",
-      ignoreTests: true,
-    },
-    {
-      description: "Auto-merge trusted GitHub Actions",
-      matchManagers: [
-        "github-actions"
-      ],
-      matchPackageNames: [
-        "/^actions\//",
-        "/^renovatebot\//",
-      ],
-      automerge: true,
-      automergeType: "branch",
-      matchUpdateTypes: [
-        "minor",
-        "patch",
-        "digest"
-      ],
-      minimumReleaseAge: "1 minute",
-      ignoreTests: true,
-    },
-    {
-      description: "Auto-merge GitHub Releases",
-      matchDatasources: [
-        "github-releases"
-      ],
-      automerge: true,
-      automergeType: "branch",
-      matchUpdateTypes: [
-        "minor",
-        "patch"
-      ],
-      matchPackageNames: [
-        "/external-dns/",
-        "/gateway-api/",
-        "/prometheus-operator/"
-      ],
-      ignoreTests: true,
-    },
-    {
-      description: "Auto-merge any package from github-releases with area/mise label",
-      matchDatasources: [
-        "github-releases"
-      ],
-      automerge: true,
-      automergeType: "branch",
-      matchUpdateTypes: [
-        "minor",
-        "patch"
-      ],
-      requiredLabels: [
-        "area/mise"
-      ],
-      ignoreTests: true,
-    },
-    {
-      description: "Never auto-merge critical infrastructure",
-      matchPackageNames: [
-        "/rook-ceph/",
-        "/postgresql/",
-        "/mysql/",
-        "/mariadb/",
-        "/etcd/",
-        "/vault/"
-      ],
-      automerge: false,
-    },
-    {
-      description: "Never auto-merge major updates",
-      matchUpdateTypes: [
-        "major"
-      ],
-      automerge: false,
     },
   ],
 }
