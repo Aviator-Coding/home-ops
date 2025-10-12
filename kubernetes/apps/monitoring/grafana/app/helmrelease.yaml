@@ -155,6 +155,10 @@ spec:
             - name: VAR_REPLICATIONDESTNAME
               value: ".*-bootstrap"
 
+        node-feature-discovery:
+          url: https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/master/examples/grafana-dashboard.json
+          datasource: Prometheus
+
       # victoriametrics:
       #   victoriametrics:
       #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/victoriametrics.json
@@ -267,9 +271,7 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
-      node-feature-discovery:
-        url: https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/master/examples/grafana-dashboard.json
-        datasource: Prometheus
+
 
       unpoller:
         unifi-insights:
@@ -369,6 +371,18 @@ spec:
       GF_SECURITY_COOKIE_SAMESITE: grafana
       GF_SERVER_ROOT_URL: "https://{{ .Release.Name }}.${SECRET_DOMAIN}"
 
+    grafana.ini:
+      analytics:
+        check_for_updates: false
+        check_for_plugin_updates: false
+        reporting_enabled: false
+      auth.anonymous:
+        enabled: true
+        org_id: 1
+        org_name: Main Org.
+        org_role: Viewer
+      news:
+        news_feed_enabled: false
     imageRenderer:
       enabled: true
 
