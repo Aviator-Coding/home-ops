@@ -36,7 +36,7 @@ spec:
         # forceCephFSKernelClient: false
     cephClusterSpec:
       cephVersion:
-        image: quay.io/ceph/ceph:v19.2.3
+        image: quay.io/ceph/ceph:v20.1.1
         allowUnsupported: false
       cephConfig:
         global:
