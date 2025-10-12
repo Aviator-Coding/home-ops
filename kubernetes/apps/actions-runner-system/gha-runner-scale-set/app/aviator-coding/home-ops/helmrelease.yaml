@@ -122,6 +122,10 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: status.hostIP
+              - name: NODE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.hostIP
               - name: TALOSCONFIG
                 value: "/var/run/secrets/talos.dev/talosconfig"
               - name: ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT
