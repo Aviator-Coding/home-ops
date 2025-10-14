@@ -67,11 +67,11 @@ spec:
 
             envFrom: *envFrom
             resources:
-                requests:
-                  cpu: 100m
-                  memory: 200Mi
-                limits:
-                  memory: 1000Mi
+              requests:
+                cpu: 100m
+                memory: 200Mi
+              limits:
+                memory: 1000Mi
             probes:
               liveness: &probes
                 enabled: true
@@ -95,6 +95,9 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: "OnRootMismatch"
 
+    extrapackages:
+      - name: postgresql-client
+      - name: databricks/sql
     service:
       app:
         controller: n8n
