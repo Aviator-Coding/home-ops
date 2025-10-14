@@ -29,6 +29,11 @@ spec:
         targetPort: 10257
         selector:
           component: kube-controller-manager
+      vmsingle:
+        spec:
+          extraArgs:
+            search.maxConcurrentRequests: "8" # Increase from 2 to 8
+            search.maxQueueDuration: "30s" # Increase from 10s to 30s
       vmScrape:
         spec:
           jobLabel: jobLabel
