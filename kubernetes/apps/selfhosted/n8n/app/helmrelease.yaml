@@ -61,7 +61,7 @@ spec:
               N8N_PUBLIC_API_SWAGGERUI_DISABLED: true
               NODE_FUNCTION_ALLOW_BUILTIN: "*"
               N8N_METRICS: true
-              NODE_FUNCTION_ALLOW_EXTERNAL: "@databricks/sql"
+              # NODE_FUNCTION_ALLOW_EXTERNAL: "@databricks/sql"  # Disabled - module not installed
               N8N_USER_FOLDER: /config
               N8N_EMAIL_MODE: smtp
 
@@ -95,9 +95,6 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: "OnRootMismatch"
 
-    extrapackages:
-      - name: postgresql-client
-      - name: databricks/sql
     service:
       app:
         controller: n8n
