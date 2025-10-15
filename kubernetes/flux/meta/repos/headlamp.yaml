@@ -1,11 +1,11 @@
 ---
-# yaml-language-server: $schema=https://kube-schemas.pages.dev/source.toolkit.fluxcd.io/helmrepository_v1.json
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/helmrepository_v1.json
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: headlamp
+  name: headlamp-charts
   namespace: flux-system
 spec:
-  type: oci
-  interval: 1h
-  url: oci://ghcr.io/headlamp-k8s
+  interval: 30m
+  url: https://kubernetes-sigs.github.io/headlamp
+  timeout: 2m
