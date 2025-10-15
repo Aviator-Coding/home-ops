@@ -1,0 +1,10 @@
+---
+# Strategic merge patch to add missing 'pool' parameter to VolumeSnapshotClass
+# Issue: CSI driver was searching in .rgw.root pool instead of ceph-blockpool
+# This caused all VolumeSnapshots to fail with "source Volume ID not found"
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: csi-ceph-blockpool
+parameters:
+  pool: ceph-blockpool
