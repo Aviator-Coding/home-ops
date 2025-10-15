@@ -7,8 +7,4 @@ resources:
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ../backup
-patches:
-  - path: volumesnapshotclass-patch.yaml
-    target:
-      kind: VolumeSnapshotClass
-      name: csi-ceph-blockpool
+  - ./volumesnapshotclass-patch.yaml

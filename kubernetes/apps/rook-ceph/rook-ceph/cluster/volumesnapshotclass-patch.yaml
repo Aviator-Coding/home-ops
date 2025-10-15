@@ -1,10 +1,22 @@
 ---
-# Strategic merge patch to add missing 'pool' parameter to VolumeSnapshotClass
-# Issue: CSI driver was searching in .rgw.root pool instead of ceph-blockpool
-# This caused all VolumeSnapshots to fail with "source Volume ID not found"
+# VolumeSnapshotClass with pool parameter fix
+# This overrides the Helm-generated VolumeSnapshotClass to add the missing pool parameter
+# Without this, the CSI driver searches in .rgw.root pool instead of ceph-blockpool
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: csi-ceph-blockpool
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    helm.toolkit.fluxcd.io/name: rook-ceph-cluster
+    helm.toolkit.fluxcd.io/namespace: rook-ceph
+  annotations:
+    meta.helm.sh/release-name: rook-ceph-cluster
+    meta.helm.sh/release-namespace: rook-ceph
+deletionPolicy: Delete
+driver: rook-ceph.rbd.csi.ceph.com
 parameters:
-  pool: ceph-blockpool
+  clusterID: rook-ceph
+  csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph
+  pool: ceph-blockpool # ← THE FIX: This parameter was missing
