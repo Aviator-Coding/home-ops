@@ -36,6 +36,13 @@ metrics: true
 ui:
   title: Status | Gatus
   header: Status
+  # logo: https://avatars.githubusercontent.com/u/213795
+  link: https://github.com/Aviator-Coding
+  buttons:
+    - name: Github
+      link: https://github.com/Aviator-Coding
+    - name: Homelab
+      link: https://github.com/Aviator-Coding/home-ops
 
 web:
   port: ${WEB_PORT}
