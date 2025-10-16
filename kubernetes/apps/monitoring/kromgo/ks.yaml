@@ -23,7 +23,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      GATUS_SUBDOMAIN: cluster-info
+      GATUS_SUBDOMAIN: kromogo
       GATUS_PATH: /talos_version
   prune: true
   retryInterval: 2m
