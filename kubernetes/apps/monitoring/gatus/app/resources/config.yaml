@@ -12,12 +12,12 @@ connectivity:
 endpoints:
   - name: flux-webhook
     group: external
-    url: https://flux-webhook.${SECRET_DOMAIN}
+    url: https://flux-webhook.${SECRET_DOMAIN}/hook/healthz
     interval: 1m
     client:
       dns-resolver: tcp://1.1.1.1:53
     conditions:
-      - "[STATUS] == 404"
+      - "[STATUS] == any(200, 400, 404, 405)"
 
 metrics: true
 
