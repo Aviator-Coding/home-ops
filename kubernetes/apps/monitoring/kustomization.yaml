@@ -17,7 +17,7 @@ resources:
   - ./promtail/ks.yaml
   - ./gatus/ks.yaml
   - ./kromgo/ks.yaml
-  - ./victoriametrics/ks.yaml
-  - ./victorialogs/ks.yaml
-  - ./vector/ks.yaml
+  # - ./victoriametrics/ks.yaml
+  # - ./victorialogs/ks.yaml
+  # - ./vector/ks.yaml
   - ./unpoller/ks.yaml
