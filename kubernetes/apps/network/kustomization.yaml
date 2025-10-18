@@ -10,5 +10,4 @@ resources:
   - ./cloudflare-tunnel/ks.yaml
   - ./flaresolverr/ks.yaml
   - ./k8s-gateway/ks.yaml
-  - ./multus/ks.yaml
   - ./unifi-dns/ks.yaml
