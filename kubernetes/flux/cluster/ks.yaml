@@ -31,50 +31,53 @@ metadata:
 spec:
   decryption:
     provider: sops
-    secretRef:
-      name: sops-age
   dependsOn:
     - name: cluster-meta
       namespace: flux-system
   interval: 1h
   path: ./kubernetes/apps
   prune: true
-  postBuild:
-    substituteFrom:
-      # - name: cluster-settings
-      #   kind: ConfigMap
-      #   optional: false
-      - name: cluster-secrets
-        kind: Secret
-        optional: false
-  retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  timeout: 5m
   wait: false
-  # patches:
-  #   - # Add Sops decryption and postBuild substitutions to child Kustomizations
-  #     patch: |-
-  #       apiVersion: kustomize.toolkit.fluxcd.io/v1
-  #       kind: Kustomization
-  #       metadata:
-  #         name: not-used
-  #       spec:
-  #         decryption:
-  #           provider: sops
-  #           secretRef:
-  #             name: sops-age
-  #         postBuild:
-  #           substituteFrom:
-  #             - name: cluster-settings
-  #               kind: ConfigMap
-  #               optional: false
-  #             - name: cluster-secrets
-  #               kind: Secret
-  #               optional: false
-  #     target:
-  #       group: kustomize.toolkit.fluxcd.io
-  #       kind: Kustomization
-  #       labelSelector: substitution.flux.home.arpa/disabled notin (true)
+  patches:
+    - # Add Kustomization defaults for all child Kustomizations
+      patch: |-
+        apiVersion: kustomize.toolkit.fluxcd.io/v1
+        kind: Kustomization
+        metadata:
+          name: _
+        spec:
+          decryption:
+            provider: sops
+          deletionPolicy: WaitForTermination
+          patches:
+            - patch: |-
+                apiVersion: helm.toolkit.fluxcd.io/v2
+                kind: HelmRelease
+                metadata:
+                  name: _
+                spec:
+                  install:
+                    crds: CreateReplace
+                    strategy:
+                      name: RetryOnFailure
+                  rollback:
+                    cleanupOnFail: true
+                    recreate: true
+                  upgrade:
+                    cleanupOnFail: true
+                    crds: CreateReplace
+                    strategy:
+                      name: RemediateOnFailure
+                    remediation:
+                      remediateLastFailure: true
+                      retries: 2
+              target:
+                group: helm.toolkit.fluxcd.io
+                kind: HelmRelease
+      target:
+        group: kustomize.toolkit.fluxcd.io
+        kind: Kustomization
