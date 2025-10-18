@@ -19,7 +19,7 @@ spec:
             k8s.v1.cni.cncf.io/networks: |
               [{
                 "name":"multus-iot",
-                "namespace": "network",
+                "namespace": "kube-system",
                 "ips": ["10.40.0.101/22"],
                 "mac": "3e:59:e4:f7:43:11"
               }]

@@ -60,17 +60,17 @@ nodes:
           downdelay: 200
         dhcp: true
         mtu: 9000
-        # addresses:
-        #   - 10.10.10.11/24
         vip:
           ip: *talosControlplaneVip
         vlans:
           - &vlan3
             vlanId: 3
-            mtu: 1500
+            mtu: 9000
             dhcp: false
-            dhcpOptions:
-              routeMetric: 4096
+          - &vlan90
+            vlanId: 90
+            mtu: 9000
+            dhcp: false
         # routes:
         #   - network: 0.0.0.0/0
         #     gateway: 10.10.10.1
@@ -121,6 +121,7 @@ nodes:
           ip: *talosControlplaneVip
         vlans:
           - *vlan3
+          - *vlan90
         # routes:
         #   - network: 0.0.0.0/0
         #     gateway: 10.10.10.1
@@ -172,6 +173,7 @@ nodes:
           ip: *talosControlplaneVip
         vlans:
           - *vlan3
+          - *vlan90
       #     - network: 0.0.0.0/0
       #       gateway: 10.10.10.1
 

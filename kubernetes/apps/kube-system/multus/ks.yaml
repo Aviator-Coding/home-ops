@@ -4,7 +4,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app multus
-  namespace: &ns network
+  namespace: &ns kube-system
 spec:
   targetNamespace: *ns
   commonMetadata:
@@ -13,7 +13,7 @@ spec:
   dependsOn:
     - name: cilium
       namespace: kube-system
-  path: ./kubernetes/apps/network/multus/app
+  path: ./kubernetes/apps/kube-system/multus/app
   prune: true
   sourceRef:
     kind: GitRepository
@@ -29,7 +29,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app multus-networks
-  namespace: &ns network
+  namespace: &ns kube-system
 spec:
   targetNamespace: *ns
   commonMetadata:
@@ -37,7 +37,7 @@ spec:
       app.kubernetes.io/name: *app
   dependsOn:
     - name: multus
-  path: ./kubernetes/apps/network/multus/networks
+  path: ./kubernetes/apps/kube-system/multus/networks
   prune: true
   sourceRef:
     kind: GitRepository

@@ -6,6 +6,14 @@ cluster:
       enable-aggregator-routing: true
       runtime-config: admissionregistration.k8s.io/v1beta1=true
       feature-gates: ImageVolume=true,MutatingAdmissionPolicy=true
+      # Tune etcd connection timeouts to reduce gRPC errors
+      etcd-compaction-interval: "5m"
+      etcd-count-metric-poll-period: "1m"
+      # Use direct IP for events API to bypass DNS resolution
+      etcd-servers-overrides: "/events#https://127.0.0.1:2379"
+      # Increase watch cache sizes to reduce etcd queries
+      default-watch-cache-size: "1500"
+      watch-cache-sizes: "persistentvolumeclaims#1000,persistentvolumes#1000"
   controllerManager:
     extraArgs:
       bind-address: 0.0.0.0
@@ -14,6 +22,14 @@ cluster:
   etcd:
     extraArgs:
       listen-metrics-urls: http://0.0.0.0:2381
+      # Increase heartbeat and election timeouts to handle load better
+      heartbeat-interval: "150"
+      election-timeout: "1500"
+      # Increase snapshot interval to reduce I/O load
+      snapshot-count: "10000"
+      # Enable auto-compaction
+      auto-compaction-mode: "periodic"
+      auto-compaction-retention: "1h"
     advertisedSubnets:
       - 10.10.10.0/24
   proxy:
