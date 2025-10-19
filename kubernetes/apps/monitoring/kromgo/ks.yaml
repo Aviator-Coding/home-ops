@@ -13,8 +13,6 @@ spec:
     provider: sops
     secretRef:
       name: sops-age
-  components:
-    - ../../../../components/gatus/external
   interval: 1h
   path: ./kubernetes/apps/monitoring/kromgo/app
   postBuild:
