@@ -21,7 +21,7 @@ spec:
   wait: false
   dependsOn:
     - name: multus-networks
-      namespace: network
+      namespace: kube-system
     - name: onepassword-store
       namespace: security
     - name: volsync

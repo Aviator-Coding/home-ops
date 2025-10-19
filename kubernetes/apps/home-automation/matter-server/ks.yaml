@@ -19,6 +19,8 @@ spec:
   dependsOn:
     - name: volsync
       namespace: system
+    - name: multus-networks
+      namespace: kube-system
   sourceRef:
     kind: GitRepository
     name: flux-system

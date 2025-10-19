@@ -20,6 +20,8 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
+    - name: multus-networks
+      namespace: kube-system
     - name: onepassword-store
       namespace: security
     - name: emqx-cluster

@@ -18,6 +18,8 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
+    - name: multus-networks
+      namespace: kube-system
   path: ./kubernetes/apps/home-automation/home-assistant/app
   prune: true
   sourceRef:
