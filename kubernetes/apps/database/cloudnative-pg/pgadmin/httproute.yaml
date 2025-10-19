@@ -14,11 +14,11 @@ metadata:
     gethomepage.dev/description: "PostgreSQL administration"
 spec:
   hostnames:
-  - "pgadmin.${SECRET_DOMAIN}"
-  - "pg.${SECRET_DOMAIN}"
+    - "pgadmin.${SECRET_DOMAIN}"
+    - "pg.${SECRET_DOMAIN}"
   parentRefs:
-    - name: internal
-      namespace: kube-system
+    - name: envoy-internal
+      namespace: network
       sectionName: https
   rules:
     - backendRefs:

@@ -110,8 +110,8 @@ spec:
         hostnames:
           - "hass.${SECRET_DOMAIN}"
         parentRefs:
-          - name: external
-            namespace: kube-system
+          - name: envoy-external
+            namespace: network
             sectionName: https
         rules:
           - backendRefs:
@@ -126,8 +126,8 @@ spec:
         hostnames:
           - "hass-code.${SECRET_DOMAIN}"
         parentRefs:
-          - name: internal
-            namespace: kube-system
+          - name: envoy-internal
+            namespace: network
             sectionName: https
         rules:
           - backendRefs:

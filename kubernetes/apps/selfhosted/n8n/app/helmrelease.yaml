@@ -117,8 +117,8 @@ spec:
         hostnames:
           - "n8n.${SECRET_DOMAIN}"
         parentRefs:
-          - name: internal
-            namespace: kube-system
+          - name: envoy-internal
+            namespace: network
             sectionName: https
         rules:
           - backendRefs:
@@ -135,8 +135,8 @@ spec:
         hostnames:
           - "n8n-webhook.${SECRET_DOMAIN}"
         parentRefs:
-          - name: external
-            namespace: kube-system
+          - name: envoy-external
+            namespace: network
             sectionName: https
         rules:
           - matches:

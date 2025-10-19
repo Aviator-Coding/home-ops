@@ -51,6 +51,6 @@ spec:
           gethomepage.dev/app: kokoro
         hostnames: ["tts.${SECRET_DOMAIN}"]
         parentRefs:
-          - name: internal
-            namespace: networking
+          - name: envoy-internal
+            namespace: network
             sectionName: https

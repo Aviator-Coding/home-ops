@@ -279,8 +279,6 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
-
-
       unpoller:
         unifi-insights:
           # renovate: dashboardName="UniFi-Poller: Client Insights - Prometheus"
@@ -432,8 +430,8 @@ spec:
         enabled: true
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
-          - name: internal
-            namespace: kube-system
+          - name: envoy-internal
+            namespace: network
             sectionName: https
 
     serviceAccount:

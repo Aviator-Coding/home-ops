@@ -13,8 +13,8 @@ metadata:
 spec:
   hostnames: ["rook.${SECRET_DOMAIN}"]
   parentRefs:
-    - name: internal
-      namespace: kube-system
+    - name: envoy-internal
+      namespace: network
       sectionName: https
   rules:
     - backendRefs:
@@ -28,13 +28,13 @@ kind: HTTPRoute
 metadata:
   name: rook-ceph-s3
 spec:
-  hostnames: [ "s3.${SECRET_DOMAIN}" ]
+  hostnames: ["s3.${SECRET_DOMAIN}"]
   parentRefs:
-  - name: internal
-    namespace: kube-system
-    sectionName: https
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
   rules:
-  - backendRefs:
-    - name: rook-ceph-rgw-ceph-objectstore
-      namespace: rook-ceph
-      port: 80
+    - backendRefs:
+        - name: rook-ceph-rgw-ceph-objectstore
+          namespace: rook-ceph
+          port: 80

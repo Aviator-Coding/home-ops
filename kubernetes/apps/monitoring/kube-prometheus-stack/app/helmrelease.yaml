@@ -154,6 +154,6 @@ spec:
             gethomepage.dev/widget.url: http://kube-prometheus-stack-prometheus.monitoring:9090
           hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
           parentRefs:
-            - name: internal
-              namespace: kube-system
+            - name: envoy-internal
+              namespace: network
               sectionName: https
