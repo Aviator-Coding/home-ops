@@ -8,6 +8,7 @@ metadata:
 spec:
   components:
     - ../../../../components/dragonfly
+    - ../../../../components/gatus/external
   path: ./kubernetes/apps/security/authentik/app
   targetNamespace: *namespace
   sourceRef:
