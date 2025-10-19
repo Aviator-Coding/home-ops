@@ -80,8 +80,7 @@ spec:
     persistence:
       config-file:
         type: configMap
-        name: cloudflare-tunnel-configmap
+        identifier: config
         globalMounts:
           - path: /etc/cloudflared/config.yaml
             subPath: config.yaml
-            readOnly: true
