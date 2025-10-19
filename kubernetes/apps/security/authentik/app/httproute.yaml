@@ -11,6 +11,8 @@ metadata:
     gethomepage.dev/icon: authentik.png
     gethomepage.dev/pod-selector: app.kubernetes.io/name=authentik
     external-dns.alpha.kubernetes.io/target: "internal.sklab.dev"
+    gatus.home-operations.com/endpoint: |-
+      conditions: ["[STATUS] == 404"]
 spec:
   hostnames: ["auth.sklab.dev"]
   parentRefs:
