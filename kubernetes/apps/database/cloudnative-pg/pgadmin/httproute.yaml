@@ -12,6 +12,7 @@ metadata:
     gethomepage.dev/icon: si-postgresql
     # gethomepage.dev/siteMonitor: "pgadmin.${SECRET_DOMAIN}"
     gethomepage.dev/description: "PostgreSQL administration"
+    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
 spec:
   hostnames:
     - "pgadmin.${SECRET_DOMAIN}"

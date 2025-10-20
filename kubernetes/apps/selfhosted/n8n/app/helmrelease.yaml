@@ -114,6 +114,7 @@ spec:
           gethomepage.dev/group: Automation
           gethomepage.dev/name: N8N
           gethomepage.dev/icon: n8n.svg
+          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
         hostnames:
           - "n8n.${SECRET_DOMAIN}"
         parentRefs:
@@ -132,6 +133,7 @@ spec:
           gethomepage.dev/description: N8N Webhook API
           gethomepage.dev/name: N8N Webhook
           gethomepage.dev/icon: n8n.svg
+          external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
         hostnames:
           - "n8n-webhook.${SECRET_DOMAIN}"
         parentRefs:
