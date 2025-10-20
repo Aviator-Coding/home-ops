@@ -102,6 +102,16 @@ spec:
                 drop:
                   - ALL
 
+    defaultPodOptions:
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |-
+          [{
+            "name": "vpn",
+            "namespace": "kube-system",
+            "ips": ["192.168.90.10/24"],
+            "mac": "32:0b:d8:1f:b6:e4"
+          }]
+
     service:
       app:
         controller: sabnzbd
