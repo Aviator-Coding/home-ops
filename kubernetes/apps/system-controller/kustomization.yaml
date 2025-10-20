@@ -10,4 +10,3 @@ components:
 
 resources:
   - ./k8tz/ks.yaml
-  - ./snapshot-controller/ks.yaml
