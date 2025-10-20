@@ -14,7 +14,7 @@ spec:
     - name: rook-ceph
       namespace: rook-ceph
     - name: snapshot-controller
-      namespace: system-controller
+      namespace: kube-system
   install:
     remediation:
       retries: -1
