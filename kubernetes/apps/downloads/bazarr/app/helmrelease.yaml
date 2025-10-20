@@ -94,7 +94,7 @@ spec:
           # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Bazarr - Subtitle Management"
           gethomepage.dev/pod-selector: app.kubernetes.io/name=bazarr
-          external-dns.alpha.kubernetes.io/target: "internal.sklab.dev"
+          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
         hostnames:
           - bazarr.${SECRET_DOMAIN}
         parentRefs:

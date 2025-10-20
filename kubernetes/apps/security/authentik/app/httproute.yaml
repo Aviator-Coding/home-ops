@@ -10,11 +10,11 @@ metadata:
     gethomepage.dev/name: Authentik
     gethomepage.dev/icon: authentik.png
     gethomepage.dev/pod-selector: app.kubernetes.io/name=authentik
-    external-dns.alpha.kubernetes.io/target: "internal.sklab.dev"
+    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN},external.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
       conditions: ["[STATUS] == 200"]
 spec:
-  hostnames: ["auth.sklab.dev"]
+  hostnames: ["auth.${SECRET_DOMAIN}"]
   parentRefs:
     - name: envoy-internal
       namespace: network

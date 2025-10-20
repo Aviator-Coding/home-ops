@@ -82,25 +82,7 @@ spec:
         ports:
           http:
             port: *port
-    # ingress:
-    #   app:
-    #     enabled: true
-    #     className: internal
-    #     annotations:
-    #       external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}
-    #       gethomepage.dev/enabled: "true"
-    #       gethomepage.dev/group: Services
-    #       gethomepage.dev/name: *app
-    #       gethomepage.dev/icon: si-postgresql
-    #       gethomepage.dev/siteMonitor: ${HOSTNAME}
-    #       gethomepage.dev/description: "PostgreSQL administration"
-    #     hosts:
-    #       - host: ${HOSTNAME}
-    #         paths:
-    #           - path: /
-    #             service:
-    #               identifier: app
-    #               port: http
+
     persistence:
       config:
         enabled: true
@@ -113,7 +95,7 @@ spec:
         enabled: true
         type: secret
         name: pgadmin-secret
-        defaultMode: 384  # 0600 in decimal
+        defaultMode: 384 # 0600 in decimal
         advancedMounts:
           pgadmin:
             app:
