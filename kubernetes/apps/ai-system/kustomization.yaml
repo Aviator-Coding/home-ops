@@ -10,4 +10,4 @@ components:
 
 resources:
   - ./kagent/ks.yaml
-  - ./kgateway/ks.yaml
+  # - ./kgateway/ks.yaml
