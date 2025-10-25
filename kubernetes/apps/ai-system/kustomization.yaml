@@ -7,3 +7,7 @@ namespace: ai-system
 components:
   - ../../components/common
   - ../../components/alerts
+
+resources:
+  - ./kagent/ks.yaml
+  - ./kgateway/ks.yaml
