@@ -37,11 +37,12 @@ spec:
   maxHistory: 3
   values:
     providers:
-      default: litellm
-      litellm:
-        apiKeySecret: litellm-provider-secret
-        apiKeySecretKey: LITELLM_API_KEY
-        model: "xAI: Grok 4 Fast"
+      default: openAI # Use openAI as the provider name
+
+      openAI:
         provider: OpenAI
-        openAI:
-          baseUrl: "http://litellm.ai.svc.cluster.local:4000/v1"
+        model: "xAI: Grok 4 Fast" # Your LiteLLM model
+        apiKeySecretRef: litellm-provider-secret # Your existing secret
+        apiKeySecretKey: LITELLM_API_KEY
+        config:
+          baseUrl: "http://litellm.ai.svc.cluster.local:4000/v1" # Point to LiteLLM
