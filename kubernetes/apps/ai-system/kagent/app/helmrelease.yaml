@@ -37,4 +37,4 @@ spec:
   maxHistory: 3
   values:
     providers:
-      default: litellm-provider-config
+      default: OpenAI
