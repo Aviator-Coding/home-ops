@@ -86,3 +86,395 @@ spec:
   {{- end }}
   {{- end }}
 ```
+
+
+
+
+
+# Default HelmChart Values for kagent
+## GLOBAL CONFIGURATION
+```YAML
+# ==============================================================================
+# GLOBAL CONFIGURATION
+# ==============================================================================
+
+tag: ""
+registry: "cr.kagent.dev"
+
+
+imagePullSecrets: []
+imagePullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Override the namespace
+# @default -- `.Release.Namespace`
+namespaceOverride: ""
+
+podAnnotations: {}
+
+# -- Additional labels to add to all Kubernetes resources
+labels: {}
+  # environment: production
+  # team: platform
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+```
+## CORE KAGENT COMPONENTS
+```YAML
+# ==============================================================================
+# CORE KAGENT COMPONENTS
+# ==============================================================================
+
+# -- Node taints which will be tolerated for `Pod` [scheduling](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).
+tolerations: []
+
+# -- Node labels to match for `Pod` [scheduling](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).
+nodeSelector: {}
+## DATABASE CONFIGURATION
+```YAML
+# ==============================================================================
+# DATABASE CONFIGURATION
+# ==============================================================================
+
+database:
+  type: sqlite
+  sqlite:
+    databaseName: kagent.db
+  postgres:
+    url: postgres://postgres:kagent@pgsql-postgresql.kagent.svc.cluster.local:5432/postgres
+```
+## CONTROLLER CONFIGURATION
+```YAML
+# ==============================================================================
+# CONTROLLER CONFIGURATION
+# ==============================================================================
+
+controller:
+  replicas: 1
+  loglevel: "info"
+  agentImage:
+    registry: ""
+    repository: kagent-dev/kagent/app
+    tag: "" # Will default to global, then Chart version
+    pullPolicy: ""
+  streaming: # Streaming buffer size for A2A communication
+    maxBufSize: 1Mi # 1024 * 1024
+    initialBufSize: 4Ki # 4 * 1024
+    timeout: 600s # 600 seconds
+  # -- Namespaces the controller should watch.
+  # If empty, the controller will watch ALL available namespaces.
+  # @default -- [] (watches all available namespaces)
+  watchNamespaces: []
+  #  - watch-ns-1
+  #  - watch-ns-2
+
+  # -- Node taints which will be tolerated for `Pod` [scheduling](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).
+  tolerations: []
+
+  # -- Node labels to match for `Pod` [scheduling](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).
+  nodeSelector: {}
+
+  image:
+    registry: ""
+    repository: kagent-dev/kagent/controller
+    tag: "" # Will default to global, then Chart version
+    pullPolicy: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 2
+      memory: 512Mi
+  service:
+    type: ClusterIP
+    ports:
+      port: 8083
+      targetPort: 8083
+  env: []
+```
+## UI
+```YAML
+# ==============================================================================
+# UI CONFIGURATION
+# ==============================================================================
+
+ui:
+  replicas: 1
+  image:
+    registry: ""
+    repository: kagent-dev/kagent/ui
+    tag: ""
+    pullPolicy: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  service:
+    type: ClusterIP
+    ports:
+      port: 8080
+      targetPort: 8080
+  env: {} # Additional configuration key-value pairs for the ui ConfigMap
+
+  # -- Node taints which will be tolerated for `Pod` [scheduling](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).
+  tolerations: []
+
+  # -- Node labels to match for `Pod` [scheduling](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).
+  nodeSelector: {}
+```
+## LLM PROVIDERS CONFIGURATION
+```YAML
+# ==============================================================================
+# LLM PROVIDERS CONFIGURATION
+# ==============================================================================
+# https://kagent.dev/docs/getting-started/configuring-providers
+
+providers:
+  default: openAI
+  openAI:
+    provider: OpenAI
+    model: "gpt-4.1-mini"
+    apiKeySecretRef: kagent-openai
+    apiKeySecretKey: OPENAI_API_KEY
+    # apiKey: ""
+  ollama:
+    provider: Ollama
+    model: "llama3.2"
+    config:
+      host: host.docker.internal:11434
+  anthropic:
+    provider: Anthropic
+    model: "claude-3-5-haiku-20241022"
+    apiKeySecretRef: kagent-anthropic
+    apiKeySecretKey: ANTHROPIC_API_KEY
+    # apiKey: ""
+  azureOpenAI:
+    provider: AzureOpenAI
+    model: "gpt-4.1-mini"
+    apiKeySecretRef: kagent-azure-openai
+    apiKeySecretKey: AZUREOPENAI_API_KEY
+    # apiKey: ""
+    config:
+      apiVersion: "2023-05-15"
+      azureAdToken: ""
+      azureDeployment: ""
+      azureEndpoint: ""
+  gemini:
+    provider: Gemini
+    model: "gemini-2.0-flash-lite"
+    apiKeySecretRef: kagent-gemini
+    apiKeySecretKey: GOOGLE_API_KEY
+    # apiKey: ""
+```
+## MCP
+```YAML
+# ==============================================================================
+# KMCP
+# ==============================================================================
+
+kmcp:
+  enabled: true
+  nameOverride: "kmcp"
+  fullnameOverride: "" # Override if desired
+  namespaceOverride: "" # Override if desired (in conjunction with fullnameOverride to drop the `kagent-` prefix if you want)
+  image:
+    tag: "v0.1.7" # Required until https://github.com/kagent-dev/kmcp/issues/74 is resolved
+  # See https://github.com/kagent-dev/kmcp/blob/main/helm/kmcp/values.yaml for chart values
+```
+
+## BUILT-IN TOOLS
+```YAML
+# ==============================================================================
+# BUILT-IN TOOLS
+# ==============================================================================
+
+kagent-tools:
+  fullnameOverride: kagent-tools
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  tools:
+    loglevel: "debug"
+```
+## AGENTS
+```YAML
+# ==============================================================================
+# AGENTS
+# ==============================================================================
+
+agents:
+  k8s-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  kgateway-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  istio-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  promql-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  observability-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  argo-rollouts-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  helm-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  cilium-policy-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  cilium-manager-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  cilium-debug-agent:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+```
+## MCP TOOLS
+```YAML
+# ==============================================================================
+# MCP TOOLS
+# ==============================================================================
+
+tools:
+  grafana-mcp:
+    enabled: true
+  querydoc:
+    enabled: true
+
+grafana-mcp:
+  grafana:
+    url: "grafana.kagent:3000/api"
+    apiKey: "-"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+querydoc:
+  replicas: 1
+  image:
+    registry: ghcr.io
+    repository: kagent-dev/doc2vec/mcp
+    tag: 1.1.13
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  openai:
+    apiKey: ""
+```
+
+## OBSERVABILITY
+```YAML
+# ==============================================================================
+# OBSERVABILITY
+# ==============================================================================
+otel:
+  tracing:
+    enabled: false
+    exporter:
+      otlp:
+        endpoint: http://host.docker.internal:4317
+        timeout: 15
+        insecure: true
+  logging:
+    enabled: false
+    exporter:
+      otlp:
+        endpoint: http://host.docker.internal:4317
+        timeout: 15
+        insecure: true
+```
