@@ -2,7 +2,6 @@ apiVersion: kagent.dev/v1alpha2
 kind: ModelConfig
 metadata:
   name: litellm-provider-config
-  namespace: kagent
 spec:
   apiKeySecret: litellm-provider-secret
   apiKeySecretKey: LITELLM_API_KEY
