@@ -35,6 +35,6 @@ spec:
   driftDetection:
     mode: enabled
   maxHistory: 3
-values:
-  providers:
-    default: openAI
+  values:
+    providers:
+      default: openAI
