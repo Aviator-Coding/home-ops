@@ -44,7 +44,7 @@ spec:
               - coredns
             image:
               repository: ghcr.io/qdm12/gluetun
-              tag: v3.40.0
+              tag: v3.40.3
             env:
               # OpenVPN configuration for NordVPN with US servers
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml
