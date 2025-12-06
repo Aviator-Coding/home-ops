@@ -24,7 +24,7 @@ spec:
           app:
             image:
               repository: docker.io/excalidraw/excalidraw
-              tag: latest@sha256:1e3418d0925de3ca641fd907c75e9b209d6583a40a763bcf7ed07ecd2f660ca4
+              tag: latest@sha256:a98ecaf81a5ed834009646da036ab4093aa8eec47a90a0c44ee8f9c601102fcd
             env:
               NODE_ENV: production
             probes:
