@@ -35,7 +35,7 @@ spec:
           app:
             image:
               repository: ghcr.io/open-webui/open-webui
-              tag: 0.6.32@sha256:412334cec4b49ed51bfa9a6d28d1fbf3d5622c3ac42f57736e7d5d2bf5f3e94a
+              tag: 0.6.43@sha256:9cb724e0bc84f05ba2f81a3da5f53f5add07e1001065d83f3b6b70b9a9eeef19
             env:
               ENABLE_CHANNELS: true
               # Ollama
