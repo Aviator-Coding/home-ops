@@ -1,13 +1,17 @@
 ---
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/helmrepository_v1.json
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1beta2.json
 apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
+kind: OCIRepository
 metadata:
-  name: emqx
-  namespace: flux-system
+  name: emqx-operator
 spec:
-  interval: 2h
-  url: https://repos.emqx.io/charts
+  interval: 5m
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    tag: 2.3.0
+  url: oci://ghcr.io/emqx/emqx-operator/emqx-operator
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -16,14 +20,9 @@ metadata:
   name: emqx-operator
 spec:
   interval: 1h
-  chart:
-    spec:
-      chart: emqx-operator
-      version: 2.2.29
-      sourceRef:
-        kind: HelmRepository
-        name: emqx
-        namespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: emqx-operator
   install:
     remediation:
       retries: -1
