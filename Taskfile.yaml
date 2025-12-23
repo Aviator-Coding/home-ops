@@ -50,15 +50,15 @@ tasks:
 
   cleanup-succeeded-pods:
     desc: Remove old succeeded pods (keeps recent ones from last 24h)
-    cmd: kubectl get pods --all-namespaces --field-selector=status.phase=Succeeded -o json | ConvertFrom-Json | % { $_.items | ? { $_.metadata.creationTimestamp -lt (Get-Date).AddDays(-1) } | % { kubectl delete pod $_.metadata.name -n $_.metadata.namespace } }
+    cmd: CUTOFF=$(date -d '1 day ago' -u +"%Y-%m-%dT%H:%M:%SZ") && kubectl get pods --all-namespaces --field-selector=status.phase=Succeeded -o json | jq -r --arg cutoff "$CUTOFF" '.items[] | select(.metadata.creationTimestamp < $cutoff) | [.metadata.namespace, .metadata.name] | @tsv' | while IFS=$'\t' read -r ns name; do kubectl delete pod "$name" -n "$ns"; done
 
   cleanup-error-pods:
     desc: Remove all pods in Error state
-    cmd: kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded,status.phase!=Pending --no-headers -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name" | ForEach-Object { $parts = $_.Split(); kubectl delete pod $parts[1] -n $parts[0] }
+    cmd: kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded,status.phase!=Pending --no-headers -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name" | while read -r ns name; do kubectl delete pod "$name" -n "$ns"; done
 
   cleanup-replicasets:
     desc: Remove old ReplicaSets with 0 desired replicas (excludes intentionally scaled ones)
-    cmd: kubectl get rs --all-namespaces -o json | ConvertFrom-Json | ForEach-Object { $_.items | Where-Object { $_.spec.replicas -eq 0 -and $_.status.replicas -eq 0 -and $_.metadata.creationTimestamp -lt (Get-Date).AddDays(-1) } | ForEach-Object { kubectl delete rs $_.metadata.name -n $_.metadata.namespace } }
+    cmd: CUTOFF=$(date -d '1 day ago' -u +"%Y-%m-%dT%H:%M:%SZ") && kubectl get rs --all-namespaces -o json | jq -r --arg cutoff "$CUTOFF" '.items[] | select((.spec.replicas // 0) == 0 and (.status.replicas // 0) == 0 and .metadata.creationTimestamp < $cutoff) | [.metadata.namespace, .metadata.name] | @tsv' | while IFS=$'\t' read -r ns name; do kubectl delete rs "$name" -n "$ns"; done
 
   cleanup-all:
     desc: Clean up all failed pods, error pods, and unused replicasets
