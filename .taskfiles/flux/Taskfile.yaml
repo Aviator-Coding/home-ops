@@ -3,3 +3,29 @@
 version: '3'
 
 tasks:
+
+  "test:all":
+    desc: Run flux-local tests for the whole cluster (all namespaces)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - flux-local test --all-namespaces --enable-helm --path kubernetes/flux/cluster --verbose
+
+  "test:ns":
+    desc: Run flux-local tests for a single namespace (default flux-system)
+    dir: '{{.ROOT_DIR}}'
+    vars:
+      NAMESPACE: '{{.NAMESPACE | default "flux-system"}}'
+    cmds:
+      - flux-local test --namespace {{.NAMESPACE}} --enable-helm --path kubernetes/flux/cluster --verbose
+
+  "test:hr":
+    desc: Run flux-local tests and inflate HelmReleases only (all namespaces)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - flux-local test --all-namespaces --enable-helm --path kubernetes/flux/cluster
+
+  "test:quick":
+    desc: Quick flux-local test without verbose output (all namespaces)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - flux-local test --all-namespaces --enable-helm --path kubernetes/flux/cluster
