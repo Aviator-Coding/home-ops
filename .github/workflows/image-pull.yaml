@@ -18,6 +18,7 @@ jobs:
   filter:
     name: Image Pull - Filter
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
     steps:
@@ -32,6 +33,7 @@ jobs:
     needs: filter
     name: Image Pull - Extract Images
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       matrix:
         branch:
@@ -85,6 +87,7 @@ jobs:
     needs: extract
     name: Image Pull - Diff Images
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       images: ${{ steps.diff.outputs.images }}
     steps:
@@ -108,6 +111,7 @@ jobs:
     needs: diff
     name: Image Pull - Pull Images
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 15
     strategy:
       matrix:
         image: ${{ fromJSON(needs.diff.outputs.images) }}
@@ -127,6 +131,7 @@ jobs:
     needs: pull
     name: Image Pull - Success
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Any jobs failed?
         if: ${{ contains(needs.*.result, 'failure') }}

@@ -18,6 +18,7 @@ jobs:
   filter:
     name: Flux Local - Filter
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
     steps:
@@ -32,6 +33,7 @@ jobs:
     needs: filter
     name: Flux Local - Test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Generate Token
         uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
@@ -63,6 +65,7 @@ jobs:
     needs: filter
     name: Flux Local - Diff
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write
@@ -136,6 +139,7 @@ jobs:
       - diff
     name: Flux Local - Success
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Any jobs failed?
         if: ${{ contains(needs.*.result, 'failure') }}

@@ -17,6 +17,7 @@ jobs:
   label-sync:
     name: Label Sync
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # runs-on: aviator-coding-home-ops-runner
     permissions:
       contents: read
