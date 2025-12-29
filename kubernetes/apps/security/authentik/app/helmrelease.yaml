@@ -102,6 +102,7 @@ spec:
         secret.reloader.stakater.com/reload: *secret
       initContainers:
         - name: init-db
+          # renovate: datasource=docker depName=ghcr.io/home-operations/postgres-init
           image: ghcr.io/home-operations/postgres-init:17.6
           envFrom:
             - secretRef:

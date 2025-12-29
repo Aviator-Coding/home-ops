@@ -16,6 +16,7 @@ spec:
         resourceFieldRef:
           resource: limits.memory
           divisor: 1Mi
+  # renovate: datasource=docker depName=ghcr.io/dragonflydb/dragonfly
   image: ghcr.io/dragonflydb/dragonfly:v1.34.2
   labels:
     dragonflydb.io/cluster: dragonfly

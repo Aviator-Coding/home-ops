@@ -36,6 +36,7 @@ spec:
         # forceCephFSKernelClient: false
     cephClusterSpec:
       cephVersion:
+        # renovate: datasource=docker depName=quay.io/ceph/ceph
         image: quay.io/ceph/ceph:v19.2.3
         allowUnsupported: false
       cephConfig:

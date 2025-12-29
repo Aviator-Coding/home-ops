@@ -28,6 +28,7 @@ spec:
           serviceAccountName: rook-ceph-backup
           containers:
             - name: backup
+              # renovate: datasource=docker depName=alpine/k8s
               image: alpine/k8s:1.34.1
               command:
                 - /bin/sh
