@@ -5,6 +5,7 @@ kind: EMQX
 metadata:
   name: emqx
 spec:
+  # renovate: datasource=docker depName=public.ecr.aws/emqx/emqx
   image: public.ecr.aws/emqx/emqx:5.8.8
   config:
     data: |
