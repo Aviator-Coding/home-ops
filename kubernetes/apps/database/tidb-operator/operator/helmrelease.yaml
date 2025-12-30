@@ -22,7 +22,7 @@ spec:
   interval: 30m
   chartRef:
     kind: OCIRepository
-    name: dragonfly-operator
+    name: tidb-operator
   install:
     crds: CreateReplace
     remediation:
