@@ -6,7 +6,7 @@ metadata:
   name: &app tidb-operator
   namespace: &namespace database
 spec:
-  targetNamespace: &namespace
+  targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
@@ -34,7 +34,7 @@ metadata:
   name: &app tikv-cluster
   namespace: &namespace database
 spec:
-  targetNamespace: &namespace
+  targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app

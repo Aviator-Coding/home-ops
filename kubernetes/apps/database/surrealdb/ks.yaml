@@ -6,7 +6,7 @@ metadata:
   name: &app surrealdb
   namespace: &namespace database
 spec:
-  targetNamespace: &namespace
+  targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
