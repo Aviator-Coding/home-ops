@@ -22,6 +22,9 @@
       "extensions": []
     }
   },
-  "postCreateCommand": "echo 'eval \"$(mise activate zsh)\"' >> ~/.zshrc",
+  "postCreateCommand": {
+    "mise": "echo 'eval \"$(mise activate zsh)\"' >> ~/.zshrc",
+    "claude": "curl -fsSL https://claude.ai/install.sh | bash"
+  },
   "remoteUser": "vscode"
 }
