@@ -1,0 +1,65 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/kustomization-kustomize-v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app tidb-operator
+  namespace: flux-system
+spec:
+  targetNamespace: database
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  interval: 30m
+  timeout: 5m
+  path: ./kubernetes/apps/database/tidb-operator/operator
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: true
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/kustomization-kustomize-v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app tikv-cluster
+  namespace: flux-system
+spec:
+  targetNamespace: database
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  interval: 30m
+  timeout: 10m
+  path: ./kubernetes/apps/database/tidb-operator/tikv-cluster
+  prune: false  # CRITICAL: Never auto-delete storage cluster
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: true
+  dependsOn:
+    - name: tidb-operator
+      namespace: flux-system
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+    - name: external-secrets
+      namespace: security
+  healthCheckExprs:
+    - apiVersion: pingcap.com/v1alpha1
+      kind: TidbCluster
+      current: status.pd.phase == 'Normal' && status.tikv.phase == 'Normal'
+      failed: status.pd.phase == 'Failed' || status.tikv.phase == 'Failed'
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret

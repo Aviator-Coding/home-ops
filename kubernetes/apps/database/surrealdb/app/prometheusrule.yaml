@@ -1,0 +1,54 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: surrealdb-rules
+  labels:
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: surrealdb.rules
+      rules:
+        - alert: SurrealDBHighMemoryUsage
+          annotations:
+            description: SurrealDB pod {{ $labels.pod }} is using over 80% memory
+            summary: High memory usage detected
+          expr: |
+            (container_memory_working_set_bytes{pod=~"surrealdb-.*"} /
+             container_spec_memory_limit_bytes{pod=~"surrealdb-.*"}) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: SurrealDBPodDown
+          annotations:
+            description: SurrealDB pod {{ $labels.pod }} is down
+            summary: SurrealDB pod unavailable
+          expr: |
+            up{job="surrealdb"} == 0
+          for: 2m
+          labels:
+            severity: critical
+
+        - alert: SurrealDBReplicasUnavailable
+          annotations:
+            description: Less than 2 SurrealDB replicas are running
+            summary: SurrealDB has insufficient replicas
+          expr: |
+            kube_deployment_status_replicas_available{deployment="surrealdb"} < 2
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: SurrealDBHighCPU
+          annotations:
+            description: SurrealDB pod {{ $labels.pod }} is using over 80% CPU
+            summary: High CPU usage detected
+          expr: |
+            (rate(container_cpu_usage_seconds_total{pod=~"surrealdb-.*"}[5m]) /
+             container_spec_cpu_quota{pod=~"surrealdb-.*"} * 100) > 80
+          for: 10m
+          labels:
+            severity: warning

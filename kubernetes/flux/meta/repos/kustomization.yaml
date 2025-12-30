@@ -11,3 +11,5 @@ resources:
   - ./external-dns.yaml
   - ./headlamp.yaml
   - ./angelnu-helm-charts.yaml
+  - ./pingcap.yaml
+  - ./surrealdb.yaml

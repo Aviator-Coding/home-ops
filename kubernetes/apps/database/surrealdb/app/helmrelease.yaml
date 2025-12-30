@@ -1,0 +1,109 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: surrealdb
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: surrealdb
+      version: 0.4.0
+      sourceRef:
+        kind: HelmRepository
+        name: surrealdb
+        namespace: flux-system
+      interval: 5m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    replicaCount: 3
+
+    image:
+      repository: surrealdb/surrealdb
+      pullPolicy: IfNotPresent
+      # tag: Defaults to chart appVersion
+
+    # SurrealDB configuration
+    surrealdb:
+      # TiKV backend connection
+      path: "tikv://tikv-pd.database.svc.cluster.local:2379"
+
+      # Authentication (from ExternalSecret)
+      auth: true
+      user: root
+      existingSecret: surrealdb-secret
+      existingSecretPasswordKey: password
+
+      # Logging
+      log: info
+
+      # Additional args
+      extraArgs:
+        - "--allow-all"  # Adjust based on security requirements
+        - "--allow-funcs"
+
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 8000
+      annotations: {}
+
+    # Ingress (disabled - using HTTPRoute instead)
+    ingress:
+      enabled: false
+
+    # Resources
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
+
+    # Pod anti-affinity for HA
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: surrealdb
+              topologyKey: kubernetes.io/hostname
+
+    # Topology spread
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: surrealdb
+
+    # Health checks
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 10
+      periodSeconds: 5
+
+    # Service monitor for Prometheus
+    serviceMonitor:
+      enabled: false  # We'll create PodMonitor manually

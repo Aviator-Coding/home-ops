@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/monitoring.coreos.com/podmonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: tikv-tikv
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: tikv
+  podTargetLabels:
+    - app.kubernetes.io/component
+  podMetricsEndpoints:
+    - port: status  # TiKV metrics port
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

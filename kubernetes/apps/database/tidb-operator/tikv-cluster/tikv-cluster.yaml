@@ -1,0 +1,100 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/partial-helm-chart.json
+apiVersion: pingcap.com/v1alpha1
+kind: TidbCluster
+metadata:
+  name: tikv
+spec:
+  version: v8.5.1
+  timezone: UTC
+  pvReclaimPolicy: Retain  # CRITICAL: Prevent data loss on cluster deletion
+
+  # Placement Driver (PD) - Cluster coordinator and metadata manager
+  pd:
+    baseImage: pingcap/pd
+    replicas: 3
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+    storageClassName: ceph-block
+    storage: 10Gi
+
+    # Pod anti-affinity for HA - spread across nodes
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values: [pd]
+            topologyKey: kubernetes.io/hostname
+
+    # Topology spread for even distribution
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: pd
+
+    # PD Configuration
+    config: |
+      [log]
+      level = "info"
+      [replication]
+      max-replicas = 3
+      location-labels = ["topology.kubernetes.io/zone", "kubernetes.io/hostname"]
+
+  # TiKV - Distributed key-value storage engine
+  tikv:
+    baseImage: pingcap/tikv
+    replicas: 3
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+    storageClassName: ceph-block
+    storage: 100Gi
+
+    # Pod anti-affinity for HA - spread across nodes
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values: [tikv]
+            topologyKey: kubernetes.io/hostname
+
+    # Topology spread for even distribution
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: tikv
+
+    # TiKV Configuration
+    config: |
+      [storage]
+      reserve-space = "2GB"
+      [raftstore]
+      region-max-size = "144MB"
+      region-split-size = "96MB"
+      [rocksdb.defaultcf]
+      block-cache-size = "1GB"
+      [rocksdb.writecf]
+      block-cache-size = "512MB"
+      [server]
+      grpc-concurrency = 4
+
+  # No TiDB component - SurrealDB replaces the SQL layer
+  # tidb:
+  #   replicas: 0

@@ -1,0 +1,82 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tikv-rules
+  labels:
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: tikv.rules
+      rules:
+        - alert: TiKVReplicaDown
+          annotations:
+            description: TiKV replica {{ $labels.pod }} is down
+            summary: TiKV instance unavailable
+          expr: |
+            up{job="tikv-tikv"} == 0
+          for: 1m
+          labels:
+            severity: critical
+
+        - alert: PDReplicaDown
+          annotations:
+            description: PD replica {{ $labels.pod }} is down
+            summary: PD instance unavailable
+          expr: |
+            up{job="tikv-pd"} == 0
+          for: 1m
+          labels:
+            severity: critical
+
+        - alert: PDLeaderChange
+          annotations:
+            description: PD leader changed recently in cluster
+            summary: PD leader election occurred
+          expr: |
+            changes(pd_tso_events{type="save"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+
+        - alert: TiKVStorageHighUsage
+          annotations:
+            description: TiKV storage usage on {{ $labels.pod }} is above 80%
+            summary: High storage usage detected
+          expr: |
+            (tikv_engine_size_bytes{type="kv"} / tikv_capacity_size_bytes) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: TiKVMemoryHighUsage
+          annotations:
+            description: TiKV memory usage on {{ $labels.pod }} is above 80%
+            summary: High memory usage detected
+          expr: |
+            (container_memory_working_set_bytes{pod=~"tikv-tikv-.*"} / container_spec_memory_limit_bytes{pod=~"tikv-tikv-.*"}) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: TiKVRegionCount
+          annotations:
+            description: TiKV {{ $labels.pod }} has more than 20000 regions
+            summary: High region count may impact performance
+          expr: |
+            tikv_raftstore_region_count{type="region"} > 20000
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: TiKVSlowRaft
+          annotations:
+            description: Raft proposals are taking too long on {{ $labels.pod }}
+            summary: Slow Raft operations detected
+          expr: |
+            histogram_quantile(0.99, rate(tikv_raftstore_propose_wait_duration_seconds_bucket[5m])) > 1
+          for: 5m
+          labels:
+            severity: warning

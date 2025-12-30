@@ -1,0 +1,11 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./tikv-cluster.yaml
+  - ./podmonitor-pd.yaml
+  - ./podmonitor-tikv.yaml
+  - ./prometheusrule.yaml
+  - ./gatus.yaml
+  # - ./externalsecret.yaml  # Uncomment if enabling TiKV native backups

@@ -12,3 +12,5 @@ resources:
   - ./cloudnative-pg/ks.yaml
   - ./dragonfly/ks.yaml
   - ./emqx/ks.yaml
+  - ./tidb-operator/ks.yaml
+  - ./surrealdb/ks.yaml
