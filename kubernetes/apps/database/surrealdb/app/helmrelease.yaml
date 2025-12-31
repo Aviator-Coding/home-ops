@@ -38,10 +38,7 @@ spec:
       path: "tikv://coordinator-pd-peer.database.svc.cluster.local:2379"
 
       # Authentication (from ExternalSecret)
-      auth: true
-      user: root
-      existingSecret: surrealdb-secret
-      existingSecretPasswordKey: password
+      unauthenticated: false  # Enable auth (replaces deprecated "auth: true")
 
       # Logging
       log: info
