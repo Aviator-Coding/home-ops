@@ -10,12 +10,8 @@ spec:
   maxReservedTime: "720h"  # 30 days maximum retention
 
   backupTemplate:
-    cluster: homelab-kvstore
-    clusterNamespace: database
-
     br:
       cluster: homelab-kvstore
-      clusterNamespace: database
       concurrency: 4
       checksum: true
 

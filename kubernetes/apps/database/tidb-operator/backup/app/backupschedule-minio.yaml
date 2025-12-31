@@ -10,14 +10,9 @@ spec:
   maxReservedTime: "168h"  # 7 days maximum retention
 
   backupTemplate:
-    # Reference to the TiKV cluster
-    cluster: homelab-kvstore
-    clusterNamespace: database
-
     # BR tool configuration
     br:
       cluster: homelab-kvstore
-      clusterNamespace: database
       # Concurrency for backup operations (defaults to 4)
       concurrency: 4
       # Use checksum to verify backup integrity
