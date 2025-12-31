@@ -13,6 +13,7 @@ resources:
   - ./litellm/ks.yaml
   - ./perplexica/ks.yaml
   - ./ollama/ks.yaml
+  - ./open-notebook/ks.yaml
   - ./open-webui/ks.yaml
   - ./qdrant/ks.yaml
   - ./searxng/ks.yaml
