@@ -1,5 +1,5 @@
 ---
-apiVersion: pingcap.com/v1alpha1
+apiVersion: br.pingcap.com/v1alpha1
 kind: BackupSchedule
 metadata:
   name: tidb-backup-r2
