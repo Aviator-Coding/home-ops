@@ -57,6 +57,19 @@ spec:
       port: 8000
       annotations: {}
 
+    # This ensures credentials persist after bootstrap
+    podExtraEnv:
+      - name: SURREAL_USER
+        valueFrom:
+          secretKeyRef:
+            name: surrealdb-secret
+            key: username
+      - name: SURREAL_PASS
+        valueFrom:
+          secretKeyRef:
+            name: surrealdb-secret
+            key: password
+
     # Ingress (disabled - using HTTPRoute instead)
     ingress:
       enabled: false
