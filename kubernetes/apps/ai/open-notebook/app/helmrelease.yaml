@@ -33,7 +33,7 @@ spec:
               repository: ghcr.io/lfnovo/open-notebook
               tag: v1-latest-single
             env:
-              API_URL="https://open-notebook-api.${SECRET_DOMAIN}"
+              API_URL: "https://open-notebook-api.${SECRET_DOMAIN}"
             envFrom:
               - secretRef:
                   name: *app
@@ -92,10 +92,11 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
-        backendRefs:
-          - name: open-notebook
-            namespace: ai
-            port: *port
+        rules:
+          - backendRefs:
+              - name: open-notebook
+                namespace: ai
+                port: *port
 
       api:
         hostnames:
@@ -104,10 +105,11 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
-        backendRefs:
-          - name: open-notebook
-            namespace: ai
-            port: *api
+        rules:
+          - backendRefs:
+              - name: open-notebook
+                namespace: ai
+                port: *api
 
     persistence:
       data:
