@@ -2,21 +2,21 @@
 apiVersion: core.pingcap.com/v1alpha1
 kind: Cluster
 metadata:
-  name: basic
+  name: homelab-kvstore
 spec: {}
 ---
 apiVersion: core.pingcap.com/v1alpha1
 kind: PDGroup
 metadata:
-  name: pd
+  name: coordinator
   labels:
     pingcap.com/group: pd
     pingcap.com/component: pd
-    pingcap.com/cluster: basic
+    pingcap.com/cluster: &cluster homelab-kvstore
 spec:
   cluster:
-    name: basic
-  replicas: 1
+    name: *cluster
+  replicas: 3
   template:
     metadata:
       annotations:
@@ -26,6 +26,15 @@ spec:
       resources:
         cpu: "4"
         memory: 8Gi
+      affinity:
+        podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    pingcap.com/component: pd
+                topologyKey: kubernetes.io/hostname
       config: |
         [log]
         level = "debug"
@@ -39,14 +48,14 @@ spec:
 apiVersion: core.pingcap.com/v1alpha1
 kind: TiKVGroup
 metadata:
-  name: tikv
+  name: storage
   labels:
     pingcap.com/group: tikv
     pingcap.com/component: tikv
-    pingcap.com/cluster: basic
+    pingcap.com/cluster: &cluster homelab-kvstore
 spec:
   cluster:
-    name: basic
+    name: *cluster
   replicas: 3
   template:
     metadata:
@@ -57,6 +66,15 @@ spec:
       resources:
         cpu: "4"
         memory: 8Gi
+      affinity:
+        podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    pingcap.com/component: tikv
+                  topologyKey: kubernetes.io/hostname
       config: |
         [log]
         level = "info"
