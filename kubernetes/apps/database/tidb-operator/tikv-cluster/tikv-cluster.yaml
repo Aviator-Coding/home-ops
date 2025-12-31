@@ -26,15 +26,6 @@ spec:
       resources:
         cpu: "4"
         memory: 8Gi
-      affinity:
-        podAntiAffinity:
-            preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-                    pingcap.com/component: pd
-                topologyKey: kubernetes.io/hostname
       config: |
         [log]
         level = "debug"
