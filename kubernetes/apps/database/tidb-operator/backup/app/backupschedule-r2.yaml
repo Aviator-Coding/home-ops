@@ -1,0 +1,39 @@
+---
+apiVersion: pingcap.com/v1alpha1
+kind: BackupSchedule
+metadata:
+  name: tidb-backup-r2
+spec:
+  # Daily backups at 2 AM
+  schedule: "0 2 * * *"
+  maxBackups: 30  # Keep 30 daily backups
+  maxReservedTime: "720h"  # 30 days maximum retention
+
+  backupTemplate:
+    cluster: homelab-kvstore
+    clusterNamespace: database
+
+    br:
+      cluster: homelab-kvstore
+      clusterNamespace: database
+      concurrency: 4
+      checksum: true
+
+    # Cloudflare R2 configuration
+    s3:
+      provider: aws  # R2 is S3-compatible
+      secretName: tidb-backup-r2-secret
+      bucket: tidb-backups
+      prefix: daily/homelab-kvstore
+      # R2 endpoint format: https://{account-id}.r2.cloudflarestorage.com
+      endpoint: "https://s3-tidb.${SECRET_DOMAIN}"
+      region: auto  # R2 requires 'auto' region
+
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        memory: 4Gi
+
+    cleanPolicy: Delete

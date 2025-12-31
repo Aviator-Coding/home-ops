@@ -1,0 +1,46 @@
+---
+apiVersion: pingcap.com/v1alpha1
+kind: BackupSchedule
+metadata:
+  name: tidb-backup-minio
+spec:
+  # Hourly backups at minute 0
+  schedule: "0 * * * *"
+  maxBackups: 24  # Keep 24 hourly backups (1 day)
+  maxReservedTime: "168h"  # 7 days maximum retention
+
+  backupTemplate:
+    # Reference to the TiKV cluster
+    cluster: homelab-kvstore
+    clusterNamespace: database
+
+    # BR tool configuration
+    br:
+      cluster: homelab-kvstore
+      clusterNamespace: database
+      # Concurrency for backup operations (defaults to 4)
+      concurrency: 4
+      # Use checksum to verify backup integrity
+      checksum: true
+
+    # MinIO S3 configuration
+    s3:
+      provider: minio
+      secretName: tidb-backup-minio-secret
+      bucket: tidb-backups
+      prefix: hourly/homelab-kvstore
+      # CRITICAL: MinIO requires path-style URLs
+      endpoint: "http://nas.${SECRET_DOMAIN}:9000"
+      options:
+        - --s3.force-path-style=true
+
+    # Resource limits for backup pods
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        memory: 4Gi
+
+    # Cleanup policy
+    cleanPolicy: Delete
