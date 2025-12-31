@@ -29,6 +29,46 @@ model_list:
   # Models may define aliases for routing/fallback via `model_groups`
 
   # Anthropic Models
+
+  - model_name: "Anthopic: claude-4.5-opus"
+    provider: anthropic
+    litellm_params:
+      model: anthropic/claude-opus-4-5
+    api_key: ${ANTHROPIC_API_KEY}
+    model_info:
+      max_tokens: 200000
+      input_cost_per_1k_tokens: 0.0008
+      output_cost_per_1k_tokens: 0.004
+      supports_vision: true
+      supports_function_calling: true
+    aliases: [general_anthropic, vision_anthropic]
+
+  - model_name: "Anthopic: claude-4.5-sonnet"
+    provider: anthropic
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5
+    api_key: ${ANTHROPIC_API_KEY}
+    model_info:
+      max_tokens: 200000
+      input_cost_per_1k_tokens: 0.0008
+      output_cost_per_1k_tokens: 0.004
+      supports_vision: true
+      supports_function_calling: true
+    aliases: [general_anthropic, vision_anthropic]
+
+  - model_name: "Anthopic: claude-4.5-haiku"
+    provider: anthropic
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+    api_key: ${ANTHROPIC_API_KEY}
+    model_info:
+      max_tokens: 200000
+      input_cost_per_1k_tokens: 0.0008
+      output_cost_per_1k_tokens: 0.004
+      supports_vision: true
+      supports_function_calling: true
+    aliases: [general_anthropic, vision_anthropic]
+
   - model_name: "Anthopic: claude-3.5-haiku"
     provider: anthropic
     litellm_params:
@@ -41,6 +81,8 @@ model_list:
       supports_vision: true
       supports_function_calling: true
     aliases: [general_anthropic, vision_anthropic]
+
+
 
   # Deepseek Models
   - model_name: "Deepseek: Chat"
@@ -336,6 +378,22 @@ model_list:
       supports_reasoning: true
       supports_function_calling: true
     aliases: [general_xai, vision_xai]
+
+  # Latest Gemini 3.0 Models (Current Generation)
+  - model_name: "Gemini: 3.0 Pro"
+    litellm_params:
+      model: gemini/gemini-3-pro-preview
+      api_key: ${GEMINI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.00125
+      output_cost_per_1k_tokens: 0.01
+      supports_vision: true
+      supports_web_search: true
+      supports_reasoning: true
+      supports_function_calling: true
+      disable_background_health_check: true
+    aliases: [general_gemini, reasoning_gemini, vision_gemini]
 
   # Gemini Models
   # Latest Gemini 2.5 Models (Current Generation)
