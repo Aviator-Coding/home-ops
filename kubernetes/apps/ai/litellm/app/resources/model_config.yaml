@@ -92,6 +92,20 @@ model_list:
       input_cost_per_1k_tokens: 0.00002
     aliases: [embedding_openai]
 
+  - model_name: "OpenAI: gpt-5.2"
+    provider: openai
+    litellm_params:
+      model: openai/gpt-5.2
+    api_key: ${OPENAI_API_KEY}
+    model_info:
+      max_tokens: 400000
+      input_cost_per_1k_tokens: 1.75
+      output_cost_per_1k_tokens: 14.00
+      supports_vision: true
+      supports_reasoning: true
+      supports_function_calling: true
+    aliases: [general_openai_5, vision_openai_5, education_5]
+
   - model_name: "OpenAI: gpt-5"
     provider: openai
     litellm_params:
@@ -160,6 +174,19 @@ model_list:
       supports_vision: true
       supports_function_calling: true
     aliases: [gpt-4.1, general_openai, vision_openai]
+
+  - model_name: "OpenAI: gpt-40-mini-tts"
+    provider: openai
+    litellm_params:
+      model: openai/gpt-4o-mini-tts-2025-03-20
+    api_key: ${OPENAI_API_KEY}
+    model_info:
+      max_tokens: 1000000
+      input_cost_per_1k_tokens: 0.0004
+      output_cost_per_1k_tokens: 0.0016
+      supports_vision: true
+      supports_function_calling: true
+    aliases: [general_openai_4o, general_openai, vision_openai]
 
   - model_name: "OpenAI: gpt-4o"
     provider: openai
