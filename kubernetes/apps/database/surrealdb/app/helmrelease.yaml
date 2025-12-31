@@ -35,7 +35,7 @@ spec:
     # SurrealDB configuration
     surrealdb:
       # TiKV backend connection
-      path: "tikv://pd-pd.database.svc.cluster.local:2379"
+      path: "tikv://coordinator-pd-peer.database.svc.cluster.local:2379"
 
       # Authentication (from ExternalSecret)
       auth: true
