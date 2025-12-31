@@ -89,29 +89,30 @@ spec:
           matchLabels:
             app.kubernetes.io/name: surrealdb
 
-    route:
-      app:
-        annotations:
-          gethomepage.dev/enabled: "true"
-          gethomepage.dev/description: surrealdb
-          gethomepage.dev/group: database
-          # gethomepage.dev/icon: sh-kokoro.svg
-          gethomepage.dev/name: *app
-          gethomepage.dev/app: *app
-          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
-          gatus.home-operations.com/endpoint: |-
-            conditions: ["[STATUS] == 200"]
-        hostnames:
-          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
-          - sdb.${SECRET_DOMAIN}
-        parentRefs:
-          - name: envoy-internal
-            namespace: network
-            sectionName: https
-        backendRefs:
-          - name: surrealdb
-            namespace: database
-            port: 8000
+    # route:
+    # @TODO seems not to work
+    #   app:
+    #     annotations:
+    #       gethomepage.dev/enabled: "true"
+    #       gethomepage.dev/description: surrealdb
+    #       gethomepage.dev/group: database
+    #       # gethomepage.dev/icon: sh-kokoro.svg
+    #       gethomepage.dev/name: *app
+    #       gethomepage.dev/app: *app
+    #       external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    #       gatus.home-operations.com/endpoint: |-
+    #         conditions: ["[STATUS] == 200"]
+    #     hostnames:
+    #       - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+    #       - sdb.${SECRET_DOMAIN}
+    #     parentRefs:
+    #       - name: envoy-internal
+    #         namespace: network
+    #         sectionName: https
+    #     backendRefs:
+    #       - name: surrealdb
+    #         namespace: database
+    #         port: 8000
 
     # Health checks
     livenessProbe:
