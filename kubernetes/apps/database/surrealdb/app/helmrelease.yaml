@@ -108,6 +108,10 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+        backendRefs:
+          - name: surrealdb
+            namespace: database
+            port: 8000
 
     # Health checks
     livenessProbe:
