@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: surrealdb
+  name: &app surrealdb
 spec:
   interval: 30m
   chart:
@@ -89,6 +89,26 @@ spec:
           matchLabels:
             app.kubernetes.io/name: surrealdb
 
+    route:
+      app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/description: surrealdb
+          gethomepage.dev/group: database
+          # gethomepage.dev/icon: sh-kokoro.svg
+          gethomepage.dev/name: *app
+          gethomepage.dev/app: *app
+          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            conditions: ["[STATUS] == 200"]
+        hostnames:
+          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+          - sdb.${SECRET_DOMAIN}
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
     # Health checks
     livenessProbe:
       httpGet:
@@ -106,4 +126,4 @@ spec:
 
     # Service monitor for Prometheus
     serviceMonitor:
-      enabled: false  # We'll create PodMonitor manually
+      enabled: true
