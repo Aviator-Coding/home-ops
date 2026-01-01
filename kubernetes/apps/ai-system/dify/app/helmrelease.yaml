@@ -34,10 +34,12 @@ spec:
   valuesFrom:
     - kind: Secret
       name: dify-secret
+      namespace: ai-system
       valuesKey: SECRET_DIFY_APP_SECRET_KEY
       targetPath: global.appSecretKey
     - kind: Secret
       name: dify-secret
+      namespace: ai-system
       valuesKey: SECRET_DIFY_INNER_API_KEY
       targetPath: global.innerApiKey
 
