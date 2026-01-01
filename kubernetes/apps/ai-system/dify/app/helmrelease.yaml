@@ -40,11 +40,70 @@ spec:
       name: dify-secret
       valuesKey: SECRET_DIFY_INNER_API_KEY
       targetPath: global.innerApiKey
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_HOST
+      targetPath: externalPostgres.address
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_PORT
+      targetPath: externalPostgres.port
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_USER_NAME
+      targetPath: externalPostgres.credentials.dify.username
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_USER_PASSWORD
+      targetPath: externalPostgres.credentials.dify.password
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_NAME
+      targetPath: externalPostgres.credentials.dify.database
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_USER_NAME
+      targetPath: externalPostgres.credentials.enterprise.username
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_USER_PASSWORD
+      targetPath: externalPostgres.credentials.enterprise.password
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_NAME
+      targetPath: externalPostgres.credentials.enterprise.database
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_USER_NAME
+      targetPath: externalPostgres.credentials.plugin_daemon.username
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_USER_PASSWORD
+      targetPath: externalPostgres.credentials.plugin_daemon.password
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_NAME
+      targetPath: externalPostgres.credentials.plugin_daemon.database
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_USER_NAME
+      targetPath: externalPostgres.credentials.audit.username
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_USER_PASSWORD
+      targetPath: externalPostgres.credentials.audit.password
+    - kind: Secret
+      name: dify-secret
+      valuesKey: POSTGRES_DB_NAME
+      targetPath: externalPostgres.credentials.audit.database
 
   values:
     global:
       useTLS: true
       dbMigrationEnabled: true
+
+    externalPostgres:
+      enabled: true
 
     api:
       replicas: 2
