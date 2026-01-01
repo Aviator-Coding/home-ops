@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/kustomization-kustomize-v1.json
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dify-db-bootstrap
+spec:
+  interval: 10m
+  path: ./kubernetes/apps/ai-system/dify/db
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  targetNamespace: dify
+  timeout: 5m
+  healthChecks:
+    - apiVersion: batch/v1
+      kind: Job
+      name: dify-init-postgres
+
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/kustomization-kustomize-v1.json
+# apiVersion: kustomize.toolkit.fluxcd.io/v1
+# kind: Kustomization
+# metadata:
+#   name: &app dify
+# spec:
+#   targetNamespace: ai-system
+#   interval: 30m
+#   retryInterval: 1m
+#   timeout: 3m
+#   path: "./kubernetes/apps/ai-system/dify/app"
+#   prune: true
+#   wait: false
+#   sourceRef:
+#     kind: GitRepository
+#     name: flux-system
+#     namespace: flux-system
+#   dependsOn:
+#     - name: onepassword-store
+#       namespace: security
+#     - name: litellm
+#       namespace: ai
+#   postBuild:
+#     substituteFrom:
+#       - name: cluster-secrets
+#         kind: Secret
+#     substitute:
+#       APP: *app
