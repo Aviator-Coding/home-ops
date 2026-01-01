@@ -82,8 +82,6 @@ model_list:
       supports_function_calling: true
     aliases: [general_anthropic, vision_anthropic]
 
-
-
   # Deepseek Models
   - model_name: "Deepseek: Chat"
     provider: deepseek
@@ -603,6 +601,32 @@ model_list:
       disable_background_health_check: true
     aliases: [video_gen_gemini_fast]
 
+  # Mistral
+
+  - model_name: mistral-large-latest
+    litellm_params:
+      model: mistral/mistral-large-latest
+      api_key: ${MISTRAL_API_KEY}
+
+  - model_name: mistral-medium-latest
+    litellm_params:
+      model: mistral/mistral-medium-latest
+      api_key: ${MISTRAL_API_KEY}
+
+  - model_name: mistral-small-latest
+    litellm_params:
+      model: mistral/mistral-small-latest
+      api_key: ${MISTRAL_API_KEY}
+
+  - model_name: ministral-8b-latest
+    litellm_params:
+      model: mistral/ministral-8b-latest
+      api_key: ${MISTRAL_API_KEY}
+
+  - model_name: ministral-3b-latest
+    litellm_params:
+      model: mistral/ministral-3b-latest
+      api_key: ${MISTRAL_API_KEY}
 # Fallback Groups
 # Each group is a list of model aliases (not full names!)
 # These groups are referenced by `router_model_list` virtual models
