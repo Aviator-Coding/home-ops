@@ -105,6 +105,17 @@ spec:
     externalPostgres:
       enabled: true
 
+    persistence:
+      enabled: true
+      type: local
+      local:
+        mountPath: /app/api/storage
+        persistentVolumeClaim:
+          existingClaim: ""
+          storageClass: rook-ceph-filesystem # @todo ensure RWX class
+          accessModes: ReadWriteMany
+          size: 10Gi
+
     api:
       replicas: 2
       resources:
