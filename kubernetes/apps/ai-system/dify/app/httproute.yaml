@@ -25,7 +25,20 @@ spec:
     - matches:
         - path:
             type: PathPrefix
+            value: /api
+        - path:
+            type: PathPrefix
+            value: /v1
+        - path:
+            type: PathPrefix
+            value: /console/api
+      backendRefs:
+        - name: dify-api-svc
+          port: 5001
+    - matches:
+        - path:
+            type: PathPrefix
             value: /
       backendRefs:
-        - name: dify-api # @todo verify service name from chart
-          port: 5001
+        - name: dify-web-svc
+          port: 3000
