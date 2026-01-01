@@ -71,10 +71,11 @@ spec:
         data:
           config.yaml: |-
             ingress:
-              - hostname: "${SECRET_DOMAIN}"
+              - hostname: "*.${SECRET_DOMAIN}"
                 originRequest:
                   http2Origin: true
                   originServerName: "external.${SECRET_DOMAIN}"
+                  tcpKeepAlive: 7200s
                 service: &svc https://envoy-external.{{ .Release.Namespace }}.svc.cluster.local:443
               - service: http_status:404
     persistence:
