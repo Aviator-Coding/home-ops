@@ -2,7 +2,6 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: dify-init-postgres
-  namespace: dify
 spec:
   ttlSecondsAfterFinished: 86400
   backoffLimit: 2
