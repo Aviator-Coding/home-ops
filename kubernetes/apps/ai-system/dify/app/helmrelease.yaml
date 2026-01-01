@@ -1,0 +1,182 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dify
+  namespace: dify
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: dify
+      version: 3.7.3
+      sourceRef:
+        kind: HelmRepository
+        name: dify
+        namespace: flux-system
+      interval: 12h
+
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    cleanupOnFail: true
+
+  timeout: 20m
+
+  valuesFrom:
+    - kind: Secret
+      name: dify-secret
+      valuesKey: APP_SECRET_KEY
+      targetPath: global.appSecretKey
+    - kind: Secret
+      name: dify-secret
+      valuesKey: INNER_API_KEY
+      targetPath: global.innerApiKey
+
+  values:
+    global:
+      useTLS: true
+      dbMigrationEnabled: true
+
+    api:
+      replicas: 2
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+      extraEnv:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: dify-secret
+              key: DATABASE_URL # @todo
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: dify-secret
+              key: REDIS_URL # @todo
+        - name: UPLOAD_FILE_SIZE_LIMIT
+          value: "50"
+        - name: RATE_LIMIT_ENABLED
+          value: "true"
+
+    worker:
+      replicas: 2
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+      extraEnv:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: dify-secret
+              key: DATABASE_URL # @todo
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: dify-secret
+              key: REDIS_URL # @todo
+
+    triggerWorker:
+      enabled: true
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      extraEnv:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: dify-secret
+              key: DATABASE_URL # @todo
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: dify-secret
+              key: REDIS_URL # @todo
+
+    workerBeat:
+      enabled: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      extraEnv:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: dify-secret
+              key: DATABASE_URL # @todo
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: dify-secret
+              key: REDIS_URL # @todo
+
+    web:
+      replicas: 2
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+    sandbox:
+      enabled: true
+      replicas: 1
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+
+    plugin_daemon:
+      enabled: true
+      replicas: 1
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+
+    ssrfProxy:
+      enabled: true
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
+    ingress:
+      enabled: false
