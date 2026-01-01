@@ -34,11 +34,11 @@ spec:
   valuesFrom:
     - kind: Secret
       name: dify-secret
-      valuesKey: APP_SECRET_KEY
+      valuesKey: SECRET_DIFY_APP_SECRET_KEY
       targetPath: global.appSecretKey
     - kind: Secret
       name: dify-secret
-      valuesKey: INNER_API_KEY
+      valuesKey: SECRET_DIFY_INNER_API_KEY
       targetPath: global.innerApiKey
 
   values:
