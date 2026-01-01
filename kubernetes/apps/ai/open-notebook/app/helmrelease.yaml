@@ -31,7 +31,7 @@ spec:
           app:
             image:
               repository: ghcr.io/lfnovo/open-notebook
-              tag: v1-latest-single
+              tag: v1-latest
             env:
               API_URL: "https://open-notebook-api.${SECRET_DOMAIN}"
             envFrom:
