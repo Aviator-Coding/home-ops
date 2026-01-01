@@ -105,6 +105,13 @@ spec:
     externalPostgres:
       enabled: true
 
+    externalRedis:
+      enabled: true
+      host: dify-dragonfly
+      port: 6379
+      db: 0
+      useSSL: false
+
     persistence:
       enabled: true
       type: local
