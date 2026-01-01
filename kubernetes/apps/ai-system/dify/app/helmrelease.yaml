@@ -237,5 +237,8 @@ spec:
           cpu: 500m
           memory: 256Mi
 
+    gateway:
+      enabled: false
+
     ingress:
       enabled: false
