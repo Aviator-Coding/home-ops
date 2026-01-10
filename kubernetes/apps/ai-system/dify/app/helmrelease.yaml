@@ -247,16 +247,9 @@ spec:
           cpu: 1000m
           memory: 2Gi
 
+    # Disable plugin system (requires enterprise backend for plugin_manager)
     plugin_daemon:
-      enabled: true
-      replicas: 1
-      resources:
-        requests:
-          cpu: 200m
-          memory: 512Mi
-        limits:
-          cpu: 1000m
-          memory: 2Gi
+      enabled: false
 
     ssrfProxy:
       enabled: true
@@ -282,14 +275,9 @@ spec:
     plugin_manager:
       enabled: false
 
-    plugin_connector:
-      enabled: false
-
-    plugin_controller:
-      enabled: false
-
+    # Gateway has no enabled flag in chart, set replicas: 0 to disable
     gateway:
-      enabled: false
+      replicas: 0
 
     ingress:
       enabled: false
