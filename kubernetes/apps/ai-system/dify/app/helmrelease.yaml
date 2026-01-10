@@ -275,6 +275,19 @@ spec:
     enterpriseAudit:
       enabled: false
 
+    enterpriseFrontend:
+      enabled: false
+
+    # Disable enterprise plugin components (require enterprise backend)
+    plugin_manager:
+      enabled: false
+
+    plugin_connector:
+      enabled: false
+
+    plugin_controller:
+      enabled: false
+
     gateway:
       enabled: false
 
