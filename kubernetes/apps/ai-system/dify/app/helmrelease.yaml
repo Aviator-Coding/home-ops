@@ -289,3 +289,17 @@ spec:
 
     ingress:
       enabled: false
+
+  # Post-render patches to fix issues not configurable via values
+  postRenderers:
+    - kustomize:
+        patches:
+          # Fix plugin-daemon storage permissions - runs as uid 1001 (dify user)
+          - target:
+              kind: Deployment
+              name: dify-plugin-daemon
+            patch: |
+              - op: add
+                path: /spec/template/spec/securityContext
+                value:
+                  fsGroup: 1001
