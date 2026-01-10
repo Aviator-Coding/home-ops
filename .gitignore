@@ -21,3 +21,6 @@ talosconfig
 .DS_Store
 Thumbs.db
 1password-credential.json
+
+# Auto Claude data directory
+.auto-claude/

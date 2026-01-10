@@ -99,30 +99,12 @@ spec:
 
   values:
     global:
-      useTLS: true
-      dbMigrationEnabled: true
+      # useTLS: true
+      # dbMigrationEnabled: true
 
-    externalPostgres:
-      enabled: true
-
-    externalRedis:
-      enabled: true
-      host: dify-dragonfly
-      port: 6379
-      db: 0
-      useSSL: false
-
-    persistence:
-      enabled: true
-      type: local
-      local:
-        mountPath: /app/api/storage
-        persistentVolumeClaim:
-          existingClaim: ""
-          storageClass: ceph-filesystem
-          accessModes: ReadWriteMany
-          size: 10Gi
-
+    #################################
+    #
+    ################################
     api:
       replicas: 2
       resources:
@@ -147,6 +129,29 @@ spec:
           value: "50"
         - name: RATE_LIMIT_ENABLED
           value: "true"
+
+    externalPostgres:
+      enabled: true
+
+    externalRedis:
+      enabled: true
+      host: dify-dragonfly
+      port: 6379
+      db: 0
+      useSSL: false
+
+    persistence:
+      enabled: true
+      type: local
+      local:
+        mountPath: /app/api/storage
+        persistentVolumeClaim:
+          existingClaim: ""
+          storageClass: ceph-filesystem
+          accessModes: ReadWriteMany
+          size: 10Gi
+
+
 
     worker:
       replicas: 2
@@ -254,6 +259,7 @@ spec:
         limits:
           cpu: 500m
           memory: 256Mi
+
     enterprise:
       enabled: false
 
