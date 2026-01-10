@@ -247,9 +247,17 @@ spec:
           cpu: 1000m
           memory: 2Gi
 
-    # Disable plugin system (requires enterprise backend for plugin_manager)
+    # Plugin daemon for community plugin support (plugin_manager requires enterprise)
     plugin_daemon:
-      enabled: false
+      enabled: true
+      replicas: 1
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
 
     ssrfProxy:
       enabled: true
