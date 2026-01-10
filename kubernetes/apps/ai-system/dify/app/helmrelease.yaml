@@ -99,12 +99,20 @@ spec:
 
   values:
     global:
-      # useTLS: true
-      # dbMigrationEnabled: true
+      useTLS: true
+      # The backend domain of the console API
+      consoleApiDomain: "dify.${SECRET_DOMAIN}"
+      # The front-end domain of the console web
+      consoleWebDomain: "dify.${SECRET_DOMAIN}"
+      # Service API domain
+      serviceApiDomain: "dify.${SECRET_DOMAIN}"
+      # WebApp API backend domain
+      appApiDomain: "dify.${SECRET_DOMAIN}"
+      # WebApp domain
+      appWebDomain: "dify.${SECRET_DOMAIN}"
+      # File preview/download domain
+      filesDomain: "dify.${SECRET_DOMAIN}"
 
-    #################################
-    #
-    ################################
     api:
       replicas: 2
       resources:
