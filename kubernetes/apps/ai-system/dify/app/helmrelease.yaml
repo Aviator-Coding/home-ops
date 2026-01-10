@@ -139,6 +139,7 @@ spec:
       port: 6379
       db: 0
       useSSL: false
+      password: ""
 
     persistence:
       enabled: true
