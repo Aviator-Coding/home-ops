@@ -22,6 +22,15 @@ spec:
   hostnames:
     - dify.${SECRET_DOMAIN} # @todo
   rules:
+    # Plugin daemon endpoint for plugin callbacks/webhooks
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /e/
+      backendRefs:
+        - name: dify-plugin-daemon-svc
+          port: 5002
+    # API routes
     - matches:
         - path:
             type: PathPrefix
@@ -32,9 +41,13 @@ spec:
         - path:
             type: PathPrefix
             value: /console/api
+        - path:
+            type: PathPrefix
+            value: /files
       backendRefs:
         - name: dify-api-svc
           port: 5001
+    # Web frontend (catch-all)
     - matches:
         - path:
             type: PathPrefix
