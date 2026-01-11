@@ -259,6 +259,12 @@ spec:
           cpu: 1000m
           memory: 2Gi
 
+    # Plugin connector for serverless plugin execution
+    plugin_connector:
+      builder:
+        kaniko:
+          imagePrefix: "ghcr.io/aviator-coding"
+
     ssrfProxy:
       enabled: true
       replicas: 1
