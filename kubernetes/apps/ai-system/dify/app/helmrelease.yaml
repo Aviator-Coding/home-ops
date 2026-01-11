@@ -264,6 +264,8 @@ spec:
       builder:
         kaniko:
           imagePrefix: "ghcr.io/aviator-coding"
+      runner:
+        secret: "image-pull-secret"
 
     ssrfProxy:
       enabled: true
