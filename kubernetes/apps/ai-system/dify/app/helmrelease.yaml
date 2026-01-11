@@ -311,3 +311,106 @@ spec:
                 path: /spec/template/spec/securityContext
                 value:
                   fsGroup: 1001
+          # Fix plugin-connector config - chart doesn't properly apply these values
+          - target:
+              kind: ConfigMap
+              name: dify-plugin-connector-config
+            patch: |
+              - op: replace
+                path: /data/config.yaml
+                value: |
+                  pluginScheduleInfo:
+                    labels:
+                    nodeSelector:
+                    requests:
+                      cpu: "100m"
+                      memory: "50Mi"
+                      ephemeralStorage: "5Gi"
+                    limits:
+                      cpu: "1000m"
+                      memory: "3000Mi"
+                      ephemeralStorage: "5Gi"
+                  namespace: "ai-system"
+                  customServiceAccount: ""
+                  runnerServiceAccount: ""
+                  server:
+                    serverPort: 5004
+                    apiKey: ${SERVER_API_KEY}
+                    maxWaitSeconds: 3600
+                  data:
+                    enterpriseDb:
+                      driver: "postgres"
+                      db_name: "dify"
+                      host: "postgres-17-rw.database.svc.cluster.local"
+                      port: "5432"
+                      user: "dify"
+                      password: ${ENTERPRISE_DB_PASS}
+                      ssl_mode: "require"
+                      uri_scheme: "postgresql"
+                      db_extras: ""
+                      db_charset: ""
+                    pluginDb:
+                      driver: "postgres"
+                      db_name: "dify"
+                      host: "postgres-17-rw.database.svc.cluster.local"
+                      port: "5432"
+                      user: "dify"
+                      password: ${PLUGIN_DB_PASS}
+                      ssl_mode: "require"
+                      uri_scheme: "postgresql"
+                      db_extras: ""
+                      db_charset: ""
+                  builder:
+                    maxDockerContextSize: 52428800
+                    builderName: "kaniko"
+                    secret: image-repo-secret
+                    repoType: "docker"
+                    insecureRepo: false
+                    kaniko:
+                      shaderImage: "gcr.io/kaniko-project/executor:latest"
+                      imagePrefix: "ghcr.io/aviator-coding"
+                      ecr_region: "us-east-1"
+                      use_aws_iam: false
+                      awsCliImage: "amazon/aws-cli:latest"
+                    github:
+                      repoName: ""
+                      actionFileName: "build.yml"
+                      branch: "main"
+                      imagePrefix: "ghcr.io/aviator-coding"
+                      orgName: ""
+                      shaderImage: "gcr.io/kaniko-project/executor:latest"
+                      authMethod: "auto"
+                      githubAccessToken: ""
+                      app:
+                        appId: "0"
+                        installationId: "0"
+                        privateKeyFile: "/app/github/app.pem"
+                    httpProxy: ""
+                  storage:
+                    remoteS3:
+                      region: ""
+                      accessKey: ""
+                      secretKey: ""
+                      endpoint: ""
+                      bucket: ""
+                      useAws: false
+                      useIam: false
+                    localS3:
+                      region: "us-east-1"
+                      accessKey: ${S3_ACCESS_KEY}
+                      secretKey: ${S3_SECRET_KEY}
+                      endpoint: http://dify-minio.ai-system:9000
+                      bucket: dify-plugin
+                      useAws: false
+                      useIam: false
+                  runner:
+                    gatewayImage: "nginx:1.27.3"
+                    runnerName: k8s
+                    pluginDaemonPublicUrl: http://dify-plugin-daemon-svc:5002
+                    secret: image-pull-secret
+                    k8s:
+                      useIngress: false
+                      ingressConfig:
+                        host: ""
+                        protocol: ""
+                        ingressClassName: ""
