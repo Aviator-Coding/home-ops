@@ -1,0 +1,43 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ceph-custom-alerts
+  namespace: rook-ceph
+spec:
+  groups:
+    - name: ceph-reliability
+      rules:
+        - alert: CephMonitorMemoryHigh
+          expr: |
+            container_memory_working_set_bytes{namespace="rook-ceph",container="mon"}
+            / container_spec_memory_limit_bytes{namespace="rook-ceph",container="mon"} > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph monitor {{ $labels.pod }} memory usage above 80%"
+
+        - alert: CephOSDRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace="rook-ceph",container="osd"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "OSD {{ $labels.pod }} has restarted more than 3 times in 1 hour"
+
+        - alert: CephOSDSlowOps
+          expr: ceph_osd_slow_ops > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OSD experiencing slow operations"
+
+        - alert: CephMonitorQuorumAtRisk
+          expr: ceph_mon_quorum_status < 3
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph monitor quorum has fewer than 3 members"

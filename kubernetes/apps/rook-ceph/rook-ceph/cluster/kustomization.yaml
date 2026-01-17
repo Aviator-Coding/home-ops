@@ -6,5 +6,6 @@ resources:
   - ./ocirepository.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
+  - ./prometheusrules.yaml
   - ../backup
   - ./volumesnapshotclass-patch.yaml
