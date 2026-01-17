@@ -56,8 +56,8 @@ spec:
           bluestore_compression_mode: aggressive
           bluestore_compression_required_ratio: "0.875"
 
-          # Reasonable cache size for homelab
-          bluestore_cache_size: "1073741824" # 1GB per OSD
+          # Increased cache size for better performance
+          bluestore_cache_size: "2147483648" # 2GB per OSD
 
         mgr:
           mgr/crash/warn_recent_interval: "7200"
@@ -102,16 +102,16 @@ spec:
             memory: 2Gi
         mon:
           requests:
-            cpu: 50m
-            memory: 512Mi
-          limits:
+            cpu: 100m
             memory: 1Gi
+          limits:
+            memory: 4Gi
         osd:
           requests:
             cpu: 500m
-            memory: 2Gi
+            memory: 4Gi
           limits:
-            memory: 6Gi
+            memory: 8Gi
         mgr-sidecar:
           requests:
             cpu: 50m
