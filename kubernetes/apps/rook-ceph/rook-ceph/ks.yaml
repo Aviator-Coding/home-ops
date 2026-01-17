@@ -14,7 +14,7 @@ spec:
     - name: onepassword-store
       namespace: security
   interval: 30m
-  timeout: 5m
+  timeout: 15m
   path: "./kubernetes/apps/rook-ceph/rook-ceph/operator"
   prune: false # Never delete this
   sourceRef:
@@ -35,7 +35,7 @@ spec:
     labels:
       app.kubernetes.io/name: *appname
   interval: 30m
-  timeout: 5m
+  timeout: 15m
   path: "./kubernetes/apps/rook-ceph/rook-ceph/cluster"
   postBuild:
     substituteFrom:
@@ -50,18 +50,10 @@ spec:
     name: flux-system
     namespace: flux-system
   wait: false
-  # Temporarily disabled health checks to resolve authentication loop
-  # healthChecks:
-  #   - apiVersion: helm.toolkit.fluxcd.io/v2
-  #     kind: HelmRelease
-  #     name: rook-ceph-cluster
-  #     namespace: *namespace
-  #   - apiVersion: ceph.rook.io/v1
-  #     kind: CephCluster
-  #     name: rook-ceph
-  #     namespace: *namespace
-  # healthCheckExprs:
-  #   - apiVersion: ceph.rook.io/v1
-  #     kind: CephCluster
-  #     failed: status.ceph.health == 'HEALTH_ERR'
-  #     current: status.ceph.health in ['HEALTH_OK', 'HEALTH_WARN']
+  # HelmRelease-only health check avoids CRD permission complexity
+  # while still providing meaningful deployment verification
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: rook-ceph-cluster
+      namespace: rook-ceph

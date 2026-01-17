@@ -41,3 +41,73 @@ spec:
             severity: critical
           annotations:
             summary: "Ceph monitor quorum has fewer than 3 members"
+
+        # Capacity alerts
+        - alert: CephClusterNearFull
+          expr: |
+            ceph_cluster_total_used_bytes / ceph_cluster_total_bytes > 0.75
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph cluster storage usage above 75%"
+            description: "Cluster is {{ $value | humanizePercentage }} full. Consider adding capacity or cleaning up data."
+
+        - alert: CephClusterCriticallyFull
+          expr: |
+            ceph_cluster_total_used_bytes / ceph_cluster_total_bytes > 0.85
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph cluster storage usage above 85%"
+            description: "Cluster is {{ $value | humanizePercentage }} full. Immediate action required."
+
+        - alert: CephOSDNearFull
+          expr: |
+            (ceph_osd_stat_bytes_used / ceph_osd_stat_bytes) > 0.80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OSD {{ $labels.ceph_daemon }} storage usage above 80%"
+            description: "OSD {{ $labels.ceph_daemon }} is {{ $value | humanizePercentage }} full."
+
+        - alert: CephOSDFull
+          expr: |
+            (ceph_osd_stat_bytes_used / ceph_osd_stat_bytes) > 0.90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "OSD {{ $labels.ceph_daemon }} storage usage above 90%"
+            description: "OSD {{ $labels.ceph_daemon }} is {{ $value | humanizePercentage }} full. Critical!"
+
+        # OSD down/health alerts
+        - alert: CephOSDDown
+          expr: ceph_osd_up == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph OSD {{ $labels.ceph_daemon }} is down"
+            description: "OSD {{ $labels.ceph_daemon }} has been down for more than 5 minutes."
+
+        - alert: CephOSDOut
+          expr: ceph_osd_in == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph OSD {{ $labels.ceph_daemon }} is out of the cluster"
+            description: "OSD {{ $labels.ceph_daemon }} is marked out and not participating in data placement."
+
+        - alert: CephOSDFlapping
+          expr: |
+            changes(ceph_osd_up[10m]) > 4
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OSD {{ $labels.ceph_daemon }} is flapping"
+            description: "OSD {{ $labels.ceph_daemon }} has changed state more than 4 times in 10 minutes."
