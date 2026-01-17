@@ -286,8 +286,18 @@ spec:
                 memory: 1Gi
               limits:
                 memory: 3Gi
-            instances: 1
+            # HA configuration: 2 RGW instances spread across nodes
+            instances: 2
             priorityClassName: system-cluster-critical
+            placement:
+              topologySpreadConstraints:
+                - maxSkew: 1
+                  topologyKey: kubernetes.io/hostname
+                  whenUnsatisfiable: DoNotSchedule
+                  labelSelector:
+                    matchLabels:
+                      app: rook-ceph-rgw
+                      ceph_daemon_id: ceph-objectstore
           healthCheck:
             bucket:
               interval: 60s
