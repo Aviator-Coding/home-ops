@@ -7,6 +7,13 @@ metadata:
 spec:
   interval: 30m
   releaseName: rook-ceph
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
   chartRef:
     kind: OCIRepository
     name: rook-ceph

@@ -27,12 +27,13 @@ spec:
             summary: "OSD {{ $labels.pod }} has restarted more than 3 times in 1 hour"
 
         - alert: CephOSDSlowOps
-          expr: ceph_osd_slow_ops > 0
+          expr: ceph_osd_slow_ops > 5
           for: 10m
           labels:
             severity: warning
           annotations:
-            summary: "OSD experiencing slow operations"
+            summary: "OSD {{ $labels.ceph_daemon }} experiencing sustained slow operations"
+            description: "OSD {{ $labels.ceph_daemon }} has {{ $value }} slow operations for more than 10 minutes."
 
         - alert: CephMonitorQuorumAtRisk
           expr: ceph_mon_quorum_status < 3
@@ -111,3 +112,75 @@ spec:
           annotations:
             summary: "OSD {{ $labels.ceph_daemon }} is flapping"
             description: "OSD {{ $labels.ceph_daemon }} has changed state more than 4 times in 10 minutes."
+
+    - name: ceph-pg-health
+      rules:
+        # Placement Group Health Alerts
+        - alert: CephPGDegraded
+          expr: ceph_pg_degraded > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph placement groups are degraded"
+            description: "{{ $value }} placement groups are in degraded state. Data is still accessible but not fully replicated."
+
+        - alert: CephPGInactive
+          expr: ceph_pg_inactive > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph placement groups are inactive"
+            description: "{{ $value }} placement groups are inactive. Data may be inaccessible."
+
+        - alert: CephPGInconsistent
+          expr: ceph_pg_inconsistent > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph placement groups are inconsistent"
+            description: "{{ $value }} placement groups have inconsistent data. Run 'ceph pg repair' after investigation."
+
+        - alert: CephPGRecoveryFull
+          expr: ceph_pg_recovery_full > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph recovery blocked - cluster full"
+            description: "Placement group recovery is blocked because the cluster is too full."
+
+    - name: ceph-disk-health
+      rules:
+        # Disk Health Prediction Alerts
+        - alert: CephDiskPredictedFailure
+          expr: ceph_device_life_expectancy_min < 7
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk failure predicted for {{ $labels.device }}"
+            description: "Device {{ $labels.device }} on {{ $labels.host }} is predicted to fail within {{ $value }} days. Plan replacement."
+
+        - alert: CephDiskPredictedFailureImminent
+          expr: ceph_device_life_expectancy_min < 1 and ceph_device_life_expectancy_min >= 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Disk failure imminent for {{ $labels.device }}"
+            description: "Device {{ $labels.device }} on {{ $labels.host }} is predicted to fail within 24 hours. Replace immediately."
+
+    - name: ceph-crash-detection
+      rules:
+        # Crash Detection Alert
+        - alert: CephCrashesDetected
+          expr: ceph_health_detail{name="RECENT_CRASH"} == 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph daemon crash detected"
+            description: "A Ceph daemon has crashed recently. Run 'ceph crash ls-new' to see details and 'ceph crash archive-all' after review."
