@@ -141,9 +141,6 @@ spec:
             namespace: network
             sectionName: https
         rules:
-          - matches:
-              - path:
-                  value: /webhook
-            backendRefs:
+          - backendRefs:
               - name: n8n
                 port: *port
