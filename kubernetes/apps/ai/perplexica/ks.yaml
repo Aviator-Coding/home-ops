@@ -4,7 +4,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app perplexica
-  namespace: &ns ai
+  namespace: &namespace ai
 spec:
   commonMetadata:
     labels:
@@ -20,13 +20,13 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      GATUS_GROUP: *ns
+      GATUS_GROUP: *namespace
   prune: true
   retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: *ns
+  targetNamespace: *namespace
   timeout: 5m
   wait: false

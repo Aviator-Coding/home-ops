@@ -4,9 +4,9 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app matter-server
-  namespace: &ns home-automation
+  namespace: &namespace home-automation
 spec:
-  targetNamespace: *ns
+  targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app

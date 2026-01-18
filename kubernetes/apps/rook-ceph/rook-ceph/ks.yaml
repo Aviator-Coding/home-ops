@@ -1,15 +1,15 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/kustomization-kustomize-v1.json
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &appname rook-ceph
+  name: &app rook-ceph
   namespace: &namespace rook-ceph
 spec:
   targetNamespace: *namespace
   commonMetadata:
     labels:
-      app.kubernetes.io/name: *appname
+      app.kubernetes.io/name: *app
   dependsOn:
     - name: onepassword-store
       namespace: security
@@ -23,17 +23,17 @@ spec:
     namespace: flux-system
   wait: false
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/kustomization-kustomize-v1.json
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &appname rook-ceph-cluster
+  name: &app rook-ceph-cluster
   namespace: &namespace rook-ceph
 spec:
   targetNamespace: *namespace
   commonMetadata:
     labels:
-      app.kubernetes.io/name: *appname
+      app.kubernetes.io/name: *app
   interval: 30m
   timeout: 15m
   path: "./kubernetes/apps/rook-ceph/rook-ceph/cluster"

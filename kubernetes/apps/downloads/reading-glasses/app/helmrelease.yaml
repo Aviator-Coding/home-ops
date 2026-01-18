@@ -2,15 +2,15 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: rreading-glasses
+  name: reading-glasses
 spec:
   chartRef:
     kind: OCIRepository
-    name: rreading-glasses
+    name: reading-glasses
   interval: 1h
   values:
     controllers:
-      rreading-glasses:
+      reading-glasses:
         annotations:
           reloader.stakater.com/auto: "true"
         initContainers:

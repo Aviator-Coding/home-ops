@@ -14,7 +14,7 @@ This Taskfile provides automated tasks for managing Rook Ceph storage cluster op
 Ensure these files exist before running tasks:
 
 ```
-.taskfiles/Rook/
+.taskfiles/rook/
 ├── Taskfile.yaml          # This file
 ├── README.md             # This documentation
 ├── scripts/
@@ -392,8 +392,8 @@ kubectl auth can-i get nodes
 ### Template Files Missing
 Verify all required files exist:
 ```bash
-ls -la .taskfiles/Rook/scripts/
-ls -la .taskfiles/Rook/templates/
+ls -la .taskfiles/rook/scripts/
+ls -la .taskfiles/rook/templates/
 
 # If templates are missing, the validation will show specific errors
 task rook:validate-templates
