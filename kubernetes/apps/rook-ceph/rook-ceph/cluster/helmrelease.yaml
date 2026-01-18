@@ -64,9 +64,6 @@ spec:
           # Fix dashboard binding to listen on all interfaces
           mgr/dashboard/server_addr: "0.0.0.0"
           mgr/dashboard/server_port: "7000"
-          # Loki integration for dashboard logs
-          mgr/loki/loki_host: "loki-headless.monitoring.svc.cluster.local"
-          mgr/loki/loki_port: "3100"
 
         osd:
           # Keep it simple for homelab
@@ -97,8 +94,6 @@ spec:
           - name: nfs
             enabled: true
           - name: rgw
-            enabled: true
-          - name: loki
             enabled: true
       network:
         provider: host
