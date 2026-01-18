@@ -16,5 +16,28 @@ spec:
       clients:
         - url: http://loki-headless.monitoring.svc.cluster.local:3100/loki/api/v1/push
 
+      snippets:
+        # Add relabel configs to properly label Ceph logs for dashboard compatibility
+        extraRelabelConfigs:
+          # Add ceph_daemon_type label for Ceph dashboard compatibility
+          - source_labels: [__meta_kubernetes_pod_label_ceph_daemon_type]
+            target_label: ceph_daemon_type
+          # Add ceph_daemon_id label
+          - source_labels: [__meta_kubernetes_pod_label_ceph_daemon_id]
+            target_label: ceph_daemon_id
+          # Add ceph_cluster_id label
+          - source_labels: [__meta_kubernetes_namespace]
+            regex: rook-ceph
+            target_label: ceph_cluster_id
+            replacement: rook-ceph
+          # Add hostname label
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: hostname
+          # Identify log type based on container
+          - source_labels: [__meta_kubernetes_container_name]
+            regex: "(mgr|mon|osd|mds|rgw)"
+            target_label: log_type
+            replacement: daemon
+
     serviceMonitor:
       enabled: true

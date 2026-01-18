@@ -6,3 +6,4 @@ resources:
   - ./ocirepository.yaml
   - ./helmrelease.yaml
   - ./prometheus-rule.yaml
+  - ./networkpolicy-ceph.yaml
