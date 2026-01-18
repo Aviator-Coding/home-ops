@@ -38,6 +38,7 @@ spec:
               N8N_PORT: &port 80
               N8N_HOST: &hostName "n8n.${SECRET_DOMAIN}"
               WEBHOOK_URL: "https://n8n-webhook.${SECRET_DOMAIN}/"
+              N8N_PROXY_HOPS: 1
               # Logging
               N8N_LOG_LEVEL: info
               N8N_LOG_OUTPUT: console
@@ -153,4 +154,12 @@ spec:
             backendRefs:
               - name: n8n
                 port: 80
+                # NEW: OAuth callback rule                                                                                        
+          - matches:                                                                                                        
+              - path:                                                                                                       
+                  type: PathPrefix                                                                                          
+                  value: /rest/oauth2-credential                                                                            
+            backendRefs:                                                                                                    
+              - name: n8n                                                                                                   
+                port: 80   
 
