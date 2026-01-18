@@ -93,6 +93,8 @@ spec:
             enabled: true
           - name: nfs
             enabled: true
+          - name: rgw
+            enabled: true
       network:
         provider: host
         connections:
