@@ -37,7 +37,7 @@ spec:
               GENERIC_TIMEZONE: America/New_York
               N8N_PORT: &port 80
               N8N_HOST: &hostName "n8n.${SECRET_DOMAIN}"
-              WEBHOOK_URL: "https://n8n-webhook.${SECRET_DOMAIN}"
+              WEBHOOK_URL: "https://n8n-webhook.${SECRET_DOMAIN}/"
               # Logging
               N8N_LOG_LEVEL: info
               N8N_LOG_OUTPUT: console
@@ -134,16 +134,41 @@ spec:
           gethomepage.dev/name: N8N Webhook
           gethomepage.dev/icon: n8n.svg
           external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            url: https://n8n-webhook.${SECRET_DOMAIN}/webhook/any
+            conditions:
+              - "[STATUS] == 404"
+              - "[BODY].code == 404"
         hostnames:
           - "n8n-webhook.${SECRET_DOMAIN}"
         parentRefs:
           - name: envoy-external
             namespace: network
-            sectionName: https
         rules:
           - matches:
               - path:
+                  type: PathPrefix
                   value: /webhook
-            backendRefs:
-              - name: n8n
-                port: *port
+            backendRefs: [{}]
+
+      # webhooks:
+      #   annotations:
+      #     gethomepage.dev/enabled: "true"
+      #     gethomepage.dev/group: APIs
+      #     gethomepage.dev/description: N8N Webhook API
+      #     gethomepage.dev/name: N8N Webhook
+      #     gethomepage.dev/icon: n8n.svg
+      #     external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+      #   hostnames:
+      #     - "n8n-webhook.${SECRET_DOMAIN}"
+      #   parentRefs:
+      #     - name: envoy-external
+      #       namespace: network
+      #       sectionName: https
+      #   rules:
+      #     - matches:
+      #         - path:
+      #             value: /webhook
+      #       backendRefs:
+      #         - name: n8n
+      #           port: *port
