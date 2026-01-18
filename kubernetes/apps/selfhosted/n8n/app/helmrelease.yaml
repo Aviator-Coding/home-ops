@@ -144,31 +144,13 @@ spec:
         parentRefs:
           - name: envoy-external
             namespace: network
+            sectionName: https
         rules:
           - matches:
               - path:
                   type: PathPrefix
                   value: /webhook
-            backendRefs: [{}]
+            backendRefs:
+              - name: n8n
+                port: 80
 
-      # webhooks:
-      #   annotations:
-      #     gethomepage.dev/enabled: "true"
-      #     gethomepage.dev/group: APIs
-      #     gethomepage.dev/description: N8N Webhook API
-      #     gethomepage.dev/name: N8N Webhook
-      #     gethomepage.dev/icon: n8n.svg
-      #     external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
-      #   hostnames:
-      #     - "n8n-webhook.${SECRET_DOMAIN}"
-      #   parentRefs:
-      #     - name: envoy-external
-      #       namespace: network
-      #       sectionName: https
-      #   rules:
-      #     - matches:
-      #         - path:
-      #             value: /webhook
-      #       backendRefs:
-      #         - name: n8n
-      #           port: *port
