@@ -70,6 +70,10 @@ spec:
           # osd_pool_default_compression_algorithm: zstd
           # osd_pool_default_compression_mode: aggressive
           osd_recovery_max_active: "3" # Don't overwhelm homelab hardware
+
+        client.rgw:
+          # Explicitly set realm to prevent orphan default zone/zonegroup creation
+          rgw_realm: ceph-objectstore
       crashCollector:
         disable: false
       dashboard:
