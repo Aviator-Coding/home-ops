@@ -96,6 +96,10 @@ spec:
       name: dify-secret
       valuesKey: POSTGRES_DB_NAME
       targetPath: externalPostgres.credentials.audit.database
+    - kind: Secret                                                                                                      
+      name: dify-secret                                                                                                 
+      valuesKey: SECRET_DIFY_INNER_API_KEY                                                                              
+      targetPath: plugin_connector.server.apiKey   
 
   values:
     global:
