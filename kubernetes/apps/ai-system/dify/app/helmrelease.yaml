@@ -315,6 +315,19 @@ spec:
                 path: /spec/template/spec/securityContext
                 value:
                   fsGroup: 1001
+          # Add SERVER_API_KEY env var to plugin-connector for config substitution
+          - target:
+              kind: Deployment
+              name: dify-plugin-connector
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/env/-
+                value:
+                  name: SERVER_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: dify-plugin-daemon-secret
+                      key: DIFY_PLUGIN_SERVERLESS_CONNECTOR_API_KEY
           # Fix plugin-connector config - chart doesn't properly apply these values
           - target:
               kind: ConfigMap
