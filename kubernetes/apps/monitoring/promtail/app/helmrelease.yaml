@@ -12,9 +12,24 @@ spec:
   values:
     fullnameOverride: promtail
 
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+
     config:
       clients:
         - url: http://loki-headless.monitoring.svc.cluster.local:3100/loki/api/v1/push
+          tenant_id: ""
+          batchwait: 1s
+          batchsize: 1048576
+          timeout: 10s
+          backoff_config:
+            min_period: 500ms
+            max_period: 5m
+            max_retries: 10
 
       snippets:
         # Add relabel configs to properly label Ceph logs for dashboard compatibility

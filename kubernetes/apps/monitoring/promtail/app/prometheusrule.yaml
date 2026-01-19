@@ -1,0 +1,30 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: promtail
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: promtail
+      rules:
+        - alert: PromtailRequestErrors
+          annotations:
+            message: "Promtail {{ $labels.pod }} is experiencing {{ $value | humanizePercentage }} request errors."
+          expr: |
+            100 * sum(rate(promtail_request_duration_seconds_count{status_code=~"5..|failed"}[1m])) by (namespace, pod)
+              /
+            sum(rate(promtail_request_duration_seconds_count[1m])) by (namespace, pod)
+              > 10
+          for: 15m
+          labels:
+            severity: warning
+        - alert: PromtailFileLagging
+          annotations:
+            message: "Promtail {{ $labels.pod }} has files lagging more than 1 hour."
+          expr: |
+            promtail_file_bytes_total - promtail_read_bytes_total > 1e9
+          for: 15m
+          labels:
+            severity: warning
