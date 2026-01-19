@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app nack
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: nack
+      version: "*"
+      sourceRef:
+        kind: HelmRepository
+        name: nats
+        namespace: flux-system
+      interval: 5m
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    jetstream:
+      nats:
+        url: nats://nats.database.svc.cluster.local:4222
+      additionalArgs:
+        - --control-loop
+    namespaced: false

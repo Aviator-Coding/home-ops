@@ -14,3 +14,4 @@ resources:
   - ./emqx/ks.yaml
   - ./tidb-operator/ks.yaml
   - ./surrealdb/ks.yaml
+  - ./jetstream/ks.yaml

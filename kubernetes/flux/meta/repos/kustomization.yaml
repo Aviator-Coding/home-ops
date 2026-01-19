@@ -13,3 +13,4 @@ resources:
   - ./headlamp.yaml
   - ./angelnu-helm-charts.yaml
   - ./surrealdb.yaml
+  - ./nats.yaml

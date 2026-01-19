@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/refs/heads/main/jetstream.nats.io/stream_v1beta2.json
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: events
+spec:
+  name: events
+  subjects:
+    - "events.*"
+    - "events.>"
+  storage: file
+  replicas: 3
+  retention: limits
+  maxAge: 168h
+  maxBytes: 5368709120
+  discard: old
