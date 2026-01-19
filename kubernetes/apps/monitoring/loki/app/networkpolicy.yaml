@@ -2,8 +2,7 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ceph-to-loki
-  namespace: monitoring
+  name: loki-ingress
 spec:
   podSelector:
     matchLabels:
@@ -11,6 +10,15 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Allow log collectors and queriers (promtail, grafana, etc.)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3100
+    # Allow Ceph dashboard to query logs
     - from:
         - namespaceSelector:
             matchLabels:
