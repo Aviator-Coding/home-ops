@@ -56,7 +56,7 @@ spec:
               TZ: America/New_York
               # REDIS_HOST: redis://litellm-dragonfly:6379  # Available for future use
               STORE_MODEL_IN_DB: True
-              LITELLM_LOG: "DEBUG"
+              LITELLM_LOG: "INFO"
               LITELLM_MODE: "production"
               LITELLM_DONT_SHOW_FEEDBACK_BOX: "True"
               PROMETHEUS_URL: "http://prometheus-operated.monitoring.svc.cluster.local:9090"

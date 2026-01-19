@@ -88,7 +88,7 @@ spec:
         limits:
           memory: 1200Mi
     authentik:
-      log_level: debug
+      log_level: info
       redis:
         host: authentik-dragonfly.security.svc.cluster.local
       session_storage: db

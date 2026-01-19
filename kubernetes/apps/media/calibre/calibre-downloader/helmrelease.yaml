@@ -42,7 +42,7 @@ spec:
               BOOK_LANGUAGE: en
               DEFAULT_SLEEP: 15
               USE_BOOK_TITLE: true
-              LOG_LEVEL: debug
+              LOG_LEVEL: info
               AA_BASE_URL: https://annas-archive.li
               # Use flaresolverr instead of integrated chromium
               # CUSTOM_DNS: cloudflare

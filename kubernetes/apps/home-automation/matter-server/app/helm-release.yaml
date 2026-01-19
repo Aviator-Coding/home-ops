@@ -40,7 +40,7 @@ spec:
               MATTER_SERVER__INSTANCE_NAME: matter-server
               MATTER_SERVER__PORT: &wsPort 5580
               MATTER_SERVER__APPLICATION_URL: &host matter.${SECRET_DOMAIN}
-              MATTER_SERVER__LOG_LEVEL: debug
+              MATTER_SERVER__LOG_LEVEL: info
     service:
       matter-server:
         controller: matter-server

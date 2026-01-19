@@ -28,7 +28,7 @@ spec:
         memory: 8Gi
       config: |
         [log]
-        level = "debug"
+        level = "info"
       volumes:
       - name: data
         mounts:
