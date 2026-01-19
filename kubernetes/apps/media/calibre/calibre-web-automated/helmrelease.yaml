@@ -84,7 +84,7 @@ spec:
                 memory: 600Mi
     service:
       app:
-        controller: *app
+        controller: app
         ports:
           http:
             port: *port
