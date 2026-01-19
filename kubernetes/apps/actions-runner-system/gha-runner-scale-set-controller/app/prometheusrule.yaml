@@ -1,0 +1,54 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: github-actions-runner-alerts
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: github-actions-runner
+      rules:
+        - alert: GithubActionsRunnerJobFailureRateHigh
+          expr: |
+            (
+              sum(increase(gha_completed_jobs_total{job_result="failure"}[1h]))
+              /
+              sum(increase(gha_completed_jobs_total[1h]))
+            ) > 0.2
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GitHub Actions job failure rate is high"
+            description: "More than 20% of jobs have failed in the last hour"
+
+        - alert: GithubActionsRunnerZeroIdleRunners
+          expr: gha_idle_runners == 0 and gha_assigned_jobs > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "No idle GitHub Actions runners available"
+            description: "All runners are busy with {{ $value }} jobs waiting"
+
+        - alert: GithubActionsRunnerControllerDown
+          expr: absent(up{job="gha-runner-scale-set-controller"})
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GitHub Actions Runner Controller is down"
+            description: "The ARC controller pod is not running"
+
+        - alert: GithubActionsRunnerJobStartupSlow
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(gha_job_startup_duration_seconds_bucket[5m])) by (le)
+            ) > 120
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GitHub Actions job startup is slow"
+            description: "95th percentile job startup time exceeds 2 minutes"
