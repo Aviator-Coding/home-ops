@@ -35,3 +35,6 @@ spec:
       APP: *app
       HOSTNAME: calibre.${SECRET_DOMAIN}
       GATUS_SUBDOMAIN: calibre
+      VOLSYNC_CAPACITY: 10Gi
+      VOLSYNC_PUID: "2000"
+      VOLSYNC_PGID: "2000"
