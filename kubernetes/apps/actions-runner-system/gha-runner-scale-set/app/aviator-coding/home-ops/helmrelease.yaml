@@ -106,7 +106,13 @@ spec:
     #       requests:
     #         storage: 25Gi
     template:
+      metadata:
+        annotations:
+          # Force pod recreation on any secret change
+          secret.reloader.stakater.com/reload: aviator-coding-runner-secret
       spec:
+        # Allow graceful shutdown for runner cleanup
+        terminationGracePeriodSeconds: 30
         tolerations:
           - key: node-role.kubernetes.io/control-plane
             operator: Exists

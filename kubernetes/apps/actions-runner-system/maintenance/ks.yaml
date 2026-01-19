@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app actions-runner-maintenance
+  namespace: &namespace actions-runner-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  interval: 1h
+  dependsOn:
+    - name: gha-runner-scale-set-controller
+      namespace: *namespace
+    - name: gha-runner-scale-set
+      namespace: *namespace
+    - name: external-secrets
+      namespace: security
+  path: ./kubernetes/apps/actions-runner-system/maintenance
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m

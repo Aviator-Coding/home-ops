@@ -1,0 +1,200 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: runner-maintenance
+  namespace: actions-runner-system
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          serviceAccountName: runner-maintenance
+          restartPolicy: OnFailure
+          containers:
+            - name: cleanup
+              # renovate: datasource=docker depName=ghcr.io/home-operations/actions-runner
+              image: ghcr.io/home-operations/actions-runner:2.328.0
+              envFrom:
+                - secretRef:
+                    name: github-runner-maintenance-token
+              env:
+                - name: REPO_OWNER
+                  value: "aviator-coding"
+                - name: REPO_NAME
+                  value: "home-ops"
+                - name: STALE_RUNNER_MINUTES
+                  value: "10"
+                - name: STUCK_RUN_MINUTES
+                  value: "30"
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+
+                  echo "=========================================="
+                  echo "GitHub Actions Runner Maintenance"
+                  echo "Started at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+                  echo "=========================================="
+
+                  # Configuration
+                  REPO="${REPO_OWNER}/${REPO_NAME}"
+                  STALE_THRESHOLD_SECONDS=$((STALE_RUNNER_MINUTES * 60))
+                  STUCK_THRESHOLD_SECONDS=$((STUCK_RUN_MINUTES * 60))
+
+                  echo ""
+                  echo "Configuration:"
+                  echo "  Repository: ${REPO}"
+                  echo "  Stale runner threshold: ${STALE_RUNNER_MINUTES} minutes"
+                  echo "  Stuck run threshold: ${STUCK_RUN_MINUTES} minutes"
+                  echo ""
+
+                  # ==========================================
+                  # STEP 1: Clean up stale/offline runners
+                  # ==========================================
+                  echo "--- Step 1: Checking for stale runners ---"
+
+                  RUNNERS_JSON=$(gh api "repos/${REPO}/actions/runners" --jq '.runners' 2>/dev/null || echo "[]")
+                  RUNNER_COUNT=$(echo "${RUNNERS_JSON}" | jq 'length')
+                  echo "Found ${RUNNER_COUNT} total runners"
+
+                  CURRENT_TIME=$(date +%s)
+                  DELETED_COUNT=0
+
+                  echo "${RUNNERS_JSON}" | jq -c '.[]' | while read -r runner; do
+                    RUNNER_ID=$(echo "${runner}" | jq -r '.id')
+                    RUNNER_NAME=$(echo "${runner}" | jq -r '.name')
+                    RUNNER_STATUS=$(echo "${runner}" | jq -r '.status')
+                    RUNNER_BUSY=$(echo "${runner}" | jq -r '.busy')
+
+                    # Skip busy runners
+                    if [[ "${RUNNER_BUSY}" == "true" ]]; then
+                      echo "  [SKIP] ${RUNNER_NAME} (id=${RUNNER_ID}): busy"
+                      continue
+                    fi
+
+                    # Only check offline runners
+                    if [[ "${RUNNER_STATUS}" == "offline" ]]; then
+                      echo "  [FOUND] ${RUNNER_NAME} (id=${RUNNER_ID}): offline, checking age..."
+
+                      # Note: GitHub API doesn't provide last_connected_at for runners
+                      # We'll delete all offline runners that aren't busy as they're likely stale
+                      echo "  [DELETE] Removing offline runner: ${RUNNER_NAME} (id=${RUNNER_ID})"
+
+                      if gh api -X DELETE "repos/${REPO}/actions/runners/${RUNNER_ID}" 2>/dev/null; then
+                        echo "  [SUCCESS] Deleted runner ${RUNNER_NAME}"
+                        DELETED_COUNT=$((DELETED_COUNT + 1))
+                      else
+                        echo "  [WARNING] Failed to delete runner ${RUNNER_NAME}"
+                      fi
+                    else
+                      echo "  [OK] ${RUNNER_NAME} (id=${RUNNER_ID}): ${RUNNER_STATUS}"
+                    fi
+                  done
+
+                  echo "Deleted ${DELETED_COUNT} stale runners"
+                  echo ""
+
+                  # ==========================================
+                  # STEP 2: Cancel stuck workflow runs
+                  # ==========================================
+                  echo "--- Step 2: Checking for stuck workflow runs ---"
+
+                  # Get queued runs
+                  QUEUED_RUNS=$(gh run list --repo "${REPO}" --status queued --json databaseId,createdAt,name,status --limit 100 2>/dev/null || echo "[]")
+                  QUEUED_COUNT=$(echo "${QUEUED_RUNS}" | jq 'length')
+                  echo "Found ${QUEUED_COUNT} queued workflow runs"
+
+                  CANCELLED_COUNT=0
+
+                  echo "${QUEUED_RUNS}" | jq -c '.[]' | while read -r run; do
+                    RUN_ID=$(echo "${run}" | jq -r '.databaseId')
+                    RUN_NAME=$(echo "${run}" | jq -r '.name')
+                    CREATED_AT=$(echo "${run}" | jq -r '.createdAt')
+
+                    # Parse ISO 8601 date and calculate age
+                    CREATED_EPOCH=$(date -d "${CREATED_AT}" +%s 2>/dev/null || echo "0")
+                    if [[ "${CREATED_EPOCH}" == "0" ]]; then
+                      # Try alternate date format
+                      CREATED_EPOCH=$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "${CREATED_AT}" +%s 2>/dev/null || echo "0")
+                    fi
+
+                    if [[ "${CREATED_EPOCH}" == "0" ]]; then
+                      echo "  [SKIP] ${RUN_NAME} (id=${RUN_ID}): could not parse date"
+                      continue
+                    fi
+
+                    AGE_SECONDS=$((CURRENT_TIME - CREATED_EPOCH))
+                    AGE_MINUTES=$((AGE_SECONDS / 60))
+
+                    if [[ ${AGE_SECONDS} -gt ${STUCK_THRESHOLD_SECONDS} ]]; then
+                      echo "  [STUCK] ${RUN_NAME} (id=${RUN_ID}): queued for ${AGE_MINUTES} minutes"
+                      echo "  [CANCEL] Cancelling stuck run: ${RUN_NAME}"
+
+                      if gh run cancel "${RUN_ID}" --repo "${REPO}" 2>/dev/null; then
+                        echo "  [SUCCESS] Cancelled run ${RUN_ID}"
+                        CANCELLED_COUNT=$((CANCELLED_COUNT + 1))
+                      else
+                        echo "  [WARNING] Failed to cancel run ${RUN_ID}"
+                      fi
+                    else
+                      echo "  [OK] ${RUN_NAME} (id=${RUN_ID}): queued for ${AGE_MINUTES} minutes"
+                    fi
+                  done
+
+                  echo "Cancelled ${CANCELLED_COUNT} stuck workflow runs"
+                  echo ""
+
+                  # ==========================================
+                  # STEP 3: Check for in_progress runs that may be stuck
+                  # ==========================================
+                  echo "--- Step 3: Checking for long-running in_progress runs ---"
+
+                  IN_PROGRESS_RUNS=$(gh run list --repo "${REPO}" --status in_progress --json databaseId,createdAt,name,status --limit 50 2>/dev/null || echo "[]")
+                  IN_PROGRESS_COUNT=$(echo "${IN_PROGRESS_RUNS}" | jq 'length')
+                  echo "Found ${IN_PROGRESS_COUNT} in_progress workflow runs"
+
+                  # Extended threshold for in_progress (60 minutes - these might be legitimately running)
+                  LONG_RUNNING_THRESHOLD=$((60 * 60))
+
+                  echo "${IN_PROGRESS_RUNS}" | jq -c '.[]' | while read -r run; do
+                    RUN_ID=$(echo "${run}" | jq -r '.databaseId')
+                    RUN_NAME=$(echo "${run}" | jq -r '.name')
+                    CREATED_AT=$(echo "${run}" | jq -r '.createdAt')
+
+                    CREATED_EPOCH=$(date -d "${CREATED_AT}" +%s 2>/dev/null || echo "0")
+                    if [[ "${CREATED_EPOCH}" == "0" ]]; then
+                      CREATED_EPOCH=$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "${CREATED_AT}" +%s 2>/dev/null || echo "0")
+                    fi
+
+                    if [[ "${CREATED_EPOCH}" == "0" ]]; then
+                      continue
+                    fi
+
+                    AGE_SECONDS=$((CURRENT_TIME - CREATED_EPOCH))
+                    AGE_MINUTES=$((AGE_SECONDS / 60))
+
+                    if [[ ${AGE_SECONDS} -gt ${LONG_RUNNING_THRESHOLD} ]]; then
+                      echo "  [WARNING] ${RUN_NAME} (id=${RUN_ID}): running for ${AGE_MINUTES} minutes - may need manual review"
+                    else
+                      echo "  [OK] ${RUN_NAME} (id=${RUN_ID}): running for ${AGE_MINUTES} minutes"
+                    fi
+                  done
+
+                  echo ""
+                  echo "=========================================="
+                  echo "Maintenance completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+                  echo "=========================================="
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi

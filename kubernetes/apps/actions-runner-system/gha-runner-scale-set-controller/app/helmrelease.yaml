@@ -31,3 +31,11 @@ spec:
       listenerAddr: ":8080"
       listenerEndpoint: /metrics
     replicaCount: 2
+    # Resource limits to prevent resource starvation
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

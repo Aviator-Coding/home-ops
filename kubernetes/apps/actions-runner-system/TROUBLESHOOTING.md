@@ -253,6 +253,134 @@ flux resume hr -n actions-runner-system gha-runner-scale-set-aviator-coding-home
 kubectl annotate externalsecret -n actions-runner-system aviator-coding-runner-secret force-sync=$(date +%s) --overwrite
 ```
 
+## Automated Self-Healing
+
+The runner system includes automated maintenance mechanisms to prevent and recover from common failure scenarios.
+
+### Maintenance CronJob
+
+A CronJob (`runner-maintenance`) runs every 15 minutes to automatically:
+
+1. **Clean stale runners**: Removes offline runners from GitHub's API that are no longer active
+2. **Cancel stuck runs**: Cancels workflow runs stuck in "queued" state for more than 30 minutes
+3. **Log anomalies**: Reports long-running jobs that may need manual attention
+
+**View maintenance logs:**
+```bash
+task actions-runner:logs-maintenance
+```
+
+**Manually trigger maintenance:**
+```bash
+task actions-runner:run-maintenance
+```
+
+### Prometheus Alerts
+
+The following alerts monitor runner health:
+
+| Alert | Severity | Description |
+|-------|----------|-------------|
+| `GithubActionsRunnerJobFailureRateHigh` | warning | >20% job failure rate over 1 hour |
+| `GithubActionsRunnerZeroIdleRunners` | warning | No idle runners with jobs waiting |
+| `GithubActionsRunnerControllerDown` | critical | Controller pod not running |
+| `GithubActionsRunnerJobStartupSlow` | warning | P95 startup time >2 minutes |
+| `GithubActionsRunnerShortLifetimeDetected` | warning | Multiple runners exiting in <30 seconds (ghost jobs) |
+| `GithubActionsRunnerListenerDisconnected` | critical | Listener pod restarting frequently |
+| `GithubActionsRunnerAssignedJobsStuck` | warning | Jobs assigned but not running |
+
+## Ghost Job Recovery
+
+Ghost jobs occur when GitHub's Actions service has stale job assignments that no longer exist. This causes runners to start, receive outdated job IDs, find no work, and exit immediately (typically 2-second lifetime).
+
+### Symptoms
+
+- Runner pods with very short lifetime (2-30 seconds)
+- Jobs stuck in "assigned" state on GitHub
+- Alert: `GithubActionsRunnerShortLifetimeDetected`
+- Listener logs showing job assignments but runners exiting quickly
+
+### Automated Recovery
+
+The maintenance CronJob automatically:
+- Cleans offline runners from GitHub every 15 minutes
+- Cancels workflow runs stuck for more than 30 minutes
+
+### Manual Recovery
+
+```bash
+# Cancel stuck workflow runs
+task actions-runner:cancel-stuck-runs
+
+# Clean up stale runners from GitHub API
+task actions-runner:cleanup-stale-runners
+
+# Full reset if above doesn't work
+task actions-runner:reset-scale-set
+```
+
+## Broker Connection Issues
+
+The listener pod maintains a long-polling connection to `broker.actions.githubusercontent.com`. Connection issues cause 100-second timeouts and missed job notifications.
+
+### Symptoms
+
+- Listener logs showing: `context deadline exceeded (Client.Timeout exceeded)`
+- Jobs waiting but no runners being created
+- Alert: `GithubActionsRunnerListenerDisconnected`
+
+### Automated Recovery
+
+The listener pod will automatically restart on connection failures. Frequent restarts trigger the `GithubActionsRunnerListenerDisconnected` alert.
+
+### Manual Recovery
+
+```bash
+# Restart the listener pod
+task actions-runner:restart-listener
+
+# Check listener logs for errors
+task actions-runner:logs-listener
+```
+
+### Investigation Steps
+
+If broker timeouts persist:
+
+```bash
+# Check DNS resolution
+kubectl exec -n actions-runner-system -l app.kubernetes.io/component=listener -- nslookup broker.actions.githubusercontent.com
+
+# Check network policies
+kubectl get ciliumnetworkpolicy -n actions-runner-system
+
+# Check egress gateway configuration
+kubectl get ciliumnodes -o yaml | grep -A5 egressGateway
+```
+
+## Task Commands Reference
+
+All runner maintenance tasks are available via the Taskfile:
+
+```bash
+# Show current system status
+task actions-runner:diagnose
+
+# View logs
+task actions-runner:logs-controller
+task actions-runner:logs-listener
+task actions-runner:logs-maintenance
+
+# Recovery actions
+task actions-runner:restart-listener
+task actions-runner:cleanup-stale-runners
+task actions-runner:cancel-stuck-runs
+task actions-runner:reset-scale-set
+
+# Maintenance
+task actions-runner:run-maintenance
+```
+
 ## Related Documentation
 
 - [Actions Runner Controller GitHub](https://github.com/actions/actions-runner-controller)

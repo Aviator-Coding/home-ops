@@ -52,3 +52,43 @@ spec:
           annotations:
             summary: "GitHub Actions job startup is slow"
             description: "95th percentile job startup time exceeds 2 minutes"
+
+        # Ghost job detection - runners with very short lifetime indicate stale job assignments
+        - alert: GithubActionsRunnerShortLifetimeDetected
+          expr: |
+            count(
+              (time() - kube_pod_start_time{namespace="actions-runner-system", pod=~".*-runner-.*"})
+              < 30
+              and on(pod) kube_pod_status_phase{phase="Succeeded"}
+            ) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Multiple GitHub Actions runners exiting quickly"
+            description: "{{ $value }} runner pods completed in under 30 seconds - indicates ghost job assignments"
+
+        # Listener disconnection detection - frequent restarts indicate broker connection issues
+        - alert: GithubActionsRunnerListenerDisconnected
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace="actions-runner-system",
+              pod=~".*-listener-.*"
+            }[15m]) > 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GitHub Actions listener pod restarting frequently"
+            description: "Listener pod {{ $labels.pod }} has restarted {{ $value }} times in 15 minutes - broker connection issues likely"
+
+        # Assigned jobs stuck without runners
+        - alert: GithubActionsRunnerAssignedJobsStuck
+          expr: |
+            gha_assigned_jobs > 0 and gha_running_jobs == 0 and gha_idle_runners == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GitHub Actions jobs assigned but not running"
+            description: "{{ $value }} jobs are assigned but no runners are processing them - possible ghost job state"
