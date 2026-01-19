@@ -1,0 +1,84 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrelease-helm-v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app rsshub
+spec:
+  interval: 30m
+  maxHistory: 3
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    controllers:
+      rsshub:
+        annotations:
+          reloader.stakater.com/auto: 'true'
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: ghcr.io/diygod/rsshub
+              tag: latest@sha256:5616c20d238f6d7d03b07bed514f6d3f0931ae118564bef86a14d9a8fca2226e
+            env:
+              NODE_ENV: production
+              CACHE_TYPE: redis
+              REDIS_URL: "redis://rsshub-dragonfly:6379"
+              PUPPETEER_WS_ENDPOINT: "ws://playwright.selfhosted.svc.cluster.local:3000" # marked
+              PORT: &port 80
+              LISTEN_INADDR_ANY: 1
+              LOG_LEVEL: warning
+              NO_LOGFILES: true
+              SENTRY: false
+              PIXIV_IMG_PROXY: "https://i.yuki.sh"
+              HOTLINK_TEMPLATE: "https://rsstt-img-relay-cqf.pages.dev/$${href_ue}"
+            envFrom:
+              - secretRef:
+                  name: rsshub-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            resources:
+              requests:
+                cpu: 10m
+                memory: 512Mi
+              limits:
+                memory: 2048Mi
+    service:
+      app:
+        controller: *app
+        ports:
+          http:
+            port: *port
+    route:
+      app:
+        hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: *port

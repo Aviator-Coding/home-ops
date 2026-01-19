@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/external-secrets.io/externalsecret_v1beta1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: rsshub
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: rsshub-secret
+    creationPolicy: Owner
+  #   template:
+  #     engineVersion: v2
+  #     data:
+  #       GITHUB_ACCESS_TOKEN: '{{ .GITHUB_ACCESS_TOKEN }}'
+  #       PIXIV_REFRESHTOKEN: '{{ .PIXIV_REFRESHTOKEN }}'
+  #       TWITTER_PASSWORD: '{{ .TWITTER_password }}'
+  #       TWITTER_USERNAME: '{{ .TWITTER_username }}'
+  # dataFrom:
+  #   - extract:
+  #       key: Twitter
+  #     rewrite:
+  #       - regexp:
+  #           source: "(.*)"
+  #           target: "TWITTER_$1"
+  #   - extract:
+  #       key: Pixiv
+  #     rewrite:
+  #       - regexp:
+  #           source: "(.*)"
+  #           target: "PIXIV_$1"
+  #   - extract:
+  #       key: Github
+  #     rewrite:
+  #       - regexp:
+  #           source: "(.*)"
+  #           target: "GITHUB_$1"

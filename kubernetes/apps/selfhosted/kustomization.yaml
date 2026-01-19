@@ -9,6 +9,7 @@ components:
   - ../../components/alerts
 
 resources:
+  - ./rsshub/ks.yaml
   - ./changedetection/ks.yaml
   - ./homepage/ks.yaml
   - ./n8n/ks.yaml
