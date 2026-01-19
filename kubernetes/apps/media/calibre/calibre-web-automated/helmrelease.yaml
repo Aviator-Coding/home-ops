@@ -34,13 +34,21 @@ spec:
               repository: ghcr.io/crocodilestick/calibre-web-automated
               tag: V3.1.4@sha256:577e846f104fd21453ef306eefb4a95dd95b3b9ddd2463a150944494284da0fd
             env:
-              PUID: "2000"
-              PGID: "2000"
-              CACHE_DIR: /cache
+              # LinuxServer.io requires PUID/PGID, not UID/GID
+              # Note: app-template may strip 'P' prefix, so we need explicit list format
+              - name: PUID
+                value: "2000"
+              - name: PGID
+                value: "2000"
+              - name: CACHE_DIR
+                value: /cache
               # Skips/soft fail on privileged actions that shouldn't exist anyways
-              NETWORK_SHARE_MODE: "true"
-              S6_YES_I_WANT_A_WORLD_WRITABLE_RUN_BECAUSE_KUBERNETES: 1
-              S6_READ_ONLY_ROOT: 1
+              - name: NETWORK_SHARE_MODE
+                value: "true"
+              - name: S6_YES_I_WANT_A_WORLD_WRITABLE_RUN_BECAUSE_KUBERNETES
+                value: "1"
+              - name: S6_READ_ONLY_ROOT
+                value: "1"
             envFrom:
               - secretRef:
                   name: "{{ .Release.Name }}-secret"
