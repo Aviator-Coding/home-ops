@@ -27,7 +27,7 @@ spec:
         runAsNonRoot: false
         seccompProfile: { type: RuntimeDefault }
     controllers:
-      app:
+      ${APP}:
         containers:
           app:
             image:
@@ -84,7 +84,7 @@ spec:
                 memory: 600Mi
     service:
       app:
-        controller: app
+        controller: *app
         ports:
           http:
             port: *port
