@@ -11,29 +11,13 @@ spec:
   target:
     name: rsshub-secret
     creationPolicy: Owner
-  #   template:
-  #     engineVersion: v2
-  #     data:
-  #       GITHUB_ACCESS_TOKEN: '{{ .GITHUB_ACCESS_TOKEN }}'
-  #       PIXIV_REFRESHTOKEN: '{{ .PIXIV_REFRESHTOKEN }}'
-  #       TWITTER_PASSWORD: '{{ .TWITTER_password }}'
-  #       TWITTER_USERNAME: '{{ .TWITTER_username }}'
-  # dataFrom:
-  #   - extract:
-  #       key: Twitter
-  #     rewrite:
-  #       - regexp:
-  #           source: "(.*)"
-  #           target: "TWITTER_$1"
-  #   - extract:
-  #       key: Pixiv
-  #     rewrite:
-  #       - regexp:
-  #           source: "(.*)"
-  #           target: "PIXIV_$1"
-  #   - extract:
-  #       key: Github
-  #     rewrite:
-  #       - regexp:
-  #           source: "(.*)"
-  #           target: "GITHUB_$1"
+    template:
+      engineVersion: v2
+      data:
+        GITHUB_ACCESS_TOKEN: 'XXXXX'
+        PIXIV_REFRESHTOKEN: 'XXXXXXS'
+        TWITTER_PASSWORD: 'XXXXX'
+        TWITTER_USERNAME: 'XXXX'
+  dataFrom:
+    - extract:
+        key: rss-hub
