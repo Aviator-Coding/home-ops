@@ -31,7 +31,7 @@ spec:
     - name: onepassword-store
       namespace: security
     - name: volsync
-      namespace: volsync-system
+      namespace: system
     - name: dragonfly-operator
       namespace: database
     - name: rsshub-playwright
@@ -68,10 +68,10 @@ spec:
     name: flux-system
     namespace: flux-system
   dependsOn:
-    - name: external-secrets-stores
-      namespace: external-secrets
+    - name: onepassword-store
+      namespace: security
     - name: volsync
-      namespace: volsync-system
+      namespace: system
     - name: dragonfly-cluster
       namespace: database
   targetNamespace: *namespace
