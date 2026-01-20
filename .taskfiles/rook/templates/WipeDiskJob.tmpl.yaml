@@ -1,4 +1,7 @@
 ---
+# IMPORTANT: This template uses ceph-volume to properly clear BlueStore labels.
+# Standard tools (sgdisk, dd) do NOT clear BlueStore superblock metadata.
+# See: .claude/skills/ceph-rook/references/osd-recovery.md
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -15,14 +18,19 @@ spec:
       hostNetwork: true
       containers:
         - name: main
-          image: docker.io/library/alpine:latest
-          command: ["/bin/sh", "-c"]
+          image: quay.io/ceph/ceph:v19.2.3
+          command: ["/bin/bash", "-c"]
           args:
-            - apk add --no-cache sgdisk util-linux util-linux-misc parted device-mapper;
-              sgdisk --zap-all /host${disk};
-              dd if=/dev/zero of=/host${disk} bs=1M count=100 oflag=direct;
-              blkdiscard /host${disk};
-              partprobe /host${disk};
+            - |
+              echo "Wiping disk /host${disk} with ceph-volume..."
+              # Use ceph-volume to properly clear BlueStore labels and LVM metadata
+              ceph-volume lvm zap --destroy /host${disk} || echo "ceph-volume lvm zap failed, trying raw zap..."
+              # Fallback to raw zap for non-LVM OSDs
+              ceph-volume raw zap /host${disk} || echo "ceph-volume raw zap completed or not applicable"
+              # Final cleanup: issue TRIM/discard to SSD and notify kernel
+              blkdiscard /host${disk} || echo "blkdiscard not supported"
+              partprobe /host${disk} || true
+              echo "Disk wipe complete for /host${disk}"
           securityContext:
             privileged: true
           resources: {}
@@ -30,18 +38,8 @@ spec:
             - name: host-dev
               mountPath: /host/dev
               mountPropagation: Bidirectional
-            - name: host-usr-bin
-              mountPath: /host/usr/bin
-              readOnly: true
-          env:
-            - name: PATH
-              value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/host/usr/bin"
       volumes:
         - name: host-dev
           hostPath:
             path: /dev
-            type: Directory
-        - name: host-usr-bin
-          hostPath:
-            path: /usr/bin
             type: Directory

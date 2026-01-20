@@ -225,6 +225,16 @@ tasks:
       - task: reset-all-data
       - echo "🎉 All operations completed!"
 
+  reset-all-data:
+    desc: Reset rook data on all nodes
+    cmds:
+      - echo "🔄 Resetting rook data on all nodes..."
+      - for: { var: TALOS_NODE_NAMES }
+        task: reset-data
+        vars:
+          node: "{{.ITEM}}"
+      - echo "✅ All node data reset complete"
+
   wipe-talos-1:
     desc: Wipe all disks on talos-1
     cmds:
