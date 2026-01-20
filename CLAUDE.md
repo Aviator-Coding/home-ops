@@ -170,6 +170,46 @@ kubernetes/apps/{namespace}/{app}/
 - HelmReleases define Helm chart deployments with custom values
 - Dependencies between apps are managed via `dependsOn` in `ks.yaml`
 
+### Naming Conventions
+
+**Directory Naming:**
+- All directories use **lowercase** names
+- Multi-word directories use **kebab-case** (e.g., `home-automation`, `rook-ceph`)
+- Task file directories in `.taskfiles/` follow the same convention (e.g., `rook`, not `Rook`)
+
+**File Naming:**
+- All files use **lowercase** names
+- Kubernetes manifest files: `helmrelease.yaml`, `kustomization.yaml`, `ks.yaml`
+- External secrets: `externalsecret.yaml`
+- SOPS encrypted files: `*.sops.yaml`
+
+**YAML Anchors in ks.yaml:**
+- Use `&app` for the application name anchor: `name: &app myapp`
+- Use `&namespace` for the namespace anchor: `namespace: &namespace myns`
+- Reference with `*app` and `*namespace` respectively
+- All ks.yaml files must have `namespace:` defined in metadata
+
+**Schema URLs:**
+- Standard schema for Flux Kustomizations: `https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json`
+- Avoid using alternative schemas like `crd.movishell.pl` or `fluxcd-community`
+
+**Example ks.yaml structure:**
+```yaml
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app myapp
+  namespace: &namespace mynamespace
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  targetNamespace: *namespace
+  # ... other fields
+```
+
 ### Secret Management
 
 **IMPORTANT - Two separate secret management systems:**

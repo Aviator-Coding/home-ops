@@ -26,6 +26,7 @@ includes:
   flux: .taskfiles/flux
   rook: .taskfiles/rook
   network: .taskfiles/network
+  actions-runner: .taskfiles/actions-runner
 
 tasks:
 
