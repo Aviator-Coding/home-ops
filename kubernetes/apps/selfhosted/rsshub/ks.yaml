@@ -72,7 +72,7 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
-    - name: dragonfly-cluster
+    - name: dragonfly-operator
       namespace: database
   targetNamespace: *namespace
   timeout: 5m
