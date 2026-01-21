@@ -64,7 +64,7 @@ spec:
                     namespace: rook-ceph
                     labels:
                       backup-type: ceph-metadata
-                      backup-date: $${BACKUP_DATE}
+                      backup-date: "$${BACKUP_DATE}"
                   data:
                     backup-date: "$${BACKUP_DATE}"
                     cluster-fsid: "$(cat $${BACKUP_DIR}/cluster-fsid.txt 2>/dev/null || echo 'unknown')"
