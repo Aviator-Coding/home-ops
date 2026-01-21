@@ -37,42 +37,42 @@ spec:
                   set -euo pipefail
 
                   BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
-                  BACKUP_DIR="/backup/${BACKUP_DATE}"
-                  mkdir -p "${BACKUP_DIR}"
+                  BACKUP_DIR="/backup/$${BACKUP_DATE}"
+                  mkdir -p "$${BACKUP_DIR}"
 
-                  echo "Starting Ceph backup at ${BACKUP_DATE}"
+                  echo "Starting Ceph backup at $${BACKUP_DATE}"
 
                   # Backup Kubernetes secrets
-                  kubectl get secret rook-ceph-mon -n rook-ceph -o yaml > "${BACKUP_DIR}/rook-ceph-mon.yaml" || echo "No rook-ceph-mon secret found"
-                  kubectl get secret rook-ceph-admin-keyring -n rook-ceph -o yaml > "${BACKUP_DIR}/rook-ceph-admin-keyring.yaml" || echo "No admin keyring found"
+                  kubectl get secret rook-ceph-mon -n rook-ceph -o yaml > "$${BACKUP_DIR}/rook-ceph-mon.yaml" || echo "No rook-ceph-mon secret found"
+                  kubectl get secret rook-ceph-admin-keyring -n rook-ceph -o yaml > "$${BACKUP_DIR}/rook-ceph-admin-keyring.yaml" || echo "No admin keyring found"
 
                   # Backup CephCluster configuration
-                  kubectl get cephcluster -n rook-ceph -o yaml > "${BACKUP_DIR}/cephcluster.yaml" || echo "No CephCluster found"
+                  kubectl get cephcluster -n rook-ceph -o yaml > "$${BACKUP_DIR}/cephcluster.yaml" || echo "No CephCluster found"
 
                   # Backup monitor endpoints
-                  kubectl get configmap rook-ceph-mon-endpoints -n rook-ceph -o yaml > "${BACKUP_DIR}/mon-endpoints.yaml" || echo "No monitor endpoints found"
+                  kubectl get configmap rook-ceph-mon-endpoints -n rook-ceph -o yaml > "$${BACKUP_DIR}/mon-endpoints.yaml" || echo "No monitor endpoints found"
 
                   # Get cluster FSID for documentation
-                  kubectl get secret rook-ceph-mon -n rook-ceph -o jsonpath='{.data.fsid}' | base64 -d > "${BACKUP_DIR}/cluster-fsid.txt" || echo "No FSID found"
+                  kubectl get secret rook-ceph-mon -n rook-ceph -o jsonpath='{.data.fsid}' | base64 -d > "$${BACKUP_DIR}/cluster-fsid.txt" || echo "No FSID found"
 
                   # Create backup manifest with metadata
-                  cat > "${BACKUP_DIR}/backup-manifest.yaml" <<EOF
+                  cat > "$${BACKUP_DIR}/backup-manifest.yaml" <<EOF
                   apiVersion: v1
                   kind: ConfigMap
                   metadata:
-                    name: backup-${BACKUP_DATE}
+                    name: backup-$${BACKUP_DATE}
                     namespace: rook-ceph
                     labels:
                       backup-type: ceph-metadata
-                      backup-date: ${BACKUP_DATE}
+                      backup-date: $${BACKUP_DATE}
                   data:
-                    backup-date: "${BACKUP_DATE}"
-                    cluster-fsid: "$(cat ${BACKUP_DIR}/cluster-fsid.txt 2>/dev/null || echo 'unknown')"
+                    backup-date: "$${BACKUP_DATE}"
+                    cluster-fsid: "$(cat $${BACKUP_DIR}/cluster-fsid.txt 2>/dev/null || echo 'unknown')"
                     backup-status: "completed"
                   EOF
 
                   # Apply the backup manifest
-                  kubectl apply -f "${BACKUP_DIR}/backup-manifest.yaml"
+                  kubectl apply -f "$${BACKUP_DIR}/backup-manifest.yaml"
 
                   # Cleanup old backups (keep last 7 days)
                   find /backup -maxdepth 1 -type d -name "20*" -mtime +7 -exec rm -rf {} \; || echo "Cleanup failed"
@@ -80,7 +80,7 @@ spec:
                   # Cleanup old backup manifests
                   kubectl get configmaps -n rook-ceph -l backup-type=ceph-metadata --sort-by=.metadata.creationTimestamp -o name | head -n -7 | xargs -r kubectl delete || echo "Manifest cleanup failed"
 
-                  echo "Backup completed successfully at ${BACKUP_DATE}"
+                  echo "Backup completed successfully at $${BACKUP_DATE}"
 
                   # List current backups
                   echo "Available backups:"
