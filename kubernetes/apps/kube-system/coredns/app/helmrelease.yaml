@@ -60,6 +60,12 @@ spec:
             - matchExpressions:
                 - key: node-role.kubernetes.io/control-plane
                   operator: Exists
+    resources:
+      requests:
+        cpu: 100m
+        memory: 70Mi
+      limits:
+        memory: 170Mi
     tolerations:
       - key: CriticalAddonsOnly
         operator: Exists
