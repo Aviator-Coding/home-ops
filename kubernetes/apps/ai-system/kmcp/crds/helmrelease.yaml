@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: kgateway
+  name: kmcp-crds
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: kgateway
+    name: kmcp-crds
   install:
     timeout: 10m
     replace: true
