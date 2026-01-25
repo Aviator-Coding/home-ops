@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -58,20 +58,38 @@ jobs:
           ref: ${{ matrix.branch == 'default' && github.event.repository.default_branch || '' }}
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Gather Images
-        uses: docker://ghcr.io/allenporter/flux-local:v8.1.0
-        timeout-minutes: 8
+      - name: Gather Images with Retry
+        timeout-minutes: 10
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        with:
-          args: >-
-            get cluster
-            --all-namespaces
-            --path /github/workspace/kubernetes/flux/cluster
-            --enable-images
-            --only-images
-            --output json
-            --output-file images.json
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::Attempt $attempt/3: Gathering images..."
+            if docker run --rm \
+              -v "$GITHUB_WORKSPACE:/github/workspace" \
+              -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
+              -e HELM_TIMEOUT=300 \
+              ghcr.io/allenporter/flux-local:v8.1.0 \
+              get cluster \
+              --all-namespaces \
+              --path /github/workspace/kubernetes/flux/cluster \
+              --enable-images \
+              --only-images \
+              --output json \
+              --output-file /github/workspace/images.json; then
+              echo "::endgroup::"
+              echo "✓ Images gathered successfully"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ $attempt -lt 3 ]; then
+              wait_time=$((30 * attempt))
+              echo "✗ Attempt $attempt failed. Waiting ${wait_time}s before retry..."
+              sleep $wait_time
+            fi
+          done
+          echo "::error::Failed to gather images after 3 attempts"
+          exit 1
 
       - name: Extract Images
         id: extract
