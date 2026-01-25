@@ -31,4 +31,9 @@
       "/(^|/)kubernetes/.+\\.ya?ml$/"
     ]
   },
+  helmfile: {
+    managerFilePatterns: [
+      "/(^|/)bootstrap/.+\\.ya?ml$/"
+    ]
+  },
 }
