@@ -8,9 +8,19 @@ metadata:
 spec:
   gatewayClassName: agentgateway
   listeners:
-  - protocol: HTTP
-    port: 8080
-    name: http
-    allowedRoutes:
-      namespaces:
-        from: All
+    - name: http
+      protocol: HTTP
+      port: 8080
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        certificateRefs:
+          - kind: Secret
+            name: sklab-dev-production-tls
