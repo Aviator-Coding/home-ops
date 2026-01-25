@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "npx",
       "args": [
-        "mcp-server-kubernetes@2.9.9"
+        "mcp-server-kubernetes@3.2.0"
       ],
       "env": {
         "ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS": "true"
