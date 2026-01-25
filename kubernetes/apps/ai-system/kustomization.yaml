@@ -12,3 +12,4 @@ resources:
   - ./kagent/ks.yaml
   - ./kmcp/ks.yaml
   - ./kgateway/ks.yaml
+  - ./grafana-mcp/ks.yaml
