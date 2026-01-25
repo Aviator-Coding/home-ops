@@ -33,7 +33,7 @@ spec:
           app:
             image:
               repository: ghcr.io/calibrain/calibre-web-automated-book-downloader-extbp
-              tag: v0.2.4@sha256:23aabf29f4db80d21f20dfaff6fc4bafad8858987bfd89fccb8c78c101b92068
+              tag: v0.4.0@sha256:9f89f90ffbe373407031b7b441dc11617762b26b6a1a571e08fb3905b1c045f4
             env:
               UID: "2000"
               GID: "2000"
