@@ -52,14 +52,14 @@ jobs:
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
 
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ matrix.branch == 'default' && github.event.repository.default_branch || '' }}
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Gather Images
-        uses: docker://ghcr.io/allenporter/flux-local:v7.10.0
+        uses: docker://ghcr.io/allenporter/flux-local:v8.1.0
         timeout-minutes: 8
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -120,9 +120,20 @@ jobs:
       fail-fast: false
     env:
       MATRIX_IMAGE: ${{ matrix.image }}
+      TALOSCTL_VERSION: "1.12.0"
     steps:
+      - name: Cache talosctl
+        id: cache-talosctl
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        with:
+          path: /usr/local/bin/talosctl
+          key: talosctl-${{ env.TALOSCTL_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+
       - name: Install talosctl
-        run: curl -fsSL https://talos.dev/install | sh
+        if: steps.cache-talosctl.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL https://talos.dev/install | sh
+          talosctl version --client
 
       - name: Pull Image
         run: talosctl --nodes $NODE image pull "${MATRIX_IMAGE}"
