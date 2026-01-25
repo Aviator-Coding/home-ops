@@ -184,3 +184,38 @@ spec:
           annotations:
             summary: "Ceph daemon crash detected"
             description: "A Ceph daemon has crashed recently. Run 'ceph crash ls-new' to see details and 'ceph crash archive-all' after review."
+
+    - name: ceph-iops-performance
+      rules:
+        # High IOPS Alert - sustained high I/O during backup windows
+        - alert: CephHighIOPS
+          expr: |
+            sum(irate(ceph_osd_op_w[5m]) + irate(ceph_osd_op_r[5m])) > 300
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph cluster experiencing high IOPS"
+            description: "Total cluster IOPS {{ $value | humanize }} exceeds 300 ops/sec for more than 5 minutes. This may indicate backup schedule overlap or unusual workload."
+
+        # OSD Latency Disparity Alert - monitors device class performance variance
+        - alert: CephOSDLatencyDisparity
+          expr: |
+            max(ceph_osd_apply_latency_ms) - min(ceph_osd_apply_latency_ms) > 15
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High latency variance between Ceph OSDs"
+            description: "OSD apply latency disparity is {{ $value }}ms. Samsung 980 PRO (osd.0, osd.1) typically have higher latency than Lexar NM790 (osd.2-5). Investigate if variance exceeds expected device-class differences."
+
+        # Individual OSD High Latency Alert
+        - alert: CephOSDHighLatency
+          expr: |
+            ceph_osd_apply_latency_ms > 50
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OSD {{ $labels.ceph_daemon }} has high apply latency"
+            description: "OSD {{ $labels.ceph_daemon }} apply latency is {{ $value }}ms, exceeding 50ms threshold. Check for I/O contention or disk issues."

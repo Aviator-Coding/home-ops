@@ -4,9 +4,9 @@ kind: BackupSchedule
 metadata:
   name: tidb-backup-minio
 spec:
-  # Hourly backups at minute 0
-  schedule: "0 * * * *"
-  maxBackups: 24  # Keep 24 hourly backups (1 day)
+  # 4x daily backups at offset hours to avoid IOPS spikes
+  schedule: "0 3,9,15,21 * * *"
+  maxBackups: 8  # Keep 8 backups (reduced from 24)
   maxReservedTime: "168h"  # 7 days maximum retention
 
   backupTemplate:

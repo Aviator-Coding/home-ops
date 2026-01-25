@@ -17,7 +17,7 @@ metadata:
   name: rook-ceph-backup
   namespace: rook-ceph
 spec:
-  schedule: "0 2 * * *" # Daily at 2 AM
+  schedule: "0 3 * * *" # Daily at 3 AM - offset from R2 backups at 2 AM to reduce IOPS spikes
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3

@@ -7,7 +7,7 @@ metadata:
 spec:
   sourcePVC: "${VOLSYNC_CLAIM:-${APP}}"
   trigger:
-    schedule: "*/30 * * * *"  # Every 30 minutes
+    schedule: "0 */4 * * *"  # Every 4 hours - reduced from 30min to lower IOPS load
   restic:
     pruneIntervalDays: 14
     repository: "${APP}-volsync-ceph-secret"
@@ -21,7 +21,7 @@ spec:
       runAsGroup: ${VOLSYNC_PGID:-1000}
       fsGroup: ${VOLSYNC_PGID:-1000}
     retain:
-      hourly: 24    # Keep 24 hourly snapshots (1 day)
-      daily: 30    # Keep 30 daily snapshots (1 month)
+      hourly: 6    # Keep 6 hourly snapshots (reduced from 24)
+      daily: 14    # Keep 14 daily snapshots (reduced from 30)
       weekly: 10    # Keep 10 weekly snapshots (2 months)
       monthly: 6   # Keep 6 monthly snapshots
