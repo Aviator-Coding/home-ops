@@ -20,7 +20,7 @@ jobs:
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: System Information
         run: |
@@ -90,7 +90,7 @@ jobs:
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Check Docker
         run: |
@@ -196,7 +196,7 @@ jobs:
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Test File System Operations
         run: |
