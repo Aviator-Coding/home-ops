@@ -19,7 +19,7 @@ spec:
           containers:
             - name: cleanup
               # renovate: datasource=docker depName=ghcr.io/home-operations/actions-runner
-              image: ghcr.io/home-operations/actions-runner:2.328.0
+              image: ghcr.io/home-operations/actions-runner:2.331.0
               envFrom:
                 - secretRef:
                     name: github-runner-maintenance-token
