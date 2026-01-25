@@ -12,4 +12,4 @@ resources:
   - ./kagent/ks.yaml
   - ./kmcp/ks.yaml
   - ./kgateway/ks.yaml
-  - ./grafana-mcp/ks.yaml
+  # grafana-mcp removed - kagent provides built-in grafana-mcp tool

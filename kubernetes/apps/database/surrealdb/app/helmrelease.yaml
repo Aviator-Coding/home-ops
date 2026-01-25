@@ -25,7 +25,9 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    replicaCount: 3
+    # Reduced to 1 to prevent TiKV write conflicts during changefeed GC
+    # Multiple replicas cause optimistic locking errors in background tasks
+    replicaCount: 1
 
     image:
       repository: surrealdb/surrealdb
