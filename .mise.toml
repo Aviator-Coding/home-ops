@@ -10,7 +10,7 @@ MISE_LIST_ALL_VERSIONS = "false"
 
 [tools]
 "python" = "3.14.0"
-"pipx:makejinja" = "2.8.1"
+"pipx:makejinja" = "2.8.2"
 "pipx:pre-commit" = "4.3.0"
 "pipx:flux-local" = "latest"
 "aqua:budimanjojo/talhelper" = "3.0.43"
