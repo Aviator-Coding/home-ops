@@ -33,6 +33,9 @@ spec:
       APP_GID: "2000"
       VOLSYNC_CLAIM: changedetection-config
       VOLSYNC_CAPACITY: 1Gi
+      VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "20 4 * * *"
   prune: true
   wait: false
   interval: 30m

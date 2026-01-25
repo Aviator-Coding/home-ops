@@ -35,3 +35,6 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: 2Gi
+      VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "35 3 * * *"

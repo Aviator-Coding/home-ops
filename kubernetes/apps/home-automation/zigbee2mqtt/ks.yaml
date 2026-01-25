@@ -37,3 +37,6 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CLAIM: zigbee2mqtt-data
+      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "10 1 * * *"

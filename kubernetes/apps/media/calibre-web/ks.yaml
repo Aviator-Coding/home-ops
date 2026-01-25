@@ -38,3 +38,6 @@ spec:
       VOLSYNC_CAPACITY: 10Gi
       VOLSYNC_PUID: "2000"
       VOLSYNC_PGID: "2000"
+      VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "10 4 * * *"

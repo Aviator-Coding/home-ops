@@ -35,3 +35,6 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CLAIM: sabnzbd-config
+      VOLSYNC_SCHEDULE_CEPH: "30 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "30 3 * * *"

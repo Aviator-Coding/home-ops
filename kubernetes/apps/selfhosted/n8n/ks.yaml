@@ -37,3 +37,6 @@ spec:
       APP_GID: "1000"
       VOLSYNC_CLAIM: n8n
       VOLSYNC_CAPACITY: 8Gi
+      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "15 4 * * *"

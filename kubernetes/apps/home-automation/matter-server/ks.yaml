@@ -34,3 +34,6 @@ spec:
       APP: *app
       VOLSYNC_CAPACITY: 1Gi
       VOLSYNC_CLAIM: matter-server
+      VOLSYNC_SCHEDULE_CEPH: "20 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "20 1 * * *"

@@ -36,3 +36,6 @@ spec:
       APP: *app
       VOLSYNC_CLAIM: esphome-config
       VOLSYNC_CAPACITY: 5Gi
+      VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "15 1 * * *"

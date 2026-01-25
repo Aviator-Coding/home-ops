@@ -25,6 +25,9 @@ spec:
       APP: *app
       GATUS_GROUP: ai
       VOLSYNC_CAPACITY: 25Gi
+      VOLSYNC_SCHEDULE_CEPH: "30 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "5 2 * * *"
   prune: true
   retryInterval: 2m
   sourceRef:

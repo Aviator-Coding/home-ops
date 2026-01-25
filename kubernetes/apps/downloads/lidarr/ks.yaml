@@ -29,6 +29,9 @@ spec:
       APP: *app
       VOLSYNC_CAPACITY: 8Gi
       VOLSYNC_CLAIM: lidarr-config
+      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "10 3 * * *"
   prune: true
   sourceRef:
     kind: GitRepository

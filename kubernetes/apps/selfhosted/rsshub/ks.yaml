@@ -21,6 +21,9 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: 5Gi
+      VOLSYNC_SCHEDULE_CEPH: "20 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "25 4 * * *"
   prune: true
   retryInterval: 2m
   sourceRef:
@@ -61,6 +64,9 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: 5Gi
+      VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "30 4 * * *"
   prune: true
   retryInterval: 3m
   sourceRef:

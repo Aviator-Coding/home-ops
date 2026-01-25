@@ -34,3 +34,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
+      VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "40 3 * * *"

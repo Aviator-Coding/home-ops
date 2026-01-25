@@ -27,6 +27,9 @@ spec:
       VOLSYNC_CAPACITY: 50Gi
       GATUS_GROUP: *namespace
       GATUS_SUBDOMAIN: notebook
+      VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "15 2 * * *"
   prune: true
   retryInterval: 2m
   sourceRef:

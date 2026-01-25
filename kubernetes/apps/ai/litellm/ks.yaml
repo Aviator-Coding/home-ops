@@ -37,6 +37,9 @@ spec:
     substitute:
       APP: *app
       GATUS_GROUP: *namespace
+      VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "10 2 * * *"
   prune: true
   retryInterval: 2m
   sourceRef:

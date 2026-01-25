@@ -35,3 +35,6 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CLAIM: sonarr-config
+      VOLSYNC_SCHEDULE_CEPH: "0 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "0 3 * * *"

@@ -30,6 +30,9 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CLAIM: readarr-config
+      VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "15 3 * * *"
   prune: true
   sourceRef:
     kind: GitRepository

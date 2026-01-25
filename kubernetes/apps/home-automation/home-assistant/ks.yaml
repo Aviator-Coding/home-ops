@@ -38,3 +38,6 @@ spec:
       GATUS_SUBDOMAIN: hass
       VOLSYNC_CAPACITY: 5Gi
       VOLSYNC_CLAIM: home-assistant
+      VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "5 1 * * *"

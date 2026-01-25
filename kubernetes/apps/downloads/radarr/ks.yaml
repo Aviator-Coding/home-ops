@@ -35,3 +35,6 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CLAIM: radarr-config
+      VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "5 3 * * *"

@@ -6,8 +6,8 @@ This document explains the backup and restore strategy implemented using Volsync
 
 ```
 kubernetes/components/volsync/
-├── ceph/                    # Local Ceph cluster backups (every 30 min)
-├── minio/                   # MinIO S3-compatible storage backups (every 3 hrs)
+├── ceph/                    # Local Ceph cluster backups (every 4 hours)
+├── minio/                   # MinIO S3-compatible storage backups (every 6 hours)
 ├── r2/                      # Cloudflare R2 storage backups (daily)
 └── kustomization.yaml       # Combines all components
 ```
@@ -15,8 +15,8 @@ kubernetes/components/volsync/
 ## Backup Schedules & Execution
 
 ### 1. Local Ceph (`ceph/`)
-- **Schedule**: `*/30 * * * *` (Every 30 minutes)
-- **Frequency**: **EVERY 30 MINUTES** (00:00, 00:30, 01:00, 01:30, etc.)
+- **Schedule**: `0 */4 * * *` (Every 4 hours at minute 0)
+- **Frequency**: **EVERY 4 HOURS** (00:00, 04:00, 08:00, 12:00, 16:00, 20:00)
 - **Process**:
   - Takes snapshot of `${APP}` PVC
   - Uploads to local Ceph S3 bucket
@@ -24,8 +24,8 @@ kubernetes/components/volsync/
   - Prunes old backups every 14 days
 
 ### 2. Remote NAS MinIO (`minio/`)
-- **Schedule**: `0 */3 * * *` (Every 3 hours at minute 0)
-- **Frequency**: **EVERY 3 HOURS** (00:00, 03:00, 06:00, 09:00, etc.)
+- **Schedule**: `30 */6 * * *` (Every 6 hours at minute 30)
+- **Frequency**: **EVERY 6 HOURS** (00:30, 06:30, 12:30, 18:30)
 - **Process**:
   - Takes snapshot of `${APP}` PVC
   - Uploads to MinIO S3 bucket at `s3://bucket/path/${APP}/`
@@ -78,17 +78,17 @@ Volsync uses standard cron expressions for scheduling backups. Here's how to cre
 #### Critical Applications (Databases, Config)
 ```yaml
 # Frequent local + regular off-site
-schedule: "*/30 * * * *"  # Local Ceph (every 30 min)
-schedule: "0 */3 * * *"   # NAS MinIO (every 3 hours)
-schedule: "0 2 * * *"     # Cloud R2 (daily)
+schedule: "0 */4 * * *"   # Local Ceph (every 4 hours)
+schedule: "0 */6 * * *"   # NAS MinIO (every 6 hours)
+schedule: "0 1 * * *"     # Cloud R2 (daily at 1 AM)
 ```
 
 #### Media Applications (Plex, Jellyfin)
 ```yaml
-# Every 30 min local + 3 hour NAS + daily off-site
-schedule: "*/30 * * * *"  # Local Ceph
-schedule: "0 */3 * * *"   # NAS MinIO
-schedule: "0 2 * * *"     # Cloud R2
+# Every 4 hours local + 6 hour NAS + daily off-site
+schedule: "55 */4 * * *"  # Local Ceph (staggered)
+schedule: "30 */6 * * *"  # NAS MinIO (staggered)
+schedule: "0 4 * * *"     # Cloud R2 (daily at 4 AM)
 ```
 
 #### Development/Testing Applications
@@ -102,10 +102,13 @@ schedule: "0 5 * * *"    # Once daily at 5 AM
 1. **Stagger backup times** to avoid resource contention:
    ```yaml
    # App 1: Local Ceph
-   schedule: "*/30 * * * *"   # Every 30 minutes
+   schedule: "0 */4 * * *"    # Every 4 hours at minute 0
+
+   # App 2: Local Ceph (staggered)
+   schedule: "15 */4 * * *"   # Every 4 hours at minute 15
 
    # App 1: NAS MinIO
-   schedule: "0 */3 * * *"    # Every 3 hours starting at 00:00
+   schedule: "0 */6 * * *"    # Every 6 hours at minute 0
 
    # App 1: Cloudflare R2
    schedule: "0 2 * * *"      # Daily at 02:00
@@ -160,21 +163,21 @@ kubectl patch replicationdestination ${APP}-dst \
 
 ## Daily Timeline Example
 
+With schedule distribution across 27 applications:
+
 ```
-00:00 ──── [Ceph] 30-min backup ──── [MinIO] 3-hour backup ─────────────
-00:30 ──── [Ceph] 30-min backup ────────────────────────────────────────
-01:00 ──── [Ceph] 30-min backup ────────────────────────────────────────
-01:30 ──── [Ceph] 30-min backup ────────────────────────────────────────
-02:00 ──── [Ceph] 30-min backup ──── [R2] Daily backup ─────────────────
-02:30 ──── [Ceph] 30-min backup ────────────────────────────────────────
-03:00 ──── [Ceph] 30-min backup ──── [MinIO] 3-hour backup ─────────────
-...
-06:00 ──── [Ceph] 30-min backup ──── [MinIO] 3-hour backup ─────────────
-...
-09:00 ──── [Ceph] 30-min backup ──── [MinIO] 3-hour backup ─────────────
-...
-12:00 ──── [Ceph] 30-min backup ──── [MinIO] 3-hour backup ─────────────
-...
+00:00 ──── [Ceph] 4-hour backup (apps at :00) ──── [MinIO] 6-hour backup (apps at :00) ─────
+01:00 ──── [R2] Daily backup window begins (apps spread 01:00-05:00) ───────────────────────
+02:00 ──── [R2] Daily backups continue ─────────────────────────────────────────────────────
+03:00 ──── [R2] Daily backups continue ─────────────────────────────────────────────────────
+04:00 ──── [Ceph] 4-hour backup (apps at :00-:55) ───────────────────────────────────────────
+05:00 ──── [R2] Daily backup window ends ───────────────────────────────────────────────────
+06:00 ──── [MinIO] 6-hour backup (apps at :00-:45) ─────────────────────────────────────────
+08:00 ──── [Ceph] 4-hour backup (apps at :00-:55) ───────────────────────────────────────────
+12:00 ──── [Ceph] 4-hour backup ──── [MinIO] 6-hour backup ─────────────────────────────────
+16:00 ──── [Ceph] 4-hour backup ─────────────────────────────────────────────────────────────
+18:00 ──── [MinIO] 6-hour backup ───────────────────────────────────────────────────────────
+20:00 ──── [Ceph] 4-hour backup ─────────────────────────────────────────────────────────────
 ```
 
 ## Per-Application Usage
@@ -188,8 +191,8 @@ components:
 ```
 
 **What gets created**:
-- `plex-ceph` ReplicationSource (every 30 minutes to local Ceph)
-- `plex-minio` ReplicationSource (every 3 hours to NAS MinIO)
+- `plex-ceph` ReplicationSource (every 4 hours to local Ceph)
+- `plex-minio` ReplicationSource (every 6 hours to NAS MinIO)
 - `plex-r2` ReplicationSource (daily to Cloudflare R2)
 - `plex-dst` ReplicationDestination (manual restore - uses Ceph by default)
 
@@ -263,9 +266,9 @@ capacity: "5Gi"         # PVC - Cache is 80% of PVC size
 ## Important Considerations
 
 ### Resource Usage
-- **Backup frequency**: 48 Ceph + 8 MinIO + 1 R2 = **57 backup operations per day** per app
+- **Backup frequency**: 6 Ceph + 4 MinIO + 1 R2 = **11 backup operations per day** per app
 - **Storage usage**: 3 different destinations = **3x storage consumption**
-- **Network traffic**: High frequency backups = significant bandwidth usage
+- **Network traffic**: Distributed schedules reduce peak bandwidth usage
 
 ### Security
 - **Credentials**: Stored in Kubernetes secrets via External Secrets Operator
@@ -282,15 +285,61 @@ Consider reducing backup frequency for less critical applications:
 
 ```yaml
 # Suggested optimized schedules:
-# Local Ceph: Every 30 minutes (default)
-schedule: "*/30 * * * *"
+# Local Ceph: Every 4 hours (default)
+schedule: "0 */4 * * *"
 
-# NAS MinIO: Every 3 hours (default)
-schedule: "0 */3 * * *"
+# NAS MinIO: Every 6 hours (default)
+schedule: "30 */6 * * *"
 
 # Cloudflare R2: Keep daily (default)
 schedule: "0 2 * * *"
 ```
+
+## Application Schedule Distribution
+
+To reduce IOPS contention and spread backup operations evenly, all 27 volsync-enabled applications have unique staggered schedules:
+
+| # | Namespace | Application | Ceph Schedule | MinIO Schedule | R2 Schedule | Priority |
+|---|-----------|-------------|---------------|----------------|-------------|----------|
+| 1 | database | pgadmin | `0 */4 * * *` | `0 */6 * * *` | `0 1 * * *` | Critical |
+| 2 | home-automation | home-assistant | `5 */4 * * *` | `0 */6 * * *` | `5 1 * * *` | Critical |
+| 3 | home-automation | zigbee2mqtt | `10 */4 * * *` | `15 */6 * * *` | `10 1 * * *` | Critical |
+| 4 | home-automation | esphome | `15 */4 * * *` | `15 */6 * * *` | `15 1 * * *` | High |
+| 5 | home-automation | matter-server | `20 */4 * * *` | `15 */6 * * *` | `20 1 * * *` | High |
+| 6 | ai | open-webui | `25 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
+| 7 | ai | qdrant | `30 */4 * * *` | `30 */6 * * *` | `5 2 * * *` | High |
+| 8 | ai | litellm | `35 */4 * * *` | `30 */6 * * *` | `10 2 * * *` | Medium |
+| 9 | ai | open-notebook | `40 */4 * * *` | `30 */6 * * *` | `15 2 * * *` | Medium |
+| 10 | ai | perplexica | `45 */4 * * *` | `45 */6 * * *` | `20 2 * * *` | Medium |
+| 11 | downloads | sonarr | `0 */4 * * *` | `45 */6 * * *` | `0 3 * * *` | Medium |
+| 12 | downloads | radarr | `5 */4 * * *` | `45 */6 * * *` | `5 3 * * *` | Medium |
+| 13 | downloads | lidarr | `10 */4 * * *` | `45 */6 * * *` | `10 3 * * *` | Medium |
+| 14 | downloads | readarr | `15 */4 * * *` | `0 */6 * * *` | `15 3 * * *` | Medium |
+| 15 | downloads | bazarr | `20 */4 * * *` | `0 */6 * * *` | `20 3 * * *` | Medium |
+| 16 | downloads | prowlarr | `25 */4 * * *` | `0 */6 * * *` | `25 3 * * *` | Medium |
+| 17 | downloads | sabnzbd | `30 */4 * * *` | `15 */6 * * *` | `30 3 * * *` | Medium |
+| 18 | downloads | qbittorrent | `35 */4 * * *` | `15 */6 * * *` | `35 3 * * *` | Medium |
+| 19 | downloads | cross-seed | `40 */4 * * *` | `15 */6 * * *` | `40 3 * * *` | Low |
+| 20 | downloads | autobrr | `45 */4 * * *` | `30 */6 * * *` | `45 3 * * *` | Low |
+| 21 | downloads | recyclarr | `50 */4 * * *` | `30 */6 * * *` | `50 3 * * *` | Low |
+| 22 | media | jellyfin | `55 */4 * * *` | `30 */6 * * *` | `0 4 * * *` | Medium |
+| 23 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
+| 24 | media | calibre-web | `5 */4 * * *` | `45 */6 * * *` | `10 4 * * *` | Low |
+| 25 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 26 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
+| 27 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
+
+### Distribution Strategy
+
+- **Ceph (every 4 hours)**: Apps distributed across 12 time slots (5-minute intervals from :00 to :55)
+- **MinIO (every 6 hours)**: Apps distributed across 4 time slots (15-minute intervals: :00, :15, :30, :45)
+- **R2 (daily)**: Apps distributed across 5 hours (1:00 AM - 5:00 AM) in 5-minute intervals
+
+This distribution ensures:
+- Maximum 2-3 apps backing up simultaneously to Ceph
+- Maximum 6-7 apps per MinIO window
+- Maximum 5-6 apps per R2 hour slot
+- Critical applications (databases, home-assistant) run earliest in backup windows
 
 ## Troubleshooting
 
