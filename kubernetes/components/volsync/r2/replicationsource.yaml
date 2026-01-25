@@ -7,7 +7,7 @@ metadata:
 spec:
   sourcePVC: "${VOLSYNC_CLAIM:-${APP}}"
   trigger:
-    schedule: "0 2 * * *"  # Daily at 2 AM - off-site cloud backups
+    schedule: "${VOLSYNC_SCHEDULE_R2:-0 2 * * *}"  # Daily at 2 AM default - customizable per-app
   restic:
     pruneIntervalDays: 30
     repository: "${APP}-volsync-r2-secret"

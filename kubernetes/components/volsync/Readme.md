@@ -212,6 +212,29 @@ Common variables used across all configurations:
 | `VOLSYNC_CAPACITY` | `5Gi` | Restored volume size | **Same as source PVC** |
 | `VOLSYNC_PUID` | `1000` | User ID for mover security context | `1000` |
 | `VOLSYNC_PGID` | `1000` | Group ID for mover security context | `1000` |
+| `VOLSYNC_SCHEDULE_CEPH` | `0 */4 * * *` | Ceph backup schedule (cron) | Stagger per-app |
+| `VOLSYNC_SCHEDULE_MINIO` | `30 */6 * * *` | MinIO backup schedule (cron) | Stagger per-app |
+| `VOLSYNC_SCHEDULE_R2` | `0 2 * * *` | R2 backup schedule (cron) | Stagger per-app |
+
+### Customizing Backup Schedules Per-App
+
+To spread backup times and reduce IOPS contention, override schedules in your app's `ks.yaml`:
+
+```yaml
+# kubernetes/apps/media/jellyfin/ks.yaml
+postBuild:
+  substituteFrom:
+    - name: cluster-secrets
+      kind: Secret
+  substitute:
+    APP: *app
+    VOLSYNC_CAPACITY: 10Gi
+    VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"    # Offset by 15 minutes
+    VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"   # Offset by 15 minutes
+    VOLSYNC_SCHEDULE_R2: "15 2 * * *"        # Offset by 15 minutes
+```
+
+You can override one, two, or all three schedules independently. Apps without overrides use the defaults.
 
 ### Cache Sizing Considerations
 
