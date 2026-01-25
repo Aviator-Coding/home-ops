@@ -9,5 +9,4 @@ components:
   - ../../components/alerts
 
 resources:
-  - ./namespace.yaml
   - ./tuppr/ks.yaml
