@@ -1,5 +1,6 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  dependencyDashboard: true,
   extends: [
     "github>Aviator-Coding/mortyops//ci/renovate/default.json5",
     "github>Aviator-Coding/mortyops//ci/renovate/automerge-github-actions.json5",
