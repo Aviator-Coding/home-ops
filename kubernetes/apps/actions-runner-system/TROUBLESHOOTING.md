@@ -381,6 +381,56 @@ task actions-runner:reset-scale-set
 task actions-runner:run-maintenance
 ```
 
+## Image Pull Optimization
+
+### Spegel P2P Registry Cache
+
+This cluster uses Spegel as a peer-to-peer container image cache. When one node pulls an image,
+other nodes can fetch it from the peer instead of the upstream registry.
+
+**Spegel Configuration:**
+- Deployed in `kube-system` namespace
+- Mirrors ALL registries by default (including ghcr.io, docker.io)
+- Exposes local registry on port 29999
+
+**Container Images Used by ARC:**
+
+| Image | Registry | Size | Cacheable by Spegel |
+|-------|----------|------|---------------------|
+| `ghcr.io/home-operations/actions-runner:2.331.0` | GHCR | ~720MB | Yes |
+| `ghcr.io/actions/gha-runner-scale-set-controller:0.13.1` | GHCR | ~50MB | Yes |
+
+**Verifying Spegel is working:**
+```bash
+# Check Spegel pods
+kubectl -n kube-system get pods -l app.kubernetes.io/name=spegel
+
+# Check containerd registry config
+talosctl -n <node-ip> cat /etc/cri/conf.d/hosts/ghcr.io/hosts.toml
+
+# View Spegel metrics
+kubectl -n kube-system port-forward svc/spegel-metrics 9090:9090
+curl localhost:9090/metrics | grep spegel
+```
+
+**If image pulls are slow:**
+1. Verify Spegel pods are running on all nodes
+2. Check Spegel logs for errors: `kubectl -n kube-system logs -l app.kubernetes.io/name=spegel --tail=50`
+3. Verify the first node has completed the pull (others wait for P2P)
+4. Monitor bandwidth with `talosctl dashboard`
+5. Check Spegel Grafana dashboard for P2P transfer metrics
+
+### Resource Right-Sizing
+
+Runner resource requests have been optimized based on actual usage:
+
+| Resource | Old Request | New Request | Actual Usage |
+|----------|-------------|-------------|--------------|
+| CPU | 500m | 200m | 8-14m |
+| Memory | 2Gi | 512Mi | 125-142Mi |
+
+This allows more concurrent runners on the same hardware while still providing headroom for burst usage.
+
 ## Related Documentation
 
 - [Actions Runner Controller GitHub](https://github.com/actions/actions-runner-controller)

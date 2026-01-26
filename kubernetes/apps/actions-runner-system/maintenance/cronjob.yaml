@@ -12,6 +12,7 @@ spec:
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 3600
+      activeDeadlineSeconds: 600  # Terminate job after 10 minutes to prevent hangs
       template:
         spec:
           serviceAccountName: runner-maintenance
