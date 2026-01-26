@@ -7,6 +7,12 @@ metadata:
 spec:
   providerRef:
     name: github-status
+  eventSeverity: error
   eventSources:
     - kind: Kustomization
       name: "*"
+  exclusionList:
+    - error.*lookup.*github
+    - dial.*tcp.*timeout
+    - waiting.*socket
+  suspend: false
