@@ -46,9 +46,7 @@ spec:
             name: headlamp-plugins
     config:
       pluginsDir: /build/plugins
-      # Increase connection timeout and retry settings
       baseURL: ""
-      oidc: null
     env:
       - name: HEADLAMP_CONFIG_BACKEND_PROXY_TIMEOUT
         value: "30s"
