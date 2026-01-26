@@ -23,12 +23,21 @@ spec:
     remediation:
       strategy: rollback
       retries: 3
+  # Patch deployment to use Recreate strategy for RWO volume compatibility.
+  # RollingUpdate creates new pods before terminating old ones, which fails
+  # when the PVC can only attach to one node at a time.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: headlamp
+            patch: |
+              - op: replace
+                path: /spec/strategy
+                value:
+                  type: Recreate
   values:
-    # Use Recreate strategy to avoid Multi-Attach errors with RWO volumes
-    # RollingUpdate creates new pods before terminating old ones, which fails
-    # when the PVC can only attach to one node at a time
-    strategy:
-      type: Recreate
     podAnnotations:
       reloader.stakater.com/auto: "true"
     fullnameOverride: headlamp
