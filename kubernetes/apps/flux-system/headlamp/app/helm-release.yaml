@@ -24,6 +24,11 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    # Use Recreate strategy to avoid Multi-Attach errors with RWO volumes
+    # RollingUpdate creates new pods before terminating old ones, which fails
+    # when the PVC can only attach to one node at a time
+    strategy:
+      type: Recreate
     podAnnotations:
       reloader.stakater.com/auto: "true"
     fullnameOverride: headlamp
