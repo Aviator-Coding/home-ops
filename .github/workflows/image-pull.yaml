@@ -140,18 +140,16 @@ jobs:
       MATRIX_IMAGE: ${{ matrix.image }}
       TALOSCTL_VERSION: "1.12.0"
     steps:
-      - name: Cache talosctl
-        id: cache-talosctl
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
-        with:
-          path: /usr/local/bin/talosctl
-          key: talosctl-${{ env.TALOSCTL_VERSION }}-${{ runner.os }}-${{ runner.arch }}
-
-      - name: Install talosctl
-        if: steps.cache-talosctl.outputs.cache-hit != 'true'
+      - name: Verify talosctl (pre-installed via init container)
         run: |
-          curl -fsSL https://talos.dev/install | sh
-          talosctl version --client
+          if command -v talosctl &> /dev/null; then
+            echo "talosctl is pre-installed"
+            talosctl version --client
+          else
+            echo "talosctl not found, installing..."
+            curl -fsSL https://talos.dev/install | sh
+            talosctl version --client
+          fi
 
       - name: Pull Image
         run: talosctl --nodes $NODE image pull "${MATRIX_IMAGE}"

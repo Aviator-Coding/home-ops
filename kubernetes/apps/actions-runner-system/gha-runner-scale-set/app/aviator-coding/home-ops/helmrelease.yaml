@@ -121,6 +121,17 @@ spec:
           # runAsUser: 1001
           # runAsGroup: 1001
           fsGroup: 1001
+        initContainers:
+          # Pre-download talosctl to avoid downloading on every job
+          - name: talosctl-installer
+            image: ghcr.io/siderolabs/talosctl:v1.12.0
+            command:
+              - cp
+              - /talosctl
+              - /talos-bin/talosctl
+            volumeMounts:
+              - name: talos-bin
+                mountPath: /talos-bin
         containers:
           - name: runner
             # renovate: datasource=docker depName=ghcr.io/home-operations/actions-runner
@@ -160,6 +171,9 @@ spec:
               - name: talos
                 mountPath: /var/run/secrets/talos.dev
                 readOnly: true
+              - name: talos-bin
+                mountPath: /usr/local/bin/talosctl
+                subPath: talosctl
         serviceAccountName: actions-runner
         volumes:
           - name: work
@@ -174,6 +188,8 @@ spec:
           - name: talos
             secret:
               secretName: actions-runner
+          - name: talos-bin
+            emptyDir: {}
     ######################################################################################################
     # Listener pod resource configuration to prevent eviction during pressure
     listenerTemplate:
