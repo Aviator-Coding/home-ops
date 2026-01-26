@@ -18,6 +18,37 @@ spec:
           labels:
             severity: critical
 
+        - alert: CertManagerCainjectorHighRestarts
+          expr: |-
+            increase(kube_pod_container_status_restarts_total{namespace="cert-manager", container="cert-manager-cainjector"}[1h]) > 2
+          for: 5m
+          annotations:
+            summary: >-
+              cert-manager cainjector has restarted {{ $value | humanize }} times in the last hour
+          labels:
+            severity: warning
+
+        - alert: CertManagerCainjectorHighMemory
+          expr: |-
+            (container_memory_working_set_bytes{namespace="cert-manager", container="cert-manager-cainjector"} /
+             container_spec_memory_limit_bytes{namespace="cert-manager", container="cert-manager-cainjector"}) > 0.8
+          for: 5m
+          annotations:
+            summary: >-
+              cert-manager cainjector memory usage is at {{ $value | humanizePercentage }} of limit
+          labels:
+            severity: warning
+
+        - alert: CertManagerCainjectorOOMKilled
+          expr: |-
+            kube_pod_container_status_last_terminated_reason{namespace="cert-manager", container="cert-manager-cainjector", reason="OOMKilled"} == 1
+          for: 0m
+          annotations:
+            summary: >-
+              cert-manager cainjector was OOM killed
+          labels:
+            severity: critical
+
     - name: certificates
       rules:
         - alert: CertManagerCertExpirySoon
