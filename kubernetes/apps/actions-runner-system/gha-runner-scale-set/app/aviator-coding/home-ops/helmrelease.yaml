@@ -124,11 +124,18 @@ spec:
         initContainers:
           # Pre-download talosctl to avoid downloading on every job
           - name: talosctl-installer
-            image: ghcr.io/siderolabs/talosctl:v1.12.0
+            image: curlimages/curl:8.11.1
             command:
-              - cp
-              - /talosctl
-              - /talos-bin/talosctl
+              - /bin/sh
+              - -c
+              - |
+                TALOSCTL_VERSION="v1.12.0"
+                echo "Downloading talosctl ${TALOSCTL_VERSION}..."
+                curl -fsSL "https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}/talosctl-linux-amd64" \
+                  -o /talos-bin/talosctl
+                chmod +x /talos-bin/talosctl
+                echo "talosctl installed successfully"
+                /talos-bin/talosctl version --client
             volumeMounts:
               - name: talos-bin
                 mountPath: /talos-bin
