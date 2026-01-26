@@ -1,0 +1,26 @@
+kind: Gateway
+apiVersion: gateway.networking.k8s.io/v1
+metadata:
+  name: agentgateway
+  namespace: ai-system
+  labels:
+    app: agentgateway
+spec:
+  gatewayClassName: agentgateway
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 8080
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        certificateRefs:
+          - kind: Secret
+            name: sklab-dev-production-tls

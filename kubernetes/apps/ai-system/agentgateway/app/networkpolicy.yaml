@@ -1,0 +1,31 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agentgateway
+  namespace: ai-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: agentgateway
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic from ai-system namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-system
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 443
+    # Allow traffic from monitoring namespace for metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
