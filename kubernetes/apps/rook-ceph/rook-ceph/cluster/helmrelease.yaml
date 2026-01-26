@@ -37,7 +37,7 @@ spec:
     cephClusterSpec:
       cephVersion:
         # renovate: datasource=docker depName=quay.io/ceph/ceph
-        image: quay.io/ceph/ceph:v19.2.3
+        image: quay.io/ceph/ceph:v20.2.0
         allowUnsupported: false
       cephConfig:
         global:
