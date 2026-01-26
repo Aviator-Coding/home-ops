@@ -39,6 +39,8 @@ spec:
           - -c
           - mkdir -p /build/plugins && cp -rf /plugins/* /build/plugins/
         name: headlamp-plugins
+        securityContext:
+          runAsUser: 0
         volumeMounts:
           - mountPath: /build/plugins
             name: headlamp-plugins
