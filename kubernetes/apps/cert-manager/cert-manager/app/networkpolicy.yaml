@@ -21,13 +21,21 @@ spec:
         - protocol: TCP
           port: 9402
   egress:
-    # Allow to Kubernetes API server
+    # Allow to Kubernetes API server (external endpoint)
     - to:
         - ipBlock:
             cidr: 10.10.10.10/32
       ports:
         - protocol: TCP
           port: 6443
+    # Allow to Kubernetes API server (in-cluster service)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
     # Allow to external HTTPS (ACME servers, Cloudflare API, DoH)
     - to:
         - ipBlock:
@@ -75,13 +83,21 @@ spec:
         - protocol: TCP
           port: 9402
   egress:
-    # Allow to Kubernetes API server
+    # Allow to Kubernetes API server (external endpoint)
     - to:
         - ipBlock:
             cidr: 10.10.10.10/32
       ports:
         - protocol: TCP
           port: 6443
+    # Allow to Kubernetes API server (in-cluster service)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
     # Allow DNS resolution
     - to:
         - namespaceSelector: {}
@@ -111,13 +127,21 @@ spec:
         - protocol: TCP
           port: 9402
   egress:
-    # Allow to Kubernetes API server
+    # Allow to Kubernetes API server (external endpoint)
     - to:
         - ipBlock:
             cidr: 10.10.10.10/32
       ports:
         - protocol: TCP
           port: 6443
+    # Allow to Kubernetes API server (in-cluster service)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
     # Allow DNS resolution
     - to:
         - namespaceSelector: {}
