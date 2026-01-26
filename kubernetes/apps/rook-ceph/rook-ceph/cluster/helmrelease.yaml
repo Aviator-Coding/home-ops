@@ -34,11 +34,11 @@ spec:
         # fuseMountOptions: "debug"
         # # Disable kernel mount and force FUSE
         # forceCephFSKernelClient: false
+    # renovate: datasource=docker depName=quay.io/ceph/ceph
+    cephImage:
+      repository: quay.io/ceph/ceph
+      tag: v20.2.0
     cephClusterSpec:
-      cephVersion:
-        # renovate: datasource=docker depName=quay.io/ceph/ceph
-        image: quay.io/ceph/ceph:v20.2.0
-        allowUnsupported: false
       cephConfig:
         global:
           bdev_enable_discard: "true"
