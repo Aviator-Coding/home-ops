@@ -28,10 +28,10 @@ spec:
       ports:
         - protocol: TCP
           port: 6443
-    # Allow to Kubernetes API server (in-cluster service IP)
+    # Allow to Kubernetes API server (in-cluster service CIDR)
     - to:
         - ipBlock:
-            cidr: 10.43.0.1/32
+            cidr: 10.43.0.0/16
       ports:
         - protocol: TCP
           port: 443
@@ -89,10 +89,10 @@ spec:
       ports:
         - protocol: TCP
           port: 6443
-    # Allow to Kubernetes API server (in-cluster service IP)
+    # Allow to Kubernetes API server (in-cluster service CIDR)
     - to:
         - ipBlock:
-            cidr: 10.43.0.1/32
+            cidr: 10.43.0.0/16
       ports:
         - protocol: TCP
           port: 443
@@ -132,10 +132,10 @@ spec:
       ports:
         - protocol: TCP
           port: 6443
-    # Allow to Kubernetes API server (in-cluster service IP)
+    # Allow to Kubernetes API server (in-cluster service CIDR)
     - to:
         - ipBlock:
-            cidr: 10.43.0.1/32
+            cidr: 10.43.0.0/16
       ports:
         - protocol: TCP
           port: 443
