@@ -15,7 +15,7 @@ spec:
         replicas: 2
         container:
           # renovate: datasource=docker depName=envoyproxy/envoy
-          image: mirror.gcr.io/envoyproxy/envoy:v1.36.4
+          image: mirror.gcr.io/envoyproxy/envoy:v1.37.0
           resources:
             requests:
               cpu: 100m
