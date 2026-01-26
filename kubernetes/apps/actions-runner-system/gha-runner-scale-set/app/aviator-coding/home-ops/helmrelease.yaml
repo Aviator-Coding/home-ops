@@ -124,7 +124,7 @@ spec:
         initContainers:
           # Pre-download talosctl to avoid downloading on every job
           - name: talosctl-installer
-            image: curlimages/curl:8.11.1
+            image: curlimages/curl:8.18.0
             command:
               - /bin/sh
               - -c
