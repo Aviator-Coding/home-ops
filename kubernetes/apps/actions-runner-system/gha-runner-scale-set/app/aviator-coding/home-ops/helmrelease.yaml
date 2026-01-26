@@ -123,12 +123,13 @@ spec:
           fsGroup: 1001
         initContainers:
           # Pre-download talosctl to avoid downloading on every job
-        - name: talosctl-installer                                                                                                       
-          image: ghcr.io/nimbolus/talosctl-container:v1.12.2                                                                             
-          command: ["cp", "/usr/local/bin/talosctl", "/talos-bin/talosctl"]                                                              
-          volumeMounts:                                                                                                                  
-            - name: talos-bin                                                                                                            
-              mountPath: /talos-bin   
+          - name: talosctl-installer
+            # renovate: datasource=docker depName=ghcr.io/aviator-coding/talosctl-busybox
+            image: ghcr.io/aviator-coding/talosctl-busybox:v1.12.2
+            command: ["cp", "/usr/local/bin/talosctl", "/talos-bin/talosctl"]
+            volumeMounts:
+              - name: talos-bin
+                mountPath: /talos-bin   
         containers:
           - name: runner
             # renovate: datasource=docker depName=ghcr.io/home-operations/actions-runner
