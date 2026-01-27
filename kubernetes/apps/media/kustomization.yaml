@@ -10,4 +10,4 @@ components:
 
 resources:
   - ./calibre/ks.yaml
-  - ./jellyfin/ks.yaml
+  # - ./jellyfin/ks.yaml
