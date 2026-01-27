@@ -68,9 +68,8 @@ spec:
           secretRef:
             name: groq-secret
         model: "llama-3.3-70b-versatile"
-        customHost:
-          host: api.groq.com
-          port: 443
+      host: api.groq.com
+      port: 443
 ---
 # Deepseek Backend (OpenAI-compatible)
 apiVersion: gateway.kgateway.dev/v1alpha1
@@ -88,9 +87,8 @@ spec:
           secretRef:
             name: deepseek-secret
         model: "deepseek-chat"
-        customHost:
-          host: api.deepseek.com
-          port: 443
+      host: api.deepseek.com
+      port: 443
 ---
 # xAI Backend (OpenAI-compatible)
 apiVersion: gateway.kgateway.dev/v1alpha1
@@ -108,9 +106,8 @@ spec:
           secretRef:
             name: xai-secret
         model: "grok-3-fast"
-        customHost:
-          host: api.x.ai
-          port: 443
+      host: api.x.ai
+      port: 443
 ---
 # Mistral Backend (OpenAI-compatible)
 apiVersion: gateway.kgateway.dev/v1alpha1
@@ -128,9 +125,8 @@ spec:
           secretRef:
             name: mistral-secret
         model: "mistral-large-latest"
-        customHost:
-          host: api.mistral.ai
-          port: 443
+      host: api.mistral.ai
+      port: 443
 ---
 # Together.ai Backend (OpenAI-compatible)
 apiVersion: gateway.kgateway.dev/v1alpha1
@@ -148,9 +144,8 @@ spec:
           secretRef:
             name: togetherai-secret
         model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-        customHost:
-          host: api.together.xyz
-          port: 443
+      host: api.together.xyz
+      port: 443
 ---
 # LiteLLM Static Backend for /v1 backward compatibility
 apiVersion: gateway.kgateway.dev/v1alpha1
@@ -209,6 +204,5 @@ spec:
                 kind: SecretRef
                 secretRef:
                   name: groq-secret
-              customHost:
-                host: api.groq.com
-                port: 443
+            host: api.groq.com
+            port: 443
