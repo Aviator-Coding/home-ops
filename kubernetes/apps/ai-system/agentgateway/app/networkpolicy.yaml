@@ -53,12 +53,19 @@ spec:
           port: 9092
   egress:
     # Allow to Kubernetes API server (required for kgateway controller)
+    # ClusterIP service at 10.43.0.1:443 and actual endpoints at node IPs:6443
     - to:
         - ipBlock:
-            cidr: 10.43.0.1/32
+            cidr: 10.43.0.0/16
       ports:
         - protocol: TCP
           port: 443
+    - to:
+        - ipBlock:
+            cidr: 10.10.10.0/24
+      ports:
+        - protocol: TCP
+          port: 6443
     # Allow to LLM providers (external HTTPS)
     - to:
         - ipBlock:
