@@ -1,0 +1,50 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: google-secret
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: google-secret
+    template:
+      data:
+        Authorization: "{{ .GEMINI_API_KEY }}"
+  dataFrom:
+    - extract:
+        key: ai-keys
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: google
+spec:
+  ai:
+    provider:
+      gemini:
+        model: gemini-2.5-flash-lite
+  policies:
+    auth:
+      secretRef:
+        name: google-secret
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: google
+spec:
+  parentRefs:
+    - name: internal
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /gemini
+    backendRefs:
+    - name: google
+      group: agentgateway.dev
+      kind: AgentgatewayBackend

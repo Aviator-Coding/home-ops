@@ -1,0 +1,53 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: deepseek-secret
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: deepseek-secret
+    template:
+      data:
+        Authorization: "{{ .DEEPSEEK_API_KEY }}"
+  dataFrom:
+    - extract:
+        key: ai-keys
+---
+# deepseek BAgentgatewayBackend (OpenAI-compatible)
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: deepseek
+spec:
+  ai:
+    provider:
+      openai:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: deepseek-secret
+        model: "deepseek-chat"
+      host: api.deepseek.com
+      port: 443
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: deepseek
+spec:
+  parentRefs:
+    - name: internal
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /deepseek
+      backendRefs:
+        - name: deepseek
+          group: agentgateway.dev
+          kind: AgentgatewayBackend

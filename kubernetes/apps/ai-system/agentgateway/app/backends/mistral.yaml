@@ -1,0 +1,53 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: mistral-secret
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: mistral-secret
+    template:
+      data:
+        Authorization: "{{ .MISTRAL_API_KEY }}"
+  dataFrom:
+    - extract:
+        key: ai-keys
+---
+# mistral BAgentgatewayBackend (OpenAI-compatible)
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: mistral
+spec:
+  ai:
+    provider:
+      openai:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: mistral-secret
+        model: "mistral-large-latest"
+      host: api.mistral.ai
+      port: 443
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mistral
+spec:
+  parentRefs:
+    - name: internal
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /mistral
+      backendRefs:
+        - name: mistral
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
