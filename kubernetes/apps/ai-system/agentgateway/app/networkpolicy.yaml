@@ -52,6 +52,13 @@ spec:
         - protocol: TCP
           port: 9092
   egress:
+    # Allow to Kubernetes API server (required for kgateway controller)
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
     # Allow to LLM providers (external HTTPS)
     - to:
         - ipBlock:
