@@ -37,6 +37,10 @@ spec:
   values:
     agentgateway:
       enabled: true
+    # Enable automount of service account token for Kubernetes API access
+    automountServiceAccountToken: true
+    serviceAccount:
+      automountServiceAccountToken: true
     controller:
       replicaCount: 2
       logLevel: "info"
