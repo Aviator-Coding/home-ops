@@ -7,6 +7,11 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./gateway.yaml
-  # - ./networkpolicy.yaml
+  - ./networkpolicy.yaml
   - ./pdb.yaml
   - ./servicemonitor.yaml
+  - ./externalsecret-tls.yaml
+  - ./externalsecret.yaml
+  - ./backends.yaml
+  - ./httproutes.yaml
+  - ./trafficpolicies.yaml

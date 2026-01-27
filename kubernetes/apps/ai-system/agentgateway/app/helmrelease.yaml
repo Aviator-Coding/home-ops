@@ -14,9 +14,8 @@ spec:
     replace: true
     crds: CreateReplace
     createNamespace: true
-    strategy:
-      name: RetryOnFailure
-      retryInterval: 5m
+    remediation:
+      retries: -1
   upgrade:
     remediation:
       remediateLastFailure: true
@@ -35,3 +34,25 @@ spec:
   driftDetection:
     mode: enabled
   maxHistory: 3
+  values:
+    agentgateway:
+      enabled: true
+    controller:
+      replicaCount: 2
+      logLevel: "info"
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: agentgateway
+              topologyKey: kubernetes.io/hostname

@@ -23,6 +23,10 @@ spec:
   dependsOn:
     - name: agentgateway-crds
       namespace: *namespace
+    - name: onepassword-store
+      namespace: security
+    - name: certificates-import
+      namespace: network
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -46,7 +50,7 @@ spec:
   timeout: 3m
   path: "./kubernetes/apps/ai-system/agentgateway/crds"
   prune: true
-  wait: false
+  wait: true
   sourceRef:
     kind: GitRepository
     name: flux-system

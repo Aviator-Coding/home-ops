@@ -1,0 +1,214 @@
+---
+# OpenAI Backend
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: openai
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    llm:
+      openai:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: openai-secret
+        model: "gpt-4o"
+---
+# Anthropic Backend
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: anthropic
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    llm:
+      anthropic:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: anthropic-secret
+        model: "claude-sonnet-4-20250514"
+        apiVersion: "2023-06-01"
+---
+# Google Gemini Backend
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: gemini
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    llm:
+      gemini:
+        apiVersion: v1beta
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: google-secret
+        model: "gemini-2.5-flash-preview-05-20"
+---
+# Groq Backend (OpenAI-compatible)
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: groq
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    llm:
+      openai:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: groq-secret
+        model: "llama-3.3-70b-versatile"
+        customHost:
+          host: api.groq.com
+          port: 443
+---
+# Deepseek Backend (OpenAI-compatible)
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: deepseek
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    llm:
+      openai:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: deepseek-secret
+        model: "deepseek-chat"
+        customHost:
+          host: api.deepseek.com
+          port: 443
+---
+# xAI Backend (OpenAI-compatible)
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: xai
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    llm:
+      openai:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: xai-secret
+        model: "grok-3-fast"
+        customHost:
+          host: api.x.ai
+          port: 443
+---
+# Mistral Backend (OpenAI-compatible)
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: mistral
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    llm:
+      openai:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: mistral-secret
+        model: "mistral-large-latest"
+        customHost:
+          host: api.mistral.ai
+          port: 443
+---
+# Together.ai Backend (OpenAI-compatible)
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: togetherai
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    llm:
+      openai:
+        authToken:
+          kind: SecretRef
+          secretRef:
+            name: togetherai-secret
+        model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+        customHost:
+          host: api.together.xyz
+          port: 443
+---
+# LiteLLM Static Backend for /v1 backward compatibility
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: litellm-proxy
+  namespace: ai-system
+spec:
+  type: Static
+  static:
+    hosts:
+      - host: litellm.ai.svc.cluster.local
+        port: 4000
+---
+# Model Failover Backend (Primary: GPT-4o, Fallback: Claude Sonnet)
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: Backend
+metadata:
+  name: llm-failover
+  namespace: ai-system
+spec:
+  type: AI
+  ai:
+    priorityGroups:
+      # Priority 1: Primary models (load balanced)
+      - providers:
+          - name: openai-gpt4o
+            openai:
+              model: "gpt-4o"
+              authToken:
+                kind: SecretRef
+                secretRef:
+                  name: openai-secret
+          - name: anthropic-sonnet
+            anthropic:
+              model: "claude-sonnet-4-20250514"
+              apiVersion: "2023-06-01"
+              authToken:
+                kind: SecretRef
+                secretRef:
+                  name: anthropic-secret
+      # Priority 2: Fallback (cost-effective models)
+      - providers:
+          - name: gemini-flash
+            gemini:
+              apiVersion: v1beta
+              model: "gemini-2.5-flash-preview-05-20"
+              authToken:
+                kind: SecretRef
+                secretRef:
+                  name: google-secret
+          - name: groq-llama
+            openai:
+              model: "llama-3.3-70b-versatile"
+              authToken:
+                kind: SecretRef
+                secretRef:
+                  name: groq-secret
+              customHost:
+                host: api.groq.com
+                port: 443

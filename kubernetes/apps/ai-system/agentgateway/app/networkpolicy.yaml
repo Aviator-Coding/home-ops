@@ -10,12 +10,32 @@ spec:
       app.kubernetes.io/name: agentgateway
   policyTypes:
     - Ingress
+    - Egress
   ingress:
+    # Allow traffic from anywhere (LoadBalancer)
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8080
     # Allow traffic from ai-system namespace
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ai-system
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 443
+    # Allow traffic from ai namespace (for apps like perplexica, open-notebook)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
       ports:
         - protocol: TCP
           port: 8080
@@ -29,3 +49,40 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+        - protocol: TCP
+          port: 9092
+  egress:
+    # Allow to LLM providers (external HTTPS)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow to internal services (LiteLLM, MCP servers)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+      ports:
+        - protocol: TCP
+          port: 4000
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8080
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

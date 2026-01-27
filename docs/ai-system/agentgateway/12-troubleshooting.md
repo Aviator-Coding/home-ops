@@ -783,4 +783,212 @@ kubectl get events -n ai-system --sort-by='.lastTimestamp' > events.log
 
 ---
 
+## Health Dashboard Patterns
+
+### Key Health Indicators
+
+Configure a Grafana dashboard with these panels:
+
+```yaml
+# Grafana Dashboard JSON (abbreviated)
+panels:
+  - title: "Gateway Health Score"
+    type: stat
+    targets:
+      - expr: |
+          (
+            (1 - (sum(rate(agentgateway_requests_total{status=~"5.."}[5m])) / sum(rate(agentgateway_requests_total[5m])))) * 0.4 +
+            (1 - clamp_max(avg(agentgateway_request_duration_seconds{quantile="0.99"}) / 30, 1)) * 0.3 +
+            (sum(agentgateway_backends_healthy) / sum(agentgateway_backends_total)) * 0.3
+          ) * 100
+    thresholds:
+      - color: red
+        value: 0
+      - color: yellow
+        value: 80
+      - color: green
+        value: 95
+
+  - title: "Request Rate"
+    type: graph
+    targets:
+      - expr: sum(rate(agentgateway_requests_total[1m])) by (status)
+
+  - title: "Latency Distribution"
+    type: heatmap
+    targets:
+      - expr: sum(rate(agentgateway_request_duration_seconds_bucket[5m])) by (le)
+
+  - title: "Backend Health"
+    type: table
+    targets:
+      - expr: agentgateway_backend_health_status
+```
+
+### Traffic Light Status
+
+| Indicator | Green | Yellow | Red |
+|-----------|-------|--------|-----|
+| Error Rate | < 1% | 1-5% | > 5% |
+| P99 Latency | < 10s | 10-30s | > 30s |
+| Backend Health | 100% | 80-99% | < 80% |
+| Active Connections | < 80% capacity | 80-95% | > 95% |
+
+---
+
+## SLO/SLI Definitions
+
+### Recommended SLOs
+
+| SLO | Target | Measurement Window |
+|-----|--------|-------------------|
+| **Availability** | 99.9% | 30 days rolling |
+| **Latency (P50)** | < 5s | 5 minute windows |
+| **Latency (P99)** | < 30s | 5 minute windows |
+| **Error Rate** | < 0.1% | 1 hour windows |
+| **Throughput** | > 100 RPS sustained | 5 minute windows |
+
+### SLI Queries
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agentgateway-slos
+  namespace: ai-system
+spec:
+  groups:
+    - name: sli-recording
+      rules:
+        # Availability SLI
+        - record: agentgateway:availability:ratio_rate5m
+          expr: |
+            sum(rate(agentgateway_requests_total{status!~"5.."}[5m]))
+            / sum(rate(agentgateway_requests_total[5m]))
+
+        # Latency SLI (requests under 30s)
+        - record: agentgateway:latency_target:ratio_rate5m
+          expr: |
+            sum(rate(agentgateway_request_duration_seconds_bucket{le="30"}[5m]))
+            / sum(rate(agentgateway_request_duration_seconds_count[5m]))
+
+        # Error budget remaining (30-day window)
+        - record: agentgateway:error_budget:remaining
+          expr: |
+            1 - (
+              (1 - avg_over_time(agentgateway:availability:ratio_rate5m[30d]))
+              / (1 - 0.999)
+            )
+
+    - name: slo-alerts
+      rules:
+        - alert: SLOBudgetBurnRateHigh
+          expr: |
+            (
+              sum(rate(agentgateway_requests_total{status=~"5.."}[1h]))
+              / sum(rate(agentgateway_requests_total[1h]))
+            ) > (14.4 * (1 - 0.999))
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Error budget burn rate is too high"
+            description: "At current rate, monthly error budget will be exhausted in < 2 days"
+
+        - alert: SLOBudgetLow
+          expr: agentgateway:error_budget:remaining < 0.25
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Error budget below 25%"
+            description: "{{ $value | humanizePercentage }} of monthly error budget remaining"
+```
+
+### Error Budget Policy
+
+| Budget Remaining | Action |
+|------------------|--------|
+| > 50% | Normal operations, can deploy freely |
+| 25-50% | Increased monitoring, limit risky changes |
+| 10-25% | Freeze non-critical deployments |
+| < 10% | Incident response mode, focus on reliability |
+
+---
+
+## Canary Deployment
+
+### Progressive Rollout
+
+```yaml
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: agentgateway
+  namespace: ai-system
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: agentgateway-proxy
+  progressDeadlineSeconds: 600
+  service:
+    port: 8080
+  analysis:
+    interval: 1m
+    threshold: 5
+    maxWeight: 50
+    stepWeight: 10
+    metrics:
+      - name: request-success-rate
+        thresholdRange:
+          min: 99
+        interval: 1m
+      - name: request-duration
+        thresholdRange:
+          max: 10000  # 10s in milliseconds
+        interval: 1m
+    webhooks:
+      - name: load-test
+        url: http://flagger-loadtester.test/
+        metadata:
+          cmd: "hey -z 1m -q 10 -c 2 http://agentgateway-canary.ai-system:8080/health"
+```
+
+### Manual Canary Testing
+
+```bash
+# Deploy canary version
+kubectl set image deployment/agentgateway-proxy \
+  agentgateway=ghcr.io/kgateway-dev/kgateway:2.1.3-canary \
+  -n ai-system
+
+# Route 10% traffic to canary
+kubectl patch httproute llm-routes -n ai-system --type merge -p '
+spec:
+  rules:
+    - backendRefs:
+        - name: agentgateway-stable
+          weight: 90
+        - name: agentgateway-canary
+          weight: 10
+'
+
+# Monitor canary metrics
+watch -n5 'kubectl exec -n monitoring deploy/prometheus -- \
+  promtool query instant http://localhost:9090 \
+  "sum(rate(agentgateway_requests_total{version=\"canary\",status=~\"5..\"}[5m]))"'
+
+# Promote or rollback
+kubectl patch httproute llm-routes -n ai-system --type merge -p '
+spec:
+  rules:
+    - backendRefs:
+        - name: agentgateway-stable
+          weight: 100
+'
+```
+
+---
+
 *See [README.md](./README.md) for documentation index.*
