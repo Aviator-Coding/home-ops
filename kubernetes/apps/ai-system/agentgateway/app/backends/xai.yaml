@@ -27,13 +27,13 @@ spec:
   ai:
     provider:
       openai:
-        authToken:
-          kind: SecretRef
-          secretRef:
-            name: xai-secret
         model: "grok-3-fast"
       host: api.x.ai
       port: 443
+  policies:
+    auth:
+      secretRef:
+        name: xai-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

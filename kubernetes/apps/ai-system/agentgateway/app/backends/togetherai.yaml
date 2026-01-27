@@ -27,13 +27,13 @@ spec:
   ai:
     provider:
       openai:
-        authToken:
-          kind: SecretRef
-          secretRef:
-            name: togetherai-secret
         model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       host: api.together.xyz
       port: 443
+  policies:
+    auth:
+      secretRef:
+        name: togetherai-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

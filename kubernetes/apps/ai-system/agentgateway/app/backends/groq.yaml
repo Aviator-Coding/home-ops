@@ -27,13 +27,13 @@ spec:
   ai:
     provider:
       openai:
-        authToken:
-          kind: SecretRef
-          secretRef:
-            name: groq-secret
         model: "llama-3.3-70b-versatile"
       host: api.groq.com
       port: 443
+  policies:
+    auth:
+      secretRef:
+        name: groq-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

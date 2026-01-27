@@ -27,13 +27,13 @@ spec:
   ai:
     provider:
       openai:
-        authToken:
-          kind: SecretRef
-          secretRef:
-            name: mistral-secret
         model: "mistral-large-latest"
       host: api.mistral.ai
       port: 443
+  policies:
+    auth:
+      secretRef:
+        name: mistral-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

@@ -27,13 +27,13 @@ spec:
   ai:
     provider:
       openai:
-        authToken:
-          kind: SecretRef
-          secretRef:
-            name: deepseek-secret
         model: "deepseek-chat"
       host: api.deepseek.com
       port: 443
+  policies:
+    auth:
+      secretRef:
+        name: deepseek-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
