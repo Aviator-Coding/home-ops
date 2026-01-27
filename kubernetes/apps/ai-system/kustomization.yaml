@@ -11,5 +11,5 @@ components:
 resources:
   - ./kagent/ks.yaml
   - ./kmcp/ks.yaml
-  - ./kgateway/ks.yaml
+  # - ./kgateway/ks.yaml
   - ./agentgateway/ks.yaml
