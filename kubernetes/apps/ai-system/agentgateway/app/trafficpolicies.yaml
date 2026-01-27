@@ -110,8 +110,6 @@ spec:
     - group: gateway.kgateway.dev
       kind: Backend
       name: togetherai
-  connection:
-    timeout:
-      connect: 10s
-    keepalive:
-      maxRequests: 1000
+  connectTimeout: 10s
+  commonHttpProtocolOptions:
+    maxRequestsPerConnection: 1000
