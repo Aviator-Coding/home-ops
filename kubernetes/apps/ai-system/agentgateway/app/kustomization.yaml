@@ -7,7 +7,6 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./gateway.yaml
-  - ./networkpolicy.yaml
   - ./pdb.yaml
   - ./servicemonitor.yaml
   - ./externalsecret-tls.yaml
