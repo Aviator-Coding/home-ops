@@ -40,6 +40,8 @@ spec:
     # Enable automount of service account token for Kubernetes API access
     automountServiceAccountToken: true
     serviceAccount:
+      create: true
+      name: agentgateway
       automountServiceAccountToken: true
     controller:
       replicaCount: 2
