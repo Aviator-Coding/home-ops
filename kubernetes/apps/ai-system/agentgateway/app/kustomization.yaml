@@ -6,6 +6,7 @@ kind: Kustomization
 resources:
   - ./backends
   - ./gateways
+  - ./policies
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./pdb.yaml
