@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/refs/heads/main/jetstream.nats.io/stream_v1beta2.json
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/jetstream.nats.io/stream_v1beta2.json
 apiVersion: jetstream.nats.io/v1beta2
 kind: Stream
 metadata:

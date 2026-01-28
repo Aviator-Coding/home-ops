@@ -1,0 +1,483 @@
+[
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\nrg -l \"raw.githubusercontent.com/fluxcd-community\" | wc -l",
+      "description": "Count fluxcd-community files"
+    },
+    "tool_use_id": "toolu_01DG6Xb77N46CC8TuZCk63qG"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "cd /Users/aviator/AI/Home-Ops/apps/home-ops && rg -l \"raw.githubusercontent.com/fluxcd-community\" kubernetes/ 2>/dev/null | wc -l",
+      "description": "Count fluxcd-community files"
+    },
+    "tool_use_id": "toolu_01Ybrj8eM3yFJTGSpAv7zQXp"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "cd /Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes && \\\n# Replace fluxcd-community OCIRepository schemas (v1beta2 to v1)\nrg -l \"raw.githubusercontent.com/fluxcd-community/flux2-schemas.*ocirepository\" . 2>/dev/null | \\\nxargs -I {} sed -i '' 's|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json|g' {} 2>/dev/null\necho \"Replaced fluxcd-community OCIRepository schemas\"",
+      "description": "Replace fluxcd-community OCIRepository schemas"
+    },
+    "tool_use_id": "toolu_01Uy9Q2H86YHLn6JSpcJ2Tq4"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "cd /Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes && \\\n# Replace fluxcd-community Kustomization schemas\nrg -l \"raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/kustomization-kustomize-v1.json\" . 2>/dev/null | \\\nxargs -I {} sed -i '' 's|https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json|https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json|g' {} 2>/dev/null\necho \"Replaced fluxcd-community Kustomization schemas\"",
+      "description": "Replace fluxcd-community Kustomization schemas"
+    },
+    "tool_use_id": "toolu_01TqpnvkKPtTA1aRjuQoSJmD"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace remaining fluxcd-community patterns (HelmRepository)\nrg -l \"raw.githubusercontent.com/fluxcd-community\" . 2>/dev/null | head -5",
+      "description": "Check remaining fluxcd-community patterns"
+    },
+    "tool_use_id": "toolu_01M5srDAUGRNFTxHnHwWocjU"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\nrg \"raw.githubusercontent.com/fluxcd-community\" . -o 2>/dev/null | grep -v \"\\.json:\" | sort -u",
+      "description": "List unique fluxcd-community URLs remaining"
+    },
+    "tool_use_id": "toolu_01HFp1mDvETEuRc3vVkte83J"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\nrg \"yaml-language-server.*fluxcd-community\" . 2>/dev/null",
+      "description": "Check remaining fluxcd-community schema lines"
+    },
+    "tool_use_id": "toolu_018irnYCLs7w8b3k6R4ECg1Q"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace HelmRepository schemas\nfor f in $(rg -l \"fluxcd-community/flux2-schemas.*helmrepository-source-v1.json\" . 2>/dev/null | grep -v \"\\.json$\"); do\n  sed -i '' 's|https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/refs/heads/main/helmrepository-source-v1.json|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/helmrepository_v1.json|g' \"$f\"\n  sed -i '' 's|https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/helmrepository-source-v1.json|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/helmrepository_v1.json|g' \"$f\"\ndone\necho \"Replaced HelmRepository schemas\"",
+      "description": "Replace HelmRepository schemas"
+    },
+    "tool_use_id": "toolu_01Jdg1VSjzpiHb5jhT16LUCb"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace OCIRepository schemas (v1 version)\nfor f in $(rg -l \"fluxcd-community/flux2-schemas/main/ocirepository-source-v1.json\" . 2>/dev/null | grep -v \"\\.json$\"); do\n  sed -i '' 's|https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/ocirepository-source-v1.json|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json|g' \"$f\"\ndone\necho \"Replaced OCIRepository v1 schemas\"",
+      "description": "Replace OCIRepository v1 schemas"
+    },
+    "tool_use_id": "toolu_01Qm55Ej7FkgZi3RpqswRz9K"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace Receiver schemas\nfor f in $(rg -l \"fluxcd-community/flux2-schemas/main/receiver-notification-v1.json\" . 2>/dev/null | grep -v \"\\.json$\"); do\n  sed -i '' 's|https://raw.githubusercontent.com/fluxcd-community/flux2-schemas/main/receiver-notification-v1.json|https://kubernetes-schemas.pages.dev/notification.toolkit.fluxcd.io/receiver_v1.json|g' \"$f\"\ndone\necho \"Replaced Receiver schemas\"",
+      "description": "Replace Receiver schemas"
+    },
+    "tool_use_id": "toolu_01CNseeRhKNuL4UbccESsPfA"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Verify remaining fluxcd-community\nrg \"yaml-language-server.*fluxcd-community\" . --glob '!*.json' 2>/dev/null | wc -l",
+      "description": "Check remaining fluxcd-community schemas"
+    },
+    "tool_use_id": "toolu_01Kdwv8n8WhPnrkiavF4swWW"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace crd.movishell.pl HelmRelease schemas\nfor f in $(rg -l \"crd.movishell.pl/helm.toolkit.fluxcd.io/helmrelease\" . --glob '!*.json' 2>/dev/null); do\n  sed -i '' 's|https://crd.movishell.pl/helm.toolkit.fluxcd.io/helmrelease_v2.json|https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json|g' \"$f\"\ndone\necho \"Replaced crd.movishell.pl HelmRelease schemas\"",
+      "description": "Replace crd.movishell.pl HelmRelease schemas"
+    },
+    "tool_use_id": "toolu_01CUyYacKD3zA2c4GqxE92zD"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace crd.movishell.pl other resources\nfor f in $(rg -l \"crd.movishell.pl\" . --glob '!*.json' 2>/dev/null); do\n  # OCIRepository\n  sed -i '' 's|https://crd.movishell.pl/source.toolkit.fluxcd.io/ocirepository_v1beta2.json|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json|g' \"$f\"\n  sed -i '' 's|https://crd.movishell.pl/source.toolkit.fluxcd.io/ocirepository_v1.json|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json|g' \"$f\"\n  # CNPG Cluster\n  sed -i '' 's|https://crd.movishell.pl/postgresql.cnpg.io/cluster_v1.json|https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/cluster_v1.json|g' \"$f\"\n  # CNPG ScheduledBackup\n  sed -i '' 's|https://crd.movishell.pl/postgresql.cnpg.io/scheduledbackup_v1.json|https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/scheduledbackup_v1.json|g' \"$f\"\n  # Dragonfly\n  sed -i '' 's|https://crd.movishell.pl/dragonflydb.io/dragonfly_v1alpha1.json|https://kubernetes-schemas.pages.dev/dragonflydb.io/dragonfly_v1alpha1.json|g' \"$f\"\n  # PodMonitor\n  sed -i '' 's|https://crd.movishell.pl/monitoring.coreos.com/podmonitor_v1.json|https://kubernetes-schemas.pages.dev/monitoring.coreos.com/podmonitor_v1.json|g' \"$f\"\ndone\necho \"Replaced crd.movishell.pl other schemas\"",
+      "description": "Replace crd.movishell.pl other schemas"
+    },
+    "tool_use_id": "toolu_01WCGqa3hTU1uEfS8BQn1oZp"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Check remaining crd.movishell.pl\nrg \"yaml-language-server.*crd.movishell.pl\" . --glob '!*.json' 2>/dev/null",
+      "description": "Verify crd.movishell.pl removed"
+    },
+    "tool_use_id": "toolu_01FLga66ij9sMDSKiKopmkNx"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace datreeio ExternalSecret v1 schemas\nfor f in $(rg -l \"datreeio/CRDs-catalog/main/external-secrets.io/externalsecret_v1.json\" . --glob '!*.json' 2>/dev/null); do\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/external-secrets.io/externalsecret_v1.json|https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json|g' \"$f\"\ndone\necho \"Replaced datreeio ExternalSecret v1 schemas\"",
+      "description": "Replace datreeio ExternalSecret v1 schemas"
+    },
+    "tool_use_id": "toolu_015T8Tk7r5BwdBzdK5fgNKpm"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace datreeio ExternalSecret v1beta1 schemas (upgrade to v1)\nfor f in $(rg -l \"datreeio/CRDs-catalog/main/external-secrets.io/externalsecret_v1beta1.json\" . --glob '!*.json' 2>/dev/null); do\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/external-secrets.io/externalsecret_v1beta1.json|https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json|g' \"$f\"\ndone\necho \"Replaced datreeio ExternalSecret v1beta1 schemas\"",
+      "description": "Replace datreeio ExternalSecret v1beta1 schemas"
+    },
+    "tool_use_id": "toolu_01FoCuR99SL8374noJenq8kq"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace remaining datreeio patterns\nfor f in $(rg -l \"raw.githubusercontent.com/datreeio\" . --glob '!*.json' 2>/dev/null); do\n  # ClusterIssuer\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/cert-manager.io/clusterissuer_v1.json|https://kubernetes-schemas.pages.dev/cert-manager.io/clusterissuer_v1.json|g' \"$f\"\n  # Certificate\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/cert-manager.io/certificate_v1.json|https://kubernetes-schemas.pages.dev/cert-manager.io/certificate_v1.json|g' \"$f\"\n  # EMQX\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/apps.emqx.io/emqx_v2beta1.json|https://kubernetes-schemas.pages.dev/apps.emqx.io/emqx_v2beta1.json|g' \"$f\"\n  # DNSEndpoint\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/externaldns.k8s.io/dnsendpoint_v1alpha1.json|https://kubernetes-schemas.pages.dev/externaldns.k8s.io/dnsendpoint_v1alpha1.json|g' \"$f\"\n  # PrometheusRule\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/monitoring.coreos.com/prometheusrule_v1.json|https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json|g' \"$f\"\n  # BucketClaim\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/objectbucket.io/objectbucketclaim_v1alpha1.json|https://kubernetes-schemas.pages.dev/objectbucket.io/objectbucketclaim_v1alpha1.json|g' \"$f\"\n  # JetStream Stream\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/jetstream.nats.io/stream_v1beta2.json|https://kubernetes-schemas.pages.dev/jetstream.nats.io/stream_v1beta2.json|g' \"$f\"\n  # HTTPRoute\n  sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/gateway.networking.k8s.io/httproute_v1.json|https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json|g' \"$f\"\ndone\necho \"Replaced remaining datreeio schemas\"",
+      "description": "Replace remaining datreeio schemas"
+    },
+    "tool_use_id": "toolu_01MSTaCXGDR1z2xZWhqngQ69"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Check remaining datreeio\nrg \"yaml-language-server.*datreeio\" . --glob '!*.json' 2>/dev/null",
+      "description": "Verify datreeio removed"
+    },
+    "tool_use_id": "toolu_014fN3wn1kQNFAg4gqB1bE2N"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Standardize bjw-s to bjw-s-labs (current repo)\nfor f in $(rg -l \"raw.githubusercontent.com/bjw-s/helm-charts\" . --glob '!*.json' 2>/dev/null); do\n  sed -i '' 's|https://raw.githubusercontent.com/bjw-s/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json|https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json|g' \"$f\"\ndone\necho \"Standardized bjw-s to bjw-s-labs\"",
+      "description": "Standardize bjw-s to bjw-s-labs"
+    },
+    "tool_use_id": "toolu_012goJ3HKLWnP9sk83pH4eCg"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Upgrade v1beta1 ExternalSecrets to v1\nfor f in $(rg -l \"kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1beta1.json\" . --glob '!*.json' 2>/dev/null); do\n  sed -i '' 's|https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1beta1.json|https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json|g' \"$f\"\ndone\necho \"Upgraded ExternalSecret v1beta1 to v1\"",
+      "description": "Upgrade ExternalSecret v1beta1 to v1"
+    },
+    "tool_use_id": "toolu_01BG5fSBofMraZiBrQ8tVxTt"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Upgrade v1beta2 OCIRepository to v1\nfor f in $(rg -l \"kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1beta2.json\" . --glob '!*.json' 2>/dev/null); do\n  sed -i '' 's|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1beta2.json|https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json|g' \"$f\"\ndone\necho \"Upgraded OCIRepository v1beta2 to v1\"",
+      "description": "Upgrade OCIRepository v1beta2 to v1"
+    },
+    "tool_use_id": "toolu_014hd6ZM5gSke9pQXa91usMt"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\necho \"=== Verification Summary ===\" \necho \"\"\necho \"Files with fluxcd-community schemas:\"\nrg -c \"fluxcd-community\" . --glob '!*.json' 2>/dev/null | wc -l\necho \"\"\necho \"Files with crd.movishell.pl schemas:\"\nrg -c \"crd.movishell.pl\" . --glob '!*.json' 2>/dev/null | wc -l\necho \"\"\necho \"Files with datreeio schemas:\"\nrg -c \"datreeio\" . --glob '!*.json' 2>/dev/null | wc -l\necho \"\"\necho \"Files with old bjw-s (not bjw-s-labs):\"\nrg -c \"bjw-s/helm-charts\" . --glob '!*.json' 2>/dev/null | wc -l\necho \"\"\necho \"Files with kubernetes-schemas.pages.dev (standard):\"\nrg -c \"kubernetes-schemas.pages.dev\" . --glob '!*.json' 2>/dev/null | wc -l\necho \"\"\necho \"Files with bjw-s-labs (app-template standard):\"\nrg -c \"bjw-s-labs\" . --glob '!*.json' 2>/dev/null | wc -l",
+      "description": "Verify all schema replacements"
+    },
+    "tool_use_id": "toolu_014EapX89q4FUwgSyG5K9CwG"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\necho \"=== Remaining Non-Standard Schemas ===\" \necho \"fluxcd-community: $(rg -l 'fluxcd-community' . --glob '!*.json' 2>/dev/null | wc -l)\"\necho \"crd.movishell.pl: $(rg -l 'crd.movishell.pl' . --glob '!*.json' 2>/dev/null | wc -l)\"\necho \"datreeio: $(rg -l 'datreeio' . --glob '!*.json' 2>/dev/null | wc -l)\"\necho \"bjw-s (old): $(rg -l 'bjw-s/helm-charts' . --glob '!*.json' 2>/dev/null | wc -l)\"\necho \"\"\necho \"=== Standard Schemas ===\" \necho \"kubernetes-schemas.pages.dev: $(rg -l 'kubernetes-schemas.pages.dev' . --glob '!*.json' 2>/dev/null | wc -l)\"\necho \"bjw-s-labs: $(rg -l 'bjw-s-labs' . --glob '!*.json' 2>/dev/null | wc -l)\"",
+      "description": "Count remaining non-standard schemas"
+    },
+    "tool_use_id": "toolu_01NGL2pr7z2CGJdr2SNii4Ue"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\necho \"=== Remaining Non-Standard Schemas ===\" \necho \"fluxcd-community: $(rg -l 'fluxcd-community' . --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"crd.movishell.pl: $(rg -l 'crd.movishell.pl' . --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"datreeio: $(rg -l 'datreeio' . --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"bjw-s/helm-charts (old): $(rg -l 'bjw-s/helm-charts' . --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"\"\necho \"=== Standard Schemas ===\" \necho \"kubernetes-schemas.pages.dev: $(rg -l 'kubernetes-schemas.pages.dev' . --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"bjw-s-labs: $(rg -l 'bjw-s-labs' . --glob '*.yaml' 2>/dev/null | wc -l)\"",
+      "description": "Count schemas from correct directory"
+    },
+    "tool_use_id": "toolu_01SegWnyqdSi3Z9UE17MTcTT"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "pwd",
+      "description": "Confirm working directory"
+    },
+    "tool_use_id": "toolu_01RkgNENtUWZDqP5BvsfRs43"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\nrg -l 'crd.movishell.pl' . --glob '*.yaml' 2>/dev/null | head -5",
+      "description": "Find remaining crd.movishell.pl files"
+    },
+    "tool_use_id": "toolu_01TRVDza37eekEBmqr4gEJbk"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "rg 'crd.movishell.pl' . 2>/dev/null | head -10",
+      "description": "Find crd.movishell.pl occurrences"
+    },
+    "tool_use_id": "toolu_01ErXq9dnvCejBJ9TrW939fH"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\necho \"=== Remaining Non-Standard Schemas (YAML only, no logs) ===\" \necho \"fluxcd-community: $(rg -l 'fluxcd-community' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"crd.movishell.pl: $(rg -l 'crd.movishell.pl' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"datreeio: $(rg -l 'datreeio' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"bjw-s/helm-charts (old): $(rg -l 'bjw-s/helm-charts' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"\"\necho \"=== Standard Schemas ===\" \necho \"kubernetes-schemas.pages.dev: $(rg -l 'kubernetes-schemas.pages.dev' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"bjw-s-labs: $(rg -l 'bjw-s-labs' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"",
+      "description": "Count schemas in YAML files only"
+    },
+    "tool_use_id": "toolu_012QR3NWDb1HhqtvSCijCzLM"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Show specific patterns remaining\necho \"=== crd.movishell.pl patterns ===\" \nrg 'crd.movishell.pl' apps flux components --glob '*.yaml' -o 2>/dev/null | sort -u | head -5\n\necho \"\"\necho \"=== datreeio patterns ===\" \nrg 'datreeio' apps flux components --glob '*.yaml' -o 2>/dev/null | sort -u | head -5\n\necho \"\"\necho \"=== bjw-s (old) patterns ===\" \nrg 'bjw-s/helm-charts' apps flux components --glob '*.yaml' -o 2>/dev/null | sort -u | head -5",
+      "description": "Show remaining non-standard patterns"
+    },
+    "tool_use_id": "toolu_01H1UvG8NRwNRtaTPascBmDZ"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace ALL crd.movishell.pl URLs (any resource type)\nrg -l 'crd.movishell.pl' apps flux components --glob '*.yaml' 2>/dev/null | \\\n  xargs -I {} sed -i '' 's|https://crd.movishell.pl/|https://kubernetes-schemas.pages.dev/|g' {}\necho \"Replaced all crd.movishell.pl schemas\"",
+      "description": "Replace all crd.movishell.pl schemas"
+    },
+    "tool_use_id": "toolu_01Dyg2KFqoUXqWfzdYHV7dQb"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace ALL datreeio URLs\nrg -l 'datreeio' apps flux components --glob '*.yaml' 2>/dev/null | \\\n  xargs -I {} sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/|https://kubernetes-schemas.pages.dev/|g' {}\necho \"Replaced all datreeio schemas\"",
+      "description": "Replace all datreeio schemas"
+    },
+    "tool_use_id": "toolu_01JQwf4WiTZPGJ3YLRgJjcaU"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Replace ALL old bjw-s URLs\nrg -l 'bjw-s/helm-charts' apps flux components --glob '*.yaml' 2>/dev/null | \\\n  xargs -I {} sed -i '' 's|https://raw.githubusercontent.com/bjw-s/helm-charts/|https://raw.githubusercontent.com/bjw-s-labs/helm-charts/|g' {}\necho \"Replaced all old bjw-s schemas\"",
+      "description": "Replace all old bjw-s schemas"
+    },
+    "tool_use_id": "toolu_019qSfycfYRGTDbfg2kLeBFg"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\necho \"=== Final Verification ===\" \necho \"fluxcd-community: $(rg -l 'fluxcd-community' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"crd.movishell.pl: $(rg -l 'crd.movishell.pl' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"datreeio: $(rg -l 'datreeio' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"bjw-s/helm-charts (old): $(rg -l 'bjw-s/helm-charts' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"\"\necho \"=== Standard Schemas ===\" \necho \"kubernetes-schemas.pages.dev: $(rg -l 'kubernetes-schemas.pages.dev' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"bjw-s-labs: $(rg -l 'bjw-s-labs' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"",
+      "description": "Final verification of schema standardization"
+    },
+    "tool_use_id": "toolu_01XZGxXmpyV9vBiCpyTCAX5Q"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Check remaining datreeio patterns\nrg 'datreeio' apps flux components --glob '*.yaml' 2>/dev/null",
+      "description": "Check remaining datreeio patterns"
+    },
+    "tool_use_id": "toolu_01GKjVnRUrwF5pw6CXJerF6J"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\n# Fix various datreeio URL patterns\n# Pattern 1: datreeio.github.io\nrg -l 'datreeio.github.io' apps flux components --glob '*.yaml' 2>/dev/null | \\\n  xargs -I {} sed -i '' 's|https://datreeio.github.io/CRDs-catalog/|https://kubernetes-schemas.pages.dev/|g' {} 2>/dev/null\n\n# Pattern 2: github.com/datreeio/CRDs-catalog/raw\nrg -l 'github.com/datreeio' apps flux components --glob '*.yaml' 2>/dev/null | \\\n  xargs -I {} sed -i '' 's|https://github.com/datreeio/CRDs-catalog/raw/refs/heads/main/|https://kubernetes-schemas.pages.dev/|g' {} 2>/dev/null\n\n# Pattern 3: raw.githubusercontent.com/datreeio with refs/heads/main\nrg -l 'datreeio/CRDs-catalog/refs/heads/main' apps flux components --glob '*.yaml' 2>/dev/null | \\\n  xargs -I {} sed -i '' 's|https://raw.githubusercontent.com/datreeio/CRDs-catalog/refs/heads/main/|https://kubernetes-schemas.pages.dev/|g' {} 2>/dev/null\n\necho \"Fixed remaining datreeio patterns\"",
+      "description": "Fix remaining datreeio URL patterns"
+    },
+    "tool_use_id": "toolu_01VPWi8EYzeuxhiMGE4ywUUY"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "\\\necho \"=== Final Verification ===\" \necho \"Non-standard:\"\necho \"  fluxcd-community: $(rg -l 'fluxcd-community' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"  crd.movishell.pl: $(rg -l 'crd.movishell.pl' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"  datreeio: $(rg -l 'datreeio' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"  bjw-s (old): $(rg -l 'bjw-s/helm-charts' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"\"\necho \"Standard:\"\necho \"  kubernetes-schemas.pages.dev: $(rg -l 'kubernetes-schemas.pages.dev' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"\necho \"  bjw-s-labs: $(rg -l 'bjw-s-labs' apps flux components --glob '*.yaml' 2>/dev/null | wc -l)\"",
+      "description": "Final verification"
+    },
+    "tool_use_id": "toolu_01AGpVFEC1T8KQNKm2cYVvdJ"
+  },
+  {
+    "session_id": "03381af4-275d-43e6-ba46-e3c2f13b22a9",
+    "transcript_path": "/Users/aviator/.claude/projects/-Users-aviator-AI-Home-Ops/03381af4-275d-43e6-ba46-e3c2f13b22a9.jsonl",
+    "cwd": "/Users/aviator/AI/Home-Ops/apps/home-ops/kubernetes",
+    "permission_mode": "default",
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "cd /Users/aviator/AI/Home-Ops/apps/home-ops && git diff --stat kubernetes/ | tail -5",
+      "description": "Show git diff stats"
+    },
+    "tool_use_id": "toolu_01XgmBqobgxXkLYEzPQn3K1W"
+  }
+]
