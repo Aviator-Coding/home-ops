@@ -5,5 +5,11 @@
       "WebSearch",
       "Bash(kubectl kustomize:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "playwright",
+    "tavily",
+    "grafana"
+  ],
+  "enableAllProjectMcpServers": true
 }
