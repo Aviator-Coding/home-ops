@@ -22,6 +22,9 @@ This is a **home-ops** infrastructure repository managing a self-hosted Kubernet
 ### Development Environment Setup
 
 ```bash
+# Activate mise (required before running any commands)
+eval "$(mise activate zsh)"  # or bash
+
 # Install all required tools
 mise install
 
