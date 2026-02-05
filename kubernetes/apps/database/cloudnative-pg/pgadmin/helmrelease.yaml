@@ -30,7 +30,7 @@ spec:
           app:
             image:
               repository: dpage/pgadmin4
-              tag: "9.11"
+              tag: "9.12"
             command:
               - sh
               - -c
