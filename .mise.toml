@@ -9,7 +9,7 @@ TALOSCONFIG = "{{config_root}}/talos/clusterconfig/talosconfig"
 MISE_LIST_ALL_VERSIONS = "false"
 
 [tools]
-"python" = "3.14.2"
+"python" = "3.14.3"
 "pipx:makejinja" = "2.8.2"
 "pipx:pre-commit" = "4.5.1"
 "pipx:flux-local" = "latest"
