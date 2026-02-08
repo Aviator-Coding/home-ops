@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: nack
-      version: "0.31.1"  # Pinned - 0.32.0 upgrade times out
+      version: "0.33.1"  # Pinned - 0.32.0 upgrade times out
       sourceRef:
         kind: HelmRepository
         name: nats
