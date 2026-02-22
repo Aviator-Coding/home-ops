@@ -37,11 +37,13 @@ spec:
               tag: 2026.2.21@sha256:ce271192cd70250d16fc5911903d9953467a40faf8b34e87cbd042e6b49b6036
             command:
               - node
-              - openclaw.mjs
+              - dist/index.js
               - gateway
-              - --allow-unconfigured
               - --bind
               - lan
+              - --port
+              - "18789"
+              - --allow-unconfigured
             env:
               TZ: "${TIMEZONE}"
               OPENCLAW_DISABLE_BONJOUR: 1
