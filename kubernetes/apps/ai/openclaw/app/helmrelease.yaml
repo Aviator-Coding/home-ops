@@ -35,10 +35,16 @@ spec:
             image:
               repository: ghcr.io/openclaw/openclaw
               tag: 2026.2.21@sha256:ce271192cd70250d16fc5911903d9953467a40faf8b34e87cbd042e6b49b6036
+            command:
+              - node
+              - openclaw.mjs
+              - gateway
+              - --allow-unconfigured
+              - --bind
+              - lan
             env:
               TZ: "${TIMEZONE}"
               OPENCLAW_DISABLE_BONJOUR: 1
-              OPENCLAW_GATEWAY_BIND: "lan"
             envFrom:
               - secretRef:
                   name: openclaw-secret
