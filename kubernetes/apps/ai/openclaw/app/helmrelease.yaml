@@ -1,0 +1,107 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app openclaw
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      openclaw:
+        containers:
+          openclaw:
+            image:
+              repository: ghcr.io/openclaw/openclaw
+              tag: 2026.2.21@sha256:ce271192cd70250d16fc5911903d9953467a40faf8b34e87cbd042e6b49b6036
+            env:
+              TZ: "${TIMEZONE}"
+              OPENCLAW_DISABLE_BONJOUR: 1
+            envFrom:
+              - secretRef:
+                  name: openclaw-secret
+            probes:
+              liveness: &probes
+                enabled: true
+              readiness: *probes
+              startup: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+            resources:
+              requests:
+                cpu: 100m
+                memory: 400Mi
+              limits:
+                memory: 2Gi
+          editor:
+            image:
+              repository: ghcr.io/davralin/utility
+              tag: latest@sha256:03dcc8ea43b3c4abc26709d605df08247e32389fe6b4b84a456673fc988f3d15
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+            resources:
+              requests:
+                cpu: 10m
+                memory: 50Mi
+              limits:
+                memory: 100Mi
+    service:
+      openclaw:
+        controller: *app
+        ports:
+          http:
+            port: 18789
+          json-rpc:
+            port: 8080
+    route:
+      openclaw:
+        hostnames:
+          - "openclaw.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+    persistence:
+      config:
+        enabled: true
+        existingClaim: *app
+        advancedMounts:
+          openclaw:
+            editor:
+              - path: /opt/openclaw
+                subPath: openclaw
+            openclaw:
+              - path: /home/node
+                subPath: openclaw
+      tmp:
+        enabled: true
+        type: emptyDir
