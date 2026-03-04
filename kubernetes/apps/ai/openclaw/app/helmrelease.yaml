@@ -43,34 +43,32 @@ spec:
               - |
                 set -e
                 export HOME=/home/node
-                export LOCAL_BIN="/home/node/.local/bin"
-                export PATH="$LOCAL_BIN:$PATH"
-                mkdir -p "$LOCAL_BIN" /home/node/.local/go /home/node/.cache /home/node/.config
+                export HOMEBREW_PREFIX="/home/node/.linuxbrew"
+                export HOMEBREW_NO_ANALYTICS=1
+                export HOMEBREW_NO_AUTO_UPDATE=0
+                export PATH="$HOMEBREW_PREFIX/bin:$HOMEBREW_PREFIX/sbin:$PATH"
 
-                # Install gh CLI (standalone binary)
-                if [ ! -f "$LOCAL_BIN/gh" ]; then
-                  echo "Installing gh CLI..."
-                  GH_VERSION="2.74.1"
-                  curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
-                    | tar -xz --strip-components=2 -C "$LOCAL_BIN" "gh_${GH_VERSION}_linux_amd64/bin/gh"
-                  echo "gh CLI installed: $(gh --version | head -1)"
+                # Install Homebrew if not present
+                if [ ! -f "$HOMEBREW_PREFIX/bin/brew" ]; then
+                  echo "Installing Homebrew to $HOMEBREW_PREFIX..."
+                  mkdir -p "$HOMEBREW_PREFIX"
+                  curl -fsSL https://github.com/Homebrew/brew/tarball/master | tar xz --strip-components 1 -C "$HOMEBREW_PREFIX"
                 fi
 
-                # Install Go (to user directory)
-                if [ ! -f "/home/node/.local/go/bin/go" ]; then
-                  echo "Installing Go..."
-                  curl -fsSL "https://go.dev/dl/go1.24.4.linux-amd64.tar.gz" \
-                    | tar -xz -C /home/node/.local/
-                  echo "Go installed: $(/home/node/.local/go/bin/go version)"
-                fi
+                eval "$($HOMEBREW_PREFIX/bin/brew shellenv)"
+
+                # Install packages via brew
+                echo "Installing packages with brew..."
+                brew install gh go python3
 
                 # Install pip packages
                 if command -v pip3 >/dev/null 2>&1; then
-                  echo "Installing pip packages..."
-                  pip3 install --user kubernetes 2>/dev/null || true
+                  pip3 install --user kubernetes || true
                 fi
 
                 echo "Tool installation complete"
+                echo "gh: $(gh --version | head -1)"
+                echo "go: $(go version)"
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
@@ -102,7 +100,7 @@ spec:
               OPENCLAW_DISABLE_BONJOUR: 1
               CHROME_HOST: localhost
               CHROME_PORT: "9222"
-              PATH: "/home/node/.local/bin:/home/node/.local/go/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              PATH: "/home/node/.linuxbrew/bin:/home/node/.linuxbrew/sbin:/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             envFrom:
               - secretRef:
                   name: openclaw-secret
