@@ -43,33 +43,37 @@ spec:
               - |
                 set -e
                 export HOME=/home/node
-                export PATH="/home/node/.local/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"
-                # Install gh CLI
-                if ! command -v gh >/dev/null 2>&1; then
+                export LOCAL_BIN="/home/node/.local/bin"
+                export PATH="$LOCAL_BIN:$PATH"
+                mkdir -p "$LOCAL_BIN" /home/node/.local/go /home/node/.cache /home/node/.config
+
+                # Install gh CLI (standalone binary)
+                if [ ! -f "$LOCAL_BIN/gh" ]; then
                   echo "Installing gh CLI..."
-                  (type -p wget >/dev/null || (apt update && apt-get install wget -y)) \
-                    && mkdir -p -m 755 /etc/apt/keyrings \
-                    && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-                    && cat $out | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-                    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-                    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-                    && apt update \
-                    && apt install gh -y
+                  GH_VERSION="2.74.1"
+                  curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
+                    | tar -xz --strip-components=2 -C "$LOCAL_BIN" "gh_${GH_VERSION}_linux_amd64/bin/gh"
+                  echo "gh CLI installed: $(gh --version | head -1)"
                 fi
-                # Install Go
-                if ! command -v go >/dev/null 2>&1; then
+
+                # Install Go (to user directory)
+                if [ ! -f "/home/node/.local/go/bin/go" ]; then
                   echo "Installing Go..."
-                  curl -fsSL https://go.dev/dl/go1.24.4.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+                  curl -fsSL "https://go.dev/dl/go1.24.4.linux-amd64.tar.gz" \
+                    | tar -xz -C /home/node/.local/
+                  echo "Go installed: $(/home/node/.local/go/bin/go version)"
                 fi
+
                 # Install pip packages
                 if command -v pip3 >/dev/null 2>&1; then
-                  pip3 install --user kubernetes || true
+                  echo "Installing pip packages..."
+                  pip3 install --user kubernetes 2>/dev/null || true
                 fi
+
                 echo "Tool installation complete"
             securityContext:
-              runAsUser: 0
-              runAsNonRoot: false
               allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
               capabilities:
                 drop:
                   - ALL
@@ -98,7 +102,7 @@ spec:
               OPENCLAW_DISABLE_BONJOUR: 1
               CHROME_HOST: localhost
               CHROME_PORT: "9222"
-              PATH: "/home/node/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              PATH: "/home/node/.local/bin:/home/node/.local/go/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             envFrom:
               - secretRef:
                   name: openclaw-secret
