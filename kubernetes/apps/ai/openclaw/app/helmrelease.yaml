@@ -43,19 +43,18 @@ spec:
               - |
                 set -e
                 export HOME=/home/node
-                export HOMEBREW_PREFIX="/home/node/.linuxbrew"
                 export HOMEBREW_NO_ANALYTICS=1
                 export HOMEBREW_NO_AUTO_UPDATE=0
-                export PATH="$HOMEBREW_PREFIX/bin:$HOMEBREW_PREFIX/sbin:$PATH"
+                export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH"
 
                 # Install Homebrew if not present
-                if [ ! -f "$HOMEBREW_PREFIX/bin/brew" ]; then
-                  echo "Installing Homebrew to $HOMEBREW_PREFIX..."
-                  mkdir -p "$HOMEBREW_PREFIX"
-                  curl -fsSL https://github.com/Homebrew/brew/tarball/master | tar xz --strip-components 1 -C "$HOMEBREW_PREFIX"
+                if [ ! -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then
+                  echo "Installing Homebrew..."
+                  mkdir -p /home/linuxbrew/.linuxbrew
+                  curl -fsSL https://github.com/Homebrew/brew/tarball/master | tar xz --strip-components 1 -C /home/linuxbrew/.linuxbrew
                 fi
 
-                eval "$($HOMEBREW_PREFIX/bin/brew shellenv)"
+                eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
                 # Install packages via brew
                 echo "Installing packages with brew..."
@@ -100,7 +99,7 @@ spec:
               OPENCLAW_DISABLE_BONJOUR: 1
               CHROME_HOST: localhost
               CHROME_PORT: "9222"
-              PATH: "/home/node/.linuxbrew/bin:/home/node/.linuxbrew/sbin:/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              PATH: "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             envFrom:
               - secretRef:
                   name: openclaw-secret
@@ -225,6 +224,17 @@ spec:
             code-server:
               - path: /config
                 subPath: openclaw
+      linuxbrew:
+        enabled: true
+        existingClaim: *app
+        advancedMounts:
+          openclaw:
+            install-tools:
+              - path: /home/linuxbrew/.linuxbrew
+                subPath: linuxbrew
+            openclaw:
+              - path: /home/linuxbrew/.linuxbrew
+                subPath: linuxbrew
       tmp:
         enabled: true
         type: emptyDir
