@@ -184,6 +184,8 @@ spec:
             args:
               - --auth
               - none
+              - --port
+              - "12321"
               - --user-data-dir
               - /config/.vscode
               - --extensions-dir
@@ -209,8 +211,6 @@ spec:
         ports:
           http:
             port: 18789
-          json-rpc:
-            port: 8080
           chrome:
             port: 9222
           code-server:
