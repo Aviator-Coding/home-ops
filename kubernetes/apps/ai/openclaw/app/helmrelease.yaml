@@ -90,7 +90,7 @@ spec:
               - -c
               - |
                 while true; do
-                  node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured --control-ui-allowed-origins "https://openclaw.${SECRET_DOMAIN}"
+                  node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured
                   echo "OpenClaw exited, restarting in 1 second..."
                   sleep 1
                 done
@@ -99,6 +99,7 @@ spec:
               OPENCLAW_DISABLE_BONJOUR: 1
               CHROME_HOST: localhost
               CHROME_PORT: "9222"
+              OPENCLAW_GATEWAY_CONTROL_UI_DANGEROUSLY_ALLOW_HOST_HEADER_ORIGIN_FALLBACK: "true"
               PATH: "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             envFrom:
               - secretRef:
