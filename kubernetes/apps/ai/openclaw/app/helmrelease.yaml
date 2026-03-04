@@ -58,11 +58,11 @@ spec:
 
                 # Install packages via brew
                 echo "Installing packages with brew..."
-                brew install gh go python3
+                brew install gh go
 
                 # Install pip packages
                 if command -v pip3 >/dev/null 2>&1; then
-                  pip3 install --user kubernetes || true
+                  pip3 install --user --break-system-packages kubernetes || true
                 fi
 
                 echo "Tool installation complete"
