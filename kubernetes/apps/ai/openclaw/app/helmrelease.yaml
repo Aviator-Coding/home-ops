@@ -90,7 +90,7 @@ spec:
               - -c
               - |
                 while true; do
-                  node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured
+                  node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured --control-ui-allowed-origins "https://openclaw.${SECRET_DOMAIN}"
                   echo "OpenClaw exited, restarting in 1 second..."
                   sleep 1
                 done
