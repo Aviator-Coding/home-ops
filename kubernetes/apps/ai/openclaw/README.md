@@ -56,17 +56,14 @@ After creating the 1Password item, you must also share your Notion pages/databas
 
 ### 3. Google Workspace (gog) OAuth Setup
 
-The `gog` skill requires interactive OAuth setup inside the pod. Run once after first deployment:
+The Google OAuth `client_secret.json` is automatically mounted from 1Password (item: `google`, field: `CLAWBOT_GOOGLE`).
+The init container runs `gog auth credentials` automatically.
+
+You only need to add your Google account once (interactive, run inside the pod):
 
 ```bash
-# Exec into the openclaw pod
 kubectl -n ai exec -it deploy/openclaw -c openclaw -- bash
-
-# Set up PATH
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/node/.local/bin:/home/node/go/bin:/home/node/.bun/bin:$PATH"
-
-# Import your Google OAuth client_secret.json (copy it into the pod first)
-gog auth credentials /path/to/client_secret.json
 
 # Add your Google account
 gog auth add you@gmail.com --services gmail,calendar,drive,contacts,sheets,docs
@@ -75,7 +72,7 @@ gog auth add you@gmail.com --services gmail,calendar,drive,contacts,sheets,docs
 gog auth list
 ```
 
-The OAuth credentials persist in `/home/node` which is backed by the PVC.
+The OAuth tokens persist in `/home/node` which is backed by the PVC.
 
 ### 4. Himalaya Email Setup
 

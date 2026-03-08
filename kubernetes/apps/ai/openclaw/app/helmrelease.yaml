@@ -140,6 +140,12 @@ spec:
                   echo "$NOTION_API_KEY" > ~/.config/notion/api_key
                 fi
 
+                # Setup Google OAuth credentials for gog
+                if [ -f /secrets/google/client_secret.json ]; then
+                  echo "Setting up Google OAuth credentials for gog..."
+                  gog auth credentials /secrets/google/client_secret.json || echo "WARNING: gog auth credentials failed, skipping"
+                fi
+
                 # Install pip packages
                 if command -v pip3 >/dev/null 2>&1; then
                   pip3 install --user --break-system-packages kubernetes || true
@@ -347,6 +353,20 @@ spec:
             openclaw:
               - path: /home/linuxbrew/.linuxbrew
                 subPath: linuxbrew
+      google-credentials:
+        enabled: true
+        type: secret
+        name: openclaw-skills-secret
+        advancedMounts:
+          openclaw:
+            install-tools:
+              - path: /secrets/google/client_secret.json
+                subPath: client_secret.json
+                readOnly: true
+            openclaw:
+              - path: /secrets/google/client_secret.json
+                subPath: client_secret.json
+                readOnly: true
       tmp:
         enabled: true
         type: emptyDir
