@@ -126,8 +126,12 @@ spec:
                 for skill in tavily-search find-skills notion nano-banana-pro \
                   gog auto-updater openclaw-youtube-transcript frontend-design \
                   banana-farmer agent-browser; do
-                  clawhub install "$skill" --force || echo "WARNING: $skill skill install failed, skipping"
-                  sleep 3
+                  if [ -d "$HOME/.openclaw/workspace/skills/$skill" ]; then
+                    echo "Skill $skill already installed, skipping"
+                  else
+                    clawhub install "$skill" --force || echo "WARNING: $skill skill install failed, skipping"
+                    sleep 5
+                  fi
                 done
 
                 # Setup Notion API key config
