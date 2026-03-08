@@ -119,20 +119,16 @@ spec:
 
                 # Install agent-browser CLI
                 echo "Installing agent-browser CLI..."
-                npm install -g agent-browser || echo "WARNING: agent-browser install failed, skipping"
+                bun install -g agent-browser || echo "WARNING: agent-browser install failed, skipping"
 
                 # Install OpenClaw skills via clawhub
                 echo "Installing OpenClaw skills..."
-                clawhub install arun-8687/tavily-search -y || echo "WARNING: tavily-search skill install failed, skipping"
-                clawhub install JimLiuxinghai/find-skills -y || echo "WARNING: find-skills skill install failed, skipping"
-                clawhub install steipete/notion -y || echo "WARNING: notion skill install failed, skipping"
-                clawhub install TheSethRose/agent-browser -y || echo "WARNING: agent-browser skill install failed, skipping"
-                clawhub install steipete/nano-banana-pro -y || echo "WARNING: nano-banana-pro skill install failed, skipping"
-                clawhub install steipete/gog -y || echo "WARNING: gog skill install failed, skipping"
-                clawhub install maximeprades/auto-updater -y || echo "WARNING: auto-updater skill install failed, skipping"
-                clawhub install YoavRez/openclaw-youtube-transcript -y || echo "WARNING: openclaw-youtube-transcript skill install failed, skipping"
-                clawhub install steipete/frontend-design -y || echo "WARNING: frontend-design skill install failed, skipping"
-                clawhub install adamandjarvis/banana-farmer -y || echo "WARNING: banana-farmer skill install failed, skipping"
+                for skill in arun-8687/tavily-search JimLiuxinghai/find-skills \
+                  steipete/notion TheSethRose/agent-browser steipete/nano-banana-pro \
+                  steipete/gog maximeprades/auto-updater YoavRez/openclaw-youtube-transcript \
+                  steipete/frontend-design adamandjarvis/banana-farmer; do
+                  clawhub install "$skill" || echo "WARNING: $skill skill install failed, skipping"
+                done
 
                 # Setup Notion API key config
                 if [ -n "$NOTION_API_KEY" ]; then
