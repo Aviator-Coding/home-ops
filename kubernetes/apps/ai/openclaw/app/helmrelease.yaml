@@ -142,8 +142,25 @@ spec:
               - /bin/sh
               - -c
               - |
+                export HOME=/home/node
+                # Ensure config directory exists
+                mkdir -p "$HOME/.openclaw"
+                # Write/update settings to disable auth for behind-ingress deployment
+                SETTINGS="$HOME/.openclaw/settings.json"
+                if [ -f "$SETTINGS" ]; then
+                  # Update existing settings - disable device auth and password
+                  node -e "
+                    const fs = require('fs');
+                    const s = JSON.parse(fs.readFileSync('$SETTINGS', 'utf8'));
+                    s['gateway.controlUi.dangerouslyDisableDeviceAuth'] = true;
+                    s['gateway.auth.disabled'] = true;
+                    fs.writeFileSync('$SETTINGS', JSON.stringify(s, null, 2));
+                  " || echo "WARN: could not patch settings.json"
+                else
+                  echo '{"gateway.controlUi.dangerouslyDisableDeviceAuth":true,"gateway.auth.disabled":true}' > "$SETTINGS"
+                fi
                 while true; do
-                  node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured
+                  node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured --no-password
                   echo "OpenClaw exited, restarting in 1 second..."
                   sleep 1
                 done
