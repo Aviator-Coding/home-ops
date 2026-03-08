@@ -68,8 +68,9 @@ spec:
 
                 # Install steipete/tap packages
                 echo "Installing steipete/tap packages..."
-                for pkg in camsnap gifgrep gogcli goplaces ordercli \
-                  sag songsee summarize wacli blucli eightctl sonoscli; do
+                # Note: camsnap, summarize, blucli, sonoscli are arm64-only (no x86_64 bottles)
+                for pkg in gifgrep gogcli goplaces ordercli \
+                  sag songsee wacli; do
                   brew install "steipete/tap/$pkg" || echo "WARNING: steipete/tap/$pkg not available, skipping"
                 done
 
@@ -81,9 +82,9 @@ spec:
                 echo "Installing obsidian CLI (notesmd-cli)..."
                 brew install yakitrak/yakitrak/notesmd-cli || echo "WARNING: notesmd-cli not available, skipping"
 
-                # Install OpenAI Whisper via brew
-                echo "Installing OpenAI Whisper..."
-                brew install openai-whisper || echo "WARNING: openai-whisper not available, skipping"
+                # Install whisper-cpp (lightweight C++ port, no PyTorch/CUDA needed)
+                echo "Installing whisper-cpp..."
+                brew install whisper-cpp || echo "WARNING: whisper-cpp not available, skipping"
 
                 # Install Bun via official installer
                 if ! command -v bun >/dev/null 2>&1; then
@@ -102,15 +103,12 @@ spec:
                 echo "Installing Gemini CLI..."
                 bun install -g @google/gemini-cli || echo "WARNING: gemini-cli install failed, skipping"
 
-                # Install Go-based CLIs (fallback for any not in tap)
+                # Install Go-based CLIs
                 echo "Installing Go-based CLIs..."
                 export GOPATH="/home/node/go"
                 export PATH="$GOPATH/bin:$PATH"
-                go install github.com/steipete/eightctl/cmd/eightctl@latest || echo "eightctl go install failed, skipping"
-
-                # Install xurl via Go
-                echo "Installing xurl..."
-                go install github.com/hueristiq/xurls/cmd/xurls@latest || echo "xurls install failed, skipping"
+                go install github.com/steipete/eightctl/cmd/eightctl@latest || echo "WARNING: eightctl install failed, skipping"
+                go install github.com/hueristiq/xurls/cmd/xurls@latest || echo "WARNING: xurls install failed, skipping"
 
                 # Install UV-based CLIs
                 echo "Installing UV-based CLIs..."
@@ -119,7 +117,6 @@ spec:
                 # Install pip packages
                 if command -v pip3 >/dev/null 2>&1; then
                   pip3 install --user --break-system-packages kubernetes || true
-                  pip3 install --user --break-system-packages openai-whisper || echo "WARNING: openai-whisper pip install failed, skipping"
                 fi
 
                 echo "Tool installation complete"
