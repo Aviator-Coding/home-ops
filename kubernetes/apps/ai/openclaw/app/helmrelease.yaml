@@ -106,6 +106,11 @@ spec:
                 echo "Installing Gemini CLI..."
                 bun install -g @google/gemini-cli || echo "WARNING: gemini-cli install failed, skipping"
 
+                # Install coding agent CLIs
+                echo "Installing coding agent CLIs..."
+                bun install -g @anthropic-ai/claude-code || echo "WARNING: claude-code install failed, skipping"
+                bun install -g @openai/codex || echo "WARNING: codex install failed, skipping"
+
                 # Install Go-based CLIs
                 echo "Installing Go-based CLIs..."
                 export GOPATH="/home/node/go"

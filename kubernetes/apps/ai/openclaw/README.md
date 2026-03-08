@@ -66,7 +66,7 @@ kubectl -n ai exec -it deploy/openclaw -c openclaw -- bash
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/node/.local/bin:/home/node/go/bin:/home/node/.bun/bin:$PATH"
 
 # Add your Google account
-gog auth add you@gmail.com --services gmail,calendar,drive,contacts,sheets,docs
+gog auth add you@gmail.com --services gmail,calendar,drive,contacts,sheets,docs --manual
 
 # Verify
 gog auth list
@@ -100,6 +100,13 @@ These skills are auto-installed by the init container via `clawhub install`:
 | [YoavRez/openclaw-youtube-transcript](https://clawhub.ai/YoavRez/openclaw-youtube-transcript) | Extract YouTube video transcripts via yt-dlp | None |
 | [steipete/frontend-design](https://clawhub.ai/steipete/frontend-design) | Create production-grade frontend interfaces with high design quality | None |
 | [adamandjarvis/banana-farmer](https://clawhub.ai/adamandjarvis/banana-farmer) | Stock & crypto momentum scoring for 6,500+ assets | `BF_API_KEY` (free, self-provisioned) |
+
+## Coding Agent (Built-in Skill)
+
+The `coding-agent` skill is bundled with OpenClaw and delegates tasks to background coding CLIs.
+The init container installs both `@anthropic-ai/claude-code` and `@openai/codex` via bun.
+
+The skill requires the `exec` tool with `pty:true` support. It should show as `ready` once the CLIs are installed.
 
 ## Access
 
