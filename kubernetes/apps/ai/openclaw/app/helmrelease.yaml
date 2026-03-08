@@ -37,6 +37,9 @@ spec:
             image:
               repository: ghcr.io/openclaw/openclaw
               tag: 2026.3.2
+            envFrom:
+              - secretRef:
+                  name: openclaw-skills-secret
             command:
               - /bin/sh
               - -c
@@ -58,7 +61,7 @@ spec:
 
                 # Install core brew packages
                 echo "Installing core brew packages..."
-                brew install gh go uv jq ripgrep tmux ffmpeg himalaya
+                brew install gh go uv jq ripgrep tmux ffmpeg himalaya yt-dlp
 
                 # Add custom Homebrew taps
                 echo "Adding custom Homebrew taps..."
@@ -114,6 +117,29 @@ spec:
                 echo "Installing UV-based CLIs..."
                 uv tool install nano-pdf || echo "nano-pdf install failed, skipping"
 
+                # Install agent-browser CLI
+                echo "Installing agent-browser CLI..."
+                npm install -g agent-browser || echo "WARNING: agent-browser install failed, skipping"
+
+                # Install OpenClaw skills via clawhub
+                echo "Installing OpenClaw skills..."
+                clawhub install arun-8687/tavily-search -y || echo "WARNING: tavily-search skill install failed, skipping"
+                clawhub install JimLiuxinghai/find-skills -y || echo "WARNING: find-skills skill install failed, skipping"
+                clawhub install steipete/notion -y || echo "WARNING: notion skill install failed, skipping"
+                clawhub install TheSethRose/agent-browser -y || echo "WARNING: agent-browser skill install failed, skipping"
+                clawhub install steipete/nano-banana-pro -y || echo "WARNING: nano-banana-pro skill install failed, skipping"
+                clawhub install steipete/gog -y || echo "WARNING: gog skill install failed, skipping"
+                clawhub install maximeprades/auto-updater -y || echo "WARNING: auto-updater skill install failed, skipping"
+                clawhub install YoavRez/openclaw-youtube-transcript -y || echo "WARNING: openclaw-youtube-transcript skill install failed, skipping"
+                clawhub install steipete/frontend-design -y || echo "WARNING: frontend-design skill install failed, skipping"
+                clawhub install adamandjarvis/banana-farmer -y || echo "WARNING: banana-farmer skill install failed, skipping"
+
+                # Setup Notion API key config
+                if [ -n "$NOTION_API_KEY" ]; then
+                  mkdir -p ~/.config/notion
+                  echo "$NOTION_API_KEY" > ~/.config/notion/api_key
+                fi
+
                 # Install pip packages
                 if command -v pip3 >/dev/null 2>&1; then
                   pip3 install --user --break-system-packages kubernetes || true
@@ -154,9 +180,12 @@ spec:
               CHROME_PORT: "9222"
               PATH: "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/node/.local/bin:/home/node/go/bin:/home/node/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
               GOPATH: "/home/node/go"
+              DISABLE_TELEMETRY: "1"
             envFrom:
               - secretRef:
                   name: openclaw-secret
+              - secretRef:
+                  name: openclaw-skills-secret
             probes:
               liveness:
                 enabled: true
