@@ -44,8 +44,8 @@ spec:
                 set -e
                 export HOME=/home/node
                 export HOMEBREW_NO_ANALYTICS=1
-                export HOMEBREW_NO_AUTO_UPDATE=0
-                export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH"
+                export HOMEBREW_NO_AUTO_UPDATE=1
+                export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/node/.local/bin:$PATH"
 
                 # Install Homebrew if not present
                 if [ ! -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then
@@ -56,9 +56,36 @@ spec:
 
                 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
-                # Install packages via brew
-                echo "Installing packages with brew..."
-                brew install gh go
+                # Install brew packages
+                echo "Installing brew packages..."
+                brew install gh go uv bun jq ripgrep tmux ffmpeg \
+                  camsnap gifgrep gog goplaces himalaya \
+                  obsidian-cli openhue ordercli sag songsee \
+                  summarize wacli xurl
+
+                # Install Gemini CLI via brew
+                brew install gemini || true
+
+                # Install OpenAI Whisper via brew
+                brew install whisper || true
+
+                # Install Go-based CLIs
+                echo "Installing Go-based CLIs..."
+                export GOPATH="/home/node/go"
+                export PATH="$GOPATH/bin:$PATH"
+                go install github.com/blucli/blu@latest || echo "blucli install failed, skipping"
+                go install github.com/eightctl/eightctl@latest || echo "eightctl install failed, skipping"
+                go install github.com/sonoscli/sonos@latest || echo "sonoscli install failed, skipping"
+
+                # Install Bun-based CLIs
+                echo "Installing Bun-based CLIs..."
+                bun install -g clawhub || echo "clawhub install failed, skipping"
+                bun install -g mcporter || echo "mcporter install failed, skipping"
+                bun install -g @steipete/oracle || echo "oracle install failed, skipping"
+
+                # Install UV-based CLIs
+                echo "Installing UV-based CLIs..."
+                uv tool install nano-pdf || echo "nano-pdf install failed, skipping"
 
                 # Install pip packages
                 if command -v pip3 >/dev/null 2>&1; then
@@ -66,8 +93,7 @@ spec:
                 fi
 
                 echo "Tool installation complete"
-                echo "gh: $(gh --version | head -1)"
-                echo "go: $(go version)"
+                echo "brew packages: $(brew list --formula | tr '\n' ' ')"
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
@@ -79,7 +105,7 @@ spec:
                 cpu: 100m
                 memory: 256Mi
               limits:
-                memory: 2Gi
+                memory: 4Gi
         containers:
           openclaw:
             image:
@@ -99,7 +125,8 @@ spec:
               OPENCLAW_DISABLE_BONJOUR: 1
               CHROME_HOST: localhost
               CHROME_PORT: "9222"
-              PATH: "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              PATH: "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/node/.local/bin:/home/node/go/bin:/home/node/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              GOPATH: "/home/node/go"
             envFrom:
               - secretRef:
                   name: openclaw-secret
