@@ -123,10 +123,9 @@ spec:
 
                 # Install OpenClaw skills via clawhub
                 echo "Installing OpenClaw skills..."
-                for skill in arun-8687/tavily-search JimLiuxinghai/find-skills \
-                  steipete/notion TheSethRose/agent-browser steipete/nano-banana-pro \
-                  steipete/gog maximeprades/auto-updater YoavRez/openclaw-youtube-transcript \
-                  steipete/frontend-design adamandjarvis/banana-farmer; do
+                for skill in tavily-search find-skills notion agent-browser \
+                  nano-banana-pro gog auto-updater openclaw-youtube-transcript \
+                  frontend-design banana-farmer; do
                   clawhub install "$skill" || echo "WARNING: $skill skill install failed, skipping"
                 done
 
