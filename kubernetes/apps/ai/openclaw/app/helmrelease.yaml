@@ -56,44 +56,61 @@ spec:
 
                 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
-                # Install core brew packages (known-good formulae)
+                # Install core brew packages
                 echo "Installing core brew packages..."
-                brew install gh go uv jq ripgrep tmux ffmpeg
+                brew install gh go uv jq ripgrep tmux ffmpeg himalaya
 
-                # Install optional/custom brew packages (may not exist in default taps)
-                echo "Installing optional brew packages..."
-                for pkg in camsnap gifgrep gog goplaces himalaya \
-                  obsidian-cli openhue ordercli sag songsee \
-                  summarize wacli xurl; do
-                  brew install "$pkg" || echo "WARNING: $pkg not available, skipping"
+                # Add custom Homebrew taps
+                echo "Adding custom Homebrew taps..."
+                brew tap steipete/tap || echo "WARNING: steipete/tap tap failed"
+                brew tap openhue/cli || echo "WARNING: openhue/cli tap failed"
+                brew tap yakitrak/yakitrak || echo "WARNING: yakitrak/yakitrak tap failed"
+
+                # Install steipete/tap packages
+                echo "Installing steipete/tap packages..."
+                for pkg in camsnap gifgrep gogcli goplaces ordercli \
+                  sag songsee summarize wacli blucli eightctl sonoscli; do
+                  brew install "steipete/tap/$pkg" || echo "WARNING: steipete/tap/$pkg not available, skipping"
                 done
 
-                # Install Bun via official installer (not available in Homebrew)
+                # Install openhue CLI
+                echo "Installing openhue CLI..."
+                brew install openhue/cli/openhue-cli || echo "WARNING: openhue-cli not available, skipping"
+
+                # Install obsidian CLI (notesmd-cli by Yakitrak)
+                echo "Installing obsidian CLI (notesmd-cli)..."
+                brew install yakitrak/yakitrak/notesmd-cli || echo "WARNING: notesmd-cli not available, skipping"
+
+                # Install OpenAI Whisper via brew
+                echo "Installing OpenAI Whisper..."
+                brew install openai-whisper || echo "WARNING: openai-whisper not available, skipping"
+
+                # Install Bun via official installer
                 if ! command -v bun >/dev/null 2>&1; then
                   echo "Installing Bun..."
                   curl -fsSL https://bun.sh/install | bash || echo "WARNING: Bun install failed, skipping"
                 fi
                 export PATH="$HOME/.bun/bin:$PATH"
 
-                # Install Gemini CLI via brew
-                brew install gemini || true
-
-                # Install OpenAI Whisper via brew
-                brew install whisper || true
-
-                # Install Go-based CLIs
-                echo "Installing Go-based CLIs..."
-                export GOPATH="/home/node/go"
-                export PATH="$GOPATH/bin:$PATH"
-                go install github.com/blucli/blu@latest || echo "blucli install failed, skipping"
-                go install github.com/eightctl/eightctl@latest || echo "eightctl install failed, skipping"
-                go install github.com/sonoscli/sonos@latest || echo "sonoscli install failed, skipping"
-
                 # Install Bun-based CLIs
                 echo "Installing Bun-based CLIs..."
                 bun install -g clawhub || echo "clawhub install failed, skipping"
                 bun install -g mcporter || echo "mcporter install failed, skipping"
                 bun install -g @steipete/oracle || echo "oracle install failed, skipping"
+
+                # Install Gemini CLI via npm
+                echo "Installing Gemini CLI..."
+                bun install -g @google/gemini-cli || echo "WARNING: gemini-cli install failed, skipping"
+
+                # Install Go-based CLIs (fallback for any not in tap)
+                echo "Installing Go-based CLIs..."
+                export GOPATH="/home/node/go"
+                export PATH="$GOPATH/bin:$PATH"
+                go install github.com/steipete/eightctl/cmd/eightctl@latest || echo "eightctl go install failed, skipping"
+
+                # Install xurl via Go
+                echo "Installing xurl..."
+                go install github.com/hueristiq/xurls/cmd/xurls@latest || echo "xurls install failed, skipping"
 
                 # Install UV-based CLIs
                 echo "Installing UV-based CLIs..."
@@ -102,6 +119,7 @@ spec:
                 # Install pip packages
                 if command -v pip3 >/dev/null 2>&1; then
                   pip3 install --user --break-system-packages kubernetes || true
+                  pip3 install --user --break-system-packages openai-whisper || echo "WARNING: openai-whisper pip install failed, skipping"
                 fi
 
                 echo "Tool installation complete"
