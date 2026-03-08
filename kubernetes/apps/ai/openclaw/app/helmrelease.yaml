@@ -143,7 +143,7 @@ spec:
               - -c
               - |
                 while true; do
-                  node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured --password "$OPENCLAW_GATEWAY_PASSWORD"
+                  node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured
                   echo "OpenClaw exited, restarting in 1 second..."
                   sleep 1
                 done
