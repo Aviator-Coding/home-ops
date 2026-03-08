@@ -56,19 +56,24 @@ spec:
 
                 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
-                # Install brew packages
-                echo "Installing brew packages..."
-                brew install gh go uv jq ripgrep tmux ffmpeg \
-                  camsnap gifgrep gog goplaces himalaya \
+                # Install core brew packages (known-good formulae)
+                echo "Installing core brew packages..."
+                brew install gh go uv jq ripgrep tmux ffmpeg
+
+                # Install optional/custom brew packages (may not exist in default taps)
+                echo "Installing optional brew packages..."
+                for pkg in camsnap gifgrep gog goplaces himalaya \
                   obsidian-cli openhue ordercli sag songsee \
-                  summarize wacli xurl
+                  summarize wacli xurl; do
+                  brew install "$pkg" || echo "WARNING: $pkg not available, skipping"
+                done
 
                 # Install Bun via official installer (not available in Homebrew)
                 if ! command -v bun >/dev/null 2>&1; then
                   echo "Installing Bun..."
-                  curl -fsSL https://bun.sh/install | bash
-                  export PATH="$HOME/.bun/bin:$PATH"
+                  curl -fsSL https://bun.sh/install | bash || echo "WARNING: Bun install failed, skipping"
                 fi
+                export PATH="$HOME/.bun/bin:$PATH"
 
                 # Install Gemini CLI via brew
                 brew install gemini || true
