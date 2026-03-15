@@ -1,0 +1,58 @@
+---
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+metadata:
+  name: homeops-claw
+  namespace: openclaw
+spec:
+  config:
+    raw:
+      agents:
+        defaults:
+          model:
+            primary: "anthropic/claude-sonnet-4-20250514"
+          sandbox: true
+      session:
+        scope: "per-sender"
+
+  envFrom:
+    - secretRef:
+        name: openclaw-secret
+
+  env:
+    - name: OPENCLAW_DISABLE_BONJOUR
+      value: "1"
+    - name: ANTHROPIC_BASE_URL
+      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+
+  security:
+    networkPolicy:
+      enabled: true
+      allowedIngressNamespaces:
+        - network
+      allowDNS: true
+    rbac:
+      createServiceAccount: true
+
+  storage:
+    persistence:
+      enabled: true
+      storageClass: ceph-block
+      size: 10Gi
+
+  chromium:
+    enabled: true
+
+  probes:
+    liveness:
+      enabled: true
+    readiness:
+      enabled: true
+    startup:
+      enabled: true
+
+  observability:
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true

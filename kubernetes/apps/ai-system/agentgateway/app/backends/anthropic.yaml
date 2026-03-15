@@ -13,7 +13,7 @@ spec:
     name: anthropic-secret
     template:
       data:
-        Authorization: "{{ .ANTHROPIC_API_KEY }}"
+        Authorization: "{{ .ANTHROPIC_API_KEY_MAX }}"
   dataFrom:
     - extract:
         key: ai-keys
@@ -26,7 +26,7 @@ spec:
   ai:
     provider:
       anthropic:
-        model: "claude-3-opus-20240229"
+        model: "claude-sonnet-4-20250514"
   policies:
     auth:
       secretRef:
@@ -40,6 +40,7 @@ metadata:
 spec:
   parentRefs:
     - name: internal
+    - name: internal-noauth
   rules:
   - matches:
     - path:
