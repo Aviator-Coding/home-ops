@@ -11,7 +11,12 @@
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:github.com)",
       "Bash(find:*)",
-      "WebFetch(domain:agentgateway.dev)"
+      "WebFetch(domain:agentgateway.dev)",
+      "WebFetch(domain:docs.solo.io)",
+      "Bash(helm show:*)",
+      "WebFetch(domain:kgateway.dev)",
+      "Bash(helm template:*)",
+      "Bash(kubectl get:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
