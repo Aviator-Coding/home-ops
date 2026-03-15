@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentgateway-admin-ui
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: internal
+    gateway.networking.k8s.io/gateway-name: internal
+  ports:
+    - name: admin-ui
+      port: 15000
+      targetPort: 15000
+      protocol: TCP

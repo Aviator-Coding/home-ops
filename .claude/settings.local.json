@@ -10,7 +10,8 @@
       "Bash(head:*)",
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:github.com)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "WebFetch(domain:agentgateway.dev)"
     ]
   },
   "enableAllProjectMcpServers": true,

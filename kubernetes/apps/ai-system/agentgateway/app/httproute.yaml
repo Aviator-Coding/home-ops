@@ -8,11 +8,12 @@ metadata:
     external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
       conditions: ["[STATUS] == 200"]
+      url: "https://agentgateway.${SECRET_DOMAIN}/ui/"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/group: AI
     gethomepage.dev/name: *app
     gethomepage.dev/description: "AI Agent Gateway"
-    gethomepage.dev/pod-selector: app.kubernetes.io/name=agentgateway
+    gethomepage.dev/pod-selector: app.kubernetes.io/name=internal
 spec:
   hostnames:
     - "agentgateway.${SECRET_DOMAIN}"
@@ -22,5 +23,5 @@ spec:
       sectionName: https
   rules:
     - backendRefs:
-        - name: agentgateway
-          port: 18080
+        - name: agentgateway-admin-ui
+          port: 15000

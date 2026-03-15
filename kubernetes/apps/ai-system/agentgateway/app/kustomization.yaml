@@ -11,5 +11,6 @@ resources:
   - ./httproute.yaml
   - ./ocirepository.yaml
   - ./pdb.yaml
+  - ./service-admin-ui.yaml
   - ./servicemonitor.yaml
   - ./externalsecret-tls.yaml
