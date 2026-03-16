@@ -15,6 +15,8 @@ customization:
     # - module_blacklist=thunderbolt # Prevent Thunderbolt NIC driver from loading during early boot
     - security=none # Less security, faster puter
     - sysctl.kernel.kexec_load_disabled=1 # Meteor Lake CPU & Intel iGPU
+    - nvme_core.default_ps_max_latency_us=0 # Disable NVMe APST deep sleep to prevent I/O stalls
+    - pcie_aspm=off # Disable PCIe Active State Power Management to prevent link state transitions
     - talos.auditd.disabled=1 # Less security, faster puter
     # Bond interface kernel parameters for early network initialization
     # - bond=bond0:enp2s0f0np0,enp2s0f1np1:mode=802.3ad:miimon=100:lacp_rate=1:xmit_hash_policy=layer3+4:updelay=200:downdelay=200
