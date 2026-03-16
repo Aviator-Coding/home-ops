@@ -14,6 +14,10 @@ spec:
       session:
         scope: "per-sender"
 
+  gateway:
+    controlUiOrigins:
+      - "https://homeops-claw.${SECRET_DOMAIN}"
+
   envFrom:
     - secretRef:
         name: openclaw-secret
