@@ -11,6 +11,7 @@ spec:
         defaults:
           model:
             primary: "anthropic/claude-sonnet-4-20250514"
+      gateway: {}
       session:
         scope: "per-sender"
 
@@ -23,6 +24,9 @@ spec:
       value: "1"
     - name: ANTHROPIC_BASE_URL
       value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+
+  gateway:
+    controlUiOrigins: []
 
   security:
     networkPolicy:
