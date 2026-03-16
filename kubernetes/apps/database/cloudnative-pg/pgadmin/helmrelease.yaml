@@ -76,6 +76,13 @@ spec:
         runAsGroup: 5050
         fsGroup: 5050
         fsGroupChangePolicy: OnRootMismatch
+      topologySpreadConstraints:
+        - maxSkew: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: pgadmin
     service:
       app:
         controller: *app

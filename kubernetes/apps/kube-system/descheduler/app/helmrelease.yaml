@@ -8,7 +8,7 @@ spec:
   chartRef:
     kind: OCIRepository
     name: descheduler
-  interval: 1h
+  interval: 30m
   values:
     kind: Deployment
     deschedulerPolicyAPIVersion: descheduler/v1alpha2
@@ -28,10 +28,16 @@ spec:
                 metricsUtilization:
                   source: KubernetesMetrics
                 thresholds:
-                  cpu: 20
-                  memory: 20
-                  pods: 20
+                  cpu: 35
+                  memory: 35
+                  pods: 35
                 targetThresholds:
+                  cpu: 45
+                  memory: 45
+                  pods: 45
+            - name: HighNodeUtilization
+              args:
+                thresholds:
                   cpu: 50
                   memory: 50
                   pods: 50
@@ -58,6 +64,7 @@ spec:
             balance:
               enabled:
                 - LowNodeUtilization
+                - HighNodeUtilization
                 - RemovePodsViolatingTopologySpreadConstraint
             deschedule:
               enabled:

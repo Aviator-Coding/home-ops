@@ -81,14 +81,14 @@ spec:
                 memory: 1Gi
               limits:
                 memory: 2Gi
-    # TODO: Add defaultPodOptions for pod-level security
-    # defaultPodOptions:
-    #   securityContext:
-    #     runAsNonRoot: true
-    #     runAsUser: 568
-    #     runAsGroup: 568
-    #     fsGroup: 568
-    #     fsGroupChangePolicy: OnRootMismatch
+    defaultPodOptions:
+      topologySpreadConstraints:
+        - maxSkew: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: open-webui
     service:
       app:
         ports:
