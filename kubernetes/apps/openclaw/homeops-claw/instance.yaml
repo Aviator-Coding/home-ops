@@ -13,6 +13,9 @@ spec:
             primary: "anthropic/claude-sonnet-4-20250514"
       session:
         scope: "per-sender"
+      gateway:
+        allowedOrigins:
+          - "https://homeops-claw.${SECRET_DOMAIN}"
 
   gateway:
     controlUiOrigins:
