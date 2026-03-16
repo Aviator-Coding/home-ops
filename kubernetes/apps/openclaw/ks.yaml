@@ -31,6 +31,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../components/volsync
   targetNamespace: *namespace
   interval: 30m
   retryInterval: 1m
@@ -47,9 +49,17 @@ spec:
       namespace: *namespace
     - name: onepassword-store
       namespace: security
+    - name: volsync
+      namespace: system
     - name: agentgateway
       namespace: ai-system
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CAPACITY: "20Gi"
+      VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "0 2 * * *"

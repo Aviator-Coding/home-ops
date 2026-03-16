@@ -37,8 +37,7 @@ spec:
   storage:
     persistence:
       enabled: true
-      storageClass: ceph-block
-      size: 10Gi
+      existingClaim: homeops-claw
 
   chromium:
     enabled: true
