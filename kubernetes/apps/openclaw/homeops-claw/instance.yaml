@@ -12,6 +12,8 @@ spec:
           model:
             primary: "anthropic/claude-sonnet-4-20250514"
       gateway:
+        auth:
+          mode: "token"
         controlUi:
           allowedOrigins:
             - "http://127.0.0.1:18789"
@@ -23,6 +25,8 @@ spec:
   envFrom:
     - secretRef:
         name: openclaw-secret
+    - secretRef:
+        name: openclaw-skills-secret
 
   env:
     - name: OPENCLAW_DISABLE_BONJOUR
@@ -31,6 +35,7 @@ spec:
       value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
 
   gateway:
+    existingSecret: openclaw-gateway-token
     controlUiOrigins: []
 
   security:
