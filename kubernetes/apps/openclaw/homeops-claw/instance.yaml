@@ -21,6 +21,39 @@ spec:
             - "https://homeops-claw.${SECRET_DOMAIN}"
       session:
         scope: "per-sender"
+      skills:
+        install:
+          preferBrew: false
+          nodeManager: "pnpm"
+        entries:
+          nano-banana-pro:
+            enabled: true
+            apiKey: "${GEMINI_API_KEY}"
+
+  # ── Runtime Dependencies ──────────────────────────────────────
+  # Init containers that install toolchains to the PVC
+  # (persists across restarts, replaces brew for pnpm/python)
+  runtimeDeps:
+    pnpm: true
+    python: true
+
+  # ── Skills ────────────────────────────────────────────────────
+  # Fetched by init-skills container before the agent starts
+  # Formats: "clawhub-slug" | "npm:package" | "pack:owner/repo/path"
+  skills:
+    - "mcp-server-fetch"
+    - github
+    - summarize
+
+  # ── Self-Configure ────────────────────────────────────────────
+  # Let the agent add/remove skills and config at runtime via K8s API
+  # (replaces brew-based interactive installs)
+  selfConfigure:
+    enabled: true
+    allowedActions:
+      - skills
+      - config
+      - workspaceFiles
 
   envFrom:
     - secretRef:
