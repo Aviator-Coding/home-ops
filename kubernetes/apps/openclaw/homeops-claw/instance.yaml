@@ -41,7 +41,7 @@ spec:
   # Fetched by init-skills container before the agent starts
   # Formats: "clawhub-slug" | "npm:package" | "pack:owner/repo/path"
   skills:
-    - "mcp-server-fetch"
+    - "@anthropic/mcp-server-fetch"
     - github
     - summarize
 
