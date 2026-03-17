@@ -37,6 +37,28 @@ spec:
     pnpm: true
     python: true
 
+  # ── Custom Init Containers ─────────────────────────────────────
+  # Runs after built-in inits; installs tools to PVC
+  initContainers:
+    - name: install-gh
+      image: alpine:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          BIN_DIR="/home/openclaw/.openclaw/.local/bin"
+          if [ ! -f "$BIN_DIR/gh" ]; then
+            mkdir -p "$BIN_DIR"
+            GH_VERSION=$(wget -qO- https://api.github.com/repos/cli/cli/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/v//')
+            wget -qO- "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" | \
+              tar xz --strip-components=2 -C "$BIN_DIR" "gh_${GH_VERSION}_linux_amd64/bin/gh"
+            echo "gh ${GH_VERSION} installed"
+          else
+            echo "gh already installed, skipping"
+          fi
+      volumeMounts:
+        - name: data
+          mountPath: /home/openclaw/.openclaw
+
   # ── Skills ────────────────────────────────────────────────────
   # Fetched by init-skills container before the agent starts
   # Formats: "clawhub-slug" | "npm:package" | "pack:owner/repo/path"
@@ -44,6 +66,7 @@ spec:
     # - "@anthropic/mcp-server-fetch"
     - github
     - summarize
+    - coding-agent
 
   # ── Self-Configure ────────────────────────────────────────────
   # Let the agent add/remove skills and config at runtime via K8s API
@@ -66,6 +89,10 @@ spec:
       value: "1"
     - name: ANTHROPIC_BASE_URL
       value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+    - name: GH_CONFIG_DIR
+      value: "/home/openclaw/.openclaw/.config/gh"
+    - name: PATH
+      value: "/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
   gateway:
     existingSecret: openclaw-gateway-token
