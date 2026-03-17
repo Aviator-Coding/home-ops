@@ -98,6 +98,6 @@ spec:
 
   observability:
     metrics:
-      enabled: false
+      enabled: true
       serviceMonitor:
         enabled: true
