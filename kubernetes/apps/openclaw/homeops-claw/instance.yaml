@@ -25,10 +25,10 @@ spec:
         install:
           preferBrew: false
           nodeManager: "pnpm"
-        entries:
-          nano-banana-pro:
-            enabled: true
-            apiKey: "${GEMINI_API_KEY}"
+        # entries:
+        #   nano-banana-pro:
+        #     enabled: true
+        #     apiKey: "${GEMINI_API_KEY}"
 
   # ── Runtime Dependencies ──────────────────────────────────────
   # Init containers that install toolchains to the PVC
