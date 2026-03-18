@@ -4,14 +4,13 @@ name: "CodeQL check"
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
+    paths:
+      - .github/**
   schedule:
-    - cron: '30 6 * * *'
+    - cron: '30 6 * * 1'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
