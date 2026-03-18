@@ -37,6 +37,12 @@ spec:
                 path: /spec/strategy
                 value:
                   type: Recreate
+              - op: replace
+                path: /spec/template/spec/containers/0/args
+                value:
+                  - "-in-cluster"
+                  - "-in-cluster-context-name=main"
+                  - "-plugins-dir=/build/plugins"
   values:
     podAnnotations:
       reloader.stakater.com/auto: "true"
