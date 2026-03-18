@@ -24,7 +24,7 @@ spec:
         scope: "per-sender"
       skills:
         install:
-          preferBrew: true
+          preferBrew: false
           nodeManager: "pnpm"
         # entries:
         #   nano-banana-pro:
@@ -39,25 +39,38 @@ spec:
     python: true
 
   # ── Custom Init Containers ─────────────────────────────────────
-  # Runs after built-in inits; installs Homebrew + packages to PVC
+  # Runs after built-in inits; installs tools to PVC
   initContainers:
-    - name: install-homebrew
+    - name: install-tools
       image: ghcr.io/openclaw/openclaw:latest
       command: ["/bin/sh", "-c"]
       args:
         - |
-          BREW_HOME="/home/openclaw/.openclaw/homebrew"
-          if [ ! -f "$BREW_HOME/bin/brew" ]; then
-            echo "Installing Homebrew..."
-            mkdir -p "$BREW_HOME"
-            curl -fsSL https://github.com/Homebrew/brew/tarball/master | \
-              tar xz --strip-components=1 -C "$BREW_HOME"
+          BASE="/home/openclaw/.openclaw"
+          export COREPACK_HOME="$BASE/.corepack"
+          export PATH="$COREPACK_HOME/bin:$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
+          corepack enable --install-directory="$COREPACK_HOME/bin" 2>/dev/null
+
+          # gh CLI (direct binary)
+          if [ ! -f "$BASE/.local/bin/gh" ]; then
+            mkdir -p "$BASE/.local/bin"
+            GH_VERSION=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/v//')
+            curl -sL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" | \
+              tar xz --strip-components=2 -C "$BASE/.local/bin" "gh_${GH_VERSION}_linux_amd64/bin/gh"
+            echo "gh ${GH_VERSION} installed"
           else
-            echo "Homebrew already installed, updating..."
-            "$BREW_HOME/bin/brew" update
+            echo "gh already installed, skipping"
           fi
-          eval "$("$BREW_HOME/bin/brew" shellenv)"
-          brew install gh steipete/tap/summarize
+
+          # summarize (pnpm global to PVC)
+          export PNPM_HOME="$BASE/pnpm"
+          export PATH="$PNPM_HOME:$PATH"
+          if ! command -v summarize >/dev/null 2>&1; then
+            pnpm add -g @steipete/summarize
+            echo "summarize installed"
+          else
+            echo "summarize already installed, skipping"
+          fi
       volumeMounts:
         - name: data
           mountPath: /home/openclaw/.openclaw
@@ -92,14 +105,12 @@ spec:
       value: "1"
     - name: ANTHROPIC_BASE_URL
       value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
-    - name: HOMEBREW_PREFIX
-      value: "/home/openclaw/.openclaw/homebrew"
-    - name: HOMEBREW_CELLAR
-      value: "/home/openclaw/.openclaw/homebrew/Cellar"
+    - name: PNPM_HOME
+      value: "/home/openclaw/.openclaw/pnpm"
     - name: GH_CONFIG_DIR
       value: "/home/openclaw/.openclaw/.config/gh"
     - name: PATH
-      value: "/home/openclaw/.openclaw/homebrew/bin:/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
+      value: "/home/openclaw/.openclaw/pnpm:/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
   gateway:
     existingSecret: openclaw-gateway-token
