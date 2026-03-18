@@ -46,16 +46,16 @@ spec:
       command: ["/bin/sh", "-c"]
       args:
         - |
+          set -e
           BASE="/home/openclaw/.openclaw"
-          export COREPACK_HOME="$BASE/.corepack"
-          export PATH="$COREPACK_HOME/bin:$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
-          corepack enable --install-directory="$COREPACK_HOME/bin" 2>/dev/null
+          export PNPM_HOME="$BASE/pnpm"
+          export PATH="$PNPM_HOME:$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
-          # gh CLI (direct binary)
+          # gh CLI (direct binary — pinned version to avoid GitHub API rate limits)
+          GH_VERSION="2.74.0"
           if [ ! -f "$BASE/.local/bin/gh" ]; then
             mkdir -p "$BASE/.local/bin"
-            GH_VERSION=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/v//')
-            curl -sL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" | \
+            curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" | \
               tar xz --strip-components=2 -C "$BASE/.local/bin" "gh_${GH_VERSION}_linux_amd64/bin/gh"
             echo "gh ${GH_VERSION} installed"
           else
@@ -63,8 +63,6 @@ spec:
           fi
 
           # summarize (pnpm global to PVC)
-          export PNPM_HOME="$BASE/pnpm"
-          export PATH="$PNPM_HOME:$PATH"
           if ! command -v summarize >/dev/null 2>&1; then
             pnpm add -g @steipete/summarize
             echo "summarize installed"
