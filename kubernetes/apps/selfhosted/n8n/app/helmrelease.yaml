@@ -23,7 +23,7 @@ spec:
           init-postgres:
             image:
               repository: ghcr.io/home-operations/postgres-init
-              tag: 18.1
+              tag: 18.3
             envFrom: &envFrom
               - secretRef:
                   name: n8n-secret
