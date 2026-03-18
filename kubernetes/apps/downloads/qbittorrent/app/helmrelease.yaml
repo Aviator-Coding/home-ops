@@ -33,7 +33,7 @@ spec:
           coredns:
             image:
               repository: mirror.gcr.io/coredns/coredns
-              tag: 1.14.1
+              tag: 1.14.2
             args:
               - -conf
               - /etc/coredns/Corefile
@@ -44,7 +44,7 @@ spec:
               - coredns
             image:
               repository: ghcr.io/qdm12/gluetun
-              tag: v3.41.0
+              tag: v3.41.1
             env:
               # OpenVPN configuration for NordVPN with US servers
               HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: &gluetunAuthPath /gluetun/auth.toml

@@ -8,7 +8,10 @@ resources:
   - ./gateways
   - ./policies
   - ./helmrelease.yaml
+  - ./httproute.yaml
   - ./ocirepository.yaml
   - ./pdb.yaml
+  - ./service-admin-ui.yaml
   - ./servicemonitor.yaml
   - ./externalsecret-tls.yaml
+  - ./agentgatewayparameters.yaml

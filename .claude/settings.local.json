@@ -3,13 +3,26 @@
     "allow": [
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebSearch",
-      "Bash(kubectl kustomize:*)"
+      "Bash(kubectl kustomize:*)",
+      "Bash(grep:*)",
+      "mcp__claude_ai_tavily__tavily_search",
+      "mcp__claude_ai_tavily__tavily_extract",
+      "Bash(head:*)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(find:*)",
+      "WebFetch(domain:agentgateway.dev)",
+      "WebFetch(domain:docs.solo.io)",
+      "Bash(helm show:*)",
+      "WebFetch(domain:kgateway.dev)",
+      "Bash(helm template:*)",
+      "Bash(kubectl get:*)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "playwright",
     "tavily",
     "grafana"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

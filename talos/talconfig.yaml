@@ -28,7 +28,7 @@ nodes:
     ipAddress: "10.10.10.11"
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800127"
     # Use factory image with custom kernel args and system extensions
-    talosImageURL: factory.talos.dev/installer/05b4a47a70bc97786ed83d200567dcc8a13f731b164537ba59d5397d668851fa
+    talosImageURL: factory.talos.dev/installer/89b72ce2c79e7f262b1ffe4ef2e6061de8c6bbd13b04f394a02483fd15cfaf69
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
@@ -86,7 +86,7 @@ nodes:
     ipAddress: 10.10.10.12
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800809"
     # Use factory image with custom kernel args and system extensions
-    talosImageURL: factory.talos.dev/installer/05b4a47a70bc97786ed83d200567dcc8a13f731b164537ba59d5397d668851fa
+    talosImageURL: factory.talos.dev/installer/89b72ce2c79e7f262b1ffe4ef2e6061de8c6bbd13b04f394a02483fd15cfaf69
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed
@@ -138,7 +138,7 @@ nodes:
     ipAddress: 10.10.10.13
     installDisk: "/dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800007"
     # Use factory image with custom kernel args and system extensions
-    talosImageURL: factory.talos.dev/installer/05b4a47a70bc97786ed83d200567dcc8a13f731b164537ba59d5397d668851fa
+    talosImageURL: factory.talos.dev/installer/89b72ce2c79e7f262b1ffe4ef2e6061de8c6bbd13b04f394a02483fd15cfaf69
     # installDiskSelector:
     #   # `/*` suffix is needed until
     #   # https://github.com/siderolabs/go-blockdevice/issues/114 is fixed

@@ -95,6 +95,14 @@ spec:
             enabled: true
           - name: rgw
             enabled: true
+        placement:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchLabels:
+                  app: rook-ceph-mgr
       network:
         provider: host
         connections:

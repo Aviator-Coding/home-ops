@@ -1,0 +1,9 @@
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayParameters
+metadata:
+  name: agentgateway-params
+spec:
+  env:
+    - name: ADMIN_ADDR
+      value: "0.0.0.0:15000"

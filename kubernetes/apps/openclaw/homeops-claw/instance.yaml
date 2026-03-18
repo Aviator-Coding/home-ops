@@ -1,0 +1,149 @@
+---
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+metadata:
+  name: homeops-claw
+  namespace: openclaw
+spec:
+  config:
+    mergeMode: merge
+    raw:
+      agents:
+        defaults:
+          model:
+            primary: "anthropic/claude-sonnet-4-20250514"
+      gateway:
+        auth:
+          mode: "token"
+        controlUi:
+          allowedOrigins:
+            - "http://127.0.0.1:18789"
+            - "http://localhost:18789"
+            - "https://homeops-claw.${SECRET_DOMAIN}"
+      session:
+        scope: "per-sender"
+      skills:
+        install:
+          preferBrew: false
+          nodeManager: "pnpm"
+        # entries:
+        #   nano-banana-pro:
+        #     enabled: true
+        #     apiKey: "${GEMINI_API_KEY}"
+
+  # ── Runtime Dependencies ──────────────────────────────────────
+  # Init containers that install toolchains to the PVC
+  # (persists across restarts, replaces brew for pnpm/python)
+  runtimeDeps:
+    pnpm: true
+    python: true
+
+  # ── Custom Init Containers ─────────────────────────────────────
+  # Runs after built-in inits; installs tools to PVC
+  initContainers:
+    - name: install-tools
+      image: ghcr.io/openclaw/openclaw:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e
+          BASE="/home/openclaw/.openclaw"
+          export PNPM_HOME="$$BASE/pnpm"
+          export PATH="$$PNPM_HOME:$$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
+          # gh CLI (extract from .deb)
+          GH_VERSION="2.88.1"
+          if [ ! -f "$$BASE/.local/bin/gh" ]; then
+            mkdir -p "$$BASE/.local/bin" /tmp/gh-install
+            curl -fsSL -o /tmp/gh-install/gh.deb \
+              "https://github.com/cli/cli/releases/download/v$${GH_VERSION}/gh_$${GH_VERSION}_linux_amd64.deb"
+            dpkg-deb -x /tmp/gh-install/gh.deb /tmp/gh-install
+            cp /tmp/gh-install/usr/bin/gh "$$BASE/.local/bin/gh"
+            rm -rf /tmp/gh-install
+            echo "gh $$GH_VERSION installed"
+          else
+            echo "gh already installed, skipping"
+          fi
+
+          # summarize (pnpm global to PVC)
+          if ! command -v summarize >/dev/null 2>&1; then
+            pnpm add -g @steipete/summarize
+            echo "summarize installed"
+          else
+            echo "summarize already installed, skipping"
+          fi
+      volumeMounts:
+        - name: data
+          mountPath: /home/openclaw/.openclaw
+
+  # ── Skills ────────────────────────────────────────────────────
+  # Fetched by init-skills container before the agent starts
+  # Formats: "clawhub-slug" | "npm:package" | "pack:owner/repo/path"
+  skills:
+    # - "@anthropic/mcp-server-fetch"
+    - github
+    - summarize
+    - coding-agent
+
+  # ── Self-Configure ────────────────────────────────────────────
+  # Let the agent add/remove skills and config at runtime via K8s API
+  # (replaces brew-based interactive installs)
+  selfConfigure:
+    enabled: true
+    allowedActions:
+      - skills
+      - config
+      - workspaceFiles
+
+  envFrom:
+    - secretRef:
+        name: openclaw-secret
+    - secretRef:
+        name: openclaw-skills-secret
+
+  env:
+    - name: OPENCLAW_DISABLE_BONJOUR
+      value: "1"
+    - name: ANTHROPIC_BASE_URL
+      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+    - name: PNPM_HOME
+      value: "/home/openclaw/.openclaw/pnpm"
+    - name: GH_CONFIG_DIR
+      value: "/home/openclaw/.openclaw/.config/gh"
+    - name: PATH
+      value: "/home/openclaw/.openclaw/pnpm:/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
+  gateway:
+    existingSecret: openclaw-gateway-token
+    controlUiOrigins: []
+
+  security:
+    networkPolicy:
+      enabled: true
+      allowedIngressNamespaces:
+        - network
+      allowDNS: true
+    rbac:
+      createServiceAccount: true
+
+  storage:
+    persistence:
+      enabled: true
+      existingClaim: homeops-claw
+
+  chromium:
+    enabled: true
+
+  probes:
+    liveness:
+      enabled: true
+    readiness:
+      enabled: true
+    startup:
+      enabled: true
+
+  observability:
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
