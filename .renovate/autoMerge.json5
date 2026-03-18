@@ -2,39 +2,27 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
-      description: "Auto merge container digests",
+      description: "Auto merge all container digest updates",
       matchDatasources: ["docker"],
       automerge: true,
+      automergeType: "branch",
       matchUpdateTypes: ["digest"],
-      matchPackagePrefixes: ["ghcr.io/home-operations", "ghcr.io/onedr0p", "ghcr.io/bjw-s", "ghcr.io/bjw-s-labs"],
       ignoreTests: false,
     },
     {
-      description: "Auto merge KPS minors and patches",
-      matchDatasources: ["helm", "docker"],
-      automerge: true,
-      matchUpdateTypes: ["minor", "patch"],
-      matchDepNames: ["kube-prometheus-stack"],
-      ignoreTests: false,
-    },
-      {
-      description: "Auto merge media releases",
-      matchDatasources: ["docker", "github-releases", "github-tags", "helm"],
+      description: "Auto merge all container and helm patch updates",
+      matchDatasources: ["docker", "helm", "github-releases", "github-tags"],
       automerge: true,
       automergeType: "branch",
-      requiredStatusChecks: null,
-      matchUpdateTypes: ["minor", "patch"],
-      matchDepNames: [
-        "ghcr.io/home-operations/lidarr",
-        "ghcr.io/home-operations/prowlarr",
-        "ghcr.io/home-operations/qbittorrent",
-        "ghcr.io/home-operations/radarr",
-        "ghcr.io/home-operations/recyclarr",
-        "ghcr.io/home-operations/sabnzbd",
-        "ghcr.io/home-operations/sonarr",
-        "ghcr.io/cross-seed/cross-seed",
-        "ghcr.io/flaresolverr/flaresolverr"
-      ]
-    }
+      matchUpdateTypes: ["patch"],
+      ignoreTests: false,
+    },
+    {
+      description: "Auto merge all container and helm minor updates",
+      matchDatasources: ["docker", "helm", "github-releases", "github-tags"],
+      automerge: true,
+      matchUpdateTypes: ["minor"],
+      ignoreTests: false,
+    },
   ],
 }
