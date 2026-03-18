@@ -52,7 +52,7 @@ spec:
           export PATH="$PNPM_HOME:$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
           # gh CLI (direct binary — pinned version to avoid GitHub API rate limits)
-          GH_VERSION="2.74.0"
+          GH_VERSION="2.88.1"
           if [ ! -f "$BASE/.local/bin/gh" ]; then
             mkdir -p "$BASE/.local/bin"
             curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" | \
