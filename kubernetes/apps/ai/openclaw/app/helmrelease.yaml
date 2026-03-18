@@ -36,7 +36,7 @@ spec:
           install-tools:
             image:
               repository: ghcr.io/openclaw/openclaw
-              tag: 2026.3.2
+              tag: 2026.3.12
             envFrom:
               - secretRef:
                   name: openclaw-skills-secret
@@ -174,7 +174,7 @@ spec:
           openclaw:
             image:
               repository: ghcr.io/openclaw/openclaw
-              tag: 2026.3.2
+              tag: 2026.3.12
             command:
               - /bin/sh
               - -c
