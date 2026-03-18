@@ -24,7 +24,7 @@ spec:
         scope: "per-sender"
       skills:
         install:
-          preferBrew: false
+          preferBrew: true
           nodeManager: "pnpm"
         # entries:
         #   nano-banana-pro:
@@ -39,23 +39,25 @@ spec:
     python: true
 
   # ── Custom Init Containers ─────────────────────────────────────
-  # Runs after built-in inits; installs tools to PVC
+  # Runs after built-in inits; installs Homebrew + packages to PVC
   initContainers:
-    - name: install-gh
-      image: alpine:latest
+    - name: install-homebrew
+      image: ghcr.io/openclaw/openclaw:latest
       command: ["/bin/sh", "-c"]
       args:
         - |
-          BIN_DIR="/home/openclaw/.openclaw/.local/bin"
-          if [ ! -f "$BIN_DIR/gh" ]; then
-            mkdir -p "$BIN_DIR"
-            GH_VERSION=$(wget -qO- https://api.github.com/repos/cli/cli/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/v//')
-            wget -qO- "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" | \
-              tar xz --strip-components=2 -C "$BIN_DIR" "gh_${GH_VERSION}_linux_amd64/bin/gh"
-            echo "gh ${GH_VERSION} installed"
+          BREW_HOME="/home/openclaw/.openclaw/homebrew"
+          if [ ! -f "$BREW_HOME/bin/brew" ]; then
+            echo "Installing Homebrew..."
+            mkdir -p "$BREW_HOME"
+            curl -fsSL https://github.com/Homebrew/brew/tarball/master | \
+              tar xz --strip-components=1 -C "$BREW_HOME"
           else
-            echo "gh already installed, skipping"
+            echo "Homebrew already installed, updating..."
+            "$BREW_HOME/bin/brew" update
           fi
+          eval "$("$BREW_HOME/bin/brew" shellenv)"
+          brew install gh steipete/tap/summarize
       volumeMounts:
         - name: data
           mountPath: /home/openclaw/.openclaw
@@ -90,10 +92,14 @@ spec:
       value: "1"
     - name: ANTHROPIC_BASE_URL
       value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+    - name: HOMEBREW_PREFIX
+      value: "/home/openclaw/.openclaw/homebrew"
+    - name: HOMEBREW_CELLAR
+      value: "/home/openclaw/.openclaw/homebrew/Cellar"
     - name: GH_CONFIG_DIR
       value: "/home/openclaw/.openclaw/.config/gh"
     - name: PATH
-      value: "/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
+      value: "/home/openclaw/.openclaw/homebrew/bin:/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
   gateway:
     existingSecret: openclaw-gateway-token
