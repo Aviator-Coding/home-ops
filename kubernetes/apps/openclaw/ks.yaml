@@ -57,8 +57,6 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
-      - name: openclaw-skills-secret
-        kind: Secret
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: "20Gi"
