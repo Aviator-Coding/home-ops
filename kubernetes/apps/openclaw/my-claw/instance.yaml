@@ -194,8 +194,6 @@ spec:
       value: "/home/openclaw/.openclaw/.config/gh"
     - name: GOPATH
       value: "/home/openclaw/.openclaw/go"
-    - name: TZ
-      value: "${TIMEZONE}"
     - name: DISABLE_TELEMETRY
       value: "1"
     - name: PATH
