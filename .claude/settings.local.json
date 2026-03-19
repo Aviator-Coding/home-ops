@@ -16,7 +16,8 @@
       "Bash(helm show:*)",
       "WebFetch(domain:kgateway.dev)",
       "Bash(helm template:*)",
-      "Bash(kubectl get:*)"
+      "Bash(kubectl get:*)",
+      "mcp__kubernetes-mcp-server__resources_get"
     ]
   },
   "enableAllProjectMcpServers": true,

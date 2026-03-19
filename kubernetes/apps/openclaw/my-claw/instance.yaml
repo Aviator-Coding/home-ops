@@ -48,42 +48,124 @@ spec:
         - |
           set -e
           BASE="/home/openclaw/.openclaw"
+          export HOME="/home/openclaw"
+          export HOMEBREW_NO_ANALYTICS=1
+          export HOMEBREW_NO_AUTO_UPDATE=1
           export PNPM_HOME="$$BASE/pnpm"
-          export PATH="$$PNPM_HOME:$$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
+          export PATH="$$BASE/linuxbrew/bin:$$BASE/linuxbrew/sbin:$$BASE/.bun/bin:$$BASE/go/bin:$$PNPM_HOME:$$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
-          # gh CLI (extract from .deb)
-          GH_VERSION="2.88.1"
-          if [ ! -f "$$BASE/.local/bin/gh" ]; then
-            mkdir -p "$$BASE/.local/bin" /tmp/gh-install
-            curl -fsSL -o /tmp/gh-install/gh.deb \
-              "https://github.com/cli/cli/releases/download/v$${GH_VERSION}/gh_$${GH_VERSION}_linux_amd64.deb"
-            dpkg-deb -x /tmp/gh-install/gh.deb /tmp/gh-install
-            cp /tmp/gh-install/usr/bin/gh "$$BASE/.local/bin/gh"
-            rm -rf /tmp/gh-install
-            echo "gh $$GH_VERSION installed"
-          else
-            echo "gh already installed, skipping"
+          # ── Homebrew ──────────────────────────────────────────
+          if [ ! -f "$$BASE/linuxbrew/bin/brew" ]; then
+            echo "Installing Homebrew..."
+            mkdir -p "$$BASE/linuxbrew"
+            curl -fsSL https://github.com/Homebrew/brew/tarball/master | tar xz --strip-components 1 -C "$$BASE/linuxbrew"
+          fi
+          eval "$$($$BASE/linuxbrew/bin/brew shellenv)"
+
+          # Core brew packages
+          echo "Installing core brew packages..."
+          brew install gh go jq ripgrep tmux ffmpeg himalaya yt-dlp
+
+          # Custom taps
+          echo "Adding custom Homebrew taps..."
+          brew tap steipete/tap || echo "WARNING: steipete/tap tap failed"
+          brew tap openhue/cli || echo "WARNING: openhue/cli tap failed"
+          brew tap yakitrak/yakitrak || echo "WARNING: yakitrak/yakitrak tap failed"
+
+          # steipete/tap packages
+          echo "Installing steipete/tap packages..."
+          for pkg in gifgrep gogcli goplaces ordercli sag songsee wacli; do
+            brew install "steipete/tap/$$pkg" || echo "WARNING: steipete/tap/$$pkg not available, skipping"
+          done
+
+          # openhue CLI
+          echo "Installing openhue CLI..."
+          brew install openhue/cli/openhue-cli || echo "WARNING: openhue-cli not available, skipping"
+
+          # notesmd-cli (Obsidian CLI)
+          echo "Installing notesmd-cli..."
+          brew install yakitrak/yakitrak/notesmd-cli || echo "WARNING: notesmd-cli not available, skipping"
+
+          # whisper-cpp
+          echo "Installing whisper-cpp..."
+          brew install whisper-cpp || echo "WARNING: whisper-cpp not available, skipping"
+
+          # ── Bun ───────────────────────────────────────────────
+          if ! command -v bun >/dev/null 2>&1; then
+            echo "Installing Bun..."
+            export BUN_INSTALL="$$BASE/.bun"
+            curl -fsSL https://bun.sh/install | bash || echo "WARNING: Bun install failed, skipping"
+          fi
+          export PATH="$$BASE/.bun/bin:$$PATH"
+
+          # Bun-based CLIs
+          echo "Installing Bun-based CLIs..."
+          bun install -g clawhub || echo "clawhub install failed, skipping"
+          bun install -g mcporter || echo "mcporter install failed, skipping"
+          bun install -g @steipete/oracle || echo "oracle install failed, skipping"
+          bun install -g @google/gemini-cli || echo "WARNING: gemini-cli install failed, skipping"
+          bun install -g @anthropic-ai/claude-code || echo "WARNING: claude-code install failed, skipping"
+          bun install -g @openai/codex || echo "WARNING: codex install failed, skipping"
+          bun install -g agent-browser || echo "WARNING: agent-browser install failed, skipping"
+
+          # ── Go CLIs ───────────────────────────────────────────
+          echo "Installing Go-based CLIs..."
+          export GOPATH="$$BASE/go"
+          export PATH="$$GOPATH/bin:$$PATH"
+          go install github.com/steipete/eightctl/cmd/eightctl@latest || echo "WARNING: eightctl install failed, skipping"
+          go install github.com/hueristiq/xurls/cmd/xurls@latest || echo "WARNING: xurls install failed, skipping"
+
+          # ── UV tools ──────────────────────────────────────────
+          echo "Installing UV-based CLIs..."
+          uv tool install nano-pdf || echo "nano-pdf install failed, skipping"
+
+          # ── pip packages ──────────────────────────────────────
+          if command -v pip3 >/dev/null 2>&1; then
+            pip3 install --user --break-system-packages kubernetes || true
           fi
 
-          # summarize (pnpm global to PVC)
-          if ! command -v summarize >/dev/null 2>&1; then
-            pnpm add -g @steipete/summarize
-            echo "summarize installed"
-          else
-            echo "summarize already installed, skipping"
+          # ── Notion config ─────────────────────────────────────
+          if [ -n "$$NOTION_API_KEY" ]; then
+            mkdir -p $$HOME/.config/notion
+            echo "$$NOTION_API_KEY" > $$HOME/.config/notion/api_key
           fi
+
+          # ── Google OAuth for gog ──────────────────────────────
+          if [ -f /secrets/google/client_secret.json ]; then
+            echo "Setting up Google OAuth credentials for gog..."
+            gog auth credentials /secrets/google/client_secret.json || echo "WARNING: gog auth credentials failed, skipping"
+          fi
+
+          echo "Tool installation complete"
+          echo "brew packages: $$(brew list --formula | tr '\n' ' ')"
+      envFrom:
+        - secretRef:
+            name: my-claw-skills-secret
       volumeMounts:
         - name: data
           mountPath: /home/openclaw/.openclaw
+        - name: google-credentials
+          mountPath: /secrets/google/client_secret.json
+          subPath: client_secret.json
+          readOnly: true
 
   # ── Skills ────────────────────────────────────────────────────
   # Fetched by init-skills container before the agent starts
   # Formats: "clawhub-slug" | "npm:package" | "pack:owner/repo/path"
   skills:
-    # - "@anthropic/mcp-server-fetch"
     - github
     - summarize
     - coding-agent
+    - tavily-search
+    - find-skills
+    - notion
+    - nano-banana-pro
+    - gog
+    - auto-updater
+    - openclaw-youtube-transcript
+    - frontend-design
+    - banana-farmer
+    - agent-browser
 
   # ── Self-Configure ────────────────────────────────────────────
   # Let the agent add/remove skills and config at runtime via K8s API
@@ -110,12 +192,32 @@ spec:
       value: "/home/openclaw/.openclaw/pnpm"
     - name: GH_CONFIG_DIR
       value: "/home/openclaw/.openclaw/.config/gh"
+    - name: GOPATH
+      value: "/home/openclaw/.openclaw/go"
+    - name: TZ
+      value: "${TIMEZONE}"
+    - name: DISABLE_TELEMETRY
+      value: "1"
     - name: PATH
-      value: "/home/openclaw/.openclaw/pnpm:/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
+      value: "/home/openclaw/.openclaw/linuxbrew/bin:/home/openclaw/.openclaw/linuxbrew/sbin:/home/openclaw/.openclaw/.bun/bin:/home/openclaw/.openclaw/go/bin:/home/openclaw/.openclaw/pnpm:/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
   gateway:
     existingSecret: my-claw-gateway-token
     controlUiOrigins: []
+
+  extraVolumes:
+    - name: google-credentials
+      secret:
+        secretName: my-claw-skills-secret
+        items:
+          - key: client_secret.json
+            path: client_secret.json
+
+  extraVolumeMounts:
+    - name: google-credentials
+      mountPath: /secrets/google/client_secret.json
+      subPath: client_secret.json
+      readOnly: true
 
   security:
     networkPolicy:
@@ -125,6 +227,16 @@ spec:
       allowDNS: true
     rbac:
       createServiceAccount: true
+      additionalRules:
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["get", "list", "watch", "delete"]
+        - apiGroups: [""]
+          resources: ["pods/exec"]
+          verbs: ["create"]
+        - apiGroups: ["apps"]
+          resources: ["deployments"]
+          verbs: ["get", "list", "watch", "patch"]
 
   storage:
     persistence:
