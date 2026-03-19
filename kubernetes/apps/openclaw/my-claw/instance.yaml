@@ -188,7 +188,6 @@ spec:
     - gog
     - auto-updater
     - openclaw-youtube-transcript
-    - frontend-design
     - banana-farmer
 
   # ── Self-Configure ────────────────────────────────────────────
