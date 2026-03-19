@@ -42,6 +42,7 @@ metadata:
 spec:
   parentRefs:
     - name: internal
+    - name: internal-noauth
   rules:
     - matches:
         - path:

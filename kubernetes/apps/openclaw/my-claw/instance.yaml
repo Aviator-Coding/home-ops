@@ -20,6 +20,31 @@ spec:
             - "http://127.0.0.1:18789"
             - "http://localhost:18789"
             - "https://my-claw.${SECRET_DOMAIN}"
+      providers:
+        anthropic:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+          api: "anthropic"
+        openai:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/openai"
+          api: "openai"
+        togetherai:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/togetherai"
+          api: "openai"
+        mistral:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/mistral"
+          api: "openai"
+        xai:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/xai"
+          api: "openai"
+        gemini:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/gemini"
+          api: "openai"
+        deepseek:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/deepseek"
+          api: "openai"
+        groq:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/groq"
+          api: "openai"
       session:
         scope: "per-sender"
       skills:
