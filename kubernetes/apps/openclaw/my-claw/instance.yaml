@@ -76,6 +76,8 @@ spec:
           export HOME="/home/openclaw"
           export HOMEBREW_NO_ANALYTICS=1
           export HOMEBREW_NO_AUTO_UPDATE=1
+          export HOMEBREW_CACHE="$$BASE/.cache/Homebrew"
+          mkdir -p "$$BASE/.cache/Homebrew"
           export PNPM_HOME="$$BASE/pnpm"
           export PATH="$$BASE/linuxbrew/bin:$$BASE/linuxbrew/sbin:$$BASE/.bun/bin:$$BASE/go/bin:$$PNPM_HOME:$$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
