@@ -181,7 +181,6 @@ spec:
     - github
     - summarize
     - coding-agent
-    - tavily-search
     - find-skills
     - notion
     - nano-banana-pro
