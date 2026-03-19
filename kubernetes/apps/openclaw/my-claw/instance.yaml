@@ -73,51 +73,71 @@ spec:
         - |
           set -e
           BASE="/home/openclaw/.openclaw"
-          export HOME="/home/openclaw"
-          export HOMEBREW_NO_ANALYTICS=1
-          export HOMEBREW_NO_AUTO_UPDATE=1
-          export HOMEBREW_CACHE="$$BASE/.cache/Homebrew"
-          mkdir -p "$$BASE/.cache/Homebrew"
+          export HOME="$$BASE"
+          export XDG_CACHE_HOME="$$BASE/.cache"
+          mkdir -p "$$BASE/.local/bin" "$$BASE/.cache" "$$BASE/.config"
           export PNPM_HOME="$$BASE/pnpm"
-          export PATH="$$BASE/linuxbrew/bin:$$BASE/linuxbrew/sbin:$$BASE/.bun/bin:$$BASE/go/bin:$$PNPM_HOME:$$BASE/.local/bin:/usr/local/bin:/usr/bin:/bin"
+          export PATH="$$BASE/.local/bin:$$BASE/.bun/bin:$$BASE/go/sdk/bin:$$BASE/go/bin:$$PNPM_HOME:/usr/local/bin:/usr/bin:/bin"
 
-          # ── Homebrew ──────────────────────────────────────────
-          if [ ! -f "$$BASE/linuxbrew/bin/brew" ]; then
-            echo "Installing Homebrew..."
-            mkdir -p "$$BASE/linuxbrew"
-            curl -fsSL https://github.com/Homebrew/brew/tarball/master | tar xz --strip-components 1 -C "$$BASE/linuxbrew"
+          # ── Helper: install a single binary from URL ────────
+          _install_bin() {
+            local name="$$1" url="$$2"
+            if [ -f "$$BASE/.local/bin/$$name" ]; then
+              echo "$$name already installed, skipping"; return
+            fi
+            echo "Installing $$name..."
+            curl -fsSL "$$url" -o "$$BASE/.local/bin/$$name"
+            chmod +x "$$BASE/.local/bin/$$name"
+          }
+
+          # ── Direct binary downloads ─────────────────────────
+          # gh CLI (extract from .deb)
+          GH_VERSION="2.88.1"
+          if [ ! -f "$$BASE/.local/bin/gh" ]; then
+            echo "Installing gh $$GH_VERSION..."
+            mkdir -p /tmp/gh-install
+            curl -fsSL -o /tmp/gh-install/gh.deb \
+              "https://github.com/cli/cli/releases/download/v$${GH_VERSION}/gh_$${GH_VERSION}_linux_amd64.deb"
+            dpkg-deb -x /tmp/gh-install/gh.deb /tmp/gh-install
+            cp /tmp/gh-install/usr/bin/gh "$$BASE/.local/bin/gh"
+            rm -rf /tmp/gh-install
+            echo "gh $$GH_VERSION installed"
+          else
+            echo "gh already installed, skipping"
           fi
-          eval "$$($$BASE/linuxbrew/bin/brew shellenv)"
 
-          # Core brew packages
-          echo "Installing core brew packages..."
-          brew install gh go jq ripgrep tmux ffmpeg himalaya yt-dlp
+          # jq
+          _install_bin jq "https://github.com/jqlang/jq/releases/latest/download/jq-linux-amd64"
 
-          # Custom taps
-          echo "Adding custom Homebrew taps..."
-          brew tap steipete/tap || echo "WARNING: steipete/tap tap failed"
-          brew tap openhue/cli || echo "WARNING: openhue/cli tap failed"
-          brew tap yakitrak/yakitrak || echo "WARNING: yakitrak/yakitrak tap failed"
+          # ripgrep (from musl tarball)
+          RG_VERSION="14.1.1"
+          if [ ! -f "$$BASE/.local/bin/rg" ]; then
+            echo "Installing ripgrep $$RG_VERSION..."
+            curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/$${RG_VERSION}/ripgrep-$${RG_VERSION}-x86_64-unknown-linux-musl.tar.gz" | \
+              tar xz --strip-components=1 -C "$$BASE/.local/bin" "ripgrep-$${RG_VERSION}-x86_64-unknown-linux-musl/rg"
+            echo "ripgrep $$RG_VERSION installed"
+          else
+            echo "rg already installed, skipping"
+          fi
 
-          # steipete/tap packages
-          echo "Installing steipete/tap packages..."
-          for pkg in gifgrep gogcli goplaces ordercli sag songsee wacli; do
-            brew install "steipete/tap/$$pkg" || echo "WARNING: steipete/tap/$$pkg not available, skipping"
-          done
+          # yt-dlp
+          _install_bin yt-dlp "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
 
-          # openhue CLI
-          echo "Installing openhue CLI..."
-          brew install openhue/cli/openhue-cli || echo "WARNING: openhue-cli not available, skipping"
+          # Go SDK (for go install commands later)
+          GO_VERSION="1.24.1"
+          if [ ! -d "$$BASE/go/sdk" ]; then
+            echo "Installing Go $$GO_VERSION..."
+            mkdir -p "$$BASE/go/sdk"
+            curl -fsSL "https://go.dev/dl/go$${GO_VERSION}.linux-amd64.tar.gz" | \
+              tar xz --strip-components=1 -C "$$BASE/go/sdk"
+            echo "Go $$GO_VERSION installed"
+          else
+            echo "Go SDK already installed, skipping"
+          fi
+          export GOROOT="$$BASE/go/sdk"
+          export GOPATH="$$BASE/go"
 
-          # notesmd-cli (Obsidian CLI)
-          echo "Installing notesmd-cli..."
-          brew install yakitrak/yakitrak/notesmd-cli || echo "WARNING: notesmd-cli not available, skipping"
-
-          # whisper-cpp
-          echo "Installing whisper-cpp..."
-          brew install whisper-cpp || echo "WARNING: whisper-cpp not available, skipping"
-
-          # ── Bun ───────────────────────────────────────────────
+          # ── Bun ─────────────────────────────────────────────
           if ! command -v bun >/dev/null 2>&1; then
             echo "Installing Bun..."
             export BUN_INSTALL="$$BASE/.bun"
@@ -127,44 +147,41 @@ spec:
 
           # Bun-based CLIs
           echo "Installing Bun-based CLIs..."
-          bun install -g clawhub || echo "clawhub install failed, skipping"
-          bun install -g mcporter || echo "mcporter install failed, skipping"
-          bun install -g @steipete/oracle || echo "oracle install failed, skipping"
-          bun install -g @google/gemini-cli || echo "WARNING: gemini-cli install failed, skipping"
-          bun install -g @anthropic-ai/claude-code || echo "WARNING: claude-code install failed, skipping"
-          bun install -g @openai/codex || echo "WARNING: codex install failed, skipping"
-          bun install -g agent-browser || echo "WARNING: agent-browser install failed, skipping"
+          bun install -g clawhub || true
+          bun install -g mcporter || true
+          bun install -g @steipete/oracle || true
+          bun install -g @google/gemini-cli || true
+          bun install -g @anthropic-ai/claude-code || true
+          bun install -g @openai/codex || true
+          bun install -g agent-browser || true
 
-          # ── Go CLIs ───────────────────────────────────────────
+          # ── Go CLIs ─────────────────────────────────────────
           echo "Installing Go-based CLIs..."
-          export GOPATH="$$BASE/go"
-          export PATH="$$GOPATH/bin:$$PATH"
-          go install github.com/steipete/eightctl/cmd/eightctl@latest || echo "WARNING: eightctl install failed, skipping"
-          go install github.com/hueristiq/xurls/cmd/xurls@latest || echo "WARNING: xurls install failed, skipping"
+          go install github.com/steipete/eightctl/cmd/eightctl@latest || true
+          go install github.com/hueristiq/xurls/cmd/xurls@latest || true
 
-          # ── UV tools ──────────────────────────────────────────
+          # ── UV tools ────────────────────────────────────────
           echo "Installing UV-based CLIs..."
-          uv tool install nano-pdf || echo "nano-pdf install failed, skipping"
+          uv tool install nano-pdf || true
 
-          # ── pip packages ──────────────────────────────────────
+          # ── pip packages ────────────────────────────────────
           if command -v pip3 >/dev/null 2>&1; then
             pip3 install --user --break-system-packages kubernetes || true
           fi
 
-          # ── Notion config ─────────────────────────────────────
+          # ── Notion config ───────────────────────────────────
           if [ -n "$$NOTION_API_KEY" ]; then
-            mkdir -p $$HOME/.config/notion
-            echo "$$NOTION_API_KEY" > $$HOME/.config/notion/api_key
+            mkdir -p "$$HOME/.config/notion"
+            echo "$$NOTION_API_KEY" > "$$HOME/.config/notion/api_key"
           fi
 
-          # ── Google OAuth for gog ──────────────────────────────
+          # ── Google OAuth for gog ────────────────────────────
           if [ -f /secrets/google/client_secret.json ]; then
             echo "Setting up Google OAuth credentials for gog..."
-            gog auth credentials /secrets/google/client_secret.json || echo "WARNING: gog auth credentials failed, skipping"
+            gog auth credentials /secrets/google/client_secret.json || true
           fi
 
           echo "Tool installation complete"
-          echo "brew packages: $$(brew list --formula | tr '\n' ' ')"
       envFrom:
         - secretRef:
             name: my-claw-skills-secret
@@ -215,12 +232,14 @@ spec:
       value: "/home/openclaw/.openclaw/pnpm"
     - name: GH_CONFIG_DIR
       value: "/home/openclaw/.openclaw/.config/gh"
+    - name: GOROOT
+      value: "/home/openclaw/.openclaw/go/sdk"
     - name: GOPATH
       value: "/home/openclaw/.openclaw/go"
     - name: DISABLE_TELEMETRY
       value: "1"
     - name: PATH
-      value: "/home/openclaw/.openclaw/linuxbrew/bin:/home/openclaw/.openclaw/linuxbrew/sbin:/home/openclaw/.openclaw/.bun/bin:/home/openclaw/.openclaw/go/bin:/home/openclaw/.openclaw/pnpm:/home/openclaw/.openclaw/.local/bin:/usr/local/bin:/usr/bin:/bin"
+      value: "/home/openclaw/.openclaw/.local/bin:/home/openclaw/.openclaw/.bun/bin:/home/openclaw/.openclaw/go/sdk/bin:/home/openclaw/.openclaw/go/bin:/home/openclaw/.openclaw/pnpm:/usr/local/bin:/usr/bin:/bin"
 
   gateway:
     existingSecret: my-claw-gateway-token
