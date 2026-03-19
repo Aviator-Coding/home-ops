@@ -57,6 +57,8 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+      - name: cluster-settings
+        kind: ConfigMap
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: "20Gi"
@@ -100,6 +102,8 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+      - name: cluster-settings
+        kind: ConfigMap
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: "20Gi"
