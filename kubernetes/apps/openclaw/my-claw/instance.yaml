@@ -12,6 +12,14 @@ spec:
         defaults:
           model:
             primary: "anthropic/claude-sonnet-4-20250514"
+            fallbacks:
+              - "openai/gpt-3.5-turbo"
+              - "gemini/gemini-2.5-flash-lite"
+              - "xai/grok-3-fast"
+              - "deepseek/deepseek-chat"
+              - "groq/llama-3.3-70b-versatile"
+              - "mistral/mistral-large-latest"
+              - "togetherai/Qwen/Qwen2.5-Coder-32B-Instruct"
       gateway:
         auth:
           mode: "token"
@@ -27,23 +35,23 @@ spec:
         openai:
           baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/openai"
           api: "openai"
-        togetherai:
-          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/togetherai"
-          api: "openai"
-        mistral:
-          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/mistral"
+        gemini:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/gemini"
           api: "openai"
         xai:
           baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/xai"
-          api: "openai"
-        gemini:
-          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/gemini"
           api: "openai"
         deepseek:
           baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/deepseek"
           api: "openai"
         groq:
           baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/groq"
+          api: "openai"
+        mistral:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/mistral"
+          api: "openai"
+        togetherai:
+          baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/togetherai"
           api: "openai"
       session:
         scope: "per-sender"
