@@ -190,7 +190,6 @@ spec:
     - openclaw-youtube-transcript
     - frontend-design
     - banana-farmer
-    - agent-browser
 
   # ── Self-Configure ────────────────────────────────────────────
   # Let the agent add/remove skills and config at runtime via K8s API
