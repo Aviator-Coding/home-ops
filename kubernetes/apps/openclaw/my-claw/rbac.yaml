@@ -16,6 +16,14 @@ rules:
       - persistentvolumeclaims
       - events
     verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - pods
+    verbs: ["delete"]
+  - apiGroups: [""]
+    resources:
+      - pods/exec
+    verbs: ["create"]
   - apiGroups: ["apps"]
     resources:
       - deployments
@@ -23,6 +31,10 @@ rules:
       - replicasets
       - daemonsets
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+    verbs: ["patch"]
   - apiGroups: ["batch"]
     resources:
       - jobs

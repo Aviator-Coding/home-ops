@@ -250,16 +250,6 @@ spec:
       allowDNS: true
     rbac:
       createServiceAccount: true
-      additionalRules:
-        - apiGroups: [""]
-          resources: ["pods"]
-          verbs: ["get", "list", "watch", "delete"]
-        - apiGroups: [""]
-          resources: ["pods/exec"]
-          verbs: ["create"]
-        - apiGroups: ["apps"]
-          resources: ["deployments"]
-          verbs: ["get", "list", "watch", "patch"]
 
   storage:
     persistence:
