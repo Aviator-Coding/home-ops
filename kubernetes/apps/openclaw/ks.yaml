@@ -63,3 +63,46 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "0 2 * * *"
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app my-claw
+  namespace: &namespace openclaw
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  components:
+    - ../../../components/volsync
+  targetNamespace: *namespace
+  interval: 30m
+  retryInterval: 1m
+  timeout: 3m
+  path: ./kubernetes/apps/openclaw/my-claw
+  prune: true
+  wait: false
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  dependsOn:
+    - name: openclaw-operator
+      namespace: *namespace
+    - name: onepassword-store
+      namespace: security
+    - name: volsync
+      namespace: system
+    - name: agentgateway
+      namespace: ai-system
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CAPACITY: "20Gi"
+      VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "0 2 * * *"
