@@ -2,7 +2,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: &app gha-runner-scale-set-aviator-coding-ai-k8s-sandbox
+  name: &app gha-rs-ac-ai-k8s-sandbox
 spec:
   selector:
     matchLabels:

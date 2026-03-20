@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &name gha-runner-scale-set-aviator-coding-ai-k8s-sandbox
+  name: &name gha-rs-ac-ai-k8s-sandbox
 spec:
   interval: 30m
   chart:
