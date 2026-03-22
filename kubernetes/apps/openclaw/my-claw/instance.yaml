@@ -270,6 +270,31 @@ spec:
       enabled: true
       existingClaim: my-claw
 
+  sidecars:
+    - name: code-server
+      image: ghcr.io/coder/code-server:latest
+      args:
+        - --auth
+        - none
+        - --port
+        - "8443"
+        - --user-data-dir
+        - /home/openclaw/.openclaw/.vscode-server
+        - /home/openclaw/.openclaw
+      ports:
+        - containerPort: 8443
+          name: http
+          protocol: TCP
+      volumeMounts:
+        - name: data
+          mountPath: /home/openclaw/.openclaw
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+
   chromium:
     enabled: true
 
