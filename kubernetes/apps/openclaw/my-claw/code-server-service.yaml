@@ -6,7 +6,8 @@ metadata:
   namespace: openclaw
 spec:
   selector:
-    app.kubernetes.io/name: my-claw
+    app.kubernetes.io/name: openclaw
+    app.kubernetes.io/instance: my-claw
   ports:
     - name: http
       port: 8443
