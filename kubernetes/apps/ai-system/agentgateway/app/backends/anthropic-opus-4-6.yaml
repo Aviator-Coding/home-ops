@@ -3,17 +3,17 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: openai-secret
+  name: anthropic-opus-4-6-secret
 spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
     name: onepassword
   target:
-    name: openai-secret
+    name: anthropic-opus-4-6-secret
     template:
       data:
-        Authorization: "{{ .OPENAI_API_KEY }}"
+        Authorization: "{{ .ANTHROPIC_API_KEY_MAX }}"
   dataFrom:
     - extract:
         key: ai-keys
@@ -21,21 +21,21 @@ spec:
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
-  name: openai
+  name: anthropic-opus-4-6
 spec:
   ai:
     provider:
-      openai:
-        model: "gpt-5.4"
+      anthropic:
+        model: "claude-opus-4-6-20250616"
   policies:
     auth:
       secretRef:
-        name: openai-secret
+        name: anthropic-opus-4-6-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: openai
+  name: anthropic-opus-4-6
 spec:
   parentRefs:
     - name: internal
@@ -44,8 +44,8 @@ spec:
   - matches:
     - path:
         type: PathPrefix
-        value: /openai
+        value: /anthropic-opus-4-6
     backendRefs:
-    - name: openai
+    - name: anthropic-opus-4-6
       group: agentgateway.dev
       kind: AgentgatewayBackend

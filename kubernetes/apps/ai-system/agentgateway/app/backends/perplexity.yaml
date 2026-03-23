@@ -3,17 +3,17 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: openai-secret
+  name: perplexity-secret
 spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
     name: onepassword
   target:
-    name: openai-secret
+    name: perplexity-secret
     template:
       data:
-        Authorization: "{{ .OPENAI_API_KEY }}"
+        Authorization: "{{ .PERPLEXITY_API_KEY }}"
   dataFrom:
     - extract:
         key: ai-keys
@@ -21,21 +21,23 @@ spec:
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
-  name: openai
+  name: perplexity
 spec:
   ai:
     provider:
       openai:
-        model: "gpt-5.4"
+        model: "sonar-pro"
+      host: api.perplexity.ai
+      port: 443
   policies:
     auth:
       secretRef:
-        name: openai-secret
+        name: perplexity-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: openai
+  name: perplexity
 spec:
   parentRefs:
     - name: internal
@@ -44,8 +46,8 @@ spec:
   - matches:
     - path:
         type: PathPrefix
-        value: /openai
+        value: /perplexity
     backendRefs:
-    - name: openai
+    - name: perplexity
       group: agentgateway.dev
       kind: AgentgatewayBackend

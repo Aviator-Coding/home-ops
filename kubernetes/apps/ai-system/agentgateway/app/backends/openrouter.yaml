@@ -3,17 +3,17 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: openai-secret
+  name: openrouter-secret
 spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
     name: onepassword
   target:
-    name: openai-secret
+    name: openrouter-secret
     template:
       data:
-        Authorization: "{{ .OPENAI_API_KEY }}"
+        Authorization: "{{ .OPENROUTER_API_KEY }}"
   dataFrom:
     - extract:
         key: ai-keys
@@ -21,21 +21,23 @@ spec:
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
-  name: openai
+  name: openrouter
 spec:
   ai:
     provider:
       openai:
-        model: "gpt-5.4"
+        model: "openai/gpt-5.4"
+      host: openrouter.ai
+      port: 443
   policies:
     auth:
       secretRef:
-        name: openai-secret
+        name: openrouter-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: openai
+  name: openrouter
 spec:
   parentRefs:
     - name: internal
@@ -44,8 +46,8 @@ spec:
   - matches:
     - path:
         type: PathPrefix
-        value: /openai
+        value: /openrouter
     backendRefs:
-    - name: openai
+    - name: openrouter
       group: agentgateway.dev
       kind: AgentgatewayBackend
