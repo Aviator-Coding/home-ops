@@ -26,8 +26,7 @@ metadata:
 spec:
   ai:
     provider:
-      openai:
-        model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      openai: {}
       host: api.together.xyz
       port: 443
   policies:

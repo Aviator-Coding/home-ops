@@ -26,8 +26,7 @@ metadata:
 spec:
   ai:
     provider:
-      openai:
-        model: "deepseek-chat"
+      openai: {}
       host: api.deepseek.com
       port: 443
   policies:
