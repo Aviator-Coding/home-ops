@@ -26,6 +26,55 @@ spec:
               - "togetherai/Qwen/Qwen2.5-Coder-32B-Instruct"
               - "openrouter/openai/gpt-5.4"
               - "perplexity/sonar-pro"
+      models:
+        mode: "merge"
+        providers:
+          anthropic:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+            api: "anthropic"
+            models:
+              - name: "claude-sonnet-4-20250514"
+                contextWindow: 200000
+                maxTokens: 16384
+              - name: "claude-opus-4-6-20250616"
+                contextWindow: 200000
+                maxTokens: 32768
+              - name: "claude-sonnet-4-6-20250514"
+                contextWindow: 200000
+                maxTokens: 16384
+              - name: "claude-opus-4-20250514"
+                contextWindow: 200000
+                maxTokens: 32768
+              - name: "claude-haiku-4-5-20251001"
+                contextWindow: 200000
+                maxTokens: 8192
+          openai:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/openai"
+            api: "openai-responses"
+          gemini:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/gemini"
+            api: "openai-responses"
+          openrouter:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/openrouter"
+            api: "openai-responses"
+          perplexity:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/perplexity"
+            api: "openai-responses"
+          xai:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/xai"
+            api: "openai-responses"
+          deepseek:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/deepseek"
+            api: "openai-responses"
+          groq:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/groq"
+            api: "openai-responses"
+          mistral:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/mistral"
+            api: "openai-responses"
+          togetherai:
+            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/togetherai"
+            api: "openai-responses"
       gateway:
         auth:
           mode: "token"
