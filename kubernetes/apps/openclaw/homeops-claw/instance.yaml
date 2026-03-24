@@ -105,7 +105,7 @@ spec:
     - name: OPENCLAW_DISABLE_BONJOUR
       value: "1"
     - name: ANTHROPIC_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/anthropic"
     - name: PNPM_HOME
       value: "/home/openclaw/.openclaw/pnpm"
     - name: GH_CONFIG_DIR

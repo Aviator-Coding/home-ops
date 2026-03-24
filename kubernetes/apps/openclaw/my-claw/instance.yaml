@@ -30,7 +30,7 @@ spec:
         mode: "merge"
         providers:
           anthropic:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/anthropic"
             api: "anthropic-messages"
             models:
               - id: "claude-sonnet-4-20250514"
@@ -54,7 +54,7 @@ spec:
                 contextWindow: 200000
                 maxTokens: 8192
           openai:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/openai"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/openai"
             api: "openai-responses"
             models:
               - id: "gpt-5.4"
@@ -70,7 +70,7 @@ spec:
                 contextWindow: 128000
                 maxTokens: 16384
           gemini:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/gemini"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/gemini"
             api: "openai-responses"
             models:
               - id: "gemini-2.5-pro"
@@ -82,7 +82,7 @@ spec:
                 contextWindow: 1048576
                 maxTokens: 65536
           openrouter:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/openrouter"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/openrouter"
             api: "openai-responses"
             models:
               - id: "openai/gpt-5.4"
@@ -90,7 +90,7 @@ spec:
                 contextWindow: 128000
                 maxTokens: 16384
           perplexity:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/perplexity"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/perplexity"
             api: "openai-responses"
             models:
               - id: "sonar-pro"
@@ -102,7 +102,7 @@ spec:
                 contextWindow: 128000
                 maxTokens: 8192
           xai:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/xai"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/xai"
             api: "openai-responses"
             models:
               - id: "grok-4-1-fast"
@@ -110,7 +110,7 @@ spec:
                 contextWindow: 131072
                 maxTokens: 16384
           deepseek:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/deepseek"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/deepseek"
             api: "openai-responses"
             models:
               - id: "deepseek-chat"
@@ -122,7 +122,7 @@ spec:
                 contextWindow: 65536
                 maxTokens: 8192
           groq:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/groq"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/groq"
             api: "openai-responses"
             models:
               - id: "llama-3.3-70b-versatile"
@@ -134,7 +134,7 @@ spec:
                 contextWindow: 131072
                 maxTokens: 32768
           mistral:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/mistral"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/mistral"
             api: "openai-responses"
             models:
               - id: "mistral-large-latest"
@@ -142,7 +142,7 @@ spec:
                 contextWindow: 131072
                 maxTokens: 16384
           togetherai:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/togetherai"
+            baseUrl: "http://internal-noauth.ai-system.svc.cluster.local/togetherai"
             api: "openai-responses"
             models:
               - id: "Qwen/Qwen2.5-Coder-32B-Instruct"
@@ -339,25 +339,25 @@ spec:
     - name: OPENCLAW_DISABLE_BONJOUR
       value: "1"
     - name: ANTHROPIC_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/anthropic"
     - name: OPENAI_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/openai"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/openai"
     - name: GEMINI_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/gemini"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/gemini"
     - name: XAI_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/xai"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/xai"
     - name: DEEPSEEK_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/deepseek"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/deepseek"
     - name: GROQ_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/groq"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/groq"
     - name: MISTRAL_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/mistral"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/mistral"
     - name: TOGETHERAI_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/togetherai"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/togetherai"
     - name: OPENROUTER_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/openrouter"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/openrouter"
     - name: PERPLEXITY_BASE_URL
-      value: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/perplexity"
+      value: "http://internal-noauth.ai-system.svc.cluster.local/perplexity"
     - name: PNPM_HOME
       value: "/home/openclaw/.openclaw/pnpm"
     - name: GH_CONFIG_DIR
