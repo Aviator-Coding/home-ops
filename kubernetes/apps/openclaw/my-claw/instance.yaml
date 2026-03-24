@@ -11,12 +11,12 @@ spec:
       agents:
         defaults:
           model:
-            primary: "anthropic-sonnet-4-6/claude-sonnet-4-6-20250514"
+            primary: "anthropic/claude-sonnet-4-6-20250514"
             fallbacks:
-              - "anthropic-opus-4-6/claude-opus-4-6-20250616"
+              - "anthropic/claude-opus-4-6-20250616"
               - "anthropic/claude-sonnet-4-20250514"
-              - "anthropic-opus/claude-opus-4-20250514"
-              - "anthropic-haiku/claude-haiku-4-5-20251001"
+              - "anthropic/claude-opus-4-20250514"
+              - "anthropic/claude-haiku-4-5-20251001"
               - "openai/gpt-5.4"
               - "gemini/gemini-2.5-pro"
               - "xai/grok-4-1-fast"
@@ -37,34 +37,18 @@ spec:
                 name: "Claude Sonnet 4"
                 contextWindow: 200000
                 maxTokens: 16384
-          anthropic-sonnet-4-6:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic-sonnet-4-6"
-            api: "anthropic-messages"
-            models:
-              - id: "claude-sonnet-4-6-20250514"
-                name: "Claude Sonnet 4.6"
-                contextWindow: 200000
-                maxTokens: 16384
-          anthropic-opus-4-6:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic-opus-4-6"
-            api: "anthropic-messages"
-            models:
               - id: "claude-opus-4-6-20250616"
                 name: "Claude Opus 4.6"
                 contextWindow: 200000
                 maxTokens: 32768
-          anthropic-opus:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic-opus"
-            api: "anthropic-messages"
-            models:
+              - id: "claude-sonnet-4-6-20250514"
+                name: "Claude Sonnet 4.6"
+                contextWindow: 200000
+                maxTokens: 16384
               - id: "claude-opus-4-20250514"
                 name: "Claude Opus 4"
                 contextWindow: 200000
                 maxTokens: 32768
-          anthropic-haiku:
-            baseUrl: "http://agentgateway-internal-noauth.ai-system.svc.cluster.local/anthropic-haiku"
-            api: "anthropic-messages"
-            models:
               - id: "claude-haiku-4-5-20251001"
                 name: "Claude Haiku 4.5"
                 contextWindow: 200000
@@ -411,6 +395,10 @@ spec:
       allowedIngressNamespaces:
         - network
       allowDNS: true
+      additionalEgress:
+        - ports:
+            - port: 80
+              protocol: TCP
     rbac:
       createServiceAccount: true
 
