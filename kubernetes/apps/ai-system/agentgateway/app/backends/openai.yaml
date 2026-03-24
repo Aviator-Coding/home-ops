@@ -25,7 +25,8 @@ metadata:
 spec:
   ai:
     provider:
-      openai: {}
+      openai:
+        model: "gpt-5.4"
   policies:
     auth:
       secretRef:

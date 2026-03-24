@@ -26,7 +26,8 @@ metadata:
 spec:
   ai:
     provider:
-      openai: {}
+      openai:
+        model: "llama-3.3-70b-versatile"
       host: api.groq.com
       port: 443
   policies:

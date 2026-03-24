@@ -25,7 +25,8 @@ metadata:
 spec:
   ai:
     provider:
-      openai: {}
+      openai:
+        model: "sonar-pro"
       host: api.perplexity.ai
       port: 443
   policies:

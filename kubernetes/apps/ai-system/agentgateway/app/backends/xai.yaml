@@ -26,7 +26,8 @@ metadata:
 spec:
   ai:
     provider:
-      openai: {}
+      openai:
+        model: "grok-4-1-fast"
       host: api.x.ai
       port: 443
   policies:

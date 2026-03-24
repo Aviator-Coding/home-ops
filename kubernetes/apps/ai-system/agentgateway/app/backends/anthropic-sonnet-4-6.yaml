@@ -3,52 +3,49 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: deepseek-secret
+  name: anthropic-sonnet-4-6-secret
 spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
     name: onepassword
   target:
-    name: deepseek-secret
+    name: anthropic-sonnet-4-6-secret
     template:
       data:
-        Authorization: "{{ .DEEPSEEK_API_KEY }}"
+        Authorization: "{{ .ANTHROPIC_API_KEY_MAX }}"
   dataFrom:
     - extract:
         key: ai-keys
 ---
-# deepseek BAgentgatewayBackend (OpenAI-compatible)
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
-  name: deepseek
+  name: anthropic-sonnet-4-6
 spec:
   ai:
     provider:
-      openai:
-        model: "deepseek-chat"
-      host: api.deepseek.com
-      port: 443
+      anthropic:
+        model: "claude-sonnet-4-6-20250514"
   policies:
     auth:
       secretRef:
-        name: deepseek-secret
+        name: anthropic-sonnet-4-6-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: deepseek
+  name: anthropic-sonnet-4-6
 spec:
   parentRefs:
     - name: internal
     - name: internal-noauth
   rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /deepseek
-      backendRefs:
-        - name: deepseek
-          group: agentgateway.dev
-          kind: AgentgatewayBackend
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /anthropic-sonnet-4-6
+    backendRefs:
+    - name: anthropic-sonnet-4-6
+      group: agentgateway.dev
+      kind: AgentgatewayBackend

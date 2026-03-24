@@ -25,7 +25,8 @@ metadata:
 spec:
   ai:
     provider:
-      gemini: {}
+      gemini:
+        model: "gemini-2.5-pro"
   policies:
     auth:
       secretRef:
