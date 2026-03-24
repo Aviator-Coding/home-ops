@@ -28,6 +28,10 @@ spec:
       anthropic:
         model: "claude-sonnet-4-6-20250514"
   policies:
+    ai:
+      routes:
+        "/v1/messages": Messages
+        "*": Passthrough
     auth:
       secretRef:
         name: anthropic-sonnet-4-6-secret

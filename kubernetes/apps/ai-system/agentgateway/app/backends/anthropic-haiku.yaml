@@ -28,6 +28,10 @@ spec:
       anthropic:
         model: "claude-haiku-4-5-20251001"
   policies:
+    ai:
+      routes:
+        "/v1/messages": Messages
+        "*": Passthrough
     auth:
       secretRef:
         name: anthropic-haiku-secret

@@ -28,6 +28,10 @@ spec:
       anthropic:
         model: "claude-opus-4-6-20250616"
   policies:
+    ai:
+      routes:
+        "/v1/messages": Messages
+        "*": Passthrough
     auth:
       secretRef:
         name: anthropic-opus-4-6-secret
