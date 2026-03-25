@@ -434,6 +434,9 @@ spec:
 
   chromium:
     enabled: true
+    image:
+      repository: chromedp/headless-shell
+      tag: stable
 
   probes:
     liveness:
