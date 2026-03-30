@@ -1,0 +1,20 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy-config
+data:
+  server.yml: |
+    base-url: https://ntfy.${SECRET_DOMAIN}
+    upstream-base-url: https://ntfy.sh
+    cache-file: /var/cache/ntfy/cache.db
+    cache-duration: 12h
+    auth-file: /var/lib/ntfy/auth.db
+    auth-default-access: read-write
+    behind-proxy: true
+    attachment-cache-dir: /var/cache/ntfy/attachments
+    attachment-total-size-limit: 1G
+    attachment-file-size-limit: 50M
+    attachment-expiry-duration: 24h
+    keepalive-interval: 45s
+    visitor-subscription-limit: 30

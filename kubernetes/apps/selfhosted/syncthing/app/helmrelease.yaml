@@ -1,0 +1,112 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app syncthing
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  dependsOn:
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+  values:
+    controllers:
+      syncthing:
+        annotations:
+          reloader.stakater.com/auto: "true"
+
+        containers:
+          app:
+            image:
+              repository: docker.io/syncthing/syncthing
+              tag: 1.29.3
+            env:
+              TZ: America/New_York
+              # Syncthing home directory for config/keys
+              STHOMEDIR: /var/syncthing/config
+              # Data directory for synced files
+              STGUIADDRESS: 0.0.0.0:8384
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /rest/noauth/health
+                    port: &port 8384
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: false
+
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+
+    service:
+      app:
+        controller: syncthing
+        ports:
+          http:
+            port: *port
+      sync:
+        controller: syncthing
+        primary: false
+        type: LoadBalancer
+        annotations:
+          lbipam.cilium.io/ips: 10.50.0.51
+        ports:
+          sync-tcp:
+            port: 22000
+            protocol: TCP
+          sync-udp:
+            port: 22000
+            protocol: UDP
+
+    persistence:
+      config:
+        enabled: true
+        existingClaim: ${VOLSYNC_CLAIM:-*app}
+        globalMounts:
+          - path: /var/syncthing/config
+      sync-data:
+        existingClaim: syncthing-data
+        globalMounts:
+          - path: /var/syncthing/data
+
+    route:
+      app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Selfhosted
+          gethomepage.dev/name: Syncthing
+          gethomepage.dev/icon: syncthing.svg
+          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+        hostnames:
+          - "syncthing.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: syncthing
+                namespace: selfhosted
+                port: *port
