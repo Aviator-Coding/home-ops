@@ -42,9 +42,9 @@ spec:
       APP_GID: "1000"
       GATUS_SUBDOMAIN: photos
       GATUS_GROUP: *namespace
-      VOLSYNC_CLAIM: immich
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_ACCESSMODES: ReadWriteOnce
+      VOLSYNC_CLAIM: immich-library
+      VOLSYNC_CAPACITY: 100Gi
+      VOLSYNC_CACHE_CAPACITY: 20Gi
       VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "30 4 * * *"

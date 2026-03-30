@@ -166,15 +166,11 @@ spec:
 
     persistence:
       library:
-        existingClaim: immich-library
+        existingClaim: ${VOLSYNC_CLAIM:-immich-library}
         advancedMounts:
           server:
             app:
               - path: /usr/src/app/upload
-          machine-learning:
-            app:
-              - path: /usr/src/app/upload
-                readOnly: true
       model-cache:
         type: emptyDir
         advancedMounts:
