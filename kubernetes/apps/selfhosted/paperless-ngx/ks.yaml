@@ -29,7 +29,7 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
-    - name: postgres-cluster-17
+    - name: cloudnative-pg
       namespace: database
     - name: dragonfly-operator
       namespace: database

@@ -21,7 +21,7 @@ spec:
       namespace: system
     - name: rook-ceph-cluster
       namespace: rook-ceph
-    - name: postgres-cluster-17
+    - name: cloudnative-pg
       namespace: database
     - name: dragonfly-operator
       namespace: database
