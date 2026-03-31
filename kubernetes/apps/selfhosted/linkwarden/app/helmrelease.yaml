@@ -46,10 +46,9 @@ spec:
               NEXTAUTH_URL: "https://links.${SECRET_DOMAIN}"
               NEXT_PUBLIC_DISABLE_REGISTRATION: "true"
               NEXT_PUBLIC_CREDENTIALS_ENABLED: "true"
-              # AI tagging via internal Anthropic gateway
+              # AI tagging via AgentGateway (Anthropic native format)
               ANTHROPIC_API_KEY: "sk-no-auth-required"
-              ANTHROPIC_BASE_URL: "http://internal-noauth.ai-system.svc.cluster.local/anthropic"
-              NEXT_PUBLIC_AI_ENABLED: "true"
+              ANTHROPIC_BASE_URL: "http://internal-noauth.ai-system.svc.cluster.local/anthropic-haiku"
               ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
             envFrom: *envFrom
             ports:
