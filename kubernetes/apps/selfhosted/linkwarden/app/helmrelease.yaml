@@ -27,6 +27,14 @@ spec:
             envFrom: &envFrom
               - secretRef:
                   name: linkwarden-secret
+          init-playwright:
+            image:
+              repository: ghcr.io/linkwarden/linkwarden
+              tag: v2.9.3
+            command:
+              - /bin/sh
+              - -c
+              - npx playwright install chromium
 
         containers:
           app:
@@ -89,6 +97,14 @@ spec:
         existingClaim: ${VOLSYNC_CLAIM:-*app}
         globalMounts:
           - path: /data/data
+      playwright-cache:
+        type: emptyDir
+        globalMounts:
+          - path: /home/node/.cache/ms-playwright
+      next-cache:
+        type: emptyDir
+        globalMounts:
+          - path: /data/.next/cache
 
     route:
       app:
