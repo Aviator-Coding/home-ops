@@ -42,6 +42,7 @@ spec:
               repository: ghcr.io/linkwarden/linkwarden
               tag: v2.9.3
             env:
+              NEXT_SHARP_PATH: /data/node_modules/sharp
               NEXTAUTH_URL: "https://links.${SECRET_DOMAIN}"
               NEXT_PUBLIC_DISABLE_REGISTRATION: "true"
               NEXT_PUBLIC_CREDENTIALS_ENABLED: "true"
