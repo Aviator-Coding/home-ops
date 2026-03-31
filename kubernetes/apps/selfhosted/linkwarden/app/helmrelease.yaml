@@ -30,7 +30,7 @@ spec:
           init-playwright:
             image:
               repository: ghcr.io/linkwarden/linkwarden
-              tag: v2.9.3
+              tag: v2.14.0
             command:
               - /bin/sh
               - -c
@@ -40,15 +40,15 @@ spec:
           app:
             image:
               repository: ghcr.io/linkwarden/linkwarden
-              tag: v2.9.3
+              tag: v2.14.0
             env:
               NEXT_SHARP_PATH: /data/node_modules/sharp
               NEXTAUTH_URL: "https://links.${SECRET_DOMAIN}"
               NEXT_PUBLIC_DISABLE_REGISTRATION: "true"
               NEXT_PUBLIC_CREDENTIALS_ENABLED: "true"
-              # AI tagging via AgentGateway (Anthropic native format)
+              # AI tagging via AgentGateway (Anthropic native)
               ANTHROPIC_API_KEY: "sk-no-auth-required"
-              ANTHROPIC_BASE_URL: "http://internal-noauth.ai-system.svc.cluster.local/anthropic-haiku"
+              ANTHROPIC_BASE_URL: "http://internal-noauth.ai-system.svc.cluster.local/anthropic-haiku/v1"
               ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
             envFrom: *envFrom
             ports:
@@ -104,7 +104,7 @@ spec:
       next-cache:
         type: emptyDir
         globalMounts:
-          - path: /data/.next/cache
+          - path: /data/apps/web/.next/cache
 
     route:
       app:
