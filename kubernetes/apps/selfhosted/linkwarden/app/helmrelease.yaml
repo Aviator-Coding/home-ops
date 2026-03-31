@@ -97,10 +97,10 @@ spec:
         existingClaim: ${VOLSYNC_CLAIM:-*app}
         globalMounts:
           - path: /data/data
-      playwright-cache:
+      cache:
         type: emptyDir
         globalMounts:
-          - path: /home/node/.cache/ms-playwright
+          - path: /home/node/.cache
       next-cache:
         type: emptyDir
         globalMounts:
