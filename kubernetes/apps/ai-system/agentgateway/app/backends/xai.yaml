@@ -31,6 +31,7 @@ spec:
       host: api.x.ai
       port: 443
   policies:
+    tls: {}
     auth:
       secretRef:
         name: xai-secret

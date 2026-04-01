@@ -31,6 +31,7 @@ spec:
       host: api.together.xyz
       port: 443
   policies:
+    tls: {}
     auth:
       secretRef:
         name: togetherai-secret

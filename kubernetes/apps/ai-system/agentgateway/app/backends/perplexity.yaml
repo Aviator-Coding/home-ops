@@ -30,6 +30,7 @@ spec:
       host: api.perplexity.ai
       port: 443
   policies:
+    tls: {}
     auth:
       secretRef:
         name: perplexity-secret

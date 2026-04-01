@@ -31,6 +31,7 @@ spec:
       host: api.deepseek.com
       port: 443
   policies:
+    tls: {}
     auth:
       secretRef:
         name: deepseek-secret

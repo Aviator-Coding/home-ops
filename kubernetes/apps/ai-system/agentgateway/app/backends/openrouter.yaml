@@ -30,6 +30,7 @@ spec:
       host: openrouter.ai
       port: 443
   policies:
+    tls: {}
     auth:
       secretRef:
         name: openrouter-secret
