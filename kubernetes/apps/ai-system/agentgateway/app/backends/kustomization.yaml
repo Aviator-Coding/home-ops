@@ -5,10 +5,6 @@ kind: Kustomization
 
 resources:
   - ./anthropic.yaml
-  - ./anthropic-opus.yaml
-  - ./anthropic-opus-4-6.yaml
-  - ./anthropic-sonnet-4-6.yaml
-  - ./anthropic-haiku.yaml
   - ./openai.yaml
   - ./deepseek.yaml
   - ./mistral.yaml
