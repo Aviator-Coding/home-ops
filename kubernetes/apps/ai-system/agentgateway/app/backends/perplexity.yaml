@@ -53,7 +53,7 @@ spec:
       urlRewrite:
         path:
           type: ReplacePrefixMatch
-          replacePrefixMatch: /
+          replacePrefixMatch: ""
     backendRefs:
     - name: perplexity
       group: agentgateway.dev

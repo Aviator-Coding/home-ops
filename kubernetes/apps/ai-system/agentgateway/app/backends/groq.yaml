@@ -54,7 +54,7 @@ spec:
       urlRewrite:
         path:
           type: ReplacePrefixMatch
-          replacePrefixMatch: /
+          replacePrefixMatch: /openai
     backendRefs:
     - name: groq
       group: agentgateway.dev
