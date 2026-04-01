@@ -30,6 +30,7 @@ spec:
               STHOMEDIR: /var/syncthing/config
               # Data directory for synced files
               STGUIADDRESS: 0.0.0.0:8384
+              STDEFAULTFOLDER: /var/syncthing/data
             resources:
               requests:
                 cpu: 100m
