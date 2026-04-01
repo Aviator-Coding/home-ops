@@ -5,7 +5,6 @@ kind: Kustomization
 
 resources:
   - ./anthropic.yaml
-  - ./ollama.yaml
   - ./openai.yaml
   - ./deepseek.yaml
   - ./mistral.yaml
