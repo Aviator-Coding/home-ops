@@ -48,6 +48,12 @@ spec:
     - path:
         type: PathPrefix
         value: /perplexity
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: perplexity
       group: agentgateway.dev

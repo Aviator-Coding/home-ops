@@ -49,6 +49,12 @@ spec:
     - path:
         type: PathPrefix
         value: /togetherai
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: togetherai
       group: agentgateway.dev

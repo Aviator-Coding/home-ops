@@ -49,6 +49,12 @@ spec:
         - path:
             type: PathPrefix
             value: /deepseek
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
       backendRefs:
         - name: deepseek
           group: agentgateway.dev

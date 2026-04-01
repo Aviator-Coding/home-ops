@@ -49,6 +49,12 @@ spec:
     - path:
         type: PathPrefix
         value: /xai
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: xai
       group: agentgateway.dev

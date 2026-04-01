@@ -49,6 +49,12 @@ spec:
     - path:
         type: PathPrefix
         value: /groq
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: groq
       group: agentgateway.dev

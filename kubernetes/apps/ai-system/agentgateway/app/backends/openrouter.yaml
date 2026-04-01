@@ -48,6 +48,12 @@ spec:
     - path:
         type: PathPrefix
         value: /openrouter
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: openrouter
       group: agentgateway.dev
