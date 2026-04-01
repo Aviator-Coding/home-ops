@@ -29,6 +29,7 @@ spec:
         model: "sonar-pro"
       host: api.perplexity.ai
       port: 443
+      path: /chat/completions
   policies:
     tls: {}
     auth:
@@ -53,7 +54,7 @@ spec:
       urlRewrite:
         path:
           type: ReplacePrefixMatch
-          replacePrefixMatch: ""
+          replacePrefixMatch: /
     backendRefs:
     - name: perplexity
       group: agentgateway.dev
