@@ -46,8 +46,9 @@ spec:
               NEXTAUTH_URL: "https://links.${SECRET_DOMAIN}"
               NEXT_PUBLIC_DISABLE_REGISTRATION: "true"
               NEXT_PUBLIC_CREDENTIALS_ENABLED: "true"
-              # AI tagging (key injected from ExternalSecret)
-              ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
+              # AI tagging via AgentGateway -> OpenRouter
+              CUSTOM_OPENAI_BASE_URL: "http://internal-noauth.ai-system.svc.cluster.local/openrouter/v1"
+              OPENAI_MODEL: "google/gemini-2.0-flash-lite-001"
             envFrom: *envFrom
             ports:
               - name: http
