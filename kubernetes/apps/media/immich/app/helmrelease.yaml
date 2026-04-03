@@ -36,16 +36,16 @@ spec:
                   name: immich-secret
           init-db-extensions:
             image:
-              # renovate: datasource=docker depName=ghcr.io/tensorchord/cloudnative-pgvecto.rs
-              repository: ghcr.io/tensorchord/cloudnative-pgvecto.rs
-              tag: "17.5-v0.4.0"
+              # renovate: datasource=docker depName=ghcr.io/home-operations/postgres-init
+              repository: ghcr.io/home-operations/postgres-init
+              tag: "17.5"
             envFrom: *envFrom
             command:
               - /bin/sh
               - -c
               - |
                 export PGPASSWORD="$${INIT_POSTGRES_SUPER_PASS}"
-                psql -h "$${DB_HOSTNAME}" -U postgres -d "$${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "vectors";'
+                psql -h "$${DB_HOSTNAME}" -U postgres -d "$${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "vector";'
                 psql -h "$${DB_HOSTNAME}" -U postgres -d "$${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "cube";'
                 psql -h "$${DB_HOSTNAME}" -U postgres -d "$${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "earthdistance";'
 
@@ -57,6 +57,7 @@ spec:
               tag: v1.131.0
             env:
               IMMICH_PORT: &serverPort 2283
+              DB_VECTOR_EXTENSION: pgvector
               REDIS_HOSTNAME: immich-dragonfly.media.svc.cluster.local
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning.media.svc.cluster.local:3003
             envFrom: *envFrom
