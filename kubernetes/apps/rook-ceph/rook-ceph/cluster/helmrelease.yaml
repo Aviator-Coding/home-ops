@@ -28,6 +28,12 @@ spec:
       createPrometheusRules: true
     toolbox:
       enabled: true
+    # Fix: mons only listen on msgr2 (port 3300) due to requireMsgr2: true,
+    # but the Rook operator writes port 6789 into ceph.conf. This override
+    # merges the correct mon addresses so toolbox ceph commands work without --mon-host.
+    configOverride: |
+      [global]
+      mon_host = 10.10.10.12:3300,10.10.10.11:3300,10.10.10.13:3300
     csi:
       cephfs:
         kernelMountOptions: "ms_mode=prefer-crc"
