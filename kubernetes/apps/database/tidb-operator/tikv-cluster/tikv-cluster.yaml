@@ -25,7 +25,7 @@ spec:
       # renovate: datasource=github-releases depName=tikv/pd
       version: v8.5.5
       resources:
-        cpu: "4"
+        cpu: "2"
         memory: 8Gi
       config: |
         [log]
@@ -57,7 +57,7 @@ spec:
       # renovate: datasource=github-releases depName=tikv/tikv
       version: v8.5.5
       resources:
-        cpu: "4"
+        cpu: "2"
         memory: 8Gi
       config: |
         [log]
