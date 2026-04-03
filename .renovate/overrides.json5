@@ -2,6 +2,12 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
+      description: "Handle LiteLLM non-standard main-vX.Y.Z-stable tag format",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/berriai/litellm-non_root"],
+      versioning: "regex:^main-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-stable$",
+    },
+    {
       description: "Override Helmfile Dependency Name",
       matchDatasources: ["docker"],
       matchManagers: ["helmfile"],
