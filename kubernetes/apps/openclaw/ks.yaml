@@ -103,6 +103,7 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: "20Gi"
+      VOLSYNC_CACHE_CAPACITY: "10Gi"
       VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "0 2 * * *"
