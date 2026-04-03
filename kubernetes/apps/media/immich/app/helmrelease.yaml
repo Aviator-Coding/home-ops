@@ -172,6 +172,14 @@ spec:
           server:
             app:
               - path: /usr/src/app/upload
+      # Immich writes schema migration diffs to /usr/src/app/dist/schema at startup.
+      # The dist/ dir is root-owned in the image; mount a writable emptyDir over the schema subdir.
+      schema-tmp:
+        type: emptyDir
+        advancedMounts:
+          server:
+            app:
+              - path: /usr/src/app/dist/schema
       model-cache:
         type: emptyDir
         advancedMounts:
