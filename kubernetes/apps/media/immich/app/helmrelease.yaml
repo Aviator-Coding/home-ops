@@ -44,10 +44,10 @@ spec:
               - /bin/sh
               - -c
               - |
-                export PGPASSWORD="${INIT_POSTGRES_SUPER_PASS}"
-                psql -h "${DB_HOSTNAME}" -U postgres -d "${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "vectors";'
-                psql -h "${DB_HOSTNAME}" -U postgres -d "${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "cube";'
-                psql -h "${DB_HOSTNAME}" -U postgres -d "${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "earthdistance";'
+                export PGPASSWORD="$${INIT_POSTGRES_SUPER_PASS}"
+                psql -h "$${DB_HOSTNAME}" -U postgres -d "$${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "vectors";'
+                psql -h "$${DB_HOSTNAME}" -U postgres -d "$${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "cube";'
+                psql -h "$${DB_HOSTNAME}" -U postgres -d "$${DB_DATABASE_NAME}" -c 'CREATE EXTENSION IF NOT EXISTS "earthdistance";'
 
         containers:
           app:
