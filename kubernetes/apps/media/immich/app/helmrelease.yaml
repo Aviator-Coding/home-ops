@@ -38,7 +38,7 @@ spec:
             image:
               # renovate: datasource=docker depName=ghcr.io/tensorchord/cloudnative-pgvecto.rs
               repository: ghcr.io/tensorchord/cloudnative-pgvecto.rs
-              tag: "17.4"
+              tag: "17.5-v0.4.0"
             envFrom: *envFrom
             command:
               - /bin/sh
@@ -54,7 +54,7 @@ spec:
             image:
               # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
               repository: ghcr.io/immich-app/immich-server
-              tag: v1.127.0
+              tag: v1.131.0
             env:
               IMMICH_PORT: &serverPort 2283
               REDIS_HOSTNAME: immich-dragonfly.media.svc.cluster.local
@@ -94,7 +94,7 @@ spec:
             image:
               # renovate: datasource=docker depName=ghcr.io/immich-app/immich-machine-learning
               repository: ghcr.io/immich-app/immich-machine-learning
-              tag: v1.127.0
+              tag: v1.131.0
             env:
               IMMICH_PORT: &mlPort 3003
               MACHINE_LEARNING_CACHE_FOLDER: /cache
