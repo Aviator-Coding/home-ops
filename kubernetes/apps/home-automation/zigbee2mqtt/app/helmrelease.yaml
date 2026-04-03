@@ -5,6 +5,8 @@ kind: HelmRelease
 metadata:
   name: zigbee2mqtt
 spec:
+  # Suspended: Zigbee TCP serial bridge at 10.40.2.101:6638 is offline (2026-04-03)
+  suspend: true
   interval: 30m
   chartRef:
     kind: OCIRepository
