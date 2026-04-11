@@ -25,4 +25,4 @@ spec:
     - backendRefs:
         - name: public
           namespace: ai-system
-          port: 443
+          port: 80
