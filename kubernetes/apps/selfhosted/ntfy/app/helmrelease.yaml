@@ -99,17 +99,4 @@ spec:
               - name: ntfy
                 namespace: selfhosted
                 port: *port
-      external:
-        annotations:
-          external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
-        hostnames:
-          - "ntfy.${SECRET_DOMAIN}"
-        parentRefs:
-          - name: envoy-external
-            namespace: network
-            sectionName: https
-        rules:
-          - backendRefs:
-              - name: ntfy
-                namespace: selfhosted
-                port: *port
+

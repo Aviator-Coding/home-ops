@@ -91,12 +91,12 @@ spec:
           gethomepage.dev/description: Status Page
           gethomepage.dev/widget.type: gatus
           gethomepage.dev/widget.url: http://gatus.monitoring
-          external-dns.alpha.kubernetes.io/target: external.${SECRET_DOMAIN}
+          external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}
         hostnames:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
           - status.${SECRET_DOMAIN}
         parentRefs:
-          - name: envoy-external
+          - name: envoy-internal
             namespace: network
             sectionName: https
         rules:
