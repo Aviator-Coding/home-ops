@@ -13,7 +13,7 @@ spec:
     name: anthropic-secret
     template:
       data:
-        Authorization: "{{ .ANTHROPIC_API_KEY_MAX }}"
+        Authorization: "{{ .ANTHROPIC_API_KEY }}"
   dataFrom:
     - extract:
         key: ai-keys
