@@ -26,8 +26,7 @@ metadata:
 spec:
   ai:
     provider:
-      openai:
-        model: "mistral-large-latest"
+      openai: {}
       host: api.mistral.ai
       port: 443
   policies:
