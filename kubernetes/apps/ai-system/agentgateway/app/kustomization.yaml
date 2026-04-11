@@ -10,6 +10,7 @@ resources:
   - ./grafanadashboard.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
+  - ./httproute-internal.yaml
   - ./httproute-external.yaml
   - ./ocirepository.yaml
   - ./pdb.yaml

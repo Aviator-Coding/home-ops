@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: agentgateway-internal
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: AI
+    gethomepage.dev/name: AgentGateway
+    gethomepage.dev/description: "AI Agent Gateway - LLM Model Router"
+    gethomepage.dev/icon: agentgateway.png
+    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    gatus.home-operations.com/endpoint: |-
+      conditions: ["[STATUS] == 200"]
+      url: "https://agentgateway.${SECRET_DOMAIN}/ui/"
+spec:
+  hostnames:
+    - "agentgateway.${SECRET_DOMAIN}"
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: public
+          namespace: ai-system
+          port: 443
