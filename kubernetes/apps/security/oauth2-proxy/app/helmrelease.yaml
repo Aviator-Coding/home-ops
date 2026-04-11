@@ -126,8 +126,8 @@ spec:
         hostnames:
           - oauth.${SECRET_DOMAIN}
         parentRefs:
-          - name: envoy
-            namespace: networking
+          - name: envoy-external
+            namespace: network
             sectionName: https
         rules:
           - backendRefs:
