@@ -7,8 +7,10 @@ resources:
   - ./backends
   - ./gateways
   - ./policies
+  - ./grafanadashboard.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
+  - ./httproute-external.yaml
   - ./ocirepository.yaml
   - ./pdb.yaml
   - ./service-admin-ui.yaml

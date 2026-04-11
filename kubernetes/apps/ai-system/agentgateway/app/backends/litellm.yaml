@@ -1,0 +1,39 @@
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: litellm
+spec:
+  ai:
+    provider:
+      openai:
+        model: "auto"
+    host: litellm.ai.svc.cluster.local
+    port: 4000
+  policies:
+    tls: {}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: litellm-gateway
+spec:
+  parentRefs:
+    - name: internal
+    - name: internal-noauth
+    - name: public
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /litellm
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: litellm
+          group: agentgateway.dev
+          kind: AgentgatewayBackend

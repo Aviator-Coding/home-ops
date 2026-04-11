@@ -43,6 +43,7 @@ spec:
   parentRefs:
     - name: internal
     - name: internal-noauth
+    - name: public
   rules:
   - matches:
     - path:
