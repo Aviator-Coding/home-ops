@@ -22,7 +22,39 @@ spec:
       namespace: network
       sectionName: https
   rules:
-    - backendRefs:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /ui
+      backendRefs:
         - name: agentgateway-admin-ui
           namespace: ai-system
           port: 15000
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /openai
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: public
+          namespace: ai-system
+          port: 443
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /anthropic
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: public
+          namespace: ai-system
+          port: 443
