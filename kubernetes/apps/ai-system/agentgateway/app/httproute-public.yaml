@@ -23,6 +23,6 @@ spec:
       sectionName: https
   rules:
     - backendRefs:
-        - name: internal
+        - name: agentgateway-admin-ui
           namespace: ai-system
-          port: 80
+          port: 15000
