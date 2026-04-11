@@ -8,7 +8,7 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/group: AI
     gethomepage.dev/name: AgentGateway
-    gethomepage.dev/description: "AI Agent Gateway - LLM Model Router"
+    gethomepage.dev/description: "AI Agent Gateway - Public UI Access"
     gethomepage.dev/icon: agentgateway.png
     external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
@@ -22,39 +22,7 @@ spec:
       namespace: network
       sectionName: https
   rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /ui
-      backendRefs:
+    - backendRefs:
         - name: agentgateway-admin-ui
           namespace: ai-system
           port: 15000
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /openai
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /
-      backendRefs:
-        - name: public
-          namespace: ai-system
-          port: 443
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /anthropic
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /
-      backendRefs:
-        - name: public
-          namespace: ai-system
-          port: 443
