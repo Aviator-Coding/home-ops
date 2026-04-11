@@ -14,4 +14,3 @@ resources:
   - ./xai.yaml
   - ./openrouter.yaml
   - ./perplexity.yaml
-  - ./litellm.yaml

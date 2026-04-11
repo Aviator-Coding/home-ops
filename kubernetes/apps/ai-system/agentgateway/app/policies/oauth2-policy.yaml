@@ -17,7 +17,7 @@ spec:
     extAuth:
       backendRef:
         name: oauth2-proxy
-        namespace: oauth2-proxy
+        namespace: security
         port: 4180
       http:
         path: |
