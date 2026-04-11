@@ -23,6 +23,6 @@ spec:
       sectionName: https
   rules:
     - backendRefs:
-        - name: public
+        - name: internal
           namespace: ai-system
           port: 80
