@@ -13,10 +13,10 @@ metadata:
     external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
       conditions: ["[STATUS] == 200"]
-      url: "https://agentgateway.${SECRET_DOMAIN}/ui/"
+      url: "https://llm.${SECRET_DOMAIN}/ui/"
 spec:
   hostnames:
-    - "agentgateway.${SECRET_DOMAIN}"
+    - "llm.${SECRET_DOMAIN}"
   parentRefs:
     - name: envoy-internal
       namespace: network
