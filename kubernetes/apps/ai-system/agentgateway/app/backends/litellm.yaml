@@ -4,10 +4,7 @@ kind: AgentgatewayBackend
 metadata:
   name: litellm
 spec:
-  ai:
-    provider:
-      openai:
-        model: "auto"
+  static:
     host: litellm.ai.svc.cluster.local
     port: 4000
   policies:
