@@ -50,6 +50,12 @@ spec:
     - path:
         type: PathPrefix
         value: /anthropic
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: anthropic
       group: agentgateway.dev
@@ -87,6 +93,12 @@ spec:
     - path:
         type: PathPrefix
         value: /anthropic-haiku
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: anthropic-haiku
       group: agentgateway.dev
@@ -124,6 +136,12 @@ spec:
     - path:
         type: PathPrefix
         value: /anthropic-opus
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: anthropic-opus
       group: agentgateway.dev
@@ -161,6 +179,12 @@ spec:
     - path:
         type: PathPrefix
         value: /anthropic-opus-4-6
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: anthropic-opus-4-6
       group: agentgateway.dev
@@ -198,6 +222,12 @@ spec:
     - path:
         type: PathPrefix
         value: /anthropic-sonnet-4-6
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: anthropic-sonnet-4-6
       group: agentgateway.dev

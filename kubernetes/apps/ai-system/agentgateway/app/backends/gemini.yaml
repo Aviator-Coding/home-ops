@@ -45,6 +45,12 @@ spec:
     - path:
         type: PathPrefix
         value: /gemini
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: gemini
       group: agentgateway.dev
