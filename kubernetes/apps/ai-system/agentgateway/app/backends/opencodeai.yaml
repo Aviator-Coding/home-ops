@@ -57,7 +57,7 @@ spec:
           urlRewrite:
             path:
               type: ReplacePrefixMatch
-              replacePrefixMatch: /zen/go/v1
+              replacePrefixMatch: /zen/v1
       backendRefs:
         - name: opencodeai
           group: agentgateway.dev
