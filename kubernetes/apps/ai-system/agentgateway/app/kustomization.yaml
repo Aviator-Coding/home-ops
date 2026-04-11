@@ -11,7 +11,8 @@ resources:
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./httproute-internal.yaml
-  - ./httproute-public.yaml
+  # DISABLED: Public route removed - no authentication required
+  # - ./httproute-public.yaml
   - ./httproute-external.yaml
   - ./ocirepository.yaml
   - ./pdb.yaml
