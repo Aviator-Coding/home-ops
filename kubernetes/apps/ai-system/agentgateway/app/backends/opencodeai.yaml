@@ -1,0 +1,64 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: opencodeai-secret
+  namespace: ai-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: opencodeai-secret
+    template:
+      data:
+        Authorization: "{{ .OPENCODEAI_API_KEY }}"
+  dataFrom:
+    - extract:
+        key: ai-keys
+---
+# OpenCode AI AgentgatewayBackend (OpenAI-compatible)
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: opencodeai
+  namespace: ai-system
+spec:
+  ai:
+    provider:
+      openai: {}
+      host: opencode.ai
+      port: 443
+  policies:
+    tls: {}
+    auth:
+      secretRef:
+        name: opencodeai-secret
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: opencodeai
+  namespace: ai-system
+spec:
+  parentRefs:
+    - name: internal
+    - name: internal-noauth
+    - name: public
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /opencodeai
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /zen/go/v1
+      backendRefs:
+        - name: opencodeai
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
