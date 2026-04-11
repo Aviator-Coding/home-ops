@@ -25,7 +25,7 @@ metadata:
 spec:
   ai:
     provider:
-      anthropic:
+      anthropic: {}
 
   policies:
     ai:
@@ -68,7 +68,7 @@ metadata:
 spec:
   ai:
     provider:
-      anthropic:
+      anthropic: {}
 
   policies:
     ai:
@@ -111,7 +111,7 @@ metadata:
 spec:
   ai:
     provider:
-      anthropic:
+      anthropic: {}
 
   policies:
     ai:
@@ -154,7 +154,7 @@ metadata:
 spec:
   ai:
     provider:
-      anthropic:
+      anthropic: {}
 
   policies:
     ai:
@@ -197,7 +197,7 @@ metadata:
 spec:
   ai:
     provider:
-      anthropic:
+      anthropic: {}
 
   policies:
     ai:
