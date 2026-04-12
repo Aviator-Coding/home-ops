@@ -1,9 +1,8 @@
 ---
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: oauth2-external-auth-homeassistant
+  name: authentik-auth-homeassistant
   namespace: home-automation
 spec:
   targetRefs:
@@ -13,18 +12,21 @@ spec:
   extAuth:
     http:
       backendRefs:
-        - name: oauth2-proxy
+        - name: authentik-server
           namespace: security
-          port: 4180
+          port: 80
+      path: /outpost.goauthentik.io/auth
       headersToBackend:
         - authorization
-        - cookie
+        - x-authentik-username
+        - x-authentik-email
+        - x-authentik-name
+        - x-authentik-uid
 ---
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: oauth2-external-auth-kromgo
+  name: authentik-auth-kromgo
   namespace: monitoring
 spec:
   targetRefs:
@@ -34,18 +36,19 @@ spec:
   extAuth:
     http:
       backendRefs:
-        - name: oauth2-proxy
+        - name: authentik-server
           namespace: security
-          port: 4180
+          port: 80
+      path: /outpost.goauthentik.io/auth
       headersToBackend:
         - authorization
-        - cookie
+        - x-authentik-username
+        - x-authentik-email
 ---
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: oauth2-external-auth-echo
+  name: authentik-auth-echo
   namespace: network
 spec:
   targetRefs:
@@ -55,9 +58,11 @@ spec:
   extAuth:
     http:
       backendRefs:
-        - name: oauth2-proxy
+        - name: authentik-server
           namespace: security
-          port: 4180
+          port: 80
+      path: /outpost.goauthentik.io/auth
       headersToBackend:
         - authorization
-        - cookie
+        - x-authentik-username
+        - x-authentik-email
