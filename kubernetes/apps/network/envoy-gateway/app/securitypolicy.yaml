@@ -26,28 +26,6 @@ spec:
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: authentik-auth-kromgo
-  namespace: monitoring
-spec:
-  targetRefs:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: kromgo
-  extAuth:
-    http:
-      backendRefs:
-        - name: authentik-server
-          namespace: security
-          port: 80
-      path: /outpost.goauthentik.io/auth
-      headersToBackend:
-        - authorization
-        - x-authentik-username
-        - x-authentik-email
----
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: SecurityPolicy
-metadata:
   name: authentik-auth-echo
   namespace: network
 spec:

@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ./securitypolicy.yaml
+configMapGenerator:
+  - name: authentik-auth-config
+    literals:
+      - HTTPROUTE_NAME=CHANGE_ME
+generatorOptions:
+  disableNameSuffixHash: true
