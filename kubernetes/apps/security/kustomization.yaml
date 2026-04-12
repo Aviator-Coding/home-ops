@@ -11,4 +11,3 @@ components:
 resources:
   - ./external-secrets/ks.yaml
   - ./authentik/ks.yaml
-  - ./oauth2-proxy/ks.yaml

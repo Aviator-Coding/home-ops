@@ -1,8 +1,7 @@
----
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayPolicy
 metadata:
-  name: oauth2-policy
+  name: authentik-policy
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
@@ -16,22 +15,22 @@ spec:
   traffic:
     extAuth:
       backendRef:
-        name: oauth2-proxy
+        name: authentik-server
         namespace: security
-        port: 4180
+        port: 80
       http:
         path: |
-          "/oauth2/auth"
-        redirect: |
-          "https://oauth.${SECRET_DOMAIN}/oauth2/start?rd=" + request.scheme + "://" + request.host + request.path
+          "/outpost.goauthentik.io/auth"
         allowedRequestHeaders:
           - Cookie
+          - Authorization
         addRequestHeaders:
           x-forwarded-proto: request.scheme
           x-forwarded-host: request.host
           x-forwarded-uri: request.path
         allowedResponseHeaders:
-          - X-Auth-Request-User
-          - X-Auth-Request-Groups
-          - X-Auth-Request-Email
-          - X-Auth-Request-Preferred-Username
+          - Set-Cookie
+          - X-authentik-username
+          - X-authentik-email
+          - X-authentik-name
+          - X-authentik-uid

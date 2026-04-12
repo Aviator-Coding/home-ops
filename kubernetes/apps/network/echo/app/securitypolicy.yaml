@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: echo-auth
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: echo
+  extAuth:
+    http:
+      backendRefs:
+        - name: authentik-server
+          namespace: security
+          port: 80
+      path: /outpost.goauthentik.io/auth
+      headersToBackend:
+        - authorization
+        - x-authentik-username
+        - x-authentik-email
+        - x-authentik-name
+        - x-authentik-uid

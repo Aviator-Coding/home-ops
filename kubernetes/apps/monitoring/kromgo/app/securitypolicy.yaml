@@ -3,12 +3,12 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: authentik-auth
+  name: kromgo-auth
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-      name: HTTPROUTE_NAME_PLACEHOLDER
+      name: kromgo
   extAuth:
     http:
       backendRefs:
