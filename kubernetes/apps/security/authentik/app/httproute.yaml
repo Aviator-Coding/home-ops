@@ -23,7 +23,11 @@ spec:
       namespace: network
       sectionName: https
   rules:
-    - backendRefs:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
         - name: authentik-server
           namespace: security
           port: 80
