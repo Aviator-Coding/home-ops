@@ -13,7 +13,6 @@ resources:
   - ./httproute-internal.yaml
   # DISABLED: Public route removed - no authentication required
   # - ./httproute-public.yaml
-  - ./httproute-external.yaml
   - ./ocirepository.yaml
   - ./pdb.yaml
   - ./service-admin-ui.yaml
