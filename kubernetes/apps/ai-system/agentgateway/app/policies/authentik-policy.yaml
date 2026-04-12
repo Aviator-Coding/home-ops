@@ -20,7 +20,7 @@ spec:
         port: 9000
       http:
         path: |
-          "/outpost.goauthentik.io/auth"
+          "/outpost.goauthentik.io/auth/envoy"
         allowedRequestHeaders:
           - Cookie
           - Authorization

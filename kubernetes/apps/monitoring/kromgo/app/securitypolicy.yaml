@@ -15,7 +15,7 @@ spec:
         - name: ak-outpost-authentik-embedded-outpost
           namespace: security
           port: 9000
-      path: /outpost.goauthentik.io/auth
+      path: /outpost.goauthentik.io/auth/envoy
       headersToBackend:
         - authorization
         - x-authentik-username
