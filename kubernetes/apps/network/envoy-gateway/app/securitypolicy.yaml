@@ -1,0 +1,124 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: oauth2-external-auth
+  namespace: network
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-external
+  extAuth:
+    http:
+      backendRefs:
+        - name: oauth2-proxy
+          namespace: security
+          port: 4180
+      headersToBackend:
+        - authorization
+        - cookie
+        - x-auth-request-user
+        - x-auth-request-email
+        - x-auth-request-groups
+        - x-auth-request-preferred-username
+      headersToExtAuth:
+        - authorization
+        - cookie
+        - x-forwarded-host
+        - x-forwarded-method
+        - x-forwarded-proto
+        - x-forwarded-uri
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: oauth2-external-auth-homeassistant
+  namespace: home-automation
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: home-assistant-app
+  extAuth:
+    http:
+      backendRefs:
+        - name: oauth2-proxy
+          namespace: security
+          port: 4180
+      headersToBackend:
+        - authorization
+        - cookie
+        - x-auth-request-user
+        - x-auth-request-email
+        - x-auth-request-groups
+        - x-auth-request-preferred-username
+      headersToExtAuth:
+        - authorization
+        - cookie
+        - x-forwarded-host
+        - x-forwarded-method
+        - x-forwarded-proto
+        - x-forwarded-uri
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: oauth2-external-auth-kromgo
+  namespace: monitoring
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: kromgo-app
+  extAuth:
+    http:
+      backendRefs:
+        - name: oauth2-proxy
+          namespace: security
+          port: 4180
+      headersToBackend:
+        - authorization
+        - cookie
+        - x-auth-request-user
+        - x-auth-request-email
+      headersToExtAuth:
+        - authorization
+        - cookie
+        - x-forwarded-host
+        - x-forwarded-method
+        - x-forwarded-proto
+        - x-forwarded-uri
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: oauth2-external-auth-echo
+  namespace: network
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: echo-app
+  extAuth:
+    http:
+      backendRefs:
+        - name: oauth2-proxy
+          namespace: security
+          port: 4180
+      headersToBackend:
+        - authorization
+        - cookie
+        - x-auth-request-user
+        - x-auth-request-email
+      headersToExtAuth:
+        - authorization
+        - cookie
+        - x-forwarded-host
+        - x-forwarded-method
+        - x-forwarded-proto
+        - x-forwarded-uri
