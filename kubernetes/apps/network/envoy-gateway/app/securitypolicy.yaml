@@ -19,17 +19,6 @@ spec:
       headersToBackend:
         - authorization
         - cookie
-        - x-auth-request-user
-        - x-auth-request-email
-        - x-auth-request-groups
-        - x-auth-request-preferred-username
-      headersToExtAuth:
-        - authorization
-        - cookie
-        - x-forwarded-host
-        - x-forwarded-method
-        - x-forwarded-proto
-        - x-forwarded-uri
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -51,17 +40,6 @@ spec:
       headersToBackend:
         - authorization
         - cookie
-        - x-auth-request-user
-        - x-auth-request-email
-        - x-auth-request-groups
-        - x-auth-request-preferred-username
-      headersToExtAuth:
-        - authorization
-        - cookie
-        - x-forwarded-host
-        - x-forwarded-method
-        - x-forwarded-proto
-        - x-forwarded-uri
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -83,15 +61,6 @@ spec:
       headersToBackend:
         - authorization
         - cookie
-        - x-auth-request-user
-        - x-auth-request-email
-      headersToExtAuth:
-        - authorization
-        - cookie
-        - x-forwarded-host
-        - x-forwarded-method
-        - x-forwarded-proto
-        - x-forwarded-uri
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -113,12 +82,3 @@ spec:
       headersToBackend:
         - authorization
         - cookie
-        - x-auth-request-user
-        - x-auth-request-email
-      headersToExtAuth:
-        - authorization
-        - cookie
-        - x-forwarded-host
-        - x-forwarded-method
-        - x-forwarded-proto
-        - x-forwarded-uri
