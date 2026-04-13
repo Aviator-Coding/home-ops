@@ -156,7 +156,7 @@ spec:
           gethomepage.dev/enabled: "true"
           gethomepage.dev/group: Downloads
           gethomepage.dev/name: *app
-          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/sonarr.svg
+          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/sabnzbd.svg
           # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "SABnzbd is an open source binary newsreader written in Python. It simplifies the process of downloading from Usenet."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=sabnzbd
