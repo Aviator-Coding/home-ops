@@ -14,20 +14,17 @@ spec:
     - name: rook-ceph-cluster
       namespace: rook-ceph
   values:
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 2000
+        runAsNonRoot: false
+        seccompProfile: { type: RuntimeDefault }
     controllers:
       tdarr:
         annotations:
           reloader.stakater.com/auto: "true"
-
-        pod:
-          securityContext:
-            runAsUser: 2000
-            runAsGroup: 2000
-            fsGroup: 2000
-            fsGroupChangePolicy: OnRootMismatch
-            supplementalGroups:
-              - 44   # video group for GPU access
-              - 109  # render group for GPU access
 
         containers:
           app:
@@ -35,16 +32,38 @@ spec:
               repository: ghcr.io/haveagitgat/tdarr
               tag: 2.68.01
             env:
-              TZ: America/New_York
-              PUID: "2000"
-              PGID: "2000"
-              UMASK_SET: "002"
-              serverIP: 0.0.0.0
-              serverPort: &serverPort 8266
-              webUIPort: &webPort 8265
-              internalNode: "true"
-              inContainer: "true"
-              ffmpegVersion: "7"
+              - name: TZ
+                value: America/New_York
+              - name: PUID
+                value: "2000"
+              - name: PGID
+                value: "2000"
+              - name: UMASK_SET
+                value: "002"
+              - name: serverIP
+                value: 0.0.0.0
+              - name: serverPort
+                value: "8266"
+              - name: webUIPort
+                value: "8265"
+              - name: internalNode
+                value: "true"
+              - name: inContainer
+                value: "true"
+              - name: ffmpegVersion
+                value: "7"
+            securityContext:
+              allowPrivilegeEscalation: true
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - ALL
+                add:
+                  - CHOWN
+                  - SETUID
+                  - SETGID
+                  - FOWNER
+                  - DAC_OVERRIDE
             probes:
               liveness: &probes
                 enabled: true
@@ -52,8 +71,8 @@ spec:
                 spec:
                   httpGet:
                     path: /api/v2/status
-                    port: *webPort
-                  initialDelaySeconds: 30
+                    port: 8265
+                  initialDelaySeconds: 60
                   periodSeconds: 30
                   timeoutSeconds: 5
                   failureThreshold: 5
@@ -71,9 +90,9 @@ spec:
         controller: tdarr
         ports:
           http:
-            port: *webPort
+            port: 8265
           server:
-            port: *serverPort
+            port: 8266
 
     persistence:
       config:
@@ -118,4 +137,4 @@ spec:
         rules:
           - backendRefs:
               - name: tdarr
-                port: *webPort
+                port: 8265
