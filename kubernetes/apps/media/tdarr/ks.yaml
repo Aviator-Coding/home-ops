@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app tdarr
+  namespace: &namespace media
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/volsync
+  dependsOn:
+    - name: intel-device-plugin-gpu
+      namespace: system
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+  interval: 30m
+  path: ./kubernetes/apps/media/tdarr/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CAPACITY: 5Gi
+      VOLSYNC_CLAIM: tdarr-config
+      VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "20 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "50 3 * * *"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false
