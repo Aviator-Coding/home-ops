@@ -21,11 +21,12 @@ spec:
         fsGroup: 2000
         runAsNonRoot: false
         seccompProfile: { type: RuntimeDefault }
+
     controllers:
+      # Server: Web UI + orchestrator. No GPU - just coordinates workers.
       tdarr:
         annotations:
           reloader.stakater.com/auto: "true"
-
         containers:
           app:
             image:
@@ -47,7 +48,7 @@ spec:
               - name: webUIPort
                 value: "8265"
               - name: internalNode
-                value: "true"
+                value: "false"
               - name: inContainer
                 value: "true"
               - name: ffmpegVersion
@@ -82,8 +83,66 @@ spec:
                 cpu: 100m
                 memory: 512Mi
               limits:
+                memory: 2Gi
+
+      # Worker DaemonSet: one pod per K8s node, each with a GPU.
+      tdarr-node:
+        type: daemonset
+        containers:
+          app:
+            image:
+              repository: ghcr.io/haveagitgat/tdarr_node
+              tag: 2.68.01
+            env:
+              - name: TZ
+                value: America/New_York
+              - name: PUID
+                value: "2000"
+              - name: PGID
+                value: "2000"
+              - name: UMASK_SET
+                value: "002"
+              - name: nodeName
+                valueFrom:
+                  fieldRef:
+                    fieldPath: spec.nodeName
+              - name: serverIP
+                value: tdarr.media.svc.cluster.local
+              - name: serverPort
+                value: "8266"
+              - name: inContainer
+                value: "true"
+              - name: nodeType
+                value: mapped
+              - name: ffmpegVersion
+                value: "7"
+              - name: transcodegpuWorkers
+                value: "1"
+              - name: transcodecpuWorkers
+                value: "0"
+              - name: healthcheckgpuWorkers
+                value: "1"
+              - name: healthcheckcpuWorkers
+                value: "1"
+            securityContext:
+              allowPrivilegeEscalation: true
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - ALL
+                add:
+                  - CHOWN
+                  - SETUID
+                  - SETGID
+                  - FOWNER
+                  - DAC_OVERRIDE
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
                 gpu.intel.com/i915: 1
-                memory: 8Gi
+                memory: 4Gi
 
     service:
       app:
@@ -97,8 +156,10 @@ spec:
     persistence:
       config:
         existingClaim: tdarr-config
-        globalMounts:
-          - path: /app/server
+        advancedMounts:
+          tdarr:
+            app:
+              - path: /app/server
       configs:
         type: emptyDir
         globalMounts:
