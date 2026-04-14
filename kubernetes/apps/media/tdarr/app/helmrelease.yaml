@@ -169,12 +169,9 @@ spec:
         globalMounts:
           - path: /app/logs
       temp:
-        type: nfs
-        server: nas.${SECRET_DOMAIN}
-        path: /mnt/storage/Media
+        existingClaim: tdarr-temp
         globalMounts:
           - path: /temp
-            subPath: .tdarr-cache
       media:
         type: nfs
         server: nas.${SECRET_DOMAIN}
