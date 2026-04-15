@@ -6,6 +6,7 @@ customization:
     - -selinux # Less security, faster puter
     - apparmor=0 # Less security, faster puter
     - i915.enable_guc=3 # Meteor Lake CPU & Intel iGPU
+    - i915.enable_dc=0 # Disable display power gating to prevent GuC init race on Meigao Venus BIOS
     - init_on_alloc=0 # Less security, faster puter
     - init_on_free=0 # Less security, faster puter
     - intel_iommu=on # PCI Passthrough
