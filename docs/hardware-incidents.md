@@ -4,6 +4,94 @@ Tracked hardware and infrastructure incidents across cluster nodes. Each entry d
 
 ---
 
+## [2026-04-15] NAS (nas.sklab.dev) — failing DAC cable/PHY on Intel 82599ES port 2
+
+| Field | Value |
+|-------|-------|
+| **Node** | NAS — `nas.sklab.dev` (10.10.0.40) — TrueNAS SCALE 25.04.2.6 |
+| **Component** | Intel 82599ES 10G NIC (Huawei OEM, PCI `8086:10fb` subsys `19e5:d111`), port `enp1s0f1` (SFP+: 4) in LACP bond0 |
+| **Affected service** | All NFS clients (3x talos nodes); entire media pipeline (Sonarr/Radarr/Tdarr/Jellyfin) |
+| **Severity** | **high** — full NAS hangs; forced reboot required; K8s NFS mounts stall |
+
+### Root cause
+
+The DAC (Direct Attach Copper, twinax) cable on **port 2** of the NAS's dual-port 82599ES NIC is physically failing. The port flaps between up/down constantly, triggering `ixgbe` driver TX queue deadlocks (`Detected Tx Unit Hang`). Under heavy NFS load, the reset loop becomes so aggressive (hundreds of resets per minute on both bond members because the LACP driver shares TX across the aggregator) that the kernel can't make progress, `nfsd` threads pile up in D-state, memory pressure builds, and eventually systemd initiates a shutdown that fails to unmount the ZFS pools cleanly.
+
+Initially suspected as a generic 82599ES + TSO driver bug (well-documented class of issue). Disabling TSO/GSO/GRO on both ports via `ethtool -K ... off` did **not** stop the tx_hangs, which pointed to a physical-layer cause rather than offload bug.
+
+### Evidence
+
+Port statistics showed massively asymmetric link stability:
+
+| Metric | `enp1s0f0` (port 1, good) | `enp1s0f1` (port 2, bad) |
+|--------|---------------------------|---------------------------|
+| `lsc_int` (link state change interrupts) | 8 | **680** |
+| Bond `Link Failure Count` | 3 | **437** |
+| `tx_carrier_errors` counter exposed | no | yes |
+| Flow control disable persisted | yes | no (port resets too fast) |
+
+Kernel log pattern (characteristic signature):
+```
+ixgbe 0000:01:00.1 enp1s0f1: Detected Tx Unit Hang
+  Tx Queue <N>  TDH, TDT <0>, <1>  next_to_use <1>  next_to_clean <0>
+ixgbe 0000:01:00.1 enp1s0f1: tx hang N detected on queue N, resetting adapter
+ixgbe 0000:01:00.1 enp1s0f1: initiating reset due to tx timeout
+ixgbe 0000:01:00.1 enp1s0f1: primary disable timed out
+bond0: (slave enp1s0f1): link status definitely down, disabling slave
+```
+
+This ran continuously from 18:20 to 19:16 on Apr 15 before the forced shutdown.
+
+SFP+ module identification: both ports show `Copper pigtail / Passive Cable / Twin Axial Pair` — DAC cables, not optical modules. Same vendor/type in both ports.
+
+### Impact
+
+- Reboot loop: crashed Apr 14, crashed again Apr 15 (~36h apart, both during active Tdarr transcoding load)
+- Prior 86 days uptime (Jan 18 → Apr 14), so this is a new failure — likely the cable or port physically degraded
+- NFS stalls cascade into the K8s cluster: Tdarr copy-failed errors, Radarr import failures, Jellyfin playback issues
+
+### Resolution (immediate, applied)
+
+**1. Took failing port administratively down:**
+```bash
+ip link set enp1s0f1 down
+```
+Bond continues via `enp1s0f0` alone (10 Gbps instead of 20 Gbps aggregate — media-serving doesn't need more).
+
+**2. Disabled TSO/GSO/GRO on both ports** (kept as belt-and-braces even after port issue identified — doesn't hurt):
+```bash
+ethtool -K enp1s0f0 tso off gso off gro off
+ethtool -K enp1s0f1 tso off gso off gro off
+```
+
+**3. Disabled flow control on both ports** (known UniFi interaction):
+```bash
+ethtool -A enp1s0f0 autoneg off rx off tx off
+ethtool -A enp1s0f1 autoneg off rx off tx off
+```
+
+**4. Made ethtool changes persistent via TrueNAS Init/Shutdown Scripts** (System Settings → Advanced → Init/Shutdown Scripts, `POSTINIT`, id=1 ethtool, id=2 swapon).
+
+**5. Enabled 16 GiB swap on previously-unused `/dev/sda4`** — TrueNAS SCALE doesn't configure swap by default; this is an emergency pressure valve to prevent hard crashes under similar incidents.
+
+### Resolution (follow-up, required)
+
+- **Physically swap DAC cables between port 1 and port 2** to determine whether it's the cable or the NIC port itself that's failing:
+  - If after swap, port 2 (same cable) goes clean and port 1 (now with ex-port 2 cable) starts flapping → cable is bad, replace the DAC cable
+  - If port 2 keeps flapping with the good cable → NIC PHY/SFP+ cage is bad; permanently run single-link or replace the NIC
+- **Replace bad component** (cable ~$10, NIC replacement options: Mellanox ConnectX-3/4 ~$25-50 used on eBay, or genuine Intel X520/X540 not Huawei OEM)
+- **Re-enable the bond member** after physical repair: `ip link set enp1s0f1 up` and remove the port-down workaround
+
+### Pattern observation
+
+Unlike the Meigao Venus incidents (recurring firmware/PM races on identical hardware), this is a **discrete physical failure** on a specific port/cable. Not a pattern issue — replacement fixes it permanently. But it does highlight:
+
+1. TrueNAS SCALE has no default swap — should add 16 GB swap on `/dev/sda4` on every install as standard practice (now done)
+2. The 82599ES family has a deservedly poor reputation; the Huawei OEM rebrand is the worst variant. Prefer Mellanox for future NAS NICs
+3. Heavy NFS load from the K8s cluster (Tdarr + media ingest) is the type of workload that now reliably exposes flaky NICs — consider `nconnect=2` NFS mount option to reduce per-socket pressure
+
+---
+
 ## [2026-04-14] Intel iGPU GuC firmware init race — Meigao Venus PM instability (3rd subsystem)
 
 | Field | Value |
