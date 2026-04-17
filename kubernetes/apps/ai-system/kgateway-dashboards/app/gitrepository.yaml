@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/gitrepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: kgateway-dashboards
+spec:
+  interval: 1h
+  url: https://github.com/kgateway-dev/dashboards
+  ref:
+    # renovate: datasource=git-refs depName=kgateway-dev/dashboards
+    commit: ed6c5b2177981126a0eb9b73e919c6a59e5b839b
+  ignore: |
+    /*
+    !/install/helm/kgateway-dashboards

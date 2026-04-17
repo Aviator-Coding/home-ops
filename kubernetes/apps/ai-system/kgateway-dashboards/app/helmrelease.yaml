@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kgateway-dashboards
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: install/helm/kgateway-dashboards
+      sourceRef:
+        kind: GitRepository
+        name: kgateway-dashboards
+  install:
+    timeout: 5m
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+      strategy: rollback
+  driftDetection:
+    mode: enabled
+  values:
+    dashboards:
+      enabled: true
+      folderName: AI
+    additionalAnnotations:
+      grafana_folder: AI
