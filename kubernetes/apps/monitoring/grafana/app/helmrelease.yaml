@@ -135,6 +135,104 @@ spec:
           url: https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/master/examples/grafana-dashboard.json
           datasource: Prometheus
 
+        home-dashboard:
+          json: |
+            {
+              "annotations": {
+                "list": []
+              },
+              "description": "Homelab Dashboard - Organized by Function",
+              "editable": false,
+              "fiscalYearStartMonth": 0,
+              "graphTooltip": 0,
+              "links": [],
+              "liveNow": false,
+              "panels": [
+                {
+                  "datasource": {
+                    "type": "prometheus",
+                    "uid": "${datasource}"
+                  },
+                  "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
+                  "id": 1,
+                  "options": {
+                    "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+                    "content": "# 🏠 Homelab Dashboard\n\nWelcome to your reorganized Grafana! Dashboards are now organized by function.",
+                    "mode": "markdown"
+                  },
+                  "pluginVersion": "10.3.1",
+                  "targets": [],
+                  "title": "",
+                  "transparent": true,
+                  "type": "text"
+                },
+                {
+                  "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                  "gridPos": {"h": 8, "w": 8, "x": 0, "y": 3},
+                  "id": 2,
+                  "options": {
+                    "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n- [TiDB](/d/tidb-cluster-summary)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/dragonfly-manager)\n- [EMQX](/d/emqx-overview)\n- [NATS](/d/nats-server)",
+                    "mode": "markdown"
+                  },
+                  "title": "Infrastructure & Databases",
+                  "type": "text"
+                },
+                {
+                  "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                  "gridPos": {"h": 8, "w": 8, "x": 8, "y": 3},
+                  "id": 3,
+                  "options": {
+                    "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LiteLLM](/d/litellm)\n- [Qdrant](/d/qdrant-observatory)\n- [Ollama](/d/ollama-llm-inference)\n\n## 🎬 Media\n- [Plex](/d/plex-media-server-exporter)\n- [Jellyfin](/d/jellyfin-media-server)\n- [Immich](/d/immich-overview)\n- [Tdarr](/d/tdarr)",
+                    "mode": "markdown"
+                  },
+                  "title": "AI/ML & Media",
+                  "type": "text"
+                },
+                {
+                  "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                  "gridPos": {"h": 8, "w": 8, "x": 16, "y": 3},
+                  "id": 4,
+                  "options": {
+                    "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+                    "content": "## 📥 Downloads\n- [Sonarr](/d/sonarr-v3)\n- [Radarr](/d/radarr-v3)\n- [Lidarr](/d/lidarr)\n- [Prowlarr](/d/prowlarr)\n\n## 🔒 Security\n- [Authentik](/d/authentik-overview)\n\n## 📊 Monitoring\n- [Prometheus](/d/prometheus-stats)\n- [Gatus](/d/gatus)",
+                    "mode": "markdown"
+                  },
+                  "title": "Downloads, Security & Monitoring",
+                  "type": "text"
+                }
+              ],
+              "refresh": "",
+              "schemaVersion": 38,
+              "tags": ["home", "overview"],
+              "templating": {
+                "list": [
+                  {
+                    "current": {"selected": false, "text": "Prometheus", "value": "prometheus"},
+                    "hide": 0,
+                    "includeAll": false,
+                    "label": "Datasource",
+                    "multi": false,
+                    "name": "datasource",
+                    "options": [],
+                    "query": "prometheus",
+                    "refresh": 1,
+                    "regex": "",
+                    "skipUrlSync": false,
+                    "type": "datasource"
+                  }
+                ]
+              },
+              "time": {"from": "now-6h", "to": "now"},
+              "timepicker": {},
+              "timezone": "browser",
+              "title": "Home - Homelab Overview",
+              "uid": "home-dashboard",
+              "version": 1,
+              "weekStart": ""
+            }
+
       # victoriametrics:
       #   victoriametrics:
       #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/victoriametrics.json
@@ -574,6 +672,8 @@ spec:
         org_id: 1
         org_name: Main Org.
         org_role: Viewer
+      dashboards:
+        default_home_dashboard_path: /var/lib/grafana/dashboards/default/home-dashboard.json
       news:
         news_feed_enabled: false
     imageRenderer:
