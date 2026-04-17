@@ -15,4 +15,5 @@ resources:
   - ./openrouter.yaml
   - ./perplexity.yaml
   - ./opencodeai.yaml
+  - ./opencodego.yaml
   - ./zai.yaml
