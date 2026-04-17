@@ -54,11 +54,6 @@ litellm_settings:
       "education_5",
       "embedding_openai",
       "whisper-1",
-      "gemini-tts-flash",
-      "gemini-tts-pro",
-      "image_gen_gemini",
-      "video_gen_gemini",
-      "video_gen_gemini_fast",
     ] # Exclude problematic models
   health_check_timeout: 30 # Add timeout for health checks
 
@@ -169,11 +164,3 @@ router_settings:
       metadata:
         label: "Cost-Efficient Assistant"
         capabilities: ["chat", "general", "cost-optimized"]
-
-    - router_model_name: audio-router
-      model_group: audio_tasks
-      litellm_params:
-        temperature: 0.4
-      metadata:
-        label: "Audio Processing Assistant"
-        capabilities: ["audio", "transcription", "tts"]
