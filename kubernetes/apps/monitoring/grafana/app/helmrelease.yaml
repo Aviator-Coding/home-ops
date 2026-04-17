@@ -123,12 +123,6 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
-        external-secrets:
-          url: https://raw.githubusercontent.com/external-secrets/external-secrets/main/docs/snippets/dashboard.json
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
         node-exporter-full:
           # renovate: dashboardName="Node Exporter Full"
           gnetId: 1860
