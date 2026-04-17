@@ -17,5 +17,6 @@ resources:
   - ./pdb.yaml
   - ./service-admin-ui.yaml
   - ./servicemonitor.yaml
+  - ./podmonitor.yaml
   - ./externalsecret-tls.yaml
   - ./agentgatewayparameters.yaml
