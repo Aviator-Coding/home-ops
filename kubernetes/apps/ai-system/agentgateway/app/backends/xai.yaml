@@ -34,6 +34,12 @@ spec:
     auth:
       secretRef:
         name: xai-secret
+    ai:
+      routes:
+        "/v1/chat/completions": Completions
+        "/v1/embeddings": Passthrough
+        "/v1/models": Passthrough
+        "*": Passthrough
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
