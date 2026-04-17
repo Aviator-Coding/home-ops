@@ -7,7 +7,6 @@ resources:
   - ./backends
   - ./gateways
   - ./policies
-  - ./grafanadashboard.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./httproute-internal.yaml
