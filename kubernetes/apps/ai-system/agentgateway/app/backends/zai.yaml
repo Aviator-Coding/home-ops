@@ -57,7 +57,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /zai
+            value: /zai/v1
       filters:
         - type: URLRewrite
           urlRewrite:
