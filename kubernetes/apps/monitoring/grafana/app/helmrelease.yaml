@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app grafana
+  name: grafana
 spec:
   chartRef:
     kind: OCIRepository
@@ -32,89 +32,73 @@ spec:
               path: /var/lib/grafana/dashboards/default
             orgId: 1
             type: file
-          - name: coder
+          - name: infrastructure
             orgId: 1
-            folder: Coder
+            folder: Infrastructure
             type: file
             disableDeletion: false
             editable: true
             options:
-              path: /var/lib/grafana/dashboards/coder
-          - name: ceph
+              path: /var/lib/grafana/dashboards/infrastructure
+          - name: databases
             orgId: 1
-            folder: Ceph
+            folder: Databases
             type: file
             disableDeletion: false
             editable: true
             options:
-              path: /var/lib/grafana/dashboards/ceph
-          - name: flux
+              path: /var/lib/grafana/dashboards/databases
+          - name: ai-ml
             orgId: 1
-            folder: Flux
+            folder: AI/ML
             type: file
             disableDeletion: false
             editable: true
             options:
-              path: /var/lib/grafana/dashboards/flux
-          - name: kubernetes
+              path: /var/lib/grafana/dashboards/ai-ml
+          - name: media
             orgId: 1
-            folder: Kubernetes
+            folder: Media
             type: file
             disableDeletion: false
             editable: true
             options:
-              path: /var/lib/grafana/dashboards/kubernetes
-          - name: postgres
+              path: /var/lib/grafana/dashboards/media
+          - name: downloads
             orgId: 1
-            folder: Postgres
+            folder: Downloads
             type: file
             disableDeletion: false
             editable: true
             options:
-              path: /var/lib/grafana/dashboards/postgres
-          - name: emqx
+              path: /var/lib/grafana/dashboards/downloads
+          - name: networking
             orgId: 1
-            folder: EMQX
+            folder: Networking
             type: file
             disableDeletion: false
             editable: true
             options:
-              path: /var/lib/grafana/dashboards/emqx
-          - name: unpoller
-            disableDeletion: false
-            editable: true
-            folder: "UniFi Poller"
-            options:
-              path: /var/lib/grafana/dashboards/unpoller
+              path: /var/lib/grafana/dashboards/networking
+          - name: monitoring
             orgId: 1
-            type: file
-          - name: VictoriaMetrics
-            orgId: 1
-            folder: "Victoria Metrics"
+            folder: Monitoring
             type: file
             disableDeletion: false
             editable: true
             options:
-              path: /var/lib/grafana/dashboards/victoriametrics
+              path: /var/lib/grafana/dashboards/monitoring
+          - name: security
+            orgId: 1
+            folder: Security
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/security
 
     dashboards:
       default:
-        cert-manager:
-          # renovate: depName="Cert-manager-Kubernetes"
-          gnetId: 20842
-          revision: 3
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        cloudflared:
-          # renovate: dashboardName="Cloudflare Tunnels (cloudflared)"
-          gnetId: 17457
-          revision: 6
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
         external-dns:
           # renovate: dashboardName="External-DNS"
           gnetId: 15038
@@ -147,16 +131,6 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
-        volsync:
-          # removate: dashboardName="VolSync Dashboard"
-          gnetId: 21356
-          revision: 2
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-            - name: VAR_REPLICATIONDESTNAME
-              value: ".*-bootstrap"
-
         node-feature-discovery:
           url: https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/master/examples/grafana-dashboard.json
           datasource: Prometheus
@@ -173,63 +147,77 @@ spec:
       #   vmoperator:
       #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/operator.json
 
-      emqx:
-        emqx-authentication:
-          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/authentication.json
-          datasource: Prometheus
-        emqx-authorization:
-          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/authorization.json
-          datasource: Prometheus
-        emqx-client-events:
-          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/client-events.json
-          datasource: Prometheus
-        emqx-messages:
-          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/messages.json
-          datasource: Prometheus
-        emqx-overview:
-          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/overview.json
-          datasource: Prometheus
-        emqx-rule-engine-count:
-          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/rule-engine-count.json
-          datasource: Prometheus
-        emqx-rule-engine-rate:
-          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/rule-engine-rate.json
-          datasource: Prometheus
-      ceph:
-        ceph-cluster:
-          # renovate: dashboardName="Ceph Cluster"
-          gnetId: 2842
-          revision: 18
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-        ceph-osd:
-          # renovate: dashboardName="Ceph - OSD (Single)"
-          gnetId: 5336
-          revision: 9
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-        ceph-pools:
-          # renovate: dashboardName="Ceph - Pools"
-          gnetId: 5342
-          revision: 9
+      infrastructure:
+        cert-manager:
+          # renovate: depName="Cert-manager-Kubernetes"
+          gnetId: 20842
+          revision: 3
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
 
-      flux:
+        cilium-agent:
+          # renovate: dashboardName="Cilium Agent"
+          gnetId: 15513
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        cilium-operator:
+          # renovate: dashboardName="Cilium Operator"
+          gnetId: 15514
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        hubble-overview:
+          # renovate: dashboardName="Hubble Overview"
+          gnetId: 16611
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        kube-state-metrics:
+          # renovate: dashboardName="Kube-State-Metrics"
+          gnetId: 13332
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        tidb-cluster:
+          # renovate: dashboardName="TiDB Cluster Overview"
+          gnetId: 12857
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        volsync:
+          # removate: dashboardName="VolSync Dashboard"
+          gnetId: 21356
+          revision: 2
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+            - name: VAR_REPLICATIONDESTNAME
+              value: ".*-bootstrap"
+
         flux-cluster:
           url: https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/main/monitoring/configs/dashboards/cluster.json
           datasource: Prometheus
+
         flux-control-plane:
           url: https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/main/monitoring/configs/dashboards/control-plane.json
           datasource: Prometheus
+
         flux-logs:
           url: https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/main/monitoring/configs/dashboards/logs.json
           datasource: Prometheus
 
-      kubernetes:
         k8s-system-api-server:
           # renovate: dashboardName="Kubernetes / System / API Server"
           gnetId: 15761
@@ -237,6 +225,7 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+
         k8s-views-global:
           # renovate: dashboardName="Kubernetes / Views / Global"
           gnetId: 15757
@@ -244,6 +233,7 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+
         k8s-views-namespaces:
           # renovate: dashboardName="Kubernetes / Views / Namespaces"
           gnetId: 15758
@@ -251,6 +241,7 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+
         k8s-views-nodes:
           # renovate: dashboardName="Kubernetes / Views / Nodes"
           gnetId: 15759
@@ -258,6 +249,7 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+
         k8s-views-pods:
           # renovate: dashboardName="Kubernetes / Views / Pods"
           gnetId: 15760
@@ -265,6 +257,7 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+
         k8s-volumes:
           # renovate: dashboardName="K8s / Storage / Volumes / Cluster"
           gnetId: 11454
@@ -273,7 +266,216 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
-      unpoller:
+      databases:
+        cloudnative-pg:
+          gnetId: 20417
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        dragonfly-manager:
+          # renovate: dashboardName="Dragonfly Manager"
+          gnetId: 15945
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        dragonfly-scheduler:
+          # renovate: dashboardName="Dragonfly Scheduler"
+          gnetId: 15944
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        dragonfly-client:
+          # renovate: dashboardName="Dragonfly Client"
+          gnetId: 21053
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        dragonfly-seed-client:
+          # renovate: dashboardName="Dragonfly Seed Client"
+          gnetId: 21054
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        nats-server:
+          # renovate: dashboardName="NATS Server Dashboard"
+          gnetId: 16256
+          revision: 2
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        ceph-cluster:
+          # renovate: dashboardName="Ceph Cluster"
+          gnetId: 2842
+          revision: 18
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        ceph-osd:
+          # renovate: dashboardName="Ceph - OSD (Single)"
+          gnetId: 5336
+          revision: 9
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        ceph-pools:
+          # renovate: dashboardName="Ceph - Pools"
+          gnetId: 5342
+          revision: 9
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        emqx-authentication:
+          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/authentication.json
+          datasource: Prometheus
+
+        emqx-authorization:
+          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/authorization.json
+          datasource: Prometheus
+
+        emqx-client-events:
+          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/client-events.json
+          datasource: Prometheus
+
+        emqx-messages:
+          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/messages.json
+          datasource: Prometheus
+
+        emqx-overview:
+          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/overview.json
+          datasource: Prometheus
+
+        emqx-rule-engine-count:
+          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/rule-engine-count.json
+          datasource: Prometheus
+
+        emqx-rule-engine-rate:
+          url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/rule-engine-rate.json
+          datasource: Prometheus
+
+      ai-ml:
+        agentgateway:
+          # renovate: dashboardName="AgentGateway Overview"
+          gnetId: 24590
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        litellm:
+          # renovate: dashboardName="LiteLLM"
+          gnetId: 24965
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        qdrant-observatory:
+          # renovate: depName="Qdrant Observatory"
+          gnetId: 25152
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        ollama-llm-inference:
+          # renovate: dashboardName="Ollama LLM Inference"
+          gnetId: 25086
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+      media:
+        plex-media-server-exporter:
+          # renovate: dashboardName="plex-media-server-exporter"
+          gnetId: 17891
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        jellyfin-media-server:
+          # renovate: dashboardName="Homers - Media Server Dashboard"
+          gnetId: 20744
+          revision: 7
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        immich-overview:
+          # renovate: dashboardName="Immich"
+          gnetId: 22555
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        tdarr:
+          # renovate: dashboardName="Tdarr"
+          gnetId: 20388
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+      downloads:
+        # No official grafana.com exportarr dashboards exist for Lidarr, Readarr, or Prowlarr as of 2026-04-17.
+        sonarr-v3:
+          # renovate: dashboardName="Sonarr v3"
+          gnetId: 12530
+          revision: 2
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        radarr-v3:
+          # renovate: dashboardName="Radarr v3"
+          gnetId: 12896
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+      networking:
+        cloudflared:
+          # renovate: dashboardName="Cloudflare Tunnels (cloudflared)"
+          gnetId: 17457
+          revision: 6
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+      monitoring:
+        prometheus-stats:
+          # renovate: dashboardName="Prometheus Stats"
+          gnetId: 2
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        gatus:
+          # renovate: dashboardName="Gatus"
+          gnetId: 24379
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
         unifi-insights:
           # renovate: dashboardName="UniFi-Poller: Client Insights - Prometheus"
           gnetId: 11315
@@ -281,6 +483,7 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+
         unifi-network-sites:
           # renovate: dashboardName="UniFi-Poller: Network Sites - Prometheus"
           gnetId: 11311
@@ -288,6 +491,7 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+
         unifi-usw:
           # renovate: dashboardName="UniFi-Poller: USW Insights - Prometheus"
           gnetId: 11312
@@ -295,12 +499,22 @@ spec:
           datasource:
             - name: "DS_PROMETHEUS"
               value: Prometheus
+
         unifi-uap:
           # renovate: dashboardName="UniFi-Poller: UAP Insights - Prometheus"
           gnetId: 11314
           revision: 10
           datasource:
             - name: "DS_PROMETHEUS"
+              value: Prometheus
+
+      security:
+        authentik:
+          # renovate: dashboardName="authentik"
+          gnetId: 23043
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
               value: Prometheus
 
     datasources:

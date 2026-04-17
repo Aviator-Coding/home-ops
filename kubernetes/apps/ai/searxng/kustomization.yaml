@@ -1,14 +1,41 @@
----
-# yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - ./externalsecret.yaml
-  - ./helmrelease.yaml
+components:
+- ../../../components/dragonfly
+- ../../../components/gatus/guarded
 configMapGenerator:
-  - name: searxng-configmap
-    files:
-      - ./resources/limiter.toml
-      - ./resources/settings.yml
+- files:
+  - ./resources/limiter.toml
+  - ./resources/settings.yml
+  name: searxng-configmap
 generatorOptions:
   disableNameSuffixHash: true
+kind: Kustomization
+namespace: ai
+patches:
+- patch: |-
+    apiVersion: helm.toolkit.fluxcd.io/v2
+    kind: HelmRelease
+    metadata:
+      name: _
+    spec:
+      install:
+        crds: CreateReplace
+        strategy:
+          name: RetryOnFailure
+      rollback:
+        cleanupOnFail: true
+        recreate: true
+      upgrade:
+        cleanupOnFail: true
+        crds: CreateReplace
+        strategy:
+          name: RemediateOnFailure
+        remediation:
+          remediateLastFailure: true
+          retries: 2
+  target:
+    group: helm.toolkit.fluxcd.io
+    kind: HelmRelease
+resources:
+- ./externalsecret.yaml
+- ./helmrelease.yaml

@@ -1,0 +1,52 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex-exporter
+  namespace: media
+  labels:
+    app.kubernetes.io/name: plex-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plex-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plex-exporter
+    spec:
+      containers:
+        - name: exporter
+          image: ghcr.io/axsuul/plex-media-server-exporter:2.1.0
+          env:
+            - name: PORT
+              value: "9594"
+            - name: PLEX_ADDR
+              value: http://plex.media.svc.cluster.local:32400
+            - name: PLEX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: plex-exporter-secret
+                  key: PLEX_TOKEN
+          ports:
+            - name: metrics
+              containerPort: 9594
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi

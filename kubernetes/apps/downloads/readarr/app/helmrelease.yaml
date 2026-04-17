@@ -76,6 +76,29 @@ spec:
               capabilities:
                 drop:
                   - ALL
+          exportarr:
+            image:
+              repository: ghcr.io/onedr0p/exportarr
+              tag: latest
+            args: [readarr]
+            env:
+              PORT: &metricsPort 9707
+              URL: http://localhost:8787
+              API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: *secret
+                    key: READARR__API_KEY
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
         pod:
           securityContext:
             runAsUser: 2000
@@ -89,7 +112,17 @@ spec:
         controller: readarr
         ports:
           http:
-            port: &port 8787
+            port: *port
+          metrics:
+            port: *metricsPort
+
+    serviceMonitor:
+      app:
+        endpoints:
+          - port: metrics
+            path: /metrics
+            interval: 30s
+            scrapeTimeout: 10s
 
     route:
       app:

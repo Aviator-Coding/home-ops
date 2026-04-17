@@ -73,6 +73,29 @@ spec:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
+          exportarr:
+            image:
+              repository: ghcr.io/onedr0p/exportarr
+              tag: latest
+            args: [radarr]
+            env:
+              PORT: &metricsPort 8080
+              URL: http://localhost:7878
+              API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: radarr-secret
+                    key: RADARR__AUTH__APIKEY
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
 
     service:
       app:
@@ -80,6 +103,16 @@ spec:
         ports:
           http:
             port: *port
+          metrics:
+            port: *metricsPort
+
+    serviceMonitor:
+      app:
+        endpoints:
+          - port: metrics
+            path: /metrics
+            interval: 30s
+            scrapeTimeout: 10s
 
     persistence:
       config:

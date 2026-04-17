@@ -90,11 +90,51 @@ spec:
                   failureThreshold: 3
               startup: *probe
 
+          # Ollama Prometheus Exporter Sidecar
+          exporter:
+            image:
+              repository: lucabecker42/ollama-exporter
+              tag: 1.0.1
+            env:
+              PORT: "8000"
+              INTERVAL: "30"
+              OLLAMA_HOST: "localhost:11434"
+              API_TIMEOUT: "30"
+              LOG_LEVEL: "INFO"
+            resources:
+              requests:
+                cpu: "50m"
+                memory: "64Mi"
+              limits:
+                cpu: "200m"
+                memory: "128Mi"
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8000
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8000
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+
     service:
       app:
         ports:
           http:
             port: &port 11434
+          metrics:
+            port: 8000
 
     route:
       app:

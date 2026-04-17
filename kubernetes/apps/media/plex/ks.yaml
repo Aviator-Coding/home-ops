@@ -12,6 +12,8 @@ spec:
   components:
     - ../../../../components/volsync
   dependsOn:
+    - name: onepassword-store
+      namespace: security
     - name: intel-device-plugin-gpu
       namespace: system
     - name: rook-ceph-cluster

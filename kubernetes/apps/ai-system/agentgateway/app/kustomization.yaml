@@ -1,21 +1,42 @@
----
-# yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
+namespace: ai-system
+patches:
+- patch: |-
+    apiVersion: helm.toolkit.fluxcd.io/v2
+    kind: HelmRelease
+    metadata:
+      name: _
+    spec:
+      install:
+        crds: CreateReplace
+        strategy:
+          name: RetryOnFailure
+      rollback:
+        cleanupOnFail: true
+        recreate: true
+      upgrade:
+        cleanupOnFail: true
+        crds: CreateReplace
+        strategy:
+          name: RemediateOnFailure
+        remediation:
+          remediateLastFailure: true
+          retries: 2
+  target:
+    group: helm.toolkit.fluxcd.io
+    kind: HelmRelease
 resources:
-  - ./backends
-  - ./gateways
-  - ./policies
-  - ./helmrelease.yaml
-  - ./httproute.yaml
-  - ./httproute-internal.yaml
-  # DISABLED: Public route removed - no authentication required
-  # - ./httproute-public.yaml
-  - ./ocirepository.yaml
-  - ./pdb.yaml
-  - ./service-admin-ui.yaml
-  - ./servicemonitor.yaml
-  - ./podmonitor.yaml
-  - ./externalsecret-tls.yaml
-  - ./agentgatewayparameters.yaml
+- ./backends
+- ./gateways
+- ./policies
+- ./helmrelease.yaml
+- ./httproute.yaml
+- ./httproute-internal.yaml
+- ./ocirepository.yaml
+- ./pdb.yaml
+- ./service-admin-ui.yaml
+- ./servicemonitor.yaml
+- ./podmonitor.yaml
+- ./externalsecret-tls.yaml
+- ./agentgatewayparameters.yaml

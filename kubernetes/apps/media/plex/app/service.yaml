@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plex-exporter
+  namespace: media
+  labels:
+    app.kubernetes.io/name: plex-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: plex-exporter
+  ports:
+    - name: metrics
+      port: 9594
+      targetPort: metrics
