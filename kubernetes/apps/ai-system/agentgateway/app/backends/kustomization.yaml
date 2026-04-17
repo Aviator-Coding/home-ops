@@ -16,4 +16,3 @@ resources:
   - ./perplexity.yaml
   - ./opencodeai.yaml
   - ./zai.yaml
-  - ./litellm.yaml
