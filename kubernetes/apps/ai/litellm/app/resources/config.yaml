@@ -52,32 +52,14 @@ litellm_settings:
       "general_openai_5",
       "vision_openai_5",
       "education_5",
-      "embedding_openai",
-      "whisper-1",
     ] # Exclude problematic models
   health_check_timeout: 30 # Add timeout for health checks
 
-  # Caching settings
-  cache: true
-  cache_params:
-    type: qdrant-semantic # redis, s3, redis-semantic, qdrant-semantic, disk, () not specificed = In memory
-
-    # https://docs.litellm.ai/docs/caching/all_caches#updating-cache-params-redis-host-port-etc
-
-    # Optional - Qdrant Semantic Cache Settings
-    qdrant_semantic_cache_embedding_model: embedding_openai # FIXED: Use correct alias
-    qdrant_collection_name: litellm_cache
-    qdrant_quantization_config: binary
-    similarity_threshold: 0.95 # similarity threshold for semantic cache
-
-    # Common Cache settings
-    # Optional - Supported call types for caching
-
-    supported_call_types:
-      ["acompletion", "atext_completion", "aembedding", "atranscription"]
-      # /chat/completions, /completions, /embeddings, /audio/transcriptions
-    mode: default_on # if default_off, you need to opt in to caching on a per call basis
-    ttl: 1800 # ttl for caching
+  # Caching disabled: Qdrant semantic cache required the OpenAI embedding model,
+  # which can't flow through AgentGateway (gateway openai plugin rejects
+  # non-chat request bodies). Re-enable once a passthrough embedding backend
+  # lands in AgentGateway or we switch to a non-semantic cache backend.
+  cache: false
 
 router:
   # Your existing vision routing

@@ -70,7 +70,7 @@ model_list:
 
   - model_name: "Anthopic: claude-3.5-haiku"
     litellm_params:
-      model: anthropic/claude-3-5-haiku-20241022
+      model: anthropic/claude-3-5-haiku-latest
       api_base: http://internal-noauth.ai-system.svc.cluster.local/anthropic
       api_key: sk-agw-placeholder
     model_info:
@@ -120,17 +120,11 @@ model_list:
     aliases: [reasoner_deepseek]
 
   # OpenAI (native via AgentGateway /openai)
-  - model_name: "OpenAI: text-embedding-3-small"
-    litellm_params:
-      model: openai/text-embedding-3-small
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/openai/v1
-      api_key: sk-agw-placeholder
-    model_info:
-      mode: embedding
-      max_tokens: 8192
-      input_cost_per_1k_tokens: 0.00002
-    aliases: [embedding_openai]
-
+  # NOTE: AgentGateway's openai provider plugin only handles /v1/chat/completions.
+  # Embeddings (/v1/embeddings), Responses API (/v1/responses), TTS (/v1/audio/speech),
+  # and audio transcription (/v1/audio/transcriptions) are rejected by the gateway
+  # with "missing field `messages`". Models that require those endpoints are
+  # intentionally omitted until AgentGateway gains a generic passthrough backend.
   - model_name: "OpenAI: gpt-5.2"
     litellm_params:
       model: openai/gpt-5.2
@@ -187,20 +181,6 @@ model_list:
       supports_function_calling: true
     aliases: [general_openai_5, vision_openai_5, education_5]
 
-  - model_name: "OpenAI: gpt-5-codex"
-    litellm_params:
-      model: openai/gpt-5-codex
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/openai/v1
-      api_key: sk-agw-placeholder
-    model_info:
-      mode: chat
-      max_tokens: 272000
-      input_cost_per_1k_tokens: 0.00125
-      output_cost_per_1k_tokens: 0.01
-      supports_vision: true
-      supports_function_calling: true
-    aliases: [general_openai_5, vision_openai_5, education_5]
-
   - model_name: "OpenAI: gpt-4.1-mini"
     litellm_params:
       model: openai/gpt-4.1-mini
@@ -213,19 +193,6 @@ model_list:
       supports_vision: true
       supports_function_calling: true
     aliases: [gpt-4.1, general_openai, vision_openai]
-
-  - model_name: "OpenAI: gpt-40-mini-tts"
-    litellm_params:
-      model: openai/gpt-4o-mini-tts-2025-03-20
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/openai/v1
-      api_key: sk-agw-placeholder
-    model_info:
-      max_tokens: 1000000
-      input_cost_per_1k_tokens: 0.0004
-      output_cost_per_1k_tokens: 0.0016
-      supports_vision: true
-      supports_function_calling: true
-    aliases: [general_openai_4o, general_openai, vision_openai]
 
   - model_name: "OpenAI: gpt-4o"
     litellm_params:
@@ -240,30 +207,17 @@ model_list:
       supports_function_calling: true
     aliases: [general_openai_4o, vision_openai_4o, education_4o]
 
-  - model_name: "OpenAI: Whisper-1"
-    litellm_params:
-      model: openai/whisper-1
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/openai/v1
-      api_key: sk-agw-placeholder
-    model_info:
-      id: whisper-1
-      mode: audio_transcription
-      input_cost_per_minute: 0.006
-    aliases: [whisper-1]
-
   # TogetherAI (OpenAI-compat via AgentGateway /togetherai)
-  - model_name: "TogetherAI: Qwen2.5-Coder-32B-Instruct"
+  - model_name: "TogetherAI: Llama 3.3 70B Turbo"
     litellm_params:
-      model: openai/Qwen/Qwen2.5-Coder-32B-Instruct
+      model: openai/meta-llama/Llama-3.3-70B-Instruct-Turbo
       api_base: http://internal-noauth.ai-system.svc.cluster.local/togetherai/v1
       api_key: sk-agw-placeholder
     model_info:
-      id: Qwen2.5-Coder-32B-Instruct
       mode: chat
-      input_cost_per_1k_tokens: 0.0008
-      output_cost_per_1k_tokens: 0.0008
-      max_tokens: 16384
-    aliases: [code_together]
+      max_tokens: 131072
+      supports_function_calling: true
+    aliases: [code_together, general_together]
 
   # Groq (OpenAI-compat via AgentGateway /groq, gateway rewrites to /openai)
   - model_name: "Groq: Meta llama-3.3-70b-versatile"
@@ -279,18 +233,6 @@ model_list:
       supports_function_calling: true
     aliases: [general_groq, code_groq]
 
-  - model_name: "Groq: Meta gemma2-9b-it"
-    litellm_params:
-      model: openai/gemma2-9b-it
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/groq/v1
-      api_key: sk-agw-placeholder
-      drop_params: true
-    model_info:
-      max_tokens: 8192
-      input_cost_per_1k_tokens: 0.0002
-      output_cost_per_1k_tokens: 0.0002
-    aliases: [general_groq]
-
   - model_name: "Groq: Meta llama-3.1-8b-instant"
     litellm_params:
       model: openai/llama-3.1-8b-instant
@@ -304,33 +246,17 @@ model_list:
       supports_function_calling: true
     aliases: [code_groq]
 
-  - model_name: "Groq: Meta compound-mini [No-Limits]"
-    litellm_params:
-      model: openai/compound-mini
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/groq/v1
-      api_key: sk-agw-placeholder
-      drop_params: true
-    aliases: [general_groq, reasoning_groq]
-
-  - model_name: "Groq: Meta compound [No-Limits]"
-    litellm_params:
-      model: openai/compound
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/groq/v1
-      api_key: sk-agw-placeholder
-      drop_params: true
-    aliases: [general_groq, reasoning_groq]
-
   - model_name: "Groq: gpt-oss-120b"
     litellm_params:
-      model: openai/gpt-oss-120b
+      model: openai/openai/gpt-oss-120b
       api_base: http://internal-noauth.ai-system.svc.cluster.local/groq/v1
       api_key: sk-agw-placeholder
       drop_params: true
-    aliases: [general_groq, code_groq]
+    aliases: [general_groq, code_groq, reasoning_groq]
 
   - model_name: "Groq: gpt-oss-20b"
     litellm_params:
-      model: openai/gpt-oss-20b
+      model: openai/openai/gpt-oss-20b
       api_base: http://internal-noauth.ai-system.svc.cluster.local/groq/v1
       api_key: sk-agw-placeholder
       drop_params: true
@@ -343,6 +269,41 @@ model_list:
       api_key: sk-agw-placeholder
       drop_params: true
     aliases: [general_groq, code_groq]
+
+  - model_name: "Groq: Llama 4 Scout"
+    litellm_params:
+      model: openai/meta-llama/llama-4-scout-17b-16e-instruct
+      api_base: http://internal-noauth.ai-system.svc.cluster.local/groq/v1
+      api_key: sk-agw-placeholder
+      drop_params: true
+    model_info:
+      max_tokens: 131072
+      supports_vision: true
+      supports_function_calling: true
+    aliases: [general_groq, vision_groq]
+
+  - model_name: "Groq: Llama 4 Maverick"
+    litellm_params:
+      model: openai/meta-llama/llama-4-maverick-17b-128e-instruct
+      api_base: http://internal-noauth.ai-system.svc.cluster.local/groq/v1
+      api_key: sk-agw-placeholder
+      drop_params: true
+    model_info:
+      max_tokens: 131072
+      supports_vision: true
+      supports_function_calling: true
+    aliases: [general_groq, vision_groq, reasoning_groq]
+
+  - model_name: "Groq: Kimi K2"
+    litellm_params:
+      model: openai/moonshotai/kimi-k2-instruct
+      api_base: http://internal-noauth.ai-system.svc.cluster.local/groq/v1
+      api_key: sk-agw-placeholder
+      drop_params: true
+    model_info:
+      max_tokens: 131072
+      supports_function_calling: true
+    aliases: [general_groq, code_groq, reasoning_groq]
 
   # xAI (OpenAI-compat via AgentGateway /xai)
   - model_name: "xAI: Grok 4 Fast"
@@ -473,34 +434,6 @@ model_list:
       supports_function_calling: true
     aliases: [general_gemini_2_lite]
 
-  - model_name: "Gemini: 1.5 Flash"
-    litellm_params:
-      model: openai/gemini-1.5-flash
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/gemini/v1
-      api_key: sk-agw-placeholder
-    model_info:
-      max_tokens: 1000000
-      input_cost_per_1k_tokens: 0.00007
-      output_cost_per_1k_tokens: 0.0003
-      supports_vision: true
-      supports_function_calling: true
-      disable_background_health_check: true
-    aliases: [general_gemini_legacy, vision_gemini_legacy]
-
-  - model_name: "Gemini: 1.5 Pro"
-    litellm_params:
-      model: openai/gemini-1.5-pro
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/gemini/v1
-      api_key: sk-agw-placeholder
-    model_info:
-      max_tokens: 2097152
-      input_cost_per_1k_tokens: 0.0035
-      output_cost_per_1k_tokens: 0.0105
-      supports_vision: true
-      supports_function_calling: true
-      disable_background_health_check: true
-    aliases: [reasoning_gemini_legacy]
-
   # Mistral (OpenAI-compat via AgentGateway /mistral)
   - model_name: mistral-large-latest
     litellm_params:
@@ -574,13 +507,9 @@ model_list:
     aliases: [perplexity_sonar_pro]
 
   # OpenCodeAI (new — OpenAI-compat via AgentGateway /opencodeai -> /zen/v1)
-  # NOTE: api_base has no /v1 suffix; the gateway appends /zen/v1 itself.
-  - model_name: "OpenCode: Claude Sonnet 4.5"
-    litellm_params:
-      model: openai/claude-sonnet-4.5
-      api_base: http://internal-noauth.ai-system.svc.cluster.local/opencodeai
-      api_key: sk-agw-placeholder
-    aliases: [opencode_sonnet]
+  # Intentionally empty — correct model IDs for opencode.ai/zen/v1 still TBD.
+  # AgentGateway route is live; add entries here once the upstream catalog
+  # is confirmed.
 
   # Z.AI (new — OpenAI-compat via AgentGateway /zai -> /api/paas/v4)
   # NOTE: api_base has no /v1 suffix; the gateway appends /api/paas/v4 itself.
