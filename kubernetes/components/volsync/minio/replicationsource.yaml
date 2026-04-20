@@ -9,6 +9,7 @@ spec:
   trigger:
     schedule: "${VOLSYNC_SCHEDULE_MINIO:-30 */6 * * *}"  # Every 6 hours default - customizable per-app
   restic:
+    unlock: "true"  # Automatically clear stale locks from interrupted backups
     pruneIntervalDays: 14
     repository: "${APP}-volsync-minio-secret"
     copyMethod: "${VOLSYNC_COPYMETHOD:-Snapshot}"

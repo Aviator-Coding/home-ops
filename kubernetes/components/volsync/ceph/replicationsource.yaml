@@ -9,6 +9,7 @@ spec:
   trigger:
     schedule: "${VOLSYNC_SCHEDULE_CEPH:-0 */4 * * *}"  # Every 4 hours default - customizable per-app
   restic:
+    unlock: "true"  # Automatically clear stale locks from interrupted backups
     pruneIntervalDays: 14
     repository: "${APP}-volsync-ceph-secret"
     copyMethod: "${VOLSYNC_COPYMETHOD:-Snapshot}"
