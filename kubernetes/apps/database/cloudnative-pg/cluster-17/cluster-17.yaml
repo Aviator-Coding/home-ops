@@ -7,7 +7,12 @@ metadata:
   labels:
     pgadmin: enabled
 spec:
-  instances: 3
+  # Reduced from 3 -> 2 on 2026-04-25 to match physical reality.
+  # The third instance's PVC was lost on 2026-04-14 when osd.3 was purged
+  # and never reprovisioned; CNPG's "Cluster is unrecoverable" condition
+  # was driven by spec.instances=3 vs Pvc Count=2. Restore to 3 only after
+  # PVC recovery + storage capacity is verified.
+  instances: 2
   # renovate: datasource=docker depName=ghcr.io/tensorchord/cloudnative-pgvecto.rs versioning=docker
   imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:17.5-v0.4.0
   # Pod affinity Rules
