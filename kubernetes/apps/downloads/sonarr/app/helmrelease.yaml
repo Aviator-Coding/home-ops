@@ -73,24 +73,6 @@ spec:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
-          exportarr:
-            image:
-              repository: ghcr.io/onedr0p/exportarr
-              tag: latest
-            args: [sonarr, -c, /config/config.xml]
-            env:
-              PORT: &metricsPort 8080
-              URL: http://localhost:8989
-            resources:
-              requests:
-                cpu: 10m
-                memory: 64Mi
-              limits:
-                memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
 
     defaultPodOptions:
       topologySpreadConstraints:
@@ -107,16 +89,6 @@ spec:
         ports:
           http:
             port: *port
-          metrics:
-            port: *metricsPort
-
-    serviceMonitor:
-      app:
-        endpoints:
-          - port: metrics
-            path: /metrics
-            interval: 30s
-            scrapeTimeout: 10s
 
     persistence:
       config:
