@@ -3,3 +3,5 @@ buildMetadata:
 - originAnnotations
 kind: Kustomization
 namespace: flux-system
+resources:
+- ./repos
