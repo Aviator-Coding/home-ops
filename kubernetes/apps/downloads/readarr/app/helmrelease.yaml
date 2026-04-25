@@ -85,10 +85,9 @@ spec:
               PORT: &metricsPort 9707
               URL: http://localhost:8787
               API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: *secret
-                    key: READARR__API_KEY
+                secretKeyRef:
+                  name: *secret
+                  key: READARR__API_KEY
             resources:
               requests:
                 cpu: 10m

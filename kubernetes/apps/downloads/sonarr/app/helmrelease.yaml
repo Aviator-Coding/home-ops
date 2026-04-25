@@ -82,10 +82,9 @@ spec:
               PORT: &metricsPort 8080
               URL: http://localhost:8989
               API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: sonarr-secret
-                    key: SONARR__AUTH__APIKEY
+                secretKeyRef:
+                  name: sonarr-secret
+                  key: SONARR__AUTH__APIKEY
             resources:
               requests:
                 cpu: 10m

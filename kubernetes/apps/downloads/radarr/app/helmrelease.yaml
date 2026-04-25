@@ -82,10 +82,9 @@ spec:
               PORT: &metricsPort 8080
               URL: http://localhost:7878
               API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: radarr-secret
-                    key: RADARR__AUTH__APIKEY
+                secretKeyRef:
+                  name: radarr-secret
+                  key: RADARR__AUTH__APIKEY
             resources:
               requests:
                 cpu: 10m

@@ -81,10 +81,9 @@ spec:
               PORT: &metricsPort 9707
               URL: http://localhost:9696
               API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: prowlarr-secret
-                    key: PROWLARR__AUTH__APIKEY
+                secretKeyRef:
+                  name: prowlarr-secret
+                  key: PROWLARR__AUTH__APIKEY
             resources:
               requests:
                 cpu: 10m
