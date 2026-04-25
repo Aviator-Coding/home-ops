@@ -6,6 +6,10 @@ metadata:
   name: &app plex
 spec:
   interval: 30m
+  # Plex runs Recreate strategy with a large config PVC that takes several
+  # minutes to mount + initialize on cold start; default 5m Helm timeout
+  # caused MissingRollbackTarget stalls.
+  timeout: 15m
   chartRef:
     kind: OCIRepository
     name: app-template
@@ -13,6 +17,13 @@ spec:
   dependsOn:
     - name: rook-ceph-cluster
       namespace: rook-ceph
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
   values:
     defaultPodOptions:
       securityContext:

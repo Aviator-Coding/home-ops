@@ -6,6 +6,10 @@ metadata:
   name: &app immich
 spec:
   interval: 30m
+  # immich-server uses Recreate strategy and runs DB migrations + cache warm
+  # on startup; default 5m Helm timeout was insufficient and triggered
+  # repeated upgrade-rollback cycles (see audit cascade 2026-04-14 incident).
+  timeout: 15m
   chartRef:
     kind: OCIRepository
     name: app-template
