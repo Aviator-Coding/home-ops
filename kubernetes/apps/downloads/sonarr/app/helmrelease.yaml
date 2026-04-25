@@ -77,14 +77,10 @@ spec:
             image:
               repository: ghcr.io/onedr0p/exportarr
               tag: latest
-            args: [sonarr]
+            args: [sonarr, -c, /config/config.xml]
             env:
               PORT: &metricsPort 8080
               URL: http://localhost:8989
-              API_KEY:
-                secretKeyRef:
-                  name: sonarr-secret
-                  key: SONARR__AUTH__APIKEY
             resources:
               requests:
                 cpu: 10m

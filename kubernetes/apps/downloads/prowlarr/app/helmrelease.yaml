@@ -76,14 +76,10 @@ spec:
             image:
               repository: ghcr.io/onedr0p/exportarr
               tag: latest
-            args: [prowlarr]
+            args: [prowlarr, -c, /config/config.xml]
             env:
               PORT: &metricsPort 9707
               URL: http://localhost:9696
-              API_KEY:
-                secretKeyRef:
-                  name: prowlarr-secret
-                  key: PROWLARR__AUTH__APIKEY
             resources:
               requests:
                 cpu: 10m

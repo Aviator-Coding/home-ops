@@ -77,14 +77,10 @@ spec:
             image:
               repository: ghcr.io/onedr0p/exportarr
               tag: latest
-            args: [radarr]
+            args: [radarr, -c, /config/config.xml]
             env:
               PORT: &metricsPort 8080
               URL: http://localhost:7878
-              API_KEY:
-                secretKeyRef:
-                  name: radarr-secret
-                  key: RADARR__AUTH__APIKEY
             resources:
               requests:
                 cpu: 10m

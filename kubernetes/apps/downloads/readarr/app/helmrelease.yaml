@@ -80,14 +80,10 @@ spec:
             image:
               repository: ghcr.io/onedr0p/exportarr
               tag: latest
-            args: [readarr]
+            args: [readarr, -c, /config/config.xml]
             env:
               PORT: &metricsPort 9707
               URL: http://localhost:8787
-              API_KEY:
-                secretKeyRef:
-                  name: *secret
-                  key: READARR__API_KEY
             resources:
               requests:
                 cpu: 10m

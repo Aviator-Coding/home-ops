@@ -95,14 +95,10 @@ spec:
             image:
               repository: ghcr.io/onedr0p/exportarr
               tag: latest
-            args: [lidarr]
+            args: [lidarr, -c, /config/config.xml]
             env:
               PORT: &metricsPort 9707
               URL: http://localhost:8080
-              API_KEY:
-                secretKeyRef:
-                  name: lidarr-secret
-                  key: LIDARR__AUTH__APIKEY
             resources:
               requests:
                 cpu: 10m
