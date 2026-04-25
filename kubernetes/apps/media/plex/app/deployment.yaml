@@ -34,16 +34,20 @@ spec:
               containerPort: 9594
           livenessProbe:
             httpGet:
-              path: /metrics
+              path: /
               port: metrics
-            initialDelaySeconds: 10
+            initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
           readinessProbe:
             httpGet:
-              path: /metrics
+              path: /
               port: metrics
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
           resources:
             requests:
               cpu: 10m
