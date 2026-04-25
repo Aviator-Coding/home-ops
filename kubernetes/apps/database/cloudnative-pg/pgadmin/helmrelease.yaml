@@ -26,6 +26,21 @@ spec:
       pgadmin:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          fix-permissions:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.36"
+            command:
+              - sh
+              - -c
+              - |
+                mkdir -p /var/lib/pgadmin
+                chown -R 5050:5050 /var/lib/pgadmin
+                chmod -R u+rwX /var/lib/pgadmin
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
         containers:
           app:
             image:
@@ -59,17 +74,17 @@ spec:
                   httpGet:
                     path: /misc/ping
                     port: *port
-                  initialDelaySeconds: 0
+                  initialDelaySeconds: 30
                   periodSeconds: 10
-                  timeoutSeconds: 1
-                  failureThreshold: 3
+                  timeoutSeconds: 5
+                  failureThreshold: 6
               readiness: *probes
             resources:
               requests:
                 cpu: 50m
                 memory: 256Mi
               limits:
-                memory: 1Gi
+                memory: 2Gi
     defaultPodOptions:
       securityContext:
         runAsUser: 5050
@@ -97,6 +112,8 @@ spec:
         advancedMounts:
           pgadmin:
             app:
+              - path: /var/lib/pgadmin
+            fix-permissions:
               - path: /var/lib/pgadmin
       oauth:
         enabled: true
