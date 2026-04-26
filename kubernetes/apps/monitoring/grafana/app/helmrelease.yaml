@@ -238,13 +238,13 @@ spec:
       #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/operator.json
 
       infrastructure:
-        hubble-overview:
-          # renovate: dashboardName="Hubble Overview"
-          gnetId: 16611
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
+        # The Cilium dashboard is provisioned by the cilium HelmRelease
+        # (kube-system/cilium-dashboard ConfigMap, title "Cilium Metrics").
+        # gnetId 16611 was mislabeled here as "Hubble Overview" but actually
+        # pulls "Cilium v1.12 Agent Metrics" with the same UID 'vtuWtdumz',
+        # which collided with the operator's dashboard and locked
+        # sidecarProvider out of all writes (preventing CNPG/Dragonfly
+        # dashboard updates from applying).
 
         kube-state-metrics:
           # renovate: dashboardName="Kube-State-Metrics"
