@@ -39,7 +39,7 @@ spec:
             fsGroup: 26
           containers:
             - name: prune
-              image: ghcr.io/cloudnative-pg/postgresql:17.5
+              image: ghcr.io/cloudnative-pg/postgresql:18.3
               imagePullPolicy: IfNotPresent
               env:
                 - name: PGHOST
