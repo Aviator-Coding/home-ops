@@ -21,7 +21,7 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
-    - name: postgres-cluster-17
+    - name: postgres-cluster-17-v4
       namespace: database
   # healthCheckExprs:
   #   - apiVersion: postgres-operator.crunchydata.com/v1beta1
