@@ -164,7 +164,7 @@ spec:
                   "id": 2,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n- [TiDB](/d/tidb-cluster-summary)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/dragonfly-manager)\n- [EMQX](/d/emqx-overview)\n- [NATS](/d/nats-server)",
+                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n- [TiDB](/d/tidb-cluster-summary)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/emqx-overview)\n- [NATS](/d/nats-server)",
                     "mode": "markdown"
                   },
                   "title": "Infrastructure & Databases",
@@ -333,44 +333,15 @@ spec:
               value: Prometheus
 
       databases:
-        cloudnative-pg:
-          gnetId: 20417
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
+        # CloudNativePG dashboard is provisioned by the cloudnative-pg-dashboard
+        # OCI helm chart (kubernetes/apps/database/cloudnative-pg/dashboard/);
+        # do not duplicate it here — same UID 'cloudnative-pg' would collide
+        # and Grafana refuses to save either copy.
 
-        dragonfly-manager:
-          # renovate: dashboardName="Dragonfly Manager"
-          gnetId: 15945
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        dragonfly-scheduler:
-          # renovate: dashboardName="Dragonfly Scheduler"
-          gnetId: 15944
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        dragonfly-client:
-          # renovate: dashboardName="Dragonfly Client"
-          gnetId: 21053
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        dragonfly-seed-client:
-          # renovate: dashboardName="Dragonfly Seed Client"
-          gnetId: 21054
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
+        # The dragonfly-* dashboards (gnetIds 15944, 15945, 21053, 21054) are
+        # for D7Y / Dragonfly P2P file distribution — a CNCF project
+        # unrelated to our Dragonfly DB (Redis-compatible KV). The Dragonfly
+        # operator installs its own dashboard via grafanaDashboard.enabled.
 
         nats-server:
           # renovate: dashboardName="NATS Server Dashboard"
