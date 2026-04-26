@@ -37,10 +37,7 @@ spec:
     name: cloudnative-pg-secret
   enableSuperuserAccess: true
 
-  # Recovery: bootstrap postgres-17 (v5 archive) from v4's Barman archive in MinIO.
-  # The serverName postgres17-v4 references the externalClusters block below.
-  # This restores the cluster under its canonical name "postgres-17" after the
-  # earlier emergency rebuild created it temporarily as "postgres-17-v4".
+  # Bootstrap from postgres17-v4 archive (canonical-name restore after the v3->v4 rebuild).
   bootstrap:
     recovery:
       source: &previousCluster postgres17-v4
@@ -71,8 +68,7 @@ spec:
         }
       - { regex: cluster, action: labeldrop }
 
-  # Backup configuration — new server name. v3 was postgres17-v3, v4 was postgres17-v4,
-  # this rename uses postgres17-v5 to keep the recovery archive distinct.
+  # Backup serverName postgres17-v5 (incremented from v3, v4 to keep archives distinct).
   backup:
     retentionPolicy: 30d
     barmanObjectStore: &barmanObjectStore
