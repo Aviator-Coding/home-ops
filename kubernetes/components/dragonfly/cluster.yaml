@@ -9,10 +9,11 @@ spec:
   image: ghcr.io/dragonflydb/dragonfly:v1.38.0
   replicas: 2
   args:
-    # ~85% of limits.memory: leaves headroom for internal structures and the
-    # snapshot fork's copy-on-write so eviction kicks in before OOMKill.
-    # If limits.memory below changes, update this to match (limit * 0.85).
-    - --maxmemory=435Mi
+    # Dragonfly v1.38.0 enforces a 256 MiB-per-proactor-thread floor, so with
+    # --proactor_threads=2 the minimum --maxmemory is 512Mi. limits.memory
+    # below is sized 128Mi above that to leave runtime headroom (internal
+    # structures, fork-on-snapshot, allocator slack).
+    - --maxmemory=512Mi
     - --proactor_threads=2
     - --cluster_mode=emulated
     # Cache-only policy: LRU-evict at maxmemory instead of returning OOM to clients.
@@ -23,9 +24,9 @@ spec:
       # 2 proactor threads + admin/health; 100m was prone to throttling.
       cpu: 250m
       # = limits.memory => Guaranteed QoS, immune to node-pressure eviction.
-      memory: 512Mi
+      memory: 640Mi
     limits:
-      memory: 512Mi
+      memory: 640Mi
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: "kubernetes.io/hostname"
