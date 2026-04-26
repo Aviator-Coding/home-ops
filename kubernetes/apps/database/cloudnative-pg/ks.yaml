@@ -106,6 +106,47 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  name: &app postgres-cluster-17-v4
+  namespace: &namespace database
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: cloudnative-pg
+      namespace: database
+    - name: rook-ceph
+      namespace: rook-ceph
+    - name: external-secrets
+      namespace: security
+    - name: postgres-cluster-17
+      namespace: database
+  # Same operational health gate as postgres-cluster-17 — readyInstances + ContinuousArchiving
+  # rather than the Ready condition, which CNPG can latch False indefinitely while serving.
+  # readyInstances >= 1 because v4 starts with 2 instances (talos-3 excluded; see cluster-17-v4.yaml).
+  healthCheckExprs:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      current: status.readyInstances >= 1 && status.conditions.filter(e, e.type == 'ContinuousArchiving').all(e, e.status == 'True')
+      failed: status.readyInstances < 1
+  interval: 30m
+  path: ./kubernetes/apps/database/cloudnative-pg/cluster-17-v4
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  targetNamespace: *namespace
+  wait: true
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
   name: &app cloudnative-pg-dashboard
   namespace: &namespace database
 spec:
