@@ -60,13 +60,16 @@ spec:
   # Prometheus Exporter
   monitoring:
     enablePodMonitor: true
+    # Keep both 'cluster' (original) and 'cnpg_cluster' (renamed copy) labels.
+    # The CNPG-bundled Grafana dashboard's Cluster dropdown extracts the
+    # 'cluster' label (regex /\bcluster\b="[^"]+"/), so dropping it leaves
+    # every panel "No data". Other consumers can use 'cnpg_cluster'.
     podMonitorMetricRelabelings:
       - {
           sourceLabels: ["cluster"],
           targetLabel: cnpg_cluster,
           action: replace,
         }
-      - { regex: cluster, action: labeldrop }
 
   # Backup serverName postgres17-v5 (incremented from v3, v4 to keep archives distinct).
   backup:
