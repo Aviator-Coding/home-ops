@@ -32,12 +32,26 @@ spec:
         ]
         no_match: "deny"
       }
+      api_key {
+        bootstrap_file = "/opt/init-api-keys"
+      }
   coreTemplate:
     metadata:
       annotations:
         reloader.stakater.com/auto: "true"
     spec:
       replicas: 2
+      # 2 cores, allow 1 unavailable during operator-managed rolling restarts.
+      minAvailable: 1
+      resources:
+        requests:
+          cpu: 250m
+          # request == limit on memory: Erlang VM is GC-heavy, OOMKill is
+          # catastrophic for cluster gossip; lock memory at the limit.
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
       envFrom:
         - secretRef:
             name: emqx-secret
@@ -50,10 +64,25 @@ spec:
           mountPath: /opt/init-acl
           subPath: init-acl
           readOnly: true
+        - name: init-user
+          mountPath: /opt/init-api-keys
+          subPath: init-api-keys
+          readOnly: true
       extraVolumes:
         - name: init-user
           secret:
             secretName: emqx-init-user-secret
+      # Persistent /opt/emqx/data so retained messages, runtime ACLs,
+      # dashboard-created rules, and built_in_database additions survive
+      # pod restarts. v2beta1 expects a single PersistentVolumeClaimSpec,
+      # not an array.
+      volumeClaimTemplates:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: ceph-block
+        resources:
+          requests:
+            storage: 5Gi
   listenersServiceTemplate:
     metadata:
       annotations:

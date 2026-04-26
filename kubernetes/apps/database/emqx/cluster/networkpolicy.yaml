@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/networking.k8s.io/networkpolicy_v1.json
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: emqx-allow-monitoring
+spec:
+  # Allows Prometheus and the in-namespace emqx-exporter to reach the
+  # dashboard/metrics port. MQTT data plane (1883/8883/8083/8084) is
+  # exposed via the LoadBalancer service and is intentionally reachable
+  # from anywhere; access control is enforced by EMQX's own auth/ACL.
+  podSelector:
+    matchLabels:
+      apps.emqx.io/instance: emqx
+      apps.emqx.io/managed-by: emqx-operator
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+        - podSelector:
+            matchLabels:
+              app: emqx-exporter
+      ports:
+        - port: 18083
+          protocol: TCP

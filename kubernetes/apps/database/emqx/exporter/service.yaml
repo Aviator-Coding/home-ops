@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/_definitions.json#/definitions/io.k8s.api.core.v1.Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx-exporter
+  labels:
+    app: emqx-exporter
+spec:
+  selector:
+    app: emqx-exporter
+  ports:
+    - name: metrics
+      port: 8085
+      targetPort: metrics
+      protocol: TCP

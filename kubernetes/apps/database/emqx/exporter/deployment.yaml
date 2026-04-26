@@ -1,0 +1,58 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emqx-exporter
+  labels:
+    app: emqx-exporter
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emqx-exporter
+  template:
+    metadata:
+      labels:
+        app: emqx-exporter
+    spec:
+      containers:
+        - name: exporter
+          # renovate: datasource=docker depName=emqx/emqx-exporter
+          image: emqx/emqx-exporter:0.2.11
+          args:
+            - --config.file
+            - /etc/emqx-exporter/config.yaml
+          ports:
+            - name: metrics
+              containerPort: 8085
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/emqx-exporter
+              readOnly: true
+      volumes:
+        - name: config
+          secret:
+            secretName: emqx-exporter-config
