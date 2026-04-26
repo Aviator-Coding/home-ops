@@ -51,6 +51,6 @@ spec:
     #   enabled: false
     grafanaDashboard:
       enabled: true
-      folder: data  # lowercase recommended
+      folder: Database
       annotations:
-        grafana_folder: data
+        grafana_folder: Database
