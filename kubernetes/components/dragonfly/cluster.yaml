@@ -5,22 +5,25 @@ kind: Dragonfly
 metadata:
   name: ${APP}-dragonfly
 spec:
-  image: ghcr.io/dragonflydb/dragonfly:v1.37.2
+  # renovate: datasource=docker depName=ghcr.io/dragonflydb/dragonfly
+  image: ghcr.io/dragonflydb/dragonfly:v1.38.0
   replicas: 2
-  env:
-    - name: MAX_MEMORY
-      valueFrom:
-        resourceFieldRef:
-          resource: limits.memory
-          divisor: 1Mi
   args:
-    - --maxmemory=$(MAX_MEMORY)Mi
+    # ~85% of limits.memory: leaves headroom for internal structures and the
+    # snapshot fork's copy-on-write so eviction kicks in before OOMKill.
+    # If limits.memory below changes, update this to match (limit * 0.85).
+    - --maxmemory=435Mi
     - --proactor_threads=2
     - --cluster_mode=emulated
+    # Cache-only policy: LRU-evict at maxmemory instead of returning OOM to clients.
+    - --cache_mode=true
     - --default_lua_flags=allow-undeclared-keys
   resources:
     requests:
-      cpu: 100m
+      # 2 proactor threads + admin/health; 100m was prone to throttling.
+      cpu: 250m
+      # = limits.memory => Guaranteed QoS, immune to node-pressure eviction.
+      memory: 512Mi
     limits:
       memory: 512Mi
   topologySpreadConstraints:
