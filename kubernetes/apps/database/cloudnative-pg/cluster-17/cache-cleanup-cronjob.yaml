@@ -1,0 +1,91 @@
+---
+# Daily prune of expired cache rows in the rreading-glasses database.
+#
+# rreading-glasses (Hotio's Readarr fork) caches book metadata lookups with a
+# default TTL of 7 days but never deletes expired rows. Without this CronJob
+# the cache.public table grows unbounded — an audit on 2026-04-26 found 60%
+# of rows expired and the table sitting at 20 GiB. After a one-shot DELETE +
+# VACUUM FULL the table dropped to roughly 1-2 GiB; this job keeps it that way.
+#
+# The job uses the postgres superuser credentials from cloudnative-pg-secret
+# (the same secret CNPG itself uses for backups and the cluster's superuser).
+# It runs DELETE without VACUUM FULL — autovacuum will reclaim space inside
+# the table file, and we don't want a daily ACCESS EXCLUSIVE lock.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rreading-glasses-cache-prune
+  labels:
+    app.kubernetes.io/name: rreading-glasses-cache-prune
+    app.kubernetes.io/component: maintenance
+    cnpg.io/cluster: postgres-17
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: rreading-glasses-cache-prune
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 26
+            runAsGroup: 26
+            fsGroup: 26
+          containers:
+            - name: prune
+              image: ghcr.io/cloudnative-pg/postgresql:17.5
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PGHOST
+                  value: postgres-17-rw.database.svc.cluster.local
+                - name: PGPORT
+                  value: "5432"
+                - name: PGDATABASE
+                  value: rreading-glasses
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudnative-pg-secret
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudnative-pg-secret
+                      key: password
+                - name: PGSSLMODE
+                  value: prefer
+                - name: PGCONNECT_TIMEOUT
+                  value: "10"
+              command:
+                - /usr/bin/env
+                - bash
+                - -ec
+                - |
+                  echo "[$(date -u +%FT%TZ)] before:"
+                  psql -tA -c "select count(*) as rows, pg_size_pretty(pg_total_relation_size('public.cache')) as size from public.cache;"
+                  echo "[$(date -u +%FT%TZ)] deleting expired rows older than 1 day past TTL..."
+                  deleted=$(psql -tA -c "with d as (delete from public.cache where expires <= now() - interval '1 day' returning 1) select count(*) from d;")
+                  echo "[$(date -u +%FT%TZ)] deleted=${deleted}"
+                  echo "[$(date -u +%FT%TZ)] after:"
+                  psql -tA -c "select count(*) as rows, pg_size_pretty(pg_total_relation_size('public.cache')) as size from public.cache;"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
