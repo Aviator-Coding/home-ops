@@ -20,12 +20,15 @@ spec:
     - --cache_mode=true
     - --default_lua_flags=allow-undeclared-keys
   resources:
+    # All four resource fields set with requests == limits so the pod gets
+    # Guaranteed QoS (last-evicted tier, immune to node-pressure eviction).
+    # CPU limit may cause throttling under spike load; for cache workloads
+    # at this scale, the eviction protection matters more than burst CPU.
     requests:
-      # 2 proactor threads + admin/health; 100m was prone to throttling.
       cpu: 250m
-      # = limits.memory => Guaranteed QoS, immune to node-pressure eviction.
       memory: 640Mi
     limits:
+      cpu: 250m
       memory: 640Mi
   topologySpreadConstraints:
     - maxSkew: 1
