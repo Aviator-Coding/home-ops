@@ -58,12 +58,28 @@ kubectl exec -n database postgres-17-1 -c postgres -- bash -c \
 
 ### Recover from backup into a fresh cluster
 
-The cluster's `bootstrap.recovery.source` block plus `externalClusters[]` is how we did the v3 → v4 → v5 chain. Increment the serverName so archives stay distinct, then commit a new sibling Cluster manifest. See `cluster-17.yaml` for the working pattern (`bootstrap.recovery.source: postgres17-v4` + `externalClusters[postgres17-v4]`).
+Use `bootstrap.recovery.source` plus `externalClusters[]` to bootstrap a new
+cluster from a Barman archive in MinIO. Increment the `serverName` so the
+new cluster's archive stays distinct from the old one's, then commit a
+sibling Cluster manifest. The current `cluster-17.yaml` is the working
+template (`bootstrap.recovery.source: postgres17-v4` +
+`externalClusters[postgres17-v4]` → new `serverName: postgres17-v5`).
 
-Full procedure documented in:
+Steps:
 
-- `/Users/aviator/.claude/plans/soft-tickling-storm.md` — plan that drove the rebuild.
-- `/Users/aviator/AI/Home-Ops/reports/cnpg-audit-20260426.md` — audit + cleanup history.
+1. Take a manual `Backup` against the running cluster (the procedure above).
+   Wait for `phase=completed`.
+2. Author a new Cluster manifest — copy `cluster-17.yaml`, change the cluster
+   `metadata.name`, set `bootstrap.recovery.source` to the previous server
+   name, define `externalClusters[]` with the previous serverName, and bump
+   `backup.barmanObjectStore.serverName` to a new value.
+3. Add a sibling Flux `Kustomization` in `ks.yaml` with `dependsOn` pointing
+   at the existing cluster (so both run in parallel during cutover).
+4. Commit + push. Flux reconciles, CNPG runs `barman-cloud-restore` into the
+   new cluster's data dir, then `pg_basebackup` joins additional replicas.
+5. Migrate consumers app-by-app (each app's ExternalSecret hardcodes the
+   postgres host string; update those, ESO refreshes, roll the deployments).
+6. Decommission the old cluster once no client backends remain.
 
 ## Maintenance
 
