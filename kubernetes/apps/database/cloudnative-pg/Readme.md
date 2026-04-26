@@ -8,7 +8,7 @@ CNPG operator + the canonical `postgres-17` cluster, plus pgAdmin and the upstre
 | ------ | ------- |
 | `operator/` | CNPG operator HelmRelease (chart `0.28.0`, app `1.29.0`). 2 replicas, PodMonitor enabled. Secret `cloudnative-pg-secret` (postgres superuser + MinIO S3 keys for Barman). |
 | `cluster-17/` | The `postgres-17` Cluster CR (Postgres 17 + pgvecto.rs), its `ScheduledBackup` (`@daily`), `LoadBalancer` Service, Gatus probe, PrometheusRule (7 alerts), and Barman config (serverName `postgres17-v5`, MinIO bucket `s3://home-ops-postgres-cluster/`). |
-| `dashboard/` | OCI Helm chart `ghcr.io/cloudnative-pg/grafana-dashboards/cluster:0.0.5`. Sidecar-loaded into Grafana under the "Storage" folder. |
+| `dashboard/` | OCI Helm chart `ghcr.io/cloudnative-pg/grafana-dashboards/cluster:0.0.5`. Sidecar-loaded into Grafana under the "Database" folder (alongside the Dragonfly operator dashboard). |
 | `pgadmin/` | pgAdmin 4 web UI behind Authentik OAuth at `pgadmin.${SECRET_DOMAIN}` and `pg.${SECRET_DOMAIN}`. Triple-redundant volsync backup (Ceph 4h / MinIO 6h / R2 daily). |
 
 ## Cluster overview
@@ -92,3 +92,5 @@ Steps:
 - All CronJobs in this cluster have their `timeZone` overwritten by the `k8tz` admission webhook to `America/New_York`. Don't bother setting `timeZone` explicitly.
 - `cluster-17/prometheusrule.yaml` defines the 7 alerts that operate on `cnpg_*` metrics; rules are cluster-wide so they cover any future CNPG cluster too.
 - Health gate for the Flux Kustomization is `status.readyInstances >= 1 && ContinuousArchiving == True`, NOT the Ready condition. CNPG can latch the Ready condition False indefinitely while still serving traffic — see the comment in `ks.yaml`.
+- `cluster-17.yaml` keeps both the original `cluster` and renamed `cnpg_cluster` labels in `monitoring.podMonitorMetricRelabelings`. **Do not re-add `{ regex: cluster, action: labeldrop }`** — the bundled CNPG Grafana dashboard's `Cluster` dropdown extracts the legacy `cluster` label via regex and goes empty (every panel "No data") if it's dropped.
+- The grafana helm values used to also include a `databases.cloudnative-pg` (gnetId 20417) entry that duplicated this dashboard's UID `cloudnative-pg`. The duplicate locked Grafana's sidecarProvider out of all writes; it has been removed in `apps/monitoring/grafana/app/helmrelease.yaml` — don't add it back.
