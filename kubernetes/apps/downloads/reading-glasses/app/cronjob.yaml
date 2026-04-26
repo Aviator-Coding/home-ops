@@ -1,24 +1,21 @@
 ---
-# Daily prune of expired cache rows in the rreading-glasses database.
+# Daily prune of expired rows in rreading-glasses' single cache table.
 #
-# rreading-glasses (Hotio's Readarr fork) caches book metadata lookups with a
-# default TTL of 7 days but never deletes expired rows. Without this CronJob
-# the cache.public table grows unbounded — an audit on 2026-04-26 found 60%
-# of rows expired and the table sitting at 20 GiB. After a one-shot DELETE +
-# VACUUM FULL the table dropped to roughly 1-2 GiB; this job keeps it that way.
+# rreading-glasses caches book metadata lookups (Amazon ASINs, ISBNs, OpenLibrary
+# work IDs, Goodreads book IDs) with a 7-day TTL but never deletes expired rows.
+# An audit on 2026-04-26 found 60% of 9.64 M rows expired and the database at
+# 20 GiB; after a one-shot prune the table dropped to ~640 MiB. This CronJob
+# keeps it that way.
 #
-# The job uses the postgres superuser credentials from cloudnative-pg-secret
-# (the same secret CNPG itself uses for backups and the cluster's superuser).
-# It runs DELETE without VACUUM FULL — autovacuum will reclaim space inside
-# the table file, and we don't want a daily ACCESS EXCLUSIVE lock.
+# Uses the rreading-glasses POSTGRES__USER role (owner of public.cache) — no
+# postgres superuser needed. Credentials come from the same reading-glasses-secret
+# the application itself uses.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: rreading-glasses-cache-prune
+  name: reading-glasses-cache-prune
   labels:
-    app.kubernetes.io/name: rreading-glasses-cache-prune
     app.kubernetes.io/component: maintenance
-    cnpg.io/cluster: postgres-17
 spec:
   schedule: "0 3 * * *"
   timeZone: Etc/UTC
@@ -33,7 +30,7 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: rreading-glasses-cache-prune
+            app.kubernetes.io/component: maintenance
         spec:
           restartPolicy: OnFailure
           securityContext:
@@ -47,21 +44,30 @@ spec:
               imagePullPolicy: IfNotPresent
               env:
                 - name: PGHOST
-                  value: postgres-17-rw.database.svc.cluster.local
+                  valueFrom:
+                    secretKeyRef:
+                      name: reading-glasses-secret
+                      key: POSTGRES__HOST
                 - name: PGPORT
-                  value: "5432"
+                  valueFrom:
+                    secretKeyRef:
+                      name: reading-glasses-secret
+                      key: POSTGRES__PORT
                 - name: PGDATABASE
-                  value: rreading-glasses
+                  valueFrom:
+                    secretKeyRef:
+                      name: reading-glasses-secret
+                      key: POSTGRES__MAINDB
                 - name: PGUSER
                   valueFrom:
                     secretKeyRef:
-                      name: cloudnative-pg-secret
-                      key: username
+                      name: reading-glasses-secret
+                      key: POSTGRES__USER
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: cloudnative-pg-secret
-                      key: password
+                      name: reading-glasses-secret
+                      key: POSTGRES__PASSWORD
                 - name: PGSSLMODE
                   value: prefer
                 - name: PGCONNECT_TIMEOUT
