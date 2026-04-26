@@ -16,7 +16,7 @@ spec:
   dependsOn:
     - name: dragonfly-operator
       namespace: database
-    - name: postgres-cluster-17-v4
+    - name: postgres-cluster-17
       namespace: database
     - name: onepassword-store
       namespace: security

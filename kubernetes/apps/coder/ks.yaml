@@ -12,7 +12,7 @@ spec:
   components:
     - ../../../components/gatus/guarded
   dependsOn:
-    - name: postgres-cluster-17-v4
+    - name: postgres-cluster-17
       namespace: database
     - name: onepassword-store
       namespace: security
