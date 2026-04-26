@@ -32,6 +32,13 @@ spec:
           ports:
             - name: metrics
               containerPort: 9594
+          startupProbe:
+            httpGet:
+              path: /
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 18
           livenessProbe:
             httpGet:
               path: /
