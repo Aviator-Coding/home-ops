@@ -5,8 +5,6 @@ kind: HelmRelease
 metadata:
   name: zigbee2mqtt
 spec:
-  # Suspended: Zigbee TCP serial bridge at 10.40.2.101:6638 is offline (2026-04-03)
-  suspend: true
   interval: 30m
   chartRef:
     kind: OCIRepository
@@ -22,11 +20,43 @@ spec:
           reloader.stakater.com/auto: "true"
 
         pod:
+          annotations:
+            k8s.v1.cni.cncf.io/networks: |
+              [{
+                "name":"multus-iot",
+                "namespace": "kube-system",
+                "ips": ["10.40.0.102/22"],
+                "mac": "3e:59:e4:f7:43:12"
+              }]
           securityContext:
             runAsUser: 2000
             runAsGroup: 2000
             fsGroup: 2000
             fsGroupChangePolicy: OnRootMismatch
+
+        # Bridge at 10.40.2.101 lives on the IoT VLAN reachable via the
+        # multus net1 interface, but Multus only installs the connected
+        # route in policy-routing table 100 - the main table still sends
+        # everything via eth0. Push the IoT subnet route into the main
+        # table so outbound TCP from any container picks net1 as egress.
+        initContainers:
+          init-iot-route:
+            image:
+              repository: docker.io/library/alpine
+              tag: "3.20"
+            command:
+              - sh
+              - -c
+              - |
+                ip route show 10.40.0.0/22 dev net1 >/dev/null 2>&1 || \
+                  ip route add 10.40.0.0/22 dev net1 src 10.40.0.102
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              capabilities:
+                add: ["NET_ADMIN"]
+                drop: ["ALL"]
 
         containers:
           app:
@@ -149,6 +179,12 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            url: https://zigbee2mqtt.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] == 200"
+            group: home-automation
         hostnames:
           - zigbee2mqtt.${SECRET_DOMAIN}
         parentRefs:
