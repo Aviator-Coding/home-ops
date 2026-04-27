@@ -23,7 +23,7 @@ spec:
         author: pingcap
     spec:
       # renovate: datasource=github-releases depName=tikv/pd
-      version: v8.5.5
+      version: v8.5.6
       resources:
         cpu: "2"
         memory: 8Gi
