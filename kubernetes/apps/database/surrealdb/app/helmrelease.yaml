@@ -25,9 +25,14 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    # Reduced to 1 to prevent TiKV write conflicts during changefeed GC
-    # Multiple replicas cause optimistic locking errors in background tasks
+    # Single replica is required for the RocksDB backend: only one writer
+    # can hold the data dir lock. Ceph RBD provides the HA we used to get
+    # from TiKV's Raft replication, with much less storage amplification.
     replicaCount: 1
+
+    # RWO PV must detach the old pod before the new one mounts it on rollout.
+    strategy:
+      type: Recreate
 
     image:
       repository: surrealdb/surrealdb
@@ -36,8 +41,10 @@ spec:
 
     # SurrealDB configuration
     surrealdb:
-      # TiKV backend connection
-      path: "tikv://coordinator-pd-peer.database.svc.cluster.local:2379"
+      # RocksDB backend on the persistent volume mounted at /data (see
+      # persistence: block below). Migrated off tikv:// to drop the
+      # 9x storage amplification (TiKV Raft 3x x Ceph CRUSH 3x).
+      path: "rocksdb:///data/surrealdb"
 
       # Authentication (from ExternalSecret)
       unauthenticated: false  # Enable auth (replaces deprecated "auth: true")
@@ -144,3 +151,13 @@ spec:
     # Service monitor for Prometheus
     serviceMonitor:
       enabled: true
+
+    # RocksDB data directory backed by ceph-block. Single Ceph-replicated
+    # PVC; SurrealDB no longer needs internal replication via TiKV.
+    persistence:
+      enabled: true
+      storageClassName: ceph-block
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+      mountPath: /data

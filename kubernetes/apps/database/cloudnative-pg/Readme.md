@@ -22,8 +22,6 @@ CNPG operator + the canonical `postgres-17` cluster, plus pgAdmin and the upstre
 
 ### Manual backup
 
-There is a name collision: both CNPG and TiDB-BR define a `Backup` kind. Always qualify the API group when scripting.
-
 ```yaml
 apiVersion: postgresql.cnpg.io/v1
 kind: Backup
