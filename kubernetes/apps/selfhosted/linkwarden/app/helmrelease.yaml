@@ -116,7 +116,7 @@ spec:
           gatus.home-operations.com/endpoint: |-
             url: https://links.${SECRET_DOMAIN}/
             conditions:
-              - "[STATUS] any (200, 307)"
+              - "[STATUS] == any(200, 307)"
             group: selfhosted
         hostnames:
           - "links.${SECRET_DOMAIN}"
