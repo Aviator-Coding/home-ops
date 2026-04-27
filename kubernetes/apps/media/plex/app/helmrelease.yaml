@@ -123,6 +123,11 @@ spec:
           gethomepage.dev/description: "Plex is a media server for streaming to Plex clients."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=plex
           external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            url: https://plex.${SECRET_DOMAIN}/identity
+            conditions:
+              - "[STATUS] == 200"
+            group: media
         hostnames:
           - plex.${SECRET_DOMAIN}
         parentRefs:
