@@ -5,10 +5,9 @@ kind: NetworkPolicy
 metadata:
   name: emqx-allow-monitoring
 spec:
-  # Allows Prometheus and the in-namespace emqx-exporter to reach the
-  # dashboard/metrics port. MQTT data plane (1883/8883/8083/8084) is
-  # exposed via the LoadBalancer service and is intentionally reachable
-  # from anywhere; access control is enforced by EMQX's own auth/ACL.
+  # The first NP applied to a pod converts it to default-deny — so any rule
+  # this policy doesn't enumerate gets blocked. We must list every port the
+  # cluster needs (gossip + MQTT + dashboard).
   podSelector:
     matchLabels:
       apps.emqx.io/instance: emqx
@@ -16,6 +15,27 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Cluster gossip / Mria / Erlang distribution between EMQX core nodes
+    # in the same namespace. Without this the cluster can't form.
+    - from:
+        - podSelector:
+            matchLabels:
+              apps.emqx.io/instance: emqx
+              apps.emqx.io/managed-by: emqx-operator
+      ports:
+        - { port: 4370, protocol: TCP }   # erlang distribution
+        - { port: 4369, protocol: TCP }   # epmd
+        - { port: 5369, protocol: TCP }   # cluster discovery
+    # MQTT data plane is intentionally reachable from anywhere (the
+    # service is a LoadBalancer at 10.50.0.30); access control is
+    # enforced by EMQX's own auth + ACL.
+    - ports:
+        - { port: 1883, protocol: TCP }   # MQTT
+        - { port: 8883, protocol: TCP }   # MQTTS
+        - { port: 8083, protocol: TCP }   # WebSocket
+        - { port: 8084, protocol: TCP }   # WebSocket Secure
+    # Dashboard / native Prometheus metrics: only Prometheus and the
+    # in-namespace exporter need it.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -27,5 +47,4 @@ spec:
             matchLabels:
               app: emqx-exporter
       ports:
-        - port: 18083
-          protocol: TCP
+        - { port: 18083, protocol: TCP }

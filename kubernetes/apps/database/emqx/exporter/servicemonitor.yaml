@@ -31,26 +31,7 @@ spec:
           targetLabel: instance
         - action: labeldrop
           regex: pod
-    # /probe — connectivity probe target (publishes & subscribes against the
-    # configured target list in the exporter config). Used by the
-    # client-events dashboard.
-    - port: metrics
-      path: /probe
-      interval: 30s
-      params:
-        target:
-          - "emqx-listeners.database.svc.cluster.local:1883"
-      relabelings:
-        - action: replace
-          replacement: emqx
-          targetLabel: cluster
-        - action: replace
-          replacement: exporter
-          targetLabel: from
-        - action: replace
-          sourceLabels: ["pod"]
-          regex: "(.*)-.*-.*"
-          replacement: $1
-          targetLabel: instance
-        - action: labeldrop
-          regex: pod
+    # NOTE: /probe endpoint scrape intentionally omitted. Probe is
+    # disabled in the exporter config (anonymous MQTT connect is
+    # rejected by our `no_match: deny` ACL). The client-events panel
+    # that uses probe metrics will read empty.

@@ -32,9 +32,9 @@ spec:
         ]
         no_match: "deny"
       }
-      api_key {
-        bootstrap_file = "/opt/init-api-keys"
-      }
+      # NOTE: EMQX bootstrap file path comes from EMQX_API_KEY__BOOTSTRAP_FILE
+      # which the operator injects as an env var. Env wins over HOCON, so we
+      # override it in coreTemplate.spec.env below; do not set it here.
   coreTemplate:
     metadata:
       annotations:
@@ -52,6 +52,12 @@ spec:
         limits:
           cpu: 1000m
           memory: 1Gi
+      env:
+        # Operator default is /opt/emqx/data/bootstrap_api_key (inside the
+        # PVC mount, where we cannot mount our Secret subPath). Point EMQX
+        # at the secret-mounted file the ExternalSecret renders for us.
+        - name: EMQX_API_KEY__BOOTSTRAP_FILE
+          value: /opt/init-api-keys
       envFrom:
         - secretRef:
             name: emqx-secret
