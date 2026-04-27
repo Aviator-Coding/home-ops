@@ -16,12 +16,20 @@ spec:
         namespace: flux-system
       interval: 5m
   install:
+    timeout: 10m
     remediation:
       retries: 3
   upgrade:
+    timeout: 10m
     cleanupOnFail: true
     remediation:
       retries: 3
+      # Re-install from scratch on failure rather than rolling back. The
+      # last successful release (v3) was the pre-RocksDB TiKV config; a
+      # rollback would resurrect SURREAL_PATH=tikv://... against a
+      # cluster where TiKV no longer exists, so every rollback fails
+      # and the release wedges.
+      strategy: uninstall
   uninstall:
     keepHistory: false
   values:
