@@ -34,8 +34,12 @@ spec:
         - { port: 8883, protocol: TCP }   # MQTTS
         - { port: 8083, protocol: TCP }   # WebSocket
         - { port: 8084, protocol: TCP }   # WebSocket Secure
-    # Dashboard / native Prometheus metrics: only Prometheus and the
-    # in-namespace exporter need it.
+    # Dashboard / native Prometheus metrics on :18083:
+    # - Prometheus (monitoring ns) and the in-namespace exporter scrape it.
+    # - The EMQX operator MUST reach it to call /api/v5/configs and similar
+    #   endpoints during reconciliation; without this allowance the operator
+    #   never marks pods as `apps.emqx.io/on-serving=True`, the dashboard
+    #   Service stays endpoint-less, and the rollout deadlocks.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -46,5 +50,9 @@ spec:
         - podSelector:
             matchLabels:
               app: emqx-exporter
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: emqx-operator
+              control-plane: controller-manager
       ports:
         - { port: 18083, protocol: TCP }
