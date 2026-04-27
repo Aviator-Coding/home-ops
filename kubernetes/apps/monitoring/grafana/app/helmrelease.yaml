@@ -99,6 +99,14 @@ spec:
             editable: true
             options:
               path: /var/lib/grafana/dashboards/security
+          - name: storage
+            orgId: 1
+            folder: Storage
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/storage
 
     dashboards:
       default:
@@ -354,30 +362,6 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
-        ceph-cluster:
-          # renovate: dashboardName="Ceph Cluster"
-          gnetId: 2842
-          revision: 18
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        ceph-osd:
-          # renovate: dashboardName="Ceph - OSD (Single)"
-          gnetId: 5336
-          revision: 9
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        ceph-pools:
-          # renovate: dashboardName="Ceph - Pools"
-          gnetId: 5342
-          revision: 9
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
         emqx-authentication:
           url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/authentication.json
           datasource: Prometheus
@@ -544,6 +528,31 @@ spec:
           # renovate: dashboardName="authentik"
           gnetId: 23043
           revision: 1
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+      storage:
+        ceph-cluster:
+          # renovate: dashboardName="Ceph Cluster"
+          gnetId: 2842
+          revision: 18
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        ceph-osd:
+          # renovate: dashboardName="Ceph - OSD (Single)"
+          gnetId: 5336
+          revision: 9
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+
+        ceph-pools:
+          # renovate: dashboardName="Ceph - Pools"
+          gnetId: 5342
+          revision: 9
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
