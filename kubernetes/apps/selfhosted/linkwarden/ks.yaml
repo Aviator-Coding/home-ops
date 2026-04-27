@@ -28,7 +28,6 @@ spec:
       namespace: database
   components:
     - ../../../../components/volsync
-    - ../../../../components/gatus/guarded
   postBuild:
     substituteFrom:
       - name: cluster-secrets

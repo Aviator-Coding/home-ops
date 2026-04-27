@@ -9,7 +9,6 @@ spec:
   targetNamespace: *namespace
   components:
     - ../../../../components/volsync
-    - ../../../../components/gatus/guarded
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
@@ -35,7 +34,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      GATUS_SUBDOMAIN: hass
       VOLSYNC_CAPACITY: 5Gi
       VOLSYNC_CLAIM: home-assistant
       VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"

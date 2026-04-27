@@ -35,7 +35,6 @@ spec:
       namespace: database
   components:
     - ../../../../components/volsync
-    - ../../../../components/gatus/guarded
     - ../../../../components/dragonfly
   postBuild:
     substituteFrom:

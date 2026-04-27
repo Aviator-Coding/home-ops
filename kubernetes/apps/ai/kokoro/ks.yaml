@@ -8,8 +8,6 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  components:
-    - ../../../../components/gatus/guarded
   interval: 1h
   path: "./kubernetes/apps/ai/kokoro/app"
   prune: true
@@ -24,6 +22,5 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      GATUS_GROUP: ai
   timeout: 5m
   wait: true
