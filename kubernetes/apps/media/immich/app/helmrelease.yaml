@@ -155,6 +155,11 @@ spec:
           gethomepage.dev/description: Self-hosted photo and video management
           gethomepage.dev/pod-selector: app.kubernetes.io/name=immich
           external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            url: https://photos.${SECRET_DOMAIN}/api/server/ping
+            conditions:
+              - "[STATUS] == 200"
+            group: media
         hostnames:
           - "photos.${SECRET_DOMAIN}"
         parentRefs:

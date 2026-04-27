@@ -13,6 +13,11 @@ metadata:
     gethomepage.dev/siteMonitor: "https://pgadmin.${SECRET_DOMAIN}"
     gethomepage.dev/description: "PostgreSQL administration"
     external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    gatus.home-operations.com/endpoint: |-
+      url: https://pgadmin.${SECRET_DOMAIN}/misc/ping
+      conditions:
+        - "[STATUS] == 200"
+      group: database
 spec:
   hostnames:
     - "pgadmin.${SECRET_DOMAIN}"

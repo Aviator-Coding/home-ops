@@ -64,6 +64,11 @@ spec:
           gethomepage.dev/icon: calibre-web.png
           gethomepage.dev/name: calibre-web
           gethomepage.dev/group: Selfhosted
+          gatus.home-operations.com/endpoint: |-
+            url: https://calibre-web.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] == 200"
+            group: media
         enabled: true
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:

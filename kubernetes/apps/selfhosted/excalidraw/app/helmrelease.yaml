@@ -59,6 +59,11 @@ spec:
           gethomepage.dev/group: Selfhosted
           gethomepage.dev/name: Excalidraw
           external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            url: https://excalidraw.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] == 200"
+            group: selfhosted
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

@@ -71,6 +71,11 @@ spec:
           gethomepage.dev/enabled: "true"
           gethomepage.dev/group: Selfhosted
           gethomepage.dev/name: *app
+          gatus.home-operations.com/endpoint: |-
+            url: https://changedetection.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] == 200"
+            group: selfhosted
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

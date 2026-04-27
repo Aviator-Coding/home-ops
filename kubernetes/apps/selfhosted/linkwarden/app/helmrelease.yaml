@@ -113,6 +113,11 @@ spec:
           gethomepage.dev/name: Linkwarden
           gethomepage.dev/icon: linkwarden.svg
           external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            url: https://links.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] any (200, 307)"
+            group: selfhosted
         hostnames:
           - "links.${SECRET_DOMAIN}"
         parentRefs:

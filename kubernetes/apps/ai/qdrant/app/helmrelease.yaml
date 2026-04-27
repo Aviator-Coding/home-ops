@@ -87,6 +87,12 @@ spec:
             port: *grpc-port
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            url: https://qdrant.${SECRET_DOMAIN}/healthz
+            conditions:
+              - "[STATUS] == 200"
+            group: ai
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

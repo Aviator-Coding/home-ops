@@ -116,6 +116,11 @@ spec:
           gethomepage.dev/name: N8N
           gethomepage.dev/icon: n8n.svg
           external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            url: https://n8n.${SECRET_DOMAIN}/healthz
+            conditions:
+              - "[STATUS] == 200"
+            group: selfhosted
         hostnames:
           - "n8n.${SECRET_DOMAIN}"
         parentRefs:
@@ -140,6 +145,7 @@ spec:
             conditions:
               - "[STATUS] == 404"
               - "[BODY].code == 404"
+            group: selfhosted
         hostnames:
           - "n8n-webhook.${SECRET_DOMAIN}"
         parentRefs:
@@ -154,12 +160,11 @@ spec:
             backendRefs:
               - name: n8n
                 port: 80
-                # NEW: OAuth callback rule                                                                                        
-          - matches:                                                                                                        
-              - path:                                                                                                       
-                  type: PathPrefix                                                                                          
-                  value: /rest/oauth2-credential                                                                            
-            backendRefs:                                                                                                    
-              - name: n8n                                                                                                   
-                port: 80   
-
+                # NEW: OAuth callback rule
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /rest/oauth2-credential
+            backendRefs:
+              - name: n8n
+                port: 80

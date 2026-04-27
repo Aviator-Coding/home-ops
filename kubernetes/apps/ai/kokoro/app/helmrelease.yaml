@@ -49,6 +49,11 @@ spec:
           gethomepage.dev/icon: sh-kokoro.svg
           gethomepage.dev/name: Kokoro
           gethomepage.dev/app: kokoro
+          gatus.home-operations.com/endpoint: |-
+            url: https://tts.${SECRET_DOMAIN}/v1/audio/voices
+            conditions:
+              - "[STATUS] == 200"
+            group: ai
         hostnames: ["tts.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

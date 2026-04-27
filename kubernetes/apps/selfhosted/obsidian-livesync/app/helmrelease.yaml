@@ -89,6 +89,11 @@ spec:
           gethomepage.dev/name: Obsidian LiveSync
           gethomepage.dev/icon: obsidian.svg
           external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            url: https://sync.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] == 200"
+            group: selfhosted
         hostnames:
           - "sync.${SECRET_DOMAIN}"
         parentRefs:

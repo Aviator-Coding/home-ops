@@ -101,6 +101,11 @@ spec:
           # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Readarr is a book and audiobook collection manager for Usenet and BitTorrent users."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=readarr
+          gatus.home-operations.com/endpoint: |-
+            url: https://readarr.${SECRET_DOMAIN}/ping
+            conditions:
+              - "[STATUS] == 200"
+            group: downloads
         hostnames:
           - readarr.${SECRET_DOMAIN}
         parentRefs:

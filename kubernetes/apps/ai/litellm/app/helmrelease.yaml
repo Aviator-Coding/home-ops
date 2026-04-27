@@ -105,6 +105,12 @@ spec:
             port: *port
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            url: https://litellm.${SECRET_DOMAIN}/health/liveness
+            conditions:
+              - "[STATUS] == 200"
+            group: ai
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

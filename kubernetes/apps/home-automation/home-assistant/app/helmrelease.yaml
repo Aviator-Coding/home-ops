@@ -114,6 +114,11 @@ spec:
           gethomepage.dev/group: "Home Automation"
           gethomepage.dev/name: home-assistant
           gethomepage.dev/icon: home-assistant.svg
+          gatus.home-operations.com/endpoint: |-
+            url: https://hass.${SECRET_DOMAIN}/manifest.json
+            conditions:
+              - "[STATUS] any (200, 302)"
+            group: home-automation
         hostnames:
           - "hass.${SECRET_DOMAIN}"
         parentRefs:

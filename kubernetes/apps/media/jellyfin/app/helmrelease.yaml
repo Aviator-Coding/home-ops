@@ -95,6 +95,11 @@ spec:
           # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Jellyfin is a free software media system that puts you in control of managing and streaming your media."
           gethomepage.dev/pod-selector: app.kubernetes.io/name={{ .Release.Name }}
+          gatus.home-operations.com/endpoint: |-
+            url: https://jellyfin.${SECRET_DOMAIN}/health
+            conditions:
+              - "[STATUS] == 200"
+            group: media
         hostnames:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
         parentRefs:
