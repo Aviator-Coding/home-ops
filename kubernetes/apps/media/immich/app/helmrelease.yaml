@@ -56,7 +56,13 @@ spec:
             image:
               # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
               repository: ghcr.io/immich-app/immich-server
-              tag: v1.144.1
+              # Temporary bridge: v1.131.0 -> v1.132.0 -> v1.144.1.
+              # v1.144's Kysely InitialMigration requires the last TypeORM
+              # migration to be 1744910873956-AddMissingIndex, which is the
+              # final TypeORM migration shipped in v1.132.0. After this
+              # pod runs successfully and applies the missing migrations,
+              # bump back to v1.144.1.
+              tag: v1.132.0
             env:
               IMMICH_PORT: &serverPort 2283
               DB_VECTOR_EXTENSION: pgvector
