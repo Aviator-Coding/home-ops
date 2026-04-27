@@ -5,14 +5,6 @@ kind: HelmRelease
 metadata:
   name: &app immich
 spec:
-  # 2026-04-25: SUSPENDED. The v1.131.0 -> v1.144.1 upgrade fails because new
-  # migrations need permissions on the pgvecto.rs 'vectors' schema that the
-  # immich Postgres user lacks ("permission denied for schema vectors"). The
-  # running v1.131.0 pod is healthy. Plan the upgrade deliberately:
-  # either grant 'USAGE, CREATE ON SCHEMA vectors TO <immich_user>' via the
-  # init-db-extensions block, or migrate immich to pure pgvector (pgvecto.rs
-  # is being deprecated upstream).
-  suspend: true
   interval: 30m
   # Keep this above the default because image and migration work can exceed 5m.
   timeout: 15m
