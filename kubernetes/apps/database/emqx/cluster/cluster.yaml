@@ -32,9 +32,13 @@ spec:
         ]
         no_match: "deny"
       }
-      # NOTE: EMQX bootstrap file path comes from EMQX_API_KEY__BOOTSTRAP_FILE
-      # which the operator injects as an env var. Env wins over HOCON, so we
-      # override it in coreTemplate.spec.env below; do not set it here.
+      # NOTE: api_key.bootstrap_file is owned by the operator. It hardcodes
+      # the env var EMQX_API_KEY__BOOTSTRAP_FILE=/opt/emqx/data/bootstrap_api_key
+      # and auto-mounts a Secret 'emqx-bootstrap-api-key' (which it generates
+      # on first install) at that path. We can't override either the env var
+      # or the mount via the EMQX CR. To bootstrap an exporter API key, use
+      # the dashboard UI -> System -> API Keys, then store key+secret in
+      # 1Password fields EMQX_EXPORTER_API_KEY / EMQX_EXPORTER_API_SECRET.
   coreTemplate:
     metadata:
       annotations:
@@ -52,12 +56,6 @@ spec:
         limits:
           cpu: 1000m
           memory: 1Gi
-      env:
-        # Operator default is /opt/emqx/data/bootstrap_api_key (inside the
-        # PVC mount, where we cannot mount our Secret subPath). Point EMQX
-        # at the secret-mounted file the ExternalSecret renders for us.
-        - name: EMQX_API_KEY__BOOTSTRAP_FILE
-          value: /opt/init-api-keys
       envFrom:
         - secretRef:
             name: emqx-secret
@@ -69,10 +67,6 @@ spec:
         - name: init-user
           mountPath: /opt/init-acl
           subPath: init-acl
-          readOnly: true
-        - name: init-user
-          mountPath: /opt/init-api-keys
-          subPath: init-api-keys
           readOnly: true
       extraVolumes:
         - name: init-user
