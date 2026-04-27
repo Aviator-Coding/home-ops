@@ -152,11 +152,14 @@ spec:
     serviceMonitor:
       enabled: true
 
-    # RocksDB data directory backed by ceph-block. Single Ceph-replicated
-    # PVC; SurrealDB no longer needs internal replication via TiKV.
+    # RocksDB data directory backed by Ceph (ceph-block is the cluster
+    # default StorageClass). Single Ceph-replicated PVC; SurrealDB no
+    # longer needs internal replication via TiKV.
+    # NOTE: storageClassName intentionally omitted to work around a bug
+    # in surrealdb chart 0.4.0 templates/pvc.yaml (duplicate
+    # storageClassName: line breaks Helm template rendering when set).
     persistence:
       enabled: true
-      storageClassName: ceph-block
       accessModes:
         - ReadWriteOnce
       size: 20Gi
