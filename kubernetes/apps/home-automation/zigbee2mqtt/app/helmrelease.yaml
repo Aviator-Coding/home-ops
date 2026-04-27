@@ -36,9 +36,10 @@ spec:
 
         # Bridge at 10.40.2.101 lives on the IoT VLAN reachable via the
         # multus net1 interface, but Multus only installs the connected
-        # route in policy-routing table 100 - the main table still sends
-        # everything via eth0. Push the IoT subnet route into the main
-        # table so outbound TCP from any container picks net1 as egress.
+        # route in policy-routing table 100 (matched by source IP). The
+        # main table still sends everything via eth0, so unbound outbound
+        # sockets never pick net1 as egress. Replace the IoT subnet route
+        # in the main table at startup; ip route replace is idempotent.
         initContainers:
           init-iot-route:
             image:
@@ -48,8 +49,10 @@ spec:
               - sh
               - -c
               - |
-                ip route show 10.40.0.0/22 dev net1 >/dev/null 2>&1 || \
-                  ip route add 10.40.0.0/22 dev net1 src 10.40.0.102
+                set -e
+                ip route replace 10.40.0.0/22 dev net1 src 10.40.0.102
+                echo "main table after fix:"
+                ip route show table main
             securityContext:
               runAsUser: 0
               runAsGroup: 0
