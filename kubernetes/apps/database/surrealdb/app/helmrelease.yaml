@@ -34,6 +34,12 @@ spec:
     strategy:
       type: Recreate
 
+    # SurrealDB image runs as UID 65532 (Chainguard/distroless nonroot).
+    # Ceph RBD mounts as root:root by default; fsGroup makes K8s chown
+    # the volume to GID 65532 so the container can mkdir + write data.
+    podSecurityContext:
+      fsGroup: 65532
+
     image:
       repository: surrealdb/surrealdb
       pullPolicy: IfNotPresent
