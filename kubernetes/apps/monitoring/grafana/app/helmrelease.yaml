@@ -175,7 +175,7 @@ spec:
                   "id": 2,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n- [TiDB](/d/tidb-cluster-summary)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/emqx-overview)\n- [NATS](/d/nats-server)",
+                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/emqx-overview)\n- [NATS](/d/nats-server)",
                     "mode": "markdown"
                   },
                   "title": "Infrastructure & Databases",
@@ -260,14 +260,6 @@ spec:
         kube-state-metrics:
           # renovate: dashboardName="Kube-State-Metrics"
           gnetId: 13332
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        tidb-cluster:
-          # renovate: dashboardName="TiDB Cluster Overview"
-          gnetId: 12857
           revision: 1
           datasource:
             - name: DS_PROMETHEUS
