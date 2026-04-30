@@ -44,7 +44,7 @@ spec:
           app:
             image:
               repository: ghcr.io/berriai/litellm-non_root
-              tag: main-v1.82.3-stable
+              tag: main-v1.83.10-stable
             args:
               - --host
               - "0.0.0.0"
