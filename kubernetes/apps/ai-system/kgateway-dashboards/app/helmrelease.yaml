@@ -8,7 +8,7 @@ spec:
   interval: 1h
   chart:
     spec:
-      chart: install/helm/kgateway-dashboards
+      chart: ./install/helm/kgateway-dashboards
       sourceRef:
         kind: GitRepository
         name: kgateway-dashboards
