@@ -21,10 +21,35 @@ spec:
               cpu: 100m
             limits:
               memory: 1Gi
+        # The gateway-helm v1.7.1 CRD does not expose
+        # envoyDeployment.container.lifecycle or pod.terminationGracePeriodSeconds.
+        # Use the strategic-merge `patch` escape hatch to override the
+        # chart-injected envoy preStop (httpGet :19002/shutdown/ready).
+        # That probe polls the sibling shutdown-manager container; when the
+        # shutdown-manager finishes its own preStop
+        # (`envoy-gateway envoy shutdown --drain-timeout=180s`) and exits,
+        # port 19002 disappears and kubelet records FailedPreStopHook on the
+        # envoy container. Replacing it with a passive sleep lets the
+        # shutdown-manager-driven graceful drain run uninterrupted; envoy
+        # still receives SIGTERM and drains via spec.shutdown.drainTimeout.
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              template:
+                spec:
+                  terminationGracePeriodSeconds: 360
+                  containers:
+                    - name: envoy
+                      lifecycle:
+                        preStop:
+                          exec:
+                            command: ["/bin/sleep", "210"]
       envoyService:
         externalTrafficPolicy: Local
   shutdown:
     drainTimeout: 180s
+    minDrainDuration: 60s
   telemetry:
     metrics:
       prometheus:
