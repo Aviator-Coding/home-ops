@@ -21,12 +21,16 @@ spec:
 
         pod:
           annotations:
+            # Static IP only. MAC pin removed 2026-05-02 to fix macvlan
+            # "address already in use" race during pod recreation: with a
+            # pinned MAC on bond0.3, the kernel rejects the new pod's net1
+            # while the dying pod's veth still holds the same MAC. A fresh
+            # MAC each cycle eliminates the collision; IoT devices key on IP.
             k8s.v1.cni.cncf.io/networks: |
               [{
                 "name":"multus-iot",
                 "namespace": "kube-system",
-                "ips": ["10.40.0.100/16"],
-                "mac": "3e:59:e4:f7:43:10"
+                "ips": ["10.40.0.100/16"]
               }]
         containers:
           app:
