@@ -141,6 +141,8 @@ spec:
         ports:
           http:
             port: *serverPort
+          metrics:
+            port: 8081
       machine-learning:
         controller: machine-learning
         ports:
