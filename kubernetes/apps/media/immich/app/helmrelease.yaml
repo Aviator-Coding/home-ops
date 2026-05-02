@@ -62,6 +62,8 @@ spec:
               DB_VECTOR_EXTENSION: pgvector
               REDIS_HOSTNAME: immich-dragonfly.media.svc.cluster.local
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning.media.svc.cluster.local:3003
+              IMMICH_TELEMETRY_INCLUDE: api,host,jobs,microservices,queues,repo
+              IMMICH_API_METRICS_PORT: &serverMetricsPort 8081
             envFrom: *envFrom
             resources:
               requests:
@@ -139,6 +141,8 @@ spec:
         ports:
           http:
             port: *serverPort
+          metrics:
+            port: *serverMetricsPort
       machine-learning:
         controller: machine-learning
         ports:

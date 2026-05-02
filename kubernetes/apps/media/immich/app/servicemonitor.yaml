@@ -1,0 +1,15 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: immich
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: immich
+      app.kubernetes.io/service: immich-server
+  endpoints:
+    - port: metrics
+      interval: 1m
+      scrapeTimeout: 30s
+      path: /metrics
