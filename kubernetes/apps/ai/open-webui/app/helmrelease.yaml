@@ -94,9 +94,10 @@ spec:
                 memory: 2Gi
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
+        # Upstream Open-WebUI image defaults to UID/GID 0 and writes to
+        # /app/backend/open_webui/static at runtime — running as 1000 caused
+        # [Errno 13] Permission denied errors on theming/static files.
+        # fsGroup still chown's the PVC at /app/backend/data to gid 1000.
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
       topologySpreadConstraints:
