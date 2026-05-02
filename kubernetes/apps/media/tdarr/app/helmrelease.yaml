@@ -88,6 +88,9 @@ spec:
       # Worker DaemonSet: one pod per K8s node, each with a GPU.
       tdarr-node:
         type: daemonset
+        pod:
+          nodeSelector:
+            intel.feature.node.kubernetes.io/gpu: "true"
         containers:
           app:
             image:
