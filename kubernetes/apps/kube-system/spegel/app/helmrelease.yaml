@@ -12,6 +12,12 @@ spec:
   values:
     grafanaDashboard:
       enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
     service:
       registry:
         hostPort: 29999

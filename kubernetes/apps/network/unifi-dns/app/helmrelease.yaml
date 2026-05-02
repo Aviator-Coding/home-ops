@@ -18,12 +18,24 @@ spec:
       retries: 3
   values:
     fullnameOverride: *app
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 192Mi
     provider:
       name: webhook
       webhook:
         image:
           repository: ghcr.io/kashalls/external-dns-unifi-webhook
           tag: v0.8.2@sha256:7f0ddbbc83a36a2a9d762e25eef9cafcb3adf0493068a27d72ae71087eafe6f0
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
         env:
           - name: UNIFI_HOST
             valueFrom:
