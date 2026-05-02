@@ -74,38 +74,6 @@ spec:
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
 
-          exporter:
-            image:
-              # renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr
-              repository: ghcr.io/onedr0p/exportarr
-              tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
-            args: ["sonarr"]
-            env:
-              PORT: &metricsPort 9707
-              URL: http://localhost:8989
-              API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: sonarr-secret
-                    key: SONARR__AUTH__APIKEY
-            probes:
-              liveness:
-                enabled: false
-              readiness:
-                enabled: false
-              startup:
-                enabled: false
-            resources:
-              requests:
-                cpu: 10m
-                memory: 32Mi
-              limits:
-                memory: 64Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
-
     defaultPodOptions:
       topologySpreadConstraints:
         - maxSkew: 2
@@ -121,8 +89,6 @@ spec:
         ports:
           http:
             port: *port
-          metrics:
-            port: *metricsPort
 
     persistence:
       config:
