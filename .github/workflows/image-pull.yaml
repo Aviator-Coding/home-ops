@@ -72,7 +72,7 @@ jobs:
               -v "$GITHUB_WORKSPACE:/github/workspace" \
               -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
               -e HELM_TIMEOUT=300 \
-              ghcr.io/allenporter/flux-local:v8.1.0 \
+              ghcr.io/allenporter/flux-local:v8.2.0 \
               get cluster \
               --all-namespaces \
               --path /github/workspace/kubernetes/flux/cluster \
