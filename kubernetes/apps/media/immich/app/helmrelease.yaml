@@ -7,7 +7,8 @@ metadata:
 spec:
   interval: 30m
   # Keep this above the default because image and migration work can exceed 5m.
-  timeout: 15m
+  # Bumped from 15m to 25m to absorb cold-start jitter when telemetry is enabled.
+  timeout: 25m
   chartRef:
     kind: OCIRepository
     name: app-template
@@ -62,6 +63,7 @@ spec:
               DB_VECTOR_EXTENSION: pgvector
               REDIS_HOSTNAME: immich-dragonfly.media.svc.cluster.local
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning.media.svc.cluster.local:3003
+              IMMICH_TELEMETRY_INCLUDE: api
             envFrom: *envFrom
             resources:
               requests:
