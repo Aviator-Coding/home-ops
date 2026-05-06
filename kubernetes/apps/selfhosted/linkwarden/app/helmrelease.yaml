@@ -30,7 +30,7 @@ spec:
           init-playwright:
             image:
               repository: ghcr.io/linkwarden/linkwarden
-              tag: v2.14.0
+              tag: v2.14.1
             command:
               - /bin/sh
               - -c
@@ -40,7 +40,7 @@ spec:
           app:
             image:
               repository: ghcr.io/linkwarden/linkwarden
-              tag: v2.14.0
+              tag: v2.14.1
             env:
               NEXT_SHARP_PATH: /data/node_modules/sharp
               NEXTAUTH_URL: "https://links.${SECRET_DOMAIN}"
