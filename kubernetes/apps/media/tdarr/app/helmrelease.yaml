@@ -31,7 +31,7 @@ spec:
           app:
             image:
               repository: ghcr.io/haveagitgat/tdarr
-              tag: 2.68.01
+              tag: 2.71.01
             env:
               - name: TZ
                 value: America/New_York
