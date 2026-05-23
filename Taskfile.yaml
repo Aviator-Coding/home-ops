@@ -35,7 +35,8 @@ tasks:
   setup-dev-env:
     cmds:
       - mise install
-      - pre-commit install --hook-type pre-commit --hook-type commit-msg
+      - mise exec -- pre-commit install
+      - mise exec -- pre-commit install --hook-type commit-msg
     desc: Setup dev environment and install pre-commit hooks
 
   reconcile:
