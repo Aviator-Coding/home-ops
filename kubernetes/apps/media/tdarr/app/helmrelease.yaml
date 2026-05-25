@@ -155,19 +155,6 @@ spec:
             port: 8265
           server:
             port: 8266
-      # Exposes the node-connection port (8266) on the LAN so an external
-      # Tdarr_Node (e.g. a Windows PC outside the cluster) can connect. This is
-      # a raw socket.io connection, not HTTP, so it cannot ride the HTTPRoute/
-      # Gateway used for the web UI - it needs its own L4 LoadBalancer IP.
-      external:
-        controller: tdarr
-        type: LoadBalancer
-        annotations:
-          lbipam.cilium.io/ips: 10.50.0.53
-        ports:
-          node:
-            port: 8266
-            targetPort: 8266
 
     persistence:
       config:
