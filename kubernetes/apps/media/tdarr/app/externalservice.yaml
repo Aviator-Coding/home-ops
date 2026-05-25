@@ -10,7 +10,7 @@ kind: Service
 metadata:
   name: tdarr-node-lb
   annotations:
-    lbipam.cilium.io/ips: 10.50.0.53
+    lbipam.cilium.io/ips: 10.50.0.54
 spec:
   type: LoadBalancer
   selector:
