@@ -1,7 +1,9 @@
 ---
-# IMPORTANT: This template uses ceph-volume to properly clear BlueStore labels.
-# Standard tools (sgdisk, dd) do NOT clear BlueStore superblock metadata.
-# See: .claude/skills/ceph-rook/references/osd-recovery.md
+# IMPORTANT: Clears a single OSD disk so the operator re-provisions it cleanly.
+# ceph-volume zap removes BlueStore labels, but `wipefs -af` is required to erase
+# the blkid signature that lsblk/the operator key on (without it the disk shows
+# FSTYPE=ceph_bluestore and is skipped as "already configured"). blkdiscard does a
+# full-device TRIM as a final safeguard.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -22,14 +24,22 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             - |
-              echo "Wiping disk /host${disk} with ceph-volume..."
-              # Use ceph-volume to properly clear BlueStore labels and LVM metadata
-              ceph-volume lvm zap --destroy /host${disk} || echo "ceph-volume lvm zap failed, trying raw zap..."
-              # Fallback to raw zap for non-LVM OSDs
-              ceph-volume raw zap /host${disk} || echo "ceph-volume raw zap completed or not applicable"
-              # Final cleanup: issue TRIM/discard to SSD and notify kernel
-              blkdiscard /host${disk} || echo "blkdiscard not supported"
+              echo "== Wiping disk /host${disk} =="
+              echo "-- before --"; lsblk -f /host${disk} 2>/dev/null; wipefs /host${disk} 2>/dev/null
+              # Clear BlueStore labels + LVM metadata via ceph-volume
+              ceph-volume lvm zap --destroy /host${disk} || echo "ceph-volume lvm zap not applicable"
+              # Erase any remaining filesystem/BlueStore signatures (this is what
+              # lsblk/blkid key on; without it the operator sees a "configured" disk)
+              wipefs -af /host${disk} || echo "wipefs failed"
+              # Destroy the partition table
+              sgdisk --zap-all /host${disk} || echo "sgdisk not applicable"
+              # Full-device TRIM/discard (forced) to clear all data on the SSD
+              blkdiscard -f /host${disk} || echo "blkdiscard not supported"
+              # Belt-and-suspenders: zero the head of the device
+              dd if=/dev/zero of=/host${disk} bs=1M count=100 oflag=direct conv=fsync || true
               partprobe /host${disk} || true
+              udevadm settle 2>/dev/null || true
+              echo "-- after --"; lsblk -f /host${disk} 2>/dev/null; wipefs /host${disk} 2>/dev/null
               echo "Disk wipe complete for /host${disk}"
           securityContext:
             privileged: true
