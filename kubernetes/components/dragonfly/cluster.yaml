@@ -6,7 +6,7 @@ metadata:
   name: ${APP}-dragonfly
 spec:
   # renovate: datasource=docker depName=ghcr.io/dragonflydb/dragonfly
-  image: ghcr.io/dragonflydb/dragonfly:v1.38.0
+  image: ghcr.io/dragonflydb/dragonfly:v1.38.1
   replicas: 2
   args:
     # Dragonfly v1.38.0 enforces a 256 MiB-per-proactor-thread floor, so with
