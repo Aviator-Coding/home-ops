@@ -18,6 +18,7 @@ talosconfig
 .private/
 .task/
 .venv/
+.pytest_cache/
 .DS_Store
 Thumbs.db
 1password-credential.json
@@ -31,3 +32,4 @@ logs/
 specs/
 reports/
 kubernetes/AGENTS.md
+.omc/
