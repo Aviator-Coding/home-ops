@@ -5,6 +5,9 @@ set shell := ['bash', '-euo', 'pipefail', '-c']
 # Talos Recipes
 mod talos "talos"
 
+# Bootstrap Recipes
+mod bootstrap "bootstrap"
+
 [private]
 default:
     just -l

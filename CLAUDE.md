@@ -122,13 +122,33 @@ task rook:cleanup
 
 ### Bootstrap Operations
 
-```bash
-# Bootstrap Talos cluster (first-time setup)
-task bootstrap:talos
+> ⚠️ **Bootstrap is a disaster-recovery / first-time-setup operation only.** The
+> `apps`/`crds`/`resources` stages `helmfile sync` and `kubectl apply` against the
+> cluster — never run a full bootstrap against a healthy running cluster. See
+> `bootstrap/AGENTS.md`.
 
-# Bootstrap applications into cluster
-task bootstrap:apps
+```bash
+# --- New just-based path (preferred, onedr0p-style) ---
+# Full end-to-end bootstrap (talos -> k8s -> kubeconfig -> namespaces -> resources -> crds -> apps)
+just bootstrap            # runs the default staged recipe
+# Or run individual stages:
+just bootstrap talos      # apply Talos config to all nodes (insecure/maintenance)
+just bootstrap k8s        # talosctl bootstrap etcd
+just bootstrap resources  # apply bootstrap secrets (1Password via vals)
+just bootstrap crds       # install CRDs (helmfile template | yq | kubectl apply)
+just bootstrap apps       # helmfile sync (cilium, coredns, spegel, cert-manager, flux)
 ```
+
+```bash
+# --- Legacy talhelper + script path (fallback until Stage 3 cleanup) ---
+task bootstrap:talos      # talhelper gensecret/genconfig/apply/bootstrap/kubeconfig
+task bootstrap:apps       # scripts/bootstrap-apps.sh
+```
+
+Bootstrap secrets live in 1Password `Home-Lab` (`1password`, `sops` items) and are
+injected by `vals` at apply time via `bootstrap/resources.yaml.j2`. The legacy
+`bootstrap/helmfile.yaml` is stale (references removed `helm/values.yaml` paths) —
+the new path uses `bootstrap/helmfile.d/{00-crds,01-apps}.yaml`.
 
 ## Architecture & Patterns
 
