@@ -2,6 +2,7 @@
 /tmp
 *.pub
 *.key
+/.secrets.env
 *.decrypted~*.yaml
 /age.key
 /cloudflare-tunnel.json
