@@ -22,10 +22,6 @@ bootstrap/
 │   ├── 00-crds.yaml               # CRD extraction (--include-crds --no-hooks); filtered in the recipe
 │   ├── 01-apps.yaml               # core apps: cilium, coredns, spegel, cert-manager, flux-operator, flux-instance
 │   └── templates/values.yaml.gotmpl  # reads .spec.values from each app's kubernetes/apps/.../helmrelease.yaml
-│
-│   # --- legacy (stale; Stage 3 removes) ---
-├── helmfile.yaml                  # OLD — references removed app/helm/values.yaml paths
-└── (legacy bootstrap is .taskfiles/bootstrap + scripts/bootstrap-apps.sh)
 ```
 
 ## WORKFLOW
@@ -34,7 +30,7 @@ bootstrap/
 # Full bootstrap (DR / first setup)
 just bootstrap
 # Individual stages
-just bootstrap talos      # just --yes talos apply-node talos-{1,2,3} --insecure  (uses Stage 1 talos path)
+just bootstrap talos      # just --yes talos apply-node talos-{1,2,3} --insecure
 just bootstrap k8s        # talosctl bootstrap
 just bootstrap resources  # apply 1Password-injected bootstrap secrets
 just bootstrap crds       # helmfile template | yq 'select(CRD)' | kubectl apply
@@ -69,6 +65,5 @@ must NOT be added here.
 
 ## NOTES
 
-- Depends on Stage 1: the `talos` stage calls `just --yes talos apply-node <name>` (names `talos-1|2|3` from `talos/nodes/*.yaml.j2`), and reuses the root `template`/`log` helpers.
+- Depends on `talos/mod.just`: the `talos` stage calls `just --yes talos apply-node` for each node.
 - `mod.just` evaluates `controller`/`nodes` from `talosctl config info` at load, so a valid `TALOSCONFIG` must exist for `just -l bootstrap`.
-- Legacy `bootstrap/helmfile.yaml` + `.taskfiles/bootstrap` + `scripts/bootstrap-apps.sh` remain as fallback until Stage 3 cleanup.
