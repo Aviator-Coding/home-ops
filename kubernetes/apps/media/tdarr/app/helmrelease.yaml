@@ -119,8 +119,10 @@ spec:
                 value: mapped
               - name: ffmpegVersion
                 value: "7"
+              # Transcoding is handled by an external GPU node (see tdarr-node-lb).
+              # In-cluster Talos nodes only run health-check workers.
               - name: transcodegpuWorkers
-                value: "1"
+                value: "0"
               - name: transcodecpuWorkers
                 value: "0"
               - name: healthcheckgpuWorkers
