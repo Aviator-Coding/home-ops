@@ -14,7 +14,6 @@ spec:
   timeout: 5m
   components:
     - ../../../../components/volsync
-    - ../../../../components/gatus/guarded
   path: "./kubernetes/apps/media/calibre-web/app"
   prune: true
   sourceRef:
@@ -33,8 +32,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      HOSTNAME: calibre.${SECRET_DOMAIN}
-      GATUS_SUBDOMAIN: calibre
       VOLSYNC_CAPACITY: 10Gi
       VOLSYNC_PUID: "2000"
       VOLSYNC_PGID: "2000"

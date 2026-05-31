@@ -39,7 +39,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/sonarr
-              tag: 4.0.17.2953
+              tag: 4.0.17.2967
             env:
               SONARR__APP__INSTANCENAME: Sonarr
               SONARR__APP__THEME: dark
@@ -73,29 +73,6 @@ spec:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
-          exportarr:
-            image:
-              repository: ghcr.io/onedr0p/exportarr
-              tag: latest
-            args: [sonarr]
-            env:
-              PORT: &metricsPort 8080
-              URL: http://localhost:8989
-              API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: sonarr-secret
-                    key: SONARR__AUTH__APIKEY
-            resources:
-              requests:
-                cpu: 10m
-                memory: 64Mi
-              limits:
-                memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
 
     defaultPodOptions:
       topologySpreadConstraints:
@@ -112,16 +89,6 @@ spec:
         ports:
           http:
             port: *port
-          metrics:
-            port: *metricsPort
-
-    serviceMonitor:
-      app:
-        endpoints:
-          - port: metrics
-            path: /metrics
-            interval: 30s
-            scrapeTimeout: 10s
 
     persistence:
       config:

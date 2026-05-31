@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: ghcr.io/gethomepage/homepage
-              tag: v1.12.3
+              tag: v1.13.1
             env:
               - name: HOMEPAGE_ALLOWED_HOSTS
                 value: "*"
@@ -70,6 +70,11 @@ spec:
           gethomepage.dev/group: Cluster Management
           gethomepage.dev/icon: homepage.png
           gethomepage.dev/name: Homepage
+          gatus.home-operations.com/endpoint: |-
+            url: https://homepage.${SECRET_DOMAIN}/api/healthcheck
+            conditions:
+              - "[STATUS] == 200"
+            group: selfhosted
         enabled: true
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:

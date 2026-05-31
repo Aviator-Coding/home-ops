@@ -10,7 +10,6 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../../components/gatus/guarded
     - ../../../../components/volsync
   interval: 1h
   path: ./kubernetes/apps/ai/perplexica/app
@@ -20,7 +19,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      GATUS_GROUP: *namespace
       VOLSYNC_SCHEDULE_CEPH: "45 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "20 2 * * *"

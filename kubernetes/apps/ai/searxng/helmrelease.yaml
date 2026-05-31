@@ -47,7 +47,7 @@ spec:
                     port: *port
                   initialDelaySeconds: 0
                   periodSeconds: 10
-                  timeoutSeconds: 1
+                  timeoutSeconds: 5
                   failureThreshold: 3
               readiness: *probes
             securityContext:
@@ -82,6 +82,12 @@ spec:
             port: *port
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            url: https://search.${SECRET_DOMAIN}/stats
+            conditions:
+              - "[STATUS] == 200"
+            group: ai
         hostnames:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
           - search.${SECRET_DOMAIN}

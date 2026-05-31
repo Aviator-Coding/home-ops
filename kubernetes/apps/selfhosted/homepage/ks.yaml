@@ -6,8 +6,6 @@ metadata:
   name: &app homepage
   namespace: &namespace selfhosted
 spec:
-  components:
-    - ../../../../components/gatus/guarded
   path: ./kubernetes/apps/selfhosted/homepage/app
   targetNamespace: *namespace
   sourceRef:

@@ -25,4 +25,9 @@ spec:
     - error.*lookup.*github
     - dial.*tcp.*timeout
     - waiting.*socket
+    # Suppress recurring drift noise for upstream-managed CRD bundles whose
+    # rendered manifests intentionally diverge from chart output (kagent /
+    # kmcp install CRDs with annotations Flux later prunes back).
+    - kagent-crds
+    - kmcp-crds
   suspend: false

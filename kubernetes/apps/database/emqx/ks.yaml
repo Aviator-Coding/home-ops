@@ -61,3 +61,29 @@ spec:
       kind: EMQX
       failed: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'False')
       current: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'True')
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app emqx-exporter
+  namespace: &namespace database
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  interval: 30m
+  timeout: 5m
+  path: ./kubernetes/apps/database/emqx/exporter
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: true
+  dependsOn:
+    - name: emqx-cluster
+      namespace: database
+    - name: onepassword-store
+      namespace: security

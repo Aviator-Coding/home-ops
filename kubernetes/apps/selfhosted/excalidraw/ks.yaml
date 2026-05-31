@@ -7,8 +7,6 @@ metadata:
   namespace: &namespace selfhosted
 spec:
   targetNamespace: *namespace
-  components:
-    - ../../../../components/gatus/guarded
   path: ./kubernetes/apps/selfhosted/excalidraw/app
   commonMetadata:
     labels:
@@ -27,4 +25,3 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      HOSTNAME: draw.${SECRET_DOMAIN}

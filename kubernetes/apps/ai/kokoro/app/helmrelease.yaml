@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/remsky/kokoro-fastapi-cpu
-              tag: v0.2.4
+              tag: v0.4.0
             resources:
               requests:
                 cpu: 10m
@@ -49,6 +49,11 @@ spec:
           gethomepage.dev/icon: sh-kokoro.svg
           gethomepage.dev/name: Kokoro
           gethomepage.dev/app: kokoro
+          gatus.home-operations.com/endpoint: |-
+            url: https://tts.${SECRET_DOMAIN}/v1/audio/voices
+            conditions:
+              - "[STATUS] == 200"
+            group: ai
         hostnames: ["tts.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

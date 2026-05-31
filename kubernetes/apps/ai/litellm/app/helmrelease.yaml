@@ -44,7 +44,7 @@ spec:
           app:
             image:
               repository: ghcr.io/berriai/litellm-non_root
-              tag: main-v1.82.3-stable
+              tag: main-v1.83.14-stable
             args:
               - --host
               - "0.0.0.0"
@@ -105,6 +105,12 @@ spec:
             port: *port
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            url: https://litellm.${SECRET_DOMAIN}/health/liveness
+            conditions:
+              - "[STATUS] == 200"
+            group: ai
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

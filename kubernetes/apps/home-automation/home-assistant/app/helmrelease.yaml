@@ -21,18 +21,22 @@ spec:
 
         pod:
           annotations:
+            # Static IP only. MAC pin removed 2026-05-02 to fix macvlan
+            # "address already in use" race during pod recreation: with a
+            # pinned MAC on bond0.3, the kernel rejects the new pod's net1
+            # while the dying pod's veth still holds the same MAC. A fresh
+            # MAC each cycle eliminates the collision; IoT devices key on IP.
             k8s.v1.cni.cncf.io/networks: |
               [{
                 "name":"multus-iot",
                 "namespace": "kube-system",
-                "ips": ["10.40.0.100/16"],
-                "mac": "3e:59:e4:f7:43:10"
+                "ips": ["10.40.0.100/16"]
               }]
         containers:
           app:
             image:
               repository: ghcr.io/home-operations/home-assistant
-              tag: 2026.4.2
+              tag: 2026.5.4
 
             env:
               TZ: America/New_York
@@ -55,7 +59,7 @@ spec:
           code-server:
             image:
               repository: ghcr.io/coder/code-server
-              tag: 4.112.0@sha256:ddd9b0b854fec5a3c65ec0095b5c59fb8505ad44d8a18d00d6fcf6a3179692dd
+              tag: 4.122.0@sha256:dbe5b1cf5c1f0edf47da6363fdadb89c456fb14b3d7e2a1545cabe20f5d7402a
             args:
               [
                 "--auth",
@@ -114,6 +118,11 @@ spec:
           gethomepage.dev/group: "Home Automation"
           gethomepage.dev/name: home-assistant
           gethomepage.dev/icon: home-assistant.svg
+          gatus.home-operations.com/endpoint: |-
+            url: https://hass.${SECRET_DOMAIN}/manifest.json
+            conditions:
+              - "[STATUS] == any(200, 302)"
+            group: home-automation
         hostnames:
           - "hass.${SECRET_DOMAIN}"
         parentRefs:

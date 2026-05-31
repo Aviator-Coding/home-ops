@@ -13,6 +13,11 @@ metadata:
     gethomepage.dev/description: "Coder Platform"
     gethomepage.dev/pod-selector: app.kubernetes.io/name=coder
     external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN},external.${SECRET_DOMAIN}"
+    gatus.home-operations.com/endpoint: |-
+      url: https://coder.${SECRET_DOMAIN}/healthz
+      conditions:
+        - "[STATUS] == 200"
+      group: coder
 spec:
   hostnames:
     - "coder.${SECRET_DOMAIN}"

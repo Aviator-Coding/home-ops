@@ -10,7 +10,6 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../../components/gatus/guarded
     - ../../../../components/volsync
   dependsOn:
     - name: onepassword-store
@@ -23,7 +22,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      GATUS_GROUP: ai
       VOLSYNC_CAPACITY: 25Gi
       VOLSYNC_SCHEDULE_CEPH: "30 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"

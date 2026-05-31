@@ -6,3 +6,6 @@ resources:
   - ./externalsecret.yaml
   - ./cluster.yaml
   - ./httproute.yaml
+  - ./podmonitor.yaml
+  - ./networkpolicy.yaml
+  - ./gatus.yaml

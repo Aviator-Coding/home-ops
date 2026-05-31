@@ -16,18 +16,37 @@ spec:
         namespace: flux-system
       interval: 5m
   install:
+    timeout: 10m
     remediation:
       retries: 3
   upgrade:
+    timeout: 10m
     cleanupOnFail: true
     remediation:
       retries: 3
+      # Re-install from scratch on failure rather than rolling back. The
+      # last successful release (v3) was the pre-RocksDB TiKV config; a
+      # rollback would resurrect SURREAL_PATH=tikv://... against a
+      # cluster where TiKV no longer exists, so every rollback fails
+      # and the release wedges.
+      strategy: uninstall
   uninstall:
     keepHistory: false
   values:
-    # Reduced to 1 to prevent TiKV write conflicts during changefeed GC
-    # Multiple replicas cause optimistic locking errors in background tasks
+    # Single replica is required for the RocksDB backend: only one writer
+    # can hold the data dir lock. Ceph RBD provides the HA we used to get
+    # from TiKV's Raft replication, with much less storage amplification.
     replicaCount: 1
+
+    # RWO PV must detach the old pod before the new one mounts it on rollout.
+    strategy:
+      type: Recreate
+
+    # SurrealDB image runs as UID 65532 (Chainguard/distroless nonroot).
+    # Ceph RBD mounts as root:root by default; fsGroup makes K8s chown
+    # the volume to GID 65532 so the container can mkdir + write data.
+    podSecurityContext:
+      fsGroup: 65532
 
     image:
       repository: surrealdb/surrealdb
@@ -36,8 +55,10 @@ spec:
 
     # SurrealDB configuration
     surrealdb:
-      # TiKV backend connection
-      path: "tikv://coordinator-pd-peer.database.svc.cluster.local:2379"
+      # RocksDB backend on the persistent volume mounted at /data (see
+      # persistence: block below). Migrated off tikv:// to drop the
+      # 9x storage amplification (TiKV Raft 3x x Ceph CRUSH 3x).
+      path: "rocksdb:///data/surrealdb"
 
       # Authentication (from ExternalSecret)
       unauthenticated: false  # Enable auth (replaces deprecated "auth: true")
@@ -144,3 +165,16 @@ spec:
     # Service monitor for Prometheus
     serviceMonitor:
       enabled: true
+
+    # RocksDB data directory backed by Ceph (ceph-block is the cluster
+    # default StorageClass). Single Ceph-replicated PVC; SurrealDB no
+    # longer needs internal replication via TiKV.
+    # NOTE: storageClassName intentionally omitted to work around a bug
+    # in surrealdb chart 0.4.0 templates/pvc.yaml (duplicate
+    # storageClassName: line breaks Helm template rendering when set).
+    persistence:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+      mountPath: /data

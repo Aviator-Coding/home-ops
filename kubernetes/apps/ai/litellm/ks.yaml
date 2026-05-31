@@ -13,7 +13,6 @@ spec:
   components:
     - ../../../../components/dragonfly
     - ../../../../components/volsync
-    - ../../../../components/gatus/guarded
   dependsOn:
     - name: dragonfly-operator
       namespace: database

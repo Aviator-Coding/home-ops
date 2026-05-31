@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
-ARG TALOS_VERSION=v1.12.6
+ARG TALOS_VERSION=v1.13.3
 FROM ghcr.io/siderolabs/talosctl:${TALOS_VERSION} AS talosctl
 
-FROM busybox:1.37
+FROM busybox:1.38
 
 ARG TALOS_VERSION
 LABEL org.opencontainers.image.source="https://github.com/aviator-coding/home-ops"

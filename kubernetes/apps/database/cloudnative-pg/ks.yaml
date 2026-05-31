@@ -22,42 +22,6 @@ spec:
       - name: cluster-secrets
         kind: Secret
   wait: true
-# ---
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# apiVersion: kustomize.toolkit.fluxcd.io/v1
-# kind: Kustomization
-# metadata:
-#   name: &app postgres-cluster-16
-#   namespace: &namespace database
-# spec:
-#   commonMetadata:
-#     labels:
-#       app.kubernetes.io/name: *app
-#   dependsOn:
-#     - name: cloudnative-pg
-#       namespace: database
-#     - name: rook-ceph
-#       namespace: rook-ceph
-#     - name: external-secrets
-#       namespace: security
-#   healthCheckExprs:
-#     - apiVersion: postgresql.cnpg.io/v1
-#       kind: Cluster
-#       current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
-#       failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')
-#   interval: 30m
-#   path: ./kubernetes/apps/database/cloudnative-pg/cluster-16
-#   prune: true
-#   sourceRef:
-#     kind: GitRepository
-#     name: flux-system
-#     namespace: flux-system
-#   postBuild:
-#     substituteFrom:
-#       - name: cluster-secrets
-#         kind: Secret
-#   targetNamespace: *namespace
-#   wait: true
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -76,11 +40,15 @@ spec:
       namespace: rook-ceph
     - name: external-secrets
       namespace: security
+  # Operational health gate: readyInstances + ContinuousArchiving (not the Ready
+  # condition, which CNPG can latch False indefinitely even while the cluster
+  # serves reads/writes). readyInstances >= 1 because the cluster starts with
+  # 2 instances (talos-3 excluded; see cluster-17.yaml nodeAffinity).
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
-      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
-      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')
+      current: status.readyInstances >= 1 && status.conditions.filter(e, e.type == 'ContinuousArchiving').all(e, e.status == 'True')
+      failed: status.readyInstances < 1
   interval: 30m
   path: ./kubernetes/apps/database/cloudnative-pg/cluster-17
   prune: true
@@ -130,7 +98,6 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../../components/gatus/guarded
     - ../../../../components/volsync
   interval: 30m
   dependsOn:
@@ -155,7 +122,6 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CAPACITY: 1Gi
-      GATUS_SUBDOMAIN: pgadmin
       VOLSYNC_SCHEDULE_CEPH: "0 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "0 1 * * *"

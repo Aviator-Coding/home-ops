@@ -1,0 +1,37 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: emqx-exporter
+  labels:
+    app: emqx-exporter
+spec:
+  selector:
+    matchLabels:
+      app: emqx-exporter
+  endpoints:
+    # /metrics — aggregated EMQX cluster metrics derived by the exporter
+    # via the dashboard API. Relabelings here are required by the bundled
+    # dashboards (cluster + from + instance labels are joined on by panels).
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      relabelings:
+        - action: replace
+          replacement: emqx
+          targetLabel: cluster
+        - action: replace
+          replacement: exporter
+          targetLabel: from
+        - action: replace
+          sourceLabels: ["pod"]
+          regex: "(.*)-.*-.*"
+          replacement: $1
+          targetLabel: instance
+        - action: labeldrop
+          regex: pod
+    # NOTE: /probe endpoint scrape intentionally omitted. Probe is
+    # disabled in the exporter config (anonymous MQTT connect is
+    # rejected by our `no_match: deny` ACL). The client-events panel
+    # that uses probe metrics will read empty.

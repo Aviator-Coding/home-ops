@@ -20,8 +20,6 @@ spec:
     namespace: flux-system
   wait: true
   dependsOn:
-    - name: tikv-cluster
-      namespace: database
     - name: external-secrets
       namespace: security
   healthCheckExprs:

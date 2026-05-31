@@ -1,0 +1,96 @@
+---
+# Daily prune of expired rows in rreading-glasses' single cache table.
+#
+# rreading-glasses caches book metadata lookups (Amazon ASINs, ISBNs, OpenLibrary
+# work IDs, Goodreads book IDs) with a 7-day TTL but never deletes expired rows.
+# An audit on 2026-04-26 found 60% of 9.64 M rows expired and the database at
+# 20 GiB; after a one-shot prune the table dropped to ~640 MiB. This CronJob
+# keeps it that way.
+#
+# Uses the rreading-glasses POSTGRES__USER role (owner of public.cache) — no
+# postgres superuser needed. Credentials come from the same reading-glasses-secret
+# the application itself uses.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reading-glasses-cache-prune
+  labels:
+    app.kubernetes.io/component: maintenance
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: maintenance
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 26
+            runAsGroup: 26
+            fsGroup: 26
+          containers:
+            - name: prune
+              image: ghcr.io/cloudnative-pg/postgresql:17.10
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: reading-glasses-secret
+                      key: POSTGRES__HOST
+                - name: PGPORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: reading-glasses-secret
+                      key: POSTGRES__PORT
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: reading-glasses-secret
+                      key: POSTGRES__MAINDB
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: reading-glasses-secret
+                      key: POSTGRES__USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: reading-glasses-secret
+                      key: POSTGRES__PASSWORD
+                - name: PGSSLMODE
+                  value: prefer
+                - name: PGCONNECT_TIMEOUT
+                  value: "10"
+              command:
+                - /usr/bin/env
+                - bash
+                - -ec
+                - |
+                  echo "[$(date -u +%FT%TZ)] before:"
+                  psql -tA -c "select count(*) as rows, pg_size_pretty(pg_total_relation_size('public.cache')) as size from public.cache;"
+                  echo "[$(date -u +%FT%TZ)] deleting expired rows older than 1 day past TTL..."
+                  deleted=$(psql -tA -c "with d as (delete from public.cache where expires <= now() - interval '1 day' returning 1) select count(*) from d;")
+                  echo "[$(date -u +%FT%TZ)] deleted=${deleted}"
+                  echo "[$(date -u +%FT%TZ)] after:"
+                  psql -tA -c "select count(*) as rows, pg_size_pretty(pg_total_relation_size('public.cache')) as size from public.cache;"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]

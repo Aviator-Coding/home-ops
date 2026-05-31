@@ -103,6 +103,11 @@ spec:
           gethomepage.dev/icon: calibre-web.png
           gethomepage.dev/name: *app
           gethomepage.dev/group: media
+          gatus.home-operations.com/endpoint: |-
+            url: https://calibre.${SECRET_DOMAIN}/login
+            conditions:
+              - "[STATUS] == 200"
+            group: media
         hostnames: ["calibre.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: ghcr.io/paperless-ngx/paperless-ngx
-              tag: 2.20.13
+              tag: 2.20.15
             env:
               # General
               PAPERLESS_URL: "https://docs.${SECRET_DOMAIN}"
@@ -118,6 +118,11 @@ spec:
           gethomepage.dev/name: Paperless-ngx
           gethomepage.dev/icon: paperless-ngx.svg
           external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            url: https://docs.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] == 200"
+            group: selfhosted
         hostnames:
           - "docs.${SECRET_DOMAIN}"
         parentRefs:

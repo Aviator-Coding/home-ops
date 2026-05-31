@@ -30,4 +30,4 @@ spec:
     grafanaDashboard:
       namespace: database
       annotations:
-        grafana_folder: Storage
+        grafana_folder: Database

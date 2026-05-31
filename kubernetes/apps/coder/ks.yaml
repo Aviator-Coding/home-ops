@@ -9,8 +9,6 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  components:
-    - ../../../components/gatus/guarded
   dependsOn:
     - name: postgres-cluster-17
       namespace: database
@@ -26,7 +24,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      GATUS_SUBDOMAIN: coder
   prune: true
   sourceRef:
     kind: GitRepository

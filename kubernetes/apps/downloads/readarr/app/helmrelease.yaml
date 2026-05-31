@@ -76,11 +76,12 @@ spec:
               capabilities:
                 drop:
                   - ALL
-          exportarr:
+          exporter:
             image:
+              # renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr
               repository: ghcr.io/onedr0p/exportarr
-              tag: latest
-            args: [readarr]
+              tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
+            args: ["readarr"]
             env:
               PORT: &metricsPort 9707
               URL: http://localhost:8787
@@ -89,16 +90,25 @@ spec:
                   secretKeyRef:
                     name: *secret
                     key: READARR__API_KEY
+            probes:
+              liveness:
+                enabled: false
+              readiness:
+                enabled: false
+              startup:
+                enabled: false
             resources:
               requests:
                 cpu: 10m
-                memory: 64Mi
+                memory: 32Mi
               limits:
-                memory: 128Mi
+                memory: 64Mi
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
+              capabilities:
+                drop:
+                  - ALL
         pod:
           securityContext:
             runAsUser: 2000
@@ -116,14 +126,6 @@ spec:
           metrics:
             port: *metricsPort
 
-    serviceMonitor:
-      app:
-        endpoints:
-          - port: metrics
-            path: /metrics
-            interval: 30s
-            scrapeTimeout: 10s
-
     route:
       app:
         annotations:
@@ -134,6 +136,11 @@ spec:
           # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Readarr is a book and audiobook collection manager for Usenet and BitTorrent users."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=readarr
+          gatus.home-operations.com/endpoint: |-
+            url: https://readarr.${SECRET_DOMAIN}/ping
+            conditions:
+              - "[STATUS] == 200"
+            group: downloads
         hostnames:
           - readarr.${SECRET_DOMAIN}
         parentRefs:

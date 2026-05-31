@@ -1,0 +1,23 @@
+---
+# Standalone LoadBalancer exposing the Tdarr node-connection port (8266) on the
+# LAN so an external Tdarr_Node (e.g. a Windows PC outside the cluster) can
+# connect. Kept separate from the app-template `service:` block on purpose:
+# adding a second service there makes the chart suffix the primary service
+# (tdarr -> tdarr-app), which breaks the HTTPRoute backendRef and the internal
+# nodes' `tdarr.media.svc.cluster.local` lookup. A raw Service avoids that.
+apiVersion: v1
+kind: Service
+metadata:
+  name: tdarr-node-lb
+  annotations:
+    lbipam.cilium.io/ips: 10.50.0.54
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: tdarr
+    app.kubernetes.io/instance: tdarr
+    app.kubernetes.io/controller: tdarr
+  ports:
+    - name: node
+      port: 8266
+      targetPort: 8266

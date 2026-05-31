@@ -54,6 +54,7 @@ spec:
           gethomepage.dev/group: "Home Automation"
           gethomepage.dev/name: matter-server
           gethomepage.dev/icon: matter.svg
+          gatus.home-operations.com/enabled: "false"
         hostnames:
           - *host
         parentRefs:

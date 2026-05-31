@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://kube-schemas.pages.dev/networking.k8s.io/networkpolicy_v1.json
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ${APP}-dragonfly-allow-prometheus
+spec:
+  # Operator-managed NetworkPolicy on the same pods only allows :9999 from
+  # the operator controller-manager and peer replicas, which blocks Prometheus
+  # scraping. Additive policy: K8s OR-combines all NPs targeting the same pods.
+  podSelector:
+    matchLabels:
+      app: ${APP}-dragonfly
+      app.kubernetes.io/part-of: dragonfly
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 9999
+          protocol: TCP
