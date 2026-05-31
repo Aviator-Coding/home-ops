@@ -24,6 +24,13 @@ machine:
     net.ipv4.tcp_wmem: "4096 65536 134217728"
     net.ipv4.tcp_window_scaling: 1
     net.ipv4.tcp_timestamps: 1
+    net.core.default_qdisc: fq            # Pair with BBR (fq + bbr) for proper packet pacing
+
+    # Neighbor/ARP table sizing - prevent "neighbour table overflow" packet drops
+    # in a busy multi-node cluster (from onedr0p/home-ops)
+    net.ipv4.neigh.default.gc_thresh1: 4096
+    net.ipv4.neigh.default.gc_thresh2: 8192
+    net.ipv4.neigh.default.gc_thresh3: 16384
 
     # File system optimizations
     fs.file-max: 1048576                  # More file handles
