@@ -24,7 +24,9 @@ spec:
     controllers:
       open-notebook:
         replicas: 1
-        strategy: RollingUpdate
+        # Single ReadWriteOnce config PVC: RollingUpdate surges a new pod that
+        # cannot attach the volume held by the old one (Multi-Attach deadlock).
+        strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
