@@ -33,7 +33,7 @@ spec:
           coredns:
             image:
               repository: mirror.gcr.io/coredns/coredns
-              tag: 1.14.2
+              tag: 1.14.3
             args:
               - -conf
               - /etc/coredns/Corefile
@@ -108,7 +108,7 @@ spec:
             nameOverride: qbittorrent
             image:
               repository: ghcr.io/home-operations/qbittorrent
-              tag: 5.1.4
+              tag: 5.2.1
             env:
               UMASK: "022"
               QBT_WEBUI_PORT: &port 8080

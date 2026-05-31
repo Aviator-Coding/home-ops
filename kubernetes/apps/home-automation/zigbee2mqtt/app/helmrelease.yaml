@@ -44,7 +44,7 @@ spec:
           init-iot-route:
             image:
               repository: docker.io/library/alpine
-              tag: "3.20"
+              tag: "3.23"
             command:
               - sh
               - -c
@@ -65,7 +65,7 @@ spec:
           app:
             image:
               repository: ghcr.io/koenkk/zigbee2mqtt
-              tag: 2.9.2
+              tag: 2.10.1
             env:
               Z2M_WATCHDOG: default
               ZIGBEE2MQTT_DATA: /data
@@ -140,7 +140,7 @@ spec:
           code-server:
             image:
               repository: ghcr.io/coder/code-server
-              tag: 4.112.0@sha256:ddd9b0b854fec5a3c65ec0095b5c59fb8505ad44d8a18d00d6fcf6a3179692dd
+              tag: 4.122.0@sha256:dbe5b1cf5c1f0edf47da6363fdadb89c456fb14b3d7e2a1545cabe20f5d7402a
             args:
               - --auth
               - none

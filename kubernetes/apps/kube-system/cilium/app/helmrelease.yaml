@@ -88,14 +88,20 @@ spec:
         trustCRDsExist: true
     rollOutCiliumPods: true
     routingMode: native
+    # Host-namespace-only socket LB. Prerequisite for Talos
+    # machine.features.hostDNS.forwardKubeDNSToHost; leaves the pod datapath
+    # unchanged (only host-namespace sockets use socket LB).
+    socketLB:
+      enabled: true
+      hostNamespaceOnly: true
     tunneling:
       mtu: 9000
     resources:
       requests:
         cpu: 100m
-        memory: 256Mi
-      limits:
         memory: 512Mi
+      limits:
+        memory: 1Gi
     securityContext:
       capabilities:
         ciliumAgent:

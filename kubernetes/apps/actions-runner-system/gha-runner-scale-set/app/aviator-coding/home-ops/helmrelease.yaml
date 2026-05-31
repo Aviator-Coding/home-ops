@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: gha-runner-scale-set
-      version: 0.14.0
+      version: 0.14.2
       sourceRef:
         kind: HelmRepository
         name: actions-runner-controller
@@ -125,7 +125,7 @@ spec:
           # Pre-download talosctl to avoid downloading on every job
           - name: talosctl-installer
             # renovate: datasource=docker depName=ghcr.io/aviator-coding/talosctl-busybox
-            image: ghcr.io/aviator-coding/talosctl-busybox:v1.12.6
+            image: ghcr.io/aviator-coding/talosctl-busybox:v1.13.3
             command: ["cp", "/usr/local/bin/talosctl", "/talos-bin/talosctl"]
             volumeMounts:
               - name: talos-bin
@@ -133,7 +133,7 @@ spec:
         containers:
           - name: runner
             # renovate: datasource=docker depName=ghcr.io/home-operations/actions-runner
-            image: ghcr.io/home-operations/actions-runner:2.333.1@sha256:1a7726bcaeba4e46fe07fe98e1805b4df78618a71e67758f932862b929f852d4
+            image: ghcr.io/home-operations/actions-runner:2.334.0@sha256:95d91d7f8d241e319ef2f4fec08f417aa1606b96fbb327643f75c303acd30002
             command: ["/home/runner/run.sh"]
             env:
               - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER

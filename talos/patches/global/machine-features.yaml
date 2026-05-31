@@ -7,3 +7,8 @@ machine:
       allowedKubernetesNamespaces:
         - actions-runner-system
         - system-upgrade
+    # Requires Cilium socketLB hostNamespaceOnly (enabled in cilium HelmRelease)
+    hostDNS:
+      enabled: true
+      forwardKubeDNSToHost: true
+      resolveMemberNames: true
