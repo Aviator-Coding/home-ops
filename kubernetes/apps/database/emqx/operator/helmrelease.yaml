@@ -9,7 +9,11 @@ spec:
   chart:
     spec:
       chart: emqx-operator
-      version: 2.3.1
+      # 2.3.x dropped support for EMQX OSS 5.8.x (calls Enterprise-only
+      # load_rebalance API -> 404 -> readiness gate never set). See
+      # emqx/emqx-operator#1202. Pin to last 2.2.x until broker moves to a
+      # 2.3.x-supported version or EMQX Enterprise.
+      version: 2.2.29
       sourceRef:
         kind: HelmRepository
         name: emqx-charts
