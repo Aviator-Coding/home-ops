@@ -21,26 +21,20 @@ spec:
             - name: DefaultEvictor
               args:
                 evictFailedBarePods: true
-                evictLocalStoragePods: true
-                evictSystemCriticalPods: true
+                evictLocalStoragePods: false
+                evictSystemCriticalPods: false
             - name: LowNodeUtilization
               args:
                 metricsUtilization:
                   source: KubernetesMetrics
                 thresholds:
-                  cpu: 35
-                  memory: 35
-                  pods: 35
+                  cpu: 20
+                  memory: 20
+                  pods: 20
                 targetThresholds:
-                  cpu: 45
-                  memory: 45
-                  pods: 45
-            - name: HighNodeUtilization
-              args:
-                thresholds:
-                  cpu: 50
-                  memory: 50
-                  pods: 50
+                  cpu: 60
+                  memory: 60
+                  pods: 60
             - name: RemoveFailedPods
               args:
                 reasons:
@@ -64,7 +58,6 @@ spec:
             balance:
               enabled:
                 - LowNodeUtilization
-                - HighNodeUtilization
                 - RemovePodsViolatingTopologySpreadConstraint
             deschedule:
               enabled:
