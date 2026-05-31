@@ -8,6 +8,9 @@ mod talos "talos"
 # Bootstrap Recipes
 mod bootstrap "bootstrap"
 
+# Kubernetes Recipes
+mod kube "kubernetes"
+
 [private]
 default:
     just -l

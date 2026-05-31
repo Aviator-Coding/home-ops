@@ -12,10 +12,6 @@ spec:
       app.kubernetes.io/name: *app
   interval: 30m
   timeout: 5m
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-age
   path: "./kubernetes/apps/monitoring/grafana/app"
   postBuild:
     substituteFrom:

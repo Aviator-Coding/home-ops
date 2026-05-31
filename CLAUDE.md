@@ -12,7 +12,7 @@ This is a **home-ops** infrastructure repository managing a self-hosted Kubernet
 - **GitOps**: Flux v2
 - **CNI**: Cilium with advanced networking (BGP, LoadBalancer)
 - **Storage**: Rook-Ceph distributed storage
-- **Secrets**: OnePassword + External Secrets Operator (application secrets), SOPS with age encryption (cluster bootstrap secrets only)
+- **Secrets**: OnePassword + External Secrets Operator (all secrets); bootstrap minimum via `vals` + `kustomize`
 - **External Access**: Cloudflare Tunnel (cloudflared)
 - **DNS**: External-DNS with Cloudflare integration
 - **Backup**: Volsync with multiple destinations (NAS MinIO, NFS, Cloudflare R2)
@@ -50,13 +50,7 @@ task flux:test:quick         # Quick test without verbose output
 
 ### Talos Operations
 
-> **Migration in progress (Stage 1):** Talos is moving to an onedr0p-style `just`
-> render path (`just talos ...`) using `minijinja-cli` templates + `vals`
-> (1Password `ref+op://`) instead of `talhelper`. The legacy `task talos:*`
-> (talhelper) commands remain as a fallback until the new path is proven live.
-
 ```bash
-# --- New just-based path (preferred) ---
 # Render a node's machine config to stdout (node = talos-1|talos-2|talos-3)
 just talos render-config talos-1
 
@@ -75,19 +69,9 @@ just talos reboot-node talos-1
 just talos reset-node talos-1
 ```
 
-```bash
-# --- Legacy talhelper path (fallback) ---
-task talos:generate-config
-task talos:apply-node IP=10.10.10.11 MODE=auto
-task talos:upgrade-node IP=10.10.10.11
-task talos:upgrade-k8s
-task talos:reset-node IP=10.10.10.11 PRESERVE_DATA=true GRACEFUL=true
-task talos:reset   # Full cluster reset (DESTRUCTIVE)
-```
-
-Secrets for the new path live in 1Password (`Home-Lab/talos` item) and are
-injected at render time by `vals`; auth via `OP_SERVICE_ACCOUNT_TOKEN` in the
-gitignored `.secrets.env` (see `.secrets.env.example`) or an interactive `op signin`.
+Secrets live in 1Password (`Home-Lab/talos` item) and are injected at render time by `vals`;
+auth via `OP_SERVICE_ACCOUNT_TOKEN` in the gitignored `.secrets.env` (see `.secrets.env.example`)
+or an interactive `op signin`.
 
 ### Rook-Ceph Operations
 
@@ -128,27 +112,17 @@ task rook:cleanup
 > `bootstrap/AGENTS.md`.
 
 ```bash
-# --- New just-based path (preferred, onedr0p-style) ---
-# Full end-to-end bootstrap (talos -> k8s -> kubeconfig -> namespaces -> resources -> crds -> apps)
-just bootstrap            # runs the default staged recipe
+# Full end-to-end bootstrap
+just bootstrap cluster
 # Or run individual stages:
-just bootstrap talos      # apply Talos config to all nodes (insecure/maintenance)
+just bootstrap nodes      # apply Talos config to all nodes (insecure/maintenance)
 just bootstrap k8s        # talosctl bootstrap etcd
-just bootstrap resources  # apply bootstrap secrets (1Password via vals)
-just bootstrap crds       # install CRDs (helmfile template | yq | kubectl apply)
+just bootstrap base       # apply bootstrap secrets (kustomize + vals) + CRDs
 just bootstrap apps       # helmfile sync (cilium, coredns, spegel, cert-manager, flux)
 ```
 
-```bash
-# --- Legacy talhelper + script path (fallback until Stage 3 cleanup) ---
-task bootstrap:talos      # talhelper gensecret/genconfig/apply/bootstrap/kubeconfig
-task bootstrap:apps       # scripts/bootstrap-apps.sh
-```
-
-Bootstrap secrets live in 1Password `Home-Lab` (`1password`, `sops` items) and are
-injected by `vals` at apply time via `bootstrap/resources.yaml.j2`. The legacy
-`bootstrap/helmfile.yaml` is stale (references removed `helm/values.yaml` paths) —
-the new path uses `bootstrap/helmfile.d/{00-crds,01-apps}.yaml`.
+Bootstrap secrets live in 1Password `Home-Lab` and are injected by `vals` at apply time
+via `bootstrap/kustomize/apps/` (kustomize + vals pipeline).
 
 ## Architecture & Patterns
 
@@ -179,10 +153,10 @@ the new path uses `bootstrap/helmfile.d/{00-crds,01-apps}.yaml`.
 │       ├── cluster/          # Cluster-wide Flux resources
 │       └── meta/             # Flux meta resources (repos, etc.)
 ├── talos/              # Talos Linux configuration
-│   ├── patches/              # Machine config patches
-│   ├── talconfig.yaml        # Main Talos config
-│   ├── talenv.yaml           # Version configs
-│   └── schematic.yaml        # Factory schematic
+│   ├── nodes/                # Per-node overlays (talos-{1,2,3}.yaml.j2)
+│   ├── machineconfig.yaml.j2 # Shared machine + cluster config template
+│   ├── schematic.yaml.j2     # Factory schematic template
+│   └── mod.just              # just talos recipe module
 ├── scripts/            # Automation scripts
 ├── .taskfiles/         # Task automation organized by domain
 └── .mise.toml          # Development tool versions
@@ -220,7 +194,7 @@ kubernetes/apps/{namespace}/{app}/
 - All files use **lowercase** names
 - Kubernetes manifest files: `helmrelease.yaml`, `kustomization.yaml`, `ks.yaml`
 - External secrets: `externalsecret.yaml`
-- SOPS encrypted files: `*.sops.yaml`
+- External Secrets: `externalsecret.yaml`
 
 **YAML Anchors in ks.yaml:**
 - Use `&app` for the application name anchor: `name: &app myapp`
@@ -251,19 +225,15 @@ spec:
 
 ### Secret Management
 
-**IMPORTANT - Two separate secret management systems:**
+**One secret management system: ExternalSecrets Operator + 1Password**
 
-1. **Cluster Bootstrap Secrets** (SOPS encrypted):
-   - Location: `kubernetes/components/common/sops/`
-   - Used for: Age keys, cluster-wide secrets needed during bootstrap
-   - Encryption: SOPS with age key
-   - Pattern: `**/*.sops.yaml` files
+All secrets are managed via `ExternalSecret` resources backed by the 1Password ClusterSecretStore.
 
-2. **Application Secrets** (External Secrets Operator):
-   - Source: OnePassword vaults
-   - Manifests: `ExternalSecret` resources in app directories
-   - Pattern: `externalsecret.yaml` files
-   - **Never store application secrets in Git**
+- **Bootstrap minimum** (`bootstrap/kustomize/apps/security/`): `onepassword-secret` is injected
+  at bootstrap time from 1Password via `vals` (`ref+op://Home-Lab/1password/*`). It carries the
+  prune-disabled annotation so Flux never deletes it (ESO cannot self-bootstrap its own credential).
+- **All other secrets**: `ExternalSecret` resources in app directories pulling from 1Password vaults.
+- **Never store secrets in Git** — no SOPS, no plaintext, no encrypted files.
 
 ### Volsync Backup Strategy
 
@@ -326,7 +296,7 @@ This creates ReplicationSource resources for automated backups and ReplicationDe
 
 3. Add secrets (if needed):
    - Create `ExternalSecret` resource referencing OnePassword
-   - **Never use SOPS for application secrets**
+   - **Never store secrets in Git**
 
 4. Enable backups (optional):
    ```yaml
@@ -348,26 +318,35 @@ This creates ReplicationSource resources for automated backups and ReplicationDe
 
 1. Read the app's current configuration first
 2. Edit manifests directly in `kubernetes/apps/{namespace}/{app}/`
-3. **Do not** modify generated files in `talos/clusterconfig/`
-4. Test with `task flux:test:ns NAMESPACE={namespace}`
-5. Commit and push
+3. Test with `task flux:test:ns NAMESPACE={namespace}`
+4. Commit and push
 
 ### Managing Cluster Secrets
 
-**Only for cluster bootstrap secrets:**
+All secrets use `ExternalSecret` resources backed by the `onepassword` ClusterSecretStore:
 
-```bash
-# Encrypt a new secret
-sops --encrypt --age age13qrheg54vtg3azk0qa7ua7fnszvcc839ln8zazpdvszsfxekrf3s8jytnl secret.yaml > secret.sops.yaml
-
-# Edit encrypted file
-sops kubernetes/components/common/sops/cluster-secrets.sops.yaml
-
-# Decrypt to view
-sops -d secret.sops.yaml
+```yaml
+# kubernetes/apps/{namespace}/{app}/app/externalsecret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: my-app
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: my-app-secret
+    template:
+      data:
+        MY_KEY: "{{ .MY_FIELD }}"
+  dataFrom:
+    - extract:
+        key: my-1password-item
 ```
 
-**For application secrets - use ExternalSecret resources pointing to OnePassword.**
+Add the secret value to the appropriate 1Password vault item (`Homelab`, `Automation`, or `Services`).
+**Never commit plaintext or encrypted secret files to Git.**
 
 ### Pre-commit Hooks
 
@@ -413,29 +392,16 @@ kubectl get replicationdestination -A
 
 ### Talos Maintenance
 
-**New `just` render path (preferred):**
-- **machineconfig.yaml.j2**: Shared machine + cluster config template (minijinja). Secrets are `ref+op://kubernetes/talos/*` references resolved by `vals`.
+- **machineconfig.yaml.j2**: Shared machine + cluster config template (minijinja). Secrets are `ref+op://Home-Lab/talos/*` references resolved by `vals`.
 - **nodes/talos-{1,2,3}.yaml.j2**: Per-node overlays (machine.type, install disk, hostname).
 - **schematic.yaml.j2**: Factory schematic template (kernel args + system extensions).
 - **mod.just**: `just talos` recipe module.
 
 After editing `machineconfig.yaml.j2`, a node overlay, or `schematic.yaml.j2`:
 ```bash
-just talos render-config talos-1 | talosctl machineconfig validate -m metal -c /dev/stdin
+just talos render-config talos-1 | talosctl validate -m metal -c /dev/stdin
 just talos apply-node talos-1 --dry-run   # review diff before a real apply
 just talos apply-node talos-1
-```
-
-**Legacy talhelper path (fallback, retained until the just path is proven live):**
-- **talconfig.yaml**: Main configuration (node IPs, network, patches)
-- **talenv.yaml**: Version definitions (Talos, Kubernetes)
-- **patches/**: Machine config patches applied to all nodes
-- **clusterconfig/**: Generated configs (do not edit manually)
-
-After editing `talconfig.yaml`:
-```bash
-task talos:generate-config
-task talos:apply-node IP={node-ip} MODE=auto
 ```
 
 ### Renovate Dependency Management
@@ -450,32 +416,30 @@ Review and merge Renovate PRs to keep dependencies current. Check the Dependency
 
 ## Important Notes
 
-1. **Never edit files in `talos/clusterconfig/`** - these are generated from `talconfig.yaml`
+1. **All secrets via ExternalSecret + 1Password** - never store secrets in Git (no SOPS files, no plaintext)
 
-2. **SOPS is only for cluster bootstrap secrets** - use ExternalSecret for all application secrets
+2. **All commits must pass pre-commit validation** - ensure commit messages follow semantic format
 
-3. **All commits must pass pre-commit validation** - ensure commit messages follow semantic format
+3. **Flux reconciles automatically** - changes pushed to Git are applied within ~1 minute
 
-4. **Flux reconciles automatically** - changes pushed to Git are applied within ~1 minute
+4. **Backup before destructive operations** - especially for Rook/Ceph disk operations
 
-5. **Backup before destructive operations** - especially for Rook/Ceph disk operations
+5. **Test Flux manifests locally** - use `task flux:test:ns` before pushing
 
-6. **Test Flux manifests locally** - use `task flux:test:ns` before pushing
-
-7. **Storage class naming**:
+6. **Storage class naming**:
    - `ceph-block` - RWO block storage (most apps)
    - `ceph-filesystem` - RWX filesystem storage (shared)
    - `openebs-hostpath` - Local hostpath storage (non-replicated)
 
-8. **Network configuration**:
+7. **Network configuration**:
    - Nodes use bonded interfaces (802.3ad LACP)
    - MTU 9000 for jumbo frames
    - VLANs 3 and 90 configured on bond0
    - Virtual IP 10.10.10.10 for control plane
 
-9. **Monitoring access**:
+8. **Monitoring access**:
    - Grafana dashboards for observability
    - Gatus for uptime monitoring
    - Ceph dashboard embedded in Grafana
 
-10. **Do not commit unencrypted secrets** - pre-commit hooks will catch this but be vigilant
+9. **Do not commit unencrypted secrets** - pre-commit hooks will catch this but be vigilant
