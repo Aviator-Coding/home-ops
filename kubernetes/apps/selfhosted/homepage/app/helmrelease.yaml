@@ -53,6 +53,10 @@ spec:
                   initialDelaySeconds: 0
               readiness: *probes
               startup: *probes
+    defaultPodOptions:
+      # app-template v5 defaults automountServiceAccountToken to false; homepage's
+      # Kubernetes integration (cluster widgets, pod-selector status) needs the token.
+      automountServiceAccountToken: true
     service:
       app:
         controller: *app

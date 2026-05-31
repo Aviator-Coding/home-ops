@@ -55,6 +55,10 @@ spec:
             securityContext:
               privileged: true
 
+    defaultPodOptions:
+      # app-template v5 defaults automountServiceAccountToken to false; the vector agent's
+      # kubernetes_logs source needs the token to list/watch pods, namespaces and nodes.
+      automountServiceAccountToken: true
     service:
       app:
         controller: vector-agent

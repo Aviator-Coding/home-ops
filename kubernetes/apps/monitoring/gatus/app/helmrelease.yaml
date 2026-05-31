@@ -70,6 +70,10 @@ spec:
                 cpu: 100m
               limits:
                 memory: 256Mi
+    defaultPodOptions:
+      # app-template v5 defaults automountServiceAccountToken to false; the gatus-sidecar
+      # init container (--auto-httproute/--enable-service) watches the K8s API and needs the token.
+      automountServiceAccountToken: true
     service:
       app:
         controller: gatus
