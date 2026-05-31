@@ -3,9 +3,16 @@ _.python.venv = { path = "{{config_root}}/.venv", create = true, uv_create_args 
   '--seed',
   '--system-site-packages',
 ] }
+# Optional env file holding the 1Password service-account token for vals/op
+# (e.g. OP_SERVICE_ACCOUNT_TOKEN). Gitignored; see .secrets.env.example.
+_.file = ["{{config_root}}/.secrets.env"]
 KUBECONFIG = "{{config_root}}/kubeconfig"
 SOPS_AGE_KEY_FILE = "{{config_root}}/age.key"
 TALOSCONFIG = "{{config_root}}/talos/clusterconfig/talosconfig"
+# minijinja-cli config used by the `just` render path (talos/*.j2 templates)
+MINIJINJA_CONFIG_FILE = "{{config_root}}/.minijinja.toml"
+# `mod` imports in the root .justfile require unstable features on older `just`
+JUST_UNSTABLE = "1"
 MISE_LIST_ALL_VERSIONS = "false"
 
 [tools]
@@ -14,6 +21,13 @@ MISE_LIST_ALL_VERSIONS = "false"
 "pipx:pre-commit" = "4.6.0"
 "pipx:flux-local" = "latest"
 "aqua:budimanjojo/talhelper" = "3.1.10"
+# --- onedr0p-style `just` render path (Stage 1: talos) ---
+# Pin these to concrete versions once `mise install` confirms resolution;
+# Renovate will then manage bumps. `latest` used initially to avoid a bad pin.
+"just" = "latest"
+"aqua:mitsuhiko/minijinja" = "latest"
+"vals" = "latest"
+"gum" = "latest"
 "aqua:cilium/cilium-cli" = "0.19.4"
 "aqua:cli/cli" = "2.92.0"
 "aqua:cloudflare/cloudflared" = "2026.5.2"

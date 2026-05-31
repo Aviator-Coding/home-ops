@@ -1,0 +1,12 @@
+# minijinja-cli configuration
+# Used by the root .justfile `template` recipe to render talos/*.yaml.j2.
+# Docs: https://github.com/mitsuhiko/minijinja/tree/main/minijinja-cli
+#
+# - autoescape "none": these are YAML/text templates, not HTML
+# - env true: expose process environment under the `ENV` namespace
+#   (the talos render path sets ENV.SCHEMATIC and ENV.CONTROLPLANE)
+# - trim/lstrip-blocks: keep rendered YAML tidy around {% ... %} blocks
+autoescape = "none"
+env = true
+trim-blocks = true
+lstrip-blocks = true

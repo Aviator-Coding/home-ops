@@ -50,25 +50,44 @@ task flux:test:quick         # Quick test without verbose output
 
 ### Talos Operations
 
+> **Migration in progress (Stage 1):** Talos is moving to an onedr0p-style `just`
+> render path (`just talos ...`) using `minijinja-cli` templates + `vals`
+> (1Password `ref+op://`) instead of `talhelper`. The legacy `task talos:*`
+> (talhelper) commands remain as a fallback until the new path is proven live.
+
 ```bash
-# Generate Talos configuration
-task talos:generate-config
+# --- New just-based path (preferred) ---
+# Render a node's machine config to stdout (node = talos-1|talos-2|talos-3)
+just talos render-config talos-1
 
-# Apply config to specific node
-task talos:apply-node IP=10.10.10.11 MODE=auto
+# Apply config to a node (append --dry-run to preview, --insecure for maintenance mode)
+just talos apply-node talos-1
+just talos apply-node talos-1 --dry-run
 
-# Upgrade Talos on a node
-task talos:upgrade-node IP=10.10.10.11
+# Upgrade Talos on a node (install image derived from the rendered config)
+just talos upgrade-node talos-1
 
 # Upgrade Kubernetes version
-task talos:upgrade-k8s
+just talos upgrade-k8s v1.36.1
 
-# Reset single node (preserves data by default)
-task talos:reset-node IP=10.10.10.11 PRESERVE_DATA=true GRACEFUL=true
-
-# Full cluster reset (DESTRUCTIVE)
-task talos:reset
+# Reboot / shutdown / reset a node
+just talos reboot-node talos-1
+just talos reset-node talos-1
 ```
+
+```bash
+# --- Legacy talhelper path (fallback) ---
+task talos:generate-config
+task talos:apply-node IP=10.10.10.11 MODE=auto
+task talos:upgrade-node IP=10.10.10.11
+task talos:upgrade-k8s
+task talos:reset-node IP=10.10.10.11 PRESERVE_DATA=true GRACEFUL=true
+task talos:reset   # Full cluster reset (DESTRUCTIVE)
+```
+
+Secrets for the new path live in 1Password (`Home-Lab/talos` item) and are
+injected at render time by `vals`; auth via `OP_SERVICE_ACCOUNT_TOKEN` in the
+gitignored `.secrets.env` (see `.secrets.env.example`) or an interactive `op signin`.
 
 ### Rook-Ceph Operations
 
@@ -103,13 +122,33 @@ task rook:cleanup
 
 ### Bootstrap Operations
 
-```bash
-# Bootstrap Talos cluster (first-time setup)
-task bootstrap:talos
+> ⚠️ **Bootstrap is a disaster-recovery / first-time-setup operation only.** The
+> `apps`/`crds`/`resources` stages `helmfile sync` and `kubectl apply` against the
+> cluster — never run a full bootstrap against a healthy running cluster. See
+> `bootstrap/AGENTS.md`.
 
-# Bootstrap applications into cluster
-task bootstrap:apps
+```bash
+# --- New just-based path (preferred, onedr0p-style) ---
+# Full end-to-end bootstrap (talos -> k8s -> kubeconfig -> namespaces -> resources -> crds -> apps)
+just bootstrap            # runs the default staged recipe
+# Or run individual stages:
+just bootstrap talos      # apply Talos config to all nodes (insecure/maintenance)
+just bootstrap k8s        # talosctl bootstrap etcd
+just bootstrap resources  # apply bootstrap secrets (1Password via vals)
+just bootstrap crds       # install CRDs (helmfile template | yq | kubectl apply)
+just bootstrap apps       # helmfile sync (cilium, coredns, spegel, cert-manager, flux)
 ```
+
+```bash
+# --- Legacy talhelper + script path (fallback until Stage 3 cleanup) ---
+task bootstrap:talos      # talhelper gensecret/genconfig/apply/bootstrap/kubeconfig
+task bootstrap:apps       # scripts/bootstrap-apps.sh
+```
+
+Bootstrap secrets live in 1Password `Home-Lab` (`1password`, `sops` items) and are
+injected by `vals` at apply time via `bootstrap/resources.yaml.j2`. The legacy
+`bootstrap/helmfile.yaml` is stale (references removed `helm/values.yaml` paths) —
+the new path uses `bootstrap/helmfile.d/{00-crds,01-apps}.yaml`.
 
 ## Architecture & Patterns
 
@@ -374,6 +413,20 @@ kubectl get replicationdestination -A
 
 ### Talos Maintenance
 
+**New `just` render path (preferred):**
+- **machineconfig.yaml.j2**: Shared machine + cluster config template (minijinja). Secrets are `ref+op://kubernetes/talos/*` references resolved by `vals`.
+- **nodes/talos-{1,2,3}.yaml.j2**: Per-node overlays (machine.type, install disk, hostname).
+- **schematic.yaml.j2**: Factory schematic template (kernel args + system extensions).
+- **mod.just**: `just talos` recipe module.
+
+After editing `machineconfig.yaml.j2`, a node overlay, or `schematic.yaml.j2`:
+```bash
+just talos render-config talos-1 | talosctl machineconfig validate -m metal -c /dev/stdin
+just talos apply-node talos-1 --dry-run   # review diff before a real apply
+just talos apply-node talos-1
+```
+
+**Legacy talhelper path (fallback, retained until the just path is proven live):**
 - **talconfig.yaml**: Main configuration (node IPs, network, patches)
 - **talenv.yaml**: Version definitions (Talos, Kubernetes)
 - **patches/**: Machine config patches applied to all nodes
