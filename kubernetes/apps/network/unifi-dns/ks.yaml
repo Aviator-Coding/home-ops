@@ -10,10 +10,6 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   interval: 1h
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-age
   path: ./kubernetes/apps/network/unifi-dns/app
   postBuild:
     substituteFrom:

@@ -27,10 +27,7 @@ bootstrap/
 └── kustomize/
     ├── apps/
     │   ├── kustomization.yaml
-    │   ├── security/                     # onepassword-secret (1password-credentials.json + token)
-    │   │   ├── kustomization.yaml
-    │   │   └── secret.yaml
-    │   └── flux-system/                  # sops-age-secret (age.agekey)
+    │   └── security/                     # onepassword-secret (1password-credentials.json + token)
     │       ├── kustomization.yaml
     │       └── secret.yaml
     └── components/
@@ -76,10 +73,11 @@ External Secrets + Flux take over, injected from 1Password `Home-Lab` by `vals`:
 | Secret | namespace | ref | Consumer |
 |---|---|---|---|
 | `onepassword-secret` `1password-credentials.json` + `token` | `security` | `ref+op://Home-Lab/1password/{OP_CREDENTIALS_JSON,OP_CONNECT_TOKEN}` | onepassword-connect / ESO |
-| `sops-age-secret` `age.agekey` | `flux-system` | `ref+op://Home-Lab/sops/SOPS_PRIVATE_KEY` | Flux SOPS decryption |
 
-Secrets use `data:` (base64-encoded values stored in 1Password). Everything else
-is seeded post-bootstrap by ESO and must NOT be added here.
+Secrets use `data:` (base64-encoded values stored in 1Password). `onepassword-secret`
+is annotated `kustomize.toolkit.fluxcd.io/prune: disabled` so Flux will not prune it
+after bootstrap (ESO cannot recreate it — circular dependency). Everything else is
+seeded post-bootstrap by ESO and must NOT be added here.
 
 ## ANTI-PATTERNS
 
