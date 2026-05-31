@@ -39,6 +39,16 @@ spec:
               fallthrough in-addr.arpa ip6.arpa
           - name: autopath
             parameters: "@kubernetes"
+          # Cluster is IPv4-only (Cilium enable-ipv6=false, no IPv6 egress).
+          # Answer AAAA queries with NODATA so resolvers fall back to A
+          # immediately instead of wasting attempts on unreachable IPv6
+          # (e.g. Flux source-controller pulling from ghcr / github.io).
+          # Safe cluster-wide: every Service/Pod is IPv4-only, so AAAA NODATA
+          # matches what the kubernetes plugin already returns internally.
+          - name: template
+            parameters: ANY AAAA
+            configBlock: |-
+              rcode NOERROR
           - name: forward
             parameters: . /etc/resolv.conf
           - name: cache
