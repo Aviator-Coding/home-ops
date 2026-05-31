@@ -19,5 +19,20 @@
       matchPackageNames: ["/factory\\.talos\\.dev/"],
       overridePackageName: "ghcr.io/siderolabs/installer",
     },
+    {
+      // 2.3.x drops EMQX OSS 5.8.x support (calls Enterprise-only
+      // load_rebalance API -> readiness gate stuck -> MQTT down).
+      // See emqx/emqx-operator#1202. Stay on the 2.2.x line.
+      description: "Pin EMQX operator to 2.2.x (Open-Source broker compat)",
+      matchPackageNames: ["emqx-operator", "ghcr.io/emqx/emqx-operator"],
+      allowedVersions: "<2.3.0",
+    },
+    {
+      // EMQX Open-Source ended at 5.8.x; 5.9/5.10/6.x are Enterprise-only.
+      description: "Keep EMQX broker on Open-Source 5.8.x",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["public.ecr.aws/emqx/emqx"],
+      allowedVersions: "<5.9.0",
+    },
   ],
 }
