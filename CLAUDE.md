@@ -12,7 +12,7 @@ This is a **home-ops** infrastructure repository managing a self-hosted Kubernet
 - **GitOps**: Flux v2
 - **CNI**: Cilium with advanced networking (BGP, LoadBalancer)
 - **Storage**: Rook-Ceph distributed storage
-- **Secrets**: OnePassword + External Secrets Operator (application secrets), SOPS with age encryption (cluster bootstrap secrets only)
+- **Secrets**: OnePassword + External Secrets Operator (all secrets); bootstrap minimum via `vals` + `kustomize`
 - **External Access**: Cloudflare Tunnel (cloudflared)
 - **DNS**: External-DNS with Cloudflare integration
 - **Backup**: Volsync with multiple destinations (NAS MinIO, NFS, Cloudflare R2)
@@ -194,7 +194,7 @@ kubernetes/apps/{namespace}/{app}/
 - All files use **lowercase** names
 - Kubernetes manifest files: `helmrelease.yaml`, `kustomization.yaml`, `ks.yaml`
 - External secrets: `externalsecret.yaml`
-- SOPS encrypted files: `*.sops.yaml`
+- External Secrets: `externalsecret.yaml`
 
 **YAML Anchors in ks.yaml:**
 - Use `&app` for the application name anchor: `name: &app myapp`
@@ -225,19 +225,15 @@ spec:
 
 ### Secret Management
 
-**IMPORTANT - Two separate secret management systems:**
+**One secret management system: ExternalSecrets Operator + 1Password**
 
-1. **Cluster Bootstrap Secrets** (SOPS encrypted):
-   - Location: `kubernetes/components/common/sops/`
-   - Used for: Age keys, cluster-wide secrets needed during bootstrap
-   - Encryption: SOPS with age key
-   - Pattern: `**/*.sops.yaml` files
+All secrets are managed via `ExternalSecret` resources backed by the 1Password ClusterSecretStore.
 
-2. **Application Secrets** (External Secrets Operator):
-   - Source: OnePassword vaults
-   - Manifests: `ExternalSecret` resources in app directories
-   - Pattern: `externalsecret.yaml` files
-   - **Never store application secrets in Git**
+- **Bootstrap minimum** (`bootstrap/kustomize/apps/security/`): `onepassword-secret` is injected
+  at bootstrap time from 1Password via `vals` (`ref+op://Home-Lab/1password/*`). It carries the
+  prune-disabled annotation so Flux never deletes it (ESO cannot self-bootstrap its own credential).
+- **All other secrets**: `ExternalSecret` resources in app directories pulling from 1Password vaults.
+- **Never store secrets in Git** — no SOPS, no plaintext, no encrypted files.
 
 ### Volsync Backup Strategy
 
@@ -300,7 +296,7 @@ This creates ReplicationSource resources for automated backups and ReplicationDe
 
 3. Add secrets (if needed):
    - Create `ExternalSecret` resource referencing OnePassword
-   - **Never use SOPS for application secrets**
+   - **Never store secrets in Git**
 
 4. Enable backups (optional):
    ```yaml
@@ -327,20 +323,30 @@ This creates ReplicationSource resources for automated backups and ReplicationDe
 
 ### Managing Cluster Secrets
 
-**Only for cluster bootstrap secrets:**
+All secrets use `ExternalSecret` resources backed by the `onepassword` ClusterSecretStore:
 
-```bash
-# Encrypt a new secret
-sops --encrypt --age age13qrheg54vtg3azk0qa7ua7fnszvcc839ln8zazpdvszsfxekrf3s8jytnl secret.yaml > secret.sops.yaml
-
-# Edit encrypted file
-sops kubernetes/components/common/sops/cluster-secrets.sops.yaml
-
-# Decrypt to view
-sops -d secret.sops.yaml
+```yaml
+# kubernetes/apps/{namespace}/{app}/app/externalsecret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: my-app
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: my-app-secret
+    template:
+      data:
+        MY_KEY: "{{ .MY_FIELD }}"
+  dataFrom:
+    - extract:
+        key: my-1password-item
 ```
 
-**For application secrets - use ExternalSecret resources pointing to OnePassword.**
+Add the secret value to the appropriate 1Password vault item (`Homelab`, `Automation`, or `Services`).
+**Never commit plaintext or encrypted secret files to Git.**
 
 ### Pre-commit Hooks
 
@@ -410,7 +416,7 @@ Review and merge Renovate PRs to keep dependencies current. Check the Dependency
 
 ## Important Notes
 
-1. **SOPS is only for cluster bootstrap secrets** - use ExternalSecret for all application secrets
+1. **All secrets via ExternalSecret + 1Password** - never store secrets in Git (no SOPS files, no plaintext)
 
 2. **All commits must pass pre-commit validation** - ensure commit messages follow semantic format
 

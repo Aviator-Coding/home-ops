@@ -89,10 +89,6 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-age
   interval: 30m
   timeout: 5m
   path: "./kubernetes/apps/security/external-secrets/api/onepassword-connect"
