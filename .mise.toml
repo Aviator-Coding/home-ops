@@ -8,7 +8,7 @@ _.python.venv = { path = "{{config_root}}/.venv", create = true, uv_create_args 
 _.file = ["{{config_root}}/.secrets.env"]
 KUBECONFIG = "{{config_root}}/kubeconfig"
 SOPS_AGE_KEY_FILE = "{{config_root}}/age.key"
-TALOSCONFIG = "{{config_root}}/talos/clusterconfig/talosconfig"
+TALOSCONFIG = "{{config_root}}/talos/talosconfig"
 # minijinja-cli config used by the `just` render path (talos/*.j2 templates)
 MINIJINJA_CONFIG_FILE = "{{config_root}}/.minijinja.toml"
 # `mod` imports in the root .justfile require unstable features on older `just`
@@ -20,10 +20,6 @@ MISE_LIST_ALL_VERSIONS = "false"
 "pipx:makejinja" = "2.8.2"
 "pipx:pre-commit" = "4.6.0"
 "pipx:flux-local" = "latest"
-"aqua:budimanjojo/talhelper" = "3.1.10"
-# --- onedr0p-style `just` render path (Stage 1: talos) ---
-# Pin these to concrete versions once `mise install` confirms resolution;
-# Renovate will then manage bumps. `latest` used initially to avoid a bad pin.
 "just" = "latest"
 "aqua:mitsuhiko/minijinja" = "latest"
 "vals" = "latest"

@@ -50,13 +50,7 @@ task flux:test:quick         # Quick test without verbose output
 
 ### Talos Operations
 
-> **Migration in progress (Stage 1):** Talos is moving to an onedr0p-style `just`
-> render path (`just talos ...`) using `minijinja-cli` templates + `vals`
-> (1Password `ref+op://`) instead of `talhelper`. The legacy `task talos:*`
-> (talhelper) commands remain as a fallback until the new path is proven live.
-
 ```bash
-# --- New just-based path (preferred) ---
 # Render a node's machine config to stdout (node = talos-1|talos-2|talos-3)
 just talos render-config talos-1
 
@@ -75,19 +69,9 @@ just talos reboot-node talos-1
 just talos reset-node talos-1
 ```
 
-```bash
-# --- Legacy talhelper path (fallback) ---
-task talos:generate-config
-task talos:apply-node IP=10.10.10.11 MODE=auto
-task talos:upgrade-node IP=10.10.10.11
-task talos:upgrade-k8s
-task talos:reset-node IP=10.10.10.11 PRESERVE_DATA=true GRACEFUL=true
-task talos:reset   # Full cluster reset (DESTRUCTIVE)
-```
-
-Secrets for the new path live in 1Password (`Home-Lab/talos` item) and are
-injected at render time by `vals`; auth via `OP_SERVICE_ACCOUNT_TOKEN` in the
-gitignored `.secrets.env` (see `.secrets.env.example`) or an interactive `op signin`.
+Secrets live in 1Password (`Home-Lab/talos` item) and are injected at render time by `vals`;
+auth via `OP_SERVICE_ACCOUNT_TOKEN` in the gitignored `.secrets.env` (see `.secrets.env.example`)
+or an interactive `op signin`.
 
 ### Rook-Ceph Operations
 
@@ -128,7 +112,6 @@ task rook:cleanup
 > `bootstrap/AGENTS.md`.
 
 ```bash
-# --- New just-based path (preferred, onedr0p-style) ---
 # Full end-to-end bootstrap (talos -> k8s -> kubeconfig -> namespaces -> resources -> crds -> apps)
 just bootstrap            # runs the default staged recipe
 # Or run individual stages:
@@ -139,16 +122,8 @@ just bootstrap crds       # install CRDs (helmfile template | yq | kubectl apply
 just bootstrap apps       # helmfile sync (cilium, coredns, spegel, cert-manager, flux)
 ```
 
-```bash
-# --- Legacy talhelper + script path (fallback until Stage 3 cleanup) ---
-task bootstrap:talos      # talhelper gensecret/genconfig/apply/bootstrap/kubeconfig
-task bootstrap:apps       # scripts/bootstrap-apps.sh
-```
-
 Bootstrap secrets live in 1Password `Home-Lab` (`1password`, `sops` items) and are
-injected by `vals` at apply time via `bootstrap/resources.yaml.j2`. The legacy
-`bootstrap/helmfile.yaml` is stale (references removed `helm/values.yaml` paths) —
-the new path uses `bootstrap/helmfile.d/{00-crds,01-apps}.yaml`.
+injected by `vals` at apply time via `bootstrap/resources.yaml.j2`.
 
 ## Architecture & Patterns
 
@@ -179,10 +154,10 @@ the new path uses `bootstrap/helmfile.d/{00-crds,01-apps}.yaml`.
 │       ├── cluster/          # Cluster-wide Flux resources
 │       └── meta/             # Flux meta resources (repos, etc.)
 ├── talos/              # Talos Linux configuration
-│   ├── patches/              # Machine config patches
-│   ├── talconfig.yaml        # Main Talos config
-│   ├── talenv.yaml           # Version configs
-│   └── schematic.yaml        # Factory schematic
+│   ├── nodes/                # Per-node overlays (talos-{1,2,3}.yaml.j2)
+│   ├── machineconfig.yaml.j2 # Shared machine + cluster config template
+│   ├── schematic.yaml.j2     # Factory schematic template
+│   └── mod.just              # just talos recipe module
 ├── scripts/            # Automation scripts
 ├── .taskfiles/         # Task automation organized by domain
 └── .mise.toml          # Development tool versions
@@ -348,9 +323,8 @@ This creates ReplicationSource resources for automated backups and ReplicationDe
 
 1. Read the app's current configuration first
 2. Edit manifests directly in `kubernetes/apps/{namespace}/{app}/`
-3. **Do not** modify generated files in `talos/clusterconfig/`
-4. Test with `task flux:test:ns NAMESPACE={namespace}`
-5. Commit and push
+3. Test with `task flux:test:ns NAMESPACE={namespace}`
+4. Commit and push
 
 ### Managing Cluster Secrets
 
@@ -413,29 +387,16 @@ kubectl get replicationdestination -A
 
 ### Talos Maintenance
 
-**New `just` render path (preferred):**
-- **machineconfig.yaml.j2**: Shared machine + cluster config template (minijinja). Secrets are `ref+op://kubernetes/talos/*` references resolved by `vals`.
+- **machineconfig.yaml.j2**: Shared machine + cluster config template (minijinja). Secrets are `ref+op://Home-Lab/talos/*` references resolved by `vals`.
 - **nodes/talos-{1,2,3}.yaml.j2**: Per-node overlays (machine.type, install disk, hostname).
 - **schematic.yaml.j2**: Factory schematic template (kernel args + system extensions).
 - **mod.just**: `just talos` recipe module.
 
 After editing `machineconfig.yaml.j2`, a node overlay, or `schematic.yaml.j2`:
 ```bash
-just talos render-config talos-1 | talosctl machineconfig validate -m metal -c /dev/stdin
+just talos render-config talos-1 | talosctl validate -m metal -c /dev/stdin
 just talos apply-node talos-1 --dry-run   # review diff before a real apply
 just talos apply-node talos-1
-```
-
-**Legacy talhelper path (fallback, retained until the just path is proven live):**
-- **talconfig.yaml**: Main configuration (node IPs, network, patches)
-- **talenv.yaml**: Version definitions (Talos, Kubernetes)
-- **patches/**: Machine config patches applied to all nodes
-- **clusterconfig/**: Generated configs (do not edit manually)
-
-After editing `talconfig.yaml`:
-```bash
-task talos:generate-config
-task talos:apply-node IP={node-ip} MODE=auto
 ```
 
 ### Renovate Dependency Management
@@ -450,32 +411,30 @@ Review and merge Renovate PRs to keep dependencies current. Check the Dependency
 
 ## Important Notes
 
-1. **Never edit files in `talos/clusterconfig/`** - these are generated from `talconfig.yaml`
+1. **SOPS is only for cluster bootstrap secrets** - use ExternalSecret for all application secrets
 
-2. **SOPS is only for cluster bootstrap secrets** - use ExternalSecret for all application secrets
+2. **All commits must pass pre-commit validation** - ensure commit messages follow semantic format
 
-3. **All commits must pass pre-commit validation** - ensure commit messages follow semantic format
+3. **Flux reconciles automatically** - changes pushed to Git are applied within ~1 minute
 
-4. **Flux reconciles automatically** - changes pushed to Git are applied within ~1 minute
+4. **Backup before destructive operations** - especially for Rook/Ceph disk operations
 
-5. **Backup before destructive operations** - especially for Rook/Ceph disk operations
+5. **Test Flux manifests locally** - use `task flux:test:ns` before pushing
 
-6. **Test Flux manifests locally** - use `task flux:test:ns` before pushing
-
-7. **Storage class naming**:
+6. **Storage class naming**:
    - `ceph-block` - RWO block storage (most apps)
    - `ceph-filesystem` - RWX filesystem storage (shared)
    - `openebs-hostpath` - Local hostpath storage (non-replicated)
 
-8. **Network configuration**:
+7. **Network configuration**:
    - Nodes use bonded interfaces (802.3ad LACP)
    - MTU 9000 for jumbo frames
    - VLANs 3 and 90 configured on bond0
    - Virtual IP 10.10.10.10 for control plane
 
-9. **Monitoring access**:
+8. **Monitoring access**:
    - Grafana dashboards for observability
    - Gatus for uptime monitoring
    - Ceph dashboard embedded in Grafana
 
-10. **Do not commit unencrypted secrets** - pre-commit hooks will catch this but be vigilant
+9. **Do not commit unencrypted secrets** - pre-commit hooks will catch this but be vigilant
