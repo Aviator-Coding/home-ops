@@ -112,18 +112,17 @@ task rook:cleanup
 > `bootstrap/AGENTS.md`.
 
 ```bash
-# Full end-to-end bootstrap (talos -> k8s -> kubeconfig -> namespaces -> resources -> crds -> apps)
-just bootstrap            # runs the default staged recipe
+# Full end-to-end bootstrap
+just bootstrap cluster
 # Or run individual stages:
-just bootstrap talos      # apply Talos config to all nodes (insecure/maintenance)
+just bootstrap nodes      # apply Talos config to all nodes (insecure/maintenance)
 just bootstrap k8s        # talosctl bootstrap etcd
-just bootstrap resources  # apply bootstrap secrets (1Password via vals)
-just bootstrap crds       # install CRDs (helmfile template | yq | kubectl apply)
+just bootstrap base       # apply bootstrap secrets (kustomize + vals) + CRDs
 just bootstrap apps       # helmfile sync (cilium, coredns, spegel, cert-manager, flux)
 ```
 
-Bootstrap secrets live in 1Password `Home-Lab` (`1password`, `sops` items) and are
-injected by `vals` at apply time via `bootstrap/resources.yaml.j2`.
+Bootstrap secrets live in 1Password `Home-Lab` and are injected by `vals` at apply time
+via `bootstrap/kustomize/apps/` (kustomize + vals pipeline).
 
 ## Architecture & Patterns
 
