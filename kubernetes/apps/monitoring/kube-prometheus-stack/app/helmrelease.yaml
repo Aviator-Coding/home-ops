@@ -121,9 +121,11 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 2Gi
-          limits:
             memory: 3Gi
+          # 3Gi OOMKilled the pod during TSDB head compaction (self-reinforcing
+          # crash loop). Node has ample headroom; 8Gi absorbs the compaction spike.
+          limits:
+            memory: 8Gi
         retention: 14d
         retentionSize: 50GB
         ruleSelectorNilUsesHelmValues: false
