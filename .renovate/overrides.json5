@@ -34,5 +34,17 @@
       matchPackageNames: ["public.ecr.aws/emqx/emqx"],
       allowedVersions: "<5.9.0",
     },
+    {
+      // v1.13.3 upgrade failed permanently on talos-1 (tuppr TalosUpgrade
+      // stuck Failed, nodes stranded on v1.12.6). Pinned to v1.13.2 in #867.
+      // Hold the installer image + talosctl CLI here until v1.13.3+ is proven.
+      description: "Pin Talos to <1.13.3 (1.13.3 upgrade fails on talos-1, see #867)",
+      matchPackageNames: [
+        "ghcr.io/siderolabs/installer",
+        "siderolabs/talos",
+        "/factory\\.talos\\.dev/",
+      ],
+      allowedVersions: "<1.13.3",
+    },
   ],
 }
