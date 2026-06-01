@@ -76,7 +76,23 @@ spec:
               - secretRef:
                   name: sabnzbd-secret
             probes:
-              liveness: &probes
+              # SABnzbd's web API blocks during heavy post-processing (par2
+              # verify/repair, unrar/7zip). A 1s timeout tripped the liveness
+              # probe and killed a busy-but-healthy process, dropping it from
+              # the Service endpoints (gateway 503s). Probes are relaxed so only
+              # a genuinely dead process is restarted.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api?mode=version
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 30
+                  timeoutSeconds: 15
+                  failureThreshold: 5
+              readiness:
                 enabled: true
                 custom: true
                 spec:
@@ -85,15 +101,14 @@ spec:
                     port: *port
                   initialDelaySeconds: 0
                   periodSeconds: 10
-                  timeoutSeconds: 1
+                  timeoutSeconds: 10
                   failureThreshold: 3
-              readiness: *probes
             resources:
               requests:
                 cpu: 500m # Increased from 5m to 500m
                 memory: 1024Mi
               limits:
-                cpu: 2000m # Added CPU limit
+                cpu: 4000m # Raised 2000m->4000m so par2/7zip aren't throttled (slow API trips probes)
                 memory: 6144Mi
             securityContext:
               allowPrivilegeEscalation: false
