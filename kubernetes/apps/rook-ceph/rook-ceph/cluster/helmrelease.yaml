@@ -51,13 +51,11 @@ spec:
           auth_cluster_required: "cephx"
           auth_service_required: "cephx"
 
-          # Compression (good space savings)
-          bluestore_compression_algorithm: zstd
-          bluestore_compression_mode: aggressive
-          bluestore_compression_required_ratio: "0.875"
-
-          # Increased cache size for better performance
-          bluestore_cache_size: "2147483648" # 2GB per OSD
+          # Compression intentionally disabled: the dominant data is already
+          # compressed media (video) + RBD images, which never meets the
+          # required ratio, so aggressive zstd only burned CPU and added
+          # write-path latency on no-PLP consumer NVMe. Per-pool settings below
+          # are also set to none. See docs/ceph-performance-review.md.
 
         mgr:
           mgr/crash/warn_recent_interval: "7200"
@@ -66,9 +64,10 @@ spec:
           mgr/dashboard/server_port: "7000"
 
         osd:
-          # Keep it simple for homelab
-          # osd_pool_default_compression_algorithm: zstd
-          # osd_pool_default_compression_mode: aggressive
+          # Let osd_memory_target manage BlueStore cache (was overridden by a
+          # hard bluestore_cache_size=2GB, which disabled autotuning and capped
+          # each OSD at 2GB despite the 8Gi pod limit). 6GiB leaves heap+headroom.
+          osd_memory_target: "6442450944" # 6 GiB
           osd_recovery_max_active: "3" # Don't overwhelm homelab hardware
 
         client.rgw:
@@ -176,11 +175,10 @@ spec:
           failureDomain: host
           replicated:
             size: 3
-          # Enable compression at the pool level
-          compressionMode: aggressive
+          # Compression disabled (see docs/ceph-performance-review.md).
+          compressionMode: none
           parameters:
-            compression_algorithm: zstd
-            compression_mode: aggressive
+            compression_mode: none
         storageClass:
           enabled: true
           name: ceph-block
@@ -189,8 +187,7 @@ spec:
           allowVolumeExpansion: true
           volumeBindingMode: Immediate
           parameters:
-            compression_mode: aggressive
-            compression_algorithm: zstd
+            compression_mode: none
             imageFormat: "2"
             imageFeatures: layering,fast-diff,object-map,deep-flatten,exclusive-lock
             csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
@@ -217,8 +214,7 @@ spec:
             replicated:
               size: 3
             parameters:
-              compression_algorithm: zstd
-              compression_mode: aggressive
+              compression_mode: none
           dataPools:
             # Single pool for all data - identical performance on all-NVMe
             - name: data0
@@ -227,8 +223,7 @@ spec:
               replicated:
                 size: 3
               parameters:
-                compression_algorithm: zstd
-                compression_mode: aggressive
+                compression_mode: none
           metadataServer:
             activeCount: 2
             activeStandby: true
@@ -280,15 +275,13 @@ spec:
             replicated:
               size: 3
             parameters:
-              compression_algorithm: zstd
-              compression_mode: aggressive
+              compression_mode: none
           dataPool:
             failureDomain: host
             replicated:
               size: 3
             parameters:
-              compression_algorithm: zstd
-              compression_mode: aggressive
+              compression_mode: none
           preservePoolsOnDelete: false
           allowUsersInNamespaces:
             - "*"
