@@ -179,6 +179,10 @@ spec:
           compressionMode: none
           parameters:
             compression_mode: none
+            # bulk=true: let the PG autoscaler provision a full PG complement for
+            # this large data pool and scale it up gradually (gentle backfill vs a
+            # hard pg_num jump). See docs/ceph-performance-review.md.
+            bulk: "true"
         storageClass:
           enabled: true
           name: ceph-block
@@ -224,6 +228,8 @@ spec:
                 size: 3
               parameters:
                 compression_mode: none
+                # bulk=true: autoscaler-driven PG growth for the main CephFS data pool.
+                bulk: "true"
           metadataServer:
             activeCount: 2
             activeStandby: true
