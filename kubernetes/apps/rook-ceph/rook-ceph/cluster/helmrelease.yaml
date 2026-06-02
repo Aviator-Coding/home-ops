@@ -191,7 +191,12 @@ spec:
           allowVolumeExpansion: true
           volumeBindingMode: Immediate
           parameters:
-            compression_mode: none
+            # StorageClass parameters are IMMUTABLE — these must match the live SC
+            # or the Helm upgrade fails ("field is immutable") and rolls back the
+            # whole release. Compression is controlled at the pool level (above);
+            # this only tags new RBD images and the pool 'none' setting governs.
+            compression_mode: aggressive
+            compression_algorithm: zstd
             imageFormat: "2"
             imageFeatures: layering,fast-diff,object-map,deep-flatten,exclusive-lock
             csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
