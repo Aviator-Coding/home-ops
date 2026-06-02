@@ -179,9 +179,6 @@ spec:
           compressionMode: none
           parameters:
             compression_mode: none
-            # Raise PG floor: 8 PGs across 6 OSDs starved write parallelism and
-            # concentrated lease contention. Autoscaler stays on; this is the floor.
-            pg_num_min: "128"
         storageClass:
           enabled: true
           name: ceph-block
@@ -218,7 +215,6 @@ spec:
               size: 3
             parameters:
               compression_mode: none
-              pg_num_min: "32"
           dataPools:
             # Single pool for all data - identical performance on all-NVMe
             - name: data0
@@ -228,7 +224,6 @@ spec:
                 size: 3
               parameters:
                 compression_mode: none
-                pg_num_min: "128"
           metadataServer:
             activeCount: 2
             activeStandby: true
