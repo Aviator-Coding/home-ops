@@ -225,10 +225,14 @@ spec:
             parameters:
               compression_mode: none
           dataPools:
-            # Single pool for all data - identical performance on all-NVMe
+            # Single pool for all data - identical performance on all-NVMe.
+            # No deviceClass: all OSDs are one class, so pinning data0 to the
+            # nvme shadow root made it the ONLY pool on root -2 while every other
+            # pool uses root -1 (default) -> "overlapping roots" -> the PG
+            # autoscaler skipped ALL pools. Using the default root fixes that.
+            # See docs/ceph-performance-review.md.
             - name: data0
               failureDomain: host
-              deviceClass: nvme
               replicated:
                 size: 3
               parameters:
