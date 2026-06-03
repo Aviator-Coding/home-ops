@@ -66,8 +66,11 @@ spec:
         osd:
           # Let osd_memory_target manage BlueStore cache (was overridden by a
           # hard bluestore_cache_size=2GB, which disabled autotuning and capped
-          # each OSD at 2GB despite the 8Gi pod limit). 6GiB leaves heap+headroom.
-          osd_memory_target: "6442450944" # 6 GiB
+          # each OSD at 2GB. Nodes have ~94GiB RAM at <30% use with only 2 OSDs
+          # each, so give BlueStore a bigger cache (more onode/metadata hits ->
+          # fewer disk reads). NOTE: read-cache optimization, NOT a fix for the
+          # write-latency slow-ops storm (that's the no-PLP consumer drives).
+          osd_memory_target: "10737418240" # 10 GiB (pod limit raised to 14Gi)
           osd_recovery_max_active: "3" # Don't overwhelm homelab hardware
           # Gentler, off-peak scrubbing for the consumer NVMe: 1 scrub per OSD
           # at a time (was 3 -> ~23 concurrent deep-scrubs cluster-wide), and
@@ -77,6 +80,11 @@ spec:
           osd_scrub_end_hour: "7"
           # Prioritise client I/O over background work on latency-sensitive drives.
           osd_mclock_profile: high_client_ops
+
+        mds:
+          # Larger CephFS metadata cache (plenty of node RAM headroom); kept
+          # below the 10Gi MDS pod limit. Helps metadata-heavy CephFS ops.
+          mds_cache_memory_limit: "8589934592" # 8 GiB
 
         client.rgw:
           # Explicitly set realm to prevent orphan default zone/zonegroup creation
@@ -130,9 +138,9 @@ spec:
         osd:
           requests:
             cpu: 500m
-            memory: 4Gi
+            memory: 6Gi
           limits:
-            memory: 8Gi
+            memory: 14Gi # > osd_memory_target (10Gi) + headroom; ~94GiB node RAM
         mgr-sidecar:
           requests:
             cpu: 50m
@@ -265,7 +273,7 @@ spec:
                 cpu: 500m
                 memory: 1Gi
               limits:
-                memory: 4Gi
+                memory: 10Gi # > mds_cache_memory_limit (8Gi) + headroom
 
         storageClass:
           enabled: true
