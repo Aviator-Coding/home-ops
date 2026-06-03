@@ -69,6 +69,14 @@ spec:
           # each OSD at 2GB despite the 8Gi pod limit). 6GiB leaves heap+headroom.
           osd_memory_target: "6442450944" # 6 GiB
           osd_recovery_max_active: "3" # Don't overwhelm homelab hardware
+          # Gentler, off-peak scrubbing for the consumer NVMe: 1 scrub per OSD
+          # at a time (was 3 -> ~23 concurrent deep-scrubs cluster-wide), and
+          # confine to 01:00-07:00. See docs/ceph-performance-review.md.
+          osd_max_scrubs: "1"
+          osd_scrub_begin_hour: "1"
+          osd_scrub_end_hour: "7"
+          # Prioritise client I/O over background work on latency-sensitive drives.
+          osd_mclock_profile: high_client_ops
 
         client.rgw:
           # Explicitly set realm to prevent orphan default zone/zonegroup creation
