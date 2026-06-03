@@ -109,6 +109,29 @@ spec:
               path: /var/lib/grafana/dashboards/storage
 
     dashboards:
+      storage:
+        # Official Ceph dashboards (work with rook-ceph mgr/exporter ceph_* metrics)
+        ceph-cluster:
+          # renovate: dashboardName="Ceph Cluster"
+          gnetId: 2842
+          revision: 18
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+        ceph-osd:
+          # renovate: dashboardName="Ceph - OSD (Single)"
+          gnetId: 5336
+          revision: 9
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
+        ceph-pools:
+          # renovate: dashboardName="Ceph - Pools"
+          gnetId: 5342
+          revision: 9
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
       default:
         external-dns:
           # renovate: dashboardName="External-DNS"
