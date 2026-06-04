@@ -106,10 +106,12 @@ spec:
             resources:
               requests:
                 cpu: 500m # Increased from 5m to 500m
-                memory: 1024Mi
+                memory: 2048Mi
               limits:
                 cpu: 4000m # Raised 2000m->4000m so par2/7zip aren't throttled (slow API trips probes)
-                memory: 6144Mi
+                # 10Gi: post-processing 60-80GB UHD remuxes (par2 + unrar)
+                # was OOMKilling at 6Gi.
+                memory: 10240Mi
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
