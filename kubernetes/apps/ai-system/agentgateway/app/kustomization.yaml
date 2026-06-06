@@ -34,9 +34,6 @@ resources:
 - ./httproute.yaml
 - ./httproute-internal.yaml
 - ./ocirepository.yaml
-- ./pdb.yaml
 - ./service-admin-ui.yaml
-- ./servicemonitor.yaml
-- ./podmonitor.yaml
 - ./externalsecret-tls.yaml
 - ./agentgatewayparameters.yaml
