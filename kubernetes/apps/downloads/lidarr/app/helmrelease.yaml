@@ -58,7 +58,7 @@ spec:
           app:
             image:
               repository: ghcr.io/brunnels/lidarr-develop
-              tag: 3.1.2.4938@sha256:038d6e89ea091516ce5d7c73e39c1d80752e2e8dae90ec71c14a41908f37c32b
+              tag: 3.1.3.4968@sha256:06abca6d1c8aaae962f51848730a790567f8a6ec2f59080ec61ce92178fd545c
             env:
               LIDARR__APP__INSTANCENAME: Lidarr
               LIDARR__APP__THEME: dark
