@@ -35,30 +35,34 @@ spec:
     mode: enabled
   maxHistory: 3
   values:
-    agentgateway:
-      enabled: true
-    # Enable automount of service account token for Kubernetes API access
-    automountServiceAccountToken: true
     serviceAccount:
       create: true
       name: agentgateway
-      automountServiceAccountToken: true
     controller:
       replicaCount: 2
       logLevel: "info"
-      extraEnv:
-        KGW_ENABLE_GATEWAY_API_EXPERIMENTAL_FEATURES: "true"
-      resources:
-        requests:
-          cpu: "100m"
-          memory: "128Mi"
-        limits:
-          cpu: "500m"
-          memory: "512Mi"
+      podDisruptionBudget:
+        minAvailable: 1
+    # NOTE: resources is a top-level chart value (not controller.resources)
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
     gatewayClassParametersRefs:
       agentgateway:
         name: agentgateway-params
         namespace: ai-system
+    # Chart-provided ServiceMonitors (controller + data-plane proxies);
+    # dashboard JSON is vendored separately with a grafana_folder annotation.
+    monitoring:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+      grafanaDashboard:
+        enabled: false
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
