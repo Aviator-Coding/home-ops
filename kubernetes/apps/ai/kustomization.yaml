@@ -14,7 +14,11 @@ resources:
   - ./kokoro/ks.yaml
   - ./perplexica/ks.yaml
   - ./ollama/ks.yaml
-  - ./open-notebook/ks.yaml
-  - ./open-webui/ks.yaml
+  # Temporarily removed (2026-06-07) - workloads/PVCs pruned, but manifests,
+  # postgres open-webui DB, surrealdb open_notebook ns, 1P items and volsync
+  # restic repos (ceph/minio/r2) are all kept. To revive: uncomment, then
+  # restore the PVC via the volsync ReplicationDestination flow.
+  # - ./open-notebook/ks.yaml
+  # - ./open-webui/ks.yaml
   - ./qdrant/ks.yaml
   - ./searxng/ks.yaml
