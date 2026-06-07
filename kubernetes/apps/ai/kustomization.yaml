@@ -10,7 +10,6 @@ components:
 
 resources:
   - ./kokoro/ks.yaml
-  - ./litellm/ks.yaml
   - ./perplexica/ks.yaml
   - ./ollama/ks.yaml
   - ./open-notebook/ks.yaml
