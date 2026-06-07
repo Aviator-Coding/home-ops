@@ -77,6 +77,21 @@ spec:
         - record: *price
           labels: { gen_ai_request_model: google/gemini-2.0-flash-lite-001, gen_ai_token_type: output }
           expr: vector(0.30)
+        # --- xAI (Grok) - the grok-4 alias resolves to grok-4.3; family is
+        # flat-priced at $1.25 in / $2.50 out per 1M tokens. Price both ids
+        # since clients may send either. ---
+        - record: *price
+          labels: { gen_ai_request_model: grok-4, gen_ai_token_type: input }
+          expr: vector(1.25)
+        - record: *price
+          labels: { gen_ai_request_model: grok-4, gen_ai_token_type: output }
+          expr: vector(2.50)
+        - record: *price
+          labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: input }
+          expr: vector(1.25)
+        - record: *price
+          labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: output }
+          expr: vector(2.50)
 
     - name: ai-llm-cost
       rules:
