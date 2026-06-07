@@ -1,0 +1,102 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# Estimated LLM spend computed from agentgateway native token metrics
+# (agentgateway_gen_ai_client_token_usage histogram, labels
+# gen_ai_request_model + gen_ai_token_type) multiplied by the price table
+# below. This is the GitOps replacement for LiteLLM's DB-based spend
+# tracking: tokens are exact, USD is an estimate.
+#
+# >>> PRICE TABLE - maintain me! USD per 1 MILLION tokens. <<<
+# Model names must match the `model` field clients send (the
+# gen_ai_request_model label). Models without a price row still show up in
+# the ai:gen_ai_tokens_unpriced:rate5m series (dashboard panel "Unpriced
+# models") so nothing is silently uncounted.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agentgateway-llm-cost
+spec:
+  groups:
+    - name: ai-llm-token-prices
+      rules:
+        # --- OpenAI ---
+        - record: &price ai:llm_token_price_per_million_usd
+          labels: { gen_ai_request_model: gpt-4o, gen_ai_token_type: input }
+          expr: vector(2.50)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-4o, gen_ai_token_type: output }
+          expr: vector(10.00)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-4o-mini, gen_ai_token_type: input }
+          expr: vector(0.15)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-4o-mini, gen_ai_token_type: output }
+          expr: vector(0.60)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-5, gen_ai_token_type: input }
+          expr: vector(1.25)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-5, gen_ai_token_type: output }
+          expr: vector(10.00)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-5-mini, gen_ai_token_type: input }
+          expr: vector(0.25)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-5-mini, gen_ai_token_type: output }
+          expr: vector(2.00)
+        # --- Anthropic ---
+        - record: *price
+          labels: { gen_ai_request_model: claude-sonnet-4-6, gen_ai_token_type: input }
+          expr: vector(3.00)
+        - record: *price
+          labels: { gen_ai_request_model: claude-sonnet-4-6, gen_ai_token_type: output }
+          expr: vector(15.00)
+        - record: *price
+          labels: { gen_ai_request_model: claude-haiku-4-5, gen_ai_token_type: input }
+          expr: vector(1.00)
+        - record: *price
+          labels: { gen_ai_request_model: claude-haiku-4-5, gen_ai_token_type: output }
+          expr: vector(5.00)
+        - record: *price
+          labels: { gen_ai_request_model: claude-opus-4-6, gen_ai_token_type: input }
+          expr: vector(5.00)
+        - record: *price
+          labels: { gen_ai_request_model: claude-opus-4-6, gen_ai_token_type: output }
+          expr: vector(25.00)
+        # --- DeepSeek ---
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-chat, gen_ai_token_type: input }
+          expr: vector(0.27)
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-chat, gen_ai_token_type: output }
+          expr: vector(1.10)
+        # --- Gemini (incl. linkwarden tagging model) ---
+        - record: *price
+          labels: { gen_ai_request_model: google/gemini-2.0-flash-lite-001, gen_ai_token_type: input }
+          expr: vector(0.075)
+        - record: *price
+          labels: { gen_ai_request_model: google/gemini-2.0-flash-lite-001, gen_ai_token_type: output }
+          expr: vector(0.30)
+
+    - name: ai-llm-cost
+      rules:
+        # token consumption rate by model and direction
+        - record: ai:gen_ai_tokens:rate5m
+          expr: |
+            sum by (gen_ai_request_model, gen_ai_token_type) (
+              rate(agentgateway_gen_ai_client_token_usage_sum[5m])
+            )
+        # estimated USD per second by model (integrate in Grafana for $/day)
+        - record: ai:gen_ai_cost_usd:rate5m
+          expr: |
+            sum by (gen_ai_request_model) (
+              ai:gen_ai_tokens:rate5m
+              * on (gen_ai_request_model, gen_ai_token_type) group_left ()
+              ai:llm_token_price_per_million_usd
+            ) / 1e6
+        # tokens flowing for models missing a price row (keep this empty!)
+        - record: ai:gen_ai_tokens_unpriced:rate5m
+          expr: |
+            ai:gen_ai_tokens:rate5m
+            unless on (gen_ai_request_model, gen_ai_token_type)
+            ai:llm_token_price_per_million_usd

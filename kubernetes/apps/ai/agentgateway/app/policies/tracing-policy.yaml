@@ -1,0 +1,27 @@
+---
+# Export OTLP traces (gen_ai semantic conventions) from all three gateways
+# to Tempo in the monitoring namespace. 100% sampling - home-lab request
+# volume is low and per-request drill-down is the point.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: tracing-policy
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-noauth
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+  frontend:
+    tracing:
+      backendRef:
+        name: tempo
+        namespace: monitoring
+        port: 4317
+      protocol: GRPC
+      randomSampling: "1.0"

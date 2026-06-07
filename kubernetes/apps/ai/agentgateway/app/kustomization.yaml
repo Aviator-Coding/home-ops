@@ -35,6 +35,8 @@ resources:
 - ./httproute-internal.yaml
 - ./httproute-api-external.yaml
 - ./externalsecret-apikeys.yaml
+- ./podmonitor.yaml
+- ./rules/cost.yaml
 - ./ocirepository.yaml
 - ./service-admin-ui.yaml
 - ./externalsecret-tls.yaml
