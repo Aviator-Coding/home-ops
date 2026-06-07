@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# External (and internal) OpenAI-compatible API endpoint for the model
+# gateway. Envoy terminates TLS for llm-api.* and forwards to the
+# agentgateway `public` data-plane Service on its HTTP listener, where the
+# API-key policy (apikey-policy.yaml) enforces per-consumer bearer keys.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: agentgateway-api
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN},external.${SECRET_DOMAIN}"
+    gatus.home-operations.com/endpoint: |-
+      conditions: ["[STATUS] == 401"]
+      url: "https://llm-api.${SECRET_DOMAIN}/openai/v1/models"
+spec:
+  hostnames:
+    - "llm-api.${SECRET_DOMAIN}"
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: public
+          namespace: ai
+          port: 80

@@ -1,0 +1,25 @@
+---
+# Per-consumer API keys for the model API exposed via llm-api.* (the
+# `public` gateway HTTP listener that envoy forwards to). Keys are read from
+# the Authorization header with the `Bearer ` prefix (the default location),
+# matching what OpenAI-compatible clients send. The https listener keeps the
+# authentik extAuth policy for browser access.
+#
+# Keys live in the `ai-gateway-keys` 1Password item (see
+# externalsecret-apikeys.yaml) - never in Git. The in-cluster
+# `internal-noauth` gateway stays keyless for trusted workloads.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: apikey-policy
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
+      sectionName: http
+  traffic:
+    apiKeyAuthentication:
+      mode: Strict
+      secretRef:
+        name: agentgateway-api-keys
