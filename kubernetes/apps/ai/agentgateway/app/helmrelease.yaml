@@ -54,7 +54,7 @@ spec:
     gatewayClassParametersRefs:
       agentgateway:
         name: agentgateway-params
-        namespace: ai-system
+        namespace: ai
     # Chart-provided ServiceMonitors (controller + data-plane proxies);
     # dashboard JSON is vendored separately with a grafana_folder annotation.
     monitoring:

@@ -9,6 +9,7 @@ components:
   - ../../components/alerts
 
 resources:
+  - ./agentgateway/ks.yaml
   - ./kokoro/ks.yaml
   - ./perplexica/ks.yaml
   - ./ollama/ks.yaml

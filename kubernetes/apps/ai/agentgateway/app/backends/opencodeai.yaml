@@ -3,34 +3,39 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: openai-secret
+  name: opencodeai-secret
+  namespace: ai
 spec:
   refreshInterval: 1h
   secretStoreRef:
     kind: ClusterSecretStore
     name: onepassword
   target:
-    name: openai-secret
+    name: opencodeai-secret
     template:
       data:
-        Authorization: "{{ .OPENAI_API_KEY }}"
+        Authorization: "{{ .OPENCODEAI_API_KEY }}"
   dataFrom:
     - extract:
         key: ai-keys
 ---
+# OpenCode AI AgentgatewayBackend (OpenAI-compatible)
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
-  name: openai
+  name: opencodeai
+  namespace: ai
 spec:
   ai:
     provider:
       openai: {}
-
+      host: opencode.ai
+      port: 443
   policies:
+    tls: {}
     auth:
       secretRef:
-        name: openai-secret
+        name: opencodeai-secret
     ai:
       routes:
         "/v1/chat/completions": Completions
@@ -41,24 +46,25 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: openai
+  name: opencodeai
+  namespace: ai
 spec:
   parentRefs:
     - name: internal
     - name: internal-noauth
     - name: public
   rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /openai
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: openai
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /opencodeai
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /zen
+      backendRefs:
+        - name: opencodeai
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
