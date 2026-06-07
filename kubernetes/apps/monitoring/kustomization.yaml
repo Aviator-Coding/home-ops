@@ -16,6 +16,7 @@ resources:
   - ./kube-prometheus-stack/ks.yaml
   - ./loki/ks.yaml
   - ./prometheus-operator/ks.yaml
+  - ./tempo/ks.yaml
   - ./promtail/ks.yaml
   - ./gatus/ks.yaml
   - ./kromgo/ks.yaml

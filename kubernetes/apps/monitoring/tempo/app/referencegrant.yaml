@@ -1,0 +1,18 @@
+---
+# Allow the agentgateway tracing policy (ns ai) to reference the tempo
+# Service across namespaces (Gateway API spec-correct, even though
+# agentgateway does not currently enforce ReferenceGrant for policy
+# backendRefs).
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  name: allow-agentgateway-tracing
+spec:
+  from:
+    - group: agentgateway.dev
+      kind: AgentgatewayPolicy
+      namespace: ai
+  to:
+    - group: ""
+      kind: Service
+      name: tempo

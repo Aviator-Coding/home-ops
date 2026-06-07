@@ -187,7 +187,7 @@ spec:
                   "id": 3,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LiteLLM](/d/litellm)\n- [Qdrant](/d/qdrant-observatory)\n- [Ollama](/d/ollama-llm-inference)\n\n## 🎬 Media\n- [Plex](/d/plex-media-server-exporter)\n- [Jellyfin](/d/jellyfin-media-server)\n- [Immich](/d/immich-overview)\n- [Tdarr](/d/tdarr)",
+                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-observatory)\n- [Ollama](/d/ollama-llm-inference)\n\n## 🎬 Media\n- [Plex](/d/plex-media-server-exporter)\n- [Jellyfin](/d/jellyfin-media-server)\n- [Immich](/d/immich-overview)\n- [Tdarr](/d/tdarr)",
                     "mode": "markdown"
                   },
                   "title": "AI/ML & Media",
@@ -382,22 +382,10 @@ spec:
           url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/rule-engine-rate.json
           datasource: Prometheus
 
-      ai-ml:
-        agentgateway:
-          # renovate: dashboardName="AgentGateway Overview"
-          gnetId: 24590
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        litellm:
-          # renovate: dashboardName="LiteLLM"
-          gnetId: 24965
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
+      # NOTE: agentgateway + llm-cost dashboards are sidecar-discovered
+      # ConfigMaps (kubernetes/apps/ai/agentgateway-dashboards/), vendored
+      # from the official chart - the old gnetId 24590/24965 entries are gone
+      # (litellm was removed; the kgateway-org dashboard is superseded).
 
         qdrant-observatory:
           # renovate: depName="Qdrant Observatory"
@@ -571,6 +559,14 @@ spec:
             url: http://alertmanager.monitoring.svc.cluster.local:9093
             jsonData:
               implementation: prometheus
+          - name: Tempo
+            type: tempo
+            uid: tempo
+            access: proxy
+            url: http://tempo.monitoring.svc.cluster.local:3200
+            jsonData:
+              tracesToMetrics:
+                datasourceUid: prometheus
 
         deleteDatasources:
           - name: Alertmanager
@@ -578,6 +574,8 @@ spec:
           - name: Prometheus
             orgId: 1
           - name: Loki
+            orgId: 1
+          - name: Tempo
             orgId: 1
 
     env:

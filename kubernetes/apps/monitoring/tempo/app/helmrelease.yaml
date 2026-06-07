@@ -1,0 +1,41 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+# Grafana Tempo (single binary) - OTLP trace backend for the AI model
+# gateway (agentgateway exports gen_ai spans via OTLP/gRPC :4317).
+# Traces are ephemeral (7d retention, no volsync).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tempo
+spec:
+  interval: 30m
+  timeout: 10m
+  chartRef:
+    kind: OCIRepository
+    name: tempo
+  dependsOn:
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+  values:
+    tempo:
+      reportingEnabled: false
+      retention: 168h
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    persistence:
+      enabled: true
+      storageClassName: ceph-block
+      size: 20Gi
+    serviceMonitor:
+      enabled: true

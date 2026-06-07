@@ -1,0 +1,19 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# agentgateway.json is vendored from the official chart
+# (oci://cr.agentgateway.dev/charts/agentgateway, files/agentgateway-dashboard.json).
+# Re-vendor when bumping the chart version.
+configMapGenerator:
+  - name: agentgateway-dashboard
+    files:
+      - agentgateway.json
+  - name: llm-cost-dashboard
+    files:
+      - llm-cost.json
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    grafana_folder: AI/ML
+  labels:
+    grafana_dashboard: "true"

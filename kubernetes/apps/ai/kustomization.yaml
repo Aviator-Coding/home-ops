@@ -10,6 +10,7 @@ components:
 
 resources:
   - ./agentgateway/ks.yaml
+  - ./agentgateway-dashboards/ks.yaml
   - ./kokoro/ks.yaml
   - ./perplexica/ks.yaml
   - ./ollama/ks.yaml
