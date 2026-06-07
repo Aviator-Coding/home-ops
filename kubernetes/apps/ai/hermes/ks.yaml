@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app hermes
+  namespace: &namespace ai
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/volsync
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
+    # Hermes routes all LLM traffic through the internal agentgateway.
+    - name: agentgateway
+      namespace: *namespace
+  interval: 1h
+  path: ./kubernetes/apps/ai/hermes/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CAPACITY: 10Gi
+      VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "35 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "10 2 * * *"
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false
