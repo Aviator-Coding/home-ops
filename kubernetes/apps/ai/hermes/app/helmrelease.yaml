@@ -1,0 +1,117 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app hermes
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      hermes:
+        # Single source of truth at /opt/data (sessions/memories/skills) is not
+        # safe for concurrent writers -> exactly one replica, recreate on update.
+        replicas: 1
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/nousresearch/hermes-agent
+              tag: v2026.6.5
+            # Start the long-running gateway server (matches upstream docker usage).
+            args: ["gateway", "run"]
+            env:
+              # --- LLM backend: route through the internal agentgateway -> xAI ---
+              # The `internal-noauth` gateway injects the real xAI key (xai-secret),
+              # so OPENAI_API_KEY here is just the non-empty placeholder Hermes
+              # requires. To move to local models later, only this base_url
+              # changes (e.g. .../vllm/v1) - the rest of the deploy stays put.
+              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/xai/v1
+              OPENAI_API_KEY: gateway-injects-real-key
+              # TODO: set to the exact xAI model id your subscription serves.
+              # List options:
+              #   curl http://internal-noauth.ai.svc.cluster.local/xai/v1/models
+              OPENAI_MODEL: grok-4
+              # --- Web dashboard (chat / management UI) on :9119 ---
+              HERMES_DASHBOARD: "1"
+              HERMES_DASHBOARD_HOST: 0.0.0.0
+              HERMES_DASHBOARD_PORT: "9119"
+              # --- Run as the image's default `hermes` user. The s6 init starts
+              # as root, chowns /opt/data, then drops to UID 10000. ---
+              HERMES_UID: "10000"
+              HERMES_GID: "10000"
+            envFrom:
+              # Dashboard basic-auth credentials (HERMES_DASHBOARD_BASIC_AUTH_*).
+              - secretRef:
+                  name: *app
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: &dash 9119
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              readiness: *probes
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: *dash
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  # Generous: first boot initialises config/skills under /opt/data.
+                  failureThreshold: 30
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+    defaultPodOptions:
+      securityContext:
+        # s6 starts as root then drops to 10000; fsGroup makes the ceph-block
+        # PVC group-writable so the dropped user owns its state at /opt/data.
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+    service:
+      app:
+        ports:
+          http:
+            port: *dash
+    route:
+      app:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            url: https://hermes.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] == any(200, 401)"
+            group: ai
+        hostnames:
+          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+    persistence:
+      data:
+        existingClaim: *app
+        globalMounts:
+          - path: /opt/data
