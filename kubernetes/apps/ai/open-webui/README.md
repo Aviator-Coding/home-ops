@@ -14,12 +14,12 @@ provider path** — each connection contributes its own model list:
 
 | Provider   | API Base URL                                                          | API Key       |
 | ---------- | --------------------------------------------------------------------- | ------------- |
-| OpenAI     | `http://internal-noauth.ai-system.svc.cluster.local/openai/v1`        | any non-empty |
-| Anthropic  | `http://internal-noauth.ai-system.svc.cluster.local/anthropic/v1`     | any non-empty |
-| Groq       | `http://internal-noauth.ai-system.svc.cluster.local/groq/v1`          | any non-empty |
-| Gemini     | `http://internal-noauth.ai-system.svc.cluster.local/gemini/v1`        | any non-empty |
-| DeepSeek   | `http://internal-noauth.ai-system.svc.cluster.local/deepseek/v1`      | any non-empty |
-| OpenRouter | `http://internal-noauth.ai-system.svc.cluster.local/openrouter/v1`    | any non-empty |
+| OpenAI     | `http://internal-noauth.ai.svc.cluster.local/openai/v1`        | any non-empty |
+| Anthropic  | `http://internal-noauth.ai.svc.cluster.local/anthropic/v1`     | any non-empty |
+| Groq       | `http://internal-noauth.ai.svc.cluster.local/groq/v1`          | any non-empty |
+| Gemini     | `http://internal-noauth.ai.svc.cluster.local/gemini/v1`        | any non-empty |
+| DeepSeek   | `http://internal-noauth.ai.svc.cluster.local/deepseek/v1`      | any non-empty |
+| OpenRouter | `http://internal-noauth.ai.svc.cluster.local/openrouter/v1`    | any non-empty |
 
 Notes:
 
@@ -29,8 +29,7 @@ Notes:
   has to be non-empty.
 - Provider passthrough model lists are unfiltered; disable unwanted models
   under **Admin Settings → Models**.
-- After the agentgateway namespace move (`ai-system` → `ai`), update the URLs
-  to `internal-noauth.ai.svc.cluster.local`.
+- agentgateway lives in the `ai` namespace (consolidated from `ai-system`).
 - Backend definitions live in
-  `kubernetes/apps/ai-system/agentgateway/app/backends/` — adding a Backend
+  `kubernetes/apps/ai/agentgateway/app/backends/` — adding a Backend
   there (GitOps) and a matching connection here exposes a new provider.
