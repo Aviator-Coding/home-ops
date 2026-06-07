@@ -20,7 +20,8 @@ spec:
     controllers:
       perplexica:
         replicas: 1
-        strategy: RollingUpdate
+        # RWO PVCs (dbstore/uploads): RollingUpdate deadlocks on Multi-Attach
+        strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
