@@ -9,7 +9,5 @@ components:
   - ../../components/alerts
 
 resources:
-  - ./kagent/ks.yaml
   - ./kgateway-dashboards/ks.yaml
-  - ./kmcp/ks.yaml
   - ./agentgateway/ks.yaml
