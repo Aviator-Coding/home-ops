@@ -33,6 +33,8 @@ resources:
 - ./helmrelease.yaml
 - ./httproute.yaml
 - ./httproute-internal.yaml
+- ./httproute-api-external.yaml
+- ./externalsecret-apikeys.yaml
 - ./ocirepository.yaml
 - ./service-admin-ui.yaml
 - ./externalsecret-tls.yaml
