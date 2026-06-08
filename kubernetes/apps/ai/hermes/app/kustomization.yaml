@@ -27,5 +27,6 @@ patches:
     group: helm.toolkit.fluxcd.io
     kind: HelmRelease
 resources:
+- ./configmap.yaml
 - ./externalsecret.yaml
 - ./helmrelease.yaml
