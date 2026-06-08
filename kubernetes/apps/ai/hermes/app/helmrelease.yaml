@@ -33,17 +33,19 @@ spec:
             # Start the long-running gateway server (matches upstream docker usage).
             args: ["gateway", "run"]
             env:
-              # --- LLM backend: route through the internal agentgateway -> xAI ---
-              # The `internal-noauth` gateway injects the real xAI key (xai-secret),
-              # so OPENAI_API_KEY here is just the non-empty placeholder Hermes
-              # requires. To move to local models later, only this base_url
-              # changes (e.g. .../vllm/v1) - the rest of the deploy stays put.
-              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/xai/v1
+              # --- LLM backend: route through the internal agentgateway to
+              # OpenCode Go (flat $10/mo sub). The `internal-noauth` gateway
+              # injects the real OpenCode key (opencodego-secret), so
+              # OPENAI_API_KEY here is just the non-empty placeholder Hermes
+              # requires. To switch provider/model later, change only these two
+              # lines (e.g. /xai/v1 + grok-4, or /<vllm>/v1 for local). ---
+              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/opencodego/v1
               OPENAI_API_KEY: gateway-injects-real-key
-              # TODO: set to the exact xAI model id your subscription serves.
-              # List options:
-              #   curl http://internal-noauth.ai.svc.cluster.local/xai/v1/models
-              OPENAI_MODEL: grok-4
+              # kimi-k2.6: strong agentic tool-caller, ~256k context (Hermes
+              # needs tool-calling + >=64k). Other Go ids: glm-5.1,
+              # deepseek-v4-pro, qwen3.7-max. List:
+              #   curl http://internal-noauth.ai.svc.cluster.local/opencodego/v1/models
+              OPENAI_MODEL: kimi-k2.6
               # --- Web dashboard (chat / management UI) on :9119 ---
               HERMES_DASHBOARD: "1"
               HERMES_DASHBOARD_HOST: 0.0.0.0
