@@ -56,8 +56,15 @@ spec:
             image:
               repository: docker.io/nousresearch/hermes-agent
               tag: v2026.6.5
-            # Start the long-running gateway server (matches upstream docker usage).
-            args: ["gateway", "run"]
+            # The image's `gateway-default` s6 *profile* service already runs the
+            # gateway (cron + messaging platforms). Passing `gateway run` here too
+            # started a SECOND gateway that collided at startup ("Another gateway
+            # instance started during our startup. Exiting to avoid
+            # double-running.") -> exit 1 -> CrashLoopBackOff. So idle the main CMD
+            # and let gateway-default be the sole gateway; the `dashboard` s6
+            # service serves chat independently. main-wrapper.sh execs a bare
+            # executable directly, so `sleep infinity` is a valid no-op CMD.
+            args: ["sleep", "infinity"]
             env:
               # --- LLM backend ---
               # Model + provider routing live in /opt/data/config.yaml, seeded by
