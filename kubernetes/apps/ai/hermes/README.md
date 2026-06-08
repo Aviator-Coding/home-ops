@@ -33,11 +33,42 @@ HTTPRoute under `../agentgateway/app/backends/` and change only `OPENAI_BASE_URL
    - `HERMES_DASHBOARD_USER`
    - `HERMES_DASHBOARD_PASSWORD`
    - `HERMES_DASHBOARD_SECRET` — `openssl rand -hex 32`
+   - `GITHUB_LLM_WIKI_TOKEN` — fine-grained GitHub PAT (see **Git access** below)
 2. **Confirm the model id**: list what xAI serves and set `OPENAI_MODEL`:
    ```bash
    kubectl -n ai run -it --rm curl --image=curlimages/curl --restart=Never -- \
      -s http://internal-noauth.ai.svc.cluster.local/xai/v1/models
    ```
+
+## Git access (single private repo)
+
+Hermes is given access to **exactly one** private repo, without exposing any
+other repo on the account:
+
+1. **Create a fine-grained PAT** (GitHub → Settings → Developer settings →
+   Fine-grained tokens):
+   - **Repository access:** *Only select repositories* → pick the one repo.
+   - **Permissions:** *Contents* → **Read and write** (write enabled here).
+   - Set an expiry; rotate by updating `GIT_TOKEN` in 1Password (reloader
+     restarts the pod automatically).
+2. Put the token in the `hermes` 1Password item as `GITHUB_LLM_WIKI_TOKEN`.
+
+The `hermes-git` ExternalSecret renders it into a `.git-credentials` file
+(`https://x-access-token:<token>@github.com`); the file is mounted read-only at
+`/secrets/git/.git-credentials` and consumed by git's `store` credential helper,
+which is wired up purely through `GIT_CONFIG_*` env (no writable `$HOME`). A
+commit identity (`user.name` / `user.email`) is set for pushes — change the
+`GIT_CONFIG_VALUE_1/2` env if you want a different author.
+
+Because the PAT is **repo-scoped server-side**, this is the security boundary:
+even though git may present it for any `github.com` URL, GitHub rejects it for
+any repo outside the selected one. (A *classic* PAT or an account SSH key would
+expose every repo — don't use those.)
+
+> **Other hosts / SSH:** for GitLab use a *project* access/deploy token the same
+> way. For an even tighter, key-based boundary, a per-repo **deploy key**
+> (SSH, write-enabled) also works, but needs careful key-file permissions when
+> mounted from a Secret — the HTTPS PAT above avoids that.
 
 ## Notes
 

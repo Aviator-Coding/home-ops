@@ -54,6 +54,19 @@ spec:
               # as root, chowns /opt/data, then drops to UID 10000. ---
               HERMES_UID: "10000"
               HERMES_GID: "10000"
+              # --- Git access (single private repo). Inject a global git config
+              # via env (no writable $HOME needed): the `store` helper reads the
+              # token from the mounted `.git-credentials` file (see persistence
+              # below), and a commit identity is set for write access. The token
+              # is a fine-grained PAT scoped to ONE repo (hermes-git secret), so
+              # this grants no access to any other repo. ---
+              GIT_CONFIG_COUNT: "3"
+              GIT_CONFIG_KEY_0: credential.helper
+              GIT_CONFIG_VALUE_0: store --file=/secrets/git/.git-credentials
+              GIT_CONFIG_KEY_1: user.name
+              GIT_CONFIG_VALUE_1: Hermes Agent
+              GIT_CONFIG_KEY_2: user.email
+              GIT_CONFIG_VALUE_2: hermes@users.noreply.github.com
             envFrom:
               # Dashboard basic-auth credentials (HERMES_DASHBOARD_BASIC_AUTH_*).
               - secretRef:
@@ -118,3 +131,13 @@ spec:
         existingClaim: *app
         globalMounts:
           - path: /opt/data
+      # Single private-repo git token, rendered as `.git-credentials` by the
+      # hermes-git ExternalSecret and read by the git `store` helper (see
+      # GIT_CONFIG_* env above). reloader restarts the pod on token rotation.
+      git-credentials:
+        type: secret
+        name: hermes-git
+        globalMounts:
+          - path: /secrets/git/.git-credentials
+            subPath: .git-credentials
+            readOnly: true
