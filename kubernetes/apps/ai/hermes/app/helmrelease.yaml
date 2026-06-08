@@ -25,6 +25,32 @@ spec:
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          # Seed /opt/data/config.yaml from the hermes-config-seed ConfigMap, but
+          # ONLY if it doesn't exist yet -> Hermes owns the file thereafter
+          # (`hermes model` / `config edit` write to it). To re-seed: edit the
+          # ConfigMap and `rm /opt/data/config.yaml`, then restart. Runs as root
+          # (pod default) so it can chown the file to the dropped 10000 user.
+          seed-config:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.38"
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                if [ -f /opt/data/config.yaml ]; then
+                  echo "[seed] /opt/data/config.yaml exists - leaving it untouched"
+                else
+                  echo "[seed] writing /opt/data/config.yaml from ConfigMap"
+                  cp /seed/config.yaml /opt/data/config.yaml
+                  chown 10000:10000 /opt/data/config.yaml
+                  chmod 0644 /opt/data/config.yaml
+                fi
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
         containers:
           app:
             image:
@@ -33,19 +59,22 @@ spec:
             # Start the long-running gateway server (matches upstream docker usage).
             args: ["gateway", "run"]
             env:
-              # --- LLM backend: route through the internal agentgateway to
-              # OpenCode Go (flat $10/mo sub). The `internal-noauth` gateway
-              # injects the real OpenCode key (opencodego-secret), so
-              # OPENAI_API_KEY here is just the non-empty placeholder Hermes
-              # requires. To switch provider/model later, change only these two
-              # lines (e.g. /xai/v1 + grok-4, or /<vllm>/v1 for local). ---
-              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/opencodego/v1
-              OPENAI_API_KEY: gateway-injects-real-key
-              # kimi-k2.6: strong agentic tool-caller, ~256k context (Hermes
-              # needs tool-calling + >=64k). Other Go ids: glm-5.1,
-              # deepseek-v4-pro, qwen3.7-max. List:
-              #   curl http://internal-noauth.ai.svc.cluster.local/opencodego/v1/models
-              OPENAI_MODEL: kimi-k2.6
+              # --- LLM backend ---
+              # Model + provider routing live in /opt/data/config.yaml, seeded by
+              # the `seed-config` initContainer from the `hermes-config-seed`
+              # ConfigMap (see configmap.yaml): a named `custom:gateway` provider
+              # points at the internal agentgateway, and the native `xai-oauth`
+              # provider serves the Grok subscription (creds in /opt/data/auth.json
+              # via `hermes auth add xai-oauth --manual-paste`).
+              #
+              # The old OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL env were
+              # REMOVED on purpose: OPENAI_BASE_URL is a global OpenAI-SDK override
+              # that hijacked the endpoint for EVERY provider (it pinned grok-4.3
+              # to /opencodego). Per-provider base_url in config.yaml is the right
+              # layer; OPENAI_BASE_URL only ever applied to the `openai-api`
+              # provider, which we no longer use. If Hermes ever refuses to boot
+              # without an OpenAI key, re-add a dummy `OPENAI_API_KEY` ONLY (never
+              # OPENAI_BASE_URL).
               # --- Web dashboard (chat / management UI) on :9119 ---
               HERMES_DASHBOARD: "1"
               HERMES_DASHBOARD_HOST: 0.0.0.0
@@ -141,3 +170,14 @@ spec:
           - path: /secrets/git/.git-credentials
             subPath: .git-credentials
             readOnly: true
+      # config.yaml template for the seed-config initContainer (mounted only
+      # there, read-only). The PVC `data` globalMount gives that init container
+      # /opt/data so it can write the seeded file.
+      config-seed:
+        type: configMap
+        name: hermes-config-seed
+        advancedMounts:
+          hermes:
+            seed-config:
+              - path: /seed
+                readOnly: true

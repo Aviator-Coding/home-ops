@@ -9,22 +9,59 @@ Dashboard (chat UI) at `https://hermes.${SECRET_DOMAIN}` (basic auth).
 
 ## LLM backend
 
-All LLM traffic goes through **agentgateway** (the single model gateway), like
-every other AI app here. Hermes points at the keyless `internal-noauth`
-gateway, which injects the real provider key:
+Hermes picks its model/provider from **`/opt/data/config.yaml`** (on the PVC), not
+from env. That file is seeded by the `seed-config` initContainer from the
+`hermes-config-seed` ConfigMap (`configmap.yaml`) **only if absent** — Hermes owns
+it afterwards (`hermes model` / `hermes config edit` rewrite it). Two providers are
+configured:
 
-| Setting | Value |
-| ------- | ----- |
-| `OPENAI_BASE_URL` | `http://internal-noauth.ai.svc.cluster.local/xai/v1` |
-| `OPENAI_API_KEY`  | placeholder (gateway injects the real xAI key) |
-| `OPENAI_MODEL`    | a model your xAI subscription serves (**set this**) |
+| Provider | Routing | Auth |
+| -------- | ------- | ---- |
+| `custom:gateway` | agentgateway `internal-noauth` → `/opencodego/v1` (kimi etc.) | keyless (gateway injects the opencodego key) |
+| `xai-oauth` (native) | **direct to xAI**, bypassing agentgateway | OAuth (Grok subscription, see below) |
 
-Hermes requires a **≥64k token context window** and a tool-calling-capable
-model — Grok models satisfy both.
+The default is `grok-4.3` via `xai-oauth`. Hermes needs a **≥64k context**,
+tool-calling model — Grok and kimi both qualify.
+
+> **No `OPENAI_BASE_URL`.** It used to point Hermes at the gateway, but it's a
+> *global* OpenAI-SDK override that pins the endpoint for **every** provider — it
+> was sending `grok-4.3` to `/opencodego`. Per-provider `base_url` in
+> `config.yaml` is the correct layer, so the `OPENAI_*` env vars were removed. If
+> Hermes ever won't boot without an OpenAI key, re-add a dummy `OPENAI_API_KEY`
+> **only** (never `OPENAI_BASE_URL`).
+
+**Switching models:** edit the ConfigMap + re-seed (below), or at runtime
+`kubectl -n ai exec -it deploy/hermes -c app -- hermes model` (writes config.yaml
+on the PVC). Add a 429 fail-over chain with `hermes fallback add` (e.g. primary
+`xai-oauth/grok-4.3`, fallback `custom:gateway/kimi-k2.6`).
+
+**Re-seed config.yaml** (after editing the ConfigMap, or to reset):
+```bash
+kubectl -n ai exec deploy/hermes -c app -- rm -f /opt/data/config.yaml
+kubectl -n ai rollout restart deploy/hermes
+```
+
+### xAI Grok subscription login (manual, one-time)
+
+The Grok **subscription** is used via Hermes' native `xai-oauth` provider (OAuth),
+which can't be done through the gateway (that path needs a console.x.ai API key, a
+separate product). The OAuth loopback callback can't reach a pod from your laptop,
+so use `--manual-paste`:
+
+```bash
+kubectl -n ai exec -it deploy/hermes -c app -- hermes auth add xai-oauth --no-browser --manual-paste
+```
+
+Open the printed URL, approve, then paste the **full** failed-callback URL (or a
+`?code=...&state=...` fragment, or a fresh bare code) at the prompt. Codes expire in
+~minutes; if it tracebacks on a stale/reused login, `hermes auth remove xai-oauth`
+and retry for a fresh `state`. Credentials persist in `/opt/data/auth.json` (PVC →
+Volsync-backed; `offline_access` refresh token renews automatically), so this is a
+one-time step per fresh PVC.
 
 **Local models later:** when the local vLLM backend exists, add a backend +
-HTTPRoute under `../agentgateway/app/backends/` and change only `OPENAI_BASE_URL`
-(e.g. `.../vllm/v1`). Nothing else in this deploy changes.
+HTTPRoute under `../agentgateway/app/backends/` and a `custom_providers` entry
+pointing at `.../vllm/v1`. Nothing else in this deploy changes.
 
 ## Prerequisites (manual, before first sync)
 
@@ -34,11 +71,10 @@ HTTPRoute under `../agentgateway/app/backends/` and change only `OPENAI_BASE_URL
    - `HERMES_DASHBOARD_PASSWORD`
    - `HERMES_DASHBOARD_SECRET` — `openssl rand -hex 32`
    - `GITHUB_LLM_WIKI_TOKEN` — fine-grained GitHub PAT (see **Git access** below)
-2. **Confirm the model id**: list what xAI serves and set `OPENAI_MODEL`:
-   ```bash
-   kubectl -n ai run -it --rm curl --image=curlimages/curl --restart=Never -- \
-     -s http://internal-noauth.ai.svc.cluster.local/xai/v1/models
-   ```
+2. **Authenticate the Grok subscription** once the pod is up — run the
+   `hermes auth add xai-oauth --manual-paste` flow in **LLM backend → xAI Grok
+   subscription login** above. (Until then Hermes has no working provider unless
+   you switch the seed to `custom:gateway`.)
 
 ## Git access (single private repo)
 
@@ -49,8 +85,8 @@ other repo on the account:
    Fine-grained tokens):
    - **Repository access:** *Only select repositories* → pick the one repo.
    - **Permissions:** *Contents* → **Read and write** (write enabled here).
-   - Set an expiry; rotate by updating `GIT_TOKEN` in 1Password (reloader
-     restarts the pod automatically).
+   - Set an expiry; rotate by updating `GITHUB_LLM_WIKI_TOKEN` in 1Password
+     (reloader restarts the pod automatically).
 2. Put the token in the `hermes` 1Password item as `GITHUB_LLM_WIKI_TOKEN`.
 
 The `hermes-git` ExternalSecret renders it into a `.git-credentials` file
@@ -77,8 +113,9 @@ expose every repo — don't use those.)
   `ceph-block` PVC. Do not scale up.
 - **Runs as root then drops** to UID 10000 (s6-overlay), so no `runAsNonRoot`
   here — `fsGroup: 10000` makes the PVC writable for the dropped user.
-- **Cost tracking:** Grok models have no price row in
-  `../agentgateway/app/rules/cost.yaml`, so spend shows under "unpriced models"
-  until you add `grok-*` input/output rows. Token counts are still tracked.
+- **Cost tracking:** the default `xai-oauth` Grok path talks to xAI **directly**,
+  bypassing agentgateway, so it does **not** appear in gateway cost/Tempo tracking
+  at all (a flat subscription, so there's no per-token spend anyway). Only the
+  `custom:gateway` path is metered by the gateway.
 - **Ports:** `9119` dashboard (exposed), `8642` OpenAI-compatible API
   (not enabled here — set `API_SERVER_ENABLED=true` + `API_SERVER_KEY` to use it).
