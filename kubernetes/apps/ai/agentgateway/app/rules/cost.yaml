@@ -92,6 +92,122 @@ spec:
         - record: *price
           labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: output }
           expr: vector(2.50)
+        # --- OpenCode Go (/opencodego) - flat $10/mo subscription, so the
+        # marginal per-token cost is $0 (the fixed monthly fee is not captured
+        # by token metrics). Priced at 0 so Go traffic leaves the "unpriced
+        # models" panel. Model ids are bare (e.g. glm-5.1), not the
+        # opencode-go/ config form. Pay-as-you-go OpenCode Zen (/opencodeai)
+        # is intentionally NOT priced here - its per-token rates aren't
+        # published and several ids (claude-*, gemini-*) collide with the
+        # direct-provider rows above (the metric can't tell the routes apart). ---
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m3, gen_ai_token_type: input }
+          expr: &free vector(0)
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m3, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m2.7, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m2.7, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m2.5, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m2.5, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: kimi-k2.6, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: kimi-k2.6, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: kimi-k2.5, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: kimi-k2.5, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: glm-5.1, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: glm-5.1, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: glm-5, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: glm-5, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-v4-pro, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-v4-pro, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-v4-flash, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-v4-flash, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.7-max, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.7-max, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.7-plus, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.7-plus, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.6-plus, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.6-plus, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.5-plus, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.5-plus, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2-pro, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2-pro, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2-omni, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2-omni, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2.5-pro, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2.5-pro, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2.5, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2.5, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: hy3-preview, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: hy3-preview, gen_ai_token_type: output }
+          expr: *free
 
     - name: ai-llm-cost
       rules:
