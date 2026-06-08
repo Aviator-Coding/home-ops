@@ -111,6 +111,12 @@ expose every repo — don't use those.)
 - **Single-writer state.** `/opt/data` (sessions/memories/skills, incl. SQLite)
   is not concurrency-safe → `replicas: 1` + `strategy: Recreate` + RWO
   `ceph-block` PVC. Do not scale up.
+- **Gateway runs via the profile service, not the CMD.** The image auto-starts a
+  `gateway-default` s6 service (the `default` profile gateway: cron + messaging).
+  The container CMD is therefore idled (`args: ["sleep","infinity"]`) — passing
+  `gateway run` started a *second* gateway that collided at startup and
+  CrashLooped the pod. The `dashboard` s6 service serves chat independently.
+  Don't set `args` back to `gateway run`.
 - **Runs as root then drops** to UID 10000 (s6-overlay), so no `runAsNonRoot`
   here — `fsGroup: 10000` makes the PVC writable for the dropped user.
 - **Cost tracking:** the default `xai-oauth` Grok path talks to xAI **directly**,
