@@ -11,6 +11,7 @@ components:
 resources:
   - ./agentgateway/ks.yaml
   - ./agentgateway-dashboards/ks.yaml
+  - ./agentmemory/ks.yaml
   - ./hermes/ks.yaml
   - ./kokoro/ks.yaml
   - ./perplexica/ks.yaml

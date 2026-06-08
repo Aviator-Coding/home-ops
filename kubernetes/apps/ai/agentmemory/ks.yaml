@@ -3,7 +3,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app hermes
+  name: &app agentmemory
   namespace: &namespace ai
 spec:
   commonMetadata:
@@ -14,24 +14,21 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    # Hermes routes all LLM traffic through the internal agentgateway.
-    - name: agentgateway
-      namespace: *namespace
-    # Long-term memory backend (plugin enabled in config.yaml).
-    - name: agentmemory
+    # Embeddings are served by the in-cluster Ollama (OpenAI-compatible endpoint).
+    - name: ollama
       namespace: *namespace
   interval: 1h
-  path: ./kubernetes/apps/ai/hermes/app
+  path: ./kubernetes/apps/ai/agentmemory/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 10Gi
-      VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "35 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "10 2 * * *"
+      VOLSYNC_CAPACITY: 5Gi
+      VOLSYNC_SCHEDULE_CEPH: "20 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "20 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "40 2 * * *"
   prune: true
   retryInterval: 2m
   sourceRef:
