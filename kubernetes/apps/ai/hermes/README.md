@@ -1,127 +1,185 @@
 # Hermes Agent
 
 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) — a
-self-improving conversational AI agent (learning loop, persistent memory,
-skills). Self-contained Python image; no upstream Helm chart, so this is a
-hand-authored `app-template` deploy.
+self-improving conversational AI agent (learning loop, persistent memory, skills),
+deployed here as a homelab operator. Self-contained Python image; no upstream Helm
+chart, so this is a hand-authored `app-template` deploy.
 
-Dashboard (chat UI) at `https://hermes.${SECRET_DOMAIN}` (basic auth).
+The pod runs three containers (one controller, one PVC):
 
-## LLM backend
+| Container | Purpose | URL |
+| --------- | ------- | --- |
+| `app` | Hermes gateway + built-in dashboard (basic auth) | `https://hermes.${SECRET_DOMAIN}` |
+| `webui` | Richer standalone chat UI ([nesquena/hermes-webui](https://github.com/nesquena/hermes-webui)) | `https://hermes-webui.${SECRET_DOMAIN}` (LAN) |
+| `codeserver` | Browser VS Code over `/opt/data` (skills/config/sessions) | `https://hermes-code.${SECRET_DOMAIN}` (LAN) |
 
-Hermes picks its model/provider from **`/opt/data/config.yaml`** (on the PVC), not
-from env. That file is seeded by the `seed-config` initContainer from the
-`hermes-config-seed` ConfigMap (`configmap.yaml`) **only if absent** — Hermes owns
-it afterwards (`hermes model` / `hermes config edit` rewrite it). Two providers are
-configured:
+Plus an OpenAI-compatible API on `:8642` and a companion **agentmemory** service
+(`../agentmemory/`) for long-term cross-session memory.
+
+> The `app` container exposes a terminal + cluster RBAC + git, so the dashboard is
+> gated by basic auth. `webui` and `codeserver` have **no auth of their own** — they
+> are only on the **internal** gateway (`envoy-internal`, LAN). Front them with
+> Authentik if you ever need more than network isolation.
+
+## Configuration is GitOps (read this first)
+
+Hermes reads its model/provider config from **`/opt/data/config.yaml`** (on the PVC).
+That file is **owned by Git**: the `copy-config` initContainer copies
+[`app/resources/config.yaml`](app/resources/config.yaml) into the PVC **on every pod
+start**, and reloader restarts the pod when the ConfigMap changes.
+
+**Change models/providers/skills config by editing `app/resources/config.yaml` and
+committing** — *not* with in-pod `hermes model` / `hermes config edit`, whose writes
+are overwritten on the next restart.
+
+### LLM backend
 
 | Provider | Routing | Auth |
 | -------- | ------- | ---- |
-| `custom:gateway` | agentgateway `internal-noauth` → `/opencodego/v1` (kimi etc.) | keyless (gateway injects the opencodego key) |
-| `xai-oauth` (native) | **direct to xAI**, bypassing agentgateway | OAuth (Grok subscription, see below) |
+| `xai-oauth` (native, **default** `grok-4.3`) | direct to xAI, bypassing the gateway | OAuth (Grok subscription, see below) |
+| `custom:gateway` (`kimi-k2.6`) | agentgateway `internal-noauth` → `/opencodego/v1` | keyless (gateway injects the key) |
 
-The default is `grok-4.3` via `xai-oauth`. Hermes needs a **≥64k context**,
-tool-calling model — Grok and kimi both qualify.
+`config.yaml` also sets:
+- **Fallback chain** — `grok-4.3` → `custom:gateway/kimi-k2.6`, so a 429/outage on
+  the Grok subscription (or the OpenCode-Go `GoUsageLimitError`) doesn't kill the
+  session.
+- **Auxiliary routing** — compression / web_extract / session_search / title go to
+  the cheap gateway model instead of burning the Grok subscription.
+- **Web search** — `web.search_backend: searxng`, wired to the in-cluster SearXNG
+  via `SEARXNG_URL`.
 
-> **No `OPENAI_BASE_URL`.** It used to point Hermes at the gateway, but it's a
-> *global* OpenAI-SDK override that pins the endpoint for **every** provider — it
-> was sending `grok-4.3` to `/opencodego`. Per-provider `base_url` in
-> `config.yaml` is the correct layer, so the `OPENAI_*` env vars were removed. If
-> Hermes ever won't boot without an OpenAI key, re-add a dummy `OPENAI_API_KEY`
+> **No `OPENAI_BASE_URL`.** It's a *global* OpenAI-SDK override that pins the endpoint
+> for **every** provider. Per-provider `base_url` in `config.yaml` is the right layer.
+> If Hermes ever won't boot without an OpenAI key, re-add a dummy `OPENAI_API_KEY`
 > **only** (never `OPENAI_BASE_URL`).
-
-**Switching models:** edit the ConfigMap + re-seed (below), or at runtime
-`kubectl -n ai exec -it deploy/hermes -c app -- hermes model` (writes config.yaml
-on the PVC). Add a 429 fail-over chain with `hermes fallback add` (e.g. primary
-`xai-oauth/grok-4.3`, fallback `custom:gateway/kimi-k2.6`).
-
-**Re-seed config.yaml** (after editing the ConfigMap, or to reset):
-```bash
-kubectl -n ai exec deploy/hermes -c app -- rm -f /opt/data/config.yaml
-kubectl -n ai rollout restart deploy/hermes
-```
 
 ### xAI Grok subscription login (manual, one-time)
 
 The Grok **subscription** is used via Hermes' native `xai-oauth` provider (OAuth),
-which can't be done through the gateway (that path needs a console.x.ai API key, a
-separate product). The OAuth loopback callback can't reach a pod from your laptop,
-so use `--manual-paste`:
+which can't go through the gateway. The OAuth loopback can't reach a pod from your
+laptop, so use `--manual-paste`:
 
 ```bash
 kubectl -n ai exec -it deploy/hermes -c app -- hermes auth add xai-oauth --no-browser --manual-paste
 ```
 
 Open the printed URL, approve, then paste the **full** failed-callback URL (or a
-`?code=...&state=...` fragment, or a fresh bare code) at the prompt. Codes expire in
-~minutes; if it tracebacks on a stale/reused login, `hermes auth remove xai-oauth`
-and retry for a fresh `state`. Credentials persist in `/opt/data/auth.json` (PVC →
-Volsync-backed; `offline_access` refresh token renews automatically), so this is a
-one-time step per fresh PVC.
+`?code=...&state=...` fragment, or a fresh bare code). Codes expire in ~minutes; on a
+stale/reused login, `hermes auth remove xai-oauth` and retry for a fresh `state`.
+Credentials persist in `/opt/data/auth.json` (PVC, Volsync-backed; the refresh token
+renews automatically), so this is one-time per fresh PVC.
 
-**Local models later:** when the local vLLM backend exists, add a backend +
-HTTPRoute under `../agentgateway/app/backends/` and a `custom_providers` entry
-pointing at `.../vllm/v1`. Nothing else in this deploy changes.
+## Cluster RBAC (operator access)
 
-## Prerequisites (manual, before first sync)
+Hermes runs under its own `hermes` ServiceAccount (`automountServiceAccountToken: true`
+— app-template v5 defaults it to false) with:
 
-1. **1Password item `hermes`** (vault used by the `onepassword`
-   ClusterSecretStore) with fields:
-   - `HERMES_DASHBOARD_USER`
-   - `HERMES_DASHBOARD_PASSWORD`
+- **`hermes-read-all`** (ClusterRole) — get/list/watch across core, apps, batch,
+  networking, gateway, storage, metrics, Flux (helm/kustomize/source), External
+  Secrets, Volsync and CNPG. Hermes can fully inspect/diagnose the homelab.
+- **`hermes-pod-delete`** (ClusterRole) — delete a wedged pod so a controller
+  reschedules it.
+- **`hermes-exec-deploy`** (Role, ns `ai`) — `pods/exec` (diagnostics) and
+  `deployments` patch/update (rollout-restart) in this namespace only.
+
+This is read-everywhere + a narrow self-heal write surface. Widen the
+`hermes-exec-deploy` Role (or add namespaced bindings) if you want it to operate
+beyond `ai`.
+
+## Long-term memory (agentmemory)
+
+The `../agentmemory/` app runs the memory service; this app mounts the Hermes
+[memory plugin](app/agentmemory-plugin.yaml) at `/opt/hermes/plugins/agentmemory`
+and enables it via `plugins.enabled: [agentmemory]`. Hermes gets `memory_recall` /
+`memory_save` tools and auto-saves turns; recall survives restarts and new sessions.
+
+**agentmemory needs an embeddings endpoint** — it points at the in-cluster **Ollama**
+(`OPENAI_BASE_URL=http://ollama.ai.svc.cluster.local:11434/v1`). Pull an embed model
+first and match the dimensions:
+
+```bash
+kubectl -n ai exec deploy/ollama -c app -- ollama pull nomic-embed-text   # 768-dim
+```
+
+Consolidation / graph-extraction are disabled in the initial deploy
+(`CONSOLIDATION_ENABLED=false`); enable them once embeddings are verified.
+
+## Skills (GitOps-managed)
+
+Agent skills are version-controlled in [`app/skills/`](app/skills/) and copied onto
+the PVC at `/opt/data/skills` by the `seed-skills` init on every start. Add a skill
+by dropping a `skills/<name>/` dir and a matching `configMapGenerator` entry +
+persistence mount.
+
+Shipped: **`homelab-commit-watcher`** — ranks interesting commits across `k8s-at-home`
+peers and posts a digest to a **Discord webhook** (`DISCORD_WEBHOOK`). It uses
+`HOMELAB_GH_TOKEN` (a `public_repo` PAT — deliberately *not* `GH_TOKEN`, which Hermes
+scrubs) and the gateway for per-repo summaries. Register its daily run in-agent once
+the pod is up:
+
+```bash
+# in the dashboard/webui terminal, or: kubectl -n ai exec -it deploy/hermes -c app -- hermes ...
+# create the `homelab-peers-commit-watcher` cron (see the skill's SKILL.md).
+```
+
+## Telegram
+
+DM the bot from an allowed user. The gateway-default profile starts the Telegram
+platform when `TELEGRAM_BOT_TOKEN` is present; `TELEGRAM_ALLOWED_USERS` gates access.
+Both come from the `hermes` secret.
+
+## Prerequisites (before first sync)
+
+1. **1Password item `hermes`** (the `onepassword` ClusterSecretStore vault):
+   - `HERMES_DASHBOARD_USER` / `HERMES_DASHBOARD_PASSWORD`
    - `HERMES_DASHBOARD_SECRET` — `openssl rand -hex 32`
-   - `GITHUB_LLM_WIKI_TOKEN` — fine-grained GitHub PAT (see **Git access** below)
-2. **Authenticate the Grok subscription** once the pod is up — run the
-   `hermes auth add xai-oauth --manual-paste` flow in **LLM backend → xAI Grok
-   subscription login** above. (Until then Hermes has no working provider unless
-   you switch the seed to `custom:gateway`.)
+   - `GITHUB_LLM_WIKI_TOKEN` — fine-grained, single-repo PAT (see **Git access**)
+   - `API_SERVER_KEY` — `openssl rand -hex 32` (OpenAI-compatible API on `:8642`)
+   - `HOMELAB_GH_TOKEN` — classic GitHub PAT, **`public_repo` only** (commit-watcher)
+   - `DISCORD_WEBHOOK` — channel → Integrations → Webhooks → New
+   - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` — BotFather token + numeric ids
+2. **1Password item `agentmemory`** with `AGENTMEMORY_SECRET` — `openssl rand -hex 32`
+   (shared between the agentmemory service and the Hermes plugin).
+3. **Pull an Ollama embedding model** (`nomic-embed-text`) — see **Long-term memory**.
+4. **Authenticate the Grok subscription** once the pod is up (xAI Grok login above).
 
 ## Git access (single private repo)
 
-Hermes is given access to **exactly one** private repo, without exposing any
-other repo on the account:
+Hermes gets access to **exactly one** private repo without exposing any other:
 
-1. **Create a fine-grained PAT** (GitHub → Settings → Developer settings →
-   Fine-grained tokens):
-   - **Repository access:** *Only select repositories* → pick the one repo.
-   - **Permissions:** *Contents* → **Read and write** (write enabled here).
-   - Set an expiry; rotate by updating `GITHUB_LLM_WIKI_TOKEN` in 1Password
-     (reloader restarts the pod automatically).
-2. Put the token in the `hermes` 1Password item as `GITHUB_LLM_WIKI_TOKEN`.
+1. **Fine-grained PAT** (GitHub → Settings → Developer settings → Fine-grained
+   tokens): *Repository access* → *Only select repositories* → the one repo;
+   *Permissions* → *Contents* → **Read and write**. Set an expiry.
+2. Store it in the `hermes` 1Password item as `GITHUB_LLM_WIKI_TOKEN`.
 
-The `hermes-git` ExternalSecret renders it into a `.git-credentials` file
-(`https://x-access-token:<token>@github.com`); the file is mounted read-only at
-`/secrets/git/.git-credentials` and consumed by git's `store` credential helper,
-which is wired up purely through `GIT_CONFIG_*` env (no writable `$HOME`). A
-commit identity (`user.name` / `user.email`) is set for pushes — change the
-`GIT_CONFIG_VALUE_1/2` env if you want a different author.
+The `hermes-git` ExternalSecret renders it into a `.git-credentials` file mounted
+read-only at `/secrets/git/.git-credentials`, consumed by git's `store` helper
+(wired via `GIT_CONFIG_*` env, no writable `$HOME`). Because the PAT is repo-scoped
+server-side, GitHub rejects it for any other repo — that's the boundary. (A *classic*
+PAT or account SSH key would expose every repo; don't use those.)
 
-Because the PAT is **repo-scoped server-side**, this is the security boundary:
-even though git may present it for any `github.com` URL, GitHub rejects it for
-any repo outside the selected one. (A *classic* PAT or an account SSH key would
-expose every repo — don't use those.)
-
-> **Other hosts / SSH:** for GitLab use a *project* access/deploy token the same
-> way. For an even tighter, key-based boundary, a per-repo **deploy key**
-> (SSH, write-enabled) also works, but needs careful key-file permissions when
-> mounted from a Secret — the HTTPS PAT above avoids that.
+> This `GITHUB_LLM_WIKI_TOKEN` (write, one repo) is separate from the commit-watcher's
+> `HOMELAB_GH_TOKEN` (read-only, public repos). Keep them distinct.
 
 ## Notes
 
-- **Single-writer state.** `/opt/data` (sessions/memories/skills, incl. SQLite)
-  is not concurrency-safe → `replicas: 1` + `strategy: Recreate` + RWO
-  `ceph-block` PVC. Do not scale up.
+- **Single-writer state.** `/opt/data` (sessions/memories/skills, incl. SQLite) is not
+  concurrency-safe → `replicas: 1` + `strategy: Recreate` + RWO `ceph-block` PVC. The
+  `codeserver` and `webui` sidecars share the PVC **in the same pod** (no
+  multi-attach). Do not scale up.
 - **Gateway runs via the profile service, not the CMD.** The image auto-starts a
-  `gateway-default` s6 service (the `default` profile gateway: cron + messaging).
-  The container CMD is therefore idled (`args: ["sleep","infinity"]`) — passing
-  `gateway run` started a *second* gateway that collided at startup and
-  CrashLooped the pod. The `dashboard` s6 service serves chat independently.
-  Don't set `args` back to `gateway run`.
-- **Runs as root then drops** to UID 10000 (s6-overlay), so no `runAsNonRoot`
-  here — `fsGroup: 10000` makes the PVC writable for the dropped user.
+  `gateway-default` s6 service (the gateway: cron + messaging). The container CMD is
+  idled (`args: ["sleep","infinity"]`) — passing `gateway run` started a *second*
+  gateway that collided and CrashLooped. **Don't set `args` back to `gateway run`.**
+- **webui is the fiddly one.** It imports a staged copy of the image's `/opt/hermes`
+  (the `copy-agent-source` init → `agent-source` emptyDir) and reads agent state from
+  the PVC at `/home/hermeswebui/.hermes`. The `app` container's `/opt/hermes` is left
+  pristine on purpose (don't disturb the gateway). If webui misbehaves, it can be
+  removed without touching the rest — see the disable note in `helmrelease.yaml`.
+- **Runs as root then drops** to UID 10000 (s6-overlay), so no `runAsNonRoot` on the
+  `app` container — `fsGroup: 10000` makes the PVC writable for the dropped user.
 - **Cost tracking:** the default `xai-oauth` Grok path talks to xAI **directly**,
-  bypassing agentgateway, so it does **not** appear in gateway cost/Tempo tracking
-  at all (a flat subscription, so there's no per-token spend anyway). Only the
-  `custom:gateway` path is metered by the gateway.
-- **Ports:** `9119` dashboard (exposed), `8642` OpenAI-compatible API
-  (not enabled here — set `API_SERVER_ENABLED=true` + `API_SERVER_KEY` to use it).
+  bypassing the gateway, so it isn't in gateway cost/Tempo tracking (flat subscription
+  anyway). Only the `custom:gateway` path is metered.
+- **Ports:** `9119` dashboard, `8642` OpenAI-compatible API, `8787` webui, `12321`
+  code-server.

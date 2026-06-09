@@ -1,0 +1,140 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app agentmemory
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      agentmemory:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        replicas: 1
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: ghcr.io/joryirving/agentmemory
+              tag: 0.9.21@sha256:e5629f3ee379fa2003182bca635bee3242a68cf35f96d409645bf8837b529e1e
+            # Seed a non-interactive preferences.json so the server skips its
+            # first-run splash/install prompts, then exec the real entrypoint.
+            command:
+              - /usr/bin/catatonit
+              - --
+              - /bin/sh
+              - -c
+              - |
+                PREFS_HOME="${HOME:-/home/node}"
+                mkdir -p "$PREFS_HOME/.agentmemory"
+                if [ ! -s "$PREFS_HOME/.agentmemory/preferences.json" ]; then
+                  printf '%s\n' '{"schemaVersion":1,"lastAgent":null,"lastAgents":[],"lastProvider":null,"skipSplash":true,"skipNpxHint":true,"skipGlobalInstall":true,"skipConsoleInstall":true,"firstRunAt":"1970-01-01T00:00:00.000Z"}' > "$PREFS_HOME/.agentmemory/preferences.json"
+                fi
+                exec /entrypoint.sh
+            env:
+              AGENTMEMORY_DROP_STALE_INDEX: "true"
+              AGENTMEMORY_TOOLS: all
+              III_REST_PORT: "3111"
+              RUST_LOG: warn
+              # Embeddings via the in-cluster Ollama (OpenAI-compatible). Requires
+              # an embedding model pulled into Ollama (`ollama pull nomic-embed-text`)
+              # and OPENAI_EMBEDDING_DIMENSIONS matching that model (nomic = 768).
+              EMBEDDING_PROVIDER: openai
+              OPENAI_BASE_URL: http://ollama.ai.svc.cluster.local:11434/v1
+              OPENAI_EMBEDDING_MODEL: nomic-embed-text
+              OPENAI_EMBEDDING_DIMENSIONS: "768"
+              # Ollama ignores the key, but the openai client still wants one set.
+              OPENAI_API_KEY: ollama
+              OPENAI_API_KEY_FOR_LLM: "false"
+              # Consolidation/graph extraction need a chat LLM; disabled for the
+              # initial deploy. Enable once embeddings are verified, pointing the
+              # chat LLM at the internal gateway.
+              CONSOLIDATION_ENABLED: "false"
+              GRAPH_EXTRACTION_ENABLED: "false"
+              TZ: ${CONFIG_TIMEZONE}
+            envFrom:
+              - secretRef:
+                  name: *app
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /agentmemory/livez
+                    port: &port 3111
+                  initialDelaySeconds: 0
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /agentmemory/livez
+                    port: *port
+                  failureThreshold: 60
+                  periodSeconds: 5
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+    service:
+      app:
+        ports:
+          api:
+            port: *port
+          viewer:
+            port: 3113
+    route:
+      app:
+        hostnames:
+          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: *app
+                port: 3113
+    persistence:
+      # One PVC holds all state, mounted at both /data (the store) and /home/node
+      # (the server's HOME, where it writes .agentmemory prefs).
+      data:
+        existingClaim: *app
+        globalMounts:
+          - path: /data
+          - path: /home/node
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

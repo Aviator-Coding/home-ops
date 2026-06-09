@@ -25,29 +25,68 @@ spec:
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
+        # Bind the cluster-operator ServiceAccount (rbac block below) to this
+        # controller so the agent's kubectl uses Hermes' scoped permissions.
+        serviceAccount:
+          identifier: hermes
         initContainers:
-          # Seed /opt/data/config.yaml from the hermes-config-seed ConfigMap, but
-          # ONLY if it doesn't exist yet -> Hermes owns the file thereafter
-          # (`hermes model` / `config edit` write to it). To re-seed: edit the
-          # ConfigMap and `rm /opt/data/config.yaml`, then restart. Runs as root
-          # (pod default) so it can chown the file to the dropped 10000 user.
-          seed-config:
+          # Copy the Git-managed config.yaml into /opt/data on EVERY start, so the
+          # `hermes-configmap` ConfigMap is the source of truth (reloader restarts
+          # the pod on change). Any in-pod `hermes model` / `config edit` write is
+          # overwritten on the next restart -> change models in Git, not in-pod.
+          # Runs as root (pod default) so it can chown the file to the dropped
+          # 10000 user.
+          copy-config:
             image:
-              repository: docker.io/library/busybox
-              tag: "1.38"
+              repository: docker.io/library/alpine
+              tag: "3.23"
             command:
               - sh
               - -c
               - |
                 set -eu
-                if [ -f /opt/data/config.yaml ]; then
-                  echo "[seed] /opt/data/config.yaml exists - leaving it untouched"
-                else
-                  echo "[seed] writing /opt/data/config.yaml from ConfigMap"
-                  cp /seed/config.yaml /opt/data/config.yaml
-                  chown 10000:10000 /opt/data/config.yaml
-                  chmod 0644 /opt/data/config.yaml
-                fi
+                mkdir -p /opt/data
+                cp /run/config/config.yaml /opt/data/config.yaml
+                chown 10000:10000 /opt/data/config.yaml
+                chmod 0644 /opt/data/config.yaml
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+          # Copy GitOps-managed skills into /opt/data/skills on every start (the
+          # repo is the source of truth; overwrites any stale copy). Runs as root
+          # to chown to the dropped 10000 user. Add future skills here.
+          seed-skills:
+            image:
+              repository: docker.io/library/alpine
+              tag: "3.23"
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                skill_dir=/opt/data/skills/homelab/homelab-commit-watcher
+                mkdir -p "$skill_dir/scripts"
+                cp /run/skills/homelab-commit-watcher/SKILL.md "$skill_dir/SKILL.md"
+                cp /run/skills/homelab-commit-watcher/fetch_k8s_repos.py "$skill_dir/scripts/fetch_k8s_repos.py"
+                chmod +x "$skill_dir/scripts/fetch_k8s_repos.py"
+                chown -R 10000:10000 /opt/data/skills
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+          # Stage a copy of the image's hermes-agent source into an emptyDir for
+          # the webui sidecar to import. `command:` overrides the image's s6
+          # entrypoint so this is a plain copy. The app container keeps the image's
+          # pristine /opt/hermes (we don't overlay it — don't disturb the gateway).
+          copy-agent-source:
+            image:
+              repository: docker.io/nousresearch/hermes-agent
+              tag: v2026.6.5
+            command:
+              - /bin/sh
+              - -c
+              - |
+                set -e
+                cp -r /opt/hermes/. /agent-src/
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -67,12 +106,12 @@ spec:
             args: ["sleep", "infinity"]
             env:
               # --- LLM backend ---
-              # Model + provider routing live in /opt/data/config.yaml, seeded by
-              # the `seed-config` initContainer from the `hermes-config-seed`
-              # ConfigMap (see configmap.yaml): a named `custom:gateway` provider
-              # points at the internal agentgateway, and the native `xai-oauth`
-              # provider serves the Grok subscription (creds in /opt/data/auth.json
-              # via `hermes auth add xai-oauth --manual-paste`).
+              # Model + provider routing live in /opt/data/config.yaml, copied from
+              # the `hermes-configmap` ConfigMap (app/resources/config.yaml) by the
+              # `copy-config` initContainer on every start: a named `custom:gateway`
+              # provider points at the internal agentgateway, and the native
+              # `xai-oauth` provider serves the Grok subscription (creds in
+              # /opt/data/auth.json via `hermes auth add xai-oauth --manual-paste`).
               #
               # The old OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL env were
               # REMOVED on purpose: OPENAI_BASE_URL is a global OpenAI-SDK override
@@ -86,6 +125,26 @@ spec:
               HERMES_DASHBOARD: "1"
               HERMES_DASHBOARD_HOST: 0.0.0.0
               HERMES_DASHBOARD_PORT: "9119"
+              # --- OpenAI-compatible API server on :8642 (API_SERVER_KEY from the
+              # `hermes` secret via envFrom). Lets other in-cluster apps call
+              # Hermes programmatically. ---
+              API_SERVER_ENABLED: "true"
+              API_SERVER_HOST: 0.0.0.0
+              API_SERVER_PORT: "8642"
+              # --- Web search backend (config.yaml sets web.search_backend:
+              # searxng); point Hermes at the SearXNG already running in ns ai. ---
+              SEARXNG_URL: http://searxng.ai.svc.cluster.local:8080
+              # --- Long-term memory: the agentmemory plugin (mounted at
+              # /opt/hermes/plugins/agentmemory, enabled in config.yaml) talks to
+              # the agentmemory service. AGENTMEMORY_SECRET comes from the secret. ---
+              AGENTMEMORY_URL: http://agentmemory.ai.svc.cluster.local:3111
+              AGENTMEMORY_PROJECT: hermes
+              # --- homelab-commit-watcher skill (GitOps-managed, copied to
+              # /opt/data/skills by seed-skills). HOMELAB_GH_TOKEN + DISCORD_WEBHOOK
+              # arrive via envFrom (the hermes secret); these point its per-repo
+              # digest LLM at the internal gateway. ---
+              SUMMARY_LLM_URL: http://internal-noauth.ai.svc.cluster.local/opencodego/v1
+              SUMMARY_LLM_MODEL: kimi-k2.6
               # --- Run as the image's default `hermes` user. The s6 init starts
               # as root, chowns /opt/data, then drops to UID 10000. ---
               HERMES_UID: "10000"
@@ -136,7 +195,77 @@ spec:
                 memory: 512Mi
               limits:
                 memory: 2Gi
+          # Browser VS Code over the agent's state PVC. Same pod as `app`, so it
+          # shares the RWO /opt/data mount (no multi-attach, no node affinity).
+          # Runs as uid 10000 to own /opt/data (hermes owns it as 10000). LAN-only
+          # via envoy-internal; --auth none (the internal net is the gate).
+          codeserver:
+            image:
+              repository: ghcr.io/coder/code-server
+              tag: 4.123.0
+            env:
+              HOME: /opt/data
+              TZ: ${CONFIG_TIMEZONE}
+            args:
+              - --auth
+              - none
+              - --user-data-dir
+              - /opt/data/.vscode
+              - --extensions-dir
+              - /opt/data/.vscode
+              - --port
+              - "12321"
+              - /opt/data
+            securityContext:
+              runAsUser: 10000
+              runAsGroup: 10000
+              allowPrivilegeEscalation: false
+            resources:
+              requests:
+                cpu: 10m
+              limits:
+                memory: 1Gi
+          # Richer standalone chat UI (separate from the built-in :9119 dashboard).
+          # Imports the hermes-agent source staged by copy-agent-source and reads
+          # the agent's state from the data PVC at /home/hermeswebui/.hermes. Starts
+          # as root (chowns HOME to WANTED_UID) then drops to 10000. LAN-only via
+          # envoy-internal, no auth of its own.
+          # NOTE: most likely of these additions to need post-deploy tuning. To
+          # disable: remove this container, the copy-agent-source init, the
+          # agent-source volume, the webui service port and the hermes-webui route.
+          webui:
+            image:
+              repository: ghcr.io/nesquena/hermes-webui
+              tag: 0.51.330@sha256:dae21b907f994b927201b2d4e2aa6e6b3a0456313c764250535b4000d5694102
+            env:
+              # upstream entrypoint uses `su -c`, HOME stays /root → .env missed
+              HERMES_HOME: /home/hermeswebui/.hermes
+              HERMES_WEBUI_HOST: 0.0.0.0
+              HERMES_WEBUI_PORT: "8787"
+              HERMES_WEBUI_STATE_DIR: /home/hermeswebui/.hermes/webui
+              HOME: /home/hermeswebui
+              TZ: ${CONFIG_TIMEZONE}
+              # Match the agent's uid/gid so webui owns the shared /opt/data state.
+              WANTED_UID: "10000"
+              WANTED_GID: "10000"
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                add: [CHOWN, DAC_OVERRIDE, FOWNER, FSETID, SETGID, SETUID]
+                drop: [ALL]
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
     defaultPodOptions:
+      # Hermes operates the cluster via kubectl, so its SA token must be mounted.
+      # app-template v5 defaults automountServiceAccountToken to false.
+      automountServiceAccountToken: true
       securityContext:
         # s6 starts as root then drops to 10000; fsGroup makes the ceph-block
         # PVC group-writable so the dropped user owns its state at /opt/data.
@@ -147,6 +276,15 @@ spec:
         ports:
           http:
             port: *dash
+          # OpenAI-compatible API server (API_SERVER_ENABLED above).
+          agent:
+            port: 8642
+          # code-server IDE sidecar.
+          codeserver:
+            port: 12321
+          # hermes-webui chat UI sidecar.
+          webui:
+            port: 8787
     route:
       app:
         annotations:
@@ -162,11 +300,63 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+        rules:
+          # Pin the public hostname to the basic-auth dashboard (now that the
+          # service exposes multiple ports).
+          - backendRefs:
+              - name: *app
+                port: *dash
+      # Browser VS Code (code-server) — LAN-only, no auth gate beyond the network.
+      codeserver:
+        hostnames:
+          - "hermes-code.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: *app
+                port: 12321
+      # hermes-webui chat UI — LAN-only, no auth gate beyond the network.
+      webui:
+        hostnames:
+          - "hermes-webui.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: *app
+                port: 8787
     persistence:
+      # Agent state PVC. advancedMounts (not globalMounts) so the webui sidecar can
+      # mount it at /home/hermeswebui/.hermes while everything else gets /opt/data.
       data:
         existingClaim: *app
-        globalMounts:
-          - path: /opt/data
+        advancedMounts:
+          hermes:
+            copy-config:
+              - path: /opt/data
+            seed-skills:
+              - path: /opt/data
+            app:
+              - path: /opt/data
+            codeserver:
+              - path: /opt/data
+            webui:
+              - path: /home/hermeswebui/.hermes
+      # Staged copy of the image's /opt/hermes (from copy-agent-source) for webui
+      # to import as the hermes-agent package.
+      agent-source:
+        type: emptyDir
+        advancedMounts:
+          hermes:
+            copy-agent-source:
+              - path: /agent-src
+            webui:
+              - path: /home/hermeswebui/.hermes/hermes-agent
       # Single private-repo git token, rendered as `.git-credentials` by the
       # hermes-git ExternalSecret and read by the git `store` helper (see
       # GIT_CONFIG_* env above). reloader restarts the pod on token rotation.
@@ -177,14 +367,123 @@ spec:
           - path: /secrets/git/.git-credentials
             subPath: .git-credentials
             readOnly: true
-      # config.yaml template for the seed-config initContainer (mounted only
-      # there, read-only). The PVC `data` globalMount gives that init container
-      # /opt/data so it can write the seeded file.
-      config-seed:
+      # config.yaml mounted into the copy-config initContainer, which copies it to
+      # /opt/data/config.yaml on every start. The PVC `data` advancedMount gives
+      # that init container /opt/data so it can write the file.
+      config:
         type: configMap
-        name: hermes-config-seed
+        name: hermes-configmap
         advancedMounts:
           hermes:
-            seed-config:
-              - path: /seed
+            copy-config:
+              - path: /run/config/config.yaml
+                subPath: config.yaml
                 readOnly: true
+      # agentmemory plugin code, loaded by the agent from /opt/hermes/plugins
+      # (app container only). Enabled via `plugins.enabled` in config.yaml.
+      plugin-agentmemory:
+        type: configMap
+        name: hermes-agentmemory-plugin
+        advancedMounts:
+          hermes:
+            app:
+              - path: /opt/hermes/plugins/agentmemory
+                readOnly: true
+      # Skill sources, mounted into the seed-skills init which copies them onto
+      # the PVC at /opt/data/skills (see initContainers above).
+      skill-commit-watcher:
+        type: configMap
+        name: hermes-skill-homelab-commit-watcher
+        advancedMounts:
+          hermes:
+            seed-skills:
+              - path: /run/skills/homelab-commit-watcher
+                readOnly: true
+    # Cluster-operator access for the agent. Read-all everywhere (inspect/diagnose)
+    # plus a narrow self-heal write surface: delete a stuck pod, exec for
+    # diagnostics, and patch/restart deployments in ns ai. Hermes already has a
+    # terminal + kubectl; this formalises and bounds what it can mutate.
+    serviceAccount:
+      hermes: {}
+    rbac:
+      roles:
+        hermes-read-all:
+          type: ClusterRole
+          rules:
+            - apiGroups: [""]
+              resources: [pods, pods/log, nodes, services, namespaces, configmaps,
+                persistentvolumes, persistentvolumeclaims, endpoints, resourcequotas,
+                limitranges, serviceaccounts, events]
+              verbs: [get, list, watch]
+            - apiGroups: [apps]
+              resources: [deployments, daemonsets, statefulsets, replicasets, controllerrevisions]
+              verbs: [get, list, watch]
+            - apiGroups: [batch]
+              resources: [jobs, cronjobs]
+              verbs: [get, list, watch]
+            - apiGroups: [networking.k8s.io]
+              resources: [ingresses, ingressclasses, networkpolicies]
+              verbs: [get, list, watch]
+            - apiGroups: [gateway.networking.k8s.io]
+              resources: [gateways, httproutes]
+              verbs: [get, list, watch]
+            - apiGroups: [storage.k8s.io]
+              resources: [storageclasses, csinodes, csidrivers, volumeattachments]
+              verbs: [get, list, watch]
+            - apiGroups: [metrics.k8s.io]
+              resources: [nodes, pods]
+              verbs: [get, list, watch]
+            - apiGroups: [helm.toolkit.fluxcd.io]
+              resources: [helmreleases]
+              verbs: [get, list, watch]
+            - apiGroups: [kustomize.toolkit.fluxcd.io]
+              resources: [kustomizations]
+              verbs: [get, list, watch]
+            - apiGroups: [source.toolkit.fluxcd.io]
+              resources: [gitrepositories, helmrepositories, ocirepositories, buckets, helmcharts]
+              verbs: [get, list, watch]
+            - apiGroups: [external-secrets.io]
+              resources: [externalsecrets, secretstores, clustersecretstores]
+              verbs: [get, list, watch]
+            - apiGroups: [volsync.backube]
+              resources: [replicationsources, replicationdestinations]
+              verbs: [get, list, watch]
+            - apiGroups: [postgresql.cnpg.io]
+              resources: [clusters, backups, scheduledbackups]
+              verbs: [get, list, watch]
+        # Cluster-wide: delete a wedged pod (lets a controller reschedule it).
+        hermes-pod-delete:
+          type: ClusterRole
+          rules:
+            - apiGroups: [""]
+              resources: [pods]
+              verbs: [delete]
+        # ns ai only: exec into pods (diagnostics) + rollout-restart/patch deployments.
+        hermes-exec-deploy:
+          type: Role
+          rules:
+            - apiGroups: [""]
+              resources: [pods/exec]
+              verbs: [create]
+            - apiGroups: [apps]
+              resources: [deployments]
+              verbs: [patch, update]
+      bindings:
+        hermes-read-all:
+          type: ClusterRoleBinding
+          roleRef:
+            identifier: hermes-read-all
+          subjects:
+            - identifier: hermes
+        hermes-pod-delete:
+          type: ClusterRoleBinding
+          roleRef:
+            identifier: hermes-pod-delete
+          subjects:
+            - identifier: hermes
+        hermes-exec-deploy:
+          type: RoleBinding
+          roleRef:
+            identifier: hermes-exec-deploy
+          subjects:
+            - identifier: hermes

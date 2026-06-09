@@ -27,6 +27,24 @@ patches:
     group: helm.toolkit.fluxcd.io
     kind: HelmRelease
 resources:
-- ./configmap.yaml
+- ./agentmemory-plugin.yaml
 - ./externalsecret.yaml
 - ./helmrelease.yaml
+configMapGenerator:
+  # Hermes runtime config, copied to /opt/data/config.yaml on every start by the
+  # `copy-config` initContainer. disableNameSuffixHash keeps the name stable so
+  # reloader (annotation on the controller) restarts the pod on content change;
+  # substitute is disabled so Flux postBuild leaves the file untouched.
+  - name: hermes-configmap
+    files:
+      - config.yaml=./resources/config.yaml
+  # GitOps-managed agent skill, copied into /opt/data/skills by `seed-skills`.
+  # Add future skills as another generator + another skills/<name>/ dir.
+  - name: hermes-skill-homelab-commit-watcher
+    files:
+      - skills/homelab-commit-watcher/SKILL.md
+      - skills/homelab-commit-watcher/fetch_k8s_repos.py
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
