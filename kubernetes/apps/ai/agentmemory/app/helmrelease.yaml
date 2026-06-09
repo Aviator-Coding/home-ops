@@ -81,11 +81,16 @@ spec:
               OPENAI_API_KEY_FOR_LLM: "true"
               OPENAI_MODEL: qwen2.5:3b
               # Consolidation turns raw observations into searchable/contextual
-              # memory (required for recall to return anything). Graph extraction is
-              # left off — heavier on the small local model; enable later if wanted.
+              # memory (required for recall). Graph extraction adds the entity/
+              # relation knowledge graph (the graph leg of hybrid recall); both run
+              # per-session, so the local 3B (Intel Iris Xe iGPU) handles them.
+              # AGENTMEMORY_AUTO_COMPRESS stays OFF (default synthetic compression):
+              # it runs the LLM on EVERY observation, too heavy for the iGPU, and the
+              # gateway/kimi can't take it (agentmemory uses one LLM for all features
+              # and can't target the gateway; opencodego is also weekly-rate-limited).
               CONSOLIDATION_ENABLED: "true"
-              GRAPH_EXTRACTION_ENABLED: "false"
-              # Generous LLM timeout for the local 3B model on the Intel GPU.
+              GRAPH_EXTRACTION_ENABLED: "true"
+              # Generous LLM timeout for the local 3B model on the Intel iGPU.
               AGENTMEMORY_LLM_TIMEOUT_MS: "120000"
               TZ: ${CONFIG_TIMEZONE}
             envFrom:
