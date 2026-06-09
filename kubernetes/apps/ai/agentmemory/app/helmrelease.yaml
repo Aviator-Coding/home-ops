@@ -56,6 +56,10 @@ spec:
               AGENTMEMORY_TOOLS: all
               III_REST_PORT: "3111"
               RUST_LOG: warn
+              # The viewer (:3113) rejects any Host/Origin not in its allow-list
+              # with "Forbidden host" — add the external hostname behind envoy.
+              VIEWER_ALLOWED_HOSTS: agentmemory.${SECRET_DOMAIN}
+              VIEWER_ALLOWED_ORIGINS: https://agentmemory.${SECRET_DOMAIN}
               # Embeddings via the in-cluster Ollama (OpenAI-compatible). Requires
               # an embedding model pulled into Ollama (`ollama pull nomic-embed-text`)
               # and OPENAI_EMBEDDING_DIMENSIONS matching that model (nomic = 768).
