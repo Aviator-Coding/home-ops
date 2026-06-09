@@ -195,6 +195,27 @@ spec:
                 memory: 512Mi
               limits:
                 memory: 2Gi
+            # The gateway profile persists "stopped" in /opt/data/gateway_state.json
+            # on graceful shutdown, and the image's boot reconcile won't auto-start a
+            # "stopped" profile -> the cron scheduler + messaging platforms stay DOWN
+            # after any pod restart. Force the registered `gateway-default` s6 service
+            # up on every container start. Idempotent (no-op if reconcile already
+            # started it); only ever the ONE registered service, so no double-gateway.
+            lifecycle:
+              postStart:
+                exec:
+                  command:
+                    - sh
+                    - -c
+                    - |
+                      for i in $(seq 1 30); do
+                        if [ -d /run/service/gateway-default ]; then
+                          /command/s6-svc -u /run/service/gateway-default || true
+                          break
+                        fi
+                        sleep 2
+                      done
+                      exit 0
           # Browser VS Code over the agent's state PVC. Same pod as `app`, so it
           # shares the RWO /opt/data mount (no multi-attach, no node affinity).
           # Runs as uid 10000 to own /opt/data (hermes owns it as 10000). LAN-only
