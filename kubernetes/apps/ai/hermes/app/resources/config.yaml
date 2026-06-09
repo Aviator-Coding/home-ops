@@ -56,6 +56,10 @@ plugins:
     - agentmemory
 
 memory:
+  # `plugins.enabled` only LOADS the plugin (registers the provider); this line
+  # ACTIVATES agentmemory as the active memory backend so its session hooks fire.
+  # Without it Hermes shows `memory: provider (none)` and captures nothing.
+  provider: agentmemory
   auto_migrate: true
 
 # Messaging platforms. The gateway-default profile starts the Telegram platform
