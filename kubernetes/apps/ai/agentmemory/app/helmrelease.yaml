@@ -61,18 +61,28 @@ spec:
               # and OPENAI_EMBEDDING_DIMENSIONS matching that model (nomic = 768).
               # NOTE: base URL is the host ROOT (no /v1) — agentmemory appends
               # `/v1/embeddings` itself; a trailing /v1 yields /v1/v1/embeddings -> 404.
+              # One Ollama OpenAI-compatible provider serves BOTH embeddings and the
+              # consolidation chat LLM. Base URL is the host ROOT (no /v1) —
+              # agentmemory appends `/v1/embeddings` / `/v1/chat/completions` itself;
+              # a trailing /v1 yields /v1/v1/... -> 404. Requires both models pulled
+              # into Ollama (`ollama pull nomic-embed-text`, `ollama pull qwen2.5:3b`);
+              # Ollama's model store is ephemeral, so re-pull after a pod recreation.
               EMBEDDING_PROVIDER: openai
               OPENAI_BASE_URL: http://ollama.ai.svc.cluster.local:11434
               OPENAI_EMBEDDING_MODEL: nomic-embed-text
               OPENAI_EMBEDDING_DIMENSIONS: "768"
               # Ollama ignores the key, but the openai client still wants one set.
               OPENAI_API_KEY: ollama
-              OPENAI_API_KEY_FOR_LLM: "false"
-              # Consolidation/graph extraction need a chat LLM; disabled for the
-              # initial deploy. Enable once embeddings are verified, pointing the
-              # chat LLM at the internal gateway.
-              CONSOLIDATION_ENABLED: "false"
+              # Use the same OpenAI (Ollama) provider for the consolidation LLM.
+              OPENAI_API_KEY_FOR_LLM: "true"
+              OPENAI_MODEL: qwen2.5:3b
+              # Consolidation turns raw observations into searchable/contextual
+              # memory (required for recall to return anything). Graph extraction is
+              # left off — heavier on the small local model; enable later if wanted.
+              CONSOLIDATION_ENABLED: "true"
               GRAPH_EXTRACTION_ENABLED: "false"
+              # Generous LLM timeout for the local 3B model on the Intel GPU.
+              AGENTMEMORY_LLM_TIMEOUT_MS: "120000"
               TZ: ${CONFIG_TIMEZONE}
             envFrom:
               - secretRef:
