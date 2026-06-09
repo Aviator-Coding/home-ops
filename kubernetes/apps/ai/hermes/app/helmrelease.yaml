@@ -400,15 +400,18 @@ spec:
               - path: /run/config/config.yaml
                 subPath: config.yaml
                 readOnly: true
-      # agentmemory plugin code, loaded by the agent from /opt/hermes/plugins
-      # (app container only). Enabled via `plugins.enabled` in config.yaml.
+      # agentmemory memory-provider plugin. The memory loader scans the
+      # user-installed dir $HERMES_HOME/plugins/<name> (= /opt/data/plugins/agentmemory,
+      # HERMES_HOME=/opt/data) alongside the bundled /opt/hermes/plugins/memory/.
+      # Mounting at the general /opt/hermes/plugins/ does NOT register it as a memory
+      # provider. Activated by `memory.provider: agentmemory` in config.yaml.
       plugin-agentmemory:
         type: configMap
         name: hermes-agentmemory-plugin
         advancedMounts:
           hermes:
             app:
-              - path: /opt/hermes/plugins/agentmemory
+              - path: /opt/data/plugins/agentmemory
                 readOnly: true
       # Skill sources, mounted into the seed-skills init which copies them onto
       # the PVC at /opt/data/skills (see initContainers above).
