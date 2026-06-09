@@ -48,17 +48,14 @@ auxiliary:
 web:
   search_backend: searxng
 
-# Persistent cross-session memory via the agentmemory service (ns ai). The plugin
-# code is mounted at /opt/hermes/plugins/agentmemory (see helmrelease.yaml); the
-# AGENTMEMORY_URL / AGENTMEMORY_SECRET env wire it to the service.
-plugins:
-  enabled:
-    - agentmemory
-
+# Persistent cross-session memory via the agentmemory service (ns ai). The memory-
+# provider plugin is mounted at $HERMES_HOME/plugins/agentmemory (=/opt/data/plugins/
+# agentmemory, see helmrelease.yaml) — the user-installed dir the memory loader scans;
+# AGENTMEMORY_URL / AGENTMEMORY_SECRET env wire it to the service. `memory.provider`
+# below ACTIVATES it (without it Hermes shows `provider: none` and captures nothing).
+# NOTE: this is the memory-provider system, NOT the general `plugins.enabled` hook
+# system — don't add agentmemory there.
 memory:
-  # `plugins.enabled` only LOADS the plugin (registers the provider); this line
-  # ACTIVATES agentmemory as the active memory backend so its session hooks fire.
-  # Without it Hermes shows `memory: provider (none)` and captures nothing.
   provider: agentmemory
   auto_migrate: true
 
