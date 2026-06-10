@@ -40,7 +40,7 @@ spec:
           app:
             image:
               repository: docker.io/seerr/seerr
-              tag: v3.2.0
+              tag: v3.3.0
             env:
               TZ: America/New_York
               LOG_LEVEL: info
