@@ -9,12 +9,20 @@ kind: HostnameConfig
 auto: "off"
 hostname: talos-3
 ---
+# Alias the two Intel X710 ports (only i40e devices in the system) so the bond
+# survives PCIe bus renumbering (pci=assign-busses for the Arc B70 Pro OCuLink switch)
+apiVersion: v1alpha1
+kind: LinkAliasConfig
+name: net%d
+selector:
+  match: link.driver == "i40e"
+---
 apiVersion: v1alpha1
 kind: BondConfig
 name: bond0
 links:
-  - enp3s0f0np0
-  - enp3s0f1np1
+  - net0
+  - net1
 bondMode: 802.3ad
 miimon: 100
 updelay: 200
