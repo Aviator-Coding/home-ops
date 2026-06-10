@@ -3,12 +3,6 @@ machine:
   type: controlplane
   install:
     disk: /dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800007
-  network:
-    interfaces:
-      - interface: enp3s0f0np0
-        dhcp: false
-      - interface: enp3s0f1np1
-        dhcp: false
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig
