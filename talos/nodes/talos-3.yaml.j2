@@ -3,6 +3,8 @@ machine:
   type: controlplane
   install:
     disk: /dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800007
+    extraKernelArgs:
+      - pci=realloc  # Force Linux to reallocate PCIe bus numbers; fixes Arc B70 Pro enumeration (BIOS leaves e2ff switch at [bus 00-00])
   network:
     interfaces:
       - interface: enp3s0f0np0
