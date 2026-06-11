@@ -90,6 +90,19 @@ spec:
               GRAPH_EXTRACTION_ENABLED: "true"
               # Generous LLM timeout: llama-server queues concurrent requests.
               AGENTMEMORY_LLM_TIMEOUT_MS: "120000"
+              # Single-slot llama-server: the default 6 parallel summarize
+              # calls would queue behind each other and risk iii's 180s
+              # invocation budget — keep it at 2.
+              SUMMARIZE_CHUNK_CONCURRENCY: "2"
+              # Hourly consistent state snapshots inside the PVC (volsync then
+              # backs up a clean restore point); also mitigates the 0.9.21
+              # shutdown-flush bug (upstream #843, fixed in 0.9.27).
+              SNAPSHOT_ENABLED: "true"
+              SNAPSHOT_DIR: /data/snapshots
+              # Periodic lesson synthesis on the local 35B — tokens are free.
+              AGENTMEMORY_REFLECT: "true"
+              # Homelab context stays relevant longer than the 30-day default.
+              CONSOLIDATION_DECAY_DAYS: "60"
               TZ: ${CONFIG_TIMEZONE}
             envFrom:
               - secretRef:

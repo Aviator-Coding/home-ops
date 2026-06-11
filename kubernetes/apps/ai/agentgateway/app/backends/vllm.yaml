@@ -38,9 +38,48 @@ spec:
         "/v1/models": Passthrough
         "*": Passthrough
 ---
+# Local-first chat with subscription failover: group 1 = llama.cpp 35B on the
+# B70, group 2 = OpenCode Go (kimi-k2.6, flat subscription; reuses
+# opencodego-secret from backends/opencodego.yaml). Used ONLY by the
+# llm-local-root chat rule (agentmemory) — the /vllm and /opencodego routes
+# stay pure so Hermes' own fallback chain doesn't double-fall-back.
+# Embeddings are deliberately excluded: a fallback embedder at different
+# dimensions would corrupt agentmemory's vector index.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: llm-chat-failover
+spec:
+  ai:
+    groups:
+      - providers:
+          - name: local-qwen
+            openai:
+              model: qwen3.6-35b-a3b
+            host: vllm-app.ai.svc.cluster.local
+            port: 8000
+            policies:
+              health:
+                unhealthyCondition: "response.code >= 500 || response.code == 429"
+                eviction:
+                  consecutiveFailures: 2
+      - providers:
+          - name: opencodego-kimi
+            openai:
+              model: kimi-k2.6
+            host: opencode.ai
+            port: 443
+            pathPrefix: /zen/go
+            policies:
+              tls: {}
+              auth:
+                secretRef:
+                  name: opencodego-secret
+---
 # Root-path /v1/* routes on the no-auth internal gateway: lets single-provider
-# OpenAI clients (agentmemory) use one base URL for both chat (llama.cpp 35B)
-# and embeddings (vllm-embed). Deliberately NOT on the public gateway.
+# OpenAI clients (agentmemory) use one base URL for both chat (llama.cpp 35B
+# with kimi failover) and embeddings (vllm-embed, no failover). Deliberately
+# NOT on the public gateway.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -65,7 +104,7 @@ spec:
             type: Exact
             value: /v1/models
       backendRefs:
-        - name: vllm
+        - name: llm-chat-failover
           group: agentgateway.dev
           kind: AgentgatewayBackend
 ---
