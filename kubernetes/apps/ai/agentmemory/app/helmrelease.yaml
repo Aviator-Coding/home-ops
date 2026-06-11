@@ -167,14 +167,28 @@ spec:
             backendRefs:
               - name: *app
                 port: *port
-          # Live event stream for the viewer (wss://…/stream/mem-live/viewer).
-          # WebSocket auth headers aren't possible from browsers, so this is
-          # unauthenticated — acceptable on the LAN-only internal gateway;
-          # never expose on the public gateway.
+          # Live event stream for the viewer. The iii 0.11.2 streams server
+          # only accepts root-path WebSockets (join-message protocol) — the
+          # viewer's direct /stream/mem-live/viewer URL 404s server-side and
+          # it falls back to a root WS, so route BOTH: the /stream prefix
+          # (future-proof) and any root request carrying an Upgrade: websocket
+          # header. WebSocket auth headers aren't possible from browsers, so
+          # the stream is unauthenticated — acceptable on the LAN-only
+          # internal gateway; never expose on the public gateway.
           - matches:
               - path:
                   type: PathPrefix
                   value: /stream
+            backendRefs:
+              - name: *app
+                port: 3112
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+                headers:
+                  - name: Upgrade
+                    value: websocket
             backendRefs:
               - name: *app
                 port: 3112
