@@ -14,8 +14,11 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    # Embeddings are served by the in-cluster Ollama (OpenAI-compatible endpoint).
-    - name: ollama
+    # Embeddings + consolidation LLM are served by the local models on the B70
+    # via the agentgateway's no-auth internal listener (root /v1/* routes).
+    - name: vllm
+      namespace: *namespace
+    - name: agentgateway
       namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/ai/agentmemory/app

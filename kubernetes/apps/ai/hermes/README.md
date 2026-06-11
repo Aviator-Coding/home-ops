@@ -93,16 +93,11 @@ The `../agentmemory/` app runs the memory service; this app mounts the Hermes
 and enables it via `plugins.enabled: [agentmemory]`. Hermes gets `memory_recall` /
 `memory_save` tools and auto-saves turns; recall survives restarts and new sessions.
 
-**agentmemory needs an embeddings endpoint** — it points at the in-cluster **Ollama**
-(`OPENAI_BASE_URL=http://ollama.ai.svc.cluster.local:11434/v1`). Pull an embed model
-first and match the dimensions:
-
-```bash
-kubectl -n ai exec deploy/ollama -c app -- ollama pull nomic-embed-text   # 768-dim
-```
-
-Consolidation / graph-extraction are disabled in the initial deploy
-(`CONSOLIDATION_ENABLED=false`); enable them once embeddings are verified.
+**agentmemory needs an embeddings endpoint** — it points at the agentgateway's
+no-auth internal listener (`OPENAI_BASE_URL=http://internal-noauth.ai.svc.cluster.local`),
+which routes root `/v1/embeddings` to **qwen3-vl-embedding-2b** (vllm-embed, 2048-dim)
+and `/v1/chat/completions` to the local **qwen3.6-35b-a3b** (llama.cpp on the B70).
+Both models live in the `vllm` app and persist on PVCs — nothing to pull manually.
 
 ## Skills (GitOps-managed)
 
@@ -140,8 +135,7 @@ Both come from the `hermes` secret.
    - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` — BotFather token + numeric ids
 2. **1Password item `agentmemory`** with `AGENTMEMORY_SECRET` — `openssl rand -hex 32`
    (shared between the agentmemory service and the Hermes plugin).
-3. **Pull an Ollama embedding model** (`nomic-embed-text`) — see **Long-term memory**.
-4. **Authenticate the Grok subscription** once the pod is up (xAI Grok login above).
+3. **Authenticate the Grok subscription** once the pod is up (xAI Grok login above).
 
 ## Git access (single private repo)
 

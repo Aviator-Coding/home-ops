@@ -38,6 +38,37 @@ spec:
         "/v1/models": Passthrough
         "*": Passthrough
 ---
+# Root-path /v1/* routes on the no-auth internal gateway: lets single-provider
+# OpenAI clients (agentmemory) use one base URL for both chat (llama.cpp 35B)
+# and embeddings (vllm-embed). Deliberately NOT on the public gateway.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llm-local-root
+spec:
+  parentRefs:
+    - name: internal-noauth
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /v1/embeddings
+      backendRefs:
+        - name: vllm-embed
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    - matches:
+        - path:
+            type: Exact
+            value: /v1/chat/completions
+        - path:
+            type: Exact
+            value: /v1/models
+      backendRefs:
+        - name: vllm
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

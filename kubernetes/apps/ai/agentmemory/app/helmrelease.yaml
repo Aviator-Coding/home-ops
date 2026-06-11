@@ -60,37 +60,35 @@ spec:
               # with "Forbidden host" — add the external hostname behind envoy.
               VIEWER_ALLOWED_HOSTS: agentmemory.${SECRET_DOMAIN}
               VIEWER_ALLOWED_ORIGINS: https://agentmemory.${SECRET_DOMAIN}
-              # Embeddings via the in-cluster Ollama (OpenAI-compatible). Requires
-              # an embedding model pulled into Ollama (`ollama pull nomic-embed-text`)
-              # and OPENAI_EMBEDDING_DIMENSIONS matching that model (nomic = 768).
-              # NOTE: base URL is the host ROOT (no /v1) — agentmemory appends
-              # `/v1/embeddings` itself; a trailing /v1 yields /v1/v1/embeddings -> 404.
-              # One Ollama OpenAI-compatible provider serves BOTH embeddings and the
-              # consolidation chat LLM. Base URL is the host ROOT (no /v1) —
-              # agentmemory appends `/v1/embeddings` / `/v1/chat/completions` itself;
-              # a trailing /v1 yields /v1/v1/... -> 404. Requires both models pulled
-              # into Ollama (`ollama pull nomic-embed-text`, `ollama pull qwen2.5:3b`);
-              # Ollama's model store is ephemeral, so re-pull after a pod recreation.
+              # One OpenAI-compatible provider serves BOTH embeddings and the
+              # consolidation chat LLM (agentmemory can't split providers). The
+              # agentgateway's no-auth internal listener routes root /v1/embeddings
+              # to vllm-embed (Qwen3-VL-Embedding-2B on the B70) and
+              # /v1/chat/completions to the local Qwen3.6-35B (llama.cpp SYCL) —
+              # see agentgateway backends/vllm.yaml (HTTPRoute llm-local-root).
+              # Base URL is the host ROOT (no /v1) — agentmemory appends
+              # `/v1/embeddings` / `/v1/chat/completions` itself; a trailing /v1
+              # yields /v1/v1/... -> 404.
               EMBEDDING_PROVIDER: openai
-              OPENAI_BASE_URL: http://ollama.ai.svc.cluster.local:11434
-              OPENAI_EMBEDDING_MODEL: nomic-embed-text
-              OPENAI_EMBEDDING_DIMENSIONS: "768"
-              # Ollama ignores the key, but the openai client still wants one set.
-              OPENAI_API_KEY: ollama
-              # Use the same OpenAI (Ollama) provider for the consolidation LLM.
+              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local
+              OPENAI_EMBEDDING_MODEL: qwen3-vl-embedding-2b
+              OPENAI_EMBEDDING_DIMENSIONS: "2048"
+              # No auth on the internal-noauth listener, but the openai client
+              # still wants a key set.
+              OPENAI_API_KEY: local
+              # Use the same provider for the consolidation LLM.
               OPENAI_API_KEY_FOR_LLM: "true"
-              OPENAI_MODEL: qwen2.5:3b
+              OPENAI_MODEL: qwen3.6-35b-a3b
               # Consolidation turns raw observations into searchable/contextual
               # memory (required for recall). Graph extraction adds the entity/
               # relation knowledge graph (the graph leg of hybrid recall); both run
-              # per-session, so the local 3B (Intel Iris Xe iGPU) handles them.
+              # per-session — the local 35B on the B70 (~74 t/s) handles them.
               # AGENTMEMORY_AUTO_COMPRESS stays OFF (default synthetic compression):
-              # it runs the LLM on EVERY observation, too heavy for the iGPU, and the
-              # gateway/kimi can't take it (agentmemory uses one LLM for all features
-              # and can't target the gateway; opencodego is also weekly-rate-limited).
+              # it runs the LLM on EVERY observation — llama-server is single-slot,
+              # so keep per-observation LLM load off it.
               CONSOLIDATION_ENABLED: "true"
               GRAPH_EXTRACTION_ENABLED: "true"
-              # Generous LLM timeout for the local 3B model on the Intel iGPU.
+              # Generous LLM timeout: llama-server queues concurrent requests.
               AGENTMEMORY_LLM_TIMEOUT_MS: "120000"
               TZ: ${CONFIG_TIMEZONE}
             envFrom:
