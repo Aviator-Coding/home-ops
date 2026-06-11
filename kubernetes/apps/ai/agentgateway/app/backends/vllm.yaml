@@ -58,23 +58,41 @@ spec:
               model: qwen3.6-35b-a3b
             host: vllm-app.ai.svc.cluster.local
             port: 8000
-            policies:
-              health:
-                unhealthyCondition: "response.code >= 500 || response.code == 429"
-                eviction:
-                  consecutiveFailures: 2
       - providers:
           - name: opencodego-kimi
             openai:
               model: kimi-k2.6
             host: opencode.ai
             port: 443
-            pathPrefix: /zen/go
+            # pathPrefix REPLACES the default /v1 base path — it must include
+            # the /v1 suffix or requests land on /zen/go/chat/completions and
+            # get the opencode.ai website back.
+            pathPrefix: /zen/go/v1
             policies:
               tls: {}
               auth:
                 secretRef:
                   name: opencodego-secret
+---
+# REQUIRED for failover: without a health policy targeting the backend,
+# providers are never evicted and group 2 is never tried (verified live).
+# Connection failures count toward eviction too; a 429 Retry-After header
+# overrides the eviction duration.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: llm-chat-failover-health
+spec:
+  targetRefs:
+    - group: agentgateway.dev
+      kind: AgentgatewayBackend
+      name: llm-chat-failover
+  backend:
+    health:
+      unhealthyCondition: "response.code >= 500 || response.code == 429"
+      eviction:
+        duration: 60s
+        consecutiveFailures: 2
 ---
 # Root-path /v1/* routes on the no-auth internal gateway: lets single-provider
 # OpenAI clients (agentmemory) use one base URL for both chat (llama.cpp 35B
