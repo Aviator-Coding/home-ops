@@ -40,6 +40,8 @@ spec:
               - --dtype=float16
               - --gpu-memory-utilization=0.72
               - --max-model-len=32768
+              # Intel fork maps GPTQ to its 'ipex' method, deprecated upstream
+              - --allow-deprecated-quantization
             env: &env
               HF_HOME: /models
               VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
@@ -86,7 +88,8 @@ spec:
               - vllm
               - serve
               - Qwen/Qwen3-VL-Embedding-2B
-              - --task=embed
+              # --task was removed in vLLM 0.14; --convert embed is the replacement
+              - --convert=embed
               - --served-model-name=qwen3-vl-embedding-2b
               - --host=0.0.0.0
               - --port=8000
