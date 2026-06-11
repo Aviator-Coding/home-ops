@@ -22,6 +22,8 @@ spec:
   values:
     controllers:
       ollama:
+        # RWO PVC: RollingUpdate would deadlock on Multi-Attach
+        strategy: Recreate
         pod:
           nodeSelector:
             # intel.feature.node.kubernetes.io/gpu-product: "arc"
@@ -146,17 +148,10 @@ spec:
 
     persistence:
       models:
-        type: custom
-        volumeSpec:
-          ephemeral:
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                storageClassName: ceph-block
-                resources:
-                  requests:
-                    storage: 50Gi
+        type: persistentVolumeClaim
+        accessMode: ReadWriteOnce
+        storageClass: ceph-block
+        size: 50Gi
         advancedMounts:
           ollama:
             app:
