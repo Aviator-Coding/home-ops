@@ -21,32 +21,42 @@ spec:
     keepHistory: false
   values:
     controllers:
+      # Main chat model runs on llama.cpp SYCL, not vLLM: Qwen3.6-35B-A3B GPTQ
+      # cannot complete vLLM warmup on a single 32GB B70 (21.4GiB weights +
+      # IPEX MoE marlin-shuffle transients OOM the card even with nothing else
+      # resident) — open bug intel/llm-scaler#382. Controller keeps the vllm
+      # name so the service (vllm-app) and gateway backend stay stable.
       vllm:
         strategy: Recreate
         pod:
           terminationGracePeriodSeconds: 60
         containers:
           app:
-            image: &image
-              repository: docker.io/intel/llm-scaler-vllm
-              tag: 0.14.0-b8.3.1
-            command:
-              - vllm
-              - serve
-              - palmfuture/Qwen3.6-35B-A3B-GPTQ-Int4
-              - --served-model-name=qwen3.6-35b-a3b
-              - --host=0.0.0.0
-              - --port=8000
-              - --dtype=float16
-              - --gpu-memory-utilization=0.72
-              - --max-model-len=32768
-              # Intel fork maps GPTQ to its 'ipex' method, deprecated upstream
-              - --allow-deprecated-quantization
-            env: &env
-              HF_HOME: /models
-              VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
-              VLLM_WORKER_MULTIPROC_METHOD: spawn
+            image:
+              repository: ghcr.io/ggml-org/llama.cpp
+              tag: server-intel-b9592
+            args:
+              - -hf
+              - unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M
+              - --alias
+              - qwen3.6-35b-a3b
+              - --host
+              - "0.0.0.0"
+              - --port
+              - "8000"
+              - --ctx-size
+              - "32768"
+              - -ngl
+              - "99"
+              - --jinja
+              - --metrics
+            env:
+              LLAMA_CACHE: /models/llama
+              ONEAPI_DEVICE_SELECTOR: level_zero:0
               ZES_ENABLE_SYSMAN: "1"
+            envFrom: &envFrom
+              - secretRef:
+                  name: vllm-secret
             resources:
               requests:
                 cpu: "2"
@@ -56,7 +66,7 @@ spec:
                 memory: 48Gi
                 gpu.intel.com/xe: 1
             probes:
-              # First boot downloads ~20GB of weights + JIT compile; allow 30 min
+              # First boot downloads ~21GB GGUF; allow 30 min
               startup:
                 enabled: true
                 custom: true
@@ -83,7 +93,9 @@ spec:
         strategy: Recreate
         containers:
           app:
-            image: *image
+            image:
+              repository: docker.io/intel/llm-scaler-vllm
+              tag: 0.14.0-b8.3.1
             command:
               - vllm
               - serve
@@ -99,7 +111,12 @@ spec:
               # 0.15 (4.8GB) only covers the fp16 weights; no room for cache blocks
               - --gpu-memory-utilization=0.20
               - --max-model-len=8192
-            env: *env
+            env:
+              HF_HOME: /models
+              VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+              VLLM_WORKER_MULTIPROC_METHOD: spawn
+              ZES_ENABLE_SYSMAN: "1"
+            envFrom: *envFrom
             resources:
               requests:
                 cpu: "1"
@@ -153,11 +170,3 @@ spec:
           vllm-embed:
             app:
               - path: /models
-      shm:
-        type: emptyDir
-        medium: Memory
-        sizeLimit: 16Gi
-        advancedMounts:
-          vllm:
-            app:
-              - path: /dev/shm
