@@ -88,13 +88,17 @@ spec:
               - vllm
               - serve
               - Qwen/Qwen3-VL-Embedding-2B
-              # --task was removed in vLLM 0.14; --convert embed is the replacement
+              # --task was removed in vLLM 0.14; needs both runner + convert here
+              # (convert alone leaves pooler_config unset -> AssertionError)
+              - --runner=pooling
               - --convert=embed
               - --served-model-name=qwen3-vl-embedding-2b
               - --host=0.0.0.0
               - --port=8000
               - --dtype=float16
-              - --gpu-memory-utilization=0.15
+              # 0.15 (4.8GB) only covers the fp16 weights; no room for cache blocks
+              - --gpu-memory-utilization=0.20
+              - --max-model-len=8192
             env: *env
             resources:
               requests:
