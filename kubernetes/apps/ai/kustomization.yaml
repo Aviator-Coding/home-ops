@@ -15,7 +15,6 @@ resources:
   - ./hermes/ks.yaml
   - ./kokoro/ks.yaml
   - ./perplexica/ks.yaml
-  - ./ollama/ks.yaml
   # Temporarily removed (2026-06-07) - workloads/PVCs pruned, but manifests,
   # postgres open-webui DB, surrealdb open_notebook ns, 1P items and volsync
   # restic repos (ceph/minio/r2) are all kept. To revive: uncomment, then
