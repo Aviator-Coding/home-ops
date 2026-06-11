@@ -144,6 +144,8 @@ spec:
         ports:
           api:
             port: *port
+          streams:
+            port: 3112
           viewer:
             port: 3113
     route:
@@ -157,7 +159,7 @@ spec:
         rules:
           # REST API (iii HTTP triggers, all under /agentmemory/*; bearer-auth
           # enforced via AGENTMEMORY_SECRET) — lets workstation agents share
-          # this memory store. Streams (:3112) stays cluster-internal.
+          # this memory store.
           - matches:
               - path:
                   type: PathPrefix
@@ -165,6 +167,17 @@ spec:
             backendRefs:
               - name: *app
                 port: *port
+          # Live event stream for the viewer (wss://…/stream/mem-live/viewer).
+          # WebSocket auth headers aren't possible from browsers, so this is
+          # unauthenticated — acceptable on the LAN-only internal gateway;
+          # never expose on the public gateway.
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /stream
+            backendRefs:
+              - name: *app
+                port: 3112
           - backendRefs:
               - name: *app
                 port: 3113
