@@ -142,6 +142,16 @@ spec:
             namespace: network
             sectionName: https
         rules:
+          # REST API (iii HTTP triggers, all under /agentmemory/*; bearer-auth
+          # enforced via AGENTMEMORY_SECRET) — lets workstation agents share
+          # this memory store. Streams (:3112) stays cluster-internal.
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /agentmemory
+            backendRefs:
+              - name: *app
+                port: *port
           - backendRefs:
               - name: *app
                 port: 3113
