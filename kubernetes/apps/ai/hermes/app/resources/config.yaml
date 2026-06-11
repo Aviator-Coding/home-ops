@@ -12,6 +12,12 @@ custom_providers:
   - name: gateway
     base_url: http://internal-noauth.ai.svc.cluster.local/opencodego/v1
     api_mode: chat_completions
+  # Local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL, ~74 t/s) via the gateway's
+  # /vllm route. Free and rate-limit-proof; llama-server is single-slot, so
+  # concurrent requests queue. Referenced as `custom:local`.
+  - name: local
+    base_url: http://internal-noauth.ai.svc.cluster.local/vllm/v1
+    api_mode: chat_completions
 
 # Default serving model: Grok via the native xai-oauth provider (subscription;
 # creds added once with `hermes auth add xai-oauth --manual-paste`, kept in
@@ -22,10 +28,13 @@ model:
   provider: xai-oauth
 
 # Fail-over chain: if the default provider 429s/errors (the Grok subscription, or
-# the OpenCode-Go GoUsageLimitError), fall back to kimi via the gateway.
+# the OpenCode-Go GoUsageLimitError), fall back to kimi via the gateway, then to
+# the local 35B on the B70 (never rate-limited, always on).
 fallback_providers:
   - provider: custom:gateway
     model: kimi-k2.6
+  - provider: custom:local
+    model: qwen3.6-35b-a3b
 
 # Route heavy, frequent context chores to the cheap gateway model so they don't
 # burn the Grok subscription. `vision` is left on the default (grok-4.3) unless
