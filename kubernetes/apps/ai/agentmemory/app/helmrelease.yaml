@@ -60,6 +60,10 @@ spec:
               # with "Forbidden host" — add the external hostname behind envoy.
               VIEWER_ALLOWED_HOSTS: agentmemory.${SECRET_DOMAIN}
               VIEWER_ALLOWED_ORIGINS: https://agentmemory.${SECRET_DOMAIN}
+              # 0.9.27+ binds the viewer to 127.0.0.1 unless told otherwise;
+              # non-loopback binds require AGENTMEMORY_SECRET +
+              # VIEWER_ALLOWED_HOSTS (both set above).
+              AGENTMEMORY_VIEWER_HOST: 0.0.0.0
               # One OpenAI-compatible provider serves BOTH embeddings and the
               # consolidation chat LLM (agentmemory can't split providers). The
               # agentgateway's no-auth internal listener routes root /v1/embeddings
