@@ -36,7 +36,7 @@ spec:
           app:
             image:
               repository: ghcr.io/joryirving/agentmemory
-              tag: 0.9.21@sha256:e5629f3ee379fa2003182bca635bee3242a68cf35f96d409645bf8837b529e1e
+              tag: 0.9.27@sha256:8f39fc9c49dc1fa9566e6a23247538be8d19b48dc8e463fb93ec58715bec1be4
             # Seed a non-interactive preferences.json so the server skips its
             # first-run splash/install prompts, then exec the real entrypoint.
             command:
