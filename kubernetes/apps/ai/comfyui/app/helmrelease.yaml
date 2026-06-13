@@ -6,6 +6,9 @@ metadata:
   name: &app comfyui
 spec:
   interval: 1h
+  # intel/llm-scaler-omni is a multi-GB image; the default 5m helm timeout fires
+  # mid-pull and rolls back, killing the pull in a loop. Allow time for the pull.
+  timeout: 20m
   chartRef:
     kind: OCIRepository
     name: app-template

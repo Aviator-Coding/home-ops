@@ -23,6 +23,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-  # Large image pull (intel/llm-scaler-omni) + GPU schedule on first boot.
-  timeout: 15m
+  # Large image pull (intel/llm-scaler-omni, multi-GB) + GPU schedule on first
+  # boot; must exceed the HelmRelease timeout (20m).
+  timeout: 30m
   wait: true
