@@ -144,7 +144,7 @@ spec:
               - path: /config
 
       downloads:
-        existingClaim: shared-downloads-pvc
+        existingClaim: shared-downloads
         advancedMounts:
           sabnzbd:
             init-dirs:

@@ -1,0 +1,32 @@
+---
+# CephFS RWX StorageClass backed by the healthy `csi-rwx` subvolumegroup
+# (see cephfs-rwx-subvolumegroup.yaml). Use this INSTEAD of `ceph-filesystem`
+# for any ReadWriteMany workload while the default `csi` subvolumegroup is broken
+# by the Ceph Tentacle v20.2.1 `ceph.dir.subvolume` regression.
+#
+# `clusterID` MUST match the `csi-rwx` group's generated CSI clusterID
+# (`.status.info.clusterID` of CephFilesystemSubVolumeGroup/ceph-filesystem-csi-rwx).
+# ceph-csi resolves the subvolumegroup name (`csi-rwx`) from the ceph-csi-config
+# entry keyed by this clusterID. Identical to the chart's `ceph-filesystem` SC
+# except for clusterID.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ceph-filesystem-rwx
+  labels:
+    app.kubernetes.io/managed-by: rook-ceph
+provisioner: rook-ceph.cephfs.csi.ceph.com
+parameters:
+  clusterID: eb9cbc3caaad73e9e0ef2ecdef41071f
+  fsName: ceph-filesystem
+  pool: ceph-filesystem-data0
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+  csi.storage.k8s.io/fstype: ext4
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: Immediate

@@ -80,7 +80,7 @@ spec:
             subPath: config.js
             readOnly: true
       downloads:
-        existingClaim: shared-downloads-pvc
+        existingClaim: shared-downloads
         advancedMounts:
           cross-seed:
             app:
