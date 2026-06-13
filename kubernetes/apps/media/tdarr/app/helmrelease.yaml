@@ -85,12 +85,12 @@ spec:
               limits:
                 memory: 2Gi
 
-      # Worker DaemonSet: one pod per K8s node, each with a GPU.
+      # Worker: single replica scheduled onto the node exposing gpu.intel.com/xe
+      # (the Arc B70 Pro on talos-3). The iGPUs on talos-1/2 are no longer
+      # advertised since the i915 -> xe driver migration, so a DaemonSet would
+      # leave permanently-Pending pods on GPU-less nodes.
       tdarr-node:
-        type: daemonset
-        pod:
-          nodeSelector:
-            intel.feature.node.kubernetes.io/gpu: "true"
+        replicas: 1
         containers:
           app:
             image:
@@ -119,10 +119,10 @@ spec:
                 value: mapped
               - name: ffmpegVersion
                 value: "7"
-              # Transcoding is handled by an external GPU node (see tdarr-node-lb).
-              # In-cluster Talos nodes only run health-check workers.
+              # The B70 runs GPU transcode workers (AV1 decode/encode via QSV);
+              # the external Windows GPU node (see tdarr-node-lb) still helps out.
               - name: transcodegpuWorkers
-                value: "0"
+                value: "1"
               - name: transcodecpuWorkers
                 value: "0"
               - name: healthcheckgpuWorkers
