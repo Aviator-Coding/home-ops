@@ -103,6 +103,7 @@ spec:
               # shutdown-flush bug (upstream #843, fixed in 0.9.27).
               SNAPSHOT_ENABLED: "true"
               SNAPSHOT_DIR: /data/snapshots
+              AGENTMEMORY_AUTO_COMPRESS: true
               # Periodic lesson synthesis on the local 35B — tokens are free.
               AGENTMEMORY_REFLECT: "true"
               # Homelab context stays relevant longer than the 30-day default.
