@@ -111,7 +111,7 @@ spec:
         type: emptyDir
 
       downloads:
-        existingClaim: shared-downloads-pvc
+        existingClaim: shared-downloads
         advancedMounts:
           lidarr:
             init-dirs:

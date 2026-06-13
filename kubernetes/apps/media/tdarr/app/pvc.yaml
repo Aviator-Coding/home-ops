@@ -9,4 +9,8 @@ spec:
   resources:
     requests:
       storage: 200Gi
-  storageClassName: ceph-filesystem
+  # Migrated off the broken default `csi` subvolumegroup onto `csi-rwx` after the
+  # Ceph Tentacle v20.2.1 subvolume corruption. Disposable transcode scratch, so
+  # recreated empty (no data copy). Revert to `ceph-filesystem` once a fixed Ceph
+  # release repairs the default `csi` group.
+  storageClassName: ceph-filesystem-rwx
