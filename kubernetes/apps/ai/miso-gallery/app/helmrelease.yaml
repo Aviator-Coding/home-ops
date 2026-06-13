@@ -70,8 +70,12 @@ spec:
               limits:
                 memory: 1Gi
     defaultPodOptions:
+      # The shared comfyui-output PVC is RWO ceph-block, so this pod must run on
+      # the same node as ComfyUI (talos-3, where ComfyUI's GPU pins it).
+      nodeSelector:
+        kubernetes.io/hostname: talos-3
       securityContext:
-        # Non-root; fsGroup lets it read the ceph-filesystem output volume.
+        # Non-root; fsGroup lets it read the shared output volume.
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 100
