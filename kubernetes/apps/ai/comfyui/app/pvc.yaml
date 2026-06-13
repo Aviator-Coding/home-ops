@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-output
+spec:
+  # RWX so ComfyUI (writer) and miso-gallery (reader, possibly another node) can
+  # both mount it.
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 25Gi
+  storageClassName: ceph-filesystem
