@@ -30,7 +30,6 @@ spec:
       enabled: true
     csi:
       cephfs:
-        kernelMountOptions: "ms_mode=prefer-crc"
         # fuseMountOptions: "debug"
         # Talos does not ship ceph.ko; force autodetect so the CSI falls back to ceph-fuse
         forceCephFSKernelClient: false
@@ -39,6 +38,11 @@ spec:
       repository: quay.io/ceph/ceph
       tag: v20.2.1
     cephClusterSpec:
+      csi:
+        cephfs:
+          # Talos kernel libceph speaks only msgr1; ms_mode=prefer-crc makes the kernel
+          # client negotiate msgr2 so it can connect to mon port 3300 correctly.
+          kernelMountOptions: "ms_mode=prefer-crc"
       cephConfig:
         global:
           bdev_enable_discard: "true"
