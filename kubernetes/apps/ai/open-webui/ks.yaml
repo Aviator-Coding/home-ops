@@ -20,8 +20,6 @@ spec:
     - name: onepassword-store
       namespace: security
     - name: searxng
-    - name: dragonfly-operator
-      namespace: database
   healthCheckExprs:
     - apiVersion: dragonflydb.io/v1alpha1
       kind: Dragonfly

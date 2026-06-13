@@ -20,7 +20,7 @@ resources:
   # restic repos (ceph/minio/r2) are all kept. To revive: uncomment, then
   # restore the PVC via the volsync ReplicationDestination flow.
   # - ./open-notebook/ks.yaml
-  # - ./open-webui/ks.yaml
+  - ./open-webui/ks.yaml
   - ./qdrant/ks.yaml
   - ./searxng/ks.yaml
   - ./vllm/ks.yaml

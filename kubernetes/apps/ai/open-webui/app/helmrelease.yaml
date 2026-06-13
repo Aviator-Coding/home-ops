@@ -44,10 +44,17 @@ spec:
               DATABASE_POOL_MAX_OVERFLOW: 20
               DATABASE_POOL_TIMEOUT: 30
               DATABASE_POOL_RECYCLE: 3600
-              # Ollama
               ENABLE_FORWARD_USER_INFO_HEADERS: true
-              ENABLE_OLLAMA_API: true
-              OLLAMA_BASE_URL: http://ollama.${SECRET_DOMAIN}:11434
+              ENABLE_OLLAMA_API: false
+              ENABLE_OPENAI_API: true
+              # internal-noauth gateway requires no auth — it injects real provider keys
+              OPENAI_API_BASE_URLS: >-
+                http://internal-noauth.ai.svc.cluster.local/vllm/v1;
+                http://internal-noauth.ai.svc.cluster.local/openai/v1;
+                http://internal-noauth.ai.svc.cluster.local/anthropic/v1;
+                http://internal-noauth.ai.svc.cluster.local/groq/v1;
+                http://internal-noauth.ai.svc.cluster.local/gemini/v1
+              OPENAI_API_KEYS: "nokey;nokey;nokey;nokey;nokey"
               ENABLE_RAG_WEB_SEARCH: true
               ENABLE_SEARCH_QUERY: true
               # RAG_EMBEDDING_ENGINE: sentence-transformers
