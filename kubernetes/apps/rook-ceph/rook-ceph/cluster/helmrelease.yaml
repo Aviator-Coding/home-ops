@@ -32,8 +32,8 @@ spec:
       cephfs:
         kernelMountOptions: "ms_mode=prefer-crc"
         # fuseMountOptions: "debug"
-        # # Disable kernel mount and force FUSE
-        # forceCephFSKernelClient: false
+        # Talos does not ship ceph.ko; force autodetect so the CSI falls back to ceph-fuse
+        forceCephFSKernelClient: false
     # renovate: datasource=docker depName=quay.io/ceph/ceph
     cephImage:
       repository: quay.io/ceph/ceph
