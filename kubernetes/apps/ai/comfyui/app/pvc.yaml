@@ -4,14 +4,11 @@ kind: PersistentVolumeClaim
 metadata:
   name: comfyui-output
 spec:
-  # RWO ceph-block instead of CephFS RWX: CephFS subvolume provisioning is broken
-  # cluster-wide after the Ceph v20.2.1 (Tentacle) upgrade mis-marked the `csi`
-  # subvolumegroup (ceph.dir.subvolume=1). ComfyUI (writer) and miso-gallery
-  # (reader) share this RWO volume by co-scheduling both pods onto talos-3
-  # (ComfyUI is GPU-pinned there; miso-gallery has a matching nodeSelector).
-  # Revert to ceph-filesystem RWX once CephFS provisioning is repaired.
-  accessModes: ["ReadWriteOnce"]
+  # CephFS RWX (csi-rwx subvolumegroup) so ComfyUI (writer) and miso-gallery
+  # (reader) can mount it from any node. Restored from the temporary ceph-block
+  # RWO workaround now that CephFS RWX provisioning is fixed (PR #977).
+  accessModes: ["ReadWriteMany"]
   resources:
     requests:
       storage: 25Gi
-  storageClassName: ceph-block
+  storageClassName: ceph-filesystem-rwx

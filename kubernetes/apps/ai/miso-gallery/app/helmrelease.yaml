@@ -70,10 +70,8 @@ spec:
               limits:
                 memory: 1Gi
     defaultPodOptions:
-      # The shared comfyui-output PVC is RWO ceph-block, so this pod must run on
-      # the same node as ComfyUI (talos-3, where ComfyUI's GPU pins it).
-      nodeSelector:
-        kubernetes.io/hostname: talos-3
+      # comfyui-output is now CephFS RWX (csi-rwx), so this gallery can schedule on
+      # any node (previously pinned to talos-3 to share the RWO ceph-block volume).
       securityContext:
         # Non-root; fsGroup lets it read the shared output volume.
         runAsUser: 1000
