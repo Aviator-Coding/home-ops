@@ -1,0 +1,165 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app comfyui
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  maxHistory: 2
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    controllers:
+      comfyui:
+        # Single GPU + RWO model/input PVCs -> never run two pods at once.
+        strategy: Recreate
+        pod:
+          terminationGracePeriodSeconds: 60
+        containers:
+          app:
+            image:
+              repository: intel/llm-scaler-omni
+              tag: 0.1.0-b7
+            # The llm-scaler-omni entrypoint is NOT ComfyUI. Override it: ComfyUI
+            # lives at /llm/ComfyUI and serves on 8188. Runs with full VRAM
+            # (Dedicated mode) — when a large model needs the whole 32GB B70,
+            # scale the vllm HelmRelease down first:
+            #   flux -n ai suspend hr vllm
+            #   kubectl -n ai scale deploy vllm vllm-embed --replicas=0
+            #   ... generate ... then: flux -n ai resume hr vllm
+            command: ["/bin/bash", "-c"]
+            args:
+              - |
+                cd /llm/ComfyUI && exec python3 main.py --listen 0.0.0.0 --port 8188
+            env:
+              ONEAPI_DEVICE_SELECTOR: level_zero:0
+              ZES_ENABLE_SYSMAN: "1"
+            resources:
+              requests:
+                cpu: "1"
+                memory: 8Gi
+                gpu.intel.com/xe: 1
+              limits:
+                memory: 32Gi
+                gpu.intel.com/xe: 1
+            probes:
+              # No model loads until a workflow runs; startup is just process boot.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: &port 8188
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 60
+              readiness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: *port
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 4
+              liveness: *probe
+            securityContext:
+              # Image runs as root and the device plugin injects /dev/dri without
+              # privileged (vllm proves this). Do NOT add runAsNonRoot here.
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    route:
+      app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: LLM/Ai
+          gethomepage.dev/name: ComfyUI
+          gethomepage.dev/description: Intel Arc image generation (ComfyUI)
+          gatus.home-operations.com/endpoint: |-
+            url: https://comfyui.${SECRET_DOMAIN}/
+            conditions:
+              - "[STATUS] == 200"
+            group: ai
+        hostnames:
+          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+    persistence:
+      # Big, re-downloadable checkpoints/loras/vae. Starts empty — download models
+      # via the ComfyUI UI/Manager or kubectl cp after first boot.
+      models:
+        type: persistentVolumeClaim
+        accessMode: ReadWriteOnce
+        storageClass: ceph-block
+        size: 100Gi
+        advancedMounts:
+          comfyui:
+            app:
+              - path: /llm/ComfyUI/models
+      # Shared RWX output so miso-gallery (possibly another node) can read it.
+      output:
+        existingClaim: comfyui-output
+        advancedMounts:
+          comfyui:
+            app:
+              - path: /llm/ComfyUI/output
+      input:
+        type: persistentVolumeClaim
+        accessMode: ReadWriteOnce
+        storageClass: ceph-block
+        size: 5Gi
+        advancedMounts:
+          comfyui:
+            app:
+              - path: /llm/ComfyUI/input
+      # Persist installed custom nodes across restarts. NOTE: if the image ships
+      # default nodes (e.g. ComfyUI-Manager) this empty PVC shadows them on first
+      # boot — verify with `ls /llm/ComfyUI/custom_nodes` and seed if needed.
+      custom-nodes:
+        type: persistentVolumeClaim
+        accessMode: ReadWriteOnce
+        storageClass: ceph-block
+        size: 10Gi
+        advancedMounts:
+          comfyui:
+            app:
+              - path: /llm/ComfyUI/custom_nodes
+      user:
+        type: persistentVolumeClaim
+        accessMode: ReadWriteOnce
+        storageClass: ceph-block
+        size: 2Gi
+        advancedMounts:
+          comfyui:
+            app:
+              - path: /llm/ComfyUI/user
+      # ComfyUI/PyTorch shared memory (replaces docker --shm-size). Counts against
+      # the pod memory limit, so the 32Gi limit accounts for it.
+      dshm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 16Gi
+        advancedMounts:
+          comfyui:
+            app:
+              - path: /dev/shm

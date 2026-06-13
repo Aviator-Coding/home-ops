@@ -12,8 +12,10 @@ resources:
   - ./agentgateway/ks.yaml
   - ./agentgateway-dashboards/ks.yaml
   - ./agentmemory/ks.yaml
+  - ./comfyui/ks.yaml
   - ./hermes/ks.yaml
   - ./kokoro/ks.yaml
+  - ./miso-gallery/ks.yaml
   - ./perplexica/ks.yaml
   # Temporarily removed (2026-06-07) - workloads/PVCs pruned, but manifests,
   # postgres open-webui DB, surrealdb open_notebook ns, 1P items and volsync
