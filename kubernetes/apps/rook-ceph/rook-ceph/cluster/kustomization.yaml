@@ -9,3 +9,5 @@ resources:
   - ./prometheusrules.yaml
   - ../backup
   - ./volumesnapshotclass-patch.yaml
+  - ./cephfs-rwx-subvolumegroup.yaml
+  - ./cephfs-rwx-storageclass.yaml
