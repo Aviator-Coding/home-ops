@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-06-14] Known limitation: OSD device-path drift (Rook #17224) — runbook + audit task  (PR #984)
+
+| Field | Value |
+|-------|-------|
+| **Change** | Docs/tooling only, **no cluster change**: new runbook [`docs/ceph/osd-device-path-recovery.md`](./ceph/osd-device-path-recovery.md), new `task rook:check-osd-device-paths` (+ `.taskfiles/rook/scripts/check-osd-device-paths.sh`), CLAUDE.md reboot guardrail, and this entry. |
+| **Why** | During the 2026-06-14 CephFS-metadata-storm recovery, restarting `osd.4` exposed that its Rook deployment stored a **stale `/dev/nvmeXn1`** path → OSD couldn't re-activate → a single-OSD restart became a long outage. Root cause = Rook [#17224](https://github.com/rook/rook/issues/17224) (`wontfix`): raw-mode OSDs store the **kernel name** in `ROOK_BLOCK_PATH`, not the by-id path we set in the CR; kernel names reshuffle across reboots. The activate "relocate" fallback (full `ceph-volume raw list`) normally self-heals this but returns empty under heavy load — so a restart *during a degraded cluster* leaves an OSD stuck `Init`. |
+| **Risk** | None added — docs + a read-only task. The underlying Rook limitation is unchanged (no config fixes it). Live-verified 2026-06-14: relocate fallback works under HEALTH_OK on all 3 nodes; **4/6 OSD deployments (osd.3/4/5/6) are currently stale-but-running** (harmless until restarted). |
+| **Rollback** | `git revert` (docs/task only). |
+| **Verify** | `task rook:check-osd-device-paths` → lists per-OSD drift and exits non-zero unless HEALTH_OK. Recovery = patch `ROOK_BLOCK_PATH` to the correct kernel name + force-delete the stuck pod (runbook Case A). |
+
+Main **trigger** removed separately: SABnzbd's tiny-file flood that caused the storm now writes its `incomplete` scratch to **ceph-block** instead of CephFS RWX (PR #983), so the cluster shouldn't wedge from that path again. Permanent elimination of the drift itself (raw→**LVM** OSD migration, stable LV paths) is **deferred** — heavy rebuild/backfill, risky on the DRAM-less Lexar NM790s. Guardrail: confirm HEALTH_OK + run the audit before `just talos upgrade-node`/`reboot-node`/`reset-node`.
+
 ### [2026-06-14] P2: pinned realistic per-OSD mClock IOPS (override inflated auto-bench)  (PR #981)
 
 | Field | Value |

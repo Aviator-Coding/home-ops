@@ -404,6 +404,14 @@ just talos apply-node talos-1 --dry-run   # review diff before a real apply
 just talos apply-node talos-1
 ```
 
+> ⚠️ **Before a node reboot** (`just talos upgrade-node` / `reboot-node` / `reset-node`),
+> which restarts that node's Ceph OSDs: confirm `ceph status` is **HEALTH_OK** and run
+> `task rook:check-osd-device-paths`. Rook bug [#17224](https://github.com/rook/rook/issues/17224)
+> bakes unstable `/dev/nvmeXn1` names into OSD deployments; on reboot an OSD relies on a
+> relocate fallback that can fail if the cluster is already degraded. Reboot one node at a
+> time, waiting for HEALTH_OK between nodes. If an OSD is stuck `Init` afterward, see
+> [`docs/ceph/osd-device-path-recovery.md`](docs/ceph/osd-device-path-recovery.md).
+
 ### Renovate Dependency Management
 
 Renovate automatically creates PRs for:
