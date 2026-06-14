@@ -83,6 +83,24 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-06-14] P2: pinned realistic per-OSD mClock IOPS (override inflated auto-bench)  (PR #NNN)
+
+| Field | Value |
+|-------|-------|
+| **Change** | Set `osd_mclock_max_capacity_iops_ssd` per-OSD via `cephClusterSpec.cephConfig` per-daemon sections (`"osd.N":`): Lexar NM790 **osd.3/4/5 → `7000`**, Samsung 980/990 PRO **osd.0/2/6 → `15000`**. |
+| **Why** | mClock startup auto-bench reported **49k–61k IOPS for every OSD** (config source `basic`) — ~3–4× too high for the no-PLP Samsungs, **~8–12× too high for the DRAM-less NM790s** — on the 4K sync-write path Ceph uses. Inflated capacity mis-allocates client vs background IO and is a plausible contributor to the slow-ops/laggy-PG cascade. |
+| **Risk** | Low — scheduler tuning only; no data-path/peering/availability impact. Values sit well above the `1000` low-guard so client IO is protected, not starved. Picked up **live, no OSD restart** (restarting the fragile NM790s is itself a slow-ops risk, so avoided). |
+| **Rollback** | `git revert`; then (Rook doesn't auto-`rm` unmanaged keys) in toolbox: `for n in 0 2 3 4 5 6; do ceph config rm osd.$n osd_mclock_max_capacity_iops_ssd; done` + restart OSDs to re-enable auto-bench. |
+| **Verify** | `ceph config dump \| grep mclock_max_capacity` → 6 keys, source `advanced`; `ceph config get osd.N osd_mclock_max_capacity_iops_ssd` → `7000`/`15000`. |
+
+Values are conservative literature/community estimates (Proxmox false-`osd_mclock_max_capacity_iops_ssd` thread; consumer-NVMe 4K sync-write reviews), **NOT fio-measured** — fio on a live BlueStore device is destructive, so deferred (measure only on a drained + stopped OSD, one at a time). The three *identical* NM790s auto-benched 52.7k/55.4k/60.9k (16% spread) — the classic "bench caught SLC-cache burst, not steady state" symptom. OSD→model mapping verified by drive **serial** via `ceph osd metadata` (the `/dev/nvmeXn1` names differ between Rook's namespace view and Talos enumeration). Once a value is set the OSD logs `Skip OSD benchmark test` and never re-benches until the key is removed.
+
+**Cleanup note (ad-hoc toolbox op, NOT GitOps):** a stale `osd.1` key `osd_mclock_max_capacity_iops_ssd=41589.54` lingers in the mon config DB for a non-existent OSD (`ceph osd find 1` → `ENOENT`; not in the CRUSH tree). Harmless (no daemon reads it) but untidy — remove it with:
+```bash
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph config rm osd.1 osd_mclock_max_capacity_iops_ssd
+```
+It lives only in the mon DB (not the helmrelease), so it can't be expressed as a GitOps revert — hence this runbook note.
+
 ### [2026-06-14] P1 verified: CephFS already on kernel client — removed dead `forceCephFSKernelClient` config  (PR #NNN)
 
 | Field | Value |
@@ -218,9 +236,16 @@ Sources are from the 2026-06-14 deep-research pass (Ceph Squid/Tentacle-era docs
 - **Note:** `# CONFIG_FSCACHE is not set` on Talos → the kernel CephFS client's optional
   fscache-backed page caching is unavailable, but that's not required for normal operation.
 
-### P2 — Re-calibrate mClock per-OSD IOPS on the DRAM-less NM790 drives
+### P2 — ✅ RESOLVED (2026-06-14): pinned per-OSD mClock IOPS
 
-- **What:** measure real 4 KiB random-write IOPS with `fio` on each OSD device, then set
+> **Resolution:** Confirmed live the auto-bench inflated every OSD to 49k–61k IOPS (NM790s ~8–12×
+> over realistic 4K sync-write). Pinned conservative per-OSD `osd_mclock_max_capacity_iops_ssd`
+> (NM790 osd.3/4/5 → 7000; Samsung osd.0/2/6 → 15000) via GitOps `cephConfig` per-daemon sections —
+> see the [2026-06-14 change-log entry](#2026-06-14-p2-pinned-realistic-per-osd-mclock-iops-override-inflated-auto-bench--pr-nnn).
+> `fio` measurement deferred (destructive on live OSDs); values are conservative estimates, easily
+> iterated. The original analysis below is retained as the rationale + (deferred) fio methodology.
+
+- **What (original):** measure real 4 KiB random-write IOPS with `fio` on each OSD device, then set
   `osd_mclock_max_capacity_iops_ssd` per-OSD instead of trusting the startup auto-bench.
 - **Why:** mClock auto-benchmarks each OSD's IOPS at startup; **on fast/DRAM-less NVMe this
   result is frequently inflated/unrealistic**, which mis-allocates client vs background IO and
