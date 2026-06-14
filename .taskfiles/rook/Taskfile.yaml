@@ -114,6 +114,14 @@ tasks:
       - echo "🗂️ Block devices:"
       - talosctl -n {{.node_ip}} list /dev/ | grep -E "sd[a-z]|nvme[0-9]" || echo "❌ No block devices found"
 
+  # OSD device-path drift audit + reboot-safety gate (Rook bug #17224).
+  # Run before `just talos upgrade-node`/`reboot-node`/`reset-node` or any OSD restart.
+  # See docs/ceph/osd-device-path-recovery.md
+  check-osd-device-paths:
+    desc: Audit OSD deployment device-path drift + reboot-safety gate (Rook #17224)
+    cmds:
+      - bash {{.ROOK_SCRIPTS_DIR}}/check-osd-device-paths.sh
+
   validate-wipe:
     desc: Validate that disk wipe was successful
     cmds:

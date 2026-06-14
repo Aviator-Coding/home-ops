@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-06-14] OSD device-path drift hardening (Rook #17224): osdMaxUpdatesInParallel=1 + runbook/audit  (PR #984)
+
+| Field | Value |
+|-------|-------|
+| **Change** | (1) **`cephClusterSpec.osdMaxUpdatesInParallel: 1`** in `cluster/helmrelease.yaml` — roll operator-driven OSD updates one at a time (chart/CRD default **20** ≈ all 6 OSDs at once). (2) Docs/tooling: new runbook [`docs/ceph/osd-device-path-recovery.md`](./ceph/osd-device-path-recovery.md), new `task rook:check-osd-device-paths` (+ script), CLAUDE.md reboot guardrail, this entry. |
+| **Why** | During the 2026-06-14 CephFS-metadata-storm recovery, restarting `osd.4` exposed Rook [#17224](https://github.com/rook/rook/issues/17224) (`wontfix`): raw-mode OSDs store the resolved **kernel name** in `ROOK_BLOCK_PATH`, not the by-id path we set in the CR; kernel names reshuffle across reboots so the path goes stale. The activate "relocate" fallback (`ceph-volume raw list`) self-heals this **under normal load** but returns empty when the cluster is already wedged — so a restart during a degraded cluster leaves an OSD stuck `Init`. `osdMaxUpdatesInParallel=1` shrinks the blast radius during operator upgrades: one OSD restarts at a time, each self-healing against an otherwise-healthy cluster. |
+| **Risk** | Minimal. The setting is operator-orchestration only — applied **live, no OSD restart**; it only makes future Ceph/Rook upgrades sequential (6 OSDs ≈ a few extra minutes). Docs/task are read-only. Underlying Rook limitation unchanged (no config fixes it). Live-verified: relocate fallback works under HEALTH_OK on all 3 nodes; 4/6 OSD deployments (osd.3/4/5/6) are stale-but-running (harmless until restarted). |
+| **Rollback** | `git revert` → setting reverts to default 20; docs/task drop out. |
+| **Verify** | `kubectl -n rook-ceph get cephcluster -o jsonpath='{.items[0].spec.osdMaxUpdatesInParallel}'` → `1`. `task rook:check-osd-device-paths` → per-OSD drift + exits non-zero unless HEALTH_OK. |
+
+**Best-practice note:** raw mode + by-id device refs (what we run) **is** the Rook-recommended layout — raw is the modern default; LVM is legacy, reserved for encryption + `metadataDevice`, and risks LVM-tag corruption ([Rook ceph-volume design](https://github.com/rook/rook/blob/master/design/ceph/ceph-volume-provisioning.md)). So there is **no best-practice "permanent fix"** for #17224 short of the upstream code change; raw→LVM is a last-resort workaround only. **Keep OFF** (all at safe defaults): `upgradeOSDRequiresHealthyPGs` (deadlocks with #17224), `removeOSDsIfOutAndSafeToRemove` (could auto-purge a recoverable stale OSD), `skipUpgradeChecks`/`continueUpgradeAfterChecksEvenIfNotHealthy`. Storm **trigger** removed separately (SABnzbd tiny-file flood → ceph-block, PR #983). Guardrail: confirm HEALTH_OK + run the audit before `just talos upgrade-node`/`reboot-node`/`reset-node`.
+
 ### [2026-06-14] P2: pinned realistic per-OSD mClock IOPS (override inflated auto-bench)  (PR #981)
 
 | Field | Value |
