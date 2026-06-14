@@ -69,6 +69,12 @@ machine:
     extraConfig:
       serializeImagePulls: false
       maxPods: 250
+      # Reclaim accumulated container-image layers. The kubelet prunes unused
+      # images when the imagefs (/var) hits 70% full, down to 55%. Default is
+      # 85/80, which let ~600G of old image versions pile up on this
+      # image-churn-heavy cluster (Renovate bumps + redeploys).
+      imageGCHighThresholdPercent: 70
+      imageGCLowThresholdPercent: 55
       featureGates:
         ImageVolume: true
     nodeIP:
