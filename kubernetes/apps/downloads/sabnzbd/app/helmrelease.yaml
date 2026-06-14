@@ -19,6 +19,11 @@ spec:
         annotations:
           reloader.stakater.com/auto: "true"
 
+        # Single replica with RWO PVCs (config + incomplete). Recreate avoids a
+        # RollingUpdate Multi-Attach deadlock where the new pod can't attach the
+        # RWO volume while the old pod still holds it.
+        strategy: Recreate
+
         pod:
           securityContext:
             runAsUser: 2000
@@ -151,6 +156,21 @@ spec:
               - path: /data/downloads
             app:
               - path: /data/downloads
+
+      # Article-assembly scratch (download_dir) on ceph-block (RWO, block) instead
+      # of CephFS RWX, to keep the thousands of tiny SABnzbd_article_* files off the
+      # MDS metadata journal (2026-06-14 storm stalled the whole filesystem). Mounts
+      # over the usenet/incomplete subpath of the shared-downloads CephFS mount;
+      # `complete` stays on shared-downloads (CephFS RWX) for *arr hardlinks. Path
+      # matches download_dir in sabnzbd.ini so no SABnzbd setting change is needed.
+      incomplete:
+        existingClaim: sabnzbd-incomplete
+        advancedMounts:
+          sabnzbd:
+            init-dirs:
+              - path: /data/downloads/usenet/incomplete
+            app:
+              - path: /data/downloads/usenet/incomplete
 
       temp:
         type: emptyDir

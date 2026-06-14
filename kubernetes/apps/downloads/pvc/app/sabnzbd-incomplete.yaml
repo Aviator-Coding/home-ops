@@ -1,0 +1,20 @@
+---
+# SABnzbd article-assembly scratch (the "incomplete"/download_dir). Lives on
+# `ceph-block` (RWO, block) NOT CephFS RWX on purpose: during assembly SABnzbd
+# writes thousands of tiny `SABnzbd_article_*` files, which storm the CephFS MDS
+# metadata journal and can stall the entire filesystem (2026-06-14 incident).
+# Block keeps that tiny-file churn inside the RBD ext4/xfs — Ceph only ever sees
+# 4MB RBD objects, never MDS metadata ops. The finished media is moved to
+# `complete` on `shared-downloads` (CephFS RWX) so the *arr hardlink/atomic-import
+# flow is unchanged. Disposable scratch → no volsync backup.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sabnzbd-incomplete
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Gi
+  storageClassName: ceph-block
