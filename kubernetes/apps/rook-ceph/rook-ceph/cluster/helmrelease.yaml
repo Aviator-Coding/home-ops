@@ -33,13 +33,6 @@ spec:
       repository: quay.io/ceph/ceph
       tag: v20.2.1
     cephClusterSpec:
-      # Roll operator-driven OSD updates ONE AT A TIME (chart/CRD default is 20 =
-      # effectively all 6 OSDs at once). With Rook bug #17224 (stale /dev/nvmeXn1 baked
-      # into ROOK_BLOCK_PATH), a simultaneous OSD restart during a Ceph/Rook upgrade risks
-      # several OSDs failing to re-activate at once; one-at-a-time lets each self-heal via
-      # the relocate fallback against an otherwise-healthy cluster. Operator-orchestration
-      # only -- applied live, no OSD restart. See docs/ceph/osd-device-path-recovery.md.
-      osdMaxUpdatesInParallel: 1
       csi:
         cephfs:
           # Effective kernel CephFS mount option (CephCluster CR spec.csi.cephfs).
