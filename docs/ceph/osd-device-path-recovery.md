@@ -37,9 +37,12 @@ loaded/wedged, which is exactly when the 2026-06-14 incident restarted an OSD. S
 [rook/rook discussion #7796](https://github.com/rook/rook/discussions/7796).
 
 > Why we don't "just fix the config": the CephCluster CR **already** uses by-id device
-> names; Rook ignores them for `ROOK_BLOCK_PATH`. No config toggle changes this. The only
-> permanent fix is migrating OSDs raw→LVM (stable LV paths) — deferred (heavy rebuild +
-> backfill, risky on the DRAM-less Lexar NM790s).
+> names, and **raw mode is the recommended Rook default** — this layout *is* best practice.
+> Rook simply doesn't use the by-id path for `ROOK_BLOCK_PATH`; no config toggle changes
+> that. There is **no best-practice "permanent fix"** — the clean fix is the upstream code
+> change (#17224, `wontfix`). Migrating raw→LVM would dodge the naming issue but trades
+> *against* best practice (LVM is legacy, reserved for encryption + `metadataDevice`, and
+> carries its own LVM-tag/metadata-corruption risk), so it's a last resort, not a fix.
 
 ## Diagnosis
 
@@ -123,9 +126,18 @@ kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph status       # HEALTH_O
   relocate fallback self-heal each OSD on boot.
 - Don't restart an OSD or reboot a node while the cluster is degraded. If you must, expect
   to apply Case A.
+- **Ceph/Rook upgrades** (Renovate bumps) restart OSDs via the *operator*, not the kubelet.
+  `cephClusterSpec.osdMaxUpdatesInParallel: 1` is set in `cluster/helmrelease.yaml` so the
+  operator rolls OSDs **one at a time** (default `20` ≈ all 6 at once) — each restart then
+  self-heals against an otherwise-healthy cluster.
+- **Keep these Rook settings OFF** (they're at safe defaults): `upgradeOSDRequiresHealthyPGs`
+  (can deadlock with #17224 — a stuck OSD keeps PGs unhealthy, which blocks the update that
+  would fix it), `removeOSDsIfOutAndSafeToRemove` (could auto-**purge** a recoverable
+  stale-path OSD), `skipUpgradeChecks` / `continueUpgradeAfterChecksEvenIfNotHealthy`.
 
 ## Related
 
 - Incident + the trigger we removed: SABnzbd tiny-file flood moved off CephFS to
   ceph-block (PR #983) → see `docs/ceph-cluster-changelog.md`.
-- Permanent fix (deferred): raw→LVM OSD migration.
+- Proper fix is upstream (Rook #17224, `wontfix`); raw + by-id is already the
+  best-practice layout. raw→LVM is a last-resort workaround only (see the root-cause note).
