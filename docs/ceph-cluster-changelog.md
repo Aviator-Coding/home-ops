@@ -66,7 +66,7 @@ protection; the three Lexar NM790 are DRAM-less and remain the fragile OSDs.
 When you merge a Ceph config/topology change, prepend an entry (newest first):
 
 ```markdown
-## [YYYY-MM-DD] Short title  (PR #981)
+## [YYYY-MM-DD] Short title  (PR #NNN)
 
 | Field | Value |
 |-------|-------|
