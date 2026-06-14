@@ -127,9 +127,12 @@ kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph status       # HEALTH_O
 - Don't restart an OSD or reboot a node while the cluster is degraded. If you must, expect
   to apply Case A.
 - **Ceph/Rook upgrades** (Renovate bumps) restart OSDs via the *operator*, not the kubelet.
-  `cephClusterSpec.osdMaxUpdatesInParallel: 1` is set in `cluster/helmrelease.yaml` so the
-  operator rolls OSDs **one at a time** (default `20` ≈ all 6 at once) — each restart then
-  self-heals against an otherwise-healthy cluster.
+  Rook v1.20.0 only takes down OSDs that are **`ok-to-stop`** (won't drop a PG below
+  `min_size`), which on a 3-host `size=3` cluster already serializes per host — that's the
+  core safety. The extra `osdMaxUpdatesInParallel` cap (would be set to `1`) is **not usable
+  here yet**: it's a v1.19 CRD field and the cluster's CephCluster CRD is currently **behind
+  the v1.20.0 operator** (the giant CRD didn't fully reconcile — see changelog). Revisit
+  pinning it once the CRDs are synced.
 - **Keep these Rook settings OFF** (they're at safe defaults): `upgradeOSDRequiresHealthyPGs`
   (can deadlock with #17224 — a stuck OSD keeps PGs unhealthy, which blocks the update that
   would fix it), `removeOSDsIfOutAndSafeToRemove` (could auto-**purge** a recoverable
