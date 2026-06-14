@@ -66,7 +66,7 @@ protection; the three Lexar NM790 are DRAM-less and remain the fragile OSDs.
 When you merge a Ceph config/topology change, prepend an entry (newest first):
 
 ```markdown
-## [YYYY-MM-DD] Short title  (PR #NNN)
+## [YYYY-MM-DD] Short title  (PR #981)
 
 | Field | Value |
 |-------|-------|
@@ -83,7 +83,7 @@ Notes / evidence / sources.
 
 ## Change log
 
-### [2026-06-14] P2: pinned realistic per-OSD mClock IOPS (override inflated auto-bench)  (PR #NNN)
+### [2026-06-14] P2: pinned realistic per-OSD mClock IOPS (override inflated auto-bench)  (PR #981)
 
 | Field | Value |
 |-------|-------|
@@ -101,7 +101,7 @@ kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph config rm osd.1 osd_mcl
 ```
 It lives only in the mon DB (not the helmrelease), so it can't be expressed as a GitOps revert — hence this runbook note.
 
-### [2026-06-14] P1 verified: CephFS already on kernel client — removed dead `forceCephFSKernelClient` config  (PR #NNN)
+### [2026-06-14] P1 verified: CephFS already on kernel client — removed dead `forceCephFSKernelClient` config  (PR #981)
 
 | Field | Value |
 |-------|-------|
@@ -205,7 +205,7 @@ Sources are from the 2026-06-14 deep-research pass (Ceph Squid/Tentacle-era docs
 > `Driver` CR `cephFsClientType` (=`autodetect` → kernel on Talos 6.x; `OperatorConfig` default
 > `kernel`), **not** the chart `forceCephFSKernelClient` value (which is inert here). The dead
 > `forceCephFSKernelClient` / `cephFSKernelMountOptions` lines were removed; the effective option
-> `cephClusterSpec.csi.cephfs.kernelMountOptions` was kept. See the [2026-06-14 change-log entry](#2026-06-14-p1-verified-cephfs-already-on-kernel-client--removed-dead-forcecephfskernelclient-config--pr-nnn).
+> `cephClusterSpec.csi.cephfs.kernelMountOptions` was kept. See the [2026-06-14 change-log entry](#2026-06-14-p1-verified-cephfs-already-on-kernel-client--removed-dead-forcecephfskernelclient-config--pr-981).
 > The original analysis below is retained as the read-only evidence procedure.
 
 - **What (original):** flip `csi.cephfs.forceCephFSKernelClient` back to `true` so CephFS RWX uses the
@@ -241,7 +241,7 @@ Sources are from the 2026-06-14 deep-research pass (Ceph Squid/Tentacle-era docs
 > **Resolution:** Confirmed live the auto-bench inflated every OSD to 49k–61k IOPS (NM790s ~8–12×
 > over realistic 4K sync-write). Pinned conservative per-OSD `osd_mclock_max_capacity_iops_ssd`
 > (NM790 osd.3/4/5 → 7000; Samsung osd.0/2/6 → 15000) via GitOps `cephConfig` per-daemon sections —
-> see the [2026-06-14 change-log entry](#2026-06-14-p2-pinned-realistic-per-osd-mclock-iops-override-inflated-auto-bench--pr-nnn).
+> see the [2026-06-14 change-log entry](#2026-06-14-p2-pinned-realistic-per-osd-mclock-iops-override-inflated-auto-bench--pr-981).
 > `fio` measurement deferred (destructive on live OSDs); values are conservative estimates, easily
 > iterated. The original analysis below is retained as the rationale + (deferred) fio methodology.
 
