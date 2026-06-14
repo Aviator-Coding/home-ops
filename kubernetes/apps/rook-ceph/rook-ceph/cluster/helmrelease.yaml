@@ -28,11 +28,6 @@ spec:
       createPrometheusRules: true
     toolbox:
       enabled: true
-    csi:
-      cephfs:
-        # fuseMountOptions: "debug"
-        # Talos does not ship ceph.ko; force autodetect so the CSI falls back to ceph-fuse
-        forceCephFSKernelClient: false
     # renovate: datasource=docker depName=quay.io/ceph/ceph
     cephImage:
       repository: quay.io/ceph/ceph
@@ -40,8 +35,12 @@ spec:
     cephClusterSpec:
       csi:
         cephfs:
-          # Talos kernel libceph speaks only msgr1; ms_mode=prefer-crc makes the kernel
-          # client negotiate msgr2 so it can connect to mon port 3300 correctly.
+          # Effective kernel CephFS mount option (CephCluster CR spec.csi.cephfs).
+          # The cluster requires msgr2; ms_mode=prefer-crc pins CRC mode so the kernel
+          # client connects on mon port 3300. Verified live in /proc/mounts.
+          # NOTE: CephFS already uses the kernel client (ceph-csi Driver cephFsClientType
+          # autodetect -> kernel on Talos 6.x); the legacy chart forceCephFSKernelClient
+          # value is inert under Rook v1.20 csi-operator mode. See docs/ceph-cluster-changelog.md.
           kernelMountOptions: "ms_mode=prefer-crc"
       cephConfig:
         global:
@@ -84,6 +83,29 @@ spec:
           osd_scrub_end_hour: "7"
           # Prioritise client I/O over background work on latency-sensitive drives.
           osd_mclock_profile: high_client_ops
+
+        # --- P2: pin realistic per-OSD mClock IOPS (override inflated auto-bench).
+        # The startup auto-bench reported 49k-61k IOPS for EVERY OSD (config source
+        # "basic" = auto-written): ~3-4x too high for the no-PLP Samsungs and ~8-12x
+        # too high for the DRAM-less Lexar NM790s (osd.3/4/5) on the 4K sync-write path
+        # Ceph actually uses. The three identical NM790s even benched 52.7k/55.4k/60.9k
+        # (16% spread) = bench caught SLC-cache burst, not steady state. Inflated
+        # capacity mis-allocates client vs background IO and feeds the slow-ops/laggy-PG
+        # cascade. Values below are conservative 4K randwrite estimates per drive model
+        # (NOT fio-measured); setting them persists in the mon config DB so the OSD logs
+        # "Skip OSD benchmark test" and never re-benches. See docs/ceph-cluster-changelog.md P2.
+        "osd.0":
+          osd_mclock_max_capacity_iops_ssd: "15000" # Samsung 980 PRO 2TB
+        "osd.2":
+          osd_mclock_max_capacity_iops_ssd: "15000" # Samsung 980 PRO 2TB
+        "osd.6":
+          osd_mclock_max_capacity_iops_ssd: "15000" # Samsung 990 PRO 2TB
+        "osd.3":
+          osd_mclock_max_capacity_iops_ssd: "7000" # Lexar NM790 4TB (DRAM-less HMB)
+        "osd.4":
+          osd_mclock_max_capacity_iops_ssd: "7000" # Lexar NM790 4TB (DRAM-less HMB)
+        "osd.5":
+          osd_mclock_max_capacity_iops_ssd: "7000" # Lexar NM790 4TB (DRAM-less HMB)
 
         mds:
           # Larger CephFS metadata cache (plenty of node RAM headroom); kept

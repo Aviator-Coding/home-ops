@@ -21,7 +21,9 @@ spec:
     crds:
       enabled: true
     csi:
-      cephFSKernelMountOptions: ms_mode=prefer-crc
+      # NOTE: cephFSKernelMountOptions was removed from the v1.20 operator chart
+      # (ceph-csi-operator migration). The effective kernel mount option now lives on
+      # the CephCluster CR (cephClusterSpec.csi.cephfs.kernelMountOptions in the cluster HR).
       # NOTE: Enable the driver and snapshotter if you want to use CephFS
       enableCephfsDriver: true
       enableCephfsSnapshotter: true
