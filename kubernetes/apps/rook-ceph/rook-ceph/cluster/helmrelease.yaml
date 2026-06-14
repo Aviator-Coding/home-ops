@@ -28,11 +28,6 @@ spec:
       createPrometheusRules: true
     toolbox:
       enabled: true
-    csi:
-      cephfs:
-        # fuseMountOptions: "debug"
-        # Talos does not ship ceph.ko; force autodetect so the CSI falls back to ceph-fuse
-        forceCephFSKernelClient: false
     # renovate: datasource=docker depName=quay.io/ceph/ceph
     cephImage:
       repository: quay.io/ceph/ceph
@@ -40,8 +35,12 @@ spec:
     cephClusterSpec:
       csi:
         cephfs:
-          # Talos kernel libceph speaks only msgr1; ms_mode=prefer-crc makes the kernel
-          # client negotiate msgr2 so it can connect to mon port 3300 correctly.
+          # Effective kernel CephFS mount option (CephCluster CR spec.csi.cephfs).
+          # The cluster requires msgr2; ms_mode=prefer-crc pins CRC mode so the kernel
+          # client connects on mon port 3300. Verified live in /proc/mounts.
+          # NOTE: CephFS already uses the kernel client (ceph-csi Driver cephFsClientType
+          # autodetect -> kernel on Talos 6.x); the legacy chart forceCephFSKernelClient
+          # value is inert under Rook v1.20 csi-operator mode. See docs/ceph-cluster-changelog.md.
           kernelMountOptions: "ms_mode=prefer-crc"
       cephConfig:
         global:
