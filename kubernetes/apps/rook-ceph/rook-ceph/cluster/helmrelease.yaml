@@ -176,6 +176,12 @@ spec:
       storage:
         useAllNodes: false
         useAllDevices: false
+        # Roll operator-driven OSD updates ONE AT A TIME (CRD default 20 = effectively all
+        # 6 OSDs at once). This field lives under `storage` (spec.storage.osdMaxUpdatesInParallel),
+        # NOT spec-level. Limits blast radius if the #17224 device-path drift bites during a
+        # Ceph/Rook upgrade; on v1.20.0 `ok-to-stop` gating is the core safety. Operator-
+        # orchestration only -- applied live, no OSD restart. See docs/ceph/osd-device-path-recovery.md.
+        osdMaxUpdatesInParallel: 1
         nodes:
           - name: "talos-1"
             devices:
