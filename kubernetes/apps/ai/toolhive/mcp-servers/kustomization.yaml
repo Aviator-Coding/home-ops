@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./arr-mcp
+  - ./comfyui-mcp
+  - ./flux-mcp
+  - ./github-mcp
+  - ./kubectl-mcp
+  - ./memory-mcp
+  - ./talos-mcp
+  # Deactivated pending 1Password secrets (files kept — re-enable once the
+  # listed fields exist):
+  #   garmin-connect-mcp -> item `garmin` fields `username` + `password`
+  #   ha-mcp             -> item `home-assistant` field `HOMEASSISTANT_TOKEN`
+  #   seerr-mcp          -> item `seerr` field `SEERR_API_KEY`
+  # - ./garmin-connect-mcp
+  # - ./ha-mcp
+  # - ./seerr-mcp
+  # grafana-mcp intentionally omitted: its MCPServerEntry targets
+  # mcp-grafana.observability:8000, which does not exist in this cluster.
