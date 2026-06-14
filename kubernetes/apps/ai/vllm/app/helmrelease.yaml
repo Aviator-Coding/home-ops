@@ -45,7 +45,11 @@ spec:
               - --port
               - "8000"
               - --ctx-size
-              - "32768"
+              # Native window is 262144 (no yarn). Hybrid arch (10/40 full-attn
+              # layers, 2 KV heads) → ~20 KiB/token → ~2.6 GiB KV @128k. Single
+              # request gets the whole pool (kv_unified=true). Shares 32G B70 with
+              # vllm-embed + comfyui — step down to 98304/65536 on VRAM OOM.
+              - "131072"
               - -ngl
               - "99"
               - --jinja
