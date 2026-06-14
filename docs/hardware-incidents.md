@@ -4,6 +4,63 @@ Tracked hardware and infrastructure incidents across cluster nodes. Each entry d
 
 ---
 
+## [2026-06-14] ALL 3 nodes — WD SN770M firmware (HMB) bug → silent Ceph mon RocksDB corruption
+
+| Field | Value |
+|-------|-------|
+| **Node** | **ALL 3** (talos-1/2/3) — each has a WD_BLACK SN770M 1TB FW **731100WD** as its system/mon disk (talos-1 `nvme2n1`, talos-2 `nvme0n1`, talos-3 `nvme0n1`). talos-1 corrupted first. |
+| **Component** | **WD_BLACK SN770M 1TB, FW 731100WD** — DRAM-less (uses HMB); holds `/var` + the openebs-hostpath Ceph mon stores on every node. (OSD disks are separate: Samsung 980/990 PRO, Lexar NM790 — not affected.) |
+| **Affected service** | mon.k, mon.l on talos-1 (corrupted); mon.h (talos-3) + mon.i (talos-2) at equal risk |
+| **Severity** | **high** → effectively critical: all 3 mon stores share the buggy firmware; a 2nd mon corruption = quorum loss = cluster down |
+
+### Root cause
+
+**Known WD_BLACK SN770/SN770M firmware bug (FW 731100WD), NOT a failing disk.** The SN770M is
+DRAM-less and uses **HMB (Host Memory Buffer)** — host RAM for its flash-translation/mapping
+tables. FW 731100WD has a documented HMB data-corruption bug (same family that caused Win11
+24H2 BSODs; DRAM-less HMB drives are well-known to be unsuitable for DB/FS workloads like
+RocksDB/ZFS). It returns corrupted data **silently under load** — which manifests as RocksDB
+block checksum mismatches with **completely clean SMART** (NAND is fine; corruption is in the
+HMB/FTL layer). Third occurrence on this node (see [2026-03-21] mon.j below, mis-logged as a
+one-off "bit-flip"): mon.j → mon.k → mon.l, the last a fresh replacement on a fresh PVC that
+corrupted within minutes. **Heavy IO triggers it**: the full-throttle CephFS migration rsync
+wedged osd.0, and the kubelet imageGC change (PR #979) deleting ~370 GB off `/var` corrupted
+mon.l. (osd.0 also had a BlueStore assert `_txc_apply_kv r==0` on 2026-06-02.)
+
+**SMART (2026-06-14): CLEAN** — overall PASSED, Critical Warning 0x00, Media & Data Integrity
+Errors **0**, Available Spare 100%, Percentage Used **3%**, temp 58°C (sensor1 72°C). No MCE /
+EDAC / thermal / NVMe-reset events in dmesg. The clean SMART is what re-pointed the diagnosis
+from "failing disk" to "firmware HMB bug." Refs: theregister.com/2024/10/17/western_digital_releases_a_firmware,
+support-en.wd.com SN770M, github.com/openzfs/zfs/discussions/14793.
+
+### Evidence
+
+```
+mon.l (fresh replacement, fresh PVC) crash-loop:
+rocksdb: submit_common error: Corruption: block checksum mismatch:
+  stored = 3754013901, computed = 4071487067, type = 4
+  in /var/lib/ceph/mon/ceph-l/store.db/000245.sst offset 55621975 size 103686
+MonitorDBStore::apply_transaction() -> ceph_abort_msg("failed to write to db")
+
+mon.k earlier: ceph_abort_msg("failed to write to db") (MonitorDBStore.h:356), 49 restarts
+osd.0 2026-06-02: BlueStore::_txc_apply_kv FAILED ceph_assert(r == 0) (bstore_kv_sync)
+```
+
+### Impact
+
+- Ceph repeatedly degraded to `HEALTH_WARN`, 1/3 mons down, quorum held by mon.h (talos-3) + mon.i (talos-2)
+- osd.0/4/5 stuck slow ops (768) wedged client/MDS IO 3× — cleared each time by `ceph osd set noout` + restart osd.0
+- **No data loss** — all PGs `active+clean`, 3× replication intact, volumes healthy
+- Reduced fault tolerance — only 2 working mons; a third mon cannot survive on talos-1
+
+### Resolution
+
+**✅ RESOLVED 2026-06-14** — all 3 nodes' SN770M flashed `731100WD` → **`731150WD`**, rolling one at a time (cordon → `ceph osd set noout` → reset-to-BIOS + flash → power on → uncordon → OSDs/mon rejoin → `unset noout` → recover). Confirmed working: mon.l ran 9 h stable on the patched firmware under real recovery load (it previously corrupted within minutes). All mon stores now on safe firmware; cluster can take heavy IO again.
+
+Immediate (done): cleared slow ops (restart osd.0); reclaimed ~370 GB on `/var` (imageGC PR #979). Removed corrupt mon.k (`ceph mon remove` + delete PVC + patch `rook-ceph-mon-endpoints`); mon.l left crash-looping (recreating on the same buggy firmware is futile). **Real fix: update the SN770M firmware on ALL 3 NODES** 731100WD → latest (≥731120WD), **rolling — one node at a time** to preserve mon quorum (via WD Dashboard on Windows, or `nvme fw-download`/`fw-commit` from a Linux live USB; each node briefly offline). Interim mitigation: disable HMB for the drive. Until patched: **avoid heavy-IO operations on every node** (not just talos-1) — all 3 mon stores are on the buggy firmware and a 2nd mon corruption breaks quorum. After firmware is patched on a node, restore its mon via the clean recreate runbook. **Disk does NOT need replacing — SMART is healthy on all units.** (osd.0's slow-op wedges are on a different disk — likely a separate Ceph/BlueStore-under-load issue.)
+
+---
+
 ## [2026-04-15] NAS (nas.sklab.dev) — failing DAC cable/PHY on Intel 82599ES port 2
 
 | Field | Value |
