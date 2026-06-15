@@ -57,6 +57,18 @@ auxiliary:
 web:
   search_backend: searxng
 
+# Aggregated MCP tools via the ToolHive VirtualMCPServer (ns ai). The vmcp
+# "mcp-gateway-internal" federates every MCPServer in the `mcp-tools` group
+# (arr, comfyui, flux, github, kubectl, memory, talos) behind one streamable-
+# http endpoint at /mcp; incomingAuth is anonymous so no header is needed. Tool
+# names are prefixed per backend ({workload}_). Deployed by
+# kubernetes/apps/ai/toolhive. (joryirving routes this through litellm /mcp;
+# litellm is retired here, so connect straight to the vmcp service.)
+mcp_servers:
+  toolhive:
+    url: http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp
+    enabled: true
+
 # Persistent cross-session memory via the agentmemory service (ns ai). The memory-
 # provider plugin is mounted at $HERMES_HOME/plugins/agentmemory (=/opt/data/plugins/
 # agentmemory, see helmrelease.yaml) — the user-installed dir the memory loader scans;

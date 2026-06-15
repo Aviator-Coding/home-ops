@@ -25,4 +25,5 @@ resources:
   - ./open-webui/ks.yaml
   - ./qdrant/ks.yaml
   - ./searxng/ks.yaml
+  - ./toolhive/ks.yaml
   - ./vllm/ks.yaml
