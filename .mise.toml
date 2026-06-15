@@ -15,7 +15,7 @@ JUST_UNSTABLE = "1"
 MISE_LIST_ALL_VERSIONS = "false"
 
 [tools]
-"python" = "3.14.5"
+"python" = "3.14.6"
 "pipx:makejinja" = "2.8.2"
 "pipx:pre-commit" = "4.6.0"
 "pipx:flux-local" = "latest"
