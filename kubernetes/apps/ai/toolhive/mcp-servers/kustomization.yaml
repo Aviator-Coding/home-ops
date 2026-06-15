@@ -8,7 +8,6 @@ resources:
   - ./github-mcp
   - ./kubectl-mcp
   - ./memory-mcp
-  - ./talos-mcp
   # Deactivated pending 1Password secrets (files kept — re-enable once the
   # listed fields exist):
   #   garmin-connect-mcp -> item `garmin` fields `username` + `password`
@@ -17,5 +16,11 @@ resources:
   # - ./garmin-connect-mcp
   # - ./ha-mcp
   # - ./seerr-mcp
+  # Deactivated: the Talos ServiceAccount controller rejects ns `ai`
+  # (ErrNamespaceNotAllowed). To re-enable, add `ai` to
+  # features.kubernetesTalosAPIAccess.allowedKubernetesNamespaces (and `os:reader`
+  # to allowedRoles) in talos/machineconfig.yaml.j2, then re-apply Talos config
+  # to all 3 nodes.
+  # - ./talos-mcp
   # grafana-mcp intentionally omitted: its MCPServerEntry targets
   # mcp-grafana.observability:8000, which does not exist in this cluster.
