@@ -8,23 +8,27 @@
 custom_providers:
   # OpenCode Go (open models) via the internal agentgateway. The keyless
   # internal-noauth gateway injects the real opencodego key upstream, so the
-  # `api_key` below is a dummy placeholder — it's never sent on the wire (the
-  # gateway overrides Authorization). It exists only so the auxiliary client can
-  # resolve a credential: without it Hermes logs "no resolvable api_key" warnings
-  # and its fallback credential check fails. Referenced elsewhere as `custom:gateway`.
+  # `api_key` below is a dummy — it's never sent on the wire (the gateway
+  # overrides Authorization). It exists only so the auxiliary client can resolve
+  # a credential: without it Hermes logs "no resolvable api_key" warnings.
+  # NOTE: the value must NOT be `no-key-required`/`no-key`/`` — Hermes' v11→12
+  # config migration (custom_providers→providers dict) drops exactly those
+  # sentinels, so the key would vanish and the warning return. `no-auth` survives.
+  # Referenced elsewhere as `custom:gateway`.
   - name: gateway
     base_url: http://internal-noauth.ai.svc.cluster.local/opencodego/v1
-    api_key: no-key-required
+    api_key: no-auth
     api_mode: chat_completions
   # Local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL, ~74 t/s) via the gateway's
   # /vllm route. Free and rate-limit-proof; llama-server is single-slot, so
   # concurrent requests queue. The keyless internal-noauth route needs no auth;
   # `api_key` is a dummy to satisfy the auxiliary client's credential resolution
   # (silences the no-key warning, no 401 since the route is unauthenticated).
+  # Same migration caveat as above — `no-auth`, never the `no-key-required` sentinel.
   # Referenced as `custom:local`.
   - name: local
     base_url: http://internal-noauth.ai.svc.cluster.local/vllm/v1
-    api_key: no-key-required
+    api_key: no-auth
     api_mode: chat_completions
 
 # Default serving model: the local Qwen3.6-35B-A3B on the B70 (custom:local ->
