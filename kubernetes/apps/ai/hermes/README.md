@@ -36,15 +36,18 @@ are overwritten on the next restart.
 
 | Provider | Routing | Auth |
 | -------- | ------- | ---- |
-| `xai-oauth` (native, **default** `grok-4.3`) | direct to xAI, bypassing the gateway | OAuth (Grok subscription, see below) |
+| `custom:local` (**default** `qwen3.6-35b-a3b`) | agentgateway `internal-noauth` → `/vllm/v1` (llama.cpp on the B70) | keyless (LAN-only gateway) |
 | `custom:gateway` (`kimi-k2.6`) | agentgateway `internal-noauth` → `/opencodego/v1` | keyless (gateway injects the key) |
+| `xai-oauth` (native, `grok-4.3`) | direct to xAI, bypassing the gateway | OAuth (Grok subscription, see below) |
 
 `config.yaml` also sets:
-- **Fallback chain** — `grok-4.3` → `custom:gateway/kimi-k2.6`, so a 429/outage on
-  the Grok subscription (or the OpenCode-Go `GoUsageLimitError`) doesn't kill the
-  session.
-- **Auxiliary routing** — compression / web_extract / session_search / title go to
-  the cheap gateway model instead of burning the Grok subscription.
+- **Fallback chain** — `custom:local/qwen3.6-35b-a3b` → `custom:gateway/kimi-k2.6` →
+  `xai-oauth/grok-4.3`, so a local outage (e.g. ComfyUI scaling `vllm` to 0 under the
+  Dedicated-VRAM runbook) doesn't kill the session. The local default is free and
+  rate-limit-proof, so long tasks don't hit the xAI throttle or OpenCode-Go limits.
+- **Auxiliary routing** — compression / web_extract / session_search / title run on the
+  local model too (the single-slot llama-server serializes them behind the main task);
+  `vision` is pinned to Grok (`xai-oauth`) since the local 35B is text-only.
 - **Web search** — `web.search_backend: searxng`, wired to the in-cluster SearXNG
   via `SEARXNG_URL`.
 
@@ -172,8 +175,9 @@ PAT or account SSH key would expose every repo; don't use those.)
   removed without touching the rest — see the disable note in `helmrelease.yaml`.
 - **Runs as root then drops** to UID 10000 (s6-overlay), so no `runAsNonRoot` on the
   `app` container — `fsGroup: 10000` makes the PVC writable for the dropped user.
-- **Cost tracking:** the default `xai-oauth` Grok path talks to xAI **directly**,
-  bypassing the gateway, so it isn't in gateway cost/Tempo tracking (flat subscription
-  anyway). Only the `custom:gateway` path is metered.
+- **Cost tracking:** the default `custom:local` and the `custom:gateway` paths go
+  through the agentgateway, so they're in gateway cost/Tempo tracking. The `xai-oauth`
+  Grok path (now fallback + `vision`) talks to xAI **directly**, bypassing the gateway,
+  so it isn't tracked (flat subscription anyway).
 - **Ports:** `9119` dashboard, `8642` OpenAI-compatible API, `8787` webui, `12321`
   code-server.

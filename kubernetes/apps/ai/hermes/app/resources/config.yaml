@@ -19,39 +19,44 @@ custom_providers:
     base_url: http://internal-noauth.ai.svc.cluster.local/vllm/v1
     api_mode: chat_completions
 
-# Default serving model: Grok via the native xai-oauth provider (subscription;
-# creds added once with `hermes auth add xai-oauth --manual-paste`, kept in
-# /opt/data/auth.json). To serve kimi through the gateway instead, set:
-#   model: { default: kimi-k2.6, provider: custom:gateway }
+# Default serving model: the local Qwen3.6-35B-A3B on the B70 (custom:local ->
+# /vllm route). Free and rate-limit-proof, so long-running tasks never hit the
+# xAI subscription throttle or the OpenCode-Go GoUsageLimitError. To serve a
+# cloud model instead, set e.g. model: { default: grok-4.3, provider: xai-oauth }.
 model:
-  default: grok-4.3
-  provider: xai-oauth
+  default: qwen3.6-35b-a3b
+  provider: custom:local
 
-# Fail-over chain: if the default provider 429s/errors (the Grok subscription, or
-# the OpenCode-Go GoUsageLimitError), fall back to kimi via the gateway, then to
-# the local 35B on the B70 (never rate-limited, always on).
+# Fail-over chain: if the local B70 model errors or is unavailable (e.g. ComfyUI
+# scaled vllm to 0 under the Dedicated-VRAM runbook), fall back to kimi via the
+# gateway, then to Grok (xai-oauth subscription; creds added once with
+# `hermes auth add xai-oauth --manual-paste`, kept in /opt/data/auth.json).
 fallback_providers:
   - provider: custom:gateway
     model: kimi-k2.6
-  - provider: custom:local
-    model: qwen3.6-35b-a3b
+  - provider: xai-oauth
+    model: grok-4.3
 
-# Route heavy, frequent context chores to the cheap gateway model so they don't
-# burn the Grok subscription. `vision` is left on the default (grok-4.3) unless
-# kimi-k2.6 gains vision support.
+# Heavy, frequent context chores run on the local model too, so they don't burn
+# the cloud limits either (the llama-server is single-slot, so these serialize
+# behind the main task). `vision` is the exception: the local 35B is text-only,
+# so image inputs are pinned to Grok (the only vision-capable provider here).
 auxiliary:
   compression:
-    provider: custom:gateway
-    model: kimi-k2.6
+    provider: custom:local
+    model: qwen3.6-35b-a3b
   web_extract:
-    provider: custom:gateway
-    model: kimi-k2.6
+    provider: custom:local
+    model: qwen3.6-35b-a3b
   session_search:
-    provider: custom:gateway
-    model: kimi-k2.6
+    provider: custom:local
+    model: qwen3.6-35b-a3b
   title_generator:
-    provider: custom:gateway
-    model: kimi-k2.6
+    provider: custom:local
+    model: qwen3.6-35b-a3b
+  vision:
+    provider: xai-oauth
+    model: grok-4.3
 
 # Web search via the SearXNG instance already running in ns ai.
 web:
