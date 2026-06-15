@@ -7,16 +7,24 @@
 # wiped on the next restart.
 custom_providers:
   # OpenCode Go (open models) via the internal agentgateway. The keyless
-  # internal-noauth gateway injects the real opencodego key, so no api_key here.
-  # Referenced elsewhere as `custom:gateway`.
+  # internal-noauth gateway injects the real opencodego key upstream, so the
+  # `api_key` below is a dummy placeholder — it's never sent on the wire (the
+  # gateway overrides Authorization). It exists only so the auxiliary client can
+  # resolve a credential: without it Hermes logs "no resolvable api_key" warnings
+  # and its fallback credential check fails. Referenced elsewhere as `custom:gateway`.
   - name: gateway
     base_url: http://internal-noauth.ai.svc.cluster.local/opencodego/v1
+    api_key: no-key-required
     api_mode: chat_completions
   # Local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL, ~74 t/s) via the gateway's
   # /vllm route. Free and rate-limit-proof; llama-server is single-slot, so
-  # concurrent requests queue. Referenced as `custom:local`.
+  # concurrent requests queue. The keyless internal-noauth route needs no auth;
+  # `api_key` is a dummy to satisfy the auxiliary client's credential resolution
+  # (silences the no-key warning, no 401 since the route is unauthenticated).
+  # Referenced as `custom:local`.
   - name: local
     base_url: http://internal-noauth.ai.svc.cluster.local/vllm/v1
+    api_key: no-key-required
     api_mode: chat_completions
 
 # Default serving model: the local Qwen3.6-35B-A3B on the B70 (custom:local ->
@@ -37,23 +45,34 @@ fallback_providers:
   - provider: xai-oauth
     model: grok-4.3
 
-# Heavy, frequent context chores run on the local model too, so they don't burn
-# the cloud limits either (the llama-server is single-slot, so these serialize
-# behind the main task). `vision` is the exception: the local 35B is text-only,
-# so image inputs are pinned to Grok (the only vision-capable provider here).
+# Auxiliary context chores run on kimi via the gateway, NOT the local model:
+# web_extract fires N parallel LLM calls (one per fetched page) on large content,
+# and the single-slot local llama-server serialized them until they timed out.
+# kimi handles concurrency, and aux volume is low (bursty, per-task) so it won't
+# burn the cloud limits the way the continuous main loop did. IMPORTANT: aux
+# fallback uses the PER-TASK `fallback_chain`, NOT the global `fallback_providers`
+# above — without it Hermes falls back to the main model (=custom:local) and
+# re-times-out, so the heavy chores pin a Grok fallback (also parallel-capable).
+# `vision` is pinned to Grok because the local 35B is text-only.
 auxiliary:
-  compression:
-    provider: custom:local
-    model: qwen3.6-35b-a3b
   web_extract:
-    provider: custom:local
-    model: qwen3.6-35b-a3b
+    provider: custom:gateway
+    model: kimi-k2.6
+    fallback_chain:
+      - provider: xai-oauth
+        model: grok-4.3
+  compression:
+    provider: custom:gateway
+    model: kimi-k2.6
+    fallback_chain:
+      - provider: xai-oauth
+        model: grok-4.3
   session_search:
-    provider: custom:local
-    model: qwen3.6-35b-a3b
+    provider: custom:gateway
+    model: kimi-k2.6
   title_generator:
-    provider: custom:local
-    model: qwen3.6-35b-a3b
+    provider: custom:gateway
+    model: kimi-k2.6
   vision:
     provider: xai-oauth
     model: grok-4.3
