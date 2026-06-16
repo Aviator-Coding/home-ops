@@ -41,10 +41,12 @@ are overwritten on the next restart.
 | `xai-oauth` (native, `grok-4.3`) | direct to xAI, bypassing the gateway | OAuth (Grok subscription, see below) |
 
 `config.yaml` also sets:
-- **Fallback chain** — `custom:local/qwen3.6-35b-a3b` → `custom:gateway/kimi-k2.6` →
+- **Fallback chain** — `custom:local/qwen3.6-35b-a3b` → `custom:gateway/glm-5.1` →
   `xai-oauth/grok-4.3`, so a local outage (e.g. ComfyUI scaling `vllm` to 0 under the
   Dedicated-VRAM runbook) doesn't kill the session. The local default is free and
   rate-limit-proof, so long tasks don't hit the xAI throttle or OpenCode-Go limits.
+  The gateway fallback uses `glm-5.1` (strongest tool-caller on the Go sub) rather than
+  kimi, since the fallback runs the full agentic tool-calling loop.
 - **Auxiliary routing** — compression / web_extract / session_search / title run on kimi
   via the gateway, **not** the local model: `web_extract` fires N parallel LLM calls (one
   per page) that the single-slot local server can't serve concurrently (they time out).

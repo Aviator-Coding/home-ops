@@ -39,13 +39,17 @@ model:
   default: qwen3.6-35b-a3b
   provider: custom:local
 
-# Fail-over chain: if the local B70 model errors or is unavailable (e.g. ComfyUI
-# scaled vllm to 0 under the Dedicated-VRAM runbook), fall back to kimi via the
-# gateway, then to Grok (xai-oauth subscription; creds added once with
-# `hermes auth add xai-oauth --manual-paste`, kept in /opt/data/auth.json).
+# Fail-over chain for the MAIN agentic loop: if the local B70 model errors or is
+# unavailable (e.g. ComfyUI scaled vllm to 0 under the Dedicated-VRAM runbook),
+# fall back to glm-5.1 via the gateway, then to Grok (xai-oauth subscription;
+# creds added once with `hermes auth add xai-oauth --manual-paste`, kept in
+# /opt/data/auth.json). glm-5.1 is the strongest tool-caller on the OpenCode-Go
+# sub (tops τ²-bench / BFCL agentic vs kimi/deepseek/qwen), which matters because
+# this fallback runs the full tool-calling loop. The aux chores below stay on
+# kimi-k2.6 — they only summarise content, they don't tool-call.
 fallback_providers:
   - provider: custom:gateway
-    model: kimi-k2.6
+    model: glm-5.1
   - provider: xai-oauth
     model: grok-4.3
 
