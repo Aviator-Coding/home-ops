@@ -83,6 +83,27 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-06-16] osd.0 — active silent write-corruption (rebuild recurred → HARDWARE-suspect, osd.0 held OUT)
+
+| Field | Value |
+|-------|-------|
+| **Change** | (1) Destroyed + recreated **osd.0** (Samsung 980 PRO 2TB, talos-1): purge → wipe disk → operator re-provision → backfill. (2) **After the fresh store re-corrupted under backfill writes, osd.0 was marked `out` + scaled to 0** — cluster running stable on 5 OSDs pending a hardware decision. New runbook [`docs/ceph/osd-store-corruption-recovery.md`](./ceph/osd-store-corruption-recovery.md). |
+| **Why** | osd.0 crash-looped: aborted **every startup** in `load_pgs → PG::read_state → BlueStore::omap_iterate` (uncaught C++ `terminate`) = a corrupt pg_log/pg_info OMAP record it couldn't decode. Rebuilt from peers (canonical fix when redundancy intact + disk SMART-healthy). **BUT ~90 min into backfill the FRESH store aborted again** with a *different, decisive* signature: `rocksdb: Background IO error Corruption: Compaction sees out-of-order keys` → `BlueStore.cc:14648 FAILED ceph_assert(r == 0)` in `_txc_apply_kv`. That is **active silent data corruption on write** (the read-side omap crash was its downstream aftermath). SMART **clean** (media_errors 0, err-log 0, spare 100%, 6% used, 52 °C) and **zero NVMe/IO errors in talos-1 dmesg**, and no MCE/EDAC → corruption is invisible to the device layer. |
+| **Hypotheses → triaged** | **RAM ~CLEARED (no downtime):** talos-1 runs Intel `igen6` **in-band ECC** — `/sys/devices/system/edac/mc/{mc0,mc1}` report **ce_count=0, ue_count=0**, `HardwareCorrupted: 0`, 57 GiB free (not OOM). In-band ECC would have logged correctable/uncorrectable bit-errors; it shows none. **Firmware NOT the cause:** osd.0's 980 PRO is on **`5B2QGXA7`** (the *fixed* Samsung fw), identical to the stable osd.2 980 PRO. → **Prime suspect = osd.0's individual 980 PRO unit, or its talos-1 M.2 slot / PCIe lane** (B70 OCuLink/`pci=realloc` node); silent corruption SMART can't see. Definitive test = swap the drive (move the suspect unit to another slot/node to tell drive-vs-path apart). RAM memtest now low-priority. osd.3's separate slow-op crashes are the no-PLP-Lexar fragility, not this corruption. |
+| **Risk** | Data safe throughout — osd.0 only ever held *partial* backfill copies; full replicas always existed on the other 5 OSDs. `ceph osd safe-to-destroy osd.0` was confirmed before purge. Each osd.0 abort briefly degraded ~54 PGs (recovered). |
+| **State / next** | osd.0 `out`+purged; its disk commented out of the CephCluster `nodes` device list (PR #993) so the operator runs clean on 5 OSDs. **Next: swap osd.0's drive (or its M.2 slot/PCIe path); then uncomment the disk in the HR + wipe it + let Rook rebuild.** Do **NOT** re-add osd.0 until the drive/slot is swapped & cleared. |
+| **Verify** | `ceph status` → all `active+clean` on **5** OSDs once reconvergence finishes; `ceph osd tree` → osd.0 `down`/`out`. Re-corruption proof: `kubectl -n rook-ceph logs rook-ceph-osd-0-... -c osd --previous \| grep "out-of-order keys"`. |
+
+**Procedure (executed):** operator→0; `scale/delete deploy rook-ceph-osd-0`; `ceph osd purge 0`;
+wipe **only** the by-id Samsung 980 PRO via a rendered `WipeDiskJob` (the `task rook:reset-disk`
+runner's `envsubst < <(...)` is unreliable on Windows); operator→1 → fresh osd.0 rejoined →
+backfilled to ~7.7% misplaced (≈halfway) in ~90 min → **aborted with out-of-order-keys corruption**
+→ marked osd.0 `out`, operator→0, osd-0 deploy→0. **Chronic fragile osd.0** (112 crashes since
+2026-01-01; prior `_txc_apply_kv r==0` on 2026-06-02). No public Ceph tracker matches either
+signature. **Lesson: a rebuild clears corrupt *data* but not a corrupt *substrate* — if a freshly
+rebuilt OSD re-corrupts under load, stop blaming the data and investigate hardware (drive + node
+RAM/PCIe).** Logged as a hardware incident → see [`hardware-incidents.md`](./hardware-incidents.md).
+
 ### [2026-06-14] OSD device-path drift hardening (Rook #17224) + storage.osdMaxUpdatesInParallel  (PR #984/#985/#986)
 
 | Field | Value |
