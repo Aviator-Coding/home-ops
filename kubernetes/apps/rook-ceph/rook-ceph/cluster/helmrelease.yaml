@@ -186,13 +186,15 @@ spec:
           - name: "talos-1"
             devices:
               - name: "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NME714W100393P2202"
-              # osd.0 (Samsung 980 PRO S6B0NL0W412707M) HELD OUT 2026-06-16 — hardware-suspect.
-              # The freshly-rebuilt store re-corrupted under backfill writes
-              # ("rocksdb Corruption: Compaction sees out-of-order keys" -> BlueStore.cc:14648),
-              # with SMART + dmesg CLEAN -> silent corruption (talos-1 RAM/PCIe or this drive).
-              # Re-enable (uncomment) + wipe the disk ONLY after the hardware is cleared. See
-              # docs/ceph-cluster-changelog.md [2026-06-16] + docs/ceph/osd-store-corruption-recovery.md
-              # - name: "/dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W412707M"
+              # osd.0 (Samsung 980 PRO S6B0NL0W412707M): RE-ADDED 2026-06-16 as a deliberate
+              # STOPGAP despite a known silent-write-corruption fault (RAM cleared via in-band ECC;
+              # the drive or its talos-1 M.2 slot/PCIe lane is the suspect). Rationale: running
+              # osd.0-OUT left talos-1 with only the fragile DRAM-less Lexar osd.3, causing repeated
+              # CephFS-metadata slow-op wedges / cluster stalls. Corruption is contained by BlueStore
+              # checksums + replica-3 (bad reads fail csum -> served from good replicas; deep-scrub
+              # repairs), so the failure mode is osd.0 CRASHING, not data loss. NOT A FIX — swap the
+              # drive/slot. See docs/ceph-cluster-changelog.md [2026-06-16] + docs/ceph/osd-store-corruption-recovery.md
+              - name: "/dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W412707M"
           - name: "talos-2"
             devices:
               - name: "/dev/disk/by-id/nvme-Samsung_SSD_990_PRO_2TB_S7KHNJ0WC55436E"
