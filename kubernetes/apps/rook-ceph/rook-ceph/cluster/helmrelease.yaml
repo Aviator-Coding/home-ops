@@ -186,7 +186,13 @@ spec:
           - name: "talos-1"
             devices:
               - name: "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NME714W100393P2202"
-              - name: "/dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W412707M"
+              # osd.0 (Samsung 980 PRO S6B0NL0W412707M) HELD OUT 2026-06-16 — hardware-suspect.
+              # The freshly-rebuilt store re-corrupted under backfill writes
+              # ("rocksdb Corruption: Compaction sees out-of-order keys" -> BlueStore.cc:14648),
+              # with SMART + dmesg CLEAN -> silent corruption (talos-1 RAM/PCIe or this drive).
+              # Re-enable (uncomment) + wipe the disk ONLY after the hardware is cleared. See
+              # docs/ceph-cluster-changelog.md [2026-06-16] + docs/ceph/osd-store-corruption-recovery.md
+              # - name: "/dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W412707M"
           - name: "talos-2"
             devices:
               - name: "/dev/disk/by-id/nvme-Samsung_SSD_990_PRO_2TB_S7KHNJ0WC55436E"
