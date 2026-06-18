@@ -13,6 +13,7 @@ resources:
   - ./coredns/ks.yaml
   - ./descheduler/ks.yaml
   - ./metrics-server/ks.yaml
+  - ./mglru-disable/ks.yaml
   - ./multus/ks.yaml
   - ./reloader/ks.yaml
   - ./snapshot-controller/ks.yaml
