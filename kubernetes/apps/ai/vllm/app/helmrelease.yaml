@@ -54,10 +54,20 @@ spec:
               - "99"
               - --jinja
               - --metrics
+              - --flash-attn
+              - --cache-type-k
+              - q8_0
+              - --cache-type-v
+              - q8_0
+              - --cache-reuse
+              - "256"
+              - --no-mmap
             env:
               LLAMA_CACHE: /models/llama
               ONEAPI_DEVICE_SELECTOR: level_zero:0
               ZES_ENABLE_SYSMAN: "1"
+              UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS: "1"
+              SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS: "1"
             envFrom: &envFrom
               - secretRef:
                   name: vllm-secret
