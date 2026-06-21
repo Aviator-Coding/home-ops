@@ -16,5 +16,8 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 500Gi
+      # 1.5Ti: 500Gi filled during large UHD batches (par2 + multi-file assembly),
+      # pausing downloads on low free space. ceph-blockpool has the headroom and the
+      # scratch is transient, so the reservation only consumes space when actually used.
+      storage: 1500Gi
   storageClassName: ceph-block
