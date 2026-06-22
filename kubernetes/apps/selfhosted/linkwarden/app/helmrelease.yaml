@@ -46,9 +46,14 @@ spec:
               NEXTAUTH_URL: "https://links.${SECRET_DOMAIN}"
               NEXT_PUBLIC_DISABLE_REGISTRATION: "true"
               NEXT_PUBLIC_CREDENTIALS_ENABLED: "true"
-              # AI tagging via AgentGateway -> OpenRouter
-              CUSTOM_OPENAI_BASE_URL: "http://internal-noauth.ai.svc.cluster.local/openrouter/v1"
-              OPENAI_MODEL: "google/gemini-2.0-flash-lite-001"
+              # Full-page Monolith archive: raise output buffer above the 100MB
+              # default (one image-heavy page overflowed it -> partial archive).
+              MONOLITH_MAX_BUFFER: "256"
+              # AI auto-tagging via AgentGateway -> local B70 model (llama.cpp, /vllm).
+              # OPENAI_API_KEY (= OpenRouter key) is ignored by the keyless LAN gateway,
+              # but the OpenAI SDK still requires a non-empty value to be present.
+              CUSTOM_OPENAI_BASE_URL: "http://internal-noauth.ai.svc.cluster.local/vllm/v1"
+              OPENAI_MODEL: "qwen3.6-35b-a3b"
             envFrom: *envFrom
             ports:
               - name: http
