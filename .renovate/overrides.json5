@@ -46,5 +46,20 @@
       ],
       allowedVersions: "<1.13.3",
     },
+    {
+      // This registry hosts TWO distinct lineages under the same repo, and
+      // Renovate's OCI datasource picks the numerically-highest tag across both:
+      //   - standalone agentgateway (1.x, agentgateway.dev/v1alpha1 CRDs) -> what we run
+      //   - kgateway-bundled distribution (v2.2.x) -> different control plane,
+      //     namespace agentgateway-system, requires a full TrafficPolicy migration.
+      // The v2.2.x bump (#946/#947) would swap out the whole gateway. Stay on the
+      // standalone 1.x line (latest v1.3.0); upgrade across lineages by hand only.
+      description: "Pin agentgateway to the standalone 1.x lineage (<2.0.0)",
+      matchPackageNames: [
+        "cr.agentgateway.dev/charts/agentgateway",
+        "cr.agentgateway.dev/charts/agentgateway-crds",
+      ],
+      allowedVersions: "<2.0.0",
+    },
   ],
 }
