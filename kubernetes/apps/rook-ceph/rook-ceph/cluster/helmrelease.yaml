@@ -31,7 +31,7 @@ spec:
     # renovate: datasource=docker depName=quay.io/ceph/ceph
     cephImage:
       repository: quay.io/ceph/ceph
-      tag: v20.2.1
+      tag: v20.2.2
     cephClusterSpec:
       csi:
         cephfs:
