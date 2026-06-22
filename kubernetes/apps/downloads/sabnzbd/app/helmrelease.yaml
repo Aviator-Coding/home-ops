@@ -125,6 +125,20 @@ spec:
                   - ALL
 
     defaultPodOptions:
+      # TEMPORARY: talos-1 is running on ~47Gi (single stick) pending the bad-RAM
+      # (Stick B) RMA. Under memory-PSI pressure Talos's runtime.OOMController
+      # repeatedly SIGKILLs sabnzbd's cgroup (par2/post-processing is the largest
+      # growing consumer there). Pin away from talos-1 until full RAM is restored,
+      # then REMOVE this affinity block. See docs/hardware-incidents.md (2026-06-19/20).
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - talos-1
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname
