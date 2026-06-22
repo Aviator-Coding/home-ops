@@ -22,6 +22,20 @@ spec:
       namespace: network
       sectionName: https
   rules:
+    # agentgateway v1.3.0 serves the dashboard at /ui (the backend 308-redirects
+    # bare / to an http:// URL, which dead-ends behind the TLS gateway). Issue a
+    # clean same-scheme redirect to /ui/ at the gateway so the hostname works.
+    - matches:
+        - path:
+            type: Exact
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /ui/
+            statusCode: 302
     - backendRefs:
         - name: agentgateway-admin-ui
           namespace: ai
