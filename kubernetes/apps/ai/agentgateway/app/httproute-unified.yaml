@@ -1,0 +1,151 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# Unified OpenAI-style endpoint: ONE base URL (http://internal-noauth.ai.svc.cluster.local/v1)
+# that fans out to the right provider backend by the request-body `model` field.
+# The `model-routing` AgentgatewayPolicy extracts model -> x-model (PreRouting); the
+# rules below match x-model by family. Each open-model family lives on exactly one
+# backend here, so there is no cross-provider ambiguity. Ambiguous aggregators
+# (openrouter / togetherai / zai / opencode / perplexity) keep their explicit
+# /provider paths. Subsumes the former `llm-local-root` route (agentmemory): local
+# qwen chat with kimi failover + vllm-embed embeddings.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llm-unified
+spec:
+  parentRefs:
+    - name: internal-noauth
+  rules:
+    # --- embeddings: path-only (the body `model` is the embedding model) ---
+    - matches:
+        - path:
+            type: Exact
+            value: /v1/embeddings
+      backendRefs:
+        - name: vllm-embed
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- local chat (agentmemory + others): qwen* -> local 35B w/ kimi failover ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^qwen.*"
+      backendRefs:
+        - name: llm-chat-failover
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- OpenAI ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^(gpt-|o1|o3|o4|chatgpt).*"
+      backendRefs:
+        - name: openai
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- Anthropic ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^claude-.*"
+      backendRefs:
+        - name: anthropic
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- Google Gemini ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^gemini-.*"
+      backendRefs:
+        - name: gemini
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- xAI Grok ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^grok-.*"
+      backendRefs:
+        - name: xai
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- DeepSeek (first-party chat/reasoner; groq's r1-distill stays on /groq) ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^deepseek-(chat|reasoner).*"
+      backendRefs:
+        - name: deepseek
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- Mistral ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^(mistral-|magistral|ministral|codestral|pixtral|devstral|open-mi).*"
+      backendRefs:
+        - name: mistral
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- Groq (open-weight families hosted on Groq) ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^(llama|mixtral|gemma|moonshotai|allam|compound).*"
+      backendRefs:
+        - name: groq
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- model catalog: agentgateway does not aggregate /v1/models across
+    #     backends, so this serves the local list; multi-provider clients
+    #     (open-webui) enumerate models manually. ---
+    - matches:
+        - path:
+            type: Exact
+            value: /v1/models
+      backendRefs:
+        - name: vllm
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- default: unmatched model on /v1/chat/completions -> OpenAI ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+      backendRefs:
+        - name: openai
+          group: agentgateway.dev
+          kind: AgentgatewayBackend

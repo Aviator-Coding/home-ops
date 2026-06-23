@@ -4,3 +4,4 @@ resources:
 - authentik-policy.yaml
 - apikey-policy.yaml
 - tracing-policy.yaml
+- model-routing-policy.yaml

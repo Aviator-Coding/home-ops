@@ -25,3 +25,18 @@ spec:
         port: 4317
       protocol: GRPC
       randomSampling: "1.0"
+      # Capture the actual outgoing request (model + messages) as a span
+      # attribute so traces show the prompt going out, not just token counts.
+      # Scoped to chat-completions to skip large embedding inputs / GET
+      # /v1/models. agentgateway only buffers a body when a CEL expression
+      # references it, so this buffers small request bodies (cheap, always
+      # fully received) but NOT responses.
+      #
+      # NOTE: `response.body` is deliberately NOT captured — referencing it
+      # would force response buffering and break token streaming. The response
+      # side stays observable via the existing gen_ai token/cost metrics
+      # (agentgateway_gen_ai_client_token_usage) and span timing.
+      attributes:
+        add:
+          - name: gen_ai.prompt
+            expression: 'request.path.endsWith("/chat/completions") ? string(request.body) : ""'

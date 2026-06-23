@@ -1,0 +1,38 @@
+---
+# Content-based (body-model) routing, step 1 of 2 (step 2 = ../httproute-unified.yaml).
+# A PreRouting transformation copies the OpenAI request-body `model` field into the
+# `x-model` request header BEFORE route selection, so the unified /v1 HTTPRoute can
+# pick a provider backend by model name. This is the agentgateway-documented pattern
+# (docs/kubernetes/llm/content-routing) targeting the internal-noauth Gateway, where
+# every in-cluster client connects.
+#
+# SAFETY: the transform is wrapped in `conditional` so the body is parsed ONLY for
+# requests whose path starts with /v1/chat/completions (the unified endpoint, which
+# always carries a JSON body with a `model`). There is deliberately NO fallback
+# entry, so every other request on this shared gateway — GET /v1/models,
+# /v1/embeddings, health probes, and the existing per-provider /<provider>/... paths
+# (e.g. /vllm/v1/chat/completions, which does NOT start with /v1/chat/completions) —
+# skips the transform entirely and is never body-parsed. request.path / request.method
+# / request.headers accessors per docs/about/policies/conditional-policies.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: model-routing
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-noauth
+  traffic:
+    phase: PreRouting
+    transformation:
+      conditional:
+        - condition: request.path.startsWith("/v1/chat/completions")
+          policy:
+            request:
+              set:
+                # coalesce swallows a malformed/empty body → empty x-model (which
+                # then falls through to the unified route's default rule) rather
+                # than erroring the request.
+                - name: x-model
+                  value: 'coalesce(json(request.body).model, "")'
