@@ -18,6 +18,11 @@ spec:
     - extract:
         key: ai-keys
 ---
+# Single passthrough backend (no model pinned → the client's request-body
+# `model` is forwarded). `Completions` on the /v1/chat/completions suffix makes
+# agentgateway translate OpenAI Chat Completions → Anthropic Messages, so
+# OpenAI-compatible clients (open-webui, the unified /v1 endpoint) work; the
+# native /v1/messages suffix is kept for any native-Anthropic client.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -26,11 +31,12 @@ spec:
   ai:
     provider:
       anthropic: {}
-
   policies:
     ai:
       routes:
+        "/v1/chat/completions": Completions
         "/v1/messages": Messages
+        "/v1/models": Passthrough
         "*": Passthrough
     auth:
       secretRef:
@@ -46,189 +52,17 @@ spec:
     - name: internal-noauth
     - name: public
   rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /anthropic
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: anthropic
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
----
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayBackend
-metadata:
-  name: anthropic-haiku
-spec:
-  ai:
-    provider:
-      anthropic: {}
-
-  policies:
-    ai:
-      routes:
-        "/v1/messages": Messages
-        "*": Passthrough
-    auth:
-      secretRef:
-        name: anthropic-secret
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: anthropic-haiku
-spec:
-  parentRefs:
-    - name: internal
-    - name: internal-noauth
-    - name: public
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /anthropic-haiku
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: anthropic-haiku
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
----
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayBackend
-metadata:
-  name: anthropic-opus
-spec:
-  ai:
-    provider:
-      anthropic: {}
-
-  policies:
-    ai:
-      routes:
-        "/v1/messages": Messages
-        "*": Passthrough
-    auth:
-      secretRef:
-        name: anthropic-secret
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: anthropic-opus
-spec:
-  parentRefs:
-    - name: internal
-    - name: internal-noauth
-    - name: public
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /anthropic-opus
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: anthropic-opus
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
----
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayBackend
-metadata:
-  name: anthropic-opus-4-6
-spec:
-  ai:
-    provider:
-      anthropic: {}
-
-  policies:
-    ai:
-      routes:
-        "/v1/messages": Messages
-        "*": Passthrough
-    auth:
-      secretRef:
-        name: anthropic-secret
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: anthropic-opus-4-6
-spec:
-  parentRefs:
-    - name: internal
-    - name: internal-noauth
-    - name: public
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /anthropic-opus-4-6
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: anthropic-opus-4-6
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
----
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayBackend
-metadata:
-  name: anthropic-sonnet-4-6
-spec:
-  ai:
-    provider:
-      anthropic: {}
-
-  policies:
-    ai:
-      routes:
-        "/v1/messages": Messages
-        "*": Passthrough
-    auth:
-      secretRef:
-        name: anthropic-secret
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: anthropic-sonnet-4-6
-spec:
-  parentRefs:
-    - name: internal
-    - name: internal-noauth
-    - name: public
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /anthropic-sonnet-4-6
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: anthropic-sonnet-4-6
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /anthropic
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: anthropic
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
