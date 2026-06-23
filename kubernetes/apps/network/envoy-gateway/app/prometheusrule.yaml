@@ -1,0 +1,42 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: envoy-gateway-rules
+spec:
+  groups:
+    - name: envoy-gateway.rules
+      rules:
+        # An Envoy proxy lost its xDS connection to the envoy-gateway controller and
+        # can no longer receive route/endpoint (EDS) updates — it serves FROZEN config.
+        # This is the exact condition behind the 2026-06-23 outage: the controller
+        # crash-looped, the proxies' GatewayNamespaceMode SA tokens expired, xDS auth
+        # failed, and envoy-internal stayed pinned to a dead agentmemory pod IP.
+        # Runbook: kubectl -n network rollout restart deploy envoy-gateway, then
+        # envoy-internal + envoy-external (fresh token → xDS resync). 10m absorbs the
+        # brief reconnect during a normal controller roll.
+        - alert: EnvoyProxyControlPlaneDisconnected
+          expr: envoy_control_plane_connected_state{namespace="network"} == 0
+          for: 10m
+          annotations:
+            summary: >-
+              Envoy proxy {{ $labels.pod }} has been disconnected from the
+              envoy-gateway control plane for 10m and is serving stale config —
+              rollout restart envoy-gateway then envoy-internal/envoy-external.
+          labels:
+            severity: critical
+        # The controller is crash-looping. On 2026-06-23 this was a liveness-kill
+        # (exit 137, reason=Error, NOT OOM — it idles ~160Mi) driven by stale proxies
+        # flooding the kubejwt auth interceptor with expired tokens. A crash-looping
+        # controller stops pushing xDS, which is what freezes the proxies above.
+        - alert: EnvoyGatewayControllerCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total{namespace="network", pod=~"envoy-gateway-.*"}[15m]) >= 2
+          for: 5m
+          annotations:
+            summary: >-
+              envoy-gateway controller {{ $labels.pod }} restarted
+              {{ $value | printf "%.0f" }}x in 15m — check controller logs for a
+              kubejwt 'service account token has expired' storm from stale proxies.
+          labels:
+            severity: warning
