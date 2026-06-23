@@ -18,7 +18,10 @@ spec:
     - extract:
         key: ai-keys
 ---
-# xai BAgentgatewayBackend (OpenAI-compatible)
+# xai AgentgatewayBackend (OpenAI-compatible). Internal clients reach this via
+# the unified /v1 endpoint by model name (grok-*). The explicit /xai path route
+# is retired from internal/internal-noauth and kept ONLY on the public gateway
+# for the external llm-api.* API.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -47,21 +50,19 @@ metadata:
   name: xai
 spec:
   parentRefs:
-    - name: internal
-    - name: internal-noauth
     - name: public
   rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /xai
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: xai
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /xai
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: xai
+          group: agentgateway.dev
+          kind: AgentgatewayBackend

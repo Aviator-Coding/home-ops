@@ -18,6 +18,10 @@ spec:
     - extract:
         key: ai-keys
 ---
+# Internal clients reach this via the unified /v1 endpoint
+# (../httproute-unified.yaml) by model name (gpt-*/o[0-9]*/chatgpt* + default).
+# The explicit /openai path route is retired from internal/internal-noauth and
+# kept ONLY on the public gateway for the external llm-api.* API.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -26,7 +30,6 @@ spec:
   ai:
     provider:
       openai: {}
-
   policies:
     auth:
       secretRef:
@@ -44,21 +47,19 @@ metadata:
   name: openai
 spec:
   parentRefs:
-    - name: internal
-    - name: internal-noauth
     - name: public
   rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /openai
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: openai
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /openai
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: openai
+          group: agentgateway.dev
+          kind: AgentgatewayBackend

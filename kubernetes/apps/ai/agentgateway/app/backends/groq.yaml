@@ -18,7 +18,11 @@ spec:
     - extract:
         key: ai-keys
 ---
-# Groq BAgentgatewayBackend (OpenAI-compatible)
+# Groq AgentgatewayBackend (OpenAI-compatible). Internal clients reach this via
+# the unified /v1 endpoint by model name (llama*/mixtral*/gemma*/...); the
+# unified groq rule prepends /openai (Groq serves at api.groq.com/openai/v1). The
+# explicit /groq path route is retired from internal/internal-noauth and kept
+# ONLY on the public gateway for the external llm-api.* API.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -47,21 +51,19 @@ metadata:
   name: groq
 spec:
   parentRefs:
-    - name: internal
-    - name: internal-noauth
     - name: public
   rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /groq
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /openai
-    backendRefs:
-    - name: groq
-      group: agentgateway.dev
-      kind: AgentgatewayBackend
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /groq
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /openai
+      backendRefs:
+        - name: groq
+          group: agentgateway.dev
+          kind: AgentgatewayBackend

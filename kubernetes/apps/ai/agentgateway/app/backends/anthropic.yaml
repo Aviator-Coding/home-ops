@@ -18,11 +18,11 @@ spec:
     - extract:
         key: ai-keys
 ---
-# Single passthrough backend (no model pinned → the client's request-body
-# `model` is forwarded). `Completions` on the /v1/chat/completions suffix makes
-# agentgateway translate OpenAI Chat Completions → Anthropic Messages, so
-# OpenAI-compatible clients (open-webui, the unified /v1 endpoint) work; the
-# native /v1/messages suffix is kept for any native-Anthropic client.
+# Internal clients reach this via the unified /v1 endpoint by model name
+# (claude-*); `Completions` translates OpenAI Chat Completions -> Anthropic
+# Messages, /v1/messages stays native. The explicit /anthropic path route is
+# retired from internal/internal-noauth and kept ONLY on the public gateway for
+# the external llm-api.* API.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -48,8 +48,6 @@ metadata:
   name: anthropic
 spec:
   parentRefs:
-    - name: internal
-    - name: internal-noauth
     - name: public
   rules:
     - matches:

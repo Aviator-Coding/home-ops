@@ -18,7 +18,11 @@ spec:
     - extract:
         key: ai-keys
 ---
-# mistral BAgentgatewayBackend (OpenAI-compatible)
+# mistral AgentgatewayBackend (OpenAI-compatible). Internal clients reach this
+# via the unified /v1 endpoint by model name (mistral-*/magistral/ministral/
+# codestral/pixtral/devstral/open-mi*). The explicit /mistral path route is
+# retired from internal/internal-noauth and kept ONLY on the public gateway for
+# the external llm-api.* API.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -47,8 +51,6 @@ metadata:
   name: mistral
 spec:
   parentRefs:
-    - name: internal
-    - name: internal-noauth
     - name: public
   rules:
     - matches:
