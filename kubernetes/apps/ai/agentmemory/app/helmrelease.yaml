@@ -87,9 +87,13 @@ spec:
               # memory (required for recall). Graph extraction adds the entity/
               # relation knowledge graph (the graph leg of hybrid recall); both run
               # per-session — the local 35B on the B70 (~74 t/s) handles them.
-              # AGENTMEMORY_AUTO_COMPRESS stays OFF (default synthetic compression):
-              # it runs the LLM on EVERY observation — llama-server is single-slot,
-              # so keep per-observation LLM load off it.
+              # AGENTMEMORY_AUTO_COMPRESS stays OFF (default synthetic compression).
+              # It runs the LLM on EVERY observation; the local 35B on the B70
+              # (~15-20 t/s under concurrent load) can't keep up, so enabling it
+              # (bcf0f292) made ~95% of compressions time out at 120s and trip
+              # agentmemory's circuit breaker — which also starved summarize /
+              # graph-extraction / reflect. Reverted 2026-06-23. Do NOT re-enable
+              # against the local model; keep per-observation LLM load off it.
               CONSOLIDATION_ENABLED: "true"
               GRAPH_EXTRACTION_ENABLED: "true"
               # Generous LLM timeout: llama-server queues concurrent requests.
@@ -103,7 +107,6 @@ spec:
               # shutdown-flush bug (upstream #843, fixed in 0.9.27).
               SNAPSHOT_ENABLED: "true"
               SNAPSHOT_DIR: /data/snapshots
-              AGENTMEMORY_AUTO_COMPRESS: true
               # Periodic lesson synthesis on the local 35B — tokens are free.
               AGENTMEMORY_REFLECT: "true"
               # Homelab context stays relevant longer than the 30-day default.
