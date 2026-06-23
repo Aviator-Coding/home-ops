@@ -116,7 +116,10 @@ spec:
         - name: mistral
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # --- Groq (open-weight families hosted on Groq) ---
+    # --- Groq (open-weight families hosted on Groq). Groq's OpenAI-compatible
+    #     API lives at api.groq.com/openai/v1/... so prepend the /openai prefix
+    #     here — the unified route forwards /v1/... unchanged, whereas the legacy
+    #     /groq route injects /openai via its own ReplacePrefixMatch. ---
     - matches:
         - path:
             type: PathPrefix
@@ -125,6 +128,12 @@ spec:
             - type: RegularExpression
               name: x-model
               value: "^(llama|mixtral|gemma|moonshotai|allam|compound).*"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /openai/v1/chat/completions
       backendRefs:
         - name: groq
           group: agentgateway.dev
