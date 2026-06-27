@@ -124,13 +124,18 @@ Method: `flux suspend hr vllm` → patch deployment image to `ghcr.io/ggml-org/l
   exceeds** the `f16`-capable reference (54.7). We are not leaving meaningful decode on the
   table. **No change.**
 
-### Parallel slots — **KEEP auto (4 + kv_unified); pin for determinism**
+### Parallel slots — **KEEP auto (do NOT pin)**
 
 - Live server auto-selects `n_parallel=4, kv_unified=true`. With a unified KV cache, a single
   request addresses the full 131072 pool (verified: all 4 slots log `n_ctx=131072`) **and** up
   to 4 fleet requests can run concurrently. This is already the best of both worlds — no 1-vs-2-vs-4
-  trade-off to make. Recommend pinning `--parallel 4` + `--kv-unified` explicitly so the
-  behaviour can't silently change on an image bump (see §4).
+  trade-off to make.
+- ⚠️ **Pinning `--parallel 4 --kv-unified` explicitly was tried and reverted.** On `b9592` the
+  explicit flags overcommit the KV allocation and thrash the tight 32 GB VRAM — decode collapsed
+  to **~0.5 t/s** (slower than CPU; a thrashing signature) even on an idle card, while the *auto*
+  path with the identical reported values (`n_parallel=4, kv_unified=true`) runs at ~61 t/s.
+  **Leave it auto** — the auto path sizes the shared cache correctly. (Verified in production
+  2026-06-27; reverted same day.)
 
 ### `--cache-reuse` 256, `UD-Q4_K_XL`, `--threads`
 
@@ -139,9 +144,10 @@ Method: `flux suspend hr vllm` → patch deployment image to `ghcr.io/ggml-org/l
   **Skip** — current `UD-Q4_K_M` validated against the reference.
 - `--threads`: **excluded** per plan (confirmed no-op at `-ngl 99`).
 
-**Matrix conclusion:** keep the current image and all llama.cpp args. The only config change
-worth shipping is pinning the slot/KV behaviour for determinism (§4); the real win is
-workload isolation (§4) and, structurally, the second card.
+**Matrix conclusion:** keep the current image and all llama.cpp args **as auto** — no arg
+changes ship for the chat server (the one tried, pinning `--parallel/--kv-unified`, was
+reverted for VRAM thrash). The real win is workload isolation (§4) and, structurally, the
+second card.
 
 ## 4. Single-card workload isolation (B70 time-slice contention)
 
