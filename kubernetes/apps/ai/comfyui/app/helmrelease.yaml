@@ -27,6 +27,12 @@ spec:
     controllers:
       comfyui:
         # Single GPU + RWO model/input PVCs -> never run two pods at once.
+        # Default OFF: ComfyUI time-slices the one B70 against chat (vllm) and
+        # collapses chat decode ~38x (no hardware compute partition on Battlemage).
+        # Scale to 1 only for a deliberate image session AFTER scaling vllm +
+        # vllm-embed to 0; Flux returns this to 0 on the next reconcile. See
+        # docs/ai/b70-llm-serving-tuning.md (Single-card workload isolation).
+        replicas: 0
         strategy: Recreate
         pod:
           terminationGracePeriodSeconds: 60
