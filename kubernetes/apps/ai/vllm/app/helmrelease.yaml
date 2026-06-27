@@ -48,16 +48,15 @@ spec:
               # Native window is 262144 (no yarn). Hybrid arch (10/40 full-attn
               # layers, 2 KV heads) → ~20 KiB/token → ~2.6 GiB KV @128k. The server
               # auto-selects n_parallel=4 + kv_unified=true: the 128k pool is shared
-              # across up to 4 slots and a single request can address all of it.
-              # Pinned below for determinism (don't rely on auto-detect across image
-              # bumps — VRAM headroom is tight, ~22.7 GiB free with embeddings).
+              # across up to 4 slots and a single request can address all of it
+              # (~61 t/s decode, SYCL — see docs/ai/b70-llm-serving-tuning.md).
+              # DO NOT pin --parallel/--kv-unified explicitly: on b9592 that
+              # overcommits the KV allocation and thrashes the tight 32G VRAM,
+              # collapsing decode to ~0.5 t/s (verified 2026-06-27). The auto path
+              # sizes the shared cache correctly — leave it auto.
               # Shares 32G B70 with vllm-embed + comfyui — step down to 98304/65536
-              # on VRAM OOM. Measured: ~61 t/s decode (SYCL), see
-              # docs/ai/b70-llm-serving-tuning.md.
+              # on VRAM OOM.
               - "131072"
-              - --parallel
-              - "4"
-              - --kv-unified
               - -ngl
               - "99"
               - --jinja
