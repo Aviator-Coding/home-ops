@@ -95,14 +95,16 @@ spec:
               # memory (required for recall). Graph extraction adds the entity/
               # relation knowledge graph (the graph leg of hybrid recall); both run
               # per-session — now on OpenRouter deepseek-v4-flash (concurrent, cheap).
-              # AGENTMEMORY_AUTO_COMPRESS stays OFF in THIS cutover. It runs the LLM
-              # on EVERY observation; against the old single-slot local 35B that made
-              # ~95% of compressions time out at 120s and tripped the circuit breaker
-              # (bcf0f292, reverted 2026-06-23). DeepSeek's concurrency removes that
-              # constraint, so re-enabling is now viable — but defer it to Phase 2b
-              # (enable after >=1 day stable on cloud, then watch the breaker).
               CONSOLIDATION_ENABLED: "true"
               GRAPH_EXTRACTION_ENABLED: "true"
+              # Phase 2b (2026-06-28): per-observation LLM compression RE-ENABLED.
+              # Runs the LLM on EVERY observation for richer summaries. It was OFF
+              # because the old single-slot local 35B made ~95% of compressions time
+              # out at 120s and tripped the circuit breaker (bcf0f292, reverted
+              # 2026-06-23). DeepSeek V4 Flash on OpenRouter is concurrent + cheap, so
+              # that constraint is gone. If the breaker starts opening under load,
+              # set this back to "false" (one-line revert).
+              AGENTMEMORY_AUTO_COMPRESS: "true"
               # Generous LLM timeout (now a cloud LLM; can be lowered in Phase 2b).
               AGENTMEMORY_LLM_TIMEOUT_MS: "120000"
               # Kept at 2 for the initial cloud cutover (conservative). The old
