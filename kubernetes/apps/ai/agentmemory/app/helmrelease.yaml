@@ -65,42 +65,45 @@ spec:
               # VIEWER_ALLOWED_HOSTS (both set above).
               AGENTMEMORY_VIEWER_HOST: 0.0.0.0
               # One OpenAI-compatible provider serves BOTH embeddings and the
-              # consolidation chat LLM (agentmemory can't split providers). The
-              # agentgateway's no-auth internal listener routes root /v1/embeddings
-              # to vllm-embed (Qwen3-VL-Embedding-2B on the B70) and
-              # /v1/chat/completions to the local Qwen3.6-35B (llama.cpp SYCL) —
-              # see agentgateway backends/vllm.yaml (HTTPRoute llm-local-root).
-              # Base URL is the host ROOT (no /v1) — agentmemory appends
-              # `/v1/embeddings` / `/v1/chat/completions` itself; a trailing /v1
-              # yields /v1/v1/... -> 404.
+              # consolidation chat LLM (agentmemory can't split providers). Pointed
+              # at the agentgateway's /openrouter route, which fans out by path:
+              # /v1/embeddings -> OpenRouter text-embedding-3-small, and
+              # /v1/chat/completions -> OpenRouter deepseek/deepseek-v4-flash. This
+              # moves ALL agentmemory LLM load OFF the single B70 (embeddings used to
+              # run on vllm-embed, consolidation on the local 35B) to relieve GPU
+              # contention; vllm-embed has no other consumer and is scaled to 0.
+              # Base URL is host root + /openrouter (NO trailing /v1) — agentmemory
+              # appends `/v1/embeddings` / `/v1/chat/completions` itself; the route
+              # rewrites /openrouter -> /api, giving openrouter.ai/api/v1/...
               EMBEDDING_PROVIDER: openai
-              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local
-              OPENAI_EMBEDDING_MODEL: qwen3-vl-embedding-2b
-              OPENAI_EMBEDDING_DIMENSIONS: "2048"
+              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/openrouter
+              OPENAI_EMBEDDING_MODEL: openai/text-embedding-3-small
+              # 1536-dim (text-embedding-3-small native). CHANGING this re-indexes
+              # the whole store — snapshot first; see the cutover runbook in the PR.
+              OPENAI_EMBEDDING_DIMENSIONS: "1536"
               # No auth on the internal-noauth listener, but the openai client
               # still wants a key set.
               OPENAI_API_KEY: local
               # Use the same provider for the consolidation LLM.
               OPENAI_API_KEY_FOR_LLM: "true"
-              OPENAI_MODEL: qwen3.6-35b-a3b
+              OPENAI_MODEL: deepseek/deepseek-v4-flash
               # Consolidation turns raw observations into searchable/contextual
               # memory (required for recall). Graph extraction adds the entity/
               # relation knowledge graph (the graph leg of hybrid recall); both run
-              # per-session — the local 35B on the B70 (~74 t/s) handles them.
-              # AGENTMEMORY_AUTO_COMPRESS stays OFF (default synthetic compression).
-              # It runs the LLM on EVERY observation; the local 35B on the B70
-              # (~15-20 t/s under concurrent load) can't keep up, so enabling it
-              # (bcf0f292) made ~95% of compressions time out at 120s and trip
-              # agentmemory's circuit breaker — which also starved summarize /
-              # graph-extraction / reflect. Reverted 2026-06-23. Do NOT re-enable
-              # against the local model; keep per-observation LLM load off it.
+              # per-session — now on OpenRouter deepseek-v4-flash (concurrent, cheap).
+              # AGENTMEMORY_AUTO_COMPRESS stays OFF in THIS cutover. It runs the LLM
+              # on EVERY observation; against the old single-slot local 35B that made
+              # ~95% of compressions time out at 120s and tripped the circuit breaker
+              # (bcf0f292, reverted 2026-06-23). DeepSeek's concurrency removes that
+              # constraint, so re-enabling is now viable — but defer it to Phase 2b
+              # (enable after >=1 day stable on cloud, then watch the breaker).
               CONSOLIDATION_ENABLED: "true"
               GRAPH_EXTRACTION_ENABLED: "true"
-              # Generous LLM timeout: llama-server queues concurrent requests.
+              # Generous LLM timeout (now a cloud LLM; can be lowered in Phase 2b).
               AGENTMEMORY_LLM_TIMEOUT_MS: "120000"
-              # Single-slot llama-server: the default 6 parallel summarize
-              # calls would queue behind each other and risk iii's 180s
-              # invocation budget — keep it at 2.
+              # Kept at 2 for the initial cloud cutover (conservative). The old
+              # single-slot llama-server forced this low; DeepSeek is concurrent,
+              # so this can rise (toward the default 6) in Phase 2b once stable.
               SUMMARIZE_CHUNK_CONCURRENCY: "2"
               # Hourly consistent state snapshots inside the PVC (volsync then
               # backs up a clean restore point); also mitigates the 0.9.21
