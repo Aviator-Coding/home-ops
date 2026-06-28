@@ -75,6 +75,22 @@ spec:
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
 
+    defaultPodOptions:
+      # TEMPORARY: keep off talos-1 (reduced RAM ~47Gi, single stick, bad-stick RMA
+      # pending). Radarr's startup library disk-scan grows memory; on the RAM-starved
+      # node Talos runtime.OOMController SIGKILLs its cgroup (exit137/Error, NO K8s OOM
+      # event) → CrashLoop (101 restarts/21h, 2026-06-28). Remove after the RAM RMA.
+      # Same pattern as sabnzbd. See docs/hardware-incidents.md.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - talos-1
+
     service:
       app:
         controller: *app
