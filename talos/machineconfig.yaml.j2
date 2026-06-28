@@ -117,6 +117,16 @@ machine:
     vm.nr_hugepages: "1024"
     vm.swappiness: "1"
     vm.vfs_cache_pressure: "50"
+  sysfs:
+    # Disable MGLRU (multi-gen LRU). On kernel 6.18 the MGLRU reclaim path fails to
+    # reclaim page cache fast enough under heavy file I/O on these no-swap nodes, so
+    # the OOM-killer / Talos runtime.OOMController fires during transcode/backup/model
+    # bursts and SIGKILLs burstable pods even with reclaimable memory (talos-3 node-wide
+    # OOM on 2026-06-27 took out sabnzbd + vllm + tdarr). Writing 0 reverts to the
+    # classic active/inactive LRU. There is NO kernel cmdline arg for MGLRU — sysfs is
+    # the control; Talos applies machine.sysfs immediately (no reboot). See
+    # docs/hardware-incidents.md and reference_ceph_cascade_rootcause.
+    kernel/mm/lru_gen/enabled: "0"
   udev:
     rules:
       # NVMe scheduler optimization (none scheduler for NVMe)
