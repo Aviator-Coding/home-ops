@@ -112,6 +112,11 @@ spec:
               liveness: *probe
 
       vllm-embed:
+        # Scaled to 0: agentmemory (its only consumer) moved to OpenRouter
+        # embeddings (text-embedding-3-small, 1536-dim) on 2026-06-28, freeing
+        # this B70 gpu.intel.com/xe slot + ~5GB VRAM. Controller + PVC kept so
+        # restoring local embeddings is a one-line revert (replicas: 0 -> 1).
+        replicas: 0
         strategy: Recreate
         containers:
           app:
