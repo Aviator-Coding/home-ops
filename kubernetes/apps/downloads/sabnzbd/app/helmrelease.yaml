@@ -125,11 +125,16 @@ spec:
                   - ALL
 
     defaultPodOptions:
-      # TEMPORARY: talos-1 is running on ~47Gi (single stick) pending the bad-RAM
-      # (Stick B) RMA. Under memory-PSI pressure Talos's runtime.OOMController
-      # repeatedly SIGKILLs sabnzbd's cgroup (par2/post-processing is the largest
-      # growing consumer there). Pin away from talos-1 until full RAM is restored,
-      # then REMOVE this affinity block. See docs/hardware-incidents.md (2026-06-19/20).
+      # TEMPORARY: pinned away from the two memory-pressured nodes (→ runs on talos-2).
+      # - talos-1: on ~47Gi (single stick) pending the bad-RAM (Stick B) RMA — under
+      #   memory-PSI pressure Talos's runtime.OOMController SIGKILLs sabnzbd's cgroup
+      #   (par2/post-processing is the largest growing consumer).
+      # - talos-3: B70 LLM stack + Ceph + tdarr transcodes, no swap + a kernel-6.18
+      #   MGLRU reclaim regression → node-wide OOM bursts. One killed sabnzbd (exit137)
+      #   as collateral on 2026-06-27. MGLRU is now disabled via machine.sysfs
+      #   (talos/machineconfig.yaml.j2); keep sabnzbd off talos-3 until that soaks.
+      # Re-evaluate: drop talos-1 after the RAM RMA, talos-3 after the MGLRU fix is
+      # proven. See docs/hardware-incidents.md (2026-06-19/20, 2026-06-27).
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -139,6 +144,7 @@ spec:
                     operator: NotIn
                     values:
                       - talos-1
+                      - talos-3
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname
