@@ -72,11 +72,15 @@ spec:
               # moves ALL agentmemory LLM load OFF the single B70 (embeddings used to
               # run on vllm-embed, consolidation on the local 35B) to relieve GPU
               # contention; vllm-embed has no other consumer and is scaled to 0.
-              # Base URL is host root + /openrouter (NO trailing /v1) — agentmemory
-              # appends `/v1/embeddings` / `/v1/chat/completions` itself; the route
-              # rewrites /openrouter -> /api, giving openrouter.ai/api/v1/...
+              # Base URL MUST end in /openrouter/v1: agentmemory 0.9.27's OpenAI
+              # client appends `/embeddings` and `/chat/completions` (NO /v1 — it
+              # expects /v1 to be in the base). The /openrouter route rewrites
+              # /openrouter -> /api, so base + /chat/completions resolves to
+              # openrouter.ai/api/v1/chat/completions. (Verified via gateway access
+              # logs 2026-06-28: a base of just /openrouter made agentmemory hit
+              # /openrouter/chat/completions -> /api/chat/completions -> 404.)
               EMBEDDING_PROVIDER: openai
-              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/openrouter
+              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/openrouter/v1
               OPENAI_EMBEDDING_MODEL: openai/text-embedding-3-small
               # 1536-dim (text-embedding-3-small native). CHANGING this re-indexes
               # the whole store — snapshot first; see the cutover runbook in the PR.
