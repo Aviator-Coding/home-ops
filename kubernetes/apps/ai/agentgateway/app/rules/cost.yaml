@@ -92,6 +92,24 @@ spec:
         - record: *price
           labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: output }
           expr: vector(2.50)
+        # --- OpenRouter (/openrouter) - slug-form ids (with provider prefix),
+        # billed PAYG from OpenRouter credit at provider list price (no markup).
+        # Hermes vision + fallback use x-ai/grok-4.3; agentmemory consolidation
+        # uses deepseek/deepseek-v4-flash. Distinct from the bare grok-4.3 /
+        # deepseek-v4-flash ids above (direct xAI / free OpenCode-Go routes).
+        # deepseek rate is an estimate — confirm on the live OpenRouter model page. ---
+        - record: *price
+          labels: { gen_ai_request_model: x-ai/grok-4.3, gen_ai_token_type: input }
+          expr: vector(1.25)
+        - record: *price
+          labels: { gen_ai_request_model: x-ai/grok-4.3, gen_ai_token_type: output }
+          expr: vector(2.50)
+        - record: *price
+          labels: { gen_ai_request_model: deepseek/deepseek-v4-flash, gen_ai_token_type: input }
+          expr: vector(0.09)
+        - record: *price
+          labels: { gen_ai_request_model: deepseek/deepseek-v4-flash, gen_ai_token_type: output }
+          expr: vector(0.18)
         # --- OpenCode Go (/opencodego) - flat $10/mo subscription, so the
         # marginal per-token cost is $0 (the fixed monthly fee is not captured
         # by token metrics). Priced at 0 so Go traffic leaves the "unpriced

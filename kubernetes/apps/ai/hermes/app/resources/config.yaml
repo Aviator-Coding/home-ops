@@ -30,28 +30,38 @@ custom_providers:
     base_url: http://internal-noauth.ai.svc.cluster.local/vllm/v1
     api_key: no-auth
     api_mode: chat_completions
+  # Cloud models via OpenRouter (one key, no per-token markup). The gateway's
+  # /openrouter route injects the real OPENROUTER_API_KEY upstream and overrides
+  # Authorization, so the api_key here is a dummy — `no-auth` survives the v11->12
+  # migration (the `no-key-required` sentinel would be dropped). Referenced as
+  # `custom:openrouter`; call models by their OpenRouter slug (e.g. x-ai/grok-4.3).
+  # Replaced the xai-oauth Grok subscription for vision + fallback (PR: openrouter move).
+  - name: openrouter
+    base_url: http://internal-noauth.ai.svc.cluster.local/openrouter/v1
+    api_key: no-auth
+    api_mode: chat_completions
 
 # Default serving model: the local Qwen3.6-35B-A3B on the B70 (custom:local ->
 # /vllm route). Free and rate-limit-proof, so long-running tasks never hit the
 # xAI subscription throttle or the OpenCode-Go GoUsageLimitError. To serve a
-# cloud model instead, set e.g. model: { default: grok-4.3, provider: xai-oauth }.
+# cloud model instead, set e.g. model: { default: x-ai/grok-4.3, provider: custom:openrouter }.
 model:
   default: qwen3.6-35b-a3b
   provider: custom:local
 
 # Fail-over chain for the MAIN agentic loop: if the local B70 model errors or is
 # unavailable (e.g. ComfyUI scaled vllm to 0 under the Dedicated-VRAM runbook),
-# fall back to glm-5.1 via the gateway, then to Grok (xai-oauth subscription;
-# creds added once with `hermes auth add xai-oauth --manual-paste`, kept in
-# /opt/data/auth.json). glm-5.1 is the strongest tool-caller on the OpenCode-Go
+# fall back to glm-5.1 via the gateway, then to Grok (x-ai/grok-4.3 via the
+# /openrouter route, billed PAYG from OpenRouter credit — replaced the old
+# xai-oauth subscription). glm-5.1 is the strongest tool-caller on the OpenCode-Go
 # sub (tops τ²-bench / BFCL agentic vs kimi/deepseek/qwen), which matters because
 # this fallback runs the full tool-calling loop. The aux chores below stay on
 # kimi-k2.6 — they only summarise content, they don't tool-call.
 fallback_providers:
   - provider: custom:gateway
     model: glm-5.1
-  - provider: xai-oauth
-    model: grok-4.3
+  - provider: custom:openrouter
+    model: x-ai/grok-4.3
 
 # Auxiliary context chores run on kimi via the gateway, NOT the local model:
 # web_extract fires N parallel LLM calls (one per fetched page) on large content,
@@ -67,14 +77,14 @@ auxiliary:
     provider: custom:gateway
     model: kimi-k2.6
     fallback_chain:
-      - provider: xai-oauth
-        model: grok-4.3
+      - provider: custom:openrouter
+        model: x-ai/grok-4.3
   compression:
     provider: custom:gateway
     model: kimi-k2.6
     fallback_chain:
-      - provider: xai-oauth
-        model: grok-4.3
+      - provider: custom:openrouter
+        model: x-ai/grok-4.3
   session_search:
     provider: custom:gateway
     model: kimi-k2.6
@@ -82,8 +92,8 @@ auxiliary:
     provider: custom:gateway
     model: kimi-k2.6
   vision:
-    provider: xai-oauth
-    model: grok-4.3
+    provider: custom:openrouter
+    model: x-ai/grok-4.3
 
 # Web search via the SearXNG instance already running in ns ai.
 web:
