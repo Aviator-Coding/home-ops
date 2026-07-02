@@ -80,7 +80,7 @@ spec:
           copy-agent-source:
             image:
               repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.6.19
+              tag: v2026.7.1
             command:
               - /bin/sh
               - -c
@@ -94,7 +94,7 @@ spec:
           app:
             image:
               repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.6.19
+              tag: v2026.7.1
             # The image's `gateway-default` s6 *profile* service already runs the
             # gateway (cron + messaging platforms). Passing `gateway run` here too
             # started a SECOND gateway that collided at startup ("Another gateway
