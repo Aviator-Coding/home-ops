@@ -35,9 +35,30 @@ spec:
     cgroup:
       automount:
         enabled: false
+      # The mount-cgroup init container takes its resources from
+      # cgroup.autoMount.resources (NOT initResources) — requests==limits
+      # needed here too for pod-level Guaranteed QoS.
+      autoMount:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
       hostRoot: /sys/fs/cgroup
     cni:
       exclusive: false
+      # install-cni-binaries init container: chart default is requests-only
+      # (100m/10Mi) which would keep the pod Burstable — requests==limits is
+      # required on every container for Guaranteed QoS (see resources below).
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
     dashboards:
       enabled: true
       annotations:
@@ -96,12 +117,30 @@ spec:
       hostNamespaceOnly: true
     tunneling:
       mtu: 9000
+    # Guaranteed QoS (requests == limits on EVERY container, init containers
+    # included) so the Talos runtime.OOMController never selects the agent:
+    # its victim ranking assigns Guaranteed cgroups weight 0.0. During the
+    # 2026-06-30/07-03 OOM cascade the burstable cilium-agent was a chronic
+    # victim (503 restarts on talos-1), taking the node network plane down
+    # with every kill. Memory limit raised 1Gi -> 1536Mi (live peak 743Mi)
+    # since the request is now reserved anyway; CPU limit is required for
+    # Guaranteed (live peak ~100m, 500m leaves burst room).
     resources:
       requests:
-        cpu: 100m
-        memory: 512Mi
+        cpu: 500m
+        memory: 1536Mi
       limits:
-        memory: 1Gi
+        cpu: 500m
+        memory: 1536Mi
+    # Init containers must also be requests==limits or the pod QoS falls
+    # back to Burstable (kubelet computes QoS over init containers too).
+    initResources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
     securityContext:
       capabilities:
         ciliumAgent:
