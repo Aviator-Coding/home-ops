@@ -4,6 +4,149 @@ Tracked hardware and infrastructure incidents across cluster nodes. Each entry d
 
 ---
 
+## [2026-06-30] talos-1 + talos-2 — OOMController kill storm → 4-OSD outage / 100% PG inactive
+
+| Field | Value |
+|-------|-------|
+| **Node** | talos-1 (10.10.10.11) + talos-2 (10.10.10.12) at onset; the 2026-07-03 recovery-day kill storms hit **ALL 3 nodes** |
+| **Component** | **Talos v1.12 userspace OOM controller (`runtime.OOMController`)** — default PSI trigger far too aggressive for Ceph-hosting nodes. **NOT hardware**: RAM/disks/stores exonerated (zero corruption signatures through ~6 kill/restart cycles + reboots) |
+| **Affected service** | 4/6 OSDs down (osd.0 + osd.3 on talos-1; osd.5 + osd.6 on talos-2) → **100% PGs inactive** (393/393, 66.667% objects degraded) → ALL RBD/CephFS client IO frozen ~3 days; MDS metadata IO blocked >37 h; collateral kills of cilium-agent, kube-apiserver, radarr; cluster-wide kubelet/D-state wedge |
+| **Severity** | **critical** — total storage outage for ~3 days, ran **UNDETECTED** (no alerts fired: node-exporter was disabled and VictoriaMetrics not deployed — monitoring was blind to node memory/PSI and to the OSD pod deaths) |
+
+### Timeline (UTC)
+
+- **2026-06-30 ~17:07** — simultaneous OOMController kill activity on talos-1 + talos-2. osd.0 and osd.3 (talos-1) exit 137 at 17:08:26–28Z; talos-2 destabilized (osd.6 fast-shutdown on 07-01; osd.5 wedged `Init:0/5` for 2d21h).
+- **06-30 → 07-03** — **100% PGs inactive** (347 undersized+degraded+peered + 46 undersized+peered), MDS slow metadata IO blocked >134,000 s (~37 h). Nobody noticed: no node metrics, no alerts, VictoriaMetrics scrapes died with the storage.
+- **07-03 ~13:30–13:38** — recovery starts: `noout` set; talos-1 emergency load shed (crash-loopers scaled to 0, dead pods purged — see `talos1-shed-load` record); last pre-shed OOMController kill 13:36:13Z (cilium-agent ×4 → ~40 s VIP outage).
+- **07-03 afternoon** — osd.3/osd.0 pod restarts hit the **RBD/activate circular deadlock**: ceph-volume device scan parked in kernel D-state on frozen `/dev/rbdX` devices (kernel-proven fd/stack evidence) — OSDs can't start because storage is dead, storage is dead because OSDs can't start. A **brief blockpool `min_size=1`** window broke the loop; 4 OSDs came up briefly.
+- **07-03 14:46–15:03** — **OOMController kill storms on ALL 3 nodes** (trigger fired ~every 1 s): victims = cilium-agent (talos-1/2), radarr (talos-3), kube-apiserver-talos-2; collateral = all 6 OSD pods crashed, EPERM device-cgroup errors + runc sandbox-race containerd damage.
+- **07-03 15:04** — live `OOMConfig` patch (trigger `memory_full_avg10 > 50.0`, holdoff `30s`) applied to all 3 nodes via `talosctl patch mc` → **zero OOMController events from then on**.
+- **07-03 15:04–~19:50** — cluster-wide kubelet wedge remained: talos-2 kubelet D-state in `Stopping` >1 h, SIGKILL-immune; even force-unmap of rbd devices blocked in-kernel waiting on the dead OSDs.
+- **07-03 ~19:50** — **user-initiated full reboot of all 3 nodes** cleared all D-state/debris: **all 6 OSDs up in ~60 s** (on their baked device paths — no rook#17224 drift), all PGs active, `noout` unset ~20:15, **HEALTH_OK**; backfill of the 4.3% degraded remainder completed normally.
+- **Aftermath** — external-secrets 2.7.0 + cert-manager v1.20.3 upgrades (frozen mid-outage) completed after the unfreeze; Flux fully reconciled: **122/122 Kustomizations + 103/103 HelmReleases Ready**.
+
+### Root cause
+
+**The Talos v1.12 OOMController default PSI trigger (`memory_full_avg10 > 12.0 && d_memory_full_avg10 > 0.0 && time_since_trigger > 500ms`) is far too aggressive for Ceph nodes.** Memory-PSI spikes are *normal* here (OSD peering/backfill, BlueStore cache churn, recovery IO); the controller answered them by SIGKILLing the heaviest **Burstable** cgroups. The victim-ranking expression never selects Guaranteed cgroups — so cilium-agent, the OSD pods, and kube-apiserver (all Burstable) were the perpetual victims, and every kill made the pressure worse.
+
+Two amplifiers made the PSI spikes pathological:
+
+1. **Dead-container memory debris** — after the 06-30 kills, ~24 GiB (talos-1) and ~70 GiB (talos-2) of reclaimable slab + reparented page cache from dead OSD containers stayed pinned in `kubepods/burstable`. MemFree sat at the watermark (~0.4–2 GiB) while MemAvailable showed 26–72 GiB; every allocation burst forced slow direct reclaim through the debris → PSI `full avg10` 18–46% → trigger fired ~every second (the 07-03 storms).
+2. **talos-1's reduced-RAM window** (48 GB single stick until the RAM RMA, ~2026-08): least headroom, first to trip; its kube-apiserver (646 restarts) and cilium-agent (503 restarts) were chronic victims.
+
+**RULED OUT:** MGLRU regression (`/sys/kernel/mm/lru_gen/enabled = 0x0000` verified on all 3 nodes — PR #1094 held); rook#17224 device-path drift (never materialized — every OSD re-activated on its baked `ROOK_BLOCK_PATH`, including after the full reboots); store corruption / bad hardware (zero corruption signatures across all 6 OSDs through ~6 kill cycles + reboots; SMART/dmesg clean).
+
+### Evidence
+
+```
+Default trigger:  memory_full_avg10 > 12.0 && d_memory_full_avg10 > 0.0 && time_since_trigger > 500ms
+Victim ranking:   memory_max.hasValue() ? 0.0
+                  : {Besteffort:1.0, Burstable:0.5, Guaranteed:0.0, Podruntime:0.0, System:0.0}[class]
+                    * memory_current
+                  -> Guaranteed cgroups are NEVER selected; big Burstable ones always are
+
+Pre-recovery snapshot (2026-07-03 13:32 UTC):
+  osd: 6 osds: 2 up (since 37h), 4 in — hosts talos-1 + talos-2 down
+  pgs: 100.000% pgs not active; 393 inactive (347 undersized+degraded+peered)
+  2060444/3090666 objects degraded (66.667%)
+  MDS: slow metadata IOs blocked >30s, oldest blocked for 134362 secs (~37h)
+
+talos-1 memory anatomy (07-03 13:35 UTC): TOTAL 47.9Gi, FREE ~500Mi, AVAILABLE 26Gi
+  Inactive(file) 24.9Gi vs Cached 1.06Gi -> ~24Gi reparented dead-container cache pinned in
+  kubepods/burstable (cgroup MemCurrent 30Gi vs live children ~6Gi); containerd RSS 9.5Gi
+07-03 kill storms 14:46–15:03 (all 3 nodes): PSI full avg10 18–46% -> kills ~every 1s
+  victims: cilium-agent (talos-1/2), radarr (talos-3), kube-apiserver-talos-2;
+  collateral: all 6 OSD pods crashed (EPERM device-cgroup + runc sandbox-race damage)
+Chronic talos-1 victims: kube-apiserver 646 restarts, cilium-agent 503 restarts
+After OOMConfig patch (15:04, trigger 50%/30s): ZERO OOMController events through
+  full recovery + backfill on all 3 nodes
+```
+
+### Impact
+
+- **Total storage outage ~3 days** — 100% PGs inactive, every RBD/CephFS consumer frozen (dozens of pods in Init/Error/CrashLoop cluster-wide); MDS blocked >37 h.
+- **No data loss, no corruption** — replica-3 held; backfill (4.3% degraded at reboot) completed normally to HEALTH_OK.
+- **D-state avalanche**: kernel Ceph clients + dead cluster parked processes in uninterruptible D-state (ceph-volume scans, kubelet, sync); SIGKILL cannot reap D-state — talos-2's kubelet wedged in `Stopping` >1 h and even rbd force-unmap blocked in-kernel.
+- Secondary damage from the kill storms: containerd state damage (EPERM device-cgroup, runc sandbox races), a ~40 s control-plane VIP outage (cilium kill), restart-counter churn in the hundreds.
+- **Detection failure**: with node-exporter disabled and VictoriaMetrics not deployed, a total-storage outage produced zero alerts for ~3 days.
+
+### Resolution
+
+**Recovery (2026-07-03, executed):** talos-1 load shed → RBD/activate circular deadlock broken with a **brief blockpool `min_size=1`** window (used twice, blockpool only, **restored to `min_size=2`** both times) → live `OOMConfig` patch (trigger `memory_full_avg10 > 50.0 && d_memory_full_avg10 > 0.0 && time_since_trigger > duration("30s")`) applied 15:04 UTC to all 3 nodes → storms stopped → remaining D-state/kubelet wedge cleared by **user-initiated full reboot of all 3 nodes (~19:50 UTC)** → all 6 OSDs up in ~60 s, all PGs active, HEALTH_OK, backfill completed. `noout` set 13:30 → unset ~20:15 UTC (approx).
+
+**Durable fixes (in GitOps):**
+
+- **OOMConfig codified in `talos/machineconfig.yaml.j2`** (the live `talosctl patch mc` survives reboot but NOT a config re-render — codifying it was mandatory).
+- **cilium-agent → Guaranteed QoS** (requests == limits) — ranking weight 0.0, network plane can no longer be the OOM victim.
+- **`NotIn [talos-1]` node affinities on 7 heavy burstables** (coder, changedetection, rsshub, readarr, seerr, flaresolverr, emqx-exporter) — **TODO 2026-08: revert after the talos-1 RAM RMA restores dual-channel 96 GB**.
+- **node-exporter re-enabled + PrometheusRule alerts**: `Talos1MemoryPressure`, `NodeMemoryPSIHigh`, `CephOsdPodTerminalError`, `CephPodCrashLooping` — closes the detection gap.
+
+Cross-reference: [`ceph-cluster-changelog.md` [2026-07-03]](./ceph-cluster-changelog.md) for the OOMConfig change record, the min_size=1 windows, and the noout window.
+
+### Lessons
+
+- **PSI-based userspace OOM killers must be tuned for storage nodes** — Ceph's normal peering/backfill/cache churn looks like "memory stall" to a 12% PSI trigger; defaults tuned for desktops/generic workloads will kill the storage daemons that are the *cause and cure* of the pressure.
+- **Dead-container debris after mass kills poisons reclaim** — reparented page cache + slab pinned in `kubepods/burstable` keeps MemFree at the watermark, making every subsequent allocation a slow direct-reclaim → PSI spiral → more kills. Kill storms are self-amplifying.
+- **Kernel Ceph clients + a dead cluster = D-state avalanche** — even force-unmap blocks in-kernel waiting on dead OSDs; SIGKILL is useless. Blocklisting or a node reboot are the only fences.
+- **A monitoring gap let a total-storage outage run undetected for ~2+ days** — node metrics and OSD-pod-state alerts are not optional on a storage cluster.
+- **Reboot-phobia proved unfounded** — the rook#17224 device-path fear had frozen node reboots for weeks, but fresh boots re-activated every OSD cleanly on the first try. A timely reboot would have shortened this incident dramatically.
+
+---
+
+## [2026-06-19] talos-1 — faulty DDR5 SODIMM (stuck data bit) → silent Ceph store corruption
+
+| Field | Value |
+|-------|-------|
+| **Node** | talos-1 (10.10.10.11) — Meigao Venus, Raptor Lake i9-13900H, 96 GB (2× Crucial **CT48G56C46S5.M16B** 48 GB DDR5 SODIMM @ 5186 MT/s, x2 channel) |
+| **Component** | **System memory** — one faulty 48 GB DDR5 SODIMM ("Stick B"; defective module, stuck bits 2 and 17 under different test patterns). **✅ ISOLATED 2026-06-20** by same-slot A/B swap — IMC + slot + the other stick ("Stick A") all cleared |
+| **Affected service** | osd.0 (BlueStore store corruption, repeated) + mon.l (RocksDB store corruption) — any talos-1 Ceph daemon buffering through the bad region |
+| **Severity** | **high** — confirmed hardware fault driving repeated silent corruption on talos-1; data contained by replica-3 + csum (no PG damage), but it triggered a mon-quorum scare and forces osd.0 held out |
+
+### Root cause
+
+**MemTest86 confirms a genuinely faulty DDR5 SODIMM on talos-1**, not a failing disk. Test 7 (Moving inversions, 32-bit pattern) failed with a **stuck data bit (bit 2 / `0x4`)** localized to a narrow physical band (~71 GB, `0x11C0`–`0x11DD`). A tight address range + single stuck bit = a defective cell/data line on **one specific stick**, not a scattered memory-controller fault. DDR5-5186 is *below* the 13900H's DDR5-5600 spec, so this is **not** an EXPO/overclock instability — it's a real defect.
+
+This **resolves the osd.0 "bad RAM OR lying 980 PRO" dichotomy in favour of bad RAM**, and explains why the rebuilt osd.0 BlueStore re-corrupted under backfill writes (`Compaction sees out-of-order keys` → `BlueStore.cc:14648 r==0`) with **clean SMART and clean dmesg**: bad RAM flips bits in BlueStore/RocksDB buffers *before* they're written, so the SSD faithfully persists already-corrupt data — clean SMART, corrupt store. The same mechanism corrupted the talos-1 mon.l RocksDB store (rebuilt → mon.m on 2026-06-17). The 980 PRO (FW 5B2QGXA7) and in-band IBECC (ce/ue_count=0) reported clean precisely because the fault is in a region/path neither covers — IBECC counted 0 because the flipping bit was in a stick/region it doesn't scrub under that load.
+
+### Evidence
+
+```
+PassMark MemTest86 V11.6 — 13th Gen Intel Core i9-13900H
+Memory: 95.7 GB DDR5 5186 MT/s x2 Channel — Crucial CT48G56C46S5.M16B   RAM Temp 70°C
+Test 7 [Moving inversions, 32-bit pattern] — FAIL, aborted at error cap, Errors: 10000
+
+Test 7 Addr: 11DD0D80C0  Expected: 00040000  Actual: 00040004  CPU: 0    (bit 2: 0→1)
+Test 7 Addr: 11C06D80C0  Expected: FFFBFFFF  Actual: FFFBFFFB  CPU: 13   (bit 2: 1→0)
+Test 7 Addr: 11C05D07C0  Expected: FFFBFFFF  Actual: FFFBFFFB  CPU: 13
+Test 7 Addr: 11C04D08C0  Expected: FFFBFFFF  Actual: FFFBFFFB  CPU: 13
+```
+
+Prior corruption signatures now attributed to this RAM (all SMART/dmesg-clean at the time):
+```
+osd.0 rebuild:  rocksdb Background IO error Corruption: Compaction sees out-of-order keys
+                -> BlueStore.cc:14648 FAILED ceph_assert(r == 0)  (_txc_apply_kv)
+mon.l:          rocksdb block checksum mismatch -> "failed to write to db" (rebuilt -> mon.m 2026-06-17)
+```
+
+### Impact
+
+- **No PG/data damage** — every osd.0 corruption crash self-recovered with 0 inconsistent PGs (replica-3 + per-object csum contained it; the fault crashes osd.0's local KV, it never commits bad replicas).
+- Triggered the 2026-06-17 cascade tail: talos-1 mon.l RocksDB corruption → fragile 2/3 quorum (recovered by rebuilding mon.l → mon.m).
+- osd.0 must stay out / runs in a crash→recover stopgap; with osd.0 absent, talos-1's lone Lexar (osd.3) wedges the CephFS metadata pool (relief = `ceph osd down osd.3`).
+- Repeated wasted rebuild/backfill churn on already-fragile consumer NVMe.
+
+### Resolution
+
+**✅ ISOLATED 2026-06-20 — confirmed single bad module ("Stick B"), board/slot/IMC clear.** Controlled same-slot A/B swap: **Stick A** ran 4 full passes, 0 errors in the reference slot (proven good); **Stick B** in that *same* slot failed Test 6 (Block move) in 7 min with stuck **bit 17** (`0x00020000`) across 6 threads at ~36 GB. Only the stick changed → Stick B is defective; the IMC and socket are exonerated (Stick A passed in that exact slot). The earlier differing signature (bit 2 @ ~71 GB dual-stick) was the same Stick B surfacing via channel interleave.
+
+**Real fix = RMA Stick B** (Crucial CT48G56C46S5.M16B, lifetime warranty; advance/cross-ship if offered) and **run talos-1 on Stick A** (the 4-pass-clean module) in the meantime — 48 GB single-channel is ample for talos-1's storage/mon role (the big-RAM AI workloads are pinned to talos-3). Reinstall for dual-channel 96 GB when the replacement arrives. Node must be drained for the swap: `cordon` + `ceph osd set noout` → power off → reseat/replace → power on → uncordon → `unset noout` (one node, mind the [#17224](https://github.com/rook/rook/issues/17224) OSD device-path caveat on restart).
+
+After the swap: **re-run MemTest86 to confirm clean**, then rebuild osd.0 on clean RAM (zap + uncomment disk in the CephCluster HR + provision) and run `ceph osd deep-scrub` across talos-1 OSDs to confirm no latent inconsistency. Until then: **keep osd.0 in the contained stopgap** (or fully out) and treat talos-1 as do-not-trust for write-heavy Ceph work.
+
+**Interim (already in place):** mon.l rebuilt → mon.m; throttled-recovery mClock drift set live; MGLRU disabled cluster-wide (PR #997). These are mitigations for the *cascade*, not for the RAM — the RAM swap is the only durable fix for talos-1's corruption root.
+
+---
+
 ## [2026-06-14] ALL 3 nodes — WD SN770M firmware (HMB) bug → silent Ceph mon RocksDB corruption
 
 | Field | Value |

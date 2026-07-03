@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-07-03] OOM-outage recovery: Talos OOMConfig retuned (live + codified), transient `min_size=1` windows, noout window  (operational + `talos/machineconfig.yaml.j2`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | (1) **Talos `OOMConfig` trigger retuned on ALL 3 nodes**: `triggerExpression: memory_full_avg10 > 50.0 && d_memory_full_avg10 > 0.0 && time_since_trigger > duration("30s")` (defaults: `> 12.0` / `500ms`). Applied live via `talosctl patch mc` at 15:04 UTC 2026-07-03, then **codified in `talos/machineconfig.yaml.j2`** (a live patch survives reboot but NOT a config re-render — codifying was mandatory). (2) **Two transient `min_size=1` windows on the ceph-blockpool ONLY** to break the RBD/activate circular deadlock (ceph-volume D-state on frozen `/dev/rbdX` blocking the very OSDs that would unfreeze them); **restored to `min_size=2` both times**. (3) `noout` set ~13:30 UTC → unset ~20:15 UTC (after all 6 OSDs up + HEALTH_OK). |
+| **Why** | 2026-06-30 → 07-03 outage: the Talos v1.12 OOMController default PSI trigger SIGKILLed the heaviest Burstable cgroups (cilium-agent, OSD pods, kube-apiserver) on normal Ceph memory-PSI spikes → 4/6 OSDs down, **100% PGs inactive ~3 days**, kill storms on all 3 nodes during recovery. Full incident: [`hardware-incidents.md` [2026-06-30]](./hardware-incidents.md). |
+| **Risk** | OOMConfig: at 50%/30s a node tolerates sustained heavy memory pressure before killing — a genuine runaway leak is reaped later than before (kernel OOM killer remains the last-resort backstop). `min_size=1`: single-replica write exposure on the blockpool during each window (an OSD death then = data loss) — kept to minutes and reverted. `noout`: masks genuinely dead OSDs while set — bounded to the recovery window. |
+| **Rollback** | OOMConfig: revert the block in `talos/machineconfig.yaml.j2` + `just talos apply-node` per node (returns to Talos defaults). `min_size`/`noout`: already restored/unset — nothing to roll back, verify only. |
+| **Verify** | `talosctl -n <node> get oomconfig -o yaml` → trigger `50.0`/`30s` on all 3 nodes; `ceph osd pool ls detail \| grep min_size` → 2 everywhere; `ceph osd dump \| grep flags` → no `noout`; `ceph status` → HEALTH_OK, 393 active+clean. Post-patch: **zero OOMController events** through full recovery + backfill. |
+
+Companion durable fixes shipped with the recovery (GitOps): cilium-agent → **Guaranteed QoS** (OOM ranking weight 0.0), `NotIn [talos-1]` affinities on 7 heavy burstables (TODO 2026-08: revert after the talos-1 RAM RMA), node-exporter re-enabled + PrometheusRule alerts (`Talos1MemoryPressure`, `NodeMemoryPSIHigh`, `CephOsdPodTerminalError`, `CephPodCrashLooping`). Ruled out during root-cause: MGLRU (verified `0x0000` on all nodes), rook#17224 path drift (all OSDs re-activated cleanly after full reboots), store corruption/bad hardware (zero signatures through ~6 kill cycles).
+
 ### [2026-06-17] Multi-failure cascade + recovery; deep root-cause (B70 DMA theory EXONERATED)  (operational, no GitOps merge yet)
 
 | Field | Value |
