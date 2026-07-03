@@ -240,3 +240,18 @@ cluster:
     disabled: true
   allowSchedulingOnControlPlanes: true
   {% endif %}
+---
+# Raise the Talos runtime.OOMController PSI trigger. The default
+# (memory_full_avg10 > 12.0 && ... time_since_trigger > 500ms) is far too
+# aggressive for a Ceph-hosting cluster: memory-PSI spikes are NORMAL here
+# (OSD peering/backfill, BlueStore cache churn, recovery I/O) and the
+# controller answered them by SIGKILLing the heaviest *burstable* cgroups —
+# cilium-agent, ceph-osd pods, kube-apiserver, mon pods — causing the
+# 2026-06-30 4-OSD outage (100% PGs inactive for ~2 days) and repeated
+# cilium/mon kills through 2026-07-03. Note the victim ranking never selects
+# Guaranteed-QoS cgroups, so critical pods with requests==limits are safe
+# regardless of this trigger. Codifies the imperative patch applied live on
+# all 3 nodes on 2026-07-03 (~15:04 UTC); see docs/hardware-incidents.md.
+apiVersion: v1alpha1
+kind: OOMConfig
+triggerExpression: memory_full_avg10 > 50.0 && d_memory_full_avg10 > 0.0 && time_since_trigger > duration("30s")
