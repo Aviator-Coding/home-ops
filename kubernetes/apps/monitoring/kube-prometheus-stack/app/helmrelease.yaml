@@ -68,8 +68,32 @@ spec:
     kubeStateMetrics:
       enabled: false
 
+    # Re-enabled 2026-07-03: with the victoria-metrics stack disabled (see
+    # monitoring/kustomization.yaml) NOTHING scraped node-level metrics — no
+    # node_memory_* / node_pressure_* series existed, which is one reason the
+    # 2026-06-30 OOMController cascade ran 2 days undetected. The alerts in
+    # ./alerts/node-memory-pressure.yaml depend on these metrics.
     nodeExporter:
-      enabled: false
+      enabled: true
+
+    prometheus-node-exporter:
+      prometheus:
+        monitor:
+          enabled: true
+          relabelings:
+            # Use the node name as the instance label (instead of pod IP:9100)
+            # so alerts can target instance="talos-1" directly.
+            - action: replace
+              regex: (.+)
+              replacement: $1
+              sourceLabels: ["__meta_kubernetes_pod_node_name"]
+              targetLabel: instance
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
 
     grafana:
       enabled: false

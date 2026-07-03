@@ -1,0 +1,78 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# Guardrail alerts from the 2026-06-30 OOMController cascade (4 OSDs down,
+# 100% PGs inactive for ~2 days, fully undetected — nothing alerted on node
+# memory pressure or on OSD pods sitting in terminal Error state).
+# Requires node-exporter (re-enabled in the kube-prometheus-stack HR).
+# TODO(2026-08): after the talos-1 RAM RMA (dual-channel 96GB restored),
+# re-evaluate the Talos1MemoryPressure threshold; keep the PSI + OSD alerts.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-memory-pressure
+spec:
+  groups:
+    - name: node-memory-pressure.rules
+      rules:
+        # talos-1 runs on a single 48GB stick until ~2026-08-14 (RAM RMA) and
+        # is the first node to trip the Talos OOMController. <15% available
+        # for 10m means workloads have drifted back onto it — shed load
+        # before the OOMController does it for you (docs/hardware-incidents.md).
+        - alert: Talos1MemoryPressure
+          expr: |-
+            node_memory_MemAvailable_bytes{instance="talos-1"}
+              / node_memory_MemTotal_bytes{instance="talos-1"} < 0.15
+          for: 10m
+          annotations:
+            summary: >-
+              talos-1 has had <15% memory available for 10m
+              ({{ $value | humanizePercentage }} available). Reduced-RAM node
+              (48GB single stick until the ~2026-08 RMA) — move heavy
+              burstables off before the Talos OOMController starts killing.
+          labels:
+            severity: warning
+        # Tripwire for the Talos runtime.OOMController: it SIGKILLs the
+        # largest burstable cgroup when full-memory-PSI avg10 exceeds 50%
+        # (raised from the 12% default in talos/machineconfig.yaml.j2 after
+        # 2026-06-30). Sustained >25% full-stall is already pathological —
+        # act before the controller does. node_pressure_memory_stalled =
+        # PSI "full" (all tasks stalled), the metric the trigger evaluates.
+        - alert: NodeMemoryPSIHigh
+          expr: rate(node_pressure_memory_stalled_seconds_total[5m]) > 0.25
+          for: 5m
+          annotations:
+            summary: >-
+              {{ $labels.instance }} full memory-PSI stall is
+              {{ $value | humanizePercentage }} of wall time for 5m — node is
+              thrashing in reclaim and approaching the Talos OOMController
+              kill threshold (50% avg10). Shed memory load NOW.
+          labels:
+            severity: critical
+    - name: rook-ceph-pod-health.rules
+      rules:
+        # On 2026-06-30 OOMController-killed OSD containers sat in terminal
+        # Error/Failed state for 2d19h (kubelet never restarted them) with
+        # 100% of PGs inactive and zero alerts. A rook-ceph pod that stays
+        # Failed or crash-looping for 15m is always an incident.
+        - alert: CephOsdPodTerminalError
+          expr: kube_pod_status_phase{namespace="rook-ceph", phase="Failed"} > 0
+          for: 15m
+          annotations:
+            summary: >-
+              rook-ceph pod {{ $labels.pod }} has been in phase=Failed for
+              15m — likely a Talos OOMController SIGKILL the kubelet never
+              recovered (2026-06-30 pattern). Check ceph status and delete
+              the pod so its deployment recreates it.
+          labels:
+            severity: critical
+        - alert: CephPodCrashLooping
+          expr: kube_pod_container_status_waiting_reason{namespace="rook-ceph", reason="CrashLoopBackOff"} == 1
+          for: 15m
+          annotations:
+            summary: >-
+              rook-ceph container {{ $labels.container }} in pod
+              {{ $labels.pod }} has been in CrashLoopBackOff for 15m — check
+              for OSD store corruption signatures or device-path drift
+              (docs/ceph/osd-device-path-recovery.md).
+          labels:
+            severity: critical
