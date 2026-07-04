@@ -47,13 +47,18 @@ are overwritten on the next restart.
   rate-limit-proof, so long tasks don't hit the xAI throttle or OpenCode-Go limits.
   The gateway fallback uses `glm-5.1` (strongest tool-caller on the Go sub) rather than
   kimi, since the fallback runs the full agentic tool-calling loop.
-- **Auxiliary routing** — compression / web_extract / session_search / title run on kimi
+- **Auxiliary routing** — `web_extract` / `session_search` / `title_generator` run on kimi
   via the gateway, **not** the local model: `web_extract` fires N parallel LLM calls (one
   per page) that the single-slot local server can't serve concurrently (they time out).
   Aux volume is low/bursty so it won't hit the cloud limits the main loop did. Aux fallback
   uses a **per-task `fallback_chain`** (the global `fallback_providers` is main-loop only),
-  so the heavy chores pin a Grok fallback. `vision` is pinned to Grok (`xai-oauth`) since
-  the local 35B is text-only.
+  so the heavy chores pin a Grok fallback. `compression` is the exception: it runs on
+  `custom:openrouter`/Grok as its **primary**, not kimi, because hermes-agent's compressor
+  falls back to the *main* model (not this task's `fallback_chain`) on a provider error —
+  on a kimi quota outage that meant it retried against the single-slot local model while it
+  was already busy serving the live session, causing repeated "Failed to generate context
+  summary" failures. Pinning the already-configured fallback (Grok) as primary sidesteps
+  that structurally. `vision` is pinned to Grok (`xai-oauth`) since the local 35B is text-only.
 - **Web search** — `web.search_backend: searxng`, wired to the in-cluster SearXNG
   via `SEARXNG_URL`.
 

@@ -63,7 +63,7 @@ fallback_providers:
   - provider: custom:openrouter
     model: x-ai/grok-4.3
 
-# Auxiliary context chores run on kimi via the gateway, NOT the local model:
+# Auxiliary context chores mostly run on kimi via the gateway, NOT the local model:
 # web_extract fires N parallel LLM calls (one per fetched page) on large content,
 # and the single-slot local llama-server serialized them until they timed out.
 # kimi handles concurrency, and aux volume is low (bursty, per-task) so it won't
@@ -71,7 +71,9 @@ fallback_providers:
 # fallback uses the PER-TASK `fallback_chain`, NOT the global `fallback_providers`
 # above — without it Hermes falls back to the main model (=custom:local) and
 # re-times-out, so the heavy chores pin a Grok fallback (also parallel-capable).
-# `vision` is pinned to Grok because the local 35B is text-only.
+# `vision` is pinned to Grok because the local 35B is text-only. `compression` is
+# the one exception — it's pinned straight to Grok/OpenRouter as PRIMARY, not kimi;
+# see its own comment below for why.
 auxiliary:
   web_extract:
     provider: custom:gateway
@@ -79,12 +81,17 @@ auxiliary:
     fallback_chain:
       - provider: custom:openrouter
         model: x-ai/grok-4.3
+  # Compression runs on Grok via OpenRouter, NOT kimi. Rationale: on a kimi failure
+  # (e.g. OpenCode Go quota exhaustion), hermes-agent's own compressor retry logic
+  # falls back to the MAIN model automatically — it does NOT consult this task's
+  # fallback_chain. Our main model is the single-slot local B70 llama-server, which
+  # is already busy serving the live session, so that fallback intermittently times
+  # out under contention (repeated "Failed to generate context summary" warnings).
+  # Pinning Grok as primary here (it was already the fallback target) sidesteps both
+  # the kimi quota exposure and the local-model contention structurally.
   compression:
-    provider: custom:gateway
-    model: kimi-k2.6
-    fallback_chain:
-      - provider: custom:openrouter
-        model: x-ai/grok-4.3
+    provider: custom:openrouter
+    model: x-ai/grok-4.3
   session_search:
     provider: custom:gateway
     model: kimi-k2.6
