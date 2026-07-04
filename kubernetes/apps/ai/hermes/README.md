@@ -53,12 +53,17 @@ are overwritten on the next restart.
   Aux volume is low/bursty so it won't hit the cloud limits the main loop did. Aux fallback
   uses a **per-task `fallback_chain`** (the global `fallback_providers` is main-loop only),
   so the heavy chores pin a Grok fallback. `compression` is the exception: it runs on
-  `custom:openrouter`/Grok as its **primary**, not kimi, because hermes-agent's compressor
+  `custom:openrouter-gw`/Grok as its **primary**, not kimi, because hermes-agent's compressor
   falls back to the *main* model (not this task's `fallback_chain`) on a provider error —
   on a kimi quota outage that meant it retried against the single-slot local model while it
   was already busy serving the live session, causing repeated "Failed to generate context
   summary" failures. Pinning the already-configured fallback (Grok) as primary sidesteps
-  that structurally. `vision` is pinned to Grok (`xai-oauth`) since the local 35B is text-only.
+  that structurally. `vision` also runs on `custom:openrouter-gw` since the local 35B is
+  text-only. **Note the `-gw` suffix**: hermes-agent's auxiliary-client resolver treats a
+  custom provider literally named `openrouter` as its own *built-in* OpenRouter integration
+  (needs env `OPENROUTER_API_KEY`, bypasses our gateway) rather than this `custom_providers`
+  entry — confirmed live when `compression` briefly used the un-suffixed name and silently
+  dropped context with no summary. See the `openrouter-gw` entry's comment in `config.yaml`.
 - **Web search** — `web.search_backend: searxng`, wired to the in-cluster SearXNG
   via `SEARXNG_URL`.
 

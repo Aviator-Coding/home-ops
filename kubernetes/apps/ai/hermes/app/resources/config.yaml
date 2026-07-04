@@ -34,9 +34,27 @@ custom_providers:
   # /openrouter route injects the real OPENROUTER_API_KEY upstream and overrides
   # Authorization, so the api_key here is a dummy — `no-auth` survives the v11->12
   # migration (the `no-key-required` sentinel would be dropped). Referenced as
-  # `custom:openrouter`; call models by their OpenRouter slug (e.g. x-ai/grok-4.3).
+  # `custom:openrouter-gw`; call models by their OpenRouter slug (e.g. x-ai/grok-4.3).
   # Replaced the xai-oauth Grok subscription for vision + fallback (PR: openrouter move).
-  - name: openrouter
+  #
+  # NAMED `openrouter-gw`, NOT `openrouter` — hermes-agent's auxiliary-client
+  # resolver (agent/auxiliary_client.py::_normalize_aux_provider) strips the
+  # `custom:` prefix and, if what's left matches a built-in provider id, routes
+  # into that NATIVE branch instead of looking up this custom_providers entry.
+  # `openrouter` IS a built-in id (needs env `OPENROUTER_API_KEY`, bypasses our
+  # gateway base_url entirely), and its branch returns unconditionally before
+  # the named-custom-provider fallback lookup is ever reached — so a
+  # `custom:openrouter` reference silently resolves to the native (broken, since
+  # we don't set that env var) integration for any AUXILIARY task (compression/
+  # web_extract/session_search/title_generator/vision), even though the exact
+  # same string works fine for the MAIN-loop `fallback_providers` chain (a
+  # different resolver). Confirmed live 2026-07-04: pinning `compression` to
+  # `custom:openrouter` produced `WARNING agent.auxiliary_client: ... openrouter
+  # requested but OPENROUTER_API_KEY not set` and silently dropped context with
+  # no summary. Keep this name collision-free (anything not in hermes-agent's
+  # provider registry — see `_PROVIDER_ALIASES` / the native branches in
+  # `resolve_provider_client` — works).
+  - name: openrouter-gw
     base_url: http://internal-noauth.ai.svc.cluster.local/openrouter/v1
     api_key: no-auth
     api_mode: chat_completions
@@ -44,7 +62,7 @@ custom_providers:
 # Default serving model: the local Qwen3.6-35B-A3B on the B70 (custom:local ->
 # /vllm route). Free and rate-limit-proof, so long-running tasks never hit the
 # xAI subscription throttle or the OpenCode-Go GoUsageLimitError. To serve a
-# cloud model instead, set e.g. model: { default: x-ai/grok-4.3, provider: custom:openrouter }.
+# cloud model instead, set e.g. model: { default: x-ai/grok-4.3, provider: custom:openrouter-gw }.
 model:
   default: qwen3.6-35b-a3b
   provider: custom:local
@@ -60,7 +78,7 @@ model:
 fallback_providers:
   - provider: custom:gateway
     model: glm-5.1
-  - provider: custom:openrouter
+  - provider: custom:openrouter-gw
     model: x-ai/grok-4.3
 
 # Auxiliary context chores mostly run on kimi via the gateway, NOT the local model:
@@ -79,7 +97,7 @@ auxiliary:
     provider: custom:gateway
     model: kimi-k2.6
     fallback_chain:
-      - provider: custom:openrouter
+      - provider: custom:openrouter-gw
         model: x-ai/grok-4.3
   # Compression runs on Grok via OpenRouter, NOT kimi. Rationale: on a kimi failure
   # (e.g. OpenCode Go quota exhaustion), hermes-agent's own compressor retry logic
@@ -90,7 +108,7 @@ auxiliary:
   # Pinning Grok as primary here (it was already the fallback target) sidesteps both
   # the kimi quota exposure and the local-model contention structurally.
   compression:
-    provider: custom:openrouter
+    provider: custom:openrouter-gw
     model: x-ai/grok-4.3
   session_search:
     provider: custom:gateway
@@ -99,7 +117,7 @@ auxiliary:
     provider: custom:gateway
     model: kimi-k2.6
   vision:
-    provider: custom:openrouter
+    provider: custom:openrouter-gw
     model: x-ai/grok-4.3
 
 # Web search via the SearXNG instance already running in ns ai.
