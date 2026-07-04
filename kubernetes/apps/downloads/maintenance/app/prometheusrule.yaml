@@ -1,0 +1,43 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# Capacity tripwire from the 2026-07-03 incident: shared-downloads (2 Ti CephFS
+# RWX) silently filled to 96% with dead data, SABnzbd hit its complete_free=100G
+# auto-pause and the whole usenet pipeline froze — nothing alerted first.
+# 100G ≈ 5% of 2 Ti, so these thresholds (15% warn / 7% crit) fire BEFORE the
+# pause trips. Runbook: docs/downloads/sabnzbd-disk-space-runbook.md
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: downloads-maintenance-rules
+spec:
+  groups:
+    - name: shared-downloads-capacity.rules
+      rules:
+        - alert: SharedDownloadsAlmostFull
+          expr: |-
+            kubelet_volume_stats_available_bytes{namespace="downloads", persistentvolumeclaim="shared-downloads"}
+              / kubelet_volume_stats_capacity_bytes{namespace="downloads", persistentvolumeclaim="shared-downloads"} < 0.15
+          for: 30m
+          annotations:
+            summary: >-
+              shared-downloads has been below 15% free for 30m
+              ({{ $value | humanizePercentage }} available). SABnzbd auto-pauses
+              at 100G free (~5% of 2Ti) — clean up NOW, before the pipeline
+              freezes: check for _UNPACK_/_FAILED_ orphans and side-channel
+              dumps (docs/downloads/sabnzbd-disk-space-runbook.md).
+          labels:
+            severity: warning
+        - alert: SharedDownloadsAlmostFull
+          expr: |-
+            kubelet_volume_stats_available_bytes{namespace="downloads", persistentvolumeclaim="shared-downloads"}
+              / kubelet_volume_stats_capacity_bytes{namespace="downloads", persistentvolumeclaim="shared-downloads"} < 0.07
+          for: 15m
+          annotations:
+            summary: >-
+              shared-downloads is below 7% free
+              ({{ $value | humanizePercentage }} available) — SABnzbd's 100G
+              complete_free pause is imminent or already tripped, and Ceph
+              nearfull follows (2026-07-03 pattern). Reclaim space immediately
+              per docs/downloads/sabnzbd-disk-space-runbook.md.
+          labels:
+            severity: critical
