@@ -146,6 +146,14 @@ After the swap: **re-run MemTest86 to confirm clean**, then rebuild osd.0 on cle
 
 **Interim (already in place):** mon.l rebuilt → mon.m; throttled-recovery mClock drift set live; MGLRU disabled cluster-wide (PR #997). These are mitigations for the *cascade*, not for the RAM — the RAM swap is the only durable fix for talos-1's corruption root.
 
+**✅ CLOSED 2026-07-04 — osd.0 rebuilt and returned to service.** With talos-1 running on the
+clean Stick A, osd.0 was rebuilt with a fresh BlueStore and came up `up`/out with an empty
+store. Marked `in` on 2026-07-04 (cluster HEALTH_OK, 9.7 TiB raw free after the same-day
+shared-downloads cleanup); backfill of its ~1.2 TiB share started cleanly at ~44 MiB/s with no
+slow ops. **Pending:** `ceph osd deep-scrub` across talos-1 OSDs once backfill completes, to
+confirm no latent inconsistency; dual-channel 96 GB reinstall when the Stick B RMA replacement
+arrives.
+
 ---
 
 ## [2026-06-14] ALL 3 nodes — WD SN770M firmware (HMB) bug → silent Ceph mon RocksDB corruption
