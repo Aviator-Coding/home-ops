@@ -80,6 +80,7 @@ After OOMConfig patch (15:04, trigger 50%/30s): ZERO OOMController events throug
 - **cilium-agent → Guaranteed QoS** (requests == limits) — ranking weight 0.0, network plane can no longer be the OOM victim.
 - **`NotIn [talos-1]` node affinities on 7 heavy burstables** (coder, changedetection, rsshub, readarr, seerr, flaresolverr, emqx-exporter) — **TODO 2026-08: revert after the talos-1 RAM RMA restores dual-channel 96 GB**.
 - **node-exporter re-enabled + PrometheusRule alerts**: `Talos1MemoryPressure`, `NodeMemoryPSIHigh`, `CephOsdPodTerminalError`, `CephPodCrashLooping` — closes the detection gap.
+- **ceph-mon → Guaranteed QoS** (mon + logcollector requests == limits, 2Gi/500m) — mon quorum can no longer be the OOM victim. OSDs stay Burstable for now: Guaranteed would reserve 14Gi×2 on talos-1's 48 GB. **TODO 2026-08 (post-RMA): promote `resources.osd` to 14Gi==14Gi Guaranteed; evaluate MDS (blocked on `mds_cache_memory_limit` 8Gi — Guaranteed at 10Gi×4 pods is unaffordable, and a tighter limit risks cgroup OOM against the cache; standby-replay makes MDS kills tolerable meanwhile).**
 
 Cross-reference: [`ceph-cluster-changelog.md` [2026-07-03]](./ceph-cluster-changelog.md) for the OOMConfig change record, the min_size=1 windows, and the noout window.
 
