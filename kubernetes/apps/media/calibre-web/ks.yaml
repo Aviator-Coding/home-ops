@@ -32,6 +32,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
+      CONFIG_TIMEZONE: America/New_York
       VOLSYNC_CAPACITY: 10Gi
       VOLSYNC_PUID: "2000"
       VOLSYNC_PGID: "2000"
