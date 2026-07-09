@@ -232,3 +232,4 @@ is a **second B70** (one model per card, no time-slicing) — currently **deferr
 | Date | Change | Result |
 | --- | --- | --- |
 | 2026-06-26 | Baseline + SYCL-vs-Vulkan A/B + tuning matrix | SYCL kept (61 vs 36 t/s); config validated; isolation identified as the win |
+| 2026-07-08 | `--ctx-size` 131072 → 262144 (native max, no yarn) | Live-tested with `vllm-embed`/`comfyui` both at `replicas: 0`: loads clean (0 restarts), decode 68.4 t/s (no regression). KV grows ~2.6→~5.2 GiB. Motivated by 115 "failed to find free space in the KV cache" warnings observed in prod at 131072 — 4 concurrent slots were oversubscribing the shared unified pool, not one long chat. Only fits because the card is otherwise empty; re-enabling embeddings or ComfyUI needs re-validation and possibly stepping back down. |

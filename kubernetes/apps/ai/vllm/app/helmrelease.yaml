@@ -45,18 +45,20 @@ spec:
               - --port
               - "8000"
               - --ctx-size
-              # Native window is 262144 (no yarn). Hybrid arch (10/40 full-attn
-              # layers, 2 KV heads) → ~20 KiB/token → ~2.6 GiB KV @128k. The server
-              # auto-selects n_parallel=4 + kv_unified=true: the 128k pool is shared
-              # across up to 4 slots and a single request can address all of it
-              # (~61 t/s decode, SYCL — see docs/ai/b70-llm-serving-tuning.md).
-              # DO NOT pin --parallel/--kv-unified explicitly: on b9592 that
-              # overcommits the KV allocation and thrashes the tight 32G VRAM,
-              # collapsing decode to ~0.5 t/s (verified 2026-06-27). The auto path
-              # sizes the shared cache correctly — leave it auto.
-              # Shares 32G B70 with vllm-embed + comfyui — step down to 98304/65536
-              # on VRAM OOM.
-              - "131072"
+              # Native window is 262144 (no yarn) — set to the model's max. Hybrid
+              # arch (10/40 full-attn layers, 2 KV heads) → ~20 KiB/token → ~5.2 GiB
+              # KV @262k (q8_0/q8_0). The server auto-selects n_parallel=4 +
+              # kv_unified=true: the pool is shared across up to 4 slots and a
+              # single request can address all of it (verified 2026-07-08: loads
+              # clean, 0 restarts, 68 t/s decode — see
+              # docs/ai/b70-llm-serving-tuning.md). DO NOT pin --parallel/--kv-unified
+              # explicitly: on b9592 that overcommits the KV allocation and thrashes
+              # VRAM, collapsing decode to ~0.5 t/s (verified 2026-06-27). The auto
+              # path sizes the shared cache correctly — leave it auto.
+              # Fits only because vllm-embed and comfyui are both pinned replicas: 0
+              # (freeing the whole 32G B70 to chat alone). Re-enabling either means
+              # re-testing this value — step back down toward 131072 on VRAM OOM.
+              - "262144"
               - -ngl
               - "99"
               - --jinja
