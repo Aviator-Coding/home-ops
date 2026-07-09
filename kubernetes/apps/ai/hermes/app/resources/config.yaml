@@ -88,37 +88,53 @@ fallback_providers:
 # burn the cloud limits the way the continuous main loop did. IMPORTANT: aux
 # fallback uses the PER-TASK `fallback_chain`, NOT the global `fallback_providers`
 # above — without it Hermes falls back to the main model (=custom:local) and
-# re-times-out, so the heavy chores pin a Grok fallback (also parallel-capable).
-# `vision` is pinned to Grok because the local 35B is text-only. `compression` is
-# the one exception — it's pinned straight to Grok/OpenRouter as PRIMARY, not kimi;
+# re-times-out, so the heavy chores pin a cloud fallback (also parallel-capable).
+# `vision` runs on OpenRouter because the local 35B is text-only. `compression` is
+# the one exception — it's pinned straight to OpenRouter as PRIMARY, not kimi;
 # see its own comment below for why.
+#
+# Cost note (2026-07-09): compression/vision/web_extract-fallback were all Grok
+# (x-ai/grok-4.3, $1.25/$2.50 per M tok on OpenRouter) — the only *metered* spend
+# in this config (glm-5.1 below runs on the flat-rate OpenCode Go sub via
+# custom:gateway, not billed per-token, so it's already the "free" tier).
+# compression and vision are PRIMARY (fire every session), so they're the real
+# cost drivers — moved to much cheaper models with the needed capability:
+# gpt-oss-120b for text-only chores (~35x/~14x cheaper than grok-4.3), qwen3-vl
+# for vision (~12x/~6x cheaper, still a dedicated vision-language model). The
+# last-resort main-loop `fallback_providers` tier below is left on grok-4.3 —
+# it only fires when BOTH local and glm-5.1 fail, so cost is negligible and
+# tool-calling reliability matters more there than price.
 auxiliary:
   web_extract:
     provider: custom:gateway
     model: kimi-k2.6
     fallback_chain:
       - provider: custom:openrouter-gw
-        model: x-ai/grok-4.3
-  # Compression runs on Grok via OpenRouter, NOT kimi. Rationale: on a kimi failure
+        model: openai/gpt-oss-120b
+  # Compression runs on OpenRouter, NOT kimi. Rationale: on a kimi failure
   # (e.g. OpenCode Go quota exhaustion), hermes-agent's own compressor retry logic
   # falls back to the MAIN model automatically — it does NOT consult this task's
   # fallback_chain. Our main model is the single-slot local B70 llama-server, which
   # is already busy serving the live session, so that fallback intermittently times
   # out under contention (repeated "Failed to generate context summary" warnings).
-  # Pinning Grok as primary here (it was already the fallback target) sidesteps both
-  # the kimi quota exposure and the local-model contention structurally.
+  # Pinning a cloud model as primary here sidesteps both the kimi quota exposure
+  # and the local-model contention structurally. gpt-oss-120b: cheap, text-only
+  # (compression never needs vision), solid summarization of tool-call transcripts.
   compression:
     provider: custom:openrouter-gw
-    model: x-ai/grok-4.3
+    model: openai/gpt-oss-120b
   session_search:
     provider: custom:gateway
     model: kimi-k2.6
   title_generator:
     provider: custom:gateway
     model: kimi-k2.6
+  # qwen3-vl-32b-instruct: dedicated vision-language model, ~12x/~6x cheaper than
+  # grok-4.3 on OpenRouter. Pinned here (not kimi) because the local 35B is
+  # text-only.
   vision:
     provider: custom:openrouter-gw
-    model: x-ai/grok-4.3
+    model: qwen/qwen3-vl-32b-instruct
 
 # Web search via the SearXNG instance already running in ns ai.
 web:
