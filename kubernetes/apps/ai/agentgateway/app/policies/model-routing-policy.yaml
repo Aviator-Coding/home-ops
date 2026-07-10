@@ -3,16 +3,16 @@
 # A PreRouting transformation copies the OpenAI request-body `model` field into the
 # `x-model` request header BEFORE route selection, so the unified /v1 HTTPRoute can
 # pick a provider backend by model name. This is the agentgateway-documented pattern
-# (docs/kubernetes/llm/content-routing) targeting the internal-noauth Gateway, where
-# every in-cluster client connects.
+# (docs/kubernetes/llm/content-routing), applied to ALL THREE data-plane gateways —
+# the unified /v1 router is the single LLM entry point everywhere (in-cluster
+# keyless, Authentik-gated internal, and the Bearer-keyed public llm-api).
 #
 # SAFETY: the transform is wrapped in `conditional` so the body is parsed ONLY for
-# requests whose path starts with /v1/chat/completions (the unified endpoint, which
-# always carries a JSON body with a `model`). There is deliberately NO fallback
-# entry, so every other request on this shared gateway — GET /v1/models,
-# /v1/embeddings, health probes, and the existing per-provider /<provider>/... paths
-# (e.g. /vllm/v1/chat/completions, which does NOT start with /v1/chat/completions) —
-# skips the transform entirely and is never body-parsed. request.path / request.method
+# requests whose path starts with /v1/chat/completions or /v1/embeddings (the
+# unified endpoints, which always carry a JSON body with a `model`). There is
+# deliberately NO fallback entry, so every other request on these shared gateways —
+# GET /v1/models, /v1/messages, health probes, admin/UI hostnames — skips the
+# transform entirely and is never body-parsed. request.path / request.method
 # / request.headers accessors per docs/about/policies/conditional-policies.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayPolicy
@@ -23,11 +23,17 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: internal-noauth
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public
   traffic:
     phase: PreRouting
     transformation:
       conditional:
-        - condition: request.path.startsWith("/v1/chat/completions")
+        - condition: request.path.startsWith("/v1/chat/completions") || request.path.startsWith("/v1/embeddings")
           policy:
             request:
               set:

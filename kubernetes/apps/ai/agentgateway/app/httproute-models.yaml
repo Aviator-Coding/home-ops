@@ -1,0 +1,89 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# GET /v1/models on the unified endpoint. agentgateway does not aggregate
+# /v1/models across backends, so the `models-catalog` policy below serves a
+# static OpenAI-format catalog of every model id routable through
+# httproute-unified.yaml. The vllm backendRef is only the fallback if the
+# policy is ever removed (then you get just the local llama.cpp list back).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llm-models
+spec:
+  parentRefs:
+    - name: internal-noauth
+    - name: internal
+    - name: public
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /v1/models
+      backendRefs:
+        - name: vllm
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+---
+# >>> MODEL CATALOG - maintain me alongside rules/cost.yaml! <<<
+# One entry per in-use model id (owned_by = the backend the unified router
+# sends it to — informational only). Adding a model = a routing rule in
+# httproute-unified.yaml (if its family is new) + a price row in
+# rules/cost.yaml + an entry here.
+# `body` is capped at 4096 chars — if the catalog outgrows it, switch to
+# `bodyExpression` (16384 chars, CEL string literal).
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: models-catalog
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: llm-models
+  traffic:
+    directResponse:
+      status: 200
+      headers:
+        # value is a CEL expression -> quoted string literal
+        - name: content-type
+          value: '"application/json"'
+      body: >-
+        {"object":"list","data":[
+        {"id":"qwen3.6-35b-a3b","object":"model","created":0,"owned_by":"local"},
+        {"id":"gpt-4o","object":"model","created":0,"owned_by":"openai"},
+        {"id":"gpt-4o-mini","object":"model","created":0,"owned_by":"openai"},
+        {"id":"gpt-5","object":"model","created":0,"owned_by":"openai"},
+        {"id":"gpt-5-mini","object":"model","created":0,"owned_by":"openai"},
+        {"id":"claude-sonnet-4-6","object":"model","created":0,"owned_by":"anthropic"},
+        {"id":"claude-haiku-4-5","object":"model","created":0,"owned_by":"anthropic"},
+        {"id":"claude-opus-4-6","object":"model","created":0,"owned_by":"anthropic"},
+        {"id":"gemini-2.5-flash","object":"model","created":0,"owned_by":"gemini"},
+        {"id":"grok-4","object":"model","created":0,"owned_by":"xai"},
+        {"id":"grok-4.3","object":"model","created":0,"owned_by":"xai"},
+        {"id":"deepseek-chat","object":"model","created":0,"owned_by":"deepseek"},
+        {"id":"llama-3.3-70b-versatile","object":"model","created":0,"owned_by":"groq"},
+        {"id":"kimi-k2.6","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"kimi-k2.5","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"glm-5.1","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"glm-5","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"minimax-m3","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"minimax-m2.7","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"minimax-m2.5","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"deepseek-v4-pro","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"deepseek-v4-flash","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"qwen3.7-max","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"qwen3.7-plus","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"qwen3.6-plus","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"qwen3.5-plus","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"mimo-v2-pro","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"mimo-v2-omni","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"mimo-v2.5-pro","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"mimo-v2.5","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"hy3-preview","object":"model","created":0,"owned_by":"opencodego"},
+        {"id":"x-ai/grok-4.3","object":"model","created":0,"owned_by":"openrouter"},
+        {"id":"deepseek/deepseek-v4-flash","object":"model","created":0,"owned_by":"openrouter"},
+        {"id":"openai/gpt-oss-120b","object":"model","created":0,"owned_by":"openrouter"},
+        {"id":"qwen/qwen3-vl-32b-instruct","object":"model","created":0,"owned_by":"openrouter"},
+        {"id":"google/gemini-2.0-flash-lite-001","object":"model","created":0,"owned_by":"openrouter"},
+        {"id":"openai/text-embedding-3-small","object":"model","created":0,"owned_by":"openrouter"}
+        ]}

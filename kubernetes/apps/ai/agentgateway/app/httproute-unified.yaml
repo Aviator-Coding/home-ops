@@ -1,13 +1,26 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
-# Unified OpenAI-style endpoint: ONE base URL (http://internal-noauth.ai.svc.cluster.local/v1)
-# that fans out to the right provider backend by the request-body `model` field.
-# The `model-routing` AgentgatewayPolicy extracts model -> x-model (PreRouting); the
-# rules below match x-model by family. Each open-model family lives on exactly one
-# backend here, so there is no cross-provider ambiguity. Ambiguous aggregators
-# (openrouter / togetherai / zai / opencode / perplexity) keep their explicit
-# /provider paths. Subsumes the former `llm-local-root` route (agentmemory): local
-# qwen chat with kimi failover + vllm-embed embeddings.
+# THE single LLM entry point. One unified OpenAI-style endpoint — in-cluster
+# http://internal-noauth.ai.svc.cluster.local/v1, plus the same /v1 on the
+# `internal` (Authentik) and `public` (llm-api.*, Bearer key) listeners — that
+# fans out to the right provider backend by the request-body `model` field.
+# The `model-routing` AgentgatewayPolicy extracts model -> x-model (PreRouting);
+# the rules below match x-model. Model ids are provider-native and pass through
+# UNCHANGED, so the cost metering in rules/cost.yaml keys on exactly what
+# clients send. Model→backend wiring lives ONLY in this table — consumers never
+# pick a provider path.
+#
+# Rule design: the regexes are mutually exclusive by construction, so ordering
+# is not load-bearing — with ONE exception: groq's family regex also matches
+# OpenRouter `moonshotai/...` slugs, so the groq rule must stay ABOVE the
+# vendor-slug catch-all (Gateway API ties break to the earlier rule).
+# Aggregator upstream base paths are injected per-rule via URLRewrite
+# (openrouter serves under /api, opencode-go under /zen/go, groq under
+# /openai) — the same rewrites the retired per-provider path routes applied,
+# so the upstream-visible request is identical.
+# zai / togetherai / opencodeai backends are currently DORMANT (defined in
+# backends/, but no model in use → no rule here). Re-enabling one is a single
+# new rule.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -15,8 +28,48 @@ metadata:
 spec:
   parentRefs:
     - name: internal-noauth
+    - name: internal
+    - name: public
   rules:
-    # --- embeddings: path-only (the body `model` is the embedding model) ---
+    # ================= embeddings (model-aware) =================
+    # Vendor-slug embedding ids (e.g. openai/text-embedding-3-small, used by
+    # agentmemory) -> OpenRouter. Exact path match, so ReplaceFullPath.
+    - matches:
+        - path:
+            type: Exact
+            value: /v1/embeddings
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^[A-Za-z0-9_.-]+/.+"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /api/v1/embeddings
+      backendRefs:
+        - name: openrouter
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # Bare OpenAI embedding ids -> OpenAI native (completeness; no consumer
+    # sends these today).
+    - matches:
+        - path:
+            type: Exact
+            value: /v1/embeddings
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^text-embedding-.*"
+      backendRefs:
+        - name: openai
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # Default embeddings -> local vllm-embed. NOTE: vllm-embed is scaled to 0
+    # (agentmemory moved to OpenRouter embeddings), so bare non-OpenAI
+    # embedding ids get a 503 until it is scaled back up. No consumer sends
+    # these today.
     - matches:
         - path:
             type: Exact
@@ -25,7 +78,27 @@ spec:
         - name: vllm-embed
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # --- local chat (agentmemory + others): qwen* -> local 35B w/ kimi failover ---
+    # ================= chat completions, most-specific first =================
+    # The ONE local model (exact id) -> local B70 llama.cpp with cloud
+    # failover to kimi-k2.6 on OpenCode Go (see backends/vllm.yaml). Any
+    # client asking for the local model transparently gains that failover.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: Exact
+              name: x-model
+              value: qwen3.6-35b-a3b
+      backendRefs:
+        - name: llm-chat-failover
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # OpenCode Go bare ids (flat-rate $10/mo sub — authoritative list =
+    # rules/cost.yaml). Includes bare qwen3.x-max/plus, which must NOT hit the
+    # local backend; the local id has "-35b" after the version so the regexes
+    # are disjoint. deepseek-v4-* (bare, Go) is disjoint from both
+    # deepseek-(chat|reasoner) (native) and deepseek/... (OpenRouter slug).
     - matches:
         - path:
             type: PathPrefix
@@ -33,9 +106,15 @@ spec:
           headers:
             - type: RegularExpression
               name: x-model
-              value: "^qwen.*"
+              value: "^(kimi-|glm-|minimax-|mimo-|hy3-|deepseek-v4-|qwen3\\.[0-9]+-(max|plus)).*"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /zen/go/v1/chat/completions
       backendRefs:
-        - name: llm-chat-failover
+        - name: opencodego
           group: agentgateway.dev
           kind: AgentgatewayBackend
     # --- OpenAI ---
@@ -90,7 +169,8 @@ spec:
         - name: xai
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # --- DeepSeek (first-party chat/reasoner; groq's r1-distill stays on /groq) ---
+    # --- DeepSeek (first-party chat/reasoner only; bare deepseek-v4-* is Go,
+    #     deepseek/... slugs are OpenRouter) ---
     - matches:
         - path:
             type: PathPrefix
@@ -117,9 +197,9 @@ spec:
           group: agentgateway.dev
           kind: AgentgatewayBackend
     # --- Groq (open-weight families hosted on Groq). Groq's OpenAI-compatible
-    #     API lives at api.groq.com/openai/v1/... so prepend the /openai prefix
-    #     here — the unified route forwards /v1/... unchanged, whereas the legacy
-    #     /groq route injects /openai via its own ReplacePrefixMatch. ---
+    #     API lives at api.groq.com/openai/v1/... so prepend /openai here.
+    #     MUST stay above the vendor-slug catch-all: moonshotai/... matches
+    #     both regexes and belongs here. ---
     - matches:
         - path:
             type: PathPrefix
@@ -138,18 +218,53 @@ spec:
         - name: groq
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # --- model catalog: agentgateway does not aggregate /v1/models across
-    #     backends, so this serves the local list; multi-provider clients
-    #     (open-webui) enumerate models manually. ---
+    # --- Perplexity (sonar family; the backend pins its upstream path via
+    #     provider.path, so no rewrite) ---
     - matches:
         - path:
-            type: Exact
-            value: /v1/models
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^sonar.*"
       backendRefs:
-        - name: vllm
+        - name: perplexity
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # --- default: unmatched model on /v1/chat/completions -> OpenAI ---
+    # --- Vendor-slug catch-all -> OpenRouter. Any vendor/model id not claimed
+    #     above (x-ai/grok-4.3, openai/gpt-oss-120b, qwen/qwen3-vl-32b-instruct,
+    #     deepseek/deepseek-v4-flash, google/...) is an OpenRouter slug, billed
+    #     PAYG from OpenRouter credit. ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/chat/completions
+          headers:
+            - type: RegularExpression
+              name: x-model
+              value: "^[A-Za-z0-9_.-]+/.+"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /api/v1/chat/completions
+      backendRefs:
+        - name: openrouter
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- Native Anthropic Messages protocol (replaces the retired public
+    #     /anthropic path route for native-SDK clients) ---
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/messages
+      backendRefs:
+        - name: anthropic
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # --- default: unmatched/empty x-model on /v1/chat/completions -> OpenAI ---
     - matches:
         - path:
             type: PathPrefix

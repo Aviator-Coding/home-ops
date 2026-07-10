@@ -110,6 +110,22 @@ spec:
         - record: *price
           labels: { gen_ai_request_model: deepseek/deepseek-v4-flash, gen_ai_token_type: output }
           expr: vector(0.18)
+        # Hermes compression (gpt-oss-120b, text) + vision (qwen3-vl-32b)
+        # primaries. Rates are estimates derived from the "~35x/~14x and
+        # ~12x/~6x cheaper than grok-4.3" sizing in hermes config.yaml —
+        # confirm on the live OpenRouter model pages.
+        - record: *price
+          labels: { gen_ai_request_model: openai/gpt-oss-120b, gen_ai_token_type: input }
+          expr: vector(0.04)
+        - record: *price
+          labels: { gen_ai_request_model: openai/gpt-oss-120b, gen_ai_token_type: output }
+          expr: vector(0.18)
+        - record: *price
+          labels: { gen_ai_request_model: qwen/qwen3-vl-32b-instruct, gen_ai_token_type: input }
+          expr: vector(0.10)
+        - record: *price
+          labels: { gen_ai_request_model: qwen/qwen3-vl-32b-instruct, gen_ai_token_type: output }
+          expr: vector(0.42)
         # --- OpenCode Go (/opencodego) - flat $10/mo subscription, so the
         # marginal per-token cost is $0 (the fixed monthly fee is not captured
         # by token metrics). Priced at 0 so Go traffic leaves the "unpriced
