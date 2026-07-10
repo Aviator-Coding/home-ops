@@ -45,7 +45,7 @@ spec:
           containers:
             - name: janitor
               # renovate: datasource=docker depName=mirror.gcr.io/alpine
-              image: mirror.gcr.io/alpine:3.22
+              image: mirror.gcr.io/alpine:3.24
               imagePullPolicy: IfNotPresent
               command:
                 - /bin/sh
