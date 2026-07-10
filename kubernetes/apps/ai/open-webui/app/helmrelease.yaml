@@ -49,12 +49,12 @@ spec:
               ENABLE_OPENAI_API: true
               # Single unified model-routing endpoint (keyless internal-noauth
               # gateway injects real provider keys). One connection now serves
-              # every provider — the gateway routes by the request `model` field.
+              # every provider — the gateway routes by the request `model` field,
+              # and GET /v1/models serves the full static catalog (agentgateway's
+              # models-catalog policy), so the picker populates itself.
               # NOTE: OPENAI_API_BASE_URLS is a PersistentConfig var, so this env
               # value applies on a FRESH deploy; on the running instance update it
-              # once via Settings -> Admin -> Connections (and add the model ids
-              # you want in the picker, since /v1/models lists only the local
-              # model — agentgateway does not aggregate model lists).
+              # once via Settings -> Admin -> Connections.
               OPENAI_API_BASE_URLS: http://internal-noauth.ai.svc.cluster.local/v1
               OPENAI_API_KEYS: nokey
               ENABLE_RAG_WEB_SEARCH: true

@@ -78,21 +78,21 @@ spec:
               AGENTMEMORY_VIEWER_HOST: 0.0.0.0
               # One OpenAI-compatible provider serves BOTH embeddings and the
               # consolidation chat LLM (agentmemory can't split providers). Pointed
-              # at the agentgateway's /openrouter route, which fans out by path:
-              # /v1/embeddings -> OpenRouter text-embedding-3-small, and
-              # /v1/chat/completions -> OpenRouter deepseek/deepseek-v4-flash. This
-              # moves ALL agentmemory LLM load OFF the single B70 (embeddings used to
-              # run on vllm-embed, consolidation on the local 35B) to relieve GPU
-              # contention; vllm-embed has no other consumer and is scaled to 0.
-              # Base URL MUST end in /openrouter/v1: agentmemory 0.9.27's OpenAI
-              # client appends `/embeddings` and `/chat/completions` (NO /v1 — it
-              # expects /v1 to be in the base). The /openrouter route rewrites
-              # /openrouter -> /api, so base + /chat/completions resolves to
-              # openrouter.ai/api/v1/chat/completions. (Verified via gateway access
-              # logs 2026-06-28: a base of just /openrouter made agentmemory hit
-              # /openrouter/chat/completions -> /api/chat/completions -> 404.)
+              # at the agentgateway UNIFIED /v1 endpoint, which routes by model id:
+              # both openai/text-embedding-3-small and deepseek/deepseek-v4-flash
+              # are vendor slugs -> OpenRouter (same upstream as the retired
+              # /openrouter path, so the 2026-06-28 cutover's embeddings need no
+              # re-index). This keeps ALL agentmemory LLM load OFF the single B70
+              # (embeddings used to run on vllm-embed, consolidation on the local
+              # 35B) to relieve GPU contention; vllm-embed has no other consumer
+              # and is scaled to 0.
+              # Base URL MUST end in /v1: agentmemory 0.9.27's OpenAI client
+              # appends `/embeddings` and `/chat/completions` (NO /v1 — it expects
+              # /v1 to be in the base). Verified via gateway access logs 2026-06-28
+              # (with the old /openrouter base): a base without the /v1 suffix
+              # resolves to /chat/completions upstream -> 404.
               EMBEDDING_PROVIDER: openai
-              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/openrouter/v1
+              OPENAI_BASE_URL: http://internal-noauth.ai.svc.cluster.local/v1
               OPENAI_EMBEDDING_MODEL: openai/text-embedding-3-small
               # 1536-dim (text-embedding-3-small native). CHANGING this re-indexes
               # the whole store — snapshot first; see the cutover runbook in the PR.

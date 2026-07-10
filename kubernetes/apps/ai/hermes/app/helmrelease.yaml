@@ -108,10 +108,10 @@ spec:
               # --- LLM backend ---
               # Model + provider routing live in /opt/data/config.yaml, copied from
               # the `hermes-configmap` ConfigMap (app/resources/config.yaml) by the
-              # `copy-config` initContainer on every start: a named `custom:gateway`
-              # provider points at the internal agentgateway, and the native
-              # `xai-oauth` provider serves the Grok subscription (creds in
-              # /opt/data/auth.json via `hermes auth add xai-oauth --manual-paste`).
+              # `copy-config` initContainer on every start: a single named
+              # `custom:gateway` provider points at the agentgateway unified /v1
+              # endpoint, which routes by model id (no per-provider paths, no
+              # direct provider access).
               #
               # The old OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL env were
               # REMOVED on purpose: OPENAI_BASE_URL is a global OpenAI-SDK override
@@ -143,7 +143,7 @@ spec:
               # /opt/data/skills by seed-skills). HOMELAB_GH_TOKEN + DISCORD_WEBHOOK
               # arrive via envFrom (the hermes secret); these point its per-repo
               # digest LLM at the internal gateway. ---
-              SUMMARY_LLM_URL: http://internal-noauth.ai.svc.cluster.local/opencodego/v1
+              SUMMARY_LLM_URL: http://internal-noauth.ai.svc.cluster.local/v1
               SUMMARY_LLM_MODEL: kimi-k2.6
               # --- Run as the image's default `hermes` user. The s6 init starts
               # as root, chowns /opt/data, then drops to UID 10000. ---

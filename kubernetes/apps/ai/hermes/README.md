@@ -36,34 +36,36 @@ are overwritten on the next restart.
 
 | Provider | Routing | Auth |
 | -------- | ------- | ---- |
-| `custom:local` (**default** `qwen3.6-35b-a3b`) | agentgateway `internal-noauth` → `/vllm/v1` (llama.cpp on the B70) | keyless (LAN-only gateway) |
-| `custom:gateway` (`kimi-k2.6`) | agentgateway `internal-noauth` → `/opencodego/v1` | keyless (gateway injects the key) |
-| `xai-oauth` (native, `grok-4.3`) | direct to xAI, bypassing the gateway | OAuth (Grok subscription, see below) |
+| `custom:gateway` (**default** `qwen3.6-35b-a3b`) | agentgateway unified `/v1` on `internal-noauth` — routes by model id (local qwen → B70 llama.cpp, bare Go ids → OpenCode Go, vendor slugs → OpenRouter) | keyless (gateway injects the real provider keys) |
+
+**Every model goes through this ONE provider** — Hermes never talks to an LLM
+provider directly; the model id alone picks the upstream (see
+`agentgateway/app/httproute-unified.yaml`).
 
 `config.yaml` also sets:
-- **Fallback chain** — `custom:local/qwen3.6-35b-a3b` → `custom:gateway/glm-5.1` →
-  `xai-oauth/grok-4.3`, so a local outage (e.g. ComfyUI scaling `vllm` to 0 under the
-  Dedicated-VRAM runbook) doesn't kill the session. The local default is free and
-  rate-limit-proof, so long tasks don't hit the xAI throttle or OpenCode-Go limits.
-  The gateway fallback uses `glm-5.1` (strongest tool-caller on the Go sub) rather than
-  kimi, since the fallback runs the full agentic tool-calling loop.
-- **Auxiliary routing** — `web_extract` / `session_search` / `title_generator` run on kimi
-  via the gateway, **not** the local model: `web_extract` fires N parallel LLM calls (one
-  per page) that the single-slot local server can't serve concurrently (they time out).
-  Aux volume is low/bursty so it won't hit the cloud limits the main loop did. Aux fallback
-  uses a **per-task `fallback_chain`** (the global `fallback_providers` is main-loop only),
-  so the heavy chores pin a Grok fallback. `compression` is the exception: it runs on
-  `custom:openrouter-gw`/Grok as its **primary**, not kimi, because hermes-agent's compressor
+- **Fallback chain** — the gateway resolves the local default through its
+  `llm-chat-failover` backend (local → `kimi-k2.6` on OpenCode Go), and Hermes' own
+  chain adds `glm-5.1` → `x-ai/grok-4.3`, so a local outage (e.g. ComfyUI scaling
+  `vllm` to 0 under the Dedicated-VRAM runbook) doesn't kill the session. The local
+  default is free and rate-limit-proof, so long tasks don't burn cloud limits. The
+  hermes-side fallback uses `glm-5.1` (strongest tool-caller on the Go sub) rather
+  than kimi, since the fallback runs the full agentic tool-calling loop.
+- **Auxiliary routing** — `web_extract` / `session_search` / `title_generator` run on kimi,
+  **not** the local model: `web_extract` fires N parallel LLM calls (one per page) that
+  the single-slot local server can't serve concurrently (they time out). Aux volume is
+  low/bursty so it won't hit the cloud limits the main loop did. Aux fallback uses a
+  **per-task `fallback_chain`** (the global `fallback_providers` is main-loop only), so
+  the heavy chores pin a cloud fallback. `compression` is the exception: it runs on
+  `openai/gpt-oss-120b` as its **primary**, not kimi, because hermes-agent's compressor
   falls back to the *main* model (not this task's `fallback_chain`) on a provider error —
   on a kimi quota outage that meant it retried against the single-slot local model while it
   was already busy serving the live session, causing repeated "Failed to generate context
-  summary" failures. Pinning the already-configured fallback (Grok) as primary sidesteps
-  that structurally. `vision` also runs on `custom:openrouter-gw` since the local 35B is
-  text-only. **Note the `-gw` suffix**: hermes-agent's auxiliary-client resolver treats a
-  custom provider literally named `openrouter` as its own *built-in* OpenRouter integration
-  (needs env `OPENROUTER_API_KEY`, bypasses our gateway) rather than this `custom_providers`
-  entry — confirmed live when `compression` briefly used the un-suffixed name and silently
-  dropped context with no summary. See the `openrouter-gw` entry's comment in `config.yaml`.
+  summary" failures. Pinning a cloud model as primary sidesteps that structurally.
+  `vision` runs on `qwen/qwen3-vl-32b-instruct` since the local 35B is text-only.
+  **Custom-provider naming trap:** hermes-agent's auxiliary-client resolver treats a
+  custom provider named after a *built-in* id (e.g. `openrouter`) as its own native
+  integration, silently bypassing the gateway — see the naming-trap comment in
+  `config.yaml` before ever renaming the `gateway` provider.
 - **Web search** — `web.search_backend: searxng`, wired to the in-cluster SearXNG
   via `SEARXNG_URL`.
 
@@ -71,22 +73,6 @@ are overwritten on the next restart.
 > for **every** provider. Per-provider `base_url` in `config.yaml` is the right layer.
 > If Hermes ever won't boot without an OpenAI key, re-add a dummy `OPENAI_API_KEY`
 > **only** (never `OPENAI_BASE_URL`).
-
-### xAI Grok subscription login (manual, one-time)
-
-The Grok **subscription** is used via Hermes' native `xai-oauth` provider (OAuth),
-which can't go through the gateway. The OAuth loopback can't reach a pod from your
-laptop, so use `--manual-paste`:
-
-```bash
-kubectl -n ai exec -it deploy/hermes -c app -- hermes auth add xai-oauth --no-browser --manual-paste
-```
-
-Open the printed URL, approve, then paste the **full** failed-callback URL (or a
-`?code=...&state=...` fragment, or a fresh bare code). Codes expire in ~minutes; on a
-stale/reused login, `hermes auth remove xai-oauth` and retry for a fresh `state`.
-Credentials persist in `/opt/data/auth.json` (PVC, Volsync-backed; the refresh token
-renews automatically), so this is one-time per fresh PVC.
 
 ## Cluster RBAC (operator access)
 
@@ -112,11 +98,11 @@ The `../agentmemory/` app runs the memory service; this app mounts the Hermes
 and enables it via `plugins.enabled: [agentmemory]`. Hermes gets `memory_recall` /
 `memory_save` tools and auto-saves turns; recall survives restarts and new sessions.
 
-**agentmemory needs an embeddings endpoint** — it points at the agentgateway's
-no-auth internal listener (`OPENAI_BASE_URL=http://internal-noauth.ai.svc.cluster.local`),
-which routes root `/v1/embeddings` to **qwen3-vl-embedding-2b** (vllm-embed, 2048-dim)
-and `/v1/chat/completions` to the local **qwen3.6-35b-a3b** (llama.cpp on the B70).
-Both models live in the `vllm` app and persist on PVCs — nothing to pull manually.
+**agentmemory needs an embeddings endpoint** — it points at the agentgateway
+unified `/v1` (`OPENAI_BASE_URL=http://internal-noauth.ai.svc.cluster.local/v1`),
+which routes its model ids by vendor slug to OpenRouter: embeddings on
+**openai/text-embedding-3-small** (1536-dim) and consolidation chat on
+**deepseek/deepseek-v4-flash**. Nothing runs on the local GPU for memory.
 
 ## Skills (GitOps-managed)
 
@@ -154,7 +140,6 @@ Both come from the `hermes` secret.
    - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` — BotFather token + numeric ids
 2. **1Password item `agentmemory`** with `AGENTMEMORY_SECRET` — `openssl rand -hex 32`
    (shared between the agentmemory service and the Hermes plugin).
-3. **Authenticate the Grok subscription** once the pod is up (xAI Grok login above).
 
 ## Git access (single private repo)
 
@@ -191,9 +176,8 @@ PAT or account SSH key would expose every repo; don't use those.)
   removed without touching the rest — see the disable note in `helmrelease.yaml`.
 - **Runs as root then drops** to UID 10000 (s6-overlay), so no `runAsNonRoot` on the
   `app` container — `fsGroup: 10000` makes the PVC writable for the dropped user.
-- **Cost tracking:** the default `custom:local` and the `custom:gateway` paths go
-  through the agentgateway, so they're in gateway cost/Tempo tracking. The `xai-oauth`
-  Grok path (now fallback + `vision`) talks to xAI **directly**, bypassing the gateway,
-  so it isn't tracked (flat subscription anyway).
+- **Cost tracking:** every model goes through the agentgateway unified `/v1`, so
+  ALL Hermes LLM traffic is in gateway cost metering (`rules/cost.yaml`) and Tempo
+  tracing — there is no untracked direct-provider path anymore.
 - **Ports:** `9119` dashboard, `8642` OpenAI-compatible API, `8787` webui, `12321`
   code-server.

@@ -6,112 +6,90 @@
 # HERE, in Git — NOT via `hermes model` / `hermes config edit`, whose writes are
 # wiped on the next restart.
 custom_providers:
-  # OpenCode Go (open models) via the internal agentgateway. The keyless
-  # internal-noauth gateway injects the real opencodego key upstream, so the
-  # `api_key` below is a dummy — it's never sent on the wire (the gateway
-  # overrides Authorization). It exists only so the auxiliary client can resolve
-  # a credential: without it Hermes logs "no resolvable api_key" warnings.
+  # THE one LLM provider: the agentgateway unified /v1 endpoint. The gateway
+  # routes by model id (local qwen -> B70 llama.cpp with kimi failover, bare
+  # Go ids like kimi-k2.6/glm-5.1 -> OpenCode Go, vendor slugs like
+  # x-ai/grok-4.3 -> OpenRouter — see agentgateway/app/httproute-unified.yaml)
+  # and injects the real provider keys upstream, so the `api_key` below is a
+  # dummy — it's never sent on the wire (the gateway overrides Authorization).
+  # It exists only so the auxiliary client can resolve a credential: without it
+  # Hermes logs "no resolvable api_key" warnings.
   # NOTE: the value must NOT be `no-key-required`/`no-key`/`` — Hermes' v11→12
   # config migration (custom_providers→providers dict) drops exactly those
   # sentinels, so the key would vanish and the warning return. `no-auth` survives.
-  # Referenced elsewhere as `custom:gateway`.
-  - name: gateway
-    base_url: http://internal-noauth.ai.svc.cluster.local/opencodego/v1
-    api_key: no-auth
-    api_mode: chat_completions
-  # Local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL, ~74 t/s) via the gateway's
-  # /vllm route. Free and rate-limit-proof; llama-server is single-slot, so
-  # concurrent requests queue. The keyless internal-noauth route needs no auth;
-  # `api_key` is a dummy to satisfy the auxiliary client's credential resolution
-  # (silences the no-key warning, no 401 since the route is unauthenticated).
-  # Same migration caveat as above — `no-auth`, never the `no-key-required` sentinel.
-  # Referenced as `custom:local`.
-  - name: local
-    base_url: http://internal-noauth.ai.svc.cluster.local/vllm/v1
-    api_key: no-auth
-    api_mode: chat_completions
-  # Cloud models via OpenRouter (one key, no per-token markup). The gateway's
-  # /openrouter route injects the real OPENROUTER_API_KEY upstream and overrides
-  # Authorization, so the api_key here is a dummy — `no-auth` survives the v11->12
-  # migration (the `no-key-required` sentinel would be dropped). Referenced as
-  # `custom:openrouter-gw`; call models by their OpenRouter slug (e.g. x-ai/grok-4.3).
-  # Replaced the xai-oauth Grok subscription for vision + fallback (PR: openrouter move).
   #
-  # NAMED `openrouter-gw`, NOT `openrouter` — hermes-agent's auxiliary-client
-  # resolver (agent/auxiliary_client.py::_normalize_aux_provider) strips the
-  # `custom:` prefix and, if what's left matches a built-in provider id, routes
-  # into that NATIVE branch instead of looking up this custom_providers entry.
-  # `openrouter` IS a built-in id (needs env `OPENROUTER_API_KEY`, bypasses our
-  # gateway base_url entirely), and its branch returns unconditionally before
-  # the named-custom-provider fallback lookup is ever reached — so a
-  # `custom:openrouter` reference silently resolves to the native (broken, since
-  # we don't set that env var) integration for any AUXILIARY task (compression/
-  # web_extract/session_search/title_generator/vision), even though the exact
-  # same string works fine for the MAIN-loop `fallback_providers` chain (a
-  # different resolver). Confirmed live 2026-07-04: pinning `compression` to
-  # `custom:openrouter` produced `WARNING agent.auxiliary_client: ... openrouter
-  # requested but OPENROUTER_API_KEY not set` and silently dropped context with
-  # no summary. Keep this name collision-free (anything not in hermes-agent's
-  # provider registry — see `_PROVIDER_ALIASES` / the native branches in
-  # `resolve_provider_client` — works).
-  - name: openrouter-gw
-    base_url: http://internal-noauth.ai.svc.cluster.local/openrouter/v1
+  # NAMING TRAP (kept for posterity): hermes-agent's auxiliary-client resolver
+  # (agent/auxiliary_client.py::_normalize_aux_provider) strips the `custom:`
+  # prefix and, if what's left matches a BUILT-IN provider id (e.g.
+  # `openrouter`), routes into that native branch instead of looking up the
+  # custom_providers entry — silently bypassing the gateway base_url (confirmed
+  # live 2026-07-04 with a `custom:openrouter` reference). Keep this provider's
+  # name collision-free with hermes-agent's provider registry (`gateway` is
+  # safe); never name a custom provider after a built-in one.
+  #
+  # Referenced everywhere as `custom:gateway`.
+  - name: gateway
+    base_url: http://internal-noauth.ai.svc.cluster.local/v1
     api_key: no-auth
     api_mode: chat_completions
 
-# Default serving model: the local Qwen3.6-35B-A3B on the B70 (custom:local ->
-# /vllm route). Free and rate-limit-proof, so long-running tasks never hit the
-# xAI subscription throttle or the OpenCode-Go GoUsageLimitError. To serve a
-# cloud model instead, set e.g. model: { default: x-ai/grok-4.3, provider: custom:openrouter-gw }.
+# Default serving model: the local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL,
+# ~74 t/s). Free and rate-limit-proof; llama-server is single-slot, so
+# concurrent requests queue. The gateway resolves this exact id through its
+# llm-chat-failover backend: if the local server errors or is unavailable
+# (e.g. ComfyUI scaled vllm to 0 under the Dedicated-VRAM runbook) the GATEWAY
+# fails over to kimi-k2.6 on OpenCode Go before the `fallback_providers` chain
+# below ever fires — the effective chain is local -> kimi-k2.6 (gateway) ->
+# glm-5.1 -> x-ai/grok-4.3. To serve a cloud model instead, set e.g.
+# model: { default: x-ai/grok-4.3, provider: custom:gateway }.
 model:
   default: qwen3.6-35b-a3b
-  provider: custom:local
+  provider: custom:gateway
 
-# Fail-over chain for the MAIN agentic loop: if the local B70 model errors or is
-# unavailable (e.g. ComfyUI scaled vllm to 0 under the Dedicated-VRAM runbook),
-# fall back to glm-5.1 via the gateway, then to Grok (x-ai/grok-4.3 via the
-# /openrouter route, billed PAYG from OpenRouter credit — replaced the old
-# xai-oauth subscription). glm-5.1 is the strongest tool-caller on the OpenCode-Go
-# sub (tops τ²-bench / BFCL agentic vs kimi/deepseek/qwen), which matters because
-# this fallback runs the full tool-calling loop. The aux chores below stay on
-# kimi-k2.6 — they only summarise content, they don't tool-call.
+# Fail-over chain for the MAIN agentic loop (fires only if the gateway's own
+# local->kimi failover also fails): glm-5.1 on the flat-rate OpenCode Go sub,
+# then Grok via OpenRouter (billed PAYG from OpenRouter credit). glm-5.1 is
+# the strongest tool-caller on the OpenCode-Go sub (tops τ²-bench / BFCL
+# agentic vs kimi/deepseek/qwen), which matters because this fallback runs the
+# full tool-calling loop. The aux chores below stay on kimi-k2.6 — they only
+# summarise content, they don't tool-call.
 fallback_providers:
   - provider: custom:gateway
     model: glm-5.1
-  - provider: custom:openrouter-gw
+  - provider: custom:gateway
     model: x-ai/grok-4.3
 
-# Auxiliary context chores mostly run on kimi via the gateway, NOT the local model:
-# web_extract fires N parallel LLM calls (one per fetched page) on large content,
-# and the single-slot local llama-server serialized them until they timed out.
-# kimi handles concurrency, and aux volume is low (bursty, per-task) so it won't
-# burn the cloud limits the way the continuous main loop did. IMPORTANT: aux
-# fallback uses the PER-TASK `fallback_chain`, NOT the global `fallback_providers`
-# above — without it Hermes falls back to the main model (=custom:local) and
-# re-times-out, so the heavy chores pin a cloud fallback (also parallel-capable).
-# `vision` runs on OpenRouter because the local 35B is text-only. `compression` is
-# the one exception — it's pinned straight to OpenRouter as PRIMARY, not kimi;
-# see its own comment below for why.
+# Auxiliary context chores mostly run on kimi via the gateway, NOT the local
+# model: web_extract fires N parallel LLM calls (one per fetched page) on large
+# content, and the single-slot local llama-server serialized them until they
+# timed out. kimi handles concurrency, and aux volume is low (bursty, per-task)
+# so it won't burn the cloud limits the way the continuous main loop did.
+# IMPORTANT: aux fallback uses the PER-TASK `fallback_chain`, NOT the global
+# `fallback_providers` above — without it Hermes falls back to the main model
+# (=the local qwen) and re-times-out, so the heavy chores pin a cloud fallback
+# (also parallel-capable). `vision` runs on an OpenRouter slug because the
+# local 35B is text-only. `compression` is the one exception — it's pinned
+# straight to a cloud model as PRIMARY, not kimi; see its own comment below.
 #
 # Cost note (2026-07-09): compression/vision/web_extract-fallback were all Grok
-# (x-ai/grok-4.3, $1.25/$2.50 per M tok on OpenRouter) — the only *metered* spend
-# in this config (glm-5.1 below runs on the flat-rate OpenCode Go sub via
-# custom:gateway, not billed per-token, so it's already the "free" tier).
-# compression and vision are PRIMARY (fire every session), so they're the real
-# cost drivers — moved to much cheaper models with the needed capability:
-# gpt-oss-120b for text-only chores (~35x/~14x cheaper than grok-4.3), qwen3-vl
-# for vision (~12x/~6x cheaper, still a dedicated vision-language model). The
-# last-resort main-loop `fallback_providers` tier below is left on grok-4.3 —
-# it only fires when BOTH local and glm-5.1 fail, so cost is negligible and
-# tool-calling reliability matters more there than price.
+# (x-ai/grok-4.3, $1.25/$2.50 per M tok on OpenRouter) — the only *metered*
+# spend in this config (glm-5.1 above runs on the flat-rate OpenCode Go sub,
+# not billed per-token, so it's already the "free" tier). compression and
+# vision are PRIMARY (fire every session), so they're the real cost drivers —
+# moved to much cheaper models with the needed capability: gpt-oss-120b for
+# text-only chores (~35x/~14x cheaper than grok-4.3), qwen3-vl for vision
+# (~12x/~6x cheaper, still a dedicated vision-language model). The last-resort
+# main-loop `fallback_providers` tier above is left on grok-4.3 — it only
+# fires when the local model, kimi AND glm-5.1 all fail, so cost is negligible
+# and tool-calling reliability matters more there than price.
 auxiliary:
   web_extract:
     provider: custom:gateway
     model: kimi-k2.6
     fallback_chain:
-      - provider: custom:openrouter-gw
+      - provider: custom:gateway
         model: openai/gpt-oss-120b
-  # Compression runs on OpenRouter, NOT kimi. Rationale: on a kimi failure
+  # Compression runs on a cloud model, NOT kimi. Rationale: on a kimi failure
   # (e.g. OpenCode Go quota exhaustion), hermes-agent's own compressor retry logic
   # falls back to the MAIN model automatically — it does NOT consult this task's
   # fallback_chain. Our main model is the single-slot local B70 llama-server, which
@@ -121,7 +99,7 @@ auxiliary:
   # and the local-model contention structurally. gpt-oss-120b: cheap, text-only
   # (compression never needs vision), solid summarization of tool-call transcripts.
   compression:
-    provider: custom:openrouter-gw
+    provider: custom:gateway
     model: openai/gpt-oss-120b
   session_search:
     provider: custom:gateway
@@ -133,7 +111,7 @@ auxiliary:
   # grok-4.3 on OpenRouter. Pinned here (not kimi) because the local 35B is
   # text-only.
   vision:
-    provider: custom:openrouter-gw
+    provider: custom:gateway
     model: qwen/qwen3-vl-32b-instruct
 
 # Web search via the SearXNG instance already running in ns ai.

@@ -49,10 +49,12 @@ spec:
               # Full-page Monolith archive: raise output buffer above the 100MB
               # default (one image-heavy page overflowed it -> partial archive).
               MONOLITH_MAX_BUFFER: "256"
-              # AI auto-tagging via AgentGateway -> local B70 model (llama.cpp, /vllm).
-              # OPENAI_API_KEY (= OpenRouter key) is ignored by the keyless LAN gateway,
-              # but the OpenAI SDK still requires a non-empty value to be present.
-              CUSTOM_OPENAI_BASE_URL: "http://internal-noauth.ai.svc.cluster.local/vllm/v1"
+              # AI auto-tagging via the agentgateway unified /v1: the model id below
+              # routes to the local B70 llama.cpp (with cloud kimi failover when the
+              # local server is down). OPENAI_API_KEY is a dummy from the secret —
+              # ignored by the keyless LAN gateway, but the OpenAI SDK still requires
+              # a non-empty value to be present.
+              CUSTOM_OPENAI_BASE_URL: "http://internal-noauth.ai.svc.cluster.local/v1"
               OPENAI_MODEL: "qwen3.6-35b-a3b"
             envFrom: *envFrom
             ports:
