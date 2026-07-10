@@ -4,12 +4,20 @@ kind: ServiceAccount
 metadata:
   name: kubectl-mcp-readonly
 ---
-# Broad read-only access for kubectl MCP. Kubernetes Secrets (core v1) are excluded.
+# Broad read-only access for kubectl MCP, split across TWO ClusterRoles.
 #
-# - aggregationRule: same selector as built-in "view" — expands with operators that ship
-#   rbac.authorization.k8s.io/aggregate-to-view ClusterRoles (CRDs, etc.).
-# - Non-core apiGroups: resources "*" is safe for Secret *objects* (they only exist in group "").
-# - Core group "": explicit resource list — secrets omitted; exec/proxy-style subresources omitted.
+# GOTCHA (the reason for the split): on a ClusterRole with an aggregationRule,
+# the RBAC controller OWNS `rules` — it overwrites the field with the union of
+# the selected ClusterRoles, silently discarding any rules written here (that
+# is exactly what happened: the manual nodes/nonResourceURLs grants below were
+# stripped on reconcile, breaking cluster://nodes for the MCP server).
+# So: the aggregated role carries NO rules of its own; the hand-written rules
+# live in `kubectl-mcp-readonly-base`, which feeds the aggregate via the custom
+# label selector.
+#
+# - aggregate-to-view selector: same as built-in "view" — expands with operators
+#   that ship rbac.authorization.k8s.io/aggregate-to-view ClusterRoles (CRDs, etc.).
+# - custom selector: pulls in kubectl-mcp-readonly-base below.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -18,6 +26,20 @@ aggregationRule:
   clusterRoleSelectors:
     - matchLabels:
         rbac.authorization.k8s.io/aggregate-to-view: "true"
+    - matchLabels:
+        rbac.home-operations.com/aggregate-to-kubectl-mcp-readonly: "true"
+---
+# Hand-written grants for kubectl MCP. Kubernetes Secrets (core v1) are excluded.
+# - Non-core apiGroups: resources "*" is safe for Secret *objects* (they only exist in group "").
+# - Core group "": explicit resource list — secrets omitted; exec/proxy-style subresources omitted.
+# Aggregated into kubectl-mcp-readonly via the label; the binding targets the
+# aggregated role, NOT this one.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubectl-mcp-readonly-base
+  labels:
+    rbac.home-operations.com/aggregate-to-kubectl-mcp-readonly: "true"
 rules:
   - nonResourceURLs:
       - /api
@@ -69,7 +91,8 @@ rules:
       - watch
   # All non-core API groups: full resource read (Secret objects are not in these groups).
   # Includes built-in API groups plus every CRD group reported from the cluster (minus "").
-  # CRDs whose operators ship aggregate-to-view ClusterRoles are also covered by aggregationRule above.
+  # CRDs whose operators ship aggregate-to-view ClusterRoles are also covered by the
+  # aggregate-to-view selector on the aggregated role above.
   - apiGroups:
       - acme.cert-manager.io
       - actions.github.com
