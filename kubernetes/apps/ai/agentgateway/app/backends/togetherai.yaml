@@ -18,7 +18,10 @@ spec:
     - extract:
         key: ai-keys
 ---
-# togetherai BAgentgatewayBackend (OpenAI-compatible)
+# togetherai AgentgatewayBackend (OpenAI-compatible). DORMANT: no model in
+# use, so the unified /v1 router (../httproute-unified.yaml) has no rule for
+# it — re-enabling is one routing rule there. Backend + secret kept so the
+# credential path stays wired.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -40,28 +43,3 @@ spec:
         "/v1/embeddings": Passthrough
         "/v1/models": Passthrough
         "*": Passthrough
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: togetherai
-spec:
-  parentRefs:
-    - name: internal
-    - name: internal-noauth
-    - name: public
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /togetherai
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
-    backendRefs:
-    - name: togetherai
-      group: agentgateway.dev
-      kind: AgentgatewayBackend

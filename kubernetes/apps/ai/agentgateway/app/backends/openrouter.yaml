@@ -18,6 +18,11 @@ spec:
     - extract:
         key: ai-keys
 ---
+# OpenRouter AgentgatewayBackend (OpenAI-compatible, serves under /api).
+# Reached ONLY via the unified /v1 router (../httproute-unified.yaml): any
+# vendor-slug model id (x-ai/..., openai/gpt-oss-*, qwen/..., deepseek/...)
+# not claimed by a more specific rule routes here (chat + embeddings; the
+# unified rules prepend /api). No per-provider path route exists anymore.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -39,28 +44,3 @@ spec:
         "/v1/embeddings": Passthrough
         "/v1/models": Passthrough
         "*": Passthrough
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: openrouter
-spec:
-  parentRefs:
-    - name: internal
-    - name: internal-noauth
-    - name: public
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /openrouter
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /api
-    backendRefs:
-    - name: openrouter
-      group: agentgateway.dev
-      kind: AgentgatewayBackend

@@ -12,7 +12,7 @@ metadata:
     external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN},external.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
       conditions: ["[STATUS] == 401"]
-      url: "https://llm-api.${SECRET_DOMAIN}/openai/v1/models"
+      url: "https://llm-api.${SECRET_DOMAIN}/v1/models"
 spec:
   hostnames:
     - "llm-api.${SECRET_DOMAIN}"

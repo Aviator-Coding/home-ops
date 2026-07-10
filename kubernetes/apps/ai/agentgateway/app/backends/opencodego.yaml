@@ -18,7 +18,12 @@ spec:
     - extract:
         key: ai-keys
 ---
-# OpenCode Go AgentgatewayBackend (OpenAI-compatible)
+# OpenCode Go AgentgatewayBackend (OpenAI-compatible, flat $10/mo sub, serves
+# under /zen/go). Reached ONLY via the unified /v1 router
+# (../httproute-unified.yaml) by bare Go model ids (kimi-*/glm-*/minimax-*/
+# mimo-*/hy3-*/deepseek-v4-*/qwen3.x-max|plus — the unified rule prepends
+# /zen/go). Also the failover leg of llm-chat-failover (backends/vllm.yaml).
+# No per-provider path route exists anymore.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -40,28 +45,3 @@ spec:
         "/v1/embeddings": Passthrough
         "/v1/models": Passthrough
         "*": Passthrough
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: opencodego
-spec:
-  parentRefs:
-    - name: internal
-    - name: internal-noauth
-    - name: public
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /opencodego
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /zen/go
-      backendRefs:
-        - name: opencodego
-          group: agentgateway.dev
-          kind: AgentgatewayBackend

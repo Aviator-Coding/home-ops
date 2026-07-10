@@ -18,10 +18,8 @@ spec:
     - extract:
         key: ai-keys
 ---
-# Internal clients reach this via the unified /v1 endpoint by model name
-# (gemini-*). The explicit /gemini path route is retired from
-# internal/internal-noauth and kept ONLY on the public gateway for the external
-# llm-api.* API.
+# Reached ONLY via the unified /v1 router (../httproute-unified.yaml) by model
+# name (gemini-*). No per-provider path route exists anymore.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -40,26 +38,3 @@ spec:
         "/v1/embeddings": Passthrough
         "/v1/models": Passthrough
         "*": Passthrough
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: gemini
-spec:
-  parentRefs:
-    - name: public
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /gemini
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /
-      backendRefs:
-        - name: gemini
-          group: agentgateway.dev
-          kind: AgentgatewayBackend
