@@ -48,16 +48,21 @@ model:
 
 # Fail-over chain for the MAIN agentic loop (fires only if the gateway's own
 # local->kimi failover also fails): glm-5.1 on the flat-rate OpenCode Go sub,
-# then Grok via OpenRouter (billed PAYG from OpenRouter credit). glm-5.1 is
-# the strongest tool-caller on the OpenCode-Go sub (tops τ²-bench / BFCL
-# agentic vs kimi/deepseek/qwen), which matters because this fallback runs the
-# full tool-calling loop. The aux chores below stay on kimi-k2.6 — they only
-# summarise content, they don't tool-call.
+# then deepseek-v4-flash via OpenRouter (billed PAYG from OpenRouter credit —
+# deliberately NOT on the Go sub, since this tier exists for Go-quota
+# exhaustion). glm-5.1 is the strongest tool-caller on the OpenCode-Go sub
+# (tops τ²-bench / BFCL agentic vs kimi/deepseek/qwen), which matters because
+# this fallback runs the full tool-calling loop. deepseek-v4-flash replaced
+# x-ai/grok-4.3 here (2026-07-10): grok was the #1 OpenRouter spend ($8 of the
+# $10 monthly key cap) and this tier burned ~$2.5/day when it fired for real —
+# deepseek-v4-flash is ~14x cheaper ($0.09/$0.18 vs $1.25/$2.50 per M tok) and
+# already trusted in the stack (agentmemory consolidation). The aux chores
+# below stay on kimi-k2.6 — they only summarise content, they don't tool-call.
 fallback_providers:
   - provider: custom:gateway
     model: glm-5.1
   - provider: custom:gateway
-    model: x-ai/grok-4.3
+    model: deepseek/deepseek-v4-flash
 
 # Auxiliary context chores mostly run on kimi via the gateway, NOT the local
 # model: web_extract fires N parallel LLM calls (one per fetched page) on large
@@ -78,10 +83,9 @@ fallback_providers:
 # vision are PRIMARY (fire every session), so they're the real cost drivers —
 # moved to much cheaper models with the needed capability: gpt-oss-120b for
 # text-only chores (~35x/~14x cheaper than grok-4.3), qwen3-vl for vision
-# (~12x/~6x cheaper, still a dedicated vision-language model). The last-resort
-# main-loop `fallback_providers` tier above is left on grok-4.3 — it only
-# fires when the local model, kimi AND glm-5.1 all fail, so cost is negligible
-# and tool-calling reliability matters more there than price.
+# (~12x/~6x cheaper, still a dedicated vision-language model). 2026-07-10:
+# grok-4.3 was also dropped from the last-resort fallback tier above (see its
+# comment) — no automated task uses a $1+/M model anymore.
 auxiliary:
   web_extract:
     provider: custom:gateway

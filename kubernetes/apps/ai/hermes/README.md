@@ -45,11 +45,13 @@ provider directly; the model id alone picks the upstream (see
 `config.yaml` also sets:
 - **Fallback chain** — the gateway resolves the local default through its
   `llm-chat-failover` backend (local → `kimi-k2.6` on OpenCode Go), and Hermes' own
-  chain adds `glm-5.1` → `x-ai/grok-4.3`, so a local outage (e.g. ComfyUI scaling
+  chain adds `glm-5.1` → `deepseek/deepseek-v4-flash` (OpenRouter PAYG, ~14x cheaper
+  than the grok-4.3 it replaced), so a local outage (e.g. ComfyUI scaling
   `vllm` to 0 under the Dedicated-VRAM runbook) doesn't kill the session. The local
   default is free and rate-limit-proof, so long tasks don't burn cloud limits. The
   hermes-side fallback uses `glm-5.1` (strongest tool-caller on the Go sub) rather
-  than kimi, since the fallback runs the full agentic tool-calling loop.
+  than kimi, since the fallback runs the full agentic tool-calling loop; the last
+  tier is deliberately off the Go sub since it exists for Go-quota exhaustion.
 - **Auxiliary routing** — `web_extract` / `session_search` / `title_generator` run on kimi,
   **not** the local model: `web_extract` fires N parallel LLM calls (one per page) that
   the single-slot local server can't serve concurrently (they time out). Aux volume is
