@@ -101,10 +101,10 @@ and activates it via `memory.provider: agentmemory` (not `plugins.enabled` — s
 note in config.yaml). Hermes gets `memory_recall` / `memory_save` tools and
 auto-saves turns; recall survives restarts and new sessions.
 
-agentmemory is also the memory backend for the ToolHive gateway: the `agentmemory`
+agentmemory is also the memory backend for the ToolHive gateway: the `memory`
 MCPServer (`../toolhive/mcp-servers/agentmemory-mcp/`) runs the same image in its
 stdio-shim mode and proxies to the central service, so every vmcp client gets
-`agentmemory_*` tools backed by the same store. The plugin remains the deep
+`memory_*`-prefixed tools backed by the same store. The plugin remains the deep
 integration (session lifecycle + context injection); the gateway tools are the
 explicit-access path.
 

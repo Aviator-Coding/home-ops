@@ -2,7 +2,10 @@
 apiVersion: toolhive.stacklok.dev/v1alpha1
 kind: MCPServer
 metadata:
-  name: agentmemory
+  # NOT "agentmemory": the operator names its Deployment after the MCPServer,
+  # which would collide with the agentmemory server Deployment in this
+  # namespace (spec.selector is immutable, so the operator error-loops).
+  name: memory
 spec:
   # Same image as the agentmemory server (kubernetes/apps/ai/agentmemory) — the
   # entrypoint's "mcp" arg runs the stdio MCP shim, which proxies every tool
