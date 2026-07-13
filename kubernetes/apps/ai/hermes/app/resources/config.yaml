@@ -124,7 +124,7 @@ web:
 
 # Aggregated MCP tools via the ToolHive VirtualMCPServer (ns ai). The vmcp
 # "mcp-gateway-internal" federates every MCPServer in the `mcp-tools` group
-# (arr, comfyui, flux, github, kubectl, memory, talos) behind one streamable-
+# (agentmemory, arr, comfyui, flux, github, kubectl, talos) behind one streamable-
 # http endpoint at /mcp; incomingAuth is anonymous so no header is needed. Tool
 # names are prefixed per backend ({workload}_). Deployed by
 # kubernetes/apps/ai/toolhive. (joryirving routes this through litellm /mcp;

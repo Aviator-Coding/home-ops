@@ -97,8 +97,16 @@ beyond `ai`.
 
 The `../agentmemory/` app runs the memory service; this app mounts the Hermes
 [memory plugin](app/agentmemory-plugin.yaml) at `/opt/hermes/plugins/agentmemory`
-and enables it via `plugins.enabled: [agentmemory]`. Hermes gets `memory_recall` /
-`memory_save` tools and auto-saves turns; recall survives restarts and new sessions.
+and activates it via `memory.provider: agentmemory` (not `plugins.enabled` — see the
+note in config.yaml). Hermes gets `memory_recall` / `memory_save` tools and
+auto-saves turns; recall survives restarts and new sessions.
+
+agentmemory is also the memory backend for the ToolHive gateway: the `agentmemory`
+MCPServer (`../toolhive/mcp-servers/agentmemory-mcp/`) runs the same image in its
+stdio-shim mode and proxies to the central service, so every vmcp client gets
+`agentmemory_*` tools backed by the same store. The plugin remains the deep
+integration (session lifecycle + context injection); the gateway tools are the
+explicit-access path.
 
 **agentmemory needs an embeddings endpoint** — it points at the agentgateway
 unified `/v1` (`OPENAI_BASE_URL=http://internal-noauth.ai.svc.cluster.local/v1`),

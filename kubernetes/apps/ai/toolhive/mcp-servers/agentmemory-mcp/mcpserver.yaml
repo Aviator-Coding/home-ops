@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://k8s-schemas.home-operations.com/toolhive.stacklok.dev/mcpserver_v1alpha1.json
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: agentmemory
+spec:
+  # Same image as the agentmemory server (kubernetes/apps/ai/agentmemory) — the
+  # entrypoint's "mcp" arg runs the stdio MCP shim, which proxies every tool
+  # call to the central service over REST. Keep the tag in lockstep with the
+  # server HelmRelease so shim and server can't skew.
+  image: ghcr.io/joryirving/agentmemory:0.9.27@sha256:3dbd28e1194f9e36babef9f8611ee10b5673444aed8df8b74144c3ba91073e48
+  transport: stdio
+  proxyMode: streamable-http
+  args: [mcp]
+  env:
+    - name: AGENTMEMORY_URL
+      value: http://agentmemory.ai.svc.cluster.local:3111
+    # Skip the startup probe — without this the shim silently degrades to a
+    # 7-tool local fallback when the server is briefly unreachable.
+    - name: AGENTMEMORY_FORCE_PROXY
+      value: "1"
+    # Lean everyday set through the gateway; the full surface stays available
+    # via agentmemory's REST API and viewer.
+    - name: AGENTMEMORY_TOOLS
+      value: core
+  secrets:
+    - name: toolhive-agentmemory
+      key: AGENTMEMORY_SECRET
+      targetEnvName: AGENTMEMORY_SECRET
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  groupRef:
+    name: mcp-tools

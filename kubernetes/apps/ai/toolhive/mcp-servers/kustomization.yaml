@@ -2,12 +2,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - ./agentmemory-mcp
   - ./arr-mcp
   - ./comfyui-mcp
   - ./flux-mcp
   - ./github-mcp
   - ./kubectl-mcp
-  - ./memory-mcp
   # Deactivated pending 1Password secrets (files kept — re-enable once the
   # listed fields exist):
   #   garmin-connect-mcp -> item `garmin` fields `username` + `password`
