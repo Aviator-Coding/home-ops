@@ -45,7 +45,7 @@ spec:
           app:
             image:
               repository: dpage/pgadmin4
-              tag: "9.16"
+              tag: "9.17"
             command:
               - sh
               - -c
