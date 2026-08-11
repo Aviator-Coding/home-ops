@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG TALOS_VERSION=v1.13.7
+ARG TALOS_VERSION=v1.13.8
 FROM ghcr.io/siderolabs/talosctl:${TALOS_VERSION} AS talosctl
 
 FROM busybox:1.38
