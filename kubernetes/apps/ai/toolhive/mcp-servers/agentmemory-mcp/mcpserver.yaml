@@ -11,7 +11,7 @@ spec:
   # entrypoint's "mcp" arg runs the stdio MCP shim, which proxies every tool
   # call to the central service over REST. Keep the tag in lockstep with the
   # server HelmRelease so shim and server can't skew.
-  image: ghcr.io/joryirving/agentmemory:0.9.28@sha256:a1fc1fedb18ca7f4a6be782ed742d24ee86358ebe9bbc303c3e3f7fba5389b83
+  image: ghcr.io/joryirving/agentmemory:0.9.29@sha256:74f1175c9ed75e1a00cdedab60560926d941f4dd6624efa0ebf7a7b27f071e72
   transport: stdio
   proxyMode: streamable-http
   args: [mcp]
