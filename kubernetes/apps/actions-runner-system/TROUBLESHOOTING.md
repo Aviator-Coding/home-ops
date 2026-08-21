@@ -470,7 +470,7 @@ Current tags live in the HelmReleases (Renovate bumps them). Typical set:
 
 | Image | Registry | Cacheable by Spegel |
 |-------|----------|---------------------|
-| `ghcr.io/home-operations/actions-runner` (scale-set image tag) | GHCR | Yes |
+| `ghcr.io/home-operations/actions-runner` (ai-k8s-sandbox scale-set image tag) / `ghcr.io/aviator-coding/actions-runner-podman` (home-ops, see [Custom Runner Image](#custom-runner-image)) | GHCR | Yes |
 | `gha-runner-scale-set-controller` chart default image | GHCR | Yes |
 | `docker:29-dind` (sandbox sidecar) | Docker Hub | Yes |
 

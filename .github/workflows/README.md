@@ -14,6 +14,7 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 | [label-sync.yaml](#label-sync) | Push/Schedule | Syncs repository labels from config | ubuntu-latest |
 | [tag.yaml](#tag) | Schedule/Manual | Creates monthly release tags | ubuntu-latest |
 | [test-runner.yaml](#test-runner) | Schedule/Manual | Tests self-hosted runner functionality | Self-hosted |
+| [build-actions-runner-podman.yaml](#build-actions-runner-podman) | Push/Manual | Builds and pushes the custom home-ops runner image | ubuntu-latest |
 
 ## Workflows
 
@@ -113,6 +114,21 @@ Tests self-hosted runner functionality and available tools.
 - Docker functionality (if available)
 - Common CLI tools (kubectl, helm, talosctl, etc.)
 - File system operations
+
+### build-actions-runner-podman
+
+**File:** `build-actions-runner-podman.yaml`
+
+Builds and pushes the custom home-ops runner image from
+`.github/docker/actions-runner-podman/Dockerfile`. See
+[Custom Runner Image](../../kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md#custom-runner-image)
+for what the image contains and why.
+
+**Triggers:**
+- Push to `.github/docker/actions-runner-podman/**` or the workflow file itself
+- Manual dispatch
+
+**Dependencies:** Requires `BOT_APP_ID` and `BOT_APP_PRIVATE_KEY` secrets.
 
 ## Common Patterns
 
