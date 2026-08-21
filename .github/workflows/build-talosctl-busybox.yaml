@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version to build (overrides talenv.yaml)"
+        description: "Talos version to build (overrides .mise.toml)"
         required: false
         type: string
   push:
