@@ -22,7 +22,7 @@ rather than hardware failures. The goal is that when something breaks we can ans
 | Layer | Value |
 |-------|-------|
 | **Rook** | v1.20.0 (operator + cluster chart) — latest upstream, released 2026-06-02 |
-| **Ceph** | v20.2.1 **Tentacle** — latest published point release (v20.2.2+ not yet on quay) |
+| **Ceph** | v20.2.3 **Tentacle** (GitOps `cephImage.tag` + all 17 daemons, verified 2026-08-21). Default `csi` subvolumegroup still broken; RWX stays on `ceph-filesystem-rwx` (see 2026-08-21 entry) |
 | **Talos** | v1.13.2 (kernel has `CONFIG_CEPH_FS=y`, `CONFIG_BLK_DEV_RBD=y`, `CONFIG_CEPH_LIB=y` — CephFS + krbd **built-in**) |
 | **Kubernetes** | v1.36.1 |
 | **Cluster FSID** | `6562d9b0-883a-4e55-8b5d-899eaa7e0d10` |
@@ -82,6 +82,57 @@ Notes / evidence / sources.
 ---
 
 ## Change log
+
+### [2026-08-21] Default `csi` subvolumegroup still broken on Ceph v20.2.3  (docs; no GitOps / PVC change)
+
+| Field | Value |
+|-------|-------|
+| **Change** | Docs only. Live probe: Ceph v20.2.3 did **not** repair the default `csi` group's MDS `ceph.dir.subvolume` vxattr bug. Keep subvolumegroup `csi-rwx` and StorageClass `ceph-filesystem-rwx`. Do **not** migrate `downloads/shared-downloads`, `media/tdarr-temp`, or `ai/comfyui-output`. |
+| **Why** | The 2026-06-13 entry said retire the workaround once v20.2.2+ ships and the default group is fixed. GitOps and every daemon are already on v20.2.3. v20.2.2/v20.2.3 notes mention a dashboard SMB-form subvolume-group corruption fix (PR #68103), which is a different bug from the Tentacle MDS vxattr regression (PRs #65779 / #65564). |
+| **Risk** | Throwaway `create` against group `csi` returned `EINVAL` but still left an empty dir. Live RWX PVC data was not mounted, copied, or re-bound. |
+| **Rollback** | n/a (no storage or GitOps change) |
+| **Verify** | commands and results below |
+
+**Cluster at probe time (toolbox `deploy/rook-ceph-tools`):**
+
+- `ceph version` → `ceph version 20.2.3 (06c2f9c35b67055a8a6fb99d1be236b3c4832ace) tentacle`
+- `ceph versions` → all 17 daemons on that build (3 mon / 2 mgr / 6 osd / 4 mds / 2 rgw)
+- `ceph health` → `HEALTH_ERR Module 'crash' has failed: dictionary changed size during iteration` (mgr crash module; unrelated to MDS)
+- `ceph mds stat` → `ceph-filesystem:2 {0=ceph-filesystem-a=up:active,1=ceph-filesystem-b=up:active} 2 up:standby-replay`
+- Groups: `csi` (created 2025-10-05) and `csi-rwx` (created 2026-06-13)
+
+**Default group `csi` (still broken):**
+
+```text
+ceph fs subvolume getpath ceph-filesystem csi-vol-901cd38e-4a3e-479f-8b39-cc634c692cc8 --group-name csi
+# Error EINVAL: invalid value specified for ceph.dir.subvolume  (exit 22)
+
+# same EINVAL on leftover probe names already in the group:
+#   diag-test-1781359451, diag-retest, t-existing-p1
+# and on info / rm / rm --force for those names
+
+ceph fs subvolume create ceph-filesystem fm-verify-csi-1787308879 --group-name csi --size 1048576
+# Error EINVAL: invalid value specified for ceph.dir.subvolume  (exit 22)
+# BUT the name still appears in `ceph fs subvolume ls` (partial create)
+```
+
+libcephfs (toolbox, admin key): dir `/volumes/csi/fm-verify-csi-1787308879` exists, empty uuid child `b06dd9b4-f715-49fd-b8cd-290cc81844c6`, vxattr `ceph.dir.subvolume=0` (a real subvolume is `1`). `rmdir` → `PermissionDenied`. Toolbox `ceph-fuse` cannot mount (`fuse: device not found`). Leftover dir remains; same class as the pre-existing `diag-*` names. Do not `rm -rf` anything under `/volumes/csi/csi-vol-*`.
+
+**Control group `csi-rwx` (healthy):**
+
+```text
+ceph fs subvolume getpath ceph-filesystem csi-vol-65d64298-ceeb-42c3-af19-628317eb2af6 --group-name csi-rwx
+# /volumes/csi-rwx/csi-vol-65d64298-ceeb-42c3-af19-628317eb2af6/77f03695-b368-4a59-be2c-fa1d6e154f93
+
+ceph fs subvolume create ceph-filesystem fm-verify-csi-1787308879 --group-name csi-rwx --size 1048576   # exit 0
+ceph fs subvolume getpath ceph-filesystem fm-verify-csi-1787308879 --group-name csi-rwx                 # exit 0
+ceph fs subvolume rm ceph-filesystem fm-verify-csi-1787308879 --group-name csi-rwx                      # exit 0
+# csi-rwx still has exactly the original 3 CSI volumes (the 3 RWX PVCs)
+```
+
+**Still using `ceph-filesystem-rwx`:** `downloads/pvc` (`shared-downloads` 2Ti), `media/tdarr` (`tdarr-temp` 200Gi), `ai/comfyui` (`comfyui-output` 25Gi).
+
+**Retirement rule:** image tag is not sufficient. Re-test with a throwaway `create`/`getpath`/`rm` against group `csi` on a future Ceph release; only migrate the 3 RWX PVCs after that probe is clean. Prefer a name you can leave behind if `create` EINVAL-leaks another empty dir.
 
 ### [2026-07-03] OOM-outage recovery: Talos OOMConfig retuned (live + codified), transient `min_size=1` windows, noout window  (operational + `talos/machineconfig.yaml.j2`)
 
@@ -195,7 +246,7 @@ Evidence captured 2026-06-14 (read-only): all CephFS mounts kernel-client; ceph-
 | **Rollback** | old PVs kept as `Retain` safety-net (delete when confident) |
 | **Verify** | apps healthy on `ceph-filesystem-rwx`, Ceph back to baseline |
 
-Cross-ref: [CephFS Tentacle subvolumegroup bug](../) (memory). Retire `csi-rwx` when Ceph v20.2.2+ ships and the default group is fixed.
+Cross-ref: [CephFS Tentacle subvolumegroup bug](../) (memory). Do **not** retire `csi-rwx` on image tag alone: live probe on v20.2.3 (2026-08-21) still fails `create`/`getpath` against the default `csi` group with `EINVAL: invalid value specified for ceph.dir.subvolume`. Keep `ceph-filesystem-rwx` until a future release passes that probe.
 
 ### [2026-06-12] CephFS CSI forced to autodetect → `ceph-fuse`  (PR — commit 17c7a9df, ae44b3ac)
 

@@ -11,9 +11,12 @@
 # repair is blocked on Tentacle (mgr-only write). Verified empirically that a
 # FRESH subvolumegroup is unaffected — create + getpath + info all succeed.
 #
-# This `csi-rwx` group backs the `ceph-filesystem-rwx` StorageClass. Migrate RWX
-# workloads off `ceph-filesystem` (broken `csi` group) onto `ceph-filesystem-rwx`.
-# Remove this once a fixed Ceph release (v20.2.2+) lets the default `csi` group work.
+# This `csi-rwx` group backs the `ceph-filesystem-rwx` StorageClass. Keep RWX
+# workloads on `ceph-filesystem-rwx` while the default `csi` group is broken.
+# v20.2.3 did not fix it (live create/getpath still EINVAL; see
+# docs/ceph-cluster-changelog.md 2026-08-21). Do not delete this CR because
+# the image tag is past v20.2.2. Re-test create/getpath against group `csi`
+# before anyone migrates the 3 RWX PVCs back to `ceph-filesystem`.
 apiVersion: ceph.rook.io/v1
 kind: CephFilesystemSubVolumeGroup
 metadata:
