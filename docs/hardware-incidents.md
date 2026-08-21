@@ -2,6 +2,8 @@
 
 Tracked hardware and infrastructure incidents across cluster nodes. Each entry documents root cause, evidence, and resolution for future reference.
 
+Current node memory (as of 2026-08-21): **96 GB per node** on all 3 Talos nodes. talos-1 Stick B RMA closed; see [2026-06-19].
+
 ---
 
 ## [2026-06-30] talos-1 + talos-2 — OOMController kill storm → 4-OSD outage / 100% PG inactive
@@ -32,7 +34,7 @@ Tracked hardware and infrastructure incidents across cluster nodes. Each entry d
 Two amplifiers made the PSI spikes pathological:
 
 1. **Dead-container memory debris** — after the 06-30 kills, ~24 GiB (talos-1) and ~70 GiB (talos-2) of reclaimable slab + reparented page cache from dead OSD containers stayed pinned in `kubepods/burstable`. MemFree sat at the watermark (~0.4–2 GiB) while MemAvailable showed 26–72 GiB; every allocation burst forced slow direct reclaim through the debris → PSI `full avg10` 18–46% → trigger fired ~every second (the 07-03 storms).
-2. **talos-1's reduced-RAM window** (48 GB single stick until the RAM RMA, ~2026-08): least headroom, first to trip; its kube-apiserver (646 restarts) and cilium-agent (503 restarts) were chronic victims.
+2. **talos-1's reduced-RAM window** (48 GB single stick until the RAM RMA; **completed 2026-08-21**, all 3 nodes now 96 GB): least headroom at the time, first to trip; its kube-apiserver (646 restarts) and cilium-agent (503 restarts) were chronic victims.
 
 **RULED OUT:** MGLRU regression (`/sys/kernel/mm/lru_gen/enabled = 0x0000` verified on all 3 nodes — PR #1094 held); rook#17224 device-path drift (never materialized — every OSD re-activated on its baked `ROOK_BLOCK_PATH`, including after the full reboots); store corruption / bad hardware (zero corruption signatures across all 6 OSDs through ~6 kill cycles + reboots; SMART/dmesg clean).
 
@@ -78,9 +80,9 @@ After OOMConfig patch (15:04, trigger 50%/30s): ZERO OOMController events throug
 
 - **OOMConfig codified in `talos/machineconfig.yaml.j2`** (the live `talosctl patch mc` survives reboot but NOT a config re-render — codifying it was mandatory).
 - **cilium-agent → Guaranteed QoS** (requests == limits) — ranking weight 0.0, network plane can no longer be the OOM victim.
-- **`NotIn [talos-1]` node affinities on 7 heavy burstables** (coder, changedetection, rsshub, readarr, seerr, flaresolverr, emqx-exporter) — **TODO 2026-08: revert after the talos-1 RAM RMA restores dual-channel 96 GB**.
+- **`NotIn [talos-1]` node affinities on 7 heavy burstables** (coder, changedetection, rsshub, readarr, seerr, flaresolverr, emqx-exporter) - **RAM RMA complete 2026-08-21 (96 GB dual-channel restored on all 3 nodes).** Remaining GitOps follow-up: revert these affinities.
 - **node-exporter re-enabled + PrometheusRule alerts**: `Talos1MemoryPressure`, `NodeMemoryPSIHigh`, `CephOsdPodTerminalError`, `CephPodCrashLooping` — closes the detection gap.
-- **ceph-mon → Guaranteed QoS** (mon + logcollector requests == limits, 2Gi/500m) — mon quorum can no longer be the OOM victim. OSDs stay Burstable for now: Guaranteed would reserve 14Gi×2 on talos-1's 48 GB. **TODO 2026-08 (post-RMA): promote `resources.osd` to 14Gi==14Gi Guaranteed; evaluate MDS (blocked on `mds_cache_memory_limit` 8Gi — Guaranteed at 10Gi×4 pods is unaffordable, and a tighter limit risks cgroup OOM against the cache; standby-replay makes MDS kills tolerable meanwhile).**
+- **ceph-mon → Guaranteed QoS** (mon + logcollector requests == limits, 2Gi/500m) — mon quorum can no longer be the OOM victim. OSDs stay Burstable for now: Guaranteed would have reserved 14Gi×2 on talos-1's 48 GB single-stick window (RMA complete 2026-08-21; all 3 nodes now 96 GB). **TODO (post-RMA): promote `resources.osd` to 14Gi==14Gi Guaranteed; evaluate MDS (blocked on `mds_cache_memory_limit` 8Gi — Guaranteed at 10Gi×4 pods is unaffordable, and a tighter limit risks cgroup OOM against the cache; standby-replay makes MDS kills tolerable meanwhile).**
 
 Cross-reference: [`ceph-cluster-changelog.md` [2026-07-03]](./ceph-cluster-changelog.md) for the OOMConfig change record, the min_size=1 windows, and the noout window.
 
@@ -140,7 +142,7 @@ mon.l:          rocksdb block checksum mismatch -> "failed to write to db" (rebu
 
 **✅ ISOLATED 2026-06-20 — confirmed single bad module ("Stick B"), board/slot/IMC clear.** Controlled same-slot A/B swap: **Stick A** ran 4 full passes, 0 errors in the reference slot (proven good); **Stick B** in that *same* slot failed Test 6 (Block move) in 7 min with stuck **bit 17** (`0x00020000`) across 6 threads at ~36 GB. Only the stick changed → Stick B is defective; the IMC and socket are exonerated (Stick A passed in that exact slot). The earlier differing signature (bit 2 @ ~71 GB dual-stick) was the same Stick B surfacing via channel interleave.
 
-**Real fix = RMA Stick B** (Crucial CT48G56C46S5.M16B, lifetime warranty; advance/cross-ship if offered) and **run talos-1 on Stick A** (the 4-pass-clean module) in the meantime — 48 GB single-channel is ample for talos-1's storage/mon role (the big-RAM AI workloads are pinned to talos-3). Reinstall for dual-channel 96 GB when the replacement arrives. Node must be drained for the swap: `cordon` + `ceph osd set noout` → power off → reseat/replace → power on → uncordon → `unset noout` (one node, mind the [#17224](https://github.com/rook/rook/issues/17224) OSD device-path caveat on restart).
+**Real fix = RMA Stick B** (Crucial CT48G56C46S5.M16B, lifetime warranty; advance/cross-ship if offered) and **run talos-1 on Stick A** (the 4-pass-clean module) in the meantime - 48 GB single-channel is ample for talos-1's storage/mon role (the big-RAM AI workloads are pinned to talos-3). Reinstall for dual-channel 96 GB when the replacement arrives. **Executed 2026-08-21** (see close-out below). Node must be drained for the swap: `cordon` + `ceph osd set noout` → power off → reseat/replace → power on → uncordon → `unset noout` (one node, mind the [#17224](https://github.com/rook/rook/issues/17224) OSD device-path caveat on restart).
 
 After the swap: **re-run MemTest86 to confirm clean**, then rebuild osd.0 on clean RAM (zap + uncomment disk in the CephCluster HR + provision) and run `ceph osd deep-scrub` across talos-1 OSDs to confirm no latent inconsistency. Until then: **keep osd.0 in the contained stopgap** (or fully out) and treat talos-1 as do-not-trust for write-heavy Ceph work.
 
@@ -150,9 +152,12 @@ After the swap: **re-run MemTest86 to confirm clean**, then rebuild osd.0 on cle
 clean Stick A, osd.0 was rebuilt with a fresh BlueStore and came up `up`/out with an empty
 store. Marked `in` on 2026-07-04 (cluster HEALTH_OK, 9.7 TiB raw free after the same-day
 shared-downloads cleanup); backfill of its ~1.2 TiB share started cleanly at ~44 MiB/s with no
-slow ops. **Pending:** `ceph osd deep-scrub` across talos-1 OSDs once backfill completes, to
-confirm no latent inconsistency; dual-channel 96 GB reinstall when the Stick B RMA replacement
-arrives.
+slow ops.
+
+**✅ CLOSED 2026-08-21 - Stick B repaired/exchanged; all 3 nodes at 96 GB.** The faulty
+Crucial CT48G56C46S5.M16B ("Stick B") was replaced. talos-1 is back to dual-channel 96 GB
+(2× 48 GB DDR5 SODIMM); talos-2 and talos-3 already were. This ends the reduced-RAM window
+(48 GB single stick since 2026-06-20) and is the durable hardware fix for this incident.
 
 ---
 
