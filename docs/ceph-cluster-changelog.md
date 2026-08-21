@@ -17,14 +17,14 @@ rather than hardware failures. The goal is that when something breaks we can ans
 
 ---
 
-## Current baseline (2026-06-14)
+## Current baseline (2026-08-16, GitOps)
 
 | Layer | Value |
 |-------|-------|
-| **Rook** | v1.20.0 (operator + cluster chart) — latest upstream, released 2026-06-02 |
+| **Rook** | v1.20.4 (operator + cluster chart tags in `operator/ocirepository.yaml` and `cluster/ocirepository.yaml`) |
 | **Ceph** | v20.2.3 **Tentacle** (GitOps `cephImage.tag` + all 17 daemons, verified 2026-08-21). Default `csi` subvolumegroup still broken; RWX stays on `ceph-filesystem-rwx` (see 2026-08-21 entry) |
 | **Talos** | v1.13.2 (kernel has `CONFIG_CEPH_FS=y`, `CONFIG_BLK_DEV_RBD=y`, `CONFIG_CEPH_LIB=y` — CephFS + krbd **built-in**) |
-| **Kubernetes** | v1.36.1 |
+| **Kubernetes** | GitOps pins disagree: `talos/machineconfig.yaml.j2` kubelet/apiserver images **v1.36.1**; tuppr `KubernetesUpgrade` **v1.36.3**. Changelog does not claim a running version without live `kubectl version`. |
 | **Cluster FSID** | `6562d9b0-883a-4e55-8b5d-899eaa7e0d10` |
 | **Topology** | 3 nodes (talos-1/2/3), 6 OSDs, all NVMe, `failureDomain: host`, size=3 |
 | **Network** | `provider: host`, `requireMsgr2: true`, no dedicated cluster/replication network |
@@ -134,6 +134,55 @@ ceph fs subvolume rm ceph-filesystem fm-verify-csi-1787308879 --group-name csi-r
 
 **Retirement rule:** image tag is not sufficient. Re-test with a throwaway `create`/`getpath`/`rm` against group `csi` on a future Ceph release; only migrate the 3 RWX PVCs after that probe is clean. Prefer a name you can leave behind if `create` EINVAL-leaks another empty dir.
 
+### [2026-08-16] Rook v1.20.3 → v1.20.4  (PR #1316)
+
+| Field | Value |
+|-------|-------|
+| **Change** | operator + cluster OCI tags `v1.20.4` |
+| **Why** | Renovate chart bump |
+| **Risk** | Operator/CSI roll; OSD updates stay serial (`storage.osdMaxUpdatesInParallel: 1`) |
+| **Rollback** | pin both `ocirepository.yaml` tags back to v1.20.3 |
+| **Verify** | `kubectl -n rook-ceph get ocirepository rook-ceph rook-ceph-cluster -o jsonpath='{.items[*].spec.ref.tag}'` |
+
+Keep `operator/csi-driver-rbac.yaml` (Rook #17644). v1.20.4 still does not ship CSI driver ServiceAccounts in the operator chart; removing that file breaks RBD/CephFS attach. See the 2026-06-12 Rook v1.20.0 entry.
+
+### [2026-08-11] Ceph v20.2.2 → v20.2.3  (PR #1293)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `cephImage.tag: v20.2.3` |
+| **Why** | Tentacle point release |
+| **Risk** | OSD image roll (serial). Does **not** retire the `csi-rwx` workaround; that needs a live `ceph fs subvolume create/getpath` against group `csi` first. |
+| **Rollback** | pin `cephImage.tag` back to v20.2.2 |
+| **Verify** | `kubectl -n rook-ceph get cephcluster -o jsonpath='{.items[0].spec.cephVersion.image}'` |
+
+### [2026-08-06] Rook v1.20.2 → v1.20.3  (PR #1269)
+
+| Field | Value |
+|-------|-------|
+| **Change** | operator + cluster OCI tags `v1.20.3` |
+| **Why** | Renovate chart bump |
+| **Rollback** | pin both tags back to v1.20.2 |
+| **Verify** | OCIRepository tags `v1.20.3` |
+
+### [2026-07-14] Rook v1.20.1 → v1.20.2  (PR #1159)
+
+| Field | Value |
+|-------|-------|
+| **Change** | operator + cluster OCI tags `v1.20.2` |
+| **Why** | Renovate chart bump |
+| **Rollback** | pin both tags back to v1.20.1 |
+| **Verify** | OCIRepository tags `v1.20.2` |
+
+### [2026-07-03] Mon + logcollector Guaranteed QoS  (commit `e27686d0`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | Mon and logcollector pods set to Guaranteed QoS so Talos OOMController does not pick quorum members as victims. |
+| **Why** | Companion to the 2026-07-03 OOM-outage recovery (same day). |
+| **Rollback** | revert the QoS block in `cluster/helmrelease.yaml` |
+| **Verify** | mon / logcollector pods show request==limit, QoS Class `Guaranteed` |
+
 ### [2026-07-03] OOM-outage recovery: Talos OOMConfig retuned (live + codified), transient `min_size=1` windows, noout window  (operational + `talos/machineconfig.yaml.j2`)
 
 | Field | Value |
@@ -146,6 +195,26 @@ ceph fs subvolume rm ceph-filesystem fm-verify-csi-1787308879 --group-name csi-r
 
 Companion durable fixes shipped with the recovery (GitOps): cilium-agent → **Guaranteed QoS** (OOM ranking weight 0.0), `NotIn [talos-1]` affinities on 7 heavy burstables (TODO 2026-08: revert after the talos-1 RAM RMA), node-exporter re-enabled + PrometheusRule alerts (`Talos1MemoryPressure`, `NodeMemoryPSIHigh`, `CephOsdPodTerminalError`, `CephPodCrashLooping`). Ruled out during root-cause: MGLRU (verified `0x0000` on all nodes), rook#17224 path drift (all OSDs re-activated cleanly after full reboots), store corruption/bad hardware (zero signatures through ~6 kill cycles).
 
+### [2026-06-22] Ceph v20.2.1 → v20.2.2  (PR #1021)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `cephImage.tag: v20.2.2` |
+| **Why** | Tentacle point release |
+| **Note** | Did not retire `csi-rwx`. Workaround still in GitOps after later v20.2.3. |
+| **Rollback** | pin `cephImage.tag` back to v20.2.1 |
+| **Verify** | CephCluster image tag v20.2.2 |
+
+### [2026-06-21] Rook v1.20.0 → v1.20.1  (PR #1022)
+
+| Field | Value |
+|-------|-------|
+| **Change** | operator + cluster OCI tags `v1.20.1` |
+| **Why** | Renovate chart bump |
+| **Note** | CSI driver RBAC workaround `operator/csi-driver-rbac.yaml` stayed; v1.20.1 did not bake those ServiceAccounts into the operator chart. |
+| **Rollback** | pin both tags back to v1.20.0 |
+| **Verify** | OCIRepository tags `v1.20.1` |
+
 ### [2026-06-17] Multi-failure cascade + recovery; deep root-cause (B70 DMA theory EXONERATED)  (operational, no GitOps merge yet)
 
 | Field | Value |
@@ -157,10 +226,13 @@ Companion durable fixes shipped with the recovery (GitOps): cilium-agent → **G
 | **State** | **HEALTH_OK** (393 active+clean, 6/6, 3/3) on **temporary live mitigations (DRIFT, not in GitOps)** — see below. Cluster is patched, not permanently fixed. |
 | **Verify** | `ceph status` → 393 active+clean, 6/6 up, quorum h,i,m. `ceph osd stat`/`ceph mon stat`. |
 
-**⚠️ LIVE `ceph config set` DRIFT now in effect (formalize in GitOps or revert once hardware fixed):**
-`osd_mclock_profile=high_client_ops`, `osd_mclock_override_recovery_settings=true`, `osd_max_backfills=1`,
-`osd_recovery_max_active=1`, `osd_recovery_sleep_ssd=0.05`. Plus **MGLRU disabled on talos-3 is RUNTIME-ONLY
-(resets on reboot)**.
+**⚠️ 2026-06-17 live `ceph config set` drift vs GitOps (do not treat this list as current without a live dump):**
+GitOps `cephConfig` now has `osd_mclock_profile: high_client_ops` and `osd_recovery_max_active: "3"`.
+`osd_mclock_override_recovery_settings`, `osd_max_backfills=1`, and `osd_recovery_sleep_ssd=0.05` are
+**not** in the HelmRelease. Rook does not auto-`rm` unmanaged mon-DB keys, so those three may still
+overlay GitOps. Confirm with `ceph config dump` before assuming recovery is capped at 1 **or** at 3.
+Do not GitOps-ify or `config rm` them from this changelog pass. Plus **MGLRU disabled on talos-3 was
+RUNTIME-ONLY (resets on reboot)**.
 
 **Durable follow-ups (NOT done — the real fixes):** (1) **memtest86+ talos-1** — settle bad-RAM vs lying-980-PRO
 for the osd.0/mon corruption. (2) **Persistent MGLRU disable** (kernel past the 6.18.3 fix, or a boot DaemonSet
@@ -201,8 +273,6 @@ RAM/PCIe).** Logged as a hardware incident → see [`hardware-incidents.md`](./h
 | **Verify** | `kubectl -n rook-ceph get cephcluster -o jsonpath='{.items[0].spec.storage.osdMaxUpdatesInParallel}'` → `1`. `task rook:check-osd-device-paths` → drift audit + HEALTH_OK gate. |
 
 **Path correction (process note):** `osdMaxUpdatesInParallel` lives at **`spec.storage.osdMaxUpdatesInParallel`** (nested under `storage`), NOT `spec.osdMaxUpdatesInParallel`. #984 first set it at the wrong (spec) level → the API silently pruned it → inert; #985 then *mis*diagnosed the prune as "CRD drift" and reverted it. Investigated to ground truth: the **CRDs are current (v1.20.0)** — every "missing" field exists at its real nested path (`spec.storage.osdMaxUpdatesInParallel`, `spec.csi.readAffinity`). **No CRD drift, no CRD surgery needed.** #986 sets it at the correct path. Lesson: when `kubectl explain spec.X` says "field does not exist", search the full CRD schema for the real (possibly nested) path before concluding the CRD is stale.
-
-**Best-practice note:** raw mode + by-id device refs (what we run) **is** the Rook-recommended layout — raw is the modern default; LVM is legacy, reserved for encryption + `metadataDevice`, and risks LVM-tag corruption ([Rook ceph-volume design](https://github.com/rook/rook/blob/master/design/ceph/ceph-volume-provisioning.md)). So there is **no best-practice "permanent fix"** for #17224 short of the upstream code change; raw→LVM is a last-resort workaround only. **Keep OFF** (all at safe defaults): `upgradeOSDRequiresHealthyPGs` (deadlocks with #17224), `removeOSDsIfOutAndSafeToRemove` (could auto-purge a recoverable stale OSD), `skipUpgradeChecks`/`continueUpgradeAfterChecksEvenIfNotHealthy`. Storm **trigger** removed separately (SABnzbd tiny-file flood → ceph-block, PR #983). Guardrail: confirm HEALTH_OK + run the audit before `just talos upgrade-node`/`reboot-node`/`reset-node`.
 
 **Best-practice note:** raw mode + by-id device refs (what we run) **is** the Rook-recommended layout — raw is the modern default; LVM is legacy, reserved for encryption + `metadataDevice`, and risks LVM-tag corruption ([Rook ceph-volume design](https://github.com/rook/rook/blob/master/design/ceph/ceph-volume-provisioning.md)). So there is **no best-practice "permanent fix"** for #17224 short of the upstream code change; raw→LVM is a last-resort workaround only. **Keep OFF** (all at safe defaults): `upgradeOSDRequiresHealthyPGs` (deadlocks with #17224), `removeOSDsIfOutAndSafeToRemove` (could auto-purge a recoverable stale OSD), `skipUpgradeChecks`/`continueUpgradeAfterChecksEvenIfNotHealthy`. Storm **trigger** removed separately (SABnzbd tiny-file flood → ceph-block, PR #983). Guardrail: confirm HEALTH_OK + run the audit before `just talos upgrade-node`/`reboot-node`/`reset-node`.
 
@@ -274,7 +344,7 @@ Cross-ref: [CephFS Tentacle subvolumegroup bug](../) (memory). Do **not** retire
 |-------|-------|
 | **Change** | operator + cluster chart bumped to v1.20.0 |
 | **Why** | stay current; v1.20.0 is the latest release |
-| **Risk** | v1.20.0 ships the CSI driver RBAC outside the operator chart → needed a manual workaround (`operator/csi-driver-rbac.yaml`, [rook#17644](https://github.com/rook/rook/issues/17644)) — remove once v1.20.1+ ships it |
+| **Risk** | v1.20.0 ships the CSI driver RBAC outside the operator chart → needed a manual workaround (`operator/csi-driver-rbac.yaml`, [rook#17644](https://github.com/rook/rook/issues/17644)). Keep that file until a `ceph-csi-drivers` chart (or equivalent) is added to GitOps. Rook's fix was "install the CSI driver charts", not "v1.20.1 bakes RBAC into the operator chart". Charts are now v1.20.4 and the workaround is still required; deleting it reproduces `FailedCreate: serviceaccount not found` and breaks all RBD/CephFS attach. |
 | **Rollback** | pin `ocirepository.yaml` tag back to v1.19.6 |
 | **Verify** | `kubectl -n rook-ceph get deploy rook-ceph-operator -o jsonpath='{.spec.template.spec.containers[0].image}'` |
 
@@ -389,13 +459,22 @@ Sources are from the 2026-06-14 deep-research pass (Ceph Squid/Tentacle-era docs
   window catches it before clients wedge.
 - **Source:** docs.ceph.com `/rados/operations/health-checks/`; rook#15403.
 
-### P4 — Verify PG counts land near target (~100/OSD), keep autoscaler honest
+### P4 — Verify PG counts land near target (~100/OSD), keep autoscaler honest  (still unverified live)
 
-- **What:** confirm the `bulk: true` pools actually grew toward `mon_target_pg_per_osd` (100).
-  Docs recommend ~200 PGs/OSD for all but the smallest clusters; >500 risks peering/RAM.
-  With 6 OSDs, expect ~50–70 PG replicas/OSD initially with the balancer on.
-- **Verify:** `ceph osd pool autoscale-status`; `ceph osd df tree` (PGs column). If a pool is
-  stuck low, consider `pg_autoscale_mode: warn` + a manual `pg_num` bump.
+This changelog owns "what healthy looks like" for this cluster. Do not treat
+`docs/ceph/pg.md` generic 100-150 PGs/OSD, docs.ceph.com ~200, and this backlog
+as three current truths.
+
+- **GitOps target:** `mon_target_pg_per_osd` 100 with `bulk: true` on block +
+  cephfs-data0 (6 OSDs, `size=3`).
+- **Observed fingerprint after 2026-06-14 recovery:** **393 PGs active+clean**
+  (`ceph status` in the 2026-06-17 and 2026-07-03 entries). That is a point-in-time
+  number, not a pin.
+- **Upstream:** docs.ceph.com recommends ~200 PGs/OSD for all but the smallest
+  clusters; >500 risks peering/RAM.
+- **Still open:** confirm `ceph osd pool autoscale-status` / `ceph osd df tree`
+  after the next PG change. If a pool is stuck low, consider `pg_autoscale_mode:
+  warn` + a manual `pg_num` bump.
 - **Source:** docs.ceph.com `/rados/operations/placement-groups/`.
 
 ### P5 — (Optional, lower ROI) dedicated cluster/replication network

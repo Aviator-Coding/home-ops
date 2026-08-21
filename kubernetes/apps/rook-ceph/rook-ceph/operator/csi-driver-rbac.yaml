@@ -6,7 +6,11 @@
 # Vendored from ceph-csi-operator v1.0.1 deploy/multifile/csi-rbac.yaml (rbd + cephfs
 # subset only; nfs/nvmeof excluded), with the ServiceAccount names de-prefixed to match
 # rook's blank csiServiceAccountPrefix default and namespace set to rook-ceph.
-# Remove once rook ships the driver RBAC in the operator chart (likely v1.20.1+).
+# Keep until a ceph-csi-drivers chart (or equivalent) is added to GitOps.
+# Rook #17644 resolution was "install the CSI driver charts", not "v1.20.1
+# bakes RBAC into the operator chart". Charts are v1.20.4 and this file is
+# still required; deleting it reproduces FailedCreate: serviceaccount not
+# found and breaks all RBD/CephFS attach.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

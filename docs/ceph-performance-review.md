@@ -4,6 +4,18 @@
 **Cluster:** `6562d9b0-883a-4e55-8b5d-899eaa7e0d10` — Rook-Ceph v1.19.6, Ceph **v20.2.1 (tentacle)**, 3 nodes (talos-1/2/3), 6 OSDs, all NVMe.
 **Trigger for this review:** a multi-hour `HEALTH_WARN` slow-ops / `laggy` PG incident that wedged CephFS and RBD clients (sabnzbd stuck unkillable in `Terminating`).
 
+> **Snapshot of 2026-06-01. Do not re-apply.** Highest-impact config from §6.B
+> (compression `none`, drop `bluestore_cache_size`, `osd_memory_target` raised,
+> `high_client_ops`) is already in GitOps. PG growth was `bulk: true` +
+> autoscaler, not hardcoded 128/128/32. Line numbers cited in the body do not
+> match today's `cluster/helmrelease.yaml`. Current tunables live in
+> `docs/ceph-cluster-changelog.md` (baseline) and that HelmRelease.
+> Device nodes in §2 (`nvme0n1` / `nvme1n1`) were a point-in-time `lsblk`;
+> they are unstable (Rook #17224). Use `/dev/disk/by-id/...` from the HelmRelease
+> / `.taskfiles/rook/Taskfile.yaml` for any wipe. The StorageClass still *tags*
+> `compression_mode: aggressive` on new RBD images because the SC is immutable,
+> while the **pool** is `none`.
+
 > Scope note: settings referenced below live in
 > `kubernetes/apps/rook-ceph/rook-ceph/cluster/helmrelease.yaml`. Changes must go
 > through that file (GitOps), not ad-hoc `ceph config set`, or Rook will revert them.

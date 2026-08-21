@@ -125,4 +125,4 @@ kubectl logs -n rook-ceph -l app=rook-ceph-rgw -c rgw --tail=100
 ## References
 
 - Dashboard Templates: https://github.com/ceph/ceph/tree/main/monitoring/ceph-mixin/dashboards_out
-- Dashboard Settings: https://docs.ceph.com/en/squid/mgr/dashboard/#enabling-the-embedding-of-grafana-dashboards
+- Dashboard Settings: https://docs.ceph.com/en/tentacle/mgr/dashboard/#enabling-the-embedding-of-grafana-dashboards

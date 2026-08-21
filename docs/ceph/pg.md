@@ -1,6 +1,14 @@
 # Ceph Placement Groups (PG) Configuration Guide
 
-> **Note**: This guide covers both modern autoscaling (recommended) and legacy manual calculation methods for Ceph placement groups.
+> **This cluster:** 6 OSDs, `size=3`, `bulk: true` on block + cephfs-data0,
+> GitOps `mon_target_pg_per_osd` 100, autoscaler on. Healthy fingerprint from
+> the changelog is **393 PGs active+clean** (point-in-time, 2026-06-17 /
+> 2026-07-03). Backlog P4 (verify live `ceph osd pool autoscale-status`) is
+> still open. `docs/ceph-cluster-changelog.md` owns current truth; the tables
+> below are generic upstream notes, not this cluster's pin.
+>
+> Standing Ceph config is GitOps in `cluster/helmrelease.yaml`. Live
+> `ceph config set` is incident-only and must be logged in the changelog.
 
 ## 📊 Overview
 
@@ -18,7 +26,7 @@ Placement Groups (PGs) are fundamental to Ceph's data distribution and performan
 # Enable autoscaling for a specific pool
 ceph osd pool set <pool-name> pg_autoscale_mode on
 
-# Set default autoscaling for new pools
+# Set default autoscaling for new pools (incident-only; GitOps owns standing config)
 ceph config set global osd_pool_default_pg_autoscale_mode on
 
 # View autoscaling status and recommendations
@@ -38,9 +46,9 @@ ceph osd pool set mypool target_size_ratio 1.0
 ### Adjust PG Target (Optional)
 
 ```bash
-# Default: 100 PG replicas per OSD
-# Recommended for most clusters: 200
-ceph config set global mon_target_pg_per_osd 200
+# This cluster's GitOps target is 100 (not 200). Do not apply 200 live.
+# Upstream docs recommend ~200 for all but the smallest clusters.
+ceph config set global mon_target_pg_per_osd 100
 ```
 
 ---
@@ -48,6 +56,8 @@ ceph config set global mon_target_pg_per_osd 200
 ## 🔧 Legacy Manual Calculation
 
 For older Ceph versions or when autoscaling is disabled, you'll need to calculate PGs manually.
+The sample numbers below (3 OSDs, `size=2`) are generic tutorial values, **not** this
+cluster (6 OSDs, `size=3`).
 
 ### Prerequisites: Gather Cluster Information
 
@@ -191,10 +201,13 @@ ceph osd pool set <pool-name> target_size_ratio <ratio>
 
 ## 📈 Performance Guidelines
 
+Generic upstream ranges (not this cluster's pin):
+
 | Cluster Size | Target PGs/OSD | Notes |
 |--------------|----------------|-------|
 | Small (< 10 OSDs) | 100-150 | Conservative approach |
 | Medium (10-50 OSDs) | 150-200 | Balanced performance |
 | Large (50+ OSDs) | 200+ | Maximum parallelism |
 
-> **Note**: With balancer enabled, expect 50-100 PG replicas per OSD initially.
+> This cluster (6 OSDs): GitOps `mon_target_pg_per_osd` **100**; last recorded
+> healthy `ceph status` was **393 active+clean**. See changelog backlog P4.
