@@ -26,12 +26,12 @@ Native Anthropic SDK clients use `/v1/messages` (no `x-model` match); that rule 
 | `anthropic` | native `anthropic: {}` | `claude-*`; also `/v1/messages` | Completions translates OpenAI->Messages |
 | `gemini` | native `gemini: {}` | `gemini-*` | |
 | `xai` | OpenAI-compat `api.x.ai` | `grok-*` | `policies.tls: {}` |
-| `deepseek` | OpenAI-compat `api.deepseek.com` | `deepseek-(chat\|reasoner)*` | bare `deepseek-v4-*` is Go; `deepseek/...` is OpenRouter |
+| `deepseek` | OpenAI-compat `api.deepseek.com` | `deepseek-chat`, `deepseek-reasoner` | bare `deepseek-v4-*` is Go; `deepseek/...` is OpenRouter |
 | `mistral` | OpenAI-compat `api.mistral.ai` | `mistral-*`, magistral, ... | |
 | `groq` | OpenAI-compat `api.groq.com` | llama/mixtral/gemma/moonshotai/... | unified rule prepends `/openai`; **must stay above** vendor-slug catch-all |
 | `perplexity` | OpenAI-compat `api.perplexity.ai` | `sonar*` | `provider.path: /chat/completions` (no rewrite) |
 | `openrouter` | OpenAI-compat `openrouter.ai` | vendor slugs `vendor/model` | unified rule prepends `/api` |
-| `opencodego` | OpenAI-compat `opencode.ai` | kimi-/glm-/minimax-/mimo-/hy3-/deepseek-v4-/qwen3.x-max\|plus | rewrite to `/zen/go` |
+| `opencodego` | OpenAI-compat `opencode.ai` | kimi-, glm-, minimax-, mimo-, hy3-, deepseek-v4-, qwen3.x-max/plus | rewrite to `/zen/go` |
 | `vllm` | in-cluster `vllm-app.ai:8000` | (models catalog fallback) | no TLS, no auth |
 | `vllm-embed` | in-cluster `vllm-embed.ai:8000` | default `/v1/embeddings` | scaled to 0; unused ids 503 |
 | `llm-chat-failover` | groups: local qwen then OpenCode Go kimi-k2.6 | exact `qwen3.6-35b-a3b` | see `09-advanced-features.md` |
