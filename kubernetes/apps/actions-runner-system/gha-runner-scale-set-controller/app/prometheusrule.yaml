@@ -35,7 +35,7 @@ spec:
         - alert: GithubActionsRunnerControllerDown
           # Live scrape job is namespace/PodMonitor name, not the HelmRelease name.
           # up{job="gha-runner-scale-set-controller"} is empty and would false-fire.
-          expr: count(up{job=~".*action-runner-controller"} == 1) == 0
+          expr: (count(up{job=~".*action-runner-controller"} == 1) or vector(0)) == 0
           for: 5m
           labels:
             severity: critical
