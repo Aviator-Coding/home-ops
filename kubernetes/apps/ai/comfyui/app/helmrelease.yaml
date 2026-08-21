@@ -105,7 +105,9 @@ spec:
           gatus.home-operations.com/endpoint: |-
             url: https://comfyui.${SECRET_DOMAIN}/
             conditions:
-              - "[STATUS] == 200"
+              # replicas: 0 is the default (parked). Envoy then returns 503;
+              # 200 is healthy when scaled up for an image session.
+              - "[STATUS] == any(200, 503)"
             group: ai
         hostnames:
           - "{{ .Release.Name }}.${SECRET_DOMAIN}"
