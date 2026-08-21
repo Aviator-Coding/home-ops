@@ -92,6 +92,7 @@ Talos nodes are `talos-1|talos-2|talos-3` mapping to `10.10.10.11/12/13`. Do not
 - Storage classes: `ceph-block` (RWO), `ceph-filesystem` (RWX), `openebs-hostpath` (local)
 - `.private/` directory for local-only files (gitignored)
 - Renovate ignores `**/*.sops.*` and `**/resources/**` paths
+- Ceph metadata CronJob (`rook-ceph-backup` / `ceph-backup-pvc`) is in-cluster `openebs-hostpath`, **not** last-resort DR; complete cluster/host wipe destroys it. Emergency steps: `kubernetes/apps/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`. Never restart all OSDs; see `docs/ceph/osd-device-path-recovery.md`.
 
 ## Maintaining this file
 
