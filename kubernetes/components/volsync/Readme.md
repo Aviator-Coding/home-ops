@@ -20,7 +20,7 @@ kubernetes/components/volsync/
 - **Process**:
   - Takes snapshot of `${APP}` PVC
   - Uploads to local Ceph S3 bucket
-  - Retention: 24 hourly + 30 daily + 10 weekly + 6 monthly backups
+  - Retention: **6 hourly + 14 daily** + 10 weekly + 6 monthly backups (see `ceph/replicationsource.yaml`; reduced from 24/30)
   - Prunes old backups every 14 days
 
 ### 2. Remote NAS MinIO (`minio/`)
@@ -130,9 +130,10 @@ schedule: "0 5 * * *"    # Once daily at 5 AM
 ### Testing Schedule Changes
 
 ```bash
-# Manually trigger a backup to test
-kubectl create job test-backup-$(date +%s) \
-  --from=cronjob/volsync-${APP}-ceph
+# Manually trigger a backup (VolSync has no CronJob named volsync-${APP}-ceph;
+# the trigger lives on the ReplicationSource)
+kubectl patch replicationsource ${APP}-ceph --type merge \
+  -p "{\"spec\":{\"trigger\":{\"manual\":\"test-$(date +%s)\"}}}"
 
 # Check if the schedule is valid
 kubectl get replicationsource ${APP}-ceph -o yaml | grep schedule
@@ -163,7 +164,7 @@ kubectl patch replicationdestination ${APP}-dst \
 
 ## Daily Timeline Example
 
-With schedule distribution across 27 applications:
+With per-app schedules (38 Flux Kustomizations include this component):
 
 ```
 00:00 ──── [Ceph] 4-hour backup (apps at :00) ──── [MinIO] 6-hour backup (apps at :00) ─────
@@ -211,7 +212,8 @@ Common variables used across all configurations:
 | `VOLSYNC_COPYMETHOD` | `Snapshot` | How data is copied (Snapshot/Clone) | `Snapshot` |
 | `VOLSYNC_SNAPSHOTCLASS` | `csi-ceph-blockpool` | Volume snapshot class | `csi-ceph-blockpool` |
 | `VOLSYNC_STORAGECLASS` | `ceph-block` | Storage class for volumes | `ceph-block` |
-| `VOLSYNC_CACHE_CAPACITY` | `2Gi` | Cache volume size | **50% of PVC size** |
+| `VOLSYNC_CACHE_CAPACITY` | `2Gi` on sources, `1Gi` on the destination | Cache volume size | **50% of PVC size**; dest default is smaller than sources |
+| `VOLSYNC_CACHE_SNAPSHOTCLASS` | `ceph-block` | StorageClass for the cache PVC (name says SnapshotClass, value is a StorageClass) | Set this separately from `VOLSYNC_STORAGECLASS` |
 | `VOLSYNC_CAPACITY` | `5Gi` | Restored volume size | **Same as source PVC** |
 | `VOLSYNC_PUID` | `1000` | User ID for mover security context | `1000` |
 | `VOLSYNC_PGID` | `1000` | Group ID for mover security context | `1000` |
@@ -297,7 +299,11 @@ schedule: "0 2 * * *"
 
 ## Application Schedule Distribution
 
-To reduce IOPS contention and spread backup operations evenly, all 27 volsync-enabled applications have unique staggered schedules:
+38 Flux Kustomizations include `components/volsync`. Schedules are staggered
+but **not unique** (several apps share the same minute). Do not assume a
+2-3 app cap on simultaneous Ceph backups. Regenerated from
+`rg 'components/volsync' kubernetes/apps` plus each `ks.yaml` `VOLSYNC_SCHEDULE_*`
+(paperless-ngx uses component defaults). `litellm` is gone.
 
 | # | Namespace | Application | Ceph Schedule | MinIO Schedule | R2 Schedule | Priority |
 |---|-----------|-------------|---------------|----------------|-------------|----------|
@@ -308,38 +314,45 @@ To reduce IOPS contention and spread backup operations evenly, all 27 volsync-en
 | 5 | home-automation | matter-server | `20 */4 * * *` | `15 */6 * * *` | `20 1 * * *` | High |
 | 6 | ai | open-webui | `25 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
 | 7 | ai | qdrant | `30 */4 * * *` | `30 */6 * * *` | `5 2 * * *` | High |
-| 8 | ai | litellm | `35 */4 * * *` | `30 */6 * * *` | `10 2 * * *` | Medium |
+| 8 | ai | hermes | `35 */4 * * *` | `35 */6 * * *` | `10 2 * * *` | Medium |
 | 9 | ai | open-notebook | `40 */4 * * *` | `30 */6 * * *` | `15 2 * * *` | Medium |
 | 10 | ai | perplexica | `45 */4 * * *` | `45 */6 * * *` | `20 2 * * *` | Medium |
-| 11 | downloads | sonarr | `0 */4 * * *` | `45 */6 * * *` | `0 3 * * *` | Medium |
-| 12 | downloads | radarr | `5 */4 * * *` | `45 */6 * * *` | `5 3 * * *` | Medium |
-| 13 | downloads | lidarr | `10 */4 * * *` | `45 */6 * * *` | `10 3 * * *` | Medium |
-| 14 | downloads | readarr | `15 */4 * * *` | `0 */6 * * *` | `15 3 * * *` | Medium |
-| 15 | downloads | bazarr | `20 */4 * * *` | `0 */6 * * *` | `20 3 * * *` | Medium |
-| 16 | downloads | prowlarr | `25 */4 * * *` | `0 */6 * * *` | `25 3 * * *` | Medium |
-| 17 | downloads | sabnzbd | `30 */4 * * *` | `15 */6 * * *` | `30 3 * * *` | Medium |
-| 18 | downloads | qbittorrent | `35 */4 * * *` | `15 */6 * * *` | `35 3 * * *` | Medium |
-| 19 | downloads | cross-seed | `40 */4 * * *` | `15 */6 * * *` | `40 3 * * *` | Low |
-| 20 | downloads | autobrr | `45 */4 * * *` | `30 */6 * * *` | `45 3 * * *` | Low |
-| 21 | downloads | recyclarr | `50 */4 * * *` | `30 */6 * * *` | `50 3 * * *` | Low |
-| 22 | media | jellyfin | `55 */4 * * *` | `30 */6 * * *` | `0 4 * * *` | Medium |
-| 23 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
-| 24 | media | calibre-web | `5 */4 * * *` | `45 */6 * * *` | `10 4 * * *` | Low |
-| 25 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 26 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
-| 27 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
+| 11 | ai | agentmemory | `20 */4 * * *` | `20 */6 * * *` | `40 2 * * *` | Medium |
+| 12 | downloads | sonarr | `0 */4 * * *` | `45 */6 * * *` | `0 3 * * *` | Medium |
+| 13 | downloads | radarr | `5 */4 * * *` | `45 */6 * * *` | `5 3 * * *` | Medium |
+| 14 | downloads | lidarr | `10 */4 * * *` | `45 */6 * * *` | `10 3 * * *` | Medium |
+| 15 | downloads | readarr | `15 */4 * * *` | `0 */6 * * *` | `15 3 * * *` | Medium |
+| 16 | downloads | bazarr | `20 */4 * * *` | `0 */6 * * *` | `20 3 * * *` | Medium |
+| 17 | downloads | prowlarr | `25 */4 * * *` | `0 */6 * * *` | `25 3 * * *` | Medium |
+| 18 | downloads | sabnzbd | `30 */4 * * *` | `15 */6 * * *` | `30 3 * * *` | Medium |
+| 19 | downloads | qbittorrent | `35 */4 * * *` | `15 */6 * * *` | `35 3 * * *` | Medium |
+| 20 | downloads | cross-seed | `40 */4 * * *` | `15 */6 * * *` | `40 3 * * *` | Low |
+| 21 | downloads | autobrr | `45 */4 * * *` | `30 */6 * * *` | `45 3 * * *` | Low |
+| 22 | downloads | recyclarr | `50 */4 * * *` | `30 */6 * * *` | `50 3 * * *` | Low |
+| 23 | media | jellyfin | `55 */4 * * *` | `30 */6 * * *` | `0 4 * * *` | Medium |
+| 24 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
+| 25 | media | calibre-web | `5 */4 * * *` | `45 */6 * * *` | `10 4 * * *` | Low |
+| 26 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
+| 27 | media | seerr | `40 */4 * * *` | `55 */6 * * *` | `40 3 * * *` | Medium |
+| 28 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
+| 29 | media | immich | `15 */4 * * *` | `45 */6 * * *` | `30 4 * * *` | High |
+| 30 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
+| 31 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 32 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 33 | selfhosted | obsidian-livesync | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 34 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 35 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
+| 36 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
+| 37 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
+| 38 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
 
 ### Distribution Strategy
 
-- **Ceph (every 4 hours)**: Apps distributed across 12 time slots (5-minute intervals from :00 to :55)
-- **MinIO (every 6 hours)**: Apps distributed across 4 time slots (15-minute intervals: :00, :15, :30, :45)
-- **R2 (daily)**: Apps distributed across 5 hours (1:00 AM - 5:00 AM) in 5-minute intervals
+- **Ceph (every 4 hours)**: 5-minute slots from :00 to :55, but several apps share a slot (e.g. `:00` and `:10`)
+- **MinIO (every 6 hours)**: mostly :00/:15/:30/:45, with extra :20/:35/:50/:55 offsets
+- **R2 (daily)**: spread from 01:00 to 04:50, not a hard 5-hour unique grid
 
-This distribution ensures:
-- Maximum 2-3 apps backing up simultaneously to Ceph
-- Maximum 6-7 apps per MinIO window
-- Maximum 5-6 apps per R2 hour slot
-- Critical applications (databases, home-assistant) run earliest in backup windows
+Regenerate this table from git before trusting a "max N simultaneous" claim.
 
 ## Troubleshooting
 
