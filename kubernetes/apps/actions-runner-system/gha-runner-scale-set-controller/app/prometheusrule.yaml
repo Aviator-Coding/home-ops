@@ -33,13 +33,15 @@ spec:
             description: "All runners are busy with {{ $value }} jobs waiting"
 
         - alert: GithubActionsRunnerControllerDown
-          expr: absent(up{job="gha-runner-scale-set-controller"})
+          # Live scrape job is namespace/PodMonitor name, not the HelmRelease name.
+          # up{job="gha-runner-scale-set-controller"} is empty and would false-fire.
+          expr: count(up{job=~".*action-runner-controller"} == 1) == 0
           for: 5m
           labels:
             severity: critical
           annotations:
             summary: "GitHub Actions Runner Controller is down"
-            description: "The ARC controller pod is not running"
+            description: "No healthy ARC controller scrape (job actions-runner-system/action-runner-controller)"
 
         - alert: GithubActionsRunnerJobStartupSlow
           expr: |

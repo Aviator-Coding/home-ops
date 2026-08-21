@@ -6,6 +6,7 @@ configMapGenerator:
 generatorOptions:
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled
+    grafana_folder: CI
   disableNameSuffixHash: true
   labels:
     grafana_dashboard: "true"
