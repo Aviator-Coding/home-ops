@@ -29,7 +29,8 @@ spec:
     substitute:
       APP: *app
       CONFIG_TIMEZONE: America/New_York
-      VOLSYNC_CAPACITY: 10Gi
+      VOLSYNC_CAPACITY: 25Gi
+      VOLSYNC_CACHE_CAPACITY: 5Gi
       VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "35 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "10 2 * * *"
