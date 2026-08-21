@@ -90,6 +90,8 @@ task bootstrap:apps         # Bootstrap applications into cluster
 
 ## NOTES
 
+- `talos/AGENTS.md` NOTES: how `talos/*.j2` changes take effect (not via Flux) and how
+  to validate them offline in a credential-less worktree.
 - `age.key` and `kubeconfig` are gitignored — required locally but never committed
 - SOPS age key: `age13qrheg54vtg3azk0qa7ua7fnszvcc839ln8zazpdvszsfxekrf3s8jytnl`
 - SOPS encrypts only `data`/`stringData` fields in bootstrap/kubernetes, full encryption for talos

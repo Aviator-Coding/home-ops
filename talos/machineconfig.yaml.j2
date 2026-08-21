@@ -70,11 +70,29 @@ machine:
       serializeImagePulls: false
       maxPods: 250
       # Reclaim accumulated container-image layers. The kubelet prunes unused
-      # images when the imagefs (/var) hits 70% full, down to 55%. Default is
+      # images when the imagefs (/var) hits 60% full, down to 45%. Default is
       # 85/80, which let ~600G of old image versions pile up on this
-      # image-churn-heavy cluster (Renovate bumps + redeploys).
-      imageGCHighThresholdPercent: 70
-      imageGCLowThresholdPercent: 55
+      # image-churn-heavy cluster (Renovate bumps + redeploys); a first
+      # tightening pass to 70/55 (2026-06) wasn't enough headroom on its own -
+      # as of 2026-08-20 talos-1 (the busiest node) already sits at 42%
+      # imagefs / 51% total disk, well above the other two nodes (~29-30%
+      # imagefs), with the same Renovate-churn trend that forced both prior
+      # interventions still ongoing. 60/45 keeps the prior pair's 15-point
+      # high/low gap but moves the ceiling down another 10 points (~100G on
+      # a 997G disk): meaningful headroom above today's 42% high-water mark
+      # without sitting so close to it that GC thrashes against Spegel's
+      # kept-layer cache, and a lower low-water mark so each GC pass reclaims
+      # down to a deeper floor, keeping normal reclaim events smaller and
+      # more frequent instead of one large, IO-heavy purge - a factor in the
+      # 2026-06-14 mon-corruption incident on this same disk (PR #979's
+      # ~370G GC delete under a firmware bug that has since been fixed by an
+      # SN770M firmware update, but heavy, bursty /var IO is still worth
+      # avoiding on general principle). This also lets standing kubelet GC
+      # reclaim the ~173G of verified cluster-wide-orphaned image digests
+      # identified in the 2026-08-20 image audit, without a one-off manual
+      # `talosctl image remove` pass.
+      imageGCHighThresholdPercent: 60
+      imageGCLowThresholdPercent: 45
       featureGates:
         ImageVolume: true
     nodeIP:

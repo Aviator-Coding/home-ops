@@ -49,6 +49,20 @@ just talos upgrade-node talos-1
 just talos upgrade-k8s v1.36.1
 ```
 
+Merging a `machineconfig.yaml.j2`/node-overlay/`schematic.yaml.j2` change only lands
+the code — no Flux Kustomization or CI workflow watches `talos/`. An operator with a
+live `talosconfig` must separately run `just talos apply-node <node>` (or
+`upgrade-node`) against each of the three nodes for the change to take effect.
+
+A worktree with no `talosconfig`/1Password creds can still validate a `*.j2` edit
+offline: render raw with `minijinja-cli` (skip the `vals`-piped `just
+template`/`render-config` recipes, which need `OP_SERVICE_ACCOUNT_TOKEN`), substitute
+dummy base64 values for unresolved `ref+op://...` refs, then `talosctl machineconfig
+patch` + `talosctl validate -m metal -c <rendered-file>`. Note `just talos ...` itself
+still needs *some* (even fake) `TALOSCONFIG` context to parse —
+`bootstrap/mod.just`'s module-level `controller`/`nodes` vars run `talosctl config
+info` eagerly for any `just talos` invocation via the root `mod bootstrap` import.
+
 ## ANTI-PATTERNS
 
 - **NEVER** put plaintext secrets in `*.yaml.j2` — use `ref+op://Home-Lab/talos/*` references
