@@ -1,166 +1,103 @@
-# AgentGateway Documentation
+# AgentGateway
 
-> **Complete reference documentation for deploying and configuring AgentGateway - the AI-first data plane for agents, MCP tools, LLMs, and inference workloads in Kubernetes.**
+> Standalone AgentGateway `v1.4.1` in namespace `ai`. Official product docs: <https://agentgateway.dev/>. This tree describes **this cluster's GitOps install**, not the retired kgateway-bundled chart.
 
-## Overview
+## June 2026 split
 
-AgentGateway is an open-source, Rust-based AI-first data plane that provides connectivity for agents, MCP tools, LLMs, and inference workloads. It is part of the kgateway ecosystem (CNCF Sandbox project) originally created by Solo.io.
+AgentGateway and kgateway started as one product. They split: kgateway remains an Envoy Kubernetes gateway; AgentGateway is a standalone Rust AI gateway with its own charts (`cr.agentgateway.dev`) and 1.x versioning.
 
-### Key Capabilities
+This cluster moved on 2026-06-06 in `e4321cb2` (#938) from `oci://ghcr.io/kgateway-dev/charts/agentgateway` tag `v2.3.0-main` (a stale kgateway-dev snapshot) to `oci://cr.agentgateway.dev/charts/agentgateway` starting at `v1.2.1`. That commit dropped kgateway-era values (`agentgateway.enabled`, `KGW_*` env). The next day `0e0a5fb9` (#943) merged namespace `ai-system` into `ai`. The live tag is `v1.4.1`.
 
-| Feature | Description |
-|---------|-------------|
-| **LLM Consumption** | Route requests to multiple LLM providers (OpenAI, Anthropic, Gemini, Bedrock, Azure OpenAI, Vertex AI) |
-| **MCP Connectivity** | Connect to Model Context Protocol servers for tool access |
-| **Agent-to-Agent (A2A)** | Enable communication between autonomous AI agents |
-| **Inference Routing** | Route to local LLM inference workloads (Ollama, vLLM, TensorRT-LLM) |
-| **Security** | CEL-based RBAC, prompt guards, API key management |
-| **Observability** | OpenTelemetry integration with metrics, logs, and traces |
+kgateway is **not** deployed here. Non-AI ingress is Envoy Gateway in `network/`. See [kgateway stub](../kgateway/README.md).
 
-### Architecture
+A March 2026 lab notebook still exists as a [historical testing report](../agentgateway-testing-report.md). Do not copy its commands.
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Control Plane (kgateway)                         │
-│  (Manages proxy lifecycle, translates Gateway API to xDS config)        │
-├─────────────────────────────────────────────────────────────────────────┤
-│                    Data Plane (AgentGateway - Rust)                      │
-│  (Proxies processing AI traffic with MCP/A2A protocol support)          │
-├──────────────────┬──────────────────┬──────────────────┬────────────────┤
-│     Agents       │    MCP Tools     │      LLMs        │   Inference    │
-│   (A2A/JSON-RPC) │   (SSE/HTTP)     │  (REST/Stream)   │  (Ollama/vLLM) │
-└──────────────────┴──────────────────┴──────────────────┴────────────────┘
-```
+## What is live
 
-### Cluster-Specific Context
+| Item | Live value | Source of truth |
+|------|------------|-----------------|
+| Namespace | `ai` | `kubernetes/apps/ai/agentgateway/ks.yaml` |
+| Chart | `oci://cr.agentgateway.dev/charts/agentgateway` `v1.4.1` | `app/ocirepository.yaml` |
+| CRDs | `oci://cr.agentgateway.dev/charts/agentgateway-crds` `v1.4.1` | `crds/ocirepository.yaml` |
+| API | `agentgateway.dev/v1alpha1` | kinds below |
+| Kinds | `AgentgatewayBackend`, `AgentgatewayPolicy`, `AgentgatewayParameters` | `app/backends/`, `app/policies/`, `app/agentgatewayparameters.yaml` |
+| Gateway class | `agentgateway` | `app/gateways/` |
+| LLM entry | unified OpenAI-style `/v1` | `app/httproute-unified.yaml` |
+| MCP | ToolHive, not AgentGateway MCP Backends | `kubernetes/apps/ai/toolhive/` |
+| LiteLLM / kagent / kmcp / kgateway | **not deployed** | `kubernetes/apps/ai/kustomization.yaml` |
 
-This documentation is tailored for the Home-Ops cluster which uses:
+Manifests live under `kubernetes/apps/ai/agentgateway/`. Prefer those YAML files (especially the header comments on `httproute-unified.yaml` and `gateways/*.yaml`) over copying config into prose.
 
-- **Flux CD** for GitOps deployment
-- **External Secrets Operator** with 1Password as the secret store
-- **Envoy Gateway** for general ingress (separate from AgentGateway)
-- **LiteLLM** as a unified LLM proxy in the `ai` namespace
-- **Cilium** for CNI with `lbipam.cilium.io` for LoadBalancer IPs
+### Data-plane Gateways
 
----
+| Gateway | LB IP | Auth |
+|---------|-------|------|
+| `internal` | `10.50.0.27` | Authentik on https |
+| `internal-noauth` | `10.50.0.28` | keyless (in-cluster) |
+| `public` | `10.50.0.29` | API-key Strict on http; Authentik on https |
 
-## Documentation Index
+Details: [`app/gateways/README.md`](../../../kubernetes/apps/ai/agentgateway/app/gateways/README.md).
 
-### Getting Started
+### How clients reach it
+
+| Audience | URL | Auth |
+|----------|-----|------|
+| In-cluster LLM | `http://internal-noauth.ai.svc.cluster.local/v1` | none |
+| External / scripts | `https://llm-api.${SECRET_DOMAIN}/v1` (Envoy -> `public:80`) | Bearer key from 1Password item `ai-gateway-keys` |
+| Admin UI | `https://agentgateway.${SECRET_DOMAIN}/ui/` and `https://llm.${SECRET_DOMAIN}/ui/` | Envoy + Authentik on the UI hostnames |
+
+Send OpenAI Chat Completions to `/v1/chat/completions` with a provider-native `model` id. The `model-routing` policy copies `model` into `x-model`; the unified HTTPRoute picks the backend. Clients never pick a `/openai` or `/groq` path prefix - those routes were retired.
+
+### Secrets
+
+External Secrets Operator + ClusterSecretStore `onepassword`. Provider keys come from 1Password item `ai-keys`; the Kubernetes secret **key must be `Authorization`**. Consumer API keys come from item `ai-gateway-keys`. Never put secrets in Git.
+
+## Documentation index
+
+### Cluster install
+
 | Document | Description |
 |----------|-------------|
-| [01-quickstart.md](./01-quickstart.md) | Get started with AgentGateway in 5 minutes |
-| [02-installation.md](./02-installation.md) | Detailed installation with Flux CD |
-| [03-gateway-setup.md](./03-gateway-setup.md) | Gateway resource configuration |
+| [01-quickstart.md](./01-quickstart.md) | Call the live `/v1` endpoint |
+| [02-installation.md](./02-installation.md) | Flux chart, CRDs, Helm values |
+| [03-gateway-setup.md](./03-gateway-setup.md) | Three Gateways and listeners |
+| [11-cluster-deployment.md](./11-cluster-deployment.md) | Live tree map (pointers, not a copy of manifests) |
 
-### Core Features
+### Traffic
+
 | Document | Description |
 |----------|-------------|
-| [04-llm-providers.md](./04-llm-providers.md) | Configure OpenAI, Anthropic, Gemini, Bedrock |
-| [05-mcp-connectivity.md](./05-mcp-connectivity.md) | MCP server integration |
-| [06-agent-connectivity.md](./06-agent-connectivity.md) | A2A agent communication |
-| [13-function-calling.md](./13-function-calling.md) | LLM tool invocation through MCP |
-| [14-session-management.md](./14-session-management.md) | Stateful connections and reconnection |
+| [04-llm-providers.md](./04-llm-providers.md) | Backends, model routing, dormant providers |
+| [05-mcp-connectivity.md](./05-mcp-connectivity.md) | MCP is ToolHive, not this gateway |
+| [06-agent-connectivity.md](./06-agent-connectivity.md) | In-cluster clients; kagent is not deployed |
 
 ### Operations
+
 | Document | Description |
 |----------|-------------|
-| [07-security.md](./07-security.md) | RBAC, prompt guards, tool poisoning protection |
-| [08-observability.md](./08-observability.md) | Metrics, logs, and traces |
-| [09-advanced-features.md](./09-advanced-features.md) | Failover, rate limiting, streaming |
-| [15-optimization.md](./15-optimization.md) | Cost, performance, and tuning |
+| [07-security.md](./07-security.md) | Authentik + API keys |
+| [08-observability.md](./08-observability.md) | Vendored Grafana dashboards + Tempo traces |
+| [09-advanced-features.md](./09-advanced-features.md) | Failover groups, embeddings, dormant backends |
+| [12-troubleshooting.md](./12-troubleshooting.md) | Commands against namespace `ai` |
+| [15-optimization.md](./15-optimization.md) | Cost metering (`rules/cost.yaml`) |
 
 ### Reference
+
 | Document | Description |
 |----------|-------------|
-| [10-api-reference.md](./10-api-reference.md) | Complete CRD and API reference |
-| [11-cluster-deployment.md](./11-cluster-deployment.md) | Home-Ops specific deployment manifests |
-| [12-troubleshooting.md](./12-troubleshooting.md) | Common issues and solutions |
-| [GLOSSARY.md](./GLOSSARY.md) | Terminology and concept definitions |
-| [MIGRATION.md](./MIGRATION.md) | Version upgrades and protocol migrations |
+| [10-api-reference.md](./10-api-reference.md) | Live CRD kinds used here |
+| [GLOSSARY.md](./GLOSSARY.md) | Terms |
+| [MIGRATION.md](./MIGRATION.md) | kgateway-dev 2.x -> standalone 1.x |
 
----
+### Not wired through this gateway
 
-## Quick Decision Guides
+| Document | Why it exists |
+|----------|---------------|
+| [13-function-calling.md](./13-function-calling.md) | No AgentGateway MCP Backends |
+| [14-session-management.md](./14-session-management.md) | No session config in live `AgentgatewayParameters` |
 
-### Which LLM Provider Should I Use?
+## Adding a model
 
-```
-Start
-  │
-  ├─ Need highest quality reasoning? ──────── Yes ──▶ Claude Opus / GPT-4
-  │
-  ├─ Complex coding or analysis? ──────────── Yes ──▶ Claude Sonnet / GPT-4o
-  │
-  ├─ Working with images/multimodal? ──────── Yes ──▶ GPT-4o / Gemini Pro
-  │
-  ├─ Cost is the primary concern? ─────────── Yes ──▶ Gemini Flash / GPT-4o-mini
-  │
-  ├─ Data must stay on-premises? ──────────── Yes ──▶ Ollama (Llama 3.2)
-  │
-  ├─ Need AWS integration? ────────────────── Yes ──▶ Bedrock
-  │
-  └─ General purpose / balanced? ─────────────────▶ Claude Haiku / GPT-4o-mini
-```
+The catalog comment in `httproute-models.yaml` is the checklist: a routing rule in `httproute-unified.yaml` (if the family is new), a price row in `rules/cost.yaml`, and a catalog entry. Re-enabling a dormant backend (zai / togetherai / opencodeai) is one new unified-route rule.
 
-### How Many Gateway Replicas?
-
-| Concurrent Users | Replicas | HPA |
-|------------------|----------|-----|
-| < 10 | 1-2 | No |
-| 10-50 | 2-3 | Optional |
-| 50-200 | 3-5 | Recommended |
-| 200-1000 | 5-10 | Required |
-| > 1000 | 10+ | Required (custom metrics) |
-| Production (any size) | ≥ 3 | Recommended for HA |
-
-### Which Timeout Values?
-
-| Request Type | Timeout | Why |
-|--------------|---------|-----|
-| Simple chat completion | 30s | Fast responses |
-| Complex reasoning | 60s | More thinking time |
-| Code generation | 90s | Larger outputs |
-| Document analysis | 120s | Long context processing |
-| Streaming responses | 300s | Continuous connection |
-| MCP tool execution | 30-60s | Varies by tool |
-| Health checks | 5s | Quick failure detection |
-
----
-
-## Prerequisites
-
-- **Kubernetes cluster** (v1.25+)
-- **kubectl** (within one minor version of cluster)
-- **Helm** (v3.x) or **Flux CD** for GitOps
-- **API keys** for LLM providers you want to use
-- **External Secrets Operator** configured with 1Password
-
----
-
-## Quick Links
-
-| Resource | URL |
-|----------|-----|
-| **kgateway Documentation** | https://kgateway.dev/docs/agentgateway/latest/ |
-| **AgentGateway Standalone** | https://agentgateway.dev/ |
-| **GitHub - kgateway** | https://github.com/kgateway-dev/kgateway |
-| **CNCF Project** | Sandbox Project |
-
----
-
-## Related Documentation
-
-- [kgateway Documentation](../kgateway/README.md) - Envoy-based gateway for non-AI traffic
-- [kagent Documentation](../kagent/README.md) - Kubernetes-native AI agent framework
-- [kmcp Documentation](../kmcp/README.md) - MCP server development toolkit
-
----
-
-## Version
-
-This documentation covers **kgateway v2.1.2** with AgentGateway enabled.
-
----
-
-*Last updated: 2026-01-25*
+*Last updated: 2026-08-21 against chart `v1.4.1`.*
