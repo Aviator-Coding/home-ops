@@ -15,7 +15,7 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 | [tag.yaml](#tag) | Schedule/Manual | Creates monthly release tags | ubuntu-latest |
 | [test-runner.yaml](#test-runner) | Schedule/Manual | Tests self-hosted runner functionality | Self-hosted |
 | [build-talosctl-busybox.yaml](#build-talosctl-busybox) | Push/Manual | Builds and pushes the talosctl-busybox image | ubuntu-latest |
-| [build-actions-runner-podman.yaml](#build-actions-runner-podman) | Push/Manual | Builds and pushes the custom home-ops runner image | ubuntu-latest |
+| [build-actions-runner-buildx.yaml](#build-actions-runner-buildx) | Push/Manual | Builds and pushes the custom home-ops runner image | ubuntu-latest |
 
 ## Workflows
 
@@ -130,17 +130,17 @@ Builds and pushes the `talosctl-busybox` image from
 
 **Dependencies:** Requires `BOT_APP_ID` and `BOT_APP_PRIVATE_KEY` secrets.
 
-### build-actions-runner-podman
+### build-actions-runner-buildx
 
-**File:** `build-actions-runner-podman.yaml`
+**File:** `build-actions-runner-buildx.yaml`
 
 Builds and pushes the custom home-ops runner image from
-`.github/docker/actions-runner-podman/Dockerfile`. See
+`.github/docker/actions-runner-buildx/Dockerfile`. See
 [Custom Runner Image](../../kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md#custom-runner-image)
 for what the image contains and why.
 
 **Triggers:**
-- Push to `.github/docker/actions-runner-podman/**` or the workflow file itself
+- Push to `.github/docker/actions-runner-buildx/**` or the workflow file itself
 - Manual dispatch
 
 **Dependencies:** Requires `BOT_APP_ID` and `BOT_APP_PRIVATE_KEY` secrets.
