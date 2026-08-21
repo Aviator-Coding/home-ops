@@ -95,6 +95,7 @@ Talos nodes are `talos-1|talos-2|talos-3` mapping to `10.10.10.11/12/13`. Do not
 - `.private/` directory for local-only files (gitignored)
 - Renovate ignores `**/*.sops.*` and `**/resources/**` paths
 - Ceph metadata CronJob (`rook-ceph-backup` / `ceph-backup-pvc`) is in-cluster `openebs-hostpath`, **not** last-resort DR; complete cluster/host wipe destroys it. Emergency steps: `kubernetes/apps/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`. Never restart all OSDs; see `docs/ceph/osd-device-path-recovery.md`.
+- The home-ops local ARC runner (`gha-runner-scale-set-aviator-coding-home-ops`) has no Docker daemon (no socket, no DinD sidecar) - `docker://` container actions, `docker run`, and anything that shells out to Docker (e.g. `renovatebot/github-action`) fail there. Details and the exact `runs-on:` label: `kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md`.
 
 ## Maintaining this file
 
