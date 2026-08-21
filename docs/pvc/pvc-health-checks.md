@@ -54,6 +54,12 @@ spec:
 | `healthCheckExprs` | Waits for specific resource conditions |
 | `wait: true` | Makes Flux wait for health checks to pass |
 
+`healthCheckExprs` apply to objects in that Kustomization's inventory,
+not every PVC in the namespace. The VolSync component also injects a
+restore PVC named `${APP}` with `dataSourceRef` to `${APP}-dst`. pgAdmin
+Helm uses `existingClaim: pgadmin`, so that generated claim *is* the
+app PVC (the onedr0p pattern). Do not add a second PVC with the same name.
+
 ## 🧪 Testing the Configuration
 
 ### 1. Check Kustomization Status

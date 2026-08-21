@@ -42,8 +42,8 @@ spec:
       namespace: security
   # Operational health gate: readyInstances + ContinuousArchiving (not the Ready
   # condition, which CNPG can latch False indefinitely even while the cluster
-  # serves reads/writes). readyInstances >= 1 because the cluster starts with
-  # 2 instances (talos-3 excluded; see cluster-17.yaml nodeAffinity).
+  # serves reads/writes). readyInstances >= 1 is a floor; cluster-17 runs 3
+  # instances (talos-3 BIOS issue resolved 2026-04-26).
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster

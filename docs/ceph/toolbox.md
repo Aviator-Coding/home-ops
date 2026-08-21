@@ -29,11 +29,16 @@ Then reconcile:
 flux reconcile hr rook-ceph-cluster -n rook-ceph
 ```
 
-### Temporary Pod
-For one-time operations:
+The cluster HelmRelease already enables a permanent toolbox (`toolbox.enabled: true`)
+that tracks the Rook chart tag (currently v1.20.4). Prefer that Deployment. Do not
+run a one-shot `rook/ceph` pod on an old tag (v1.17.1 tools talking to Tentacle mons
+are the wrong binary set for recovery).
+
+If you must run a throwaway pod, pin the same chart tag:
+
 ```bash
 kubectl run -i --tty --rm debug-ceph \
-  --image=rook/ceph:v1.17.1 \
+  --image=rook/ceph:v1.20.4 \
   --restart=Never \
   -n rook-ceph -- bash
 ```
@@ -170,14 +175,20 @@ ceph osd pool set <pool-name> <property> <value>
 ```
 
 ### Pool Properties
+All standing Ceph config is GitOps in
+`kubernetes/apps/rook-ceph/rook-ceph/cluster/helmrelease.yaml`. Live
+`ceph osd pool set` / `ceph config set` / `injectargs` is incident-only and
+must be logged in `docs/ceph-cluster-changelog.md`. This cluster's pools are
+`compression_mode: none`; do not re-enable `aggressive`.
+
 ```bash
 # Set pool size (replication factor)
 ceph osd pool set <pool-name> size 3
 ceph osd pool set <pool-name> min_size 2
 
-# Enable compression
+# Compression (GitOps is `none` on all pools; do not apply aggressive here)
 ceph osd pool set <pool-name> compression_algorithm zstd
-ceph osd pool set <pool-name> compression_mode aggressive
+ceph osd pool set <pool-name> compression_mode none
 
 # Set PG autoscaler
 ceph osd pool set <pool-name> pg_autoscale_mode on
@@ -243,9 +254,11 @@ ceph fs subvolume info <fs-name> <subvol-name> --group-name <group-name>
 ## Object Storage Operations
 
 ### RGW Status
+This cluster is Rook, not cephadm. `ceph orch` is the wrong control plane.
+
 ```bash
 # List RGW instances
-ceph orch ls rgw
+kubectl -n rook-ceph get deploy -l app=rook-ceph-rgw
 
 # RGW statistics
 radosgw-admin user list
@@ -329,8 +342,12 @@ ceph osd unset nobackfill
 ```
 
 ### Recovery Tuning
+Incident-only. GitOps currently sets `osd_recovery_max_active: "3"` and
+`osd_mclock_profile: high_client_ops`. Log any live `injectargs` /
+`ceph config set` in the changelog.
+
 ```bash
-# Limit recovery operations
+# Limit recovery operations (temporary; Rook may revert unmanaged keys)
 ceph tell 'osd.*' injectargs --osd-max-backfills=1
 ceph tell 'osd.*' injectargs --osd-recovery-max-active=1
 

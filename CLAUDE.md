@@ -15,7 +15,7 @@ This is a **home-ops** infrastructure repository managing a self-hosted Kubernet
 - **Secrets**: OnePassword + External Secrets Operator (all secrets); bootstrap minimum via `vals` + `kustomize`
 - **External Access**: Cloudflare Tunnel (cloudflared)
 - **DNS**: External-DNS with Cloudflare integration
-- **Backup**: Volsync with three destinations (local Ceph S3, NAS MinIO, Cloudflare R2)
+- **Backup**: VolSync with three destinations (local Ceph S3, NAS MinIO, Cloudflare R2; no NFS)
 
 ## Common Commands
 
@@ -236,7 +236,7 @@ All secrets are managed via `ExternalSecret` resources backed by the 1Password C
 
 ### Volsync Backup Strategy
 
-Volsync provides triple-redundant backups with different default schedules (see `kubernetes/components/volsync/Readme.md`):
+VolSync provides triple-redundant backups. Authoritative schedules, retention, and the app list live in `kubernetes/components/volsync/Readme.md` and the three `replicationsource.yaml` files (`ceph/`, `minio/`, `r2/`). Component defaults:
 
 1. **Local Ceph S3** (`ceph/`) - every 4 hours (`0 */4 * * *`)
 2. **NAS MinIO** (`minio/`) - every 6 hours (`30 */6 * * *`)

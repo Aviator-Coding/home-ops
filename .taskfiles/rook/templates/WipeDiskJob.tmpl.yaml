@@ -20,7 +20,8 @@ spec:
       hostNetwork: true
       containers:
         - name: main
-          image: quay.io/ceph/ceph:v19.2.3
+          # Pin to the same cephImage.tag as cluster/helmrelease.yaml (Tentacle).
+          image: quay.io/ceph/ceph:v20.2.3
           command: ["/bin/bash", "-c"]
           args:
             - |

@@ -79,8 +79,11 @@ Replace `N` and `<by-id-disk>` with the affected OSD and its disk
    until wiped; otherwise the operator re-activates the corrupt store). Wipe **only that one
    disk** — never `task rook:wipe-talos-X` (that hits every OSD on the node):
    ```bash
-   task rook:reset-disk disk="<by-id-disk>" node="talos-X" --yes
+   task --yes rook:reset-disk disk="<by-id-disk>" node="talos-X"
    ```
+   The skip-prompt flag is the global `task --yes`, not `--yes` after the task name.
+   The wipe Job image is `quay.io/ceph/ceph:v20.2.3` (same `cephImage.tag` as the
+   cluster HelmRelease). Do not zap a Tentacle OSD with a Reef (v19) image.
    > On Windows the `reset-disk` task can choke on its `envsubst < <(...)` process
    > substitution + interactive prompt. Equivalent manual path: render
    > `.taskfiles/rook/templates/WipeDiskJob.tmpl.yaml` (substitute `${job}/${node}/${disk}`)
@@ -99,7 +102,10 @@ Replace `N` and `<by-id-disk>` with the affected OSD and its disk
    ```
    PGs should be `active+remapped+backfilling`, **not** `degraded` (peers keep full
    redundancy throughout). If the no-PLP OSDs (e.g. osd.3/osd.6) wedge on slow ops during
-   backfill, pace it: `ceph config set osd osd_max_backfills 1` (mClock per-OSD IOPS caps
+   backfill, pace it as an incident-only toolbox command and log it in
+   `docs/ceph-cluster-changelog.md` (GitOps owns Ceph config; live
+   `ceph config set` is not the standing path):
+   `ceph config set osd osd_max_backfills 1` (mClock per-OSD IOPS caps
    already apply).
 
 ## Verify
