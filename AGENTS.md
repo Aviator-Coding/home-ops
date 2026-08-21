@@ -90,18 +90,8 @@ task bootstrap:apps         # Bootstrap applications into cluster
 
 ## NOTES
 
-- **`talos/machineconfig.yaml.j2` changes are NOT applied by Flux.** No Flux Kustomization or CI
-  workflow watches `talos/`; a merged change only takes effect after an operator runs
-  `just talos apply-node <node>` (or `upgrade-node`) against each real node with a live
-  `talosconfig`. Validate with `just talos render-config <node> | talosctl validate -m metal -c
-  /dev/stdin` before applying.
-- A disposable/isolated worktree with no `talosconfig`/1Password creds can still validate a
-  `talos/*.j2` template edit: render raw with `minijinja-cli` (skip the `vals`-piped `just
-  template`/`render-config` recipes, which need `OP_SERVICE_ACCOUNT_TOKEN`), substitute dummy
-  base64 values for unresolved `ref+op://...` refs, then `talosctl machineconfig patch` + `talosctl
-  validate -m metal`. Note `just talos ...` itself needs *some* (even fake) `TALOSCONFIG` context
-  to parse — `bootstrap/mod.just`'s module-level `controller`/`nodes` vars run
-  `talosctl config info` eagerly for any `just talos` invocation via the root `mod bootstrap` import.
+- `talos/AGENTS.md` NOTES: how `talos/*.j2` changes take effect (not via Flux) and how
+  to validate them offline in a credential-less worktree.
 - `age.key` and `kubeconfig` are gitignored — required locally but never committed
 - SOPS age key: `age13qrheg54vtg3azk0qa7ua7fnszvcc839ln8zazpdvszsfxekrf3s8jytnl`
 - SOPS encrypts only `data`/`stringData` fields in bootstrap/kubernetes, full encryption for talos
