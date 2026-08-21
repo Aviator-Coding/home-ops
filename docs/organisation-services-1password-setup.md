@@ -50,8 +50,8 @@ Each service that uses PostgreSQL follows this pattern:
 
 ### 1. linkwarden
 
-**1Password item name**: `linkwarden`  
-**Namespace**: `selfhosted`
+- **1Password item name**: `linkwarden`
+- **Namespace**: `selfhosted`
 
 **Generate secrets first:**
 
@@ -96,8 +96,8 @@ op item create \
 
 ### 2. immich
 
-**1Password item name**: `immich`  
-**Namespace**: `media`
+- **1Password item name**: `immich`
+- **Namespace**: `media`
 
 **Generate secrets first:**
 
@@ -142,8 +142,8 @@ op item create \
 
 ### 3. paperless-ngx
 
-**1Password item name**: `paperless-ngx`  
-**Namespace**: `selfhosted`
+- **1Password item name**: `paperless-ngx`
+- **Namespace**: `selfhosted`
 
 **Generate secrets first:**
 
@@ -194,8 +194,8 @@ op item create \
 
 ### 4. obsidian-livesync
 
-**1Password item name**: `obsidian-livesync`  
-**Namespace**: `selfhosted`
+- **1Password item name**: `obsidian-livesync`
+- **Namespace**: `selfhosted`
 
 **Generate secrets first:**
 
