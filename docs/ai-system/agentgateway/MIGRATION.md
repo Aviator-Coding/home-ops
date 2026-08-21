@@ -27,7 +27,8 @@ Upstream: kgateway v2.2 separated the controllers; AgentGateway v1.0 ships its K
 
 ## 2026-06-07: namespace merge (`0e0a5fb9`, #943)
 
-**From:** `ai-system`  
+**From:** `ai-system`
+
 **To:** `ai`
 
 Gateway YAML still comments the IP pins as surviving that move. In-cluster Service DNS is `*.ai.svc.cluster.local` (for example `internal-noauth.ai.svc.cluster.local`).
