@@ -133,7 +133,7 @@ spec:
         containers:
           - name: runner
             # renovate: datasource=docker depName=ghcr.io/aviator-coding/actions-runner-buildx
-            image: ghcr.io/aviator-coding/actions-runner-buildx:2.336.0@sha256:PLACEHOLDER
+            image: ghcr.io/aviator-coding/actions-runner-buildx:2.336.0@sha256:6a185072e655f87c4fb1469963cc49c539ce557336b31c6e05d4208f1c83d4f5
             command: ["/home/runner/run.sh"]
             env:
               - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
