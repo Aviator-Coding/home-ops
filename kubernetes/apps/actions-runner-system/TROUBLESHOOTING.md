@@ -505,6 +505,33 @@ Runner resource requests have been optimized based on actual usage:
 
 This allows more concurrent runners on the same hardware while still providing headroom for burst usage. Limits remain 2 CPU / 8Gi (plus 2 CPU / 4Gi for the sandbox DinD sidecar).
 
+## Custom Runner Image
+
+The home-ops scale set (`gha-runner-scale-set-aviator-coding-home-ops`) runs
+`ghcr.io/aviator-coding/actions-runner-podman`, built from
+`.github/docker/actions-runner-podman/Dockerfile` and pushed by
+`.github/workflows/build-actions-runner-podman.yaml` (same pattern as
+`talosctl-busybox`). `ai-k8s-sandbox` still runs the stock
+`ghcr.io/home-operations/actions-runner` image.
+
+### podman is not usable in runner pods on this cluster
+
+Rootless `podman` cannot run in any pod on this cluster, even fully
+`privileged: true`: `/proc/sys/user/max_user_namespaces` is `0` on all three
+Talos nodes, so `unshare --user` fails with "No space left on device"
+regardless of the pod's securityContext - this is a host kernel setting, not
+something a Dockerfile or per-pod securityContext can work around. Confirmed
+live via a throwaway privileged test pod (2026-08-21).
+
+Fixing this for real needs one of: enabling unprivileged user namespaces
+cluster-wide via a Talos machineconfig sysctl change (all 3 nodes, requires
+reboots, expands kernel attack surface cluster-wide), or running the runner
+container itself as root/rootful podman instead of rootless (narrower blast
+radius, still a real security posture change). Both were judged not worth
+the tradeoff as of 2026-08-21, so the custom runner image ships `buildx`
+only (already present in the upstream base image) and does not install
+`podman`/`uidmap`/`netavark`/`aardvark-dns`.
+
 ## Related Documentation
 
 - [Actions Runner Controller GitHub](https://github.com/actions/actions-runner-controller)
