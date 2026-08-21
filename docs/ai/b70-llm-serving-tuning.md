@@ -2,7 +2,9 @@
 
 > **Hardware:** single Intel Arc Pro B70 (Xe2 / Battlemage G31, 32 GB) on `talos-3`.
 > **App:** `kubernetes/apps/ai/vllm/app/helmrelease.yaml` (chat = llama.cpp SYCL named
-> `vllm`; embeddings = vLLM named `vllm-embed`). **Date:** 2026-06-26.
+> `vllm`; embeddings = vLLM named `vllm-embed`, **default-off**). **Updated:** 2026-07-08
+> (ctx 262144, embed/ComfyUI `replicas: 0`). The A/B matrix below is still the 2026-06-26
+> measurement set.
 >
 > This runbook records the measured baseline, the SYCL-vs-Vulkan backend decision, the
 > tuning A/B matrix, and the single-card workload-isolation design. It is the evidence
@@ -11,17 +13,20 @@
 ## TL;DR
 
 - **Backend stays SYCL.** Measured on our `b9592` build: SYCL decode **~61 t/s** vs Vulkan
-  **~36 t/s** on the exact MoE chat model — SYCL wins **1.68×**. The Reddit "Vulkan 2.5–3×
+  **~36 t/s** on the exact MoE chat model - SYCL wins **1.68×**. The Reddit "Vulkan 2.5-3×
   faster on MoE" finding was from broken build `8739`; the SYCL MoE expert-dispatch penalty
   is **fixed** in `b9592` (PRs #21527/#21638 merged). **No image/backend change.**
-- **Current llama.cpp args are already near-optimal.** `q8_0` KV is required for the 131072
-  context to fit in VRAM; `kv_unified=true` with 4 auto slots already gives single requests
-  the full window *and* fleet concurrency. No arg changes improve single-stream throughput.
+- **Current live args:** `--ctx-size 262144` (native max, 2026-07-08), 4 auto slots with
+  unified KV, image `server-intel-b9592`. That window **fits only because `vllm-embed` and
+  `comfyui` are both pinned `replicas: 0`**. Re-enabling either needs a re-test (step back
+  toward 131072 on VRAM OOM). `kv_unified=true` with 4 auto slots still gives a single
+  request the full window *and* fleet concurrency. Do **not** pin `--parallel` /
+  `--kv-unified` (#1093).
 - **The real bottleneck is single-card compute contention, not config.** Chat decode
-  collapses **38×** (61 → 1.6 t/s) when embeddings runs flat-out; the Intel GPU plugin
-  time-slices compute with no hardware partition. The durable win is workload isolation
-  (below) and, structurally, a second card (see
-  [`b70-second-card-decision.md`](./b70-second-card-decision.md)).
+  collapsed **38×** (61 → 1.6 t/s) when embeddings ran flat-out on the same card. Embeddings
+  left the card on 2026-06-28 (#1098; agentmemory uses OpenRouter). Remaining contention is
+  **chat vs ComfyUI**. Isolation procedure below; structurally, a second card is still
+  deferred ([`b70-second-card-decision.md`](./b70-second-card-decision.md)).
 
 ## 1. Baseline (measured 2026-06-26, build `server-intel-b9592`)
 
@@ -40,7 +45,7 @@ card, so figures are **best-of-N within idle windows** unless noted.
 | **Prefill `pp512` (best, contended)** | ~185 t/s | 20–185 t/s range under live load |
 | Prefill `pp2102` | ~79 t/s | contended sample |
 | GPU | Arc Pro B70, 32656 MiB total | ~27 GiB free idle; ~22.7 GiB free with embeddings resident |
-| Slots / KV | `n_parallel=4` (auto), `kv_unified=true` | **all 4 slots report `n_ctx=131072`** → single req gets full window |
+| Slots / KV | `n_parallel=4` (auto), `kv_unified=true` | **all 4 slots reported `n_ctx=131072` on this date** (live GitOps is `n_ctx=262144` since 2026-07-08; see §5) |
 | KV cache | `q8_0/q8_0`, `--flash-attn on` | |
 | Backend | SYCL, `-DGGML_SYCL_F16=ON` | confirmed in `intel.Dockerfile` (research) |
 | Model | `Qwen3.6-35B-A3B UD-Q4_K_M` (multimodal, mmproj-BF16) | weights ~20.6 GiB |
@@ -93,7 +98,9 @@ kubectl -n ai exec deploy/vllm -c app -- sh -lc 'curl -s localhost:8000/metrics 
 
 ## 3. Tuning A/B matrix
 
-Each row is an isolated test on the live card; backend A/B led because it gates the rest.
+Each row is an isolated test on the live card as of **2026-06-26** (ctx 131072, embeddings
+could still be resident). Backend A/B led because it gates the rest. Live GitOps since
+2026-07-08 is `--ctx-size 262144` with embed/ComfyUI off; see §5.
 
 ### Backend: SYCL vs Vulkan — **SYCL wins, KEEP SYCL**
 
@@ -151,18 +158,20 @@ second card.
 
 ## 4. Single-card workload isolation (B70 time-slice contention)
 
-`talos-3` runs three GPU workloads against **one** B70 via the Intel GPU device plugin:
-**chat** (`vllm` = llama.cpp SYCL, service `vllm-app`), **embeddings** (`vllm-embed`), and
-**ComfyUI** (`comfyui`, default-off). The B70 has **no hardware compute partition** (no MIG,
-no SR-IOV compute slicing), so co-resident workloads **time-slice** the GPU and starve each
-other's compute when both are active.
+`talos-3` has **one** B70 via the Intel GPU device plugin. **As of 2026-06-28 / 2026-07-08,
+only chat is on the card by default.** `vllm-embed` is `replicas: 0` (agentmemory moved to
+OpenRouter). `comfyui` stays `replicas: 0` except during a deliberate image session. The B70
+has **no hardware compute partition** (no MIG, no SR-IOV compute slicing), so any second
+consumer **time-slices** the GPU and starves chat.
+
+The 2026-06-26 measurements below were taken while embeddings could still be co-resident.
+They remain valid as the contention mechanism; they are not today's default inventory.
 
 > ⚠️ `--gpu-memory-utilization` and the device plugin's `sharedDevNum: 99`
 > (`kubernetes/apps/system/intel-device-plugin-operator/gpu/`) only divide **VRAM /
-> device-count** — neither isolates **compute**. The plugin advertises the one card as 99
-> schedulable slots, so all three pods hold a `gpu.intel.com/xe: 1` claim on the *same*
-> physical card. The only effective control is to keep two heavy compute consumers from
-> being active at the same time.
+> device-count** - neither isolates **compute**. The plugin advertises the one card as 99
+> schedulable slots. Chat vs ComfyUI is the remaining heavy pair; do not start ComfyUI
+> while `vllm` is up. Re-enabling `vllm-embed` would restore the three-consumer problem.
 
 ### Symptom & measured penalty
 
@@ -186,10 +195,13 @@ ComfyUI is pinned `replicas: 0` in git (`kubernetes/apps/ai/comfyui/app/helmrele
 Run a ComfyUI session **only** after freeing the card from chat, and restore chat afterward.
 Flux (`interval: 1h`) reconciles ComfyUI back to 0 on its own, so the git default is the net.
 
+`vllm-embed` is already `replicas: 0` in git. Do **not** scale it up as part of this
+procedure unless you have re-enabled local embeddings on purpose.
+
 **Start a ComfyUI session (free the card from chat first):**
 ```bash
 flux -n ai suspend hr vllm                              # so Flux won't fight the scale
-kubectl -n ai scale deploy vllm vllm-embed --replicas=0
+kubectl -n ai scale deploy vllm --replicas=0
 kubectl -n ai rollout status deploy/vllm --timeout=120s
 kubectl -n ai scale deploy comfyui --replicas=1
 kubectl -n ai rollout status deploy/comfyui --timeout=300s
@@ -200,7 +212,7 @@ kubectl -n ai rollout status deploy/comfyui --timeout=300s
 kubectl -n ai scale deploy comfyui --replicas=0
 kubectl -n ai rollout status deploy/comfyui --timeout=120s
 flux -n ai resume hr vllm                               # resume alone does NOT restore replicas
-kubectl -n ai scale deploy vllm vllm-embed --replicas=1
+kubectl -n ai scale deploy vllm --replicas=1
 kubectl -n ai rollout status deploy/vllm --timeout=600s
 ```
 
@@ -209,15 +221,17 @@ kubectl -n ai rollout status deploy/vllm --timeout=600s
 > waits — starting the second workload before the first's pod is gone re-creates the
 > contention you are avoiding.
 
-### Embeddings caveat (don't flood it)
+### Embeddings caveat (don't re-enable it casually)
 
-`vllm-embed` is capped at `--gpu-memory-utilization=0.20` (~6.5 GiB) and is low-rate in
-normal use — it coexists with chat fine at steady state. The 38× collapse only reproduced
-under a *synthetic* flood. The risk is a **consumer** flooding it (e.g. agentmemory
-auto-compress / per-observation embedding storms — already disabled, commit `daa291d8`), not
-VRAM. If chat decode tanks while ComfyUI is at 0, check whether something is hammering
-`vllm-embed` before suspecting the chat server. **Do not** lower the embeddings VRAM cap to
-"fix" this — it is a request-rate problem, not a memory problem.
+`vllm-embed` is **off** (`replicas: 0` since 2026-06-28 / #1098). agentmemory embeds via
+OpenRouter, not the B70. The 38× collapse was measured against a synthetic flood of a
+then-resident embeddings server; that is not the default path anymore.
+
+If you restore `vllm-embed` to `replicas: 1`, it is still capped at
+`--gpu-memory-utilization=0.20` (~6.5 GiB) and still time-slices the card. The flood risk
+is a **consumer** hammering it, not the VRAM cap. **Do not** lower the embeddings VRAM cap
+to "fix" compute contention. Also re-validate `--ctx-size 262144` before leaving both
+chat and embed up.
 
 ### The structural fix
 

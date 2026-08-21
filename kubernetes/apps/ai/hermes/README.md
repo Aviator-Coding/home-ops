@@ -52,16 +52,17 @@ provider directly; the model id alone picks the upstream (see
   hermes-side fallback uses `glm-5.1` (strongest tool-caller on the Go sub) rather
   than kimi, since the fallback runs the full agentic tool-calling loop; the last
   tier is deliberately off the Go sub since it exists for Go-quota exhaustion.
-- **Auxiliary routing** — `web_extract` / `session_search` / `title_generator` run on kimi,
+- **Auxiliary routing** - `web_extract` / `session_search` / `title_generator` run on kimi,
   **not** the local model: `web_extract` fires N parallel LLM calls (one per page) that
-  the single-slot local server can't serve concurrently (they time out). Aux volume is
+  the **4-slot unified KV** llama.cpp process queues / times out once fan-out exceeds 4.
+  Aux chores stay on cloud so they do not contend with the live session. Aux volume is
   low/bursty so it won't hit the cloud limits the main loop did. Aux fallback uses a
   **per-task `fallback_chain`** (the global `fallback_providers` is main-loop only), so
   the heavy chores pin a cloud fallback. `compression` is the exception: it runs on
   `openai/gpt-oss-120b` as its **primary**, not kimi, because hermes-agent's compressor
-  falls back to the *main* model (not this task's `fallback_chain`) on a provider error —
-  on a kimi quota outage that meant it retried against the single-slot local model while it
-  was already busy serving the live session, causing repeated "Failed to generate context
+  falls back to the *main* model (not this task's `fallback_chain`) on a provider error -
+  on a kimi quota outage that meant it retried against the local model while that process
+  was already serving the live session, causing repeated "Failed to generate context
   summary" failures. Pinning a cloud model as primary sidesteps that structurally.
   `vision` runs on `qwen/qwen3-vl-32b-instruct` since the local 35B is text-only.
   **Custom-provider naming trap:** hermes-agent's auxiliary-client resolver treats a
@@ -96,13 +97,15 @@ beyond `ai`.
 ## Long-term memory (agentmemory)
 
 The `../agentmemory/` app runs the memory service; this app mounts the Hermes
-[memory plugin](app/agentmemory-plugin.yaml) at `/opt/hermes/plugins/agentmemory`
-and activates it via `memory.provider: agentmemory` (not `plugins.enabled` — see the
-note in config.yaml). Hermes gets `memory_recall` / `memory_save` tools and
-auto-saves turns; recall survives restarts and new sessions.
+[memory plugin](app/agentmemory-plugin.yaml) at `/opt/data/plugins/agentmemory`
+(`HERMES_HOME=/opt/data`). Mounting at `/opt/hermes/plugins/` does **not** register
+it as a memory provider. Activate it via `memory.provider: agentmemory` only (not
+`plugins.enabled` - see the note in config.yaml). Hermes gets `memory_recall` /
+`memory_save` tools and auto-saves turns; recall survives restarts and new sessions.
 
 agentmemory is also the memory backend for the ToolHive gateway: the `memory`
-MCPServer (`../toolhive/mcp-servers/agentmemory-mcp/`) runs the same image in its
+`toolhive.stacklok.dev/v1alpha1` MCPServer (`../toolhive/mcp-servers/agentmemory-mcp/`)
+runs the same image in its
 stdio-shim mode and proxies to the central service, so every vmcp client gets
 `memory_*`-prefixed tools backed by the same store. The plugin remains the deep
 integration (session lifecycle + context injection); the gateway tools are the

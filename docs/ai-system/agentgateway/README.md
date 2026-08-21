@@ -24,7 +24,7 @@ A March 2026 lab notebook still exists as a [historical testing report](../agent
 | Gateway class | `agentgateway` | `app/gateways/` |
 | LLM entry | unified OpenAI-style `/v1` | `app/httproute-unified.yaml` |
 | MCP | ToolHive, not AgentGateway MCP Backends | `kubernetes/apps/ai/toolhive/` |
-| LiteLLM / kagent / kmcp / kgateway | **not deployed** | `kubernetes/apps/ai/kustomization.yaml` |
+| LiteLLM / kagent / kmcp / kgateway | **not deployed** | `kubernetes/apps/ai/kustomization.yaml`. Tombstones: [kagent](../kagent/README.md), [kmcp](../kmcp/README.md). Live MCP GVK is `toolhive.stacklok.dev/v1alpha1` `MCPServer`. |
 
 Manifests live under `kubernetes/apps/ai/agentgateway/`. Prefer those YAML files (especially the header comments on `httproute-unified.yaml` and `gateways/*.yaml`) over copying config into prose.
 

@@ -1,5 +1,7 @@
 ---
-# Local vLLM on the Arc Pro B70 (talos-3) — llm-scaler, OpenAI-compatible.
+# Local llama.cpp SYCL chat on the Arc Pro B70 (talos-3). Service keeps the
+# vllm name so this backend host (`vllm-app`) stays stable. OpenAI-compatible.
+# Real llm-scaler image is only vllm-embed, which is scaled to 0.
 # In-cluster service: no TLS, no auth secret.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
