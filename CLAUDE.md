@@ -271,11 +271,11 @@ Example: `kubernetes/apps/media/immich/ks.yaml`. This creates three ReplicationS
 
 ### Network Architecture
 
-- **Cilium CNI**: native routing, kube-proxy replacement, BGP control plane advertising LoadBalancer IPs. L2 announcements are disabled.
+- **Cilium CNI**: native routing, kube-proxy replacement, BGP control plane peers with UniFi for LoadBalancer IP advertisement. L2 announcements are disabled. See `docs/networking/bgp.md`.
 - **Gateway API**: HTTPRoutes with `envoy-internal` (private) and `envoy-external` (public) gateways in `network`
 - **Cloudflare Tunnel**: Secure ingress for public services without port forwarding
 - **External-DNS**: Public names via `network/cloudflare-dns`
-- **Split DNS**: External-DNS Unifi webhook (`network/unifi-dns`) publishes internal records to the Unifi DNS server. Public names go through `cloudflare-dns` + the external gateway.
+- **Split DNS**: External-DNS Unifi webhook (`network/unifi-dns`) publishes internal records to the Unifi DNS server. Public names go through `cloudflare-dns` + the external gateway. There is no `k8s-gateway` app.
 
 ### Storage Architecture
 

@@ -1,5 +1,24 @@
 # Envoy Gateway Internal-Domain Reachability — 2026-07-03/04 Analysis
 
+> **Snapshot 2026-07-03/04.** Do not use this file as the source of current
+> chart versions or hostname counts. Git as of 2026-08: gateway-helm is
+> **v1.8.3** (`kubernetes/apps/network/envoy-gateway/app/ocirepository.yaml`);
+> data plane `envoyproxy/envoy:v1.39.0`. Upstream **Envoy Gateway v1.9.0**
+> exists ([announcement](https://gateway.envoyproxy.io/news/releases/v1.9/),
+> 2026-07-29). Re-evaluate Option B against v1.9 notes before acting.
+>
+> Option A (drop `GatewayNamespaceMode`) is still open - HelmRelease still has
+> `deploy.type: GatewayNamespace`.
+>
+> Split DNS in-cluster is UniFi + external-dns (`network/unifi-dns`), not
+> `k8s_gateway` (that app was deleted 2025-10-19). Hypothesis 4 below is
+> historical wording; the evidence used the UniFi resolver, which is still
+> the path.
+>
+> The 58/60 hostname matrix is a 2026-07-04 01:10–01:25 UTC probe window, not
+> a current inventory. The residual gatus table is 2026-07-04; `ai/comfyui`
+> parked-503 was still true in git at the 2026-08 audit.
+
 | Field | Value |
 |-------|-------|
 | **Reported symptom** | "Internal domains unreachable" — apps behind the `envoy-internal` Gateway (VIP 10.50.0.26) during/after the 2026-06-30 → 07-03 Ceph/OOM outage and its recovery |
@@ -64,7 +83,7 @@ Every hypothesis from the diagnosis plan, with the evidence line that decides it
 
 ## Residual failures (pre-existing, app-level — make the status page LOOK broken)
 
-Five gatus checks sat at **0.000000% 24 h uptime**, i.e. failing since *before* this incident. None are gateway faults:
+Five gatus checks sat at **0.000000% 24 h uptime**, i.e. failing since *before* this incident. None are gateway faults. **Table as of 2026-07-04** (do not treat hermes-webui / agentmemory / authentik-outpost / mcp-gateway rows as current without a live probe):
 
 | Check | Status | Actual cause | Follow-up |
 |-------|--------|--------------|-----------|
