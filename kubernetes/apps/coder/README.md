@@ -1,7 +1,15 @@
-# Initial Login
+# Coder
 
--  When you first connect you will be presented with interface to create and admin user.
-You can use whatever here because it will be disabled and not used.
-There's just no current way to disable this.
--  After you login your user with oidc you will be a normal user.
-To give your oidc user full admin rights you will need to edit the database record for your user in the users table and set rbac_roles = "{owner}"
+Workspace platform. Sign in with Authentik; do not create a local password user.
+
+Password auth is disabled (`CODER_DISABLE_PASSWORD_AUTH=true`). Authentik group
+`Admins` is mapped to Coder role `owner` via `CODER_OIDC_USER_ROLE_MAPPING`.
+There is no first-boot admin-user form to fill, and you should not `UPDATE`
+`users.rbac_roles` in Postgres to grant admin.
+
+If a first-connect setup wizard still appears, it is leftover Coder chart UI.
+Skip it and use **Sign in with Authentik**. Membership of Authentik `Admins` is
+what grants `owner`.
+
+OIDC issuer: `https://auth.${SECRET_DOMAIN}/application/o/coder/`
+(see `app/helmrelease.yaml`).

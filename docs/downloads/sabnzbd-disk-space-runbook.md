@@ -7,7 +7,7 @@ stalls. The disk that fills is the **2 Ti `shared-downloads` CephFS RWX PVC**
 `usenet/complete/` — *not* the RBD `sabnzbd-incomplete` scratch volume.
 
 - **Guardrails in Git** → `kubernetes/apps/downloads/maintenance/` (janitor CronJob + capacity alert, this incident's output)
-- **Prior art** → the 2026-06-24 `_UNPACK_` cleanup (memory/`reference_sabnzbd_complete_unpack_diskfull`)
+- **Prior art** → 2026-06-24 `_UNPACK_` cleanup (PR path not in this repo; see this runbook's incident notes and `kubernetes/apps/downloads/maintenance/`)
 - **Ceph-side context** → [`../ceph-cluster-changelog.md`](../ceph-cluster-changelog.md)
 
 ---
@@ -143,9 +143,12 @@ same as every other rule in this repo.)
 
 - **SAB's disk thresholds are runtime state, not GitOps.** `complete_free=100G`,
   `download_free=100G` and `direct_unpack=1` were set via the SAB API
-  (2026-06-24) and live in the sabnzbd **config PVC** — they survive restarts
-  but are invisible in Git. If the config PVC is ever rebuilt, re-apply them
-  via `api?mode=set_config`.
+  (2026-06-24) and live in the sabnzbd **config PVC** - they survive restarts
+  but are invisible in Git. Live-confirmed 2026-08-21:
+  `direct_unpack=true`, `complete_free=100G`, `download_free=100G`.
+  If the config PVC is ever rebuilt, re-apply them via `api?mode=set_config`.
+  TRaSH still recommends Direct Unpack OFF; this cluster's standing runtime
+  value is ON.
 - The Radarr-grabbed happy path is correctly configured and was NOT the leak
   (`enableCompletedDownloadHandling=true`, `autoRedownloadFailed=true`,
   `downloadClientWorkingFolders=_UNPACK_|_FAILED_`, SAB `fail_hopeless_jobs=1`).
