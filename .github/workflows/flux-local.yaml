@@ -35,7 +35,12 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Flux Local - Test
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    # Not migrated to the local runner: this job uses `docker://...` container actions
+    # (flux-local), which need a Docker daemon. The local ARC runner pod has none (no
+    # docker.sock, no DinD sidecar) - confirmed by a live PR run failing with "failed to
+    # connect to the docker API at unix:///var/run/docker.sock". See
+    # kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md.
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Generate Token
@@ -68,7 +73,8 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Flux Local - Diff
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    # Not migrated: same docker:// container-action / no-Docker-daemon gap as the Test job above.
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
