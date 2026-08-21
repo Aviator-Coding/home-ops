@@ -1,6 +1,53 @@
-## UniFi BGP
+# Cilium + UniFi BGP
 
-```sh
+Current GitOps picture. Source of truth for Cilium is
+[`app/networking.yaml`](./app/networking.yaml) plus the HelmRelease
+(`bgpControlPlane.enabled`, `l2announcements.enabled: false`, `devices: bond+`).
+Chart pin: `1.18.6` in [`app/ocirepository.yaml`](./app/ocirepository.yaml).
+
+UniFi BGP is **not** reconciled by Flux. The snippet below is the last git copy of
+`cilium/unifi/bgp.conf` (inlined here when that file was deleted on 2025-10-18).
+A live `vtysh` `show bgp summary` on the UDM is the only way to confirm the
+device is still running this config. See **C1** at the end.
+
+## Current topology
+
+| Role | Value |
+|------|-------|
+| k8s ASN | `64514` (`CiliumBGPClusterConfig/l3-bgp-cluster-config`) |
+| UniFi ASN | `64513` |
+| Cilium BGP peer / UniFi router-id | `10.0.0.1` |
+| Node neighbors (UniFi side) | `10.10.10.11`, `.12`, `.13` (`bond0` on `10.10.10.0/24`) |
+| Control-plane VIP | `10.10.10.10` on `bond0` |
+| Node nameserver / VLAN gateway | `10.10.10.1` (do **not** collapse this with `10.0.0.1`) |
+| LB pool | `10.50.0.0/24` (`CiliumLoadBalancerIPPool/pool`) |
+| Advertisement | `CiliumBGPAdvertisement/l3-bgp-advertisement` → all `LoadBalancerIP`s |
+| Peer config | `CiliumBGPPeerConfig/l3-bgp-peer-config` (`ebgpMultihop: 4`, graceful restart 15s) |
+| L2 announcements | **off** (no `CiliumL2AnnouncementPolicy`) |
+| Cilium devices | `bond+` (`bond0`, `bond0.3`, `bond0.90`) |
+
+`ebgpMultihop: 4` is required because the UniFi peer `10.0.0.1` is off-subnet
+from the node IPs on `10.10.10.0/24`. Same-VLAN peering on `10.10.3.0/24` is
+the old layout, not current Talos.
+
+Private 16-bit ASNs are `64512-65534` (RFC 6996; `65535` is reserved).
+
+### Node underlay (Talos)
+
+From `talos/nodes/talos-{1,2,3}.yaml.j2` and `talos/machineconfig.yaml.j2`:
+
+- i40e ports aliased to `net0`/`net1`, bonded as `bond0` (802.3ad, MTU 9000)
+- DHCPv4 on `bond0` only; kubelet `nodeIP.validSubnets: 10.10.10.0/24`
+- `bond0.3` (VLAN 3) and `bond0.90` (VLAN 90) exist for Multus. Nodes do **not**
+  take addresses on them. IoT macvlan gateway `10.40.0.1`; VPN macvlan gateway
+  `192.168.90.1`.
+
+Talos will not put `10.10.3.11` on a node unless some out-of-band DHCP/NIC
+still exists.
+
+## UniFi config (last git copy)
+
+```
 router bgp 64513
   bgp router-id 10.0.0.1
   no bgp ebgp-requires-policy
@@ -20,208 +67,81 @@ router bgp 64513
 exit
 ```
 
-## BGP Configuration Guide
-
-This document explains the BGP (Border Gateway Protocol) configuration for establishing peering with Kubernetes nodes.
-
-## Configuration Overview
-
-This BGP configuration establishes a peering relationship between a router (AS 64513) and Kubernetes nodes (AS 64514) for route advertisement and network connectivity.
-
-## Detailed Configuration Breakdown
-
-### Router Basic Configuration
-
-```
-router bgp 64513
-```
-- **Purpose**: Initiates BGP process and defines the local Autonomous System (AS) number
-- **AS 64513**: Private AS number (range 64512-65534) used for internal networks
-- **Effect**: Creates the BGP routing process instance
-
-```
-bgp router-id 10.10.3.1
-```
-- **Purpose**: Sets a unique identifier for this BGP router
-- **Value**: 10.10.3.1 (typically matches a loopback or stable interface IP)
-- **Importance**: Used for BGP session identification and loop prevention
-
-### BGP Policy Configuration
-
-```
-no bgp ebgp-requires-policy
-```
-- **Purpose**: Disables the requirement for explicit route policies on eBGP sessions
-- **Default Behavior**: Modern BGP implementations require explicit policies
-- **Effect**: Allows routes to be advertised/received without route-maps or prefix-lists
-- **⚠️ Security Note**: Use with caution in production environments
-
-```
-no bgp default ipv4-unicast
-```
-- **Purpose**: Disables automatic IPv4 unicast address family activation
-- **Benefit**: Provides explicit control over which address families are active
-- **Best Practice**: Prevents accidental route advertisement before proper configuration
-
-```
-no bgp network import-check
-```
-- **Purpose**: Disables route existence verification in local routing table
-- **Effect**: Allows advertising networks not present in the local RIB
-- **Use Case**: Useful for route aggregation or redistribution scenarios
-
-### Peer Group Configuration
-
-```
-neighbor k8s peer-group
-```
-- **Purpose**: Creates a template for multiple neighbors with identical configuration
-- **Benefit**: Simplifies configuration and reduces errors for similar peers
-- **Name**: "k8s" indicates these are Kubernetes node peers
-
-```
-neighbor k8s remote-as 64514
-```
-- **Purpose**: Defines the AS number of the peer group members
-- **AS 64514**: Private AS assigned to Kubernetes nodes
-- **Relationship**: eBGP (External BGP) since local AS (64513) ≠ remote AS (64514)
-
-### BGP Timers Configuration
-
-```
-neighbor k8s timers 10 30
-```
-- **Keepalive**: 10 seconds (how often keepalive messages are sent)
-- **Hold Timer**: 30 seconds (time to wait before declaring neighbor down)
-- **⚠️ Aggressive**: Default is typically 60/180 seconds
-- **Trade-off**: Faster convergence vs. increased CPU/bandwidth usage
-
-```
-neighbor k8s timers connect 30
-```
-- **Purpose**: Sets BGP connection retry timer to 30 seconds
-- **Effect**: Time to wait before attempting to re-establish a failed BGP session
-- **Default**: Usually 120 seconds
-
-### Session Configuration
-
-```
-neighbor k8s activate
-```
-- **Purpose**: Enables the BGP session for the peer group
-- **Note**: This appears to be outside address-family (legacy command)
-- **Modern Equivalent**: Should be under `address-family ipv4 unicast`
-
-```
-neighbor k8s soft-reconfiguration inbound
-```
-- **Purpose**: Stores unmodified routes received from peers
-- **Benefit**: Allows policy changes without session reset
-- **Memory Impact**: Increases memory usage but improves operational flexibility
-
-### Individual Peer Configuration
-
-```
-neighbor 10.10.3.11 peer-group k8s
-neighbor 10.10.3.12 peer-group k8s
-neighbor 10.10.3.13 peer-group k8s
-```
-- **Purpose**: Assigns specific IP addresses to the k8s peer group template
-- **IPs**: Kubernetes node addresses (10.10.3.11, 10.10.3.12, 10.10.3.13)
-- **Inheritance**: Each neighbor inherits all k8s peer-group settings
-
-### Address Family Configuration
-
-```
-address-family ipv4 unicast
-```
-- **Purpose**: Enters IPv4 unicast address family configuration mode
-- **Scope**: All subsequent commands apply only to IPv4 unicast routing
-
-```
-redistribute connected
-```
-- **Purpose**: Advertises directly connected network routes into BGP
-- **Effect**: Makes local subnets reachable from Kubernetes nodes
-- **Use Case**: Essential for pod-to-external-service connectivity
-
-```
-neighbor k8s next-hop-self
-```
-- **Purpose**: Sets this router as the next-hop for routes advertised to k8s peers
-- **Benefit**: Simplifies routing by avoiding multi-hop scenarios
-- **Requirement**: Essential when this router acts as a gateway
-
-```
-neighbor k8s activate
-```
-- **Purpose**: Activates IPv4 unicast address family for k8s peer group
-- **Requirement**: Necessary for route exchange in this address family
-
-```
-exit-address-family
-```
-- **Purpose**: Exits the IPv4 unicast address family configuration mode
-- **Effect**: Returns to global BGP configuration mode
-
-## Network Topology
+Timers, `no bgp default ipv4-unicast`, `no bgp network import-check`, and a
+global `neighbor k8s activate` were stripped from this config in `c3160f11`
+(2025-08-11). Do not re-add them from older prose.
 
 ```
 ┌─────────────────┐    eBGP     ┌─────────────────┐
-│   This Router   │◄──────────► │ Kubernetes Node │
-│   AS 64513      │             │   AS 64514      │
-│  10.10.3.1      │             │  10.10.3.11     │
+│  UniFi (UDM)    │◄──────────► │ talos-1         │
+│  AS 64513       │             │ AS 64514        │
+│  10.0.0.1       │             │ 10.10.10.11     │
 └─────────────────┘             └─────────────────┘
                                 ┌─────────────────┐
-                                │ Kubernetes Node │
-                                │   AS 64514      │
-                                │  10.10.3.12     │
-                                └─────────────────┘
-                                ┌─────────────────┐
-                                │ Kubernetes Node │
-                                │   AS 64514      │
-                                │  10.10.3.13     │
+                                │ talos-2 / .12   │
+                                │ talos-3 / .13   │
                                 └─────────────────┘
 ```
 
-## Security Considerations
+## Cilium CRs
 
-1. **Private AS Numbers**: Using private AS range (64512-65535) for internal networks
-2. **No Policy Requirement**: `no bgp ebgp-requires-policy` reduces security - consider implementing explicit policies
-3. **Aggressive Timers**: Fast convergence but increased resource usage
-4. **Route Redistribution**: `redistribute connected` exposes local networks
+All in [`app/networking.yaml`](./app/networking.yaml):
 
-## Troubleshooting Commands
+- `CiliumLoadBalancerIPPool/pool` - `10.50.0.0/24`
+- `CiliumBGPAdvertisement/l3-bgp-advertisement` - advertise Service `LoadBalancerIP`
+- `CiliumBGPPeerConfig/l3-bgp-peer-config` - peer to UniFi
+- `CiliumBGPClusterConfig/l3-bgp-cluster-config` - local ASN 64514, peer `unifi` at `10.0.0.1` ASN 64513
+- `Service/kube-api` - `lbipam.cilium.io/ips: 10.50.0.121`
 
-```bash
-# Check BGP summary
-show ip bgp summary
+### Expected advertised prefixes (from git `lbipam.cilium.io/ips`)
 
-# Verify neighbor status
-show ip bgp neighbors
+A current UniFi `show bgp ipv4 unicast` should list `/32`s in `10.50.0.0/24`
+with nexthops `10.10.10.11-13`, not the old `10.10.3.0/24` pool. More than five
+prefixes.
 
-# Check received routes
-show ip bgp neighbors 10.10.3.11 received-routes
+| IP | Service |
+|----|---------|
+| `10.50.0.21` | envoy-external |
+| `10.50.0.26` | envoy-internal |
+| `10.50.0.27` / `.28` / `.29` | agentgateway (internal / internal-noauth / public) |
+| `10.50.0.30` | emqx |
+| `10.50.0.50` / `.52` / `.54` | jellyfin / plex / tdarr |
+| `10.50.0.51` | syncthing |
+| `10.50.0.121` | kube-api |
 
-# Verify advertised routes
-show ip bgp neighbors 10.10.3.11 advertised-routes
+## Verify on UniFi (FRR / vtysh)
 
-# Check BGP table
-show ip bgp
+Enable SSH on the UniFi controller, connect, then `vtysh`. Use FRR commands
+(not Cisco `show ip bgp ...`):
+
+```
+show bgp summary
+show bgp ipv4 unicast
+show bgp neighbors 10.10.10.11
 ```
 
-## Best Practices
+Expect three neighbors `10.10.10.11-13` in AS 64514, router identifier
+`10.0.0.1`, local AS 64513, and `10.50.0.x/32` prefixes as above.
 
-1. **Implement Route Filtering**: Use prefix-lists or route-maps for security
-2. **Monitor BGP Sessions**: Set up alerts for session state changes
-3. **Document Changes**: Maintain configuration change logs
-4. **Test Failover**: Verify behavior when individual peers fail
-5. **Review Timers**: Consider less aggressive timers for production stability
+## C1 - live UniFi vs git (open)
 
-## BGP Verification
-### Unifi Side
-Enable ssh in the unifi controller and connect to it. run `vtysh` i order to open the frr terminal.
-Run `show bgp summary`
+Git cannot prove the UDM is running the snippet above. This worktree can ping
+`10.0.0.1` and `10.10.10.11` but has no UniFi SSH credentials and no
+`talosconfig`, so the live session was not captured.
+
+- **Side A (git, likely current operator intent):** router-id `10.0.0.1`,
+  neighbors `10.10.10.11-13`, AS 64513↔64514, pool `10.50.0.0/24`.
+- **Side B (older captures in this file's history):** neighbors `10.10.3.11-13`,
+  advertised `10.10.3.2-7/32`. Predates the 2025-08-16 subnet cutover
+  (`ade7b639`). Do not assume Side B is live.
+
+## Historical capture (~2025-08, pre-`10.50.0.0/24` pool)
+
+Neighbors `10.10.3.11-13` and five `/32`s in `10.10.3.0/24`. Kept only as a
+dated dump. Not current.
+
+`show bgp summary` (UniFi, FRR):
+
 ```
 IPv4 Unicast Summary:
 BGP router identifier 10.0.0.1, local AS number 64513 VRF default vrf-id 0
@@ -238,8 +158,7 @@ Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down Sta
 Total number of neighbors 3
 ```
 
-In order to the unicast you can use
-`show bgp ipv4 unicast`
+`show bgp ipv4 unicast` from the same session:
 
 ```
 BGP table version is 25, local router ID is 10.0.0.1, vrf id 0
