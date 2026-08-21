@@ -1,34 +1,44 @@
 # Media Stack
 
-Architecture and operational reference for the downloads, management, and media server pipeline. Covers Usenet acquisition, automated library management, quality control, subtitle management, and distributed GPU transcoding.
+Architecture and operational reference for the downloads, management, and media server pipeline. Covers Usenet acquisition, automated library management, quality control, subtitle management, and GPU transcoding.
 
 ---
 
 ## Overview
 
-The media stack is split across three Kubernetes namespaces:
+The media stack is split across two Kubernetes namespaces (`default` is empty):
 
 | Namespace | Purpose | Key Apps |
 |-----------|---------|----------|
-| `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, Autobrr, FlareSolverr |
-| `media` | Media servers + post-processing | Jellyfin, Immich, Tdarr, Calibre-Web |
-| `default` | Ebook ingestion pipeline | Calibre-Web-Automated, Calibre-Downloader |
+| `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, Autobrr, FlareSolverr, reading-glasses |
+| `media` | Media servers + post-processing | Jellyfin, Plex, Seerr, Immich, Tdarr, Calibre-Web-Automated, Calibre-Downloader |
 
-Flow: **Indexers** -> Prowlarr -> *arr apps -> SABnzbd -> imports to NAS -> Jellyfin serves -> Tdarr transcodes in place.
+`default/kustomization.yaml` has `resources: []`. CWA + Calibre-Downloader live under `media/calibre/` and Flux-target `media`.
+
+`media/calibre-web/` still exists on disk but is **not** listed in `media/kustomization.yaml`, so Flux never applies it (orphaned leftover next to CWA).
+
+In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` are commented out in `downloads/kustomization.yaml`.
+
+Flow: **Indexers** -> Prowlarr -> *arr apps -> SABnzbd -> imports to NAS -> Jellyfin/Plex serve -> Tdarr transcodes in place to AV1.
 
 ---
 
 ## Storage Architecture
 
-Storage is intentionally split between CephFS (transient downloads) and NFS (permanent media):
+Storage is split between CephFS (complete downloads), Ceph block (SAB incomplete scratch), and NFS (permanent media):
 
 | Volume | Backing | Access | Size | Purpose |
 |--------|---------|--------|------|---------|
-| `shared-downloads-pvc` | CephFS (RWX) | RWX | 2 TiB | Active downloads, unpack workspace |
+| `shared-downloads` | `ceph-filesystem-rwx` (RWX) | RWX | 2 Ti | `usenet/complete/` and other download scratch |
+| `sabnzbd-incomplete` | `ceph-block` (RWO) | RWO | 1500 Gi | SAB article-assembly (`download_dir`); bind-mounted **over** `/data/downloads/usenet/incomplete` |
 | `{app}-config` | Ceph block (RWO) | RWO | 1-10 Gi | Per-app config PVCs with Volsync backup |
 | NFS `/mnt/storage/Media` | NAS (NFS) | RWX | ~40+ TiB | Permanent media library |
 | `immich-library` | CephFS (RWX) | RWX | 100 Gi | Photos |
 | `jellyfin-metadata` | Ceph block | RWO | 50 Gi | Jellyfin thumbnails/metadata |
+
+Manifests: `kubernetes/apps/downloads/pvc/app/shared-downloads.yaml` and `sabnzbd-incomplete.yaml`. There is no `shared-downloads-pvc.yaml`.
+
+Incomplete is **not** on the shared PVC. Since PR #983 it is a separate RBD volume overlaying that path in the sab pod. `du` inside sab will miss a ghost tree on CephFS under the mount. Full incident notes: [`downloads/sabnzbd-disk-space-runbook.md`](downloads/sabnzbd-disk-space-runbook.md). Do not duplicate incomplete-path settings here.
 
 ### Hardlink limitation
 
@@ -38,19 +48,20 @@ Downloads live on CephFS, media lives on NFS -- **hardlinks are impossible acros
 
 | Container path | Source |
 |----------------|--------|
-| `/data/downloads` | `shared-downloads-pvc` (all download + *arr apps) |
-| `/data/nas-media` | NFS mount `nas.${SECRET_DOMAIN}:/mnt/storage/Media` (read-write for *arr imports) |
+| `/data/downloads` | `shared-downloads` (all download + *arr apps) |
+| `/data/downloads/usenet/incomplete` | `sabnzbd-incomplete` overlay, **sab pod only** |
+| `/data/nas-media` | NFS mount `nas.${SECRET_DOMAIN}:/mnt/storage/Media` (read-write for *arr imports; read-only on Jellyfin) |
 | `/media` | Same NFS mount, alternative path used by Tdarr and Jellyfin |
 
 ---
 
 ## Application Reference
 
-### SABnzbd — Usenet download client
+### SABnzbd - Usenet download client
 
 **Namespace:** `downloads` | **Image:** `ghcr.io/home-operations/sabnzbd` | **Hostname:** `sabnzbd.${SECRET_DOMAIN}`
 
-Categories map to the *arr apps:
+Categories map to the *arr apps. The init container also creates audiobooks, comics, magazines, and other:
 
 | Category | Folder | Consumed by |
 |----------|--------|-------------|
@@ -61,16 +72,16 @@ Categories map to the *arr apps:
 
 **Critical UI settings (not in GitOps):**
 - Article Cache: **1 GB**
-- Direct Unpack: **OFF** (TRaSH recommendation)
+- Direct Unpack: **ON** (`direct_unpack=1`). Live-confirmed 2026-08-21 via SAB API; set 2026-06-24 with `complete_free=100G` / `download_free=100G`. TRaSH still recommends OFF; this cluster keeps ON as runtime state on the config PVC. See the [disk-space runbook](downloads/sabnzbd-disk-space-runbook.md).
 - Disable **ALL Sorting** (the *arr apps handle renaming)
 - Abort jobs that cannot be completed: **ON**
 - Action on encrypted RAR: **Abort**
-- Incomplete: `/data/downloads/usenet/incomplete`
-- Complete: `/data/downloads/usenet/complete`
+- Incomplete: `/data/downloads/usenet/incomplete` (RBD overlay)
+- Complete: `/data/downloads/usenet/complete` (`shared-downloads`)
 
 The init container pre-creates the category subdirectories on the shared PVC.
 
-### Prowlarr — Indexer manager
+### Prowlarr - Indexer manager
 
 Central proxy for all indexers. All *arr apps should be registered in `Settings > Apps` and pull indexer config from Prowlarr. Do **not** add indexers directly to Sonarr/Radarr/Lidarr.
 
@@ -80,7 +91,7 @@ Service DNS registered in Prowlarr:
 - `http://lidarr.downloads.svc.cluster.local:8080`
 - `http://readarr.downloads.svc.cluster.local:8787`
 
-### Sonarr / Radarr / Lidarr / Readarr — Library managers
+### Sonarr / Radarr / Lidarr / Readarr - Library managers
 
 All four follow the same pattern. Quality profiles and custom formats are managed declaratively by **Recyclarr** (see below).
 
@@ -112,7 +123,7 @@ Lidarr track format:
 - Propers and Repacks: **Do Not Prefer** (custom formats handle scoring)
 - Download clients point to `sabnzbd.downloads.svc.cluster.local:8080` with the matching category
 
-### Recyclarr — Declarative quality config
+### Recyclarr - Declarative quality config
 
 **File:** `kubernetes/apps/downloads/recyclarr/app/config/recyclarr.yml`
 **Schedule:** Daily CronJob (`@daily`)
@@ -132,14 +143,15 @@ kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date
 | Radarr | SQP-1 (2160p) | Streaming quality 2160p with `min_format_score: 2000` |
 
 **Custom format categories applied:**
-- **Unwanted**: AV1, BR-DISK, LQ, x265 (HD), 3D, Bad Dual Groups, No-RlsGroup, Obfuscated, Retags, Scene
+- **Unwanted (Sonarr)**: AV1, BR-DISK, LQ, x265 (HD), Bad Dual Groups, No-RlsGroup, Obfuscated, Retags, Scene
+- **Unwanted (Radarr)**: the Sonarr set plus **3D** (Radarr-only; do not toggle 3D on Sonarr from this table)
 - **Repacks**: Repack/Proper, Repack2, Repack3
 - **Streaming services** (Sonarr): AMZN, ATVP, DCU, DSNP, HBO, HMAX, HULU, iT, MAX, NF, PCOK, PMTP, SHO, STAN
 - **Movie versions** (Radarr): Criterion Collection, Hybrid, Remaster, IMAX, IMAX Enhanced
 - **HDR** (WEB-2160p): DV (WEBDL)
 - **Trusted groups** (Radarr): hallowed
 
-### Bazarr — Subtitle management
+### Bazarr - Subtitle management
 
 **TRaSH-recommended scoring:**
 
@@ -150,28 +162,37 @@ kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date
 
 Connects to Sonarr and Radarr for series/movie metadata. Provider priority: OpenSubtitles.com > Podnapisi > Supersubtitles > Addic7ed.
 
-### Cross-Seed + Autobrr
+### Autobrr
 
-Cross-Seed matches completed downloads against torrent indexers for seeding without re-download. Autobrr monitors release feeds for instant snatches. Both integrate with qBittorrent and SABnzbd (commented out in current kustomization but the infrastructure exists).
+Autobrr is deployed (`downloads/kustomization.yaml`). Cross-Seed and qBittorrent remain commented out; Autobrr's torrent-side integrations are unused until those are enabled.
 
 ---
 
-## Tdarr — Distributed transcoding
+## Tdarr - GPU transcoding
 
 **Namespace:** `media` | **Hostname:** `tdarr.${SECRET_DOMAIN}`
 
-Deployed as a single HelmRelease with two controllers:
+Not a DaemonSet. After the i915 -> xe migration, only talos-3 advertises GPU
+(`gpu.intel.com/xe: 99` on the B70; talos-1/2 report 0). See
+[`ai-gpu-changelog.md`](ai-gpu-changelog.md).
 
 | Controller | Type | Purpose | GPU |
 |-----------|------|---------|-----|
 | `tdarr` | Deployment (1 pod) | Web UI, orchestrator, database | No |
-| `tdarr-node` | DaemonSet (1 pod per K8s node) | Transcode workers | `gpu.intel.com/i915: 1` each |
+| `tdarr-node` | Deployment (`replicas: 1`) | Transcode worker on the xe node (talos-3 / B70) | `gpu.intel.com/xe: 1` |
 
-This gives **3 parallel GPU transcodes** across talos-1, talos-2, talos-3. The server has `internalNode=false` so it doesn't compete for GPU.
+Optional external Windows node via Service `tdarr-node-lb` (`10.50.0.54:8266`,
+`tdarr/app/externalservice.yaml`). Live UI (2026-08-21): k8s node `talos-3`
+(`transcodegpuWorkers=1`) plus `desktop-aviator` (`transcodegpuWorkers=2`).
+Stale registrations for talos-1/2 may still appear with GPU workers at 0.
+
+The server has `internalNode=false` so it doesn't compete for GPU. Expect
+1 `tdarr-*` server pod + 1 `tdarr-tdarr-node-*` worker on talos-3, not three
+workers.
 
 ### Worker environment
 
-Each worker pod gets:
+The k8s worker pod gets:
 ```
 serverIP=tdarr.media.svc.cluster.local
 serverPort=8266
@@ -181,30 +202,39 @@ transcodecpuWorkers=0      # Force GPU usage
 healthcheckgpuWorkers=1
 healthcheckcpuWorkers=1
 nodeName=<k8s pod nodeName> # Registers with pod's scheduling node
+ffmpegVersion=7
 ```
 
-### Plugin stack (configured in Tdarr UI)
+### Transcode flow (configured in Tdarr UI, not Git)
 
-Per library:
+Classic Boosh HEVC plugin stack is **not** in use (`pluginIDs` empty). Both
+libraries use Tdarr Flow `movies_av1_nvenc_v1`, named
+**Movies AV1 (QSV/B70 xe) - DV-safe v4**.
 
-1. `Migz-Remove Image Formats From File` — strip embedded thumbnails
-2. `Lmg1-Reorder Streams` — main audio/subtitle tracks first
-3. `Boosh-Transcode Using QSV GPU & FFMPEG` — HEVC transcode
-4. `New File Size Check` — verify output is smaller
+Libraries (2026-08-21):
 
-Boosh plugin configuration:
+| Library | Folder | Flow |
+|---------|--------|------|
+| Series | `/media/TV-Shows` | `movies_av1_nvenc_v1` |
+| Movies AV1 | `/media/Movies` | `movies_av1_nvenc_v1` |
+
+Flow encoder plugins (Community `ffmpegCommandSetVideoEncoder`):
 
 | Setting | Value |
 |---------|-------|
-| `encoder` | `hevc` |
-| `container` | `mkv` |
-| `target_bitrate_modifier` | `0.5` |
-| `encoder_speedpreset` | `slow` |
-| `enable_10bit` | `false` |
+| `outputCodec` | `av1` |
+| `hardwareType` | `qsv` |
+| `hardwareEncoding` / `hardwareDecoding` | `true` |
+| container | `mkv` |
+| quality ladders | cq24 / cq26 / cq28 (`ffmpegQuality` 22/23/24 with quality flag off; CQ via custom args) |
+
+The flow skips files that are already AV1 and has DV-detect / HDR-survival
+guards. The flow **id** still says `nvenc`; the live plugins are QSV on the B70.
 
 ### Library file type filter
 
-Tdarr cannot process disc images (`.iso`). Set allowed container extensions to:
+Tdarr cannot process disc images (`.iso`). Live `containerFilter` on both
+libraries:
 ```
 mkv,mp4,avi,ts,mov,m4v,wmv,flv,webm
 ```
@@ -218,11 +248,13 @@ BR-DISK and ISO files are blocked going forward:
 
 ---
 
-## Jellyfin — Media server
+## Jellyfin - Media server
 
-**Namespace:** `media` | **LoadBalancer IP:** `10.50.0.50` | **GPU:** `gpu.intel.com/i915: 1`
+**Namespace:** `media` | **LoadBalancer IP:** `10.50.0.50` | **GPU:** `gpu.intel.com/xe: 1`
 
 Single-pod deployment reading the NFS media mount read-only at `/data/nas-media`. Intel GPU handles hardware transcoding for any clients that can't direct play (rare with the SQP-1 profile since streaming-quality content is widely compatible).
+
+Plex is also deployed in `media` and claims `gpu.intel.com/xe: 1` (`plex/app/helmrelease.yaml`). Seerr is deployed in `media`.
 
 ---
 
@@ -237,7 +269,7 @@ User adds movie to Radarr
   ├─> Best release sent to SABnzbd with category=movies
   │   └─> Downloaded to /data/downloads/usenet/complete/movies/
   │
-  ├─> SABnzbd post-processes (par2 repair, unrar)
+  ├─> SABnzbd post-processes (par2 repair, unrar; Direct Unpack ON)
   │
   ├─> Radarr imports to /data/nas-media/Movies/
   │   └─> File is copied (not hardlinked) due to CephFS -> NFS boundary
@@ -245,11 +277,12 @@ User adds movie to Radarr
   │
   ├─> Bazarr detects new file, downloads subtitles
   │
-  ├─> Jellyfin library scan picks up the new file
+  ├─> Jellyfin / Plex library scan picks up the new file
   │
-  └─> Tdarr library scan queues for health check
-      └─> If H.264: transcode to HEVC via Intel QSV on one of 3 GPU workers
-      └─> Replaces file in place (/media = /data/nas-media)
+  └─> Tdarr library scan queues for health check / transcode
+      └─> If not already AV1: transcode to AV1 via Intel QSV (B70 on talos-3)
+          and/or the external Windows node
+      └─> Replaces file in place (/media = NAS Media)
 ```
 
 ---
@@ -290,26 +323,27 @@ After direct deletion, trigger a rescan in Radarr so it marks the movies as miss
 kubectl -n media get pods -l app.kubernetes.io/name=tdarr -o wide
 ```
 
-Expect 1 `tdarr-*` server pod + 3 `tdarr-tdarr-node-*` worker pods (one on each node). The Tdarr UI shows worker stats under Nodes Overview.
+Expect 1 `tdarr-*` server pod + 1 `tdarr-tdarr-node-*` worker on talos-3. The Tdarr UI shows worker stats under Nodes Overview.
 
 ### Monitoring GPU usage
 
 ```sh
-kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): gpu.intel.com/i915=\(.status.allocatable."gpu.intel.com/i915" // "0")"'
+kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): gpu.intel.com/xe=\(.status.allocatable."gpu.intel.com/xe" // "0")"'
 ```
 
-Each Meigao Venus node reports `99` (the Intel device plugin uses shared mode up to 99 concurrent pods).
+Only the B70 node (talos-3) reports `99`. `gpu.intel.com/i915` is 0 on every node
+after the xe migration.
 
 ### Finding which *arr app is failing imports
 
 Check Sonarr/Radarr Activity > History for failed imports. Common causes:
 - File already exists at target path (unmonitored duplicate)
-- Permission issue on NFS (should not happen — fsGroup=2000 across all apps)
+- Permission issue on NFS (should not happen -- fsGroup=2000 across all apps)
 - Quality profile rejection (check custom format score in release details)
 
 ### Backup and recovery
 
-All config PVCs have Volsync with triple backup (Ceph snapshots every 4h, NAS MinIO every 6h, Cloudflare R2 daily). The shared-downloads-pvc is **not** backed up (transient data). The NAS media library is backed up at the NAS level, separately from cluster Volsync.
+All config PVCs have Volsync with triple backup (Ceph snapshots every 4h, NAS MinIO every 6h, Cloudflare R2 daily). The `shared-downloads` PVC is **not** backed up (transient data). `sabnzbd-incomplete` is disposable scratch with no Volsync. The NAS media library is backed up at the NAS level, separately from cluster Volsync.
 
 ---
 
@@ -325,17 +359,21 @@ All config PVCs have Volsync with triple backup (Ceph snapshots every 4h, NAS Mi
 | Prowlarr | `kubernetes/apps/downloads/prowlarr/` |
 | Bazarr | `kubernetes/apps/downloads/bazarr/` |
 | Recyclarr config | `kubernetes/apps/downloads/recyclarr/app/config/recyclarr.yml` |
-| Shared downloads PVC | `kubernetes/apps/downloads/pvc/app/shared-downloads-pvc.yaml` |
+| Shared downloads PVC | `kubernetes/apps/downloads/pvc/app/shared-downloads.yaml` |
+| SAB incomplete PVC | `kubernetes/apps/downloads/pvc/app/sabnzbd-incomplete.yaml` |
+| SAB disk-space runbook | `docs/downloads/sabnzbd-disk-space-runbook.md` |
 | Jellyfin | `kubernetes/apps/media/jellyfin/` |
+| Plex | `kubernetes/apps/media/plex/` |
 | Tdarr | `kubernetes/apps/media/tdarr/` |
+| GPU changelog | `docs/ai-gpu-changelog.md` |
 | Volsync component | `kubernetes/components/volsync/` |
 
 ---
 
 ## References
 
-- [TRaSH Guides](https://trash-guides.info/) — quality profile recommendations, naming schemes, custom formats
-- [Servarr Wiki](https://wiki.servarr.com/) — official *arr documentation
-- [Recyclarr Docs](https://recyclarr.dev/) — declarative *arr config
-- [Tdarr Docs](https://docs.tdarr.io/) — transcoding and distributed setup
-- [bjw-s app-template](https://github.com/bjw-s-labs/helm-charts) — Helm chart used for most deployments
+- [TRaSH Guides](https://trash-guides.info/) - quality profile recommendations, naming schemes, custom formats
+- [Servarr Wiki](https://wiki.servarr.com/) - official *arr documentation
+- [Recyclarr Docs](https://recyclarr.dev/) - declarative *arr config
+- [Tdarr Docs](https://docs.tdarr.io/) - transcoding and distributed setup
+- [bjw-s app-template](https://github.com/bjw-s-labs/helm-charts) - Helm chart used for most deployments
