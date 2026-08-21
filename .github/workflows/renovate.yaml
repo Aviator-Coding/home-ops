@@ -41,7 +41,11 @@ permissions:
 jobs:
   main:
     name: Renovate
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    # Not migrated: renovatebot/github-action always launches Renovate via `docker run`
+    # (there is no non-Docker execution mode), and the local ARC runner pod has no Docker
+    # daemon. Confirmed by a live run failing with "failed to connect to the docker API at
+    # unix:///var/run/docker.sock". See kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       packages: read
