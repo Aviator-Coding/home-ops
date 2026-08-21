@@ -278,7 +278,7 @@ The Taskfile uses different node references for different operations:
   - Kubernetes identifies nodes by their registered node names
 
 - **Talos CLI Operations** (e.g., `talosctl -n`, direct API calls): Use **IP addresses**
-  - `TALOS_NODE_IPS`: `[10.10.3.11, 10.10.3.12, 10.10.3.13]`
+  - `TALOS_NODE_IPS`: `[10.10.10.11, 10.10.10.12, 10.10.10.13]`
   - Talos CLI connects directly to node IP addresses
 
 This dual reference system ensures:
@@ -406,7 +406,7 @@ If disk checking fails with missing commands:
 task rook:check-node-disks node=talos-1
 
 # Alternative: Check disks directly via Talos
-talosctl -n 10.10.3.11 list /dev/disk/by-id/
+talosctl -n 10.10.10.11 list /dev/disk/by-id/
 ```
 
 ## ⚠️ Important Warnings
@@ -435,7 +435,7 @@ task rook:health-check
 
 # Manual node health check
 kubectl get nodes -o wide
-talosctl health --nodes 10.10.3.11,10.10.3.12,10.10.3.13
+talosctl health --nodes 10.10.10.11,10.10.10.12,10.10.10.13
 ```
 
 ## 🔄 Recommended Workflow
@@ -494,7 +494,7 @@ If you encounter connectivity issues:
 
 - **Talos CLI operations failing**: Check that IP addresses are correct and accessible
   ```bash
-  talosctl -n 10.10.3.11 version
+  talosctl -n 10.10.10.11 version
   ```
 
 - **Updating node references**: Edit the `TALOS_NODE_NAMES` and `TALOS_NODE_IPS` variables in the Taskfile if your cluster configuration changes
