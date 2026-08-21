@@ -1,164 +1,111 @@
 # Ceph Backup and Recovery Strategy
 
-## Problem Statement
-Rook-Ceph cluster failures have resulted in complete data loss 3 times in 5 weeks due to:
-1. Authentication corruption after node reboots
-2. No automated backup of monitor keyring and cluster metadata
-3. Inability to restore original FSID when monitors are lost
-4. Manual cleanup operations that destroy recovery options
+This document describes the **live** metadata backup, not a proposed
+CronJob. The implementation is
+[`kubernetes/apps/rook-ceph/rook-ceph/backup/backup-system.yaml`](../../kubernetes/apps/rook-ceph/rook-ceph/backup/backup-system.yaml),
+wired into the cluster Kustomization as `../backup`. Emergency steps live
+in
+[`kubernetes/apps/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`](../../kubernetes/apps/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md).
 
-## Critical Backup Components
+## Problem this backup exists to solve
 
-### 1. Monitor Keyring and Cluster Metadata
-**Location**: `/var/lib/rook/rook-ceph/`
-**Critical Files**:
-- `mon-*/keyring` - Monitor authentication keys
-- `rook-ceph.config` - Cluster configuration
-- Kubernetes secrets: `rook-ceph-mon`, `rook-ceph-admin-keyring`
+Rook-Ceph failures here have destroyed clusters when monitor keyrings and
+the cluster FSID were not recoverable. The CronJob snapshots those
+Kubernetes objects daily so a **still-running cluster** can restore the
+original FSID after the CephCluster object or mon secrets were deleted.
 
-### 2. Automated Daily Backups
+It does **not** snapshot mon host-path directories (`/var/lib/rook/rook-ceph/`
+tarballs are never written). Restore paths that extract
+`mon-$NODE-YYYYMMDD.tar.gz` are fiction and will fail.
 
-Create a CronJob to backup critical Rook-Ceph metadata:
+## This is NOT a disaster-recovery backup of last resort
 
-```yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: rook-ceph-backup
-  namespace: rook-ceph
-spec:
-  schedule: "0 2 * * *"  # Daily at 2 AM
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-          - name: backup
-            image: busybox
-            command:
-            - /bin/sh
-            - -c
-            - |
-              # Backup Kubernetes secrets
-              kubectl get secret rook-ceph-mon -o yaml > /backup/rook-ceph-mon-$(date +%Y%m%d).yaml
-              kubectl get secret rook-ceph-admin-keyring -o yaml > /backup/rook-ceph-admin-keyring-$(date +%Y%m%d).yaml
+PVC `ceph-backup-pvc` is 50Gi `openebs-hostpath` in namespace `rook-ceph`.
+It lives on the same cluster as the OSDs. Complete cluster loss, node
+rebuild, PVC delete, or a host wipe (`task rook:wipe-talos-N` /
+`task rook:reset-all-data` / `task rook:wipe-all-with-progress`) destroys
+the only copy. After that wipe there is nothing to restore. Off-cluster
+immutable copies (NAS MinIO / R2) of these YAML/FSID files were never
+implemented.
 
-              # Backup monitor data from each node
-              for node in talos-1 talos-2 talos-3; do
-                kubectl exec -n rook-ceph $(kubectl get pods -n rook-ceph -l app=rook-ceph-mon --field-selector spec.nodeName=$node -o name | head -1) -- tar czf - /var/lib/rook/rook-ceph/ > /backup/mon-$node-$(date +%Y%m%d).tar.gz
-              done
+If the cluster and its nodes are gone, OSD data is unrecoverable and a
+new FSID is required. All-mon-store loss also cannot be restored from an
+old backup; see `docs/ceph-cluster-changelog.md`. Copy a dated backup
+directory off-cluster **before** any wipe if you still need the original
+FSID.
 
-              # Keep only last 7 days
-              find /backup -name "*.yaml" -mtime +7 -delete
-              find /backup -name "*.tar.gz" -mtime +7 -delete
-            volumeMounts:
-            - name: backup-storage
-              mountPath: /backup
-          volumes:
-          - name: backup-storage
-            persistentVolumeClaim:
-              claimName: ceph-backup-pvc
-          restartPolicy: OnFailure
+## What the CronJob writes
+
+| Item | On disk under `/backup/<date>/` |
+|------|----------------------------------|
+| Secret `rook-ceph-mon` | `rook-ceph-mon.yaml` |
+| Secret `rook-ceph-admin-keyring` | `rook-ceph-admin-keyring.yaml` |
+| `CephCluster` list YAML | `cephcluster.yaml` |
+| ConfigMap `rook-ceph-mon-endpoints` | `mon-endpoints.yaml` |
+| FSID text | `cluster-fsid.txt` |
+| Status ConfigMap | applied with label `backup-type=ceph-metadata` |
+
+Schedule: `0 3 * * *` (daily 03:00, offset from R2 at 02:00). Retention:
+7 dated directories + 7 metadata ConfigMaps. Image: `alpine/k8s:1.36.2`
+(has `kubectl`). ServiceAccount `rook-ceph-backup` with a Role limited to
+secrets/configmaps/pods/cephclusters in `rook-ceph`.
+
+There is no `backup-pod` Deployment.
+
+## Inspecting backups
+
+```bash
+kubectl get cronjob,pvc -n rook-ceph rook-ceph-backup ceph-backup-pvc
+kubectl get cm -n rook-ceph -l backup-type=ceph-metadata --sort-by=.metadata.creationTimestamp
 ```
 
-### 3. Ceph Cluster Health Monitoring
+Mount the PVC in a debug pod to read files (RWO: no concurrent backup Job).
+Do not treat `kubectl create job --from=cronjob/rook-ceph-backup` as a
+reader; that Job only writes another dated dump. Exact reader YAML is in
+`RECOVERY-PROCEDURES.md`.
 
-Add comprehensive monitoring to detect issues early:
+## Restore
 
-```yaml
-# Prometheus alerts for Ceph cluster health
-- alert: CephMonitorDown
-  expr: up{job="rook-ceph-mgr"} == 0
-  for: 5m
-  annotations:
-    summary: "Ceph monitor is down"
+Follow `RECOVERY-PROCEDURES.md`:
 
-- alert: CephAuthenticationError
-  expr: increase(ceph_monitor_election_call_total[5m]) > 10
-  annotations:
-    summary: "Ceph authentication issues detected"
+1. **Mons still answer, auth looks wrong:** restart the operator only.
+   Never `kubectl delete pods -n rook-ceph -l app=rook-ceph-osd`. That
+   contradicts [`osd-device-path-recovery.md`](./osd-device-path-recovery.md)
+   (Rook #17224).
+2. **Mon DB / k8s objects lost, backup PVC still present:** copy the dated
+   directory off-cluster, restore the two secrets, recreate the
+   CephCluster via Flux. Do not extract tarballs; they are not produced.
+3. **Complete loss / host wipe:** new FSID, OSD data gone. The in-cluster
+   backup is already destroyed by the wipe.
 
-- alert: CephOSDDown
-  expr: ceph_osd_up == 0
-  for: 5m
-  annotations:
-    summary: "Ceph OSD {{ $labels.ceph_daemon }} is down"
-```
+## Monitoring
 
-### 4. Recovery Procedures
+Do not add the sample `CephMonitorDown` / `CephAuthenticationError` alerts
+that used to live in this file. They were wrong (`up{job="rook-ceph-mgr"}`
+is the mgr, not mons; `ceph_monitor_election_call_total` is not an auth
+signal).
 
-#### Quick Recovery (if monitors are healthy):
-1. Restart affected OSD pods
-2. Check authentication keys
-3. Verify cluster health
+Live rules:
 
-#### Full Recovery (if monitors are corrupted):
-1. **Stop all deletions immediately**
-2. Restore monitor secrets from backup:
-   ```bash
-   kubectl apply -f /backup/rook-ceph-mon-YYYYMMDD.yaml
-   kubectl apply -f /backup/rook-ceph-admin-keyring-YYYYMMDD.yaml
-   ```
-3. Restore monitor data to nodes:
-   ```bash
-   # For each node
-   kubectl exec -n rook-ceph $CLEANUP_POD -- tar xzf /backup/mon-$NODE-YYYYMMDD.tar.gz -C /var/lib/rook/
-   ```
-4. Restart rook-ceph-operator
-5. Wait for automatic OSD discovery
+- Custom: [`cluster/prometheusrules.yaml`](../../kubernetes/apps/rook-ceph/rook-ceph/cluster/prometheusrules.yaml)
+  (`CephOSDDown`, quorum, PG, disk prediction, and related).
+- Chart rules: `monitoring.createPrometheusRules: true` on the cluster
+  HelmRelease.
 
-### 5. Prevention Measures
+## Prevention
 
-#### Immediate Actions:
-1. **Never run cleanup operations without confirmed backups**
-2. **Always check for existing data before FSID changes**
-3. **Implement backup verification tests**
+1. Never run cleanup / wipe tasks without a copy of the backup directory
+   **outside** the cluster.
+2. Always check the live FSID before changing it.
+3. Confirm `task rook:check-osd-device-paths` is green before rebooting a
+   node or bouncing an OSD.
 
-#### Long-term Improvements:
-1. **External Ceph cluster** - Move critical data to managed Ceph service
-2. **Multi-cluster setup** - Replicate critical data across clusters
-3. **Immutable backups** - Store backups in object storage outside the cluster
+## Gaps (not implemented)
 
-### 6. Emergency Contacts and Procedures
+- Off-cluster (R2 / NAS MinIO) copies of the YAML/FSID files
+- Mon store snapshots from `/var/lib/rook/` (this cluster's mons use
+  `openebs-hostpath` PVCs; a host-path tar is a different design)
+- Staging recovery drills
 
-#### Before any major changes:
-1. Verify recent backups exist and are valid
-2. Document current cluster state
-3. Have rollback plan ready
-4. Test recovery procedure in staging
-
-#### If cluster fails:
-1. **DO NOT DELETE ANYTHING** until backup status is confirmed
-2. Check if monitors are still accessible
-3. Attempt authentication repair first
-4. Only clean host data as last resort with confirmed backups
-
-## Implementation Priority
-
-1. **Immediate (Today)**:
-   - Create backup CronJob
-   - Set up basic monitoring alerts
-   - Document current cluster FSID and secrets
-
-2. **This Week**:
-   - Test backup/restore procedure
-   - Implement automated health checks
-   - Create emergency runbook
-
-3. **This Month**:
-   - Evaluate external Ceph options
-   - Implement immutable backup storage
-   - Set up staging environment for testing
-
-## Cost of Current Approach vs Alternatives
-
-**Current Losses**: 3 complete cluster rebuilds = ~40+ hours of downtime
-**Backup Solution Cost**: ~2 hours setup + 1 hour/month maintenance
-**Managed Ceph Service**: Higher cost but eliminates cluster management overhead
-
-## Next Steps
-
-1. Let's implement the backup CronJob immediately after cluster recreation
-2. Set up monitoring alerts
-3. Create a staging environment to test disaster recovery
-4. Evaluate managed Ceph services for critical workloads
+Until those exist, treat this CronJob as an in-cluster convenience for
+secret/FSID recovery while the nodes are still up, not as last-resort DR.
