@@ -316,7 +316,7 @@ Evidence captured 2026-06-14 (read-only): all CephFS mounts kernel-client; ceph-
 | **Rollback** | old PVs kept as `Retain` safety-net (delete when confident) |
 | **Verify** | apps healthy on `ceph-filesystem-rwx`, Ceph back to baseline |
 
-Cross-ref: [CephFS Tentacle subvolumegroup bug](../) (memory). Do **not** retire `csi-rwx` on image tag alone: live probe on v20.2.3 (2026-08-21) still fails `create`/`getpath` against the default `csi` group with `EINVAL: invalid value specified for ceph.dir.subvolume`. Keep `ceph-filesystem-rwx` until a future release passes that probe.
+Cross-ref: [`cephfs-rwx-subvolumegroup.yaml`](../kubernetes/apps/rook-ceph/rook-ceph/cluster/cephfs-rwx-subvolumegroup.yaml). Do **not** retire `csi-rwx` on image tag alone: live probe on v20.2.3 (2026-08-21) still fails `create`/`getpath` against the default `csi` group with `EINVAL: invalid value specified for ceph.dir.subvolume`. Keep `ceph-filesystem-rwx` until a future release passes that probe.
 
 ### [2026-06-12] CephFS CSI forced to autodetect → `ceph-fuse`  (PR — commit 17c7a9df, ae44b3ac)
 
