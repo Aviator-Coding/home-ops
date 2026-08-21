@@ -1,9 +1,18 @@
 # Decision Memo: Second Intel Arc Pro B70 for LLM Serving
 
-> **Status:** Recommendation only — **NO purchase authorized**. This memo weighs the
+> **Status:** Recommendation only - **NO purchase authorized**. This memo weighs the
 > cost (~$949) of a second Intel Arc Pro B70 (Xe2 / Battlemage G31, 32 GB) against the
 > three concrete benefits it would unlock on `talos-3`, and records the open hardware
-> question that gates any of them. Written 2026-06-26.
+> question that gates any of them. Written 2026-06-26. **DEFER still stands.**
+>
+> **Superseded facts (do not use the Current State table as today's inventory):**
+> - 2026-06-28 (#1098): `vllm-embed` scaled to `replicas: 0`; agentmemory embeddings
+>   moved to OpenRouter. Embeddings are no longer a live VRAM consumer on the B70.
+> - 2026-07-08 (`07fe6828`): chat `--ctx-size` is **262144**, not 128k. Measured local
+>   decode with the card empty: **68.4 t/s** (idle 2026-06-26 was ~61 t/s). See
+>   [`b70-llm-serving-tuning.md`](./b70-llm-serving-tuning.md) §5.
+> - Option (a) isolation-only ROI is weaker now that embed is already off-card; remaining
+>   contention is chat vs on-demand ComfyUI.
 
 ## TL;DR
 
@@ -16,9 +25,13 @@ does **not** automatically fix ([`intel/llm-scaler#382`][382], still OPEN), and 
 physical ability to seat a second GPU in `talos-3` is **unverified** (likely needs an
 OCuLink/M.2 adapter).
 
-## Current State (the problem a 2nd card would solve)
+## Current State as of 2026-06-26 (the problem a 2nd card would solve)
 
-`talos-3` runs **three GPU workloads contending for one 32 GB B70** via the Intel GPU
+> Snapshot of the card **when this memo was written**. See the superseded-facts note
+> above for 2026-06-28 / 2026-07-08. Chat decode cited here (≈54.7 t/s) is PMZFX's
+> published figure, not this cluster's later ~61 / 68.4 t/s measurements.
+
+`talos-3` ran **three GPU workloads contending for one 32 GB B70** via the Intel GPU
 device plugin (`gpu.intel.com/xe`):
 
 | Workload | Engine | VRAM appetite | Notes |
@@ -152,7 +165,9 @@ fundamentally different metric from our **single-stream MoE decode** on llama.cp
    tag closes it or `gpu-memory-util`/`enforce_eager`/`--max-num-seqs` tuning is proven to
    host the 35B MoE). Until #382 closes, this is a bet, not a buy.
 3. **Probably-not-worth-it:** Option (a) (pure isolation) alone. Today's manual VRAM
-   partitioning is acceptable; $949 to remove a manageable inconvenience is poor ROL.
+   partitioning is acceptable; $949 to remove a manageable inconvenience is poor ROI.
+   Weaker still after 2026-06-28, when embeddings left the card and only chat vs
+   ComfyUI remains.
 4. **Try first / instead:** the [single-card vLLM-XPU batching experiment](#single-card-alternative-batched-request-density-no-2nd-card)
    if the underlying need turns out to be *concurrency*. It is free of hardware spend.
 
