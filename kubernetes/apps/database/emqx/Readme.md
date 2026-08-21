@@ -19,7 +19,7 @@ EMQX 5.x MQTT broker for the home-ops cluster, deployed via the EMQX operator. T
 - PDB: `coreTemplate.spec.minAvailable: 1` (operator-managed).
 - Authentication: built_in_database with bcrypt; users bootstrapped from `/opt/init-user.json` (default admin + MQTT service account, both in 1Password).
 - Authorization: built_in_database + ACL file (`/opt/init-acl`); `no_match: deny` (default-deny).
-- API keys: bootstrapped from `/opt/init-api-keys` so the exporter can authenticate without manual setup.
+- Exporter API key: **not** bootstrapped from `/opt/init-api-keys` (the CR has no such mount). Create it in the dashboard and store it in 1Password; see Operational notes.
 
 ## MQTT clients
 

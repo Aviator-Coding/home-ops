@@ -6,7 +6,7 @@ CNPG operator + the canonical `postgres-17` cluster, plus pgAdmin and the upstre
 
 | Subdir | Purpose |
 | ------ | ------- |
-| `operator/` | CNPG operator HelmRelease (chart `0.28.0`, app `1.29.0`). 2 replicas, PodMonitor enabled. Secret `cloudnative-pg-secret` (postgres superuser + MinIO S3 keys for Barman). |
+| `operator/` | CNPG operator HelmRelease (chart `0.29.0`, app `1.30.0`). 2 replicas, PodMonitor enabled. Secret `cloudnative-pg-secret` (postgres superuser + MinIO S3 keys for Barman). |
 | `cluster-17/` | The `postgres-17` Cluster CR (Postgres 17 + pgvecto.rs), its `ScheduledBackup` (`@daily`), `LoadBalancer` Service, Gatus probe, PrometheusRule (7 alerts), and Barman config (serverName `postgres17-v5`, MinIO bucket `s3://home-ops-postgres-cluster/`). |
 | `dashboard/` | OCI Helm chart `ghcr.io/cloudnative-pg/grafana-dashboards/cluster:0.0.5`. Sidecar-loaded into Grafana under the "Database" folder (alongside the Dragonfly operator dashboard). |
 | `pgadmin/` | pgAdmin 4 web UI behind Authentik OAuth at `pgadmin.${SECRET_DOMAIN}` and `pg.${SECRET_DOMAIN}`. Triple-redundant volsync backup (Ceph 4h / MinIO 6h / R2 daily). |

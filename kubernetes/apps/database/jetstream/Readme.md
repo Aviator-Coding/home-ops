@@ -1,6 +1,8 @@
 # NATS JetStream
 
-NATS JetStream is a distributed messaging system with persistence, exactly-once semantics, and streaming capabilities.
+NATS JetStream is a distributed messaging system with persistence and
+streaming. Default delivery is **at-least-once** with explicit ack, not
+exactly-once.
 
 ## Components
 
@@ -12,26 +14,30 @@ NATS JetStream is a distributed messaging system with persistence, exactly-once 
 - 3-node cluster for quorum-based consensus
 - File-based storage on Ceph block storage (10Gi per node)
 - Memory store for ephemeral high-throughput (1Gi per node)
-- Pod anti-affinity ensures one replica per Kubernetes node
+- `topologySpreadConstraints` (`maxSkew: 1`, `whenUnsatisfiable: DoNotSchedule`
+  on `kubernetes.io/hostname`) spread replicas; this is not pod anti-affinity
 
 ## Usage
 
-### Creating a Stream
+The in-repo example Stream is `events` (`streams/example-stream.yaml`), not
+`my-stream`.
 
 ```yaml
 apiVersion: jetstream.nats.io/v1beta2
 kind: Stream
 metadata:
-  name: my-stream
+  name: events
   namespace: database
 spec:
-  name: my-stream
+  name: events
   subjects:
-    - "my.subject.>"
+    - "events.>"
   storage: file
   replicas: 3
   retention: limits
   maxAge: 168h
+  maxBytes: 5368709120
+  discard: old
 ```
 
 ### Creating a Consumer
@@ -40,11 +46,11 @@ spec:
 apiVersion: jetstream.nats.io/v1beta2
 kind: Consumer
 metadata:
-  name: my-consumer
+  name: events-durable
   namespace: database
 spec:
-  streamName: my-stream
-  durableName: my-consumer
+  streamName: events
+  durableName: events-durable
   deliverPolicy: all
   ackPolicy: explicit
   maxDeliver: 5
@@ -53,13 +59,14 @@ spec:
 
 ## Connection
 
-- Internal: `nats://nats.database.svc.cluster.local:4222`
-- Cluster: `nats://nats.database.svc.cluster.local:6222`
+- Client (ClusterIP): `nats://nats.database.svc.cluster.local:4222`
+- Cluster/gossip (port 6222) is on the **headless** Service the chart
+  creates, not `nats.database.svc.cluster.local:6222`
 
 ## Monitoring
 
 - Prometheus metrics available on port 7777
-- NATS dashboard available in Grafana
+- NATS dashboard available in Grafana (gnetId 16256)
 
 ## References
 
