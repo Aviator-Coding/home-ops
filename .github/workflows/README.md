@@ -14,6 +14,8 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 | [label-sync.yaml](#label-sync) | Push/Schedule | Syncs repository labels from config | ubuntu-latest |
 | [tag.yaml](#tag) | Schedule/Manual | Creates monthly release tags | ubuntu-latest |
 | [test-runner.yaml](#test-runner) | Schedule/Manual | Tests self-hosted runner functionality | Self-hosted |
+| [build-talosctl-busybox.yaml](#build-talosctl-busybox) | Push/Manual | Builds and pushes the talosctl-busybox image | ubuntu-latest |
+| [build-actions-runner-buildx.yaml](#build-actions-runner-buildx) | Push/Manual | Builds and pushes the custom home-ops runner image | ubuntu-latest |
 
 ## Workflows
 
@@ -113,6 +115,35 @@ Tests self-hosted runner functionality and available tools.
 - Docker functionality (if available)
 - Common CLI tools (kubectl, helm, talosctl, etc.)
 - File system operations
+
+### build-talosctl-busybox
+
+**File:** `build-talosctl-busybox.yaml`
+
+Builds and pushes the `talosctl-busybox` image from
+`.github/docker/talosctl-busybox/Dockerfile`, pinned to the Talos version in
+`.mise.toml`.
+
+**Triggers:**
+- Push to `.mise.toml`, `.github/docker/talosctl-busybox/**`, or the workflow file itself
+- Manual dispatch with an optional `talos_version` override
+
+**Dependencies:** Requires `BOT_APP_ID` and `BOT_APP_PRIVATE_KEY` secrets.
+
+### build-actions-runner-buildx
+
+**File:** `build-actions-runner-buildx.yaml`
+
+Builds and pushes the custom home-ops runner image from
+`.github/docker/actions-runner-buildx/Dockerfile`. See
+[Custom Runner Image](../../kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md#custom-runner-image)
+for what the image contains and why.
+
+**Triggers:**
+- Push to `.github/docker/actions-runner-buildx/**` or the workflow file itself
+- Manual dispatch
+
+**Dependencies:** Requires `BOT_APP_ID` and `BOT_APP_PRIVATE_KEY` secrets.
 
 ## Common Patterns
 
