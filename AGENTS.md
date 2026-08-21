@@ -46,9 +46,8 @@ Home-ops GitOps infrastructure repo: Talos Linux k8s cluster managed by Flux v2.
 - **ks.yaml anchors**: `name: &app myapp`, `namespace: &namespace myns` — referenced via `*app`, `*namespace`
 - **Schema URL**: Use `kubernetes-schemas.pages.dev` — never `crd.movishell.pl` or `fluxcd-community`
 - **Naming**: All lowercase, kebab-case dirs/files. `helmrelease.yaml`, `kustomization.yaml`, `ks.yaml`, `externalsecret.yaml`
-- **Commit format**: `type(scope): description` — types: feat, update, fix, perf, refactor, style, test, revert, chore, docs, ci, build, misc
-- **Commit scopes**: build, ci, docs, src, test, misc
-- **Commit body/footer**: MUST be empty (enforced by commitlint)
+- **Commit format**: `type(scope): description` - types: feat, fix, chore, ci, docs, refactor, test. Authoritative rules: `.commitlintrc.yaml` (commit-msg hook in `.pre-commit-config.yaml`)
+- **Commit scopes**: container, helm, github-action, mise, talos, flux, deps, github-release, or app/namespace names
 - **Gateway API**: `envoy-internal` (private) and `envoy-external` (public) in `network` namespace
 - **DNS annotation**: `external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"` or `"external.${SECRET_DOMAIN}"`
 - **Homepage annotations**: `gethomepage.dev/*` annotations on HTTPRoutes for dashboard integration
@@ -101,3 +100,10 @@ task bootstrap:apps         # Bootstrap applications into cluster
 - `docs/` and `specs/` are gitignored from Claude artifacts — reference only
 - `.private/` directory for local-only files (gitignored)
 - Renovate ignores `**/*.sops.*` and `**/resources/**` paths
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

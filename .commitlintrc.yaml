@@ -1,3 +1,12 @@
+---
+# Canonical commit convention (CLAUDE.md Position B, matching live history).
+# Types are a closed enum. Scopes are not: Renovate uses container, helm,
+# github-action, mise, talos, flux, deps, and github-release, and human
+# commits also use app or namespace names (toolhive, hermes, ai, ...).
+# Require a kebab-case scope instead of a closed list.
+# Bodies and footers are allowed (Renovate tables, Co-authored-by trailers).
+# subject-case is off so acronyms like imageGC in a subject are legal.
+# header-max-length is raised so long image-update subjects still pass.
 extends:
   - "@commitlint/config-conventional"
 
@@ -5,22 +14,33 @@ rules:
   type-enum:
     - 2
     - always
-    - [feat, update, fix, perf, refactor, style, test, revert, chore, docs, ci, build, misc]
+    - [feat, fix, chore, ci, docs, refactor, test]
 
-  scope-enum:
+  scope-empty:
+    - 2
+    - never
+
+  scope-case:
     - 2
     - always
-    - [build, ci, docs, src, test, misc]
+    - kebab-case
 
   subject-case:
-    - 2
+    - 0
     - always
-    - ["lower-case", "sentence-case"]
+    - lower-case
 
-  body-empty:
+  header-max-length:
     - 2
     - always
+    - 200
 
-  footer-empty:
-    - 2
+  body-max-line-length:
+    - 0
     - always
+    - 100
+
+  footer-max-line-length:
+    - 0
+    - always
+    - 100

@@ -358,7 +358,8 @@ Add the secret value to the appropriate 1Password vault item (`Homelab`, `Automa
 - **security**: Detects private keys and sensitive data
 
 Valid commit types: `feat`, `fix`, `chore`, `ci`, `docs`, `refactor`, `test`
-Valid scopes: `container`, `helm`, `github-action`, `mise`, `talos`, `flux`, or app/namespace names
+Valid scopes: `container`, `helm`, `github-action`, `mise`, `talos`, `flux`, `deps`, `github-release`, or app/namespace names
+Authoritative rules live in `.commitlintrc.yaml` (enforced by the commit-msg hook). Bodies and footers are allowed.
 
 Examples:
 - `feat(container): update nginx to v1.25.0`
