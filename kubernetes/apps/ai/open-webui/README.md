@@ -1,6 +1,7 @@
 # Open-WebUI
 
-Chat UI at `https://chat.${SECRET_DOMAIN}` (OIDC via Authentik).
+Chat UI at `https://chat.${SECRET_DOMAIN}` (OIDC via Authentik). The HTTPRoute
+also publishes `https://open-webui.${SECRET_DOMAIN}` (`{{ .Release.Name }}`).
 
 ## Model connections (manual UI step)
 
