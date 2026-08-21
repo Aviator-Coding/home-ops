@@ -17,7 +17,7 @@ permissions:
 jobs:
   main:
     name: Tag
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     permissions:
       contents: write

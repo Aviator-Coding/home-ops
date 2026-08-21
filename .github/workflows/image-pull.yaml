@@ -20,7 +20,7 @@ permissions:
 jobs:
   filter:
     name: Image Pull - Filter
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
@@ -35,7 +35,7 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Image Pull - Extract Images
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 10
     strategy:
       matrix:
@@ -110,7 +110,7 @@ jobs:
     if: ${{ needs.extract.outputs.default != needs.extract.outputs.pull }}
     needs: extract
     name: Image Pull - Diff Images
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     outputs:
       images: ${{ steps.diff.outputs.images }}
@@ -163,7 +163,7 @@ jobs:
     if: ${{ !cancelled() }}
     needs: pull
     name: Image Pull - Success
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     steps:
       - name: Any jobs failed?

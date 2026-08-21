@@ -20,7 +20,7 @@ permissions:
 jobs:
   filter:
     name: Flux Local - Filter
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
@@ -35,7 +35,7 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Flux Local - Test
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 15
     steps:
       - name: Generate Token
@@ -68,7 +68,7 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Flux Local - Diff
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 15
     permissions:
       contents: read
@@ -143,7 +143,7 @@ jobs:
       - test
       - diff
     name: Flux Local - Success
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     steps:
       - name: Any jobs failed?

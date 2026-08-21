@@ -15,7 +15,7 @@ permissions:
 jobs:
   main:
     name: Labeler - Labeler
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
