@@ -1,5 +1,12 @@
 # Flux Migration Validation Report
 
+> **Historical snapshot as of 2026-03-29. Do not treat FAILs as open.**
+> Last git touch of this file as a live report was 2026-04-02. The three
+> FAILs (Syncthing tag pin, Immich `targetNamespace`, Immich Volsync) are
+> already fixed. Warnings about `kubernetes/components/gatus` refer to a
+> component that no longer exists (Gatus is `kubernetes/apps/monitoring/gatus`).
+> Image tags quoted below are also stale.
+
 Date: 2026-03-29
 
 ## Summary
