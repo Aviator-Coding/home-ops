@@ -82,7 +82,7 @@ After OOMConfig patch (15:04, trigger 50%/30s): ZERO OOMController events throug
 - **cilium-agent → Guaranteed QoS** (requests == limits) — ranking weight 0.0, network plane can no longer be the OOM victim.
 - **`NotIn [talos-1]` node affinities on 7 heavy burstables** (coder, changedetection, rsshub, readarr, seerr, flaresolverr, emqx-exporter) - **RAM RMA complete 2026-08-21 (96 GB dual-channel restored on all 3 nodes).** Remaining GitOps follow-up: revert these affinities.
 - **node-exporter re-enabled + PrometheusRule alerts**: `Talos1MemoryPressure`, `NodeMemoryPSIHigh`, `CephOsdPodTerminalError`, `CephPodCrashLooping` — closes the detection gap.
-- **ceph-mon → Guaranteed QoS** (mon + logcollector requests == limits, 2Gi/500m) — mon quorum can no longer be the OOM victim. OSDs stay Burstable for now: Guaranteed would have reserved 14Gi×2 on talos-1's 48 GB single-stick window (RMA complete 2026-08-21; all 3 nodes now 96 GB). **TODO (post-RMA): promote `resources.osd` to 14Gi==14Gi Guaranteed; evaluate MDS (blocked on `mds_cache_memory_limit` 8Gi — Guaranteed at 10Gi×4 pods is unaffordable, and a tighter limit risks cgroup OOM against the cache; standby-replay makes MDS kills tolerable meanwhile).**
+- **ceph-mon → Guaranteed QoS** (mon + logcollector requests == limits, 2Gi/500m) - mon quorum can no longer be the OOM victim. OSDs stay Burstable for now: Guaranteed would have reserved 14Gi×2 on talos-1's 48 GB single-stick window (RMA complete 2026-08-21; all 3 nodes now 96 GB). **TODO (post-RMA): promote `resources.osd` to 14Gi==14Gi Guaranteed; evaluate MDS (blocked on `mds_cache_memory_limit` 8Gi - Guaranteed at 10Gi×4 pods is unaffordable, and a tighter limit risks cgroup OOM against the cache; standby-replay makes MDS kills tolerable meanwhile).**
 
 Cross-reference: [`ceph-cluster-changelog.md` [2026-07-03]](./ceph-cluster-changelog.md) for the OOMConfig change record, the min_size=1 windows, and the noout window.
 
@@ -357,18 +357,20 @@ After:  h264_qsv-true-true,   hevc_qsv-true-true,   hevc_vaapi-true-true
 
 ### Resolution
 
-Added kernel arg `i915.enable_dc=0` to `talos/schematic.yaml` (disables iGPU display controller power gating). New factory schematic ID: `ac2b7006014bfd57ed2ee6bce766bfe1d3a18f02e2a5f3a6fc4f5265c77e99ee`.
+At the time of the incident, kernel arg `i915.enable_dc=0` was added to the factory schematic (disables iGPU display controller power gating). Factory schematic ID then: `ac2b7006014bfd57ed2ee6bce766bfe1d3a18f02e2a5f3a6fc4f5265c77e99ee`.
 
-Rolled out via `task talos:upgrade-node` to all 3 nodes one at a time, waiting for Ceph to rebalance between each (kept it from going degraded). After the upgrade:
+Rolled out via Talos node upgrade to all 3 nodes one at a time, waiting for Ceph to rebalance between each (kept it from going degraded). After the upgrade:
 - talos-1 GuC reached `0xf0`, all encoders show `true-true`
-- The pre-existing slow-OSD warning on talos-3's `osd.4` cleared after that node's reboot — likely the same BlueStore PM stall pattern
-- All 3 nodes now have all known PM races disabled
+- The pre-existing slow-OSD warning on talos-3's `osd.4` cleared after that node's reboot - likely the same BlueStore PM stall pattern
+- All 3 nodes then had all known PM races disabled
 
 ```
 NVMe:  nvme_core.default_ps_max_latency_us=0    (fixed 2026-03-16)
 PCIe:  pcie_aspm=off                             (fixed 2026-03-16)
-iGPU:  i915.enable_dc=0                          (fixed 2026-04-14)
+iGPU:  i915.enable_dc=0                          (fixed 2026-04-14; superseded)
 ```
+
+**Superseded 2026-06-09** (`73c9e3da`, `feat(talos): migrate Intel GPU driver from i915 to xe`): i915 kernel args (`i915.enable_guc=3`, `i915.enable_dc=0`) and the `siderolabs/i915` extension were removed because xe handles GuC automatically. Current schematic is `talos/schematic.yaml.j2` with `siderolabs/xe`. **Do not re-add `i915.enable_dc=0`.** Node upgrades are `just talos upgrade-node talos-N`, not `task talos:upgrade-node`.
 
 ### Pattern observation
 
