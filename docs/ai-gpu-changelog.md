@@ -55,6 +55,38 @@ Change · Why · Evidence · Risk/rollback · Verify
 
 ---
 
+## [2026-08-21] Qwen3.6 → 3.8 upgrade evaluated, staying on 3.6
+
+**Change:** None. HelmRelease, agentgateway config, and hermes config are unchanged -
+chat stays on `Qwen3.6-35B-A3B UD-Q4_K_M`. Docs updated with the investigation
+(`docs/ai/b70-llm-serving-tuning.md` §2/§5) so this isn't re-litigated from scratch.
+
+**Why considered:** Routine check for a Qwen3.6 → 3.8 model bump on the local chat
+model, prompted by the general Qwen3.8 release wave (`Qwen3.8-27B` dense, 2026-08-05).
+
+**Why rejected - two independent blockers:**
+- **No comparable model exists.** As of 2026-08-21, Alibaba has shipped only
+  `Qwen3.8-27B` (dense) and `Qwen3.8-2.4T-A95B` (2.4T total / 95B active MoE, far too
+  large for one 32 GiB card). No `35B-A3B`-class MoE successor to the currently-running
+  model exists; a GitHub sighting of one was confirmed a typo, not a real release
+  (`Qwen/Qwen3.8-27B` discussion #120).
+- **The dense alternative can't run on this backend.** `Qwen3.8-27B` GGUF quants do
+  exist (unsloth/bartowski, `UD-Q4_K_M` at 16.5 GiB) and would in principle fit VRAM,
+  but the architecture is a hybrid: 48/64 layers Gated DeltaNet (linear attention/SSM),
+  16/64 full attention. `ggml-sycl` (this cluster's backend) has no SSM_SCAN/SSM_CONV/
+  GATED_DELTA_NET kernels - open upstream gap, ggml-org/llama.cpp#19957 - and there's a
+  live report of exactly this shape SIGSEGV-crashing on Intel SYCL for hybrid archs
+  (ollama#15966: `qwen3.5moe`, `qwen3next`). This is independent of the llama.cpp image
+  tag; bumping past `b9592` does not add the missing kernels.
+
+**Risk/rollback:** n/a, no config changed.
+
+**Verify:** n/a. Revisit when either (a) Alibaba ships a `35B-A3B`-class Qwen3.8 MoE, or
+(b) `ggml-sycl` gains SSM/DeltaNet kernel support upstream - check
+`ggml-org/llama.cpp#19957` for status before re-attempting the dense 27B path.
+
+---
+
 ## [2026-08-21] flash-attn + q8_0 KV accepted on `server-intel-b9592`
 
 **Change:** Docs only. Rewrote the current baseline to match live GitOps and **lifted

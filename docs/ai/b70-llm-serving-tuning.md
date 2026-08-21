@@ -95,6 +95,7 @@ kubectl -n ai exec deploy/vllm -c app -- sh -lc 'curl -s localhost:8000/metrics 
 | `q8_0` KV cost (~6% tg) | **Accepted** | required for VRAM fit; see §3 |
 | vLLM hosts 35B MoE on 1 card (`intel/llm-scaler#382`) | **Still blocked** | #382 OPEN; OOMs even on 2 cards. Keep llama.cpp |
 | `GGML_SYCL_DISABLE_OPT=1` for MoE stability | **Not needed for us** | single-source claim; our pod ran 7d, 4 slots, no SEGV |
+| SYCL Gated DeltaNet / SSM kernels (needed for hybrid archs, e.g. Qwen3.8-27B) | **Missing** | `ggml-sycl` has no SSM_SCAN/SSM_CONV/GATED_DELTA_NET kernels; ollama#15966 reports SIGSEGV on hybrid archs (`qwen3.5moe`, `qwen3next`) on Intel SYCL. Blocks any hybrid `qwen35`/`qwen35moe`-family model on this backend until upstream adds support - independent of image tag |
 
 ## 3. Tuning A/B matrix
 
@@ -247,3 +248,4 @@ is a **second B70** (one model per card, no time-slicing) — currently **deferr
 | --- | --- | --- |
 | 2026-06-26 | Baseline + SYCL-vs-Vulkan A/B + tuning matrix | SYCL kept (61 vs 36 t/s); config validated; isolation identified as the win |
 | 2026-07-08 | `--ctx-size` 131072 → 262144 (native max, no yarn) | Live-tested with `vllm-embed`/`comfyui` both at `replicas: 0`: loads clean (0 restarts), decode 68.4 t/s (no regression). KV grows ~2.6→~5.2 GiB. Motivated by 115 "failed to find free space in the KV cache" warnings observed in prod at 131072 — 4 concurrent slots were oversubscribing the shared unified pool, not one long chat. Only fits because the card is otherwise empty; re-enabling embeddings or ComfyUI needs re-validation and possibly stepping back down. |
+| 2026-08-21 | Evaluated Qwen3.6 → 3.8 upgrade | **No change - staying on Qwen3.6-35B-A3B.** No Qwen3.8 MoE (35B-A3B class) release exists; Alibaba has only shipped dense `Qwen3.8-27B` and `Qwen3.8-2.4T-A95B` (too large for one B70). `Qwen3.8-27B` GGUF quants exist (unsloth, bartowski) but the architecture is 48/64 Gated DeltaNet + 16/64 full-attention layers, requiring SSM kernels `ggml-sycl` doesn't implement (see §2) - would crash on load regardless of image tag. Revisit when either a comparable MoE 3.8 ships or SYCL SSM support lands upstream. |
