@@ -10,11 +10,6 @@ on:
     paths:
       - ".github/docker/actions-runner-podman/**"
       - ".github/workflows/build-actions-runner-podman.yaml"
-  # TEMP: pre-merge validation only, see fm/homeops-custom-runner-image PR - removed before merge.
-  pull_request:
-    paths:
-      - ".github/docker/actions-runner-podman/**"
-      - ".github/workflows/build-actions-runner-podman.yaml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
