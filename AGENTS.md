@@ -35,6 +35,7 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
 | CI workflows | `.github/workflows/` | flux-local, renovate, codeql, image-pull, label-sync, plus build-talosctl-busybox, labeler, tag, test-runner |
 | Renovate config | `.renovaterc.json5` + `.renovate/` | Extends from Aviator-Coding/mortyops + local presets |
 | Tool versions | `.mise.toml` | kubectl, flux, talos, helm, vals, 1password-cli, just, minijinja, etc. |
+| AI stack | `kubernetes/apps/ai/` | Hermes + ToolHive (`toolhive.stacklok.dev/v1alpha1` `MCPServer`) + agentgateway. kagent/kmcp tombstones: `docs/ai-system/{kagent,kmcp}` |
 
 ## CONVENTIONS
 
@@ -58,6 +59,7 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
 - **NEVER** commit without pre-commit file/security hooks - `task setup-dev-env` to install them
 - **DO NOT** store secrets in `**/resources/**` - Renovate ignores this path
 - There is no SOPS/age path and no `talos/clusterconfig/` or `talos/talconfig.yaml`. Do not reintroduce them.
+- **kagent / kmcp are not deployed** (removed 2026-06-07, #941/#942). Live AI stack is Hermes + ToolHive + agentgateway. `docs/ai-system/{kagent,kmcp}` are tombstones. ToolHive `MCPServer` is `toolhive.stacklok.dev/v1alpha1` - never kagent.dev's same kind name.
 
 ## UNIQUE STYLES
 
