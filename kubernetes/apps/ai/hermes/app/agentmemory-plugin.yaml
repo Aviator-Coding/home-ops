@@ -1,9 +1,10 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/core/configmap_v1.json
 # Hermes memory plugin that bridges the agent to the in-cluster agentmemory
-# service. Mounted at /opt/hermes/plugins/agentmemory (see helmrelease.yaml) and
-# enabled via `plugins.enabled: [agentmemory]` in config.yaml. The agent sends
-# Authorization: Bearer $AGENTMEMORY_SECRET (from the hermes secret) on each call.
+# service. Mounted at /opt/data/plugins/agentmemory (HERMES_HOME=/opt/data; see
+# helmrelease.yaml). Activate via `memory.provider: agentmemory` only - do not
+# add it to `plugins.enabled`. The agent sends Authorization: Bearer
+# $AGENTMEMORY_SECRET (from the hermes secret) on each call.
 apiVersion: v1
 kind: ConfigMap
 metadata:

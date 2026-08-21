@@ -33,14 +33,15 @@ custom_providers:
     api_key: no-auth
     api_mode: chat_completions
 
-# Default serving model: the local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL,
-# ~74 t/s). Free and rate-limit-proof; llama-server is single-slot, so
-# concurrent requests queue. The gateway resolves this exact id through its
-# llm-chat-failover backend: if the local server errors or is unavailable
-# (e.g. ComfyUI scaled vllm to 0 under the Dedicated-VRAM runbook) the GATEWAY
-# fails over to kimi-k2.6 on OpenCode Go before the `fallback_providers` chain
-# below ever fires — the effective chain is local -> kimi-k2.6 (gateway) ->
-# glm-5.1 -> x-ai/grok-4.3. To serve a cloud model instead, set e.g.
+# Default serving model: the local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL).
+# Free and rate-limit-proof. llama-server auto-selects n_parallel=4 +
+# kv_unified=true (do not pin those flags). Fan-out above 4 queues. The gateway
+# resolves this exact id through its llm-chat-failover backend: if the local
+# server errors or is unavailable (e.g. ComfyUI scaled vllm to 0 under the
+# Dedicated-VRAM runbook) the GATEWAY fails over to kimi-k2.6 on OpenCode Go
+# before the `fallback_providers` chain below ever fires - the effective chain
+# is local -> kimi-k2.6 (gateway) -> glm-5.1 -> deepseek/deepseek-v4-flash.
+# To serve a cloud model instead, set e.g.
 # model: { default: x-ai/grok-4.3, provider: custom:gateway }.
 model:
   default: qwen3.6-35b-a3b
@@ -66,9 +67,10 @@ fallback_providers:
 
 # Auxiliary context chores mostly run on kimi via the gateway, NOT the local
 # model: web_extract fires N parallel LLM calls (one per fetched page) on large
-# content, and the single-slot local llama-server serialized them until they
-# timed out. kimi handles concurrency, and aux volume is low (bursty, per-task)
-# so it won't burn the cloud limits the way the continuous main loop did.
+# content, and the 4-slot unified-KV local llama-server queues / times out once
+# fan-out exceeds 4. kimi handles that concurrency, and aux volume is low
+# (bursty, per-task) so it won't burn the cloud limits the way the continuous
+# main loop did.
 # IMPORTANT: aux fallback uses the PER-TASK `fallback_chain`, NOT the global
 # `fallback_providers` above — without it Hermes falls back to the main model
 # (=the local qwen) and re-times-out, so the heavy chores pin a cloud fallback
@@ -96,9 +98,9 @@ auxiliary:
   # Compression runs on a cloud model, NOT kimi. Rationale: on a kimi failure
   # (e.g. OpenCode Go quota exhaustion), hermes-agent's own compressor retry logic
   # falls back to the MAIN model automatically — it does NOT consult this task's
-  # fallback_chain. Our main model is the single-slot local B70 llama-server, which
-  # is already busy serving the live session, so that fallback intermittently times
-  # out under contention (repeated "Failed to generate context summary" warnings).
+  # fallback_chain. Our main model is the 4-slot unified-KV local B70 llama-server,
+  # which is already serving the live session, so that fallback queues / times out
+  # under contention (repeated "Failed to generate context summary" warnings).
   # Pinning a cloud model as primary here sidesteps both the kimi quota exposure
   # and the local-model contention structurally. gpt-oss-120b: cheap, text-only
   # (compression never needs vision), solid summarization of tool-call transcripts.
@@ -123,8 +125,9 @@ web:
   search_backend: searxng
 
 # Aggregated MCP tools via the ToolHive VirtualMCPServer (ns ai). The vmcp
-# "mcp-gateway-internal" federates every MCPServer in the `mcp-tools` group
-# (arr, comfyui, flux, github, kubectl, memory, talos) behind one streamable-
+# "mcp-gateway-internal" federates every toolhive.stacklok.dev/v1alpha1
+# MCPServer in the `mcp-tools` group (arr, comfyui, flux, github, kubectl,
+# memory, talos) behind one streamable-
 # http endpoint at /mcp; incomingAuth is anonymous so no header is needed. Tool
 # names are prefixed per backend ({workload}_). Deployed by
 # kubernetes/apps/ai/toolhive. (joryirving routes this through litellm /mcp;

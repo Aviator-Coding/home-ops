@@ -135,7 +135,7 @@ spec:
               # searxng); point Hermes at the SearXNG already running in ns ai. ---
               SEARXNG_URL: http://searxng.ai.svc.cluster.local:8080
               # --- Long-term memory: the agentmemory plugin (mounted at
-              # /opt/hermes/plugins/agentmemory, enabled in config.yaml) talks to
+              # /opt/data/plugins/agentmemory, memory.provider: agentmemory) talks to
               # the agentmemory service. AGENTMEMORY_SECRET comes from the secret. ---
               AGENTMEMORY_URL: http://agentmemory.ai.svc.cluster.local:3111
               AGENTMEMORY_PROJECT: hermes
