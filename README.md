@@ -260,31 +260,37 @@ task talos:reset
 ### ⚙️ Updating Talos node configuration
 
 > [!TIP]
-> Ensure you have updated `talconfig.yaml` and any patches with your updated configuration. In some cases you **not only need to apply the configuration but also upgrade talos** to apply new configuration.
+> Ensure you have updated `talos/machineconfig.yaml.j2`, the per-node overlay in `talos/nodes/`, or `talos/schematic.yaml.j2` with your updated configuration. In some cases you **not only need to apply the configuration but also upgrade Talos** to apply new configuration.
 
 ```sh
-# (Re)generate the Talos config
-task talos:generate-config
+# Render a node's machine config to stdout for review (node = talos-1|talos-2|talos-3)
+just talos render-config talos-1
+
+# Validate the rendered config
+just talos render-config talos-1 | talosctl validate -m metal -c /dev/stdin
+
+# Preview the diff before applying
+just talos apply-node talos-1 --dry-run
+
 # Apply the config to the node
-task talos:apply-node IP=? MODE=?
-# e.g. task talos:apply-node IP=10.10.10.10 MODE=auto
+just talos apply-node talos-1
 ```
 
 ### ⬆️ Updating Talos and Kubernetes versions
 
 > [!TIP]
-> Ensure the `talosVersion` and `kubernetesVersion` in `talenv.yaml` are up-to-date with the version you wish to upgrade to.
+> Ensure the installer image version in `talos/machineconfig.yaml.j2` (Renovate-managed) is up-to-date with the Talos version you wish to upgrade to before running the upgrade below.
 
 ```sh
-# Upgrade node to a newer Talos version
-task talos:upgrade-node IP=?
-# e.g. task talos:upgrade-node IP=10.10.10.10
+# Upgrade Talos on a node (install image derived from the rendered config)
+just talos upgrade-node talos-1
+# e.g. just talos upgrade-node talos-1
 ```
 
 ```sh
-# Upgrade cluster to a newer Kubernetes version
-task talos:upgrade-k8s
-# e.g. task talos:upgrade-k8s
+# Upgrade the Kubernetes version on the cluster
+just talos upgrade-k8s v1.36.1
+# e.g. just talos upgrade-k8s v1.36.1
 ```
 
 ## 🤖 Renovate
