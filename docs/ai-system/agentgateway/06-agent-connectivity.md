@@ -20,4 +20,4 @@ No AgentGateway A2A Backends, no `appProtocol: kgateway.dev/a2a`. Agent-to-agent
 
 ## kmcp
 
-Not deployed. MCP server lifecycle is ToolHive (`05-mcp-connectivity.md`).
+Not deployed. MCP server lifecycle is ToolHive (`toolhive.stacklok.dev/v1alpha1` `MCPServer`; see `05-mcp-connectivity.md`). kagent/kmcp tombstones: [kagent](../kagent/README.md), [kmcp](../kmcp/README.md).
