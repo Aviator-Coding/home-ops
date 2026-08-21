@@ -63,7 +63,13 @@ duplication — Renovate bumps the OCIRepository tag and helmfile picks it up au
 Example: `cilium` in `kube-system` → reads `kubernetes/apps/kube-system/cilium/app/ocirepository.yaml`.
 
 > `grafana-operator` has no OCIRepository in `kubernetes/apps/` so its `crds.yaml`
-> entry keeps explicit `chart:` / `version:` fields.
+> entry keeps explicit `chart:` / `version:` fields. Bootstrap still extracts
+> grafana-operator CRDs (pinned in `helmfile/crds.yaml`). Several apps ship
+> `kind: GrafanaDashboard` CRs (cilium, spegel, envoy-gateway, cloudflare-tunnel,
+> cert-manager, toolhive, external-secrets), but there is no grafana-operator
+> HelmRelease or OCIRepository under `kubernetes/apps/`. Grafana itself loads
+> file-sidecar dashboards. Confirm on the live cluster whether the operator is
+> an unmanaged leftover from bootstrap or those CRs are orphaned.
 
 ## SECRETS
 
@@ -90,4 +96,6 @@ seeded post-bootstrap by ESO and must NOT be added here.
 
 - `mod.just` evaluates `controller`/`nodes` from `talosctl config info` at load, so a valid
   `TALOSCONFIG` must exist for `just -l bootstrap`.
-- The `base` stage depends on `ready` (waits for nodes to be not-Ready before proceeding).
+- The `base` stage depends on `ready`. That recipe succeeds immediately if nodes
+  are already Ready=True; otherwise it waits for Ready=False (post-bootstrap
+  not-Ready) before proceeding.

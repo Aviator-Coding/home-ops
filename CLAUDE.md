@@ -15,7 +15,7 @@ This is a **home-ops** infrastructure repository managing a self-hosted Kubernet
 - **Secrets**: OnePassword + External Secrets Operator (all secrets); bootstrap minimum via `vals` + `kustomize`
 - **External Access**: Cloudflare Tunnel (cloudflared)
 - **DNS**: External-DNS with Cloudflare integration
-- **Backup**: Volsync with multiple destinations (NAS MinIO, NFS, Cloudflare R2)
+- **Backup**: Volsync with three destinations (local Ceph S3, NAS MinIO, Cloudflare R2)
 
 ## Common Commands
 
@@ -107,8 +107,8 @@ task rook:cleanup
 ### Bootstrap Operations
 
 > ⚠️ **Bootstrap is a disaster-recovery / first-time-setup operation only.** The
-> `apps`/`crds`/`resources` stages `helmfile sync` and `kubectl apply` against the
-> cluster — never run a full bootstrap against a healthy running cluster. See
+> `base` and `apps` stages `kubectl apply` / `helmfile sync` against the
+> cluster - never run a full bootstrap against a healthy running cluster. See
 > `bootstrap/AGENTS.md`.
 
 ```bash
@@ -135,20 +135,20 @@ via `bootstrap/kustomize/apps/` (kustomize + vals pipeline).
 │   ├── apps/           # Applications organized by namespace
 │   │   ├── flux-system/      # Flux controllers
 │   │   ├── kube-system/      # Core K8s components (Cilium, CoreDNS)
-│   │   ├── monitoring/       # Observability (Grafana, Prometheus, VictoriaMetrics, Loki)
+│   │   ├── monitoring/       # Observability (Grafana, Prometheus, VictoriaMetrics, Loki, Gatus)
 │   │   ├── database/         # Databases (CloudNative-PG, Dragonfly)
 │   │   ├── rook-ceph/        # Storage cluster
 │   │   ├── security/         # Security tools (Authentik, External Secrets)
-│   │   ├── network/          # Network services (Cloudflare tunnel, DNS)
+│   │   ├── network/          # Network services (Cloudflare tunnel, Unifi DNS, Envoy)
 │   │   ├── media/            # Media servers
 │   │   ├── downloads/        # Download clients
-│   │   ├── ai/               # AI applications (Ollama, Open-WebUI, etc.)
+│   │   ├── ai/               # AI apps (open-webui, vllm, toolhive, agentgateway, ...)
 │   │   └── ...
 │   ├── components/     # Reusable Kustomize components
 │   │   ├── common/           # Common secrets, repos
+│   │   ├── alerts/           # Included by every namespace kustomization
 │   │   ├── volsync/          # Backup configurations
-│   │   ├── dragonfly/        # Dragonfly monitoring
-│   │   └── gatus/            # Monitoring configs
+│   │   └── dragonfly/        # Dragonfly monitoring (includes gatus.yaml)
 │   └── flux/           # Flux-specific configurations
 │       ├── cluster/          # Cluster-wide Flux resources
 │       └── meta/             # Flux meta resources (repos, etc.)
@@ -157,7 +157,6 @@ via `bootstrap/kustomize/apps/` (kustomize + vals pipeline).
 │   ├── machineconfig.yaml.j2 # Shared machine + cluster config template
 │   ├── schematic.yaml.j2     # Factory schematic template
 │   └── mod.just              # just talos recipe module
-├── scripts/            # Automation scripts
 ├── .taskfiles/         # Task automation organized by domain
 └── .mise.toml          # Development tool versions
 ```
@@ -237,31 +236,46 @@ All secrets are managed via `ExternalSecret` resources backed by the 1Password C
 
 ### Volsync Backup Strategy
 
-Volsync provides triple-redundant backups with different schedules:
+Volsync provides triple-redundant backups with different default schedules (see `kubernetes/components/volsync/Readme.md`):
 
-1. **NAS MinIO** - Hourly (`0 * * * *`) to S3-compatible storage
-2. **NAS NFS** - Hourly (`15 * * * *`) to REST server
-3. **Cloudflare R2** - Daily (`30 0 * * *`) to cloud storage
+1. **Local Ceph S3** (`ceph/`) - every 4 hours (`0 */4 * * *`)
+2. **NAS MinIO** (`minio/`) - every 6 hours (`30 */6 * * *`)
+3. **Cloudflare R2** (`r2/`) - daily at 02:00 (`0 2 * * *`)
 
-To enable backups for an app:
+There is no NFS/REST destination. Per-app `VOLSYNC_SCHEDULE_CEPH` / `VOLSYNC_SCHEDULE_MINIO` / `VOLSYNC_SCHEDULE_R2` overrides go on the Flux `ks.yaml` `postBuild.substitute` map.
+
+To enable backups for an app, include the component on the **Flux Kustomization** (`ks.yaml`), not `app/kustomization.yaml`:
 
 ```yaml
-# In app's kustomization.yaml
-components:
-  - ../../../components/volsync
+# kubernetes/apps/{namespace}/{app}/ks.yaml
+spec:
+  components:
+    - ../../../../components/volsync
+  dependsOn:
+    - name: volsync
+      namespace: system
+  postBuild:
+    substitute:
+      APP: *app
+      VOLSYNC_CAPACITY: 10Gi
+      VOLSYNC_CACHE_CAPACITY: 5Gi
+      # optional schedule offsets:
+      # VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
+      # VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
+      # VOLSYNC_SCHEDULE_R2: "15 2 * * *"
 ```
 
-This creates ReplicationSource resources for automated backups and ReplicationDestination for manual restores.
+Example: `kubernetes/apps/media/immich/ks.yaml`. This creates three ReplicationSources (automated backups) and one ReplicationDestination (manual restore).
 
-**Cache sizing**: Set `VOLSYNC_CACHE_CAPACITY` to 20-50% of PVC size for optimal performance.
+**Cache sizing**: Set `VOLSYNC_CACHE_CAPACITY` to 20-50% of PVC size for optimal performance. Small PVCs need 50-100%.
 
 ### Network Architecture
 
-- **Cilium CNI**: Layer 2 announcements via BGP, LoadBalancer mode enabled
-- **Gateway API**: HTTPRoutes with `internal` (private) and `external` (public) gateways
+- **Cilium CNI**: native routing, kube-proxy replacement, BGP control plane advertising LoadBalancer IPs. L2 announcements are disabled.
+- **Gateway API**: HTTPRoutes with `envoy-internal` (private) and `envoy-external` (public) gateways in `network`
 - **Cloudflare Tunnel**: Secure ingress for public services without port forwarding
-- **External-DNS**: Automatic DNS record creation in Cloudflare
-- **Split DNS**: k8s_gateway provides internal DNS resolution
+- **External-DNS**: Public names via `network/cloudflare-dns`
+- **Split DNS**: External-DNS Unifi webhook (`network/unifi-dns`) publishes internal records to the Unifi DNS server. Public names go through `cloudflare-dns` + the external gateway.
 
 ### Storage Architecture
 
@@ -298,12 +312,7 @@ This creates ReplicationSource resources for automated backups and ReplicationDe
    - Create `ExternalSecret` resource referencing OnePassword
    - **Never store secrets in Git**
 
-4. Enable backups (optional):
-   ```yaml
-   # In app/kustomization.yaml
-   components:
-     - ../../../components/volsync
-   ```
+4. Enable backups (optional): add `spec.components: [../../../../components/volsync]`, `dependsOn: volsync` (namespace `system`), and `VOLSYNC_*` substitute keys on the Flux `ks.yaml`. See Volsync Backup Strategy above.
 
 5. Add to namespace kustomization:
    ```yaml
@@ -427,7 +436,7 @@ Review and merge Renovate PRs to keep dependencies current. Check the Dependency
 
 1. **All secrets via ExternalSecret + 1Password** - never store secrets in Git (no SOPS files, no plaintext)
 
-2. **All commits must pass pre-commit validation** - ensure commit messages follow semantic format
+2. **All commits must pass pre-commit file/security checks** - commitlint is not currently a hook
 
 3. **Flux reconciles automatically** - changes pushed to Git are applied within ~1 minute
 
