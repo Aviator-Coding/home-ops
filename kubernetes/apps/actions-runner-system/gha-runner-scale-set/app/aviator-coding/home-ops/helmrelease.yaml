@@ -132,8 +132,8 @@ spec:
                 mountPath: /talos-bin   
         containers:
           - name: runner
-            # renovate: datasource=docker depName=ghcr.io/aviator-coding/actions-runner-podman
-            image: ghcr.io/aviator-coding/actions-runner-podman:2.336.0@sha256:97fd4598690bedf70bd6b038e9a98e5db17eb21489b337c7b403b01c28b85aa3
+            # renovate: datasource=docker depName=ghcr.io/aviator-coding/actions-runner-buildx
+            image: ghcr.io/aviator-coding/actions-runner-buildx:2.336.0@sha256:PLACEHOLDER
             command: ["/home/runner/run.sh"]
             env:
               - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
