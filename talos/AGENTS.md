@@ -50,9 +50,10 @@ just talos upgrade-k8s v1.36.3
 ```
 
 Merging a `machineconfig.yaml.j2`/node-overlay/`schematic.yaml.j2` change only lands
-the code — no Flux Kustomization or CI workflow watches `talos/`. An operator with a
-live `talosconfig` must separately run `just talos apply-node <node>` (or
-`upgrade-node`) against each of the three nodes for the change to take effect.
+the code and runs `.github/workflows/validate.yaml`'s schema-only render/validate gate
+- no Flux Kustomization or CI workflow applies it. An operator with a live
+`talosconfig` must separately run `just talos apply-node <node>` (or `upgrade-node`)
+against each of the three nodes for the change to take effect.
 
 A worktree with no `talosconfig`/1Password creds can still validate a `*.j2` edit
 offline: render raw with `minijinja-cli` (skip the `vals`-piped `just

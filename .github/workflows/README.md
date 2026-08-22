@@ -15,6 +15,7 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 | [tag.yaml](#tag) | Schedule/Manual | Creates monthly release tags | ubuntu-latest |
 | [test-runner.yaml](#test-runner) | Schedule/Manual | Tests self-hosted runner functionality | Self-hosted |
 | [build-talosctl-busybox.yaml](#build-talosctl-busybox) | Push/Manual | Builds and pushes the talosctl-busybox image | ubuntu-latest |
+| [validate.yaml](#validate) | Pull Request | Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - the paths Flux-oriented CI never sees | Self-hosted |
 
 ## Workflows
 
@@ -129,6 +130,22 @@ Builds and pushes the `talosctl-busybox` image from
 
 **Dependencies:** Requires `BOT_APP_ID` and `BOT_APP_PRIVATE_KEY` secrets.
 
+### validate
+
+**File:** `validate.yaml`
+
+Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - paths the
+`kubernetes/**`-filtered workflows above (`flux-local`, `image-pull`) never see.
+
+**Jobs:**
+- `filter` - Detects changed files per gate
+- `talos` - Renders `talos/**` templates and runs `talosctl validate` (a schema check only - see the workflow header for what it does not catch)
+- `versions` - Checks `talos/machineconfig.yaml.j2` version pins against the tuppr upgrade CRs
+- `bootstrap` - Renders `bootstrap/kustomize/apps` and validates it with `kubeconform` (`bootstrap/helmfile/` is out of scope - no 1Password creds in CI)
+- `renovate-config` - Runs `renovate-config-validator` against `.renovaterc.json5` and `.renovate/*.json5`
+
+**Details:** See the workflow file header and `AGENTS.md`'s CI workflows notes.
+
 ## Common Patterns
 
 ### GitHub App Token Generation
@@ -196,7 +213,7 @@ Uses `bjw-s-labs/action-changed-files` for efficient file change detection:
 
 ## Self-Hosted Runners
 
-The `image-pull` and `test-runner` workflows use self-hosted runners:
+The `image-pull`, `test-runner`, and `validate` workflows use self-hosted runners:
 
 ```yaml
 runs-on: gha-runner-scale-set-aviator-coding-home-ops
