@@ -130,8 +130,14 @@ spec:
             enabled: true
           - name: pg_autoscaler
             enabled: true
+          # Disabled: on Ceph Tentacle, the rook orchestrator backend triggers a
+          # crash storm via prometheus mgr module's node_proxy_fullreport() calls
+          # (NotImplementedError, unimplemented outside cephadm), which in turn
+          # races the crash module's unlocked do_post() into HEALTH_ERR.
+          # Upstream: rook/rook#18124, ceph/ceph#71041, ceph/ceph#71180 (all open).
+          # Revert once a tentacle point release ships both fixes.
           - name: rook
-            enabled: true
+            enabled: false
           - name: nfs
             enabled: true
           - name: rgw
