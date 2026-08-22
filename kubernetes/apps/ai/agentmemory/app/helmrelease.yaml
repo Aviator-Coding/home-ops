@@ -174,12 +174,18 @@ spec:
               # climbs another ~250-560Mi over the following ~55-60 min until
               # it hits the old 2Gi limit and gets OOMKilled - a cycle that
               # repeats hourly, every day, for the full two-week retention
-              # window with no long-term drift in the ceiling (~2020-2045Mi
-              # each time). That is genuine working-set growth past the
-              # limit, not a flat leak reset by the kill. Sized with real
-              # headroom above the last observed (clipped) value rather than
-              # doubling blind; request raised from 256Mi (8x below the
-              # measured baseline, badly mis-scheduling the node) to match it.
+              # window with the ceiling flat at ~2020-2045Mi each time.
+              # Every one of those cycles was cut off by the old 2Gi limit
+              # before the process could reveal whether growth would keep
+              # climbing or level off just above it, so this evidence alone
+              # cannot fully rule out an unbounded leak - it only shows
+              # growth well past 2Gi, not where it would actually plateau.
+              # Sized 3Gi as real headroom above the last observed (clipped)
+              # value rather than doubling blind; request raised from 256Mi
+              # (8x below the measured baseline, badly mis-scheduling the
+              # node) to match it. If OOMKills recur at 3Gi, that recurrence
+              # is itself the leak signal - this is a mitigation that buys
+              # headroom, not a proven cure.
               requests:
                 cpu: 100m
                 memory: 1536Mi
