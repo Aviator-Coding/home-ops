@@ -7,7 +7,7 @@
       managerFilePatterns: [
         "/(^|/).+\\.env$/",
         "/(^|/).+\\.sh$/",
-        "/(^|/).+\\.ya?ml(?:\\.j2)?$/",
+        "/^(?!talos/).+\\.ya?ml(?:\\.j2)?$/",
       ],
       matchStrings: [
         // # renovate: datasource=github-releases depName=k3s-io/k3s
