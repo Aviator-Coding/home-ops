@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-08-22] Extend CephCrashesDetected alert to match RECENT_MGR_MODULE_CRASH  (commit `422d69c9`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `CephCrashesDetected` alert `expr` in `cluster/prometheusrules.yaml`: `ceph_health_detail{name="RECENT_CRASH"} == 1` → `ceph_health_detail{name=~"RECENT_CRASH\|RECENT_MGR_MODULE_CRASH"} == 1`; `description` annotation updated to mention mgr module crashes too. |
+| **Why** | The alert only matched the `RECENT_CRASH` daemon-crash health check, not `RECENT_MGR_MODULE_CRASH` - a distinct Ceph health-detail check name. That gap is why `CephCrashesDetected` never fired through the crash storm behind the entry below (estimated week-long, ~39,000 crash events) before the underlying `rook` mgr module was disabled. The widened regex covers any mgr module crash going forward, not just the `rook` one hit this time. |
+| **Risk** | None: widening a `ceph_health_detail{name=~...}` regex match only adds coverage to the existing rule; it doesn't change firing behavior for the `RECENT_CRASH` case already handled. |
+| **Rollback** | Revert the `expr` back to the single `name="RECENT_CRASH"` match. |
+| **Verify** | `kustomize build kubernetes/apps/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `task flux:test:all` render the widened rule (confirmed 2026-08-22). Live confirmation that `ceph_health_detail{name="RECENT_MGR_MODULE_CRASH"}` has matching series in Prometheus/VictoriaMetrics - i.e. that the widened rule would actually have fired - is a separate operational check against the live cluster, not covered by this render-only pass. |
+
+Applied via GitOps only (Flux reconciles the PrometheusRule); no direct live-cluster mutation was made.
+
 ### [2026-08-22] Disable rook mgr module - stop crash storm blocking node upgrades  (commit `2014395e`)
 
 | Field | Value |
