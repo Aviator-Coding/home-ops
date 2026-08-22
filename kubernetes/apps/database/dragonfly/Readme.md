@@ -25,7 +25,6 @@ Current consumers and their endpoints:
 | --- | --------- | -------- |
 | `authentik` | security | `authentik-dragonfly.security.svc.cluster.local:6379` |
 | `immich` | media | `immich-dragonfly.media.svc.cluster.local:6379` |
-| `open-webui` | ai | `open-webui-dragonfly.ai.svc.cluster.local:6379` |
 | `paperless-ngx` | selfhosted | `paperless-ngx-dragonfly.selfhosted.svc.cluster.local:6379` |
 | `rsshub` | selfhosted | `rsshub-dragonfly.selfhosted.svc.cluster.local:6379` |
 | `searxng` | ai | `searxng-dragonfly.ai.svc.cluster.local:6379` |
@@ -62,7 +61,7 @@ kubectl exec -n monitoring deploy/grafana -c grafana -- sh -c \
   | jq '.data.result[] | {job: .metric.job, value: .value[1]}'
 ```
 
-Expect 12 results (6 clusters × 2 replicas), all `value=1`. If any are `0`, check the additive `*-allow-prometheus` NetworkPolicy actually applied in that namespace.
+Expect 10 results (5 clusters × 2 replicas), all `value=1`. If any are `0`, check the additive `*-allow-prometheus` NetworkPolicy actually applied in that namespace.
 
 ### Check master/replica role
 
