@@ -63,6 +63,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
+      CONFIG_TIMEZONE: America/New_York
       VOLSYNC_CAPACITY: 5Gi
       VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"

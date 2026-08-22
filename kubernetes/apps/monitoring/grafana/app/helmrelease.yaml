@@ -154,7 +154,7 @@ spec:
                 {
                   "datasource": {
                     "type": "prometheus",
-                    "uid": "${datasource}"
+                    "uid": "$${datasource}"
                   },
                   "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
                   "id": 1,
@@ -170,7 +170,7 @@ spec:
                   "type": "text"
                 },
                 {
-                  "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                  "datasource": {"type": "prometheus", "uid": "$${datasource}"},
                   "gridPos": {"h": 8, "w": 8, "x": 0, "y": 3},
                   "id": 2,
                   "options": {
@@ -182,7 +182,7 @@ spec:
                   "type": "text"
                 },
                 {
-                  "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                  "datasource": {"type": "prometheus", "uid": "$${datasource}"},
                   "gridPos": {"h": 8, "w": 8, "x": 8, "y": 3},
                   "id": 3,
                   "options": {
@@ -194,7 +194,7 @@ spec:
                   "type": "text"
                 },
                 {
-                  "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                  "datasource": {"type": "prometheus", "uid": "$${datasource}"},
                   "gridPos": {"h": 8, "w": 8, "x": 16, "y": 3},
                   "id": 4,
                   "options": {
