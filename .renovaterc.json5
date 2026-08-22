@@ -11,6 +11,7 @@
     "github>Aviator-Coding/home-ops//.renovate/groups.json5",
     "github>Aviator-Coding/home-ops//.renovate/labels.json5",
     "github>Aviator-Coding/home-ops//.renovate/overrides.json5",
+    "github>Aviator-Coding/home-ops//.renovate/talos.json5",
     ":automergeBranch",
   ],
   ignorePaths: [

@@ -1,0 +1,30 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  customDatasources: {
+    "talos-factory": {
+      defaultRegistryUrlTemplate: "https://factory.talos.dev/versions",
+      format: "json",
+      transformTemplates: ['{"releases": [$.{"version": $}]}'],
+    },
+  },
+  customManagers: [
+    {
+      description: "Talos Factory installer image (schematic id is templated, so match only the tag)",
+      customType: "regex",
+      managerFilePatterns: ["/(^|/)talos/.+\\.ya?ml(?:\\.j2)?$/"],
+      matchStrings: ["factory\\.talos\\.dev/[^:]+:(?<currentValue>v\\d\\S*)"],
+      datasourceTemplate: "custom.talos-factory",
+      depNameTemplate: "siderolabs/talos",
+      versioningTemplate: "semver",
+    },
+    {
+      description: "Annotated container images in Talos machine config templates",
+      customType: "regex",
+      managerFilePatterns: ["/(^|/)talos/.+\\.ya?ml(?:\\.j2)?$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*image:\\s*\\S+:(?<currentValue>[^\\s@]+)",
+      ],
+      datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}docker{{/if}}",
+    },
+  ],
+}

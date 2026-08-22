@@ -33,7 +33,7 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
 | Talos node config | `talos/machineconfig.yaml.j2` + `talos/nodes/*.yaml.j2` + `talos/schematic.yaml.j2` | Rendered by `just talos`, not Flux |
 | Task commands | `Taskfile.yaml` + `.taskfiles/{domain}/` | `task --list`. Talos/bootstrap are `just`, not `task` |
 | CI workflows | `.github/workflows/` | flux-local, renovate, codeql, image-pull, label-sync, plus build-talosctl-busybox, labeler, tag, test-runner |
-| Renovate config | `.renovaterc.json5` + `.renovate/` | Extends from Aviator-Coding/mortyops + local presets |
+| Renovate config | `.renovaterc.json5` + `.renovate/` | Extends from Aviator-Coding/mortyops + local presets, incl. `.renovate/talos.json5` (Talos-scoped datasource + managers) |
 | Tool versions | `.mise.toml` | kubectl, flux, talos, helm, vals, 1password-cli, just, minijinja, etc. |
 | AI stack | `kubernetes/apps/ai/` | Hermes + ToolHive (`toolhive.stacklok.dev/v1alpha1` `MCPServer`) + agentgateway. kagent/kmcp tombstones: `docs/ai-system/{kagent,kmcp}` |
 
@@ -87,6 +87,7 @@ Talos nodes are `talos-1|talos-2|talos-3` mapping to `10.10.10.11/12/13`. Do not
 ## NOTES
 
 - `talos/*.j2` changes are not applied by Flux. Render, `--dry-run`, then `just talos apply-node` per node. Offline validation without creds is documented in `talos/AGENTS.md`.
+- **`talos/machineconfig.yaml.j2`'s 6 version pins (installer, kubelet, kube-apiserver/-controller-manager/-proxy/-scheduler) can drift from the live cluster.** They are a second, Renovate-managed copy of the versions that `kubernetes/apps/system-upgrade/tuppr/upgrades/{talosupgrade,kubernetesupgrade}.yaml` actually drive via tuppr - a Renovate PR bumping the template does **not** upgrade the cluster, and a tuppr-driven upgrade does **not** update the template. Applying a stale template with `just talos apply-node` can downgrade a running node. Before any `apply-node`, confirm the template matches `kubectl get nodes -o wide` / the tuppr CRs.
 - `kubeconfig` and `talos/talosconfig` are gitignored
 - Vals (bootstrap/Talos render) uses 1Password vault `Home-Lab`. In-cluster ESO Connect uses vaults `Homelab`, `Automation`, and `Services`
 - Cluster control plane VIP: `10.10.10.10`
