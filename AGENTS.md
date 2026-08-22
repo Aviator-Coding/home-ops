@@ -70,6 +70,7 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
   - Define the variable properly when it's a genuinely missing Flux var, not a false-positive match - `kubernetes/apps/selfhosted/rsshub/playwright/hr.yaml` renamed `${TIMEZONE}` to `${CONFIG_TIMEZONE}`, defined in `kubernetes/apps/selfhosted/rsshub/ks.yaml`'s `substitute` map.
 - **Component composition**: Namespace `kustomization.yaml` includes `../../components/common` + `../../components/alerts` as components
 - **Volsync triple-backup**: Apps get 3 ReplicationSources (ceph/minio/r2) + 1 ReplicationDestination via a single component include on the Flux `ks.yaml` (`../../../../components/volsync`). Defaults: Ceph every 4h, MinIO every 6h, R2 daily at 02:00. Per-app cron offsets live on `ks.yaml` `VOLSYNC_SCHEDULE_*` (not unique across every app). Live app list and retain settings: `kubernetes/components/volsync/Readme.md`
+- **One component include covers ONE volume.** Every volsync object is named from `${APP}` and Flux allows one `postBuild.substitute` map per Kustomization, so an app with a second PVC needs a second Flux Kustomization in its `ks.yaml` with `path: ./kubernetes/components/volsync/backup` and `APP` set to the claim name. Pattern and examples: `kubernetes/components/volsync/Readme.md` "Apps with more than one volume"
 - **VOLSYNC_CACHE_CAPACITY**: Must be sized 20-50% of PVC size - small PVCs need 50-100%
 - **dependsOn chains**: Many apps use `dependsOn` in ks.yaml - typically `onepassword-store` in `security` namespace
 

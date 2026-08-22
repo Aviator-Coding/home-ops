@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Backup-only bundle: the three ReplicationSources (+ the ceph ReplicationDestination)
+# for an EXISTING PVC named ${VOLSYNC_CLAIM:-${APP}}. It deliberately does NOT create
+# the PVC, so it can protect a claim that the app (or its Helm chart) already owns.
+#
+# Two ways to use it:
+#   1. via the ../ parent Component - the normal single-claim case, which also creates
+#      the PVC from ../pvc.yaml so a restore can seed it.
+#   2. as the `path` of a dedicated Flux Kustomization - the multi-claim case, where an
+#      app has more than one volume. Flux allows one postBuild.substitute map per
+#      Kustomization, so each extra claim needs its own Kustomization with its own
+#      APP/VOLSYNC_CLAIM pair. See ../Readme.md "Apps with more than one volume".
+resources:
+  - ../ceph
+  - ../minio
+  - ../r2

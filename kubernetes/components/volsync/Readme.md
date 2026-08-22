@@ -9,8 +9,77 @@ kubernetes/components/volsync/
 ├── ceph/                    # Local Ceph cluster backups (every 4 hours)
 ├── minio/                   # MinIO S3-compatible storage backups (every 6 hours)
 ├── r2/                      # Cloudflare R2 storage backups (daily)
-└── kustomization.yaml       # Combines all components
+├── backup/                  # The three destinations, without the PVC - for a claim that already exists
+├── pvc.yaml                 # Creates ${VOLSYNC_CLAIM} seeded from the ReplicationDestination
+└── kustomization.yaml       # Component: ./backup + ./pvc.yaml
 ```
+
+`backup/` is the single definition of "back this PVC up to all three destinations".
+The parent Component adds `pvc.yaml` on top of it; `backup/` on its own is also a
+valid Flux Kustomization `path`, which is what the multi-volume pattern below uses.
+
+## Apps with more than one volume
+
+Every resource in this component is named from `${APP}`, and Flux allows exactly **one**
+`postBuild.substitute` map per Kustomization. So one instance of the component can only
+ever protect one claim - `${VOLSYNC_CLAIM:-${APP}}`. An app with a second volume needs a
+second Flux Kustomization; there is no way to include the component twice in one.
+
+Add it to the app's existing `ks.yaml` as a second document. Point `path` at
+`./kubernetes/components/volsync/backup` (the backup-only bundle - the PVC already
+exists, so `pvc.yaml` must not be included), and set `APP` to the **claim name**:
+
+```yaml
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app myapp-media          # == the PVC name; drives every object name
+  namespace: &namespace mynamespace
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: myapp    # the parent app, so it groups with it
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/volsync/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: volsync
+      namespace: system
+    - name: myapp                 # so the PVC exists before the first snapshot
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CLAIM: *app
+      VOLSYNC_CAPACITY: 50Gi      # used by the ReplicationDestination on restore
+      VOLSYNC_CACHE_CAPACITY: 5Gi
+      VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"   # stagger against the app's own sources
+      VOLSYNC_SCHEDULE_MINIO: "25 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "50 4 * * *"
+```
+
+Because `APP` is the claim name, this gets its own restic repository
+(`s3://.../<claim>`), its own ExternalSecrets and its own `<claim>-dst`
+ReplicationDestination - nothing collides with the parent app's.
+
+Live examples: `kubernetes/apps/selfhosted/syncthing/ks.yaml` (`syncthing-data`),
+`kubernetes/apps/selfhosted/paperless-ngx/ks.yaml` (`paperless-ngx-media`) and
+`kubernetes/apps/ai/perplexica/ks.yaml` (`perplexica-dbstore`, `perplexica-uploads`).
+
+**Pick the schedule minutes so they do not collide** with the other ReplicationSources
+in the same namespace - three movers snapshotting the same Ceph pool at the same minute
+is the one avoidable way to make backups slow.
 
 ## Backup Schedules & Execution
 
