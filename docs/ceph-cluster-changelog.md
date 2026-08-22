@@ -23,7 +23,7 @@ rather than hardware failures. The goal is that when something breaks we can ans
 |-------|-------|
 | **Rook** | v1.20.4 (operator + cluster chart tags in `operator/ocirepository.yaml` and `cluster/ocirepository.yaml`) |
 | **Ceph** | v20.2.3 **Tentacle** (GitOps `cephImage.tag` + all 17 daemons, verified 2026-08-21). Default `csi` subvolumegroup still broken; RWX stays on `ceph-filesystem-rwx` (see 2026-08-21 entry) |
-| **Talos** | v1.13.2 (kernel has `CONFIG_CEPH_FS=y`, `CONFIG_BLK_DEV_RBD=y`, `CONFIG_CEPH_LIB=y` — CephFS + krbd **built-in**) |
+| **Talos** | `talos/machineconfig.yaml.j2` installer pin reconciled to **v1.13.9**, matching tuppr `TalosUpgrade` **v1.13.9** (kernel has `CONFIG_CEPH_FS=y`, `CONFIG_BLK_DEV_RBD=y`, `CONFIG_CEPH_LIB=y` — CephFS + krbd **built-in**). Changelog does not claim a running version without live `kubectl get nodes`. |
 | **Kubernetes** | `talos/machineconfig.yaml.j2` kubelet/control-plane images reconciled to **v1.36.3**, matching tuppr `KubernetesUpgrade` **v1.36.3**. Changelog does not claim a running version without live `kubectl version`. |
 | **Cluster FSID** | `6562d9b0-883a-4e55-8b5d-899eaa7e0d10` |
 | **Topology** | 3 nodes (talos-1/2/3), 6 OSDs, all NVMe, `failureDomain: host`, size=3 |
