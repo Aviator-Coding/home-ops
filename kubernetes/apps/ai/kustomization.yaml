@@ -8,22 +8,17 @@ components:
   - ../../components/common
   - ../../components/alerts
 
+# Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui,
+# perplexica, qdrant. Flux prunes their workloads and PVCs; the retained
+# out-of-band data and the revival path for each are in
+# docs/ai-system/retired-2026-08-22.md.
+
 resources:
   - ./agentgateway/ks.yaml
   - ./agentgateway-dashboards/ks.yaml
   - ./agentmemory/ks.yaml
   - ./comfyui/ks.yaml
   - ./hermes/ks.yaml
-  - ./kokoro/ks.yaml
-  - ./miso-gallery/ks.yaml
-  - ./perplexica/ks.yaml
-  # Temporarily removed (2026-06-07) - workloads/PVCs pruned, but manifests,
-  # postgres open-webui DB, surrealdb open_notebook ns, 1P items and volsync
-  # restic repos (ceph/minio/r2) are all kept. To revive: uncomment, then
-  # restore the PVC via the volsync ReplicationDestination flow.
-  # - ./open-notebook/ks.yaml
-  - ./open-webui/ks.yaml
-  - ./qdrant/ks.yaml
   - ./searxng/ks.yaml
   - ./toolhive/ks.yaml
   - ./vllm/ks.yaml
