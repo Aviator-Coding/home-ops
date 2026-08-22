@@ -19,10 +19,9 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 
 | Topic | File |
 |---|---|
-| Day-to-day commands, app layout, secrets, Volsync | [`CLAUDE.md`](CLAUDE.md) |
+| Day-to-day commands, app layout, secrets, Volsync, agent-facing conventions and anti-patterns | [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` is a symlink to it) |
 | Talos templates, render/apply/upgrade | [`talos/AGENTS.md`](talos/AGENTS.md) |
 | First-time / disaster-recovery bootstrap | [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md) |
-| Agent-facing conventions and anti-patterns | [`AGENTS.md`](AGENTS.md) |
 | Docs index | [`docs/reference.md`](docs/reference.md) |
 
 ## Layout
