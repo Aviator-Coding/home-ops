@@ -27,7 +27,7 @@ spec:
               repository: ghcr.io/browserless/chromium
               tag: v2.55.4
             env:
-              TZ: ${TIMEZONE}
+              TZ: ${CONFIG_TIMEZONE}
               DATA_DIR: /config/
               ALLOW_GET: true
               SCREEN_WIDTH: 1920
