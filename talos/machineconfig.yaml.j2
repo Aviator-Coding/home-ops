@@ -49,7 +49,7 @@ machine:
         noatime=True
   install:
     # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
-    image: factory.talos.dev/installer/{{ ENV.SCHEMATIC }}:v1.13.2
+    image: factory.talos.dev/installer/{{ ENV.SCHEMATIC }}:v1.13.9
     wipe: false
     grubUseUKICmdline: true
   kubelet:
