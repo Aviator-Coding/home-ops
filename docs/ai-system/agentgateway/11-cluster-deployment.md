@@ -32,7 +32,7 @@ kubernetes/apps/ai/agentgateway-dashboards/
   app/llm-cost.json
 ```
 
-Sibling apps in `ai` (from [`kustomization.yaml`](../../../kubernetes/apps/ai/kustomization.yaml)): agentmemory, comfyui, hermes, kokoro, miso-gallery, perplexica, open-webui, qdrant, searxng, toolhive, vllm. Not listed: kagent, kmcp, kgateway, LiteLLM.
+Sibling apps in `ai` (from [`kustomization.yaml`](../../../kubernetes/apps/ai/kustomization.yaml)): agentgateway-dashboards, agentmemory, comfyui, hermes, searxng, toolhive, vllm. Not listed: kagent, kmcp, kgateway, LiteLLM. Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant ([note](../retired-2026-08-22.md)).
 
 ## Flux identity
 

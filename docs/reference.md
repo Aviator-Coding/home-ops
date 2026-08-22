@@ -21,6 +21,7 @@ Start with the operator files, then the topic notes under `docs/`.
 | [`networking/bgp.md`](networking/bgp.md) | Cilium BGP |
 | [`organisation-services-1password-setup.md`](organisation-services-1password-setup.md) | 1Password setup |
 | [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md) | Volsync schedules and restore |
+| [`ai-system/retired-2026-08-22.md`](ai-system/retired-2026-08-22.md) | What the `ai` namespace retirements kept, and how to revive each app |
 
 [`flux-migration-validation-report.md`](flux-migration-validation-report.md) is a historical snapshot from 2026-03-29. Do not treat its FAILs as open work.
 

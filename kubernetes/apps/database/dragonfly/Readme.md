@@ -25,7 +25,6 @@ Current consumers and their endpoints:
 | --- | --------- | -------- |
 | `authentik` | security | `authentik-dragonfly.security.svc.cluster.local:6379` |
 | `immich` | media | `immich-dragonfly.media.svc.cluster.local:6379` |
-| `open-webui` | ai | `open-webui-dragonfly.ai.svc.cluster.local:6379` |
 | `paperless-ngx` | selfhosted | `paperless-ngx-dragonfly.selfhosted.svc.cluster.local:6379` |
 | `rsshub` | selfhosted | `rsshub-dragonfly.selfhosted.svc.cluster.local:6379` |
 | `searxng` | ai | `searxng-dragonfly.ai.svc.cluster.local:6379` |

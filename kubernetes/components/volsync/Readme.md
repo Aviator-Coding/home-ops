@@ -73,9 +73,8 @@ Because `APP` is the claim name, this gets its own restic repository
 (`s3://.../<claim>`), its own ExternalSecrets and its own `<claim>-dst`
 ReplicationDestination - nothing collides with the parent app's.
 
-Live examples: `kubernetes/apps/selfhosted/syncthing/ks.yaml` (`syncthing-data`),
-`kubernetes/apps/selfhosted/paperless-ngx/ks.yaml` (`paperless-ngx-media`) and
-`kubernetes/apps/ai/perplexica/ks.yaml` (`perplexica-dbstore`, `perplexica-uploads`).
+Live examples: `kubernetes/apps/selfhosted/syncthing/ks.yaml` (`syncthing-data`)
+and `kubernetes/apps/selfhosted/paperless-ngx/ks.yaml` (`paperless-ngx-media`).
 
 **Pick the schedule minutes so they do not collide** with the other ReplicationSources
 in the same namespace - three movers snapshotting the same Ceph pool at the same minute
@@ -372,7 +371,9 @@ schedule: "0 2 * * *"
 but **not unique** (several apps share the same minute). Do not assume a
 2-3 app cap on simultaneous Ceph backups. Regenerated from
 `rg 'components/volsync' kubernetes/apps` plus each `ks.yaml` `VOLSYNC_SCHEDULE_*`
-(paperless-ngx uses component defaults). `litellm` is gone.
+(paperless-ngx uses component defaults). `litellm` is gone, and so are
+`open-webui`, `qdrant`, `open-notebook` and `perplexica` - retired
+2026-08-22, see `docs/ai-system/retired-2026-08-22.md`.
 
 | # | Namespace | Application | Ceph Schedule | MinIO Schedule | R2 Schedule | Priority |
 |---|-----------|-------------|---------------|----------------|-------------|----------|
@@ -381,11 +382,7 @@ but **not unique** (several apps share the same minute). Do not assume a
 | 3 | home-automation | zigbee2mqtt | `10 */4 * * *` | `15 */6 * * *` | `10 1 * * *` | Critical |
 | 4 | home-automation | esphome | `15 */4 * * *` | `15 */6 * * *` | `15 1 * * *` | High |
 | 5 | home-automation | matter-server | `20 */4 * * *` | `15 */6 * * *` | `20 1 * * *` | High |
-| 6 | ai | open-webui | `25 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
-| 7 | ai | qdrant | `30 */4 * * *` | `30 */6 * * *` | `5 2 * * *` | High |
 | 8 | ai | hermes | `35 */4 * * *` | `35 */6 * * *` | `10 2 * * *` | Medium |
-| 9 | ai | open-notebook | `40 */4 * * *` | `30 */6 * * *` | `15 2 * * *` | Medium |
-| 10 | ai | perplexica | `45 */4 * * *` | `45 */6 * * *` | `20 2 * * *` | Medium |
 | 11 | ai | agentmemory | `20 */4 * * *` | `20 */6 * * *` | `40 2 * * *` | Medium |
 | 12 | downloads | sonarr | `0 */4 * * *` | `45 */6 * * *` | `0 3 * * *` | Medium |
 | 13 | downloads | radarr | `5 */4 * * *` | `45 */6 * * *` | `5 3 * * *` | Medium |
