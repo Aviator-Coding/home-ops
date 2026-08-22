@@ -61,5 +61,16 @@
       ],
       allowedVersions: "<2.0.0",
     },
+    {
+      // 1.6.0 moved to python:3.14-alpine (home-operations/containers#1255), which
+      // upstream Bazarr has never tested and explicitly does not support
+      // (morpheus65535/bazarr maintainer, quoted in home-operations/containers#1386).
+      // The app hangs right after "Bazarr starting child process" and never binds
+      // its HTTP port, so kubelet liveness-kills it in an infinite crash loop.
+      // Stay on 1.5.6 (built on Python 3.13) until upstream confirms 3.14 support.
+      description: "Pin Bazarr to 1.5.6 (1.6.0 hangs on startup under Python 3.14, see home-operations/containers#1386)",
+      matchPackageNames: ["ghcr.io/home-operations/bazarr"],
+      allowedVersions: "<1.6.0",
+    },
   ],
 }
