@@ -15,8 +15,15 @@ Chart dashboard JSON is **disabled** (`monitoring.grafanaDashboard.enabled: fals
 
 - [`kubernetes/apps/ai/agentgateway-dashboards/`](../../../kubernetes/apps/ai/agentgateway-dashboards/)
 - `agentgateway.json` (from the official chart; re-vendor on chart bumps)
-- `llm-cost.json`
-- sidecar annotations `grafana_folder: AI/ML`, `grafana_dashboard: "true"`
+- `llm-cost.json` - linked from/to `agentgateway.json` via dashboard `links` rather than merged in,
+  so the vendored chart JSON survives re-vendoring without losing the custom cost panels
+- sidecar annotations `grafana_folder: AI/ML`, `grafana_dashboard: "true"` - **known bug**: both
+  dashboards actually land in a folder titled `ML`, not `AI/ML` (verified live 2026-08-21: a
+  separate, empty `AI/ML` folder exists from an unused `ai-ml` file-based dashboard provider in
+  the Grafana `HelmRelease`). The Grafana chart's sidecar appears to treat the `/` in the
+  annotation as a path separator rather than a literal folder-name character. Not fixed here -
+  couldn't verify a rename live without applying to the cluster; a real fix needs a
+  cluster-side check after deploy, not just a JSON diff.
 
 ## Tracing
 
@@ -32,6 +39,23 @@ This is not `GatewayParameters.spec.rawConfig.config.tracing`.
 ## Admin / debug
 
 Dataplane admin UI: port **15000** at `/ui/` (Envoy HTTPRoutes). `AgentgatewayParameters` sets `ADMIN_ADDR=0.0.0.0:15000`. There is no documented control-plane debug port 9095 in this install.
+
+**The admin UI is not an audit surface in this install.** In Kubernetes/XDS mode it has two
+open upstream display bugs that make it actively misleading, not just incomplete:
+[agentgateway/agentgateway#1370](https://github.com/agentgateway/agentgateway/issues/1370)
+(Traffic Routes page shows `/` for every HTTPRoute path) and
+[agentgateway/agentgateway#2658](https://github.com/agentgateway/agentgateway/issues/2658)
+(route inventory shows "Policies: 0" even when an `AgentgatewayPolicy` is attached and
+enforcing). Both were still open as of 2026-08-21. Treat `kubectl get httproute,agentgatewaypolicy
+-o yaml` plus the Grafana `agentgateway` dashboard and Tempo traces as ground truth for
+routes/policies instead of the UI. Once both issues close upstream, re-check whether this
+caveat still applies.
+
+MCP: this cluster's agentgateway install proxies no MCP traffic (`agentgateway_mcp_requests_total`
+has zero series on live Prometheus, checked 2026-08-21) - MCP is handled entirely by the separate
+ToolHive `VirtualMCPServer` (`kubernetes/apps/ai/toolhive/`), which Hermes talks to directly. The
+Grafana `agentgateway` dashboard's MCP row was dropped for this reason; re-add it if agentgateway
+ever gains real MCP routes.
 
 ## Gatus
 

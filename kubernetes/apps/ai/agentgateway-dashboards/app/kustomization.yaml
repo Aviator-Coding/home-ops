@@ -3,7 +3,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 # agentgateway.json is vendored from the official chart
 # (oci://cr.agentgateway.dev/charts/agentgateway, files/agentgateway-dashboard.json).
-# Re-vendor when bumping the chart version.
+# Re-vendor when bumping the chart version, then reapply local edits: LLM/Latency rows
+# expanded by default, MCP row dropped (no MCP traffic through agentgateway on this
+# cluster - see docs/ai-system/agentgateway/08-observability.md), and the "LLM Cost"
+# dashboard link in agentgateway.json's top-level "links".
 configMapGenerator:
   - name: agentgateway-dashboard
     files:
