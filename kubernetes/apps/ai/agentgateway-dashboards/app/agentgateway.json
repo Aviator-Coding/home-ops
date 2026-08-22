@@ -68,7 +68,7 @@
       "repeatDirection": "h",
       "targets": [
         {
-          "expr": "sum by (pod,namespace) (container_memory_working_set_bytes{image=\"\",namespace=~\"$namespace\"}) * on(pod, namespace) group_left(gateway_networking_k8s_io_gateway_name) sum by (pod,namespace,gateway_networking_k8s_io_gateway_name) (agentgateway_build_info{namespace=~\"$namespace\",gateway_networking_k8s_io_gateway_name=~\"$gateway_name\"})",
+          "expr": "sum by (pod,namespace) (container_memory_working_set_bytes{image=\"\",namespace=~\"$namespace\"}) * on(pod, namespace) group_left(gateway_networking_k8s_io_gateway_name) group by (pod,namespace,gateway_networking_k8s_io_gateway_name) (agentgateway_build_info{namespace=~\"$namespace\",gateway_networking_k8s_io_gateway_name=~\"$gateway_name\"})",
           "legendFormat": "{{namespace}}/{{pod}}",
           "refId": ""
         }
@@ -121,7 +121,7 @@
       "repeatDirection": "h",
       "targets": [
         {
-          "expr": "sum by (pod,namespace) (irate(container_cpu_usage_seconds_total{image=\"\",namespace=~\"$namespace\"}[$__rate_interval]) * on(pod, namespace) group_left(gateway_networking_k8s_io_gateway_name) sum by (pod,namespace,gateway_networking_k8s_io_gateway_name) (agentgateway_build_info{namespace=~\"$namespace\",gateway_networking_k8s_io_gateway_name=~\"$gateway_name\"}))",
+          "expr": "sum by (pod,namespace) (irate(container_cpu_usage_seconds_total{image=\"\",namespace=~\"$namespace\"}[$__rate_interval]) * on(pod, namespace) group_left(gateway_networking_k8s_io_gateway_name) group by (pod,namespace,gateway_networking_k8s_io_gateway_name) (agentgateway_build_info{namespace=~\"$namespace\",gateway_networking_k8s_io_gateway_name=~\"$gateway_name\"}))",
           "legendFormat": "{{namespace}}/{{pod}}",
           "refId": ""
         }

@@ -9,8 +9,11 @@ Do not import kgateway-org Grafana dashboards 24590/24965 or scrape `kgateway_co
 - Consequence: every agentgateway pod is scraped by **two** jobs (e.g. `internal-noauth` +
   `ai/agentgateway-proxy`), so any single-metric series like `agentgateway_build_info` has a
   duplicate per pod. A PromQL `group_left` join against it directly errors with "many-to-many
-  matching not allowed" - always wrap it in `sum by (pod, namespace, <label you need>) (...)`
-  first. Fixed this way in `agentgateway.json`'s Memory/CPU panels 2026-08-21.
+  matching not allowed" - always wrap it in `group by (pod, namespace, <label you need>) (...)`
+  first, not `sum by (...)`: `agentgateway_build_info` is a standard `_info` gauge fixed at
+  value 1, so `sum by` on the duplicated series collapses to value 2 and silently doubles
+  anything joined against it with `*`, while `group by` always emits 1 regardless of input
+  count. Fixed this way in `agentgateway.json`'s Memory/CPU panels 2026-08-21.
 - `agentgateway_build_info` (and the other agentgateway metrics) carry **no**
   `gateway_networking_k8s_io_gateway_name` label on this cluster, so the `$gateway_name`/`$gateway`
   dashboard variables have no real values to offer (checked live 2026-08-21) - harmless today
