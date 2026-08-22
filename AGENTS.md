@@ -37,7 +37,7 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
 | CI workflows | `.github/workflows/` | flux-local, renovate, codeql, image-pull, label-sync, plus build-talosctl-busybox, labeler, tag, test-runner |
 | Renovate config | `.renovaterc.json5` + `.renovate/` | Extends from Aviator-Coding/mortyops + local presets, incl. `.renovate/talos.json5` (Talos-scoped datasource + managers) |
 | Tool versions | `.mise.toml` | kubectl, flux, talos, helm, vals, 1password-cli, just, minijinja, etc. |
-| AI stack | `kubernetes/apps/ai/` | Hermes + ToolHive (`toolhive.stacklok.dev/v1alpha1` `MCPServer`) + agentgateway. kagent/kmcp tombstones: `docs/ai-system/{kagent,kmcp}` |
+| AI stack | `kubernetes/apps/ai/` | Hermes + ToolHive (`toolhive.stacklok.dev/v1alpha1` `MCPServer`) + agentgateway. kagent/kmcp tombstones: `docs/ai-system/{kagent,kmcp}`. Retired 2026-08-22: `docs/ai-system/retired-2026-08-22.md` |
 
 ## CONVENTIONS
 
@@ -83,7 +83,7 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
 task setup-dev-env                 # Install tools + pre-commit hooks
 task reconcile                     # Force Flux sync from Git
 task cleanup-all                   # Remove failed/completed pods + old replicasets
-task flux:test:ns NAMESPACE=X      # Validate Flux manifests for namespace
+task flux:test:all                 # Validate Flux manifests (the only one that reaches app Kustomizations)
 task rook:check-disks              # Check Ceph disk status
 just talos render-config talos-1   # Render a node's machine config
 just talos apply-node talos-1      # Apply config (node names, not IPs)
@@ -95,6 +95,8 @@ Talos nodes are `talos-1|talos-2|talos-3` mapping to `10.10.10.11/12/13`. Do not
 Debugging: `flux get sources git -A`, `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide`, `kubectl -n {ns} logs {pod} -f`, `kubectl -n {ns} describe pod {pod}`, `kubectl get replicationsource,replicationdestination -A`.
 
 ## NOTES
+
+- **`task flux:test:ns NAMESPACE=X` validates nothing in `X`.** For every value of `NAMESPACE` - `ai`, `media`, `flux-system` - it collects the same 8 objects from `kubernetes/flux/cluster` itself and never traverses into the app Kustomizations, so it passes just as happily on a namespace whose apps you have broken or deleted. Verified 2026-08-22 against the installed `flux-local` (v8.x, now upstream-deprecated in favour of `flate`/`konflate`): only `--all-namespaces` walks the tree. Use `task flux:test:all` - that is also what CI runs (`.github/workflows/flux-local.yaml`), so CI is not affected by this. For a single namespace, `kustomize build kubernetes/apps/<ns> --load-restrictor LoadRestrictionsNone` is the quick check. Note this is a *separate* gap from the `postBuild.substitute` collision above, which `--all-namespaces` does not catch either.
 
 - `talos/*.j2` changes are not applied by Flux. Render, `--dry-run`, then `just talos apply-node` per node. Offline validation without creds is documented in `talos/AGENTS.md`.
 - **`talos/machineconfig.yaml.j2`'s 6 version pins (installer, kubelet, kube-apiserver/-controller-manager/-proxy/-scheduler) can drift from the live cluster.** They are a second, Renovate-managed copy of the versions that `kubernetes/apps/system-upgrade/tuppr/upgrades/{talosupgrade,kubernetesupgrade}.yaml` actually drive via tuppr - a Renovate PR bumping the template does **not** upgrade the cluster, and a tuppr-driven upgrade does **not** update the template. Applying a stale template with `just talos apply-node` can downgrade a running node. Before any `apply-node`, confirm the template matches `kubectl get nodes -o wide` / the tuppr CRs.
