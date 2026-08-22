@@ -96,9 +96,9 @@ The test suite is configured with the following parameters:
 
 ```yaml
 vars:
-  TALOS_NODE_1: "10.10.3.11"  # talos-1
-  TALOS_NODE_2: "10.10.3.12"  # talos-2
-  TALOS_NODE_3: "10.10.3.13"  # talos-3
+  TALOS_NODE_1: "10.10.10.11"  # talos-1
+  TALOS_NODE_2: "10.10.10.12"  # talos-2
+  TALOS_NODE_3: "10.10.10.13"  # talos-3
   IPERF3_IMAGE: "networkstatic/iperf3:latest"
   TEST_DURATION: "30"          # seconds
   TEST_PARALLEL: "4"           # parallel streams
@@ -204,27 +204,27 @@ Slave queue ID: 0
 🚀 Running comprehensive network speed tests...
 Test parameters: Duration=30s, Parallel=4 streams
 
-Testing talos-1 (10.10.3.11) -> talos-2 (10.10.3.12)
+Testing talos-1 (10.10.10.11) -> talos-2 (10.10.10.12)
 [SUM]   0.00-30.00  sec  8.24 GBytes  2.31 Gbits/sec  4             sender
 [SUM]   0.00-30.00  sec  8.24 GBytes  2.31 Gbits/sec                  receiver
 
-Testing talos-1 (10.10.3.11) -> talos-3 (10.10.3.13)
+Testing talos-1 (10.10.10.11) -> talos-3 (10.10.10.13)
 [SUM]   0.00-30.00  sec  8.43 GBytes  2.36 Gbits/sec  4             sender
 [SUM]   0.00-30.00  sec  8.43 GBytes  2.36 Gbits/sec                  receiver
 
-Testing talos-2 (10.10.3.12) -> talos-1 (10.10.3.11)
+Testing talos-2 (10.10.10.12) -> talos-1 (10.10.10.11)
 [SUM]   0.00-30.00  sec  8.31 GBytes  2.33 Gbits/sec  4             sender
 [SUM]   0.00-30.00  sec  8.31 GBytes  2.33 Gbits/sec                  receiver
 
-Testing talos-2 (10.10.3.12) -> talos-3 (10.10.3.13)
+Testing talos-2 (10.10.10.12) -> talos-3 (10.10.10.13)
 [SUM]   0.00-30.00  sec  8.36 GBytes  2.34 Gbits/sec  4             sender
 [SUM]   0.00-30.00  sec  8.36 GBytes  2.34 Gbits/sec                  receiver
 
-Testing talos-3 (10.10.3.13) -> talos-1 (10.10.3.11)
+Testing talos-3 (10.10.10.13) -> talos-1 (10.10.10.11)
 [SUM]   0.00-30.00  sec  8.28 GBytes  2.32 Gbits/sec  4             sender
 [SUM]   0.00-30.00  sec  8.28 GBytes  2.32 Gbits/sec                  receiver
 
-Testing talos-3 (10.10.3.13) -> talos-2 (10.10.3.12)
+Testing talos-3 (10.10.10.13) -> talos-2 (10.10.10.12)
 [SUM]   0.00-30.00  sec  8.39 GBytes  2.35 Gbits/sec  4             sender
 [SUM]   0.00-30.00  sec  8.39 GBytes  2.35 Gbits/sec                  receiver
 ```
@@ -286,8 +286,8 @@ All OSDs are up and in:
 - osd.8 (talos-3): up, in
 
 📊 Network configuration:
-public_network = 10.10.3.0/24
-cluster_network = 10.10.3.0/24
+public_network = 10.10.10.0/24
+cluster_network = 10.10.10.0/24
 ```
 
 **Ceph Performance Analysis:**
@@ -411,7 +411,7 @@ Create a cron job for regular network validation:
            miimon: 100
            hashPolicy: layer2+3
          addresses:
-           - 10.10.3.x/24
+           - 10.10.10.x/24
    ```
 
 2. **TCP Tuning for High Bandwidth**
@@ -524,7 +524,7 @@ pipeline {
    task network:check-routes
 
    # Check talosctl connectivity
-   talosctl -n 10.10.3.11 version
+   talosctl -n 10.10.10.11 version
 
    # Test basic ping
    task network:ping-test
