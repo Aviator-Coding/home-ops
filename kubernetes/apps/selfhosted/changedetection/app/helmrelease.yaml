@@ -21,19 +21,6 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    defaultPodOptions:
-      # TODO(2026-08): remove after talos-1 RAM RMA (single 48GB stick until then)
-      # Shed heavy burstables (~1Gi live / 2.5Gi combined limits incl. browser)
-      # off the reduced-RAM node; 2026-06-30 OOMController cascade started there.
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-                      - talos-1
     controllers:
       main:
         containers:

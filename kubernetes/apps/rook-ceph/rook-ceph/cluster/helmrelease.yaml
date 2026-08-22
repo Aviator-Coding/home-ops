@@ -164,8 +164,8 @@ spec:
         # mon + logcollector requests==limits => Guaranteed QoS: the Talos
         # OOMController ranking never selects Guaranteed cgroups, so mon quorum
         # can't be OOM-killed again (2026-06-30 incident). Live mon usage ~410Mi.
-        # TODO(2026-08): after talos-1 RAM RMA, consider promoting osd (14Gi==14Gi)
-        # and evaluating mds (needs mds_cache_memory_limit rethink) the same way.
+        # TODO: mds still needs a mds_cache_memory_limit rethink before it can be
+        # promoted to Guaranteed the same way.
         mon:
           requests:
             cpu: 500m
@@ -181,9 +181,11 @@ spec:
             cpu: 100m
             memory: 256Mi
         osd:
+          # requests==limits => Guaranteed QoS (RAM RMA complete 2026-08-21, all 3
+          # nodes at 96GB/~94GiB usable; see docs/hardware-incidents.md [2026-06-30]).
           requests:
             cpu: 500m
-            memory: 6Gi
+            memory: 14Gi
           limits:
             memory: 14Gi # > osd_memory_target (10Gi) + headroom; ~94GiB node RAM
         mgr-sidecar:
