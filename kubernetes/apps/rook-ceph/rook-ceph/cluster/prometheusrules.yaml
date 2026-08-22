@@ -177,13 +177,13 @@ spec:
       rules:
         # Crash Detection Alert
         - alert: CephCrashesDetected
-          expr: ceph_health_detail{name="RECENT_CRASH"} == 1
+          expr: ceph_health_detail{name=~"RECENT_CRASH|RECENT_MGR_MODULE_CRASH"} == 1
           for: 5m
           labels:
             severity: warning
           annotations:
             summary: "Ceph daemon crash detected"
-            description: "A Ceph daemon has crashed recently. Run 'ceph crash ls-new' to see details and 'ceph crash archive-all' after review."
+            description: "A Ceph daemon or mgr module has crashed recently. Run 'ceph crash ls-new' to see details and 'ceph crash archive-all' after review."
 
     - name: ceph-iops-performance
       rules:
