@@ -127,3 +127,20 @@ radarr:
           - 9d27d9d2181838f76dee150882bdc58c # IMAX Enhanced
         assign_scores_to:
           - name: SQP-1 (2160p)
+
+      # Language / naming risk - deprioritize (not block) releases whose title format is more
+      # likely to defeat Radarr's import parser and trigger the "matched movie by ID, Manual
+      # Import required" stuck-queue state. Scores are intentionally small (well under
+      # min_format_score) so a foreign-audio or MULTi release is still grabbed when it's the
+      # best/only match - this only nudges Radarr toward a cleaner-named English release when
+      # more than one candidate is available.
+      - trash_ids:
+          - 0dc8aec3bd1c47cd6c40c46ecd27e846 # Language: Not English
+        score: -25
+        assign_scores_to:
+          - name: SQP-1 (2160p)
+      - trash_ids:
+          - 4b900e171accbfb172729b63323ea8ca # MULTi
+        score: -25
+        assign_scores_to:
+          - name: SQP-1 (2160p)
