@@ -17,7 +17,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 └── .renovate/          # Renovate presets
 ```
 
-Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpoint wiring is the `gatus.home-operations.com/endpoint` annotation on HTTPRoutes.
+Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpoints come from the `gatus.home-operations.com/endpoint` HTTPRoute annotation (auto-discovered) or hand-written entries in `app/resources/config.yaml` for non-HTTPRoute checks - not the dead `gatus.io/enabled` ConfigMap pattern (see NOTES).
 
 ## WHERE TO LOOK
 

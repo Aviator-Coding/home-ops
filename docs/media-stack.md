@@ -150,6 +150,7 @@ kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date
 - **Movie versions** (Radarr): Criterion Collection, Hybrid, Remaster, IMAX, IMAX Enhanced
 - **HDR** (WEB-2160p): DV (WEBDL)
 - **Trusted groups** (Radarr): hallowed
+- **Language/naming risk** (Radarr, SQP-1, score -25 each): Language: Not English, MULTi -- deprioritizes (does not block) releases whose filename is more likely to defeat Radarr's import parser and get stuck `importBlocked` in the queue; see "Finding which *arr app is failing imports" below
 
 ### Bazarr - Subtitle management
 
@@ -340,6 +341,7 @@ Check Sonarr/Radarr Activity > History for failed imports. Common causes:
 - File already exists at target path (unmonitored duplicate)
 - Permission issue on NFS (should not happen -- fsGroup=2000 across all apps)
 - Quality profile rejection (check custom format score in release details)
+- Radarr matched the grab by movie ID but can't re-parse the downloaded filename (`trackedDownloadState: importBlocked`) -- hardcoded parser behavior, not a settings toggle; common on non-English/MULTi releases. Requires manual **Activity > Queue > Manual Import**. Recyclarr deprioritizes (does not block) parse-risky releases (see Custom format categories above); a stuck item pages via the `RadarrImportQueueBlocked` Gatus alert (`kubernetes/apps/monitoring/gatus/app/resources/config.yaml`) instead of accumulating silently
 
 ### Backup and recovery
 
