@@ -12,7 +12,15 @@ spec:
   targetNamespace: *namespace
   interval: 30m
   retryInterval: 1m
-  timeout: 3m
+  # Raised from 3m: with wait:false (before this change) this timeout only
+  # bounded the manifest-apply step, which finishes in seconds regardless of
+  # pod readiness. Now that wait defaults to true and 4 Deployments are
+  # health-checked, it must cover real image pulls/scheduling - including the
+  # 3 Gateway-API-provisioned listener Deployments below, whose creation
+  # timing isn't fully synchronized with this Kustomization's apply. 5m
+  # matches the timeout used elsewhere in this namespace (e.g. agentmemory,
+  # perplexica, qdrant, searxng, vllm).
+  timeout: 5m
   path: "./kubernetes/apps/ai/agentgateway/app"
   prune: true
   # Deployment-level, not HelmRelease: HelmRelease.Ready only reflects the
