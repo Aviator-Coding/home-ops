@@ -48,9 +48,9 @@ jobs:
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     outputs:
-      bootstrap: ${{ steps.bootstrap.outputs.changed_files }}
       talos: ${{ steps.talos.outputs.changed_files }}
       versions: ${{ steps.versions.outputs.changed_files }}
+      bootstrap: ${{ steps.bootstrap.outputs.changed_files }}
       renovate: ${{ steps.renovate.outputs.changed_files }}
     steps:
       - name: Talos Changes
