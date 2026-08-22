@@ -34,7 +34,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 │   └── flux/           # cluster-meta / cluster-apps entry plus Helm/OCI sources
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
-├── .taskfiles/         # task recipes (flux, rook, k8s, network, 1password, actions-runner)
+├── .taskfiles/         # task recipes (flux, rook, network, 1password, actions-runner)
 ├── docs/               # runbooks and incident history
 └── .mise.toml          # workstation tool versions
 ```
