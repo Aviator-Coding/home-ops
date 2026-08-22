@@ -6,10 +6,9 @@ Start with the operator files, then the topic notes under `docs/`.
 
 | File | What it covers |
 |---|---|
-| [`CLAUDE.md`](../CLAUDE.md) | Day-to-day commands, app layout, secrets, Volsync, networking |
+| [`AGENTS.md`](../AGENTS.md) (`CLAUDE.md` is a symlink to it) | Day-to-day commands, app layout, secrets, Volsync, networking, agent-facing conventions and anti-patterns |
 | [`talos/AGENTS.md`](../talos/AGENTS.md) | Talos templates, render/apply/upgrade |
 | [`bootstrap/AGENTS.md`](../bootstrap/AGENTS.md) | First-time / disaster-recovery bootstrap |
-| [`AGENTS.md`](../AGENTS.md) | Agent-facing conventions and anti-patterns |
 | [`README.md`](../README.md) | Cluster overview |
 
 ## Topic notes
