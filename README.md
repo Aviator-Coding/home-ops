@@ -62,7 +62,7 @@ just talos render-config talos-1
 just talos apply-node talos-1 --dry-run
 just talos apply-node talos-1
 just talos upgrade-node talos-1
-just talos upgrade-k8s v1.36.1
+just talos upgrade-k8s v1.36.3
 
 # Bootstrap is DR / first-time only. Never run against a healthy cluster.
 just bootstrap cluster

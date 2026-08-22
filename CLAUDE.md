@@ -62,7 +62,7 @@ just talos apply-node talos-1 --dry-run
 just talos upgrade-node talos-1
 
 # Upgrade Kubernetes version
-just talos upgrade-k8s v1.36.1
+just talos upgrade-k8s v1.36.3
 
 # Reboot / shutdown / reset a node
 just talos reboot-node talos-1
