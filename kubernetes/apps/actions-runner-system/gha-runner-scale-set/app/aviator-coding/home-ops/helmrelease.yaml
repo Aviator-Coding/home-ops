@@ -129,7 +129,7 @@ spec:
             command: ["cp", "/usr/local/bin/talosctl", "/talos-bin/talosctl"]
             volumeMounts:
               - name: talos-bin
-                mountPath: /talos-bin   
+                mountPath: /talos-bin
         containers:
           - name: runner
             # renovate: datasource=docker depName=ghcr.io/home-operations/actions-runner

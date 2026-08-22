@@ -529,9 +529,9 @@ cluster-wide via a Talos machineconfig sysctl change (all 3 nodes, requires
 reboots, expands kernel attack surface cluster-wide), or running the runner
 container itself as root/rootful podman instead of rootless (narrower blast
 radius, still a real security posture change). Both were judged not worth
-the tradeoff as of 2026-08-21, so the custom runner image ships `buildx`
-only (already present in the upstream base image) and does not install
-`podman`/`uidmap`/`netavark`/`aardvark-dns`.
+the tradeoff as of 2026-08-21, so both scale sets run the stock
+`ghcr.io/home-operations/actions-runner` image, which ships `buildx` but
+does not install `podman`/`uidmap`/`netavark`/`aardvark-dns`.
 
 ### No Docker daemon in home-ops runner pods - blocks `docker://` actions and `docker run`
 
