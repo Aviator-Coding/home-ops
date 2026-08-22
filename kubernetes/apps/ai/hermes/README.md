@@ -139,7 +139,7 @@ scrubs) and the gateway for per-repo summaries. Register its daily run in-agent 
 the pod is up:
 
 ```bash
-# in the dashboard/webui terminal, or: kubectl -n ai exec -it deploy/hermes -c app -- hermes ...
+# in the dashboard terminal, or: kubectl -n ai exec -it deploy/hermes -c app -- hermes ...
 # create the `homelab-peers-commit-watcher` cron (see the skill's SKILL.md).
 ```
 
