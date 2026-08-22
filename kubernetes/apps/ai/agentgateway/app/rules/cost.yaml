@@ -20,101 +20,193 @@ spec:
     - name: ai-llm-token-prices
       rules:
         # --- OpenAI ---
+        # Cache reads are billed at 50% of input for the whole family; OpenAI has no
+        # separate cache-write charge (the first call just bills as normal input).
         - record: &price ai:llm_token_price_per_million_usd
           labels: { gen_ai_request_model: gpt-4o, gen_ai_token_type: input }
-          expr: vector(2.50)
+          expr: vector(2.5)
         - record: *price
           labels: { gen_ai_request_model: gpt-4o, gen_ai_token_type: output }
-          expr: vector(10.00)
+          expr: vector(10.0)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-4o, gen_ai_token_type: input_cache_read }
+          expr: vector(1.25)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-4o, gen_ai_token_type: input_cache_write }
+          expr: vector(2.5)
         - record: *price
           labels: { gen_ai_request_model: gpt-4o-mini, gen_ai_token_type: input }
           expr: vector(0.15)
         - record: *price
           labels: { gen_ai_request_model: gpt-4o-mini, gen_ai_token_type: output }
-          expr: vector(0.60)
+          expr: vector(0.6)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-4o-mini, gen_ai_token_type: input_cache_read }
+          expr: vector(0.075)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-4o-mini, gen_ai_token_type: input_cache_write }
+          expr: vector(0.15)
         - record: *price
           labels: { gen_ai_request_model: gpt-5, gen_ai_token_type: input }
           expr: vector(1.25)
         - record: *price
           labels: { gen_ai_request_model: gpt-5, gen_ai_token_type: output }
-          expr: vector(10.00)
+          expr: vector(10.0)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-5, gen_ai_token_type: input_cache_read }
+          expr: vector(0.625)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-5, gen_ai_token_type: input_cache_write }
+          expr: vector(1.25)
         - record: *price
           labels: { gen_ai_request_model: gpt-5-mini, gen_ai_token_type: input }
           expr: vector(0.25)
         - record: *price
           labels: { gen_ai_request_model: gpt-5-mini, gen_ai_token_type: output }
-          expr: vector(2.00)
+          expr: vector(2.0)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-5-mini, gen_ai_token_type: input_cache_read }
+          expr: vector(0.125)
+        - record: *price
+          labels: { gen_ai_request_model: gpt-5-mini, gen_ai_token_type: input_cache_write }
+          expr: vector(0.25)
         # --- Anthropic ---
+        # Prompt caching per Anthropic docs: cache reads are 90% cheaper than input
+        # (10% of input price); 5-minute-TTL cache writes cost 25% more than input.
         - record: *price
           labels: { gen_ai_request_model: claude-sonnet-4-6, gen_ai_token_type: input }
-          expr: vector(3.00)
+          expr: vector(3.0)
         - record: *price
           labels: { gen_ai_request_model: claude-sonnet-4-6, gen_ai_token_type: output }
-          expr: vector(15.00)
+          expr: vector(15.0)
+        - record: *price
+          labels: { gen_ai_request_model: claude-sonnet-4-6, gen_ai_token_type: input_cache_read }
+          expr: vector(0.3)
+        - record: *price
+          labels: { gen_ai_request_model: claude-sonnet-4-6, gen_ai_token_type: input_cache_write }
+          expr: vector(3.75)
         - record: *price
           labels: { gen_ai_request_model: claude-haiku-4-5, gen_ai_token_type: input }
-          expr: vector(1.00)
+          expr: vector(1.0)
         - record: *price
           labels: { gen_ai_request_model: claude-haiku-4-5, gen_ai_token_type: output }
-          expr: vector(5.00)
+          expr: vector(5.0)
+        - record: *price
+          labels: { gen_ai_request_model: claude-haiku-4-5, gen_ai_token_type: input_cache_read }
+          expr: vector(0.1)
+        - record: *price
+          labels: { gen_ai_request_model: claude-haiku-4-5, gen_ai_token_type: input_cache_write }
+          expr: vector(1.25)
         - record: *price
           labels: { gen_ai_request_model: claude-opus-4-6, gen_ai_token_type: input }
-          expr: vector(5.00)
+          expr: vector(5.0)
         - record: *price
           labels: { gen_ai_request_model: claude-opus-4-6, gen_ai_token_type: output }
-          expr: vector(25.00)
+          expr: vector(25.0)
+        - record: *price
+          labels: { gen_ai_request_model: claude-opus-4-6, gen_ai_token_type: input_cache_read }
+          expr: vector(0.5)
+        - record: *price
+          labels: { gen_ai_request_model: claude-opus-4-6, gen_ai_token_type: input_cache_write }
+          expr: vector(6.25)
         # --- DeepSeek ---
+        # Cache hits are ~10% of the cache-miss (input) price per DeepSeek pricing;
+        # cache writes are not separately billed (same rate as a normal miss).
         - record: *price
           labels: { gen_ai_request_model: deepseek-chat, gen_ai_token_type: input }
           expr: vector(0.27)
         - record: *price
           labels: { gen_ai_request_model: deepseek-chat, gen_ai_token_type: output }
-          expr: vector(1.10)
+          expr: vector(1.1)
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-chat, gen_ai_token_type: input_cache_read }
+          expr: vector(0.027)
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-chat, gen_ai_token_type: input_cache_write }
+          expr: vector(0.27)
         # --- Gemini (incl. linkwarden tagging model) ---
+        # Cache-read ratio is an estimate (~75% off input); Gemini bills cache
+        # *storage* separately by token-hour, which this per-token model cannot
+        # represent, so cache_write is priced the same as input as a floor estimate
+        # - confirm against the live Gemini pricing page if this model sees real cache traffic.
         - record: *price
           labels: { gen_ai_request_model: google/gemini-2.0-flash-lite-001, gen_ai_token_type: input }
           expr: vector(0.075)
         - record: *price
           labels: { gen_ai_request_model: google/gemini-2.0-flash-lite-001, gen_ai_token_type: output }
-          expr: vector(0.30)
+          expr: vector(0.3)
+        - record: *price
+          labels: { gen_ai_request_model: google/gemini-2.0-flash-lite-001, gen_ai_token_type: input_cache_read }
+          expr: vector(0.01875)
+        - record: *price
+          labels: { gen_ai_request_model: google/gemini-2.0-flash-lite-001, gen_ai_token_type: input_cache_write }
+          expr: vector(0.075)
         # --- xAI (Grok) - the grok-4 alias resolves to grok-4.3; family is
         # flat-priced at $1.25 in / $2.50 out per 1M tokens. Price both ids
-        # since clients may send either. ---
+        # since clients may send either. Cache-read ratio (~75% off input) and
+        # cache-write (= input, no separate charge) are estimates - confirm on
+        # the live xAI pricing page if this route sees real cache traffic. ---
         - record: *price
           labels: { gen_ai_request_model: grok-4, gen_ai_token_type: input }
           expr: vector(1.25)
         - record: *price
           labels: { gen_ai_request_model: grok-4, gen_ai_token_type: output }
-          expr: vector(2.50)
+          expr: vector(2.5)
+        - record: *price
+          labels: { gen_ai_request_model: grok-4, gen_ai_token_type: input_cache_read }
+          expr: vector(0.3125)
+        - record: *price
+          labels: { gen_ai_request_model: grok-4, gen_ai_token_type: input_cache_write }
+          expr: vector(1.25)
         - record: *price
           labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: input }
           expr: vector(1.25)
         - record: *price
           labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: output }
-          expr: vector(2.50)
+          expr: vector(2.5)
+        - record: *price
+          labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: input_cache_read }
+          expr: vector(0.3125)
+        - record: *price
+          labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: input_cache_write }
+          expr: vector(1.25)
         # --- OpenRouter - slug-form ids (with provider prefix; the unified
         # router's vendor-slug catch-all sends them here), billed PAYG from
         # OpenRouter credit at provider list price (no markup).
         # Hermes vision + fallback use x-ai/grok-4.3; agentmemory consolidation
         # uses deepseek/deepseek-v4-flash. Distinct from the bare grok-4.3 /
         # deepseek-v4-flash ids above (direct xAI / free OpenCode-Go routes).
-        # deepseek rate is an estimate — confirm on the live OpenRouter model page. ---
+        # deepseek rate is an estimate — confirm on the live OpenRouter model page.
+        # Cache-read/write ratios below mirror the equivalent direct-provider
+        # family above and are estimates for the same reason. ---
         - record: *price
           labels: { gen_ai_request_model: x-ai/grok-4.3, gen_ai_token_type: input }
           expr: vector(1.25)
         - record: *price
           labels: { gen_ai_request_model: x-ai/grok-4.3, gen_ai_token_type: output }
-          expr: vector(2.50)
+          expr: vector(2.5)
+        - record: *price
+          labels: { gen_ai_request_model: x-ai/grok-4.3, gen_ai_token_type: input_cache_read }
+          expr: vector(0.3125)
+        - record: *price
+          labels: { gen_ai_request_model: x-ai/grok-4.3, gen_ai_token_type: input_cache_write }
+          expr: vector(1.25)
         - record: *price
           labels: { gen_ai_request_model: deepseek/deepseek-v4-flash, gen_ai_token_type: input }
           expr: vector(0.09)
         - record: *price
           labels: { gen_ai_request_model: deepseek/deepseek-v4-flash, gen_ai_token_type: output }
           expr: vector(0.18)
+        - record: *price
+          labels: { gen_ai_request_model: deepseek/deepseek-v4-flash, gen_ai_token_type: input_cache_read }
+          expr: vector(0.009)
+        - record: *price
+          labels: { gen_ai_request_model: deepseek/deepseek-v4-flash, gen_ai_token_type: input_cache_write }
+          expr: vector(0.09)
         # Hermes compression (gpt-oss-120b, text) + vision (qwen3-vl-32b)
         # primaries. Rates are estimates derived from the "~35x/~14x and
         # ~12x/~6x cheaper than grok-4.3" sizing in hermes config.yaml —
-        # confirm on the live OpenRouter model pages.
+        # confirm on the live OpenRouter model pages. Cache ratios are estimates too.
         - record: *price
           labels: { gen_ai_request_model: openai/gpt-oss-120b, gen_ai_token_type: input }
           expr: vector(0.04)
@@ -122,11 +214,23 @@ spec:
           labels: { gen_ai_request_model: openai/gpt-oss-120b, gen_ai_token_type: output }
           expr: vector(0.18)
         - record: *price
+          labels: { gen_ai_request_model: openai/gpt-oss-120b, gen_ai_token_type: input_cache_read }
+          expr: vector(0.02)
+        - record: *price
+          labels: { gen_ai_request_model: openai/gpt-oss-120b, gen_ai_token_type: input_cache_write }
+          expr: vector(0.04)
+        - record: *price
           labels: { gen_ai_request_model: qwen/qwen3-vl-32b-instruct, gen_ai_token_type: input }
-          expr: vector(0.10)
+          expr: vector(0.1)
         - record: *price
           labels: { gen_ai_request_model: qwen/qwen3-vl-32b-instruct, gen_ai_token_type: output }
           expr: vector(0.42)
+        - record: *price
+          labels: { gen_ai_request_model: qwen/qwen3-vl-32b-instruct, gen_ai_token_type: input_cache_read }
+          expr: vector(0.025)
+        - record: *price
+          labels: { gen_ai_request_model: qwen/qwen3-vl-32b-instruct, gen_ai_token_type: input_cache_write }
+          expr: vector(0.1)
         # --- OpenCode Go - flat $10/mo subscription, so the marginal
         # per-token cost is $0 (the fixed monthly fee is not captured by token
         # metrics). Priced at 0 so Go traffic leaves the "unpriced models"
@@ -134,12 +238,21 @@ spec:
         # config form. Pay-as-you-go OpenCode Zen (dormant backend) is
         # intentionally NOT priced here - its per-token rates aren't
         # published and several ids (claude-*, gemini-*) collide with the
-        # direct-provider rows above (the metric can't tell the routes apart). ---
+        # direct-provider rows above (the metric can't tell the routes apart).
+        # qwen3.6-35b-a3b is the in-cluster llama.cpp/SYCL model on the local
+        # Arc Pro B70 (backends/vllm.yaml) - hardware is sunk cost, so it is
+        # priced at 0 like the other free tiers, not left unpriced. ---
         - record: *price
           labels: { gen_ai_request_model: minimax-m3, gen_ai_token_type: input }
           expr: &free vector(0)
         - record: *price
           labels: { gen_ai_request_model: minimax-m3, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m3, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m3, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: minimax-m2.7, gen_ai_token_type: input }
@@ -148,10 +261,22 @@ spec:
           labels: { gen_ai_request_model: minimax-m2.7, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: minimax-m2.7, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m2.7, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: minimax-m2.5, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: minimax-m2.5, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m2.5, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: minimax-m2.5, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: kimi-k2.6, gen_ai_token_type: input }
@@ -160,10 +285,22 @@ spec:
           labels: { gen_ai_request_model: kimi-k2.6, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: kimi-k2.6, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: kimi-k2.6, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: kimi-k2.5, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: kimi-k2.5, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: kimi-k2.5, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: kimi-k2.5, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: glm-5.1, gen_ai_token_type: input }
@@ -172,10 +309,22 @@ spec:
           labels: { gen_ai_request_model: glm-5.1, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: glm-5.1, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: glm-5.1, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: glm-5, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: glm-5, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: glm-5, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: glm-5, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: deepseek-v4-pro, gen_ai_token_type: input }
@@ -184,10 +333,22 @@ spec:
           labels: { gen_ai_request_model: deepseek-v4-pro, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: deepseek-v4-pro, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-v4-pro, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: deepseek-v4-flash, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: deepseek-v4-flash, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-v4-flash, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: deepseek-v4-flash, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: qwen3.7-max, gen_ai_token_type: input }
@@ -196,10 +357,22 @@ spec:
           labels: { gen_ai_request_model: qwen3.7-max, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: qwen3.7-max, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.7-max, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: qwen3.7-plus, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: qwen3.7-plus, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.7-plus, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.7-plus, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: qwen3.6-plus, gen_ai_token_type: input }
@@ -208,10 +381,34 @@ spec:
           labels: { gen_ai_request_model: qwen3.6-plus, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: qwen3.6-plus, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.6-plus, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: input }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: qwen3.5-plus, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: qwen3.5-plus, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.5-plus, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: qwen3.5-plus, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: mimo-v2-pro, gen_ai_token_type: input }
@@ -220,10 +417,22 @@ spec:
           labels: { gen_ai_request_model: mimo-v2-pro, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: mimo-v2-pro, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2-pro, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: mimo-v2-omni, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: mimo-v2-omni, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2-omni, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2-omni, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: mimo-v2.5-pro, gen_ai_token_type: input }
@@ -232,16 +441,34 @@ spec:
           labels: { gen_ai_request_model: mimo-v2.5-pro, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: mimo-v2.5-pro, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2.5-pro, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: mimo-v2.5, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: mimo-v2.5, gen_ai_token_type: output }
           expr: *free
         - record: *price
+          labels: { gen_ai_request_model: mimo-v2.5, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: mimo-v2.5, gen_ai_token_type: input_cache_write }
+          expr: *free
+        - record: *price
           labels: { gen_ai_request_model: hy3-preview, gen_ai_token_type: input }
           expr: *free
         - record: *price
           labels: { gen_ai_request_model: hy3-preview, gen_ai_token_type: output }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: hy3-preview, gen_ai_token_type: input_cache_read }
+          expr: *free
+        - record: *price
+          labels: { gen_ai_request_model: hy3-preview, gen_ai_token_type: input_cache_write }
           expr: *free
 
     - name: ai-llm-cost
