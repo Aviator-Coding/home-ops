@@ -19,8 +19,9 @@ spec:
   values:
     defaultPodOptions:
       # TODO(2026-08): remove after talos-1 RAM RMA (single 48GB stick until then)
-      # Shed heavy burstables (~1Gi live / 2Gi limit) off the reduced-RAM node;
-      # 2026-06-30 OOMController cascade started there.
+      # Shed heavy burstables (see resources.requests/limits below for the
+      # measured working set) off the reduced-RAM node; 2026-06-30
+      # OOMController cascade started there.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
