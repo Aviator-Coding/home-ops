@@ -22,6 +22,7 @@
       matchDatasources: ["docker", "helm", "github-releases", "github-tags"],
       automerge: true,
       matchUpdateTypes: ["minor"],
+      minimumReleaseAge: "3 days",
       ignoreTests: false,
     },
   ],
