@@ -38,6 +38,11 @@ spec:
   path: "./kubernetes/apps/ai/toolhive/app"
   prune: true
   wait: true
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: toolhive-operator
+      namespace: *namespace
   dependsOn:
     - name: toolhive-crds
       namespace: *namespace
@@ -62,7 +67,18 @@ spec:
   timeout: 5m
   path: "./kubernetes/apps/ai/toolhive/config"
   prune: true
-  wait: false
+  # mcp-gateway-internal (Deployment) and mcp-tools-embedding (StatefulSet)
+  # are the workloads the VirtualMCPServer/EmbeddingServer CRs in this path
+  # render to; verified live against the running cluster.
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: mcp-gateway-internal
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: mcp-tools-embedding
+      namespace: *namespace
   dependsOn:
     - name: toolhive
       namespace: *namespace
@@ -91,7 +107,61 @@ spec:
   timeout: 5m
   path: "./kubernetes/apps/ai/toolhive/mcp-servers"
   prune: true
-  wait: false
+  # One Deployment (toolhive's HTTP proxyrunner) + one StatefulSet (the
+  # actual stdio MCP server process) per active MCPServer CR - both must be
+  # checked, since the proxy's own /health only reflects the proxy listener,
+  # not its stdio backend. Only the 6 currently-active servers (see this
+  # path's kustomization.yaml); garmin-connect/ha/seerr/talos are deactivated
+  # and correctly absent here.
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: arr
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: arr
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: comfyui-mcp
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: comfyui-mcp
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: flux
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: flux
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: github
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: github
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: kubectl
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: kubectl
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: memory
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: memory
+      namespace: *namespace
   dependsOn:
     - name: toolhive-config
       namespace: *namespace

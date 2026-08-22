@@ -14,6 +14,11 @@ spec:
     - name: comfyui
     - name: onepassword-store
       namespace: security
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
   interval: 1h
   path: "./kubernetes/apps/ai/miso-gallery/app"
   prune: true

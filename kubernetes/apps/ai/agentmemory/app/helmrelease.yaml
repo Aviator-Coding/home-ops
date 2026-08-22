@@ -19,8 +19,9 @@ spec:
   values:
     defaultPodOptions:
       # TODO(2026-08): remove after talos-1 RAM RMA (single 48GB stick until then)
-      # Shed heavy burstables (~1Gi live / 2Gi limit) off the reduced-RAM node;
-      # 2026-06-30 OOMController cascade started there.
+      # Shed heavy burstables (see resources.requests/limits below for the
+      # measured working set) off the reduced-RAM node; 2026-06-30
+      # OOMController cascade started there.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -123,11 +124,19 @@ spec:
               # contended local llama-server forced this low; DeepSeek is concurrent,
               # so this can rise (toward the default 6) in Phase 2b once stable.
               SUMMARIZE_CHUNK_CONCURRENCY: "2"
-              # Hourly consistent state snapshots inside the PVC (volsync then
-              # backs up a clean restore point); also mitigates the 0.9.21
-              # shutdown-flush bug (upstream #843, fixed in 0.9.27).
-              SNAPSHOT_ENABLED: "true"
-              SNAPSHOT_DIR: /data/snapshots
+              # Disabled: this shells out to `git`, which the image does not
+              # ship (confirmed via `kubectl exec` - Debian bookworm base, no
+              # git/apk/apt-installed git). Every scheduled run has logged
+              # "Snapshot failed {"error":"spawn git ENOENT"}" since this app
+              # was first deployed - the feature has never actually run. The
+              # upstream shutdown-flush bug it was also meant to mitigate
+              # (#843) is already fixed as of 0.9.27 (we run 0.9.29), so that
+              # rationale no longer applies either. Volsync backs up the PVC
+              # directly and has done so the whole time without this feature,
+              # so disabling changes nothing about actual backup behavior -
+              # it just stops an hourly no-op error. Re-enable if a future
+              # image ships git, or upstream drops the git dependency.
+              SNAPSHOT_ENABLED: "false"
               # Periodic lesson synthesis on the local 35B — tokens are free.
               AGENTMEMORY_REFLECT: "true"
               # Homelab context stays relevant longer than the 30-day default.
@@ -159,11 +168,30 @@ spec:
                   failureThreshold: 60
                   periodSeconds: 5
             resources:
+              # Measured via container_memory_working_set_bytes, 2026-08-08 to
+              # -22 (full Prometheus retention): baseline right after a cold
+              # start is already ~1.47-1.78Gi within a minute (loading the
+              # memory/embedding store into RAM, not a leak from zero), then
+              # climbs another ~250-560Mi over the following ~55-60 min until
+              # it hits the old 2Gi limit and gets OOMKilled - a cycle that
+              # repeats hourly, every day, for the full two-week retention
+              # window with the ceiling flat at ~2020-2045Mi each time.
+              # Every one of those cycles was cut off by the old 2Gi limit
+              # before the process could reveal whether growth would keep
+              # climbing or level off just above it, so this evidence alone
+              # cannot fully rule out an unbounded leak - it only shows
+              # growth well past 2Gi, not where it would actually plateau.
+              # Sized 3Gi as real headroom above the last observed (clipped)
+              # value rather than doubling blind; request raised from 256Mi
+              # (8x below the measured baseline, badly mis-scheduling the
+              # node) to match it. If OOMKills recur at 3Gi, that recurrence
+              # is itself the leak signal - this is a mitigation that buys
+              # headroom, not a proven cure.
               requests:
                 cpu: 100m
-                memory: 256Mi
+                memory: 1536Mi
               limits:
-                memory: 2Gi
+                memory: 3Gi
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
