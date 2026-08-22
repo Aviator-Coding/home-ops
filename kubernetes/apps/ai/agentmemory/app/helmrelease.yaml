@@ -18,19 +18,6 @@ spec:
       retries: 3
   values:
     defaultPodOptions:
-      # TODO(2026-08): remove after talos-1 RAM RMA (single 48GB stick until then)
-      # Shed heavy burstables (see resources.requests/limits below for the
-      # measured working set) off the reduced-RAM node; 2026-06-30
-      # OOMController cascade started there.
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-                      - talos-1
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
