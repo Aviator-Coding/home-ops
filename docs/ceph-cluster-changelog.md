@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-08-22] OSD Guaranteed QoS  (commit `cc3c135a`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | OSD pod `resources.requests.memory` in `cluster/helmrelease.yaml` raised `6Gi` -> `14Gi` to match `limits.memory` (Guaranteed QoS); `cpu` unchanged. |
+| **Why** | Deferred at the 2026-07-03 mon/logcollector Guaranteed-QoS change (below) pending the talos-1 RAM RMA - 2 OSDs x 14Gi reserved (28Gi) did not fit talos-1's single-stick ~47Gi window. RMA closed 2026-08-21, all 3 nodes confirmed 96GB/~94GiB usable: 6 OSD pods x 14Gi = 84Gi cluster-wide, 2 OSDs/node x 14Gi = 28Gi/node reserved, within the ~94GiB/node headroom. |
+| **Risk** | Reserves 28Gi/node up front (vs the prior 12Gi) even while OSDs are idle; `osd_memory_target` (10Gi) already sits under the 14Gi limit so no behavior change is expected, but this is a live production mutation - Flux reconciling it rolls all 6 OSD pods one at a time (`osdMaxUpdatesInParallel: 1`). |
+| **Rollback** | revert `resources.osd.requests.memory` to `6Gi` in `cluster/helmrelease.yaml`. |
+| **Verify** | OSD pods show `request==limit` (14Gi), QoS class `Guaranteed`; `ceph status` returns to `HEALTH_OK` after the rolling restart. |
+
+MDS stays Burstable - still blocked on an `mds_cache_memory_limit` rethink (unresolved, see [hardware-incidents.md](./hardware-incidents.md)).
+
 ### [2026-08-22] Extend CephCrashesDetected alert to match RECENT_MGR_MODULE_CRASH  (commit `422d69c9`)
 
 | Field | Value |
