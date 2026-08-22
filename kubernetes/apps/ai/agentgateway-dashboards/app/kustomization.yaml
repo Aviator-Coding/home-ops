@@ -5,8 +5,10 @@ kind: Kustomization
 # (oci://cr.agentgateway.dev/charts/agentgateway, files/agentgateway-dashboard.json).
 # Re-vendor when bumping the chart version, then reapply local edits: LLM/Latency rows
 # expanded by default, MCP row dropped (no MCP traffic through agentgateway on this
-# cluster - see docs/ai-system/agentgateway/08-observability.md), and the "LLM Cost"
-# dashboard link in agentgateway.json's top-level "links".
+# cluster - see docs/ai-system/agentgateway/08-observability.md), the "LLM Cost" dashboard
+# link in agentgateway.json's top-level "links", and the Memory/CPU panel queries
+# (wrap agentgateway_build_info in sum by (...) before group_left - two scrape jobs
+# per pod otherwise error with "many-to-many matching not allowed").
 configMapGenerator:
   - name: agentgateway-dashboard
     files:

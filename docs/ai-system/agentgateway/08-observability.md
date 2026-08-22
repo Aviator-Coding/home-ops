@@ -6,6 +6,16 @@ Do not import kgateway-org Grafana dashboards 24590/24965 or scrape `kgateway_co
 
 - Chart ServiceMonitors: enabled in [`helmrelease.yaml`](../../../kubernetes/apps/ai/agentgateway/app/helmrelease.yaml) (`monitoring.serviceMonitor.enabled: true`).
 - Extra [`podmonitor.yaml`](../../../kubernetes/apps/ai/agentgateway/app/podmonitor.yaml) scrapes data-plane pods on port **15020** (`metrics`). Needed because the chart ServiceMonitor selects a `metrics` port on per-Gateway Services, which this deployer does not create (Services only expose listener ports).
+- Consequence: every agentgateway pod is scraped by **two** jobs (e.g. `internal-noauth` +
+  `ai/agentgateway-proxy`), so any single-metric series like `agentgateway_build_info` has a
+  duplicate per pod. A PromQL `group_left` join against it directly errors with "many-to-many
+  matching not allowed" - always wrap it in `sum by (pod, namespace, <label you need>) (...)`
+  first. Fixed this way in `agentgateway.json`'s Memory/CPU panels 2026-08-21.
+- `agentgateway_build_info` (and the other agentgateway metrics) carry **no**
+  `gateway_networking_k8s_io_gateway_name` label on this cluster, so the `$gateway_name`/`$gateway`
+  dashboard variables have no real values to offer (checked live 2026-08-21) - harmless today
+  because they default to matching everything, but the dropdowns themselves are non-functional.
+  Not fixed here; would need picking a different, actually-populated label.
 
 Token/cost series used by the LLM spend rules: `agentgateway_gen_ai_client_token_usage` (histogram, labels `gen_ai_request_model` + `gen_ai_token_type`). See `15-optimization.md` and `app/rules/cost.yaml`.
 
