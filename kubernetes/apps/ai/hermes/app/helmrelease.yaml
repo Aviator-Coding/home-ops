@@ -73,23 +73,6 @@ spec:
             securityContext:
               runAsUser: 0
               runAsGroup: 0
-          # Stage a copy of the image's hermes-agent source into an emptyDir for
-          # the webui sidecar to import. `command:` overrides the image's s6
-          # entrypoint so this is a plain copy. The app container keeps the image's
-          # pristine /opt/hermes (we don't overlay it — don't disturb the gateway).
-          copy-agent-source:
-            image:
-              repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.8.18
-            command:
-              - /bin/sh
-              - -c
-              - |
-                set -e
-                cp -r /opt/hermes/. /agent-src/
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
         containers:
           app:
             image:
@@ -246,43 +229,6 @@ spec:
                 cpu: 10m
               limits:
                 memory: 1Gi
-          # Richer standalone chat UI (separate from the built-in :9119 dashboard).
-          # Imports the hermes-agent source staged by copy-agent-source and reads
-          # the agent's state from the data PVC at /home/hermeswebui/.hermes. Starts
-          # as root (chowns HOME to WANTED_UID) then drops to 10000. LAN-only via
-          # envoy-internal, no auth of its own.
-          # NOTE: most likely of these additions to need post-deploy tuning. To
-          # disable: remove this container, the copy-agent-source init, the
-          # agent-source volume, the webui service port and the hermes-webui route.
-          webui:
-            image:
-              repository: ghcr.io/nesquena/hermes-webui
-              tag: 0.52.158@sha256:28783c1ec13cda2f65ec1249a8537d3b9353fcfe5f97f4d24865ab524d26815d
-            env:
-              # upstream entrypoint uses `su -c`, HOME stays /root → .env missed
-              HERMES_HOME: /home/hermeswebui/.hermes
-              HERMES_WEBUI_HOST: 0.0.0.0
-              HERMES_WEBUI_PORT: "8787"
-              HERMES_WEBUI_STATE_DIR: /home/hermeswebui/.hermes/webui
-              HOME: /home/hermeswebui
-              TZ: ${CONFIG_TIMEZONE}
-              # Match the agent's uid/gid so webui owns the shared /opt/data state.
-              WANTED_UID: "10000"
-              WANTED_GID: "10000"
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                add: [CHOWN, DAC_OVERRIDE, FOWNER, FSETID, SETGID, SETUID]
-                drop: [ALL]
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
-            resources:
-              requests:
-                cpu: 50m
-                memory: 256Mi
-              limits:
-                memory: 2Gi
     defaultPodOptions:
       # Hermes operates the cluster via kubectl, so its SA token must be mounted.
       # app-template v5 defaults automountServiceAccountToken to false.
@@ -303,9 +249,6 @@ spec:
           # code-server IDE sidecar.
           codeserver:
             port: 12321
-          # hermes-webui chat UI sidecar.
-          webui:
-            port: 8787
     route:
       app:
         annotations:
@@ -339,21 +282,8 @@ spec:
           - backendRefs:
               - name: *app
                 port: 12321
-      # hermes-webui chat UI — LAN-only, no auth gate beyond the network.
-      webui:
-        hostnames:
-          - "hermes-webui.${SECRET_DOMAIN}"
-        parentRefs:
-          - name: envoy-internal
-            namespace: network
-            sectionName: https
-        rules:
-          - backendRefs:
-              - name: *app
-                port: 8787
     persistence:
-      # Agent state PVC. advancedMounts (not globalMounts) so the webui sidecar can
-      # mount it at /home/hermeswebui/.hermes while everything else gets /opt/data.
+      # Agent state PVC, mounted at /opt/data by every container that needs it.
       data:
         existingClaim: *app
         advancedMounts:
@@ -366,18 +296,6 @@ spec:
               - path: /opt/data
             codeserver:
               - path: /opt/data
-            webui:
-              - path: /home/hermeswebui/.hermes
-      # Staged copy of the image's /opt/hermes (from copy-agent-source) for webui
-      # to import as the hermes-agent package.
-      agent-source:
-        type: emptyDir
-        advancedMounts:
-          hermes:
-            copy-agent-source:
-              - path: /agent-src
-            webui:
-              - path: /home/hermeswebui/.hermes/hermes-agent
       # Single private-repo git token, rendered as `.git-credentials` by the
       # hermes-git ExternalSecret and read by the git `store` helper (see
       # GIT_CONFIG_* env above). reloader restarts the pod on token rotation.
