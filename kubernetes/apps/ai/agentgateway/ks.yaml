@@ -19,7 +19,7 @@ spec:
   # 3 Gateway-API-provisioned listener Deployments below, whose creation
   # timing isn't fully synchronized with this Kustomization's apply. 5m
   # matches the timeout used elsewhere in this namespace (e.g. agentmemory,
-  # perplexica, qdrant, searxng, vllm).
+  # comfyui, searxng, vllm).
   timeout: 5m
   path: "./kubernetes/apps/ai/agentgateway/app"
   prune: true
