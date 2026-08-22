@@ -37,3 +37,44 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "15 4 * * *"
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Second volume: the volsync component above only protects the single ${VOLSYNC_CLAIM}
+# (`syncthing`, the config PVC). `syncthing-data` holds the synced files and needs its
+# own Kustomization, because Flux allows exactly one postBuild.substitute map each.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app syncthing-data
+  namespace: &namespace selfhosted
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: syncthing
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/volsync/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: volsync
+      namespace: system
+    - name: syncthing
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CLAIM: *app
+      VOLSYNC_CAPACITY: 100Gi
+      VOLSYNC_CACHE_CAPACITY: 5Gi
+      VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "45 4 * * *"

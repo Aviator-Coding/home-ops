@@ -47,3 +47,46 @@ spec:
       VOLSYNC_CLAIM: paperless-ngx
       VOLSYNC_CAPACITY: 10Gi
       GATUS_GROUP: *namespace
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Second volume: the volsync component above only protects the single ${VOLSYNC_CLAIM}
+# (`paperless-ngx`, the data PVC). `paperless-ngx-media` is the scanned-document store -
+# the originals and their archived PDFs - and is not reconstructible from the database.
+# The `paperless-ngx-consume` inbox is deliberately NOT backed up: paperless deletes
+# files from it once they are ingested into media, so it only ever holds transient state.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app paperless-ngx-media
+  namespace: &namespace selfhosted
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: paperless-ngx
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/volsync/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: volsync
+      namespace: system
+    - name: paperless-ngx
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CLAIM: *app
+      VOLSYNC_CAPACITY: 50Gi
+      VOLSYNC_CACHE_CAPACITY: 5Gi
+      VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "25 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "50 4 * * *"
