@@ -1,6 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux v2. For operator command detail use [`CLAUDE.md`](CLAUDE.md), [`talos/AGENTS.md`](talos/AGENTS.md), and [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md).
+Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux v2. `CLAUDE.md` is a symlink to this file. For narrower operator detail see [`talos/AGENTS.md`](talos/AGENTS.md) and [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md).
+
+**Core stack**: Talos Linux (immutable OS) + Flux v2 (GitOps) + Cilium (CNI, BGP LoadBalancer, kube-proxy replacement, no L2 announcements) + Rook-Ceph (storage) + External Secrets Operator/1Password (secrets) + Cloudflare Tunnel (external access) + External-DNS (split DNS: `network/cloudflare-dns` public, `network/unifi-dns` internal) + VolSync (triple-destination backup). Gateway API `HTTPRoute`s front `envoy-internal`/`envoy-external` gateways in `network`. Monitoring: VictoriaMetrics (primary) + kube-prometheus-stack (secondary) + VictoriaLogs/Vector + Grafana + Alertmanager + Gatus, all in `monitoring`.
 
 ## STRUCTURE
 
@@ -89,6 +91,8 @@ just bootstrap cluster             # DR / first-time only
 
 Talos nodes are `talos-1|talos-2|talos-3` mapping to `10.10.10.11/12/13`. Do not target the VIP `10.10.10.10`. Full recipes: `talos/AGENTS.md`, `bootstrap/AGENTS.md`.
 
+Debugging: `flux get sources git -A`, `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide`, `kubectl -n {ns} logs {pod} -f`, `kubectl -n {ns} describe pod {pod}`, `kubectl get replicationsource,replicationdestination -A`.
+
 ## NOTES
 
 - `talos/*.j2` changes are not applied by Flux. Render, `--dry-run`, then `just talos apply-node` per node. Offline validation without creds is documented in `talos/AGENTS.md`.
@@ -98,16 +102,20 @@ Talos nodes are `talos-1|talos-2|talos-3` mapping to `10.10.10.11/12/13`. Do not
 - Vals (bootstrap/Talos render) uses 1Password vault `Home-Lab`. In-cluster ESO Connect uses vaults `Homelab`, `Automation`, and `Services`
 - Cluster control plane VIP: `10.10.10.10`
 - Nodes use bonded interfaces (802.3ad LACP), MTU 9000, VLANs 3 and 90
-- Storage classes: `ceph-block` (RWO), `ceph-filesystem` (RWX), `openebs-hostpath` (local)
+- Storage classes: `ceph-block` (RWO), `ceph-filesystem` (RWX), `openebs-hostpath` (local). Snapshot class: `csi-ceph-blockpool`. Each node has 2 NVMe disks dedicated to Ceph OSDs.
 - `.private/` directory for local-only files (gitignored)
 - Renovate ignores `**/*.sops.*` and `**/resources/**` paths
-- Ceph metadata CronJob (`rook-ceph-backup` / `ceph-backup-pvc`) is in-cluster `openebs-hostpath`, **not** last-resort DR; complete cluster/host wipe destroys it. Emergency steps: `kubernetes/apps/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`. Never restart all OSDs; see `docs/ceph/osd-device-path-recovery.md`.
+- Ceph metadata CronJob (`rook-ceph-backup` / `ceph-backup-pvc`) is in-cluster `openebs-hostpath`, **not** last-resort DR; complete cluster/host wipe destroys it. Emergency steps: `kubernetes/apps/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`.
+- **Before any node reboot** (`just talos upgrade-node` / `reboot-node` / `reset-node`, or an operator-driven OSD update), which restarts that node's Ceph OSDs: confirm `ceph status` is `HEALTH_OK` and run `task rook:check-osd-device-paths` first. Rook bug [#17224](https://github.com/rook/rook/issues/17224) bakes unstable `/dev/nvmeXn1` names into OSD deployments; on reboot an OSD relies on a relocate fallback that can fail if the cluster is already degraded. Reboot one node at a time, waiting for `HEALTH_OK` between nodes. `cephClusterSpec.storage.osdMaxUpdatesInParallel` is pinned to `1` (CRD default is 20, ≈ all 6 OSDs at once) so operator-driven updates also roll one OSD at a time. If an OSD is stuck `Init` afterward, see `docs/ceph/osd-device-path-recovery.md`. Never restart all OSDs at once.
 - The home-ops local ARC runner (`gha-runner-scale-set-aviator-coding-home-ops`) has no Docker daemon (no socket, no DinD sidecar) - `docker://` container actions, `docker run`, and anything that shells out to Docker (e.g. `renovatebot/github-action`) fail there. Details and the exact `runs-on:` label: `kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md`.
 - **`gatus.io/enabled` ConfigMap-label checks are dead.** Several apps ship a `*-gatus-ep` ConfigMap with that label for a non-HTTP check (e.g. `kubernetes/components/dragonfly/gatus.yaml`, `kubernetes/apps/database/emqx/cluster/gatus.yaml`, `kubernetes/apps/database/cloudnative-pg/cluster-17/gatus.yaml`). Verified live (2026-08-21) against the running cluster: none of these appear in Gatus's endpoint list (`GET /api/v1/endpoints/statuses`), and the `gatus-sidecar` init container's RBAC only covers `services`/`gateways`/`httproutes` - it never watches ConfigMaps, and nothing else in the cluster merges them in. A pod also can't mount a ConfigMap from another namespace, so this pattern was structurally unable to work regardless. The only endpoints Gatus actually serves are the `gatus.home-operations.com/endpoint`-annotated HTTPRoutes it auto-discovers, plus whatever is hand-written in `kubernetes/apps/monitoring/gatus/app/resources/config.yaml` (see the `Radarr Import Queue` entry there for an example of a non-HTTPRoute check done the way that works). Fixing the underlying dragonfly/emqx/cloudnative-pg checks is a separate follow-up, not yet done.
 
 - **`healthChecks:` must target the workload, not the HelmRelease.** A `HelmRelease`-kind healthCheck (used elsewhere in this repo, e.g. `cert-manager/ks.yaml`) only reflects whether the last `helm install`/`upgrade` action succeeded - `status.conditions[Ready]` stays `True` through an ongoing pod crashloop. Verified live 2026-08-22 against `ai/hermes`: `HelmRelease.status.conditions[Ready]=True` while `Deployment.status.conditions[Available]=False`. Point `healthChecks` at the actual `Deployment`/`StatefulSet` the app renders to catch real pod-level failure; see `kubernetes/apps/ai/*/ks.yaml` for the pattern (0 of 14 `ai` Kustomizations had any `healthChecks` before 2026-08-22, which is why `flux get ks -n ai` showed all Ready while pods crashlooped).
 
 ## Maintaining this file
+
+`CLAUDE.md` is a symlink to this file - there is only one copy to maintain, and edits here are
+automatically visible under either name. Do not recreate `CLAUDE.md` as a separate file.
 
 Keep this file for knowledge useful to almost every future agent session in this project.
 Do not repeat what the codebase already shows; point to the authoritative file or command instead.
