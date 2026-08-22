@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-08-22] Disable rook mgr module - stop crash storm blocking node upgrades  (commit `2014395e`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `mgr.modules` in `cluster/helmrelease.yaml`: `rook` entry `enabled: true` → `enabled: false` |
+| **Why** | Root-caused the 2026-08-21 `HEALTH_ERR Module 'crash' has failed` entry below: prometheus mgr module calls `node_proxy_fullreport()` on every scrape (15s), unimplemented by the rook orchestrator backend → `NotImplementedError` → crash record for module `rook`. Crash module's `do_post()` mutates `self.crashes` without `crashes_lock` (the only mutator missing it), racing the `serve()` thread's locked iteration → `RuntimeError` → `MGR_MODULE_ERROR` → `HEALTH_ERR` every ~15s, pinning cluster health and blocking every future Talos/Kubernetes node upgrade. Confirmed against the live mgr pod and upstream trackers: rook/rook#18124, ceph/ceph#71041, ceph/ceph#71180 - all open, no released fix as of Ceph Tentacle. |
+| **Risk** | None found: nothing in this repo uses `ceph orch` (only `docs/ceph/toolbox.md` documents it as the wrong control plane here). Dashboard and every other mgr module stay functional. The Rook operator reconciles from its own CRDs, not through this mgr module. |
+| **Rollback** | Set the `rook` entry in `mgr.modules` back to `enabled: true`. Revert once a Tentacle point release ships both upstream fixes. |
+| **Verify** | `ceph mgr module ls` no longer dispatches to `rook` for orchestrator calls; `ceph crash ls-new` count/timestamps flat (was climbing ~4/min); `ceph -s` returns to `HEALTH_OK` within the 2h self-heal window (`mgr/crash/warn_recent_interval=7200s`, already set - no manual `ceph crash archive-all` needed). |
+
+Applied via GitOps only (Flux reconciles the HelmRelease); no direct live-cluster mutation was made.
+
 ### [2026-08-21] Default `csi` subvolumegroup still broken on Ceph v20.2.3  (docs; no GitOps / PVC change)
 
 | Field | Value |
