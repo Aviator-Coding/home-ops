@@ -191,7 +191,7 @@ cluster:
     key: ref+op://Home-Lab/talos/CLUSTER_SERVICEACCOUNT_KEY
   apiServer:
     # renovate: datasource=docker depName=registry.k8s.io/kube-apiserver
-    image: registry.k8s.io/kube-apiserver:v1.36.3
+    image: registry.k8s.io/kube-apiserver:v1.36.4
     extraArgs:
       default-watch-cache-size: "1500"
       enable-aggregator-routing: "true"
