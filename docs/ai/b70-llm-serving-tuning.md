@@ -192,9 +192,11 @@ They remain valid as the contention mechanism; they are not today's default inve
 
 ### Mutual-exclusion procedure (chat ↔ ComfyUI)
 
-ComfyUI is pinned `replicas: 0` in git (`kubernetes/apps/ai/comfyui/app/helmrelease.yaml`).
-Run a ComfyUI session **only** after freeing the card from chat, and restore chat afterward.
-Flux (`interval: 1h`) reconciles ComfyUI back to 0 on its own, so the git default is the net.
+ComfyUI is pinned `replicas: 0` in git (`kubernetes/apps/ai/comfyui/app/helmrelease.yaml`)
+and its HelmRelease is suspended (`spec.suspend: true`) - Flux is not reconciling it, so
+there is no automatic revert. Run a ComfyUI session **only** after freeing the card from
+chat, and manually scale it back to 0 when done (see "End the session" below), then
+restore chat.
 
 `vllm-embed` is already `replicas: 0` in git. Do **not** scale it up as part of this
 procedure unless you have re-enabled local embeddings on purpose.
