@@ -267,6 +267,8 @@ spec:
 
 Example: `kubernetes/apps/media/immich/ks.yaml`. This creates three ReplicationSources (automated backups) and one ReplicationDestination (manual restore).
 
+**An app with more than one volume needs one Flux Kustomization per volume.** The component is single-claim by construction - every object is named from `${APP}` and Flux allows one `postBuild.substitute` map per Kustomization. Add a second document to the app's `ks.yaml` with `path: ./kubernetes/components/volsync/backup` (the backup-only bundle, which does not create the PVC) and `APP` set to the claim name. See `kubernetes/components/volsync/Readme.md` "Apps with more than one volume"; live examples are `selfhosted/syncthing`, `selfhosted/paperless-ngx` and `ai/perplexica`.
+
 **Cache sizing**: Set `VOLSYNC_CACHE_CAPACITY` to 20-50% of PVC size for optimal performance. Small PVCs need 50-100%.
 
 ### Network Architecture
