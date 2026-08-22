@@ -46,7 +46,7 @@ just talos apply-node talos-1 --dry-run
 just talos apply-node talos-1
 # 4. Upgrade Talos / Kubernetes
 just talos upgrade-node talos-1
-just talos upgrade-k8s v1.36.1
+just talos upgrade-k8s v1.36.3
 ```
 
 Merging a `machineconfig.yaml.j2`/node-overlay/`schematic.yaml.j2` change only lands
