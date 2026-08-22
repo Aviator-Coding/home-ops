@@ -7,8 +7,10 @@ kind: Kustomization
 # expanded by default, MCP row dropped (no MCP traffic through agentgateway on this
 # cluster - see docs/ai-system/agentgateway/08-observability.md), the "LLM Cost" dashboard
 # link in agentgateway.json's top-level "links", and the Memory/CPU panel queries
-# (wrap agentgateway_build_info in sum by (...) before group_left - two scrape jobs
-# per pod otherwise error with "many-to-many matching not allowed").
+# (wrap agentgateway_build_info in group by (...), not sum by (...), before group_left -
+# two scrape jobs per pod otherwise error with "many-to-many matching not allowed", and
+# sum by would silently double the joined value since agentgateway_build_info is a
+# fixed-at-1 info metric).
 configMapGenerator:
   - name: agentgateway-dashboard
     files:
