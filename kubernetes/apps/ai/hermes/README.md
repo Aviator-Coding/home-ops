@@ -5,21 +5,29 @@ self-improving conversational AI agent (learning loop, persistent memory, skills
 deployed here as a homelab operator. Self-contained Python image; no upstream Helm
 chart, so this is a hand-authored `app-template` deploy.
 
-The pod runs three containers (one controller, one PVC):
+The pod runs two containers (one controller, one PVC):
 
 | Container | Purpose | URL |
 | --------- | ------- | --- |
 | `app` | Hermes gateway + built-in dashboard (basic auth) | `https://hermes.${SECRET_DOMAIN}` |
-| `webui` | Richer standalone chat UI ([nesquena/hermes-webui](https://github.com/nesquena/hermes-webui)) | `https://hermes-webui.${SECRET_DOMAIN}` (LAN) |
 | `codeserver` | Browser VS Code over `/opt/data` (skills/config/sessions) | `https://hermes-code.${SECRET_DOMAIN}` (LAN) |
 
 Plus an OpenAI-compatible API on `:8642` and a companion **agentmemory** service
 (`../agentmemory/`) for long-term cross-session memory.
 
 > The `app` container exposes a terminal + cluster RBAC + git, so the dashboard is
-> gated by basic auth. `webui` and `codeserver` have **no auth of their own** — they
-> are only on the **internal** gateway (`envoy-internal`, LAN). Front them with
-> Authentik if you ever need more than network isolation.
+> gated by basic auth. `codeserver` has **no auth of its own** — it is only on the
+> **internal** gateway (`envoy-internal`, LAN). Front it with Authentik if you ever
+> need more than network isolation.
+
+> **`webui` (removed 2026-08-21).** A third sidecar ran
+> [nesquena/hermes-webui](https://github.com/nesquena/hermes-webui) as a richer
+> standalone chat UI. Renovate's 0.52.157 → 0.52.158 bump made the image pip-install
+> `hermes-agent` at container start, which upstream refuses to build ("Building
+> wheels or sdists for hermes-agent is not supported") — permanent CrashLoopBackOff,
+> the third such incident for this component. Removed rather than pinned back: the
+> route sat at probe-floor traffic (~1 req/min, 100% 5xx, no human usage) with no
+> real users to justify carrying the risk of a fourth incident.
 
 ## Configuration is GitOps (read this first)
 
@@ -131,7 +139,7 @@ scrubs) and the gateway for per-repo summaries. Register its daily run in-agent 
 the pod is up:
 
 ```bash
-# in the dashboard/webui terminal, or: kubectl -n ai exec -it deploy/hermes -c app -- hermes ...
+# in the dashboard terminal, or: kubectl -n ai exec -it deploy/hermes -c app -- hermes ...
 # create the `homelab-peers-commit-watcher` cron (see the skill's SKILL.md).
 ```
 
@@ -176,21 +184,15 @@ PAT or account SSH key would expose every repo; don't use those.)
 
 - **Single-writer state.** `/opt/data` (sessions/memories/skills, incl. SQLite) is not
   concurrency-safe → `replicas: 1` + `strategy: Recreate` + RWO `ceph-block` PVC. The
-  `codeserver` and `webui` sidecars share the PVC **in the same pod** (no
-  multi-attach). Do not scale up.
+  `codeserver` sidecar shares the PVC **in the same pod** (no multi-attach). Do not
+  scale up.
 - **Gateway runs via the profile service, not the CMD.** The image auto-starts a
   `gateway-default` s6 service (the gateway: cron + messaging). The container CMD is
   idled (`args: ["sleep","infinity"]`) — passing `gateway run` started a *second*
   gateway that collided and CrashLooped. **Don't set `args` back to `gateway run`.**
-- **webui is the fiddly one.** It imports a staged copy of the image's `/opt/hermes`
-  (the `copy-agent-source` init → `agent-source` emptyDir) and reads agent state from
-  the PVC at `/home/hermeswebui/.hermes`. The `app` container's `/opt/hermes` is left
-  pristine on purpose (don't disturb the gateway). If webui misbehaves, it can be
-  removed without touching the rest — see the disable note in `helmrelease.yaml`.
 - **Runs as root then drops** to UID 10000 (s6-overlay), so no `runAsNonRoot` on the
   `app` container — `fsGroup: 10000` makes the PVC writable for the dropped user.
 - **Cost tracking:** every model goes through the agentgateway unified `/v1`, so
   ALL Hermes LLM traffic is in gateway cost metering (`rules/cost.yaml`) and Tempo
   tracing — there is no untracked direct-provider path anymore.
-- **Ports:** `9119` dashboard, `8642` OpenAI-compatible API, `8787` webui, `12321`
-  code-server.
+- **Ports:** `9119` dashboard, `8642` OpenAI-compatible API, `12321` code-server.
