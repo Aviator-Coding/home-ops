@@ -6,6 +6,11 @@ metadata:
   name: &app comfyui
 spec:
   interval: 1h
+  # Parked: keep the 142Gi of PVCs (models/output/input/custom-nodes/user) but stop
+  # reconciling. Mutually exclusive with vllm for the one Arc Pro B70 (see the
+  # replicas comment below) - not worth the reconcile churn while unused. Resume
+  # imperatively for a session: flux -n ai resume hr comfyui.
+  suspend: true
   # intel/llm-scaler-omni is a multi-GB image; the default 5m helm timeout fires
   # mid-pull and rolls back, killing the pull in a loop. Allow time for the pull.
   timeout: 20m
@@ -30,8 +35,9 @@ spec:
         # Default OFF: ComfyUI time-slices the one B70 against chat (vllm) and
         # collapses chat decode ~38x (no hardware compute partition on Battlemage).
         # Scale to 1 only for a deliberate image session AFTER scaling vllm +
-        # vllm-embed to 0; Flux returns this to 0 on the next reconcile. See
-        # docs/ai/b70-llm-serving-tuning.md (Single-card workload isolation).
+        # vllm-embed to 0. The HelmRelease is suspended (see spec.suspend above),
+        # so Flux will NOT revert this on its own - scale back to 0 manually when
+        # done. See docs/ai/b70-llm-serving-tuning.md (Single-card workload isolation).
         replicas: 0
         strategy: Recreate
         pod:

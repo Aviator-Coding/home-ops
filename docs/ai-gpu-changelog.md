@@ -40,7 +40,7 @@ recently, and why?" without spelunking git.
 
 - ✅ **`--flash-attn on` + `--cache-type-k/-v q8_0`** are the live, measured baseline on `server-intel-b9592` (enabled 2026-06-17, verified 2026-08-21). The 2026-06-14 prohibition citing ggml-org/llama.cpp#19276 does **not** apply to this official SYCL build on the B70.
 - ⚠️ **Do not bump the llama.cpp tag without re-measuring.** Later SYCL FA/XMX and Q4_K MoE-reorder work landed after b9592; quality and hang reports on newer builds are a different stack (see 2026-08-21).
-- ✅ For heavy ComfyUI work, scale `vllm`→0 first - the card is shared with no memory fencing. Flux will return ComfyUI to `replicas: 0`.
+- ✅ For heavy ComfyUI work, scale `vllm`→0 first - the card is shared with no memory fencing. `comfyui`'s HelmRelease is suspended (`spec.suspend: true`), so scale it back to `replicas: 0` manually when done - Flux will not revert it.
 
 ---
 
