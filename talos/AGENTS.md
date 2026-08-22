@@ -74,3 +74,4 @@ info` eagerly for any `just talos` invocation via the root `mod bootstrap` impor
 - Control plane VIP: `10.10.10.10`
 - Each node has 2 NVMe disks dedicated to Ceph OSDs
 - `talosconfig` path: `talos/talosconfig` (gitignored)
+- **tuppr's `TalosUpgrade`/`KubernetesUpgrade` `healthChecks` gate before each node, not just once up front.** Confirmed against tuppr's own docs (2026-08-22): with no `parallelism` set (this repo's default), tuppr runs all `healthChecks` once before touching the first node, then re-evaluates them again before every subsequent node (each node is its own batch). `policy.rebootMode: powercycle` only changes how a node is rebooted (hard reset vs. graceful) - it doesn't affect this gating. Official Talos Kubernetes-version compatibility: `docs.siderolabs.com/talos/<line>/getting-started/support-matrix`.

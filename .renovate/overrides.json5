@@ -38,9 +38,16 @@
       // v1.13.3 upgrade failed permanently on talos-1 (tuppr TalosUpgrade
       // stuck Failed, nodes stranded on v1.12.6). Pinned to v1.13.2 in #867.
       // Hold the installer image + talosctl CLI here until v1.13.3+ is proven.
+      // "ghcr.io/siderolabs/talosctl" (the CLI image used by
+      // .github/docker/talosctl-busybox/Dockerfile) was missing from
+      // matchPackageNames, so this pin never actually caught it: five PRs
+      // (#1023-#1291) already carried it to v1.13.8 unblocked, and a sixth
+      // (v1.13.9) was sitting on an open Renovate branch. Added below to
+      // close the gap.
       description: "Pin Talos to <1.13.3 (1.13.3 upgrade fails on talos-1, see #867)",
       matchPackageNames: [
         "ghcr.io/siderolabs/installer",
+        "ghcr.io/siderolabs/talosctl",
         "siderolabs/talos",
         "/factory\\.talos\\.dev/",
       ],
