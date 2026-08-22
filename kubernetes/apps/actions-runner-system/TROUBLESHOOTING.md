@@ -470,7 +470,7 @@ Current tags live in the HelmReleases (Renovate bumps them). Typical set:
 
 | Image | Registry | Cacheable by Spegel |
 |-------|----------|---------------------|
-| `ghcr.io/home-operations/actions-runner` (ai-k8s-sandbox scale-set image tag) / `ghcr.io/aviator-coding/actions-runner-buildx` (home-ops, see [Custom Runner Image](#custom-runner-image)) | GHCR | Yes |
+| `ghcr.io/home-operations/actions-runner` (both scale-sets' image tag) | GHCR | Yes |
 | `gha-runner-scale-set-controller` chart default image | GHCR | Yes |
 | `docker:29-dind` (sandbox sidecar) | Docker Hub | Yes |
 
@@ -505,14 +505,15 @@ Runner resource requests have been optimized based on actual usage:
 
 This allows more concurrent runners on the same hardware while still providing headroom for burst usage. Limits remain 2 CPU / 8Gi (plus 2 CPU / 4Gi for the sandbox DinD sidecar).
 
-## Custom Runner Image
+## Runner Pod Capabilities
 
-The home-ops scale set (`gha-runner-scale-set-aviator-coding-home-ops`) runs
-`ghcr.io/aviator-coding/actions-runner-buildx`, built from
-`.github/docker/actions-runner-buildx/Dockerfile` and pushed by
-`.github/workflows/build-actions-runner-buildx.yaml` (same pattern as
-`talosctl-busybox`). `ai-k8s-sandbox` still runs the stock
-`ghcr.io/home-operations/actions-runner` image.
+Both scale sets (`gha-runner-scale-set-aviator-coding-home-ops` and
+`ai-k8s-sandbox`) run the stock `ghcr.io/home-operations/actions-runner`
+image directly - there is no custom home-ops runner image. A prior
+`ghcr.io/aviator-coding/actions-runner-buildx` image (a base-image rebuild
+that only asserted `docker buildx version` at build time, adding no
+filesystem content) was retired as a byte-identical no-op; `buildx` ships in
+the base image already.
 
 ### podman is not usable in runner pods on this cluster
 
