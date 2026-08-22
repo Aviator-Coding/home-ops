@@ -16,7 +16,6 @@ MISE_LIST_ALL_VERSIONS = "false"
 
 [tools]
 "python" = "3.14.7"
-"pipx:makejinja" = "2.8.2"
 "pipx:pre-commit" = "4.6.2"
 "pipx:flux-local" = "latest"
 "just" = "latest"

@@ -51,9 +51,9 @@ restore ns app previous='0':
     kubectl -n {{ ns }} get replicationdestination {{ app }}-dst -o json \
         | jq 'del(.status)
             | .metadata = {name: "{{ app }}-manual", namespace: .metadata.namespace}
-            | .spec.kopia.copyMethod = "Direct"
-            | .spec.kopia.destinationPVC = "{{ app }}"
-            | .spec.kopia.previous = {{ previous }}' \
+            | .spec.restic.copyMethod = "Direct"
+            | .spec.restic.destinationPVC = "{{ app }}"
+            | .spec.restic.previous = {{ previous }}' \
         | kubectl apply --server-side -f -
     kubectl -n {{ ns }} wait job/volsync-dst-{{ app }}-manual --for=create --timeout=120s
     kubectl -n {{ ns }} wait job/volsync-dst-{{ app }}-manual --for=condition=complete --timeout=120m
@@ -88,9 +88,9 @@ view-secret ns secret:
 [arg('state', pattern='suspend|resume')]
 [doc('Suspend or resume VolSync')]
 volsync state:
-    flux -n volsync-system {{ state }} kustomization volsync
-    flux -n volsync-system {{ state }} helmrelease volsync
-    kubectl -n volsync-system scale deployment volsync --replicas {{ if state != "suspend" { "1" } else { "0" } }}
+    flux -n system {{ state }} kustomization volsync
+    flux -n system {{ state }} helmrelease volsync
+    kubectl -n system scale deployment volsync --replicas {{ if state != "suspend" { "1" } else { "0" } }}
 
 [private]
 render-local-ks ns ks:
