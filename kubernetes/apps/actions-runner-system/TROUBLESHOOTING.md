@@ -532,6 +532,24 @@ the tradeoff as of 2026-08-21, so the custom runner image ships `buildx`
 only (already present in the upstream base image) and does not install
 `podman`/`uidmap`/`netavark`/`aardvark-dns`.
 
+### No Docker daemon in home-ops runner pods - blocks `docker://` actions and `docker run`
+
+The home-ops scale set's runner container has no Docker daemon: no
+`/var/run/docker.sock`, no privileged mode, no DinD sidecar (unlike
+`ai-k8s-sandbox`, which has a `docker:29-dind` sidecar). `docker buildx
+version` works because it's just the CLI plugin binary reporting its version -
+it does not need a daemon connection. Confirmed live (2026-08-21, PR #1361):
+migrating `flux-local.yaml`'s `test`/`diff` jobs (`uses: docker://...`
+container actions), `image-pull.yaml`'s `extract` job (`docker run ...`),
+and `renovate.yaml` (the `renovatebot/github-action` always shells out to
+`docker run ghcr.io/renovatebot/renovate`, with no non-Docker execution mode)
+to this runner failed every job with `failed to connect to the docker API at
+unix:///var/run/docker.sock: ... no such file or directory`. Those jobs, and
+`build-talosctl-busybox.yaml` (a real `docker buildx build --push`), stay on
+`ubuntu-latest` until a Docker daemon is actually provisioned for this scale
+set (a DinD sidecar like `ai-k8s-sandbox`'s, or a privileged/rootful Docker
+setup) - a separate infra decision, not a `runs-on:` line change.
+
 ## Related Documentation
 
 - [Actions Runner Controller GitHub](https://github.com/actions/actions-runner-controller)

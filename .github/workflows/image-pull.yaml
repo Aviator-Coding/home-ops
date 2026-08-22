@@ -20,7 +20,7 @@ permissions:
 jobs:
   filter:
     name: Image Pull - Filter
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
@@ -35,6 +35,10 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Image Pull - Extract Images
+    # Not migrated: this job runs `docker run ... ghcr.io/allenporter/flux-local`, which needs
+    # a Docker daemon. The local ARC runner pod has none - confirmed by a live PR run failing
+    # with "failed to connect to the docker API at unix:///var/run/docker.sock". See
+    # kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -110,7 +114,7 @@ jobs:
     if: ${{ needs.extract.outputs.default != needs.extract.outputs.pull }}
     needs: extract
     name: Image Pull - Diff Images
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     outputs:
       images: ${{ steps.diff.outputs.images }}
@@ -163,7 +167,7 @@ jobs:
     if: ${{ !cancelled() }}
     needs: pull
     name: Image Pull - Success
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     steps:
       - name: Any jobs failed?
