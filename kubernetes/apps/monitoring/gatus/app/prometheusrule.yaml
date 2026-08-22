@@ -27,3 +27,14 @@ spec:
               The {{ $labels.name }} endpoint has a public DNS record and is exposed
           labels:
             severity: critical
+
+        - alert: RadarrImportQueueBlocked
+          expr: |
+            gatus_results_endpoint_success{name="Radarr Import Queue"} == 0
+          for: 30m
+          annotations:
+            summary: >-
+              Radarr's queue has an item stuck (importBlocked or another warning/error) -
+              open Activity > Queue in Radarr and Manual Import it
+          labels:
+            severity: warning

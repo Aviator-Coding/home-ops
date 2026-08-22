@@ -31,6 +31,24 @@ endpoints:
     conditions:
       - "[CONNECTED] == true"
 
+  # Radarr never surfaces a stuck queue item (e.g. importBlocked - "matched movie by ID,
+  # Manual Import required") as a hard error anywhere but its own Activity/Queue tab. This
+  # polls the same status Radarr's UI queue badge uses, so a stuck item becomes a
+  # PrometheusRule alert (RadarrImportQueueBlocked) instead of silently accumulating.
+  - name: Radarr Import Queue
+    group: downloads
+    url: http://radarr.downloads.svc.cluster.local:7878/api/v3/queue/status
+    method: GET
+    headers:
+      X-Api-Key: "${RADARR_API_KEY}"
+    interval: 15m
+    ui:
+      hide-url: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].warnings == false"
+      - "[BODY].errors == false"
+
 metrics: true
 
 ui:
