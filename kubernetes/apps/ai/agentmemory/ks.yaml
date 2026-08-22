@@ -20,6 +20,11 @@ spec:
       namespace: *namespace
     - name: agentgateway
       namespace: *namespace
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/ai/agentmemory/app
   postBuild:
@@ -41,4 +46,3 @@ spec:
     namespace: flux-system
   targetNamespace: *namespace
   timeout: 5m
-  wait: false

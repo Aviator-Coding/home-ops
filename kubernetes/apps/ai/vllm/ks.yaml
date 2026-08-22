@@ -12,6 +12,14 @@ spec:
   dependsOn:
     - name: rook-ceph
       namespace: rook-ceph
+  # Only the main "vllm" controller - "vllm-embed" is deliberately pinned to
+  # replicas: 0 (mutually exclusive with vllm on the single GPU), so it must
+  # not be health-checked.
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
   interval: 1h
   path: "./kubernetes/apps/ai/vllm/app"
   prune: true
@@ -21,7 +29,6 @@ spec:
     namespace: flux-system
   targetNamespace: *namespace
   timeout: 5m
-  wait: false
   postBuild:
     substituteFrom:
       - name: cluster-secrets

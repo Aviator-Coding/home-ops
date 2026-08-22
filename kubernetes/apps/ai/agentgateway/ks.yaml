@@ -15,7 +15,29 @@ spec:
   timeout: 3m
   path: "./kubernetes/apps/ai/agentgateway/app"
   prune: true
-  wait: false
+  # Deployment-level, not HelmRelease: HelmRelease.Ready only reflects the
+  # last helm install/upgrade action, not ongoing pod health - it stays True
+  # through a live crashloop (verified against ai/hermes). "internal",
+  # "internal-noauth" and "public" are Gateway-API listener Deployments the
+  # agentgateway control plane provisions from the Gateway CRs in this same
+  # path; they carry no Helm annotations of their own.
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: internal
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: internal-noauth
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: public
+      namespace: *namespace
   sourceRef:
     kind: GitRepository
     name: flux-system
