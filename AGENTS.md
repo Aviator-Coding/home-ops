@@ -2,7 +2,7 @@
 
 Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux v2. `CLAUDE.md` is a symlink to this file. For narrower operator detail see [`talos/AGENTS.md`](talos/AGENTS.md) and [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md).
 
-**Core stack**: Talos Linux (immutable OS) + Flux v2 (GitOps) + Cilium (CNI, BGP LoadBalancer, kube-proxy replacement, no L2 announcements) + Rook-Ceph (storage) + External Secrets Operator/1Password (secrets) + Cloudflare Tunnel (external access) + External-DNS (split DNS: `network/cloudflare-dns` public, `network/unifi-dns` internal) + VolSync (triple-destination backup). Gateway API `HTTPRoute`s front `envoy-internal`/`envoy-external` gateways in `network`. Monitoring: kube-prometheus-stack (metrics) + Loki/Promtail (logs) + Tempo (traces) + Grafana + Alertmanager + Gatus, all in `monitoring`.
+**Core stack**: Talos Linux (immutable OS) + Flux v2 (GitOps) + Cilium (CNI, BGP LoadBalancer, kube-proxy replacement, no L2 announcements) + Rook-Ceph (storage) + External Secrets Operator/1Password (secrets) + Cloudflare Tunnel (external access) + External-DNS (split DNS: `network/cloudflare-dns` public, `network/unifi-dns` internal) + VolSync (triple-destination backup). Gateway API `HTTPRoute`s front `envoy-internal`/`envoy-external` gateways in `network`. Monitoring: kube-prometheus-stack + Loki + Promtail + Tempo + Grafana + Alertmanager + Gatus + kromgo + KEDA + unpoller, all in `monitoring`.
 
 ## STRUCTURE
 
