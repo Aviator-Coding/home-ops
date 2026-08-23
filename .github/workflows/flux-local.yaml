@@ -19,6 +19,11 @@ permissions:
 
 jobs:
   filter:
+    # Fork guard. This job and `success` below run on the self-hosted runner, which
+    # holds node-level Talos credentials. The `test` and `diff` jobs are ubuntu-latest
+    # but hang off `needs: filter`, so a fork PR skips the whole workflow rather than
+    # running any of it here. Mirrors labeler.yaml; same-repo PRs are unaffected.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Flux Local - Filter
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
@@ -146,7 +151,9 @@ jobs:
             ```
 
   success:
-    if: ${{ !cancelled() }}
+    # `!cancelled()` alone would still schedule this job onto the self-hosted runner
+    # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
+    if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
     needs:
       - test
       - diff

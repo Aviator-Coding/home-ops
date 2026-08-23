@@ -19,6 +19,10 @@ permissions:
 
 jobs:
   filter:
+    # Fork guard. The `pull` job below runs `talosctl image pull` against a real node
+    # with credentials mounted by the cluster, so PR-authored code from a fork must
+    # never reach this runner. Mirrors labeler.yaml. Same-repo PRs are unaffected.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Image Pull - Filter
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
@@ -111,7 +115,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   diff:
-    if: ${{ needs.extract.outputs.default != needs.extract.outputs.pull }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.extract.outputs.default != needs.extract.outputs.pull }}
     needs: extract
     name: Image Pull - Diff Images
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
@@ -135,7 +139,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   pull:
-    if: ${{ needs.diff.outputs.images != '[]' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.diff.outputs.images != '[]' }}
     needs: diff
     name: Image Pull - Pull Images
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
@@ -164,7 +168,9 @@ jobs:
         run: talosctl --nodes $NODE image pull "${MATRIX_IMAGE}"
 
   success:
-    if: ${{ !cancelled() }}
+    # `!cancelled()` alone would still schedule this job onto the self-hosted runner
+    # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
+    if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
     needs: pull
     name: Image Pull - Success
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
