@@ -69,6 +69,14 @@ spec:
       enabled: true
     envoy:
       enabled: false
+    # Host firewall: enforces CiliumClusterwideNetworkPolicy with a nodeSelector
+    # against the *host* endpoint. Required because every Ceph daemon runs on
+    # host network (CephCluster spec.network.provider: host), so pod-level
+    # NetworkPolicy cannot reach them. Consumed by ./hostpolicy-ceph.yaml.
+    # Enforced at the tc hook in bpf_host on `devices` (bond0, bond0.3,
+    # bond0.90 here) - see ./hostpolicy-ceph.yaml for the full safety argument.
+    hostFirewall:
+      enabled: true
     hubble:
       enabled: false
     ipam:
@@ -102,6 +110,29 @@ spec:
           memory: 512Mi
     pmtuDiscovery:
       enabled: true
+    # TEMPORARY - STAGE 1 OF 2. Renders `policy-audit-mode: "true"` into the
+    # cilium-config ConfigMap, which makes every policy verdict non-enforcing:
+    # traffic a policy would drop is instead reported as an AUDIT verdict and
+    # still delivered. This is what makes enabling hostFirewall above safe to
+    # land - it provably cannot drop a packet, so a mistake in
+    # ./hostpolicy-ceph.yaml cannot lock the nodes out (Talos has no SSH).
+    #
+    # Unlike the per-endpoint `cilium-dbg endpoint config <id>
+    # PolicyAuditMode=Enabled` toggle, this ConfigMap key survives an agent
+    # restart. That matters: the per-endpoint toggle silently reverts to
+    # ENFORCING on restart, which is precisely the lockout this staging exists
+    # to prevent.
+    #
+    # KNOWN COST, deliberate and bounded: audit mode is global, not
+    # host-endpoint-scoped, so the cluster's 14 pod NetworkPolicies (dragonfly
+    # cache isolation + prometheus scrape allows) are also un-enforced while
+    # this is true. They are internal-only policies and nothing about this is
+    # internet-facing, but keep the observation window short.
+    #
+    # Stage 2 flips this to `false` once the audit evidence is captured - see
+    # docs/ceph/lan-isolation-audit-plan.md. Do not remove hostFirewall when
+    # removing this; they are separate stages.
+    policyAuditMode: true
     prometheus:
       enabled: true
       serviceMonitor:
@@ -117,6 +148,16 @@ spec:
       hostNamespaceOnly: true
     tunneling:
       mtu: 9000
+    # Chart default is maxUnavailable: 2, which on a 3-node cluster restarts
+    # two thirds of the datapath at once. Enabling hostFirewall recompiles and
+    # reloads bpf_host, so this is the one rollout where a bad load must not be
+    # able to hit two nodes simultaneously - dropping to 1 keeps two healthy
+    # nodes (and etcd quorum) while a failure is caught and reverted.
+    # Independent of the audit/enforce staging; safe to keep permanently.
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
     # Guaranteed QoS (requests == limits on EVERY container, init containers
     # included) so the Talos runtime.OOMController never selects the agent:
     # its victim ranking assigns Guaranteed cgroups weight 0.0. During the

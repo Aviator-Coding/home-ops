@@ -1,0 +1,141 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumclusterwidenetworkpolicy_v2.json
+#
+# Ceph LAN isolation - host firewall policy.
+#
+# WHY THIS EXISTS
+# CephCluster sets `spec.network.provider: host`, so every Ceph daemon runs in
+# the host netns and binds 0.0.0.0. That makes mon (3300), RGW (80, cleartext),
+# and the unauthenticated metrics endpoints (9283 mgr-prometheus, 9926
+# ceph-exporter) answerable from any device on the LAN, routed across subnets -
+# verified reachable from 10.0.0.150, a different subnet than the 10.10.10.0/24
+# node VLAN. A pod-level NetworkPolicy structurally cannot reach a host-netns
+# listener, which is why this is a host-firewall CiliumClusterwideNetworkPolicy
+# and not a NetworkPolicy in rook-ceph. Requires `hostFirewall.enabled: true`
+# in ./helmrelease.yaml; the two are deliberately in the same Kustomization so
+# they apply and revert atomically.
+#
+# WHY THIS CANNOT LOCK THE NODES OUT  (Talos has no SSH; this is the failure
+# mode the whole staged rollout exists to prevent.)
+# `enableDefaultDeny: {ingress: false, egress: false}` is the load-bearing line
+# in this file. Do not remove it. The CiliumClusterwideNetworkPolicy CRD shipped
+# with Cilium 1.18.6 states:
+#
+#   "If not specified, the default is true for each traffic direction that has
+#    rules, and false otherwise. For example, if a policy only has Ingress or
+#    IngressDeny rules, then the default for ingress is true and egress is
+#    false."
+#
+# So an ingressDeny-only host policy would, by default, put the host endpoint
+# into ingress default-deny - dropping every port not explicitly allowed,
+# including the Talos API (50000/50001), the Kubernetes API (6443), kubelet
+# (10250), etcd (2379/2380), Cilium health (4240) and BGP (179). Setting
+# enableDefaultDeny false for both directions keeps this policy purely
+# subtractive: the ONLY packets it can ever affect are the exact
+# (source=world, port) pairs enumerated below. Every carve-out the design
+# requires is therefore satisfied structurally, by the host endpoint never
+# entering default-deny at all, rather than by enumerating an allowlist that
+# could be incomplete.
+#
+# HAZARD for future edits: default-deny is OR-ed across policies - "If multiple
+# policies apply to an endpoint, that endpoint's default deny will be enabled if
+# any policy requests it." Adding any other CiliumClusterwideNetworkPolicy that
+# carries a nodeSelector and an `ingress:` allow section will flip the host
+# endpoint into default-deny cluster-wide and can black-hole the nodes. There
+# are currently no other CCNPs in this cluster.
+#
+# WHY `fromEntities: [world]` RATHER THAN A CIDR BLOCK
+# `world` is the reserved identity for anything that is not part of this
+# cluster. It cannot match the `host` identity (the node itself), the
+# `remote-node` identity (the other two nodes), or any pod identity, so
+# intra-cluster Ceph traffic - mon quorum, OSD replication, MDS, CSI, VolSync
+# backups, Prometheus scrapes - is outside this rule's reach by construction.
+# It also survives a CIDR renumber. Note that with `bpf.masquerade: true` and
+# `ipv4NativeRoutingCIDR: 10.42.0.0/16`, in-cluster traffic addressed to a node
+# IP (10.10.10.0/24, outside the native routing CIDR) is SNAT'd to the node IP
+# and so arrives as host/remote-node, never as world - a CIDR-except list would
+# have been matching on the wrong thing.
+#
+# Legitimate S3 reaches RGW via the rook-ceph/rook-ceph-s3 HTTPRoute
+# (s3.sklab.dev) -> rook-ceph-rgw-ceph-objectstore:80 ClusterIP -> host RGW.
+# That path is in-cluster and unaffected; only direct http://10.10.10.x:80 is
+# closed, which is the exposure being removed.
+#
+# STAGED ROLLOUT - READ BEFORE ASSUMING THIS IS ENFORCING
+# While `policyAuditMode: true` is set in ./helmrelease.yaml this policy is
+# NON-ENFORCING: matching traffic is reported as an AUDIT verdict and still
+# delivered. Stage 2 flips that to false. Evidence to capture first, and the
+# exact commands, are in docs/ceph/lan-isolation-audit-plan.md.
+#
+# Port set verified against the live cluster on 2026-08-23; every port below is
+# owned exclusively by rook-ceph (no other host-network pod in the cluster
+# declares any of them - cilium-agent uses 4244/9962/9964, node-exporter 9100).
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: ceph-lan-isolation
+spec:
+  description: >-
+    Deny non-cluster (world) access to host-network Ceph daemon ports.
+    Subtractive only - enableDefaultDeny is false in both directions so the
+    host endpoint never enters default-deny and management access cannot break.
+  # The host endpoint on every node. All three nodes are control-plane.
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/os: linux
+  # LOAD-BEARING - see the header. Removing this turns the rules below into a
+  # default-deny host firewall and will lock the nodes out.
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingressDeny:
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            # mon msgr2. Only v2 is bound (monmap epoch 30: all three mons are
+            # v2:10.10.10.x:3300). Cluster-internal mon traffic is
+            # host/remote-node identity and unaffected.
+            - port: "3300"
+              protocol: TCP
+            # mon msgr1. ms_bind_msgr1 is true but no mon currently binds it;
+            # denied so re-enabling msgr1 cannot silently re-expose a mon.
+            - port: "6789"
+              protocol: TCP
+            # RGW, cleartext HTTP (CephObjectStore gateway.port: 80, no
+            # securePort). Serves an anonymous bucket listing on the node IP.
+            # NOTE: this is the one port also used by LoadBalancer services
+            # (envoy-external 10.50.0.21:80, envoy-internal 10.50.0.26:80, the
+            # three ai/* LBs). Those target LB IPs, not the node IP, so they
+            # are a different destination and should be unaffected - the audit
+            # window exists to prove exactly that before this enforces.
+            - port: "80"
+              protocol: TCP
+            # mgr prometheus module - unauthenticated metrics, live at
+            # http://10.10.10.12:9283/. Prometheus scrapes it from a pod, which
+            # is SNAT'd to a node IP and so is not `world`.
+            - port: "9283"
+              protocol: TCP
+            # ceph-exporter - unauthenticated per-daemon metrics on every node.
+            - port: "9926"
+              protocol: TCP
+            # mgr restful admin API. The module is enabled but is not currently
+            # registering a service endpoint; denied so it cannot appear later.
+            - port: "8003"
+              protocol: TCP
+            # mgr dashboard. Currently disabled (cluster helmrelease
+            # dashboard.enabled: false, and `ceph mgr services` lists only
+            # prometheus), but the mgr pod still declares 8443 and the old
+            # deployment used 7000. Denied so re-enabling the dashboard cannot
+            # re-expose it to the LAN by accident.
+            - port: "7000"
+              protocol: TCP
+            - port: "8443"
+              protocol: TCP
+            # OSD / MDS / mgr msgr2 data path. Range comes from the live
+            # settings ms_bind_port_min=6800 / ms_bind_port_max=7568 - note
+            # this cluster's max is NOT the 7300 upstream default. No ephemeral
+            # (32768-60999) or NodePort (30000-32767) range overlaps this.
+            - port: "6800"
+              endPort: 7568
+              protocol: TCP
