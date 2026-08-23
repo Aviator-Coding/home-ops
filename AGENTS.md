@@ -35,6 +35,7 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
 | Talos node config | `talos/machineconfig.yaml.j2` + `talos/nodes/*.yaml.j2` + `talos/schematic.yaml.j2` | Rendered by `just talos`, not Flux |
 | Task commands | `Taskfile.yaml` + `.taskfiles/{domain}/` | `task --list-all`. Split with `just`: see UNIQUE STYLES |
 | CI workflows | `.github/workflows/` | flux-local, renovate, codeql, image-pull, label-sync, validate, plus build-talosctl-busybox, labeler, tag, test-runner |
+| Branch protection | GitHub ruleset on `main`, applied via `gh api` (not in Git) | `docs/branch-protection.md`. Only `Labeler - Labeler` is a required status check today - flux-local/image-pull/validate all path-filter at the `on: pull_request:` trigger level, so they never post a check outside their paths and are unsafe to require as-is (see doc for the live-measured proof and the follow-up needed to close the gap) |
 | Renovate config | `.renovaterc.json5` + `.renovate/` | Extends from Aviator-Coding/mortyops + local presets, incl. `.renovate/talos.json5` (Talos-scoped datasource + managers) |
 | Tool versions | `.mise.toml` | kubectl, flux, talos, helm, vals, 1password-cli, just, minijinja, etc. |
 | AI stack | `kubernetes/apps/ai/` | Hermes + ToolHive (`toolhive.stacklok.dev/v1alpha1` `MCPServer`) + agentgateway. kagent/kmcp tombstones: `docs/ai-system/{kagent,kmcp}`. Retired 2026-08-22: `docs/ai-system/retired-2026-08-22.md` |
