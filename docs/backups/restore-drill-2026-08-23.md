@@ -23,10 +23,12 @@ without touching any live app's data.
 
 **Never scale down, overwrite, or touch a live app's volume. Never run the in-place
 `just kube restore` flow (`kubernetes/mod.just` `restore` recipe) against a live claim** - that
-recipe scales the target app to 0 and patches its own `<app>-dst` object, which is exactly the
-kind of live-claim interaction this drill avoids. Every object created below is new, uniquely
-named, and owned only by the drill; nothing that already exists in the cluster is patched,
-scaled, or deleted.
+recipe scales the target app to 0, then derives a brand-new `<app>-manual` object from `<app>-dst`
+(`kubectl apply --server-side`, not a patch of `<app>-dst` itself) with `copyMethod: Direct` and
+`destinationPVC` set to the app's own claim - i.e. it restores straight into the live PVC in
+place, which is exactly the kind of live-claim interaction this drill avoids. Every object
+created below is new, uniquely named, and owned only by the drill; nothing that already exists
+in the cluster is patched, scaled, or written into directly.
 
 ## Procedure
 
