@@ -79,12 +79,32 @@ spec:
 
                   K8S_API="https://kubernetes.default.svc"
                   K8S_CACERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-                  K8S_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+                  K8S_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token 2>/dev/null || true)"
 
-                  LIVE_PODS_JSON=$(curl -sS --cacert "${K8S_CACERT}" \
-                    -H "Authorization: Bearer ${K8S_TOKEN}" \
-                    "${K8S_API}/api/v1/namespaces/${POD_NAMESPACE}/pods" 2>/dev/null || echo "{}")
-                  LIVE_POD_NAMES=$(echo "${LIVE_PODS_JSON}" | jq -r '.items[]?.metadata.name // empty')
+                  # Pod-list fetch failures (missing token, unreachable API, non-200
+                  # response) must fail closed: PODS_LOOKUP_OK gates deletion below so
+                  # a lookup we can't trust never gets treated as "no pods exist".
+                  PODS_LOOKUP_OK=true
+                  if [[ -z "${K8S_TOKEN}" ]]; then
+                    echo "  [WARNING] Could not read service account token - skipping pod-backed staleness check this run, no offline runners will be deleted"
+                    PODS_LOOKUP_OK=false
+                  fi
+
+                  LIVE_POD_NAMES=""
+                  if [[ "${PODS_LOOKUP_OK}" == "true" ]]; then
+                    K8S_PODS_TMPFILE=$(mktemp)
+                    K8S_HTTP_STATUS=$(curl -sS -o "${K8S_PODS_TMPFILE}" -w '%{http_code}' --cacert "${K8S_CACERT}" \
+                      -H "Authorization: Bearer ${K8S_TOKEN}" \
+                      "${K8S_API}/api/v1/namespaces/${POD_NAMESPACE}/pods" 2>/dev/null || echo "000")
+
+                    if [[ "${K8S_HTTP_STATUS}" == "200" ]]; then
+                      LIVE_POD_NAMES=$(jq -r '.items[]?.metadata.name // empty' "${K8S_PODS_TMPFILE}" 2>/dev/null || echo "")
+                    else
+                      echo "  [WARNING] Failed to list pods in namespace ${POD_NAMESPACE} (HTTP ${K8S_HTTP_STATUS}) - skipping pod-backed staleness check this run, no offline runners will be deleted"
+                      PODS_LOOKUP_OK=false
+                    fi
+                    rm -f "${K8S_PODS_TMPFILE}"
+                  fi
 
                   DELETED_COUNT=0
 
@@ -103,6 +123,11 @@ spec:
 
                     # Only check offline runners
                     if [[ "${RUNNER_STATUS}" == "offline" ]]; then
+                      if [[ "${PODS_LOOKUP_OK}" != "true" ]]; then
+                        echo "  [SKIP] ${RUNNER_NAME} (id=${RUNNER_ID}): offline, but pod-backed staleness check unavailable this run"
+                        continue
+                      fi
+
                       if grep -qxF "${RUNNER_NAME}" <<<"${LIVE_POD_NAMES}"; then
                         echo "  [SKIP] ${RUNNER_NAME} (id=${RUNNER_ID}): offline but backing pod still present, likely mid-registration"
                         continue
