@@ -32,7 +32,7 @@ radosgw-admin zone default --rgw-zone=ceph-objectstore --rgw-zonegroup=ceph-obje
 
 ### 2. Configure Zone System Keys
 
-System keys are required for zone synchronization (clears "Access/Secret keys not found" dashboard warning):
+System keys are required for zone synchronization (without them, sync reports "Access/Secret keys not found"):
 
 ```bash
 # Create a system user for the zone
@@ -48,19 +48,9 @@ radosgw-admin zone modify --rgw-zone=ceph-objectstore \
 kubectl rollout restart deployment -n rook-ceph -l app=rook-ceph-rgw
 ```
 
-### 3. Dashboard Admin User Capabilities
+### 3. Clean Up Orphan Default Zone/Zonegroup (if needed)
 
-Rook creates `dashboard-admin` user automatically, but additional capabilities may be needed:
-
-```bash
-# Add full admin capabilities for dashboard
-radosgw-admin caps add --uid=dashboard-admin \
-  --caps="buckets=*;users=*;usage=read;metadata=read;zone=read"
-```
-
-### 4. Clean Up Orphan Default Zone/Zonegroup (if needed)
-
-If orphan `default` zone/zonegroup entries appear in the dashboard:
+If orphan `default` zone/zonegroup entries appear (check with `radosgw-admin zone list` / `zonegroup list`):
 
 ```bash
 # Remove orphan zone and zonegroup
@@ -89,7 +79,7 @@ Key settings configured in `cluster/helmrelease.yaml`:
 | Setting | Description |
 |---------|-------------|
 | `cephConfig.client.rgw.rgw_realm` | Prevents orphan default zone/zonegroup creation |
-| `mgr.modules[].name: rgw` | Enables RGW mgr module for dashboard integration |
+| `mgr.modules[].name: rgw` | Enables RGW mgr module |
 | `cephObjectStores[].spec.gateway.instances: 2` | HA RGW with 2 instances |
 | `cephObjectStores[].spec.allowUsersInNamespaces: ["*"]` | Allow OBC in all namespaces |
 
@@ -125,4 +115,3 @@ kubectl logs -n rook-ceph -l app=rook-ceph-rgw -c rgw --tail=100
 ## References
 
 - Dashboard Templates: https://github.com/ceph/ceph/tree/main/monitoring/ceph-mixin/dashboards_out
-- Dashboard Settings: https://docs.ceph.com/en/tentacle/mgr/dashboard/#enabling-the-embedding-of-grafana-dashboards
