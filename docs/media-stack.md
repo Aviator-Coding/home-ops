@@ -10,12 +10,14 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 
 | Namespace | Purpose | Key Apps |
 |-----------|---------|----------|
-| `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, Autobrr, FlareSolverr, reading-glasses |
+| `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, Autobrr, reading-glasses |
 | `media` | Media servers + post-processing | Jellyfin, Plex, Seerr, Immich, Tdarr, Calibre-Web-Automated, Calibre-Downloader |
 
 `default/kustomization.yaml` has `resources: []`. CWA + Calibre-Downloader live under `media/calibre/` and Flux-target `media`.
 
 `media/calibre-web/` was removed; CWA is the only Calibre app under `media/calibre/`.
+
+FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubernetes/apps/network/flaresolverr/`), not `downloads`/`media` - consumed by Prowlarr (IndexerProxy, UI-configured, not GitOps) and Calibre-Downloader (`EXT_BYPASSER_URL`).
 
 In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` were removed (dead, unreferenced directories) and are no longer present in `downloads/kustomization.yaml`.
 
