@@ -112,6 +112,41 @@ spec:
         client.rgw:
           # Explicitly set realm to prevent orphan default zone/zonegroup creation
           rgw_realm: ceph-objectstore
+
+          # TEMPORARY - remove when a Tentacle release carrying ceph/ceph#71192 ships.
+          #
+          # Ceph v20.2.4 is the CVE-2026-54330 release: RGW's SigV4 verifier used to
+          # ignore headers that were sent but not listed in SignedHeaders, so anyone
+          # holding a signed/presigned request could bolt on arbitrary `x-amz-*`
+          # headers (e.g. x-amz-acl) that RGW would honour. The fix rejects any
+          # request carrying an unsigned `host` or `x-amz-*` header.
+          #
+          # That fix also required `content-type` to be signed, which is wrong: AWS
+          # only requires `host` + `x-amz-*`, and minio-go's streaming signer always
+          # drops content-type from SignedHeaders. Every minio-go PutObject over
+          # plain HTTP therefore 403s - which is the whole restic/VolSync write path.
+          # Live break 2026-08-23T12:15:27Z when Rook rolled RGW to v20.2.4; 30 of 33
+          # *-ceph ReplicationSources failed on "client.PutObject: Access Denied"
+          # while GET/HEAD kept working. Proven live: PUT with content-type unsigned
+          # 403, same PUT with it signed 200. Upstream agrees this was a bug and
+          # reverted the content-type requirement on main in ceph/ceph#71192
+          # ("broke Mimir, Loki, Thanos and basically everything else built on
+          # thanos-io/objstore"), keeping the `host` + `x-amz-*` checks that are the
+          # actual CVE mitigation. #71192 merged to main 2026-08-21, after the
+          # v20.2.4 build (v20.2.4-20260818), and has no Tentacle backport yet.
+          #
+          # v20.2.4 ships no knob that relaxes only the content-type check, so this
+          # is the sole forward option (rollback to v20.2.3 is ruled out). Cost,
+          # measured live: it disables the whole block, so unsigned `x-amz-*` headers
+          # are accepted again - CVE-2026-54330 is reopened for as long as this is
+          # true. Bounded by the S3 endpoint being on envoy-internal (LAN only, no
+          # public route) and no presigned URLs being issued. Runtime-settable, so it
+          # applies with no RGW restart.
+          #
+          # REVERT: when a Tentacle release carrying #71192 exists, bump cephImage.tag
+          # to it and set this back to "false" (or delete this key), then re-verify a
+          # PUT with an unsigned content-type still succeeds.
+          rgw_sigv4_insecure: "true"
       security:
         cephx:
           # Rotate the Rook-managed *daemon* keys (mon/mgr/osd/crash collector/
