@@ -15,9 +15,9 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 
 `default/kustomization.yaml` has `resources: []`. CWA + Calibre-Downloader live under `media/calibre/` and Flux-target `media`.
 
-`media/calibre-web/` still exists on disk but is **not** listed in `media/kustomization.yaml`, so Flux never applies it (orphaned leftover next to CWA).
+`media/calibre-web/` was removed; CWA is the only Calibre app under `media/calibre/`.
 
-In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` are commented out in `downloads/kustomization.yaml`.
+In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` were removed (dead, unreferenced directories) and are no longer present in `downloads/kustomization.yaml`.
 
 Flow: **Indexers** -> Prowlarr -> *arr apps -> SABnzbd -> imports to NAS -> Jellyfin/Plex serve -> Tdarr transcodes in place to AV1.
 
@@ -165,7 +165,7 @@ Connects to Sonarr and Radarr for series/movie metadata. Provider priority: Open
 
 ### Autobrr
 
-Autobrr is deployed (`downloads/kustomization.yaml`). Cross-Seed and qBittorrent remain commented out; Autobrr's torrent-side integrations are unused until those are enabled.
+Autobrr is deployed (`downloads/kustomization.yaml`). Cross-Seed and qBittorrent were removed; Autobrr's torrent-side integrations are unused until those are (re-)added.
 
 ---
 

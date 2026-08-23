@@ -232,7 +232,7 @@ kubectl patch replicationdestination ${APP}-dst \
 
 ## Daily Timeline Example
 
-With per-app schedules (38 Flux Kustomizations include this component):
+With per-app schedules (35 Flux Kustomizations include this component):
 
 ```
 00:00 ──── [Ceph] 4-hour backup (apps at :00) ──── [MinIO] 6-hour backup (apps at :00) ─────
@@ -367,13 +367,15 @@ schedule: "0 2 * * *"
 
 ## Application Schedule Distribution
 
-38 Flux Kustomizations include `components/volsync`. Schedules are staggered
+35 Flux Kustomizations include `components/volsync`. Schedules are staggered
 but **not unique** (several apps share the same minute). Do not assume a
 2-3 app cap on simultaneous Ceph backups. Regenerated from
 `rg 'components/volsync' kubernetes/apps` plus each `ks.yaml` `VOLSYNC_SCHEDULE_*`
 (paperless-ngx uses component defaults). `litellm` is gone, and so are
 `open-webui`, `qdrant`, `open-notebook` and `perplexica` - retired
-2026-08-22, see `docs/ai-system/retired-2026-08-22.md`.
+2026-08-22, see `docs/ai-system/retired-2026-08-22.md`. `cross-seed`, `qbittorrent`
+and `calibre-web` were removed as dead, unreferenced app directories - see
+`docs/media-stack.md`.
 
 | # | Namespace | Application | Ceph Schedule | MinIO Schedule | R2 Schedule | Priority |
 |---|-----------|-------------|---------------|----------------|-------------|----------|
@@ -391,26 +393,23 @@ but **not unique** (several apps share the same minute). Do not assume a
 | 12 | downloads | bazarr | `20 */4 * * *` | `0 */6 * * *` | `20 3 * * *` | Medium |
 | 13 | downloads | prowlarr | `25 */4 * * *` | `0 */6 * * *` | `25 3 * * *` | Medium |
 | 14 | downloads | sabnzbd | `30 */4 * * *` | `15 */6 * * *` | `30 3 * * *` | Medium |
-| 15 | downloads | qbittorrent | `35 */4 * * *` | `15 */6 * * *` | `35 3 * * *` | Medium |
-| 16 | downloads | cross-seed | `40 */4 * * *` | `15 */6 * * *` | `40 3 * * *` | Low |
-| 17 | downloads | autobrr | `45 */4 * * *` | `30 */6 * * *` | `45 3 * * *` | Low |
-| 18 | downloads | recyclarr | `50 */4 * * *` | `30 */6 * * *` | `50 3 * * *` | Low |
-| 19 | media | jellyfin | `55 */4 * * *` | `30 */6 * * *` | `0 4 * * *` | Medium |
-| 20 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
-| 21 | media | calibre-web | `5 */4 * * *` | `45 */6 * * *` | `10 4 * * *` | Low |
-| 22 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
-| 23 | media | seerr | `40 */4 * * *` | `55 */6 * * *` | `40 3 * * *` | Medium |
-| 24 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
-| 25 | media | immich | `15 */4 * * *` | `45 */6 * * *` | `30 4 * * *` | High |
-| 26 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
-| 27 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 28 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 29 | selfhosted | obsidian-livesync | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 30 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 31 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
-| 32 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
-| 33 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
-| 34 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
+| 15 | downloads | autobrr | `45 */4 * * *` | `30 */6 * * *` | `45 3 * * *` | Low |
+| 16 | downloads | recyclarr | `50 */4 * * *` | `30 */6 * * *` | `50 3 * * *` | Low |
+| 17 | media | jellyfin | `55 */4 * * *` | `30 */6 * * *` | `0 4 * * *` | Medium |
+| 18 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
+| 19 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
+| 20 | media | seerr | `40 */4 * * *` | `55 */6 * * *` | `40 3 * * *` | Medium |
+| 21 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
+| 22 | media | immich | `15 */4 * * *` | `45 */6 * * *` | `30 4 * * *` | High |
+| 23 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
+| 24 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 25 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 26 | selfhosted | obsidian-livesync | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 27 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 28 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
+| 29 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
+| 30 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
+| 31 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
 
 ### Distribution Strategy
 
