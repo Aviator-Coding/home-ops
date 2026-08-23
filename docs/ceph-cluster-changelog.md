@@ -98,6 +98,11 @@ Notes / evidence / sources.
 
 > **When a Tentacle release carrying #71192 ships (expect v20.2.5):** bump `cephImage.tag` to it **and** set `rgw_sigv4_insecure` back to `"false"` (or delete the key) in the same change, then re-verify that a PUT with an unsigned `content-type` still returns 200 and that an unsigned `x-amz-` header returns 403 again. Leaving the flag set after the image is fixed silently keeps the CVE reopened for no benefit.
 
+**Renovate will not do that for you, and can actively hide it.** `cephImage.tag` carries a `# renovate: datasource=docker depName=quay.io/ceph/ceph` comment, but `quay.io/ceph/ceph` is **not** matched by the Rook-Ceph group in `.renovate/groups.json5` (that group matches the `rook-ceph` / `rook-ceph-cluster` *charts*). It therefore falls through to the generic rule in `.renovate/autoMerge.json5`, where a **patch** bump auto-merges with `automergeType: "branch"` - straight to the branch, **no PR to review**. So v20.2.4 -> v20.2.5 can land unattended, upgrading Ceph while leaving `rgw_sigv4_insecure: "true"` in place. Two follow-ups, neither done here:
+>
+> 1. Watch for the Tentacle backport of #71192 and pair the image bump with removing the flag, as above.
+> 2. Consider a Renovate guard for `quay.io/ceph/ceph` (require a PR / dashboard approval rather than branch auto-merge), so a Ceph daemon version change is never unattended. **Note** that editing `.renovaterc.json5` or `.renovate/**.json5` fires `.github/workflows/renovate.yaml`'s `push` trigger as a live non-dry run - follow the disable/merge/dry-run/re-enable procedure in the root `AGENTS.md` before merging any such change.
+
 ### [2026-08-23] Rotate daemon CephX keys onto `aes256k`  (PR #1398 - Rook v1.20.6 live)
 
 | Field | Value |
