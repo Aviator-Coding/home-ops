@@ -7,14 +7,20 @@
 
 ## Why this exists
 
-Per `data/homeops-refactor-round2-scout/report.md` (Q2), **no restore had ever been exercised
-from the Ceph destination**, and nothing had been restored from any destination since
-2026-04-14. The only prior "restores" on record were either the automatic single run every
-`ReplicationDestination` performs once at creation against an empty repo (not a real restore),
-or a MinIO-sourced batch restore from 2025-10-05/06. Ceph writes had also just been broken for
-~8 hours earlier the same day (RGW `v20.2.3` -> `v20.2.4` regression, see
-`docs/ceph-cluster-changelog.md`) and were fixed immediately before this drill - so this was
-also the first live proof that Ceph-destination restores work again post-fix.
+Per the task's supporting investigation (Q2), **no restore of the actual in-cluster VolSync
+mechanism had ever been exercised from the Ceph destination**, and no VolSync-mediated restore
+had run from any destination since 2026-04-14. The only prior restore-shaped events on record
+were: the automatic single run every `ReplicationDestination` performs once at creation against
+an empty repo (not a real restore); a MinIO-sourced batch restore from 2025-10-05/06; and, one
+day before this drill, `docs/backups/volsync-coverage-2026-08-22.md` section 5 proving the
+Ceph-backed restic repositories for `paperless-ngx` and `syncthing` were intact and restorable,
+via a local restic CLI restore over a `kubectl port-forward` with `--no-lock`, checksummed
+against the live PVCs. That proved the repository contents were sound, but not the in-cluster
+restore mechanism itself - it never touched the `ReplicationDestination` CRD, its mover `Job`,
+or a PVC provisioned via `dataSourceRef`. This drill is the first exercise of that actual
+Kubernetes-native restore path end-to-end, and the first following the RGW `v20.2.3` ->
+`v20.2.4` SigV4 write-outage fix earlier the same day (see `docs/ceph-cluster-changelog.md`) -
+so it is also the first live proof that Ceph-destination restores work again post-fix.
 
 This drill proves the restore path end to end, against both the Ceph and MinIO destinations,
 without touching any live app's data.
@@ -207,8 +213,9 @@ these timings to the whole fleet without re-measuring on a representative large 
   (`ReadWriteMany`) claim - this drill only covered `ceph-block`/RWO.
 - **Follow-up worth doing**: turn this into a recurring, scheduled drill (e.g. quarterly,
   rotating which app) now that a safe procedure exists, rather than relying on ad hoc exercises.
-  R1.2 in the scout report's ordered work list already flagged "exercise one restore" as
-  outstanding; this closes that for Ceph and MinIO but leaves R2 and large-PVC restores open.
+  R1.2 in the task's supporting investigation's ordered work list already flagged "exercise one
+  restore" as outstanding; this closes that for Ceph and MinIO but leaves R2 and large-PVC
+  restores open.
 
 ## Safety notes for whoever runs this next
 
