@@ -6,14 +6,9 @@ metadata:
   name: &name gha-rs-ac-ai-k8s-sandbox
 spec:
   interval: 30m
-  chart:
-    spec:
-      chart: gha-runner-scale-set
-      version: 0.14.2
-      sourceRef:
-        kind: HelmRepository
-        name: actions-runner-controller
-        namespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: gha-runner-scale-set
   driftDetection:
     mode: enabled
   install:

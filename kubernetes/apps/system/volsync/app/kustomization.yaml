@@ -6,4 +6,5 @@ resources:
   - ../backend
   - ./helmrelease.yaml
   - ./mutatingadmissionpolicy.yaml
+  - ./ocirepository.yaml
   - ./prometheusrule.yaml
