@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-08-22] Remove Ceph mgr dashboard - close security-audit findings F2/F3  (commits `b91ae846`, `33725557`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `cluster/helmrelease.yaml`: `dashboard.enabled` `true` → `false`; removed the now-unused `urlPrefix`/`ssl`/`prometheusEndpoint` dashboard keys and the `mgr/dashboard/server_addr`/`mgr/dashboard/server_port` `cephConfig` lines (`mgr/crash/warn_recent_interval` untouched); `mgr.modules` `insights` entry `enabled: true` → `enabled: false` (had no consumer left once the dashboard was gone). `cluster/httproute.yaml`: removed the `rook-ceph-dashboard` HTTPRoute (`rook.${SECRET_DOMAIN}` → `rook-ceph-mgr-dashboard:7000`); `rook-ceph-s3` HTTPRoute unchanged. `operator/externalsecret.yaml` deleted (synced `rook-ceph-dashboard-password` from 1Password, only consumer was the dashboard) and dropped from `operator/kustomization.yaml`. |
+| **Why** | Closes security-audit findings F2/F3. Captain decision 2026-08-23: remove rather than partially mitigate - Grafana/VictoriaMetrics already cover observability, so the dashboard added no capability worth the credential-storage exposure behind F2/F3. `rook` mgr module (disabled above for the crash-storm bug) and all osd/mds/rgw config are untouched by this change. |
+| **Risk** | GitOps-only; does not touch credentials already stored in the mon config store (e.g. `MULTICLUSTER_CONFIG` token, `RGW_API_*` keys) - that live cleanup happens separately after this merges and Flux reconciles. No other manifest references the removed route/secret (grepped clean). |
+| **Rollback** | Restore `dashboard.enabled: true` plus the removed `urlPrefix`/`ssl`/`prometheusEndpoint` keys, the `mgr/dashboard/server_addr`/`server_port` `cephConfig` lines, and `insights` `enabled: true`; restore the `rook-ceph-dashboard` HTTPRoute in `cluster/httproute.yaml`; restore `operator/externalsecret.yaml` and its `operator/kustomization.yaml` reference. |
+| **Verify** | `kustomize build kubernetes/apps/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `.../operator` both build; `task flux:test:all` clean (217 passed, confirmed 2026-08-22). |
+
+The matching 1Password item (`rook-ceph`, `ROOK_DASHBOARD_PASSWORD`) lives in the captain's external vault - delete it manually once this merges; not automated here. Applied via GitOps only; no live `ceph`/`kubectl` mutation was made.
+
 ### [2026-08-22] OSD Guaranteed QoS  (commit `cc3c135a`)
 
 | Field | Value |
