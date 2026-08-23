@@ -82,7 +82,7 @@ Replace `N` and `<by-id-disk>` with the affected OSD and its disk
    task --yes rook:reset-disk disk="<by-id-disk>" node="talos-X"
    ```
    The skip-prompt flag is the global `task --yes`, not `--yes` after the task name.
-   The wipe Job image is `quay.io/ceph/ceph:v20.2.3` (same `cephImage.tag` as the
+   The wipe Job image is `quay.io/ceph/ceph:v20.2.4` (same `cephImage.tag` as the
    cluster HelmRelease). Do not zap a Tentacle OSD with a Reef (v19) image.
    > On Windows the `reset-disk` task can choke on its `envsubst < <(...)` process
    > substitution + interactive prompt. Equivalent manual path: render
