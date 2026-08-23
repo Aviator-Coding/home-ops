@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-08-23] Fix CephMonitorQuorumAtRisk gauge-vs-count alert bug  (commits `649869b0`, `c1431311`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `CephMonitorQuorumAtRisk` alert `expr` in `cluster/prometheusrules.yaml`: `ceph_mon_quorum_status < 3` → `sum(ceph_mon_quorum_status) < 3`. |
+| **Why** | `ceph_mon_quorum_status` is a per-mon gauge (1 = in quorum, 0 = not), not a count. Comparing the gauge directly to `3` meant every healthy mon evaluated `1 < 3` = true, firing the alert as `critical` permanently on a healthy 3-mon cluster - confirmed firing continuously since 16:02:53Z 2026-08-23, when the metric resumed being exported after a prior mgr-module disable. `sum()` totals the gauge across all mons so it only trips below 3 when fewer are actually in quorum. An initial fix used `count(ceph_mon_quorum_status == 1) < 3`, but was corrected to `sum()` to avoid an empty-vector blind spot: `count()` over a matcher with zero matching series (e.g. every mon reporting `quorum_status == 0`, total quorum loss) returns no series at all, and Prometheus never fires an alert on an absent series. Verified no other rule in this file has the same gauge-vs-count mistake. |
+| **Risk** | None: this only fixes a false-positive-always-firing alert; the corrected expression trips only on genuine quorum loss, the condition the alert is meant to catch. |
+| **Rollback** | Revert the `expr` back to `ceph_mon_quorum_status < 3` (reintroduces the bug - not recommended). |
+| **Verify** | `kustomize build kubernetes/apps/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `task flux:test:all` render the corrected rule. Live confirmation against Prometheus/VictoriaMetrics that the alert clears on the healthy 3-mon cluster is a separate operational check, not covered by this render-only pass. |
+
+Applied via GitOps only (Flux reconciles the PrometheusRule); no direct live-cluster mutation was made.
+
 ### [2026-08-23] Set `rgw_sigv4_insecure` to unbreak S3 writes on Ceph v20.2.4  (PR pending, branch `fm/homeops-ceph-s3-write-outage`)
 
 | Field | Value |
