@@ -31,7 +31,7 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
 | App secrets | `kubernetes/apps/{ns}/{app}/app/externalsecret.yaml` | OnePassword via ClusterSecretStore `onepassword` |
 | Bootstrap secrets | `bootstrap/kustomize/apps/security/` | `vals` injects `ref+op://Home-Lab/1password/*` |
 | Flux entry point | `kubernetes/flux/cluster/ks.yaml` | `cluster-meta` -> `cluster-apps` dependency chain |
-| Helm/OCI repos | `kubernetes/flux/meta/repos/` | 12 repo yaml files plus `kustomization.yaml` |
+| Helm/OCI repos | `kubernetes/flux/meta/repos/` | 6 repo yaml files plus `kustomization.yaml` |
 | Talos node config | `talos/machineconfig.yaml.j2` + `talos/nodes/*.yaml.j2` + `talos/schematic.yaml.j2` | Rendered by `just talos`, not Flux |
 | Task commands | `Taskfile.yaml` + `.taskfiles/{domain}/` | `task --list-all`. Split with `just`: see UNIQUE STYLES |
 | CI workflows | `.github/workflows/` | flux-local, renovate, codeql, image-pull, label-sync, validate, plus build-talosctl-busybox, labeler, tag, test-runner |
