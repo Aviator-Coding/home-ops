@@ -2,11 +2,11 @@
 
 This document provides operational guidance for debugging and maintaining the self-hosted GitHub Actions runners deployed via Actions Runner Controller (ARC) on this Kubernetes cluster.
 
-Image tags and chart versions rotate with Renovate. Treat the HelmReleases as
+Image tags and chart versions rotate with Renovate. Treat these manifests as
 the source of truth:
 
 - Runner image: `gha-runner-scale-set/app/aviator-coding/{home-ops,ai-k8s-sandbox}/helmrelease.yaml`
-- Controller chart: `gha-runner-scale-set-controller/app/helmrelease.yaml`
+- Controller chart: `gha-runner-scale-set-controller/app/ocirepository.yaml`
 
 ## Architecture Overview
 

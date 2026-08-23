@@ -2,7 +2,7 @@
 
 Actions Runner Controller (ARC) scale-set controller for this cluster.
 
-- Chart: `gha-runner-scale-set-controller` in `app/helmrelease.yaml` (currently `0.14.2`)
+- Chart: `gha-runner-scale-set-controller` in `app/ocirepository.yaml` (currently `0.14.2`)
 - Replicas: 2
 - Namespace: `actions-runner-system`
 

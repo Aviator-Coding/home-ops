@@ -39,6 +39,7 @@ patches:
     kind: HelmRelease
 resources:
 - ./helmrelease.yaml
+- ./ocirepository.yaml
 - ./pdb.yaml
 - ./pod-monitor.yaml
 - ./prometheusrule.yaml
