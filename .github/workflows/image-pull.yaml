@@ -74,9 +74,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          for attempt in 1 2 3; do
-            echo "::group::Attempt $attempt/3: Gathering images..."
-            if docker run --rm \
+          for attempt in 1 2 3 4; do
+            echo "::group::Attempt $attempt/4: Gathering images..."
+            # --network host: the docker bridge/NAT path on this runner intermittently
+            # resets outbound TLS connections mid-fetch (seen against unrelated hosts -
+            # GitHub Pages, ghcr.io blob storage, GitHub release assets - ruling out the
+            # remote end). Host networking skips that NAT layer for this outbound-only,
+            # no-published-ports container.
+            if docker run --rm --network host \
               -v "$GITHUB_WORKSPACE:/github/workspace" \
               -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
               -e HELM_TIMEOUT=300 \
@@ -95,13 +100,13 @@ jobs:
               exit 0
             fi
             echo "::endgroup::"
-            if [ $attempt -lt 3 ]; then
-              wait_time=$((30 * attempt))
+            if [ $attempt -lt 4 ]; then
+              wait_time=$((20 * attempt))
               echo "✗ Attempt $attempt failed. Waiting ${wait_time}s before retry..."
               sleep $wait_time
             fi
           done
-          echo "::error::Failed to gather images after 3 attempts"
+          echo "::error::Failed to gather images after 4 attempts"
           exit 1
 
       - name: Extract Images
