@@ -134,6 +134,8 @@ spec:
             enabled: true
           - name: rgw
             enabled: true
+          - name: insights
+            enabled: false
         placement:
           topologySpreadConstraints:
             - maxSkew: 1
