@@ -112,6 +112,26 @@ spec:
         client.rgw:
           # Explicitly set realm to prevent orphan default zone/zonegroup creation
           rgw_realm: ceph-objectstore
+      security:
+        cephx:
+          # Rotate the Rook-managed *daemon* keys (mon/mgr/osd/crash collector/
+          # ceph-exporter/rbd-mirror-peer) onto the aes256k cipher. Ceph v20.2.4
+          # raises AUTH_INSECURE_SERVICE_KEY_TYPE + AUTH_INSECURE_SERVICE_TICKETS
+          # (both ERR, CVE-2025-30156) for keys still on the legacy `aes` cipher.
+          # Requires Rook >= 1.20.5 (keyType/aes256k were added there).
+          # keyGeneration is the *target* generation: live daemon generation is 1
+          # (kubectl -n rook-ceph get cephcluster rook-ceph -o jsonpath='{.status.cephx}'),
+          # so 2 triggers exactly one rotation. Rotation is a no-op once status
+          # reaches this generation; bump it again for any future rotation.
+          daemon:
+            keyType: aes256k
+            keyRotationPolicy: KeyGeneration
+            keyGeneration: 2
+          # NOTE: `csi` is deliberately left at its default (aes). The csi-* client
+          # keys are consumed by the krbd / CephFS *kernel* clients, and aes256k
+          # needs Linux >= 7.0. Talos ships 6.18.x, so rotating client keys would
+          # break every RBD map and CephFS mount. Revisit only after Talos ships
+          # a kernel 7 release.
       crashCollector:
         disable: false
       dashboard:
