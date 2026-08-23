@@ -22,7 +22,7 @@ rather than hardware failures. The goal is that when something breaks we can ans
 | Layer | Value |
 |-------|-------|
 | **Rook** | v1.20.6 (operator + cluster chart tags in `operator/ocirepository.yaml` and `cluster/ocirepository.yaml`; see 2026-08-23 CephX rotation entry) |
-| **Ceph** | v20.2.3 **Tentacle** (GitOps `cephImage.tag` + all 17 daemons, verified 2026-08-21). Default `csi` subvolumegroup still broken; RWX stays on `ceph-filesystem-rwx` (see 2026-08-21 entry) |
+| **Ceph** | v20.2.4 **Tentacle** (GitOps `cephImage.tag`; RGW gateways rolled to it 2026-08-23T12:15:27Z, verified live 2026-08-23). Carries the CVE-2026-54330 SigV4 fix, which also broke every minio-go write until `rgw_sigv4_insecure` was set - **see the 2026-08-23 `rgw_sigv4_insecure` entry before touching RGW or bumping this tag**. Default `csi` subvolumegroup still broken; RWX stays on `ceph-filesystem-rwx` (see 2026-08-21 entry) |
 | **Talos** | `talos/machineconfig.yaml.j2` installer pin reconciled to **v1.13.9**, matching tuppr `TalosUpgrade` **v1.13.9** (kernel has `CONFIG_CEPH_FS=y`, `CONFIG_BLK_DEV_RBD=y`, `CONFIG_CEPH_LIB=y` — CephFS + krbd **built-in**). Changelog does not claim a running version without live `kubectl get nodes`. |
 | **Kubernetes** | `talos/machineconfig.yaml.j2` kubelet/control-plane images reconciled to **v1.36.3**, matching tuppr `KubernetesUpgrade` **v1.36.3**. Changelog does not claim a running version without live `kubectl version`. |
 | **Cluster FSID** | `6562d9b0-883a-4e55-8b5d-899eaa7e0d10` |
@@ -82,6 +82,21 @@ Notes / evidence / sources.
 ---
 
 ## Change log
+
+### [2026-08-23] Set `rgw_sigv4_insecure` to unbreak S3 writes on Ceph v20.2.4  (PR pending, branch `fm/homeops-ceph-s3-write-outage`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `cephClusterSpec.cephConfig.client.rgw.rgw_sigv4_insecure: "true"` in `cluster/helmrelease.yaml`. Config-only; RGW picks it up at runtime, **no daemon restart**, no image change. |
+| **Why** | Ceph **v20.2.4** is the CVE-2026-54330 release. Its fix makes RGW's SigV4 verifier reject any request carrying a header that was sent but is absent from `SignedHeaders`. The CVE is about unsigned `x-amz-*` headers, but the fix **also required `content-type` to be signed**. minio-go's streaming signer always drops `content-type` from `SignedHeaders` (`pkg/signer/request-signature-streaming.go`, `ignoredStreamingHeaders`), which is the path every minio-go `PutObject` over plain HTTP takes - i.e. all of restic/VolSync. Live break **2026-08-23T12:15:27Z** when Rook rolled the RGW gateways from v20.2.3 to v20.2.4: every S3 PUT returned 403 while GET/HEAD kept working, and 30 of 33 `*-ceph` ReplicationSources failed on `client.PutObject: Access Denied` at lock creation. Ceph stayed `HEALTH_OK` throughout - this was never a cluster-health problem. |
+| **Evidence** | `debug_rgw 20` on a gateway caught the exact denial: `Signature rejected: 'content-type' supplied but not in CanonicalHeaders.` The failing requests signed `content-md5;host;x-amz-content-sha256;x-amz-date;x-amz-decoded-content-length` - every `x-amz-*` header **was** signed, so they are provably not the CVE's attack class. Four hand-signed probes with the volsync OBC key isolated it: no content-type -> 200, content-type **unsigned** -> **403**, content-type **signed** -> 200, unsigned `x-amz-` header -> 403. |
+| **Risk** | The flag gates the **whole** check block (`host`, `content-type`, and `x-amz-*`), so unsigned `x-amz-*` headers are accepted again and **CVE-2026-54330 is reopened while this is set**. Verified live: after the change the unsigned-`x-amz-` probe went 403 -> 200. Bounded by the S3 endpoint being on `envoy-internal` only (`s3.${SECRET_DOMAIN}`, LAN, no public route) and by no presigned URLs being issued. v20.2.4 ships **no** knob that relaxes only the content-type check, and rollback to v20.2.3 was ruled out, so this is the sole forward option. |
+| **Rollback** | Remove the key (or set `"false"`). That restores full CVE-2026-54330 enforcement and immediately re-breaks every minio-go write, so only do it together with the image bump below. |
+| **Verify** | `kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph config dump \| grep sigv4` shows `client.rgw rgw_sigv4_insecure true`; RGW verb/status sample shows `PUT 200` and zero `PUT 403`; a manually triggered ReplicationSource completes (`status.lastManualSync` matches the token, `Synchronizing=False`). |
+
+**Upstream / removal trigger.** Upstream agrees the content-type requirement was wrong and reverted it on `main` in [ceph/ceph#71192](https://github.com/ceph/ceph/pull/71192) ("Real S3 accepts requests where content-type wasnt signed, and SDKs rely on that... Rejecting these requests broke Mimir, Loki, Thanos and basically everything else built on thanos-io/objstore"), keeping the `host` + `x-amz-*` checks that are the actual CVE mitigation. #71192 merged to `main` **2026-08-21**, after the v20.2.4 build (`v20.2.4-20260818`), and had **no Tentacle backport** as of 2026-08-23 - `v20.2.4` was still the newest tag on quay.io, so no fixed forward image existed.
+
+> **When a Tentacle release carrying #71192 ships (expect v20.2.5):** bump `cephImage.tag` to it **and** set `rgw_sigv4_insecure` back to `"false"` (or delete the key) in the same change, then re-verify that a PUT with an unsigned `content-type` still returns 200 and that an unsigned `x-amz-` header returns 403 again. Leaving the flag set after the image is fixed silently keeps the CVE reopened for no benefit.
 
 ### [2026-08-23] Rotate daemon CephX keys onto `aes256k`  (PR #1398 - Rook v1.20.6 live)
 
