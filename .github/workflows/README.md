@@ -186,7 +186,7 @@ success:
       run: echo "All jobs passed or skipped"
 ```
 
-**Why:** GitHub branch protection requires a single status check. This pattern aggregates results from all jobs.
+**Why:** a required status check needs a single aggregated result, so multi-job workflows expose one. This pattern is what makes a workflow *safe to require* - it doesn't mean it currently is: see [`docs/branch-protection.md`](../../docs/branch-protection.md) for what `main`'s ruleset actually requires today and why.
 
 ### Concurrency Control
 
@@ -246,9 +246,10 @@ runs-on: gha-runner-scale-set-aviator-coding-home-ops
 
 ### Branch Protection Issues
 
-1. Ensure success job name matches branch protection rule
+1. Ensure success job name matches the required status check's context string
 2. Verify all required jobs are listed in `needs`
 3. Check workflow permissions are correct
+4. See [`docs/branch-protection.md`](../../docs/branch-protection.md) for which checks `main`'s ruleset actually requires today
 
 ## Related Documentation
 
