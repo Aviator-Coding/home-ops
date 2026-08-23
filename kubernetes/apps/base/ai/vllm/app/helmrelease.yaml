@@ -20,6 +20,22 @@ spec:
   uninstall:
     keepHistory: false
   values:
+    # Pin to the B70 node. The 32GiB Arc Pro B70 is a discrete card on talos-3
+    # only (via OCuLink); every node also has a Raptor Lake iGPU that advertises
+    # the same gpu.intel.com/xe once xe.force_probe=a7a0 is applied. That
+    # resource is a share-count token with no VRAM fencing, so on its own it
+    # cannot keep the 35B chat model server (~21.4GiB weights + ~5.2GiB KV
+    # @262k q8_0) off an iGPU with nowhere near the VRAM it needs.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - talos-3
     controllers:
       # Main chat model runs on llama.cpp SYCL, not vLLM: Qwen3.6-35B-A3B GPTQ
       # cannot complete vLLM warmup on a single 32GB B70 (21.4GiB weights +

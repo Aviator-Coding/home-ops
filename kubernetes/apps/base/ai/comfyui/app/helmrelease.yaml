@@ -29,6 +29,21 @@ spec:
   uninstall:
     keepHistory: false
   values:
+    # Pin to the B70 node. The 32GiB Arc Pro B70 is a discrete card on talos-3
+    # only (via OCuLink); every node also has a Raptor Lake iGPU that advertises
+    # the same gpu.intel.com/xe once xe.force_probe=a7a0 is applied. That
+    # resource is a share-count token with no VRAM fencing, so on its own it
+    # cannot keep image generation off an iGPU with nowhere near the VRAM it needs.
+    defaultPodOptions:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - talos-3
     controllers:
       comfyui:
         # Single GPU + RWO model/input PVCs -> never run two pods at once.
