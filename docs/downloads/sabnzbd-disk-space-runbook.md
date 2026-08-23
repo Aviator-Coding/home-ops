@@ -134,8 +134,8 @@ Fires on kubelet volume stats for the `shared-downloads` PVC:
 
 Rationale: SAB pauses at 100 G free ≈ **5%** of 2 Ti, so both thresholds fire
 *before* the pipeline freezes — the whole point is that a human acts first.
-(Consumed by the VictoriaMetrics operator's PrometheusRule→VMRule converter,
-same as every other rule in this repo.)
+(Consumed natively by kube-prometheus-stack's Prometheus Operator, same as
+every other rule in this repo.)
 
 ---
 
