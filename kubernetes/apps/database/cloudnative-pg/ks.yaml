@@ -121,7 +121,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 1Gi
+      VOLSYNC_CAPACITY: 2Gi
       VOLSYNC_SCHEDULE_CEPH: "0 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "0 1 * * *"
