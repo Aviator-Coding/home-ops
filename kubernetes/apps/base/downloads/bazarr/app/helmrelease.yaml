@@ -29,26 +29,68 @@ spec:
             supplementalGroups:
               - 65542 # gladius:external-services
 
+        initContainers:
+          fix-permissions:
+            # emptyDir volumes are root-owned by default; s6-overlay's preinit
+            # refuses to start unless /run is owned by the UID it runs as.
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.38"
+            command:
+              - sh
+              - -c
+              - chown -R 2000:2000 /run /tmp
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
         containers:
           app:
             image:
-              repository: ghcr.io/home-operations/bazarr
-              tag: 1.6.0
-              digest: sha256:cd63bbd0986c93e238eb8b9442604d249f0d4080099b389f822abe2062044417
+              # linuxserver/bazarr, not home-operations/bazarr: it ships upstream
+              # Bazarr on Alpine's python3 (3.12, well under Bazarr's <=3.13 ceiling)
+              # instead of home-operations' Python 3.14 build, which upstream Bazarr
+              # does not support and which hangs before binding its HTTP port.
+              repository: ghcr.io/linuxserver/bazarr
+              tag: version-v1.6.0
+              digest: sha256:ac284d3fda9ee7da8b15197dc51f0d7a2a1da98549bee99a3d924d3e94a5e7ed
+            env:
+              # Tell the s6-overlay init to skip its root-only usermod/chown steps:
+              # the pod already runs as the target non-root UID with a read-only
+              # rootfs, so there is nothing for those steps to do and they would
+              # fail under this securityContext anyway.
+              LSIO_NON_ROOT_USER: "true"
+              LSIO_READ_ONLY_FS: "true"
             envFrom:
               - secretRef:
                   name: bazarr-secret
             probes:
-              liveness: &probes
+              # Moving forward across the accumulated Alembic revision backlog is a
+              # one-time, single-threaded SQLite migration that took ~7 minutes
+              # against this app's real config DB - give it generous room on first
+              # boot via startupProbe, which gates liveness/readiness until it
+              # passes, then fall back to a normal steady-state window.
+              startup:
                 enabled: true
                 custom: true
                 spec:
                   httpGet:
                     path: /health
                     port: &port 6767
-                  initialDelaySeconds: 0
+                  initialDelaySeconds: 10
                   periodSeconds: 10
-                  timeoutSeconds: 1
+                  timeoutSeconds: 3
+                  failureThreshold: 90
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: *port
+                  periodSeconds: 10
+                  timeoutSeconds: 3
                   failureThreshold: 3
               readiness: *probes
             resources:
@@ -74,6 +116,12 @@ spec:
     persistence:
       config:
         existingClaim: bazarr-config
+      tmp:
+        type: emptyDir
+      run:
+        type: emptyDir
+        globalMounts:
+          - path: /run
       downloads:
         existingClaim: shared-downloads
         globalMounts:
