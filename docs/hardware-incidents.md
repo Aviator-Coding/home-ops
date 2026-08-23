@@ -80,7 +80,7 @@ After OOMConfig patch (15:04, trigger 50%/30s): ZERO OOMController events throug
 
 - **OOMConfig codified in `talos/machineconfig.yaml.j2`** (the live `talosctl patch mc` survives reboot but NOT a config re-render — codifying it was mandatory).
 - **cilium-agent → Guaranteed QoS** (requests == limits) — ranking weight 0.0, network plane can no longer be the OOM victim.
-- **`NotIn [talos-1]` node affinities on 7 heavy burstables** (coder, changedetection, rsshub, readarr, seerr, flaresolverr, emqx-exporter) - **RAM RMA complete 2026-08-21 (96 GB dual-channel restored on all 3 nodes).** Remaining GitOps follow-up: revert these affinities.
+- **`NotIn [talos-1]` node affinities on 5 heavy burstables** (coder, changedetection, rsshub, readarr, seerr) - **RAM RMA complete 2026-08-21 (96 GB dual-channel restored on all 3 nodes).** Revert complete: cleared in 93fa733d (#1393). flaresolverr and emqx-exporter never carried this affinity.
 - **node-exporter re-enabled + PrometheusRule alerts**: `NodeMemoryPressure` (renamed 2026-08-23 from `Talos1MemoryPressure` once the RAM RMA made all 3 nodes identical), `NodeMemoryPSIHigh`, `CephOsdPodTerminalError`, `CephPodCrashLooping` — closes the detection gap.
 - **ceph-mon → Guaranteed QoS** (mon + logcollector requests == limits, 2Gi/500m) - mon quorum can no longer be the OOM victim. OSDs stay Burstable for now: Guaranteed would have reserved 14Gi×2 on talos-1's 48 GB single-stick window (RMA complete 2026-08-21; all 3 nodes now 96 GB). **TODO (post-RMA): promote `resources.osd` to 14Gi==14Gi Guaranteed; evaluate MDS (blocked on `mds_cache_memory_limit` 8Gi - Guaranteed at 10Gi×4 pods is unaffordable, and a tighter limit risks cgroup OOM against the cache; standby-replay makes MDS kills tolerable meanwhile).**
 
