@@ -36,7 +36,7 @@ spec:
             description: "OSD {{ $labels.ceph_daemon }} has {{ $value }} slow operations for more than 10 minutes."
 
         - alert: CephMonitorQuorumAtRisk
-          expr: ceph_mon_quorum_status < 3
+          expr: count(ceph_mon_quorum_status == 1) < 3
           for: 1m
           labels:
             severity: critical
