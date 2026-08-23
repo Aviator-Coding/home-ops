@@ -29,10 +29,12 @@ spec:
                   value: "aviator-coding"
                 - name: REPO_NAME
                   value: "home-ops"
-                - name: STALE_RUNNER_MINUTES
-                  value: "10"
                 - name: STUCK_RUN_MINUTES
                   value: "30"
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
               command:
                 - /bin/bash
                 - -c
@@ -46,29 +48,68 @@ spec:
 
                   # Configuration
                   REPO="${REPO_OWNER}/${REPO_NAME}"
-                  STALE_THRESHOLD_SECONDS=$((STALE_RUNNER_MINUTES * 60))
                   STUCK_THRESHOLD_SECONDS=$((STUCK_RUN_MINUTES * 60))
+                  CURRENT_TIME=$(date +%s)
 
                   echo ""
                   echo "Configuration:"
                   echo "  Repository: ${REPO}"
-                  echo "  Stale runner threshold: ${STALE_RUNNER_MINUTES} minutes"
                   echo "  Stuck run threshold: ${STUCK_RUN_MINUTES} minutes"
                   echo ""
 
                   # ==========================================
                   # STEP 1: Clean up stale/offline runners
                   # ==========================================
+                  # The GitHub API's /actions/runners endpoint carries no
+                  # last_connected_at (or any other) timestamp, so elapsed-time
+                  # staleness cannot be computed from it. ARC (gha-runner-scale-set)
+                  # names each ephemeral runner after the Kubernetes Pod backing it,
+                  # so pod existence is used as the staleness signal instead: an
+                  # offline, non-busy runner is only deleted when no Pod of that
+                  # name exists in this namespace. A runner that is mid-registration
+                  # (ARC's ephemeral registration window) still has its Pod present
+                  # and is left alone; only registrations orphaned by an already-gone
+                  # Pod are removed. The runner-maintenance Role already grants
+                  # list on pods in this namespace for exactly this purpose.
                   echo "--- Step 1: Checking for stale runners ---"
 
                   RUNNERS_JSON=$(gh api "repos/${REPO}/actions/runners" --jq '.runners' 2>/dev/null || echo "[]")
                   RUNNER_COUNT=$(echo "${RUNNERS_JSON}" | jq 'length')
                   echo "Found ${RUNNER_COUNT} total runners"
 
-                  CURRENT_TIME=$(date +%s)
+                  K8S_API="https://kubernetes.default.svc"
+                  K8S_CACERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                  K8S_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token 2>/dev/null || true)"
+
+                  # Pod-list fetch failures (missing token, unreachable API, non-200
+                  # response) must fail closed: PODS_LOOKUP_OK gates deletion below so
+                  # a lookup we can't trust never gets treated as "no pods exist".
+                  PODS_LOOKUP_OK=true
+                  if [[ -z "${K8S_TOKEN}" ]]; then
+                    echo "  [WARNING] Could not read service account token - skipping pod-backed staleness check this run, no offline runners will be deleted"
+                    PODS_LOOKUP_OK=false
+                  fi
+
+                  LIVE_POD_NAMES=""
+                  if [[ "${PODS_LOOKUP_OK}" == "true" ]]; then
+                    K8S_PODS_TMPFILE=$(mktemp)
+                    K8S_HTTP_STATUS=$(curl -sS -o "${K8S_PODS_TMPFILE}" -w '%{http_code}' --cacert "${K8S_CACERT}" \
+                      -H "Authorization: Bearer ${K8S_TOKEN}" \
+                      "${K8S_API}/api/v1/namespaces/${POD_NAMESPACE}/pods" 2>/dev/null || echo "000")
+
+                    if [[ "${K8S_HTTP_STATUS}" == "200" ]]; then
+                      LIVE_POD_NAMES=$(jq -r '.items[]?.metadata.name // empty' "${K8S_PODS_TMPFILE}" 2>/dev/null || echo "")
+                    else
+                      echo "  [WARNING] Failed to list pods in namespace ${POD_NAMESPACE} (HTTP ${K8S_HTTP_STATUS}) - skipping pod-backed staleness check this run, no offline runners will be deleted"
+                      PODS_LOOKUP_OK=false
+                    fi
+                    rm -f "${K8S_PODS_TMPFILE}"
+                  fi
+
                   DELETED_COUNT=0
 
-                  echo "${RUNNERS_JSON}" | jq -c '.[]' | while read -r runner; do
+                  while read -r runner; do
+                    [[ -z "${runner}" ]] && continue
                     RUNNER_ID=$(echo "${runner}" | jq -r '.id')
                     RUNNER_NAME=$(echo "${runner}" | jq -r '.name')
                     RUNNER_STATUS=$(echo "${runner}" | jq -r '.status')
@@ -82,10 +123,17 @@ spec:
 
                     # Only check offline runners
                     if [[ "${RUNNER_STATUS}" == "offline" ]]; then
-                      echo "  [FOUND] ${RUNNER_NAME} (id=${RUNNER_ID}): offline, checking age..."
+                      if [[ "${PODS_LOOKUP_OK}" != "true" ]]; then
+                        echo "  [SKIP] ${RUNNER_NAME} (id=${RUNNER_ID}): offline, but pod-backed staleness check unavailable this run"
+                        continue
+                      fi
 
-                      # Note: GitHub API doesn't provide last_connected_at for runners
-                      # We'll delete all offline runners that aren't busy as they're likely stale
+                      if grep -qxF "${RUNNER_NAME}" <<<"${LIVE_POD_NAMES}"; then
+                        echo "  [SKIP] ${RUNNER_NAME} (id=${RUNNER_ID}): offline but backing pod still present, likely mid-registration"
+                        continue
+                      fi
+
+                      echo "  [FOUND] ${RUNNER_NAME} (id=${RUNNER_ID}): offline, no backing pod - orphaned"
                       echo "  [DELETE] Removing offline runner: ${RUNNER_NAME} (id=${RUNNER_ID})"
 
                       if gh api -X DELETE "repos/${REPO}/actions/runners/${RUNNER_ID}" 2>/dev/null; then
@@ -97,7 +145,7 @@ spec:
                     else
                       echo "  [OK] ${RUNNER_NAME} (id=${RUNNER_ID}): ${RUNNER_STATUS}"
                     fi
-                  done
+                  done < <(echo "${RUNNERS_JSON}" | jq -c '.[]')
 
                   echo "Deleted ${DELETED_COUNT} stale runners"
                   echo ""
@@ -114,7 +162,8 @@ spec:
 
                   CANCELLED_COUNT=0
 
-                  echo "${QUEUED_RUNS}" | jq -c '.[]' | while read -r run; do
+                  while read -r run; do
+                    [[ -z "${run}" ]] && continue
                     RUN_ID=$(echo "${run}" | jq -r '.databaseId')
                     RUN_NAME=$(echo "${run}" | jq -r '.name')
                     CREATED_AT=$(echo "${run}" | jq -r '.createdAt')
@@ -147,7 +196,7 @@ spec:
                     else
                       echo "  [OK] ${RUN_NAME} (id=${RUN_ID}): queued for ${AGE_MINUTES} minutes"
                     fi
-                  done
+                  done < <(echo "${QUEUED_RUNS}" | jq -c '.[]')
 
                   echo "Cancelled ${CANCELLED_COUNT} stuck workflow runs"
                   echo ""
@@ -164,7 +213,8 @@ spec:
                   # Extended threshold for in_progress (60 minutes - these might be legitimately running)
                   LONG_RUNNING_THRESHOLD=$((60 * 60))
 
-                  echo "${IN_PROGRESS_RUNS}" | jq -c '.[]' | while read -r run; do
+                  while read -r run; do
+                    [[ -z "${run}" ]] && continue
                     RUN_ID=$(echo "${run}" | jq -r '.databaseId')
                     RUN_NAME=$(echo "${run}" | jq -r '.name')
                     CREATED_AT=$(echo "${run}" | jq -r '.createdAt')
@@ -186,7 +236,7 @@ spec:
                     else
                       echo "  [OK] ${RUN_NAME} (id=${RUN_ID}): running for ${AGE_MINUTES} minutes"
                     fi
-                  done
+                  done < <(echo "${IN_PROGRESS_RUNS}" | jq -c '.[]')
 
                   echo ""
                   echo "=========================================="

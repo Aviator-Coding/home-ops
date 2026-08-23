@@ -327,7 +327,13 @@ The runner system includes automated maintenance mechanisms to prevent and recov
 A CronJob (`runner-maintenance`) runs every 15 minutes against **home-ops only**
 (`REPO_NAME=home-ops`) to automatically:
 
-1. **Clean stale runners**: Removes offline runners from GitHub's API that are no longer active
+1. **Clean stale runners**: Deletes an offline runner from GitHub's API only when no
+   backing Kubernetes Pod of that name exists in `actions-runner-system` (ARC names
+   each ephemeral runner after its Pod). The GitHub API exposes no per-runner
+   timestamp, so Pod existence is the staleness signal instead of elapsed time. A
+   runner mid-registration still has its Pod present and is left alone. If the Pod
+   list can't be fetched, the run skips deletions entirely rather than deleting
+   every offline runner.
 2. **Cancel stuck runs**: Cancels workflow runs stuck in "queued" state for more than 30 minutes
 3. **Log anomalies**: Reports long-running jobs that may need manual attention
 
@@ -371,7 +377,7 @@ Ghost jobs occur when GitHub's Actions service has stale job assignments that no
 ### Automated Recovery
 
 The maintenance CronJob automatically (home-ops only):
-- Cleans offline runners from GitHub every 15 minutes
+- Every 15 minutes, deletes offline runners from GitHub that have no backing Pod (see [Maintenance CronJob](#maintenance-cronjob) above)
 - Cancels workflow runs stuck for more than 30 minutes
 
 ### Manual Recovery
