@@ -62,9 +62,6 @@ spec:
 
         mgr:
           mgr/crash/warn_recent_interval: "7200"
-          # Fix dashboard binding to listen on all interfaces
-          mgr/dashboard/server_addr: "0.0.0.0"
-          mgr/dashboard/server_port: "7000"
 
         osd:
           # Let osd_memory_target manage BlueStore cache (was overridden by a
@@ -118,15 +115,10 @@ spec:
       crashCollector:
         disable: false
       dashboard:
-        enabled: true
-        urlPrefix: /
-        ssl: false
-        prometheusEndpoint: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        enabled: false
       mgr:
         modules:
           - name: diskprediction_local
-            enabled: true
-          - name: insights
             enabled: true
           - name: pg_autoscaler
             enabled: true
