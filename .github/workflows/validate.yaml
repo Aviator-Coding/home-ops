@@ -44,6 +44,11 @@ jobs:
   # gate, so without this a `.renovate/`-only PR would also run the Talos jobs.
   # Same pattern as flux-local.yaml / image-pull.yaml.
   filter:
+    # Fork guard. Every job in this workflow lands on the self-hosted runner, which
+    # holds node-level Talos credentials, so PR-authored code from a fork must never
+    # execute here. Mirrors labeler.yaml. Same-repo PRs are unaffected; a fork PR
+    # skips this job and, through `needs: filter`, every job below it.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Validate - Filter
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
@@ -93,7 +98,7 @@ jobs:
             .github/workflows/validate.yaml
 
   talos:
-    if: ${{ needs.filter.outputs.talos != '[]' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.talos != '[]' }}
     needs: filter
     name: talos
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
@@ -115,7 +120,7 @@ jobs:
         run: ./scripts/ci/talos-validate.sh
 
   versions:
-    if: ${{ needs.filter.outputs.versions != '[]' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.versions != '[]' }}
     needs: filter
     name: versions
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
@@ -135,7 +140,7 @@ jobs:
         run: ./scripts/ci/version-consistency.sh
 
   bootstrap:
-    if: ${{ needs.filter.outputs.bootstrap != '[]' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.bootstrap != '[]' }}
     needs: filter
     name: bootstrap
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
@@ -161,7 +166,7 @@ jobs:
             | kubeconform -strict -summary -schema-location default
 
   renovate-config:
-    if: ${{ needs.filter.outputs.renovate != '[]' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.renovate != '[]' }}
     needs: filter
     name: renovate-config
     runs-on: gha-runner-scale-set-aviator-coding-home-ops

@@ -111,6 +111,11 @@ spec:
           # Force pod recreation on any secret change
           secret.reloader.stakater.com/reload: aviator-coding-runner-secret
       spec:
+        # No workflow on this runner calls the Kubernetes API, so no token is
+        # mounted and no `serviceAccountName` is set: the chart then creates its
+        # own `<scale-set>-no-permission` ServiceAccount, which has no bindings.
+        # See app/rbac.yaml (security-audit finding F1).
+        automountServiceAccountToken: false
         # Allow graceful shutdown for runner cleanup
         terminationGracePeriodSeconds: 30
         tolerations:
@@ -172,7 +177,6 @@ spec:
               - name: talos-bin
                 mountPath: /usr/local/bin/talosctl
                 subPath: talosctl
-        serviceAccountName: actions-runner
         volumes:
           - name: work
             ephemeral:

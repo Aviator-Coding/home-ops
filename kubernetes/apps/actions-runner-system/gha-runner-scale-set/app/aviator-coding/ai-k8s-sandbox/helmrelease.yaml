@@ -111,6 +111,15 @@ spec:
           # Force pod recreation on any secret change
           secret.reloader.stakater.com/reload: aviator-coding-runner-secret
       spec:
+        # This runner builds container images for aviator-coding/ai-k8s-sandbox.
+        # That repo's only workflow (.github/workflows/build.yml) runs uv/ruff/ty
+        # and docker buildx - it touches neither the Kubernetes API nor talosctl,
+        # so this pod gets no ServiceAccount token, no `serviceAccountName` (the
+        # chart supplies its own no-permission ServiceAccount, separate from the
+        # home-ops scale set's) and no Talos credential. It previously shared a
+        # cluster-admin + os:admin ServiceAccount with the public home-ops runner,
+        # while also running a privileged dind sidecar. See app/rbac.yaml.
+        automountServiceAccountToken: false
         # Allow graceful shutdown for runner cleanup
         terminationGracePeriodSeconds: 30
         tolerations:
@@ -121,15 +130,6 @@ spec:
           # runAsUser: 1001
           # runAsGroup: 1001
           fsGroup: 1001
-        initContainers:
-          # Pre-download talosctl to avoid downloading on every job
-          - name: talosctl-installer
-            # renovate: datasource=docker depName=ghcr.io/aviator-coding/talosctl-busybox
-            image: ghcr.io/aviator-coding/talosctl-busybox:v1.13.3
-            command: ["cp", "/usr/local/bin/talosctl", "/talos-bin/talosctl"]
-            volumeMounts:
-              - name: talos-bin
-                mountPath: /talos-bin   
         containers:
           - name: runner
             # renovate: datasource=docker depName=ghcr.io/home-operations/actions-runner
@@ -156,8 +156,6 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: status.hostIP
-              - name: TALOSCONFIG
-                value: "/var/run/secrets/talos.dev/talosconfig"
               - name: ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT
                 value: "1"
             resources:
@@ -176,12 +174,6 @@ spec:
             volumeMounts:
               - name: work
                 mountPath: /home/runner/_work
-              - name: talos
-                mountPath: /var/run/secrets/talos.dev
-                readOnly: true
-              - name: talos-bin
-                mountPath: /usr/local/bin/talosctl
-                subPath: talosctl
               - name: docker-certs
                 mountPath: /certs
                 readOnly: true
@@ -208,7 +200,6 @@ spec:
               limits:
                 cpu: "2"
                 memory: "4Gi"
-        serviceAccountName: actions-runner
         volumes:
           - name: work
             ephemeral:
@@ -219,11 +210,6 @@ spec:
                   resources:
                     requests:
                       storage: 20Gi
-          - name: talos
-            secret:
-              secretName: actions-runner
-          - name: talos-bin
-            emptyDir: {}
           - name: docker-certs
             emptyDir: {}
           - name: dind-storage

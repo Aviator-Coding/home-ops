@@ -166,8 +166,8 @@ scale set is DinD, not talosctl.
 # Verify talos secret exists
 kubectl get secret actions-runner -n actions-runner-system
 
-# Check runner ServiceAccount RBAC
-kubectl get clusterrolebinding | grep actions-runner
+# Check the Talos ServiceAccount's role
+kubectl get serviceaccounts.talos.dev actions-runner -n actions-runner-system -o jsonpath='{.spec.roles}'
 ```
 
 **Environment Variables:**
@@ -178,7 +178,9 @@ Runner pods are configured with these environment variables:
 
 **Resolution:**
 - Ensure the `actions-runner` secret contains valid talosconfig
-- Verify ServiceAccount has required permissions
+- Confirm the failing operation is authorized for the Talos role granted in
+  `gha-runner-scale-set/app/rbac.yaml` (`os:operator`, image pull only). The
+  runner has no Kubernetes RBAC at all - see that file for why.
 
 ## Monitoring and Observability
 
@@ -267,7 +269,8 @@ kubectl get externalsecret -n actions-runner-system aviator-coding-runner-secret
 
 ### Talos Credentials
 
-The `actions-runner` secret contains talosconfig for cluster management operations:
+The `actions-runner` secret contains talosconfig scoped to the `os:operator`
+role (image pull only - see `gha-runner-scale-set/app/rbac.yaml`):
 ```bash
 kubectl get secret actions-runner -n actions-runner-system -o jsonpath='{.data.talosconfig}' | base64 -d
 ```
