@@ -83,6 +83,19 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-08-23] Rotate daemon CephX keys onto `aes256k`  (PR #TBD - gated on Rook v1.20.6)
+
+| Field | Value |
+|-------|-------|
+| **Change** | New `cephClusterSpec.security.cephx.daemon` block in `cluster/helmrelease.yaml`: `keyType: aes256k`, `keyRotationPolicy: KeyGeneration`, `keyGeneration: 2`. `security.cephx.csi` is deliberately **not** set (stays at the chart default `aes`). |
+| **Why** | Ceph v20.2.4 (merged in #1392) raises `AUTH_INSECURE_SERVICE_KEY_TYPE` and `AUTH_INSECURE_SERVICE_TICKETS` - both **ERR** level, CVE-2025-30156 - for CephX keys still on the legacy `aes` cipher. All daemon keys are also still on their original generation 1, most minted under `keyCephVersion: 19.2.3-0` and never rotated. |
+| **Risk** | Rook rotates daemon keys with a gradual rolling restart of mon/mgr/osd/crash-collector/ceph-exporter. Upstream notes daemons keep the old key internally for **2-3 hours** while service tokens roll - that window is expected, not a failure. Because OSDs restart, the pre-reboot Ceph checklist in the root `CLAUDE.md` applies: confirm `HEALTH_OK` and run `task rook:check-osd-device-paths` before merging (Rook #17224 device-path drift). `osdMaxUpdatesInParallel: 1` already caps OSD churn at one at a time. **Client keys are untouched**: `csi-*` keys are consumed by the krbd / CephFS *kernel* clients and `aes256k` needs Linux >= 7.0, while Talos ships 6.18.44 - rotating them would break every RBD map and CephFS mount. |
+| **Prerequisite** | **Rook >= 1.20.5** - the `aes256k` `keyType` enum does not exist in the v1.20.4 CRD (verified: `deploy/examples/crds.yaml` at v1.20.4 has zero `aes256k` matches, v1.20.5 has six). The cluster is on v1.20.4 until PR #1397 (v1.20.4 -> v1.20.6) lands. **Merge order matters and the failure is silent.** The v1.20.4 CRD *does* have `daemon.keyGeneration` and `daemon.keyRotationPolicy` - only `keyType` is missing - and the schema is structural with no `x-kubernetes-preserve-unknown-fields`, so the apiserver **prunes** `keyType` and applies the rest clean. Merging this before #1397 would therefore burn generation 2 on a rotation that stays on `aes`, achieving nothing and forcing a generation 3 bump later (`keyGeneration` is CRD-validated `self >= oldSelf`, so it cannot be reused). |
+| **Rollback** | Remove the `security` block. Note this does **not** un-rotate: `keyGeneration` is validated `self >= oldSelf` by the CRD and cannot be decreased, and keys already moved to `aes256k` stay there. Rollback only stops *further* rotation. |
+| **Verify** | Post-merge: `kubectl -n rook-ceph get cephcluster rook-ceph -o jsonpath='{.status.cephx}'` shows `keyGeneration: 2` for the daemon entries; `ceph health detail` no longer lists `AUTH_INSECURE_SERVICE_KEY_TYPE` / `AUTH_INSECURE_SERVICE_TICKETS`; cluster drops `HEALTH_ERR` -> `HEALTH_WARN` (the residual WARN is the client keys still on `aes`). Pre-merge, render-only: `kustomize build kubernetes/apps/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone`, `task flux:test:all`, and `helm template` of the v1.20.6 cluster chart all render the block (confirmed 2026-08-23). |
+
+Future rotations reuse the same block: bump `keyGeneration` to current+1. Rotating the CSI keys *within* the `aes` type (same policy, separate `security.cephx.csi.keyGeneration`, with `keepPriorKeyCountMax` for a soft cutover) is a separate follow-up; moving them to `aes256k` waits on a Talos release with kernel >= 7.0, which as of 2026-08-23 does not exist even in pre-release.
+
 ### [2026-08-22] Remove Ceph mgr dashboard - close security-audit findings F2/F3  (commits `b91ae846`, `33725557`)
 
 | Field | Value |
