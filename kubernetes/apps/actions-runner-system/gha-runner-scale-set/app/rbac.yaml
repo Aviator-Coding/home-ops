@@ -1,26 +1,34 @@
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: actions-runner
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: actions-runner
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-  - kind: ServiceAccount
-    name: actions-runner
-    namespace: actions-runner-system
----
+# Runner credentials. Deliberately minimal - see security-audit finding F1.
+#
+# Kubernetes: there is NO ServiceAccount and NO RoleBinding here on purpose. No
+# workflow on either scale set calls the Kubernetes API (`validate` runs
+# talosctl/kustomize/kubeconform offline, `image-pull` talks to Talos, the
+# ai-k8s-sandbox repo lints and builds container images), so the runners get the
+# chart's own per-scale-set `<name>-no-permission` ServiceAccount, which has no
+# bindings at all. Both pod templates additionally set
+# `automountServiceAccountToken: false`, so no token is mounted either. This
+# replaces a single shared ServiceAccount bound to `cluster-admin`.
+#
+# If a workflow ever does need the Kubernetes API, add a namespaced Role plus a
+# RoleBinding for exactly the verbs it needs and set `serviceAccountName` on that
+# one scale set - do not reintroduce a shared cluster-scoped binding.
+#
+# Talos: `image-pull.yaml` runs `talosctl image pull`, which Talos authorizes for
+# `os:admin` and `os:operator` only ("/machine.MachineService/ImagePull" and
+# "/machine.ImageService/Pull" in internal/app/machined/pkg/system/services/machined.go).
+# `os:reader` cannot pull images, so `os:operator` is the least role that works.
+# Unlike `os:admin` it cannot read machine config or secrets, write files, reset,
+# upgrade, install, or fetch a kubeconfig.
+#
+# This ServiceAccount is consumed by the home-ops runner only: the talos.dev
+# controller reconciles it into the `actions-runner` Secret, which that pod
+# template mounts at /var/run/secrets/talos.dev. The ai-k8s-sandbox runner does
+# not mount it.
 apiVersion: talos.dev/v1alpha1
 kind: ServiceAccount
 metadata:
   name: actions-runner
 spec:
   roles:
-    - os:admin
+    - os:operator
