@@ -4,8 +4,6 @@
 # 100% PGs inactive for ~2 days, fully undetected — nothing alerted on node
 # memory pressure or on OSD pods sitting in terminal Error state).
 # Requires node-exporter (re-enabled in the kube-prometheus-stack HR).
-# TODO(2026-08): after the talos-1 RAM RMA (dual-channel 96GB restored),
-# re-evaluate the Talos1MemoryPressure threshold; keep the PSI + OSD alerts.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -14,20 +12,19 @@ spec:
   groups:
     - name: node-memory-pressure.rules
       rules:
-        # talos-1 runs on a single 48GB stick until ~2026-08-14 (RAM RMA) and
-        # is the first node to trip the Talos OOMController. <15% available
-        # for 10m means workloads have drifted back onto it — shed load
-        # before the OOMController does it for you (docs/hardware-incidents.md).
-        - alert: Talos1MemoryPressure
+        # <15% available for 10m on any node means workloads have drifted
+        # onto it under sustained pressure — shed load before the Talos
+        # OOMController does it for you (docs/hardware-incidents.md). All
+        # three nodes are identical (96GB, ~94GiB usable), so this fires
+        # per-instance with no node-specific pin or threshold.
+        - alert: NodeMemoryPressure
           expr: |-
-            node_memory_MemAvailable_bytes{instance="talos-1"}
-              / node_memory_MemTotal_bytes{instance="talos-1"} < 0.15
+            node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.15
           for: 10m
           annotations:
             summary: >-
-              talos-1 has had <15% memory available for 10m
-              ({{ $value | humanizePercentage }} available). Reduced-RAM node
-              (48GB single stick until the ~2026-08 RMA) — move heavy
+              {{ $labels.instance }} has had <15% memory available for 10m
+              ({{ $value | humanizePercentage }} available) — move heavy
               burstables off before the Talos OOMController starts killing.
           labels:
             severity: warning
