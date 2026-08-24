@@ -5,12 +5,12 @@ kind: Kustomization
 namespace: database
 
 components:
-  - ../../components/common
-  - ../../components/alerts
+  - ../../../components/common
+  - ../../../components/alerts
 
 resources:
-  - ./cloudnative-pg/ks.yaml
-  - ./dragonfly/ks.yaml
-  - ./emqx/ks.yaml
-  - ./surrealdb/ks.yaml
-  - ./jetstream/ks.yaml
+  - ./cloudnative-pg.yaml
+  - ./dragonfly.yaml
+  - ./emqx.yaml
+  - ./surrealdb.yaml
+  - ./jetstream.yaml

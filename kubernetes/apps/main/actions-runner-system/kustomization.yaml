@@ -5,10 +5,10 @@ kind: Kustomization
 namespace: actions-runner-system
 
 components:
-  - ../../components/common
-  - ../../components/alerts
+  - ../../../components/common
+  - ../../../components/alerts
 
 resources:
-  - ./gha-runner-scale-set-controller/ks.yaml
-  - ./gha-runner-scale-set/ks.yaml
-  - ./maintenance/ks.yaml
+  - ./gha-runner-scale-set-controller.yaml
+  - ./gha-runner-scale-set.yaml
+  - ./maintenance.yaml

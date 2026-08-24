@@ -6,4 +6,3 @@ resources:
   - ./externalsecret.yaml
   - ./home-ops
   - ./ai-k8s-sandbox
-
