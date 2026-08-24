@@ -79,10 +79,37 @@ spec:
     Deny non-cluster (world) access to host-network Ceph daemon ports.
     Subtractive only - enableDefaultDeny is false in both directions so the
     host endpoint never enters default-deny and management access cannot break.
-  # The host endpoint on every node. All three nodes are control-plane.
+  # Selects the host endpoint on every control-plane node (see coverage assumption).
+  #
+  # This MUST use a label that survives into the *host endpoint's* label set,
+  # which is NOT the same as the node's label set. Cilium's default label filter
+  # drops the well-known non-security-relevant node labels, and an unmatched
+  # nodeSelector fails SILENTLY: the policy is accepted (`VALID: True`) and the
+  # host endpoint just reports `policy-enabled: none`, so the daemons stay
+  # exposed while everything looks healthy.
+  #
+  # Measured on this cluster 2026-08-24 (identical on talos-1/2/3) - node labels
+  # dropped from the host endpoint:
+  #   beta.kubernetes.io/arch, beta.kubernetes.io/os,
+  #   kubernetes.io/arch, kubernetes.io/hostname, kubernetes.io/os
+  # and node labels that survive:
+  #   node-role.kubernetes.io/control-plane, topology.kubernetes.io/{region,zone},
+  #   extensions.talos.dev/*, intel.feature.node.kubernetes.io/gpu
+  #
+  # `kubernetes.io/os: linux` was the original selector and matched nothing.
+  # Note the upstream host-policy docs' `kubernetes.io/hostname` example is
+  # subject to the same filter. Verify any change to this selector with
+  # `cilium-dbg bpf policy get <host-endpoint-id>` before trusting it - see
+  # docs/ceph/lan-isolation-audit-plan.md §2c.
+  #
+  # COVERAGE ASSUMPTION: all three nodes are control-plane, so this covers the
+  # whole cluster. If a non-control-plane node is ever added it will NOT be
+  # covered and its Ceph daemons will stay LAN-exposed - re-check this selector
+  # as part of adding one.
   nodeSelector:
-    matchLabels:
-      kubernetes.io/os: linux
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
   # LOAD-BEARING - see the header. Removing this turns the rules below into a
   # default-deny host firewall and will lock the nodes out.
   enableDefaultDeny:
