@@ -74,43 +74,103 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          for attempt in 1 2 3 4 5 6; do
-            echo "::group::Attempt $attempt/6: Gathering images..."
-            # --network host: the docker bridge/NAT path on this runner intermittently
-            # resets outbound TLS connections mid-fetch (seen against unrelated hosts -
-            # GitHub Pages, ghcr.io blob storage, GitHub release assets - ruling out the
-            # remote end). Host networking skips that NAT layer for this outbound-only,
-            # no-published-ports container.
-            if docker run --rm --network host \
-              -v "$GITHUB_WORKSPACE:/github/workspace" \
-              -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
-              -e HELM_TIMEOUT=300 \
-              -e HOME=/tmp \
-              -e XDG_CACHE_HOME=/tmp/.cache \
-              ghcr.io/allenporter/flux-local:v8.2.0 \
-              get cluster \
-              --all-namespaces \
-              --path /github/workspace/kubernetes/flux/cluster \
-              --enable-images \
-              --only-images \
-              --output json \
-              --output-file /github/workspace/images.json; then
-              echo "::endgroup::"
-              echo "✓ Images gathered successfully"
-              exit 0
-            fi
-            echo "::endgroup::"
-            if [ $attempt -lt 6 ]; then
-              # Capped at 60s: uncapped linear growth (20 * attempt) would burn most of
-              # the step timeout on sleeping instead of retrying against these transient,
-              # host-varying connection resets.
-              wait_time=$(( 20 * attempt < 60 ? 20 * attempt : 60 ))
-              echo "✗ Attempt $attempt failed. Waiting ${wait_time}s before retry..."
-              sleep $wait_time
-            fi
-          done
-          echo "::error::Failed to gather images after 6 attempts"
-          exit 1
+          # Persist helm's repository-cache across retries. flux-local defaults to a
+          # TemporaryDirectory per invocation, so a fresh `docker run` otherwise
+          # re-fetches every OCI chart and multiplies exposure to the intermittent
+          # connection-reset flake below. HELM_CACHE_DIR is a flux-local ContextVar
+          # (not an env var), so we enter via python3 and set it before main().
+          CACHE_DIR="${RUNNER_TEMP:-/tmp}/flux-local-helm-cache"
+          mkdir -p "$CACHE_DIR"
+          # Non-root image user must be able to write chart blobs here.
+          chmod 777 "$CACHE_DIR"
+
+          cat > "${RUNNER_TEMP:-/tmp}/flux-local-get-images.py" <<'PY'
+          import sys
+          import time
+          from pathlib import Path
+
+          from flux_local.context import HELM_CACHE_DIR
+          from flux_local.tool.flux_local import main
+
+          HELM_CACHE_DIR.set(Path("/helm-cache"))
+
+          argv = [
+              "flux-local",
+              "get",
+              "cluster",
+              "--all-namespaces",
+              # Live Flux entry point (clusters/main -> apps/main). The inert
+              # kubernetes/flux/cluster tree drops migrated namespaces, so
+              # dependsOn targets like security/onepassword-store and
+              # system/volsync are missing there and image coverage is incomplete.
+              "--path",
+              "/github/workspace/kubernetes/clusters/main",
+              "--enable-images",
+              "--only-images",
+              "--output",
+              "json",
+              "--output-file",
+              "/github/workspace/images.json",
+          ]
+
+          attempts = 6
+
+          def _fail(attempt: int, code: int = 1) -> None:
+              print("::endgroup::", flush=True)
+              if attempt >= attempts:
+                  print(
+                      f"::error::Failed to gather images after {attempts} attempts",
+                      flush=True,
+                  )
+                  raise SystemExit(code)
+              # Capped at 60s: uncapped linear growth would burn the step
+              # timeout sleeping instead of retrying transient resets.
+              wait_time = min(20 * attempt, 60)
+              print(
+                  f"✗ Attempt {attempt} failed. Waiting {wait_time}s before retry...",
+                  flush=True,
+              )
+              time.sleep(wait_time)
+
+          for attempt in range(1, attempts + 1):
+              print(f"::group::Attempt {attempt}/{attempts}: Gathering images...", flush=True)
+              sys.argv = list(argv)
+              try:
+                  main()
+              except SystemExit as exc:
+                  code = 0 if exc.code is None else int(exc.code)
+                  if code == 0:
+                      print("::endgroup::", flush=True)
+                      print("✓ Images gathered successfully", flush=True)
+                      raise SystemExit(0)
+                  _fail(attempt, code)
+              except Exception as exc:  # noqa: BLE001 - retry transient helm fetch errors
+                  print(f"flux-local raised: {exc!r}", flush=True)
+                  _fail(attempt, 1)
+              else:
+                  # main() returns normally on success (only sys.exit on error).
+                  print("::endgroup::", flush=True)
+                  print("✓ Images gathered successfully", flush=True)
+                  raise SystemExit(0)
+          PY
+
+          # --network host: the docker bridge/NAT path on this runner intermittently
+          # resets outbound TLS connections mid-fetch (seen against unrelated hosts -
+          # GitHub Pages, ghcr.io blob storage, GitHub release assets - ruling out the
+          # remote end). Host networking skips that NAT layer for this outbound-only,
+          # no-published-ports container.
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/github/workspace" \
+            -v "$CACHE_DIR:/helm-cache" \
+            -v "${RUNNER_TEMP:-/tmp}/flux-local-get-images.py:/flux-local-get-images.py:ro" \
+            -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
+            -e HELM_TIMEOUT=300 \
+            -e HOME=/tmp \
+            -e XDG_CACHE_HOME=/tmp/.cache \
+            -e GITHUB_ACTIONS=true \
+            --entrypoint python3 \
+            ghcr.io/allenporter/flux-local:v8.2.0 \
+            /flux-local-get-images.py
 
       - name: Extract Images
         id: extract
@@ -195,7 +255,11 @@ jobs:
     # `!cancelled()` alone would still schedule this job onto the self-hosted runner
     # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
     if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
-    needs: pull
+    # Need extract as well as pull: when extract fails, pull is skipped, and a
+    # needs:pull-only Success job would see only "skipped" and green-check a red run.
+    needs:
+      - extract
+      - pull
     name: Image Pull - Success
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5

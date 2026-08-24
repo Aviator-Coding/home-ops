@@ -23,8 +23,8 @@ command -v yq >/dev/null 2>&1 || {
 }
 
 machineconfig=talos/machineconfig.yaml.j2
-kubernetes_cr=kubernetes/apps/system-upgrade/tuppr/upgrades/kubernetesupgrade.yaml
-talos_cr=kubernetes/apps/system-upgrade/tuppr/upgrades/talosupgrade.yaml
+kubernetes_cr=kubernetes/apps/base/system-upgrade/tuppr/upgrades/kubernetesupgrade.yaml
+talos_cr=kubernetes/apps/base/system-upgrade/tuppr/upgrades/talosupgrade.yaml
 
 for file in "${machineconfig}" "${kubernetes_cr}" "${talos_cr}"; do
     [[ -f "${file}" ]] || {

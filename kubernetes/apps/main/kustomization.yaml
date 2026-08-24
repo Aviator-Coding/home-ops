@@ -6,7 +6,7 @@ resources:
   - ../actions-runner-system
   - ./ai
   - ../cert-manager
-  - ../coder
+  - ./coder
   - ../database
   - ./default
   - ./downloads
@@ -20,5 +20,5 @@ resources:
   - ./security
   - ../selfhosted
   - ./system
-  - ../system-controller
-  - ../system-upgrade
+  - ./system-controller
+  - ./system-upgrade

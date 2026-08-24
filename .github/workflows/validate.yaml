@@ -28,7 +28,8 @@ on:
       - .renovate/**
       - .renovaterc.json5
       - bootstrap/**
-      - kubernetes/apps/system-upgrade/**
+      - kubernetes/apps/base/system-upgrade/**
+      - kubernetes/apps/main/system-upgrade/**
       - scripts/ci/**
       - talos/**
 
@@ -74,7 +75,8 @@ jobs:
         with:
           patterns: |-
             talos/**
-            kubernetes/apps/system-upgrade/**
+            kubernetes/apps/base/system-upgrade/**
+            kubernetes/apps/main/system-upgrade/**
             .github/workflows/validate.yaml
             .mise.toml
             scripts/ci/version-consistency.sh

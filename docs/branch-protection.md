@@ -67,7 +67,7 @@ This is not hypothetical — it is what actually happens, measured live against 
 the open `renovate/kubectl-1.x` PR which touches `.mise.toml`) — the problem isn't that it's
 broken, it's that its trigger-level path filter means it simply never runs, and posts nothing,
 for PRs outside `talos/**`, `bootstrap/**`, `.renovate/**`, `.renovaterc.json5`,
-`kubernetes/apps/system-upgrade/**`, `scripts/ci/**`, `.mise.toml`, or its own workflow file.
+`kubernetes/apps/base/system-upgrade/**`, `kubernetes/apps/main/system-upgrade/**`, `scripts/ci/**`, `.mise.toml`, or its own workflow file.
 The same is true of `flux-local.yaml` / `image-pull.yaml` outside `kubernetes/**`. Root-level
 docs, `README.md`, `Taskfile.yaml`, `.taskfiles/**`, and most of `docs/**` are covered by none
 of the three.

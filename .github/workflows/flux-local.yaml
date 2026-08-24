@@ -160,11 +160,16 @@ jobs:
             # checkout - so reset both checkouts before each attempt.
             git -C pull checkout -- . && git -C pull clean -fd
             git -C default checkout -- . && git -C default clean -fd
+            # HOME/XDG_CACHE_HOME: the flux-local image runs non-root; without a
+            # writable home, helm 4's plugin/registry cache tries mkdir /.cache and
+            # fails with "permission denied" mid-template (same fix as image-pull.yaml).
             if docker run --rm \
               -v "$GITHUB_WORKSPACE:/github/workspace" \
               --workdir /github/workspace \
               -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
               -e HELM_TIMEOUT=300 \
+              -e HOME=/tmp \
+              -e XDG_CACHE_HOME=/tmp/.cache \
               ghcr.io/allenporter/flux-local:v8.2.0 \
               diff ${{ matrix.resource }} \
               --unified 6 \
