@@ -15,7 +15,7 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
-  prune: false
+  prune: true
   retryInterval: 2m
   sourceRef:
     kind: GitRepository
