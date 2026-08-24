@@ -56,7 +56,9 @@ kubectl -n kube-system get cm cilium-config \
 ```
 
 ```bash
-# 2c. THE CRITICAL CHECK - the host endpoint must still be subtractive.
+# 2c. THE CRITICAL CHECK - two-way gate on every host endpoint:
+#     (i) Deny rows present (policy is not inert) AND
+#     (ii) Allow Ingress ANY still present (not default-deny).
 for p in $(kubectl -n kube-system get pod -l k8s-app=cilium -o name); do
   echo "== $p"
   HOSTEP=$(kubectl -n kube-system exec ${p#pod/} -c cilium-agent -- \
@@ -242,10 +244,10 @@ Only after §4 passes:
 2. Quote the observed evidence in the PR body: the per-node audited-flow
    summary, the explicit "zero management/cluster flows audited" result, the
    port-80 LB finding, and the ReplicationSource completion table.
-3. After merge, re-run the entire §2 smoke test - especially **2c**, which is
-   now the difference between a working node and a black-holed one - then
-   re-run the §4 item 6 probes and confirm they now **fail** from the LAN while
-   `s3.sklab.dev` and Prometheus still work.
+3. After merge, re-run the entire §2 smoke test - especially **2c**'s two-way
+   gate (Deny rows present *and* `Allow Ingress ANY` surviving; either half
+   failing is a stop) - then re-run the §4 item 6 probes and confirm they now
+   **fail** from the LAN while `s3.sklab.dev` and Prometheus still work.
 
 ## 6. Rollback
 

@@ -79,7 +79,7 @@ spec:
     Deny non-cluster (world) access to host-network Ceph daemon ports.
     Subtractive only - enableDefaultDeny is false in both directions so the
     host endpoint never enters default-deny and management access cannot break.
-  # Selects the host endpoint on every node.
+  # Selects the host endpoint on every control-plane node (see coverage assumption).
   #
   # This MUST use a label that survives into the *host endpoint's* label set,
   # which is NOT the same as the node's label set. Cilium's default label filter
