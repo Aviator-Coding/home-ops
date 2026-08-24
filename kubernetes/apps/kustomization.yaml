@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./actions-runner-system
+  - ./ai
+  - ./cert-manager
+  - ./coder
+  - ./database
+  - ./default
+  - ./downloads
+  - ./flux-system
+  - ./home-automation
+  - ./kube-system
+  - ./media
+  - ./monitoring
+  - ./network
+  - ./rook-ceph
+  - ./security
+  - ./selfhosted
+  - ./system
+  - ./system-controller
+  - ./system-upgrade
