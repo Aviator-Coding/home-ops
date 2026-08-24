@@ -3,22 +3,14 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app sabnzbd
+  name: &app readarr
   namespace: &namespace downloads
 spec:
-  targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  interval: 30m
-  timeout: 5m
-  path: "./kubernetes/apps/downloads/sabnzbd/app"
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-    namespace: flux-system
-  wait: false
+  components:
+    - ../../../../../components/volsync
   dependsOn:
     - name: downloads-pvc
       namespace: downloads
@@ -26,15 +18,25 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
-  components:
-    - ../../../../components/volsync
+    - name: postgres-cluster-17
+      namespace: database
+  interval: 30m
+  path: ./kubernetes/apps/base/downloads/readarr/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: sabnzbd-config
-      VOLSYNC_SCHEDULE_CEPH: "30 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "30 3 * * *"
+      VOLSYNC_CLAIM: readarr-config
+      VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "15 3 * * *"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false

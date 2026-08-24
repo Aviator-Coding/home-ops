@@ -3,7 +3,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app prowlarr
+  name: &app sonarr
   namespace: &namespace downloads
 spec:
   targetNamespace: *namespace
@@ -12,7 +12,7 @@ spec:
       app.kubernetes.io/name: *app
   interval: 30m
   timeout: 5m
-  path: "./kubernetes/apps/downloads/prowlarr/app"
+  path: "./kubernetes/apps/base/downloads/sonarr/app"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -20,19 +20,21 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
+    - name: downloads-pvc
+      namespace: downloads
     - name: onepassword-store
       namespace: security
     - name: volsync
       namespace: system
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: prowlarr-config
-      VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "25 3 * * *"
+      VOLSYNC_CLAIM: sonarr-config
+      VOLSYNC_SCHEDULE_CEPH: "0 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "0 3 * * *"
