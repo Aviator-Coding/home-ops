@@ -61,7 +61,29 @@ jobs:
           persist-credentials: false
           token: ${{ steps.app-token.outputs.token }}
 
+      # flux-local hardcodes a 60s timeout per `helm repo update` call
+      # (flux_local/command.py _TIMEOUT, not configurable via HELM_TIMEOUT above)
+      # and each HelmReleaseTest updates only the one HelmRepository its chart
+      # uses - a single slow upstream chart index (e.g. repos.emqx.io) can time
+      # out the whole job. Retry once so a transient upstream blip doesn't fail
+      # the check; a real problem (e.g. a bad repo URL) still fails both tries.
       - name: Run flux-local test
+        id: flux-local-test
+        continue-on-error: true
+        uses: docker://ghcr.io/allenporter/flux-local:v8.2.0
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          HELM_TIMEOUT: "300"
+        with:
+          args: >-
+            test
+            --all-namespaces
+            --enable-helm
+            --path /github/workspace/kubernetes/clusters/main
+            --verbose
+
+      - name: Retry flux-local test (helm repo update flake)
+        if: steps.flux-local-test.outcome == 'failure'
         uses: docker://ghcr.io/allenporter/flux-local:v8.2.0
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
