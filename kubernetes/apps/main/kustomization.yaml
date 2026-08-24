@@ -8,7 +8,7 @@ resources:
   - ../cert-manager
   - ../coder
   - ../database
-  - ../default
+  - ./default
   - ./downloads
   - ../flux-system
   - ../home-automation

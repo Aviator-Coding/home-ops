@@ -114,21 +114,58 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Run flux-local diff
-        uses: docker://ghcr.io/allenporter/flux-local:v8.2.0
+        timeout-minutes: 10
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          HELM_TIMEOUT: "300"
-        with:
-          args: >-
-            diff ${{ matrix.resource }}
-            --unified 6
-            --path /github/workspace/pull/kubernetes/clusters/main
-            --path-orig /github/workspace/default/kubernetes/clusters/main
-            --strip-attrs "helm.sh/chart,checksum/config,app.kubernetes.io/version,chart"
-            --limit-bytes 10000
-            --all-namespaces
-            --sources "flux-system"
-            --output-file diff.patch
+        run: |
+          for attempt in 1 2 3 4 5; do
+            echo "::group::Attempt $attempt/5: Running flux-local diff..."
+            # flux-local builds every Kustomization concurrently (fixed internal
+            # concurrency, not configurable). This repo's volsync "second volume"
+            # pattern (e.g. selfhosted/syncthing's syncthing-data Kustomization) points
+            # a Flux Kustomization's own --path directly at the shared
+            # kubernetes/components/volsync/backup directory, which `flux build ks`
+            # mutates in place while building. Other apps (e.g. database/pgadmin) read
+            # that same directory concurrently via `spec.components`, so a badly-timed
+            # interleaving occasionally reads a transiently-rewritten/empty
+            # kustomization.yaml and fails kustomize's component accumulation with
+            # errors like "kustomization.yaml is empty" or "already registered id".
+            # Retrying absorbs this pre-existing upstream race; it is unrelated to the
+            # content of any given PR. `flux build ks` is also supposed to revert that
+            # mutation once it is done with it, but a build killed mid-race (by the
+            # accumulation error above) can leave it modified on disk, which would
+            # otherwise make every retry fail identically against the same corrupted
+            # checkout - so reset both checkouts before each attempt.
+            git -C pull checkout -- . && git -C pull clean -fd
+            git -C default checkout -- . && git -C default clean -fd
+            if docker run --rm \
+              -v "$GITHUB_WORKSPACE:/github/workspace" \
+              --workdir /github/workspace \
+              -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
+              -e HELM_TIMEOUT=300 \
+              ghcr.io/allenporter/flux-local:v8.2.0 \
+              diff ${{ matrix.resource }} \
+              --unified 6 \
+              --path /github/workspace/pull/kubernetes/clusters/main \
+              --path-orig /github/workspace/default/kubernetes/clusters/main \
+              --strip-attrs "helm.sh/chart,checksum/config,app.kubernetes.io/version,chart" \
+              --limit-bytes 10000 \
+              --all-namespaces \
+              --sources "flux-system" \
+              --output-file diff.patch; then
+              echo "::endgroup::"
+              echo "✓ flux-local diff succeeded"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ $attempt -lt 5 ]; then
+              wait_time=$(( 10 * attempt < 30 ? 10 * attempt : 30 ))
+              echo "✗ Attempt $attempt failed. Waiting ${wait_time}s before retry..."
+              sleep $wait_time
+            fi
+          done
+          echo "::error::flux-local diff failed after 5 attempts"
+          exit 1
 
       - name: Truncate Diff
         id: diff
