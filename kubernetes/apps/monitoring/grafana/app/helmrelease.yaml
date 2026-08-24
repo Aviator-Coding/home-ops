@@ -383,7 +383,7 @@ spec:
           datasource: Prometheus
 
       # NOTE: agentgateway + llm-cost dashboards are sidecar-discovered
-      # ConfigMaps (kubernetes/apps/ai/agentgateway-dashboards/), vendored
+      # ConfigMaps (kubernetes/apps/base/ai/agentgateway-dashboards/), vendored
       # from the official chart - the old gnetId 24590/24965 entries are gone
       # (litellm was removed; the kgateway-org dashboard is superseded).
 

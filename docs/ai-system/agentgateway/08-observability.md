@@ -4,8 +4,8 @@ Do not import kgateway-org Grafana dashboards 24590/24965 or scrape `kgateway_co
 
 ## Metrics
 
-- Chart ServiceMonitors: enabled in [`helmrelease.yaml`](../../../kubernetes/apps/ai/agentgateway/app/helmrelease.yaml) (`monitoring.serviceMonitor.enabled: true`).
-- Extra [`podmonitor.yaml`](../../../kubernetes/apps/ai/agentgateway/app/podmonitor.yaml) scrapes data-plane pods on port **15020** (`metrics`). Needed because the chart ServiceMonitor selects a `metrics` port on per-Gateway Services, which this deployer does not create (Services only expose listener ports).
+- Chart ServiceMonitors: enabled in [`helmrelease.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/helmrelease.yaml) (`monitoring.serviceMonitor.enabled: true`).
+- Extra [`podmonitor.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/podmonitor.yaml) scrapes data-plane pods on port **15020** (`metrics`). Needed because the chart ServiceMonitor selects a `metrics` port on per-Gateway Services, which this deployer does not create (Services only expose listener ports).
 - Consequence: every agentgateway pod is scraped by **two** jobs (e.g. `internal-noauth` +
   `ai/agentgateway-proxy`), so any single-metric series like `agentgateway_build_info` has a
   duplicate per pod. A PromQL `group_left` join against it directly errors with "many-to-many
@@ -26,7 +26,7 @@ Token/cost series used by the LLM spend rules: `agentgateway_gen_ai_client_token
 
 Chart dashboard JSON is **disabled** (`monitoring.grafanaDashboard.enabled: false`). Vendored copies:
 
-- [`kubernetes/apps/ai/agentgateway-dashboards/`](../../../kubernetes/apps/ai/agentgateway-dashboards/)
+- [`kubernetes/apps/base/ai/agentgateway-dashboards/`](../../../kubernetes/apps/base/ai/agentgateway-dashboards/)
 - `agentgateway.json` (from the official chart; re-vendor on chart bumps)
 - `llm-cost.json` - linked from/to `agentgateway.json` via dashboard `links` rather than merged in,
   so the vendored chart JSON survives re-vendoring without losing the custom cost panels
@@ -40,7 +40,7 @@ Chart dashboard JSON is **disabled** (`monitoring.grafanaDashboard.enabled: fals
 
 ## Tracing
 
-[`policies/tracing-policy.yaml`](../../../kubernetes/apps/ai/agentgateway/app/policies/tracing-policy.yaml) - `AgentgatewayPolicy/tracing-policy` on all three Gateways:
+[`policies/tracing-policy.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/policies/tracing-policy.yaml) - `AgentgatewayPolicy/tracing-policy` on all three Gateways:
 
 - OTLP gRPC to `tempo.monitoring:4317`
 - 100% sampling (`randomSampling: "1.0"`)
@@ -66,7 +66,7 @@ caveat still applies.
 
 MCP: this cluster's agentgateway install proxies no MCP traffic (`agentgateway_mcp_requests_total`
 has zero series on live Prometheus, checked 2026-08-21) - MCP is handled entirely by the separate
-ToolHive `VirtualMCPServer` (`kubernetes/apps/ai/toolhive/`), which Hermes talks to directly. The
+ToolHive `VirtualMCPServer` (`kubernetes/apps/base/ai/toolhive/`), which Hermes talks to directly. The
 Grafana `agentgateway` dashboard's MCP row was dropped for this reason; re-add it if agentgateway
 ever gains real MCP routes.
 

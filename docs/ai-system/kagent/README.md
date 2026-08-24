@@ -8,9 +8,9 @@ This cluster's live AI stack:
 
 | Job | What runs | GitOps |
 | --- | --- | --- |
-| Agent runtime | Hermes | `kubernetes/apps/ai/hermes` |
-| LLM routing | agentgateway | `kubernetes/apps/ai/agentgateway` |
-| MCP servers | ToolHive | `kubernetes/apps/ai/toolhive` |
+| Agent runtime | Hermes | `kubernetes/apps/base/ai/hermes` |
+| LLM routing | agentgateway | `kubernetes/apps/base/ai/agentgateway` |
+| MCP servers | ToolHive | `kubernetes/apps/base/ai/toolhive` |
 
 MCP uses ToolHive's `toolhive.stacklok.dev/v1alpha1` `MCPServer`, **not**
 kagent's `kagent.dev/v1alpha1` `MCPServer`. Same kind name, different API

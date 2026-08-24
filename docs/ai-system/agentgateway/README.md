@@ -16,17 +16,17 @@ A March 2026 lab notebook still exists as a [historical testing report](../agent
 
 | Item | Live value | Source of truth |
 |------|------------|-----------------|
-| Namespace | `ai` | `kubernetes/apps/ai/agentgateway/ks.yaml` |
+| Namespace | `ai` | `kubernetes/apps/main/ai/agentgateway.yaml` |
 | Chart | `oci://cr.agentgateway.dev/charts/agentgateway` `v1.4.1` | `app/ocirepository.yaml` |
 | CRDs | `oci://cr.agentgateway.dev/charts/agentgateway-crds` `v1.4.1` | `crds/ocirepository.yaml` |
 | API | `agentgateway.dev/v1alpha1` | kinds below |
 | Kinds | `AgentgatewayBackend`, `AgentgatewayPolicy`, `AgentgatewayParameters` | `app/backends/`, `app/policies/`, `app/agentgatewayparameters.yaml` |
 | Gateway class | `agentgateway` | `app/gateways/` |
 | LLM entry | unified OpenAI-style `/v1` | `app/httproute-unified.yaml` |
-| MCP | ToolHive, not AgentGateway MCP Backends | `kubernetes/apps/ai/toolhive/` |
-| LiteLLM / kagent / kmcp / kgateway | **not deployed** | `kubernetes/apps/ai/kustomization.yaml`. Tombstones: [kagent](../kagent/README.md), [kmcp](../kmcp/README.md). Live MCP GVK is `toolhive.stacklok.dev/v1alpha1` `MCPServer`. |
+| MCP | ToolHive, not AgentGateway MCP Backends | `kubernetes/apps/base/ai/toolhive/` |
+| LiteLLM / kagent / kmcp / kgateway | **not deployed** | `kubernetes/apps/main/ai/kustomization.yaml`. Tombstones: [kagent](../kagent/README.md), [kmcp](../kmcp/README.md). Live MCP GVK is `toolhive.stacklok.dev/v1alpha1` `MCPServer`. |
 
-Manifests live under `kubernetes/apps/ai/agentgateway/`. Prefer those YAML files (especially the header comments on `httproute-unified.yaml` and `gateways/*.yaml`) over copying config into prose.
+Manifests live under `kubernetes/apps/base/ai/agentgateway/`. Prefer those YAML files (especially the header comments on `httproute-unified.yaml` and `gateways/*.yaml`) over copying config into prose.
 
 ### Data-plane Gateways
 
@@ -36,7 +36,7 @@ Manifests live under `kubernetes/apps/ai/agentgateway/`. Prefer those YAML files
 | `internal-noauth` | `10.50.0.28` | keyless (in-cluster) |
 | `public` | `10.50.0.29` | API-key Strict on http; Authentik on https |
 
-Details: [`app/gateways/README.md`](../../../kubernetes/apps/ai/agentgateway/app/gateways/README.md).
+Details: [`app/gateways/README.md`](../../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md).
 
 ### How clients reach it
 

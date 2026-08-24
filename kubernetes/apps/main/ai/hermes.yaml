@@ -3,30 +3,30 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app agentmemory
+  name: &app hermes
   namespace: &namespace ai
 spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: *app
+      namespace: *namespace
   dependsOn:
     - name: onepassword-store
       namespace: security
-    # Embeddings + consolidation LLM are served by the local models on the B70
-    # via the agentgateway's no-auth internal listener (root /v1/* routes).
-    - name: vllm
-      namespace: *namespace
+    # Hermes routes all LLM traffic through the internal agentgateway.
     - name: agentgateway
       namespace: *namespace
-  healthChecks:
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: *app
+    # Long-term memory backend (plugin enabled in config.yaml).
+    - name: agentmemory
       namespace: *namespace
   interval: 1h
-  path: ./kubernetes/apps/ai/agentmemory/app
+  path: ./kubernetes/apps/base/ai/hermes/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -34,10 +34,11 @@ spec:
     substitute:
       APP: *app
       CONFIG_TIMEZONE: America/New_York
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_SCHEDULE_CEPH: "20 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "20 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "40 2 * * *"
+      VOLSYNC_CAPACITY: 25Gi
+      VOLSYNC_CACHE_CAPACITY: 5Gi
+      VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "35 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "10 2 * * *"
   prune: true
   retryInterval: 2m
   sourceRef:
@@ -46,3 +47,4 @@ spec:
     namespace: flux-system
   targetNamespace: *namespace
   timeout: 5m
+  wait: false

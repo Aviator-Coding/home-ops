@@ -9,7 +9,7 @@ This page is the **actual** history of this GitOps install. It is not a kgateway
 - Namespace: `ai`
 - API: `agentgateway.dev/v1alpha1` (`AgentgatewayBackend`, `AgentgatewayPolicy`, `AgentgatewayParameters`)
 
-Bump the two OCIRepository tags together. Re-vendor the Grafana dashboard JSON in `kubernetes/apps/ai/agentgateway-dashboards/` when the chart dashboard changes (comment on that kustomization).
+Bump the two OCIRepository tags together. Re-vendor the Grafana dashboard JSON in `kubernetes/apps/base/ai/agentgateway-dashboards/` when the chart dashboard changes (comment on that kustomization).
 
 ## 2026-06-06: split from kgateway (`e4321cb2`, #938)
 

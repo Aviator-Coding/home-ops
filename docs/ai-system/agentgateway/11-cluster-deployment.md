@@ -5,8 +5,8 @@ This file used to paste a fictional `kubernetes/apps/ai-system/agentgateway/app/
 ## Layout
 
 ```
-kubernetes/apps/ai/agentgateway/
-  ks.yaml
+kubernetes/apps/main/ai/agentgateway.yaml    # Flux Kustomizations: agentgateway + agentgateway-crds
+kubernetes/apps/base/ai/agentgateway/
   crds/   ocirepository.yaml  helmrelease.yaml  kustomization.yaml
   app/
     helmrelease.yaml
@@ -27,18 +27,18 @@ kubernetes/apps/ai/agentgateway/
     podmonitor.yaml
     rules/cost.yaml
     service-admin-ui.yaml
-kubernetes/apps/ai/agentgateway-dashboards/
+kubernetes/apps/base/ai/agentgateway-dashboards/
   app/agentgateway.json
   app/llm-cost.json
 ```
 
-Sibling apps in `ai` (from [`kustomization.yaml`](../../../kubernetes/apps/ai/kustomization.yaml)): agentgateway-dashboards, agentmemory, comfyui, hermes, searxng, toolhive, vllm. Not listed: kagent, kmcp, kgateway, LiteLLM. Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant ([note](../retired-2026-08-22.md)).
+Sibling apps in `ai` (from [`kustomization.yaml`](../../../kubernetes/apps/main/ai/kustomization.yaml)): agentgateway-dashboards, agentmemory, comfyui, hermes, searxng, toolhive, vllm. Not listed: kagent, kmcp, kgateway, LiteLLM. Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant ([note](../retired-2026-08-22.md)).
 
 ## Flux identity
 
 - Kustomization names: `agentgateway`, `agentgateway-crds`
 - `targetNamespace: ai`
-- `path: ./kubernetes/apps/ai/agentgateway/{app,crds}`
+- `path: ./kubernetes/apps/base/ai/agentgateway/{app,crds}`
 - `dependsOn`: `agentgateway-crds`, `onepassword-store` (security), `certificates-import` (network)
 - `postBuild.substituteFrom: cluster-secrets`
 

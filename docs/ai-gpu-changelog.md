@@ -11,8 +11,9 @@ recently, and why?" without spelunking git.
 - **Ceph config changes** → [`ceph-cluster-changelog.md`](./ceph-cluster-changelog.md)
 - **This file** → chronological log of applied AI / GPU changes
 
-> ⚠️ All AI config is GitOps under `kubernetes/apps/ai/`. Changes go through the relevant
-> HelmRelease (e.g. `kubernetes/apps/ai/vllm/app/helmrelease.yaml`); Flux reconciles.
+> ⚠️ All AI config is GitOps under `kubernetes/apps/main/ai/` (Flux Kustomizations) and
+> `kubernetes/apps/base/ai/` (manifests). Changes go through the relevant HelmRelease
+> (e.g. `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`); Flux reconciles.
 > Record every deliberate change here when you merge it.
 
 ---
@@ -91,7 +92,7 @@ model, prompted by the general Qwen3.8 release wave (`Qwen3.8-27B` dense, 2026-0
 
 **Change:** Docs only. Rewrote the current baseline to match live GitOps and **lifted
 the 2026-06-14 "do not enable flash-attn / q8_0 KV" prohibition.** HelmRelease args are
-unchanged (`kubernetes/apps/ai/vllm/app/helmrelease.yaml`: `--flash-attn on`,
+unchanged (`kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`: `--flash-attn on`,
 `--cache-type-k/-v q8_0`).
 
 **Why the 2026-06-14 prohibition was wrong for this stack:**
@@ -143,7 +144,7 @@ non-zero `predicted_per_second` (see the tuning runbook reproduce block).
 
 ## [2026-07-08] vllm chat context 128k → 262144  (`07fe6828`)
 
-**Change:** `--ctx-size 131072` → `262144` in `kubernetes/apps/ai/vllm/app/helmrelease.yaml`.
+**Change:** `--ctx-size 131072` → `262144` in `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`.
 Native window, no yarn. Fits only because `vllm-embed` and `comfyui` are both `replicas: 0`.
 
 **Why:** 115 "failed to find free space in the KV cache" warnings at 131072 - four
@@ -184,7 +185,7 @@ The B70 has no hardware compute partition. Run ComfyUI only after scaling `vllm`
 
 ## [2026-06-17] enable flash-attn, q8_0 KV, cache-reuse, no-mmap  (`5d99d64f`)
 
-**Change:** in `kubernetes/apps/ai/vllm/app/helmrelease.yaml`:
+**Change:** in `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`:
 - `--flash-attn` (follow-up `2eabcc67` passes explicit `on`; the flag requires on|off|auto)
 - `--cache-type-k/-v q8_0`
 - `--cache-reuse 256`
@@ -202,7 +203,7 @@ Subsequent production measurements are in the 2026-06-26 and 2026-08-21 entries.
 
 ## [2026-06-14] vllm chat context 32k → 128k  (PR #982)
 
-**Change:** `--ctx-size 32768` → `131072` in `kubernetes/apps/ai/vllm/app/helmrelease.yaml`
+**Change:** `--ctx-size 32768` → `131072` in `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`
 (the llama.cpp chat server). Raises the per-request context window from 32k to **128k**.
 
 **Why it fits the 32 GiB card:**

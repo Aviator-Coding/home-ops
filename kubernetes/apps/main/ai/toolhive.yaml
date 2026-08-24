@@ -13,7 +13,7 @@ spec:
   interval: 1h
   retryInterval: 1m
   timeout: 5m
-  path: "./kubernetes/apps/ai/toolhive/crds"
+  path: "./kubernetes/apps/base/ai/toolhive/crds"
   prune: true
   wait: true
   sourceRef:
@@ -35,7 +35,7 @@ spec:
   interval: 1h
   retryInterval: 1m
   timeout: 5m
-  path: "./kubernetes/apps/ai/toolhive/app"
+  path: "./kubernetes/apps/base/ai/toolhive/app"
   prune: true
   wait: true
   healthChecks:
@@ -65,7 +65,7 @@ spec:
   interval: 1h
   retryInterval: 1m
   timeout: 5m
-  path: "./kubernetes/apps/ai/toolhive/config"
+  path: "./kubernetes/apps/base/ai/toolhive/config"
   prune: true
   # mcp-gateway-internal (Deployment) and mcp-tools-embedding (StatefulSet)
   # are the workloads the VirtualMCPServer/EmbeddingServer CRs in this path
@@ -105,7 +105,7 @@ spec:
   interval: 1h
   retryInterval: 1m
   timeout: 5m
-  path: "./kubernetes/apps/ai/toolhive/mcp-servers"
+  path: "./kubernetes/apps/base/ai/toolhive/mcp-servers"
   prune: true
   # One Deployment (toolhive's HTTP proxyrunner) + one StatefulSet (the
   # actual stdio MCP server process) per active MCPServer CR - both must be

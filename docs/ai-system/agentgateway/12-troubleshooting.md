@@ -28,7 +28,7 @@ Dataplane Services follow Gateway names (`internal`, `internal-noauth`, `public`
 
 ## Routing misses
 
-1. Read [`httproute-unified.yaml`](../../../kubernetes/apps/ai/agentgateway/app/httproute-unified.yaml) header. Confirm the `model` id matches a regex (or falls through to OpenAI).
+1. Read [`httproute-unified.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/httproute-unified.yaml) header. Confirm the `model` id matches a regex (or falls through to OpenAI).
 2. Confirm `AgentgatewayPolicy/model-routing` is Accepted. `/v1/models` and `/v1/messages` skip the body transform on purpose.
 3. Vendor slugs `moonshotai/...` must hit Groq, so the Groq rule stays **above** the OpenRouter catch-all.
 4. Dormant backends (`zai`, `togetherai`, `opencodeai`) will never receive traffic until a unified-route rule exists.

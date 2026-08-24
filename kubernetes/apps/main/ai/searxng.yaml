@@ -10,7 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../components/dragonfly
+    - ../../../../components/dragonfly
   dependsOn:
     - name: dragonfly-operator
       namespace: database
@@ -22,7 +22,7 @@ spec:
       name: *app
       namespace: *namespace
   interval: 1h
-  path: ./kubernetes/apps/ai/searxng
+  path: ./kubernetes/apps/base/ai/searxng
   postBuild:
     substituteFrom:
       - name: cluster-secrets
