@@ -80,7 +80,7 @@ spec:
   trigger:
     manual: restore-drill-ceph-<unique>   # any change to this value fires a sync
   restic:
-    repository: <app>-volsync-ceph-secret   # or -minio-secret; existing Secret, read-only
+    repository: <app>-volsync-ceph-secret   # or <app>-volsync-minio-secret; existing Secret, read-only
     copyMethod: Snapshot
     volumeSnapshotClassName: csi-ceph-blockpool
     cacheStorageClassName: ceph-block

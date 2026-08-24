@@ -223,12 +223,19 @@ trigger:
 - Used for disaster recovery
 
 ### Manual Restore Process
-```bash
-# Trigger a restore by updating the trigger value
-kubectl patch replicationdestination ${APP}-dst \
-  --type merge \
-  --patch '{"spec":{"trigger":{"manual":"restore-$(date +%s)"}}}'
-```
+
+**Never patch `${APP}-dst` directly.** It carries `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`,
+so Flux creates it once and never reconciles it again - a hand-set trigger persists forever and
+can silently drift `spec.restic.repository` away from what Git declares (see the `<app>-dst` SSA
+drift trap in `AGENTS.md`).
+
+- **Real disaster recovery (restore into the app's live claim)**: `just kube restore <namespace>
+  <app>` (recipe in `kubernetes/mod.just`). It derives a new, uniquely-named `${APP}-manual`
+  object from `${APP}-dst` via `kubectl apply --server-side` - never a patch of `${APP}-dst`
+  itself - scales the app down first, waits for the mover `Job`, then scales back up.
+- **Verifying a restore without touching live data**: follow
+  `docs/backups/restore-drill-2026-08-23.md` - it restores into a scratch PVC via a
+  drill-specific `ReplicationDestination`, never `${APP}-dst`.
 
 ## Daily Timeline Example
 
