@@ -9,7 +9,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 ```
 .
 ├── kubernetes/
-│   ├── apps/           # 19 namespaces, each with app subdirs
+│   ├── apps/           # 19 namespaces. Mixed during the split: unmigrated stay at apps/<ns>; migrated live at apps/base/<ns> + overlay apps/main/<ns> (see NOTES)
 │   ├── clusters/main/  # live Flux entry point: meta.yaml + apps.yaml (see NOTES)
 │   ├── components/     # alerts, common, dragonfly, volsync
 │   └── flux/           # inert pre-restructure entry point, kept until flux/ dissolves (see NOTES)
@@ -26,10 +26,10 @@ Gatus is an app under `kubernetes/apps/monitoring/gatus`, not a component. Endpo
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Add new app | `kubernetes/apps/{namespace}/{app}/` | Pattern: `ks.yaml` + `app/` dir |
-| Add app to namespace | `kubernetes/apps/{namespace}/kustomization.yaml` | Add `- ./{app}/ks.yaml` to resources |
-| Enable backups | `kubernetes/apps/{ns}/{app}/ks.yaml` | Flux `spec.components` + `dependsOn: volsync` (namespace `system`) + `VOLSYNC_*` substitute keys. Example: `media/immich/ks.yaml` |
-| App secrets | `kubernetes/apps/{ns}/{app}/app/externalsecret.yaml` | OnePassword via ClusterSecretStore `onepassword` |
+| Add new app | unmigrated: `kubernetes/apps/{namespace}/{app}/`; migrated: `kubernetes/apps/base/{namespace}/{app}/` + overlay `kubernetes/apps/main/{namespace}/{app}.yaml` | Unmigrated pattern: `ks.yaml` + `app/` dir. Migrated so far: `network`. See NOTES. |
+| Add app to namespace | unmigrated: `kubernetes/apps/{namespace}/kustomization.yaml`; migrated: `kubernetes/apps/main/{namespace}/kustomization.yaml` | Unmigrated: add `- ./{app}/ks.yaml`. Migrated: add `- ./{app}.yaml` |
+| Enable backups | unmigrated: `kubernetes/apps/{ns}/{app}/ks.yaml`; migrated: overlay `kubernetes/apps/main/{ns}/{app}.yaml` | Flux `spec.components` + `dependsOn: volsync` (namespace `system`) + `VOLSYNC_*` substitute keys. Example: `media/immich/ks.yaml` |
+| App secrets | unmigrated: `kubernetes/apps/{ns}/{app}/app/externalsecret.yaml`; migrated: `kubernetes/apps/base/{ns}/{app}/app/externalsecret.yaml` | OnePassword via ClusterSecretStore `onepassword` |
 | Bootstrap secrets | `bootstrap/kustomize/apps/security/` | `vals` injects `ref+op://Home-Lab/1password/*` |
 | Flux entry point | `kubernetes/clusters/main/{meta,apps}.yaml` | `cluster-meta` -> `cluster-apps` dependency chain; `kubernetes/flux/cluster/ks.yaml` is the inert pre-restructure copy (see NOTES) |
 | Helm/OCI repos | `kubernetes/flux/meta/repos/` | 3 repo yaml files plus `kustomization.yaml` |
@@ -98,7 +98,7 @@ Debugging: `flux get sources git -A`, `flux get ks -A`, `flux get hr -A`, `kubec
 
 ## NOTES
 
-- **`kubernetes/clusters/main/` is the live Flux entry point (flipped 2026-08-23, PR 2 of 2 of the `flux/`->`clusters/` restructure).** The flux-instance HelmRelease's `values.instance.sync.path` (`kubernetes/apps/flux-system/flux-instance/app/helmrelease.yaml` - there is no separate `FluxInstance` CR manifest in this repo) now points at `kubernetes/clusters/main`, whose `meta.yaml`/`apps.yaml` duplicate the `cluster-meta`/`cluster-apps` Kustomizations field-for-field against the old `kubernetes/flux/cluster/ks.yaml` except `cluster-apps.spec.path`, which points at the `kubernetes/apps/main` indirection layer instead of `kubernetes/apps` directly. `kubernetes/flux/cluster/ks.yaml` and `kubernetes/flux/meta` stay checked in but are now inert dead code - dissolving `kubernetes/flux/` entirely is a later stage, once every namespace has migrated off the flat `kubernetes/apps/<ns>` layout. Practical effect: a brand-new top-level namespace directory under `kubernetes/apps` must be added to `kubernetes/apps/main/kustomization.yaml`'s `resources` (the live list) and, to keep the inert `kubernetes/flux/cluster` tree buildable, to `kubernetes/apps/kustomization.yaml` too.
+- **`kubernetes/clusters/main/` is the live Flux entry point (flipped 2026-08-23, PR 2 of 2 of the `flux/`->`clusters/` restructure).** The flux-instance HelmRelease's `values.instance.sync.path` (`kubernetes/apps/flux-system/flux-instance/app/helmrelease.yaml` - there is no separate `FluxInstance` CR manifest in this repo) now points at `kubernetes/clusters/main`, whose `meta.yaml`/`apps.yaml` duplicate the `cluster-meta`/`cluster-apps` Kustomizations field-for-field against the old `kubernetes/flux/cluster/ks.yaml` except `cluster-apps.spec.path`, which points at the `kubernetes/apps/main` indirection layer instead of `kubernetes/apps` directly. `kubernetes/flux/cluster/ks.yaml` and `kubernetes/flux/meta` stay checked in but are now inert dead code - dissolving `kubernetes/flux/` entirely is a later stage, once every namespace has migrated off the flat `kubernetes/apps/<ns>` layout. Mixed state during the remaining namespace moves: unmigrated namespaces stay at `kubernetes/apps/<ns>` and are listed from `apps/main` as `- ../<ns>` (and still on the inert `kubernetes/apps/kustomization.yaml` as `- ./<ns>`). Migrated namespaces (`network` so far) live at `kubernetes/apps/base/<ns>/` (resources) plus overlay `kubernetes/apps/main/<ns>/` (Flux `Kustomization` CRs, one yaml per former `ks.yaml`) and are listed from `apps/main` as `- ./<ns>`; they drop off the inert `apps/kustomization.yaml` list. A brand-new top-level namespace still goes on both `kubernetes/apps/main/kustomization.yaml` (live) and `kubernetes/apps/kustomization.yaml` (inert tree) until it is migrated.
 
 - **`task flux:test:ns NAMESPACE=X` validates nothing in `X`.** For every value of `NAMESPACE` - `ai`, `media`, `flux-system` - it collects the same 8 objects from `kubernetes/flux/cluster` itself and never traverses into the app Kustomizations, so it passes just as happily on a namespace whose apps you have broken or deleted. Verified 2026-08-22 against the installed `flux-local` (v8.x, now upstream-deprecated in favour of `flate`/`konflate`): only `--all-namespaces` walks the tree. Use `task flux:test:all` for the same `--all-namespaces` coverage, but note it still points `.taskfiles/flux/Taskfile.yaml` at the now-inert `kubernetes/flux/cluster` tree, not the live `kubernetes/clusters/main` that `.github/workflows/flux-local.yaml` validates - the two can diverge, so treat CI as authoritative. For a single namespace, `kustomize build kubernetes/apps/<ns> --load-restrictor LoadRestrictionsNone` is the quick check. Note this is a *separate* gap from the `postBuild.substitute` collision above, which `--all-namespaces` does not catch either.
 

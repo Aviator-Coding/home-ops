@@ -15,7 +15,7 @@ resources:
   - ../kube-system
   - ../media
   - ../monitoring
-  - ../network
+  - ./network
   - ../rook-ceph
   - ../security
   - ../selfhosted
