@@ -67,17 +67,41 @@ for p in $(kubectl -n kube-system get pod -l k8s-app=cilium -o name); do
 done
 ```
 
-The output **must** still contain a catch-all row:
+This output is a **two-way** gate. Both halves must hold on all three nodes.
+
+**(i) `Deny` rows MUST be present** - one per Ceph port, e.g.
 
 ```
-Allow    Ingress     ANY    ANY    ...
+Deny     Ingress     reserved:world        3300/TCP   ...
+Deny     Ingress     reserved:world-ipv4   3300/TCP   ...
+Deny     Ingress     reserved:world-ipv6   3300/TCP   ...
 ```
 
-alongside the new `Deny` rows for the Ceph ports. That catch-all is proof the
-host endpoint did **not** enter default-deny. If `Allow Ingress ANY` has
-disappeared, `enableDefaultDeny` did not take effect - **revert immediately**;
-the only thing standing between that state and a locked-out node is audit mode,
-which does not survive being turned off.
+(`fromEntities: world` expands to those three reserved identities.) If there
+are **no** `Deny` rows, the policy is **inert**: its `nodeSelector` matched
+nothing, the daemons are still LAN-exposed, and any audit window would record
+nothing and prove nothing. This fails silently - the CCNP still reports
+`VALID: True`. Confirm with:
+
+```bash
+# inert policy looks exactly like a healthy one from the API's point of view
+kubectl get ccnp ceph-lan-isolation -o jsonpath='{.status}'   # says Valid: True either way
+# the real signal is on the endpoint:
+cilium-dbg endpoint list -o json | jq '.[]|select(.status.identity.id==1)|.status.policy.realized."policy-enabled"'
+# "none" => nothing selected the host endpoint
+```
+
+This is not hypothetical: the first stage-1 policy shipped with
+`nodeSelector: kubernetes.io/os=linux`, which Cilium's default label filter
+strips from the host endpoint, so it was inert on all three nodes until the
+selector was changed to `node-role.kubernetes.io/control-plane`. See the
+selector comment in `hostpolicy-ceph.yaml` for the measured label sets.
+
+**(ii) The catch-all `Allow Ingress ANY` row MUST still be present** alongside
+those `Deny` rows. It is proof the host endpoint did **not** enter default-deny.
+If `Allow Ingress ANY` has disappeared, `enableDefaultDeny` did not take effect -
+**revert immediately**; the only thing then standing between that state and a
+locked-out node is audit mode, which does not survive being turned off.
 
 ```bash
 # 2d. Management plane still answers, from a host that is NOT a cluster node.
