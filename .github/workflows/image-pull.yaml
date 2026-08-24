@@ -44,7 +44,7 @@ jobs:
     # with "failed to connect to the docker API at unix:///var/run/docker.sock". See
     # kubernetes/apps/actions-runner-system/TROUBLESHOOTING.md.
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       matrix:
         branch:
@@ -70,12 +70,12 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Gather Images with Retry
-        timeout-minutes: 10
+        timeout-minutes: 15
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          for attempt in 1 2 3 4; do
-            echo "::group::Attempt $attempt/4: Gathering images..."
+          for attempt in 1 2 3 4 5 6; do
+            echo "::group::Attempt $attempt/6: Gathering images..."
             # --network host: the docker bridge/NAT path on this runner intermittently
             # resets outbound TLS connections mid-fetch (seen against unrelated hosts -
             # GitHub Pages, ghcr.io blob storage, GitHub release assets - ruling out the
@@ -100,13 +100,16 @@ jobs:
               exit 0
             fi
             echo "::endgroup::"
-            if [ $attempt -lt 4 ]; then
-              wait_time=$((20 * attempt))
+            if [ $attempt -lt 6 ]; then
+              # Capped at 60s: uncapped linear growth (20 * attempt) would burn most of
+              # the step timeout on sleeping instead of retrying against these transient,
+              # host-varying connection resets.
+              wait_time=$(( 20 * attempt < 60 ? 20 * attempt : 60 ))
               echo "✗ Attempt $attempt failed. Waiting ${wait_time}s before retry..."
               sleep $wait_time
             fi
           done
-          echo "::error::Failed to gather images after 4 attempts"
+          echo "::error::Failed to gather images after 6 attempts"
           exit 1
 
       - name: Extract Images
