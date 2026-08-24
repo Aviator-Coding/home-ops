@@ -173,7 +173,23 @@ jobs:
           fi
 
       - name: Pull Image
-        run: talosctl --nodes $NODE image pull "${MATRIX_IMAGE}"
+        run: |
+          for attempt in 1 2 3 4; do
+            echo "::group::Attempt $attempt/4: talosctl image pull..."
+            if talosctl --nodes $NODE image pull "${MATRIX_IMAGE}"; then
+              echo "::endgroup::"
+              echo "✓ Image pulled successfully"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ $attempt -lt 4 ]; then
+              wait_time=$((20 * attempt))
+              echo "✗ Attempt $attempt failed. Waiting ${wait_time}s before retry..."
+              sleep $wait_time
+            fi
+          done
+          echo "::error::Failed to pull image after 4 attempts"
+          exit 1
 
   success:
     # `!cancelled()` alone would still schedule this job onto the self-hosted runner
