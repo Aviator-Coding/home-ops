@@ -2,7 +2,7 @@
 
 > **Snapshot 2026-07-03/04.** Do not use this file as the source of current
 > chart versions or hostname counts. Git as of 2026-08: gateway-helm is
-> **v1.8.3** (`kubernetes/apps/network/envoy-gateway/app/ocirepository.yaml`);
+> **v1.8.3** (`kubernetes/apps/base/network/envoy-gateway/app/ocirepository.yaml`);
 > data plane `envoyproxy/envoy:v1.39.0`. Upstream **Envoy Gateway v1.9.0**
 > exists ([announcement](https://gateway.envoyproxy.io/news/releases/v1.9/),
 > 2026-07-29). Re-evaluate Option B against v1.9 notes before acting.
@@ -25,7 +25,7 @@
 | **Component** | Envoy Gateway v1.8.x (controller `envoy-gateway` + proxy fleets `envoy-internal`/`envoy-external`, ns `network`), with cilium BGP VIP announcement, split DNS, and the wildcard TLS cert as adjacent suspects |
 | **Verdict** | **Transient, self-resolved.** The user-initiated full 3-node reboot (~19:50–20:00 UTC 07-03) restarted the EG controller AND both proxy fleets together — accidentally executing the exact known-good fix sequence from the 2026-06-23 incident (controller first, then proxies). Gateways re-`Programmed` at 20:37:14Z (internal) / 20:37:25Z (external). At probe time (01:10–01:25 UTC 07-04) 58/60 internal hostnames were healthy via the VIP **and** via real DNS; zero DNS/TCP/TLS-class failures. The 2 residual 503s are pre-existing app faults. |
 | **Severity** | low (after the fact) — but the incident re-confirms the standing GatewayNamespaceMode freeze risk documented 2026-06-23, and it ran through a total monitoring blind spot |
-| **Related** | [`hardware-incidents.md` [2026-06-30]](../hardware-incidents.md) (the trigger outage), `kubernetes/apps/network/envoy-gateway/app/helmrelease.yaml` + `prometheusrule.yaml` (the 2026-06-23 GatewayNamespaceMode incident record) |
+| **Related** | [`hardware-incidents.md` [2026-06-30]](../hardware-incidents.md) (the trigger outage), `kubernetes/apps/base/network/envoy-gateway/app/helmrelease.yaml` + `prometheusrule.yaml` (the 2026-06-23 GatewayNamespaceMode incident record) |
 
 ## Summary
 
@@ -105,13 +105,13 @@ Minor noise, for completeness: single `cx_connect_fail: 1` counters on emqx/n8n/
 
 ### The risk that remains armed
 
-`GatewayNamespaceMode` is still enabled (`config.envoyGateway.provider.kubernetes.deploy.type: GatewayNamespace` in `kubernetes/apps/network/envoy-gateway/app/helmrelease.yaml`). In this mode the proxies authenticate to the controller's xDS server with **projected ServiceAccount JWT tokens** validated by a kubejwt interceptor (hardening added upstream in v1.8.1). The 2026-06-23 incident chain — stale proxies presenting expired SA tokens → auth-storm floods the controller → liveness kill crash-loop → xDS frozen → proxies pinned to dead pod IPs — re-arms on any future event that (a) breaks token refresh/validation and (b) coincides with pod-IP churn. This incident's mass reboot was the maximal churn trigger; we got lucky that the reboot itself also executed the fix order.
+`GatewayNamespaceMode` is still enabled (`config.envoyGateway.provider.kubernetes.deploy.type: GatewayNamespace` in `kubernetes/apps/base/network/envoy-gateway/app/helmrelease.yaml`). In this mode the proxies authenticate to the controller's xDS server with **projected ServiceAccount JWT tokens** validated by a kubejwt interceptor (hardening added upstream in v1.8.1). The 2026-06-23 incident chain — stale proxies presenting expired SA tokens → auth-storm floods the controller → liveness kill crash-loop → xDS frozen → proxies pinned to dead pod IPs — re-arms on any future event that (a) breaks token refresh/validation and (b) coincides with pod-IP churn. This incident's mass reboot was the maximal churn trigger; we got lucky that the reboot itself also executed the fix order.
 
 Notably, this cluster gains **nothing** from GatewayNamespaceMode: both Gateways (`envoy-internal`/`envoy-external`) live in ns `network`, which is *also* the controller's namespace. The mode's entire purpose is multi-tenant isolation of proxies into per-Gateway namespaces — here it changes nothing topologically and only adds the JWT/xDS-auth failure surface.
 
 ### Option A (recommended): drop GatewayNamespaceMode
 
-**Change** — in `kubernetes/apps/network/envoy-gateway/app/helmrelease.yaml`, remove the `deploy` block (default is ControllerNamespace mode):
+**Change** — in `kubernetes/apps/base/network/envoy-gateway/app/helmrelease.yaml`, remove the `deploy` block (default is ControllerNamespace mode):
 
 ```yaml
     config:
@@ -149,6 +149,6 @@ Verdict: an upgrade to v1.8.2 is fine hygiene but does **not** remove the standi
 ## Cross-references
 
 - [`docs/hardware-incidents.md` [2026-06-30]](../hardware-incidents.md) — the OOMController/Ceph outage whose recovery reboot bookends this incident
-- `kubernetes/apps/network/envoy-gateway/app/helmrelease.yaml` — GatewayNamespaceMode config + 2026-06-23 incident comment block
-- `kubernetes/apps/network/envoy-gateway/app/prometheusrule.yaml` — the June tripwires (`EnvoyProxyControlPlaneDisconnected`, `EnvoyGatewayControllerCrashLooping`) and the restart runbook
+- `kubernetes/apps/base/network/envoy-gateway/app/helmrelease.yaml` — GatewayNamespaceMode config + 2026-06-23 incident comment block
+- `kubernetes/apps/base/network/envoy-gateway/app/prometheusrule.yaml` — the June tripwires (`EnvoyProxyControlPlaneDisconnected`, `EnvoyGatewayControllerCrashLooping`) and the restart runbook
 - Upstream: [Gateway Namespace Mode docs](https://gateway.envoyproxy.io/latest/tasks/operations/gateway-namespace-mode/), [v1.6.0 notes](https://gateway.envoyproxy.io/news/releases/notes/v1.6.0/) (SA-token SDS refresh), [v1.8.1 notes](https://gateway.envoyproxy.io/news/releases/notes/v1.8.1/) (xDS auth hardening, stale xDS cert fix), [v1.8.2 notes](https://gateway.envoyproxy.io/news/releases/notes/v1.8.2/) (no auth-storm fix)
