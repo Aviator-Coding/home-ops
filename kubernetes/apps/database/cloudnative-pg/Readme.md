@@ -83,7 +83,7 @@ Steps:
 
 - **Daily Barman backup** to MinIO via `cluster-17/scheduledbackup.yaml`. Retention 30 days.
 - **pgAdmin volsync** triple-target backup at `0 */4 * * *` (Ceph), `0 */6 * * *` (MinIO), `0 1 * * *` (R2).
-- **`reading-glasses` cache prune** runs daily at 03:00 (cluster's k8tz default tz). Manifest lives with the application: `apps/downloads/reading-glasses/app/cronjob.yaml`. Keeps `rreading-glasses.public.cache` from growing unbounded; uses the application's own role for least privilege.
+- **`reading-glasses` cache prune** runs daily at 03:00 (cluster's k8tz default tz). Manifest lives with the application: `apps/base/downloads/reading-glasses/app/cronjob.yaml`. Keeps `rreading-glasses.public.cache` from growing unbounded; uses the application's own role for least privilege.
 
 ## Operational notes
 
