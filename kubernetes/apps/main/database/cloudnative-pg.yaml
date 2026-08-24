@@ -10,7 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   interval: 30m
-  path: ./kubernetes/apps/database/cloudnative-pg/operator
+  path: ./kubernetes/apps/base/database/cloudnative-pg/operator
   prune: true
   sourceRef:
     kind: GitRepository
@@ -50,7 +50,7 @@ spec:
       current: status.readyInstances >= 1 && status.conditions.filter(e, e.type == 'ContinuousArchiving').all(e, e.status == 'True')
       failed: status.readyInstances < 1
   interval: 30m
-  path: ./kubernetes/apps/database/cloudnative-pg/cluster-17
+  path: ./kubernetes/apps/base/database/cloudnative-pg/cluster-17
   prune: true
   sourceRef:
     kind: GitRepository
@@ -74,7 +74,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   interval: 30m
-  path: ./kubernetes/apps/database/cloudnative-pg/dashboard
+  path: ./kubernetes/apps/base/database/cloudnative-pg/dashboard
   prune: true
   sourceRef:
     kind: GitRepository
@@ -98,7 +98,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
   interval: 30m
   dependsOn:
     - name: cloudnative-pg
@@ -114,7 +114,7 @@ spec:
     - apiVersion: v1
       kind: PersistentVolumeClaim
       current: status.phase == 'Bound'
-  path: ./kubernetes/apps/database/cloudnative-pg/pgadmin
+  path: ./kubernetes/apps/base/database/cloudnative-pg/pgadmin
   postBuild:
     substituteFrom:
       - name: cluster-secrets

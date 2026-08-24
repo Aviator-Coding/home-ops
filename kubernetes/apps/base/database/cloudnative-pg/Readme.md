@@ -71,7 +71,7 @@ Steps:
    `metadata.name`, set `bootstrap.recovery.source` to the previous server
    name, define `externalClusters[]` with the previous serverName, and bump
    `backup.barmanObjectStore.serverName` to a new value.
-3. Add a sibling Flux `Kustomization` in `ks.yaml` with `dependsOn` pointing
+3. Add a sibling Flux `Kustomization` in `kubernetes/apps/main/database/cloudnative-pg.yaml` with `dependsOn` pointing
    at the existing cluster (so both run in parallel during cutover).
 4. Commit + push. Flux reconciles, CNPG runs `barman-cloud-restore` into the
    new cluster's data dir, then `pg_basebackup` joins additional replicas.
@@ -89,6 +89,6 @@ Steps:
 
 - All CronJobs in this cluster have their `timeZone` overwritten by the `k8tz` admission webhook to `America/New_York`. Don't bother setting `timeZone` explicitly.
 - `cluster-17/prometheusrule.yaml` defines the 7 alerts that operate on `cnpg_*` metrics; rules are cluster-wide so they cover any future CNPG cluster too.
-- Health gate for the Flux Kustomization is `status.readyInstances >= 1 && ContinuousArchiving == True`, NOT the Ready condition. CNPG can latch the Ready condition False indefinitely while still serving traffic — see the comment in `ks.yaml`.
+- Health gate for the Flux Kustomization is `status.readyInstances >= 1 && ContinuousArchiving == True`, NOT the Ready condition. CNPG can latch the Ready condition False indefinitely while still serving traffic — see the comment in `kubernetes/apps/main/database/cloudnative-pg.yaml`.
 - `cluster-17.yaml` keeps both the original `cluster` and renamed `cnpg_cluster` labels in `monitoring.podMonitorMetricRelabelings`. **Do not re-add `{ regex: cluster, action: labeldrop }`** — the bundled CNPG Grafana dashboard's `Cluster` dropdown extracts the legacy `cluster` label via regex and goes empty (every panel "No data") if it's dropped.
 - The grafana helm values used to also include a `databases.cloudnative-pg` (gnetId 20417) entry that duplicated this dashboard's UID `cloudnative-pg`. The duplicate locked Grafana's sidecarProvider out of all writes; it has been removed in `apps/monitoring/grafana/app/helmrelease.yaml` — don't add it back.

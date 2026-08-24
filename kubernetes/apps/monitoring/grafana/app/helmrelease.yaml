@@ -337,7 +337,7 @@ spec:
 
       databases:
         # CloudNativePG dashboard is provisioned by the cloudnative-pg-dashboard
-        # OCI helm chart (kubernetes/apps/database/cloudnative-pg/dashboard/);
+        # OCI helm chart (kubernetes/apps/base/database/cloudnative-pg/dashboard/);
         # do not duplicate it here — same UID 'cloudnative-pg' would collide
         # and Grafana refuses to save either copy.
 
