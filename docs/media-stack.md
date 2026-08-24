@@ -19,7 +19,7 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 
 FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubernetes/apps/network/flaresolverr/`), not `downloads`/`media` - consumed by Prowlarr (IndexerProxy, UI-configured, not GitOps) and Calibre-Downloader (`EXT_BYPASSER_URL`).
 
-In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` were removed (dead, unreferenced directories) and are no longer present in `downloads/kustomization.yaml`.
+In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` were removed (dead, unreferenced directories) and are no longer present in `kubernetes/apps/main/downloads/kustomization.yaml`.
 
 Flow: **Indexers** -> Prowlarr -> *arr apps -> SABnzbd -> imports to NAS -> Jellyfin/Plex serve -> Tdarr transcodes in place to AV1.
 
@@ -38,7 +38,7 @@ Storage is split between CephFS (complete downloads), Ceph block (SAB incomplete
 | `immich-library` | CephFS (RWX) | RWX | 100 Gi | Photos |
 | `jellyfin-metadata` | Ceph block | RWO | 50 Gi | Jellyfin thumbnails/metadata |
 
-Manifests: `kubernetes/apps/downloads/pvc/app/shared-downloads.yaml` and `sabnzbd-incomplete.yaml`. There is no `shared-downloads-pvc.yaml`.
+Manifests: `kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml` and `sabnzbd-incomplete.yaml`. There is no `shared-downloads-pvc.yaml`.
 
 Incomplete is **not** on the shared PVC. Since PR #983 it is a separate RBD volume overlaying that path in the sab pod. `du` inside sab will miss a ghost tree on CephFS under the mount. Full incident notes: [`downloads/sabnzbd-disk-space-runbook.md`](downloads/sabnzbd-disk-space-runbook.md). Do not duplicate incomplete-path settings here.
 
@@ -127,7 +127,7 @@ Lidarr track format:
 
 ### Recyclarr - Declarative quality config
 
-**File:** `kubernetes/apps/downloads/recyclarr/app/config/recyclarr.yml`
+**File:** `kubernetes/apps/base/downloads/recyclarr/app/config/recyclarr.yml`
 **Schedule:** Daily CronJob (`@daily`)
 
 Syncs TRaSH Guide quality profiles, quality definitions, and custom formats to Sonarr and Radarr. Changes to `recyclarr.yml` require a commit+push, then either wait for the next daily run or trigger manually:
@@ -167,7 +167,7 @@ Connects to Sonarr and Radarr for series/movie metadata. Provider priority: Open
 
 ### Autobrr
 
-Autobrr is deployed (`downloads/kustomization.yaml`). Cross-Seed and qBittorrent were removed; Autobrr's torrent-side integrations are unused until those are (re-)added.
+Autobrr is deployed (`kubernetes/apps/main/downloads/kustomization.yaml`). Cross-Seed and qBittorrent were removed; Autobrr's torrent-side integrations are unused until those are (re-)added.
 
 ---
 
@@ -355,16 +355,16 @@ All config PVCs have Volsync with triple backup (Ceph snapshots every 4h, NAS Mi
 
 | Purpose | Path |
 |---------|------|
-| SABnzbd | `kubernetes/apps/downloads/sabnzbd/` |
-| Sonarr | `kubernetes/apps/downloads/sonarr/` |
-| Radarr | `kubernetes/apps/downloads/radarr/` |
-| Lidarr | `kubernetes/apps/downloads/lidarr/` |
-| Readarr | `kubernetes/apps/downloads/readarr/` |
-| Prowlarr | `kubernetes/apps/downloads/prowlarr/` |
-| Bazarr | `kubernetes/apps/downloads/bazarr/` |
-| Recyclarr config | `kubernetes/apps/downloads/recyclarr/app/config/recyclarr.yml` |
-| Shared downloads PVC | `kubernetes/apps/downloads/pvc/app/shared-downloads.yaml` |
-| SAB incomplete PVC | `kubernetes/apps/downloads/pvc/app/sabnzbd-incomplete.yaml` |
+| SABnzbd | `kubernetes/apps/base/downloads/sabnzbd/` |
+| Sonarr | `kubernetes/apps/base/downloads/sonarr/` |
+| Radarr | `kubernetes/apps/base/downloads/radarr/` |
+| Lidarr | `kubernetes/apps/base/downloads/lidarr/` |
+| Readarr | `kubernetes/apps/base/downloads/readarr/` |
+| Prowlarr | `kubernetes/apps/base/downloads/prowlarr/` |
+| Bazarr | `kubernetes/apps/base/downloads/bazarr/` |
+| Recyclarr config | `kubernetes/apps/base/downloads/recyclarr/app/config/recyclarr.yml` |
+| Shared downloads PVC | `kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml` |
+| SAB incomplete PVC | `kubernetes/apps/base/downloads/pvc/app/sabnzbd-incomplete.yaml` |
 | SAB disk-space runbook | `docs/downloads/sabnzbd-disk-space-runbook.md` |
 | Jellyfin | `kubernetes/apps/media/jellyfin/` |
 | Plex | `kubernetes/apps/media/plex/` |

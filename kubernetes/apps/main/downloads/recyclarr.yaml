@@ -3,7 +3,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app radarr
+  name: &app recyclarr
   namespace: &namespace downloads
 spec:
   targetNamespace: *namespace
@@ -12,7 +12,7 @@ spec:
       app.kubernetes.io/name: *app
   interval: 30m
   timeout: 5m
-  path: "./kubernetes/apps/downloads/radarr/app"
+  path: "./kubernetes/apps/base/downloads/recyclarr/app"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -20,21 +20,19 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
-    - name: downloads-pvc
-      namespace: downloads
     - name: onepassword-store
       namespace: security
     - name: volsync
       namespace: system
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: radarr-config
-      VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "5 3 * * *"
+      VOLSYNC_CLAIM: recyclarr-config
+      VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "50 3 * * *"

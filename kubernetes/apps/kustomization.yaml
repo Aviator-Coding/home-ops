@@ -9,7 +9,6 @@ resources:
   - ./coder
   - ./database
   - ./default
-  - ./downloads
   - ./flux-system
   - ./home-automation
   - ./kube-system

@@ -3,22 +3,14 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app sonarr
+  name: &app lidarr
   namespace: &namespace downloads
 spec:
-  targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  interval: 30m
-  timeout: 5m
-  path: "./kubernetes/apps/downloads/sonarr/app"
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-    namespace: flux-system
-  wait: false
+  components:
+    - ../../../../../components/volsync
   dependsOn:
     - name: downloads-pvc
       namespace: downloads
@@ -26,15 +18,24 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
-  components:
-    - ../../../../components/volsync
+  interval: 30m
+  path: ./kubernetes/apps/base/downloads/lidarr/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: sonarr-config
-      VOLSYNC_SCHEDULE_CEPH: "0 */4 * * *"
+      VOLSYNC_CAPACITY: 8Gi
+      VOLSYNC_CLAIM: lidarr-config
+      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "0 3 * * *"
+      VOLSYNC_SCHEDULE_R2: "10 3 * * *"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false

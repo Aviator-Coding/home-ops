@@ -12,7 +12,7 @@ spec:
       app.kubernetes.io/name: *app
   interval: 30m
   timeout: 5m
-  path: "./kubernetes/apps/downloads/autobrr/app"
+  path: "./kubernetes/apps/base/downloads/autobrr/app"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -27,7 +27,7 @@ spec:
     - name: postgres-cluster-17
       namespace: database
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
   postBuild:
     substituteFrom:
       - name: cluster-secrets

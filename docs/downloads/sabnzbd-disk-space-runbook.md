@@ -6,8 +6,8 @@ stalls. The disk that fills is the **2 Ti `shared-downloads` CephFS RWX PVC**
 (ns `downloads`, StorageClass `ceph-filesystem-rwx`) that holds
 `usenet/complete/` — *not* the RBD `sabnzbd-incomplete` scratch volume.
 
-- **Guardrails in Git** → `kubernetes/apps/downloads/maintenance/` (janitor CronJob + capacity alert, this incident's output)
-- **Prior art** → 2026-06-24 `_UNPACK_` cleanup (PR path not in this repo; see this runbook's incident notes and `kubernetes/apps/downloads/maintenance/`)
+- **Guardrails in Git** → `kubernetes/apps/base/downloads/maintenance/` (janitor CronJob + capacity alert, this incident's output)
+- **Prior art** → 2026-06-24 `_UNPACK_` cleanup (PR path not in this repo; see this runbook's incident notes and `kubernetes/apps/base/downloads/maintenance/`)
 - **Ceph-side context** → [`../ceph-cluster-changelog.md`](../ceph-cluster-changelog.md)
 
 ---
@@ -100,8 +100,8 @@ during this incident.
 
 ## Durable guardrails (deployed from this incident)
 
-Both live in `kubernetes/apps/downloads/maintenance/` (Flux ks
-`downloads-maintenance`):
+Both live in `kubernetes/apps/base/downloads/maintenance/` (Flux ks
+`downloads-maintenance`, defined at `kubernetes/apps/main/downloads/maintenance.yaml`):
 
 ### 1. `downloads-janitor` CronJob — daily 05:30
 

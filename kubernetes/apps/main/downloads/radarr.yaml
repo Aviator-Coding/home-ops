@@ -3,14 +3,22 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app lidarr
+  name: &app radarr
   namespace: &namespace downloads
 spec:
+  targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  components:
-    - ../../../../components/volsync
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/apps/base/downloads/radarr/app"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
   dependsOn:
     - name: downloads-pvc
       namespace: downloads
@@ -18,24 +26,15 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
-  interval: 30m
-  path: ./kubernetes/apps/downloads/lidarr/app
+  components:
+    - ../../../../../components/volsync
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 8Gi
-      VOLSYNC_CLAIM: lidarr-config
-      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
+      VOLSYNC_CLAIM: radarr-config
+      VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "10 3 * * *"
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-    namespace: flux-system
-  targetNamespace: *namespace
-  timeout: 5m
-  wait: false
+      VOLSYNC_SCHEDULE_R2: "5 3 * * *"
