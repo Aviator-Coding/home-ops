@@ -41,7 +41,7 @@ Run all four. **If any fails, revert stage 1 - do not investigate with the
 policy live.**
 
 ```bash
-export KUBECONFIG=/Users/coder/firstmate/projects/home-ops/kubeconfig
+export KUBECONFIG=${KUBECONFIG:-kubeconfig}
 
 # 2a. All three agents healthy after the rolling restart. This is the one that
 #     catches a bpf_host program that failed to load or verify.
@@ -95,18 +95,30 @@ mode a would-be drop is reported with an **audit** action and the packet is
 still delivered. `/usr/bin/timeout` exists inside the agent container, so bound
 each capture rather than relying on the kubectl stream staying up.
 
-Run one capture per node, in parallel, for the whole window:
+**Scope every capture to the host endpoint** with `--related-to $HOST_EP_ID`.
+`policyAuditMode` is global, so an unfiltered monitor also records audit
+verdicts from the cluster's pod NetworkPolicies (dragonfly / emqx / loki, etc.).
+Those are expected under stage 1 and must not be mixed into the Ceph host-policy
+evidence set - pass criteria below are host-endpoint-only for that reason.
+
+Run one capture per node, in parallel, for the whole window. Prefer a durable
+local session (`tmux`/`screen`) - a 25h `kubectl exec` stream can drop on the
+client side long before `timeout` fires; if it does, restart the capture on that
+node and rely on §2c `bpf policy get` deny counters as the non-stream backup.
 
 ```bash
-export KUBECONFIG=/Users/coder/firstmate/projects/home-ops/kubeconfig
+export KUBECONFIG=${KUBECONFIG:-kubeconfig}
 mkdir -p ./ceph-audit && cd ./ceph-audit
 WINDOW=90000   # seconds; see §3.1
 
 for p in $(kubectl -n kube-system get pod -l k8s-app=cilium -o name); do
   pod=${p#pod/}
   node=$(kubectl -n kube-system get pod "$pod" -o jsonpath='{.spec.nodeName}')
+  HOST_EP_ID=$(kubectl -n kube-system exec "$pod" -c cilium-agent -- \
+    cilium-dbg endpoint list -o jsonpath='{[?(@.status.identity.id==1)].id}')
+  echo "$node host endpoint = $HOST_EP_ID"
   ( kubectl -n kube-system exec "$pod" -c cilium-agent -- \
-      timeout "$WINDOW" cilium-dbg monitor -t policy-verdict -j \
+      timeout "$WINDOW" cilium-dbg monitor -t policy-verdict -j --related-to "$HOST_EP_ID" \
       > "verdicts-${node}.jsonl" 2> "verdicts-${node}.err" ) &
 done
 wait
@@ -144,20 +156,22 @@ exercised.
 ## 4. PASS criteria (all must hold)
 
 Stage 2 may only be proposed if **every** one of these holds across all three
-nodes' captures.
+nodes' **host-endpoint** captures (`--related-to $HOST_EP_ID` from §3). Pod
+NetworkPolicy audit noise is out of scope and must not be scored here.
 
-1. **Zero audit verdicts for any management or cluster flow.** Specifically
-   nothing audited on: Talos API `50000`/`50001`, Kubernetes API `6443`, kubelet
-   `10250`, etcd `2379`/`2380`, Cilium health `4240`, BGP `179` from `10.0.0.1`,
-   DNS `53`, NodePort `30000-32767`, or KubePrism `7445`.
+1. **Zero host-endpoint audit verdicts for any management or cluster flow.**
+   Specifically nothing audited on: Talos API `50000`/`50001`, Kubernetes API
+   `6443`, kubelet `10250`, etcd `2379`/`2380`, Cilium health `4240`, BGP `179`
+   from `10.0.0.1`, DNS `53`, NodePort `30000-32767`, or KubePrism `7445`.
    *Expected structurally* - the policy names none of these ports and the host
    endpoint is not default-deny - so any hit here means the design is wrong, not
    that a carve-out is missing. **Investigate before proceeding.**
-2. **Zero audit verdicts for in-cluster sources.** No audited flow may carry a
-   `host`, `remote-node`, or pod identity as its source. Ceph's own mon quorum,
-   OSD replication, MDS, CSI, VolSync movers and Prometheus scrapes must all be
-   absent from the audit set.
-3. **Zero audit verdicts on port 80 destined to a LoadBalancer IP**
+2. **Zero host-endpoint audit verdicts for in-cluster sources.** No audited
+   host-endpoint flow may carry a `host`, `remote-node`, or pod identity as its
+   source. Ceph's own mon quorum, OSD replication, MDS, CSI, VolSync movers and
+   Prometheus scrapes must all be absent from the host-endpoint audit set
+   (they are outside `fromEntities: world` by construction).
+3. **Zero host-endpoint audit verdicts on port 80 destined to a LoadBalancer IP**
    (`10.50.0.21`, `10.50.0.26`, `10.50.0.27`, `10.50.0.28`, `10.50.0.29`).
    This is the one designed-in uncertainty: RGW shares port 80 with the envoy
    gateways and the `ai/*` services. Those target LB IPs rather than a node IP
