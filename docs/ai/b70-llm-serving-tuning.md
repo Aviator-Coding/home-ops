@@ -169,7 +169,7 @@ The 2026-06-26 measurements below were taken while embeddings could still be co-
 They remain valid as the contention mechanism; they are not today's default inventory.
 
 > ⚠️ `--gpu-memory-utilization` and the device plugin's `sharedDevNum: 99`
-> (`kubernetes/apps/system/intel-device-plugin-operator/gpu/`) only divide **VRAM /
+> (`kubernetes/apps/base/system/intel-device-plugin-operator/gpu/`) only divide **VRAM /
 > device-count** - neither isolates **compute**. The plugin advertises the one card as 99
 > schedulable slots. Chat vs ComfyUI is the remaining heavy pair; do not start ComfyUI
 > while `vllm` is up. Re-enabling `vllm-embed` would restore the three-consumer problem.
