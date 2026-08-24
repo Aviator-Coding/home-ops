@@ -5,9 +5,9 @@ kind: Kustomization
 namespace: security
 
 components:
-  - ../../components/common
-  - ../../components/alerts
+  - ../../../components/common
+  - ../../../components/alerts
 
 resources:
-  - ./external-secrets/ks.yaml
-  - ./authentik/ks.yaml
+  - ./external-secrets.yaml
+  - ./authentik.yaml
