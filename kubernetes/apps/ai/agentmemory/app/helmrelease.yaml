@@ -97,6 +97,16 @@ spec:
               # per-session — now on OpenRouter deepseek-v4-flash (concurrent, cheap).
               CONSOLIDATION_ENABLED: "true"
               GRAPH_EXTRACTION_ENABLED: "true"
+              # De-harmonise auto-forget (default 60 min) from consolidation
+              # (default 120 min). Both setInterval timers are anchored to
+              # process start, so they coincide every 120 min and that tick
+              # allocates +647 MiB of anon in 417 ms past the old 3Gi limit.
+              # 86400000 ms = 24 h; coincidence drops to once a day. The
+              # app reads AUTO_FORGET_INTERVAL_MS (confirmed in 0.9.29
+              # dist/index.mjs). TTL-expired memories linger up to 24 h
+              # instead of 1 h; both observed runs reclaimed nothing and
+              # the store has been flat at 461 MiB for a week.
+              AUTO_FORGET_INTERVAL_MS: "86400000"
               # Phase 2b (2026-06-28): per-observation LLM compression RE-ENABLED.
               # Runs the LLM on EVERY observation for richer summaries. It was OFF
               # because the old local 35B (then treated as serial) made ~95% of compressions time
@@ -155,30 +165,29 @@ spec:
                   failureThreshold: 60
                   periodSeconds: 5
             resources:
-              # Measured via container_memory_working_set_bytes, 2026-08-08 to
-              # -22 (full Prometheus retention): baseline right after a cold
-              # start is already ~1.47-1.78Gi within a minute (loading the
-              # memory/embedding store into RAM, not a leak from zero), then
-              # climbs another ~250-560Mi over the following ~55-60 min until
-              # it hits the old 2Gi limit and gets OOMKilled - a cycle that
-              # repeats hourly, every day, for the full two-week retention
-              # window with the ceiling flat at ~2020-2045Mi each time.
-              # Every one of those cycles was cut off by the old 2Gi limit
-              # before the process could reveal whether growth would keep
-              # climbing or level off just above it, so this evidence alone
-              # cannot fully rule out an unbounded leak - it only shows
-              # growth well past 2Gi, not where it would actually plateau.
-              # Sized 3Gi as real headroom above the last observed (clipped)
-              # value rather than doubling blind; request raised from 256Mi
-              # (8x below the measured baseline, badly mis-scheduling the
-              # node) to match it. If OOMKills recur at 3Gi, that recurrence
-              # is itself the leak signal - this is a mitigation that buys
-              # headroom, not a proven cure.
+              # Not a leak. d42527ec's fallback ("if OOMKills recur at 3Gi,
+              # that recurrence is itself the leak signal") does not hold.
+              # Two process-start-anchored setInterval timers -
+              # mem::auto-forget (60 min) and mem::consolidate-pipeline
+              # (120 min) - coincide every 120 min. The coincident tick
+              # allocates +647 MiB of anon in 417 ms; the measured floor
+              # for that tick to complete is ~3588 MiB (~3.5 GiB):
+              #   2340 MiB stable pre-tick memory.current
+              # +  890 MiB iii address-space growth during the tick
+              # +  358 MiB Node growth during the tick
+              # Two kill modes: fast kernel OOM, and a 90s memcg reclaim
+              # stall that starves the liveness probe (exit 137, reason
+              # Error, no OOMKilled). AUTO_FORGET_INTERVAL_MS=86400000
+              # de-harmonises the timers; 4Gi (request 2Gi, same 1:2 ratio
+              # as 1536Mi/3Gi) clears the ~3.5 GiB floor with ~500 MiB
+              # margin. Watch container_memory_usage_bytes, not working_set:
+              # working_set hides ~548 MiB of this cgroup's page cache
+              # (mmap'd state_store.db).
               requests:
                 cpu: 100m
-                memory: 1536Mi
+                memory: 2Gi
               limits:
-                memory: 3Gi
+                memory: 4Gi
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
