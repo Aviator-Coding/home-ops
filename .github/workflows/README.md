@@ -230,7 +230,7 @@ runs-on: gha-runner-scale-set-aviator-coding-home-ops
 
 1. Check if HelmRelease values are valid
 2. Verify Kustomization patches apply correctly
-3. Run locally: `flux-local test --path kubernetes/flux/cluster --all-namespaces --enable-helm`
+3. Run locally: `flux-local test --path kubernetes/clusters/main --all-namespaces --enable-helm`
 
 ### Image Pull Failures
 
