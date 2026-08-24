@@ -10,7 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   interval: 1h
-  path: ./kubernetes/apps/network/certificates/import
+  path: ./kubernetes/apps/base/network/certificates/import
   prune: true
   sourceRef:
     kind: GitRepository
@@ -36,7 +36,7 @@ spec:
   dependsOn:
     - name: certificates-import
   interval: 1h
-  path: ./kubernetes/apps/network/certificates/export
+  path: ./kubernetes/apps/base/network/certificates/export
   prune: true
   sourceRef:
     kind: GitRepository

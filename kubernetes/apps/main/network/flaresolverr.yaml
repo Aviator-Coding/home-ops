@@ -3,22 +3,20 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app echo
+  name: &app flaresolverr
   namespace: &namespace network
 spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   interval: 1h
-  path: ./kubernetes/apps/network/echo/app
+  path: ./kubernetes/apps/base/network/flaresolverr/app
   prune: true
-  postBuild:
-    substituteFrom:
-      - name: cluster-secrets
-        kind: Secret
+  retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
   targetNamespace: *namespace
+  timeout: 5m
   wait: false

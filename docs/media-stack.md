@@ -17,7 +17,7 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 
 `media/calibre-web/` was removed; CWA is the only Calibre app under `media/calibre/`.
 
-FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubernetes/apps/network/flaresolverr/`), not `downloads`/`media` - consumed by Prowlarr (IndexerProxy, UI-configured, not GitOps) and Calibre-Downloader (`EXT_BYPASSER_URL`).
+FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubernetes/apps/base/network/flaresolverr/`), not `downloads`/`media` - consumed by Prowlarr (IndexerProxy, UI-configured, not GitOps) and Calibre-Downloader (`EXT_BYPASSER_URL`).
 
 In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` were removed (dead, unreferenced directories) and are no longer present in `kubernetes/apps/main/downloads/kustomization.yaml`.
 

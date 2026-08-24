@@ -26,7 +26,7 @@ Cilium readme). Do not treat 2025-08 dumps of `10.10.3.11-13` / `10.10.3.0/24`
 as current.
 
 Split DNS for internal hostnames is UniFi + external-dns
-(`kubernetes/apps/network/unifi-dns`). There is no `k8s-gateway` app.
+(`kubernetes/apps/base/network/unifi-dns`). There is no `k8s-gateway` app.
 
 Node underlay snapshot vs current Talos: [`docs/network/cmd.md`](../network/cmd.md)
 (labeled as a 2025-08 capture).
