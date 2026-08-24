@@ -7,9 +7,9 @@ metadata:
   namespace: &namespace security
 spec:
   components:
-    - ../../../../components/dragonfly
+    - ../../../../../components/dragonfly
 
-  path: ./kubernetes/apps/security/authentik/app
+  path: ./kubernetes/apps/base/security/authentik/app
   targetNamespace: *namespace
   sourceRef:
     kind: GitRepository

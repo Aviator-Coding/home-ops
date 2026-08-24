@@ -17,8 +17,8 @@ resources:
   - ../monitoring
   - ./network
   - ../rook-ceph
-  - ../security
+  - ./security
   - ../selfhosted
-  - ../system
+  - ./system
   - ../system-controller
   - ../system-upgrade
