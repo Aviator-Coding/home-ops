@@ -17,8 +17,13 @@ machine:
   features:
     kubernetesTalosAPIAccess:
       enabled: true
+      # Both roles allowed: os:operator is the actions-runner ServiceAccount's
+      # least-privilege role (kubernetes/apps/actions-runner-system/gha-runner-scale-set/app/rbac.yaml)
+      # and must stay reissuable; os:admin stays for existing/manual use and is
+      # out of scope to remove here.
       allowedRoles:
         - os:admin
+        - os:operator
       allowedKubernetesNamespaces:
         - actions-runner-system
         - system-upgrade
