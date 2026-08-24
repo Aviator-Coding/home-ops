@@ -8,6 +8,5 @@ resources:
   - ./home-automation
   - ./kube-system
   - ./media
-  - ./monitoring
   - ./rook-ceph
   - ./selfhosted

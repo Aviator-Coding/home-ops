@@ -14,7 +14,7 @@ resources:
   - ../home-automation
   - ../kube-system
   - ../media
-  - ../monitoring
+  - ./monitoring
   - ./network
   - ../rook-ceph
   - ./security
