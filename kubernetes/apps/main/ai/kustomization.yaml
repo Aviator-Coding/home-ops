@@ -5,8 +5,8 @@ kind: Kustomization
 namespace: ai
 
 components:
-  - ../../components/common
-  - ../../components/alerts
+  - ../../../components/common
+  - ../../../components/alerts
 
 # Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui,
 # perplexica, qdrant. Flux prunes their workloads and PVCs; the retained
@@ -14,11 +14,11 @@ components:
 # docs/ai-system/retired-2026-08-22.md.
 
 resources:
-  - ./agentgateway/ks.yaml
-  - ./agentgateway-dashboards/ks.yaml
-  - ./agentmemory/ks.yaml
-  - ./comfyui/ks.yaml
-  - ./hermes/ks.yaml
-  - ./searxng/ks.yaml
-  - ./toolhive/ks.yaml
-  - ./vllm/ks.yaml
+  - ./agentgateway.yaml
+  - ./agentgateway-dashboards.yaml
+  - ./agentmemory.yaml
+  - ./comfyui.yaml
+  - ./hermes.yaml
+  - ./searxng.yaml
+  - ./toolhive.yaml
+  - ./vllm.yaml

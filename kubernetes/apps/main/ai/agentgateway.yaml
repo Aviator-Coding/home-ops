@@ -21,7 +21,7 @@ spec:
   # matches the timeout used elsewhere in this namespace (e.g. agentmemory,
   # hermes, searxng, vllm).
   timeout: 5m
-  path: "./kubernetes/apps/ai/agentgateway/app"
+  path: "./kubernetes/apps/base/ai/agentgateway/app"
   prune: true
   # Deployment-level, not HelmRelease: HelmRelease.Ready only reflects the
   # last helm install/upgrade action, not ongoing pod health - it stays True
@@ -78,7 +78,7 @@ spec:
   interval: 30m
   retryInterval: 1m
   timeout: 3m
-  path: "./kubernetes/apps/ai/agentgateway/crds"
+  path: "./kubernetes/apps/base/ai/agentgateway/crds"
   prune: true
   wait: true
   sourceRef:
