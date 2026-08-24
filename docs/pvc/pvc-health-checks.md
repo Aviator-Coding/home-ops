@@ -17,7 +17,7 @@ When deploying applications that require persistent storage, it's crucial to ens
 Add the following configuration to your Flux Kustomization to wait for PVC binding:
 
 ```yaml
-# kubernetes/apps/database/cloudnative-pg/ks.yaml
+# kubernetes/apps/main/database/cloudnative-pg.yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
