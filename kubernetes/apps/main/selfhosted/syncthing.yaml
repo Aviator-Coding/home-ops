@@ -3,7 +3,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app paperless-ngx
+  name: &app syncthing
   namespace: &namespace selfhosted
 spec:
   targetNamespace: *namespace
@@ -12,30 +12,18 @@ spec:
       app.kubernetes.io/name: *app
   interval: 30m
   timeout: 5m
-  path: "./kubernetes/apps/selfhosted/paperless-ngx/app"
+  path: "./kubernetes/apps/base/selfhosted/syncthing/app"
   prune: true
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
   wait: false
-  healthCheckExprs:
-    - apiVersion: dragonflydb.io/v1alpha1
-      kind: Dragonfly
-      failed: status.phase != 'ready'
-      current: status.phase == 'ready'
   dependsOn:
-    - name: onepassword-store
-      namespace: security
     - name: volsync
       namespace: system
-    - name: cloudnative-pg
-      namespace: database
-    - name: dragonfly-operator
-      namespace: database
   components:
-    - ../../../../components/volsync
-    - ../../../../components/dragonfly
+    - ../../../../../components/volsync
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -44,26 +32,26 @@ spec:
       APP: *app
       APP_UID: "1000"
       APP_GID: "1000"
-      VOLSYNC_CLAIM: paperless-ngx
-      VOLSYNC_CAPACITY: 10Gi
-      GATUS_GROUP: *namespace
+      VOLSYNC_CLAIM: syncthing
+      VOLSYNC_CAPACITY: 1Gi
+      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "15 4 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 # Second volume: the volsync component above only protects the single ${VOLSYNC_CLAIM}
-# (`paperless-ngx`, the data PVC). `paperless-ngx-media` is the scanned-document store -
-# the originals and their archived PDFs - and is not reconstructible from the database.
-# The `paperless-ngx-consume` inbox is deliberately NOT backed up: paperless deletes
-# files from it once they are ingested into media, so it only ever holds transient state.
+# (`syncthing`, the config PVC). `syncthing-data` holds the synced files and needs its
+# own Kustomization, because Flux allows exactly one postBuild.substitute map each.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app paperless-ngx-media
+  name: &app syncthing-data
   namespace: &namespace selfhosted
 spec:
   targetNamespace: *namespace
   commonMetadata:
     labels:
-      app.kubernetes.io/name: paperless-ngx
+      app.kubernetes.io/name: syncthing
   interval: 30m
   timeout: 5m
   path: "./kubernetes/components/volsync/backup"
@@ -76,7 +64,7 @@ spec:
   dependsOn:
     - name: volsync
       namespace: system
-    - name: paperless-ngx
+    - name: syncthing
       namespace: *namespace
   postBuild:
     substituteFrom:
@@ -85,8 +73,8 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CLAIM: *app
-      VOLSYNC_CAPACITY: 50Gi
+      VOLSYNC_CAPACITY: 100Gi
       VOLSYNC_CACHE_CAPACITY: 5Gi
-      VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "25 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "50 4 * * *"
+      VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "45 4 * * *"
