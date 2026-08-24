@@ -17,7 +17,7 @@
 > while the **pool** is `none`.
 
 > Scope note: settings referenced below live in
-> `kubernetes/apps/rook-ceph/rook-ceph/cluster/helmrelease.yaml`. Changes must go
+> `kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml`. Changes must go
 > through that file (GitOps), not ad-hoc `ceph config set`, or Rook will revert them.
 
 ---

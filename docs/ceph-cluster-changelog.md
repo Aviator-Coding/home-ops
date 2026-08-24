@@ -11,7 +11,7 @@ rather than hardware failures. The goal is that when something breaks we can ans
 - **This file** → chronological log of applied changes + a verified backlog of proposed ones
 
 > ⚠️ All Ceph config is GitOps. Changes go through
-> `kubernetes/apps/rook-ceph/rook-ceph/cluster/helmrelease.yaml` (or the operator chart),
+> `kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml` (or the operator chart),
 > **never** ad-hoc `ceph config set` — Rook reverts drift on reconcile. Record every change
 > here when you merge it.
 
@@ -91,7 +91,7 @@ Notes / evidence / sources.
 | **Why** | `ceph_mon_quorum_status` is a per-mon gauge (1 = in quorum, 0 = not), not a count. Comparing the gauge directly to `3` meant every healthy mon evaluated `1 < 3` = true, firing the alert as `critical` permanently on a healthy 3-mon cluster - confirmed firing continuously since 16:02:53Z 2026-08-23, when the metric resumed being exported after a prior mgr-module disable. `sum()` totals the gauge across all mons so it only trips below 3 when fewer are actually in quorum. An initial fix used `count(ceph_mon_quorum_status == 1) < 3`, but was corrected to `sum()` to avoid an empty-vector blind spot: `count()` over a matcher with zero matching series (e.g. every mon reporting `quorum_status == 0`, total quorum loss) returns no series at all, and Prometheus never fires an alert on an absent series. Verified no other rule in this file has the same gauge-vs-count mistake. |
 | **Risk** | None: this only fixes a false-positive-always-firing alert; the corrected expression trips only on genuine quorum loss, the condition the alert is meant to catch. |
 | **Rollback** | Revert the `expr` back to `ceph_mon_quorum_status < 3` (reintroduces the bug - not recommended). |
-| **Verify** | `kustomize build kubernetes/apps/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `task flux:test:all` render the corrected rule. Live confirmation against Prometheus/VictoriaMetrics that the alert clears on the healthy 3-mon cluster is a separate operational check, not covered by this render-only pass. |
+| **Verify** | `kustomize build kubernetes/apps/base/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `task flux:test:all` render the corrected rule. Live confirmation against Prometheus/VictoriaMetrics that the alert clears on the healthy 3-mon cluster is a separate operational check, not covered by this render-only pass. |
 
 Applied via GitOps only (Flux reconciles the PrometheusRule); no direct live-cluster mutation was made.
 
@@ -124,7 +124,7 @@ Applied via GitOps only (Flux reconciles the PrometheusRule); no direct live-clu
 | **Risk** | Rook rotates daemon keys with a gradual rolling restart of mon/mgr/osd/crash-collector/ceph-exporter. Upstream notes daemons keep the old key internally for **2-3 hours** while service tokens roll - that window is expected, not a failure. Because OSDs restart, the pre-reboot Ceph checklist in the root `CLAUDE.md` applies: confirm `HEALTH_OK` and run `task rook:check-osd-device-paths` before merging (Rook #17224 device-path drift). `osdMaxUpdatesInParallel: 1` already caps OSD churn at one at a time. **Client keys are untouched**: `csi-*` keys are consumed by the krbd / CephFS *kernel* clients and `aes256k` needs Linux >= 7.0, while Talos ships 6.18.44 - rotating them would break every RBD map and CephFS mount. |
 | **Prerequisite** | **Rook >= 1.20.5** - the `aes256k` `keyType` enum does not exist in the v1.20.4 CRD (verified: `deploy/examples/crds.yaml` at v1.20.4 has zero `aes256k` matches, v1.20.5 has six). **Satisfied**: The cluster was upgraded to Rook v1.20.6 via PR #1397, providing the required CRD support for `aes256k`. |
 | **Rollback** | Remove the `security` block. Note this does **not** un-rotate: `keyGeneration` is validated `self >= oldSelf` by the CRD and cannot be decreased, and keys already moved to `aes256k` stay there. Rollback only stops *further* rotation. |
-| **Verify** | Post-merge: `kubectl -n rook-ceph get cephcluster rook-ceph -o jsonpath='{.status.cephx}'` shows `keyGeneration: 2` for the daemon entries; `ceph health detail` no longer lists `AUTH_INSECURE_SERVICE_KEY_TYPE` / `AUTH_INSECURE_SERVICE_TICKETS`; cluster drops `HEALTH_ERR` -> `HEALTH_WARN` (the residual WARN is the client keys still on `aes`). Pre-merge, render-only: `kustomize build kubernetes/apps/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone`, `task flux:test:all`, and `helm template` of the v1.20.6 cluster chart all render the block (confirmed 2026-08-23). |
+| **Verify** | Post-merge: `kubectl -n rook-ceph get cephcluster rook-ceph -o jsonpath='{.status.cephx}'` shows `keyGeneration: 2` for the daemon entries; `ceph health detail` no longer lists `AUTH_INSECURE_SERVICE_KEY_TYPE` / `AUTH_INSECURE_SERVICE_TICKETS`; cluster drops `HEALTH_ERR` -> `HEALTH_WARN` (the residual WARN is the client keys still on `aes`). Pre-merge, render-only: `kustomize build kubernetes/apps/base/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone`, `task flux:test:all`, and `helm template` of the v1.20.6 cluster chart all render the block (confirmed 2026-08-23). |
 
 Future rotations reuse the same block: bump `keyGeneration` to current+1. Rotating the CSI keys *within* the `aes` type (same policy, separate `security.cephx.csi.keyGeneration`, with `keepPriorKeyCountMax` for a soft cutover) is a separate follow-up; moving them to `aes256k` waits on a Talos release with kernel >= 7.0, which as of 2026-08-23 does not exist even in pre-release.
 
@@ -136,7 +136,7 @@ Future rotations reuse the same block: bump `keyGeneration` to current+1. Rotati
 | **Why** | Closes security-audit findings F2/F3. Captain decision 2026-08-23: remove rather than partially mitigate - Grafana/VictoriaMetrics already cover observability, so the dashboard added no capability worth the credential-storage exposure behind F2/F3. `rook` mgr module (disabled above for the crash-storm bug) and all osd/mds/rgw config are untouched by this change. |
 | **Risk** | GitOps-only; does not touch credentials already stored in the mon config store (e.g. `MULTICLUSTER_CONFIG` token, `RGW_API_*` keys) - that live cleanup happens separately after this merges and Flux reconciles. No other manifest references the removed route/secret (grepped clean). |
 | **Rollback** | Restore `dashboard.enabled: true` plus the removed `urlPrefix`/`ssl`/`prometheusEndpoint` keys, the `mgr/dashboard/server_addr`/`server_port` `cephConfig` lines, and `insights` `enabled: true`; restore the `rook-ceph-dashboard` HTTPRoute in `cluster/httproute.yaml`; restore `operator/externalsecret.yaml` and its `operator/kustomization.yaml` reference. |
-| **Verify** | `kustomize build kubernetes/apps/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `.../operator` both build; `task flux:test:all` clean (217 passed, confirmed 2026-08-22). |
+| **Verify** | `kustomize build kubernetes/apps/base/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `.../operator` both build; `task flux:test:all` clean (217 passed, confirmed 2026-08-22). |
 
 The matching 1Password item (`rook-ceph`, `ROOK_DASHBOARD_PASSWORD`) lives in the captain's external vault - delete it manually once this merges; not automated here. Applied via GitOps only; no live `ceph`/`kubectl` mutation was made.
 
@@ -160,7 +160,7 @@ MDS stays Burstable - still blocked on an `mds_cache_memory_limit` rethink (unre
 | **Why** | The alert only matched the `RECENT_CRASH` daemon-crash health check, not `RECENT_MGR_MODULE_CRASH` - a distinct Ceph health-detail check name. That gap is why `CephCrashesDetected` never fired through the crash storm behind the entry below (estimated week-long, ~39,000 crash events) before the underlying `rook` mgr module was disabled. The widened regex covers any mgr module crash going forward, not just the `rook` one hit this time. |
 | **Risk** | None: widening a `ceph_health_detail{name=~...}` regex match only adds coverage to the existing rule; it doesn't change firing behavior for the `RECENT_CRASH` case already handled. |
 | **Rollback** | Revert the `expr` back to the single `name="RECENT_CRASH"` match. |
-| **Verify** | `kustomize build kubernetes/apps/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `task flux:test:all` render the widened rule (confirmed 2026-08-22). Live confirmation that `ceph_health_detail{name="RECENT_MGR_MODULE_CRASH"}` has matching series in Prometheus/VictoriaMetrics - i.e. that the widened rule would actually have fired - is a separate operational check against the live cluster, not covered by this render-only pass. |
+| **Verify** | `kustomize build kubernetes/apps/base/rook-ceph/rook-ceph/cluster --load-restrictor LoadRestrictionsNone` and `task flux:test:all` render the widened rule (confirmed 2026-08-22). Live confirmation that `ceph_health_detail{name="RECENT_MGR_MODULE_CRASH"}` has matching series in Prometheus/VictoriaMetrics - i.e. that the widened rule would actually have fired - is a separate operational check against the live cluster, not covered by this render-only pass. |
 
 Applied via GitOps only (Flux reconciles the PrometheusRule); no direct live-cluster mutation was made.
 
@@ -409,7 +409,7 @@ Evidence captured 2026-06-14 (read-only): all CephFS mounts kernel-client; ceph-
 | **Rollback** | old PVs kept as `Retain` safety-net (delete when confident) |
 | **Verify** | apps healthy on `ceph-filesystem-rwx`, Ceph back to baseline |
 
-Cross-ref: [`cephfs-rwx-subvolumegroup.yaml`](../kubernetes/apps/rook-ceph/rook-ceph/cluster/cephfs-rwx-subvolumegroup.yaml). Do **not** retire `csi-rwx` on image tag alone: live probe on v20.2.3 (2026-08-21) still fails `create`/`getpath` against the default `csi` group with `EINVAL: invalid value specified for ceph.dir.subvolume`. Keep `ceph-filesystem-rwx` until a future release passes that probe.
+Cross-ref: [`cephfs-rwx-subvolumegroup.yaml`](../kubernetes/apps/base/rook-ceph/rook-ceph/cluster/cephfs-rwx-subvolumegroup.yaml). Do **not** retire `csi-rwx` on image tag alone: live probe on v20.2.3 (2026-08-21) still fails `create`/`getpath` against the default `csi` group with `EINVAL: invalid value specified for ceph.dir.subvolume`. Keep `ceph-filesystem-rwx` until a future release passes that probe.
 
 ### [2026-06-12] CephFS CSI forced to autodetect → `ceph-fuse`  (PR — commit 17c7a9df, ae44b3ac)
 

@@ -2,10 +2,10 @@
 
 This document describes the **live** metadata backup, not a proposed
 CronJob. The implementation is
-[`kubernetes/apps/rook-ceph/rook-ceph/backup/backup-system.yaml`](../../kubernetes/apps/rook-ceph/rook-ceph/backup/backup-system.yaml),
+[`kubernetes/apps/base/rook-ceph/rook-ceph/backup/backup-system.yaml`](../../kubernetes/apps/base/rook-ceph/rook-ceph/backup/backup-system.yaml),
 wired into the cluster Kustomization as `../backup`. Emergency steps live
 in
-[`kubernetes/apps/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`](../../kubernetes/apps/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md).
+[`kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`](../../kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md).
 
 ## Problem this backup exists to solve
 
@@ -87,7 +87,7 @@ signal).
 
 Live rules:
 
-- Custom: [`cluster/prometheusrules.yaml`](../../kubernetes/apps/rook-ceph/rook-ceph/cluster/prometheusrules.yaml)
+- Custom: [`cluster/prometheusrules.yaml`](../../kubernetes/apps/base/rook-ceph/rook-ceph/cluster/prometheusrules.yaml)
   (`CephOSDDown`, quorum, PG, disk prediction, and related).
 - Chart rules: `monitoring.createPrometheusRules: true` on the cluster
   HelmRelease.
