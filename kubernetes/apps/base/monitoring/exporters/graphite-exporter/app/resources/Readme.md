@@ -9,7 +9,7 @@ Vendored mapping for `prom/graphite-exporter` (HelmRelease tag currently
 | What | Path |
 |------|------|
 | Mapping ConfigMap source | `graphite_mapping.conf` (this directory); mounted at `/tmp/graphite_mapping.conf` |
-| Dashboards | `kubernetes/apps/monitoring/exporters/graphite-exporter/dashboard/truenas-scale/` (`truenas-scale.json`, `truenas-scale-disk-insights.json`, `truenas-scale-temperatures.json`; Grafana folder `TrueNas`) |
+| Dashboards | `kubernetes/apps/base/monitoring/exporters/graphite-exporter/dashboard/truenas-scale/` (`truenas-scale.json`, `truenas-scale-disk-insights.json`, `truenas-scale-temperatures.json`; Grafana folder `TrueNas`) |
 | HelmRelease | `../helmrelease.yaml` - LoadBalancer TCP/UDP 2003, metrics 9108 |
 
 Mappings expect Graphite prefix `truenas` (see `match: 'truenas\.(.*)\....'`).
