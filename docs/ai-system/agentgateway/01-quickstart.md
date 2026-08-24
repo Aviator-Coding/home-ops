@@ -23,7 +23,7 @@ curl http://internal-noauth.ai.svc.cluster.local/v1/chat/completions \
   -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"ping"}]}'
 ```
 
-The `model` string selects the provider. Examples of ids the unified router already matches: `gpt-*`, `claude-*`, `gemini-*`, `grok-*`, `qwen3.6-35b-a3b` (local + failover), `kimi-*` / `glm-*` (OpenCode Go), vendor slugs such as `x-ai/grok-4.3` (OpenRouter). Exact rules: [`httproute-unified.yaml`](../../../kubernetes/apps/ai/agentgateway/app/httproute-unified.yaml). Catalog of advertised ids: [`httproute-models.yaml`](../../../kubernetes/apps/ai/agentgateway/app/httproute-models.yaml).
+The `model` string selects the provider. Examples of ids the unified router already matches: `gpt-*`, `claude-*`, `gemini-*`, `grok-*`, `qwen3.6-35b-a3b` (local + failover), `kimi-*` / `glm-*` (OpenCode Go), vendor slugs such as `x-ai/grok-4.3` (OpenRouter). Exact rules: [`httproute-unified.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/httproute-unified.yaml). Catalog of advertised ids: [`httproute-models.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/httproute-models.yaml).
 
 ```bash
 curl http://internal-noauth.ai.svc.cluster.local/v1/models

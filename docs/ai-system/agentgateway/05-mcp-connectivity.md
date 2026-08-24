@@ -6,7 +6,7 @@ There is no `AgentgatewayBackend` with `type: MCP`, no `appProtocol: kgateway.de
 
 ## What runs instead: ToolHive
 
-MCP servers are ToolHive `toolhive.stacklok.dev/v1alpha1` `MCPServer` CRs under [`kubernetes/apps/ai/toolhive/`](../../../kubernetes/apps/ai/toolhive/):
+MCP servers are ToolHive `toolhive.stacklok.dev/v1alpha1` `MCPServer` CRs under [`kubernetes/apps/base/ai/toolhive/`](../../../kubernetes/apps/base/ai/toolhive/):
 
 - `mcp-servers/` - github, ha, flux, kubectl, talos, arr, seerr, comfyui, garmin-connect, agentmemory, ...
 - `config/` - MCP group, virtual MCP server, HTTPRoute, telemetry, embedding server

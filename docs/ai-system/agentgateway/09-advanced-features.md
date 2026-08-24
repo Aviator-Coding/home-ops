@@ -4,7 +4,7 @@
 
 Live failover is `spec.ai.groups` on `AgentgatewayBackend`, not `priorityGroups.providers` on a kgateway `Backend`.
 
-[`backends/vllm.yaml`](../../../kubernetes/apps/ai/agentgateway/app/backends/vllm.yaml) defines `llm-chat-failover`:
+[`backends/vllm.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/backends/vllm.yaml) defines `llm-chat-failover`:
 
 - Group 1: local llama.cpp `qwen3.6-35b-a3b` at `vllm-app.ai.svc.cluster.local:8000`
 - Group 2: OpenCode Go `kimi-k2.6` at `opencode.ai` with `pathPrefix: /zen/go/v1` (must include `/v1` or requests hit the marketing site)

@@ -1,6 +1,6 @@
 # Agent / in-cluster clients
 
-**kagent is not deployed.** There is no `kagent/` app under `kubernetes/apps/ai/`, and no kagent `Agent` / `ModelConfig` CRs. Do not set `baseUrl: http://litellm.ai.svc.cluster.local:4000/v1` - LiteLLM is gone.
+**kagent is not deployed.** There is no `kagent/` app under `kubernetes/apps/base/ai/`, and no kagent `Agent` / `ModelConfig` CRs. Do not set `baseUrl: http://litellm.ai.svc.cluster.local:4000/v1` - LiteLLM is gone.
 
 ## How workloads should call LLMs
 

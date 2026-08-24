@@ -1,7 +1,7 @@
 # B70 LLM Serving — Benchmark & Tuning Runbook
 
 > **Hardware:** single Intel Arc Pro B70 (Xe2 / Battlemage G31, 32 GB) on `talos-3`.
-> **App:** `kubernetes/apps/ai/vllm/app/helmrelease.yaml` (chat = llama.cpp SYCL named
+> **App:** `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml` (chat = llama.cpp SYCL named
 > `vllm`; embeddings = vLLM named `vllm-embed`, **default-off**). **Updated:** 2026-07-08
 > (ctx 262144, embed/ComfyUI `replicas: 0`). The A/B matrix below is still the 2026-06-26
 > measurement set.
@@ -192,7 +192,7 @@ They remain valid as the contention mechanism; they are not today's default inve
 
 ### Mutual-exclusion procedure (chat ↔ ComfyUI)
 
-ComfyUI is pinned `replicas: 0` in git (`kubernetes/apps/ai/comfyui/app/helmrelease.yaml`)
+ComfyUI is pinned `replicas: 0` in git (`kubernetes/apps/base/ai/comfyui/app/helmrelease.yaml`)
 and its HelmRelease is suspended (`spec.suspend: true`) - Flux is not reconciling it, so
 there is no automatic revert. Run a ComfyUI session **only** after freeing the card from
 chat, and manually scale it back to 0 when done (see "End the session" below), then

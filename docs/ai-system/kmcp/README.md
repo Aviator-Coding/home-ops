@@ -17,12 +17,12 @@ different operator, different spec. `kubectl apply` of a kmcp example will
 not create a ToolHive server. `kubectl get mcpserver` is ambiguous if both
 CRDs were ever installed; always name the group.
 
-Authoritative manifests: `kubernetes/apps/ai/toolhive/`
+Authoritative manifests: `kubernetes/apps/base/ai/toolhive/`
 (operator, `VirtualMCPServer/mcp-gateway-internal`, and per-server
 `MCPServer` CRs under `mcp-servers/`). Hermes consumes the federated
 gateway at `http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp`.
 
-The agent runtime is Hermes (`kubernetes/apps/ai/hermes`), not kagent.
+The agent runtime is Hermes (`kubernetes/apps/base/ai/hermes`), not kagent.
 See the [kagent tombstone](../kagent/README.md).
 
 Upstream (historical): https://github.com/kagent-dev/kmcp

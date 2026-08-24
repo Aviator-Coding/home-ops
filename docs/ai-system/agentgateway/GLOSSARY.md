@@ -1,6 +1,6 @@
 # AgentGateway glossary (this cluster)
 
-Terms as they are used in `kubernetes/apps/ai/agentgateway/`. Upstream product glossary: <https://agentgateway.dev/>.
+Terms as they are used in `kubernetes/apps/base/ai/agentgateway/`. Upstream product glossary: <https://agentgateway.dev/>.
 
 ## AgentGateway
 
@@ -36,7 +36,7 @@ CNCF Envoy-based Kubernetes gateway. Split from AgentGateway in 2026. **Not inst
 
 ## ToolHive
 
-MCP server platform in `kubernetes/apps/ai/toolhive/`. This cluster's MCP path. AgentGateway MCP/A2A Backends are not used.
+MCP server platform in `kubernetes/apps/base/ai/toolhive/`. This cluster's MCP path. AgentGateway MCP/A2A Backends are not used.
 
 ## LiteLLM
 
@@ -44,7 +44,7 @@ Former unified LLM proxy. Removed. AgentGateway's own `/v1` router replaced it.
 
 ## `internal` / `internal-noauth` / `public`
 
-The three data-plane Gateways (IPs `10.50.0.27` / `.28` / `.29`). See [gateways/README.md](../../../kubernetes/apps/ai/agentgateway/app/gateways/README.md).
+The three data-plane Gateways (IPs `10.50.0.27` / `.28` / `.29`). See [gateways/README.md](../../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md).
 
 ## `ai-keys` / `ai-gateway-keys`
 

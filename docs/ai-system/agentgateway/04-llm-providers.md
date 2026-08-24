@@ -1,11 +1,11 @@
 # LLM providers (unified `/v1`)
 
-Provider configuration is the YAML under [`app/backends/`](../../../kubernetes/apps/ai/agentgateway/app/backends/). Routing is **not** per-provider URL prefixes. It is model-name routing on a single OpenAI-style `/v1`.
+Provider configuration is the YAML under [`app/backends/`](../../../kubernetes/apps/base/ai/agentgateway/app/backends/). Routing is **not** per-provider URL prefixes. It is model-name routing on a single OpenAI-style `/v1`.
 
 Read these two files before adding or changing a provider:
 
-1. [`httproute-unified.yaml`](../../../kubernetes/apps/ai/agentgateway/app/httproute-unified.yaml) - header comments are the routing design
-2. [`policies/model-routing-policy.yaml`](../../../kubernetes/apps/ai/agentgateway/app/policies/model-routing-policy.yaml) - copies JSON `model` to `x-model` before route selection
+1. [`httproute-unified.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/httproute-unified.yaml) - header comments are the routing design
+2. [`policies/model-routing-policy.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/policies/model-routing-policy.yaml) - copies JSON `model` to `x-model` before route selection
 
 ## How a request is routed
 

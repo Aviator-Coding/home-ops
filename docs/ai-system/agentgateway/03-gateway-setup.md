@@ -10,7 +10,7 @@ There is no single Gateway named `agentgateway` and no LB `10.50.0.30`. Live Gat
 
 All use `gatewayClassName: agentgateway`. HTTPS terminates with secret `sklab-dev-production-tls`. IPs are pinned with `lbipam.cilium.io/ips` so recreation (including the already-done `ai-system` -> `ai` move) keeps them.
 
-Read the in-tree notes first: [`app/gateways/README.md`](../../../kubernetes/apps/ai/agentgateway/app/gateways/README.md). The YAML header comments on those Gateway files are the rest of the explanation.
+Read the in-tree notes first: [`app/gateways/README.md`](../../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md). The YAML header comments on those Gateway files are the rest of the explanation.
 
 ## Auth attachment (by listener)
 
@@ -27,8 +27,8 @@ Admin UI HTTPRoutes (`httproute.yaml`, `httproute-internal.yaml`) 302 `/` -> `/u
 
 ## Parameters
 
-[`agentgatewayparameters.yaml`](../../../kubernetes/apps/ai/agentgateway/app/agentgatewayparameters.yaml) is kind `AgentgatewayParameters` (`agentgateway.dev/v1alpha1`) and only sets `ADMIN_ADDR=0.0.0.0:15000`. It is not `gateway.kgateway.dev/GatewayParameters` and has no `spec.kube.agentgateway` block.
+[`agentgatewayparameters.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/agentgatewayparameters.yaml) is kind `AgentgatewayParameters` (`agentgateway.dev/v1alpha1`) and only sets `ADMIN_ADDR=0.0.0.0:15000`. It is not `gateway.kgateway.dev/GatewayParameters` and has no `spec.kube.agentgateway` block.
 
 ## Admin UI Service
 
-[`service-admin-ui.yaml`](../../../kubernetes/apps/ai/agentgateway/app/service-admin-ui.yaml) selects the `internal` Gateway pods on port 15000. Envoy HTTPRoutes point at that Service, not at the LLM listeners.
+[`service-admin-ui.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/service-admin-ui.yaml) selects the `internal` Gateway pods on port 15000. Envoy HTTPRoutes point at that Service, not at the LLM listeners.
