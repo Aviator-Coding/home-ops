@@ -27,3 +27,5 @@ Start with the operator files, then the topic notes under `docs/`.
 [`flux-migration-validation-report.md`](flux-migration-validation-report.md) is a historical snapshot from 2026-03-29. Do not treat its FAILs as open work.
 
 [`backups/volsync-coverage-2026-08-22.md`](backups/volsync-coverage-2026-08-22.md) is a historical snapshot of a full PVC-vs-VolSync coverage audit from 2026-08-22. Re-measure before trusting any figure in it.
+
+[`backups/restore-drill-2026-08-23.md`](backups/restore-drill-2026-08-23.md) is the verified VolSync restore procedure (Ceph + MinIO destinations, scratch-PVC method). Timings are a historical snapshot from 2026-08-23; the procedure is durable.
