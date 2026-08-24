@@ -10,6 +10,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 .
 ├── kubernetes/
 │   ├── apps/           # 19 namespaces, each with app subdirs
+│   ├── clusters/main/  # flux/->clusters restructure skeleton, not yet live (see NOTES)
 │   ├── components/     # alerts, common, dragonfly, volsync
 │   └── flux/           # cluster ks.yaml entry + meta/repos (Helm/OCI sources)
 ├── talos/              # minijinja templates (see talos/AGENTS.md)
@@ -96,6 +97,8 @@ Talos nodes are `talos-1|talos-2|talos-3` mapping to `10.10.10.11/12/13`. Do not
 Debugging: `flux get sources git -A`, `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide`, `kubectl -n {ns} logs {pod} -f`, `kubectl -n {ns} describe pod {pod}`, `kubectl get replicationsource,replicationdestination -A`.
 
 ## NOTES
+
+- **`kubernetes/clusters/main/` is PR 1 of 2 of a `flux/`->`clusters/` restructure and is not the live Flux entry point.** `kubernetes/clusters/main/meta.yaml` and `apps.yaml` duplicate the `cluster-meta`/`cluster-apps` Kustomizations from `kubernetes/flux/cluster/ks.yaml` (see "Flux entry point" above) field-for-field except `cluster-apps.spec.path`, which points at the new `kubernetes/apps/main` indirection layer instead of `kubernetes/apps`. Nothing in `FluxInstance.sync.path` references `kubernetes/clusters` yet, so this tree is inert until the follow-up PR flips it live and updates `.github/workflows/flux-local.yaml`. One file in this change *is* already live, though: `kubernetes/apps/kustomization.yaml` pins the namespace list at the still-active `kubernetes/apps` path (previously Flux auto-generated that list via kustomize-controller's no-`kustomization.yaml` fallback). Practical effect: a brand-new top-level namespace directory under `kubernetes/apps` no longer gets picked up implicitly - add it to `kubernetes/apps/kustomization.yaml`'s `resources` (and, for forward compatibility, `kubernetes/apps/main/kustomization.yaml`) alongside creating the directory.
 
 - **`task flux:test:ns NAMESPACE=X` validates nothing in `X`.** For every value of `NAMESPACE` - `ai`, `media`, `flux-system` - it collects the same 8 objects from `kubernetes/flux/cluster` itself and never traverses into the app Kustomizations, so it passes just as happily on a namespace whose apps you have broken or deleted. Verified 2026-08-22 against the installed `flux-local` (v8.x, now upstream-deprecated in favour of `flate`/`konflate`): only `--all-namespaces` walks the tree. Use `task flux:test:all` - that is also what CI runs (`.github/workflows/flux-local.yaml`), so CI is not affected by this. For a single namespace, `kustomize build kubernetes/apps/<ns> --load-restrictor LoadRestrictionsNone` is the quick check. Note this is a *separate* gap from the `postBuild.substitute` collision above, which `--all-namespaces` does not catch either.
 
