@@ -29,9 +29,10 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 ```
 .
 ├── kubernetes/
-│   ├── apps/           # Flux apps, one directory per namespace
+│   ├── apps/           # Flux apps at apps/base/<ns> + overlay apps/main/<ns>
+│   ├── clusters/main/  # live Flux entry point (cluster-meta + cluster-apps)
 │   ├── components/     # Reusable Kustomize components (alerts, common, dragonfly, volsync)
-│   └── flux/           # cluster-meta / cluster-apps entry plus Helm/OCI sources
+│   └── flux/           # inert pre-restructure copy, kept until dissolve
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
 ├── .taskfiles/         # task recipes (flux, rook, network, 1password, actions-runner)
@@ -71,10 +72,10 @@ Do not pass the control-plane VIP `10.10.10.10` as a node target. Node addresses
 
 ## Adding an app
 
-1. Create `kubernetes/apps/{namespace}/{app}/` with `ks.yaml` plus an `app/` directory.
-2. Register `./{app}/ks.yaml` in the namespace `kustomization.yaml`.
+1. Create `kubernetes/apps/base/{namespace}/{app}/` with an `app/` directory, plus overlay `kubernetes/apps/main/{namespace}/{app}.yaml`.
+2. Register `./{app}.yaml` in `kubernetes/apps/main/{namespace}/kustomization.yaml`.
 3. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
-4. Optional backups: add `spec.components` (path depth depends on layout: `../../../../../components/volsync` from `apps/main/<ns>/`, `../../../../components/volsync` from unmigrated `apps/<ns>/<app>/`), `dependsOn: volsync` (namespace `system`), and `VOLSYNC_*` substitute keys on the Flux Kustomization. Example: `kubernetes/apps/main/media/immich.yaml`.
+4. Optional backups: add `spec.components` (`../../../../../components/volsync` from `apps/main/<ns>/`), `dependsOn: volsync` (namespace `system`), and `VOLSYNC_*` substitute keys on the Flux Kustomization. Example: `kubernetes/apps/main/media/immich.yaml`.
 
 Flux reconciles from Git. After a merge, `task reconcile` forces a sync.
 

@@ -1,8 +1,8 @@
 # Ceph LAN isolation - audit observation plan (stage 1 -> stage 2)
 
-Companion to `kubernetes/apps/kube-system/cilium/app/hostpolicy-ceph.yaml` and the
+Companion to `kubernetes/apps/base/kube-system/cilium/app/hostpolicy-ceph.yaml` and the
 `hostFirewall` / `policyAuditMode` values in
-`kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`.
+`kubernetes/apps/base/kube-system/cilium/app/helmrelease.yaml`.
 
 This document is the gate between **stage 1 (audit, nothing drops)** and
 **stage 2 (enforce)**. Do not open the stage 2 PR without the evidence in
@@ -238,7 +238,7 @@ acceptable casualty of it.
 Only after §4 passes:
 
 1. Flip `policyAuditMode: true` -> `false` in
-   `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`. Leave
+   `kubernetes/apps/base/kube-system/cilium/app/helmrelease.yaml`. Leave
    `hostFirewall.enabled: true` and the policy in place - they are separate
    stages and stage 2 changes **only** this line.
 2. Quote the observed evidence in the PR body: the per-node audited-flow

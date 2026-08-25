@@ -60,7 +60,7 @@ kustomize build bootstrap/kustomize/apps | vals eval -f -   # needs op signin
 OCIRepository manifest that Flux already manages in `kubernetes/apps/`. No version
 duplication — Renovate bumps the OCIRepository tag and helmfile picks it up automatically.
 
-Example: `cilium` in `kube-system` → reads `kubernetes/apps/kube-system/cilium/app/ocirepository.yaml`.
+Example: `cilium` in `kube-system` → reads `kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml`.
 
 > `grafana-operator` has no OCIRepository in `kubernetes/apps/` so its `crds.yaml`
 > entry keeps explicit `chart:` / `version:` fields. Bootstrap still extracts
@@ -90,7 +90,7 @@ seeded post-bootstrap by ESO and must NOT be added here.
 - **NEVER** run `just bootstrap cluster` / `apps` against a healthy cluster.
 - **NEVER** put plaintext secrets in `kustomize/apps/*/secret.yaml` — use `ref+op://Home-Lab/*`.
 - **NEVER** add a helm `postRenderer: bash` (breaks on Helm 4) — filter CRDs in the recipe with `yq`.
-- Keep `helmfile/apps.yaml` release names + namespaces in sync with `kubernetes/apps/` paths.
+- Keep `helmfile/apps.yaml` release names + namespaces in sync with `kubernetes/apps/base/` paths.
 
 ## NOTES
 

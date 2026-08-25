@@ -3,17 +3,18 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: cluster-meta
-  namespace: &namespace flux-system
+  name: &app mglru-disable
+  namespace: &namespace kube-system
 spec:
   interval: 1h
-  path: ./kubernetes/apps/base/flux-system/meta
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  path: ./kubernetes/apps/base/kube-system/mglru-disable/app
   prune: true
-  retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  # Flux repositories under this need flux-system hardcoded as namespace for Renovate lookups
   targetNamespace: *namespace
-  wait: true
+  wait: false

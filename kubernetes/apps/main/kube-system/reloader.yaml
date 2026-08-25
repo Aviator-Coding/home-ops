@@ -3,17 +3,20 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: cluster-meta
-  namespace: &namespace flux-system
+  name: &app reloader
+  namespace: &namespace kube-system
 spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
   interval: 1h
-  path: ./kubernetes/apps/base/flux-system/meta
+  path: ./kubernetes/apps/base/kube-system/reloader/app
   prune: true
   retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  # Flux repositories under this need flux-system hardcoded as namespace for Renovate lookups
   targetNamespace: *namespace
-  wait: true
+  timeout: 5m
+  wait: false

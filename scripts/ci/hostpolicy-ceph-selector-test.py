@@ -33,7 +33,7 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-CILIUM_APP = ROOT / "kubernetes/apps/kube-system/cilium/app"
+CILIUM_APP = ROOT / "kubernetes/apps/base/kube-system/cilium/app"
 POLICY_PATH = CILIUM_APP / "hostpolicy-ceph.yaml"
 HELMRELEASE_PATH = CILIUM_APP / "helmrelease.yaml"
 
