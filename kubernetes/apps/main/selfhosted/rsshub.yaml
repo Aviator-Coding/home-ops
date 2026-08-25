@@ -7,13 +7,13 @@ metadata:
   namespace: &namespace selfhosted
 spec:
   components:
-    - ../../../../components/volsync
-    - ../../../../components/dragonfly
+    - ../../../../../components/volsync
+    - ../../../../../components/dragonfly
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   interval: 1h
-  path: ./kubernetes/apps/selfhosted/rsshub/app
+  path: ./kubernetes/apps/base/selfhosted/rsshub/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -51,12 +51,12 @@ metadata:
   namespace: &namespace selfhosted
 spec:
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   interval: 1h
-  path: ./kubernetes/apps/selfhosted/rsshub/playwright
+  path: ./kubernetes/apps/base/selfhosted/rsshub/playwright
   postBuild:
     substituteFrom:
       - name: cluster-secrets

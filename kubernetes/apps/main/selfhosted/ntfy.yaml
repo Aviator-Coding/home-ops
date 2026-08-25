@@ -3,25 +3,37 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app excalidraw
+  name: &app ntfy
   namespace: &namespace selfhosted
 spec:
   targetNamespace: *namespace
-  path: ./kubernetes/apps/selfhosted/excalidraw/app
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/apps/base/selfhosted/ntfy/app"
   prune: true
-  wait: false
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  interval: 90m
-  timeout: 5m
+  wait: false
+  dependsOn:
+    - name: volsync
+      namespace: system
+  components:
+    - ../../../../../components/volsync
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
+      APP_UID: "1000"
+      APP_GID: "1000"
+      VOLSYNC_CLAIM: ntfy
+      VOLSYNC_CAPACITY: 2Gi
+      VOLSYNC_SCHEDULE_CEPH: "20 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "50 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "25 4 * * *"

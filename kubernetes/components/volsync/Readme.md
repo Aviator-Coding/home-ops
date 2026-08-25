@@ -73,8 +73,8 @@ Because `APP` is the claim name, this gets its own restic repository
 (`s3://.../<claim>`), its own ExternalSecrets and its own `<claim>-dst`
 ReplicationDestination - nothing collides with the parent app's.
 
-Live examples: `kubernetes/apps/selfhosted/syncthing/ks.yaml` (`syncthing-data`)
-and `kubernetes/apps/selfhosted/paperless-ngx/ks.yaml` (`paperless-ngx-media`).
+Live examples: `kubernetes/apps/main/selfhosted/syncthing.yaml` (`syncthing-data`)
+and `kubernetes/apps/main/selfhosted/paperless-ngx.yaml` (`paperless-ngx-media`).
 
 **Pick the schedule minutes so they do not collide** with the other ReplicationSources
 in the same namespace - three movers snapshotting the same Ceph pool at the same minute

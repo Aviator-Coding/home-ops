@@ -8,4 +8,3 @@ resources:
   - ./home-automation
   - ./kube-system
   - ./media
-  - ./selfhosted

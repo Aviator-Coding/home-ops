@@ -3,7 +3,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app obsidian-livesync
+  name: &app linkwarden
   namespace: &namespace selfhosted
 spec:
   targetNamespace: *namespace
@@ -12,7 +12,7 @@ spec:
       app.kubernetes.io/name: *app
   interval: 30m
   timeout: 5m
-  path: "./kubernetes/apps/selfhosted/obsidian-livesync/app"
+  path: "./kubernetes/apps/base/selfhosted/linkwarden/app"
   prune: true
   sourceRef:
     kind: GitRepository
@@ -24,18 +24,20 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
+    - name: cloudnative-pg
+      namespace: database
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      APP_UID: "5984"
-      APP_GID: "5984"
-      VOLSYNC_CLAIM: obsidian-livesync
-      VOLSYNC_CAPACITY: 2Gi
+      APP_UID: "1000"
+      APP_GID: "1000"
+      VOLSYNC_CLAIM: linkwarden
+      VOLSYNC_CAPACITY: 5Gi
       VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "15 4 * * *"

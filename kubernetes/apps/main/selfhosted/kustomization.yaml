@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: selfhosted
+
+components:
+  - ../../../components/common
+  - ../../../components/alerts
+
+resources:
+  - ./rsshub.yaml
+  - ./changedetection.yaml
+  - ./homepage.yaml
+  - ./n8n.yaml
+  - ./excalidraw.yaml
+  - ./linkwarden.yaml
+  - ./ntfy.yaml
+  - ./obsidian-livesync.yaml
+  - ./paperless-ngx.yaml
+  - ./syncthing.yaml
