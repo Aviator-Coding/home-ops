@@ -236,7 +236,7 @@ op item create \
 
 ### 5. ntfy (ConfigMap-only; no 1Password item)
 
-ntfy auth is a ConfigMap (`selfhosted/ntfy/app/configmap.yaml`):
+ntfy auth is a ConfigMap (`kubernetes/apps/base/selfhosted/ntfy/app/configmap.yaml`):
 `auth-default-access: read-write`. There is no ntfy ExternalSecret. Creating an
 `NTFY_AUTH_DEFAULT_ACCESS` 1Password item would do nothing unless/until auth is
 wired through ESO.
