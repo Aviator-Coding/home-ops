@@ -15,7 +15,8 @@ This test does not grep source text. It:
   3. Asserts the shipped selector matches every host endpoint, while the known-
      broken selector matches none of them (and would have matched the nodes).
   4. Asserts the subtractive safety contract: enableDefaultDeny ingress/egress
-     are false, ingressDeny is world-only, and stage-1 audit mode is still on.
+     are false, ingressDeny is world-only, and stage-2 enforcement is on
+     (policyAuditMode false with hostFirewall still enabled).
 
 Live BPF verification (cilium-dbg bpf policy get) remains the post-merge gate in
 docs/ceph/lan-isolation-audit-plan.md §2c; this test catches the silent-open
@@ -259,7 +260,9 @@ def main() -> int:
             f"shipped selector missed nodes: matched {shipped_node_hits}",
         )
 
-        # Subtractive safety contract - still stage 1.
+        # Subtractive safety contract - stage 2 enforcing.
+        # Anti-lockout comes from enableDefaultDeny false/false (NOT from audit
+        # mode). Only enumerated (world, port) pairs can be dropped.
         edd = spec.get("enableDefaultDeny") or {}
         assert_true(edd.get("ingress") is False, "enableDefaultDeny.ingress must be false")
         assert_true(edd.get("egress") is False, "enableDefaultDeny.egress must be false")
@@ -285,8 +288,8 @@ def main() -> int:
 
         values = load_helm_values()
         assert_true(
-            values.get("policyAuditMode") is True,
-            "stage-1 requires policyAuditMode: true (enforce is a separate PR)",
+            values.get("policyAuditMode") is False,
+            "stage-2 requires policyAuditMode: false (enforcing after audit evidence)",
         )
         host_fw = values.get("hostFirewall") or {}
         assert_true(
@@ -316,7 +319,7 @@ def main() -> int:
         print(
             "OK: shipped selector matches all 3 host endpoints; "
             "broken kubernetes.io/os selector matches 0; "
-            "enableDefaultDeny false/false; audit mode still on",
+            "enableDefaultDeny false/false; policyAuditMode false (enforcing)",
             file=sys.stderr,
         )
         return 0
