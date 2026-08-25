@@ -61,11 +61,18 @@
 # That path is in-cluster and unaffected; only direct http://10.10.10.x:80 is
 # closed, which is the exposure being removed.
 #
-# STAGED ROLLOUT - READ BEFORE ASSUMING THIS IS ENFORCING
-# While `policyAuditMode: true` is set in ./helmrelease.yaml this policy is
-# NON-ENFORCING: matching traffic is reported as an AUDIT verdict and still
-# delivered. Stage 2 flips that to false. Evidence to capture first, and the
-# exact commands, are in docs/ceph/lan-isolation-audit-plan.md.
+# THIS POLICY IS ENFORCING (since 2026-08-25, stage 2).
+# `policyAuditMode: false` in ./helmrelease.yaml means matching traffic is now
+# DROPPED, not merely reported. It was proved non-disruptive first by a 25h
+# audit-mode window: deny-counter delta was 0 packets on talos-1/talos-3 and 4
+# on talos-2 (one deliberate probe), all 99 VolSync ReplicationSources
+# completed, all 4 Prometheus Ceph targets stayed up, and LoadBalancer traffic
+# on port 80 was proved not to traverse this policy.
+# Evidence: docs/ceph/lan-isolation-audit-results.md
+# Staging, gates and rollback: docs/ceph/lan-isolation-audit-plan.md
+#
+# To make this non-enforcing again in a hurry, set `policyAuditMode: true` in
+# ./helmrelease.yaml, or delete this policy outright.
 #
 # Port set verified against the live cluster on 2026-08-23; every port below is
 # owned exclusively by rook-ceph (no other host-network pod in the cluster

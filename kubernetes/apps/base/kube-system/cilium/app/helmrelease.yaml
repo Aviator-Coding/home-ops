@@ -110,29 +110,33 @@ spec:
           memory: 512Mi
     pmtuDiscovery:
       enabled: true
-    # TEMPORARY - STAGE 1 OF 2. Renders `policy-audit-mode: "true"` into the
-    # cilium-config ConfigMap, which makes every policy verdict non-enforcing:
-    # traffic a policy would drop is instead reported as an AUDIT verdict and
-    # still delivered. This is what makes enabling hostFirewall above safe to
-    # land - it provably cannot drop a packet, so a mistake in
-    # ./hostpolicy-ceph.yaml cannot lock the nodes out (Talos has no SSH).
+    # STAGE 2 OF 2 - ENFORCING. `policy-audit-mode: "false"` means host and pod
+    # policy verdicts are enforced again: traffic matched by a deny rule is
+    # dropped rather than reported. The Ceph host policy in
+    # ./hostpolicy-ceph.yaml is now live.
     #
-    # Unlike the per-endpoint `cilium-dbg endpoint config <id>
-    # PolicyAuditMode=Enabled` toggle, this ConfigMap key survives an agent
-    # restart. That matters: the per-endpoint toggle silently reverts to
-    # ENFORCING on restart, which is precisely the lockout this staging exists
-    # to prevent.
+    # Flipped only after a 25h audit window (2026-08-24T10:38Z ->
+    # 2026-08-25T11:38Z) proved nothing but intended LAN traffic would be
+    # dropped. Evidence: docs/ceph/lan-isolation-audit-results.md. Headline
+    # numbers: deny-counter delta over the window was 0 packets on talos-1 and
+    # talos-3 and 4 packets on talos-2 (a deliberate probe from 10.0.0.150);
+    # all 99 VolSync ReplicationSources completed Successful; all 4 Prometheus
+    # Ceph targets stayed up; port-80 LoadBalancer traffic was proved not to
+    # traverse the host policy.
     #
-    # KNOWN COST, deliberate and bounded: audit mode is global, not
-    # host-endpoint-scoped, so the cluster's 14 pod NetworkPolicies (dragonfly
-    # cache isolation + prometheus scrape allows) are also un-enforced while
-    # this is true. They are internal-only policies and nothing about this is
-    # internet-facing, but keep the observation window short.
+    # This also restores enforcement of the cluster's 14 pod NetworkPolicies,
+    # which global audit mode had suspended for the duration of the window.
     #
-    # Stage 2 flips this to `false` once the audit evidence is captured - see
-    # docs/ceph/lan-isolation-audit-plan.md. Do not remove hostFirewall when
-    # removing this; they are separate stages.
-    policyAuditMode: true
+    # The safety property does NOT come from this flag. It comes from
+    # `enableDefaultDeny: {ingress: false, egress: false}` in
+    # ./hostpolicy-ceph.yaml, which keeps the host endpoint out of default-deny
+    # so only the enumerated (world, port) pairs can ever be dropped. Read the
+    # header of that file before changing either.
+    #
+    # ROLLBACK: set this back to `true` (fastest, un-drops everything
+    # immediately) or delete the CCNP. See
+    # docs/ceph/lan-isolation-audit-plan.md section 6.
+    policyAuditMode: false
     prometheus:
       enabled: true
       serviceMonitor:
