@@ -1,0 +1,63 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# The official renovate helm chart is a CronJob with no metrics endpoint, so
+# there is no ServiceMonitor. Failed/missing runs are detected from
+# kube-state-metrics CronJob timestamps.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: renovate-rules
+spec:
+  groups:
+    - name: renovate.rules
+      rules:
+        - alert: RenovateJobFailed
+          expr: |-
+            (
+              kube_cronjob_status_last_schedule_time{namespace="renovate", cronjob="renovate"}
+              - kube_cronjob_status_last_successful_time{namespace="renovate", cronjob="renovate"}
+            ) > 60
+          for: 40m
+          annotations:
+            summary: >-
+              In-cluster Renovate's last scheduled run did not succeed
+              (schedule minus last success is {{ $value | humanizeDuration }}).
+              Check the latest Job logs in the renovate namespace.
+          labels:
+            severity: warning
+        - alert: RenovateRunMissing
+          expr: |-
+            kube_cronjob_status_last_successful_time{namespace="renovate", cronjob="renovate"} > 1
+            and
+            (time() - kube_cronjob_status_last_successful_time{namespace="renovate", cronjob="renovate"}) > 28800
+          for: 15m
+          annotations:
+            summary: >-
+              In-cluster Renovate has not completed a successful run in over 8h
+              (two missed 4-hour cycles). Confirm the CronJob is not suspended
+              and that the renovate 1Password item exists so the GitHub App
+              token can be minted.
+          labels:
+            severity: critical
+        - alert: RenovateNeverSucceeded
+          expr: |-
+            kube_cronjob_info{namespace="renovate", cronjob="renovate"} == 1
+            unless on(namespace, cronjob)
+              kube_cronjob_status_last_successful_time{namespace="renovate", cronjob="renovate"} > 1
+          for: 8h
+          annotations:
+            summary: >-
+              In-cluster Renovate has never completed a successful run. The
+              first likely cause is a missing Homelab/renovate 1Password item
+              (BOT_APP_ID, BOT_APP_PRIVATE_KEY).
+          labels:
+            severity: critical
+        - alert: RenovateCronJobAbsent
+          expr: absent(kube_cronjob_info{namespace="renovate", cronjob="renovate"})
+          for: 1h
+          annotations:
+            summary: >-
+              The in-cluster Renovate CronJob is missing. Flux may have failed
+              to reconcile kubernetes/apps/base/renovate.
+          labels:
+            severity: critical
