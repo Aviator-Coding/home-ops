@@ -11,9 +11,9 @@ resources:
   - ./default
   - ./downloads
   - ../flux-system
-  - ../home-automation
+  - ./home-automation
   - ../kube-system
-  - ../media
+  - ./media
   - ./monitoring
   - ./network
   - ./rook-ceph

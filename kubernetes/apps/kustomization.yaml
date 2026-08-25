@@ -5,6 +5,4 @@ kind: Kustomization
 resources:
   - ./cert-manager
   - ./flux-system
-  - ./home-automation
   - ./kube-system
-  - ./media

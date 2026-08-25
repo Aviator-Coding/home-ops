@@ -5,13 +5,13 @@ kind: Kustomization
 namespace: media
 
 components:
-  - ../../components/common
-  - ../../components/alerts
+  - ../../../components/common
+  - ../../../components/alerts
 
 resources:
-  - ./calibre/ks.yaml
-  - ./immich/ks.yaml
-  - ./jellyfin/ks.yaml
-  - ./plex/ks.yaml
-  - ./seerr/ks.yaml
-  - ./tdarr/ks.yaml
+  - ./calibre.yaml
+  - ./immich.yaml
+  - ./jellyfin.yaml
+  - ./plex.yaml
+  - ./seerr.yaml
+  - ./tdarr.yaml

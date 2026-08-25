@@ -11,8 +11,8 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../../components/volsync
-    - ../../../../components/dragonfly
+    - ../../../../../components/volsync
+    - ../../../../../components/dragonfly
   dependsOn:
     - name: onepassword-store
       namespace: security
@@ -30,7 +30,7 @@ spec:
       failed: status.phase != 'ready'
       current: status.phase == 'ready'
   interval: 30m
-  path: ./kubernetes/apps/media/immich/app
+  path: ./kubernetes/apps/base/media/immich/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets

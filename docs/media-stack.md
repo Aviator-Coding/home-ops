@@ -366,9 +366,9 @@ All config PVCs have Volsync with triple backup (Ceph snapshots every 4h, NAS Mi
 | Shared downloads PVC | `kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml` |
 | SAB incomplete PVC | `kubernetes/apps/base/downloads/pvc/app/sabnzbd-incomplete.yaml` |
 | SAB disk-space runbook | `docs/downloads/sabnzbd-disk-space-runbook.md` |
-| Jellyfin | `kubernetes/apps/media/jellyfin/` |
-| Plex | `kubernetes/apps/media/plex/` |
-| Tdarr | `kubernetes/apps/media/tdarr/` |
+| Jellyfin | `kubernetes/apps/base/media/jellyfin/` |
+| Plex | `kubernetes/apps/base/media/plex/` |
+| Tdarr | `kubernetes/apps/base/media/tdarr/` |
 | GPU changelog | `docs/ai-gpu-changelog.md` |
 | Volsync component | `kubernetes/components/volsync/` |
 
