@@ -74,7 +74,7 @@ Do not pass the control-plane VIP `10.10.10.10` as a node target. Node addresses
 1. Create `kubernetes/apps/{namespace}/{app}/` with `ks.yaml` plus an `app/` directory.
 2. Register `./{app}/ks.yaml` in the namespace `kustomization.yaml`.
 3. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
-4. Optional backups: add `spec.components: [../../../../components/volsync]`, `dependsOn: volsync` (namespace `system`), and `VOLSYNC_*` substitute keys on the Flux `ks.yaml`. Example: `kubernetes/apps/media/immich/ks.yaml`.
+4. Optional backups: add `spec.components` (path depth depends on layout: `../../../../../components/volsync` from `apps/main/<ns>/`, `../../../../components/volsync` from unmigrated `apps/<ns>/<app>/`), `dependsOn: volsync` (namespace `system`), and `VOLSYNC_*` substitute keys on the Flux Kustomization. Example: `kubernetes/apps/main/media/immich.yaml`.
 
 Flux reconciles from Git. After a merge, `task reconcile` forces a sync.
 

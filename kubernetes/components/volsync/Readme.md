@@ -261,9 +261,9 @@ With per-app schedules (35 Flux Kustomizations include this component):
 When you include these components in an application (e.g., `plex`):
 
 ```yaml
-# In your app's kustomization.yaml
+# In the app's Flux Kustomization (migrated: apps/main/<ns>/<app>.yaml)
 components:
-  - ../../../components/volsync
+  - ../../../../../components/volsync
 ```
 
 **What gets created**:
@@ -298,10 +298,10 @@ Common variables used across all configurations:
 
 ### Customizing Backup Schedules Per-App
 
-To spread backup times and reduce IOPS contention, override schedules in your app's `ks.yaml`:
+To spread backup times and reduce IOPS contention, override schedules in the app's Flux Kustomization:
 
 ```yaml
-# kubernetes/apps/media/jellyfin/ks.yaml
+# kubernetes/apps/main/media/jellyfin.yaml
 postBuild:
   substituteFrom:
     - name: cluster-secrets
