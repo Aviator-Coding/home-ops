@@ -2,7 +2,7 @@
 
 These steps match the live backup in
 [`backup-system.yaml`](./backup-system.yaml) and the device-path runbook
-[`docs/ceph/osd-device-path-recovery.md`](../../../../../docs/ceph/osd-device-path-recovery.md).
+[`docs/ceph/osd-device-path-recovery.md`](../../../../../../docs/ceph/osd-device-path-recovery.md).
 Do not invent missing objects. There is no `backup-pod` Deployment, no
 `cleanup-all-nodes.yaml`, and no `initial-backup-job.yaml`.
 
@@ -105,7 +105,7 @@ OSD rolls stay serial. Deleting every OSD at once
 (`kubectl delete pods -n rook-ceph -l app=rook-ceph-osd`) is the blast
 radius that runbook forbids: on a degraded cluster Rook #17224 relocate
 fallback returns empty and pods stick `Init:0/5`. See
-[`docs/ceph/osd-device-path-recovery.md`](../../../../../docs/ceph/osd-device-path-recovery.md).
+[`docs/ceph/osd-device-path-recovery.md`](../../../../../../docs/ceph/osd-device-path-recovery.md).
 
 ```bash
 # 1. Confirm mons answer

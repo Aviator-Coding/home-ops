@@ -176,7 +176,7 @@ ceph osd pool set <pool-name> <property> <value>
 
 ### Pool Properties
 All standing Ceph config is GitOps in
-`kubernetes/apps/rook-ceph/rook-ceph/cluster/helmrelease.yaml`. Live
+`kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml`. Live
 `ceph osd pool set` / `ceph config set` / `injectargs` is incident-only and
 must be logged in `docs/ceph-cluster-changelog.md`. This cluster's pools are
 `compression_mode: none`; do not re-enable `aggressive`.

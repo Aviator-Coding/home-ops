@@ -16,7 +16,7 @@ resources:
   - ../media
   - ./monitoring
   - ./network
-  - ../rook-ceph
+  - ./rook-ceph
   - ./security
   - ../selfhosted
   - ./system
