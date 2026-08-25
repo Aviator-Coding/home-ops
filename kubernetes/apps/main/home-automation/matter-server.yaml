@@ -3,39 +3,36 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app esphome
+  name: &app matter-server
   namespace: &namespace home-automation
 spec:
   targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  interval: 30m
-  timeout: 5m
-  path: "./kubernetes/apps/home-automation/esphome/app"
+  components:
+    - ../../../../../components/volsync
+  interval: 10m
+  path: "./kubernetes/apps/base/home-automation/matter-server/app"
   prune: true
+  dependsOn:
+    - name: volsync
+      namespace: system
+    - name: multus-networks
+      namespace: kube-system
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  wait: false
-  dependsOn:
-    - name: multus-networks
-      namespace: kube-system
-    - name: onepassword-store
-      namespace: security
-    - name: volsync
-      namespace: system
-  components:
-    - ../../../../components/volsync
+  wait: false # no flux ks dependents
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: esphome-config
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
+      VOLSYNC_CAPACITY: 1Gi
+      VOLSYNC_CLAIM: matter-server
+      VOLSYNC_SCHEDULE_CEPH: "20 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "15 1 * * *"
+      VOLSYNC_SCHEDULE_R2: "20 1 * * *"

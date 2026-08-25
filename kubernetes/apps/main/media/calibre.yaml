@@ -13,9 +13,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  path: ./kubernetes/apps/media/calibre/calibre-web-automated
+  path: ./kubernetes/apps/base/media/calibre/calibre-web-automated
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
   prune: true
   sourceRef:
     kind: GitRepository
@@ -48,7 +48,7 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  path: ./kubernetes/apps/media/calibre/calibre-downloader
+  path: ./kubernetes/apps/base/media/calibre/calibre-downloader
   prune: true
   sourceRef:
     kind: GitRepository

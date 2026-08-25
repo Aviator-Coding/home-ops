@@ -3,32 +3,34 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app tdarr
+  name: &app plex
   namespace: &namespace media
 spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../../components/volsync
+    - ../../../../../components/volsync
   dependsOn:
+    - name: onepassword-store
+      namespace: security
     - name: intel-device-plugin-gpu
       namespace: system
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 30m
-  path: ./kubernetes/apps/media/tdarr/app
+  path: ./kubernetes/apps/base/media/plex/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_CLAIM: tdarr-config
-      VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "20 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "50 3 * * *"
+      VOLSYNC_CAPACITY: 20Gi
+      VOLSYNC_CACHE_CAPACITY: 10Gi
+      VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "50 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "35 3 * * *"
   prune: true
   sourceRef:
     kind: GitRepository

@@ -5,14 +5,14 @@ kind: Kustomization
 namespace: home-automation
 
 components:
-  - ../../components/common
-  - ../../components/alerts
+  - ../../../components/common
+  - ../../../components/alerts
 
 resources:
   # Pre Flux-Kustomizations
   # - ./namespace.yaml
   # Flux-Kustomizations
-  - ./esphome/ks.yaml
-  - ./home-assistant/ks.yaml
-  - ./matter-server/ks.yaml
-  - ./zigbee2mqtt/ks.yaml # We sare using SLZB-06M
+  - ./esphome.yaml
+  - ./home-assistant.yaml
+  - ./matter-server.yaml
+  - ./zigbee2mqtt.yaml # We sare using SLZB-06M

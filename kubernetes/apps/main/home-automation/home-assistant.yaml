@@ -3,40 +3,39 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app zigbee2mqtt
+  name: &app home-assistant
   namespace: &namespace home-automation
 spec:
   targetNamespace: *namespace
+  components:
+    - ../../../../../components/volsync
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  interval: 30m
-  timeout: 5m
-  path: "./kubernetes/apps/home-automation/zigbee2mqtt/app"
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
+    - name: volsync
+      namespace: system
+    - name: multus-networks
+      namespace: kube-system
+  path: ./kubernetes/apps/base/home-automation/home-assistant/app
   prune: true
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
   wait: false
-  dependsOn:
-    - name: multus-networks
-      namespace: kube-system
-    - name: onepassword-store
-      namespace: security
-    - name: emqx-cluster
-      namespace: database
-    - name: volsync
-      namespace: system
-  components:
-    - ../../../../components/volsync
+  interval: 30m
+  timeout: 5m
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: zigbee2mqtt-data
-      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "10 1 * * *"
+      VOLSYNC_CAPACITY: 5Gi
+      VOLSYNC_CLAIM: home-assistant
+      VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "5 1 * * *"
