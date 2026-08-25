@@ -5,14 +5,14 @@ kind: Kustomization
 resources:
   - ./actions-runner-system
   - ./ai
-  - ../cert-manager
+  - ./cert-manager
   - ./coder
   - ./database
   - ./default
   - ./downloads
-  - ../flux-system
+  - ./flux-system
   - ./home-automation
-  - ../kube-system
+  - ./kube-system
   - ./media
   - ./monitoring
   - ./network

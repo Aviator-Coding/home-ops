@@ -1,9 +1,9 @@
 # BGP (Cilium + UniFi)
 
 Short index of **this** cluster. The Cilium objects live in
-[`kubernetes/apps/kube-system/cilium/app/networking.yaml`](../../kubernetes/apps/kube-system/cilium/app/networking.yaml).
+[`kubernetes/apps/base/kube-system/cilium/app/networking.yaml`](../../kubernetes/apps/base/kube-system/cilium/app/networking.yaml).
 Operator notes and the last git copy of the UniFi snippet:
-[`kubernetes/apps/kube-system/cilium/Readme.md`](../../kubernetes/apps/kube-system/cilium/Readme.md).
+[`kubernetes/apps/base/kube-system/cilium/Readme.md`](../../kubernetes/apps/base/kube-system/cilium/Readme.md).
 
 | Fact | Value |
 |------|-------|
