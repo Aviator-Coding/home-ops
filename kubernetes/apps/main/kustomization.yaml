@@ -16,6 +16,7 @@ resources:
   - ./media
   - ./monitoring
   - ./network
+  - ./renovate
   - ./rook-ceph
   - ./security
   - ./selfhosted

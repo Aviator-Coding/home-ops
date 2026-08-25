@@ -55,11 +55,11 @@ Pre-pulls new container images to Talos nodes before PRs are merged, reducing de
 
 **File:** `renovate.yaml`
 
-Runs [Renovate](https://github.com/renovatebot/renovate) for automated dependency updates.
+Runs [Renovate](https://github.com/renovatebot/renovate) for automated dependency updates. This workflow is still the live write path; the in-cluster CronJob is dry-run observation until cutover (`kubernetes/apps/base/renovate/README.md`).
 
 **Triggers:**
 - Push to `.renovaterc.json5` or `.renovate/**`
-- Hourly schedule
+- Every 4 hours (`0 */4 * * *`)
 - Manual dispatch with options for dry-run and log level
 
 **Configuration:** Uses repository's `.renovaterc.json5` for Renovate settings.
