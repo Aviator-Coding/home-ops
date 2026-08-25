@@ -15,7 +15,7 @@ The ExternalSecret expects a Homelab vault item that does not exist yet:
 
 Same GitHub App the hosted workflow already uses via `actions/create-github-app-token`. The CronJob mints a one-hour installation token at start (`app/resources/github-app-token.js`). The app must keep access to `Aviator-Coding/home-ops` and `Aviator-Coding/mortyops` (preset `extends`).
 
-Until that item exists, the ExternalSecret will stay non-ready and the first CronJob will fail token minting. The `RenovateRunMissing` alert is the tripwire.
+Until that item exists, the ExternalSecret will stay non-ready and the first CronJob will fail token minting. The `RenovateNeverSucceeded` alert is the tripwire on first deploy (no prior success). `RenovateRunMissing` only applies after at least one successful run.
 
 ## Cutover (follow-up PR, not this one)
 
@@ -28,4 +28,6 @@ Until that item exists, the ExternalSecret will stay non-ready and the first Cro
 The chart has no metrics Service, so there is no ServiceMonitor. `app/prometheusrule.yaml` watches kube-state-metrics CronJob timestamps:
 
 - `RenovateJobFailed` - last schedule did not succeed within 40m
-- `RenovateRunMissing` - no successful run in 8h (two missed cycles)
+- `RenovateRunMissing` - no successful run in 8h after at least one prior success (two missed cycles)
+- `RenovateNeverSucceeded` - CronJob exists but has never succeeded (8h); first-deploy / missing-secret tripwire
+- `RenovateCronJobAbsent` - CronJob missing for 1h
