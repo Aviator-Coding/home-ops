@@ -4,7 +4,7 @@
 > Last git touch of this file as a live report was 2026-04-02. The three
 > FAILs (Syncthing tag pin, Immich `targetNamespace`, Immich Volsync) are
 > already fixed. Warnings about `kubernetes/components/gatus` refer to a
-> component that no longer exists (Gatus is `kubernetes/apps/monitoring/gatus`).
+> component that no longer exists (Gatus is `kubernetes/apps/base/monitoring/gatus`).
 > Image tags quoted below are also stale.
 
 Date: 2026-03-29

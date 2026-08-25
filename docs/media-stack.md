@@ -343,7 +343,7 @@ Check Sonarr/Radarr Activity > History for failed imports. Common causes:
 - File already exists at target path (unmonitored duplicate)
 - Permission issue on NFS (should not happen -- fsGroup=2000 across all apps)
 - Quality profile rejection (check custom format score in release details)
-- Radarr matched the grab by movie ID but can't re-parse the downloaded filename (`trackedDownloadState: importBlocked`) -- hardcoded parser behavior, not a settings toggle; common on non-English/MULTi releases. Requires manual **Activity > Queue > Manual Import**. Recyclarr deprioritizes (does not block) parse-risky releases (see Custom format categories above); a stuck item pages via the `RadarrImportQueueBlocked` Gatus alert (`kubernetes/apps/monitoring/gatus/app/resources/config.yaml`) instead of accumulating silently
+- Radarr matched the grab by movie ID but can't re-parse the downloaded filename (`trackedDownloadState: importBlocked`) -- hardcoded parser behavior, not a settings toggle; common on non-English/MULTi releases. Requires manual **Activity > Queue > Manual Import**. Recyclarr deprioritizes (does not block) parse-risky releases (see Custom format categories above); a stuck item pages via the `RadarrImportQueueBlocked` Gatus alert (`kubernetes/apps/base/monitoring/gatus/app/resources/config.yaml`) instead of accumulating silently
 
 ### Backup and recovery
 
