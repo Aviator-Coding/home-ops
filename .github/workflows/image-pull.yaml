@@ -99,7 +99,7 @@ jobs:
               "get",
               "cluster",
               "--all-namespaces",
-              # Live Flux entry point (clusters/main -> apps/main).
+              # Flux entry point (clusters/main -> apps/main).
               "--path",
               "/github/workspace/kubernetes/clusters/main",
               "--enable-images",
