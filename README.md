@@ -30,9 +30,8 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 .
 ├── kubernetes/
 │   ├── apps/           # Flux apps at apps/base/<ns> + overlay apps/main/<ns>
-│   ├── clusters/main/  # live Flux entry point (cluster-meta + cluster-apps)
-│   ├── components/     # Reusable Kustomize components (alerts, common, dragonfly, volsync)
-│   └── flux/           # inert pre-restructure copy, kept until dissolve
+│   ├── clusters/main/  # Flux entry point (cluster-meta + cluster-apps)
+│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, volsync)
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
 ├── .taskfiles/         # task recipes (flux, rook, network, 1password, actions-runner)

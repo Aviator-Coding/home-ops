@@ -99,10 +99,7 @@ jobs:
               "get",
               "cluster",
               "--all-namespaces",
-              # Live Flux entry point (clusters/main -> apps/main). The inert
-              # kubernetes/flux/cluster tree drops migrated namespaces, so
-              # dependsOn targets like security/onepassword-store and
-              # system/volsync are missing there and image coverage is incomplete.
+              # Flux entry point (clusters/main -> apps/main).
               "--path",
               "/github/workspace/kubernetes/clusters/main",
               "--enable-images",
