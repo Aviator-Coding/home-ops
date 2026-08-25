@@ -25,7 +25,7 @@ Every resource in this component is named from `${APP}`, and Flux allows exactly
 ever protect one claim - `${VOLSYNC_CLAIM:-${APP}}`. An app with a second volume needs a
 second Flux Kustomization; there is no way to include the component twice in one.
 
-Add it to the app's existing `ks.yaml` as a second document. Point `path` at
+Add it to the app's existing overlay yaml (`kubernetes/apps/main/<ns>/<app>.yaml`) as a second document. Point `path` at
 `./kubernetes/components/volsync/backup` (the backup-only bundle - the PVC already
 exists, so `pvc.yaml` must not be included), and set `APP` to the **claim name**:
 
@@ -261,7 +261,7 @@ With per-app schedules (35 Flux Kustomizations include this component):
 When you include these components in an application (e.g., `plex`):
 
 ```yaml
-# In the app's Flux Kustomization (migrated: apps/main/<ns>/<app>.yaml)
+# In the app's Flux Kustomization (apps/main/<ns>/<app>.yaml)
 components:
   - ../../../../../components/volsync
 ```
@@ -377,7 +377,7 @@ schedule: "0 2 * * *"
 35 Flux Kustomizations include `components/volsync`. Schedules are staggered
 but **not unique** (several apps share the same minute). Do not assume a
 2-3 app cap on simultaneous Ceph backups. Regenerated from
-`rg 'components/volsync' kubernetes/apps` plus each `ks.yaml` `VOLSYNC_SCHEDULE_*`
+`rg 'components/volsync' kubernetes/apps` plus each overlay yaml's `VOLSYNC_SCHEDULE_*`
 (paperless-ngx uses component defaults). `litellm` is gone, and so are
 `open-webui`, `qdrant`, `open-notebook` and `perplexica` - retired
 2026-08-22, see `docs/ai-system/retired-2026-08-22.md`. `cross-seed`, `qbittorrent`

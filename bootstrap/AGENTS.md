@@ -20,7 +20,7 @@ bootstrap/
 ├── helmfile/
 │   ├── apps.yaml                         # core apps: cilium → coredns → spegel → cert-manager → flux-operator → flux-instance
 │   ├── crds.yaml                         # CRD extraction (--include-crds --no-hooks); filtered in the recipe
-│   ├── default.yaml                      # DRY base: derives chart URL + version from kubernetes/apps OCIRepository files
+│   ├── default.yaml                      # DRY base: derives chart URL + version from kubernetes/apps/base OCIRepository files
 │   └── templates/
 │       ├── release.yaml.gotmpl           # reads spec.url + spec.ref.tag from ocirepository.yaml
 │       └── values.yaml.gotmpl            # reads spec.values from helmrelease.yaml
@@ -57,7 +57,7 @@ kustomize build bootstrap/kustomize/apps | vals eval -f -   # needs op signin
 ## HOW THE DRY HELMFILE WORKS
 
 `default.yaml` + `release.yaml.gotmpl` derive chart URL and version from the
-OCIRepository manifest that Flux already manages in `kubernetes/apps/`. No version
+OCIRepository manifest that Flux already manages in `kubernetes/apps/base/`. No version
 duplication — Renovate bumps the OCIRepository tag and helmfile picks it up automatically.
 
 Example: `cilium` in `kube-system` → reads `kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml`.
