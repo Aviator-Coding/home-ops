@@ -1,0 +1,48 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# Both prior B70 losses (2026-06 bus-number exhaustion, 2026-08 D3hot
+# enumeration race) were discovered late by a human noticing something else
+# — nothing alerted (docs/hardware-incidents.md). kube-state-metrics already
+# emits kube_node_status_allocatable per extended resource with no allowlist
+# extension needed (verified live 2026-08-26 against the running cluster):
+# resource="devic_es_b70" on all 3 nodes (0 on talos-1/2, 99 on talos-3) and
+# resource="gpu_intel_com_xe" only on nodes currently binding the xe driver
+# (today: talos-3 only). Resource names are ksm's sanitized form of
+# devic.es/b70 and gpu.intel.com/xe (non-alnum -> "_").
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gpu-loss
+spec:
+  groups:
+    - name: gpu-loss.rules
+      rules:
+        # talos-3 is the only node with the discrete B70; pinned rather than
+        # generic since it is single-node hardware, not a fleet-wide resource.
+        - alert: B70GpuLost
+          expr: kube_node_status_allocatable{resource="devic_es_b70", node="talos-3"} == 0
+          for: 5m
+          annotations:
+            summary: >-
+              talos-3 allocatable devic.es/b70 has been 0 for 5m — the Arc
+              Pro B70 has left the PCIe bus (docs/hardware-incidents.md).
+              Check `kubectl get nodes -o custom-columns=NAME:.metadata.name,B70:.status.allocatable.devic\.es/b70`
+              and GPU pods for Pending status.
+          labels:
+            severity: critical
+        # Deliberately not pinned to a node: today only talos-3 advertises
+        # gpu.intel.com/xe, but ksm only emits this series for nodes where a
+        # gpu.intel.com/xe device plugin has registered the resource, so this
+        # extends automatically once the held force_probe fix lands the iGPU
+        # binding on talos-1/2 (docs/hardware-incidents.md).
+        - alert: XeGpuLost
+          expr: kube_node_status_allocatable{resource="gpu_intel_com_xe"} == 0
+          for: 5m
+          annotations:
+            summary: >-
+              {{ $labels.node }} allocatable gpu.intel.com/xe has been 0 for
+              5m — the node's xe-bound GPU (iGPU or B70) dropped off the bus
+              or the device plugin stopped reporting it
+              (docs/hardware-incidents.md). Check GPU pods for Pending status.
+          labels:
+            severity: critical

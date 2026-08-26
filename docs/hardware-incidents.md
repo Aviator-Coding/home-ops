@@ -6,6 +6,60 @@ Current node memory (as of 2026-08-21): **96 GB per node** on all 3 Talos nodes.
 
 ---
 
+## [2026-08-24] talos-3 — Arc Pro B70 disappears from PCIe bus → root port stuck D3hot
+
+| Field | Value |
+|-------|-------|
+| **Node** | talos-3 (10.10.10.13) — Meigao Venus (Minisforum MS-01, board `AHWSA`), root port `0000:00:01.0` (CPU PEG, physical slot 1, OCuLink to an external dock/PSU) |
+| **Component** | PCIe root port runtime power management (Linux, not BIOS) — the port was runtime-suspended to **D3hot 218 ms after boot** while bus 01 was still empty, so a card that trained late was never rediscovered |
+| **Affected service** | `gpu.intel.com/xe` allocatable on talos-3: 99 → 0; `jellyfin`/`plex`/`tdarr-node`/`vllm`/`comfyui` pods Pending |
+| **Severity** | **high** — 5 GPU pods Pending; no data risk, no other node affected; **discovered late**, same as the 2026-06 incident below — see the alert added in this fix |
+
+### Root cause
+
+Same platform pathology as every other Meigao Venus incident in this log (`i915` GuC race, NVMe/PCIe ASPM): **a PM mechanism wins a race against the device it is managing.** This time it is Linux **runtime PM**, one layer above the BIOS-level PM already worked around with `pcie_aspm=off`.
+
+At boot the link was down (`DLLLA=0`); the kernel's `pcie_failed_link_retrain()` quirk retrained at 2.5 GT/s, failed, and reverted the target speed. The scan of bus 01 found nothing. **218 ms in, with zero children, Linux runtime-suspended `00:01.0` to D3hot** (`power/control=auto`). Sometime after that the card actually finished training — full register decode showed it sitting at **Gen4 x4 with 8 GT/s equalization complete (all 3 phases) and `RemoteDLFSupportedValid=1`**, i.e. a real link partner, alive, on the far end. Nothing could ever notice: `SLTCAP HotPlugCapable=0`, `SLTCTL=0x0000` (every hotplug/PDC/DLLSC interrupt disabled), and the only PCIe port service bound anywhere on the box is bandwidth control (`pcie010`) — there is no mechanism in this system that discovers a card arriving after the port has gone to sleep. A same-PDU host power cycle on 2026-08-24 did not recover it: this port has **no power controller** (`SLTCAP PowerController=0`), so cycling the host never cycles the card's own PSU.
+
+Two PCIe register signatures distinguish this from the [2026-06-10] bus-number incident below — do not confuse them:
+
+```
+This incident (late enumeration / runtime-PM race):
+  dmesg (boot):  pci 0000:00:01.0: broken device, retraining non-functional downstream link at 2.5GT/s
+                 pci 0000:00:01.0: busn_res: [bus 01-fe] end is updated to 01
+  live decode:   power_state=D3hot  runtime_status=suspended  runtime_active_time=218ms
+                 LNKSTA: CurSpeed=16GT/s(4) NegWidth=x4  DLLLA=1  LNKSTA2 EQ8GT_Complete=1 (Ph1/2/3=1)
+                 SLTSTA: PresenceDetectChanged=1 DataLinkLayerStateChanged=1  SLTCAP HotPlugCapable=0
+```
+
+Full remote-probe evidence, register decode, and confidence-ranked causal analysis: dossier scout report (2026-08-26), summarized in the PR that added this doc entry and the `XeGpuLost`/`B70GpuLost` PrometheusRule (`kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/gpu-loss.yaml`).
+
+### Impact
+
+- 5 GPU-scheduled pods Pending (`jellyfin`, `plex`, `tdarr-node`, `vllm`, `comfyui`) — no scheduling fallback since `gpu.intel.com/xe`/`devic.es/b70` have no CPU-only equivalent.
+- No Ceph/data impact — talos-3's OSDs are on separate PCIe root ports (`00:06.0`/`00:07.0`), unaffected.
+- **Discovered late** (a human noticed something else) — same detection gap as the 2026-06 incident, closed by this fix.
+
+### Resolution
+
+**Power-on order is the fix** (external corroboration: RIITOP OCuLink eGPU Dock FAQ, Minisforum DEG1 guidance — both name "dock PSU first" as the standard remedy for exactly this symptom):
+
+1. Power talos-3 fully **off** (`talosctl reboot` never touches the dock's PSU — it must be a full power-off).
+2. **GPU/dock PSU ON first.**
+3. **Wait ~5-10 seconds.** Confirm GPU fans spin and any card LED is lit.
+4. **Only then power on talos-3.**
+5. Never power the dock and host together, and never power the dock after the host.
+
+Verify recovery: `kubectl get nodes -o custom-columns='NAME:.metadata.name,XE:.status.allocatable.gpu\.intel\.com/xe,B70:.status.allocatable.devic\.es/b70'` expects `99`/`99` on talos-3; NICs moving back to `enp6s0f*` is itself confirmation the switch reclaimed its bus numbers (see the 2026-06-10 entry). Follow the Ceph reboot-safety rule below (`HEALTH_OK` + `task rook:check-osd-device-paths` first, one node at a time) — talos-3 hosts live OSDs.
+
+### Lessons
+
+- **This is the same "PM wins the race" pathology as every prior Meigao Venus incident** ([2026-04-14] iGPU GuC race, 2026-03-16 NVMe/ASPM) — one layer up the stack, from BIOS PM to Linux runtime PM. `pcie_aspm=off` does not cover runtime D-state suspension of an idle port; they are different mechanisms.
+- **Both GPU losses on this node were discovered late** by a human noticing something else, with no alert ever firing. Closed by `B70GpuLost`/`XeGpuLost` in `gpu-loss.yaml` — `kube_node_status_allocatable{resource="devic_es_b70"|"gpu_intel_com_xe"}` dropping to 0 for 5m now pages.
+- **A root port with `HotPlugCapable=0` can never self-heal from a late-training card.** Once such a port runtime-suspends before its device answers, only a full power cycle (in the correct order) recovers it — a warm `talosctl reboot` will not, since it never touches the dock's PSU.
+
+---
+
 ## [2026-06-30] talos-1 + talos-2 — OOMController kill storm → 4-OSD outage / 100% PG inactive
 
 | Field | Value |
@@ -215,6 +269,55 @@ osd.0 2026-06-02: BlueStore::_txc_apply_kv FAILED ceph_assert(r == 0) (bstore_kv
 **✅ RESOLVED 2026-06-14** — all 3 nodes' SN770M flashed `731100WD` → **`731150WD`**, rolling one at a time (cordon → `ceph osd set noout` → reset-to-BIOS + flash → power on → uncordon → OSDs/mon rejoin → `unset noout` → recover). Confirmed working: mon.l ran 9 h stable on the patched firmware under real recovery load (it previously corrupted within minutes). All mon stores now on safe firmware; cluster can take heavy IO again.
 
 Immediate (done): cleared slow ops (restart osd.0); reclaimed ~370 GB on `/var` (imageGC PR #979). Removed corrupt mon.k (`ceph mon remove` + delete PVC + patch `rook-ceph-mon-endpoints`); mon.l left crash-looping (recreating on the same buggy firmware is futile). **Real fix: update the SN770M firmware on ALL 3 NODES** 731100WD → latest (≥731120WD), **rolling — one node at a time** to preserve mon quorum (via WD Dashboard on Windows, or `nvme fw-download`/`fw-commit` from a Linux live USB; each node briefly offline). Interim mitigation: disable HMB for the drive. Until patched: **avoid heavy-IO operations on every node** (not just talos-1) — all 3 mon stores are on the buggy firmware and a 2nd mon corruption breaks quorum. After firmware is patched on a node, restore its mon via the clean recreate runbook. **Disk does NOT need replacing — SMART is healthy on all units.** (osd.0's slow-op wedges are on a different disk — likely a separate Ceph/BlueStore-under-load issue.)
+
+---
+
+## [2026-06-10] talos-3 — Arc Pro B70 install: BIOS bus map broken + bus-number exhaustion
+
+| Field | Value |
+|-------|-------|
+| **Node** | talos-3 (10.10.10.13) — Meigao Venus (Minisforum MS-01, board `AHWSA`) |
+| **Component** | PCIe bus-number allocation — BIOS-provided bus map for the on-card upstream switch (`8086:e2ff`) plus firmware bus-number exhaustion once the card was installed |
+| **Affected service** | B70 invisible to Linux (no `xe` bind); talos-3's onboard NICs renamed `enp2s0f*` → `enp3s0f*` → `enp6s0f*` across the fix attempts, breaking the bond each time |
+| **Severity** | **high** — new hardware unusable for 2 days across 3 fix attempts, plus a networking outage on every attempt |
+
+### Root cause
+
+Installing the discrete B70 (behind an on-card PCIe switch, `8086:e2ff` → `e2f0` → `e223`) exposed two separate, sequential firmware bugs — do not treat them as one problem:
+
+1. **BIOS left the switch's bus window at `[bus 00-00]`** (invalid — a single-bus window can't hold a switch's own downstream ports). Linux reconfigured it but could only reach bus 02; bus 03 was already claimed by the onboard i40e NIC. First fix attempt, `pci=realloc`, was **the wrong lever**: it reallocates bridge *MMIO windows*, not bus numbers, and did not help.
+2. Once `pci=realloc` proved insufficient, the real problem surfaced: **bus-number exhaustion.** The B70's switch needs 3 bus numbers (`e2ff`→`e2f0`→`e223`) and the firmware's static map had none spare. Fix: `pci=assign-busses`, which makes the kernel ignore BIOS bus numbers and renumber the entire bus tree from scratch. This enumerated the B70 at `03:00.0` with `xe` bound and 32 GB ReBAR — and, as a side effect, reassigned the bus number of an unrelated Lexar NM790 NVMe (a Ceph OSD device).
+
+**Adding a PCIe device on this board renumbers every bus after it, which renumbers the onboard NICs.** Both fix attempts moved `enp2s0f*`/`enp3s0f*` to a new name (finally `enp6s0f*` under `pci=assign-busses`), breaking the network bond each time until the fix landed as `LinkAliasConfig` (`net%d`, matched by `link.driver == "i40e"`) instead of hardcoded interface names.
+
+### Evidence
+
+```
+Attempt 1 (pci=realloc — insufficient):
+  pci 0000:00:00.0: bridge configuration invalid ([bus 00-00]), reconfiguring
+  (switch reaches bus 02 only; bus 03 already owned by i40e)
+
+Attempt 2 (pci=assign-busses — the fix):
+  B70 switch enumerates 03:00.0 -> 8086:e2f0 -> 8086:e223, bound to xe, 32GB ReBAR
+  Lexar NM790 (Ceph OSD device) reassigned to a new BDF as a side effect
+  NICs: enp3s0f0/1 -> enp6s0f0/1 on all 3 nodes (LinkAliasConfig absorbs the rename)
+```
+
+### Impact
+
+- B70 unusable for ~2 days across the `pci=realloc` (failed) and `pci=assign-busses` (succeeded) attempts.
+- Network bond broke on **every** attempt until `LinkAliasConfig` replaced hardcoded interface names — applied proactively to all 3 nodes, not just talos-3, since any future PCIe topology change can renumber any node's NICs.
+- No Ceph data-plane impact; the Lexar NM790 OSD reappeared cleanly under its new BDF (Ceph identifies OSDs by device UUID/serial, not PCI address).
+
+### Resolution
+
+`pci=assign-busses` (superseding `pci=realloc`) plus `LinkAliasConfig` (`net%d`, `link.driver == "i40e"`) on all 3 nodes are the durable fix, both live in `talos/schematic.yaml.j2` / per-node overlays today. **Kernel args on this cluster only take effect from `talos/schematic.yaml.j2`** — `machine.install.extraKernelArgs` is ignored by SDBoot/UKI on this platform, a lesson this incident cost a full fix cycle to learn.
+
+### Lessons
+
+- **Firmware's PCIe bus map on this board is not trustworthy, and bus numbers are a scarce, contended resource.** `pci=assign-busses` fixes this only at **boot** — nothing recovers a bus-number shortage at runtime (relevant to the [2026-08-24] incident above: a runtime bus-01 rescan cannot renumber buses 02/03, which are occupied today).
+- **Adding or removing a PCIe device on this board renames the onboard NICs.** Never hardcode `enpXsYfZ` interface names on this cluster — use `LinkAliasConfig` matched on driver, as done here.
+- **`pci=realloc` and `pci=assign-busses` solve different problems** (MMIO window sizing vs. bus-number renumbering) and are easy to confuse when the symptom is "device invisible." Diagnose which one first: an invalid/too-small bus window (`bridge configuration invalid ([bus X-X])`) is `pci=assign-busses`'s problem, not `pci=realloc`'s.
 
 ---
 

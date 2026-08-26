@@ -3,5 +3,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - ./gpu-loss.yaml
   - ./node-memory-pressure.yaml
   - ./oomkilled.yaml
