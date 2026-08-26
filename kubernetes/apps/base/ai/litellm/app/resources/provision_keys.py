@@ -50,10 +50,10 @@ def litellm_request(method, path, body=None):
 def wait_for_litellm(attempts=30, delay=5):
     for i in range(attempts):
         try:
-            # NOT "/health/liveliness" - this cluster's prior litellm incarnation
-            # hit that exact typo-looking trap; "/health/liveness" is the real
-            # unauthenticated endpoint (see docs/ai-system/litellm/README.md).
-            req = urllib.request.Request(f"{LITELLM_BASE_URL}/health/liveness")
+            # /health/readiness (checks the DB connection), not /health/liveness
+            # (checks only that the process is up) - /key/generate needs the DB
+            # already migrated and reachable, not just the process running.
+            req = urllib.request.Request(f"{LITELLM_BASE_URL}/health/readiness")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 if resp.status == 200:
                     return
