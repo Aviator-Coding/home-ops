@@ -8,9 +8,9 @@ There is no `AgentgatewayBackend` with `type: MCP`, no `appProtocol: kgateway.de
 
 MCP servers are ToolHive `toolhive.stacklok.dev/v1alpha1` `MCPServer` CRs under [`kubernetes/apps/base/ai/toolhive/`](../../../kubernetes/apps/base/ai/toolhive/):
 
-- `mcp-servers/` - github, ha, flux, kubectl, talos, arr, seerr, comfyui, garmin-connect, agentmemory, ...
+- `mcp-servers/` - active set and deactivated notes live in that directory's `kustomization.yaml`
 - `config/` - MCP group, virtual MCP server, HTTPRoute, telemetry, embedding server
-- Flux Kustomizations `toolhive` + `toolhive-crds` in namespace `ai`
+- Flux Kustomizations `toolhive` + `toolhive-crds` (+ `toolhive-config` / `toolhive-mcp-servers`) in namespace `ai`
 
 That is a different API group from the removed kmcp `kagent.dev/v1alpha1` `MCPServer`. Same kind name, different operator, different spec. Do not apply kmcp examples against this cluster. See the [kmcp tombstone](../kmcp/README.md). `kubectl get mcpserver` is ambiguous if both CRDs were ever installed; always name the group.
 

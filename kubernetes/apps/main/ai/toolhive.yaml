@@ -110,7 +110,7 @@ spec:
   # One Deployment (toolhive's HTTP proxyrunner) + one StatefulSet (the
   # actual stdio MCP server process) per active MCPServer CR - both must be
   # checked, since the proxy's own /health only reflects the proxy listener,
-  # not its stdio backend. Only the 6 currently-active servers (see this
+  # not its stdio backend. Only the 7 currently-active servers (see this
   # path's kustomization.yaml); garmin-connect/ha/seerr/talos are deactivated
   # and correctly absent here.
   healthChecks:
@@ -145,6 +145,14 @@ spec:
     - apiVersion: apps/v1
       kind: StatefulSet
       name: github
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: grafana-mcp
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: grafana-mcp
       namespace: *namespace
     - apiVersion: apps/v1
       kind: Deployment

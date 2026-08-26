@@ -7,6 +7,7 @@ resources:
   - ./comfyui-mcp
   - ./flux-mcp
   - ./github-mcp
+  - ./grafana-mcp
   - ./kubectl-mcp
   # Deactivated pending 1Password secrets (files kept — re-enable once the
   # listed fields exist):
@@ -22,5 +23,3 @@ resources:
   # to allowedRoles) in talos/machineconfig.yaml.j2, then re-apply Talos config
   # to all 3 nodes.
   # - ./talos-mcp
-  # grafana-mcp intentionally omitted: its MCPServerEntry targets
-  # mcp-grafana.observability:8000, which does not exist in this cluster.
