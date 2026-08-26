@@ -21,7 +21,9 @@ This test does not grep source text as a proxy for behavior. It:
      API for grafana/mcp-grafana:1.2.0 (skipped cleanly if offline).
 
 Live read-only query proof against the federated gateway remains a post-merge
-gate (needs cluster + the captain-created 1Password Viewer token).
+gate (needs cluster access and the item `grafana-mcp` / field
+`GRAFANA_SERVICE_ACCOUNT_TOKEN` in 1Password to hold a Viewer-scoped token -
+the same item/field the original grafana-mcp deployment used, not a new one).
 """
 
 from __future__ import annotations
