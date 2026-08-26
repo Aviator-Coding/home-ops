@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://k8s-schemas.home-operations.com/toolhive.stacklok.dev/mcpserver_v1alpha1.json
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: grafana-mcp
+spec:
+  image: docker.io/grafana/mcp-grafana:1.2.0@sha256:cfae68f893dbe40cb6df69579f78beb226f973ded4436d47c844f91d2f00dc53
+  transport: streamable-http
+  proxyMode: streamable-http
+  proxyPort: 8080
+  mcpPort: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podTemplateSpec:
+    spec:
+      containers:
+        - name: mcp
+          args:
+            - -t
+            - streamable-http
+            # A6: Viewer-scoped service account token already enforces
+            # read-only at the Grafana API layer; --disable-write is
+            # belt-and-suspenders in case the token is ever widened.
+            - --disable-write
+          env:
+            - name: GRAFANA_URL
+              value: http://grafana.monitoring.svc.cluster.local
+  secrets:
+    - name: toolhive-grafana
+      key: GRAFANA_SERVICE_ACCOUNT_TOKEN
+      targetEnvName: GRAFANA_SERVICE_ACCOUNT_TOKEN
+  groupRef:
+    name: mcp-tools
