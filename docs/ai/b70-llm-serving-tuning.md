@@ -159,20 +159,24 @@ second card.
 
 ## 4. Single-card workload isolation (B70 time-slice contention)
 
-`talos-3` has **one** B70 via the Intel GPU device plugin. **As of 2026-06-28 / 2026-07-08,
-only chat is on the card by default.** `vllm-embed` is `replicas: 0` (agentmemory moved to
-OpenRouter). `comfyui` stays `replicas: 0` except during a deliberate image session. The B70
-has **no hardware compute partition** (no MIG, no SR-IOV compute slicing), so any second
-consumer **time-slices** the GPU and starves chat.
+`talos-3` has **one** B70. Discrete consumers (`vllm`, `vllm-embed`, `comfyui`, `tdarr-node`)
+request `devic.es/b70` from generic-device-plugin (DRM by-path at `0000:03:00.0`) - placement
+is that extended resource, not hostname affinity. **As of 2026-06-28 / 2026-07-08, only chat
+is on the card by default** among AI workloads. `vllm-embed` is `replicas: 0` (agentmemory
+moved to OpenRouter). `comfyui` stays `replicas: 0` except during a deliberate image session.
+`tdarr-node` may still co-schedule for light QSV. The B70 has **no hardware compute
+partition** (no MIG, no SR-IOV compute slicing), so any second consumer **time-slices** the
+GPU and starves chat.
 
 The 2026-06-26 measurements below were taken while embeddings could still be co-resident.
 They remain valid as the contention mechanism; they are not today's default inventory.
 
-> ⚠️ `--gpu-memory-utilization` and the device plugin's `sharedDevNum: 99`
-> (`kubernetes/apps/base/system/intel-device-plugin-operator/gpu/`) only divide **VRAM /
-> device-count** - neither isolates **compute**. The plugin advertises the one card as 99
-> schedulable slots. Chat vs ComfyUI is the remaining heavy pair; do not start ComfyUI
-> while `vllm` is up. Re-enabling `vllm-embed` would restore the three-consumer problem.
+> ⚠️ `--gpu-memory-utilization`, Intel `sharedDevNum: 99`, and generic-device-plugin
+> `count: 99` only divide **VRAM / device-count** - none isolate **compute**. `devic.es/b70`
+> is a scheduling identity (share-count token), not VRAM fencing. Chat vs ComfyUI is the
+> remaining heavy pair; do not start ComfyUI while `vllm` is up. Re-enabling `vllm-embed`
+> would restore the three-consumer problem. Light media (jellyfin/plex/playwright) stays on
+> `gpu.intel.com/xe` - see [`../ai-gpu-changelog.md`](../ai-gpu-changelog.md).
 
 ### Symptom & measured penalty
 
@@ -184,7 +188,7 @@ They remain valid as the contention mechanism; they are not today's default inve
 
 ### Mechanism (why no knob fixes it)
 
-- `sharedDevNum`: multiplexes device *count* only — leave it (cluster-wide; transcoders depend on it).
+- `sharedDevNum` / `devic.es/b70` count: multiplex device *count* only — leave both (xe pool for light media; b70 identity for discrete consumers).
 - vLLM `--gpu-memory-utilization`: VRAM cap only, zero effect on compute scheduling.
 - PriorityClass / in-cluster hooks: govern scheduling/preemption, not GPU time-slice
   arbitration, and would fight Flux — **not used.**
