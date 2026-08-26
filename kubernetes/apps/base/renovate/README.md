@@ -1,33 +1,30 @@
 # renovate
 
-In-cluster Renovate via the official helm chart (`oci://ghcr.io/renovatebot/charts/renovate`), a CronJob every 4 hours matching `.github/workflows/renovate.yaml`. Community operators (mogenius / thegeeklab / secustor) are not used.
+In-cluster Renovate via the official helm chart (`oci://ghcr.io/renovatebot/charts/renovate`), a CronJob every 4 hours. This is the live writer. Community operators (mogenius / thegeeklab / secustor) are not used.
 
-This path ships in **observation / dry-run** (`RENOVATE_DRY_RUN=full`). The GitHub Actions workflow stays enabled until a follow-up PR proves the CronJob and flips writes on.
+`.github/workflows/renovate.yaml` is retained as rollback: its `schedule` trigger is commented out. Re-enable that cron to restore the GitHub Actions path in about two minutes. The workflow's `push` trigger (`.renovaterc.json5` / `.renovate/**.json5`) and `workflow_dispatch` stay in place.
 
-## 1Password item (captain)
-
-The ExternalSecret expects a Homelab vault item that does not exist yet:
+## 1Password item
 
 | Vault | Item | Field | Source |
 | --- | --- | --- | --- |
 | Homelab | `renovate` | `BOT_APP_ID` | GitHub Actions secret `BOT_APP_ID` |
-| Homelab | `renovate` | `BOT_APP_PRIVATE_KEY` | GitHub Actions secret `BOT_APP_PRIVATE_KEY` (PEM) |
+| Homelab | `renovate` | `BOT_APP_PRIVATE_KEY` | GitHub Actions secret `BOT_APP_PRIVATE_KEY` |
 
-Same GitHub App the hosted workflow already uses via `actions/create-github-app-token`. The CronJob mints a one-hour installation token at start (`app/resources/github-app-token.js`). The app must keep access to `Aviator-Coding/home-ops` and `Aviator-Coding/mortyops` (preset `extends`).
+Same GitHub App the hosted workflow uses via `actions/create-github-app-token`. The CronJob mints a one-hour installation token at start (`app/resources/github-app-token.js`). The mint script accepts PEM, escaped-newline PEM, or a headerless PKCS#1/PKCS#8 DER body (1Password password fields often drop BEGIN/END lines). The app must keep access to `Aviator-Coding/home-ops` and `Aviator-Coding/mortyops` (preset `extends`).
 
-Until that item exists, the ExternalSecret will stay non-ready and the first CronJob will fail token minting. The `RenovateNeverSucceeded` alert is the tripwire on first deploy (no prior success). `RenovateRunMissing` only applies after at least one successful run.
+`RenovateNeverSucceeded` is the first-deploy / missing-secret tripwire. `RenovateRunMissing` only applies after at least one successful run.
 
-## Cutover (follow-up PR, not this one)
+## Rollback
 
-1. Confirm a dry-run Job completes (`kubectl -n renovate get jobs`) and logs show the repo was processed.
-2. Remove `env.RENOVATE_DRY_RUN` from `app/helmrelease.yaml` entirely. Do not set it to `"false"`.
-3. After a live write run looks healthy, suspend or delete `.github/workflows/renovate.yaml`.
+1. Uncomment the `schedule` block in `.github/workflows/renovate.yaml` and merge (two-minute job).
+2. Optionally re-add `env.RENOVATE_DRY_RUN: full` on `app/helmrelease.yaml` (do not set it to `"false"`) if the in-cluster path should stop writing.
 
 ## Alerts
 
-The chart has no metrics Service, so there is no ServiceMonitor. `app/prometheusrule.yaml` watches kube-state-metrics CronJob timestamps:
+The official chart is a CronJob with no metrics endpoint and no ServiceMonitor. `app/prometheusrule.yaml` therefore watches kube-state-metrics CronJob timestamps (`kube_cronjob_info`, `kube_cronjob_status_last_schedule_time`, `kube_cronjob_status_last_successful_time`), not a Renovate-native series:
 
 - `RenovateJobFailed` - last schedule did not succeed within 40m
 - `RenovateRunMissing` - no successful run in 8h after at least one prior success (two missed cycles)
-- `RenovateNeverSucceeded` - CronJob exists but has never succeeded (8h); first-deploy / missing-secret tripwire
+- `RenovateNeverSucceeded` - CronJob exists but has never succeeded (8h)
 - `RenovateCronJobAbsent` - CronJob missing for 1h
