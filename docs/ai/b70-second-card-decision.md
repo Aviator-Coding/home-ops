@@ -31,8 +31,10 @@ OCuLink/M.2 adapter).
 > above for 2026-06-28 / 2026-07-08. Chat decode cited here (≈54.7 t/s) is PMZFX's
 > published figure, not this cluster's later ~61 / 68.4 t/s measurements.
 
-`talos-3` ran **three GPU workloads contending for one 32 GB B70** via the Intel GPU
-device plugin (`gpu.intel.com/xe`):
+`talos-3` ran **three GPU workloads contending for one 32 GB B70**. Those AI
+workloads now request the dedicated `devic.es/b70` extended resource (generic-device-plugin
+on the B70 DRM by-path at `0000:03:00.0`); `gpu.intel.com/xe` is reserved for iGPU
+share-tokens (media/browser) via the Intel plugin's `allowIDs: "0xa7a0"`:
 
 | Workload | Engine | VRAM appetite | Notes |
 | --- | --- | --- | --- |
@@ -62,8 +64,10 @@ three-workloads-on-one-card contention and gives **full single-card performance 
 workload simultaneously** (no more "scale vllm→0 to run ComfyUI" dance).
 
 - **Pro:** Simplest, lowest-risk, no new software stack. Each workload keeps the perf it
-  has today but stops fighting for VRAM/compute. Device selection is trivial — the device
-  plugin hands each pod its own `renderD12X` and SYCL/Level-Zero device index.
+  has today but stops fighting for VRAM/compute. Device selection is trivial on a dual-B70
+  node once each card has its own extended resource (same split used today for B70 vs
+  iGPU: dedicated resource identity, not a pooled `gpu.intel.com/xe` share-token). The
+  plugin then hands each pod only that card's `renderD12X` / Level-Zero device.
 - **Con:** Buys *isolation*, not *more capability*. Does not make chat faster, does not
   enable >32 GB models, does not fix prefill throughput. Pure quality-of-life.
 - **Verdict:** The safest reason to buy, but the weakest ROI — it solves a problem we are

@@ -20,22 +20,10 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    # Pin to the B70 node. The 32GiB Arc Pro B70 is a discrete card on talos-3
-    # only (via OCuLink); every node also has a Raptor Lake iGPU that advertises
-    # the same gpu.intel.com/xe once xe.force_probe=a7a0 is applied. That
-    # resource is a share-count token with no VRAM fencing, so on its own it
-    # cannot keep the 35B chat model server (~21.4GiB weights + ~5.2GiB KV
-    # @262k q8_0) off an iGPU with nowhere near the VRAM it needs.
-    defaultPodOptions:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values:
-                      - talos-3
+    # Placement is enforced by devic.es/b70 (generic-device-plugin on the
+    # discrete Arc Pro B70 at talos-3 PCI 0000:03:00.0), not hostname affinity.
+    # gpu.intel.com/xe is reserved for iGPU share-tokens (QSV/browser); the 35B
+    # chat server (~21.4GiB weights + ~5.2GiB KV @262k q8_0) must not consume it.
     controllers:
       # Main chat model runs on llama.cpp SYCL, not vLLM: Qwen3.6-35B-A3B GPTQ
       # cannot complete vLLM warmup on a single 32GB B70 (21.4GiB weights +
@@ -101,10 +89,10 @@ spec:
               requests:
                 cpu: "2"
                 memory: 16Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
               limits:
                 memory: 48Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
             probes:
               # First boot downloads ~21GB GGUF; allow 30 min
               startup:
@@ -132,7 +120,7 @@ spec:
       vllm-embed:
         # Scaled to 0: agentmemory (its only consumer) moved to OpenRouter
         # embeddings (text-embedding-3-small, 1536-dim) on 2026-06-28, freeing
-        # this B70 gpu.intel.com/xe slot + ~5GB VRAM. Controller + PVC kept so
+        # this B70 devic.es/b70 slot + ~5GB VRAM. Controller + PVC kept so
         # restoring local embeddings is a one-line revert (replicas: 0 -> 1).
         replicas: 0
         strategy: Recreate
@@ -166,10 +154,10 @@ spec:
               requests:
                 cpu: "1"
                 memory: 4Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
               limits:
                 memory: 16Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
             probes:
               startup:
                 enabled: true

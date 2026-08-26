@@ -5,3 +5,18 @@ devices:
       - count: 1000
         paths:
           - path: /dev/net/tun
+  # Discrete Arc Pro B70 on talos-3 (Battlemage G31, PCI 8086:e223 @ 0000:03:00.0).
+  # Intel GpuDevicePlugin cannot split xe KMD devices into distinct extended
+  # resources (both iGPU and B70 would be gpu.intel.com/xe), so this plugin
+  # owns the B70 under its own name. Discover via stable DRM by-path nodes and
+  # re-expose them at the conventional card0/renderD128 paths Level Zero expects
+  # inside the container. count matches the former sharedDevNum share-token model
+  # so vllm/vllm-embed/comfyui can still co-schedule when deliberately scaled up.
+  - name: b70
+    groups:
+      - count: 99
+        paths:
+          - path: /dev/dri/by-path/pci-0000:03:00.0-card
+            mountPath: /dev/dri/card0
+          - path: /dev/dri/by-path/pci-0000:03:00.0-render
+            mountPath: /dev/dri/renderD128
