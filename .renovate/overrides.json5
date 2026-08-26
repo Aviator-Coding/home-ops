@@ -68,5 +68,16 @@
       ],
       allowedVersions: "<2.0.0",
     },
+    {
+      // Ceph versioning: x.0.z = development, x.1.z = RC, x.2.z = stable.
+      // Renovate matches registry tags, not docs.ceph.com/en/latest/releases/,
+      // so RCs like v21.1.0 (no official v21 release) get proposed as upgrades
+      // (#1396). Restrict to stable tags only. Do not apply this to
+      // ghcr.io/rook/ceph - Rook versions as ordinary semver.
+      description: "Keep quay.io/ceph/ceph on stable x.2.z tags (skip x.0.z dev and x.1.z RC)",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["quay.io/ceph/ceph"],
+      allowedVersions: "/^v?\\d+\\.2\\.\\d+$/",
+    },
   ],
 }
