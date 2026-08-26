@@ -31,7 +31,7 @@ spec:
   values:
     # Placement is enforced by devic.es/b70 (generic-device-plugin on the
     # discrete Arc Pro B70 at talos-3 PCI 0000:03:00.0), not hostname affinity.
-    # gpu.intel.com/xe is reserved for iGPU share-tokens (QSV/browser).
+    # jellyfin/plex/playwright stay on gpu.intel.com/xe.
     controllers:
       comfyui:
         # Single GPU + RWO model/input PVCs -> never run two pods at once.

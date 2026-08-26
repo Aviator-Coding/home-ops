@@ -85,14 +85,12 @@ spec:
               limits:
                 memory: 2Gi
 
-      # Worker: single replica, placed by its gpu.intel.com/xe request rather
-      # than by any affinity. The iGPUs on talos-1/2 stopped being advertised
-      # at the i915 -> xe driver migration, leaving talos-3 (Arc Pro B70) as
-      # the only node offering that resource; xe.force_probe=a7a0 in the
-      # factory schematic brings the iGPUs back, so this worker may then land
-      # on any node - fine for QSV transcoding. Still a single replica, not a
-      # DaemonSet: the server runs internalNode=false so one worker is enough,
-      # and a DaemonSet would strand Pending pods whenever a node lacks a GPU.
+      # Worker: single replica, placed by its devic.es/b70 request (discrete
+      # Arc Pro B70 on talos-3). Codec requirement needs the discrete card;
+      # the Raptor Lake iGPUs restored by xe.force_probe=a7a0 are not enough.
+      # Still a single replica, not a DaemonSet: the server runs
+      # internalNode=false so one worker is enough, and a DaemonSet would
+      # strand Pending pods whenever a node lacks the B70.
       tdarr-node:
         replicas: 1
         containers:
@@ -150,7 +148,7 @@ spec:
                 cpu: 100m
                 memory: 512Mi
               limits:
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
                 memory: 4Gi
 
     service:

@@ -11,7 +11,7 @@ devices:
   # owns the B70 under its own name. Discover via stable DRM by-path nodes and
   # re-expose them at the conventional card0/renderD128 paths Level Zero expects
   # inside the container. count matches the former sharedDevNum share-token model
-  # so vllm/vllm-embed/comfyui can still co-schedule when deliberately scaled up.
+  # so vllm/vllm-embed/comfyui/tdarr-node can still co-schedule concurrently.
   - name: b70
     groups:
       - count: 99

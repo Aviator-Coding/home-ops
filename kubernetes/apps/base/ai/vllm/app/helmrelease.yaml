@@ -22,8 +22,8 @@ spec:
   values:
     # Placement is enforced by devic.es/b70 (generic-device-plugin on the
     # discrete Arc Pro B70 at talos-3 PCI 0000:03:00.0), not hostname affinity.
-    # gpu.intel.com/xe is reserved for iGPU share-tokens (QSV/browser); the 35B
-    # chat server (~21.4GiB weights + ~5.2GiB KV @262k q8_0) must not consume it.
+    # jellyfin/plex/playwright stay on gpu.intel.com/xe; the 35B chat server
+    # (~21.4GiB weights + ~5.2GiB KV @262k q8_0) must not consume that pool.
     controllers:
       # Main chat model runs on llama.cpp SYCL, not vLLM: Qwen3.6-35B-A3B GPTQ
       # cannot complete vLLM warmup on a single 32GB B70 (21.4GiB weights +

@@ -34,10 +34,9 @@ spec:
     name: xe
     nodeFeatureRule: false
     sharedDevNum: 99
-    # Only the Raptor Lake iGPU (8086:a7a0). The discrete Arc Pro B70
-    # (8086:e223) is advertised separately as devic.es/b70 by
-    # generic-device-plugin — GpuDevicePlugin always registers xe-KMD devices
-    # under gpu.intel.com/xe, so a second instance cannot give the B70 its own
-    # resource name. Without this allow-list, force_probe would pool iGPU + B70
-    # shares on talos-3 and AI pods requesting xe could land on the iGPU.
-    allowIDs: "0xa7a0"
+    # Discrete B70 consumers (vllm/vllm-embed/comfyui/tdarr-node) request
+    # devic.es/b70 from generic-device-plugin, not this pool. keep B70 in
+    # gpu.intel.com/xe for now so jellyfin/plex/playwright stay schedulable
+    # until xe.force_probe=a7a0 is applied node-by-node and the iGPUs are
+    # confirmed advertising xe. Follow-up: allowIDs: "0xa7a0" to drop the B70
+    # from this pool once that window is closed.
