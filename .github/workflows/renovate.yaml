@@ -9,8 +9,10 @@ on:
     paths:
       - .renovaterc.json5
       - .renovate/**.json5
-  schedule:
-    - cron: 0 */4 * * *
+  # Schedule disabled 2026-08-25: in-cluster CronJob is the live writer.
+  # Re-enable this trigger to roll back to GitHub Actions in ~two minutes.
+  # schedule:
+  #   - cron: 0 */4 * * *
   workflow_dispatch:
     inputs:
       dryRun:

@@ -8,7 +8,7 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 |----------|---------|---------|--------|
 | [flux-local.yaml](#flux-local) | Pull Request | Validates Flux manifests and generates diffs | ubuntu-latest |
 | [image-pull.yaml](#image-pull) | Pull Request | Pre-pulls new container images to cluster nodes | Self-hosted |
-| [renovate.yaml](#renovate) | Schedule/Push/Manual | Automated dependency updates | ubuntu-latest |
+| [renovate.yaml](#renovate) | Push/Manual (schedule disabled) | Rollback path for Renovate; live writer is in-cluster | ubuntu-latest |
 | [codeql.yml](#codeql) | PR/Push/Schedule | Security analysis for GitHub Actions | ubuntu-latest |
 | [labeler.yaml](#labeler) | Pull Request | Auto-labels PRs based on changed files | ubuntu-latest |
 | [label-sync.yaml](#label-sync) | Push/Schedule | Syncs repository labels from config | ubuntu-latest |
@@ -55,11 +55,11 @@ Pre-pulls new container images to Talos nodes before PRs are merged, reducing de
 
 **File:** `renovate.yaml`
 
-Runs [Renovate](https://github.com/renovatebot/renovate) for automated dependency updates. This workflow is still the live write path; the in-cluster CronJob is dry-run observation until cutover (`kubernetes/apps/base/renovate/README.md`).
+Retained GitHub Actions [Renovate](https://github.com/renovatebot/renovate) path. Live writes come from the in-cluster CronJob; this workflow's `schedule` trigger is commented out as a two-minute rollback (uncomment to restore GHA writes). Owner: [`kubernetes/apps/base/renovate/README.md`](../../kubernetes/apps/base/renovate/README.md).
 
 **Triggers:**
-- Push to `.renovaterc.json5` or `.renovate/**`
-- Every 4 hours (`0 */4 * * *`)
+- Push to `.renovaterc.json5` or `.renovate/**` (still active — can overlap the in-cluster writer; suspend the workflow before merging config-only changes)
+- Schedule disabled (`0 */4 * * *` commented out)
 - Manual dispatch with options for dry-run and log level
 
 **Configuration:** Uses repository's `.renovaterc.json5` for Renovate settings.
@@ -240,9 +240,10 @@ runs-on: gha-runner-scale-set-aviator-coding-home-ops
 
 ### Renovate Not Creating PRs
 
-1. Check Renovate logs in workflow run
-2. Verify `.renovaterc.json5` configuration
+1. Check the latest Job logs in the `renovate` namespace (`kubectl -n renovate get jobs`)
+2. Verify `.renovaterc.json5` configuration and the Homelab/`renovate` 1Password item
 3. Check Dependency Dashboard issue for status
+4. Owner runbook: [`kubernetes/apps/base/renovate/README.md`](../../kubernetes/apps/base/renovate/README.md)
 
 ### Branch Protection Issues
 

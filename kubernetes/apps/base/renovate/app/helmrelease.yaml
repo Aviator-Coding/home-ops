@@ -24,7 +24,12 @@ spec:
       ttlSecondsAfterFinished: 86400
       activeDeadlineSeconds: 1800
       preCommand: |
-        export RENOVATE_TOKEN="$(node /opt/github-app-token/github-app-token.js)"
+        token="$(node /opt/github-app-token/github-app-token.js)"
+        if [ -z "${token}" ]; then
+          echo "github-app-token.js produced an empty token" >&2
+          exit 1
+        fi
+        export RENOVATE_TOKEN="${token}"
     existingSecret: renovate-secret
     extraVolumes:
       - name: github-app-token
@@ -36,9 +41,6 @@ spec:
         readOnly: true
     env:
       LOG_LEVEL: info
-      # Observation mode: logs proposed PRs without writing. Remove this env
-      # entirely (do not set it to "false") in the follow-up cutover PR.
-      RENOVATE_DRY_RUN: full
     renovate:
       config: |
         {
@@ -48,7 +50,7 @@ spec:
           "onboarding": false,
           "requireConfig": "required",
           "internalChecksFilter": "strict",
-          "platformCommit": true,
+          "platformCommit": "enabled",
           "configValidationError": true,
           "binarySource": "install",
           "gitNoVerify": ["commit", "push"]

@@ -80,4 +80,4 @@ Flux reconciles from Git. After a merge, `task reconcile` forces a sync.
 
 ## Renovate
 
-Renovate opens PRs for container images, Helm charts, GitHub Actions, and mise tools. Config is [`.renovaterc.json5`](.renovaterc.json5). Live writes still come from [`.github/workflows/renovate.yaml`](.github/workflows/renovate.yaml); an in-cluster dry-run CronJob ships in parallel until cutover — see [`kubernetes/apps/base/renovate/README.md`](kubernetes/apps/base/renovate/README.md).
+Renovate opens PRs for container images, Helm charts, GitHub Actions, and mise tools. Config is [`.renovaterc.json5`](.renovaterc.json5). Live writes come from the in-cluster CronJob; the GitHub Actions workflow is retained with its schedule disabled as rollback - see [`kubernetes/apps/base/renovate/README.md`](kubernetes/apps/base/renovate/README.md).
