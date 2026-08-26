@@ -43,13 +43,17 @@ unused, and no other file needs to change.
 ## The classifier
 
 ```yaml
-classifier_type: llm
-classifier_llm_config:
-  model: qwen3.6-35b-a3b-classifier   # LOCAL. Never a cloud model.
-  timeout_ms: 8000
-  classification_rubric: agentic
-classifier_fallback: default_model
-default_model: qwen3.6-35b-a3b
+litellm_params:
+  model: auto_router/complexity_router
+  complexity_router_default_model: qwen3.6-35b-a3b  # fail-open pin LiteLLM reads
+  complexity_router_config:
+    classifier_type: llm
+    classifier_llm_config:
+      model: qwen3.6-35b-a3b-classifier   # LOCAL. Never a cloud model.
+      timeout_ms: 8000
+      classification_rubric: agentic
+    classifier_fallback: default_model
+    default_model: qwen3.6-35b-a3b        # keep aligned with the sibling above
 ```
 
 **Local, so classification is free.** Every routed request costs one extra
@@ -97,7 +101,13 @@ upgrading never silently moves an existing router's bill.
 
 ### Fail open to local
 
-`classifier_fallback: default_model` with `default_model: qwen3.6-35b-a3b`.
+```yaml
+litellm_params:
+  complexity_router_default_model: qwen3.6-35b-a3b
+  complexity_router_config:
+    classifier_fallback: default_model
+    default_model: qwen3.6-35b-a3b
+```
 
 On a classifier timeout, provider error or unparseable reply, the request is
 routed to the local model **without being scored**, and still succeeds. The
@@ -105,6 +115,17 @@ alternative, `classifier_fallback: heuristic`, reruns the 25%-accurate keyword
 scorer, which can still return COMPLEX and spend real money on a request that
 nothing successfully classified. A broken classifier must degrade to the local
 model, never to the invoice.
+
+**`complexity_router_default_model` is the pin LiteLLM honours.**
+`init_complexity_router_deployment` resolves the constructor `default_model`
+from that sibling under `litellm_params` first; it does **not** read
+`complexity_router_config.default_model`. Without the sibling it falls back to
+the MEDIUM, then SIMPLE, tier model, and ComplexityRouter overwrites
+`config.default_model` with that constructor value. Keep both keys pointing at
+the local model. Re-pointing MEDIUM or SIMPLE at a cloud model does **not** move
+the fail-open target while the sibling is set; removing the sibling would make
+fail-open follow MEDIUM — the silent cloud-spend hazard if that tier is later
+retargeted.
 
 This is the one place our config deliberately reaches the same value as the
 reference implementation for a different reason: they chose `default_model`
@@ -336,7 +357,7 @@ moves spend.
 
 | Symptom | Knob | Notes |
 |---|---|---|
-| Too much traffic reaching Anthropic | `tiers.COMPLEX: qwen3.6-35b-a3b` | Moves the local/cloud line up a tier. Blunt, immediate, free. |
+| Too much traffic reaching Anthropic | `tiers.COMPLEX: qwen3.6-35b-a3b` | Moves the local/cloud *routing* line up a tier. Blunt, immediate, free. Does **not** move fail-open: that stays on `complexity_router_default_model` (and the aligned in-config `default_model`). Never remove that sibling to "follow" a retargeted MEDIUM/SIMPLE — without it fail-open falls back to MEDIUM and can silently burn cloud spend. |
 | Ordinary engineering graded as REASONING | `classification_rubric` | Confirm it is `agentic`, not `legacy`. This is the single biggest lever on cost. |
 | Classifier timing out under load | `classifier_llm_config.timeout_ms` | Raise toward 12000. Every extra second is paid by every routed request when the backend is wedged. |
 | Classifier too slow even when healthy | `classifier_llm_config.system_prompt` | Replaces the rubric wholesale. Measured: prompt length barely affects latency here (prefix cache), so this rarely helps and it discards the calibration examples and the prompt-injection defense paragraph. Prefer routing latency-sensitive consumers around `auto` instead. |

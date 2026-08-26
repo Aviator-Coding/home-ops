@@ -77,6 +77,12 @@ model_list:
   - model_name: auto
     litellm_params:
       model: auto_router/complexity_router
+      # Pin LiteLLM honours for fail-open. init_complexity_router_deployment reads
+      # this sibling first; complexity_router_config.default_model alone is NOT
+      # used by the constructor (it falls back to the MEDIUM, then SIMPLE, tier).
+      # Keep both pointing at the local model so a tier retarget never fails open
+      # to cloud spend.
+      complexity_router_default_model: qwen3.6-35b-a3b
       complexity_router_config:
         # Local-first: the two cheap tiers never leave the cluster. Only work the
         # classifier judges genuinely hard reaches a paid API.
@@ -117,6 +123,13 @@ model_list:
         # the 25%-accurate rule-based scorer, which can still return COMPLEX and
         # spend real cloud money on a request nothing successfully classified.
         # A broken classifier must degrade to local, never to the invoice.
+        #
+        # LiteLLM pin: litellm_params.complexity_router_default_model (sibling
+        # above) is what init_complexity_router_deployment actually reads and
+        # then overwrites this field with. complexity_router_config.default_model
+        # alone is NOT read by the constructor - without the sibling it falls
+        # back to the MEDIUM, then SIMPLE, tier. Keep BOTH pointing at the local
+        # model; re-pointing MEDIUM/SIMPLE at cloud must not move fail-open.
         classifier_fallback: default_model
         default_model: qwen3.6-35b-a3b
 
