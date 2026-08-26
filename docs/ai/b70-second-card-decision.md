@@ -13,6 +13,9 @@
 >   [`b70-llm-serving-tuning.md`](./b70-llm-serving-tuning.md) §5.
 > - Option (a) isolation-only ROI is weaker now that embed is already off-card; remaining
 >   contention is chat vs on-demand ComfyUI.
+> - 2026-08-26: the `allowIDs: "0xa7a0"` follow-up mentioned below has been applied - the
+>   B70 no longer contributes to the `gpu.intel.com/xe` pool. See
+>   [`ai-gpu-changelog.md`](../ai-gpu-changelog.md) 2026-08-26 entry.
 
 ## TL;DR
 

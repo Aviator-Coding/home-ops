@@ -26,7 +26,7 @@ recently, and why?" without spelunking git.
 | **GPU (discrete)** | 1× Intel Arc Pro B70 (Battlemage G31, 32 GiB / 32656 MiB reported), talos-3 OCuLink PCI `0000:03:00.0` |
 | **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic: `siderolabs/xe` + `siderolabs/i915` (i915/ firmware for xe; `i915.ko` kept off a7a0), `xe.force_probe=a7a0` + `i915.force_probe=!a7a0` (captain applies via `just talos apply-node`; not Flux) |
 | **B70 resource** | `devic.es/b70: 99` via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
-| **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin - light QSV/browser (jellyfin/plex/playwright). B70 still included until iGPUs are confirmed after force_probe + i915 firmware; follow-up `allowIDs: "0xa7a0"` drops B70 from xe |
+| **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin, `allowIDs: "0xa7a0"` - light QSV/browser (jellyfin/plex/playwright). iGPU-only; the B70 no longer contributes to this pool |
 | **On the B70** | chat (`vllm`) + optional `tdarr-node`. `vllm-embed` and `comfyui` are pinned `replicas: 0` |
 | **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` (pin is load-bearing; do not float to `server-intel`) |
 | **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` |
@@ -57,6 +57,25 @@ When you merge an AI / GPU config change, prepend an entry (newest first):
 ## [YYYY-MM-DD] Short title  (PR #NNN)
 Change · Why · Evidence · Risk/rollback · Verify
 ```
+
+---
+
+## [2026-08-26] Scope `gpu.intel.com/xe` to the iGPU (`allowIDs: "0xa7a0"`)
+
+**Change:**
+- `kubernetes/apps/base/system/intel-device-plugin-operator/gpu/helmrelease.yaml`: set `allowIDs: "0xa7a0"` on the `GpuDevicePlugin` values, restricting the Intel GpuDevicePlugin's `gpu.intel.com/xe` pool to the Raptor Lake iGPU. The B70 no longer contributes device count to this pool.
+
+**Why:** #1443 (2026-08-25) deferred this - merging `allowIDs` before the iGPUs advertised `xe` would have left the pool with zero providers and stranded jellyfin/plex/playwright. #1444's `siderolabs/i915` firmware fix (2026-08-26) closed that gap: talos-1/talos-2 iGPUs now advertise `gpu.intel.com/xe=99` each, so the precondition is satisfied. `devic.es/b70` (generic-device-plugin) has been the B70's only advertised identity for discrete consumers (`vllm`, `vllm-embed`, `comfyui`, `tdarr-node`) since #1443; none of them ever requested `gpu.intel.com/xe`, so this change only removes the B70's incidental, unintended contribution to the shared xe pool.
+
+**Evidence:** `kustomize build kubernetes/apps/base/system/intel-device-plugin-operator/gpu` renders `allowIDs: "0xa7a0"` in the `HelmRelease`; `allowIDs` matches the `GpuDevicePlugin` CRD field (`pkg/apis/deviceplugin/v1/gpudeviceplugin_types.go`, `json:"allowIDs,omitempty"`) in intel/intel-device-plugins-for-kubernetes. `task flux:test:all` passes (217/217). Manifest search confirms no `devic.es/b70` consumer (`vllm`, `comfyui`, `tdarr-node`) requests `gpu.intel.com/xe`, and no `gpu.intel.com/xe` consumer (`jellyfin`, `plex`, `playwright`) requests `devic.es/b70`.
+
+**Risk / rollback:** Flux-applied via the `HelmRelease`; reconciles on `spec.interval` or `flux reconcile hr intel-device-plugin-gpu -n system`. The plugin pod restarts on reconcile, but per upstream Kubernetes device plugin semantics a restart/`ListAndWatch` update only changes the node's *allocatable* count for future scheduling - already-running pods keep their existing device allocation and are not evicted or re-allocated. Revert `allowIDs` to undo; expect talos-3 `gpu.intel.com/xe` to return to 198 (iGPU + B70 pooled).
+
+**Verify:** After Flux reconciles:
+```sh
+kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0")"'
+```
+Expect talos-1/talos-2 unchanged (`xe=99`, `b70=0`) and talos-3 `xe=99` (down from 198), `b70=99`.
 
 ---
 

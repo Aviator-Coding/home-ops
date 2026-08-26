@@ -338,10 +338,9 @@ kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.a
 ```
 
 `devic.es/b70` is `99` only on talos-3 (tdarr-node / AI discrete consumers).
-`gpu.intel.com/xe` is the Intel plugin pool for jellyfin/plex/playwright; after
-`xe.force_probe=a7a0` is applied node-by-node it should appear on all three
-nodes (iGPUs). Until then the B70 remains in the xe pool so those media pods
-stay schedulable. `gpu.intel.com/i915` stays 0 after the xe migration.
+`gpu.intel.com/xe` is the Intel plugin pool for jellyfin/plex/playwright,
+scoped to the iGPU (`allowIDs: "0xa7a0"`) and present as `99` on all three
+nodes. `gpu.intel.com/i915` stays 0 after the xe migration.
 
 ### Finding which *arr app is failing imports
 
