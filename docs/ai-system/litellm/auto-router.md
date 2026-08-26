@@ -257,6 +257,78 @@ spend-log row in Postgres.
 Note `/metrics` 307-redirects to `/metrics/`; Prometheus follows scrape
 redirects by default, so the ServiceMonitor's `path: /metrics` is fine.
 
+## Post-merge verification
+
+Everything above was measured pre-merge against the live `vllm-app` backend
+using a local LiteLLM v1.98.0 rig, because the in-cluster proxy could not start:
+the 1Password item **`litellm`** that
+[`../../../kubernetes/apps/base/ai/litellm/README.md`](../../../kubernetes/apps/base/ai/litellm/README.md)
+lists as a prerequisite did not exist yet, so the `ExternalSecret` was
+`SecretSyncedError` and the pod sat in `Init:CreateContainerConfigError`. That
+is a prerequisite of the base governance layer, not of the router.
+
+Once that item exists and Flux has reconciled, run this to demonstrate the
+router end to end in-cluster. It is the same shape as the base layer's
+[verification runbook](README.md#verification-runbook), extended with the two
+routing demonstrations.
+
+```bash
+export KUBECONFIG=...                       # read-only is enough for steps 1-2
+
+# 1. The prerequisite is met and the proxy is actually up.
+kubectl -n ai get externalsecret litellm    # expect SecretSynced / Ready=True
+kubectl -n ai rollout status deploy/litellm --timeout=5m
+
+# 2. The router alias and its backends are registered.
+kubectl -n ai logs deploy/litellm | grep -A6 "Proxy initialized with Config"
+#    expect: qwen3.6-35b-a3b, qwen3.6-35b-a3b-classifier,
+#            claude-sonnet-5, claude-opus-5, auto
+kubectl -n ai logs deploy/litellm | grep "ComplexityRouter initialized"
+#    expect the four tier -> backend pairs from the table above
+
+# 3. Reach the proxy (no route by design - B4) with the router consumer key.
+kubectl -n ai port-forward svc/litellm 4000:4000 &
+KEY=$(kubectl -n ai get secret litellm-consumer-keys \
+        -o jsonpath='{.data.router-demo}' | base64 -d)
+
+# 4. SIMPLE prompt -> must stay LOCAL.
+curl -sS -D /tmp/simple.h -X POST localhost:4000/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"model":"auto","max_tokens":32,
+       "messages":[{"role":"user","content":"what is the capital of France?"}]}' \
+  | jq -r .model
+grep -i 'x-litellm-model-id\|x-litellm-response-cost' /tmp/simple.h
+#    expect `model` = qwen3.6-35b-a3b (return_raw_model_name: true), and the
+#    model-id to match the local deployment in `curl localhost:4000/model/info`
+
+# 5. COMPLEX prompt -> must reach the CLOUD tier.
+curl -sS -D /tmp/complex.h -X POST localhost:4000/v1/chat/completions \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"model":"auto","max_tokens":32,
+       "messages":[{"role":"user","content":"implement a distributed token bucket rate limiter on Redis, correct under concurrency"}]}' \
+  | jq -r .model
+#    expect `model` = claude-sonnet-5
+
+# 6. The classifier decision itself, per request.
+kubectl -n ai logs deploy/litellm --since=5m | grep -i "complexityrouter\|classifier"
+#    a fail-open would read: "LLM classifier failed (...), falling back to
+#    default_model". Absence of that line on steps 4-5 IS the evidence the
+#    classifier decided both.
+
+# 7. Metrics carry the per-tier split (the dashboard queries above).
+curl -sSL localhost:4000/metrics -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+  | grep 'litellm_deployment_success_responses_total.*requested_model="auto"'
+#    expect one series per tier backend that served traffic, plus a separate
+#    requested_model="qwen3.6-35b-a3b-classifier" series for the classifier.
+
+# 8. Budgets bind on the routed path. Repeat step 5 until the router-demo key's
+#    $0.50 is spent (or lower maxBudget in consumers.json first for a fast
+#    repro) - expect HTTP 429 "Budget has been exceeded!".
+```
+
+Step 5 spends real money at Anthropic list price. It is a handful of cents at
+`max_tokens: 32`, and the `router-demo` budget caps the blast radius.
+
 ## Tuning
 
 Change one thing at a time and re-run the accuracy check - every knob below
