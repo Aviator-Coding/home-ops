@@ -6,8 +6,8 @@
 # emits kube_node_status_allocatable per extended resource with no allowlist
 # extension needed (verified live 2026-08-26 against the running cluster):
 # resource="devic_es_b70" on all 3 nodes (0 on talos-1/2, 99 on talos-3) and
-# resource="gpu_intel_com_xe" only on nodes currently binding the xe driver
-# (today: talos-3 only). Resource names are ksm's sanitized form of
+# resource="gpu_intel_com_xe" on all 3 nodes (iGPU-only via allowIDs 0xa7a0;
+# 99 each). Resource names are ksm's sanitized form of
 # devic.es/b70 and gpu.intel.com/xe (non-alnum -> "_").
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -30,9 +30,9 @@ spec:
               and GPU pods for Pending status.
           labels:
             severity: critical
-        # Deliberately not pinned to a node: ksm only emits this series for
-        # nodes currently advertising gpu.intel.com/xe (today: talos-3 only),
-        # so the alert already extends to any node that registers the resource
+        # Deliberately not pinned to a node: ksm emits this series for every
+        # node advertising gpu.intel.com/xe (all three iGPUs; allowIDs 0xa7a0),
+        # so the alert covers any node that registers the resource
         # (docs/hardware-incidents.md).
         - alert: XeGpuLost
           expr: kube_node_status_allocatable{resource="gpu_intel_com_xe"} == 0
@@ -40,8 +40,8 @@ spec:
           annotations:
             summary: >-
               {{ $labels.node }} allocatable gpu.intel.com/xe has been 0 for
-              5m — the node's xe-bound GPU (iGPU or B70) dropped off the bus
-              or the device plugin stopped reporting it
-              (docs/hardware-incidents.md). Check GPU pods for Pending status.
+              5m — the node's xe-bound iGPU dropped off the bus or the device
+              plugin stopped reporting it (docs/hardware-incidents.md). Check
+              GPU pods for Pending status.
           labels:
             severity: critical

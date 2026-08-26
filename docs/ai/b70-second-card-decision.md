@@ -13,8 +13,8 @@
 >   [`b70-llm-serving-tuning.md`](./b70-llm-serving-tuning.md) §5.
 > - Option (a) isolation-only ROI is weaker now that embed is already off-card; remaining
 >   contention is chat vs on-demand ComfyUI.
-> - 2026-08-26: the `allowIDs: "0xa7a0"` follow-up mentioned below has been applied - the
->   B70 no longer contributes to the `gpu.intel.com/xe` pool. See
+> - 2026-08-26: `allowIDs: "0xa7a0"` scopes `gpu.intel.com/xe` to the iGPU; the B70
+>   no longer contributes to that pool. Owner:
 >   [`ai-gpu-changelog.md`](../ai-gpu-changelog.md) 2026-08-26 entry.
 
 ## TL;DR
@@ -38,13 +38,11 @@ OCuLink/M.2 adapter).
 workloads now request the dedicated `devic.es/b70` extended resource
 (generic-device-plugin on the B70 DRM by-path at `0000:03:00.0`, advertised with
 `--domain=devic.es`). Consumers: vllm, vllm-embed, comfyui, and tdarr-node.
-`gpu.intel.com/xe` stays the Intel plugin pool for jellyfin/plex/playwright
-(light QSV/browser). The B70 remains in that xe pool for now so those media
-pods stay schedulable until `xe.force_probe=a7a0` is applied node-by-node and
-the iGPUs are confirmed advertising xe; a follow-up will set
-`allowIDs: "0xa7a0"` to drop the B70 from xe once that window is closed.
-`devic.es/b70` is a scheduling identity only (share count 99) — not VRAM
-fencing — so concurrent B70 holders still contend for the card's memory.
+`gpu.intel.com/xe` is the Intel plugin pool for jellyfin/plex/playwright
+(light QSV/browser), scoped to the iGPU only (`allowIDs: "0xa7a0"`). Live
+inventory: [`ai-gpu-changelog.md`](../ai-gpu-changelog.md). `devic.es/b70` is a
+scheduling identity only (share count 99) — not VRAM fencing — so concurrent
+B70 holders still contend for the card's memory.
 
 | Workload | Engine | VRAM appetite | Notes |
 | --- | --- | --- | --- |

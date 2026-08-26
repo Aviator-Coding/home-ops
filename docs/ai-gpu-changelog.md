@@ -132,7 +132,7 @@ Expect non-empty `i915/adlp_*` listing and `gpu.intel.com/xe=99` on talos-1 and 
 - `talos/schematic.yaml.j2`: `xe.force_probe=a7a0` + `i915.force_probe=!a7a0` (unquoted, same style as `module_blacklist=igc`). New factory ID `6b46d2c00a2295d31fef568ead1420f3088ac6adadc78abe1ff1c7ea8c1a6ef9` (was `ae2cb5793c9f8e61d2493f652b0e9251b2ffa525c5c17f3e4718b30d19940715`).
 - `generic-device-plugin`: advertise discrete B70 as `devic.es/b70` (count 99, DRM by-path `0000:03:00.0` → in-container `card0`/`renderD128`, `--domain=devic.es`).
 - Consumers moved off `gpu.intel.com/xe` onto `devic.es/b70`: `vllm`, `vllm-embed`, `comfyui`, `tdarr-node`. Placement is the extended resource, not hostname affinity.
-- Intel GpuDevicePlugin keeps B70 in the `gpu.intel.com/xe` pool for now (jellyfin/plex/playwright). Follow-up once iGPUs advertise xe: `allowIDs: "0xa7a0"`.
+- Intel GpuDevicePlugin keeps B70 in the `gpu.intel.com/xe` pool for now (jellyfin/plex/playwright). Follow-up once iGPUs advertise xe: `allowIDs: "0xa7a0"` (completed 2026-08-26; see entry above).
 
 **Why:** After the i915→xe migration, xe skips Raptor Lake `a7a0` by default, so only the B70 on talos-3 advertised `gpu.intel.com/xe`. When the B70 dropped off the PCIe bus, five GPU pods could not schedule. Restoring iGPUs as xe providers needs force_probe, but `gpu.intel.com/xe` is a bare share-count token with no VRAM fencing - once talos-1/2 advertise xe, the scheduler could place the ~21.4 GiB chat server on an iGPU. A dedicated `devic.es/b70` identity pins discrete consumers to the card without hostname affinity.
 
