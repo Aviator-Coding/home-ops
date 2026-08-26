@@ -13,7 +13,7 @@ Current node memory (as of 2026-08-21): **96 GB per node** on all 3 Talos nodes.
 | **Node** | talos-3 (10.10.10.13) — Meigao Venus (Minisforum MS-01, board `AHWSA`), root port `0000:00:01.0` (CPU PEG, physical slot 1, OCuLink to an external dock/PSU) |
 | **Component** | PCIe root port runtime power management (Linux, not BIOS) — the port was runtime-suspended to **D3hot 218 ms after boot** while bus 01 was still empty, so a card that trained late was never rediscovered |
 | **Affected service** | `gpu.intel.com/xe` allocatable on talos-3: 99 → 0; `jellyfin`/`plex`/`tdarr-node`/`vllm`/`comfyui` pods Pending |
-| **Severity** | **high** — 5 GPU pods Pending; no data risk, no other node affected; **discovered late**, same as the 2026-06 incident below — see the alert added in this fix |
+| **Severity** | **high** — 5 GPU pods Pending; no data risk, no other node affected; **discovered late**, same as the 2026-06 incident below — closed by `B70GpuLost`/`XeGpuLost` in `kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/gpu-loss.yaml` |
 
 ### Root cause
 
@@ -40,7 +40,7 @@ Full remote-probe evidence, register decode, and confidence-ranked causal analys
 
 - 5 GPU-scheduled pods Pending (`jellyfin`, `plex`, `tdarr-node`, `vllm`, `comfyui`) — no scheduling fallback since `gpu.intel.com/xe`/`devic.es/b70` have no CPU-only equivalent.
 - No Ceph/data impact — talos-3's OSDs are on separate PCIe root ports (`00:06.0`/`00:07.0`), unaffected.
-- **Discovered late** (a human noticed something else) — same detection gap as the 2026-06 incident, closed by this fix.
+- **Discovered late** (a human noticed something else) — same detection gap as the 2026-06 incident, closed by `B70GpuLost`/`XeGpuLost` in `gpu-loss.yaml`.
 
 ### Resolution
 
@@ -52,7 +52,7 @@ Full remote-probe evidence, register decode, and confidence-ranked causal analys
 4. **Only then power on talos-3.**
 5. Never power the dock and host together, and never power the dock after the host.
 
-Verify recovery: `kubectl get nodes -o custom-columns='NAME:.metadata.name,XE:.status.allocatable.gpu\.intel\.com/xe,B70:.status.allocatable.devic\.es/b70'` expects `99`/`99` on talos-3; NICs moving back to `enp6s0f*` is itself confirmation the switch reclaimed its bus numbers (see the 2026-06-10 entry). Follow the Ceph reboot-safety rule below (`HEALTH_OK` + `task rook:check-osd-device-paths` first, one node at a time) — talos-3 hosts live OSDs.
+Verify recovery: `kubectl get nodes -o custom-columns='NAME:.metadata.name,XE:.status.allocatable.gpu\.intel\.com/xe,B70:.status.allocatable.devic\.es/b70'` expects `99`/`99` on talos-3; NICs moving back to `enp6s0f*` is itself confirmation the switch reclaimed its bus numbers (see the 2026-06-10 entry). Before powering talos-3 back on, follow the Ceph reboot-safety rule in `AGENTS.md` (`HEALTH_OK` + `task rook:check-osd-device-paths` first, one node at a time) — talos-3 hosts live OSDs.
 
 ### Lessons
 
@@ -281,7 +281,7 @@ Immediate (done): cleared slow ops (restart osd.0); reclaimed ~370 GB on `/var` 
 | **Node** | talos-3 (10.10.10.13) — Meigao Venus (Minisforum MS-01, board `AHWSA`) |
 | **Component** | PCIe bus-number allocation — BIOS-provided bus map for the on-card upstream switch (`8086:e2ff`) plus firmware bus-number exhaustion once the card was installed |
 | **Affected service** | B70 invisible to Linux (no `xe` bind); talos-3's onboard NICs renamed `enp2s0f*` → `enp3s0f*` → `enp6s0f*` across the fix attempts, breaking the bond each time |
-| **Severity** | **high** — new hardware unusable for 2 days across 3 fix attempts, plus a networking outage on every attempt |
+| **Severity** | **high** — new hardware unusable for ~2 days across 2 fix attempts, plus a networking outage on every attempt |
 
 ### Root cause
 
@@ -313,15 +313,9 @@ Attempt 2 (pci=assign-busses — the fix):
 
 ### Resolution
 
-`pci=assign-busses` (superseding `pci=realloc`) plus `LinkAliasConfig` (`net%d`, `link.driver == "i40e"`) on all 3 nodes are the durable fix, both live in `talos/schematic.yaml.j2` / per-node overlays today. **Kernel args on this cluster only take effect from `talos/schematic.yaml.j2`** — `machine.install.extraKernelArgs` is ignored by SDBoot/UKI on this platform, a lesson this incident cost a full fix cycle to learn.
+`pci=assign-busses` (the bus-number fix; `pci=realloc` remains alongside it for MMIO window sizing) plus `LinkAliasConfig` (`net%d`, `link.driver == "i40e"`) on all 3 nodes are the durable fix, both live in `talos/schematic.yaml.j2` / per-node overlays today. **Kernel args on this cluster only take effect from `talos/schematic.yaml.j2`** — `machine.install.extraKernelArgs` is ignored by SDBoot/UKI on this platform, a lesson this incident cost a full fix cycle to learn.
 
-When the B70 needs a full power cycle after install/removal or a later disappearance, use the same GPU/dock-PSU-before-host order as the [2026-08-24] entry:
-
-1. Power talos-3 fully **off** (`talosctl reboot` never touches the dock's PSU — it must be a full power-off).
-2. **GPU/dock PSU ON first.**
-3. **Wait ~5-10 seconds.** Confirm GPU fans spin and any card LED is lit.
-4. **Only then power on talos-3.**
-5. Never power the dock and host together, and never power the dock after the host.
+When the B70 needs a full power cycle after install/removal or a later disappearance, use the GPU/dock-PSU-before-host order in the [2026-08-24] entry (dock PSU on first, wait 5–10s, then host; never reverse).
 
 ### Lessons
 
