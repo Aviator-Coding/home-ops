@@ -24,7 +24,12 @@ spec:
       ttlSecondsAfterFinished: 86400
       activeDeadlineSeconds: 1800
       preCommand: |
-        export RENOVATE_TOKEN="$(node /opt/github-app-token/github-app-token.js)"
+        token="$(node /opt/github-app-token/github-app-token.js)"
+        if [ -z "${token}" ]; then
+          echo "github-app-token.js produced an empty token" >&2
+          exit 1
+        fi
+        export RENOVATE_TOKEN="${token}"
     existingSecret: renovate-secret
     extraVolumes:
       - name: github-app-token

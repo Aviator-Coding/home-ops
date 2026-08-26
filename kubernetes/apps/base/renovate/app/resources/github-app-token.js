@@ -12,7 +12,36 @@ if (!APP_ID || !RAW_KEY) {
   process.exit(1);
 }
 
-const privateKey = RAW_KEY.replace(/\\n/g, "\n");
+// Homelab/renovate may store the GitHub App key as a PEM, as PEM with
+// literal \n, or as a headerless PKCS#1/PKCS#8 DER body (1Password
+// password fields often drop the BEGIN/END lines). Accept all three.
+function loadPrivateKey(rawKey) {
+  let key = rawKey.trim().replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1);
+  }
+  if (key.includes("\\n")) {
+    key = key.replace(/\\n/g, "\n");
+  }
+  if (key.includes("-----BEGIN")) {
+    return crypto.createPrivateKey(key);
+  }
+  const der = Buffer.from(key.replace(/\s+/g, ""), "base64");
+  const errors = [];
+  for (const type of ["pkcs1", "pkcs8"]) {
+    try {
+      return crypto.createPrivateKey({ key: der, format: "der", type });
+    } catch (err) {
+      errors.push(`${type}: ${err.message}`);
+    }
+  }
+  throw new Error(
+    `GITHUB_APP_PRIVATE_KEY is not a PEM or DER RSA key (${errors.join("; ")})`,
+  );
+}
 
 function b64url(input) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
@@ -27,7 +56,7 @@ function mintJwt() {
   );
   const signer = crypto.createSign("RSA-SHA256");
   signer.update(`${header}.${payload}`);
-  const signature = signer.sign(privateKey, "base64url");
+  const signature = signer.sign(loadPrivateKey(RAW_KEY), "base64url");
   return `${header}.${payload}.${signature}`;
 }
 
