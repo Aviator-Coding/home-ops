@@ -370,7 +370,7 @@ PCIe:  pcie_aspm=off                             (fixed 2026-03-16)
 iGPU:  i915.enable_dc=0                          (fixed 2026-04-14; superseded)
 ```
 
-**Superseded 2026-06-09** (`73c9e3da`, `feat(talos): migrate Intel GPU driver from i915 to xe`): i915 kernel args (`i915.enable_guc=3`, `i915.enable_dc=0`) and the `siderolabs/i915` extension were removed because xe handles GuC automatically. Current schematic is `talos/schematic.yaml.j2` with `siderolabs/xe`. **Do not re-add `i915.enable_dc=0`.** Node upgrades are `just talos upgrade-node talos-N`, not `task talos:upgrade-node`.
+**Superseded 2026-06-09** (`73c9e3da`, `feat(talos): migrate Intel GPU driver from i915 to xe`): i915 kernel args (`i915.enable_guc=3`, `i915.enable_dc=0`) were removed because xe handles GuC/device PM; the driver path is xe, not i915. **Do not re-add `i915.enable_dc=0`.** `siderolabs/i915` later returned for firmware only (xe still loads a7a0 blobs from `i915/`) — current extensions and kernel args live in `talos/schematic.yaml.j2`; deliberate GPU changes are logged in [`ai-gpu-changelog.md`](./ai-gpu-changelog.md). Node upgrades are `just talos upgrade-node talos-N`, not `task talos:upgrade-node`.
 
 ### Pattern observation
 

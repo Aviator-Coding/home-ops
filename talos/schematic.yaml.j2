@@ -19,7 +19,7 @@ customization:
     - pci=realloc # Reallocate PCIe resource windows for the Arc B70 Pro OCuLink switch
     - pci=assign-busses # BIOS leaves the B70's e2ff switch at [bus 00-00] with no spare bus numbers behind 00:01.0; kernel must renumber all buses (NIC renames are safe: bonds select members via LinkAliasConfig)
     - xe.force_probe=a7a0 # Bind xe to the Raptor Lake i9-13900H iGPU (8086:a7a0), which xe skips by default
-    - i915.force_probe=!a7a0 # Keep i915 off the iGPU so xe owns it (inert today: no siderolabs/i915 extension)
+    - i915.force_probe=!a7a0 # Keep i915 off the iGPU so xe owns it (load-bearing: siderolabs/i915 ships i915.ko)
     - talos.auditd.disabled=1 # Less security, faster puter
     # Bond interface kernel parameters for early network initialization
     # - bond=bond0:enp2s0f0np0,enp2s0f1np1:mode=802.3ad:miimon=100:lacp_rate=1:xmit_hash_policy=layer3+4:updelay=200:downdelay=200
@@ -27,6 +27,12 @@ customization:
   systemExtensions:
     officialExtensions:
       - siderolabs/xe # Intel iGPU + Arc discrete GPU
+      # Firmware only, in practice: xe drives the a7a0 iGPU but still loads its
+      # blobs from i915/ (adlp_dmc.bin, adlp_guc_70.bin), which siderolabs/xe does
+      # not ship - it carries only xe/ (bmg_*, lnl_*). Dropping this in 73c9e3da
+      # left talos-1/2 probing -ENOENT. i915.ko rides along but is kept off the
+      # iGPU by i915.force_probe=!a7a0 above, so xe still owns it.
+      - siderolabs/i915 # Intel iGPU firmware (i915/adlp_*) for the xe driver
       - siderolabs/intel-ucode # Intel iGPU
       - siderolabs/mei # Intel iGPU
       - siderolabs/nfsrahead # NFS Performance
