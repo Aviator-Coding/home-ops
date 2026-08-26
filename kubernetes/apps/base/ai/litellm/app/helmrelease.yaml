@@ -120,6 +120,9 @@ spec:
           helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
         pod:
           restartPolicy: Never
+          # app-template v5 defaults this to false; this Job's whole job is
+          # calling the K8s API with its SA token (see provision_keys.py).
+          automountServiceAccountToken: true
         serviceAccount:
           identifier: litellm-provision
         containers:
