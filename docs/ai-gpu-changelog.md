@@ -18,14 +18,14 @@ recently, and why?" without spelunking git.
 
 ---
 
-## Current baseline (2026-08-25)
+## Current baseline (2026-08-26)
 
 | Layer | Value |
 |-------|-------|
 | **GPU (discrete)** | 1× Intel Arc Pro B70 (Battlemage G31, 32 GiB / 32656 MiB reported), talos-3 OCuLink PCI `0000:03:00.0` |
-| **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic carries `xe.force_probe=a7a0` + `i915.force_probe=!a7a0` (captain applies via `just talos apply-node`; not Flux) |
+| **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic: `siderolabs/xe` + `siderolabs/i915` (i915/ firmware for xe; `i915.ko` kept off a7a0), `xe.force_probe=a7a0` + `i915.force_probe=!a7a0` (captain applies via `just talos apply-node`; not Flux) |
 | **B70 resource** | `devic.es/b70: 99` via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
-| **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin - light QSV/browser (jellyfin/plex/playwright). B70 still included until iGPUs are confirmed after force_probe; follow-up `allowIDs: "0xa7a0"` drops B70 from xe |
+| **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin - light QSV/browser (jellyfin/plex/playwright). B70 still included until iGPUs are confirmed after force_probe + i915 firmware; follow-up `allowIDs: "0xa7a0"` drops B70 from xe |
 | **On the B70** | chat (`vllm`) + optional `tdarr-node`. `vllm-embed` and `comfyui` are pinned `replicas: 0` |
 | **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` (pin is load-bearing; do not float to `server-intel`) |
 | **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` |
@@ -56,6 +56,29 @@ When you merge an AI / GPU config change, prepend an entry (newest first):
 ## [YYYY-MM-DD] Short title  (PR #NNN)
 Change · Why · Evidence · Risk/rollback · Verify
 ```
+
+---
+
+## [2026-08-26] Restore `siderolabs/i915` for a7a0 iGPU firmware
+
+**Change:**
+- `talos/schematic.yaml.j2`: re-add `siderolabs/i915` alongside (not replacing) `siderolabs/xe`. Factory ID `b1a6b2ffb73af6f3b9d1f10921a4f5d8ac76aefa10be4af317f73fce3d488d04` (was `6b46d2c00a2295d31fef568ead1420f3088ac6adadc78abe1ff1c7ea8c1a6ef9`).
+- Comment only on `i915.force_probe=!a7a0`: was inert without the extension; now load-bearing because `siderolabs/i915` ships `i915.ko`.
+
+**Why:** After #1443 force_probe, xe binds a7a0 on talos-1/2 but still loads firmware from the legacy `i915/` path (`adlp_dmc.bin`, `adlp_dmc_ver2_16.bin`, `adlp_guc_70.bin`). `siderolabs/xe` ships only `xe/` blobs (`bmg_*`, `lnl_*`), so probe fails `-ENOENT`. Commit `73c9e3da` dropped `siderolabs/i915` with the i915→xe migration; until force_probe, xe skipped a7a0 so the missing firmware was invisible. talos-3 B70 stays healthy on `xe/` firmware alone.
+
+**Evidence:** Unpacked `ghcr.io/siderolabs/i915:20260810-v1.13.9` (amd64) carries the three requested `usr/lib/firmware/i915/adlp_*` blobs and no `xe/` tree (no collision with `siderolabs/xe`); `i915.ko` matches kernel `6.18.44-talos`. Live dmesg on talos-1/2 showed the three `-ENOENT` fetches. New schematic registered at factory.talos.dev with `siderolabs/i915` in the extension list; `talosctl validate -m metal` clean on all three node configs at installer v1.13.9.
+
+**Risk / rollback:** Not Flux-applied — captain rolls `just talos apply-node` one node at a time after merge. Do not drop `i915.force_probe=!a7a0` while `siderolabs/i915` is present, or `i915.ko` can reclaim the iGPU from xe. Revert the extension and re-apply to undo (iGPUs fail firmware load again). Do not re-add `i915.enable_dc=0` / `i915.enable_guc=3` — xe still owns the device.
+
+**Verify:** After each `apply-node` on talos-1/2:
+```sh
+# firmware present
+talosctl -n <node> ls /usr/lib/firmware/i915 | grep -E 'adlp_(dmc|guc)'
+# xe bound, allocatable
+kubectl get node <node> -o jsonpath='{.status.allocatable.gpu\.intel\.com/xe}{"\n"}'
+```
+Expect non-empty `i915/adlp_*` listing and `gpu.intel.com/xe=99` on talos-1 and talos-2 (talos-3 already had xe via B70).
 
 ---
 
