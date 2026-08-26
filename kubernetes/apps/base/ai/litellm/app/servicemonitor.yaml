@@ -11,9 +11,11 @@ spec:
       interval: 30s
       scrapeTimeout: 10s
       # /metrics requires proxy auth by default (litellm_settings.callbacks:
-      # prometheus). Reusing the master key keeps this to one secret; it
-      # grants Prometheus no more than read access to metrics it already
-      # scrapes cluster-wide.
+      # prometheus). Reuses LITELLM_MASTER_KEY to avoid a second secret -
+      # deliberate tradeoff: Prometheus (and anyone who can read the
+      # scrape config / that Secret) holds the proxy's full admin credential,
+      # not a metrics-only token. Acceptable while this app is in-cluster-only
+      # with no HTTPRoute; revisit before any broader exposure.
       authorization:
         credentials:
           name: litellm-secret

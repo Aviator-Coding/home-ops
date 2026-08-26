@@ -38,6 +38,11 @@ spec:
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
+        # Do not auto-bind the only chart SA (litellm-provision has secrets
+        # create/get/patch). app-template assigns the sole SA to every
+        # controller that omits serviceAccount; pin the proxy to default.
+        serviceAccount:
+          name: default
         initContainers:
           init-db:
             image:
@@ -107,11 +112,14 @@ spec:
                 memory: 2Gi
 
       # Mints/syncs virtual keys from resources/consumers.json against the
-      # proxy above. Runs as a Helm post-install/post-upgrade hook (fires on
-      # every HelmRelease reconcile, so a consumers.json edit takes effect on
-      # the next `flux reconcile hr litellm` without a manual step) rather
-      # than a bespoke operator/CRD - see docs/ai-system/litellm/README.md.
-      provision-keys:
+      # proxy. Two controllers share the same script/SA/mounts:
+      #   - provision-keys: Helm post-install/post-upgrade hook for immediate
+      #     first mint (and any real Helm upgrade).
+      #   - provision-keys-sync: CronJob so a consumers.json-only Git change
+      #     (ConfigMap outside the Helm release) still converges without a
+      #     forced `helm upgrade` - Flux HR reconcile does not re-run hooks
+      #     when chart values are unchanged. See docs/ai-system/litellm/.
+      provision-keys: &provision-keys
         type: job
         annotations:
           helm.sh/hook: post-install,post-upgrade
@@ -145,6 +153,19 @@ spec:
               limits:
                 memory: 128Mi
 
+      provision-keys-sync:
+        <<: *provision-keys
+        type: cronjob
+        annotations: {}
+        cronjob:
+          # Tight enough that a budget raise lands well under the 1h Flux
+          # interval; Forbid so a slow /key call cannot stack jobs.
+          schedule: "*/15 * * * *"
+          concurrencyPolicy: Forbid
+          successfulJobsHistory: 1
+          failedJobsHistory: 1
+          backoffLimit: 2
+
     service:
       app:
         controller: litellm
@@ -156,7 +177,7 @@ spec:
     # all (not even the internal-only gateway). Reach the proxy from inside
     # the cluster at http://litellm.ai.svc.cluster.local:4000, or from a
     # workstation with kubeconfig access via
-    # `kubectl -n ai port-forward svc/litellm-app 4000:4000`.
+    # `kubectl -n ai port-forward svc/litellm 4000:4000`.
 
     serviceAccount:
       litellm-provision: {}
@@ -185,10 +206,9 @@ spec:
             - identifier: litellm-provision
 
     persistence:
-      # advancedMounts (not globalMounts): this HelmRelease has two
-      # controllers (litellm, provision-keys) sharing one pod spec section -
-      # globalMounts would also try to mount config.yaml into the unrelated
-      # provision-keys job.
+      # advancedMounts (not globalMounts): multiple controllers share this
+      # values section - globalMounts would also try to mount config.yaml
+      # into the provision Jobs.
       config:
         type: configMap
         name: litellm-configmap
@@ -203,6 +223,10 @@ spec:
         name: litellm-provision-configmap
         advancedMounts:
           provision-keys:
+            app:
+              - path: /scripts
+                readOnly: true
+          provision-keys-sync:
             app:
               - path: /scripts
                 readOnly: true

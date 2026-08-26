@@ -41,7 +41,7 @@ configMapGenerator:
     files:
       - config.yaml=./resources/config.yaml
   # Consumer definitions + the provisioning script, mounted at /scripts in
-  # the provision-keys Helm hook Job.
+  # the provision-keys hook Job and provision-keys-sync CronJob.
   - name: litellm-provision-configmap
     files:
       - provision_keys.py=./resources/provision_keys.py

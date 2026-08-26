@@ -65,11 +65,19 @@ plain HelmRelease per this repo's conventions. Instead:
 
 1. `app/resources/consumers.json` declares each consumer: `name`, `models`
    (allow-list), `maxBudget` (USD), `budgetDuration`, `rpmLimit`, `tpmLimit`.
-2. A Helm `post-install`/`post-upgrade` hook Job
-   (`provision-keys` controller in `helmrelease.yaml`, script
-   `app/resources/provision_keys.py`) runs after every install/upgrade. It is
-   pure-stdlib Python (no PyYAML/curl/kubectl image) that:
-   - waits for the proxy's `/health/liveness` to return 200,
+2. `app/resources/provision_keys.py` (pure-stdlib Python, no
+   PyYAML/curl/kubectl image) is run by two controllers in
+   `helmrelease.yaml`:
+   - `provision-keys` - Helm `post-install`/`post-upgrade` hook for immediate
+     first mint (and any real Helm upgrade),
+   - `provision-keys-sync` - CronJob every 15m so a **consumers.json-only**
+     Git change still converges. That file is a kustomize ConfigMap *outside*
+     the Helm release, so Flux's HR reconcile does not re-run hooks when chart
+     values are unchanged - the CronJob is what makes "edit the numbers and
+     commit" work without a forced `helm upgrade`.
+
+   Each run:
+   - waits for the proxy's `/health/readiness` to return 200 (DB-aware),
    - reads the `litellm-consumer-keys` Secret in `ai` for any key this Job
      already minted,
    - for a **new** consumer: `POST /key/generate` (key_alias, models,
@@ -92,10 +100,11 @@ plain HelmRelease per this repo's conventions. Instead:
    to raise a limit).
 2. Adding a **new** consumer also needs one matching `data.match` block in
    `app/pushsecret.yaml` (`secretKey` == the new consumer's `name`).
-3. Commit, merge. The next HelmRelease reconcile (`flux reconcile hr litellm
-   -n ai`, or just wait for the `1h` interval) re-runs the provisioning Job,
-   which mints the new key or re-syncs the changed limits, and the PushSecret
-   picks up the new 1Password item on its own 5m refresh.
+3. Commit, merge. Flux updates the ConfigMap; within ~15 minutes the
+   `provision-keys-sync` CronJob re-runs the script (or sooner if a real Helm
+   upgrade also fires the hook). The PushSecret picks up any newly written
+   Secret key on its own 5m refresh. To force an immediate sync without
+   waiting: `kubectl -n ai create job --from=cronjob/litellm-provision-keys-sync provision-keys-manual`.
 
 Raising an existing consumer's budget is exactly this: edit the number, no
 Job/RBAC/schema change needed - that's the "values-file edit, not a
@@ -106,7 +115,7 @@ redesign" property D4 asked for.
 | Knob | Value | Why this number | Raise it |
 | --- | --- | --- | --- |
 | `models` | `["qwen3.6-35b-a3b"]` | The only model this proxy actually serves today (the six-line `model_list`). | Add the model to `config.yaml`'s `model_list` first, then to this consumer's `models`. |
-| `maxBudget` | `0.05` (USD) | Small enough to exhaust in one manual smoke test, so the budget enforcement path (`429`) is trivially exercisable, not just theoretical. | Edit the number in `consumers.json`. |
+| `maxBudget` | `0.05` (USD) | Small enough to exhaust in one manual smoke test, so the budget enforcement path (`429`) is trivially exercisable, not just theoretical. Spend is computed from the per-token prices on the model in `config.yaml` (`model_info.input_cost_per_token` / `output_cost_per_token`) - those are governance-accounting prices, not cloud billing; without non-zero prices LiteLLM records $0 spend and `max_budget` never trips. | Edit the number in `consumers.json` (and the model prices in `config.yaml` if the burn rate should change too). |
 | `budgetDuration` | `30d` | Spend resets monthly rather than being a one-time lifetime cap that permanently bricks the key. | Any LiteLLM duration string (`7d`, `1mo`, ...). |
 | `rpmLimit` | `2` | Deliberately below any real interactive workload - proves the limiter fires without needing sustained load. | Raise once a real consumer is wired up. |
 | `tpmLimit` | `2000` | About one short chat completion's worth of tokens. | Raise alongside `rpmLimit`. |
@@ -129,7 +138,7 @@ kubectl -n ai logs -l batch.kubernetes.io/job-name --tail=50 | grep -E "demo:|wr
 DEMO_KEY=$(kubectl -n ai get secret litellm-consumer-keys -o jsonpath='{.data.demo}' | base64 -d)
 
 # 3. Port-forward the proxy (it has no route by design - B4).
-kubectl -n ai port-forward svc/litellm-app 4000:4000 &
+kubectl -n ai port-forward svc/litellm 4000:4000 &
 
 # 4. Golden path: call the allow-listed model. Expect a normal completion.
 curl -s http://localhost:4000/v1/chat/completions \

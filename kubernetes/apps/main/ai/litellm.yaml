@@ -19,9 +19,11 @@ spec:
       namespace: security
     - name: cloudnative-pg
       namespace: database
-    # Points at vllm-app as a backend; wait for it to exist first (not for it
-    # to be Ready - a first-boot ~21GB GGUF download can take 30 min, and
-    # litellm's own health check does not depend on the backend being up).
+    # Points at vllm-app as a backend. Flux dependsOn waits for the vllm
+    # Kustomization Ready condition (including its Deployment healthCheck),
+    # so a first-boot ~21GB GGUF download delays this app until vllm is Ready.
+    # litellm's own probes do not call the backend; this coupling is only
+    # ordering, not a runtime health dependency.
     - name: vllm
       namespace: ai
   interval: 1h

@@ -7,6 +7,15 @@ model_list:
       model: openai/qwen3.6-35b-a3b
       api_base: http://vllm-app.ai.svc.cluster.local:8000/v1
       api_key: "not-needed" # llama.cpp server has no --api-key set
+    # Governance-accounting prices (not cloud billing). Required so virtual-key
+    # spend accrues: without non-zero prices LiteLLM records $0 spend and the
+    # demo $0.05 max_budget / LiteLLMConsumerBudgetExhausted path never trips.
+    # Tuned so a short smoke-test completion can exhaust the demo cap.
+    # Raise/lower alongside consumers.json maxBudget when expanding later.
+    # Lives under model_info (LiteLLM's documented custom-pricing location).
+    model_info:
+      input_cost_per_token: 0.00005
+      output_cost_per_token: 0.0001
 
 litellm_settings:
   callbacks: ["prometheus"] # exposes /metrics on the proxy port (4000)

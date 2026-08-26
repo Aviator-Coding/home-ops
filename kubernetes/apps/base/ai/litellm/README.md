@@ -20,9 +20,8 @@ design, and the knobs to raise budgets later: `docs/ai-system/litellm/README.md`
 **Per-consumer governance (D4):** virtual keys with a model allow-list and a
 deliberately tiny spend/rate budget, defined in
 [`app/resources/consumers.json`](app/resources/consumers.json) and minted by
-the `provision-keys` Helm hook Job
-([`app/resources/provision_keys.py`](app/resources/provision_keys.py)) against
-the proxy's `/key` API - LiteLLM has no way to declare a budgeted key from
+`provision_keys.py` (Helm install hook + 15m CronJob - see helmrelease.yaml)
+against the proxy's `/key` API - LiteLLM has no way to declare a budgeted key from
 config.yaml alone, which is why this app carries a Postgres dependency (see
 `docs/ai-system/litellm/README.md#why-postgres`) unlike the rest of this
 namespace's stateless-by-preference apps.
@@ -49,4 +48,6 @@ exists - every `postgres-17` client app reads it the same way (see
 `kubectl port-forward` + `curl` commands to mint-and-call the `demo` consumer
 key against `vllm-app` through this proxy, and to confirm the allow-list and
 budget are actually enforced (a second model returns 403, a request past
-budget returns 429).
+budget returns 429). Spend budgets require the non-zero `model_info`
+per-token prices on the model in `app/resources/config.yaml` - see that
+file's comment.

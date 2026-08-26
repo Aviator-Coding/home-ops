@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Mint/sync LiteLLM virtual keys from consumers.json (D4 per-consumer governance).
 
-Runs as a Helm post-install/post-upgrade hook Job (see helmrelease.yaml). Pure
-stdlib: no PyYAML, no curl, no kubectl image - just python:alpine talking to
-the LiteLLM proxy's REST API and the in-cluster Kubernetes API directly.
+Runs from helmrelease.yaml as the post-install/post-upgrade hook Job and the
+15m provision-keys-sync CronJob. Pure stdlib: no PyYAML, no curl, no kubectl
+image - just python:alpine talking to the LiteLLM proxy's REST API and the
+in-cluster Kubernetes API directly.
 
 Idempotent: an existing consumer key is looked up in the litellm-consumer-keys
 Secret and re-synced via /key/update (budgets/allow-list only, key unchanged).
