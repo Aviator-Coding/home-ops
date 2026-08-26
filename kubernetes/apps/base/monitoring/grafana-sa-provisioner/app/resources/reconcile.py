@@ -7,8 +7,7 @@ and tokens along with everything else - this script exists to notice that and
 recreate them, on a schedule, with no human action.
 
 Pure stdlib: no requests, no PyYAML, no kubectl image - just python:alpine
-talking to the Grafana HTTP API and the in-cluster Kubernetes API directly
-(same approach as ai/litellm's provision_keys.py).
+talking to the Grafana HTTP API and the in-cluster Kubernetes API directly.
 
 Flow, cheapest branch first:
   1. Read the last-known token from our own Secret via the K8s API. If none is

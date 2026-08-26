@@ -32,9 +32,8 @@ A CronJob (`app/helmrelease.yaml`, `*/5 * * * *`) closes that loop:
 3. **Push** the new token into its own Secret, which a `PushSecret`
    (`app/pushsecret.yaml`) syncs to the existing 1Password item/field
    `grafana-mcp` / `GRAFANA_SERVICE_ACCOUNT_TOKEN` - the exact one
-   `ai/toolhive/mcp-servers/grafana-mcp`'s `ExternalSecret` already reads.
-   Pattern mirrored from `ai/litellm`'s `provision_keys.py` +
-   `pushsecret.yaml` (own-Secret -> `PushSecret` -> existing 1Password item).
+   `ai/toolhive/mcp-servers/grafana-mcp`'s `ExternalSecret` already reads
+   (own-Secret -> `PushSecret` -> existing 1Password item).
 
 `grafana-mcp`'s `ExternalSecret` was widened to `refreshInterval: 5m` (was
 defaulting to 1h) so a freshly pushed token actually reaches the consumer
