@@ -34,15 +34,17 @@ budgets.
   spend/rate budget per virtual key, with deliberately tiny initial values,
   "we will expand later."
 
-The captain's lab proved this works with a **six-line `model_list`** pointed
-at the local chat backend, at **7.4ms** proxy overhead. That six-line block
-is the `model_list` entry in
-`kubernetes/apps/base/ai/litellm/app/resources/config.yaml` (the file also
-carries additive `model_info` governance-accounting prices so virtual-key
-spend can accrue, plus the Prometheus metrics callback - neither was part of
-the lab result). Nobody could find that lab result committed anywhere in the
-repo before this change (see the scout report referenced in D4's decision
-trail) - this doc is that write-up.
+The captain's lab proved the governance path works with a **six-line
+`model_list`** pointed at the local chat backend, at **7.4ms** proxy
+overhead. That six-line block is still the direct `qwen3.6-35b-a3b` entry in
+`kubernetes/apps/base/ai/litellm/app/resources/config.yaml` (plus its
+`model_info` governance-accounting prices so virtual-key spend can accrue,
+and the Prometheus metrics callback - neither was part of the lab result).
+D3's additive `auto` router, classifier deployment and cloud tier backends
+live in the same file and are owned by [`auto-router.md`](auto-router.md).
+Nobody could find that lab result committed anywhere in the repo before the
+B4/D4 redeploy (see the scout report referenced in D4's decision trail) -
+this doc is that write-up.
 
 ## Why Postgres
 

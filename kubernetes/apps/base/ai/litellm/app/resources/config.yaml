@@ -1,6 +1,7 @@
 # Captain-approved lab design (B4/D4): six lines of real proxy config, pointed
 # at the existing local chat backend. Everything else in this file is additive
-# (metrics) or required plumbing (DB/master key come from env, not here).
+# (D3 auto-router below, metrics) or required plumbing (DB/master key come from
+# env, not here).
 #
 # D3 (2026-08-26) adds the complexity-tier auto-router below the direct models.
 # It is strictly ADDITIVE: `qwen3.6-35b-a3b` keeps working exactly as before, so

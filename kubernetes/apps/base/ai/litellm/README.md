@@ -13,10 +13,12 @@ design, and the knobs to raise budgets later: `docs/ai-system/litellm/README.md`
 - Zero changes to `agentgateway/` (the existing envoy AI gateway) or to
   `vllm/` (`vllm-app.ai.svc.cluster.local:8000`, which this app points at as
   a backend and never modifies).
-- Model list is the lab-proven six-line `model_list` in
-  [`app/resources/config.yaml`](app/resources/config.yaml), plus additive
-  `model_info` governance-accounting prices (so virtual-key spend accrues)
-  and the Prometheus metrics callback - nothing else.
+- Direct local model is still the lab-proven six-line `qwen3.6-35b-a3b`
+  entry in [`app/resources/config.yaml`](app/resources/config.yaml). D3
+  adds the additive `auto` router alias (classifier + Anthropic tier
+  backends) on top - see `docs/ai-system/litellm/auto-router.md`. Local
+  entries keep `model_info` governance-accounting prices; cloud tiers use
+  LiteLLM's built-in cost map. Prometheus metrics callback is on.
 
 **Per-consumer governance (D4):** virtual keys with a model allow-list and a
 deliberately tiny spend/rate budget, defined in
