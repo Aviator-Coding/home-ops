@@ -1,0 +1,111 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app grafana-sa-provisioner
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  maxHistory: 2
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    controllers:
+      grafana-sa-provisioner:
+        type: cronjob
+        cronjob:
+          # Few-minute cadence per design: cheap enough to run often (the
+          # steady-state path is one GET /api/org), and this is the ceiling
+          # on how quickly a fresh Grafana restart gets a working token back.
+          schedule: "*/5 * * * *"
+          backoffLimit: 0
+          concurrencyPolicy: Forbid
+          failedJobsHistory: 3
+          successfulJobsHistory: 1
+
+        pod:
+          restartPolicy: Never
+          automountServiceAccountToken: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile: { type: RuntimeDefault }
+
+        serviceAccount:
+          identifier: grafana-sa-provisioner
+
+        containers:
+          app:
+            image:
+              repository: docker.io/library/python
+              tag: 3.13-alpine
+            command: ["python3", "/scripts/reconcile.py"]
+            env:
+              GRAFANA_URL: http://grafana.monitoring.svc.cluster.local
+              GRAFANA_ADMIN_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: grafana-admin-secret
+                    key: admin-user
+              GRAFANA_ADMIN_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: grafana-admin-secret
+                    key: admin-password
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+
+    serviceAccount:
+      grafana-sa-provisioner: {}
+    rbac:
+      roles:
+        # Cannot scope `create` by resourceName (K8s RBAC only gates
+        # get/update/patch/delete on already-existing objects by name), so
+        # this SA can create any Secret in monitoring; get/patch are pinned
+        # to the one Secret this reconciler ever touches.
+        grafana-sa-provisioner-secrets:
+          type: Role
+          rules:
+            - apiGroups: [""]
+              resources: [secrets]
+              verbs: [create]
+            - apiGroups: [""]
+              resources: [secrets]
+              resourceNames: [grafana-sa-provisioner-token]
+              verbs: [get, patch]
+      bindings:
+        grafana-sa-provisioner-secrets:
+          type: RoleBinding
+          roleRef:
+            identifier: grafana-sa-provisioner-secrets
+          subjects:
+            - identifier: grafana-sa-provisioner
+
+    persistence:
+      scripts:
+        type: configMap
+        name: grafana-sa-provisioner-configmap
+        globalMounts:
+          - path: /scripts
+            readOnly: true

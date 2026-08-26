@@ -11,6 +11,7 @@ components:
 resources:
   - ./alertmanager.yaml
   - ./grafana.yaml
+  - ./grafana-sa-provisioner.yaml
   - ./keda.yaml
   - ./kube-state-metrics.yaml
   - ./kube-prometheus-stack.yaml
