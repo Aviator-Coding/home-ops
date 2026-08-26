@@ -35,8 +35,9 @@ spec:
     nodeFeatureRule: false
     sharedDevNum: 99
     # Discrete B70 consumers (vllm/vllm-embed/comfyui/tdarr-node) request
-    # devic.es/b70 from generic-device-plugin, not this pool. keep B70 in
-    # gpu.intel.com/xe for now so jellyfin/plex/playwright stay schedulable
-    # until xe.force_probe=a7a0 is applied node-by-node and the iGPUs are
-    # confirmed advertising xe. Follow-up: allowIDs: "0xa7a0" to drop the B70
-    # from this pool once that window is closed.
+    # devic.es/b70 from generic-device-plugin, not this pool. allowIDs scopes
+    # this pool to the Raptor Lake iGPU (0xa7a0) only, now that xe.force_probe
+    # is applied on all three nodes and the iGPUs confirm advertising xe
+    # (talos-1/2 xe=99, talos-3 was 198 pooled iGPU+B70). The B70 now serves
+    # devic.es/b70 exclusively.
+    allowIDs: "0xa7a0"
