@@ -9,6 +9,7 @@ recently, and why?" without spelunking git.
 
 - **Hardware failures** → [`hardware-incidents.md`](./hardware-incidents.md)
 - **Ceph config changes** → [`ceph-cluster-changelog.md`](./ceph-cluster-changelog.md)
+- **GPU DRA (designed, not shipped)** → [`ai/gpu-dra-migration-design.md`](./ai/gpu-dra-migration-design.md)
 - **This file** → chronological log of applied AI / GPU changes
 
 > ⚠️ All AI config is GitOps under `kubernetes/apps/main/ai/` (Flux Kustomizations) and
@@ -56,6 +57,30 @@ When you merge an AI / GPU config change, prepend an entry (newest first):
 ## [YYYY-MM-DD] Short title  (PR #NNN)
 Change · Why · Evidence · Risk/rollback · Verify
 ```
+
+---
+
+## [2026-08-26] DRA migration designed, not adopted - staying on device plugins
+
+**Change:** None. Both device plugins stay: `generic-device-plugin` (`devic.es/b70`) and
+Intel `GpuDevicePlugin` (`gpu.intel.com/xe`). Docs only - full verdict, evidence, target
+design, staged cutover, alert mapping, and reopen conditions live in
+[`ai/gpu-dra-migration-design.md`](./ai/gpu-dra-migration-design.md) (do not restate here).
+
+**Why considered:** Captain decision D6 (2026-08-26) to migrate GPU scheduling to native
+Kubernetes DRA. Cluster side is ready (`resource.k8s.io/v1`, consumable capacity enabled);
+DRA would pin consumers to real cards via `pciId` DeviceClasses in both directions, closing
+the pooled `gpu.intel.com/xe` / `allowIDs` gap.
+
+**Why rejected:** Three independent upstream blockers, any one disqualifying - vendor
+beta-only Intel DRA driver, no multi-pod GPU share (`allowMultipleAllocation` unimplemented;
+`vllm` + `tdarr-node` both need the single B70), and no kube-state-metrics DRA series for the
+gpu-loss alerts. Do **not** copy the reference-repo `adminAccess: true` workaround; see the
+design doc.
+
+**Risk / rollback:** n/a, no config changed.
+
+**Verify / reopen:** Conditions and stage plan are owned by the design doc §5 / §3.4.
 
 ---
 
