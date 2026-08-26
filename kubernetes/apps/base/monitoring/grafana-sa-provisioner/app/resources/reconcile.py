@@ -17,12 +17,13 @@ Flow, cheapest branch first:
      (the common case: silent and cheap, matching every other successful run).
   3. Invalid or absent -> authenticate with the env-provisioned admin
      credentials (GF_SECURITY_ADMIN_USER/PASSWORD via grafana-admin-secret,
-     mounted as GRAFANA_ADMIN_USER/PASSWORD). If admin auth itself 401s, that
-     means live Grafana state has drifted from grafana-admin-secret (Grafana
-     only re-applies GF_SECURITY_ADMIN_* to a *fresh* SQLite db at boot; a
-     live password change or 1Password rotation after boot does not affect
-     the running process). Fail loudly - only a Grafana pod restart clears
-     this, see README.md - so the sustained-failure alert can page a human.
+     mounted as GRAFANA_ADMIN_USER/PASSWORD) via form/session login. If admin
+     auth itself 401s, that means live Grafana state has drifted from
+     grafana-admin-secret (Grafana only re-applies GF_SECURITY_ADMIN_* to a
+     *fresh* SQLite db at boot; a live password change or 1Password rotation
+     after boot does not affect the running process). Fail loudly - only a
+     Grafana pod restart clears this, see README.md - so the sustained-failure
+     alert can page a human.
   4. Find-or-create the Viewer-scoped service account (captain decision A6:
      Viewer only, never Editor/Admin), revoke any tokens it already holds,
      mint one fresh token.
@@ -33,6 +34,7 @@ Flow, cheapest branch first:
      kubernetes/apps/base/ai/toolhive/mcp-servers/grafana-mcp/externalsecret.yaml.
 """
 import base64
+import http.cookiejar
 import json
 import os
 import ssl
@@ -57,21 +59,42 @@ def _read(path):
         return f.read().strip()
 
 
-def _basic_auth_header(user, password):
-    return "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
-
-
-def grafana_request(method, path, body=None, auth_header=None, timeout=10):
+def grafana_request(method, path, body=None, auth_header=None, opener=None, timeout=10):
     data = json.dumps(body).encode() if body is not None else None
+    headers = {"Content-Type": "application/json"}
+    if auth_header is not None:
+        headers["Authorization"] = auth_header
     req = urllib.request.Request(
         f"{GRAFANA_URL}{path}",
         data=data,
         method=method,
-        headers={"Authorization": auth_header, "Content-Type": "application/json"},
+        headers=headers,
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    open_fn = opener.open if opener is not None else urllib.request.urlopen
+    with open_fn(req, timeout=timeout) as resp:
         raw = resp.read()
         return resp.status, (json.loads(raw) if raw else {})
+
+
+def admin_session():
+    # Session form login, not HTTP Basic: monitoring/grafana sets
+    # GF_AUTH_BASIC_ENABLED=false, so Authorization: Basic is rejected even
+    # when GRAFANA_ADMIN_* match the live DB. POST /login + grafana_session
+    # cookie is the path that works with that public surface left unchanged.
+    #
+    # CSRF: Grafana's middleware (pkg/middleware/csrf) only enforces Origin
+    # host match when an Origin header is present; with no Origin (this
+    # client) mutating API calls after login are allowed. Do not invent
+    # X-Grafana-CSRF-Token / Origin values here.
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    grafana_request(
+        "POST",
+        "/login",
+        body={"user": ADMIN_USER, "password": ADMIN_PASSWORD},
+        opener=opener,
+    )
+    return opener
 
 
 def k8s_request(method, path, body=None, ok_statuses=(200,)):
@@ -123,31 +146,31 @@ def probe_token(token):
         return False
 
 
-def find_or_create_service_account(admin_auth):
-    status, body = grafana_request("GET", f"/api/serviceaccounts/search?query={SA_NAME}&perpage=100", auth_header=admin_auth)
+def find_or_create_service_account(opener):
+    status, body = grafana_request("GET", f"/api/serviceaccounts/search?query={SA_NAME}&perpage=100", opener=opener)
     for sa in body.get("serviceAccounts", []):
         if sa["name"] == SA_NAME:
             if sa.get("role") != "Viewer":
                 # Defensive: this reconciler only ever creates Viewer accounts
                 # (A6), but re-assert on every re-provision in case of manual
                 # drift.
-                grafana_request("PATCH", f"/api/serviceaccounts/{sa['id']}", {"role": "Viewer"}, auth_header=admin_auth)
+                grafana_request("PATCH", f"/api/serviceaccounts/{sa['id']}", {"role": "Viewer"}, opener=opener)
             return sa["id"]
     _, created = grafana_request(
-        "POST", "/api/serviceaccounts", {"name": SA_NAME, "role": "Viewer", "isDisabled": False}, auth_header=admin_auth
+        "POST", "/api/serviceaccounts", {"name": SA_NAME, "role": "Viewer", "isDisabled": False}, opener=opener
     )
     return created["id"]
 
 
-def rotate_token(sa_id, admin_auth):
-    _, tokens = grafana_request("GET", f"/api/serviceaccounts/{sa_id}/tokens", auth_header=admin_auth)
+def rotate_token(sa_id, opener):
+    _, tokens = grafana_request("GET", f"/api/serviceaccounts/{sa_id}/tokens", opener=opener)
     for tok in tokens:
-        grafana_request("DELETE", f"/api/serviceaccounts/{sa_id}/tokens/{tok['id']}", auth_header=admin_auth)
+        grafana_request("DELETE", f"/api/serviceaccounts/{sa_id}/tokens/{tok['id']}", opener=opener)
     _, minted = grafana_request(
         "POST",
         f"/api/serviceaccounts/{sa_id}/tokens",
         {"name": f"reconciler-{int(time.time())}"},
-        auth_header=admin_auth,
+        opener=opener,
     )
     return minted["key"]
 
@@ -160,9 +183,9 @@ def main():
         print(f"{SA_NAME}: existing token still valid, nothing to do")
         return
 
-    admin_auth = _basic_auth_header(ADMIN_USER, ADMIN_PASSWORD)
     try:
-        grafana_request("GET", "/api/org", auth_header=admin_auth)
+        opener = admin_session()
+        grafana_request("GET", "/api/org", opener=opener)
     except urllib.error.HTTPError as exc:
         if exc.code == 401:
             print(
@@ -175,8 +198,8 @@ def main():
             )
         raise
 
-    sa_id = find_or_create_service_account(admin_auth)
-    new_token = rotate_token(sa_id, admin_auth)
+    sa_id = find_or_create_service_account(opener)
+    new_token = rotate_token(sa_id, opener)
     write_token(namespace, secret_exists, new_token)
     print(f"{SA_NAME}: recreated service account + token (sa_id={sa_id})")
 

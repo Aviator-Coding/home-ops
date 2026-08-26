@@ -22,9 +22,13 @@ A CronJob (`app/helmrelease.yaml`, `*/5 * * * *`) closes that loop:
 2. **Invalid or absent** -> authenticate with the env-provisioned admin
    credentials (`grafana-admin-secret`, mounted directly as
    `GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD` - no new secret, no K8s API
-   read needed for these), find-or-create a Viewer-scoped service account
-   (captain decision **A6**: Viewer only, never Editor/Admin), revoke any
-   tokens it already holds, and mint one fresh token.
+   read needed for these) via Grafana form/session login (`POST /login` +
+   session cookie). HTTP Basic is intentionally not used: this cluster's
+   Grafana sets `GF_AUTH_BASIC_ENABLED: false`, so Basic would 401 even when
+   the secret matches the live DB. Then find-or-create a Viewer-scoped
+   service account (captain decision **A6**: Viewer only, never
+   Editor/Admin), revoke any tokens it already holds, and mint one fresh
+   token.
 3. **Push** the new token into its own Secret, which a `PushSecret`
    (`app/pushsecret.yaml`) syncs to the existing 1Password item/field
    `grafana-mcp` / `GRAFANA_SERVICE_ACCOUNT_TOKEN` - the exact one
