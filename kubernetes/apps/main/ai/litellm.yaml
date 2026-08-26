@@ -1,0 +1,42 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app litellm
+  namespace: &namespace ai
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
+    - name: cloudnative-pg
+      namespace: database
+    # Points at vllm-app as a backend; wait for it to exist first (not for it
+    # to be Ready - a first-boot ~21GB GGUF download can take 30 min, and
+    # litellm's own health check does not depend on the backend being up).
+    - name: vllm
+      namespace: ai
+  interval: 1h
+  path: "./kubernetes/apps/base/ai/litellm/app"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      GATUS_GROUP: ai

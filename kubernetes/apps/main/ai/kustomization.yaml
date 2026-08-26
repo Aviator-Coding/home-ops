@@ -19,6 +19,7 @@ resources:
   - ./agentmemory.yaml
   - ./comfyui.yaml
   - ./hermes.yaml
+  - ./litellm.yaml
   - ./searxng.yaml
   - ./toolhive.yaml
   - ./vllm.yaml

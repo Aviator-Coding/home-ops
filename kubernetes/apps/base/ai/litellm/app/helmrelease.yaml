@@ -1,0 +1,205 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app litellm
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  maxHistory: 2
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    # Matches this app's pre-2026-06-07 incarnation (proven working on this
+    # exact cluster/image - see PR history for a40d786f..d16d3189) rather than
+    # app-template's own hardened defaults.
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 100
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+
+    controllers:
+      litellm:
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          init-db:
+            image:
+              repository: ghcr.io/home-operations/postgres-init
+              tag: 18.6@sha256:b6d3af974df781c673d37e49bdddfa14a6f5be28b18d2cb7713f0449bea4057b
+            envFrom: &envFrom
+              - secretRef:
+                  name: litellm-secret
+        containers:
+          app:
+            image:
+              repository: ghcr.io/berriai/litellm-non_root
+              tag: main-v1.83.14-stable
+            args:
+              - --host
+              - "0.0.0.0"
+              - --port
+              - "4000"
+              - --config
+              - /app/config.yaml
+            envFrom: *envFrom
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health/liveness
+                    port: &port 4000
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    # Checks the DB connection too - a real readiness signal,
+                    # not just "the process is up" (see docs/ai-system/litellm/).
+                    path: /health/readiness
+                    port: *port
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health/liveness
+                    port: *port
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+            securityContext:
+              allowPrivilegeEscalation: false
+              # Proven necessary for this image/version on this cluster before
+              # (git history a40d786f..d16d3189, "disable readOnlyRootFilesystem
+              # for litellm v1.82.3") - litellm-non_root writes at startup.
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+
+      # Mints/syncs virtual keys from resources/consumers.json against the
+      # proxy above. Runs as a Helm post-install/post-upgrade hook (fires on
+      # every HelmRelease reconcile, so a consumers.json edit takes effect on
+      # the next `flux reconcile hr litellm` without a manual step) rather
+      # than a bespoke operator/CRD - see docs/ai-system/litellm/README.md.
+      provision-keys:
+        type: job
+        annotations:
+          helm.sh/hook: post-install,post-upgrade
+          # Helm hook Jobs are immutable once created; delete-and-recreate on
+          # every run instead of erroring on the second install.
+          helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        pod:
+          restartPolicy: Never
+        serviceAccount:
+          identifier: litellm-provision
+        containers:
+          app:
+            image:
+              repository: docker.io/library/python
+              tag: 3.13-alpine
+            command: ["python3", "/scripts/provision_keys.py"]
+            env:
+              CONSUMERS_FILE: /scripts/consumers.json
+            envFrom:
+              # Only needs LITELLM_MASTER_KEY; the DB/postgres-init fields in
+              # this secret are simply unused here.
+              - secretRef:
+                  name: litellm-secret
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+
+    service:
+      app:
+        controller: litellm
+        ports:
+          http:
+            port: *port
+
+    # No route: B4/D4 - in-cluster consumers only, no Gateway API exposure at
+    # all (not even the internal-only gateway). Reach the proxy from inside
+    # the cluster at http://litellm.ai.svc.cluster.local:4000, or from a
+    # workstation with kubeconfig access via
+    # `kubectl -n ai port-forward svc/litellm-app 4000:4000`.
+
+    serviceAccount:
+      litellm-provision: {}
+    rbac:
+      roles:
+        # Cannot scope `create` by resourceName (K8s RBAC only gates
+        # get/update/patch/delete on already-existing objects by name), so
+        # this SA can create any Secret in ai; get/patch are pinned to the
+        # one Secret this Job ever touches.
+        litellm-provision-secrets:
+          type: Role
+          rules:
+            - apiGroups: [""]
+              resources: [secrets]
+              verbs: [create]
+            - apiGroups: [""]
+              resources: [secrets]
+              resourceNames: [litellm-consumer-keys]
+              verbs: [get, patch]
+      bindings:
+        litellm-provision-secrets:
+          type: RoleBinding
+          roleRef:
+            identifier: litellm-provision-secrets
+          subjects:
+            - identifier: litellm-provision
+
+    persistence:
+      # advancedMounts (not globalMounts): this HelmRelease has two
+      # controllers (litellm, provision-keys) sharing one pod spec section -
+      # globalMounts would also try to mount config.yaml into the unrelated
+      # provision-keys job.
+      config:
+        type: configMap
+        name: litellm-configmap
+        advancedMounts:
+          litellm:
+            app:
+              - path: /app/config.yaml
+                subPath: config.yaml
+                readOnly: true
+      provision-scripts:
+        type: configMap
+        name: litellm-provision-configmap
+        advancedMounts:
+          provision-keys:
+            app:
+              - path: /scripts
+                readOnly: true

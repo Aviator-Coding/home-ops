@@ -1,0 +1,43 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: litellm-rules
+  labels:
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: litellm.rules
+      rules:
+        - alert: LiteLLMProxyDown
+          annotations:
+            description: The LiteLLM governance proxy has been unreachable for 5 minutes.
+            summary: LiteLLM proxy is down.
+          expr: |-
+            up{job="litellm"} == 0
+          for: 5m
+          labels:
+            severity: critical
+        - alert: LiteLLMHighFailureRate
+          annotations:
+            description: LiteLLM has returned failed requests at a sustained rate for 10 minutes - check the /v1 backend (vllm-app) and proxy logs.
+            summary: LiteLLM is failing a sustained share of requests.
+          # Verify this metric name against a live /metrics scrape after first
+          # deploy (litellm_settings.callbacks: prometheus); LiteLLM's exact
+          # metric names have shifted across versions upstream.
+          expr: |-
+            rate(litellm_proxy_failed_requests_metric[15m]) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+        - alert: LiteLLMConsumerBudgetExhausted
+          annotations:
+            description: 'A LiteLLM virtual key has spent its full budget_duration budget. Deliberate per D4 (tiny initial budgets) - raise the limit in resources/consumers.json if this consumer needs more headroom, or leave it to reset at the next budget_duration boundary.'
+            summary: A LiteLLM consumer key has hit its spend budget.
+          expr: |-
+            litellm_remaining_api_key_budget_metric <= 0
+          for: 5m
+          labels:
+            severity: warning
