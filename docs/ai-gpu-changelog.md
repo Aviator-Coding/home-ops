@@ -9,6 +9,7 @@ recently, and why?" without spelunking git.
 
 - **Hardware failures** → [`hardware-incidents.md`](./hardware-incidents.md)
 - **Ceph config changes** → [`ceph-cluster-changelog.md`](./ceph-cluster-changelog.md)
+- **GPU DRA (designed, not shipped)** → [`ai/gpu-dra-migration-design.md`](./ai/gpu-dra-migration-design.md)
 - **This file** → chronological log of applied AI / GPU changes
 
 > ⚠️ All AI config is GitOps under `kubernetes/apps/main/ai/` (Flux Kustomizations) and
@@ -62,49 +63,24 @@ Change · Why · Evidence · Risk/rollback · Verify
 ## [2026-08-26] DRA migration designed, not adopted - staying on device plugins
 
 **Change:** None. Both device plugins stay: `generic-device-plugin` (`devic.es/b70`) and
-Intel `GpuDevicePlugin` (`gpu.intel.com/xe`). Full design and evidence in
-[`ai/gpu-dra-migration-design.md`](./ai/gpu-dra-migration-design.md).
+Intel `GpuDevicePlugin` (`gpu.intel.com/xe`). Docs only - full verdict, evidence, target
+design, staged cutover, alert mapping, and reopen conditions live in
+[`ai/gpu-dra-migration-design.md`](./ai/gpu-dra-migration-design.md) (do not restate here).
 
-**Why:** Kubernetes DRA is a genuinely better fit for this cluster - a `DeviceClass` CEL
-selector on `pciId` pins each consumer to its actual card in **both** directions, which the
-pooled `gpu.intel.com/xe` token cannot do (it is why jellyfin/plex/playwright sit on the B70
-today, and why the `allowIDs: "0xa7a0"` follow-up exists). The cluster is ready: v1.36.3
-serves `resource.k8s.io/v1`, `DynamicResourceAllocation` and `DRAConsumableCapacity` are
-enabled. The **driver** is not. Three blockers, any one disqualifying:
+**Why considered:** Captain decision D6 (2026-08-26) to migrate GPU scheduling to native
+Kubernetes DRA. Cluster side is ready (`resource.k8s.io/v1`, consumable capacity enabled);
+DRA would pin consumers to real cards via `pciId` DeviceClasses in both directions, closing
+the pooled `gpu.intel.com/xe` / `allowIDs` gap.
 
-1. `intel/intel-resource-drivers-for-kubernetes` (`gpu-v0.11.0`, the only vendor Intel GPU
-   DRA driver) says verbatim on `main`: *"CAUTION: This is a beta / non-production software,
-   do not use on production clusters."* `kubernetes-sigs/dra-example-driver` is not an
-   alternative - its devices are mock GPUs.
-2. **It cannot share a GPU across pods, and we do.** Upstream issue
-   [#79](https://github.com/intel/intel-resource-drivers-for-kubernetes/issues/79): *"the
-   Intel DRA driver only allows a strict 1-to-1 mapping OR SR-IOV"*; `allowMultipleAllocation`
-   has zero hits in the codebase. Measured mid-roll, talos-3 had **one** GPU carrying **five**
-   pods across three namespaces. This does not depend on the roll: even at the settled 3 iGPU
-   + 1 B70 fleet, `vllm` and `tdarr-node` both need the single B70, so 1-to-1 leaves one of
-   them permanently `Pending`.
-3. No DRA-equivalent alert series exists: kube-state-metrics v2.20.0 has no collector for
-   `resourceslices`/`resourceclaims`/`deviceclasses`, so the gpu-loss alerts (#1445) have
-   nothing to migrate onto.
+**Why rejected:** Three independent upstream blockers, any one disqualifying - vendor
+beta-only Intel DRA driver, no multi-pod GPU share (`allowMultipleAllocation` unimplemented;
+`vllm` + `tdarr-node` both need the single B70), and no kube-state-metrics DRA series for the
+gpu-loss alerts. Do **not** copy the reference-repo `adminAccess: true` workaround; see the
+design doc.
 
-**Evidence:** Upstream READMEs and issue #79 fetched 2026-08-26; `allowMultipleAllocation`
-code search returns 0 results; ksm v2.20.0 `pkg/options/resource.go` full resource list
-lacks all three DRA kinds; live `talosctl -n 10.10.10.13 ls /dev/dri` shows a single
-`card0`/`renderD128` with `vllm`, `tdarr-node`, `jellyfin`, `plex` and `playwright` all
-Running against it. Driver hardware support is **not** a blocker - it enumerates sysfs PCI
-generically, so `0xe223` and `0xa7a0` would both be discovered.
+**Risk / rollback:** n/a, no config changed.
 
-**Risk / rollback:** None - nothing changed. Do **not** adopt the reference repo
-(`joryirving/home-ops`) pattern of `adminAccess: true` + `allocationMode: All` to work around
-blocker 2. It is the only combination that lets more than one pod onto a device with this
-driver, but Intel documents it for *monitor* deployments, its allocations are *"not counted
-by scheduler as consumed resource"*, and it would require labelling `ai`, `media` and
-`selfhosted` with `resource.k8s.io/admin-access: "true"` - trading an enforced share count
-for an unaccounted privileged escape hatch.
-
-**Verify / reopen:** Reopen when the CAUTION line is gone from the driver README **and**
-issue #79 ships. Cheap to re-check; stages 1-2 of the plan (deploy driver, add DeviceClasses)
-are additive with no consumer impact and can run before the rest.
+**Verify / reopen:** Conditions and stage plan are owned by the design doc §5 / §3.4.
 
 ---
 
