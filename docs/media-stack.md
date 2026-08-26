@@ -175,14 +175,17 @@ Autobrr is deployed (`kubernetes/apps/main/downloads/kustomization.yaml`). Cross
 
 **Namespace:** `media` | **Hostname:** `tdarr.${SECRET_DOMAIN}`
 
-Not a DaemonSet. After the i915 -> xe migration, only talos-3 advertises GPU
-(`gpu.intel.com/xe: 99` on the B70; talos-1/2 report 0). See
-[`ai-gpu-changelog.md`](ai-gpu-changelog.md).
+Not a DaemonSet. The worker requests `devic.es/b70` (generic-device-plugin on the
+discrete Arc Pro B70 at talos-3 PCI `0000:03:00.0`) because the AV1 QSV codec path
+needs that card; iGPUs restored by `xe.force_probe=a7a0` are not enough. Still a
+single replica (server `internalNode=false`), not a DaemonSet - a DaemonSet would
+strand Pending pods on nodes without the B70. Resource split and force_probe
+detail: [`ai-gpu-changelog.md`](ai-gpu-changelog.md).
 
 | Controller | Type | Purpose | GPU |
 |-----------|------|---------|-----|
 | `tdarr` | Deployment (1 pod) | Web UI, orchestrator, database | No |
-| `tdarr-node` | Deployment (`replicas: 1`) | Transcode worker on the xe node (talos-3 / B70) | `gpu.intel.com/xe: 1` |
+| `tdarr-node` | Deployment (`replicas: 1`) | Transcode worker on the B70 (talos-3) | `devic.es/b70: 1` |
 
 Optional external Windows node via Service `tdarr-node-lb` (`10.50.0.54:8266`,
 `tdarr/app/externalservice.yaml`). Live UI (2026-08-21): k8s node `talos-3`
@@ -331,11 +334,14 @@ Expect 1 `tdarr-*` server pod + 1 `tdarr-tdarr-node-*` worker on talos-3. The Td
 ### Monitoring GPU usage
 
 ```sh
-kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): gpu.intel.com/xe=\(.status.allocatable."gpu.intel.com/xe" // "0")"'
+kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0")"'
 ```
 
-Only the B70 node (talos-3) reports `99`. `gpu.intel.com/i915` is 0 on every node
-after the xe migration.
+`devic.es/b70` is `99` only on talos-3 (tdarr-node / AI discrete consumers).
+`gpu.intel.com/xe` is the Intel plugin pool for jellyfin/plex/playwright; after
+`xe.force_probe=a7a0` is applied node-by-node it should appear on all three
+nodes (iGPUs). Until then the B70 remains in the xe pool so those media pods
+stay schedulable. `gpu.intel.com/i915` stays 0 after the xe migration.
 
 ### Finding which *arr app is failing imports
 

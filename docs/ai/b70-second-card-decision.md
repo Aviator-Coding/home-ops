@@ -31,14 +31,24 @@ OCuLink/M.2 adapter).
 > above for 2026-06-28 / 2026-07-08. Chat decode cited here (≈54.7 t/s) is PMZFX's
 > published figure, not this cluster's later ~61 / 68.4 t/s measurements.
 
-`talos-3` ran **three GPU workloads contending for one 32 GB B70** via the Intel GPU
-device plugin (`gpu.intel.com/xe`):
+`talos-3` ran **three GPU workloads contending for one 32 GB B70**. Discrete-GPU
+workloads now request the dedicated `devic.es/b70` extended resource
+(generic-device-plugin on the B70 DRM by-path at `0000:03:00.0`, advertised with
+`--domain=devic.es`). Consumers: vllm, vllm-embed, comfyui, and tdarr-node.
+`gpu.intel.com/xe` stays the Intel plugin pool for jellyfin/plex/playwright
+(light QSV/browser). The B70 remains in that xe pool for now so those media
+pods stay schedulable until `xe.force_probe=a7a0` is applied node-by-node and
+the iGPUs are confirmed advertising xe; a follow-up will set
+`allowIDs: "0xa7a0"` to drop the B70 from xe once that window is closed.
+`devic.es/b70` is a scheduling identity only (share count 99) — not VRAM
+fencing — so concurrent B70 holders still contend for the card's memory.
 
 | Workload | Engine | VRAM appetite | Notes |
 | --- | --- | --- | --- |
-| Chat (Qwen3.6-35B-A3B MoE, UD-Q4_K_M) | `llama.cpp:server-intel` (SYCL) | ~22–24 GB (weights + 128k KV q8_0) | Single-stream, ≈54.7 t/s |
-| Embeddings | `intel/llm-scaler-vllm:0.14.0-b8.3.1` | a few GB (pooling) | |
-| ComfyUI | `intel/llm-scaler-omni` | bursty, multi-GB images | Forced to ceph-block RWO, pinned talos-3 |
+| Chat (Qwen3.6-35B-A3B MoE, UD-Q4_K_M) | `llama.cpp:server-intel` (SYCL) | ~22–24 GB (weights + 128k KV q8_0) | Single-stream, ≈54.7 t/s; `devic.es/b70` |
+| Embeddings | `intel/llm-scaler-vllm:0.14.0-b8.3.1` | a few GB (pooling) | `devic.es/b70`; often `replicas: 0` |
+| ComfyUI | `intel/llm-scaler-omni` | bursty, multi-GB images | `devic.es/b70`; ceph-block RWO |
+| Tdarr node | tdarr_node (QSV) | light transcode | `devic.es/b70`; codec needs discrete card |
 
 These coexist via VRAM partitioning runbooks (e.g. scale vllm→0 for big ComfyUI jobs),
 i.e. **contention is managed manually, not eliminated**. A second card is fundamentally a
@@ -62,8 +72,10 @@ three-workloads-on-one-card contention and gives **full single-card performance 
 workload simultaneously** (no more "scale vllm→0 to run ComfyUI" dance).
 
 - **Pro:** Simplest, lowest-risk, no new software stack. Each workload keeps the perf it
-  has today but stops fighting for VRAM/compute. Device selection is trivial — the device
-  plugin hands each pod its own `renderD12X` and SYCL/Level-Zero device index.
+  has today but stops fighting for VRAM/compute. Device selection is trivial on a dual-B70
+  node once each card has its own extended resource (same split used today for B70 vs
+  iGPU: dedicated resource identity, not a pooled `gpu.intel.com/xe` share-token). The
+  plugin then hands each pod only that card's `renderD12X` / Level-Zero device.
 - **Con:** Buys *isolation*, not *more capability*. Does not make chat faster, does not
   enable >32 GB models, does not fix prefill throughput. Pure quality-of-life.
 - **Verdict:** The safest reason to buy, but the weakest ROI — it solves a problem we are

@@ -29,6 +29,9 @@ spec:
   uninstall:
     keepHistory: false
   values:
+    # Placement is enforced by devic.es/b70 (generic-device-plugin on the
+    # discrete Arc Pro B70 at talos-3 PCI 0000:03:00.0), not hostname affinity.
+    # jellyfin/plex/playwright stay on gpu.intel.com/xe.
     controllers:
       comfyui:
         # Single GPU + RWO model/input PVCs -> never run two pods at once.
@@ -65,10 +68,10 @@ spec:
               requests:
                 cpu: "1"
                 memory: 8Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
               limits:
                 memory: 32Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
             probes:
               # No model loads until a workflow runs; startup is just process boot.
               startup:

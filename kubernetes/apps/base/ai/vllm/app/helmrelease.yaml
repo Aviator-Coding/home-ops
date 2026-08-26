@@ -20,6 +20,10 @@ spec:
   uninstall:
     keepHistory: false
   values:
+    # Placement is enforced by devic.es/b70 (generic-device-plugin on the
+    # discrete Arc Pro B70 at talos-3 PCI 0000:03:00.0), not hostname affinity.
+    # jellyfin/plex/playwright stay on gpu.intel.com/xe; the 35B chat server
+    # (~21.4GiB weights + ~5.2GiB KV @262k q8_0) must not consume that pool.
     controllers:
       # Main chat model runs on llama.cpp SYCL, not vLLM: Qwen3.6-35B-A3B GPTQ
       # cannot complete vLLM warmup on a single 32GB B70 (21.4GiB weights +
@@ -85,10 +89,10 @@ spec:
               requests:
                 cpu: "2"
                 memory: 16Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
               limits:
                 memory: 48Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
             probes:
               # First boot downloads ~21GB GGUF; allow 30 min
               startup:
@@ -116,7 +120,7 @@ spec:
       vllm-embed:
         # Scaled to 0: agentmemory (its only consumer) moved to OpenRouter
         # embeddings (text-embedding-3-small, 1536-dim) on 2026-06-28, freeing
-        # this B70 gpu.intel.com/xe slot + ~5GB VRAM. Controller + PVC kept so
+        # this B70 devic.es/b70 slot + ~5GB VRAM. Controller + PVC kept so
         # restoring local embeddings is a one-line revert (replicas: 0 -> 1).
         replicas: 0
         strategy: Recreate
@@ -150,10 +154,10 @@ spec:
               requests:
                 cpu: "1"
                 memory: 4Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
               limits:
                 memory: 16Gi
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
             probes:
               startup:
                 enabled: true

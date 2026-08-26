@@ -85,10 +85,12 @@ spec:
               limits:
                 memory: 2Gi
 
-      # Worker: single replica scheduled onto the node exposing gpu.intel.com/xe
-      # (the Arc B70 Pro on talos-3). The iGPUs on talos-1/2 are no longer
-      # advertised since the i915 -> xe driver migration, so a DaemonSet would
-      # leave permanently-Pending pods on GPU-less nodes.
+      # Worker: single replica, placed by its devic.es/b70 request (discrete
+      # Arc Pro B70 on talos-3). Codec requirement needs the discrete card;
+      # the Raptor Lake iGPUs restored by xe.force_probe=a7a0 are not enough.
+      # Still a single replica, not a DaemonSet: the server runs
+      # internalNode=false so one worker is enough, and a DaemonSet would
+      # strand Pending pods whenever a node lacks the B70.
       tdarr-node:
         replicas: 1
         containers:
@@ -146,7 +148,7 @@ spec:
                 cpu: 100m
                 memory: 512Mi
               limits:
-                gpu.intel.com/xe: 1
+                devic.es/b70: 1
                 memory: 4Gi
 
     service:

@@ -18,24 +18,27 @@ recently, and why?" without spelunking git.
 
 ---
 
-## Current baseline (2026-08-21)
+## Current baseline (2026-08-25)
 
 | Layer | Value |
 |-------|-------|
-| **GPU** | 1× Intel Arc Pro B70 (Battlemage G31, 32 GiB / 32656 MiB reported), on talos-3 via OCuLink |
-| **Device plugin** | `gpu.intel.com/xe: 99` shared units - a **scheduling token only, no VRAM fencing** |
-| **On the card** | chat (`vllm`) only. `vllm-embed` and `comfyui` are pinned `replicas: 0` |
+| **GPU (discrete)** | 1× Intel Arc Pro B70 (Battlemage G31, 32 GiB / 32656 MiB reported), talos-3 OCuLink PCI `0000:03:00.0` |
+| **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic carries `xe.force_probe=a7a0` + `i915.force_probe=!a7a0` (captain applies via `just talos apply-node`; not Flux) |
+| **B70 resource** | `devic.es/b70: 99` via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
+| **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin - light QSV/browser (jellyfin/plex/playwright). B70 still included until iGPUs are confirmed after force_probe; follow-up `allowIDs: "0xa7a0"` drops B70 from xe |
+| **On the B70** | chat (`vllm`) + optional `tdarr-node`. `vllm-embed` and `comfyui` are pinned `replicas: 0` |
 | **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` (pin is load-bearing; do not float to `server-intel`) |
 | **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` |
 | **Chat KV / FA** | `--flash-attn on`, `--cache-type-k/-v q8_0` (accepted on this pin; see 2026-08-21) |
 
-### Workloads on the B70
+### Workloads on the B70 (`devic.es/b70`)
 
 | Pod | Image | Role | VRAM |
 |-----|-------|------|------|
 | `vllm` | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` | Chat - **llama.cpp SYCL**, `Qwen3.6-35B-A3B UD-Q4_K_M`. Keeps the `vllm` name so the service + gateway backend stay stable; real vLLM OOMs the MoE warmup (intel/llm-scaler#382). | ~21.4 GiB weights + ~5.2 GiB KV @262k q8_0 |
 | `vllm-embed` | `intel/llm-scaler-vllm` | Embeddings - `Qwen3-VL-Embedding-2B`. **Default off** (`replicas: 0`); agentmemory moved to OpenRouter 2026-06-28. | (not resident) |
 | `comfyui` | `intel/llm-scaler-omni` | Image generation. **Default off** (`replicas: 0`). | (not resident) |
+| `tdarr-node` | tdarr (media ns) | QSV AV1 worker; codec needs the discrete card | light |
 
 ### SYCL / Battlemage constraints
 
@@ -53,6 +56,28 @@ When you merge an AI / GPU config change, prepend an entry (newest first):
 ## [YYYY-MM-DD] Short title  (PR #NNN)
 Change · Why · Evidence · Risk/rollback · Verify
 ```
+
+---
+
+## [2026-08-25] Split B70 onto `devic.es/b70`; force-probe a7a0 iGPUs
+
+**Change:**
+- `talos/schematic.yaml.j2`: `xe.force_probe=a7a0` + `i915.force_probe=!a7a0` (unquoted, same style as `module_blacklist=igc`). New factory ID `6b46d2c00a2295d31fef568ead1420f3088ac6adadc78abe1ff1c7ea8c1a6ef9` (was `ae2cb5793c9f8e61d2493f652b0e9251b2ffa525c5c17f3e4718b30d19940715`).
+- `generic-device-plugin`: advertise discrete B70 as `devic.es/b70` (count 99, DRM by-path `0000:03:00.0` → in-container `card0`/`renderD128`, `--domain=devic.es`).
+- Consumers moved off `gpu.intel.com/xe` onto `devic.es/b70`: `vllm`, `vllm-embed`, `comfyui`, `tdarr-node`. Placement is the extended resource, not hostname affinity.
+- Intel GpuDevicePlugin keeps B70 in the `gpu.intel.com/xe` pool for now (jellyfin/plex/playwright). Follow-up once iGPUs advertise xe: `allowIDs: "0xa7a0"`.
+
+**Why:** After the i915→xe migration, xe skips Raptor Lake `a7a0` by default, so only the B70 on talos-3 advertised `gpu.intel.com/xe`. When the B70 dropped off the PCIe bus, five GPU pods could not schedule. Restoring iGPUs as xe providers needs force_probe, but `gpu.intel.com/xe` is a bare share-count token with no VRAM fencing - once talos-1/2 advertise xe, the scheduler could place the ~21.4 GiB chat server on an iGPU. A dedicated `devic.es/b70` identity pins discrete consumers to the card without hostname affinity.
+
+**Evidence:** Rendered schematic registered at factory.talos.dev under the new ID; `talosctl validate -m metal` clean on all three node configs; installer v1.13.9 and Kubernetes pins v1.36.3 match live (no downgrade risk). B70 recovered via ordered cold cycle and enumerates as Battlemage G31 at `0000:03:00.0`.
+
+**Risk / rollback:** Schematic/kernel-arg changes are **not** Flux-applied - captain rolls `just talos apply-node` one node at a time. Revert the two force_probe args and re-apply to undo iGPU bind; move consumers back to `gpu.intel.com/xe` and drop the `b70` generic-device-plugin entry to undo the resource split. Do not set `allowIDs: "0xa7a0"` until every node advertises xe from its iGPU, or jellyfin/plex/playwright lose their only xe provider.
+
+**Verify:** After each `apply-node`, confirm iGPU xe allocatable and B70 identity:
+```sh
+kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0")"'
+```
+Expect `devic.es/b70=99` only on talos-3; after force_probe, `gpu.intel.com/xe` on all three.
 
 ---
 
