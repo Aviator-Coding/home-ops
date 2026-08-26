@@ -1,0 +1,311 @@
+# LiteLLM complexity-tier auto-router
+
+Captain decision **D3** (2026-08-26): *"yes build reference complexity tier why not"*.
+
+One extra model alias on the in-cluster LiteLLM proxy, `auto`. A request sent to it
+is classified by an LLM into one of four complexity tiers and dispatched to the
+backend for that tier: cheap work stays on the local B70, genuinely hard work goes
+to Anthropic. Everything else about the proxy is unchanged.
+
+Config lives in [`kubernetes/apps/base/ai/litellm/app/resources/config.yaml`](../../../kubernetes/apps/base/ai/litellm/app/resources/config.yaml).
+The governance layer it sits inside is documented in [`README.md`](README.md).
+
+## It is additive, on purpose
+
+`qwen3.6-35b-a3b` still resolves to the local model exactly as it did before D3.
+Nothing is forced through the router. A consumer opts in by asking for `auto`.
+
+| Alias | What it does |
+|---|---|
+| `qwen3.6-35b-a3b` | Local llama.cpp chat model. Pre-D3 behaviour, byte-identical. |
+| `qwen3.6-35b-a3b-classifier` | Same backend, thinking disabled. Used *by* the router. |
+| `claude-sonnet-5`, `claude-opus-5` | Anthropic, reachable directly too. |
+| `auto` | **The router.** Classify, then dispatch to one of the four tiers. |
+
+## Tiers
+
+Tier names and criteria are LiteLLM's built-in taxonomy; only the mapping is ours.
+
+| Tier | Upstream criteria (abridged) | Our backend | Where it runs |
+|---|---|---|---|
+| `SIMPLE` | greetings, chitchat, factual lookups with a short known answer | `qwen3.6-35b-a3b` | local B70 |
+| `MEDIUM` | everyday requests needing some explanation, light reasoning, minor code | `qwen3.6-35b-a3b` | local B70 |
+| `COMPLEX` | non-trivial code, architecture, multi-step technical work, domain depth | `claude-sonnet-5` | Anthropic |
+| `REASONING` | open-ended analysis, proofs, hard problems, tradeoffs | `claude-opus-5` | Anthropic |
+
+The local/cloud boundary sits between `MEDIUM` and `COMPLEX`. That single line is
+the whole cost policy: move it by re-pointing a tier, not by editing the rubric.
+
+**To disable the cloud tier entirely**, point all four tiers at
+`qwen3.6-35b-a3b`. The router keeps working, `ANTHROPIC_API_KEY` simply goes
+unused, and no other file needs to change.
+
+## The classifier
+
+```yaml
+classifier_type: llm
+classifier_llm_config:
+  model: qwen3.6-35b-a3b-classifier   # LOCAL. Never a cloud model.
+  timeout_ms: 8000
+  classification_rubric: agentic
+classifier_fallback: default_model
+default_model: qwen3.6-35b-a3b
+```
+
+**Local, so classification is free.** Every routed request costs one extra
+completion against the B70 and zero cloud spend. Pointing
+`classifier_llm_config.model` at a cloud model would put a paid API call in
+front of every request including the ones that were going to stay local, which
+defeats the entire point.
+
+**LLM, not the rule-based scorer.** `classifier_type` defaults to `heuristic`,
+LiteLLM's local weighted-keyword scorer. The reference implementation A/B-tested
+both and measured the scorer at 25-35% tier accuracy against 80-85% for the LLM
+classifier, with the scorer's errors running the *wrong way* (COMPLEX scoring
+below MEDIUM). We skip that step entirely. Our own measurement below is 15/16.
+
+**`agentic` rubric, not the default.** LiteLLM's default preset is `legacy`,
+which carries no calibration examples. Its tier prose puts "non-trivial code,
+multi-step technical work" at the top of the scale - which is the *median*
+request in agent traffic, so ordinary engineering grades as top-tier and the
+router pays Opus prices for routine work. `agentic` is the preset calibrated on
+terminal and coding tasks. Upstream keeps `legacy` as the default purely so
+upgrading never silently moves an existing router's bill.
+
+### Why a separate classifier deployment
+
+`qwen3.6-35b-a3b-classifier` points at the same llama.cpp server as
+`qwen3.6-35b-a3b`. Three differences, all load-bearing:
+
+1. **`extra_body.chat_template_kwargs.enable_thinking: false`** - the one that
+   makes the feature work at all. Qwen3.6-35B-A3B is a reasoning model: left to
+   its default it emits ~1300 tokens of `reasoning_content` and returns an
+   **empty** `content`, so LiteLLM's structured-output parse raises
+   *"LLM classifier returned empty content"* and **every single classification
+   fails**. The router then fails open on 100% of traffic - it looks healthy,
+   serves every request, and never routes anything to a cloud tier.
+   Measured 2026-08-26 on the live B70: 12/12 classifications unparseable with
+   the flag absent, 11/12 correct with it set. Other spellings were tried and do
+   **not** work on this llama.cpp build: top-level `reasoning_effort: none`,
+   `chat_template_kwargs.thinking`, `chat_template_kwargs.reasoning_effort`.
+2. **`num_retries: 0`** - the classifier's timeout budget rides in front of every
+   routed request. At the router default of 2 retries a wedged backend costs
+   `3 x timeout_ms` before failing open; at 0 it costs exactly one round trip.
+3. **Its own `model_name`** - which is what makes classifier latency, spend and
+   failures separable from ordinary local chat traffic in `/metrics`. See
+   [Observability](#observability).
+
+### Fail open to local
+
+`classifier_fallback: default_model` with `default_model: qwen3.6-35b-a3b`.
+
+On a classifier timeout, provider error or unparseable reply, the request is
+routed to the local model **without being scored**, and still succeeds. The
+alternative, `classifier_fallback: heuristic`, reruns the 25%-accurate keyword
+scorer, which can still return COMPLEX and spend real money on a request that
+nothing successfully classified. A broken classifier must degrade to the local
+model, never to the invoice.
+
+This is the one place our config deliberately reaches the same value as the
+reference implementation for a different reason: they chose `default_model`
+because their classifier used a non-complexity taxonomy, we choose it because
+`heuristic` is a cloud-spend hazard.
+
+Verified live 2026-08-26: with `timeout_ms` set below the classifier's real
+latency, every routed request logged
+`ComplexityRouter: LLM classifier failed (litellm.Timeout ...), falling back to
+default_model` and returned HTTP 200 from the local model.
+
+### Measured classifier latency
+
+Measured 2026-08-26 against the live `vllm-app` B70 while it also served normal
+cluster traffic, warm llama.cpp prefix cache (847/875 prompt tokens cached), the
+exact rubric and `json_schema` response format LiteLLM sends:
+
+| | classifier call alone | full routed request (classify + completion) |
+|---|---|---|
+| p50 | **3.0 s** | 4.8 s |
+| p95 | **4.6 s** | 6.7 s |
+| max | 5.5 s | 6.7 s |
+| min | 1.9 s | 3.3 s |
+
+**This is not fast, and it rides every routed request before a single token of
+the answer is produced.** Two things dominate, and neither is prompt length:
+the ~850-token rubric prefix is prompt-cached (a deliberately shortened system
+prompt measured 3085 ms against 3068 ms for the full one, i.e. no difference),
+and the B70 is shared with the rest of the `ai` namespace, which is where the
+1.9 s - 5.5 s spread comes from. The grammar-constrained JSON decode costs about
+1 s over free-text generation.
+
+`timeout_ms: 8000` is ~1.7x measured p95 and above the observed max: a merely
+contended GPU still answers instead of being failed open, while a wedged one
+adds exactly one 8 s round trip (`num_retries: 0`) rather than the reference
+implementation's 20 s x 3.
+
+**Consequence for consumers**: `auto` is the wrong alias for latency-sensitive,
+obviously-simple traffic. Such a consumer should keep calling
+`qwen3.6-35b-a3b` directly - which is exactly why the router was built additive.
+
+### Measured accuracy
+
+16 routed requests over 8 prompts drawn from LiteLLM's own `agentic` calibration
+set and the reference repo's examples, 2026-08-26, live B70:
+
+| Expected tier | Routed to | Correct |
+|---|---|---|
+| SIMPLE x4 | local `qwen3.6-35b-a3b` | 4/4 |
+| MEDIUM x4 | local `qwen3.6-35b-a3b` | 4/4 |
+| COMPLEX x4 | `claude-sonnet-5` | 4/4 |
+| REASONING x4 | `claude-opus-5` | 4/4 |
+
+16/16 on the routing decision that matters (local vs cloud). A separate
+tier-exact run over 12 single prompts scored 11/12; the one miss graded
+*"write a regex for a US phone number"* SIMPLE rather than MEDIUM, which costs
+nothing because both tiers are the same local backend.
+
+Treat these as a smoke test, not a benchmark: the prompts come from the
+calibration set the rubric was written against, so they flatter it.
+
+## Budgets
+
+Routed calls bind to the same D4 per-consumer budgets as direct calls, and so do
+the classifier's own sub-calls. LiteLLM forwards the caller's identity metadata
+onto the classifier sub-call precisely so that spend "lands on the same
+key/team/org/user as the request that caused it".
+
+Verified end to end 2026-08-26 on the lab rig: a key with `max_budget: 0.01`
+calling only `auto` served four routed requests, accrued spend from both the
+classifier and the tier backend, and the fifth returned
+**HTTP 429 `BudgetExceededError` - "Budget has been exceeded!"**. That
+rejection is also visible as
+`litellm_proxy_failed_requests_metric_total{requested_model="auto",exception_class="BudgetExceededError"}`.
+
+**The allow-list is checked against what the caller asked for, not what the
+router resolved to.** A key scoped to `models: ["auto"]` routes to every tier
+including `claude-opus-5`, and can still run the classifier, but cannot call
+`claude-opus-5` *directly*. That makes `auto` a genuine governance boundary, and
+it is why `router-demo` in
+[`consumers.json`](../../../kubernetes/apps/base/ai/litellm/app/resources/consumers.json)
+lists only the alias.
+
+Cost note: llama.cpp reports prompt-cache hits, and LiteLLM prices cached input
+tokens at $0 because no `cache_read_input_token_cost` is set. The rubric prefix
+is therefore free after the first classification, which is why a classification
+costs ~$0.0034 in governance accounting rather than the ~$0.044 the raw
+850-token prefill would imply.
+
+## Observability
+
+No custom exporter and no new scrape target: the existing
+[`servicemonitor.yaml`](../../../kubernetes/apps/base/ai/litellm/app/servicemonitor.yaml)
+already covers this. The labels do the work, and all of the below were read off
+a real v1.98.0 `/metrics` scrape on 2026-08-26.
+
+Two labels carry the routing decision:
+
+- `requested_model` - the alias the **caller** asked for (`auto`, or
+  `qwen3.6-35b-a3b-classifier` for the router's own sub-calls).
+- `litellm_model_name` / `model_id` - the deployment that **actually served** it.
+
+Because our tiers map 1:1 onto backends, `requested_model="auto"` split by
+`litellm_model_name` *is* the per-tier breakdown.
+
+### Dashboard-ready queries
+
+```promql
+# Routing decisions per second, by tier backend (the tier split)
+sum by (litellm_model_name) (
+  rate(litellm_deployment_success_responses_total{requested_model="auto"}[5m]))
+
+# Share of routed traffic that left the cluster
+sum(rate(litellm_deployment_success_responses_total{requested_model="auto",litellm_model_name=~"claude-.*"}[1h]))
+  / sum(rate(litellm_deployment_success_responses_total{requested_model="auto"}[1h]))
+
+# Mean classifier latency, seconds (the tax on every routed request)
+sum(rate(litellm_llm_api_latency_metric_sum{requested_model="qwen3.6-35b-a3b-classifier"}[5m]))
+  / sum(rate(litellm_llm_api_latency_metric_count{requested_model="qwen3.6-35b-a3b-classifier"}[5m]))
+
+# Fail-open rate: classifications that errored or timed out
+sum(rate(litellm_deployment_failure_responses_total{requested_model="qwen3.6-35b-a3b-classifier"}[15m]))
+  / sum(rate(litellm_deployment_total_requests_total{requested_model="qwen3.6-35b-a3b-classifier"}[15m]))
+
+# Spend split: classifier vs local tier vs cloud tiers, by consumer
+sum by (api_key_alias, requested_model, model) (
+  rate(litellm_spend_metric_total{requested_model=~"auto|qwen3.6-35b-a3b-classifier"}[1h]))
+```
+
+`litellm_deployment_failure_responses_total` carries `exception_class`, so a
+classifier timeout is distinguishable from a backend 500:
+`exception_class="Openai.Timeout"` (`exception_status="408"`) vs
+`Openai.InternalServerError`.
+
+Alerts on all three of these live in
+[`prometheusrule.yaml`](../../../kubernetes/apps/base/ai/litellm/app/prometheusrule.yaml):
+`LiteLLMRouterClassifierFailingOpen`, `LiteLLMRouterClassifierSlow`,
+`LiteLLMRouterCloudTierShare`.
+
+**Not available as a metric**: the tier *name* and the classifier's `cause`
+(`llm_classifier` vs `default_model_fallback`). LiteLLM records those on the
+`StandardLoggingPayload`'s `routing_decision`, which the Prometheus integration
+does not promote to a label - `custom_prometheus_metadata_labels` only reaches
+scalar metadata fields, and `routing_decision` is a nested dict. The tier is
+recoverable from the backend it selected, which is what the queries above do.
+Per-request `cause` is visible in the pod log
+(`ComplexityRouter: LLM classifier failed ... falling back to`) and in the
+spend-log row in Postgres.
+
+Note `/metrics` 307-redirects to `/metrics/`; Prometheus follows scrape
+redirects by default, so the ServiceMonitor's `path: /metrics` is fine.
+
+## Tuning
+
+Change one thing at a time and re-run the accuracy check - every knob below
+moves spend.
+
+| Symptom | Knob | Notes |
+|---|---|---|
+| Too much traffic reaching Anthropic | `tiers.COMPLEX: qwen3.6-35b-a3b` | Moves the local/cloud line up a tier. Blunt, immediate, free. |
+| Ordinary engineering graded as REASONING | `classification_rubric` | Confirm it is `agentic`, not `legacy`. This is the single biggest lever on cost. |
+| Classifier timing out under load | `classifier_llm_config.timeout_ms` | Raise toward 12000. Every extra second is paid by every routed request when the backend is wedged. |
+| Classifier too slow even when healthy | `classifier_llm_config.system_prompt` | Replaces the rubric wholesale. Measured: prompt length barely affects latency here (prefix cache), so this rarely helps and it discards the calibration examples and the prompt-injection defense paragraph. Prefer routing latency-sensitive consumers around `auto` instead. |
+| One specific phrase must always go to a given tier | `keyword_tier_rules` | Deterministic override, evaluated before classification. Cheaper than teaching the rubric. |
+| A caller needs to force a stronger model | (already on) | The literal string `LITELLM ESCALATE` in the prompt bumps one tier. Callers can force *stronger*, never *which*. |
+| Multi-turn sessions flip-flopping between tiers | `session_affinity: true` | Off by default here. On, the FIRST turn's tier pins the whole session, so one complex opener holds a long conversation on a paid model. |
+
+Tier boundaries (`tier_boundaries`), dimension weights and keyword lists exist
+in the schema but only affect the **heuristic** scorer, which we do not use.
+Editing them changes nothing while `classifier_type: llm`.
+
+To rewrite the classifier prompt safely: set
+`classifier_llm_config.system_prompt`, remembering it replaces the built-in
+rubric *entirely* - including the paragraph that tells the classifier to ignore
+tier requests embedded in the caller's own system prompt. Without it, a caller
+can pin themselves to `claude-opus-5` by asking for it. `system_prompt` and
+`classification_rubric` are mutually exclusive.
+
+## Version floor
+
+`classifier_type: llm` and `classifier_llm_config` first exist in LiteLLM
+**v1.93.0**. Below that, `ComplexityRouterConfig` is a pydantic model with
+`extra="allow"`: the keys parse without complaint and are then **ignored**, so
+the router silently runs the rule-based scorer. There is no error and no warning.
+The image was moved from `main-v1.83.14-stable` to `v1.98.0` in the same change
+that added this router (upstream also dropped the `main-vX.Y.Z-stable` tag
+scheme after v1.81.x). Do not let Renovate float the tag below v1.93.0.
+
+## What the reference does differently
+
+Reference: `joryirving/home-ops` at `3d3b7008`, `kubernetes/apps/base/llm/litellm/models/auto.yaml`.
+
+| | Reference | Here |
+|---|---|---|
+| Classifier model | dedicated second GPU box (`llama-strix`) | the same B70 as chat traffic, via a second alias |
+| `timeout_ms` | 20000 (x3 retries) | 8000, `num_retries: 0` |
+| `classification_rubric` | not set, so `legacy` | `agentic` |
+| `session_affinity` | `true`, 1h | `false` |
+| SIMPLE / MEDIUM | different backends | both local |
+| Spend budgets | none anywhere in their LiteLLM config | D4 per-consumer budgets, enforced on routed calls |
+| Thinking-model handling | not applicable (their classifier model is not one) | `enable_thinking: false`, mandatory here |
+
+Their config also predates `classification_rubric` existing, and they run
+v1.98.0, so their live router is on the uncalibrated `legacy` rubric.

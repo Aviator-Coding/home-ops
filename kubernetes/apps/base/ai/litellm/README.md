@@ -41,7 +41,16 @@ namespace's stateless-by-preference apps.
 
 The shared `cloudnative-pg` 1Password item (`POSTGRES_SUPER_PASS`) already
 exists - every `postgres-17` client app reads it the same way (see
-`kubernetes/apps/base/database/cloudnative-pg/Readme.md`).
+`kubernetes/apps/base/database/cloudnative-pg/Readme.md`). So does the
+`ai-keys` item, which this app's `ExternalSecret` extracts `ANTHROPIC_API_KEY`
+from for the auto-router's cloud tier - the same item every
+`agentgateway/app/backends/*.yaml` already reads. **No new 1Password item is
+needed for the router**; `litellm` above remains the only one to create.
+
+> Until the `litellm` item exists, this app's `ExternalSecret` reports
+> `SecretSyncedError` / `key not found in 1Password Vaults: litellm` and the
+> pod stays in `Init:CreateContainerConfigError`. That is this prerequisite
+> being unmet, not a manifest bug.
 
 ## Verifying end to end
 
@@ -52,3 +61,6 @@ budget are actually enforced (a second model is rejected; a request past
 budget fails once spend is exhausted). Spend budgets require the non-zero
 `model_info` per-token prices on the model in `app/resources/config.yaml` -
 see that file's comment.
+
+The complexity-tier auto-router (`auto` alias) has its own design, tuning and
+verification notes in `docs/ai-system/litellm/auto-router.md`.
