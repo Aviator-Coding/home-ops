@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: litellm
+spec:
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      # /metrics requires proxy auth by default (litellm_settings.callbacks:
+      # prometheus). Reuses LITELLM_MASTER_KEY to avoid a second secret -
+      # deliberate tradeoff: Prometheus (and anyone who can read the
+      # scrape config / that Secret) holds the proxy's full admin credential,
+      # not a metrics-only token. Acceptable while this app is in-cluster-only
+      # with no HTTPRoute; revisit before any broader exposure.
+      authorization:
+        credentials:
+          name: litellm-secret
+          key: LITELLM_MASTER_KEY
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: litellm
+  namespaceSelector:
+    matchNames:
+      - ai

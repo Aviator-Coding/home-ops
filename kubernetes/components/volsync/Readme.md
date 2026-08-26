@@ -378,8 +378,9 @@ schedule: "0 2 * * *"
 but **not unique** (several apps share the same minute). Do not assume a
 2-3 app cap on simultaneous Ceph backups. Regenerated from
 `rg 'components/volsync' kubernetes/apps` plus each overlay yaml's `VOLSYNC_SCHEDULE_*`
-(paperless-ngx uses component defaults). `litellm` is gone, and so are
-`open-webui`, `qdrant`, `open-notebook` and `perplexica` - retired
+(paperless-ngx uses component defaults). `litellm` is not a VolSync client
+(Postgres-backed governance layer, no app PVC - `docs/ai-system/litellm/README.md`).
+`open-webui`, `qdrant`, `open-notebook` and `perplexica` were retired
 2026-08-22, see `docs/ai-system/retired-2026-08-22.md`. `cross-seed`, `qbittorrent`
 and `calibre-web` were removed as dead, unreferenced app directories - see
 `docs/media-stack.md`.

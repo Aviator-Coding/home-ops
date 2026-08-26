@@ -1,0 +1,28 @@
+# Captain-approved lab design (B4/D4): six lines of real proxy config, pointed
+# at the existing local chat backend. Everything else in this file is additive
+# (metrics) or required plumbing (DB/master key come from env, not here).
+model_list:
+  - model_name: qwen3.6-35b-a3b
+    litellm_params:
+      model: openai/qwen3.6-35b-a3b
+      api_base: http://vllm-app.ai.svc.cluster.local:8000/v1
+      api_key: "not-needed" # llama.cpp server has no --api-key set
+    # Governance-accounting prices (not cloud billing). Required so virtual-key
+    # spend accrues: without non-zero prices LiteLLM records $0 spend and the
+    # demo $0.05 max_budget / LiteLLMConsumerBudgetExhausted path never trips.
+    # Tuned so a short smoke-test completion can exhaust the demo cap.
+    # Raise/lower alongside consumers.json maxBudget when expanding later.
+    # Lives under model_info (LiteLLM's documented custom-pricing location).
+    model_info:
+      input_cost_per_token: 0.00005
+      output_cost_per_token: 0.0001
+
+litellm_settings:
+  callbacks: ["prometheus"] # exposes /metrics on the proxy port (4000)
+
+# DATABASE_URL / LITELLM_MASTER_KEY / LITELLM_SALT_KEY are picked up
+# automatically from the environment (litellm-secret via envFrom) - do not
+# duplicate them here, see docs/ai-system/litellm/README.md. Deliberately no
+# `store_model_in_db` here (unlike this app's pre-2026-06-07 incarnation):
+# config.yaml/consumers.json in Git stay the only source of truth for
+# models/keys, not UI-driven DB edits.

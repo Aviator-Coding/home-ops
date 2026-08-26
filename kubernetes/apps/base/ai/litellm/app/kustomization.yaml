@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ai
+patches:
+- patch: |-
+    apiVersion: helm.toolkit.fluxcd.io/v2
+    kind: HelmRelease
+    metadata:
+      name: _
+    spec:
+      install:
+        crds: CreateReplace
+        strategy:
+          name: RetryOnFailure
+      rollback:
+        cleanupOnFail: true
+        recreate: true
+      upgrade:
+        cleanupOnFail: true
+        crds: CreateReplace
+        strategy:
+          name: RemediateOnFailure
+        remediation:
+          remediateLastFailure: true
+          retries: 2
+  target:
+    group: helm.toolkit.fluxcd.io
+    kind: HelmRelease
+resources:
+- ./externalsecret.yaml
+- ./helmrelease.yaml
+- ./servicemonitor.yaml
+- ./prometheusrule.yaml
+- ./pushsecret.yaml
+configMapGenerator:
+  # LiteLLM proxy config, mounted at /app/config.yaml in the litellm
+  # container. disableNameSuffixHash keeps the name stable so reloader
+  # (annotation on the controller) restarts the pod on content change;
+  # substitute is disabled so Flux postBuild leaves the file untouched.
+  - name: litellm-configmap
+    files:
+      - config.yaml=./resources/config.yaml
+  # Consumer definitions + the provisioning script, mounted at /scripts in
+  # the provision-keys hook Job and provision-keys-sync CronJob.
+  - name: litellm-provision-configmap
+    files:
+      - provision_keys.py=./resources/provision_keys.py
+      - consumers.json=./resources/consumers.json
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

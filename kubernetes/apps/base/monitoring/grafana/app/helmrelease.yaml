@@ -385,7 +385,9 @@ spec:
       # NOTE: agentgateway + llm-cost dashboards are sidecar-discovered
       # ConfigMaps (kubernetes/apps/base/ai/agentgateway-dashboards/), vendored
       # from the official chart - the old gnetId 24590/24965 entries are gone
-      # (litellm was removed; the kgateway-org dashboard is superseded).
+      # (unified-proxy LiteLLM dashboard retired with #941; kgateway-org
+      # dashboard superseded). Governance-only LiteLLM uses its own
+      # ServiceMonitor, not a gnet dashboard.
 
         qdrant-observatory:
           # renovate: depName="Qdrant Observatory"

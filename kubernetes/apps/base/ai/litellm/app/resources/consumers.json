@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "Per-consumer governance (captain decision D4, 2026-08-26): one entry per",
+    "LiteLLM virtual key. provision_keys.py (helm hook + 15m CronJob in",
+    "helmrelease.yaml) reads this file and mints/updates a virtual key via the",
+    "/key API - LiteLLM has no config-file-only way to declare a budgeted key,",
+    "see docs/ai-system/litellm/README.md#why-postgres. Plain JSON (not YAML):",
+    "the provisioning Job is stdlib-only Python with no PyYAML dependency.",
+    "To add a consumer: add an entry to `consumers` below, add a matching",
+    "`data.match` block to pushsecret.yaml (secretKey == this entry's `name`),",
+    "commit. The provision-keys-sync CronJob (every 15m) re-reads this file",
+    "and is idempotent: an existing key keeps its value, only its",
+    "budget/rate-limit/model-list are re-synced. A Helm install/upgrade hook",
+    "also runs the same script immediately on first deploy.",
+    "To raise a budget later: edit the numbers below and commit. The existing",
+    "key is preserved (see previous line); only its limits change."
+  ],
+  "consumers": [
+    {
+      "name": "demo",
+      "_comment": "D4: 'create a tiny budget first we will expand later.' Small enough to exhaust in one manual smoke test.",
+      "models": [
+        "qwen3.6-35b-a3b"
+      ],
+      "maxBudget": 0.05,
+      "budgetDuration": "30d",
+      "rpmLimit": 2,
+      "tpmLimit": 2000
+    }
+  ]
+}

@@ -52,4 +52,4 @@ Custom-host OpenAI-compat backends need `policies.tls: {}` or they send plain HT
 
 ## LiteLLM
 
-Not deployed. Grafana and Hermes comments say it was removed. Unified `/v1` is AgentGateway itself. Do not create a LiteLLM `AgentgatewayBackend` or tell clients to use `http://litellm.ai.svc:4000/v1`.
+Redeployed 2026-08-26 as an in-cluster-only governance layer (`../litellm/README.md`), not as part of this gateway's routing. Unified `/v1` is still AgentGateway itself. Do not create a LiteLLM `AgentgatewayBackend`, and do not tell gateway clients to use `http://litellm.ai.svc.cluster.local:4000/v1` - that endpoint exists, but it is a separate, narrower path (one model, per-consumer virtual keys with tiny budgets) with none of this gateway's routing/fallback/auth.
