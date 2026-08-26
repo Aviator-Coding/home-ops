@@ -36,6 +36,15 @@ A CronJob (`app/helmrelease.yaml`, `*/5 * * * *`) closes that loop:
 defaulting to 1h) so a freshly pushed token actually reaches the consumer
 within one reconcile cadence instead of waiting up to an hour behind it.
 
+Token rotation alone does not refresh env-from-secret on a running pod.
+`grafana-mcp`'s MCP `StatefulSet` carries
+`secret.reloader.stakater.com/reload: toolhive-grafana` on its pod template
+(via `podTemplateSpec.metadata.annotations` on the `MCPServer` CR - there is
+no StatefulSet `resourceOverrides` hook, and Reloader's pod-template fallback
+is what makes this work). When the ExternalSecret rewrites `toolhive-grafana`,
+Reloader rolls that workload so the new token is picked up without a human
+restart.
+
 ## The chicken-and-egg case: admin credential drift
 
 `GF_SECURITY_ADMIN_USER`/`PASSWORD` are only applied by Grafana when it

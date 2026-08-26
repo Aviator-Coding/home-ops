@@ -17,6 +17,15 @@ spec:
       cpu: 500m
       memory: 512Mi
   podTemplateSpec:
+    # Reloader on the pod template, not resourceOverrides.proxyDeployment:
+    # GRAFANA_SERVICE_ACCOUNT_TOKEN is injected into the MCP StatefulSet, and
+    # this CRD has no StatefulSet override hook. Reloader falls back to
+    # spec.template.metadata.annotations when the workload metadata lacks the
+    # reload key, so this is the attachment point that actually rolls the
+    # consumer after toolhive-grafana rotates.
+    metadata:
+      annotations:
+        secret.reloader.stakater.com/reload: toolhive-grafana
     spec:
       containers:
         - name: mcp
