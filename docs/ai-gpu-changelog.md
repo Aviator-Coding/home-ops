@@ -59,6 +59,51 @@ Change · Why · Evidence · Risk/rollback · Verify
 
 ---
 
+## [2026-08-26] DRA migration designed, not adopted - staying on device plugins
+
+**Change:** None. Both device plugins stay: `generic-device-plugin` (`devic.es/b70`) and
+Intel `GpuDevicePlugin` (`gpu.intel.com/xe`). Full design and evidence in
+[`ai/gpu-dra-migration-design.md`](./ai/gpu-dra-migration-design.md).
+
+**Why:** Kubernetes DRA is a genuinely better fit for this cluster - a `DeviceClass` CEL
+selector on `pciId` pins each consumer to its actual card in **both** directions, which the
+pooled `gpu.intel.com/xe` token cannot do (it is why jellyfin/plex/playwright sit on the B70
+today, and why the `allowIDs: "0xa7a0"` follow-up exists). The cluster is ready: v1.36.3
+serves `resource.k8s.io/v1`, `DynamicResourceAllocation` and `DRAConsumableCapacity` are
+enabled. The **driver** is not. Three blockers, any one disqualifying:
+
+1. `intel/intel-resource-drivers-for-kubernetes` (`gpu-v0.11.0`, the only vendor Intel GPU
+   DRA driver) says verbatim on `main`: *"CAUTION: This is a beta / non-production software,
+   do not use on production clusters."* `kubernetes-sigs/dra-example-driver` is not an
+   alternative - its devices are mock GPUs.
+2. **It cannot share a GPU across pods, and we do.** Upstream issue
+   [#79](https://github.com/intel/intel-resource-drivers-for-kubernetes/issues/79): *"the
+   Intel DRA driver only allows a strict 1-to-1 mapping OR SR-IOV"*; `allowMultipleAllocation`
+   has zero hits in the codebase. talos-3 has **one** physical GPU with **five** pods on it
+   across three namespaces - migrating would leave four `Pending`.
+3. No DRA-equivalent alert series exists: kube-state-metrics v2.20.0 has no collector for
+   `resourceslices`/`resourceclaims`/`deviceclasses`, so the gpu-loss alerts (#1445) have
+   nothing to migrate onto.
+
+**Evidence:** Upstream READMEs and issue #79 fetched 2026-08-26; `allowMultipleAllocation`
+code search returns 0 results; ksm v2.20.0 `pkg/options/resource.go` full resource list
+lacks all three DRA kinds; live `talosctl -n 10.10.10.13 ls /dev/dri` shows a single
+`card0`/`renderD128` with `vllm`, `tdarr-node`, `jellyfin`, `plex` and `playwright` all
+Running against it. Driver hardware support is **not** a blocker - it enumerates sysfs PCI
+generically, so `0xe223` and `0xa7a0` would both be discovered.
+
+**Risk / rollback:** None - nothing changed. Do **not** adopt the reference repo
+(`joryirving/home-ops`) pattern of `adminAccess: true` + `allocationMode: All` to work around
+blocker 2: Intel documents that combination for *monitor* deployments, its allocations are
+*"not counted by scheduler as consumed resource"*, and it would require labelling `ai`,
+`media` and `selfhosted` with `resource.k8s.io/admin-access: "true"`.
+
+**Verify / reopen:** Reopen when the CAUTION line is gone from the driver README **and**
+issue #79 ships. Cheap to re-check; stages 1-2 of the plan (deploy driver, add DeviceClasses)
+are additive with no consumer impact and can run before the rest.
+
+---
+
 ## [2026-08-26] Restore `siderolabs/i915` for a7a0 iGPU firmware
 
 **Change:**
