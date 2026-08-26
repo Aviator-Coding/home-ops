@@ -63,17 +63,16 @@ Two things this is **not**:
   our Battlemage B70 (`0xe223`) and Raptor Lake iGPU (`0xa7a0`) would both be discovered and
   published. **Our hardware would work.** The blockers are elsewhere.
 
-### 2.2 It cannot express our sharing — and we depend on that sharing right now
+### 2.2 It cannot express our sharing — and we depend on that sharing
 
-Live on talos-3, 2026-08-26. The node has **exactly one** physical GPU:
+Measured live 2026-08-26, mid-roll: talos-3 has **exactly one** physical GPU, and five pods
+in three namespaces are concurrently Running against it.
 
 ```
 $ talosctl -n 10.10.10.13 ls /dev/dri
 card0        # 0000:03:00.0, 8086:E223 — the Arc Pro B70
 renderD128
 ```
-
-Five pods, in three namespaces, are concurrently Running against that single card:
 
 | Pod | Namespace | Requests |
 |-----|-----------|----------|
@@ -83,8 +82,24 @@ Five pods, in three namespaces, are concurrently Running against that single car
 | `plex` | `media` | `gpu.intel.com/xe: 1` |
 | `playwright` | `selfhosted` | `gpu.intel.com/xe: 1` |
 
-That works because both plugins hand out share-count tokens (`count: 99`, `sharedDevNum: 99`)
-rather than exclusive devices. The Intel DRA driver does not do this. From upstream issue
+That five-on-one figure is a snapshot taken while the #1444 iGPU roll was still in flight
+(talos-1 had just come back advertising `xe=99`; talos-2 was `NotReady,SchedulingDisabled`).
+**The blocker does not depend on it.** Once the roll settles the fleet is 3 iGPUs + 1 B70,
+and under strict 1-to-1 it still does not fit:
+
+- **B70 group — strictly impossible.** `vllm` and `tdarr-node` both run against the single
+  B70, and both must: the chat server needs the 32 GiB discrete card, and tdarr's QSV
+  transcode needs the discrete codec block. One card, two concurrent pods, no second B70.
+  Under 1-to-1 one of them is permanently `Pending`. This alone is disqualifying.
+- **iGPU group — fits only with zero headroom.** `jellyfin`, `plex` and `playwright` would
+  land one per node across three iGPUs. That leaves no slack: this cluster reboots nodes one
+  at a time as routine maintenance (Ceph OSD safety, `just talos apply-node`), and every such
+  drain would strand one of them `Pending` with nowhere to go — where today it simply
+  co-schedules onto a surviving node.
+
+Sharing works today because both plugins hand out share-count tokens (`count: 99`,
+`sharedDevNum: 99`) rather than exclusive devices. The Intel DRA driver does not do this.
+From upstream issue
 [#79](https://github.com/intel/intel-resource-drivers-for-kubernetes/issues/79) (open,
 `enhancement`), stating the current behaviour plainly:
 
@@ -93,8 +108,9 @@ rather than exclusive devices. The Intel DRA driver does not do this. From upstr
 Confirmed independently: a code search for `allowMultipleAllocation` across the repository
 returns **zero hits**. The feature is requested, not implemented.
 
-So a cutover today allocates the B70 to **one** of those five pods and leaves **four
-Pending**. The three DRA sharing mechanisms all fail here:
+So a cutover strands GPU pods `Pending` in either fleet state — four of five today, and at
+minimum `vllm` or `tdarr-node` permanently once the roll settles. The three DRA sharing
+mechanisms all fail here:
 
 | Mechanism | Needs driver support? | Why it fails for us |
 |-----------|----------------------|---------------------|

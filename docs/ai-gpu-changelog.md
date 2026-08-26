@@ -79,8 +79,10 @@ enabled. The **driver** is not. Three blockers, any one disqualifying:
 2. **It cannot share a GPU across pods, and we do.** Upstream issue
    [#79](https://github.com/intel/intel-resource-drivers-for-kubernetes/issues/79): *"the
    Intel DRA driver only allows a strict 1-to-1 mapping OR SR-IOV"*; `allowMultipleAllocation`
-   has zero hits in the codebase. talos-3 has **one** physical GPU with **five** pods on it
-   across three namespaces - migrating would leave four `Pending`.
+   has zero hits in the codebase. Measured mid-roll, talos-3 had **one** GPU carrying **five**
+   pods across three namespaces. This does not depend on the roll: even at the settled 3 iGPU
+   + 1 B70 fleet, `vllm` and `tdarr-node` both need the single B70, so 1-to-1 leaves one of
+   them permanently `Pending`.
 3. No DRA-equivalent alert series exists: kube-state-metrics v2.20.0 has no collector for
    `resourceslices`/`resourceclaims`/`deviceclasses`, so the gpu-loss alerts (#1445) have
    nothing to migrate onto.
