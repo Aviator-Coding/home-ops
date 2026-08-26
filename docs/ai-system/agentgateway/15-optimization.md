@@ -10,7 +10,7 @@ Replica counts, HPA tables, and GPT-3.5 price lists in the old page were generic
 
 ## Cost metering
 
-[`rules/cost.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/rules/cost.yaml) is the GitOps replacement for LiteLLM's DB spend tracker. It multiplies `agentgateway_gen_ai_client_token_usage` by a USD-per-million-token table keyed on the **client `model` string**.
+[`rules/cost.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/rules/cost.yaml) is the GitOps replacement for the old unified-proxy LiteLLM DB spend tracker on **gateway** traffic. It multiplies `agentgateway_gen_ai_client_token_usage` by a USD-per-million-token table keyed on the **client `model` string**. Independent of the 2026-08-26 governance-only LiteLLM layer's per-virtual-key budgets (`../litellm/README.md`).
 
 Maintain that file when adding a model. Models without a row still appear on the dashboard "Unpriced models" panel (`ai:gen_ai_tokens_unpriced:rate5m`) so nothing is silent.
 
@@ -26,4 +26,4 @@ Grafana dashboard: `kubernetes/apps/base/ai/agentgateway-dashboards/app/llm-cost
 
 ## What not to tune from the old doc
 
-Ollama hostnames, GPT-3.5-turbo as the default test model, and "LiteLLM as the recommended proxy" do not apply.
+Ollama hostnames, GPT-3.5-turbo as the default test model, and "LiteLLM as the recommended `/v1` proxy" do not apply (governance-only LiteLLM is a separate in-cluster path - `../litellm/README.md`).

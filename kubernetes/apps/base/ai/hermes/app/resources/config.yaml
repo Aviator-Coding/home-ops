@@ -131,7 +131,8 @@ web:
 # streamable-http endpoint at /mcp; incomingAuth is anonymous so no header is
 # needed. Tool names are prefixed per backend ({workload}_). Deployed by
 # kubernetes/apps/base/ai/toolhive. (joryirving routes this through litellm /mcp;
-# litellm is retired here, so connect straight to the vmcp service.)
+# this cluster's LiteLLM is governance-only for LLM virtual keys and is not
+# an MCP gateway - connect straight to the vmcp service.)
 mcp_servers:
   toolhive:
     url: http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp

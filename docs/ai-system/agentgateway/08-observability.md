@@ -1,6 +1,6 @@
 # Observability
 
-Do not import kgateway-org Grafana dashboards 24590/24965 or scrape `kgateway_controller_*` on port 9092. Grafana values say those gnet entries are gone (LiteLLM removed; kgateway-org dashboard superseded).
+Do not import kgateway-org Grafana dashboards 24590/24965 or scrape `kgateway_controller_*` on port 9092. Grafana values say those gnet entries are gone (old unified-proxy LiteLLM dashboard retired with #941; kgateway-org dashboard superseded). The 2026-08-26 governance-only LiteLLM layer scrapes via its own ServiceMonitor/alerts (`../litellm/README.md`), not those gnet IDs.
 
 ## Metrics
 

@@ -13,9 +13,10 @@ design, and the knobs to raise budgets later: `docs/ai-system/litellm/README.md`
 - Zero changes to `agentgateway/` (the existing envoy AI gateway) or to
   `vllm/` (`vllm-app.ai.svc.cluster.local:8000`, which this app points at as
   a backend and never modifies).
-- Model list is exactly the lab-proven six lines in
-  [`app/resources/config.yaml`](app/resources/config.yaml) plus the
-  Prometheus metrics callback - nothing else.
+- Model list is the lab-proven six-line `model_list` in
+  [`app/resources/config.yaml`](app/resources/config.yaml), plus additive
+  `model_info` governance-accounting prices (so virtual-key spend accrues)
+  and the Prometheus metrics callback - nothing else.
 
 **Per-consumer governance (D4):** virtual keys with a model allow-list and a
 deliberately tiny spend/rate budget, defined in
@@ -47,7 +48,7 @@ exists - every `postgres-17` client app reads it the same way (see
 `docs/ai-system/litellm/README.md#verification-runbook` has the exact
 `kubectl port-forward` + `curl` commands to mint-and-call the `demo` consumer
 key against `vllm-app` through this proxy, and to confirm the allow-list and
-budget are actually enforced (a second model returns 403, a request past
-budget returns 429). Spend budgets require the non-zero `model_info`
-per-token prices on the model in `app/resources/config.yaml` - see that
-file's comment.
+budget are actually enforced (a second model is rejected; a request past
+budget fails once spend is exhausted). Spend budgets require the non-zero
+`model_info` per-token prices on the model in `app/resources/config.yaml` -
+see that file's comment.

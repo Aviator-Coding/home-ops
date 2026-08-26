@@ -27,13 +27,15 @@ prerequisites, RBAC): `kubernetes/apps/base/ai/litellm/README.md`.
 
 The captain's lab proved this works with a **six-line `model_list`** pointed
 at the local chat backend, at **7.4ms** proxy overhead. That six-line block
-is `kubernetes/apps/base/ai/litellm/app/resources/config.yaml` verbatim (the
-file has a few more lines for the Prometheus metrics callback, which is
-additive, not part of the lab result). Nobody could find that lab result
-committed anywhere in the repo before this change (see the scout report
-referenced in D4's decision trail) - this doc is that write-up.
+is the `model_list` entry in
+`kubernetes/apps/base/ai/litellm/app/resources/config.yaml` (the file also
+carries additive `model_info` governance-accounting prices so virtual-key
+spend can accrue, plus the Prometheus metrics callback - neither was part of
+the lab result). Nobody could find that lab result committed anywhere in the
+repo before this change (see the scout report referenced in D4's decision
+trail) - this doc is that write-up.
 
-## Why Postgres (`#why-postgres`)
+## Why Postgres
 
 LiteLLM has **no config-file-only way to declare a virtual key with a budget
 or rate limit.** Confirmed against LiteLLM's own docs while designing this:
@@ -120,7 +122,7 @@ redesign" property D4 asked for.
 | `rpmLimit` | `2` | Deliberately below any real interactive workload - proves the limiter fires without needing sustained load. | Raise once a real consumer is wired up. |
 | `tpmLimit` | `2000` | About one short chat completion's worth of tokens. | Raise alongside `rpmLimit`. |
 
-## Verification runbook (`#verification-runbook`)
+## Verification runbook
 
 **This cannot be run from a firstmate crewmate worktree** - this cluster has
 no reachable API server or 1Password session from that sandbox (bare-metal
