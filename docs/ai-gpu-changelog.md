@@ -94,9 +94,11 @@ generically, so `0xe223` and `0xa7a0` would both be discovered.
 
 **Risk / rollback:** None - nothing changed. Do **not** adopt the reference repo
 (`joryirving/home-ops`) pattern of `adminAccess: true` + `allocationMode: All` to work around
-blocker 2: Intel documents that combination for *monitor* deployments, its allocations are
-*"not counted by scheduler as consumed resource"*, and it would require labelling `ai`,
-`media` and `selfhosted` with `resource.k8s.io/admin-access: "true"`.
+blocker 2. It is the only combination that lets more than one pod onto a device with this
+driver, but Intel documents it for *monitor* deployments, its allocations are *"not counted
+by scheduler as consumed resource"*, and it would require labelling `ai`, `media` and
+`selfhosted` with `resource.k8s.io/admin-access: "true"` - trading an enforced share count
+for an unaccounted privileged escape hatch.
 
 **Verify / reopen:** Reopen when the CAUTION line is gone from the driver README **and**
 issue #79 ships. Cheap to re-check; stages 1-2 of the plan (deploy driver, add DeviceClasses)
