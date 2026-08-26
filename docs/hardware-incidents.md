@@ -21,6 +21,8 @@ Same platform pathology as every other Meigao Venus incident in this log (`i915`
 
 At boot the link was down (`DLLLA=0`); the kernel's `pcie_failed_link_retrain()` quirk retrained at 2.5 GT/s, failed, and reverted the target speed. The scan of bus 01 found nothing. **218 ms in, with zero children, Linux runtime-suspended `00:01.0` to D3hot** (`power/control=auto`). Sometime after that the card actually finished training — full register decode showed it sitting at **Gen4 x4 with 8 GT/s equalization complete (all 3 phases) and `RemoteDLFSupportedValid=1`**, i.e. a real link partner, alive, on the far end. Nothing could ever notice: `SLTCAP HotPlugCapable=0`, `SLTCTL=0x0000` (every hotplug/PDC/DLLSC interrupt disabled), and the only PCIe port service bound anywhere on the box is bandwidth control (`pcie010`) — there is no mechanism in this system that discovers a card arriving after the port has gone to sleep. A same-PDU host power cycle on 2026-08-24 did not recover it: this port has **no power controller** (`SLTCAP PowerController=0`), so cycling the host never cycles the card's own PSU.
 
+### Evidence
+
 Two PCIe register signatures distinguish this from the [2026-06-10] bus-number incident below — do not confuse them:
 
 ```
@@ -312,6 +314,14 @@ Attempt 2 (pci=assign-busses — the fix):
 ### Resolution
 
 `pci=assign-busses` (superseding `pci=realloc`) plus `LinkAliasConfig` (`net%d`, `link.driver == "i40e"`) on all 3 nodes are the durable fix, both live in `talos/schematic.yaml.j2` / per-node overlays today. **Kernel args on this cluster only take effect from `talos/schematic.yaml.j2`** — `machine.install.extraKernelArgs` is ignored by SDBoot/UKI on this platform, a lesson this incident cost a full fix cycle to learn.
+
+When the B70 needs a full power cycle after install/removal or a later disappearance, use the same GPU/dock-PSU-before-host order as the [2026-08-24] entry:
+
+1. Power talos-3 fully **off** (`talosctl reboot` never touches the dock's PSU — it must be a full power-off).
+2. **GPU/dock PSU ON first.**
+3. **Wait ~5-10 seconds.** Confirm GPU fans spin and any card LED is lit.
+4. **Only then power on talos-3.**
+5. Never power the dock and host together, and never power the dock after the host.
 
 ### Lessons
 

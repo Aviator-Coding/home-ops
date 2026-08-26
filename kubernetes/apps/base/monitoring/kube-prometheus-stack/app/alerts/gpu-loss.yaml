@@ -30,11 +30,10 @@ spec:
               and GPU pods for Pending status.
           labels:
             severity: critical
-        # Deliberately not pinned to a node: today only talos-3 advertises
-        # gpu.intel.com/xe, but ksm only emits this series for nodes where a
-        # gpu.intel.com/xe device plugin has registered the resource, so this
-        # extends automatically once the held force_probe fix lands the iGPU
-        # binding on talos-1/2 (docs/hardware-incidents.md).
+        # Deliberately not pinned to a node: ksm only emits this series for
+        # nodes currently advertising gpu.intel.com/xe (today: talos-3 only),
+        # so the alert already extends to any node that registers the resource
+        # (docs/hardware-incidents.md).
         - alert: XeGpuLost
           expr: kube_node_status_allocatable{resource="gpu_intel_com_xe"} == 0
           for: 5m
