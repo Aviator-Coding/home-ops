@@ -23,6 +23,8 @@ spec:
           args:
             - -t
             - streamable-http
+            - --allowed-hosts
+            - "*"
             # A6: Viewer-scoped service account token already enforces
             # read-only at the Grafana API layer; --disable-write is
             # belt-and-suspenders in case the token is ever widened.
