@@ -137,6 +137,8 @@ Debugging: `flux get sources git -A`, `flux get ks -A`, `flux get hr -A`, `kubec
 
 - **LiteLLM has no config-file-only way to declare a virtual key with a budget or rate limit** - keys with `max_budget`/`rpm_limit`/`tpm_limit` only exist via the proxy's `/key/generate` REST API, and without a connected Postgres `DATABASE_URL` that API stores keys in memory only (gone on every pod restart). This is why `ai/litellm` (redeployed 2026-08-26 as a governance-only layer, `docs/ai-system/litellm/README.md`) depends on the shared `postgres-17` CNPG cluster even though the rest of `ai/` is stateless-by-preference, and why its virtual keys are minted by a Helm hook Job + 15m CronJob calling that API rather than declared in `config.yaml`.
 
+- **`monitoring/grafana` runs `persistence.enabled: false` (`emptyDir` SQLite), so admin-created service accounts/tokens and post-boot admin password changes are wiped on every pod restart.** `GF_SECURITY_ADMIN_USER`/`PASSWORD` (from `grafana-admin-secret`) are applied only when Grafana bootstraps a fresh DB at startup - live admin drift is cleared only by a Grafana pod restart. The token half is self-healed by `kubernetes/apps/base/monitoring/grafana-sa-provisioner` (Viewer SA/token for `ai/grafana-mcp`, pushed to 1Password `grafana-mcp`/`GRAFANA_SERVICE_ACCOUNT_TOKEN`); it cannot fix admin-credential drift itself. Details: that app's `README.md`.
+
 ## Maintaining this file
 
 `CLAUDE.md` is a symlink to this file - there is only one copy to maintain, and edits here are

@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: grafana-sa-provisioner-rules
+  labels:
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: grafana-sa-provisioner.rules
+      rules:
+        - alert: GrafanaSAProvisionerFailing
+          annotations:
+            description: >-
+              The grafana-sa-provisioner CronJob (monitoring namespace) has not
+              completed successfully in over an hour. The Viewer service account
+              token grafana-mcp depends on may be stale or missing until this
+              clears - silence here is the failure mode by design. Check
+              `kubectl -n monitoring logs -l app.kubernetes.io/name=grafana-sa-provisioner --tail=50`;
+              a 401 from admin auth in those logs means grafana-admin-secret has
+              drifted from live Grafana state and needs a Grafana pod restart to
+              clear (see kubernetes/apps/base/monitoring/grafana-sa-provisioner/README.md).
+            summary: Grafana Viewer service account reconciler has been failing for over an hour.
+          # `or vector(0)` makes a CronJob that has *never* succeeded compare
+          # against epoch 0, so this also fires (after the 5m settle window)
+          # before its first-ever success - not just after an hour of prior
+          # successes going stale. That is intentional: a reconciler that has
+          # never once succeeded needs attention as soon as it's confirmed
+          # persistent, not after waiting out a full extra hour on top.
+          expr: |-
+            time() - (kube_cronjob_status_last_successful_time{namespace="monitoring", cronjob="grafana-sa-provisioner"} or vector(0)) > 3600
+          for: 5m
+          labels:
+            severity: warning
