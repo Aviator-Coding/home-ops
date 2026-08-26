@@ -1,7 +1,13 @@
 # Captain-approved lab design (B4/D4): six lines of real proxy config, pointed
 # at the existing local chat backend. Everything else in this file is additive
 # (metrics) or required plumbing (DB/master key come from env, not here).
+#
+# D3 (2026-08-26) adds the complexity-tier auto-router below the direct models.
+# It is strictly ADDITIVE: `qwen3.6-35b-a3b` keeps working exactly as before, so
+# no existing consumer is forced through the router. Design, tier definitions and
+# classifier tuning: docs/ai-system/litellm/auto-router.md
 model_list:
+  # --- Direct model names (pre-D3 behaviour, unchanged) ---
   - model_name: qwen3.6-35b-a3b
     litellm_params:
       model: openai/qwen3.6-35b-a3b
@@ -16,6 +22,115 @@ model_list:
     model_info:
       input_cost_per_token: 0.00005
       output_cost_per_token: 0.0001
+
+  # Classifier deployment (D3). Same llama.cpp backend as above, three
+  # deliberate differences - all three are load-bearing, see
+  # docs/ai-system/litellm/auto-router.md#why-a-separate-classifier-deployment:
+  #  1. enable_thinking=false. Qwen3.6-35B-A3B is a REASONING model: left alone
+  #     it emits ~1.3k tokens of `reasoning_content` and returns an EMPTY
+  #     `content`, so LiteLLM's structured-output parse raises "empty content",
+  #     every classification fails, and the router silently degrades to the
+  #     fail-open path on 100% of traffic. Measured 2026-08-26: without this
+  #     flag 12/12 classifications returned unparseable; with it, 11/12 correct.
+  #     Passed via `extra_body` because llama.cpp takes it as a body field, not
+  #     an OpenAI-spec parameter.
+  #  2. num_retries: 0. The classifier's timeout budget rides every routed
+  #     request. With the router default (2 retries) a wedged backend costs
+  #     3 x timeout_ms before failing open; at 0 it costs exactly one.
+  #  3. Its own model_name, so classifier spend and latency are a separate
+  #     series in /metrics instead of being mixed into ordinary local chat
+  #     traffic (see the auto-router doc's dashboard section).
+  - model_name: qwen3.6-35b-a3b-classifier
+    litellm_params:
+      model: openai/qwen3.6-35b-a3b
+      api_base: http://vllm-app.ai.svc.cluster.local:8000/v1
+      api_key: "not-needed"
+      num_retries: 0
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+    model_info:
+      input_cost_per_token: 0.00005
+      output_cost_per_token: 0.0001
+
+  # --- Cloud tier backends for the auto-router (D3) ---
+  # Credentials are the ALREADY-EXISTING 1Password `ai-keys` item that every
+  # agentgateway backend in this namespace already extracts (see
+  # kubernetes/apps/base/ai/agentgateway/app/backends/anthropic.yaml). No new
+  # 1Password item is introduced by the router; externalsecret.yaml just adds a
+  # second `extract` of that same item so ANTHROPIC_API_KEY reaches this pod.
+  # These are reachable directly as well (`model: claude-sonnet-5`), which is
+  # deliberate: the router is one more way in, never the only way in.
+  # Prices come from LiteLLM's built-in model-cost map, so routed cloud spend is
+  # real USD against the per-consumer D4 budgets - do NOT add model_info prices
+  # here or the accounting stops matching the invoice.
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-opus-5
+    litellm_params:
+      model: anthropic/claude-opus-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # --- The routed alias (D3) ---
+  - model_name: auto
+    litellm_params:
+      model: auto_router/complexity_router
+      complexity_router_config:
+        # Local-first: the two cheap tiers never leave the cluster. Only work the
+        # classifier judges genuinely hard reaches a paid API.
+        tiers:
+          SIMPLE: qwen3.6-35b-a3b
+          MEDIUM: qwen3.6-35b-a3b
+          COMPLEX: claude-sonnet-5
+          REASONING: claude-opus-5
+
+        # -- Classifier: LLM, on the LOCAL model --
+        # `heuristic` (the upstream default) is the rule-based scorer the
+        # reference repo A/B-measured at 25-35% tier accuracy against 80-85% for
+        # the LLM classifier, with its errors running the wrong way (COMPLEX
+        # scoring BELOW MEDIUM). We skip that step entirely.
+        classifier_type: llm
+        classifier_llm_config:
+          # The local B70 model - every classification is free of cloud cost and
+          # stays in-cluster. Never point this at a cloud model.
+          model: qwen3.6-35b-a3b-classifier
+          # Measured 2026-08-26 against the live B70, warm prefix cache, while
+          # the card also served normal cluster traffic: p50 3.0s, p95 4.6s,
+          # max 5.5s (docs/ai-system/litellm/auto-router.md#measured-classifier-latency).
+          # 8s is ~1.7x measured p95 and above the observed max, so a healthy but
+          # contended GPU still answers instead of being failed open; combined
+          # with num_retries: 0 on the classifier deployment it also caps what a
+          # wedged backend adds to a routed request at one 8s round trip, not
+          # the reference implementation's 20s (x3 retries = 60s).
+          timeout_ms: 8000
+          # Upstream default is `legacy` (no calibration examples), which grades
+          # ordinary engineering work as top-tier and would send routine agent
+          # traffic to Opus. `agentic` is the preset calibrated on terminal and
+          # coding tasks, which is what Hermes/agent traffic here looks like.
+          classification_rubric: agentic
+
+        # -- Fail OPEN to local --
+        # On classifier timeout, provider error or unparseable reply, route to
+        # `default_model` WITHOUT scoring. The alternative, `heuristic`, reruns
+        # the 25%-accurate rule-based scorer, which can still return COMPLEX and
+        # spend real cloud money on a request nothing successfully classified.
+        # A broken classifier must degrade to local, never to the invoice.
+        classifier_fallback: default_model
+        default_model: qwen3.6-35b-a3b
+
+        # Put the resolved backend in the response's `model` field, so a caller
+        # (and the post-merge evidence) can see which tier actually served the
+        # request instead of getting the `auto` alias echoed back.
+        return_raw_model_name: true
+
+        # Off (the upstream default): every turn is classified on its own merits
+        # and routed to the cheapest adequate tier. Turning it on pins the whole
+        # session to the FIRST turn's model, so one COMPLEX opener would hold a
+        # long conversation on a paid model. Revisit only if cross-turn provider
+        # prompt-cache hit rate turns out to matter more than the spend.
+        session_affinity: false
 
 litellm_settings:
   callbacks: ["prometheus"] # exposes /metrics on the proxy port (4000)
