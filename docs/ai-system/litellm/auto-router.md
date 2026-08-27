@@ -351,8 +351,10 @@ kubectl -n ai logs deploy/litellm | grep -A6 "Proxy initialized with Config"
 #    `grep "ComplexityRouter initialized"` (which prints the four tier -> backend
 #    pairs) is a DEBUG-level line: it matches nothing unless the pod runs with
 #    LITELLM_LOG=DEBUG, so its absence here is not a fault. To see the tier map
-#    without changing log level, read it back from the rendered ConfigMap:
-kubectl -n ai get cm litellm-configmap -o jsonpath='{.data.config\.yaml}' \
+#    without changing log level, read it back from the ConfigMap litellm-operator
+#    renders from the LiteLLMModel CRs (name = <proxy.Name>-config, not the
+#    pre-O1 kustomize configMapGenerator name litellm-configmap):
+kubectl -n ai get cm litellm-config -o jsonpath='{.data.config\.yaml}' \
   | grep -A5 "tiers:"
 
 # 3. Reach the proxy (no route by design - B4) with the router consumer key.
