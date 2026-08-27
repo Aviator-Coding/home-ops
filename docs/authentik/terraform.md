@@ -1,14 +1,23 @@
 # Authentik configuration as code (OpenTofu)
 
-Status as of 2026-08-26: **the code is written, a read-only plan has been run
-against the live instance, and no `tofu apply` has happened.** The adoption plan
-is clean: 9 imports, 0 to add, 0 to destroy (section 6).
+Status as of 2026-08-27: **the stack has been applied.** The adoption is in
+state, the LiteLLM SSO provider and application were created, and a fresh
+`tofu plan` is empty (`-detailed-exitcode` returns 0).
 
-One set of changes *was* made to the instance, under an explicit captain
-authorization scoped to a read-only credential: a `tofu-readonly` service account
-in the `authentik Read-only` group and its non-expiring API token (section 5).
-Proven read-only against the live API - every write attempt returns 403. No
-application, provider, flow or outpost was touched.
+The apply was authorized by the captain against a reviewed plan and executed as
+`9 imported, 4 added, 4 changed, 0 destroyed`. The four changes were the
+`property_mappings` ordering artifact this document predicted in section 6; they
+were membership-identical and are gone now that state carries a local ordering.
+
+Post-apply verification, all live:
+
+| Check | Result |
+| ----- | ------ |
+| Fresh `tofu plan` | `No changes` (`-detailed-exitcode` = 0), using the READ-ONLY token |
+| ExtAuth still gating | `https://echo.sklab.dev` -> 302 to Authentik, scope `ak_proxy profile email entitlements openid` (all five proxy scopes intact) |
+| Existing OIDC app still logging in | open-webui authorize -> 302 to `default-authentication-flow` |
+| New application | `litellm` exists, provider 70, redirect `https://litellm.sklab.dev/sso/callback` |
+| Credentials propagated | 1Password `Automation/litellm-sso` client_id is byte-identical to the provider's |
 
 Authentik is the SSO for the whole cluster, including the ExtAuth in front of the
 public gateway. A wrong apply here does not degrade one app; it locks or unlocks
@@ -185,6 +194,26 @@ AWS_ACCESS_KEY_ID=<access_key> AWS_SECRET_ACCESS_KEY=<secret_key> \
 Then add the two keys to the `authentik-terraform` item in the **`Automation`**
 vault as `TF_STATE_ACCESS_KEY_ID` / `TF_STATE_SECRET_ACCESS_KEY` (section 4).
 
+### The backend is NOT reachable through the gateway
+
+`tofu` cannot talk to `https://s3.sklab.dev`. Measured 2026-08-27: every request
+from OpenTofu's S3 client through `envoy-internal` fails with
+`SignatureDoesNotMatch`, while the identical credentials against the RGW Service
+succeed. aws-sdk-go-v2 signs `accept-encoding`, `amz-sdk-invocation-id` and
+`amz-sdk-request`; boto3 and minio-go sign none of them, so Envoy's rewrite
+breaks only this client. VolSync and every other S3 consumer keep working through
+the same route, which is why this was invisible until now.
+
+So open a port-forward first, and leave it open for the whole session:
+
+```bash
+kubectl -n rook-ceph port-forward svc/rook-ceph-rgw-ceph-objectstore 18081:80 &
+```
+
+`backend.tofu` points at `http://127.0.0.1:18081` to match. State traffic then
+never touches the gateway, which for a bucket holding every adopted client secret
+is the better posture anyway.
+
 State locking uses S3-native conditional writes (`use_lockfile = true`), which
 RGW supports. There is no DynamoDB equivalent and none is needed.
 
@@ -306,6 +335,40 @@ validates a body, so an empty POST cannot create anything either way:
 
 This token can run `tofu plan` and can never run `tofu apply`. An apply needs a
 separate, write-capable credential, minted only when an apply is approved.
+
+### The write credential, for approved applies only
+
+Minted the same way, with least privilege, and kept separate from the read-only
+one. `tofu-writer` is in TWO groups: `authentik Read-only` supplies every
+`view_*`, and a purpose-built `tofu Writers` role supplies exactly six
+permissions and nothing else:
+
+```
+add_application  change_application
+add_oauth2provider  change_oauth2provider
+change_proxyprovider  change_outpost
+```
+
+**No delete permission on anything**, which is the point: an additions-plus-
+ordering apply never needs one, and withholding it means this credential cannot
+remove a live SSO object even if something goes badly wrong. Verified against the
+live API rather than assumed, because a DELETE on a *non-existent* object returns
+404 (lookup happens before the object permission check) and that proves nothing.
+The real test creates an inert application and tries to delete it:
+
+| Request | Result |
+| ------- | ------ |
+| `POST /core/applications/` (probe app) | 201 |
+| `DELETE /core/applications/<probe>/` | **403** |
+| `GET /core/applications/<probe>/` | 200, survived |
+
+The probe was then removed through `ak shell`, which the write token itself
+cannot do.
+
+The token is deliberately **not** stored in 1Password. `secrets-apply.vals.yaml`
+resolves `AUTHENTIK_APPLY_TOKEN`, and that field staying absent is what makes a
+stray `tofu apply` fail closed instead of succeeding. Place it only for the
+duration of an approved apply, or read the key out of Authentik directly.
 
 ## 6. Planning
 
@@ -475,7 +538,43 @@ from a clean plan. If a later change breaks something:
 deletes four applications and four providers. There is no scenario where that is
 the right move on a live cluster.
 
-## 8. CI: automatic read-only plans on every pull request
+## 8. Getting generated credentials into the cluster
+
+OpenTofu generates the LiteLLM OAuth2 credential and sets it on the Authentik
+provider. It has no way to write into Kubernetes, so one hop is manual, and it is
+the only manual step in the whole path:
+
+```bash
+# 1. Read the generated values (port-forward must be open, section 3).
+CID=$(tofu -chdir=terraform/authentik output -raw litellm_client_id)
+CSEC=$(tofu -chdir=terraform/authentik output -raw litellm_client_secret)
+
+# 2. Create the PushSecret's source Secret. Never committed: it holds the secret.
+kubectl -n ai create secret generic litellm-sso-credentials \
+  --from-literal=LITELLM_SSO_CLIENT_ID="$CID" \
+  --from-literal=LITELLM_SSO_CLIENT_SECRET="$CSEC" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+From there it is automatic:
+
+```
+tofu output -> litellm-sso-credentials Secret -> PushSecret
+            -> 1Password Automation/litellm-sso -> ExternalSecret -> litellm-secret
+```
+
+Verify the round trip by comparing the client id in 1Password against the one on
+the Authentik provider; they must be byte-identical, or LiteLLM will present a
+client id Authentik does not recognise.
+
+The push goes through the `onepassword-automation` **ClusterSecretStore**, not
+the shared `onepassword` store, because that one resolves writes by vault
+priority rather than to a named vault. It is cluster-scoped rather than a
+namespaced SecretStore because a namespaced store may only reference a Secret in
+its own namespace, and the Connect token lives in `security` - ESO's admission
+webhook rejects the alternative outright.
+
+## 9. CI: automatic read-only plans on every pull request
 
 [`terraform-diff.yaml`](../../.github/workflows/terraform-diff.yaml) runs
 `tofu fmt`, a real `tofu init` against the live state backend, `tofu validate`,
