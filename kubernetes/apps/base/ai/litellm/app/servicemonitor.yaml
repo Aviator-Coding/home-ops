@@ -14,8 +14,9 @@ spec:
       # prometheus). Reuses LITELLM_MASTER_KEY to avoid a second secret -
       # deliberate tradeoff: Prometheus (and anyone who can read the
       # scrape config / that Secret) holds the proxy's full admin credential,
-      # not a metrics-only token. Acceptable while this app is in-cluster-only
-      # with no HTTPRoute; revisit before any broader exposure.
+      # not a metrics-only token. Acceptable on the internal-only route
+      # (master-key still required for /metrics and the admin API; public
+      # listener remains forbidden). Revisit before any broader exposure.
       authorization:
         credentials:
           name: litellm-secret

@@ -40,7 +40,7 @@ MCP server platform in `kubernetes/apps/base/ai/toolhive/`. This cluster's MCP p
 
 ## LiteLLM
 
-Former unified LLM proxy, removed 2026-06-07 (#941) - AgentGateway's own `/v1` router replaced it, and that recommendation still holds. Redeployed 2026-08-26 as a narrow, in-cluster-only **governance layer** (`kubernetes/apps/base/ai/litellm/`, docs: `../litellm/README.md`) - it fronts no listener, holds no `AgentgatewayBackend`, and does not touch this gateway. Still true: do not create a LiteLLM `AgentgatewayBackend` or route any gateway traffic through it.
+Former unified LLM proxy, removed 2026-06-07 (#941) - AgentGateway's own `/v1` router replaced it, and that recommendation still holds. Redeployed 2026-08-26 as a narrow **governance layer** (`kubernetes/apps/base/ai/litellm/`, docs: `../litellm/README.md`, fallbacks: `../litellm/fallbacks.md`) - internal `envoy-internal` route only, never the public listener, holds no `AgentgatewayBackend`, and does not touch this gateway's `/v1`. Still true: do not create a LiteLLM `AgentgatewayBackend` or route any gateway traffic through it.
 
 ## `internal` / `internal-noauth` / `public`
 

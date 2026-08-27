@@ -446,6 +446,7 @@ def test_config_semantics(cfg: dict) -> dict:
             "claude-sonnet-5",
             "claude-opus-5",
             "auto",
+            "chat-ha",
         },
         f"names={names}",
     )
@@ -599,12 +600,16 @@ def test_config_semantics(cfg: dict) -> dict:
 
 def test_consumers() -> None:
     keys = {k["metadata"]["name"]: k["spec"] for k in _load_crs(VIRTUALKEYS_DIR, "LiteLLMVirtualKey")}
+    # Phase 5 added ha-demo (cloud-entitled chat-ha holder). demo + router-demo
+    # stay exactly as D3/D4 defined them; ha-demo is asserted fully by
+    # litellm-fallback-chain-test.py.
+    required = {"demo", "router-demo", "ha-demo"}
     record(
         "virtualkey_crs_present",
-        set(keys) == {"demo", "router-demo"},
+        set(keys) >= required,
         f"names={sorted(keys)}",
     )
-    if set(keys) != {"demo", "router-demo"}:
+    if not required <= set(keys):
         return
     record("demo_consumer_still_direct_only", keys["demo"]["models"] == ["qwen3.6-35b-a3b"])
     record(
@@ -612,10 +617,15 @@ def test_consumers() -> None:
         keys["router-demo"]["models"] == ["auto"],
         f"models={keys['router-demo']['models']!r}",
     )
+    record(
+        "ha_demo_scoped_to_chat_ha_only",
+        keys["ha-demo"]["models"] == ["chat-ha"],
+        f"models={keys['ha-demo']['models']!r}",
+    )
     # The CRD types maxBudget as a decimal STRING, not a number - a YAML float
     # here is silently rejected at admission, so assert the type as well as the
     # value rather than letting `0.5` look fine to this test and fail in-cluster.
-    for name in ("demo", "router-demo"):
+    for name in ("demo", "router-demo", "ha-demo"):
         raw = keys[name].get("maxBudget")
         record(
             f"{name}_maxBudget_is_positive_decimal_string",

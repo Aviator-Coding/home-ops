@@ -1,4 +1,4 @@
-# LiteLLM (governance-only layer)
+# LiteLLM (governance layer)
 
 Redeployed 2026-08-26 per captain decisions **B4** and **D4**. This is not a
 reversion to LiteLLM's pre-2026-06-07 role as this cluster's unified LLM
@@ -30,6 +30,11 @@ it - the direct model names, the virtual-key minting flow and the budgets
 behave exactly as documented below, and routed calls bind to those same
 budgets.
 
+**Availability and context-window fallbacks** (Phase 5) live in
+[`fallbacks.md`](fallbacks.md): measured allow-list-vs-fallback semantics, the
+`chat-ha` / `ha-demo` entitlement split, alert expressions, the internal route
+decision, and the post-merge failover runbook. Do not restate those facts here.
+
 ## Scope (binding, from B4/D4)
 
 - **B4**: LiteLLM does **not** front the **public** listener - no
@@ -55,8 +60,10 @@ overhead. That six-line block is still the direct `qwen3.6-35b-a3b` entry in
 `info.extra` governance-accounting prices so virtual-key spend can accrue,
 and the Prometheus metrics callback on the `LiteLLMProxy` - neither was part
 of the lab result). D3's additive `auto` router, classifier deployment and
-cloud tier backends are the other four CRs in `app/models/` and are owned by
-[`auto-router.md`](auto-router.md).
+cloud tier backends are four more CRs in `app/models/` and are owned by
+[`auto-router.md`](auto-router.md). Phase 5 adds a sixth CR, `chat-ha` (same
+local backend as `qwen3.6-35b-a3b`, cloud-entitled fallback view) - owned by
+[`fallbacks.md`](fallbacks.md).
 Nobody could find that lab result committed anywhere in the repo before the
 B4/D4 redeploy (see the scout report referenced in D4's decision trail) -
 this doc is that write-up.
@@ -170,7 +177,7 @@ kubectl -n ai get deploy litellm-operator litellm
 kubectl -n ai get job litellm-db-init
 kubectl -n ai get litellmproxy,litellmmodel,litellmvirtualkey
 #    Every CR should report Ready=True; `llproxy` also prints the model count
-#    (expect 5) and ready replicas. On a failure, the condition message names
+#    (expect 6) and ready replicas. On a failure, the condition message names
 #    the reason (AdminClientFailed / GenerateFailed / UpdateFailed / ...):
 kubectl -n ai describe litellmvirtualkey demo
 
@@ -217,6 +224,9 @@ and recommended against it - that would have recreated the exact
 double-proxy shape #941 removed, for capability at best at parity with what
 `agentgateway` already does, while reintroducing Postgres+Redis. That
 recommendation still stands and is unrelated to this deployment: this app
-adds a narrow, optional governance layer beside `agentgateway`, fronting
-nothing, replacing nothing, routing no existing consumer's traffic anywhere
-it doesn't already go.
+adds a narrow, optional governance layer beside `agentgateway`, replacing
+nothing and routing no existing consumer's traffic anywhere it doesn't already
+go. It has an **internal-only** HTTPRoute (`litellm.${SECRET_DOMAIN}` on
+`envoy-internal`) as of 2026-08-26; it still never fronts the public listener
+and is still not this gateway's `/v1` - see Scope above and
+[`fallbacks.md`](fallbacks.md#6).

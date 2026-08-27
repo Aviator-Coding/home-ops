@@ -2,10 +2,12 @@
 
 Captain decision **D3** (2026-08-26): *"yes build reference complexity tier why not"*.
 
-One extra model alias on the in-cluster LiteLLM proxy, `auto`. A request sent to it
+One extra model alias on the LiteLLM governance proxy, `auto`. A request sent to it
 is classified by an LLM into one of four complexity tiers and dispatched to the
 backend for that tier: cheap work stays on the local B70, genuinely hard work goes
-to Anthropic. Everything else about the proxy is unchanged.
+to Anthropic. Everything else about the proxy is unchanged (Phase 5 availability
+fallbacks on `auto`/`chat-ha` are documented in [`fallbacks.md`](fallbacks.md),
+not here).
 
 Config lives in the `LiteLLMModel` CRs under
 [`kubernetes/apps/base/ai/litellm/app/models/`](../../../kubernetes/apps/base/ai/litellm/app/models/) -
@@ -36,6 +38,10 @@ Nothing is forced through the router. A consumer opts in by asking for `auto`.
 | `qwen3.6-35b-a3b-classifier` | Same backend, thinking disabled. Used *by* the router. |
 | `claude-sonnet-5`, `claude-opus-5` | Anthropic, reachable directly too. |
 | `auto` | **The router.** Classify, then dispatch to one of the four tiers. |
+
+Phase 5 also exposes the local backend as `chat-ha` (cloud-entitled fallback
+view). That alias is not part of the router and is owned by
+[`fallbacks.md`](fallbacks.md).
 
 ## Tiers
 

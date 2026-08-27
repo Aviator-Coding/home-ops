@@ -164,7 +164,7 @@ shape. The `auto` leg is **not** separately exercised yet - `auto` is an
 reasoning above (fail-open target dies -> the exception propagates out of the
 `auto` model group -> its fallback fires) is derived from the router's control
 flow, not measured. Proving it needs a probe auto-router whose tiers point at
-dead backends; that is step 3b of the post-merge runbook in §5. If auto-router
+dead backends; that is runbook step 3b in §5. If auto-router
 failures turn out to be swallowed internally rather than raised, this entry is
 inert rather than harmful - but this section must then be corrected.
 
@@ -356,6 +356,45 @@ done
 
 Expected: `served by: qwen3.6-35b-a3b` every time, HTTP 200.
 
+**3b. Exercise the `auto` leg (optional, separate from the plain-group proof).**
+
+Not covered by the probe above, because `auto` is an auto-router rather than a
+plain backend (see §2). To prove it, clone the `auto` alias with every tier and
+the classifier pointed at a dead backend, give the probe key that alias, and
+confirm a request lands on the fallback rather than 500-ing:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata: {name: auto-probe, namespace: ai}
+spec:
+  modelName: auto-probe
+  proxyRef: litellm
+  params:
+    model: auto_router/complexity_router
+    additional:
+      complexity_router_default_model: fallback-probe      # dead
+      complexity_router_config:
+        tiers: {SIMPLE: fallback-probe, MEDIUM: fallback-probe,
+                COMPLEX: fallback-probe, REASONING: fallback-probe}
+        classifier_type: llm
+        classifier_llm_config: {model: fallback-probe, timeout_ms: 5000}
+        classifier_fallback: default_model
+        default_model: fallback-probe
+EOF
+kubectl -n ai patch litellmproxy litellm --type=merge -p \
+  '{"spec":{"routerSettings":{"fallbacks":[{"auto-probe":["qwen3.6-35b-a3b"]}]}}}'
+kubectl -n ai patch litellmvirtualkey fallback-probe-key --type=merge -p \
+  '{"spec":{"models":["fallback-probe","auto-probe"]}}'
+# then call model: auto-probe with $PK and check which model answers
+```
+
+`served by: qwen3.6-35b-a3b` confirms the `auto` leg works and §2's reasoning
+holds. An HTTP 500 means auto-router failures do **not** propagate to the
+fallback layer, and the `auto:` entries in `routerSettings` should be removed as
+misleading. Delete `auto-probe` in teardown alongside the other probes.
+
 **4. Capture the llama.cpp context-overflow error string** (the one link not
 proven pre-merge - see §3). Send a prompt over 262,144 tokens to the *real*
 local alias with the master key. Budget several minutes: llama.cpp tokenizes
@@ -466,42 +505,3 @@ admin UI and API. Verified through the gateway: `/v1/models` with a virtual key
 returns only that key's allow-listed models, and **without** a key returns
 `401`. If SSO in front of the UI is wanted later, `monitoring/kromgo-auth` is
 the Authentik ExtAuth pattern to copy.
-
-### Runbook step 3b - exercise the `auto` leg
-
-Not covered by the probe above, because `auto` is an auto-router rather than a
-plain backend (see §2). To prove it, clone the `auto` alias with every tier and
-the classifier pointed at a dead backend, give the probe key that alias, and
-confirm a request lands on `claude-sonnet-5` rather than 500-ing:
-
-```bash
-kubectl apply -f - <<'EOF'
-apiVersion: litellm.home-operations.com/v1alpha1
-kind: LiteLLMModel
-metadata: {name: auto-probe, namespace: ai}
-spec:
-  modelName: auto-probe
-  proxyRef: litellm
-  params:
-    model: auto_router/complexity_router
-    additional:
-      complexity_router_default_model: fallback-probe      # dead
-      complexity_router_config:
-        tiers: {SIMPLE: fallback-probe, MEDIUM: fallback-probe,
-                COMPLEX: fallback-probe, REASONING: fallback-probe}
-        classifier_type: llm
-        classifier_llm_config: {model: fallback-probe, timeout_ms: 5000}
-        classifier_fallback: default_model
-        default_model: fallback-probe
-EOF
-kubectl -n ai patch litellmproxy litellm --type=merge -p \
-  '{"spec":{"routerSettings":{"fallbacks":[{"auto-probe":["qwen3.6-35b-a3b"]}]}}}'
-kubectl -n ai patch litellmvirtualkey fallback-probe-key --type=merge -p \
-  '{"spec":{"models":["fallback-probe","auto-probe"]}}'
-# then call model: auto-probe with $PK and check which model answers
-```
-
-`served by: qwen3.6-35b-a3b` confirms the `auto` leg works and §2's reasoning
-holds. An HTTP 500 means auto-router failures do **not** propagate to the
-fallback layer, and the `auto:` entries in `routerSettings` should be removed as
-misleading. Delete `auto-probe` in teardown alongside the other probes.

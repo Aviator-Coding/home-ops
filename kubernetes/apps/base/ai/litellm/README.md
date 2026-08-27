@@ -1,10 +1,12 @@
-# LiteLLM (governance-only)
+# LiteLLM (governance layer)
 
 [BerriAI/litellm](https://github.com/BerriAI/litellm) proxy, redeployed 2026-08-26
 per captain decisions B4/D4 as a narrow **governance layer**, not a return to its
 pre-2026-06-07 role as this cluster's unified LLM proxy (removed in #941 - see
 `docs/ai-system/agentgateway/GLOSSARY.md`). Full rationale, the six-line lab
 design, and the knobs to raise budgets later: `docs/ai-system/litellm/README.md`.
+Fallback chains, allow-list interaction, alerts, internal route, and failover
+runbook: `docs/ai-system/litellm/fallbacks.md`.
 
 Since captain decision **O1** (2026-08-26) it is delivered by the
 [home-operations litellm-operator](https://github.com/home-operations/litellm-operator)
@@ -135,8 +137,9 @@ one to create.
 > `CreateContainerConfigError`. That is this prerequisite being unmet, not a
 > manifest bug.
 
-The `litellm-consumer-demo` / `litellm-consumer-router-demo` 1Password items
-are **written** by the PushSecrets, not read - they do not need to pre-exist.
+The `litellm-consumer-demo` / `litellm-consumer-router-demo` /
+`litellm-consumer-ha-demo` 1Password items are **written** by the PushSecrets,
+not read - they do not need to pre-exist.
 
 ## Database bootstrap
 
@@ -161,4 +164,6 @@ budget fails once spend is exhausted). Spend budgets require the non-zero
 `app/models/qwen3.6-35b-a3b.yaml`.
 
 The complexity-tier auto-router (`auto` alias) has its own design, tuning and
-verification notes in `docs/ai-system/litellm/auto-router.md`.
+verification notes in `docs/ai-system/litellm/auto-router.md`. Fallback chains
+(`chat-ha` / `ha-demo`), alerts, and the post-merge failover proof live in
+`docs/ai-system/litellm/fallbacks.md`.

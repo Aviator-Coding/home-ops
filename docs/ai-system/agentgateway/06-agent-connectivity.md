@@ -1,6 +1,6 @@
 # Agent / in-cluster clients
 
-**kagent is not deployed.** There is no `kagent/` app under `kubernetes/apps/base/ai/`, and no kagent `Agent` / `ModelConfig` CRs (kagent hard-depended on the old LiteLLM `baseUrl` and was removed alongside it in #941). LiteLLM itself is back as of 2026-08-26, but only as an in-cluster-only governance layer with no gateway wiring (`../litellm/README.md`) - it is still not this gateway's `/v1` entrypoint. Do not set `baseUrl: http://litellm.ai.svc.cluster.local:4000/v1` for anything that expects gateway-routed traffic.
+**kagent is not deployed.** There is no `kagent/` app under `kubernetes/apps/base/ai/`, and no kagent `Agent` / `ModelConfig` CRs (kagent hard-depended on the old LiteLLM `baseUrl` and was removed alongside it in #941). LiteLLM itself is back as of 2026-08-26 as a governance layer (`../litellm/README.md`; internal route only) - it is still not this gateway's `/v1` entrypoint. Do not set `baseUrl` to the LiteLLM Service or to `https://litellm.${SECRET_DOMAIN}` for anything that expects gateway-routed traffic.
 
 ## How workloads should call LLMs
 
