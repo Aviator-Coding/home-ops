@@ -25,11 +25,10 @@ repo on the app's PVC, which mkdocs serves `--dirty` (incremental rebuild).
   (`kustomization.yaml`'s `configMapGenerator`, e.g. `ai/hermes`,
   `monitoring/kromgo`) generates the `ConfigMap` from real files under
   `app/resources/`, which is what's used here.
-- **`repos.txt`**: replaced the reference's own repo list with this org's
-  active repos: `home-ops`, `dotfiles`, `firstmate`, `super-simple-software-factory`
-  (`Aviator-Coding` is a personal account, not a GitHub org; the last two are
-  this account's own agentic-tooling repos, both pushed within the two weeks
-  before this app was added - see git history for the confirming lookup).
+- **`repos.txt`**: replaced the reference's own repo list. The live set is
+  only [`app/resources/repos.txt`](app/resources/repos.txt) (do not restate it
+  here) - currently this account's repos plus selected upstream public repos
+  under `joryirving` and `misospace`.
 - **GITHUB_TOKEN**: reference uses its own `github-miso` 1Password item.
   No existing 1Password-sourced GitHub credential in this repo is read-only:
   `hermes`'s `HOMELAB_GH_TOKEN` is `public_repo` scope (read **and** write),
@@ -43,9 +42,9 @@ repo on the app's PVC, which mkdocs serves `--dirty` (incremental rebuild).
 - **Model**: `qwen3.6-35b-a3b` (the local default), matching the reference's
   own direct-local choice; no reason found to pick differently.
 - **Budget knobs tightened**: `MAX_REPOS_PER_RUN` 2->1 and `MAX_PAGES_PER_REPO`
-  20->8, `PAGE_CTX_CHARS` 120000->60000, to keep the governance-accounting
-  budget (see the `LiteLLMVirtualKey` comment) small relative to this org's
-  4-repo list.
+  20->8, `PAGE_CTX_CHARS` 120000->60000, to keep per-tick governance spend
+  small (see the `LiteLLMVirtualKey` comment for per-repo cost and backfill
+  math against the current `repos.txt` length).
 - **Timezone**: `America/New_York` (this cluster's convention, e.g.
   `ai/hermes`'s `CONFIG_TIMEZONE`), not the reference's `America/Edmonton`.
 - **Persistence**: reference has no backup for this PVC. This repo's
