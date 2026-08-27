@@ -10,6 +10,7 @@ kind: Kustomization
 # whichever LiteLLMVirtualKey (../virtualkeys/) should be allowed to call it.
 resources:
   - ./auto.yaml
+  - ./chat-ha.yaml
   - ./claude-opus-5.yaml
   - ./claude-sonnet-5.yaml
   - ./qwen3.6-35b-a3b.yaml

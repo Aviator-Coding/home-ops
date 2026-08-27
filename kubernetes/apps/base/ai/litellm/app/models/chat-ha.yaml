@@ -1,0 +1,43 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# The CLOUD-ENTITLED view of the local model (Phase 5 fallback chain).
+#
+# Same weights, same B70, same llama.cpp backend as models/qwen3.6-35b-a3b.yaml.
+# The ONLY difference is that this alias carries fallbacks in the proxy's
+# router_settings and that one does not - and that difference is a governance
+# boundary, not a tuning detail.
+#
+# WHY A SECOND ALIAS INSTEAD OF FALLBACKS ON qwen3.6-35b-a3b:
+# measured 2026-08-26 against this exact image - a config-declared fallback
+# BYPASSES the calling key's model allow-list. A throwaway key scoped to exactly
+# one local-shaped model was served by anthropic/claude-sonnet-5 and billed real
+# USD for it, having never named that model. (A caller-SUPPLIED `fallbacks`
+# array in the request body is checked and 403s - only the router's own
+# config-declared chain is unchecked.) Full evidence, response headers and the
+# source-level reason: docs/ai-system/litellm/fallbacks.md#1.
+#
+# `demo` (and every future local-only consumer) holds `qwen3.6-35b-a3b`, which
+# has NO fallback and is therefore structurally incapable of reaching Anthropic.
+# Consumers that are supposed to survive a B70 outage hold THIS alias and pay
+# for it. Never add a cloud fallback to the plain local alias - that single edit
+# would silently convert every local-only key into a cloud spender the first
+# time the GPU hiccupped, which is precisely what captain decision D4 forbids.
+#
+# NO `info.extra` PRICES, deliberately, unlike qwen3.6-35b-a3b. That alias
+# carries inflated governance-accounting prices so a tiny demo budget can be
+# exhausted by a smoke test. Here that would be actively harmful: local traffic
+# would burn a `chat-ha` key's budget at play-money rates during NORMAL
+# operation and kill the key before the outage it exists for. With local usage
+# priced at zero, a chat-ha key's maxBudget measures exactly one thing - real
+# USD spent on the cloud fallback - which is the number worth capping.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: chat-ha
+spec:
+  modelName: chat-ha
+  proxyRef: litellm
+  params:
+    model: openai/qwen3.6-35b-a3b
+    apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
+    apiKey: "not-needed" # llama.cpp server has no --api-key set

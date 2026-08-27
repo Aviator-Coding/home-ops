@@ -1,10 +1,12 @@
-# LiteLLM (governance-only)
+# LiteLLM (governance layer)
 
 [BerriAI/litellm](https://github.com/BerriAI/litellm) proxy, redeployed 2026-08-26
 per captain decisions B4/D4 as a narrow **governance layer**, not a return to its
 pre-2026-06-07 role as this cluster's unified LLM proxy (removed in #941 - see
 `docs/ai-system/agentgateway/GLOSSARY.md`). Full rationale, the six-line lab
 design, and the knobs to raise budgets later: `docs/ai-system/litellm/README.md`.
+Fallback chains, allow-list interaction, alerts, internal route, and failover
+runbook: `docs/ai-system/litellm/fallbacks.md`.
 
 Since captain decision **O1** (2026-08-26) it is delivered by the
 [home-operations litellm-operator](https://github.com/home-operations/litellm-operator)
@@ -16,18 +18,32 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, admin-API access, `litellm_settings`. Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | One `LiteLLMModel` per `model_list` entry (5). The D3 auto-router lives in `auto.yaml`. |
+| [`app/models/`](app/models/) | Six `LiteLLMModel` CRs: `auto`, `chat-ha`, `claude-opus-5`, `claude-sonnet-5`, `qwen3.6-35b-a3b`, `qwen3.6-35b-a3b-classifier`. `qwen3.6-35b-a3b` is terminal (no fallback) for local-only keys; `chat-ha` is the same backend carrying the cloud fallback for entitled keys. The D3 auto-router lives in `auto.yaml`. |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
+| [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
 | [`app/externalsecret.yaml`](app/externalsecret.yaml) | `litellm-secret` (master/salt key, `DATABASE_URL`, `INIT_POSTGRES_*`, `ANTHROPIC_API_KEY`). |
 | `app/servicemonitor.yaml`, `app/prometheusrule.yaml` | Scrape + alerts against the operator-rendered Service. |
 
-**Scope, non-negotiable per B4:**
-- Does **not** front the public listener, or any Gateway API listener at all -
-  no `HTTPRoute`, no `AgentgatewayBackend`. In-cluster consumers only, via
-  `http://litellm.ai.svc.cluster.local:4000`. The operator only creates an
-  HTTPRoute when `spec.route` is present on the `LiteLLMProxy`, so omitting it
-  keeps this structural rather than a setting someone can flip by accident.
+**Scope per B4 (public half still non-negotiable):**
+- Does **not** front the public listener. No `envoy-external` parentRef, no
+  `AgentgatewayBackend`. That half of B4 is unchanged and must stay that way.
+- **Internal gateway: captain-approved 2026-08-26.** A standalone
+  [`app/httproute-internal.yaml`](app/httproute-internal.yaml) attaches to `envoy-internal` at
+  `litellm.${SECRET_DOMAIN}`, alongside the unchanged in-cluster address
+  `http://litellm.ai.svc.cluster.local:4000`. This relaxes the previous
+  "no route of any kind" posture for the **internal** gateway only.
+  The route is hand-written rather than operator-owned (`spec.route`) because
+  the operator's route schema is `{hostnames, parentRefs, filters}` with no
+  annotations field, and this repo's Gatus/Homepage/external-dns conventions
+  are all annotation-driven - rationale and the live DNS evidence are in that
+  file's header and in `docs/ai-system/litellm/fallbacks.md`.
+- No extra auth surface was invented for it: 49 of the 52 internal HTTPRoutes
+  in this cluster carry no `SecurityPolicy`, the internal gateway is itself the
+  boundary (private VLAN + split DNS, never internet-reachable), and LiteLLM's
+  own master-key/DB login still guards its admin UI and API. Authentik ExtAuth
+  is available (`monitoring/kromgo-auth` is the pattern) if SSO in front of the
+  UI is wanted later.
 - Zero changes to `agentgateway/` (the existing envoy AI gateway) or to
   `vllm/` (`vllm-app.ai.svc.cluster.local:8000`, which this app points at as
   a backend and never modifies).
@@ -121,8 +137,9 @@ one to create.
 > `CreateContainerConfigError`. That is this prerequisite being unmet, not a
 > manifest bug.
 
-The `litellm-consumer-demo` / `litellm-consumer-router-demo` 1Password items
-are **written** by the PushSecrets, not read - they do not need to pre-exist.
+The `litellm-consumer-demo` / `litellm-consumer-router-demo` /
+`litellm-consumer-ha-demo` 1Password items are **written** by the PushSecrets,
+not read - they do not need to pre-exist.
 
 ## Database bootstrap
 
@@ -147,4 +164,6 @@ budget fails once spend is exhausted). Spend budgets require the non-zero
 `app/models/qwen3.6-35b-a3b.yaml`.
 
 The complexity-tier auto-router (`auto` alias) has its own design, tuning and
-verification notes in `docs/ai-system/litellm/auto-router.md`.
+verification notes in `docs/ai-system/litellm/auto-router.md`. Fallback chains
+(`chat-ha` / `ha-demo`), alerts, and the post-merge failover proof live in
+`docs/ai-system/litellm/fallbacks.md`.

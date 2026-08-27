@@ -41,6 +41,136 @@ spec:
           for: 5m
           labels:
             severity: warning
+        # --- Phase 5 fallback chains (docs/ai-system/litellm/fallbacks.md) ---
+        # Every series below was confirmed to exist and carry the labels used
+        # here by scraping the live proxy's /metrics on 2026-08-26 while
+        # driving real fallback events through throwaway probe models. The
+        # observed label set on both fallback counters is:
+        #   {requested_model, fallback_model, exception_class, exception_status,
+        #    api_key_alias, hashed_api_key, model_id, team, team_alias}
+        # `requested_model` is the alias the CALLER asked for (the primary) and
+        # `fallback_model` is the target the chain moved to.
+        - alert: LiteLLMFallbackChainExhausted
+          annotations:
+            description: >-
+              Every leg of a LiteLLM fallback chain failed - the primary
+              {{ $labels.requested_model }} AND its fallback
+              {{ $labels.fallback_model }} both errored, so the caller got a
+              5xx. This is the one fallback alert that means real user-visible
+              breakage rather than degraded-but-serving: check the B70
+              (vllm-app) and the Anthropic status page together, because it
+              takes both being unavailable to get here.
+            summary: A LiteLLM fallback chain is exhausted - requests are failing outright.
+          expr: |-
+            sum by (requested_model, fallback_model) (rate(litellm_deployment_failed_fallbacks_total[10m])) > 0
+          for: 5m
+          labels:
+            severity: critical
+        # LiteLLMSustainedFailover and LiteLLMContextWindowFallbackFiring split
+        # the same successful_fallbacks counter by exception_class. Without the
+        # ContextWindowExceeded exclusion below, a sustained large-prompt
+        # workload would trip this availability alert 15m earlier than the
+        # dedicated context-window alert, with the wrong remediation (fix the
+        # local backend / watch cloud cost from outage).
+        - alert: LiteLLMSustainedFailover
+          annotations:
+            description: >-
+              {{ $labels.requested_model }} has been failing over to
+              {{ $labels.fallback_model }} continuously for 15 minutes. Traffic
+              IS being served - that is the design - but it is being served by
+              a paid cloud model and is spending real USD, so this is a silent
+              cost event as much as an availability one. Fix the local backend;
+              until then watch the holder key's budget
+              (LiteLLMConsumerBudgetExhausted is the backstop). Context-window
+              overflow is excluded here and handled by
+              LiteLLMContextWindowFallbackFiring.
+            summary: LiteLLM has been on its cloud fallback for 15 minutes.
+          expr: |-
+            sum by (requested_model, fallback_model) (
+              rate(litellm_deployment_successful_fallbacks_total{exception_class!~".*ContextWindowExceeded.*"}[15m])
+            ) > 0
+          for: 15m
+          labels:
+            severity: warning
+        - alert: LiteLLMContextWindowFallbackFiring
+          annotations:
+            description: >-
+              {{ $labels.requested_model }} is overflowing its context window
+              and falling back to {{ $labels.fallback_model }}. Expected
+              occasionally - the local model stops at 262,144 input tokens and
+              the cloud target accepts 1,000,000 - but a sustained rate means a
+              consumer is routinely sending prompts the local tier can never
+              serve, so it is paying cloud rates for ALL of that traffic.
+              Consider whether that consumer should be on a cloud alias
+              outright, or should be trimming its context.
+              exception_class is matched by regex because LiteLLM prefixes it
+              with the provider (observed form: `Openai.InternalServerError`).
+            summary: LiteLLM context-window fallback is firing steadily.
+          expr: |-
+            sum by (requested_model, fallback_model) (
+              rate(litellm_deployment_successful_fallbacks_total{exception_class=~".*ContextWindowExceeded.*"}[30m])
+            ) > 0
+          for: 30m
+          labels:
+            severity: warning
+        - alert: LiteLLMDeploymentStuckFailing
+          annotations:
+            description: >-
+              Deployment {{ $labels.litellm_model_name }} ({{ $labels.api_base }})
+              is marked unhealthy AND is still producing failures. The
+              `and on(model_id)` guard is load-bearing: litellm_deployment_state
+              is a LATCHED gauge (set to 1 on any failure, back to 0 only on a
+              later success, never self-resetting), so on its own it would alert
+              forever after a single transient blip on a deployment that then
+              went idle. Pairing it with a live failure rate is what makes it
+              mean "still broken" instead of "was broken once".
+            summary: A LiteLLM deployment is unhealthy and still failing.
+          expr: |-
+            (litellm_deployment_state >= 1)
+              and on (model_id)
+            (sum by (model_id) (rate(litellm_deployment_failure_responses_total[15m])) > 0)
+          for: 15m
+          labels:
+            severity: warning
+        # 403-vs-429 split. NOTE the api_provider selector: our OWN governance
+        # denials (a virtual key calling a model outside its allow-list) also
+        # surface as exception_status="403", with exception_class="ProxyException"
+        # and an EMPTY api_provider - those are the allow-list working correctly
+        # and must never page. Selecting api_provider="anthropic" keeps this
+        # alert on genuine upstream credential rejections only.
+        - alert: LiteLLMCloudProviderAuthFailing
+          annotations:
+            description: >-
+              Anthropic is rejecting our credentials (HTTP
+              {{ $labels.exception_status }}, {{ $labels.exception_class }}).
+              The cloud fallback target is therefore NOT actually available -
+              every fallback that reaches it will exhaust the chain. Check
+              ANTHROPIC_API_KEY in the `ai-keys` 1Password item and the
+              litellm-secret ExternalSecret.
+            summary: LiteLLM cloud provider is rejecting our API credentials.
+          expr: |-
+            sum by (api_provider, exception_class, exception_status) (
+              rate(litellm_deployment_failure_responses_total{api_provider="anthropic", exception_status=~"401|403"}[15m])
+            ) > 0
+          for: 10m
+          labels:
+            severity: critical
+        - alert: LiteLLMCloudProviderQuotaExhausted
+          annotations:
+            description: >-
+              Anthropic is returning 429s. Distinct from the auth alert above
+              (that is a credential problem, this is a capacity/quota one) and
+              from LiteLLMConsumerBudgetExhausted (that is OUR budget stopping
+              us before we spend; this is the provider's). While it lasts the
+              cloud fallback cannot absorb a local outage.
+            summary: LiteLLM cloud provider is rate-limiting or out of quota.
+          expr: |-
+            sum by (api_provider) (
+              rate(litellm_deployment_failure_responses_total{api_provider="anthropic", exception_status="429"}[15m])
+            ) > 0
+          for: 10m
+          labels:
+            severity: warning
         # --- D3 auto-router (docs/ai-system/litellm/auto-router.md) ---
         # `requested_model` is the alias the CALLER asked for and
         # `model_id`/`litellm_model_name` is the deployment that actually served

@@ -29,12 +29,16 @@ spec:
     type: ClusterIP
     port: 4000
 
-  # NO spec.route - B4, non-negotiable. In-cluster consumers only: no HTTPRoute
-  # on any gateway, not even the internal one. Reach the proxy at
-  # http://litellm.ai.svc.cluster.local:4000, or from a workstation with
-  # kubeconfig access via `kubectl -n ai port-forward svc/litellm 4000:4000`.
-  # The operator only creates an HTTPRoute when spec.route is present, so
-  # omitting it is structural, not a setting.
+  # NO spec.route - still deliberate, but the reason changed on 2026-08-26.
+  # The captain approved an INTERNAL route (public listener remains forbidden),
+  # and it is shipped as a hand-written httproute-internal.yaml next to this file rather
+  # than through spec.route. Reason: the operator's route schema is exactly
+  # {hostnames, parentRefs, filters} - no annotations field - so an
+  # operator-owned route cannot carry the external-dns / Gatus / Homepage
+  # annotations this repo puts on every app route. Setting spec.route here
+  # would create a SECOND, competing HTTPRoute for the same Service; don't.
+  # In-cluster consumers are unaffected and still use
+  # http://litellm.ai.svc.cluster.local:4000.
 
   envFrom:
     # DATABASE_URL / LITELLM_MASTER_KEY / LITELLM_SALT_KEY / ANTHROPIC_API_KEY.
@@ -61,6 +65,76 @@ spec:
 
   litellmSettings:
     callbacks: ["prometheus"] # exposes /metrics on the proxy port (4000)
+
+  # --- Phase 5 fallback chains ---------------------------------------------
+  # Maps verbatim to config.yaml's router_settings (the CRD field is a
+  # free-form passthrough - `x-kubernetes-preserve-unknown-fields: true`, no
+  # typed schema, so nothing here is validated by the API server; a typo lands
+  # in the rendered config silently). Design, measurements and the post-merge
+  # failover runbook: docs/ai-system/litellm/fallbacks.md
+  routerSettings:
+    # Every model group here has exactly ONE deployment, so this is close to a
+    # no-op today and is set for a different reason than the reference repo's:
+    # it pins the safe default explicitly so `least-busy` cannot be introduced
+    # later without someone deleting this line and its rationale. `least-busy`
+    # updates its in-flight counters AFTER the routing decision, so a
+    # synchronized burst piles onto the same deployment - wrong for small
+    # deployment groups, which is all of ours.
+    routing_strategy: simple-shuffle
+
+    # -- Axis 1: AVAILABILITY (backend down or erroring) --
+    # Fires on connection errors, 5xx and other retryable provider failures.
+    #
+    # ONLY cloud-entitled aliases appear here. This list is the cloud
+    # entitlement boundary, because a config-declared fallback is NOT checked
+    # against the calling key's allow-list (measured 2026-08-26; evidence in
+    # fallbacks.md#1). Adding `qwen3.6-35b-a3b` to this list would hand every
+    # local-only key - including `demo` - a paid Anthropic model the first time
+    # the B70 hiccupped. Do not.
+    #
+    # Target is SONNET, not Opus. An availability fallback fires on
+    # INFRASTRUCTURE failure, not on task difficulty: the traffic it catches is
+    # whatever the 35B local model was already handling, so it must not be
+    # repriced as frontier work. Sonnet is 2.5x cheaper on input ($2/M vs
+    # $5/M) and 2.5x cheaper on output ($10/M vs $25/M) than Opus, and its
+    # 1,000,000-token input window is ~3.8x the local model's 262,144, so there
+    # is no capability regression in the swap. Opus stays reserved for the D3
+    # router's REASONING tier, where difficulty - not an outage - is what
+    # selects it.
+    fallbacks:
+      - chat-ha: ["claude-sonnet-5"]
+      # The D3 routed alias. Without this, a B70 outage takes `auto` down
+      # completely: the classifier call fails, the router fails OPEN to
+      # `complexity_router_default_model` (qwen3.6-35b-a3b) - which is the very
+      # backend that is down - and the request dies. `auto` is already a
+      # cloud-entitled alias by construction (its COMPLEX/REASONING tiers are
+      # Anthropic), so a cloud fallback here breaches no entitlement.
+      - auto: ["claude-sonnet-5"]
+
+    # -- Axis 2: CONTEXT WINDOW (prompt too big for this model) --
+    # A SEPARATE key on purpose: "the backend is down" and "the prompt does not
+    # fit" are different failures with different correct targets, and LiteLLM
+    # dispatches them from different exception types
+    # (ContextWindowExceededError vs the retryable provider errors above).
+    #
+    # DIRECTION VERIFIED, and it is the opposite of what was assumed. Measured
+    # 2026-08-26: the local model serves n_ctx=262,144 (llama.cpp /props, per
+    # slot, unified KV), while LiteLLM v1.98.0's cost map gives BOTH
+    # claude-sonnet-5 and claude-opus-5 max_input_tokens=1,000,000. Cloud is a
+    # ~3.8x SUPERSET, not a smaller cap, so local -> cloud is the correct
+    # direction and covers a real ~738k-token band. (Cross-check that this is
+    # the standard window and not a beta tier: the same map gives
+    # claude-sonnet-4-5 max_input=200,000 WITH premium
+    # input_cost_per_token_above_200k_tokens pricing, i.e. it models the
+    # gated-long-context concept explicitly - and the 5-generation entries
+    # carry no such premium.)
+    #
+    # There is deliberately no reverse (cloud -> local) entry: a prompt that
+    # overflows a 1M window cannot fit 262k, so it would be a chain that is
+    # guaranteed to fail on its second leg.
+    context_window_fallbacks:
+      - chat-ha: ["claude-sonnet-5"]
+      - auto: ["claude-sonnet-5"]
 
   # The CRD has no startupProbe field, so the old startup probe (30 x 10s =
   # 300s of boot budget before liveness could kill the pod) is emulated by

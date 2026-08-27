@@ -49,4 +49,4 @@ Open `https://agentgateway.${SECRET_DOMAIN}/ui/` or `https://llm.${SECRET_DOMAIN
 - `helm install kgateway ... --set agentgateway.enabled=true`
 - `curl .../openai` or `.../groq` (prefix routes are gone)
 - `kubectl -n ai-system` or `-n kgateway-system`
-- Point gateway clients at LiteLLM - it is a separate in-cluster governance layer with no gateway wiring (`../litellm/README.md`), not this gateway's `/v1`
+- Point gateway clients at LiteLLM - it is a separate governance layer (`../litellm/README.md`; internal route only, never `envoy-external`), not this gateway's `/v1`
