@@ -546,4 +546,9 @@ A stack opts into the same live-plan behavior by adding its own
 addressed via `ref+onepasswordconnect://` instead of `ref+op://`) - see
 `terraform-diff.yaml`'s header for the exact contract. A stack directory with no
 such file gets schema-only checks (`tofu fmt` + `tofu validate -backend=false`)
-and nothing more, same as today's `validate.yaml` terraform job.
+and nothing more, same as today's `validate.yaml` terraform job. If the opt-in
+file is present but `OP_CONNECT_TOKEN` has not been created yet, the workflow
+emits a clear warning and takes that same schema-only path rather than
+half-running `vals`/`tofu` without credentials - so PRs stay green and useful
+before the one-time captain secret setup, and flip to a real plan automatically
+once the secret exists.

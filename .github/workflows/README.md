@@ -167,7 +167,7 @@ workflow and stays behind that doc's section 7 gate.
 - `plan` - Per changed stack (matrix): `tofu fmt -check`, `tofu init`, `tofu validate`; when `secrets-ci.vals.yaml` exists, also real `tofu plan -lock=false` + PR comment via `borchero/terraform-plan-comment`; otherwise schema-only (`-backend=false`, no credentials)
 - `success` - Aggregates job results
 
-**Runner / secrets:** local ARC runner (in-cluster Connect + Ceph RGW have no external ingress). Same-repo fork guard on every job. Requires `OP_CONNECT_TOKEN` (Automation-vault Connect token) plus existing `BOT_APP_ID`/`BOT_APP_PRIVATE_KEY` for the plan comment; fails clearly when required secrets are absent.
+**Runner / secrets:** local ARC runner (in-cluster Connect + Ceph RGW have no external ingress). Same-repo fork guard on every job. Live plan requires `OP_CONNECT_TOKEN` (Automation-vault Connect token) plus existing `BOT_APP_ID`/`BOT_APP_PRIVATE_KEY` for the plan comment. When the opt-in file is present but `OP_CONNECT_TOKEN` is unset, the job warns loudly and falls back to schema-only checks rather than half-running vals/tofu without credentials.
 
 ### terraform-publish
 

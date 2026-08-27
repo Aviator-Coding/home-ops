@@ -96,7 +96,9 @@ def simulate_plan_path(
     for stack in changed_dirs:
         if has_ci_secrets.get(stack, False):
             if not op_token:
-                results.append((stack, "fail_missing_secret"))
+                # Opt-in file present but token missing: schema-only fallback,
+                # never a hard-fail half-run into vals without credentials.
+                results.append((stack, "schema_only_missing_secret"))
             else:
                 results.append((stack, "live_plan"))
         else:
@@ -127,13 +129,15 @@ def test_diff_workflow_shape() -> dict[str, Any]:
     assert plan["strategy"].get("fail-fast") is False
 
     steps = plan["steps"]
-    opt_in = step_by_name(steps, "Check For Live-Plan Opt-In")
-    assert "secrets-ci.vals.yaml" in opt_in["run"]
-
-    require = step_by_name(steps, "Require CI Credentials")
-    assert require.get("if") == "steps.ci-secrets.outputs.file != ''"
-    assert "OP_CONNECT_TOKEN" in require.get("env", {})
-    assert "::error::" in require["run"] and "exit 1" in require["run"]
+    resolve = step_by_name(steps, "Resolve Live-Plan Mode")
+    assert "secrets-ci.vals.yaml" in resolve["run"]
+    assert "OP_CONNECT_TOKEN" in resolve.get("env", {})
+    # Missing token must not half-run live plan; it falls back to schema-only.
+    assert "schema_only_missing_secret" in resolve["run"]
+    assert "mode=live_plan" in resolve["run"]
+    assert "::warning::" in resolve["run"]
+    # Must not hard-fail the job when the captain has not created the secret yet.
+    assert "exit 1" not in resolve["run"]
 
     init = step_by_name(steps, "Tofu Init")
     assert "vals exec" in init["run"]
@@ -219,7 +223,7 @@ def test_decision_tree() -> dict[str, Any]:
                 has_ci_secrets={"terraform/authentik": True},
                 op_token=None,
             ),
-            ("terraform/authentik", "fail_missing_secret"),
+            ("terraform/authentik", "schema_only_missing_secret"),
         ),
         "live_plan": (
             simulate_plan_path(
@@ -261,41 +265,69 @@ def test_decision_tree() -> dict[str, Any]:
 
 
 def test_missing_secret_gate_executes() -> dict[str, Any]:
-    """Run the same shell logic the workflow embeds."""
+    """Run the same resolve-mode shell logic the workflow embeds."""
     script = r"""
 set -euo pipefail
-if [ -z "${OP_CONNECT_TOKEN:-}" ]; then
-  echo "::error::terraform/authentik opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. See docs/authentik/terraform.md section 8 for what to create and why."
-  exit 1
+OUT=$(mktemp)
+if [ ! -f secrets-ci.vals.yaml ]; then
+  echo "file=" >> "$OUT"
+  echo "mode=schema_only" >> "$OUT"
+elif [ -z "${OP_CONNECT_TOKEN:-}" ]; then
+  echo "::warning::terraform/authentik opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 8 for what to create and why."
+  echo "file=" >> "$OUT"
+  echo "mode=schema_only_missing_secret" >> "$OUT"
+else
+  echo "file=secrets-ci.vals.yaml" >> "$OUT"
+  echo "mode=live_plan" >> "$OUT"
 fi
-echo continued
+cat "$OUT"
+# Live-plan steps only run when file is non-empty - mirror the workflow gate.
+file_val=$(grep '^file=' "$OUT" | tail -1 | cut -d= -f2-)
+if [ -n "$file_val" ]; then
+  if [ -z "${OP_CONNECT_TOKEN:-}" ]; then
+    echo "half_run_prevented_failed"
+    exit 1
+  fi
+  echo "would_run_live_plan"
+else
+  echo "schema_only_path"
+fi
 """
     env_base = {k: v for k, v in os.environ.items() if k != "OP_CONNECT_TOKEN"}
+    work = ROOT / "terraform" / "authentik"
+
     missing = subprocess.run(
         ["bash", "-lc", script],
+        cwd=work,
         env=env_base,
         capture_output=True,
         text=True,
         check=False,
     )
-    assert missing.returncode == 1
+    assert missing.returncode == 0, missing.stdout + missing.stderr
     combined = missing.stdout + missing.stderr
     assert "OP_CONNECT_TOKEN repository secret is not set" in combined
-    assert "continued" not in combined
+    assert "mode=schema_only_missing_secret" in combined
+    assert "schema_only_path" in combined
+    assert "would_run_live_plan" not in combined
+    assert "half_run_prevented_failed" not in combined
 
     present = subprocess.run(
         ["bash", "-lc", script],
+        cwd=work,
         env={**env_base, "OP_CONNECT_TOKEN": "dummy-not-used"},
         capture_output=True,
         text=True,
         check=False,
     )
-    assert present.returncode == 0
-    assert "continued" in present.stdout
+    assert present.returncode == 0, present.stdout + present.stderr
+    assert "mode=live_plan" in present.stdout
+    assert "would_run_live_plan" in present.stdout
     return {
         "missing_exit": missing.returncode,
-        "missing_message": combined.strip().splitlines()[0],
+        "missing_mode": "schema_only_missing_secret",
         "present_exit": present.returncode,
+        "present_mode": "live_plan",
     }
 
 

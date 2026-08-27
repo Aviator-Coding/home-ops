@@ -29,7 +29,11 @@
 # A stack directory with no `secrets-ci.vals.yaml` gets schema-only checks
 # (the same `-backend=false` posture as validate.yaml's terraform job) and
 # nothing more - this is the fallback for any future terraform/* stack that
-# has not opted into a live plan.
+# has not opted into a live plan. The same schema-only path is taken (with a
+# loud warning, never a half-run into vals) when the opt-in file is present
+# but OP_CONNECT_TOKEN has not been created yet - so this workflow stays
+# green and useful before the one-time captain secret setup, and flips to a
+# real plan automatically once the secret exists.
 #
 # Fork guard: every job here lands on the local ARC runner, because the live
 # state backend (Ceph RGW) and 1Password Connect are in-cluster with no
@@ -108,28 +112,35 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check For Live-Plan Opt-In
+      # Resolve live-plan mode before installing tools or calling vals/tofu.
+      # Three outcomes, never a half-run into a confusing vals error:
+      #   - no secrets-ci.vals.yaml            -> schema_only
+      #   - secrets-ci.vals.yaml + token set   -> live_plan
+      #   - secrets-ci.vals.yaml + token empty -> schema_only with a loud
+      #     warning (captain has not created OP_CONNECT_TOKEN yet). Live-plan
+      #     steps stay gated off; fmt/init -backend=false/validate still run
+      #     so the PR keeps a green, useful check. Once the secret exists the
+      #     same workflow activates the real plan with no further code change.
+      # See docs/authentik/terraform.md section 8.
+      - name: Resolve Live-Plan Mode
         id: ci-secrets
         working-directory: ${{ matrix.stack }}
-        run: |
-          if [ -f secrets-ci.vals.yaml ]; then
-            echo "file=secrets-ci.vals.yaml" >> "$GITHUB_OUTPUT"
-          else
-            echo "file=" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Fails loud and early, before installing anything, rather than half-
-      # running into a confusing vals/tofu error. See docs/authentik/terraform.md
-      # section 8 for exactly what this secret is and how to create it.
-      - name: Require CI Credentials
-        if: steps.ci-secrets.outputs.file != ''
         env:
           OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
         run: |
-          if [ -z "${OP_CONNECT_TOKEN}" ]; then
-            echo "::error::${{ matrix.stack }} opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. See docs/authentik/terraform.md section 8 for what to create and why."
-            exit 1
+          if [ ! -f secrets-ci.vals.yaml ]; then
+            echo "file=" >> "$GITHUB_OUTPUT"
+            echo "mode=schema_only" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          if [ -z "${OP_CONNECT_TOKEN}" ]; then
+            echo "::warning::${{ matrix.stack }} opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 8 for what to create and why."
+            echo "file=" >> "$GITHUB_OUTPUT"
+            echo "mode=schema_only_missing_secret" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "file=secrets-ci.vals.yaml" >> "$GITHUB_OUTPUT"
+          echo "mode=live_plan" >> "$GITHUB_OUTPUT"
 
       # opentofu and vals come from .mise.toml so this plans with the same
       # versions the runbook tells an operator to use locally.
