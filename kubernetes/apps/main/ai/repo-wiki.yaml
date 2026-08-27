@@ -12,9 +12,11 @@ spec:
   components:
     - ../../../../../components/volsync
   healthChecks:
+    # app-template names multi-controller Deployments <release>-<controller>,
+    # so the mkdocs workload is repo-wiki-mkdocs (not repo-wiki).
     - apiVersion: apps/v1
       kind: Deployment
-      name: *app
+      name: repo-wiki-mkdocs
       namespace: *namespace
   dependsOn:
     - name: onepassword-store

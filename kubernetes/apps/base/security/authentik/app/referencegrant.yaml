@@ -15,6 +15,10 @@ spec:
     - group: gateway.envoyproxy.io
       kind: SecurityPolicy
       namespace: network
+    # ai/opencode (and any future ai-namespace extAuth SecurityPolicy)
+    - group: gateway.envoyproxy.io
+      kind: SecurityPolicy
+      namespace: ai
   to:
     - group: ""
       kind: Service

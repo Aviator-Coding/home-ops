@@ -30,27 +30,6 @@
             "context": 140000,
             "output": 16384
           }
-        },
-        "qwen3.6-35b-a3b": {
-          "name": "Qwen3.6-35B-A3B (local)",
-          "limit": {
-            "context": 140000,
-            "output": 16384
-          }
-        },
-        "claude-sonnet-5": {
-          "name": "Claude Sonnet 5",
-          "limit": {
-            "context": 200000,
-            "output": 64000
-          }
-        },
-        "claude-opus-5": {
-          "name": "Claude Opus 5",
-          "limit": {
-            "context": 200000,
-            "output": 32000
-          }
         }
       }
     }
