@@ -65,6 +65,7 @@ ACTIVE_SERVERS = frozenset(
         "github",
         "grafana-mcp",
         "kubectl",
+        "kubesearch",
         "memory",
     }
 )
