@@ -20,8 +20,25 @@ terraform {
     key    = "authentik/authentik.tfstate"
     region = "us-east-1"
 
+    # NOT https://s3.sklab.dev, and this is not a preference. Measured 2026-08-27:
+    # every request from OpenTofu's S3 client through the `envoy-internal`
+    # gateway fails with SignatureDoesNotMatch, while the identical credentials
+    # against the RGW Service directly succeed.
+    #
+    # The cause is which headers get signed. aws-sdk-go-v2 puts
+    # `accept-encoding`, `amz-sdk-invocation-id` and `amz-sdk-request` in
+    # SignedHeaders; boto3 and minio-go sign none of them. Envoy rewrites one of
+    # those in transit, so RGW recomputes a different signature and rejects the
+    # request. That is also why nothing noticed before: VolSync (restic/minio-go)
+    # and every other S3 client in this cluster keep working through the same
+    # route, and a boto3 ListObjectsV2 against this exact bucket returns 200.
+    #
+    # So the endpoint is the RGW Service, reached through a port-forward the
+    # operator opens first (see docs/authentik/terraform.md section 3). State
+    # traffic then never touches the gateway at all, which for a bucket holding
+    # every adopted client secret is the better posture anyway.
     endpoints = {
-      s3 = "https://s3.sklab.dev"
+      s3 = "http://127.0.0.1:18081"
     }
 
     # S3-native state locking. RGW supports the conditional-write semantics
