@@ -1,0 +1,84 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Claude Code Max/Pro SUBSCRIPTION pass-through (captain request 2026-08-27:
+# "use the claude code subscription claude-code cli and get more insight").
+#
+# UNLIKE EVERY OTHER CLOUD MODEL IN THIS DIRECTORY, THE PROXY HOLDS NO
+# CREDENTIAL FOR THIS ONE. Each caller's own `claude` CLI is logged in to a
+# personal Claude subscription and sends its own OAuth token
+# (`Authorization: Bearer sk-ant-oat...`) on every request; LiteLLM forwards it
+# upstream and the tokens are billed to that person's flat-rate subscription,
+# not to this household's metered `ANTHROPIC_API_KEY`. What the cluster gets in
+# return is observability: per-request tokens/duration and per-virtual-key
+# attribution for traffic that would otherwise bypass the proxy entirely.
+#
+# Client runbook (env vars, how to get a virtual key, the one-time interactive
+# OAuth login), the full header-forwarding mechanism, and the security
+# measurements behind the two rules below:
+# docs/ai-system/litellm/claude-code-subscription.md
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: claude-code-subscription
+spec:
+  modelName: claude-code-subscription
+  proxyRef: litellm
+  params:
+    # Resolved against Anthropic's DIRECT catalog (models/kustomization.yaml
+    # rule 3), same dash-form id family as the sibling claude-sonnet-5 CR.
+    # Sonnet is what `claude` drives by default; an Opus alias would be a
+    # second CR, not an edit here.
+    model: anthropic/claude-sonnet-5
+
+    # NOT `os.environ/ANTHROPIC_API_KEY`, and NOT omitted. Both of those spend
+    # this household's metered money on traffic the caller believes their
+    # subscription is paying for:
+    #
+    #   - Omitting apiKey does NOT make the model credential-less. LiteLLM
+    #     resolves `AnthropicModelInfo.get_api_key(None)` as
+    #     `api_key or get_secret_str("ANTHROPIC_API_KEY")`, and the proxy pod
+    #     carries ANTHROPIC_API_KEY via the proxy's envFrom - so a caller who
+    #     forgets the OAuth header SILENTLY bills the shared metered key.
+    #     Measured in the running pod 2026-08-27: get_api_key(None) returns the
+    #     real `sk-ant-api...` key.
+    #   - This placeholder is not a secret and authenticates nothing. It exists
+    #     so `api_key` is non-None (blocking that env fallback) while still
+    #     carrying the `sk-ant-oat` prefix, which routes the request down
+    #     LiteLLM's OAuth branch. A caller who sends no token therefore gets
+    #     Anthropic's own self-describing 401 "OAuth access token is invalid."
+    #     and spends nothing, instead of a silent metered charge.
+    #
+    # A real client OAuth token OVERRIDES this value - proven live, see the
+    # doc's B2/C2 measurements - so the placeholder is never used when the
+    # feature is working as intended.
+    apiKey: "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
+
+  info:
+    # DELIBERATE EXCEPTION to this directory's "no info.extra prices on cloud
+    # models" rule (models/kustomization.yaml), and it is the same rule, not a
+    # break from it: prices here must match the invoice. For every other cloud
+    # model the invoice is metered per token, so LiteLLM's built-in cost map IS
+    # the invoice and hand-written prices would decouple the two. This model's
+    # invoice is a person's FLAT-RATE subscription: no per-token line exists,
+    # so the built-in map is what decouples spend from reality - it would price
+    # subscription traffic at claude-sonnet-5's metered rate and inflate that
+    # consumer's D4 budget with dollars nobody is ever charged. (This repo has
+    # already been bitten by exactly that shape once; see the reference
+    # cluster's "$239/30d phantom spend on a flat-rate plan" note in
+    # docs/ai-system/litellm/README.md.)
+    #
+    # Zero is honoured, not mistaken for "unset": LiteLLM's
+    # use_custom_pricing_for_model() tests `is not None`, not truthiness, so an
+    # explicit 0 selects custom pricing while OMITTING these keys is what falls
+    # back to the metered cost map. Verified live in the pod 2026-08-27 for
+    # both /v1/chat/completions and /v1/messages (it reads model_info from
+    # `litellm_metadata` on the latter). Evidence: the doc's pricing section.
+    #
+    # Consequence, stated plainly: D4 *budgets* cannot constrain this model,
+    # because $0 spend never reaches a maxBudget. The real ceiling is
+    # Anthropic's own subscription rate limiting, plus the rpmLimit/tpmLimit on
+    # whichever LiteLLMVirtualKey is allowed to call it - so grant it with
+    # those set, never on a budget alone.
+    extra:
+      input_cost_per_token: 0
+      output_cost_per_token: 0

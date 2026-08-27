@@ -19,12 +19,19 @@ kind: Kustomization
 # config-declared fallback chain, which bypasses the calling key's allow-list -
 # see ../../README.md and docs/ai-system/litellm/fallbacks.md before adding one.
 #
-# NO `info.extra` PRICES on any cloud model here, deliberately. LiteLLM's
-# built-in model-cost map already prices them in real USD, which is what the
-# per-consumer D4 budgets must measure; hand-written prices would silently
-# decouple recorded spend from the invoice. `info.extra` appears only on
-# qwen3.6-35b-a3b, whose local traffic has no invoice to match and whose
-# governance-accounting prices exist so a tiny demo budget can be exhausted.
+# NO `info.extra` PRICES on any METERED cloud model here, deliberately.
+# LiteLLM's built-in model-cost map already prices them in real USD, which is
+# what the per-consumer D4 budgets must measure; hand-written prices would
+# silently decouple recorded spend from the invoice. The rule is "declared
+# prices must match the invoice", so the two exceptions are models whose
+# invoice is not metered per token:
+#   - qwen3.6-35b-a3b, local traffic with no invoice at all, carrying
+#     governance-accounting prices so a tiny demo budget can be exhausted.
+#   - claude-code-subscription, billed to a caller's own FLAT-RATE Claude
+#     subscription, priced at an explicit $0 so the metered cost map cannot
+#     inflate a D4 budget with dollars nobody is charged. Read that file's
+#     header before copying its shape - it is the only entry here for which
+#     the proxy holds no credential.
 #
 # The 2026-08-27 batch resolved every id against the live provider catalog
 # rather than the sheet's display names; two rows had no real-catalog match and
@@ -33,6 +40,7 @@ kind: Kustomization
 resources:
   - ./auto.yaml
   - ./chat-ha.yaml
+  - ./claude-code-subscription.yaml
   - ./claude-fable-5.yaml
   - ./claude-opus-4-8.yaml
   - ./claude-opus-5.yaml
