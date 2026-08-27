@@ -10,7 +10,6 @@ namespace: ai
 # Ordering and the operator itself: kubernetes/apps/main/ai/litellm-operator.yaml.
 resources:
   - ./externalsecret.yaml
-  - ./secretstore-automation.yaml
   - ./pushsecret-sso.yaml
   - ./dbinit.yaml
   - ./litellmproxy.yaml
