@@ -32,11 +32,14 @@ budgets.
 
 ## Scope (binding, from B4/D4)
 
-- **B4**: LiteLLM does **not** front the public listener, or any listener at
-  all. In-cluster consumers only - no `HTTPRoute`, no
-  `AgentgatewayBackend`, no route of any kind. Reachable only at
-  `http://litellm.ai.svc.cluster.local:4000`, from inside the cluster, or via
-  `kubectl port-forward` for a human operator.
+- **B4**: LiteLLM does **not** front the **public** listener - no
+  `envoy-external` parentRef, no `AgentgatewayBackend`. That half is unchanged
+  and non-negotiable.
+  **Amended 2026-08-26 (captain instruction):** the internal gateway is now
+  allowed. `kubernetes/apps/base/ai/litellm/app/httproute.yaml` attaches to
+  `envoy-internal` at `litellm.${SECRET_DOMAIN}`. In-cluster consumers still
+  use `http://litellm.ai.svc.cluster.local:4000` and nothing about that path
+  changed; `kubectl port-forward` also still works.
 - **B4**: Zero changes to `agentgateway/` (this cluster's actual AI gateway,
   built on the standalone AgentGateway product - "envoy AI gateway" in some
   captain shorthand) or to `vllm/`. This app only *reads* `vllm-app`'s
@@ -176,7 +179,9 @@ kubectl -n ai describe litellmvirtualkey demo
 #    operator-owned Secret:
 DEMO_KEY=$(kubectl -n ai get secret litellm-key-demo -o jsonpath='{.data.key}' | base64 -d)
 
-# 3. Port-forward the proxy (it has no route by design - B4).
+# 3. Port-forward the proxy. (Since 2026-08-26 it also has an internal route
+#    at https://litellm.${SECRET_DOMAIN}; port-forward stays the
+#    dependency-free path and is what this runbook uses.)
 kubectl -n ai port-forward svc/litellm 4000:4000 &
 
 # 4. Golden path: call the allow-listed model. Expect a normal completion.

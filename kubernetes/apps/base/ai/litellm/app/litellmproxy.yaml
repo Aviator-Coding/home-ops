@@ -29,12 +29,16 @@ spec:
     type: ClusterIP
     port: 4000
 
-  # NO spec.route - B4, non-negotiable. In-cluster consumers only: no HTTPRoute
-  # on any gateway, not even the internal one. Reach the proxy at
-  # http://litellm.ai.svc.cluster.local:4000, or from a workstation with
-  # kubeconfig access via `kubectl -n ai port-forward svc/litellm 4000:4000`.
-  # The operator only creates an HTTPRoute when spec.route is present, so
-  # omitting it is structural, not a setting.
+  # NO spec.route - still deliberate, but the reason changed on 2026-08-26.
+  # The captain approved an INTERNAL route (public listener remains forbidden),
+  # and it is shipped as a hand-written httproute.yaml next to this file rather
+  # than through spec.route. Reason: the operator's route schema is exactly
+  # {hostnames, parentRefs, filters} - no annotations field - so an
+  # operator-owned route cannot carry the external-dns / Gatus / Homepage
+  # annotations this repo puts on every app route. Setting spec.route here
+  # would create a SECOND, competing HTTPRoute for the same Service; don't.
+  # In-cluster consumers are unaffected and still use
+  # http://litellm.ai.svc.cluster.local:4000.
 
   envFrom:
     # DATABASE_URL / LITELLM_MASTER_KEY / LITELLM_SALT_KEY / ANTHROPIC_API_KEY.

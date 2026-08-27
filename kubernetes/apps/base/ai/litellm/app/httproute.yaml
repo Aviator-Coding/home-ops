@@ -1,0 +1,63 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# INTERNAL-ONLY route for the LiteLLM proxy (captain instruction, 2026-08-26).
+#
+# B4 as it now stands: LiteLLM never fronts the PUBLIC listener - that half of
+# the decision is unchanged and still non-negotiable. Only the internal gateway
+# is relaxed, and only on the captain's explicit instruction. There is no
+# `envoy-external` parentRef here and there must never be one; see this app's
+# README.md for the full current wording.
+#
+# WHY A STANDALONE HTTPRoute AND NOT THE OPERATOR'S `spec.route`:
+# not for DNS. `spec.route` would in fact have resolved correctly - the
+# `envoy-internal` Gateway itself carries
+# `external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}` and
+# external-dns inherits it for every attached route (verified live 2026-08-26:
+# searxng and jellyfin carry NO route-level target annotation and both resolve
+# via CNAME to internal.${SECRET_DOMAIN}). The reason is ANNOTATIONS: the
+# operator's route schema is exactly {hostnames, parentRefs, filters} and has
+# no annotations field at all, so an operator-owned route cannot carry the
+# `gatus.home-operations.com/endpoint` or `gethomepage.dev/*` keys this repo
+# puts on every app route.
+#
+# That matters concretely rather than cosmetically. Gatus DOES auto-discover
+# routes with no annotation (the same Gateway carries
+# `gatus.home-operations.com/endpoint: "group: internal"`), but it then applies
+# a default `[STATUS] == 200` check against `/` - which is why `agentmemory`
+# (404) and `mcp-gateway` (406) currently sit permanently red in Gatus. Owning
+# the annotation lets this app point its check at a real health endpoint and
+# land in the `ai` group instead of `internal`.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: litellm
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: AI
+    gethomepage.dev/name: LiteLLM
+    gethomepage.dev/description: "LLM governance proxy - virtual keys, budgets, fallback chains"
+    gethomepage.dev/icon: litellm.png
+    # Redundant given the Gateway-level annotation above, kept because every
+    # other app route in this repo states its target explicitly.
+    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    # /health/readiness, not / - it returns {"status":"healthy","db":"connected"}
+    # and so also covers the Postgres dependency that the virtual-key and spend
+    # machinery needs, whereas / only proves the web server is up. Verified
+    # unauthenticated 200 on the live proxy 2026-08-26 (the /metrics endpoint
+    # requires a Bearer token, but the health endpoints do not).
+    gatus.home-operations.com/endpoint: |-
+      group: ${GATUS_GROUP}
+      conditions: ["[STATUS] == 200", "[BODY].status == healthy"]
+      url: "https://litellm.${SECRET_DOMAIN}/health/readiness"
+spec:
+  hostnames:
+    - "litellm.${SECRET_DOMAIN}"
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: litellm
+          namespace: ai
+          port: 4000

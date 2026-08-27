@@ -12,6 +12,7 @@ resources:
   - ./externalsecret.yaml
   - ./dbinit.yaml
   - ./litellmproxy.yaml
+  - ./httproute.yaml
   - ./models
   - ./virtualkeys
   - ./servicemonitor.yaml
