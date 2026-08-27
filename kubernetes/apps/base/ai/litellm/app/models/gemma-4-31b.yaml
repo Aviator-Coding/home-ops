@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Tier C - Lightweight (own-it floor).
+# Source: captain's `indydevdan-model-stack` sheet, 2026-08-27.
+#
+# OpenRouter is the only credential this repo holds that reaches this
+# vendor, so it is the route by necessity, not preference.
+# Model id verified against the live provider catalog: GET https://openrouter.ai/api/v1/models (2026-08-27).
+#
+# Instruction-tuned `-it` suffix is part of the real id; there is no
+# non-`it` Gemma 4 31B in the catalog.
+#
+# REGISTRATION ONLY - see ./kustomization.yaml for what that does and does
+# not grant, and for why no `info.extra` prices appear here.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: gemma-4-31b
+spec:
+  modelName: gemma-4-31b
+  proxyRef: litellm
+  params:
+    model: openrouter/google/gemma-4-31b-it
+    apiKey: os.environ/OPENROUTER_API_KEY

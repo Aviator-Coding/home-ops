@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Tier A - Workhorse (daily driver).
+# Source: captain's `indydevdan-model-stack` sheet, 2026-08-27.
+#
+# Direct Z.ai route. `zai/` is a NATIVE LiteLLM provider on the pinned
+# v1.98.0 image (verified: resolves to https://api.z.ai/api/paas/v4), so no
+# `apiBase` override and no `openai/`-compatible shim is needed.
+# Model id verified against the live provider catalog: GET https://api.z.ai/api/paas/v4/models (2026-08-27).
+#
+# REGISTRATION ONLY - see ./kustomization.yaml for what that does and does
+# not grant, and for why no `info.extra` prices appear here.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: glm-5.3
+spec:
+  modelName: glm-5.3
+  proxyRef: litellm
+  params:
+    model: zai/glm-5.3
+    apiKey: os.environ/ZAI_API_KEY
