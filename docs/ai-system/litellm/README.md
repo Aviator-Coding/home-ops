@@ -10,6 +10,15 @@ governance layer that sits *beside* `agentgateway`, not in front of it.
 Manifests: `kubernetes/apps/base/ai/litellm/`. App-level detail (image,
 prerequisites, RBAC): `kubernetes/apps/base/ai/litellm/README.md`.
 
+The **complexity-tier auto-router** (captain decision D3, added 2026-08-26) is
+one additive model alias on top of everything described here: design, tier
+definitions, measured classifier latency/accuracy, and how to tune the
+classifier prompt and thresholds all live in
+[`auto-router.md`](auto-router.md). Nothing on this page changes because of
+it - the direct model names, the virtual-key minting flow and the budgets
+behave exactly as documented below, and routed calls bind to those same
+budgets.
+
 ## Scope (binding, from B4/D4)
 
 - **B4**: LiteLLM does **not** front the public listener, or any listener at
@@ -25,15 +34,17 @@ prerequisites, RBAC): `kubernetes/apps/base/ai/litellm/README.md`.
   spend/rate budget per virtual key, with deliberately tiny initial values,
   "we will expand later."
 
-The captain's lab proved this works with a **six-line `model_list`** pointed
-at the local chat backend, at **7.4ms** proxy overhead. That six-line block
-is the `model_list` entry in
-`kubernetes/apps/base/ai/litellm/app/resources/config.yaml` (the file also
-carries additive `model_info` governance-accounting prices so virtual-key
-spend can accrue, plus the Prometheus metrics callback - neither was part of
-the lab result). Nobody could find that lab result committed anywhere in the
-repo before this change (see the scout report referenced in D4's decision
-trail) - this doc is that write-up.
+The captain's lab proved the governance path works with a **six-line
+`model_list`** pointed at the local chat backend, at **7.4ms** proxy
+overhead. That six-line block is still the direct `qwen3.6-35b-a3b` entry in
+`kubernetes/apps/base/ai/litellm/app/resources/config.yaml` (plus its
+`model_info` governance-accounting prices so virtual-key spend can accrue,
+and the Prometheus metrics callback - neither was part of the lab result).
+D3's additive `auto` router, classifier deployment and cloud tier backends
+live in the same file and are owned by [`auto-router.md`](auto-router.md).
+Nobody could find that lab result committed anywhere in the repo before the
+B4/D4 redeploy (see the scout report referenced in D4's decision trail) -
+this doc is that write-up.
 
 ## Why Postgres
 
@@ -116,7 +127,7 @@ redesign" property D4 asked for.
 
 | Knob | Value | Why this number | Raise it |
 | --- | --- | --- | --- |
-| `models` | `["qwen3.6-35b-a3b"]` | The only model this proxy actually serves today (the six-line `model_list`). | Add the model to `config.yaml`'s `model_list` first, then to this consumer's `models`. |
+| `models` | `["qwen3.6-35b-a3b"]` | The local chat backend. Since D3 the proxy also serves the `auto` router alias and its Anthropic tier backends, but `demo` is deliberately *not* given them - see the `router-demo` consumer and [`auto-router.md`](auto-router.md#budgets) for the routed-consumer shape. | Add the model to `config.yaml`'s `model_list` first, then to this consumer's `models`. |
 | `maxBudget` | `0.05` (USD) | Small enough to exhaust in one manual smoke test, so the budget enforcement path (`429`) is trivially exercisable, not just theoretical. Spend is computed from the per-token prices on the model in `config.yaml` (`model_info.input_cost_per_token` / `output_cost_per_token`) - those are governance-accounting prices, not cloud billing; without non-zero prices LiteLLM records $0 spend and `max_budget` never trips. | Edit the number in `consumers.json` (and the model prices in `config.yaml` if the burn rate should change too). |
 | `budgetDuration` | `30d` | Spend resets monthly rather than being a one-time lifetime cap that permanently bricks the key. | Any LiteLLM duration string (`7d`, `1mo`, ...). |
 | `rpmLimit` | `2` | Deliberately below any real interactive workload - proves the limiter fires without needing sustained load. | Raise once a real consumer is wired up. |
@@ -124,11 +135,12 @@ redesign" property D4 asked for.
 
 ## Verification runbook
 
-**This cannot be run from a firstmate crewmate worktree** - this cluster has
-no reachable API server or 1Password session from that sandbox (bare-metal
-LAN cluster, no cloud access). Run this from a workstation with `kubectl`
-context `home-ops` and 1Password CLI access, after the 1Password item and
-this PR are both merged and Flux has reconciled:
+**1Password writes still need a workstation session** - creating the
+prerequisite `litellm` item is a human step and cannot be done from an agent
+sandbox. The `kubectl` half of this runbook *is* reachable read-only from a
+firstmate crewmate worktree with the repo's kubeconfig (corrected 2026-08-26:
+the earlier claim that the API server was unreachable from there is wrong).
+Run this after the 1Password item exists and Flux has reconciled this PR:
 
 ```bash
 # 1. Confirm the proxy and the provisioning Job both came up clean.

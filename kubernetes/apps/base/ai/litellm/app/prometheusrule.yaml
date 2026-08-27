@@ -41,3 +41,63 @@ spec:
           for: 5m
           labels:
             severity: warning
+        # --- D3 auto-router (docs/ai-system/litellm/auto-router.md) ---
+        # `requested_model` is the alias the CALLER asked for and
+        # `model_id`/`litellm_model_name` is the deployment that actually served
+        # it, so `requested_model="auto"` split by model name IS the per-tier
+        # routing breakdown - verified against a live /metrics scrape
+        # 2026-08-26. The classifier is a separate model_name on purpose, which
+        # is what makes these two series separable from ordinary local chat.
+        - alert: LiteLLMRouterClassifierFailingOpen
+          annotations:
+            description: >-
+              The auto-router's local classifier is erroring or timing out for a
+              sustained share of routed requests, so requests are failing OPEN to
+              the local default tier without being classified. Traffic is still
+              served (that is the design), but complex work is silently getting
+              the small model. Check vllm-app health and B70 contention first,
+              then raise classifier_llm_config.timeout_ms if the GPU is merely
+              slow rather than broken.
+            summary: LiteLLM auto-router classifier is failing open to the local tier.
+          expr: |-
+            sum(rate(litellm_deployment_failure_responses_total{requested_model="qwen3.6-35b-a3b-classifier"}[15m]))
+              /
+            clamp_min(sum(rate(litellm_deployment_total_requests_total{requested_model="qwen3.6-35b-a3b-classifier"}[15m])), 0.001)
+              > 0.2
+          for: 15m
+          labels:
+            severity: warning
+        - alert: LiteLLMRouterClassifierSlow
+          annotations:
+            description: >-
+              Mean auto-router classifier latency is above 6s over 30m. That
+              latency rides EVERY routed request before any tokens are produced,
+              and it is close enough to the 8s classifier timeout that requests
+              are about to start failing open. Measured healthy baseline on the
+              B70 is p50 3.0s / p95 4.6s.
+            summary: LiteLLM auto-router classifier is slow enough to threaten the timeout.
+          expr: |-
+            sum(rate(litellm_llm_api_latency_metric_sum{requested_model="qwen3.6-35b-a3b-classifier"}[30m]))
+              /
+            clamp_min(sum(rate(litellm_llm_api_latency_metric_count{requested_model="qwen3.6-35b-a3b-classifier"}[30m])), 0.001)
+              > 6
+          for: 30m
+          labels:
+            severity: warning
+        - alert: LiteLLMRouterCloudTierShare
+          annotations:
+            description: >-
+              More than half of auto-router traffic is being classified into a
+              cloud tier over the last hour. The router exists to keep cheap work
+              local, so a sustained majority landing on Anthropic means either the
+              traffic really did get harder, or the classifier/rubric has drifted.
+              Tuning guidance: docs/ai-system/litellm/auto-router.md#tuning.
+            summary: LiteLLM auto-router is sending most traffic to the cloud tier.
+          expr: |-
+            sum(rate(litellm_deployment_success_responses_total{requested_model="auto", litellm_model_name=~"claude-.*"}[1h]))
+              /
+            clamp_min(sum(rate(litellm_deployment_success_responses_total{requested_model="auto"}[1h])), 0.001)
+              > 0.5
+          for: 1h
+          labels:
+            severity: warning

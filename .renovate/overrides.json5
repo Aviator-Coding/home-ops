@@ -2,10 +2,15 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
-      description: "Handle LiteLLM non-standard main-vX.Y.Z-stable tag format",
+      // Upstream dropped main-vX.Y.Z-stable after v1.81.x; tags are plain vX.Y.Z.
+      // Floor at v1.93.0: below that classifier_type: llm is silently ignored
+      // (ComplexityRouterConfig extra="allow") and the router falls back to the
+      // 25%-accurate rule-based scorer. See docs/ai-system/litellm/auto-router.md.
+      description: "LiteLLM plain vX.Y.Z tags; floor >=1.93.0 for LLM classifier",
       matchDatasources: ["docker"],
       matchPackageNames: ["ghcr.io/berriai/litellm-non_root"],
-      versioning: "regex:^main-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-stable$",
+      versioning: "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      allowedVersions: ">=1.93.0",
     },
     {
       description: "Override Helmfile Dependency Name",

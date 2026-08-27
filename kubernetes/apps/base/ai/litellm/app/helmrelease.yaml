@@ -55,7 +55,15 @@ spec:
           app:
             image:
               repository: ghcr.io/berriai/litellm-non_root
-              tag: main-v1.83.14-stable
+              # v1.93.0 is the FLOOR for the D3 auto-router: `classifier_type:
+              # llm` and `classifier_llm_config` first exist there. Below it
+              # ComplexityRouterConfig is `extra="allow"`, so those keys parse
+              # clean and are then IGNORED - the router silently runs the
+              # rule-based scorer the reference repo measured at 25-35% tier
+              # accuracy. Do not let Renovate float this below v1.93.0.
+              # Upstream also dropped the `main-vX.Y.Z-stable` tag scheme after
+              # v1.81.x; current releases are plain `vX.Y.Z`.
+              tag: v1.98.0
             args:
               - --host
               - "0.0.0.0"
