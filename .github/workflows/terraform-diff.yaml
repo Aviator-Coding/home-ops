@@ -1,37 +1,47 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 #
-# Per-stack OpenTofu format/schema checks for PRs touching terraform/**, matrixed
-# on changed top-level stack directories (today just terraform/authentik/, but
-# designed for any future terraform/* stack). Mirrors the shape of
+# Per-stack OpenTofu checks for PRs touching terraform/**, matrixed on changed
+# top-level stack directories (today just terraform/authentik/, but designed
+# for any future terraform/* stack). Mirrors the shape of
 # joryirving/home-ops's terraform-diff.yaml, adapted to this repo's runner and
 # credential conventions.
 #
-# SCOPE TODAY: `tofu fmt -check` + `tofu init -backend=false` + `tofu validate`
-# only - the exact same commands and `-backend=false` posture as validate.yaml's
-# existing `terraform` job (scripts/ci/tofu-validate.sh), just matrixed per
-# changed directory instead of looped over every stack. No credential is used or
-# needed for any of these three steps.
+# `tofu fmt`/`tofu init`/`tofu validate` always run, no credentials involved.
 #
-# NOT YET IMPLEMENTED: a real `tofu plan -lock=false` against the live state
-# backend, and posting the rendered plan as a PR comment (borchero/terraform-plan-
-# comment, as the reference workflow does). That step needs credentials that can
-# reach the live Ceph RGW state bucket and, read-only, the live Authentik API -
-# which directly reverses a security property validate.yaml's terraform job and
-# docs/authentik/terraform.md both state as deliberate today: "a pull request can
-# never reach the live SSO instance or the state bucket." That is an open
-# captain decision (tracked as terraform-diff-live-plan-scope), not an
-# implementation detail, so it is intentionally left out of this workflow rather
-# than guessed at. See the `plan` job below for the exact spot it plugs into.
+# WHEN A STACK PROVIDES ITS OWN `secrets-ci.vals.yaml` (today just
+# terraform/authentik/): a real `tofu init` against the live state backend,
+# `tofu plan -lock=false`, and posting the rendered plan as a PR comment
+# (borchero/terraform-plan-comment) also run, unattended, on every same-repo
+# pull request. This is a deliberate, captain-approved reversal (2026-08-27,
+# option A of decision terraform-diff-live-plan-scope, "least amount of manual
+# intervention") of the boundary validate.yaml's terraform job and
+# docs/authentik/terraform.md previously stated: "a pull request can never
+# reach the live SSO instance or the state bucket." Read
+# docs/authentik/terraform.md section 8 before touching any of this - it has
+# the full reasoning, the one new credential involved, and its exact blast
+# radius (a token that reads every item in the `Automation` 1Password vault,
+# not just authentik-terraform). `tofu apply` is NOT part of this and remains
+# fully behind the explicit captain-approval sequence in that doc's section 7 -
+# nothing here mints, reads, or references an apply-capable credential, and
+# `.planfile` is a workflow-ephemeral artifact, never uploaded or applied from.
 #
-# Fork guard: every job here lands on the local ARC runner because it needs
-# network reach to the in-cluster tooling any future stack's `-backend=false`-
-# only checks still run near (and because the deferred live-plan layer above,
-# whichever option is chosen, will need that same in-cluster reach). Same
-# reasoning and same pattern as validate.yaml/image-pull.yaml/labeler.yaml: a
-# fork PR must never execute on this runner, so every job below checks
+# A stack directory with no `secrets-ci.vals.yaml` gets schema-only checks
+# (the same `-backend=false` posture as validate.yaml's terraform job) and
+# nothing more - this is the fallback for any future terraform/* stack that
+# has not opted into a live plan.
+#
+# Fork guard: every job here lands on the local ARC runner, because the live
+# state backend (Ceph RGW) and 1Password Connect are in-cluster with no
+# external ingress. Same reasoning and same pattern as
+# validate.yaml/image-pull.yaml/labeler.yaml: a fork PR must never execute on
+# this runner, so every job below checks
 # `github.event.pull_request.head.repo.full_name == github.repository`. This
-# repo is public, so fork PRs are the normal case, not an edge case.
+# repo is public, so fork PRs are the normal case, not an edge case. This guard
+# is automatic and unconditional - it is not the "manual intervention" the
+# captain's decision asked to minimize; only a human approval gate in front of
+# the live-plan steps would have been that, and the captain explicitly chose
+# not to add one.
 name: Terraform Diff
 
 on:
@@ -48,6 +58,12 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  # In-cluster 1Password Connect service. Not a secret - it has no external
+  # ingress, so only a runner already inside the cluster network (this one)
+  # can ever reach it. See docs/authentik/terraform.md section 8.
+  OP_CONNECT_HOST: http://onepassword-connect.security.svc.cluster.local:8080
 
 jobs:
   filter:
@@ -79,6 +95,9 @@ jobs:
     name: Terraform Diff - Plan
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       matrix:
         stack: ${{ fromJSON(needs.filter.outputs.changed-dirs) }}
@@ -89,41 +108,85 @@ jobs:
         with:
           persist-credentials: false
 
-      # opentofu comes from .mise.toml so this validates with the same version
-      # the runbook tells an operator to plan with.
+      - name: Check For Live-Plan Opt-In
+        id: ci-secrets
+        working-directory: ${{ matrix.stack }}
+        run: |
+          if [ -f secrets-ci.vals.yaml ]; then
+            echo "file=secrets-ci.vals.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "file=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Fails loud and early, before installing anything, rather than half-
+      # running into a confusing vals/tofu error. See docs/authentik/terraform.md
+      # section 8 for exactly what this secret is and how to create it.
+      - name: Require CI Credentials
+        if: steps.ci-secrets.outputs.file != ''
+        env:
+          OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        run: |
+          if [ -z "${OP_CONNECT_TOKEN}" ]; then
+            echo "::error::${{ matrix.stack }} opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. See docs/authentik/terraform.md section 8 for what to create and why."
+            exit 1
+          fi
+
+      # opentofu and vals come from .mise.toml so this plans with the same
+      # versions the runbook tells an operator to use locally.
       - name: Setup Tools
         uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
         with:
-          install_args: opentofu
+          install_args: opentofu vals
 
       - name: Tofu Format Check
         working-directory: ${{ matrix.stack }}
         run: tofu fmt -check -diff
 
-      # No credentials are set for this step, deliberately - same posture as
-      # validate.yaml's terraform job. `-backend=false` never contacts the live
-      # state bucket.
+      # Without an opt-in file, this stays a pure schema check, same posture as
+      # validate.yaml's terraform job: `-backend=false` never contacts a live
+      # backend. With one, `vals` resolves that stack's own read-only
+      # credentials (state-backend keys and any TF_VAR_* it needs) through
+      # 1Password Connect and `tofu init` runs for real.
       - name: Tofu Init
         working-directory: ${{ matrix.stack }}
-        run: tofu init -backend=false -input=false -no-color
+        env:
+          OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        run: |
+          if [ -n "${{ steps.ci-secrets.outputs.file }}" ]; then
+            vals exec -i -f "${{ steps.ci-secrets.outputs.file }}" -- tofu init -input=false -no-color
+          else
+            tofu init -backend=false -input=false -no-color
+          fi
 
       - name: Tofu Validate
         working-directory: ${{ matrix.stack }}
         run: tofu validate -no-color
 
-      # --- Deferred: real plan + PR comment ---
-      # Pending terraform-diff-live-plan-scope. Whichever option the captain
-      # picks, it adds steps here that:
-      #   - resolve read-only credentials for this stack's live state backend
-      #     and (for authentik) the live Authentik API - see this stack's own
-      #     secrets.vals.yaml for the exact variable/field names already in use;
-      #     do not invent a parallel credential shape without checking there first
-      #   - re-run `tofu init` for real, this time against the backend
-      #   - `tofu plan -lock=false -out=.planfile`
-      #   - post `.planfile` as a PR comment (borchero/terraform-plan-comment,
-      #     pinned by digest)
-      # and, depending on the option chosen, may also add an approval gate before
-      # any of the above runs.
+      - name: Tofu Plan
+        if: steps.ci-secrets.outputs.file != ''
+        working-directory: ${{ matrix.stack }}
+        env:
+          OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        run: vals exec -i -f "${{ steps.ci-secrets.outputs.file }}" -- tofu plan -lock=false -no-color -out=.planfile
+
+      - name: Generate Token
+        if: steps.ci-secrets.outputs.file != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
+      - name: Post Plan Comment
+        if: steps.ci-secrets.outputs.file != ''
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3.2.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          planfile: .planfile
+          terraform-cmd: tofu
+          working-directory: ${{ matrix.stack }}
+          header: "📝 Terraform Plan for ${{ matrix.stack }}"
+          skip-empty: true
 
   success:
     if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
