@@ -81,10 +81,14 @@ resource "authentik_provider_oauth2" "oauth2" {
   refresh_token_validity  = "days=30"
   refresh_token_threshold = "seconds=0"
 
+  # `redirect_uri_type` must be declared even though the database rows for these
+  # three providers predate the field: the API defaults it to "authorization" and
+  # returns it, so omitting it makes every plan propose removing it.
   allowed_redirect_uris = [
     for uri in each.value.redirect_uris : {
-      matching_mode = "strict"
-      url           = uri
+      matching_mode     = "strict"
+      redirect_uri_type = "authorization"
+      url               = uri
     }
   ]
 }
