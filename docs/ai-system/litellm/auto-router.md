@@ -163,6 +163,34 @@ contended GPU still answers instead of being failed open, while a wedged one
 adds exactly one 8 s round trip (`num_retries: 0`) rather than the reference
 implementation's 20 s x 3.
 
+**Cold start is the one case that reliably exceeds it.** Measured in the
+post-merge verification on 2026-08-26: the *first* classification after the
+proxy started took **8.22s against the 8000ms timeout** and failed open, so the
+first routed request after a restart is served by the local model without being
+classified. Warm calls in the same session then averaged 2.14s with no further
+fail-opens. The cause is the ~850-token rubric prefix being prefilled against a
+cold llama.cpp prompt cache plus slot warm-up, and it costs one request per
+restart.
+
+Do **not** raise `timeout_ms` to absorb it. The failure direction is already the
+safe one - local, no cloud spend, request still served - and a higher ceiling
+would lengthen the stall on *every* routed request during a genuinely wedged
+backend in order to buy back a single request per restart. If a restart must not
+cost even that one classification, warm the classifier deliberately instead: send
+one throwaway request to `auto` after a rollout, before real traffic arrives.
+
+Note this interacts with `LiteLLMRouterClassifierFailingOpen`, which fires above
+a 20% fail-open rate over 15m. A single cold-start miss clears that threshold
+whenever **fewer than 5** classifier calls land in the same window - 1-in-4 is
+25%, 1-in-2 is 50% - and on a quiet cluster right after a rollout that is the
+normal case, with `for: 15m` satisfied simply because no further traffic arrives
+to dilute it. So a lone warning shortly after a `litellm` or `vllm` restart is
+expected and self-clears once traffic resumes; check it against
+`litellm_deployment_total_requests_total{requested_model="qwen3.6-35b-a3b-classifier"}`
+before treating it as real. Deliberately not "fixed" with a `min` request-count
+guard: on a genuinely low-traffic router, a classifier that fails every call is
+exactly what this alert should still catch.
+
 **Consequence for consumers**: `auto` is the wrong alias for latency-sensitive,
 obviously-simple traffic. Such a consumer should keep calling
 `qwen3.6-35b-a3b` directly - which is exactly why the router was built additive.
@@ -304,8 +332,13 @@ kubectl -n ai rollout status deploy/litellm --timeout=5m
 kubectl -n ai logs deploy/litellm | grep -A6 "Proxy initialized with Config"
 #    expect: qwen3.6-35b-a3b, qwen3.6-35b-a3b-classifier,
 #            claude-sonnet-5, claude-opus-5, auto
-kubectl -n ai logs deploy/litellm | grep "ComplexityRouter initialized"
-#    expect the four tier -> backend pairs from the table above
+#    This list prints at the DEFAULT log level and is the reliable check.
+#    `grep "ComplexityRouter initialized"` (which prints the four tier -> backend
+#    pairs) is a DEBUG-level line: it matches nothing unless the pod runs with
+#    LITELLM_LOG=DEBUG, so its absence here is not a fault. To see the tier map
+#    without changing log level, read it back from the rendered ConfigMap:
+kubectl -n ai get cm litellm-configmap -o jsonpath='{.data.config\.yaml}' \
+  | grep -A5 "tiers:"
 
 # 3. Reach the proxy (no route by design - B4) with the router consumer key.
 kubectl -n ai port-forward svc/litellm 4000:4000 &
