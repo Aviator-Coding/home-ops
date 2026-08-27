@@ -93,6 +93,29 @@ This mirrors the property already proven for the `auto` alias (see
 **caller asked for**, never the one the router resolves to. `auto` is a
 governance boundary for the same reason `chat-ha` is.
 
+### The shipped shape, verified end-to-end
+
+Re-checked 2026-08-26 with the actual committed manifests applied to the live
+cluster (Flux suspended), driven **through the internal gateway** rather than a
+port-forward, then reverted:
+
+| Request | Key | Result |
+|---|---|---|
+| `GET /v1/models` | `ha-demo` | only `chat-ha` listed |
+| `chat-ha` | `demo` | **403** - *"can only access models=['qwen3.6-35b-a3b']"* |
+| `claude-sonnet-5` | `demo` | **403** - same |
+| `chat-ha`, B70 healthy | `ha-demo` | 200, served by `openai/qwen3.6-35b-a3b`, **no `x-litellm-response-cost` header at all** |
+| `GET /v1/models`, no key | - | **401** |
+
+The last two rows are the design working: `demo` cannot reach the
+fallback-carrying alias at all, so no availability fallback can ever carry it to
+Anthropic; and a healthy `chat-ha` request costs literally nothing, confirming
+that a `ha-demo` budget measures cloud-fallback spend and nothing else.
+
+Total real cloud spend across every test in this document: **$0.000026** (one
+`max_tokens: 1` Sonnet completion, Test A). Every other cloud attempt was either
+a 403 or deliberately retargeted at the local model.
+
 ---
 
 ## 2. Axis 1 - availability fallbacks
