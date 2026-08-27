@@ -9,6 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../../components/dragonfly
   # The operator-rendered workload, named after the LiteLLMProxy CR. Never the
   # HelmRelease or the LiteLLMProxy CR itself (house rule): only the Deployment
   # reflects a pod-level failure.
@@ -17,9 +19,20 @@ spec:
       kind: Deployment
       name: *app
       namespace: *namespace
+  # Dragonfly is a CR, not a Deployment/StatefulSet - status.phase is its own
+  # readiness signal (see kubernetes/apps/main/media/immich.yaml for the same
+  # pattern). healthChecks and healthCheckExprs are independent Kustomization
+  # spec fields and both apply.
+  healthCheckExprs:
+    - apiVersion: dragonflydb.io/v1alpha1
+      kind: Dragonfly
+      failed: status.phase != 'ready'
+      current: status.phase == 'ready'
   dependsOn:
     - name: onepassword-store
       namespace: security
+    - name: dragonfly-operator
+      namespace: database
     # CRDs + the controller must be Ready first. This is stronger than an
     # ordinary ordering edge: the operator's ValidatingWebhookConfiguration
     # has failurePolicy: Fail for every LiteLLM kind, so with the operator

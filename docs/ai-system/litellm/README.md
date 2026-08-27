@@ -85,10 +85,38 @@ otherwise-stateless apps - depends on the shared `postgres-17` CNPG cluster
 `immich`/`linkwarden`/`seerr` do. This is the same tradeoff this app's
 pre-removal incarnation made (its removal PR #941 explicitly had to `DROP
 DATABASE litellm` as a manual follow-up) - it's inherent to LiteLLM's
-architecture, not a design choice made here. No Redis/Dragonfly is used:
-that's only needed for LiteLLM's router-state sharing across replicas or its
-own response cache, neither of which this single-replica, governance-only
-deployment uses.
+architecture, not a design choice made here.
+
+## Why Dragonfly (Redis)
+
+Added 2026-08-27, prompted by the captain reading LiteLLM's own live warning
+banner (`ui/litellm-dashboard/src/components/NoRedisWarningBanner.tsx` in
+BerriAI/litellm): *"This proxy is running more than one worker (or the worker
+count could not be verified). Without Redis, rate limits, budgets, router
+state, and cache invalidation are per worker, so limits are enforced once per
+worker and spend can overshoot."*
+
+This app originally shipped with no Redis/Dragonfly on the assumption that
+`replicas: 1` made per-instance state sharing moot. That assumption was
+wrong: the banner triggers on **worker** count, not pod/replica count, and
+LiteLLM's own uvicorn/gunicorn layer runs multiple workers inside a single
+pod regardless of `spec.replicas`. So even this single-replica deployment was
+enforcing D4's per-consumer rate limits and budgets independently per worker,
+letting spend overshoot exactly the way the banner describes - the opposite
+of what D4 was for.
+
+The fix is `litellm-dragonfly` (this repo's own
+[`kubernetes/components/dragonfly`](../../../kubernetes/components/dragonfly),
+the same component `searxng`/`immich`/`authentik`/`paperless-ngx`/`rsshub`
+already use), wired on
+[`kubernetes/apps/main/ai/litellm.yaml`](../../../kubernetes/apps/main/ai/litellm.yaml)
+and consumed by the `LiteLLMProxy` CR
+([`app/litellmproxy.yaml`](../../../kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml))
+via `routerSettings.redis_host`/`redis_port` (cross-worker rate limits,
+budgets, router state) and `litellmSettings.cache`/`cache_params` (a 300s-TTL
+exact-response cache - mirrors the reference repo's pattern, joryirving
+litellm/litellmproxy.yaml @ 3d3b700). `LITELLM_DISABLE_NO_REDIS_WARNING` is
+deliberately never set: the fix is the store, not hiding the banner.
 
 ## Per-consumer governance: how it actually gets minted
 

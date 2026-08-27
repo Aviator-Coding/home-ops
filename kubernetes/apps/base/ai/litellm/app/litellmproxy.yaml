@@ -65,6 +65,17 @@ spec:
 
   litellmSettings:
     callbacks: ["prometheus"] # exposes /metrics on the proxy port (4000)
+    # Response cache, mirrored from the reference repo's pattern (joryirving
+    # litellm/litellmproxy.yaml @ 3d3b700): exact-match request/response pairs
+    # only (no semantic cache), 300s TTL. Same litellm-dragonfly store as
+    # routerSettings.redis_host below - see the redis_host comment for why
+    # this store exists at all.
+    cache: true
+    cache_params:
+      type: redis
+      host: litellm-dragonfly.ai.svc.cluster.local
+      port: 6379
+      ttl: 300
 
   # --- Phase 5 fallback chains ---------------------------------------------
   # Maps verbatim to config.yaml's router_settings (the CRD field is a
@@ -73,6 +84,25 @@ spec:
   # in the rendered config silently). Design, measurements and the post-merge
   # failover runbook: docs/ai-system/litellm/fallbacks.md
   routerSettings:
+    # litellm-dragonfly (this repo's kubernetes/components/dragonfly, wired on
+    # the overlay Kustomization kubernetes/apps/main/ai/litellm.yaml) shares
+    # rate-limit counters, budget spend, and router state across LiteLLM's app
+    # workers. Without it every one of that single Deployment replica's
+    # workers enforces D4 budgets/rpm limits independently, so the proxy's own
+    # live banner (BerriAI/litellm ui NoRedisWarningBanner.tsx) reads: "This
+    # proxy is running more than one worker (or the worker count could not be
+    # verified). Without Redis, rate limits, budgets, router state, and cache
+    # invalidation are per worker, so limits are enforced once per worker and
+    # spend can overshoot." replicas: 1 does not avoid this - the warning
+    # triggers on worker count, not pod/replica count, and LiteLLM's own
+    # uvicorn/gunicorn layer runs multiple workers inside that one pod. No
+    # password: the dragonfly component ships with no auth mechanism (see
+    # kubernetes/components/dragonfly/cluster.yaml), matching every other
+    # consumer in this repo (searxng, immich, authentik, paperless-ngx,
+    # rsshub) - all plain host:port, same-namespace network boundary only.
+    redis_host: litellm-dragonfly.ai.svc.cluster.local
+    redis_port: 6379
+
     # Every model group here has exactly ONE deployment, so this is close to a
     # no-op today and is set for a different reason than the reference repo's:
     # it pins the safe default explicitly so `least-busy` cannot be introduced
