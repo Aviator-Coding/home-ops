@@ -137,8 +137,8 @@ one to create.
 > `CreateContainerConfigError`. That is this prerequisite being unmet, not a
 > manifest bug.
 
-The `litellm-consumer-demo` / `litellm-consumer-router-demo` /
-`litellm-consumer-ha-demo` 1Password items are **written** by the PushSecrets,
+The `litellm-consumer-*` 1Password items (one per consumer under
+[`app/virtualkeys/`](app/virtualkeys/)) are **written** by the PushSecrets,
 not read - they do not need to pre-exist.
 
 ## Database bootstrap
