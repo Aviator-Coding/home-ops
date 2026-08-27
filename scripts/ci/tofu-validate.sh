@@ -38,7 +38,7 @@ command -v tofu >/dev/null 2>&1 || {
 # tfvars holds whatever was fed in. terraform/.gitignore covers both; this is the
 # check that the ignore rule was not bypassed with `git add -f`.
 leaked="$(git ls-files 'terraform/**' \
-    | grep -E '(^|/)tfplan$|\.(tfstate|tfstate\.backup|tfvars|tfvars\.json|tfplan)$' || true)"
+    | grep -E '(^|/)tfplan$|\.(tfstate|tfstate\.backup|tfvars|tfvars\.json|tfplan|planfile)$' || true)"
 if [[ -n "${leaked}" ]]; then
     printf 'refusing to validate: state or variable files are committed:\n%s\n' "${leaked}" >&2
     exit 1

@@ -17,3 +17,5 @@
 # Saved plans embed variable values, including secrets.
 *.tfplan
 tfplan
+*.planfile
+.planfile
