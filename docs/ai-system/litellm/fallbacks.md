@@ -231,7 +231,7 @@ live `/metrics` scrape **and** queried back out of Prometheus.
 | Alert | Severity | Expression (abridged) | Means |
 |---|---|---|---|
 | `LiteLLMFallbackChainExhausted` | critical | `rate(litellm_deployment_failed_fallbacks_total[10m]) > 0` | Primary *and* fallback both failed - user-visible 5xx |
-| `LiteLLMSustainedFailover` | warning | `rate(litellm_deployment_successful_fallbacks_total[15m]) > 0` for 15m | Serving from cloud continuously - real spend, local backend down |
+| `LiteLLMSustainedFailover` | warning | `rate(litellm_deployment_successful_fallbacks_total{exception_class!~".*ContextWindowExceeded.*"}[15m]) > 0` for 15m | Availability failover only - serving from cloud continuously (real spend, local backend down); context-window events go to the alert below |
 | `LiteLLMContextWindowFallbackFiring` | warning | same counter, `exception_class=~".*ContextWindowExceeded.*"` | Prompts routinely overflow the local tier |
 | `LiteLLMDeploymentStuckFailing` | warning | `litellm_deployment_state >= 1` **and on(model_id)** live failure rate | Deployment unhealthy *and still failing* |
 | `LiteLLMCloudProviderAuthFailing` | critical | `failure_responses{api_provider="anthropic", exception_status=~"401\|403"}` | Our Anthropic credential is being rejected |
@@ -356,11 +356,12 @@ done
 
 Expected: `served by: qwen3.6-35b-a3b` every time, HTTP 200.
 
-**4. Confirm the context-window leg** (the one link not proven pre-merge - see
-§3). Add `context_window_fallbacks` for the probe and send a prompt over
-262,144 tokens to the *real* local alias. Budget several minutes: llama.cpp
-tokenizes the whole payload before rejecting it, which is why this was deferred
-out of the pre-merge pass.
+**4. Capture the llama.cpp context-overflow error string** (the one link not
+proven pre-merge - see §3). Send a prompt over 262,144 tokens to the *real*
+local alias with the master key. Budget several minutes: llama.cpp tokenizes
+the whole payload before rejecting it, which is why this was deferred out of
+the pre-merge pass. This step is deliberately narrower than a full chain proof
+- it only confirms the error string LiteLLM matches.
 
 ```bash
 python3 -c 'import json;json.dump({"model":"qwen3.6-35b-a3b","messages":[{"role":"user","content":"alpha "*400000}],"max_tokens":1},open("/tmp/big.json","w"))'
@@ -369,10 +370,11 @@ curl -s -m 900 http://localhost:4000/v1/chat/completions -H "Authorization: Bear
   -H 'Content-Type: application/json' --data-binary @/tmp/big.json | head -c 400
 ```
 
-Record the exact error string. The expectation is that it contains
+**Success criterion:** the response body contains the exact substring
 `exceeds the available context size`, which is what LiteLLM matches to raise
-`ContextWindowExceededError`. **If it does not, `context_window_fallbacks` is
-inert and this doc's §3 must be corrected** - that is the point of the step.
+`ContextWindowExceededError`. Record the full error string either way.
+**If it does not match, `context_window_fallbacks` is inert and this doc's §3
+must be corrected** - that is the point of the step.
 
 **5. Verify the alerts fired**, against Prometheus rather than by reading YAML:
 

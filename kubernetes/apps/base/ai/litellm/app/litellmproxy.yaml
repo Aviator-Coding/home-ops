@@ -31,7 +31,7 @@ spec:
 
   # NO spec.route - still deliberate, but the reason changed on 2026-08-26.
   # The captain approved an INTERNAL route (public listener remains forbidden),
-  # and it is shipped as a hand-written httproute.yaml next to this file rather
+  # and it is shipped as a hand-written httproute-internal.yaml next to this file rather
   # than through spec.route. Reason: the operator's route schema is exactly
   # {hostnames, parentRefs, filters} - no annotations field - so an
   # operator-owned route cannot carry the external-dns / Gatus / Homepage

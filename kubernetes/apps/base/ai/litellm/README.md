@@ -16,8 +16,9 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, admin-API access, `litellm_settings`. Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | One `LiteLLMModel` per `model_list` entry (5). The D3 auto-router lives in `auto.yaml`. |
+| [`app/models/`](app/models/) | Six `LiteLLMModel` CRs: `auto`, `chat-ha`, `claude-opus-5`, `claude-sonnet-5`, `qwen3.6-35b-a3b`, `qwen3.6-35b-a3b-classifier`. `qwen3.6-35b-a3b` is terminal (no fallback) for local-only keys; `chat-ha` is the same backend carrying the cloud fallback for entitled keys. The D3 auto-router lives in `auto.yaml`. |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
+| [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
 | [`app/externalsecret.yaml`](app/externalsecret.yaml) | `litellm-secret` (master/salt key, `DATABASE_URL`, `INIT_POSTGRES_*`, `ANTHROPIC_API_KEY`). |
 | `app/servicemonitor.yaml`, `app/prometheusrule.yaml` | Scrape + alerts against the operator-rendered Service. |
@@ -26,7 +27,7 @@ from the CRs here.
 - Does **not** front the public listener. No `envoy-external` parentRef, no
   `AgentgatewayBackend`. That half of B4 is unchanged and must stay that way.
 - **Internal gateway: captain-approved 2026-08-26.** A standalone
-  [`app/httproute.yaml`](app/httproute.yaml) attaches to `envoy-internal` at
+  [`app/httproute-internal.yaml`](app/httproute-internal.yaml) attaches to `envoy-internal` at
   `litellm.${SECRET_DOMAIN}`, alongside the unchanged in-cluster address
   `http://litellm.ai.svc.cluster.local:4000`. This relaxes the previous
   "no route of any kind" posture for the **internal** gateway only.

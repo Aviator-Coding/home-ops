@@ -66,6 +66,12 @@ spec:
           for: 5m
           labels:
             severity: critical
+        # LiteLLMSustainedFailover and LiteLLMContextWindowFallbackFiring split
+        # the same successful_fallbacks counter by exception_class. Without the
+        # ContextWindowExceeded exclusion below, a sustained large-prompt
+        # workload would trip this availability alert 15m earlier than the
+        # dedicated context-window alert, with the wrong remediation (fix the
+        # local backend / watch cloud cost from outage).
         - alert: LiteLLMSustainedFailover
           annotations:
             description: >-
@@ -75,10 +81,14 @@ spec:
               a paid cloud model and is spending real USD, so this is a silent
               cost event as much as an availability one. Fix the local backend;
               until then watch the holder key's budget
-              (LiteLLMConsumerBudgetExhausted is the backstop).
+              (LiteLLMConsumerBudgetExhausted is the backstop). Context-window
+              overflow is excluded here and handled by
+              LiteLLMContextWindowFallbackFiring.
             summary: LiteLLM has been on its cloud fallback for 15 minutes.
           expr: |-
-            sum by (requested_model, fallback_model) (rate(litellm_deployment_successful_fallbacks_total[15m])) > 0
+            sum by (requested_model, fallback_model) (
+              rate(litellm_deployment_successful_fallbacks_total{exception_class!~".*ContextWindowExceeded.*"}[15m])
+            ) > 0
           for: 15m
           labels:
             severity: warning

@@ -36,7 +36,7 @@ budgets.
   `envoy-external` parentRef, no `AgentgatewayBackend`. That half is unchanged
   and non-negotiable.
   **Amended 2026-08-26 (captain instruction):** the internal gateway is now
-  allowed. `kubernetes/apps/base/ai/litellm/app/httproute.yaml` attaches to
+  allowed. `kubernetes/apps/base/ai/litellm/app/httproute-internal.yaml` attaches to
   `envoy-internal` at `litellm.${SECRET_DOMAIN}`. In-cluster consumers still
   use `http://litellm.ai.svc.cluster.local:4000` and nothing about that path
   changed; `kubectl port-forward` also still works.
