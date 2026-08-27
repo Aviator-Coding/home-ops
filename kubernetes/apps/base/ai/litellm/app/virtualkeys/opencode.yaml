@@ -1,0 +1,52 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# One interactive workspace consumer for ai/opencode (captain request
+# 2026-08-26). Scoped to `auto` only, same governance boundary as
+# router-demo.yaml: this key reaches the cloud tiers exclusively through the
+# classifier's decision, never directly. Sized as a real daily-driver
+# workspace, not a periodic smoke test like router-demo: assume order-of-magnitude
+# more requests/day than router-demo's test-only traffic, so maxBudget/rpmLimit
+# scale up from router-demo's 0.5/6 accordingly. tpmLimit must clear one full
+# agent turn at the UI model limits in opencode.json (context 140000 + output
+# 16384), not router-demo's 60000 smoke-test budget. This is governance
+# accounting (local-model calls price at qwen3.6-35b-a3b's synthetic model_info
+# rates; cloud-tier calls price at LiteLLM's real cost map for
+# claude-sonnet-5/claude-opus-5) - raise maxBudget here, not the tier prices, if
+# a real workday of use 429s.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: opencode
+spec:
+  proxyRef: litellm
+  keyAlias: opencode
+  secretName: litellm-key-opencode
+  secretKey: key
+  models:
+    - auto
+  maxBudget: "10.00"
+  budgetDuration: 30d
+  rpmLimit: 8
+  tpmLimit: 200000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item `litellm-consumer-opencode`
+# (auto-created - not a captain prerequisite).
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-opencode
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-opencode
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-opencode
+          property: key

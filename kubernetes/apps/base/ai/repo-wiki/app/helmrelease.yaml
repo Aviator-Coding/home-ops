@@ -1,0 +1,154 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app repo-wiki
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  maxHistory: 2
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+
+    controllers:
+      # mkdocs-material serving whatever generate.py has committed so far.
+      mkdocs:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: squidfunk/mkdocs-material
+              tag: 9.7.7@sha256:51b87149d227691486b5f08993d28c65ca7e4990010664b697265b8e6fcd5287
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                mkdir -p /app-data/repository
+                if [ ! -f /app-data/repository/index.md ]; then
+                  printf '%s\n' '# Home Ops Repo Wikis' '' 'Waiting for the first generator run.' > /app-data/repository/index.md
+                fi
+                exec mkdocs serve --dirty -f /config/mkdocs.yml -a 0.0.0.0:8000
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 25m
+              limits:
+                memory: 512Mi
+      # Multi-pass wiki generator (generate.py): plans pages per repo, writes
+      # each from its own relevant files, commits into the local /app-data/repository
+      # git repo mkdocs serves from. Only regenerates a repo whose remote HEAD
+      # sha has moved since the last run (state in /app-data/.wiki-state.json).
+      repo-wiki-gen:
+        type: cronjob
+        cronjob:
+          schedule: "0 */12 * * *"
+          timeZone: America/New_York
+          concurrencyPolicy: Forbid
+          successfulJobsHistory: 1
+          failedJobsHistory: 1
+        pod:
+          affinity:
+            podAffinity:
+              # Same node as mkdocs: both read/write the same ceph-block PVC,
+              # and RWO avoids a cross-node attach for the generator's short run.
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchExpressions:
+                      - key: app.kubernetes.io/name
+                        operator: In
+                        values: [*app]
+                  topologyKey: kubernetes.io/hostname
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.14@sha256:b0aed0e0059e9b1527ef57689a7206f32526627b0713e2228a916df62880188a
+            command: ["python3", "/config/generate.py"]
+            env:
+              # In-cluster LiteLLM governance proxy (captain decisions B4/D4) -
+              # NOT a direct provider key. See this app's README.md.
+              OPENAI_BASE_URL: http://litellm.ai.svc.cluster.local:4000/v1
+              WIKI_MODEL: qwen3.6-35b-a3b
+              MAX_REPOS_PER_RUN: "1"
+              MAX_PAGES_PER_REPO: "8"
+              LLM_TIMEOUT: "1800"
+              WIKI_REPO: /app-data/repository
+            envFrom:
+              - secretRef:
+                  name: repo-wiki
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 100m
+              limits:
+                memory: 2Gi
+
+    persistence:
+      data:
+        existingClaim: ${VOLSYNC_CLAIM:-repo-wiki}
+        advancedMounts:
+          mkdocs:
+            app:
+              - path: /app-data
+          repo-wiki-gen:
+            app:
+              - path: /app-data
+      config:
+        type: configMap
+        name: repo-wiki-config
+        globalMounts:
+          - path: /config
+
+    service:
+      app:
+        controller: mkdocs
+        ports:
+          http:
+            port: 8000
+
+    route:
+      app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: AI
+          gethomepage.dev/name: Repo Wiki
+          gethomepage.dev/description: "AI-generated per-repo documentation"
+          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          gatus.home-operations.com/endpoint: |-
+            conditions: ["[STATUS] == 200"]
+        hostnames:
+          - "repo-wiki.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: 8000

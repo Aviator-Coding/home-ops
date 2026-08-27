@@ -16,3 +16,5 @@ resources:
   - ./demo.yaml
   - ./ha-demo.yaml
   - ./router-demo.yaml
+  - ./repo-wiki.yaml
+  - ./opencode.yaml

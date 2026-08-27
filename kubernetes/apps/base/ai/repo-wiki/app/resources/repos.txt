@@ -1,0 +1,4 @@
+Aviator-Coding/home-ops
+Aviator-Coding/dotfiles
+Aviator-Coding/firstmate
+Aviator-Coding/super-simple-software-factory

@@ -1,0 +1,46 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app repo-wiki
+  namespace: &namespace ai
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  components:
+    - ../../../../../components/volsync
+  healthChecks:
+    # app-template names multi-controller Deployments <release>-<controller>,
+    # so the mkdocs workload is repo-wiki-mkdocs (not repo-wiki).
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: repo-wiki-mkdocs
+      namespace: *namespace
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
+    - name: litellm
+      namespace: *namespace
+  interval: 1h
+  path: "./kubernetes/apps/base/ai/repo-wiki/app"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      VOLSYNC_CAPACITY: 5Gi
+      VOLSYNC_CACHE_CAPACITY: 2Gi
+      VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
+      VOLSYNC_SCHEDULE_MINIO: "40 */6 * * *"
+      VOLSYNC_SCHEDULE_R2: "20 2 * * *"

@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ai
+resources:
+  - ./externalsecret.yaml
+  - ./helmrelease.yaml
+  - ./httproute.yaml
+  - ./securitypolicy.yaml
+configMapGenerator:
+  # entrypoint.sh's own `${GITHUB_TOKEN}`/`${HOME}` shell expansions are not
+  # Flux substitution variables - substitute: disabled avoids the strict
+  # envsubst collision documented in this repo's CLAUDE.md (postBuild.substitute
+  # runs over the whole rendered Kustomization, not just this ConfigMap).
+  - name: opencode-config
+    options:
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
+    files:
+      - entrypoint.sh=./resources/entrypoint.sh
+      - opencode.json=./resources/opencode.json
+generatorOptions:
+  disableNameSuffixHash: true

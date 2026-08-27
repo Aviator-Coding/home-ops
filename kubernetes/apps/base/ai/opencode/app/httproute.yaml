@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# Internal only (captain request 2026-08-26): envoy-internal is the sole
+# parentRef and external-dns only publishes the internal record. Nothing
+# public - see securitypolicy.yaml for the auth gate.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: &app opencode
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: AI
+    gethomepage.dev/name: OpenCode
+    gethomepage.dev/description: "Interactive coding workspace"
+    gethomepage.dev/pod-selector: app.kubernetes.io/name=opencode
+    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    gatus.home-operations.com/endpoint: |-
+      conditions: ["[STATUS] == any(200, 302, 401)"]
+spec:
+  hostnames:
+    - "opencode.${SECRET_DOMAIN}"
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: *app
+          namespace: ai
+          port: 4096
