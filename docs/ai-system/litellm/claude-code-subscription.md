@@ -216,18 +216,31 @@ is sent per-request.
 
 ### 5b. One-time: get a LiteLLM virtual key
 
-Registration is not entitlement. A `LiteLLMVirtualKey` naming
-`claude-code-subscription` in its `models` allow-list must exist first - that is
-a captain decision (D4), like every other consumer key in
-[`app/virtualkeys/`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/).
-Per §4, give it `rpmLimit`/`tpmLimit`; a `maxBudget` alone would not constrain it.
+Registration is not entitlement, so this model ships with its own key
+(captain decision 2026-08-27):
+[`app/virtualkeys/claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/claude-code-subscription.yaml).
+It is allow-listed to `claude-code-subscription` and nothing else, so it is not
+a second door into the metered Anthropic models.
 
-Once it exists, the operator mints it into a Secret and a `PushSecret` mirrors it
-to 1Password. Read it from either:
+It is also **the only key in that directory with no `maxBudget`**, deliberately:
+per §4 its model is priced at $0, so any budget could never trip and would read
+as protection that does not exist. `rpmLimit: 10` / `tpmLimit: 250000` are the
+whole guardrail - one interactive CLI user, same order of magnitude as the
+`opencode` workspace key and nudged up because Claude Code's agentic loop spends
+requests per tool call, not per human turn. Raise those two numbers if a normal
+session 429s; there is no budget to raise, and nothing in that file changes what
+the subscription is charged.
+
+The operator mints the key into a Secret and a `PushSecret` mirrors it to
+1Password (`litellm-consumer-claude-code-subscription`). Read it from either:
 
 ```bash
-kubectl -n ai get secret litellm-key-<consumer> -o jsonpath='{.data.key}' | base64 -d
+kubectl -n ai get secret litellm-key-claude-code-subscription -o jsonpath='{.data.key}' | base64 -d
 ```
+
+Give each additional person their own key rather than sharing this one, or the
+per-consumer attribution that motivated the whole model collapses into a single
+bucket.
 
 ### 5c. Point the CLI at LiteLLM
 
@@ -272,8 +285,10 @@ reasons.
 
 ## 6. What this change did NOT touch
 
-Additive by design: no existing model CR, virtual key, allow-list, fallback
-chain or `generalSettings` value was modified. The cloud entitlement boundary in
+Additive by design. One model CR and one new virtual key were added; no
+*existing* model CR, virtual key, allow-list, fallback chain or
+`generalSettings` value was modified, and the new key names only the new model.
+The cloud entitlement boundary in
 `routerSettings.fallbacks` ([`fallbacks.md`](fallbacks.md)) is unchanged, and
 `claude-code-subscription` is deliberately absent from every fallback chain -
 a config-declared fallback bypasses the calling key's allow-list, and pointing

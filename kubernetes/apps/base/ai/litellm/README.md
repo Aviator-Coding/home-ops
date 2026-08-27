@@ -153,8 +153,11 @@ the household's metered account. The placeholder forces a clean `401` instead.
 **4. `$0` prices are the exception that proves this directory's pricing rule.**
 Prices must match the invoice; this model's invoice is flat-rate, so the metered
 cost map is what would lie. Explicit `0` is honoured (`is not None`, not
-truthiness). Consequence: `maxBudget` cannot constrain it - grant it only with
-`rpmLimit`/`tpmLimit`.
+truthiness). Consequence: `maxBudget` cannot constrain it, which is why
+[`app/virtualkeys/claude-code-subscription.yaml`](app/virtualkeys/claude-code-subscription.yaml)
+is the only key in that directory carrying **no** budget - `rpmLimit`/`tpmLimit`
+are its entire guardrail, and a budget there would read as protection that
+cannot trip.
 
 ## Pod security posture (known gap, accepted deliberately)
 
