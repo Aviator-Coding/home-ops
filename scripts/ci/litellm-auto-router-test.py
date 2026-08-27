@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Behavioral validation of the D3 complexity-tier auto-router config.
 
-Loads kubernetes/apps/base/ai/litellm/app/resources/{config.yaml,consumers.json}
-and exercises them through the real LiteLLM v1.98.0 ComplexityRouter / Router
-APIs (same image the cluster runs). Mock OpenAI-compatible backends stand in
-for the local classifier/chat model and the cloud tiers so classification and
-fail-open are observable without the cluster or paid APIs.
+Since captain decision O1 (2026-08-26) the proxy config is not a file in Git:
+the home-operations litellm-operator renders it from the `LiteLLMModel` CRs in
+kubernetes/apps/base/ai/litellm/app/models/. This test therefore RENDERS that
+config the way the operator does (see render_config_from_crs below) and then
+exercises the result through the real LiteLLM v1.98.0 ComplexityRouter / Router
+APIs (same image the cluster runs). Consumers come from the `LiteLLMVirtualKey`
+CRs in app/virtualkeys/. Mock OpenAI-compatible backends stand in for the local
+classifier/chat model and the cloud tiers so classification and fail-open are
+observable without the cluster or paid APIs.
 
 This is intentionally NOT a source-grep test: assertions are on parsed config
 semantics and on live routing outcomes (which backend was selected, which
@@ -25,8 +29,10 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
-CONFIG_PATH = REPO / "kubernetes/apps/base/ai/litellm/app/resources/config.yaml"
-CONSUMERS_PATH = REPO / "kubernetes/apps/base/ai/litellm/app/resources/consumers.json"
+APP_DIR = REPO / "kubernetes/apps/base/ai/litellm/app"
+MODELS_DIR = APP_DIR / "models"
+VIRTUALKEYS_DIR = APP_DIR / "virtualkeys"
+PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 BASELINE_QWEN = {
     "model_name": "qwen3.6-35b-a3b",
     "litellm_params": {
@@ -57,6 +63,108 @@ def load_yaml(path: Path) -> dict:
     except ImportError:
         # Minimal fallback is not used when running inside litellm image (has yaml).
         raise
+
+
+def _load_crs(directory: Path, kind: str) -> list[dict]:
+    """Every CR of `kind` under `directory`, sorted by metadata.name.
+
+    Sorting matches the operator, which sorts adopted models by resource name
+    before rendering so the config (and its hash) is stable regardless of the
+    order the API server lists them in.
+    """
+    import yaml  # type: ignore
+
+    out = []
+    for f in sorted(directory.glob("*.yaml")):
+        for doc in yaml.safe_load_all(f.read_text()):
+            if doc and doc.get("kind") == kind:
+                out.append(doc)
+    return sorted(out, key=lambda d: d["metadata"]["name"])
+
+
+def render_config_from_crs() -> dict:
+    """Render the proxy config.yaml the way litellm-operator does in file mode.
+
+    Faithful port of internal/controller/render.go renderConfig() at chart
+    0.0.15, restricted to the features this app actually uses: the named
+    top-level passthrough blocks, and model_list built from LiteLLMModel CRs
+    with `params.additional` merged UNDER the typed params (typed keys win).
+    Secret-backed apiKeyRef/apiBaseRef are not used here and are asserted away
+    rather than silently ignored - if this app ever starts using them, this
+    renderer must grow the os.environ indirection the operator emits.
+
+    Kept in-repo rather than shelling out to the operator because the whole
+    point of the test is to exercise the rendered config through the real
+    LiteLLM Router without a cluster.
+    """
+    proxy = load_yaml(PROXY_PATH)
+    assert proxy["kind"] == "LiteLLMProxy", PROXY_PATH
+    spec = proxy["spec"]
+    assert spec.get("applyMode", "file") == "file", "renderer only covers file mode"
+    assert spec.get("callbacks") is None, "renderer does not cover spec.callbacks"
+
+    config: dict = dict(spec.get("extraConfig") or {})
+    for field, key in (
+        ("generalSettings", "general_settings"),
+        ("routerSettings", "router_settings"),
+        ("litellmSettings", "litellm_settings"),
+        ("environmentVariables", "environment_variables"),
+        ("credentialList", "credential_list"),
+        ("defaultVertexConfig", "default_vertex_config"),
+        ("filesSettings", "files_settings"),
+        ("assistantSettings", "assistant_settings"),
+        ("finetuneSettings", "finetune_settings"),
+        ("prompts", "prompts"),
+        ("vectorStoreRegistry", "vector_store_registry"),
+    ):
+        if spec.get(field) is not None:
+            config[key] = spec[field]
+
+    entries = []
+    for m in _load_crs(MODELS_DIR, "LiteLLMModel"):
+        ms = m["spec"]
+        assert ms.get("proxyRef") == proxy["metadata"]["name"], (
+            f"{m['metadata']['name']} does not bind to this proxy"
+        )
+        pr = ms["params"]
+        assert not pr.get("apiKeyRef") and not pr.get("apiBaseRef"), (
+            "renderer does not cover secret-backed api key/base refs"
+        )
+        params = dict(pr.get("additional") or {})
+        params["model"] = pr["model"]
+        if pr.get("apiVersion"):
+            params["api_version"] = pr["apiVersion"]
+        if pr.get("dropParams") is not None:
+            params["drop_params"] = pr["dropParams"]
+        if pr.get("rpm") is not None:
+            params["rpm"] = pr["rpm"]
+        if pr.get("tpm") is not None:
+            params["tpm"] = pr["tpm"]
+        if pr.get("apiBase"):
+            params["api_base"] = pr["apiBase"]
+        if pr.get("apiKey"):
+            params["api_key"] = pr["apiKey"]
+
+        entry = {"model_name": ms["modelName"], "litellm_params": params}
+        info = ms.get("info") or {}
+        rendered_info = dict(info.get("extra") or {})
+        for src, dst in (
+            ("maxTokens", "max_tokens"),
+            ("maxInputTokens", "max_input_tokens"),
+            ("maxOutputTokens", "max_output_tokens"),
+            ("mode", "mode"),
+            ("supportsFunctionCalling", "supports_function_calling"),
+            ("supportsPromptCaching", "supports_prompt_caching"),
+            ("supportsVision", "supports_vision"),
+        ):
+            if info.get(src) not in (None, ""):
+                rendered_info[dst] = info[src]
+        if rendered_info:
+            entry["model_info"] = rendered_info
+        entries.append(entry)
+
+    config["model_list"] = entries
+    return config
 
 
 # ---------------------------------------------------------------------------
@@ -490,18 +598,34 @@ def test_config_semantics(cfg: dict) -> dict:
 
 
 def test_consumers() -> None:
-    data = json.loads(CONSUMERS_PATH.read_text())
-    consumers = {c["name"]: c for c in data["consumers"]}
-    record("demo_consumer_still_direct_only", consumers["demo"]["models"] == ["qwen3.6-35b-a3b"])
+    keys = {k["metadata"]["name"]: k["spec"] for k in _load_crs(VIRTUALKEYS_DIR, "LiteLLMVirtualKey")}
+    record(
+        "virtualkey_crs_present",
+        set(keys) == {"demo", "router-demo"},
+        f"names={sorted(keys)}",
+    )
+    if set(keys) != {"demo", "router-demo"}:
+        return
+    record("demo_consumer_still_direct_only", keys["demo"]["models"] == ["qwen3.6-35b-a3b"])
     record(
         "router_demo_scoped_to_auto_only",
-        consumers["router-demo"]["models"] == ["auto"],
-        f"models={consumers['router-demo']['models']!r}",
+        keys["router-demo"]["models"] == ["auto"],
+        f"models={keys['router-demo']['models']!r}",
     )
+    # The CRD types maxBudget as a decimal STRING, not a number - a YAML float
+    # here is silently rejected at admission, so assert the type as well as the
+    # value rather than letting `0.5` look fine to this test and fail in-cluster.
+    for name in ("demo", "router-demo"):
+        raw = keys[name].get("maxBudget")
+        record(
+            f"{name}_maxBudget_is_positive_decimal_string",
+            isinstance(raw, str) and float(raw) > 0,
+            f"maxBudget={raw!r} type={type(raw).__name__}",
+        )
     record(
-        "router_demo_has_budget",
-        consumers["router-demo"]["maxBudget"] > 0,
-        f"maxBudget={consumers['router-demo']['maxBudget']}",
+        "every_virtualkey_binds_to_the_proxy",
+        all(spec.get("proxyRef") == "litellm" for spec in keys.values()),
+        f"proxyRefs={[s.get('proxyRef') for s in keys.values()]}",
     )
 
 
@@ -758,13 +882,18 @@ def test_image_version_floor() -> None:
         import yaml
     except ImportError:
         return
-    hr = yaml.safe_load(
-        (REPO / "kubernetes/apps/base/ai/litellm/app/helmrelease.yaml").read_text()
+    proxy = yaml.safe_load(PROXY_PATH.read_text())
+    # Since O1 the image is a full reference on the LiteLLMProxy CR, not a bare
+    # tag in HelmRelease values.
+    image = proxy["spec"]["image"]
+    repo, _, tag = image.partition(":")
+    record(
+        "litellm_image_is_non_root_variant",
+        repo == "ghcr.io/berriai/litellm-non_root",
+        f"repo={repo}",
     )
-    # navigate to image tag
-    tag = hr["spec"]["values"]["controllers"]["litellm"]["containers"]["app"]["image"]["tag"]
     # parse vMAJOR.MINOR.PATCH
-    assert tag.startswith("v")
+    assert tag.startswith("v"), f"unparseable tag in {image!r}"
     major, minor, patch = (int(x) for x in tag[1:].split("."))
     record(
         "litellm_image_at_or_above_v1_93_0",
@@ -807,12 +936,15 @@ def test_docs_exist() -> None:
 
 
 def main() -> int:
-    print(f"CONFIG={CONFIG_PATH}")
-    if not CONFIG_PATH.exists():
-        print("config.yaml missing", file=sys.stderr)
-        return 2
+    print(f"PROXY={PROXY_PATH}")
+    print(f"MODELS={MODELS_DIR}")
+    for required in (PROXY_PATH, MODELS_DIR, VIRTUALKEYS_DIR):
+        if not required.exists():
+            print(f"{required} missing", file=sys.stderr)
+            return 2
 
-    cfg = load_yaml(CONFIG_PATH)
+    cfg = render_config_from_crs()
+    print(f"rendered {len(cfg['model_list'])} model_list entries from LiteLLMModel CRs")
     test_config_semantics(cfg)
     test_consumers()
     test_externalsecret_no_new_op_item()
