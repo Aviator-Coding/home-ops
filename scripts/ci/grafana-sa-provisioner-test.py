@@ -707,18 +707,21 @@ def assert_provisioner_manifests() -> dict[str, Any]:
         f"PushSecret property: {remote}",
     )
 
-    # PrometheusRule: sustained failure + never-succeeded (vector(0)) semantics
+    # PrometheusRule: sustained failure + never-succeeded (absent()) semantics.
+    # Do NOT use `metric or vector(0)`: PromQL `or` unions by label set, so the
+    # empty-label vector(0) series always survives alongside the real metric and
+    # `time() - 0 > 3600` fires forever. Behavior is proven by promtool below.
     pr = next(d for d in docs if d.get("kind") == "PrometheusRule")
     rules = []
     for g in pr.get("spec", {}).get("groups") or []:
         rules.extend(g.get("rules") or [])
     alert = next((r for r in rules if r.get("alert") == "GrafanaSAProvisionerFailing"), None)
     require(alert is not None, f"GrafanaSAProvisionerFailing missing: {rules}")
-    expr = " ".join((alert.get("expr") or "").split())
+    expr_raw = alert.get("expr") or ""
+    expr = " ".join(expr_raw.split())
     require(
         'cronjob="grafana-sa-provisioner"' in expr
-        or "cronjob='grafana-sa-provisioner'" in expr
-        or 'cronjob="grafana-sa-provisioner"' in (alert.get("expr") or ""),
+        or "cronjob='grafana-sa-provisioner'" in expr,
         f"alert expr must select the CronJob: {expr}",
     )
     require('namespace="monitoring"' in expr, f"alert must scope monitoring: {expr}")
@@ -726,13 +729,22 @@ def assert_provisioner_manifests() -> dict[str, Any]:
         "kube_cronjob_status_last_successful_time" in expr,
         f"alert must use last_successful_time: {expr}",
     )
-    require("vector(0)" in expr, f"alert must cover never-succeeded via vector(0): {expr}")
+    require(
+        expr.startswith("absent(") or " absent(" in f" {expr}",
+        f"alert must use absent() for never-succeeded (not vector(0)): {expr}",
+    )
+    require(
+        "vector(0)" not in expr,
+        f"alert must not use vector(0) fallback (permanent false alarm): {expr}",
+    )
     require("> 3600" in expr, f"alert must fire after 1h: {expr}")
     require(alert.get("for") == "5m", f"alert for=: {alert.get('for')}")
     require(
         (alert.get("labels") or {}).get("severity") == "warning",
         f"alert severity: {alert.get('labels')}",
     )
+    # Executable contract: evaluate the shipped expr with Prometheus' own engine.
+    promtool_summary = assert_alert_promql_semantics(pr, alert)
 
     # HelmRelease values: CronJob */5, admin secretKeyRef, no new secret
     hr = next(d for d in docs if d.get("kind") == "HelmRelease")
@@ -834,6 +846,336 @@ def assert_provisioner_manifests() -> dict[str, Any]:
         "alert_expr": expr,
         "schedule": schedule,
         "pushsecret_remote": f"{remote.get('remoteKey')}/{remote.get('property')}",
+        "promtool": promtool_summary,
+    }
+
+
+PROMTOOL_IMAGE = os.environ.get(
+    "PROMTOOL_IMAGE", "quay.io/prometheus/prometheus:v3.2.1"
+)
+
+
+def _run_promtool_test(work: Path, test_name: str, test_doc: dict[str, Any]) -> str:
+    """Write a promtool unit-test file and execute it via podman.
+
+    Uses Prometheus' own rule unit-test engine (promtool test rules) so the
+    assertions exercise real PromQL evaluation, not string matching on expr.
+    """
+    test_path = work / f"{test_name}.yml"
+    test_path.write_text(yaml.safe_dump(test_doc, sort_keys=False))
+    proc = subprocess.run(
+        [
+            "podman",
+            "run",
+            "--rm",
+            "--entrypoint",
+            "promtool",
+            "-v",
+            f"{work}:/work:Z",
+            "-w",
+            "/work",
+            PROMTOOL_IMAGE,
+            "test",
+            "rules",
+            test_path.name,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    out = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode != 0:
+        raise Failure(
+            f"promtool test {test_name} failed (exit {proc.returncode}):\n{out.strip()}"
+        )
+    if "SUCCESS" not in out and "SUCCESS" not in out.upper():
+        # promtool prints "  SUCCESS" on pass; still accept empty-with-0 as ok
+        if out.strip():
+            # Some versions only print failures; exit 0 is authoritative.
+            pass
+    return out.strip() or "SUCCESS"
+
+
+def assert_alert_promql_semantics(
+    prometheus_rule: dict[str, Any], alert: dict[str, Any]
+) -> dict[str, Any]:
+    """Prove the shipped GrafanaSAProvisionerFailing expr against real PromQL.
+
+    Scenarios (must all hold):
+      1. Healthy CronJob (last success tracks time): alert stays silent.
+      2. Stale last success (>1h + for:5m): alert fires.
+      3. Metric absent (never succeeded): alert fires after for:5m.
+      4. Regression: the old `metric or vector(0)` form still yields a phantom
+         empty-label series when the metric is healthy - documenting why it was
+         replaced - while the shipped expr yields no samples in that case.
+    """
+    # Require podman; this is the executable consumer for PromQL alerts.
+    if subprocess.run(["podman", "--version"], capture_output=True).returncode != 0:
+        raise Failure(
+            "podman is required to evaluate PrometheusRule expr with promtool"
+        )
+
+    ann = alert.get("annotations") or {}
+    summary = ann.get("summary") or ""
+    description = ann.get("description") or ""
+    shipped_expr = alert.get("expr") or ""
+
+    with tempfile.TemporaryDirectory(prefix="gsa-promtool-") as tmp:
+        work = Path(tmp)
+        # Plain Prometheus rule_group file derived from the live CR.
+        rules_doc = {"groups": prometheus_rule["spec"]["groups"]}
+        (work / "rules.yml").write_text(yaml.safe_dump(rules_doc, sort_keys=False))
+        (work / "empty_rules.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "groups": [
+                        {
+                            "name": "dummy",
+                            "rules": [
+                                {"record": "dummy_always_one", "expr": "vector(1)"}
+                            ],
+                        }
+                    ]
+                },
+                sort_keys=False,
+            )
+        )
+
+        alert_test = {
+            "rule_files": ["rules.yml"],
+            "evaluation_interval": "1m",
+            "tests": [
+                {
+                    "name": "healthy cronjob stays silent",
+                    "interval": "1m",
+                    "input_series": [
+                        {
+                            "series": (
+                                "kube_cronjob_status_last_successful_time{"
+                                'namespace="monitoring", '
+                                'cronjob="grafana-sa-provisioner", '
+                                'job="kube-state-metrics"}'
+                            ),
+                            # value tracks wall time so age is always ~0
+                            "values": "0+60x120",
+                        }
+                    ],
+                    "alert_rule_test": [
+                        {
+                            "eval_time": t,
+                            "alertname": "GrafanaSAProvisionerFailing",
+                            "exp_alerts": [],
+                        }
+                        for t in ("10m", "60m", "120m")
+                    ],
+                },
+                {
+                    "name": "stale success >1h fires after for window",
+                    "interval": "1m",
+                    "input_series": [
+                        {
+                            "series": (
+                                "kube_cronjob_status_last_successful_time{"
+                                'namespace="monitoring", '
+                                'cronjob="grafana-sa-provisioner", '
+                                'job="kube-state-metrics"}'
+                            ),
+                            "values": "0x120",
+                        }
+                    ],
+                    "alert_rule_test": [
+                        {
+                            "eval_time": "30m",
+                            "alertname": "GrafanaSAProvisionerFailing",
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": "65m",
+                            "alertname": "GrafanaSAProvisionerFailing",
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": "70m",
+                            "alertname": "GrafanaSAProvisionerFailing",
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "severity": "warning",
+                                        "namespace": "monitoring",
+                                        "cronjob": "grafana-sa-provisioner",
+                                        "job": "kube-state-metrics",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": summary,
+                                        "description": description,
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "name": "never succeeded (metric absent) fires after for window",
+                    "interval": "1m",
+                    "input_series": [],
+                    "alert_rule_test": [
+                        {
+                            "eval_time": "1m",
+                            "alertname": "GrafanaSAProvisionerFailing",
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": "4m",
+                            "alertname": "GrafanaSAProvisionerFailing",
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": "5m",
+                            "alertname": "GrafanaSAProvisionerFailing",
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "severity": "warning",
+                                        "namespace": "monitoring",
+                                        "cronjob": "grafana-sa-provisioner",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": summary,
+                                        "description": description,
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }
+        alert_out = _run_promtool_test(work, "alert_rules_test", alert_test)
+
+        # Series-level regression: old form vs shipped form on a healthy metric.
+        expr_test = {
+            "rule_files": ["empty_rules.yml"],
+            "evaluation_interval": "1m",
+            "tests": [
+                {
+                    "name": "or-vector(0) phantom + shipped silence on healthy",
+                    "interval": "1m",
+                    "input_series": [
+                        {
+                            "series": (
+                                "kube_cronjob_status_last_successful_time{"
+                                'namespace="monitoring", '
+                                'cronjob="grafana-sa-provisioner", '
+                                'job="kube-state-metrics"}'
+                            ),
+                            "values": "0+60x90",
+                        }
+                    ],
+                    "promql_expr_test": [
+                        {
+                            # Bug reproduction: union keeps BOTH series.
+                            "expr": (
+                                "kube_cronjob_status_last_successful_time{"
+                                'namespace="monitoring", '
+                                'cronjob="grafana-sa-provisioner"} '
+                                "or vector(0)"
+                            ),
+                            "eval_time": "70m",
+                            "exp_samples": [
+                                {
+                                    "labels": (
+                                        "kube_cronjob_status_last_successful_time{"
+                                        'cronjob="grafana-sa-provisioner", '
+                                        'job="kube-state-metrics", '
+                                        'namespace="monitoring"}'
+                                    ),
+                                    "value": 4200,
+                                },
+                                {"labels": "{}", "value": 0},
+                            ],
+                        },
+                        {
+                            # Bug reproduction: phantom empty-label series always fires.
+                            "expr": (
+                                "time() - (kube_cronjob_status_last_successful_time{"
+                                'namespace="monitoring", '
+                                'cronjob="grafana-sa-provisioner"} '
+                                "or vector(0)) > 3600"
+                            ),
+                            "eval_time": "70m",
+                            "exp_samples": [
+                                {"labels": "{}", "value": 4200},
+                            ],
+                        },
+                        {
+                            # Shipped expr must be silent while healthy.
+                            "expr": shipped_expr,
+                            "eval_time": "70m",
+                            "exp_samples": [],
+                        },
+                    ],
+                },
+                {
+                    "name": "shipped expr samples when metric absent",
+                    "interval": "1m",
+                    "input_series": [],
+                    "promql_expr_test": [
+                        {
+                            "expr": shipped_expr,
+                            "eval_time": "10m",
+                            "exp_samples": [
+                                {
+                                    "labels": (
+                                        '{cronjob="grafana-sa-provisioner", '
+                                        'namespace="monitoring"}'
+                                    ),
+                                    "value": 1,
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "name": "shipped expr samples when last success is stale",
+                    "interval": "1m",
+                    "input_series": [
+                        {
+                            "series": (
+                                "kube_cronjob_status_last_successful_time{"
+                                'namespace="monitoring", '
+                                'cronjob="grafana-sa-provisioner", '
+                                'job="kube-state-metrics"}'
+                            ),
+                            "values": "0x90",
+                        }
+                    ],
+                    "promql_expr_test": [
+                        {
+                            "expr": shipped_expr,
+                            "eval_time": "70m",
+                            "exp_samples": [
+                                {
+                                    "labels": (
+                                        '{cronjob="grafana-sa-provisioner", '
+                                        'job="kube-state-metrics", '
+                                        'namespace="monitoring"}'
+                                    ),
+                                    # comparison keeps LHS (age) value
+                                    "value": 4200,
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ],
+        }
+        expr_out = _run_promtool_test(work, "expr_semantics_test", expr_test)
+
+    return {
+        "alert_rules": "PASS",
+        "expr_semantics": "PASS",
+        "alert_out_tail": alert_out[-200:],
+        "expr_out_tail": expr_out[-200:],
     }
 
 
@@ -919,8 +1261,12 @@ def main() -> int:
 
         print("==> kustomize/semantic: grafana-sa-provisioner")
         prov = assert_provisioner_manifests()
-        print(f"    OK docs={prov['kustomize_docs']} schedule={prov['schedule']} push={prov['pushsecret_remote']}")
+        print(
+            f"    OK docs={prov['kustomize_docs']} schedule={prov['schedule']} "
+            f"push={prov['pushsecret_remote']} promtool={prov['promtool']}"
+        )
         results.append("provisioner manifests")
+        results.append("promtool alert + expr semantics")
 
         print("==> kustomize/semantic: grafana-mcp consumer")
         cons = assert_consumer_manifests()
