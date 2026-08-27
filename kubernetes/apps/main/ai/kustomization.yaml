@@ -22,6 +22,8 @@ resources:
   - ./hermes.yaml
   - ./litellm-operator.yaml
   - ./litellm.yaml
+  - ./opencode.yaml
+  - ./repo-wiki.yaml
   - ./searxng.yaml
   - ./toolhive.yaml
   - ./vllm.yaml

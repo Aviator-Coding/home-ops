@@ -1,0 +1,41 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+# House auth pattern (matches home-assistant/kromgo/echo): Envoy ext_authz
+# forward-auth against the Authentik embedded outpost, not the reference's
+# native Envoy Gateway `oidc:` field pointed directly at an issuer. The
+# mechanism is gateway-agnostic - it works identically on an envoy-internal-only
+# HTTPRoute - so no internal-specific variant was needed. Simplification vs
+# the reference: this collapses the reference's two routes/SecurityPolicies
+# (an OIDC-gated UI route plus a separate basic-auth-gated API route for
+# headless clients) into one Authentik-gated route, since nothing here needs
+# unauthenticated-by-cookie programmatic access. See this app's README.md.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: opencode-auth
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: opencode
+  extAuth:
+    headersToExtAuth:
+      - cookie
+      - authorization
+      - x-forwarded-for
+      - x-forwarded-host
+      - x-forwarded-proto
+      - x-forwarded-uri
+    http:
+      backendRefs:
+        - name: ak-outpost-authentik-embedded-outpost
+          namespace: security
+          port: 9000
+      path: /outpost.goauthentik.io/auth/envoy
+      headersToBackend:
+        - set-cookie
+        - authorization
+        - x-authentik-username
+        - x-authentik-email
+        - x-authentik-name
+        - x-authentik-uid

@@ -1,0 +1,59 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# Batch consumer for ai/repo-wiki's 12-hourly generator cron (captain request
+# 2026-08-26). Budget sizing, not guesswork: with MAX_REPOS_PER_RUN=1 and
+# MAX_PAGES_PER_REPO=8 against qwen3.6-35b-a3b's governance prices
+# (input_cost_per_token 5e-05, output 1e-04 - see models/qwen3.6-35b-a3b.yaml),
+# one full repo regen is ~1 plan call (~5k in/500 out) + 8 page calls
+# (~15k in/1.5k out each, PAGE_CTX_CHARS=60000) = ~125k in + 12.5k out =~
+# $7.50/repo. 4 repos in repos.txt => an initial backfill (one per 12h tick,
+# MAX_REPOS_PER_RUN=1) costs ~$30 over 2 days; steady-state only regenerates a
+# repo whose remote HEAD sha moved, so ongoing spend is far lower. This is
+# governance accounting against a LOCAL model (zero real dollars) - the budget
+# is a runaway-usage guard, not a real cost cap. Raise it here, not the model
+# prices, if generation 429s partway through backfill.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: repo-wiki
+spec:
+  proxyRef: litellm
+  keyAlias: repo-wiki
+  secretName: litellm-key-repo-wiki
+  secretKey: key
+  # Direct local model only - this is a scheduled batch job, not a routed
+  # interactive consumer, so it does not need the `auto` alias.
+  models:
+    - qwen3.6-35b-a3b
+  maxBudget: "30.00"
+  budgetDuration: 30d
+  # Batch job making a handful of sequential calls per tick, not many
+  # concurrent interactive users - kept low but above the sequential-call rate
+  # generate.py actually produces (1 plan + up to 8 page calls per repo).
+  rpmLimit: 4
+  # Each page call can send up to PAGE_CTX_CHARS (60000 chars =~ 15k tokens) of
+  # source context; tpmLimit must clear that comfortably.
+  tpmLimit: 30000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item `litellm-consumer-repo-wiki`
+# (auto-created - not a captain prerequisite), the same continuity pattern as
+# litellm-consumer-demo/router-demo.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-repo-wiki
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-repo-wiki
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-repo-wiki
+          property: key
