@@ -110,7 +110,7 @@ spec:
   # One Deployment (toolhive's HTTP proxyrunner) + one StatefulSet (the
   # actual stdio MCP server process) per active MCPServer CR - both must be
   # checked, since the proxy's own /health only reflects the proxy listener,
-  # not its stdio backend. Only the 7 currently-active servers (see this
+  # not its stdio backend. Only the 8 currently-active servers (see this
   # path's kustomization.yaml); garmin-connect/ha/seerr/talos are deactivated
   # and correctly absent here.
   healthChecks:
@@ -161,6 +161,14 @@ spec:
     - apiVersion: apps/v1
       kind: StatefulSet
       name: kubectl
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: kubesearch
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: kubesearch
       namespace: *namespace
     - apiVersion: apps/v1
       kind: Deployment

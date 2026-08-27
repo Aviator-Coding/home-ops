@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://k8s-schemas.home-operations.com/toolhive.stacklok.dev/mcpserver_v1alpha1.json
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: kubesearch
+spec:
+  # kubesearch.dev is a public read-only index of Flux/Argo home-ops repos,
+  # downloaded as SQLite databases and queried locally - no credential of any
+  # kind is required. GITHUB_TOKEN only raises the GitHub API rate limit used
+  # to check for a newer daily release (60 -> 5000/hr); a single instance
+  # refreshing every 24h never needs it.
+  image: ghcr.io/perfectra1n/kubesearch-mcp:1.1@sha256:4b39b2e708a1e038f3d8b33393eb93327aa2f29643dd12decb421efe68d11459
+  transport: streamable-http
+  proxyMode: streamable-http
+  proxyPort: 8080
+  mcpPort: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podTemplateSpec:
+    spec:
+      containers:
+        - name: mcp
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        # Cached SQLite databases (~44MB) and the repo_clone tools' ephemeral
+        # git clones. Not persisted: KUBESEARCH_REFRESH_HOURS=24 (image
+        # default) re-downloads on the next refresh anyway, so a restart just
+        # costs one cold re-download instead of needing a PVC.
+        - name: data
+          emptyDir: {}
+  groupRef:
+    name: mcp-tools
