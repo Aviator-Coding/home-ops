@@ -135,8 +135,8 @@ the next reconcile rather than within 15 minutes.
    the failure reason - `AdminClientFailed`, `GenerateFailed`, `UpdateFailed` -
    when something is wrong).
 
-Raising an existing consumer's budget is exactly this: edit the number, no
-Job/RBAC/schema change needed - that's the "values-file edit, not a
+Raising an existing consumer's budget is exactly this: edit the number on the
+CR, no Job/RBAC/schema change needed - that's the "one-file edit, not a
 redesign" property D4 asked for.
 
 ### Sensible tiny defaults (current values, `demo` consumer)
