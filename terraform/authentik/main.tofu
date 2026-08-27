@@ -15,6 +15,13 @@ terraform {
       # major.minor here aligned with it before raising this.
       version = "~> 2026.5.1"
     }
+
+    # Generates the LiteLLM OAuth2 client id and secret (litellm.tofu). Both end
+    # up in state, which is already secret-bearing and private.
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.9.0"
+    }
   }
 }
 
