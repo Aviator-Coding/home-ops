@@ -375,39 +375,65 @@ Pre-apply checklist:
 4. The apply is being run at a time when breaking SSO is survivable.
 
 `secrets.vals.yaml` injects the durable **read-only** `AUTHENTIK_TOKEN` from
-`Automation/authentik-terraform`. That token returns 403 on every write, so an
-apply driven through it cannot succeed - including the first adoption apply,
-which still has to PATCH the four `property_mappings` ordering fixes.
+`Automation/authentik-terraform`. That token returns 403 on every write, so it
+is for review plans only - never for a saved plan that will be applied.
 
 Apply uses a separate committed file,
 [`secrets-apply.vals.yaml`](../../terraform/authentik/secrets-apply.vals.yaml),
 identical except `TF_VAR_authentik_token` resolves
 `Automation/authentik-terraform/AUTHENTIK_APPLY_TOKEN`. That field is
 deliberately **absent** in 1Password until an apply is approved, so a stray
-`vals exec -i -f secrets-apply.vals.yaml -- tofu apply` fails closed on an
-unresolvable ref instead of silently running with the read-only token and
-403-ing halfway through.
+`vals exec -i -f secrets-apply.vals.yaml -- tofu plan -out=...` fails closed on
+an unresolvable ref instead of baking the read-only token into a plan.
+OpenTofu refuses `apply` of a saved plan when any `TF_VAR` differs from the
+values baked into that plan, so the plan that is applied must be created with
+the same vals file (and the same token) as the apply itself.
 
-At approval time, mint a write-capable Authentik token (ak shell / UI), write it
-into `AUTHENTIK_APPLY_TOKEN` only for the duration of the approved apply, then
-remove the field afterwards. **Never** write that token into the durable
-`AUTHENTIK_TOKEN` field: that field stays read-only on purpose so a stray
+**Never** write the write-capable token into the durable `AUTHENTIK_TOKEN`
+field: that field stays read-only on purpose so a stray
 `vals exec -i -f secrets.vals.yaml -- tofu apply` cannot mutate live SSO. Do not
 try to override a vals file key with an exported `TF_VAR_`; file keys always win.
 
+Sequence after the pre-apply checklist is satisfied:
+
+1. **Review plan** (read-only, no `-out`). This is what a human reads and what
+   captain approval is granted against. It cannot be applied and needs no write
+   credential.
+2. **Captain approves.** Only then mint a write-capable Authentik token
+   (ak shell / UI) and write it into `AUTHENTIK_APPLY_TOKEN`.
+3. **Re-plan with `-out`** through `secrets-apply.vals.yaml` (same file the
+   apply will use). Confirm this re-plan matches step 1: same imports, still
+   zero creates and zero destroys, still only the documented ordering-only
+   changes. Re-planning after approval is when a surprise would appear, so this
+   diff check is required, not a formality.
+4. **Apply the saved plan** through the same `secrets-apply.vals.yaml`.
+5. **Delete the plan file** and **remove `AUTHENTIK_APPLY_TOKEN`** from
+   1Password so the stack falls back to fail-closed.
+
 ```bash
 cd terraform/authentik
-# After captain approval: place the write token in AUTHENTIK_APPLY_TOKEN, then:
-vals exec -i -f secrets.vals.yaml -- tofu plan -out=tfplan   # gitignored; read-only review
-vals exec -i -f secrets-apply.vals.yaml -- tofu apply tfplan
-# Remove AUTHENTIK_APPLY_TOKEN from Automation/authentik-terraform immediately after.
-rm -f tfplan
+
+# 1. Review plan - read-only, no -out. Approval is granted against this output.
+vals exec -i -f secrets.vals.yaml -- tofu plan
+
+# 2. Captain approves, then place the write token in AUTHENTIK_APPLY_TOKEN.
+
+# 3. Re-plan with -out using the SAME vals file that will apply it.
+#    Confirm this matches the approved review plan before continuing.
+vals exec -i -f secrets-apply.vals.yaml -- tofu plan -out=authentik.tfplan
+
+# 4. Apply the saved plan only - never bare `tofu apply`.
+vals exec -i -f secrets-apply.vals.yaml -- tofu apply authentik.tfplan
+
+# 5. Clean up: drop the plan artifact and remove AUTHENTIK_APPLY_TOKEN.
+rm -f authentik.tfplan
+# Remove AUTHENTIK_APPLY_TOKEN from Automation/authentik-terraform immediately.
 ```
 
 Apply a saved plan, never a bare `tofu apply`. The saved plan is what was
-reviewed; a bare apply re-plans against whatever the instance looks like now.
-The explicit captain-approval gate still applies: a green CI run and a clean
-plan are not that approval.
+re-checked after approval; a bare apply re-plans against whatever the instance
+looks like now. The explicit captain-approval gate still applies: a green CI run
+and a clean plan are not that approval.
 
 Immediately afterwards, verify ExtAuth is still intact:
 
