@@ -1,0 +1,55 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# Phase 5 fallback-chain consumer: the CLOUD-ENTITLED counterpart to `demo`.
+#
+# `demo` holds `qwen3.6-35b-a3b` (no fallback, cannot reach Anthropic by any
+# path). This key holds `chat-ha` - the same B70 model, but with a
+# `claude-sonnet-5` availability + context-window fallback declared on it in the
+# proxy's routerSettings. Holding this key IS the cloud entitlement, because a
+# config-declared fallback is not allow-list checked (measured 2026-08-26,
+# docs/ai-system/litellm/fallbacks.md#1).
+#
+# It is also the vehicle for the post-merge failover proof - see
+# docs/ai-system/litellm/fallbacks.md#5, which exercises the chain against a
+# throwaway dead-backend model rather than degrading the real vllm backend.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: ha-demo
+spec:
+  proxyRef: litellm
+  keyAlias: ha-demo
+  secretName: litellm-key-ha-demo
+  secretKey: key
+  models:
+    - chat-ha
+  # Unlike `demo`'s $0.05, this is a REAL-USD cap, not a governance-accounting
+  # one: chat-ha carries no info.extra prices, so local traffic accrues $0 and
+  # the only thing that moves this number is cloud fallback spend during a B70
+  # outage. $1 is roughly 500k Sonnet input tokens - enough to ride out a long
+  # outage on light traffic, small enough that a fallback stuck open cannot run
+  # away unnoticed before LiteLLMConsumerBudgetExhausted fires.
+  maxBudget: "1.0"
+  budgetDuration: 30d
+  rpmLimit: 10
+  tpmLimit: 60000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-ha-demo
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-ha-demo
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-ha-demo
+          property: key
