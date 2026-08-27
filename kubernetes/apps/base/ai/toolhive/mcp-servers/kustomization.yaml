@@ -9,6 +9,7 @@ resources:
   - ./github-mcp
   - ./grafana-mcp
   - ./kubectl-mcp
+  - ./kubesearch-mcp
   # Deactivated pending 1Password secrets (files kept — re-enable once the
   # listed fields exist):
   #   garmin-connect-mcp -> item `garmin` fields `username` + `password`
