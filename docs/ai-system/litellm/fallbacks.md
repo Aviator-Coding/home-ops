@@ -7,10 +7,12 @@ failover after merge without touching the real B70 backend.
 Companion docs: [`README.md`](README.md) (the governance layer itself),
 [`auto-router.md`](auto-router.md) (the D3 `auto` alias).
 
-All measurements below were taken **2026-08-26** against the live proxy
-(`ghcr.io/berriai/litellm-non_root:v1.98.0`, the pinned image) on a suspended
-`litellm` Flux Kustomization, using throwaway `fallback-probe*` CRs that were
-deleted afterwards. Nothing in the real backend was degraded.
+Measurements here come from two passes against the live proxy
+(`ghcr.io/berriai/litellm-non_root:v1.98.0`, the pinned image), both on a
+suspended `litellm` Flux Kustomization using throwaway probe CRs that were
+deleted afterwards: the pre-merge design pass on **2026-08-26**, and the
+post-merge runbook execution on **2026-08-27** (§7). Nothing in the real backend
+was degraded in either.
 
 ---
 
@@ -157,16 +159,15 @@ what turns that into a degraded-but-serving path. `auto` is cloud-entitled by
 construction (its COMPLEX and REASONING tiers are Anthropic models), so this
 breaches no entitlement.
 
-**Verification status, stated plainly:** the fallback mechanism itself was
-proven live on a plain model group (§1), and the `chat-ha` leg is that same
-shape. The `auto` leg is **not** separately exercised yet - `auto` is an
-`auto_router/complexity_router` deployment rather than a plain backend, and the
-reasoning above (fail-open target dies -> the exception propagates out of the
-`auto` model group -> its fallback fires) is derived from the router's control
-flow, not measured. Proving it needs a probe auto-router whose tiers point at
-dead backends; that is runbook step 3b in §5. If auto-router
-failures turn out to be swallowed internally rather than raised, this entry is
-inert rather than harmful - but this section must then be corrected.
+**Verification status: PROVEN end-to-end (2026-08-27, post-merge).** This was
+shipped as reasoning-only and has since been measured, so the reasoning above is
+confirmed rather than assumed. Runbook step 3b was executed against the live
+proxy: an `auto-probe` clone of this alias, with all four tiers **and** the
+classifier pointed at a dead backend, returned `served by: qwen3.6-35b-a3b` -
+i.e. the auto-router's failure did propagate out of the `auto` model group and
+its fallback fired, exactly as the control-flow argument predicted. Auto-router
+failures are not swallowed internally, and the `auto:` entries in
+`routerSettings` are load-bearing rather than decorative.
 
 ---
 
@@ -204,7 +205,7 @@ There is deliberately **no** reverse (`cloud -> local`) entry: a prompt that
 overflows a 1M window cannot possibly fit in 262k, so that chain would be
 guaranteed to fail its second leg.
 
-### Trigger path: confirmed at source, end-to-end check deferred
+### Trigger path: confirmed at source AND end-to-end
 
 For this axis to do anything, llama.cpp's overflow error must be classified as
 `ContextWindowExceededError`. LiteLLM v1.98.0 does this explicitly -
@@ -213,12 +214,35 @@ For this axis to do anything, llama.cpp's overflow error must be classified as
 `"exceeds the available context size"`, annotated in-source with the comment
 `# llama.cpp/Lemonade`.
 
-**Not** proven end-to-end pre-merge, and stated plainly rather than glossed: an
-attempt to overflow the live backend with a >262k-token prompt was abandoned
-after llama.cpp spent 300s tokenizing the ~2.4MB payload without returning. It
-rejects *after* tokenization, not before, so the check is slow and loads a GPU
-that also serves real cluster traffic. The end-to-end confirmation is step 4 of
-the post-merge runbook (§5), where it costs one scoped request.
+**Proven end-to-end 2026-08-27 (post-merge), and the pre-merge caveat this
+paragraph used to carry was itself wrong.** It claimed the check was too slow to
+run because llama.cpp "rejects after tokenization"; the real explanation was
+that the abandoned attempt used a ~240k-token prompt, which is *under* the
+262,144 limit, so the backend was legitimately generating rather than rejecting.
+A genuinely oversized prompt is refused in **about one second**:
+
+```
+HTTP 400  {"error":{"code":400,
+  "message":"request (400010 tokens) exceeds the available context size (262144 tokens), try increasing it",
+  "type":"exceed_context_size_error","n_prompt_tokens":400010,"n_ctx":262144}}
+```
+
+That message contains the matched substring, and the full dispatch was then
+observed through the proxy - LiteLLM raised
+`litellm.ContextWindowExceededError` and routed down the **context** chain, not
+the availability one:
+
+```
+litellm.ContextWindowExceededError: ... exceeds the available context size (262144 tokens) ...
+Received Model Group=ctx-probe
+Error doing the fallback: ... Received Model Group=<context fallback target>
+```
+
+So `context_window_fallbacks` genuinely fires on local overflow, and the
+`chat-ha -> claude-sonnet-5` chain is real: 400,010 tokens exceeds the local
+262,144 window but fits Sonnet's 1,000,000 (§3), which is the whole point of the
+direction chosen here. The proof used a throwaway `ctx-probe` alias with a dead
+fallback target so the oversized prompt was never billed to a cloud model.
 
 ---
 
@@ -391,16 +415,19 @@ kubectl -n ai patch litellmvirtualkey fallback-probe-key --type=merge -p \
 ```
 
 `served by: qwen3.6-35b-a3b` confirms the `auto` leg works and §2's reasoning
-holds. An HTTP 500 means auto-router failures do **not** propagate to the
-fallback layer, and the `auto:` entries in `routerSettings` should be removed as
+holds - this is what was observed when the step was first run on 2026-08-27. An
+HTTP 500 would mean auto-router failures do **not** propagate to the fallback
+layer, and the `auto:` entries in `routerSettings` should then be removed as
 misleading. Delete `auto-probe` in teardown alongside the other probes.
 
 **4. Capture the llama.cpp context-overflow error string** (the one link not
 proven pre-merge - see §3). Send a prompt over 262,144 tokens to the *real*
-local alias with the master key. Budget several minutes: llama.cpp tokenizes
-the whole payload before rejecting it, which is why this was deferred out of
-the pre-merge pass. This step is deliberately narrower than a full chain proof
-- it only confirms the error string LiteLLM matches.
+local alias with the master key. It returns in about a second - a prompt over
+the limit is refused on token count, before any generation. (Keep it comfortably
+over 262,144: an *under*-limit prompt is genuinely processed and will look like
+a hang, which is what derailed the first pre-merge attempt.) This step is
+deliberately narrower than a full chain proof - it only confirms the error
+string LiteLLM matches.
 
 ```bash
 python3 -c 'import json;json.dump({"model":"qwen3.6-35b-a3b","messages":[{"role":"user","content":"alpha "*400000}],"max_tokens":1},open("/tmp/big.json","w"))'
@@ -505,3 +532,42 @@ admin UI and API. Verified through the gateway: `/v1/models` with a virtual key
 returns only that key's allow-listed models, and **without** a key returns
 `401`. If SSO in front of the UI is wanted later, `monitoring/kromgo-auth` is
 the Authentik ExtAuth pattern to copy.
+
+---
+
+## 7. Post-merge verification record (2026-08-27)
+
+The §5 runbook was executed once, in full, after PR #1457 merged. Recorded here
+so the claims above have a dated result behind them rather than only a
+procedure. Additional cloud spend: **$0** - every leg used a dead or local
+target.
+
+| Check | Result |
+|---|---|
+| DNS | `litellm.${SECRET_DOMAIN}` -> CNAME `internal.${SECRET_DOMAIN}` -> the envoy-internal address. Control: an unrouted name still resolves to the `*.${SECRET_DOMAIN}` wildcard, so this is a real published record |
+| HTTPRoute | `Accepted=True`, `ResolvedRefs=True`; `litellm-internal` survived operator reconciles (the §6 name trap) |
+| TLS | validates without `-k` |
+| Gatus | discovered as `litellm-internal` in group `ai`, both custom conditions passing - not the default `/` check |
+| Auth | `401` unauthenticated through the gateway; each virtual key lists only its own allow-listed model |
+| Availability failover | 8/8 requests moved from the dead primary to the fallback, all HTTP 200 |
+| Governance | `demo` -> `chat-ha` = **403**; `ha-demo` -> `chat-ha` on a healthy B70 served the local model with **no cost header** |
+| `auto` leg (3b) | proven - see §2 |
+| Context axis (4) | proven - see §3 |
+
+**Alert behaviour, with both event types present simultaneously:**
+
+| Expression | Matched |
+|---|---|
+| `LiteLLMSustainedFailover` (ctx excluded) | availability event only |
+| context-window discriminator | context event only |
+| `LiteLLMFallbackChainExhausted` | both (correctly axis-agnostic) |
+
+The observed `exception_class` values were `Openai.InternalServerError` and
+`Openai.ContextWindowExceededError` - provider-prefixed, which is why both
+alerts match on a regex rather than an exact string. This is the empirical
+confirmation that the two alerts split one counter correctly; without the
+exclusion on `LiteLLMSustainedFailover`, sustained prompt overflow would raise
+the availability alert with the wrong remediation.
+
+Teardown left no drift: `router_settings` returned byte-identical to Git and no
+probe CRs remained.
