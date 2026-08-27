@@ -6,12 +6,16 @@
 # (input_cost_per_token 5e-05, output 1e-04 - see models/qwen3.6-35b-a3b.yaml),
 # one full repo regen is ~1 plan call (~5k in/500 out) + 8 page calls
 # (~15k in/1.5k out each, PAGE_CTX_CHARS=60000) = ~125k in + 12.5k out =~
-# $7.50/repo. 4 repos in repos.txt => an initial backfill (one per 12h tick,
-# MAX_REPOS_PER_RUN=1) costs ~$30 over 2 days; steady-state only regenerates a
-# repo whose remote HEAD sha moved, so ongoing spend is far lower. This is
-# governance accounting against a LOCAL model (zero real dollars) - the budget
-# is a runaway-usage guard, not a real cost cap. Raise it here, not the model
-# prices, if generation 429s partway through backfill.
+# $7.50/repo. Let N = line count of
+# kubernetes/apps/base/ai/repo-wiki/app/resources/repos.txt (authoritative;
+# do not restate N here). Initial backfill at MAX_REPOS_PER_RUN=1 every 12h
+# costs ~$7.50*N over N/2 days; steady-state only regenerates a repo whose
+# remote HEAD sha moved, so ongoing spend is far lower. This is governance
+# accounting against a LOCAL model (zero real dollars) - the budget is a
+# runaway-usage guard, not a real cost cap. Raise maxBudget here, not the
+# model prices, if generation 429s partway through backfill. maxBudget below
+# was sized for the original 4-repo backfill (~$30) and needs a matching bump
+# whenever repos.txt grows past what $30 covers at ~$7.50/repo.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
