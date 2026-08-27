@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Tier C - Lightweight (own-it floor).
+# Source: captain's `indydevdan-model-stack` sheet, 2026-08-27.
+#
+# OpenRouter is the only credential this repo holds that reaches this
+# vendor, so it is the route by necessity, not preference.
+# Model id verified against the live provider catalog:
+# GET https://openrouter.ai/api/v1/models (2026-08-27).
+#
+# Spreadsheet attributes this to a `Muse` vendor; the real catalog entry is
+# `Meta: Muse Glimmer 30B` under the `meta/` slug. Muse is the model family,
+# not the vendor.
+#
+# REGISTRATION ONLY - see ./kustomization.yaml for what that does and does
+# not grant, and for why no `info.extra` prices appear here.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: muse-glimmer-30b
+spec:
+  modelName: muse-glimmer-30b
+  proxyRef: litellm
+  params:
+    model: openrouter/meta/muse-glimmer-30b
+    apiKey: os.environ/OPENROUTER_API_KEY

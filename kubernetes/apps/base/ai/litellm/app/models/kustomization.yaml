@@ -8,10 +8,58 @@ kind: Kustomization
 #
 # Adding a model: add a file here and to this list, then add the model name to
 # whichever LiteLLMVirtualKey (../virtualkeys/) should be allowed to call it.
+#
+# REGISTRATION IS NOT ENTITLEMENT. A file here only makes the model callable by
+# name on the proxy. It grants nothing on its own: every model must still be
+# named on a LiteLLMVirtualKey's `models` allow-list before any consumer can
+# reach it, and must be named in models/auto.yaml before the D3 router will
+# route to it. Both are captain decisions (D4 budget/entitlement split), which
+# is why the 2026-08-27 `indydevdan-model-stack` batch below landed with
+# neither. The one documented way registration alone can spend money is a
+# config-declared fallback chain, which bypasses the calling key's allow-list -
+# see ../../README.md and docs/ai-system/litellm/fallbacks.md before adding one.
+#
+# NO `info.extra` PRICES on any cloud model here, deliberately. LiteLLM's
+# built-in model-cost map already prices them in real USD, which is what the
+# per-consumer D4 budgets must measure; hand-written prices would silently
+# decouple recorded spend from the invoice. `info.extra` appears only on
+# qwen3.6-35b-a3b, whose local traffic has no invoice to match and whose
+# governance-accounting prices exist so a tiny demo budget can be exhausted.
+#
+# The 2026-08-27 batch resolved every id against the live provider catalog
+# rather than the sheet's display names; two rows had no real-catalog match and
+# were deliberately dropped rather than guessed (Gemma 4 12B, Qwen3.5-4B), and
+# Mythos 5 is org-restricted (404 on our key). Provenance: PR body.
 resources:
   - ./auto.yaml
   - ./chat-ha.yaml
+  - ./claude-fable-5.yaml
+  - ./claude-opus-4-8.yaml
   - ./claude-opus-5.yaml
   - ./claude-sonnet-5.yaml
-  - ./qwen3.6-35b-a3b.yaml
+  - ./deepseek-v4-flash-0731.yaml
+  - ./deepseek-v4-flash.yaml
+  - ./deepseek-v4-pro-0813.yaml
+  - ./deepseek-v4-pro.yaml
+  - ./gemini-3.1-pro.yaml
+  - ./gemini-3.5-flash-lite.yaml
+  - ./gemini-3.6-flash.yaml
+  - ./gemini-3.7-flash.yaml
+  - ./gemma-4-31b.yaml
+  - ./glm-5.2.yaml
+  - ./glm-5.3.yaml
+  - ./gpt-5.6-luna.yaml
+  - ./gpt-5.6-sol.yaml
+  - ./gpt-5.6-terra.yaml
+  - ./gpt-oss-20b.yaml
+  - ./grok-4.5.yaml
+  - ./grok-4.6.yaml
+  - ./kimi-k3.yaml
+  - ./minimax-m3.yaml
+  - ./muse-glimmer-30b.yaml
+  - ./nemotron-3.5-lightning.yaml
+  - ./qwen3.6-27b.yaml
   - ./qwen3.6-35b-a3b-classifier.yaml
+  - ./qwen3.6-35b-a3b.yaml
+  - ./qwen3.8-2.4t-a95b.yaml
+  - ./qwen3.8-27b.yaml

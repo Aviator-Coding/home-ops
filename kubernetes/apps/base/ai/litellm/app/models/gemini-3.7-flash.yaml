@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Tier A - Workhorse (daily driver).
+# Source: captain's `indydevdan-model-stack` sheet, 2026-08-27.
+#
+# OpenRouter is the only credential this repo holds that reaches this
+# vendor, so it is the route by necessity, not preference.
+# Model id verified against the live provider catalog:
+# GET https://openrouter.ai/api/v1/models (2026-08-27).
+#
+# REGISTRATION ONLY - see ./kustomization.yaml for what that does and does
+# not grant, and for why no `info.extra` prices appear here.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: gemini-3.7-flash
+spec:
+  modelName: gemini-3.7-flash
+  proxyRef: litellm
+  params:
+    model: openrouter/google/gemini-3.7-flash
+    apiKey: os.environ/OPENROUTER_API_KEY

@@ -18,11 +18,11 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | Six `LiteLLMModel` CRs: `auto`, `chat-ha`, `claude-opus-5`, `claude-sonnet-5`, `qwen3.6-35b-a3b`, `qwen3.6-35b-a3b-classifier`. `qwen3.6-35b-a3b` is terminal (no fallback) for local-only keys; `chat-ha` is the same backend carrying the cloud fallback for entitled keys. The D3 auto-router lives in `auto.yaml`. |
+| [`app/models/`](app/models/) | 32 `LiteLLMModel` CRs, one per model. The original six are `auto`, `chat-ha`, `claude-opus-5`, `claude-sonnet-5`, `qwen3.6-35b-a3b`, `qwen3.6-35b-a3b-classifier`: `qwen3.6-35b-a3b` is terminal (no fallback) for local-only keys, `chat-ha` is the same backend carrying the cloud fallback for entitled keys, and the D3 auto-router lives in `auto.yaml`. The other 26 are the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below. |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
-| [`app/externalsecret.yaml`](app/externalsecret.yaml) | `litellm-secret` (master/salt key, `DATABASE_URL`, `INIT_POSTGRES_*`, `ANTHROPIC_API_KEY`). |
+| [`app/externalsecret.yaml`](app/externalsecret.yaml) | `litellm-secret` (master/salt key, `DATABASE_URL`, `INIT_POSTGRES_*`, and the four provider keys `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`, `OPENROUTER_API_KEY`). |
 | `app/servicemonitor.yaml`, `app/prometheusrule.yaml` | Scrape + alerts against the operator-rendered Service. |
 
 **Scope per B4 (public half still non-negotiable):**
@@ -65,6 +65,54 @@ which is why this app carries a Postgres dependency (see
 namespace's stateless-by-preference apps. Cross-worker enforcement of those
 same budgets also needs `litellm-dragonfly` - see
 `docs/ai-system/litellm/README.md#why-dragonfly-redis`.
+
+## Model catalog
+
+The 26-model `indydevdan-model-stack` batch (captain request 2026-08-27) is
+registered as one CR per model under [`app/models/`](app/models/), each headed
+by its source tier (S+/S/A/B/C/D). Four rules govern that directory; the first
+is a governance boundary and the rest are traps that cost real debugging time.
+
+**1. Registration is not entitlement.** A CR here only makes a model callable
+by name. Nothing can reach it until it is named on a `LiteLLMVirtualKey`'s
+`models` allow-list, and the D3 router will not route to it until it is named
+in `models/auto.yaml`. The 2026-08-27 batch deliberately landed with neither.
+The one documented way registration alone can spend money is a config-declared
+fallback chain, which bypasses the calling key's allow-list - read
+`docs/ai-system/litellm/fallbacks.md` before adding one.
+
+**2. Route by the credential you hold, not by who made the model.** This repo
+holds exactly four provider keys, all fields of the single 1Password `ai-keys`
+item that the agentgateway backends already consume. Claude goes direct via
+`anthropic/`, Grok direct via `xai/`, GLM direct via `zai/`, and everything
+else - OpenAI, Gemini/Gemma, DeepSeek, Kimi, cloud Qwen, Nemotron, MiniMax,
+Muse - only via `openrouter/`, because OpenRouter is the only credential that
+reaches those vendors at all. `zai/` is a **native** LiteLLM provider on the
+pinned image (verified in-pod: it resolves to `https://api.z.ai/api/paas/v4`),
+so it needs no `apiBase` and no `openai/`-compatible shim.
+
+**3. The same model has different ids on different routes, and only one of
+them works.** Anthropic's own API uses dash-form ids (`claude-opus-4-8`) while
+OpenRouter spells the same model `anthropic/claude-opus-4.8`. On the direct
+`anthropic/` route the dotted form simply is not a model. Never transcribe an
+id from a spreadsheet, a sibling CR, or another provider's catalog - resolve it
+against the catalog of the route you are actually taking (`/v1/models` on
+Anthropic, xAI and Z.ai; `https://openrouter.ai/api/v1/models`, no auth needed,
+on OpenRouter). Display names in a sheet are not API identifiers: of the ~30
+rows in this batch, two had no real-catalog match at all and were dropped
+rather than guessed.
+
+**4. `os.environ/` references are load-bearing at proxy STARTUP.** Each CR's
+`apiKey: os.environ/<VAR>` must resolve in the pod, so a key removed from
+`app/externalsecret.yaml` while any model still names it is a broken deployment
+entry that takes the proxy down for **every** consumer, not just that model's
+callers. Remove the models first, then the key.
+
+A registered model whose provider account cannot serve it is harmless while
+rule 1 holds - no key is entitled to it - which is why both GLM CRs stay
+registered despite Z.ai returning `Insufficient balance or no resource package`
+for every completion as of 2026-08-27. That header is the place to look if a
+GLM call ever fails; it is an unfunded account, not a bad route.
 
 ## Pod security posture (known gap, accepted deliberately)
 
@@ -127,11 +175,12 @@ Two apparent gaps that turned out **not** to be gaps:
 The shared `cloudnative-pg` 1Password item (`POSTGRES_SUPER_PASS`) already
 exists - every `postgres-17` client app reads it the same way (see
 `kubernetes/apps/base/database/cloudnative-pg/Readme.md`). So does the
-`ai-keys` item, which this app's `ExternalSecret` extracts `ANTHROPIC_API_KEY`
-from for the auto-router's cloud tier - the same item every
+`ai-keys` item, which this app's `ExternalSecret` extracts the four provider
+keys from (`ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`,
+`OPENROUTER_API_KEY`) - the same item and field names every
 `agentgateway/app/backends/*.yaml` already reads. **No new 1Password item is
-needed for the router or for the operator**; `litellm` above remains the only
-one to create.
+needed for the router, the model catalog, or the operator**; `litellm` above
+remains the only one to create.
 
 > Until the `litellm` item exists, this app's `ExternalSecret` reports
 > `SecretSyncedError` / `key not found in 1Password Vaults: litellm`, the
