@@ -230,10 +230,13 @@ This is deliberately **not** a self-healing reconciler like
 persists tokens in Postgres, so there is no drift here for a timer to heal.
 
 [`secrets.vals.yaml`](../../terraform/authentik/secrets.vals.yaml) maps the
-read-only plan fields to the environment.
+read-only plan fields to the environment via `ref+op://` (interactive `op` CLI).
 [`secrets-apply.vals.yaml`](../../terraform/authentik/secrets-apply.vals.yaml)
 is identical except `TF_VAR_authentik_token` resolves `AUTHENTIK_APPLY_TOKEN`
-(section 7). Both hold only `ref+op://` references.
+(section 7).
+[`secrets-ci.vals.yaml`](../../terraform/authentik/secrets-ci.vals.yaml) is the
+same read-only field set addressed via `ref+onepasswordconnect://` for
+unattended CI plans - see section 8.
 
 ## 5. The read-only API token, and how it was minted
 

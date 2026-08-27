@@ -47,10 +47,11 @@ PR that auto-merges once green — same outcome, more visible in the PR list.
 
 Required status checks and path-filtered workflows interact badly: if a required check's
 workflow never triggers for a given PR, GitHub leaves that check `Expected` forever and the PR
-can never merge. This repo's three substantive validation workflows —
+can never merge. This repo's substantive validation workflows —
 [`flux-local.yaml`](../.github/workflows/flux-local.yaml),
-[`image-pull.yaml`](../.github/workflows/image-pull.yaml), and
-[`validate.yaml`](../.github/workflows/validate.yaml) — all filter on `paths:` **at the
+[`image-pull.yaml`](../.github/workflows/image-pull.yaml),
+[`validate.yaml`](../.github/workflows/validate.yaml), and
+[`terraform-diff.yaml`](../.github/workflows/terraform-diff.yaml) — all filter on `paths:` **at the
 `on: pull_request:` trigger level**, not inside a job. A PR that touches none of those paths
 never starts the workflow at all — no check run is ever created, skipped or otherwise. Requiring
 any of them today would permanently block every PR outside their path list.
@@ -68,14 +69,14 @@ the open `renovate/kubectl-1.x` PR which touches `.mise.toml`) — the problem i
 broken, it's that its trigger-level path filter means it simply never runs, and posts nothing,
 for PRs outside `talos/**`, `bootstrap/**`, `.renovate/**`, `.renovaterc.json5`,
 `kubernetes/apps/base/system-upgrade/**`, `kubernetes/apps/main/system-upgrade/**`, `scripts/ci/**`, `.mise.toml`, or its own workflow file.
-The same is true of `flux-local.yaml` / `image-pull.yaml` outside `kubernetes/**`. Root-level
-docs, `README.md`, `Taskfile.yaml`, `.taskfiles/**`, and most of `docs/**` are covered by none
-of the three.
+The same is true of `flux-local.yaml` / `image-pull.yaml` outside `kubernetes/**`, and of
+`terraform-diff.yaml` outside `terraform/**`. Root-level docs, `README.md`, `Taskfile.yaml`,
+`.taskfiles/**`, and most of `docs/**` are covered by none of them.
 
 `labeler.yaml` is the only PR-triggered workflow with **no path filter on its trigger** — it
 runs on every PR to `main`, full stop. Its job does carry a same-repo fork guard
 (`if: github.event.pull_request.head.repo.full_name == github.repository`, mirrored from the
-`image-pull`/`validate` fork guards documented in `AGENTS.md`), but a job-level `if` still
+`image-pull`/`validate`/`terraform-diff` fork guards documented in `AGENTS.md`), but a job-level `if` still
 creates a check run (`skipped`), and GitHub treats a skipped required check as passing — unlike
 a trigger-level `paths:` mismatch, which creates no check run at all. That's what makes it the
 only check in this repo that is safe to mark required today: it is guaranteed to resolve, one
@@ -83,19 +84,20 @@ way or another, for every PR.
 
 **This means the ruleset does not yet gate the checks that actually catch a broken
 Kustomization or a bad Talos config** — that gap is real and is the direct consequence of how
-`flux-local.yaml` / `image-pull.yaml` / `validate.yaml` are triggered, not a gap in this task.
+`flux-local.yaml` / `image-pull.yaml` / `validate.yaml` / `terraform-diff.yaml` are triggered, not a gap in this task.
 
 ## Follow-up to close the gap
 
 To safely require `Flux Local - Success` / `Image Pull - Success` / a `validate.yaml`
-aggregate check, those three workflows need their path filtering moved from the `on:
-pull_request: paths:` trigger down into a job-level check (they already compute a `filter` job
-internally for exactly this kind of path detection — see each workflow's `filter` job) so the
-workflow — and therefore its check run — always starts, and reports success-via-skip when
-nothing relevant changed, the same way `labeler.yaml`'s fork guard already does. Once that's
-done, add those check contexts to this ruleset's `required_status_checks.required_status_checks`
-array with `gh api -X PUT repos/Aviator-Coding/home-ops/rulesets/21250320` (or via the ruleset
-edit UI) and this document should be updated to match.
+aggregate check (and, if desired later, `terraform-diff`'s success job), those path-filtered
+workflows need their path filtering moved from the `on: pull_request: paths:` trigger down into
+a job-level check (they already compute a `filter` job internally for exactly this kind of path
+detection — see each workflow's `filter` job) so the workflow — and therefore its check run —
+always starts, and reports success-via-skip when nothing relevant changed, the same way
+`labeler.yaml`'s fork guard already does. Once that's done, add those check contexts to this
+ruleset's `required_status_checks.required_status_checks` array with
+`gh api -X PUT repos/Aviator-Coding/home-ops/rulesets/21250320` (or via the ruleset edit UI) and
+this document should be updated to match.
 
 ## Full applied payload
 
