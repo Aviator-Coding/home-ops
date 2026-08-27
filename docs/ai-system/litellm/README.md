@@ -94,13 +94,14 @@ mechanisms in LiteLLM, and the operator handles them with two different CRDs:
    `metadata`).
 2. The operator's virtual-key controller reconciles each CR against the proxy's
    admin API, authenticating with the master key named by
-   `LiteLLMProxy.spec.apiAccess.masterKeyRef`:
-   - **new** consumer: `POST /key/generate`, then it creates the Secret named by
-     `spec.secretName` (owned by the CR) holding the returned raw key,
-   - **existing** consumer: it `GET`s the live key, compares every governed
-     field, and only `POST /key/update`s when they differ - **the credential
-     itself is preserved** across a budget or allow-list edit, exactly as the
-     retired script did,
+   `LiteLLMProxy.spec.apiAccess.masterKeyRef`. Branching is by the operator's
+   own output Secret, **not** by alias lookup in the proxy DB:
+   - **no output Secret yet**: `POST /key/generate`, then it creates the Secret
+     named by `spec.secretName` (owned by the CR) holding the returned raw key,
+   - **output Secret already exists**: it `GET`s the live key, compares every
+     governed field, and only `POST /key/update`s when they differ - **the
+     credential itself is preserved** across a budget or allow-list edit,
+     exactly as the retired script did,
    - **deleted** CR: a finalizer deletes the remote key before the object goes,
      which the script never did (an orphaned key used to linger in the DB).
 3. A `PushSecret` beside each CR mirrors the minted key into 1Password
@@ -112,12 +113,12 @@ CronJob existed only because a ConfigMap-only Git change could not re-fire a
 Helm hook; the operator watches the CRs directly, so a budget edit converges on
 the next reconcile rather than within 15 minutes.
 
-> **One-time key rotation.** The operator mints keys itself and cannot adopt a
-> credential minted by the retired script, so the `demo` and `router-demo` key
-> **values changed** at the O1 migration. The 1Password item names and property
-> did not, so anything reading `litellm-consumer-demo`/`key` picks the new value
-> up on the PushSecret's next 5m refresh. Both consumers are demo-only, which is
-> why this was acceptable rather than a migration blocker.
+> **Key-alias collision / no adopt-by-alias.** A pre-existing proxy-DB row under
+> the same `keyAlias` (including keys left by the retired script) blocks minting
+> until deleted via `POST /key/delete` - that is a real credential rotation, not
+> optional cleanup. Authoritative trap, symptoms, and the related
+> controller-runtime backoff gotcha: the LiteLLM virtual-key and controller
+> NOTES entries in `AGENTS.md`.
 
 ### Adding or expanding a consumer (one file, not a redesign)
 
@@ -127,9 +128,11 @@ the next reconcile rather than within 15 minutes.
    just edit an existing CR's `maxBudget`/`budgetDuration`/`rpmLimit`/
    `tpmLimit`/`models` to raise a limit.
 2. Add the file to that directory's `kustomization.yaml`.
-3. Commit, merge. Flux applies the CR; the operator mints or PATCHes the key
-   immediately. The PushSecret picks up a newly written Secret key on its own
-   5m refresh. To watch it land:
+3. Commit, merge. Flux applies the CR; the operator mints (no output Secret yet)
+   or PATCHes (Secret already exists). Reusing a `keyAlias` that already exists
+   in the proxy DB without deleting it first stays `GenerateFailed` forever -
+   see the key-alias callout above. The PushSecret picks up a newly written
+   Secret key on its own 5m refresh. To watch it land:
    `kubectl -n ai get litellmvirtualkey -o wide` and
    `kubectl -n ai describe litellmvirtualkey <name>` (the status conditions name
    the failure reason - `AdminClientFailed`, `GenerateFailed`, `UpdateFailed` -
