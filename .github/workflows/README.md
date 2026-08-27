@@ -16,7 +16,7 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 | [test-runner.yaml](#test-runner) | Schedule/Manual | Tests self-hosted runner functionality | Self-hosted |
 | [build-talosctl-busybox.yaml](#build-talosctl-busybox) | Push/Manual | Builds and pushes the talosctl-busybox image | ubuntu-latest |
 | [validate.yaml](#validate) | Pull Request | Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - the paths Flux-oriented CI never sees | Self-hosted |
-| [terraform-diff.yaml](#terraform-diff) | Pull Request | Format/schema-checks changed `terraform/*` stacks, matrixed per directory | Self-hosted |
+| [terraform-diff.yaml](#terraform-diff) | Pull Request | Real read-only `tofu plan` (or schema-only fallback) for changed `terraform/*` stacks, matrixed per directory | Self-hosted |
 | [terraform-publish.yaml](#terraform-publish) | Push (main) | Publishes `terraform/` as an OCI artifact | ubuntu-latest |
 
 ## Workflows
@@ -152,20 +152,22 @@ Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - paths the
 
 **File:** `terraform-diff.yaml`
 
-Matrixed per-directory `tofu fmt`/`tofu init -backend=false`/`tofu validate`
-checks for PRs touching `terraform/**`, designed for any future `terraform/*`
-stack (today just `terraform/authentik/`).
+Matrixed per-directory OpenTofu checks for PRs touching `terraform/**`,
+designed for any future `terraform/*` stack (today just `terraform/authentik/`).
+When a stack provides `secrets-ci.vals.yaml`, this is an unattended real
+read-only plan against the live state backend (and Authentik API for
+`authentik`), posted as a PR comment - captain decision
+`terraform-diff-live-plan-scope` option A. A stack without that file falls
+back to schema-only checks. Full credential/blast-radius notes:
+`docs/authentik/terraform.md` section 8. `tofu apply` is not part of this
+workflow and stays behind that doc's section 7 gate.
 
 **Jobs:**
 - `filter` - Detects changed top-level stack directories under `terraform/`
-- `plan` - Runs `tofu fmt -check`, `tofu init -backend=false`, `tofu validate` per changed stack (matrix, no credentials)
+- `plan` - Per changed stack (matrix): `tofu fmt -check`, `tofu init`, `tofu validate`; when `secrets-ci.vals.yaml` exists, also real `tofu plan -lock=false` + PR comment via `borchero/terraform-plan-comment`; otherwise schema-only (`-backend=false`, no credentials)
 - `success` - Aggregates job results
 
-**Not yet implemented:** a real `tofu plan` against the live state backend and
-posting it as a PR comment. That needs credentials reaching the live state
-bucket and, for `authentik`, the live SSO instance - see the workflow file's
-header comment and `docs/authentik/terraform.md` for why that is a pending
-decision, not an oversight.
+**Runner / secrets:** local ARC runner (in-cluster Connect + Ceph RGW have no external ingress). Same-repo fork guard on every job. Requires `OP_CONNECT_TOKEN` (Automation-vault Connect token) plus existing `BOT_APP_ID`/`BOT_APP_PRIVATE_KEY` for the plan comment; fails clearly when required secrets are absent.
 
 ### terraform-publish
 
