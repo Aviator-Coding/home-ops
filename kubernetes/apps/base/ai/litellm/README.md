@@ -17,7 +17,7 @@ from the CRs here.
 
 | File | What it declares |
 | --- | --- |
-| [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, admin-API access, `litellm_settings`, `router_settings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
+| [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
 | [`app/models/`](app/models/) | Six `LiteLLMModel` CRs: `auto`, `chat-ha`, `claude-opus-5`, `claude-sonnet-5`, `qwen3.6-35b-a3b`, `qwen3.6-35b-a3b-classifier`. `qwen3.6-35b-a3b` is terminal (no fallback) for local-only keys; `chat-ha` is the same backend carrying the cloud fallback for entitled keys. The D3 auto-router lives in `auto.yaml`. |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
@@ -62,7 +62,9 @@ key when the spec changes (the credential itself is preserved across a budget
 edit). LiteLLM still has no way to declare a budgeted key from config alone,
 which is why this app carries a Postgres dependency (see
 `docs/ai-system/litellm/README.md#why-postgres`) unlike the rest of this
-namespace's stateless-by-preference apps.
+namespace's stateless-by-preference apps. Cross-worker enforcement of those
+same budgets also needs `litellm-dragonfly` - see
+`docs/ai-system/litellm/README.md#why-dragonfly-redis`.
 
 ## Pod security posture (known gap, accepted deliberately)
 
