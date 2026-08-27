@@ -356,8 +356,13 @@ and neither does a clean plan.**
 
 Pre-apply checklist:
 
-1. A `tofu plan` from the current commit is in hand, and it shows only the nine
-   imports with no creates, no destroys, and no changes.
+1. A `tofu plan` from the current commit is in hand. For the first adoption
+   apply that means the measured shape from section 6: nine imports, zero
+   creates, zero destroys, and only the documented `property_mappings`
+   ordering-only changes (zero net membership change, including the proxy
+   case that shows five additions). Any create, any destroy, or any
+   non-ordering diff is a stop. Later applies require zero creates, zero
+   destroys, and only the change the commit intentionally declares.
 2. Someone other than the plan's author has read it, specifically the lines
    touching `authentik_provider_proxy.forward_auth` and
    `authentik_outpost_provider_attachment.forward_auth`.
@@ -365,15 +370,38 @@ Pre-apply checklist:
    admin, so a broken ExtAuth cannot lock you out of the tool you need to fix it.
 4. The apply is being run at a time when breaking SSO is survivable.
 
+`secrets.vals.yaml` injects the durable **read-only** `AUTHENTIK_TOKEN` from
+`Automation/authentik-terraform`. That token returns 403 on every write, so an
+apply driven through it cannot succeed - including the first adoption apply,
+which still has to PATCH the four `property_mappings` ordering fixes. An apply
+needs a separate, write-capable token injected **only for that invocation**.
+Never write that token into the durable `AUTHENTIK_TOKEN` field on
+`Automation/authentik-terraform`: that field stays read-only on purpose so a
+stray `vals exec -f secrets.vals.yaml -- tofu apply` cannot mutate live SSO.
+
+One working pattern is to leave backend and non-token secrets on
+`secrets.vals.yaml`, then override only the Authentik token for the apply:
+
 ```bash
 cd terraform/authentik
+# Mint a write-capable token at approval time (ak shell / UI), then:
+export TF_VAR_authentik_token="$(op read 'op://.../write-token/credential')"
 vals exec -f secrets.vals.yaml -- tofu plan -out=tfplan   # gitignored
 vals exec -f secrets.vals.yaml -- tofu apply tfplan
+unset TF_VAR_authentik_token
 rm -f tfplan
 ```
 
+`TF_VAR_authentik_token` wins over the read-only value `vals` would otherwise
+inject, so the plan and apply both use the write credential without touching
+the durable 1Password item. A separate write-only vals file that is never
+committed and never pushed is equally fine; the durable read-only field is
+not.
+
 Apply a saved plan, never a bare `tofu apply`. The saved plan is what was
 reviewed; a bare apply re-plans against whatever the instance looks like now.
+The explicit captain-approval gate still applies: a green CI run and a clean
+plan are not that approval.
 
 Immediately afterwards, verify ExtAuth is still intact:
 
