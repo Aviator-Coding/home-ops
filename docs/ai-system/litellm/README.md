@@ -8,7 +8,18 @@ investigation at the bottom of this page). It is a narrow, additive
 governance layer that sits *beside* `agentgateway`, not in front of it.
 
 Manifests: `kubernetes/apps/base/ai/litellm/`. App-level detail (image,
-prerequisites, RBAC): `kubernetes/apps/base/ai/litellm/README.md`.
+prerequisites, the pod-security gap, DB bootstrap):
+`kubernetes/apps/base/ai/litellm/README.md`.
+
+**Delivery changed on 2026-08-26 (captain decision O1)**: the app is now a set
+of `litellm.home-operations.com/v1alpha1` CRs reconciled by the
+[home-operations litellm-operator](https://github.com/home-operations/litellm-operator)
+(`kubernetes/apps/base/ai/litellm-operator/`), not a bjw-s app-template
+HelmRelease. Nothing about B4/D4/D3 semantics changed - the operator renders
+the same `config.yaml` from `LiteLLMModel` CRs (proven by a semantic diff at
+migration time: one intentional difference, an explicit
+`general_settings.store_model_in_db: false`) - but the *mechanism* below for
+minting keys did, and that section has been rewritten accordingly.
 
 The **complexity-tier auto-router** (captain decision D3, added 2026-08-26) is
 one additive model alias on top of everything described here: design, tier
@@ -37,11 +48,12 @@ budgets.
 The captain's lab proved the governance path works with a **six-line
 `model_list`** pointed at the local chat backend, at **7.4ms** proxy
 overhead. That six-line block is still the direct `qwen3.6-35b-a3b` entry in
-`kubernetes/apps/base/ai/litellm/app/resources/config.yaml` (plus its
-`model_info` governance-accounting prices so virtual-key spend can accrue,
-and the Prometheus metrics callback - neither was part of the lab result).
-D3's additive `auto` router, classifier deployment and cloud tier backends
-live in the same file and are owned by [`auto-router.md`](auto-router.md).
+`kubernetes/apps/base/ai/litellm/app/models/qwen3.6-35b-a3b.yaml` (plus its
+`info.extra` governance-accounting prices so virtual-key spend can accrue,
+and the Prometheus metrics callback on the `LiteLLMProxy` - neither was part
+of the lab result). D3's additive `auto` router, classifier deployment and
+cloud tier backends are the other four CRs in `app/models/` and are owned by
+[`auto-router.md`](auto-router.md).
 Nobody could find that lab result committed anywhere in the repo before the
 B4/D4 redeploy (see the scout report referenced in D4's decision trail) -
 this doc is that write-up.
@@ -70,65 +82,69 @@ deployment uses.
 
 ## Per-consumer governance: how it actually gets minted
 
-Config-file model routing (`config.yaml`) and DB-backed virtual keys
-(`consumers.json`) are two different mechanisms, so this app does **not**
-use the LLMKube/`litellm-operator` CRD approach the reference cluster
-(`joryirving/home-ops`) uses - explicitly not adopted here in favor of a
-plain HelmRelease per this repo's conventions. Instead:
+Config-file model routing and DB-backed virtual keys are two different
+mechanisms in LiteLLM, and the operator handles them with two different CRDs:
 
-1. `app/resources/consumers.json` declares each consumer: `name`, `models`
-   (allow-list), `maxBudget` (USD), `budgetDuration`, `rpmLimit`, `tpmLimit`.
-2. `app/resources/provision_keys.py` (pure-stdlib Python, no
-   PyYAML/curl/kubectl image) is run by two controllers in
-   `helmrelease.yaml`:
-   - `provision-keys` - Helm `post-install`/`post-upgrade` hook for immediate
-     first mint (and any real Helm upgrade),
-   - `provision-keys-sync` - CronJob every 15m so a **consumers.json-only**
-     Git change still converges. That file is a kustomize ConfigMap *outside*
-     the Helm release, so Flux's HR reconcile does not re-run hooks when chart
-     values are unchanged - the CronJob is what makes "edit the numbers and
-     commit" work without a forced `helm upgrade`.
+1. **`LiteLLMVirtualKey`** - one CR per consumer in
+   `kubernetes/apps/base/ai/litellm/app/virtualkeys/`, carrying `models`
+   (allow-list), `maxBudget` (USD, typed as a decimal **string**),
+   `budgetDuration`, `rpmLimit`, `tpmLimit`, plus `keyAlias`, `secretName` and
+   `secretKey`. This is the whole surface the retired `consumers.json` had, and
+   more (`maxParallelRequests`, `duration`, `aliases`, `userID`/`teamID`,
+   `metadata`).
+2. The operator's virtual-key controller reconciles each CR against the proxy's
+   admin API, authenticating with the master key named by
+   `LiteLLMProxy.spec.apiAccess.masterKeyRef`:
+   - **new** consumer: `POST /key/generate`, then it creates the Secret named by
+     `spec.secretName` (owned by the CR) holding the returned raw key,
+   - **existing** consumer: it `GET`s the live key, compares every governed
+     field, and only `POST /key/update`s when they differ - **the credential
+     itself is preserved** across a budget or allow-list edit, exactly as the
+     retired script did,
+   - **deleted** CR: a finalizer deletes the remote key before the object goes,
+     which the script never did (an orphaned key used to linger in the DB).
+3. A `PushSecret` beside each CR mirrors the minted key into 1Password
+   (`litellm-consumer-<name>` item, `key` property), unchanged from before.
 
-   Each run:
-   - waits for the proxy's `/health/readiness` to return 200 (DB-aware),
-   - reads the `litellm-consumer-keys` Secret in `ai` for any key this Job
-     already minted,
-   - for a **new** consumer: `POST /key/generate` (key_alias, models,
-     max_budget, budget_duration, rpm_limit, tpm_limit), then writes the
-     returned raw key into that Secret,
-   - for an **existing** consumer: `POST /key/update` with the already-known
-     raw key, syncing budget/rate-limit/allow-list only - **the credential
-     itself never changes** on a values edit.
-3. `app/pushsecret.yaml` pushes each consumer's key out of that Secret into
-   1Password (`litellm-consumer-<name>` item, `key` property) - the same
-   "GitOps-minted credential, durably in the secret store" pattern the
-   reference cluster's `LiteLLMVirtualKey` + `PushSecret` combo uses, without
-   needing their CRD.
+This retires `consumers.json`, `provision_keys.py`, the `provision-keys` Helm
+hook Job, the `provision-keys-sync` CronJob and their Role/RoleBinding. The
+CronJob existed only because a ConfigMap-only Git change could not re-fire a
+Helm hook; the operator watches the CRs directly, so a budget edit converges on
+the next reconcile rather than within 15 minutes.
 
-### Adding or expanding a consumer (values-file edit, not a redesign)
+> **One-time key rotation.** The operator mints keys itself and cannot adopt a
+> credential minted by the retired script, so the `demo` and `router-demo` key
+> **values changed** at the O1 migration. The 1Password item names and property
+> did not, so anything reading `litellm-consumer-demo`/`key` picks the new value
+> up on the PushSecret's next 5m refresh. Both consumers are demo-only, which is
+> why this was acceptable rather than a migration blocker.
 
-1. Add an entry to `consumers` in
-   `kubernetes/apps/base/ai/litellm/app/resources/consumers.json` (or edit an
-   existing entry's `maxBudget`/`budgetDuration`/`rpmLimit`/`tpmLimit`/`models`
-   to raise a limit).
-2. Adding a **new** consumer also needs one matching `data.match` block in
-   `app/pushsecret.yaml` (`secretKey` == the new consumer's `name`).
-3. Commit, merge. Flux updates the ConfigMap; within ~15 minutes the
-   `provision-keys-sync` CronJob re-runs the script (or sooner if a real Helm
-   upgrade also fires the hook). The PushSecret picks up any newly written
-   Secret key on its own 5m refresh. To force an immediate sync without
-   waiting: `kubectl -n ai create job --from=cronjob/litellm-provision-keys-sync provision-keys-manual`.
+### Adding or expanding a consumer (one file, not a redesign)
 
-Raising an existing consumer's budget is exactly this: edit the number, no
-Job/RBAC/schema change needed - that's the "values-file edit, not a
+1. Copy an existing file in
+   `kubernetes/apps/base/ai/litellm/app/virtualkeys/` and change the CR name,
+   `keyAlias`, `secretName`, the PushSecret's `remoteKey`, and the limits - or
+   just edit an existing CR's `maxBudget`/`budgetDuration`/`rpmLimit`/
+   `tpmLimit`/`models` to raise a limit.
+2. Add the file to that directory's `kustomization.yaml`.
+3. Commit, merge. Flux applies the CR; the operator mints or PATCHes the key
+   immediately. The PushSecret picks up a newly written Secret key on its own
+   5m refresh. To watch it land:
+   `kubectl -n ai get litellmvirtualkey -o wide` and
+   `kubectl -n ai describe litellmvirtualkey <name>` (the status conditions name
+   the failure reason - `AdminClientFailed`, `GenerateFailed`, `UpdateFailed` -
+   when something is wrong).
+
+Raising an existing consumer's budget is exactly this: edit the number on the
+CR, no Job/RBAC/schema change needed - that's the "one-file edit, not a
 redesign" property D4 asked for.
 
 ### Sensible tiny defaults (current values, `demo` consumer)
 
 | Knob | Value | Why this number | Raise it |
 | --- | --- | --- | --- |
-| `models` | `["qwen3.6-35b-a3b"]` | The local chat backend. Since D3 the proxy also serves the `auto` router alias and its Anthropic tier backends, but `demo` is deliberately *not* given them - see the `router-demo` consumer and [`auto-router.md`](auto-router.md#budgets) for the routed-consumer shape. | Add the model to `config.yaml`'s `model_list` first, then to this consumer's `models`. |
-| `maxBudget` | `0.05` (USD) | Small enough to exhaust in one manual smoke test, so the budget enforcement path (`429`) is trivially exercisable, not just theoretical. Spend is computed from the per-token prices on the model in `config.yaml` (`model_info.input_cost_per_token` / `output_cost_per_token`) - those are governance-accounting prices, not cloud billing; without non-zero prices LiteLLM records $0 spend and `max_budget` never trips. | Edit the number in `consumers.json` (and the model prices in `config.yaml` if the burn rate should change too). |
+| `models` | `["qwen3.6-35b-a3b"]` | The local chat backend. Since D3 the proxy also serves the `auto` router alias and its Anthropic tier backends, but `demo` is deliberately *not* given them - see the `router-demo` consumer and [`auto-router.md`](auto-router.md#budgets) for the routed-consumer shape. | Add a `LiteLLMModel` CR under `app/models/` first, then the model name to this consumer's `models`. |
+| `maxBudget` | `0.05` (USD) | Small enough to exhaust in one manual smoke test, so the budget enforcement path (`429`) is trivially exercisable, not just theoretical. Spend is computed from the per-token prices on the model CR (`info.extra.input_cost_per_token` / `output_cost_per_token`, which the operator renders into `model_info`) - those are governance-accounting prices, not cloud billing; without non-zero prices LiteLLM records $0 spend and `max_budget` never trips. | Edit `maxBudget` on `app/virtualkeys/demo.yaml` - remembering it is a decimal STRING (and the model CR prices if the burn rate should change too). |
 | `budgetDuration` | `30d` | Spend resets monthly rather than being a one-time lifetime cap that permanently bricks the key. | Any LiteLLM duration string (`7d`, `1mo`, ...). |
 | `rpmLimit` | `2` | Deliberately below any real interactive workload - proves the limiter fires without needing sustained load. | Raise once a real consumer is wired up. |
 | `tpmLimit` | `2000` | About one short chat completion's worth of tokens. | Raise alongside `rpmLimit`. |
@@ -143,13 +159,19 @@ the earlier claim that the API server was unreachable from there is wrong).
 Run this after the 1Password item exists and Flux has reconciled this PR:
 
 ```bash
-# 1. Confirm the proxy and the provisioning Job both came up clean.
-kubectl -n ai get deploy litellm
-kubectl -n ai logs -l batch.kubernetes.io/job-name --tail=50 | grep -E "demo:|wrote"
+# 1. Confirm the operator, the proxy, the DB-init Job and the keys are clean.
+kubectl -n ai get deploy litellm-operator litellm
+kubectl -n ai get job litellm-db-init
+kubectl -n ai get litellmproxy,litellmmodel,litellmvirtualkey
+#    Every CR should report Ready=True; `llproxy` also prints the model count
+#    (expect 5) and ready replicas. On a failure, the condition message names
+#    the reason (AdminClientFailed / GenerateFailed / UpdateFailed / ...):
+kubectl -n ai describe litellmvirtualkey demo
 
 # 2. Pull the demo consumer's minted key out of 1Password (pushed there by
-#    pushsecret.yaml) or straight from the cluster:
-DEMO_KEY=$(kubectl -n ai get secret litellm-consumer-keys -o jsonpath='{.data.demo}' | base64 -d)
+#    the PushSecret in app/virtualkeys/demo.yaml) or straight from the
+#    operator-owned Secret:
+DEMO_KEY=$(kubectl -n ai get secret litellm-key-demo -o jsonpath='{.data.key}' | base64 -d)
 
 # 3. Port-forward the proxy (it has no route by design - B4).
 kubectl -n ai port-forward svc/litellm 4000:4000 &
@@ -166,8 +188,9 @@ curl -s http://localhost:4000/v1/chat/completions \
   -d '{"model":"some-other-model","messages":[{"role":"user","content":"hi"}]}'
 
 # 6. Budget enforcement: repeat step 4 until $0.05 is exhausted (or lower
-#    maxBudget to something like 0.0001 first for a fast repro). Expect the
-#    request to start failing with a budget-exceeded error once exhausted.
+#    maxBudget in app/virtualkeys/demo.yaml to "0.0001" first for a fast
+#    repro - it is a decimal STRING). Expect the request to start failing
+#    with a budget-exceeded error once exhausted.
 
 # 7. Confirm governance is visible in Prometheus:
 #    litellm_remaining_api_key_budget_metric should show the key's

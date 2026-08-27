@@ -1,0 +1,108 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmproxy_v1alpha1.json
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMProxy
+metadata:
+  name: litellm
+spec:
+  # `file`: the operator renders every adopted LiteLLMModel into config.yaml
+  # and rolls the Deployment on change. The alternative (`api`) pushes models
+  # to the proxy's DB-backed admin API live and turns store_model_in_db on,
+  # which would make the running DB - not Git - the source of truth for the
+  # model list. Deliberately not that (same reason the pre-operator
+  # config.yaml refused store_model_in_db); see generalSettings below.
+  applyMode: file
+  image: ghcr.io/berriai/litellm-non_root:v1.98.0
+  # ^ v1.93.0 is the FLOOR for the D3 auto-router: `classifier_type: llm` and
+  # classifier_llm_config first exist there. Below it ComplexityRouterConfig is
+  # `extra="allow"`, so those keys parse clean and are then IGNORED - the
+  # router silently runs the rule-based scorer the reference repo measured at
+  # 25-35% tier accuracy. The floor is machine-enforced by
+  # .renovate/overrides.json5 (allowedVersions ">=1.93.0" on this exact package
+  # name), which applies to this line because Renovate's `kubernetes` manager
+  # scans every image: field in kubernetes/**.yaml - including inside a CR.
+  # Upstream also dropped the `main-vX.Y.Z-stable` tag scheme after v1.81.x;
+  # current releases are plain `vX.Y.Z`.
+  replicas: 1
+
+  service:
+    type: ClusterIP
+    port: 4000
+
+  # NO spec.route - B4, non-negotiable. In-cluster consumers only: no HTTPRoute
+  # on any gateway, not even the internal one. Reach the proxy at
+  # http://litellm.ai.svc.cluster.local:4000, or from a workstation with
+  # kubeconfig access via `kubectl -n ai port-forward svc/litellm 4000:4000`.
+  # The operator only creates an HTTPRoute when spec.route is present, so
+  # omitting it is structural, not a setting.
+
+  envFrom:
+    # DATABASE_URL / LITELLM_MASTER_KEY / LITELLM_SALT_KEY / ANTHROPIC_API_KEY.
+    # LiteLLM picks the first three up from the environment automatically - do
+    # not duplicate them into config; see docs/ai-system/litellm/README.md.
+    - secretRef:
+        name: litellm-secret
+
+  # Required for LiteLLMVirtualKey: the operator mints and syncs keys through
+  # the proxy's admin API, authenticating with this master key. Endpoint
+  # defaults to http://litellm.ai.svc:4000, which is exactly where we want it.
+  apiAccess:
+    masterKeyRef:
+      name: litellm-secret
+      key: LITELLM_MASTER_KEY
+
+  generalSettings:
+    # Explicitly false: config.yaml (rendered from the LiteLLMModel CRs in
+    # models/) stays the only source of truth for models, never UI-driven DB
+    # edits. Carried forward from the pre-operator config.yaml, where the same
+    # decision was made against this app's pre-2026-06-07 incarnation. It is
+    # also the guard on applyMode above: `api` mode sets this to true.
+    store_model_in_db: false
+
+  litellmSettings:
+    callbacks: ["prometheus"] # exposes /metrics on the proxy port (4000)
+
+  # The CRD has no startupProbe field, so the old startup probe (30 x 10s =
+  # 300s of boot budget before liveness could kill the pod) is emulated by
+  # holding liveness off for 240s and then keeping the SAME steady-state
+  # detection window as before (30s period x 3 = 90s). Net effect: kill
+  # deadline for a pod that never boots moves 300s -> 330s, and a pod that
+  # boots fast is unguarded by liveness for its first 240s - which is what a
+  # startupProbe does anyway. Readiness is unaffected and still pulls a sick
+  # pod out of the Service endpoints on its own schedule.
+  livenessProbe:
+    httpGet:
+      path: /health/liveness
+      port: 4000
+    initialDelaySeconds: 240
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      # Checks the DB connection too - a real readiness signal, not just "the
+      # process is up" (see docs/ai-system/litellm/).
+      path: /health/readiness
+      port: 4000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  podAnnotations:
+    # The operator already rolls the pod on a rendered-config change via its own
+    # config-hash annotation, but that does not cover litellm-secret rotating
+    # (master key, DB password, ANTHROPIC_API_KEY). The CRD exposes no
+    # Deployment-level annotations, and reloader normally reads its annotation
+    # off the workload - but it falls back to the POD TEMPLATE annotations when
+    # the workload carries none (verified in stakater/Reloader v1.4.21, the
+    # version running here: pkg/common/common.go ShouldReload). So this lands
+    # in the right place despite only being settable on the pod template.
+    reloader.stakater.com/auto: "true"
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 512Mi
+    limits:
+      memory: 2Gi

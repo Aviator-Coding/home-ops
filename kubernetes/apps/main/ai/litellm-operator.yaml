@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app litellm-operator
+  namespace: &namespace ai
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  # Deployment, not HelmRelease: an HR healthCheck only proves the last helm
+  # action succeeded and stays Ready through a crashloop (house rule, see
+  # CLAUDE.md). Here it also has to be the workload for a second reason - the
+  # chart's ValidatingWebhookConfiguration has failurePolicy: Fail, so a
+  # LiteLLM CR cannot even be admitted until this pod is serving.
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  path: "./kubernetes/apps/base/ai/litellm-operator/app"
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace

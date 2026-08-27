@@ -20,6 +20,7 @@ resources:
   - ./comfyui.yaml
   - ./gpu-node-dashboard.yaml
   - ./hermes.yaml
+  - ./litellm-operator.yaml
   - ./litellm.yaml
   - ./searxng.yaml
   - ./toolhive.yaml

@@ -1,0 +1,45 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Classifier deployment (D3). Same llama.cpp backend as qwen3.6-35b-a3b, three
+# deliberate differences - all three are load-bearing, see
+# docs/ai-system/litellm/auto-router.md#why-a-separate-classifier-deployment:
+#  1. enable_thinking=false. Qwen3.6-35B-A3B is a REASONING model: left alone
+#     it emits ~1.3k tokens of `reasoning_content` and returns an EMPTY
+#     `content`, so LiteLLM's structured-output parse raises "empty content",
+#     every classification fails, and the router silently degrades to the
+#     fail-open path on 100% of traffic. Measured 2026-08-26: without this
+#     flag 12/12 classifications returned unparseable; with it, 11/12 correct.
+#     Passed via `extra_body` because llama.cpp takes it as a body field, not
+#     an OpenAI-spec parameter. `reasoning_effort: none`,
+#     `chat_template_kwargs.thinking` and `chat_template_kwargs.reasoning_effort`
+#     were all tested and do NOT work on this llama.cpp build.
+#  2. num_retries: 0. The classifier's timeout budget rides every routed
+#     request. With the router default (2 retries) a wedged backend costs
+#     3 x timeout_ms before failing open; at 0 it costs exactly one.
+#  3. Its own modelName, so classifier spend and latency are a separate series
+#     in /metrics instead of being mixed into ordinary local chat traffic (see
+#     the auto-router doc's dashboard section). The PrometheusRule's two
+#     classifier alerts select on exactly this name.
+#
+# Neither knob has a typed CRD field, so both ride `params.additional`, which
+# the operator merges verbatim into litellm_params.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: qwen3.6-35b-a3b-classifier
+spec:
+  modelName: qwen3.6-35b-a3b-classifier
+  proxyRef: litellm
+  params:
+    model: openai/qwen3.6-35b-a3b
+    apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
+    apiKey: "not-needed"
+    additional:
+      num_retries: 0
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+  info:
+    extra:
+      input_cost_per_token: 0.00005
+      output_cost_per_token: 0.0001

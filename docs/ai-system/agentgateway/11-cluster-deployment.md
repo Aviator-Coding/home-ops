@@ -32,7 +32,7 @@ kubernetes/apps/base/ai/agentgateway-dashboards/
   app/llm-cost.json
 ```
 
-Sibling apps in `ai` are whatever [`kubernetes/apps/main/ai/kustomization.yaml`](../../../kubernetes/apps/main/ai/kustomization.yaml) lists (do not mirror that inventory here). `litellm` is a governance-only layer with no gateway wiring (`../litellm/README.md`) - not a sibling in the routing sense. Not listed: kagent, kmcp, kgateway. Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant ([note](../retired-2026-08-22.md)).
+Sibling apps in `ai` are whatever [`kubernetes/apps/main/ai/kustomization.yaml`](../../../kubernetes/apps/main/ai/kustomization.yaml) lists (do not mirror that inventory here). `litellm` is a governance-only layer with no gateway wiring (`../litellm/README.md`) - not a sibling in the routing sense; `litellm-operator` is its control plane. Not listed: kagent, kmcp, kgateway. Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant ([note](../retired-2026-08-22.md)).
 
 ## Flux identity
 

@@ -1,0 +1,56 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# D4: "create a tiny budget first, we will expand later." Small enough to
+# exhaust in one manual smoke test, so the 429 budget path is trivially
+# exercisable rather than theoretical.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: demo
+spec:
+  proxyRef: litellm
+  keyAlias: demo
+  secretName: litellm-key-demo
+  secretKey: key
+  # Deliberately NOT given the `auto` alias or the Anthropic tier backends -
+  # see router-demo.yaml for the routed-consumer shape and
+  # docs/ai-system/litellm/auto-router.md#budgets.
+  models:
+    - qwen3.6-35b-a3b
+  # Decimal STRING, not a number - the CRD types maxBudget as a string.
+  # Spend accrues from the per-token prices on the model CR
+  # (models/qwen3.6-35b-a3b.yaml `info.extra`); with zero prices LiteLLM
+  # records $0 and this cap never trips.
+  maxBudget: "0.05"
+  # Monthly reset, not a one-time lifetime cap that permanently bricks the key.
+  budgetDuration: 30d
+  # Deliberately below any real interactive workload - proves the limiter fires
+  # without needing sustained load.
+  rpmLimit: 2
+  # About one short chat completion's worth of tokens.
+  tpmLimit: 2000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Pushes the operator-minted key out of its operator-owned Secret into the SAME
+# 1Password item the pre-operator provisioning script wrote to, so consumers
+# reading `litellm-consumer-demo`/`key` keep resolving. The VALUE rotates once
+# on this migration (the operator mints a fresh key; the old script's key is
+# not importable) - see this app's README.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-demo
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-demo
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-demo
+          property: key
