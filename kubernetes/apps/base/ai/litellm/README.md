@@ -175,11 +175,12 @@ Two apparent gaps that turned out **not** to be gaps:
 The shared `cloudnative-pg` 1Password item (`POSTGRES_SUPER_PASS`) already
 exists - every `postgres-17` client app reads it the same way (see
 `kubernetes/apps/base/database/cloudnative-pg/Readme.md`). So does the
-`ai-keys` item, which this app's `ExternalSecret` extracts `ANTHROPIC_API_KEY`
-from for the auto-router's cloud tier - the same item every
+`ai-keys` item, which this app's `ExternalSecret` extracts the four provider
+keys from (`ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`,
+`OPENROUTER_API_KEY`) - the same item and field names every
 `agentgateway/app/backends/*.yaml` already reads. **No new 1Password item is
-needed for the router or for the operator**; `litellm` above remains the only
-one to create.
+needed for the router, the model catalog, or the operator**; `litellm` above
+remains the only one to create.
 
 > Until the `litellm` item exists, this app's `ExternalSecret` reports
 > `SecretSyncedError` / `key not found in 1Password Vaults: litellm`, the

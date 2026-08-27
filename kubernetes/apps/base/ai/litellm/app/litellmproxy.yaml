@@ -41,9 +41,11 @@ spec:
   # http://litellm.ai.svc.cluster.local:4000.
 
   envFrom:
-    # DATABASE_URL / LITELLM_MASTER_KEY / LITELLM_SALT_KEY / ANTHROPIC_API_KEY.
-    # LiteLLM picks the first three up from the environment automatically - do
-    # not duplicate them into config; see docs/ai-system/litellm/README.md.
+    # DATABASE_URL / LITELLM_MASTER_KEY / LITELLM_SALT_KEY plus the four
+    # provider keys (ANTHROPIC/XAI/ZAI/OPENROUTER_API_KEY). LiteLLM picks the
+    # first three up from the environment automatically - do not duplicate
+    # them into config; see docs/ai-system/litellm/README.md. Models resolve
+    # the provider keys via `apiKey: os.environ/<VAR>` (see README model-catalog).
     - secretRef:
         name: litellm-secret
 
@@ -196,7 +198,7 @@ spec:
   podAnnotations:
     # The operator already rolls the pod on a rendered-config change via its own
     # config-hash annotation, but that does not cover litellm-secret rotating
-    # (master key, DB password, ANTHROPIC_API_KEY). The CRD exposes no
+    # (master key, DB password, provider API keys). The CRD exposes no
     # Deployment-level annotations, and reloader normally reads its annotation
     # off the workload - but it falls back to the POD TEMPLATE annotations when
     # the workload carries none (verified in stakater/Reloader v1.4.21, the
