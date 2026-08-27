@@ -5,7 +5,8 @@
 #
 # OpenRouter is the only credential this repo holds that reaches this
 # vendor, so it is the route by necessity, not preference.
-# Model id verified against the live provider catalog: GET https://openrouter.ai/api/v1/models (2026-08-27).
+# Model id verified against the live provider catalog:
+# GET https://openrouter.ai/api/v1/models (2026-08-27).
 #
 # The undated spreadsheet row maps to the undated slug, which the catalog
 # titles `DeepSeek V4 Pro 0423` - a distinct, older snapshot from the

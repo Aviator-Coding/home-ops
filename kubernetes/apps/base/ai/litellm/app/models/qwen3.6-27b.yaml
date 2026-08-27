@@ -5,7 +5,8 @@
 #
 # OpenRouter is the only credential this repo holds that reaches this
 # vendor, so it is the route by necessity, not preference.
-# Model id verified against the live provider catalog: GET https://openrouter.ai/api/v1/models (2026-08-27).
+# Model id verified against the live provider catalog:
+# GET https://openrouter.ai/api/v1/models (2026-08-27).
 #
 # Cloud Qwen, distinct from this cluster's LOCAL `qwen3.6-35b-a3b` (B70
 # llama.cpp). Different model, different backend - not a duplicate.

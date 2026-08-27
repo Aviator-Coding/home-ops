@@ -5,7 +5,8 @@
 #
 # OpenRouter is the only credential this repo holds that reaches this
 # vendor, so it is the route by necessity, not preference.
-# Model id verified against the live provider catalog: GET https://openrouter.ai/api/v1/models (2026-08-27).
+# Model id verified against the live provider catalog:
+# GET https://openrouter.ai/api/v1/models (2026-08-27).
 #
 # Spreadsheet attributes this to a `Muse` vendor; the real catalog entry is
 # `Meta: Muse Glimmer 30B` under the `meta/` slug. Muse is the model family,

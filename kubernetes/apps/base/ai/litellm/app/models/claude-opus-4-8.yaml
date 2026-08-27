@@ -4,7 +4,8 @@
 # Source: captain's `indydevdan-model-stack` sheet, 2026-08-27.
 #
 # Direct Anthropic route - the captain's own Anthropic subscription key.
-# Model id verified against the live provider catalog: GET https://api.anthropic.com/v1/models (2026-08-27).
+# Model id verified against the live provider catalog:
+# GET https://api.anthropic.com/v1/models (2026-08-27).
 #
 # Anthropic's native id is DASH-form `claude-opus-4-8`; OpenRouter's
 # `anthropic/claude-opus-4.8` is a different string for the same model and

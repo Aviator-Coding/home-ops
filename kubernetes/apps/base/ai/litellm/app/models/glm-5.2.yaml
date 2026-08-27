@@ -6,7 +6,18 @@
 # Direct Z.ai route. `zai/` is a NATIVE LiteLLM provider on the pinned
 # v1.98.0 image (verified: resolves to https://api.z.ai/api/paas/v4), so no
 # `apiBase` override and no `openai/`-compatible shim is needed.
-# Model id verified against the live provider catalog: GET https://api.z.ai/api/paas/v4/models (2026-08-27).
+# Model id verified against the live provider catalog:
+# GET https://api.z.ai/api/paas/v4/models (2026-08-27).
+#
+# NOT SERVABLE TODAY - the credential is fine, the ACCOUNT is empty. Measured
+# 2026-08-27 from inside the proxy pod: every Z.ai completion returns
+# `ZaiException - Insufficient balance or no resource package. Please recharge.`
+# (LiteLLM surfaces it as RateLimitError). This is account-wide, not specific to
+# this model - `glm-4.6`, a long-established id, fails identically - and it is
+# NOT an auth failure: the same key lists the catalog over /models with HTTP
+# 200. Registering it anyway is deliberate: the route is correct and starts
+# working the moment the account is funded, and with no virtual key entitled to
+# it (see ./kustomization.yaml) an unservable model affects no consumer.
 #
 # REGISTRATION ONLY - see ./kustomization.yaml for what that does and does
 # not grant, and for why no `info.extra` prices appear here.
