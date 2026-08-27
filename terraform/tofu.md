@@ -27,7 +27,9 @@ specific, known consequence.
 4. **Secrets come from 1Password at invocation time.** Each stack ships a
    `secrets.vals.yaml` holding only `ref+op://` references, resolved by `vals`,
    the same mechanism `bootstrap/` and the `just talos` render path already use.
-   There is no committed `tfvars` and no committed `backend.tfvars`.
+   The authentik stack also ships `secrets-apply.vals.yaml` for captain-approved
+   apply only (a separate field that is absent until approval, so stray apply
+   fails closed). There is no committed `tfvars` and no committed `backend.tfvars`.
 
 ## File organization
 
@@ -38,7 +40,8 @@ specific, known consequence.
 | `outputs.tofu`     | Output value declarations, if the stack has any              |
 | `backend.tofu`     | Remote state configuration                                   |
 | `imports.tofu`     | `import` blocks adopting the existing live objects           |
-| `secrets.vals.yaml`| `ref+op://` environment for `vals exec`; references only     |
+| `secrets.vals.yaml`| `ref+op://` environment for plan/init/state; references only |
+| `secrets-apply.vals.yaml` | apply-only env; token field absent until approval |
 | `*.tofu`           | Resources, grouped by subject (applications, flows, ...)     |
 
 Files use the `.tofu` extension, not `.tf`. Renovate's built-in `terraform`
@@ -65,14 +68,17 @@ Always through `vals exec`, so credentials never touch the filesystem:
 cd terraform/authentik
 
 # One time, and after any provider version change
-vals exec -f secrets.vals.yaml -- tofu init
+vals exec -i -f secrets.vals.yaml -- tofu init
 
 # The only command that is safe to run unprompted
-vals exec -f secrets.vals.yaml -- tofu plan
+vals exec -i -f secrets.vals.yaml -- tofu plan
 
 # Inspect adopted state
-vals exec -f secrets.vals.yaml -- tofu state list
+vals exec -i -f secrets.vals.yaml -- tofu state list
 ```
+
+Always pass `-i` so PATH/mise and the op session survive into the child. File
+keys still win over parent env; do not try to override `TF_VAR_*` with an export.
 
 Validation, which needs no credentials and is what CI runs:
 

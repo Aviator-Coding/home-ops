@@ -190,6 +190,7 @@ One 1Password item, `authentik-terraform`, in the **`Automation`** vault:
 | Field | Contents |
 | ----- | -------- |
 | `AUTHENTIK_TOKEN` | read-only Authentik API token, see section 5 |
+| `AUTHENTIK_APPLY_TOKEN` | write-capable token, present only during an approved apply (section 7); deliberately absent otherwise |
 | `CODER_CLIENT_ID` | existing `client_id` of provider 4 |
 | `OPEN_WEBUI_CLIENT_ID` | existing `client_id` of provider 36 |
 | `PGADMIN_CLIENT_ID` | existing `client_id` of provider 2 |
@@ -217,8 +218,11 @@ This is deliberately **not** a self-healing reconciler like
 `emptyDir` SQLite and loses its service account on every pod restart. Authentik
 persists tokens in Postgres, so there is no drift here for a timer to heal.
 
-[`secrets.vals.yaml`](../../terraform/authentik/secrets.vals.yaml) maps those
-fields to the environment and holds only `ref+op://` references.
+[`secrets.vals.yaml`](../../terraform/authentik/secrets.vals.yaml) maps the
+read-only plan fields to the environment.
+[`secrets-apply.vals.yaml`](../../terraform/authentik/secrets-apply.vals.yaml)
+is identical except `TF_VAR_authentik_token` resolves `AUTHENTIK_APPLY_TOKEN`
+(section 7). Both hold only `ref+op://` references.
 
 ## 5. The read-only API token, and how it was minted
 
@@ -293,8 +297,8 @@ separate, write-capable credential, minted only when an apply is approved.
 
 ```bash
 cd terraform/authentik
-vals exec -f secrets.vals.yaml -- tofu init
-vals exec -f secrets.vals.yaml -- tofu plan
+vals exec -i -f secrets.vals.yaml -- tofu init
+vals exec -i -f secrets.vals.yaml -- tofu plan
 ```
 
 If you want plan evidence before the state bucket exists, move `backend.tofu`
@@ -373,30 +377,32 @@ Pre-apply checklist:
 `secrets.vals.yaml` injects the durable **read-only** `AUTHENTIK_TOKEN` from
 `Automation/authentik-terraform`. That token returns 403 on every write, so an
 apply driven through it cannot succeed - including the first adoption apply,
-which still has to PATCH the four `property_mappings` ordering fixes. An apply
-needs a separate, write-capable token injected **only for that invocation**.
-Never write that token into the durable `AUTHENTIK_TOKEN` field on
-`Automation/authentik-terraform`: that field stays read-only on purpose so a
-stray `vals exec -f secrets.vals.yaml -- tofu apply` cannot mutate live SSO.
+which still has to PATCH the four `property_mappings` ordering fixes.
 
-One working pattern is to leave backend and non-token secrets on
-`secrets.vals.yaml`, then override only the Authentik token for the apply:
+Apply uses a separate committed file,
+[`secrets-apply.vals.yaml`](../../terraform/authentik/secrets-apply.vals.yaml),
+identical except `TF_VAR_authentik_token` resolves
+`Automation/authentik-terraform/AUTHENTIK_APPLY_TOKEN`. That field is
+deliberately **absent** in 1Password until an apply is approved, so a stray
+`vals exec -i -f secrets-apply.vals.yaml -- tofu apply` fails closed on an
+unresolvable ref instead of silently running with the read-only token and
+403-ing halfway through.
+
+At approval time, mint a write-capable Authentik token (ak shell / UI), write it
+into `AUTHENTIK_APPLY_TOKEN` only for the duration of the approved apply, then
+remove the field afterwards. **Never** write that token into the durable
+`AUTHENTIK_TOKEN` field: that field stays read-only on purpose so a stray
+`vals exec -i -f secrets.vals.yaml -- tofu apply` cannot mutate live SSO. Do not
+try to override a vals file key with an exported `TF_VAR_`; file keys always win.
 
 ```bash
 cd terraform/authentik
-# Mint a write-capable token at approval time (ak shell / UI), then:
-export TF_VAR_authentik_token="$(op read 'op://.../write-token/credential')"
-vals exec -f secrets.vals.yaml -- tofu plan -out=tfplan   # gitignored
-vals exec -f secrets.vals.yaml -- tofu apply tfplan
-unset TF_VAR_authentik_token
+# After captain approval: place the write token in AUTHENTIK_APPLY_TOKEN, then:
+vals exec -i -f secrets.vals.yaml -- tofu plan -out=tfplan   # gitignored; read-only review
+vals exec -i -f secrets-apply.vals.yaml -- tofu apply tfplan
+# Remove AUTHENTIK_APPLY_TOKEN from Automation/authentik-terraform immediately after.
 rm -f tfplan
 ```
-
-`TF_VAR_authentik_token` wins over the read-only value `vals` would otherwise
-inject, so the plan and apply both use the write credential without touching
-the durable 1Password item. A separate write-only vals file that is never
-committed and never pushed is equally fine; the durable read-only field is
-not.
 
 Apply a saved plan, never a bare `tofu apply`. The saved plan is what was
 reviewed; a bare apply re-plans against whatever the instance looks like now.
