@@ -16,6 +16,8 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 | [test-runner.yaml](#test-runner) | Schedule/Manual | Tests self-hosted runner functionality | Self-hosted |
 | [build-talosctl-busybox.yaml](#build-talosctl-busybox) | Push/Manual | Builds and pushes the talosctl-busybox image | ubuntu-latest |
 | [validate.yaml](#validate) | Pull Request | Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - the paths Flux-oriented CI never sees | Self-hosted |
+| [terraform-diff.yaml](#terraform-diff) | Pull Request | Format/schema-checks changed `terraform/*` stacks, matrixed per directory | Self-hosted |
+| [terraform-publish.yaml](#terraform-publish) | Push (main) | Publishes `terraform/` as an OCI artifact | ubuntu-latest |
 
 ## Workflows
 
@@ -145,6 +147,34 @@ Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - paths the
 - `renovate-config` - Runs `renovate-config-validator` against `.renovaterc.json5` and `.renovate/*.json5`
 
 **Details:** See the workflow file header and `AGENTS.md`'s CI workflows notes.
+
+### terraform-diff
+
+**File:** `terraform-diff.yaml`
+
+Matrixed per-directory `tofu fmt`/`tofu init -backend=false`/`tofu validate`
+checks for PRs touching `terraform/**`, designed for any future `terraform/*`
+stack (today just `terraform/authentik/`).
+
+**Jobs:**
+- `filter` - Detects changed top-level stack directories under `terraform/`
+- `plan` - Runs `tofu fmt -check`, `tofu init -backend=false`, `tofu validate` per changed stack (matrix, no credentials)
+- `success` - Aggregates job results
+
+**Not yet implemented:** a real `tofu plan` against the live state backend and
+posting it as a PR comment. That needs credentials reaching the live state
+bucket and, for `authentik`, the live SSO instance - see the workflow file's
+header comment and `docs/authentik/terraform.md` for why that is a pending
+decision, not an oversight.
+
+### terraform-publish
+
+**File:** `terraform-publish.yaml`
+
+Publishes the `terraform/` tree as an OCI artifact (`ghcr.io/aviator-coding/manifests/terraform`)
+on every push to `main` that touches it, tagged with the short commit SHA and
+`main`. Packages the source tree only - it never runs `tofu`, so no cluster or
+SSO credential is needed.
 
 ## Common Patterns
 

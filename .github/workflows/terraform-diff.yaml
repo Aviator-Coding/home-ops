@@ -1,0 +1,143 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+#
+# Per-stack OpenTofu format/schema checks for PRs touching terraform/**, matrixed
+# on changed top-level stack directories (today just terraform/authentik/, but
+# designed for any future terraform/* stack). Mirrors the shape of
+# joryirving/home-ops's terraform-diff.yaml, adapted to this repo's runner and
+# credential conventions.
+#
+# SCOPE TODAY: `tofu fmt -check` + `tofu init -backend=false` + `tofu validate`
+# only - the exact same commands and `-backend=false` posture as validate.yaml's
+# existing `terraform` job (scripts/ci/tofu-validate.sh), just matrixed per
+# changed directory instead of looped over every stack. No credential is used or
+# needed for any of these three steps.
+#
+# NOT YET IMPLEMENTED: a real `tofu plan -lock=false` against the live state
+# backend, and posting the rendered plan as a PR comment (borchero/terraform-plan-
+# comment, as the reference workflow does). That step needs credentials that can
+# reach the live Ceph RGW state bucket and, read-only, the live Authentik API -
+# which directly reverses a security property validate.yaml's terraform job and
+# docs/authentik/terraform.md both state as deliberate today: "a pull request can
+# never reach the live SSO instance or the state bucket." That is an open
+# captain decision (tracked as terraform-diff-live-plan-scope), not an
+# implementation detail, so it is intentionally left out of this workflow rather
+# than guessed at. See the `plan` job below for the exact spot it plugs into.
+#
+# Fork guard: every job here lands on the local ARC runner because it needs
+# network reach to the in-cluster tooling any future stack's `-backend=false`-
+# only checks still run near (and because the deferred live-plan layer above,
+# whichever option is chosen, will need that same in-cluster reach). Same
+# reasoning and same pattern as validate.yaml/image-pull.yaml/labeler.yaml: a
+# fork PR must never execute on this runner, so every job below checks
+# `github.event.pull_request.head.repo.full_name == github.repository`. This
+# repo is public, so fork PRs are the normal case, not an edge case.
+name: Terraform Diff
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - terraform/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  filter:
+    # Fork guard - see header.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    name: Terraform Diff - Filter
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 5
+    outputs:
+      changed-dirs: ${{ steps.changed-dirs.outputs.changed_files }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Get Changed Terraform Stack Directories
+        id: changed-dirs
+        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        with:
+          patterns: terraform/**/*
+          include_only_directories: true
+          max_depth: 2
+
+  plan:
+    # Fork guard - see header.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.changed-dirs != '[]' }}
+    needs: filter
+    name: Terraform Diff - Plan
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        stack: ${{ fromJSON(needs.filter.outputs.changed-dirs) }}
+      fail-fast: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # opentofu comes from .mise.toml so this validates with the same version
+      # the runbook tells an operator to plan with.
+      - name: Setup Tools
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        with:
+          install_args: opentofu
+
+      - name: Tofu Format Check
+        working-directory: ${{ matrix.stack }}
+        run: tofu fmt -check -diff
+
+      # No credentials are set for this step, deliberately - same posture as
+      # validate.yaml's terraform job. `-backend=false` never contacts the live
+      # state bucket.
+      - name: Tofu Init
+        working-directory: ${{ matrix.stack }}
+        run: tofu init -backend=false -input=false -no-color
+
+      - name: Tofu Validate
+        working-directory: ${{ matrix.stack }}
+        run: tofu validate -no-color
+
+      # --- Deferred: real plan + PR comment ---
+      # Pending terraform-diff-live-plan-scope. Whichever option the captain
+      # picks, it adds steps here that:
+      #   - resolve read-only credentials for this stack's live state backend
+      #     and (for authentik) the live Authentik API - see this stack's own
+      #     secrets.vals.yaml for the exact variable/field names already in use;
+      #     do not invent a parallel credential shape without checking there first
+      #   - re-run `tofu init` for real, this time against the backend
+      #   - `tofu plan -lock=false -out=.planfile`
+      #   - post `.planfile` as a PR comment (borchero/terraform-plan-comment,
+      #     pinned by digest)
+      # and, depending on the option chosen, may also add an approval gate before
+      # any of the above runs.
+
+  success:
+    if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
+    needs:
+      - filter
+      - plan
+    name: Terraform Diff - Success
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 5
+    steps:
+      - name: Any jobs failed?
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
+
+      - name: All jobs passed or skipped?
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"
