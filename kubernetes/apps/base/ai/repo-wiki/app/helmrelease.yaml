@@ -40,8 +40,15 @@ spec:
             image:
               repository: squidfunk/mkdocs-material
               tag: 9.7.7@sha256:51b87149d227691486b5f08993d28c65ca7e4990010664b697265b8e6fcd5287
-            command: ["mkdocs"]
-            args: ["serve", "--dirty", "-f", "/config/mkdocs.yml", "-a", "0.0.0.0:8000"]
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                mkdir -p /app-data/repository
+                if [ ! -f /app-data/repository/index.md ]; then
+                  printf '%s\n' '# Home Ops Repo Wikis' '' 'Waiting for the first generator run.' > /app-data/repository/index.md
+                fi
+                exec mkdocs serve --dirty -f /config/mkdocs.yml -a 0.0.0.0:8000
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
