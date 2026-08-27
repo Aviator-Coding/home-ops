@@ -30,7 +30,15 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: litellm
+  # NOT `litellm`. The operator DELETES any HTTPRoute whose name equals the
+  # LiteLLMProxy's name in the proxy's namespace when spec.route is absent -
+  # it treats it as an orphan of a route it owns. Proven live 2026-08-26: a
+  # route named `litellm` survived creation, then vanished on the very next
+  # LiteLLMProxy reconcile, while an otherwise identical `litellm-nametest`
+  # survived. That failure mode is nasty because it is DELAYED - the route
+  # works until something touches the proxy CR. Keep this suffixed, and match
+  # the sibling convention (`agentgateway-internal`).
+  name: litellm-internal
   annotations:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/group: AI

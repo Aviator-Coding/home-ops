@@ -238,3 +238,195 @@ cluster will never see 1000 rpm on one of them. Confirmed empirically: after
 driving a deployment to 100% failure, `litellm_deployment_cooled_down_total` had
 **zero** series. `LiteLLMDeploymentStuckFailing` covers the same operational
 question using signals that do move here.
+
+---
+
+## 5. Post-merge failover proof (runbook)
+
+**Never degrade `vllm-app` to force a failover.** It serves real cluster traffic
+and a restart costs minutes of GGUF reload. The proof instead introduces a
+throwaway model whose backend is a black hole, exercises it with a throwaway
+key, and deletes both. This is exactly the procedure used to produce every
+measurement in this document.
+
+Run it after merge, on firstmate's go. Budget: a few cents at most; the version
+below spends **$0** because the fallback target is local.
+
+```bash
+export KUBECONFIG=...            # cluster admin
+kubectl -n ai get ks 2>/dev/null # sanity: you are on the right cluster
+
+# 0. Suspend so Flux cannot clobber the probe mid-test, and so the probe
+#    cannot outlive the test. (CLAUDE.md: a Kustomization's own interval will
+#    silently revert live edits.)
+flux suspend ks litellm -n ai
+```
+
+**1. Create the probe model and a key scoped to it only.**
+
+```bash
+kubectl apply -f - <<'EOF'
+---
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata: {name: fallback-probe, namespace: ai}
+spec:
+  modelName: fallback-probe
+  proxyRef: litellm
+  params:
+    model: openai/probe-dead
+    apiBase: http://fallback-probe-dead.ai.svc.cluster.local:9/v1   # nothing listens; port 9 = discard
+    apiKey: "not-needed"
+    additional: {num_retries: 0, timeout: 5}
+---
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata: {name: fallback-probe-key, namespace: ai}
+spec:
+  proxyRef: litellm
+  keyAlias: fallback-probe-key
+  secretName: litellm-key-fallback-probe
+  secretKey: key
+  models: [fallback-probe]        # deliberately NOT the fallback target
+  maxBudget: "0.20"
+  budgetDuration: 30d
+  rpmLimit: 20
+  tpmLimit: 20000
+EOF
+```
+
+**2. Point a fallback at it.** Use the LOCAL model as the target for a free run;
+swap to `claude-sonnet-5` only if the cloud leg specifically needs proving
+(costs ~$0.00003 for a `max_tokens: 1` call).
+
+```bash
+kubectl -n ai patch litellmproxy litellm --type=merge -p \
+  '{"spec":{"routerSettings":{"routing_strategy":"simple-shuffle","fallbacks":[{"fallback-probe":["qwen3.6-35b-a3b"]}]}}}'
+kubectl -n ai rollout status deploy/litellm --timeout=180s
+```
+
+**3. Exercise it.** The primary is unreachable, so every call must be served by
+the fallback.
+
+```bash
+kubectl -n ai port-forward svc/litellm 4000:4000 &
+PK=$(kubectl -n ai get secret litellm-key-fallback-probe -o jsonpath='{.data.key}' | base64 -d)
+for i in $(seq 1 8); do
+  curl -s http://localhost:4000/v1/chat/completions \
+    -H "Authorization: Bearer $PK" -H 'Content-Type: application/json' \
+    -d '{"model":"fallback-probe","messages":[{"role":"user","content":"say ok"}],"max_tokens":4}' \
+    | python3 -c 'import sys,json;print("served by:",json.load(sys.stdin).get("model"))'
+  sleep 18   # >1 scrape interval apart, so rate() sees an increase
+done
+```
+
+Expected: `served by: qwen3.6-35b-a3b` every time, HTTP 200.
+
+**4. Confirm the context-window leg** (the one link not proven pre-merge - see
+§3). Add `context_window_fallbacks` for the probe and send a prompt over
+262,144 tokens to the *real* local alias. Budget several minutes: llama.cpp
+tokenizes the whole payload before rejecting it, which is why this was deferred
+out of the pre-merge pass.
+
+```bash
+python3 -c 'import json;json.dump({"model":"qwen3.6-35b-a3b","messages":[{"role":"user","content":"alpha "*400000}],"max_tokens":1},open("/tmp/big.json","w"))'
+MK=$(kubectl -n ai get secret litellm-secret -o jsonpath='{.data.LITELLM_MASTER_KEY}' | base64 -d)
+curl -s -m 900 http://localhost:4000/v1/chat/completions -H "Authorization: Bearer $MK" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/big.json | head -c 400
+```
+
+Record the exact error string. The expectation is that it contains
+`exceeds the available context size`, which is what LiteLLM matches to raise
+`ContextWindowExceededError`. **If it does not, `context_window_fallbacks` is
+inert and this doc's §3 must be corrected** - that is the point of the step.
+
+**5. Verify the alerts fired**, against Prometheus rather than by reading YAML:
+
+```bash
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090 &
+q(){ curl -s --get --data-urlencode "query=$1" http://localhost:9090/api/v1/query | python3 -m json.tool | head -30; }
+q 'sum by (requested_model, fallback_model) (rate(litellm_deployment_successful_fallbacks_total[15m])) > 0'
+q '(litellm_deployment_state >= 1) and on (model_id) (sum by (model_id) (rate(litellm_deployment_failure_responses_total[15m])) > 0)'
+```
+
+Both returned data when this was run pre-merge (`LiteLLMSustainedFailover` at
+rate 0.0093, `LiteLLMDeploymentStuckFailing` on the probe deployment).
+
+To also see `LiteLLMFallbackChainExhausted`, repoint the fallback at a *second*
+dead model so both legs fail, fire 3 requests, and expect HTTP 500 plus
+`litellm_deployment_failed_fallbacks_total > 0`.
+
+**6. Tear down. Do not skip - the suspend is what makes this safe.**
+
+```bash
+kubectl -n ai delete litellmvirtualkey fallback-probe-key --ignore-not-found
+kubectl -n ai delete litellmmodel fallback-probe fallback-probe-2 --ignore-not-found
+kubectl -n ai delete secret litellm-key-fallback-probe --ignore-not-found
+flux resume ks litellm -n ai        # reverts routerSettings to what Git says
+kubectl -n ai get cm litellm-config -o jsonpath='{.data.config\.yaml}' | grep -A12 router_settings
+```
+
+The last command must show the committed chains (`chat-ha`/`auto` ->
+`claude-sonnet-5`), not the probe. `flux resume` triggers one immediate
+reconcile, so the revert is not deferred to the next interval.
+
+---
+
+## 6. The internal route (captain instruction, 2026-08-26)
+
+`kubernetes/apps/base/ai/litellm/app/httproute-internal.yaml` puts the proxy on
+`envoy-internal` at `litellm.${SECRET_DOMAIN}`. The public half of B4 is
+untouched and still forbidden.
+
+### Standalone HTTPRoute, not the operator's `spec.route`
+
+**Not a DNS decision.** `spec.route` would have resolved correctly: the
+`envoy-internal` Gateway itself carries
+`external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}` and
+external-dns applies it to every attached route. Verified live - `searxng` and
+`jellyfin` carry no route-level target annotation and both resolve
+`CNAME -> internal.${SECRET_DOMAIN} -> 10.50.0.26`. (Before this change,
+`litellm.${SECRET_DOMAIN}` resolved to `10.50.0.27` only via the `*.${SECRET_DOMAIN}`
+wildcard that the agentgateway `internal` Gateway publishes; a specific record
+now wins over it.)
+
+It is an **annotations** decision. The operator's route schema is exactly
+`{hostnames, parentRefs, filters}` - there is no annotations field - so an
+operator-owned route cannot carry `gatus.home-operations.com/endpoint` or
+`gethomepage.dev/*`. That is not cosmetic here: Gatus *does* auto-discover
+un-annotated routes (the Gateway carries `group: internal`), but then applies a
+default `[STATUS] == 200` check against `/`, which is exactly why `agentmemory`
+(404) and `mcp-gateway` (406) sit permanently red in Gatus today. Owning the
+annotation lets this app check `/health/readiness` - which returns
+`{"status":"healthy","db":"connected"}` and so also covers the Postgres
+dependency - and land in the `ai` group. It also finally consumes the
+`GATUS_GROUP: ai` substitution that `kubernetes/apps/main/ai/litellm.yaml` has
+been defining and nothing was using.
+
+### The name is load-bearing: never `litellm`
+
+> The operator **deletes** any HTTPRoute whose name equals the `LiteLLMProxy`'s
+> name, in the proxy's namespace, whenever `spec.route` is absent - it treats it
+> as an orphan of a route it owns.
+
+Proven live 2026-08-26: a hand-written route named `litellm` was created
+successfully, served traffic, and then **vanished on the next `LiteLLMProxy`
+reconcile**, while an identical route named `litellm-nametest` survived the same
+reconcile. The failure is *delayed* - the route works until anything touches the
+proxy CR (a config change, a resync, an operator restart) - which makes it the
+kind of bug that ships green and breaks days later. Hence `litellm-internal`,
+matching the sibling `agentgateway-internal` convention. Do not "tidy" this name.
+
+For the same reason, do not set `spec.route` on the `LiteLLMProxy`: it would
+create a second, competing HTTPRoute for the same Service.
+
+### Access gating
+
+None added, deliberately, per "do not invent a new auth surface". 49 of the 52
+internal HTTPRoutes in this cluster carry no `SecurityPolicy`; the internal
+gateway is itself the boundary (private VLAN + split DNS, never
+internet-reachable), and LiteLLM's own master-key/DB login still guards the
+admin UI and API. Verified through the gateway: `/v1/models` with a virtual key
+returns only that key's allow-listed models, and **without** a key returns
+`401`. If SSO in front of the UI is wanted later, `monitoring/kromgo-auth` is
+the Authentik ExtAuth pattern to copy.
