@@ -1,0 +1,51 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# D3 auto-router consumer. Scoped to the routed alias ONLY, which is the point:
+# this key reaches Anthropic exclusively through a classification it does not
+# control. A key whose models list contains only `auto` can still be routed to
+# every tier backend AND still runs the classifier: verified 2026-08-26 - the
+# allow-list is checked against the model the CALLER asked for, not the one the
+# router resolves to. That makes `auto` a real governance boundary - such a key
+# cannot call claude-opus-5 directly, only reach it by being classified into
+# that tier.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: router-demo
+spec:
+  proxyRef: litellm
+  keyAlias: router-demo
+  secretName: litellm-key-router-demo
+  secretKey: key
+  models:
+    - auto
+  # Deliberately small but larger than the `demo` cap, because a routed request
+  # costs a classifier call plus the completion. Measured 2026-08-26 on the lab
+  # rig: ~$0.0034 per classification in governance accounting (the ~850-token
+  # rubric prefix is prompt-cached by llama.cpp and cached tokens price at $0),
+  # plus the tier backend's own cost - real USD once a request lands on a cloud
+  # tier. Raise maxBudget here, not the tier prices, when this runs out.
+  maxBudget: "0.5"
+  budgetDuration: 30d
+  rpmLimit: 6
+  tpmLimit: 60000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-router-demo
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-router-demo
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-router-demo
+          property: key

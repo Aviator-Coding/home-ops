@@ -1,0 +1,60 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: litellm-operator
+spec:
+  interval: 15m
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    tag: 0.0.15
+  url: oci://ghcr.io/home-operations/charts/litellm-operator
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: litellm-operator
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: litellm-operator
+  # install/upgrade `crds: CreateReplace` and the remediation strategy are
+  # injected into every HelmRelease by the cluster-apps Kustomization
+  # (kubernetes/clusters/main/apps.yaml) - do not restate them here. That
+  # matters for this chart in particular: its six CRDs ship in the chart's
+  # crds/ directory, which plain Helm installs once and never upgrades.
+  values:
+    controller:
+      logLevel: info
+      leaderElection:
+        enabled: true
+    # The chart's own pod hardening (podSecurityContext runAsNonRoot +
+    # RuntimeDefault, container allowPrivilegeEscalation=false, drop ALL,
+    # readOnlyRootFilesystem=true) is already this repo's convention, so the
+    # defaults are taken as-is. NOTE this is the OPERATOR pod only - the
+    # LiteLLMProxy CRD exposes no securityContext, so the proxy pod the
+    # operator renders gets none. See kubernetes/apps/base/ai/litellm/README.md
+    # ("Pod security posture") for that gap and why it is accepted here.
+
+    # LLMKube (inference.llmkube.dev) is not installed on this cluster; the
+    # reference cluster turns this on, we must not. Left at the chart default
+    # (false) explicitly so a future chart-default flip cannot quietly start
+    # minting LiteLLMModel CRs nobody declared in Git.
+    llmkube:
+      autoRegister: false
+    # Validating webhook is on by default and self-manages its serving cert
+    # (no cert-manager dependency). failurePolicy is Fail for every LiteLLM
+    # kind, which is why the litellm Kustomization dependsOn this one with a
+    # Deployment healthCheck: with the operator down, applying any LiteLLM CR
+    # is rejected at admission, not merely left unreconciled.
+    resources:
+      requests:
+        cpu: 25m
+        memory: 128Mi
+      limits:
+        memory: 256Mi

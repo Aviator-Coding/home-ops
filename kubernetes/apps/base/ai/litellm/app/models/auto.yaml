@@ -1,0 +1,98 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# The routed alias (captain decision D3, 2026-08-26). Strictly ADDITIVE:
+# `qwen3.6-35b-a3b` keeps working exactly as before, so no existing consumer is
+# forced through the router. Design, tier definitions and classifier tuning:
+# docs/ai-system/litellm/auto-router.md
+#
+# The whole router block rides `params.additional`, which the operator merges
+# verbatim into this entry's litellm_params - the CRD has no typed field for
+# any of it, and none is needed. Read the two pins below before editing.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: auto
+spec:
+  modelName: auto
+  proxyRef: litellm
+  params:
+    model: auto_router/complexity_router
+    additional:
+      # PIN 1 of 2, and the subtlest thing in this file. This SIBLING of
+      # complexity_router_config - not the `default_model` inside it - is what
+      # LiteLLM honours for fail-open. init_complexity_router_deployment reads
+      # this key first; complexity_router_config.default_model alone is NOT
+      # used by the constructor (it falls back to the MEDIUM, then SIMPLE,
+      # tier). Keep BOTH pointing at the local model so a tier retarget never
+      # fails open to cloud spend: retargeting MEDIUM to a cloud model while
+      # leaving only the inner default_model would silently burn cloud money on
+      # every classifier failure.
+      complexity_router_default_model: qwen3.6-35b-a3b
+      complexity_router_config:
+        # Local-first: the two cheap tiers never leave the cluster. Only work the
+        # classifier judges genuinely hard reaches a paid API.
+        tiers:
+          SIMPLE: qwen3.6-35b-a3b
+          MEDIUM: qwen3.6-35b-a3b
+          COMPLEX: claude-sonnet-5
+          REASONING: claude-opus-5
+
+        # -- Classifier: LLM, on the LOCAL model --
+        # `heuristic` (the upstream default) is the rule-based scorer the
+        # reference repo A/B-measured at 25-35% tier accuracy against 80-85% for
+        # the LLM classifier, with its errors running the wrong way (COMPLEX
+        # scoring BELOW MEDIUM). We skip that step entirely.
+        #
+        # PIN 2 of 2 is not in this file: `classifier_type: llm` and
+        # classifier_llm_config first exist in LiteLLM v1.93.0. Below that
+        # floor ComplexityRouterConfig is `extra="allow"`, so these keys parse
+        # clean and are then IGNORED - the router silently runs the 25%-accurate
+        # scorer while looking perfectly healthy. The floor is enforced two
+        # ways: the image pin in litellmproxy.yaml, and Renovate's
+        # `allowedVersions: ">=1.93.0"` on ghcr.io/berriai/litellm-non_root in
+        # .renovate/overrides.json5.
+        classifier_type: llm
+        classifier_llm_config:
+          # The local B70 model - every classification is free of cloud cost and
+          # stays in-cluster. Never point this at a cloud model. This is the
+          # separate classifier deployment (models/qwen3.6-35b-a3b-classifier.yaml),
+          # not the plain local chat model, and that separation is load-bearing:
+          # see that file's header for all three reasons.
+          model: qwen3.6-35b-a3b-classifier
+          # Measured 2026-08-26 against the live B70, warm prefix cache, while
+          # the card also served normal cluster traffic: p50 3.0s, p95 4.6s,
+          # max 5.5s (docs/ai-system/litellm/auto-router.md#measured-classifier-latency).
+          # 8s is ~1.7x measured p95 and above the observed max, so a healthy but
+          # contended GPU still answers instead of being failed open; combined
+          # with num_retries: 0 on the classifier deployment it also caps what a
+          # wedged backend adds to a routed request at one 8s round trip, not
+          # the reference implementation's 20s (x3 retries = 60s).
+          timeout_ms: 8000
+          # Upstream default is `legacy` (no calibration examples), which grades
+          # ordinary engineering work as top-tier and would send routine agent
+          # traffic to Opus. `agentic` is the preset calibrated on terminal and
+          # coding tasks, which is what Hermes/agent traffic here looks like.
+          classification_rubric: agentic
+
+        # -- Fail OPEN to local --
+        # On classifier timeout, provider error or unparseable reply, route to
+        # `default_model` WITHOUT scoring. The alternative, `heuristic`, reruns
+        # the 25%-accurate rule-based scorer, which can still return COMPLEX and
+        # spend real cloud money on a request nothing successfully classified.
+        # A broken classifier must degrade to local, never to the invoice.
+        # See PIN 1 above for why the sibling key, not this one, is what the
+        # constructor actually reads.
+        classifier_fallback: default_model
+        default_model: qwen3.6-35b-a3b
+
+        # Put the resolved backend in the response's `model` field, so a caller
+        # (and the post-merge evidence) can see which tier actually served the
+        # request instead of getting the `auto` alias echoed back.
+        return_raw_model_name: true
+
+        # Off (the upstream default): every turn is classified on its own merits
+        # and routed to the cheapest adequate tier. Turning it on pins the whole
+        # session to the FIRST turn's model, so one COMPLEX opener would hold a
+        # long conversation on a paid model. Revisit only if cross-turn provider
+        # prompt-cache hit rate turns out to matter more than the spend.
+        session_affinity: false

@@ -20,6 +20,13 @@ spec:
         credentials:
           name: litellm-secret
           key: LITELLM_MASTER_KEY
+  # Still matches after the operator migration: the operator labels the Service
+  # it creates with app.kubernetes.io/name=litellm (a constant in its
+  # renderer - `appName`, not the CR name), plus instance=<proxy name> and
+  # managed-by=litellm-operator. The port name is `http` there too, and
+  # prometheus-operator derives `job` from the Service NAME, which is the
+  # LiteLLMProxy CR's name - so `up{job="litellm"}` in prometheusrule.yaml is
+  # unchanged as well.
   selector:
     matchLabels:
       app.kubernetes.io/name: litellm

@@ -9,6 +9,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  # The operator-rendered workload, named after the LiteLLMProxy CR. Never the
+  # HelmRelease or the LiteLLMProxy CR itself (house rule): only the Deployment
+  # reflects a pod-level failure.
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
@@ -17,6 +20,12 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
+    # CRDs + the controller must be Ready first. This is stronger than an
+    # ordinary ordering edge: the operator's ValidatingWebhookConfiguration
+    # has failurePolicy: Fail for every LiteLLM kind, so with the operator
+    # down the API server REJECTS this Kustomization's CRs at admission.
+    - name: litellm-operator
+      namespace: ai
     - name: cloudnative-pg
       namespace: database
     # Points at vllm-app as a backend. Flux dependsOn waits for the vllm

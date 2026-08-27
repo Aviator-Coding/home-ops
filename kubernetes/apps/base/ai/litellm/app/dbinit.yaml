@@ -1,0 +1,62 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/batch/job_v1.json
+# Creates the `litellm` role and database in the shared postgres-17 CNPG
+# cluster, exactly as the pre-operator app did from an `init-db` initContainer.
+#
+# Why a Job and not a CNPG `Database` CR: the CRD is available here (CNPG
+# 1.30.0 serves databases.postgresql.cnpg.io/v1), but `spec.owner` is REQUIRED
+# and CNPG does not create the role - declarative role management is a separate
+# feature living on the Cluster (`spec.managed.roles`). Bootstrapping this app
+# that way would mean editing the shared postgres-17 Cluster that 15+ other
+# apps depend on, and would still leave this app the only one in the repo not
+# using ghcr.io/home-operations/postgres-init. A Job keeps the image, the
+# INIT_POSTGRES_* env contract and the ExternalSecret template byte-identical
+# to every other Postgres-backed app here.
+#
+# Why not an initContainer: LiteLLMProxySpec has no initContainers field.
+#
+# Convergence notes:
+#  - Idempotent: postgres-init creates role/database only if absent, so a
+#    re-run is a no-op. The database already exists on this cluster, so on the
+#    merge that adopts the operator this Job simply exits 0.
+#  - Jobs are immutable, so the Flux force annotation lets an image bump
+#    delete-and-recreate (and therefore re-run) rather than fail to patch.
+#  - It is applied in the same Kustomization as the proxy, so on a FIRST deploy
+#    the proxy may CrashLoopBackOff for a few seconds until the Job finishes;
+#    it recovers on its own. If the database is ever lost without this Job
+#    changing, re-run it by hand:
+#      kubectl -n ai delete job litellm-db-init   # Flux recreates on next reconcile
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: litellm-db-init
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: "true"
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 100
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: init-db
+          image: ghcr.io/home-operations/postgres-init:18.6@sha256:b6d3af974df781c673d37e49bdddfa14a6f5be28b18d2cb7713f0449bea4057b
+          envFrom:
+            - secretRef:
+                name: litellm-secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi

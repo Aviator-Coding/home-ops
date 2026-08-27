@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# One file per consumer (captain decision D4), each pairing a
+# LiteLLMVirtualKey with the PushSecret that mirrors its minted key to
+# 1Password. This replaces resources/consumers.json + provision_keys.py and
+# both provisioning controllers - the operator owns minting, updating and
+# deleting the key through the proxy's admin API.
+#
+# Adding a consumer: copy a file, change the name/secretName/remoteKey and the
+# limits, add it here. Raising a budget: edit the number and commit - the
+# operator diffs the live key against the spec and PATCHes only what changed,
+# so the credential itself is preserved (same property the old script had).
+resources:
+  - ./demo.yaml
+  - ./router-demo.yaml

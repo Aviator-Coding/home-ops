@@ -34,7 +34,7 @@ spec:
             severity: warning
         - alert: LiteLLMConsumerBudgetExhausted
           annotations:
-            description: 'A LiteLLM virtual key has spent its full budget_duration budget. Deliberate per D4 (tiny initial budgets) - raise the limit in resources/consumers.json if this consumer needs more headroom, or leave it to reset at the next budget_duration boundary.'
+            description: 'A LiteLLM virtual key has spent its full budget_duration budget. Deliberate per D4 (tiny initial budgets) - raise the limit on the matching LiteLLMVirtualKey in virtualkeys/ if that consumer needs more headroom, or leave it to reset at the next budget_duration boundary.'
             summary: A LiteLLM consumer key has hit its spend budget.
           expr: |-
             litellm_remaining_api_key_budget_metric <= 0
