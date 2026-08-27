@@ -74,6 +74,24 @@
       allowedVersions: "<2.0.0",
     },
     {
+      // The `goauthentik/authentik` OpenTofu provider is generated from the
+      // Authentik SERVER's OpenAPI schema, so the two are coupled: a provider
+      // ahead of the running server can send fields the API rejects, and a
+      // provider behind it silently cannot express newer ones. The server tag
+      // lives in kubernetes/apps/base/security/authentik/app/helmrelease.yaml
+      // (OCIRepository `ref.tag`); the provider is pinned to the matching release
+      // line in terraform/authentik/main.tofu. Bump them in the same change.
+      //
+      // Nothing in .renovate/autoMerge.json5 matches the `terraform-provider`
+      // datasource today, so these already arrive as reviewable PRs. This entry
+      // states the coupling and keeps it true if those rules ever widen - an
+      // auto-merged provider bump here lands untested against the live SSO stack.
+      description: "Keep the Authentik OpenTofu provider aligned with the server release line",
+      matchDatasources: ["terraform-provider"],
+      matchPackageNames: ["goauthentik/authentik"],
+      automerge: false,
+    },
+    {
       // Ceph versioning: x.0.z = development, x.1.z = RC, x.2.z = stable.
       // Renovate matches registry tags, not docs.ceph.com/en/latest/releases/,
       // so RCs like v21.1.0 (no official v21 release) get proposed as upgrades

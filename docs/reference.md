@@ -22,6 +22,7 @@ Start with the operator files, then the topic notes under `docs/`.
 | [`organisation-services-1password-setup.md`](organisation-services-1password-setup.md) | 1Password setup |
 | [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md) | Volsync schedules and restore |
 | [`ai-system/retired-2026-08-22.md`](ai-system/retired-2026-08-22.md) | What the `ai` namespace retirements kept, and how to revive each app |
+| [`authentik/terraform.md`](authentik/terraform.md) | Authentik config as code: the read-only inventory, the import strategy, the RGW state bucket, and the apply approval gate |
 | [`branch-protection.md`](branch-protection.md) | `main`'s GitHub ruleset: what's enforced, why only `Labeler` is a required check today, and what closes the gap |
 
 [`flux-migration-validation-report.md`](flux-migration-validation-report.md) is a historical snapshot from 2026-03-29. Do not treat its FAILs as open work.

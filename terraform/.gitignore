@@ -1,0 +1,18 @@
+# OpenTofu working files. Nothing here belongs in Git.
+.terraform/
+.terraform.tfstate.lock.info
+
+# State never lives in Git - it is in the S3 backend (see authentik/backend.tofu)
+# and it contains secrets in plaintext.
+*.tfstate
+*.tfstate.*
+
+# Rendered variable files. The committed *.vals.yaml templates hold only
+# `ref+op://` references; the rendered output holds real secrets.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Saved plans embed variable values, including secrets.
+*.tfplan
+tfplan

@@ -40,13 +40,14 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Flux Local - Test
-    # Not migrated to the local runner: this job uses `docker://...` container actions
-    # (flux-local), which need a Docker daemon. The local ARC runner pod has none (no
-    # docker.sock, no DinD sidecar) - confirmed by a live PR run failing with "failed to
-    # connect to the docker API at unix:///var/run/docker.sock". See
+    # Not migrated to the local runner: this job runs `docker run ... flux-local`, which
+    # needs a Docker daemon. The local ARC runner pod has none (no docker.sock, no DinD
+    # sidecar) - confirmed by a live PR run failing with "failed to connect to the docker
+    # API at unix:///var/run/docker.sock". See
     # kubernetes/apps/base/actions-runner-system/TROUBLESHOOTING.md.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 5 attempts x ~4 min full helm test, plus backoff between failures.
+    timeout-minutes: 25
     steps:
       - name: Generate Token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -61,46 +62,67 @@ jobs:
           persist-credentials: false
           token: ${{ steps.app-token.outputs.token }}
 
-      # flux-local hardcodes a 60s timeout per `helm repo update` call
-      # (flux_local/command.py _TIMEOUT, not configurable via HELM_TIMEOUT above)
-      # and each HelmReleaseTest updates only the one HelmRepository its chart
-      # uses - a single slow upstream chart index (e.g. repos.emqx.io) can time
-      # out the whole job. Retry once so a transient upstream blip doesn't fail
-      # the check; a real problem (e.g. a bad repo URL) still fails both tries.
+      # Two independent flakes are absorbed here:
+      # 1. helm repo update: flux-local hardcodes a 60s timeout per call
+      #    (flux_local/command.py _TIMEOUT, not configurable via HELM_TIMEOUT)
+      #    and each HelmReleaseTest updates only the one HelmRepository its
+      #    chart uses - a single slow upstream chart index (e.g. repos.emqx.io)
+      #    can time out the whole job.
+      # 2. volsync component race: flux-local builds every Kustomization
+      #    concurrently (fixed internal concurrency). This repo's volsync
+      #    "second volume" pattern (e.g. selfhosted/syncthing's syncthing-data
+      #    Kustomization) points a Flux Kustomization's own --path directly at
+      #    the shared kubernetes/components/volsync/backup directory, which
+      #    `flux build ks` mutates in place while building. Other apps (e.g.
+      #    media/immich, database/pgadmin) read that same directory concurrently
+      #    via `spec.components`, so a badly-timed interleaving occasionally
+      #    reads a transiently-rewritten/empty kustomization.yaml and fails with
+      #    "kustomization.yaml is empty" or "already registered id". `flux build
+      #    ks` is supposed to revert that mutation, but a build killed mid-race
+      #    can leave the checkout corrupted - so reset before every attempt,
+      #    matching the Diff job below. A real problem still fails every try.
       - name: Run flux-local test
-        id: flux-local-test
-        continue-on-error: true
-        uses: docker://ghcr.io/allenporter/flux-local:v8.4.0
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          HELM_TIMEOUT: "300"
-        with:
-          args: >-
-            test
-            --all-namespaces
-            --enable-helm
-            --path /github/workspace/kubernetes/clusters/main
-            --verbose
-
-      - name: Retry flux-local test (helm repo update flake)
-        if: steps.flux-local-test.outcome == 'failure'
-        uses: docker://ghcr.io/allenporter/flux-local:v8.4.0
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          HELM_TIMEOUT: "300"
-        with:
-          args: >-
-            test
-            --all-namespaces
-            --enable-helm
-            --path /github/workspace/kubernetes/clusters/main
-            --verbose
+        run: |
+          for attempt in 1 2 3 4 5; do
+            echo "::group::Attempt $attempt/5: Running flux-local test..."
+            git checkout -- . && git clean -fd
+            # HOME/XDG_CACHE_HOME: the flux-local image runs non-root; without a
+            # writable home, helm 4's plugin/registry cache tries mkdir /.cache and
+            # fails with "permission denied" mid-template (same fix as Diff/image-pull).
+            if docker run --rm \
+              -v "$GITHUB_WORKSPACE:/github/workspace" \
+              --workdir /github/workspace \
+              -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
+              -e HELM_TIMEOUT=300 \
+              -e HOME=/tmp \
+              -e XDG_CACHE_HOME=/tmp/.cache \
+              ghcr.io/allenporter/flux-local:v8.4.0 \
+              test \
+              --all-namespaces \
+              --enable-helm \
+              --path /github/workspace/kubernetes/clusters/main \
+              --verbose; then
+              echo "::endgroup::"
+              echo "✓ flux-local test succeeded"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ $attempt -lt 5 ]; then
+              wait_time=$(( 10 * attempt < 30 ? 10 * attempt : 30 ))
+              echo "✗ Attempt $attempt failed. Waiting ${wait_time}s before retry..."
+              sleep $wait_time
+            fi
+          done
+          echo "::error::flux-local test failed after 5 attempts"
+          exit 1
 
   diff:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Flux Local - Diff
-    # Not migrated: same docker:// container-action / no-Docker-daemon gap as the Test job above.
+    # Not migrated: same docker-run / no-Docker-daemon gap as the Test job above.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
