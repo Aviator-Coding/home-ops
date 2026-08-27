@@ -8,6 +8,13 @@ Authentik is the SSO for the whole cluster. Read
 touching anything here: it holds the inventory this code was written from, the
 import strategy, the state bucket bootstrap, and the apply approval gate.
 
+`secrets-ci.vals.yaml` is a CI-only mirror of `secrets.vals.yaml` (same
+1Password item and fields, resolved via 1Password Connect instead of the
+interactive `op` CLI) that lets `.github/workflows/terraform-diff.yaml` run a
+real, read-only plan on every pull request - see that doc's section 8 for the
+mechanism and the one GitHub Actions secret it requires. `tofu apply` is
+unaffected by any of this and stays behind section 7's approval gate.
+
 ## What this stack owns
 
 | Object | Managed | Why |

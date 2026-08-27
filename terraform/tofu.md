@@ -14,8 +14,12 @@ specific, known consequence.
 
 1. **Nothing in this tree applies itself.** There is no CI job, no Flux
    Kustomization, and no cron that runs `tofu apply`. Every apply is a deliberate
-   operator action. The `terraform` job in `.github/workflows/validate.yaml` runs
-   with `-backend=false` and no credentials, by design.
+   operator action behind the explicit approval gate in
+   `docs/authentik/terraform.md` §7. Schema-only CI stays in
+   `.github/workflows/validate.yaml` (`-backend=false`, no credentials).
+   `.github/workflows/terraform-diff.yaml` may run a real read-only
+   `tofu plan -lock=false` and post it on same-repo PRs when a stack ships
+   `secrets-ci.vals.yaml`; that is plan-only and never an apply path.
 2. **State is a secret.** It holds every value the provider read back, including
    OAuth2 client secrets, in plaintext. It lives in a private bucket, never in
    Git, and `terraform/.gitignore` plus a guard in `scripts/ci/tofu-validate.sh`
@@ -27,9 +31,12 @@ specific, known consequence.
 4. **Secrets come from 1Password at invocation time.** Each stack ships a
    `secrets.vals.yaml` holding only `ref+op://` references, resolved by `vals`,
    the same mechanism `bootstrap/` and the `just talos` render path already use.
-   The authentik stack also ships `secrets-apply.vals.yaml` for captain-approved
-   apply only (a separate field that is absent until approval, so stray apply
-   fails closed). There is no committed `tfvars` and no committed `backend.tfvars`.
+   Stacks that want unattended CI plans also ship `secrets-ci.vals.yaml`, a
+   field-for-field mirror using `ref+onepasswordconnect://` so GitHub Actions can
+   resolve the same item without an interactive `op` session. The authentik stack
+   also ships `secrets-apply.vals.yaml` for captain-approved apply only (a
+   separate field that is absent until approval, so stray apply fails closed).
+   There is no committed `tfvars` and no committed `backend.tfvars`.
 
 ## File organization
 
@@ -41,6 +48,7 @@ specific, known consequence.
 | `backend.tofu`     | Remote state configuration                                   |
 | `imports.tofu`     | `import` blocks adopting the existing live objects           |
 | `secrets.vals.yaml`| `ref+op://` environment for plan/init/state; references only |
+| `secrets-ci.vals.yaml` | CI mirror of `secrets.vals.yaml` via `ref+onepasswordconnect://`; optional - without it `terraform-diff` stays schema-only |
 | `secrets-apply.vals.yaml` | apply-only env; token field absent until approval |
 | `*.tofu`           | Resources, grouped by subject (applications, flows, ...)     |
 
@@ -80,11 +88,16 @@ vals exec -i -f secrets.vals.yaml -- tofu state list
 Always pass `-i` so PATH/mise and the op session survive into the child. File
 keys still win over parent env; do not try to override `TF_VAR_*` with an export.
 
-Validation, which needs no credentials and is what CI runs:
+Local schema validation (no credentials) matches `validate.yaml`'s terraform
+job and the `terraform-diff` fallback for stacks without `secrets-ci.vals.yaml`:
 
 ```bash
 ./scripts/ci/tofu-validate.sh
 ```
+
+Live read-only plans on same-repo PRs are owned by `terraform-diff.yaml` when a
+stack provides `secrets-ci.vals.yaml`; see `docs/authentik/terraform.md` §8.
+`tofu apply` stays operator-only behind that doc's §7 gate.
 
 ## Applying
 

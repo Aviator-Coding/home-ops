@@ -16,6 +16,8 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 | [test-runner.yaml](#test-runner) | Schedule/Manual | Tests self-hosted runner functionality | Self-hosted |
 | [build-talosctl-busybox.yaml](#build-talosctl-busybox) | Push/Manual | Builds and pushes the talosctl-busybox image | ubuntu-latest |
 | [validate.yaml](#validate) | Pull Request | Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - the paths Flux-oriented CI never sees | Self-hosted |
+| [terraform-diff.yaml](#terraform-diff) | Pull Request | Real read-only `tofu plan` (or schema-only fallback) for changed `terraform/*` stacks, matrixed per directory | Self-hosted |
+| [terraform-publish.yaml](#terraform-publish) | Push (main) | Publishes `terraform/` as an OCI artifact | ubuntu-latest |
 
 ## Workflows
 
@@ -145,6 +147,36 @@ Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - paths the
 - `renovate-config` - Runs `renovate-config-validator` against `.renovaterc.json5` and `.renovate/*.json5`
 
 **Details:** See the workflow file header and `AGENTS.md`'s CI workflows notes.
+
+### terraform-diff
+
+**File:** `terraform-diff.yaml`
+
+Matrixed per-directory OpenTofu checks for PRs touching `terraform/**`,
+designed for any future `terraform/*` stack (today just `terraform/authentik/`).
+When a stack provides `secrets-ci.vals.yaml`, this is an unattended real
+read-only plan against the live state backend (and Authentik API for
+`authentik`), posted as a PR comment - captain decision
+`terraform-diff-live-plan-scope` option A. A stack without that file falls
+back to schema-only checks. Full credential/blast-radius notes:
+`docs/authentik/terraform.md` section 8. `tofu apply` is not part of this
+workflow and stays behind that doc's section 7 gate.
+
+**Jobs:**
+- `filter` - Detects changed top-level stack directories under `terraform/`
+- `plan` - Per changed stack (matrix): `tofu fmt -check`, `tofu init`, `tofu validate`; when `secrets-ci.vals.yaml` exists, also real `tofu plan -lock=false` + PR comment via `borchero/terraform-plan-comment`; otherwise schema-only (`-backend=false`, no credentials)
+- `success` - Aggregates job results
+
+**Runner / secrets:** local ARC runner (in-cluster Connect + Ceph RGW have no external ingress). Same-repo fork guard on every job. Live plan requires `OP_CONNECT_TOKEN` (Automation-vault Connect token) plus existing `BOT_APP_ID`/`BOT_APP_PRIVATE_KEY` for the plan comment. When the opt-in file is present but `OP_CONNECT_TOKEN` is unset, the job warns loudly and falls back to schema-only checks rather than half-running vals/tofu without credentials.
+
+### terraform-publish
+
+**File:** `terraform-publish.yaml`
+
+Publishes the `terraform/` tree as an OCI artifact (`ghcr.io/aviator-coding/manifests/terraform`)
+on every push to `main` that touches it, tagged with the short commit SHA and
+`main`. Packages the source tree only - it never runs `tofu`, so no cluster or
+SSO credential is needed.
 
 ## Common Patterns
 

@@ -15,11 +15,17 @@
 #     talos/AGENTS.md is what covers that.
 #   - The `bootstrap` job covers `bootstrap/kustomize/` only. `bootstrap/helmfile/`
 #     renders through vals against 1Password, which CI has no credentials for.
-#   - The `terraform` job is `tofu fmt` + `tofu validate` with `-backend=false`.
-#     It never reaches Authentik, the state bucket, or any credential, so it
-#     cannot tell you whether a plan is destructive. That answer only comes from
-#     a real `tofu plan`, which is an operator step behind the approval gate in
-#     docs/authentik/terraform.md.
+#   - The `terraform` job below is `tofu fmt` + `tofu validate` with
+#     `-backend=false`: a pure schema check, no credential of any kind. It
+#     cannot tell you whether a plan is destructive.
+#     A real, read-only `tofu plan` against the live backend (and, for
+#     authentik, the live Authentik API) now runs separately and unattended on
+#     every same-repo pull request, in terraform-diff.yaml - a deliberate,
+#     captain-approved change (2026-08-27) from this job's original "CI can
+#     never reach the live instance" design. `tofu apply` is unaffected: it
+#     remains fully behind the explicit captain-approval gate in
+#     docs/authentik/terraform.md section 7. See that doc's section 8 for the
+#     full reasoning and the one credential involved.
 name: Validate
 
 on:
@@ -226,8 +232,11 @@ jobs:
         with:
           install_args: opentofu
 
-      # No credentials are set for this step, deliberately. `tofu init` runs with
-      # -backend=false and `tofu validate` never calls the Authentik API, so a
-      # pull request can never reach the live SSO instance or the state bucket.
+      # No credentials are set for this step, deliberately: it stays a pure
+      # schema check (`-backend=false`, `tofu validate` never calls the
+      # Authentik API). A real plan against the live backend runs separately, in
+      # terraform-diff.yaml (read-only, gated only by that workflow's fork
+      # guard) - see docs/authentik/terraform.md section 8 for why that is
+      # considered safe and `tofu apply` is not.
       - name: Format and Validate OpenTofu Stacks
         run: ./scripts/ci/tofu-validate.sh

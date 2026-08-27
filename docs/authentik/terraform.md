@@ -12,8 +12,19 @@ application, provider, flow or outpost was touched.
 
 Authentik is the SSO for the whole cluster, including the ExtAuth in front of the
 public gateway. A wrong apply here does not degrade one app; it locks or unlocks
-every SSO-gated surface at once. That is why the apply procedure below has an
-explicit approval gate and why CI is deliberately unable to reach the instance.
+every SSO-gated surface at once. That is why `tofu apply` sits behind the
+explicit captain-approval gate in section 7 - unchanged by anything below.
+
+**Update, 2026-08-27: CI now runs a real, read-only plan on every same-repo pull
+request.** This doc originally said CI was deliberately unable to reach the
+instance at all. The captain's explicit call on that boundary (decision
+`terraform-diff-live-plan-scope`, option A, "least amount of manual
+intervention") was to reverse it: `terraform-diff.yaml` now plans for real,
+unattended, on every same-repo PR touching `terraform/**`. It never applies, and
+it only ever reaches the durable read-only `AUTHENTIK_TOKEN` field (section 5) -
+never `AUTHENTIK_APPLY_TOKEN`, which stays absent from 1Password except during
+an approved apply. See section 8 for the full mechanism, the one new credential
+involved, and its exact blast radius.
 
 - Code: [`terraform/authentik/`](../../terraform/authentik)
 - Conventions: [`terraform/tofu.md`](../../terraform/tofu.md)
@@ -219,10 +230,13 @@ This is deliberately **not** a self-healing reconciler like
 persists tokens in Postgres, so there is no drift here for a timer to heal.
 
 [`secrets.vals.yaml`](../../terraform/authentik/secrets.vals.yaml) maps the
-read-only plan fields to the environment.
+read-only plan fields to the environment via `ref+op://` (interactive `op` CLI).
 [`secrets-apply.vals.yaml`](../../terraform/authentik/secrets-apply.vals.yaml)
 is identical except `TF_VAR_authentik_token` resolves `AUTHENTIK_APPLY_TOKEN`
-(section 7). Both hold only `ref+op://` references.
+(section 7).
+[`secrets-ci.vals.yaml`](../../terraform/authentik/secrets-ci.vals.yaml) is the
+same read-only field set addressed via `ref+onepasswordconnect://` for
+unattended CI plans - see section 8.
 
 ## 5. The read-only API token, and how it was minted
 
@@ -460,3 +474,81 @@ from a clean plan. If a later change breaks something:
 `tofu destroy` in this stack unbinds ExtAuth from the embedded outpost and
 deletes four applications and four providers. There is no scenario where that is
 the right move on a live cluster.
+
+## 8. CI: automatic read-only plans on every pull request
+
+[`terraform-diff.yaml`](../../.github/workflows/terraform-diff.yaml) runs
+`tofu fmt`, a real `tofu init` against the live state backend, `tofu validate`,
+and `tofu plan -lock=false` on every same-repo pull request that touches
+`terraform/**`, then posts the rendered plan as a PR comment. This is a
+deliberate reversal of this doc's original design (see the 2026-08-27 update in
+section 1): the captain's explicit instruction was to minimize manual
+intervention, which meant giving CI real, unattended, read-only reach instead of
+gating it behind a human trigger.
+
+**What did NOT change.** `tofu apply` is exactly as gated as section 7
+describes. CI never mints, reads, or references `AUTHENTIK_APPLY_TOKEN`, never
+runs `tofu apply`, and produces no artifact anyone could apply from - the
+`.planfile` a `tofu plan -out` writes is workflow-ephemeral, never committed or
+uploaded anywhere durable.
+
+### The one new credential: a 1Password Connect access token
+
+`terraform/authentik/secrets.vals.yaml` already resolves every read-only field
+this stack needs - the state-backend keys and `AUTHENTIK_TOKEN`/the three client
+ids - from the single `Automation/authentik-terraform` item, via the
+interactive `op` CLI (`vals`'s `op://` provider). CI has no interactive session,
+so it resolves the *same item, same fields* through 1Password Connect instead -
+the same in-cluster Connect deployment ESO already uses for the `PushSecret`
+that keeps this item current. That is why `terraform-diff.yaml` runs on the
+local ARC runner: Connect (`onepassword-connect.security.svc.cluster.local`)
+has no external ingress, exactly like the Ceph RGW backend.
+
+[`terraform/authentik/secrets-ci.vals.yaml`](../../terraform/authentik/secrets-ci.vals.yaml)
+is the CI-facing mirror of `secrets.vals.yaml`: same item, same fields, same
+read-only guarantee, just addressed with `vals`'s `ref+onepasswordconnect://`
+scheme instead of `ref+op://` (vals treats these as two different provider
+backends for the same 1Password item; see that file's header for the exact
+mechanism and required env vars).
+
+**The captain must create exactly one new GitHub Actions secret:**
+
+| Secret | Contents | Where it comes from |
+| ------ | -------- | -------------------- |
+| `OP_CONNECT_TOKEN` | A 1Password Connect access token scoped to the **Automation** vault only | Mint a *new, dedicated* token against the existing `onepassword-connect` deployment (e.g. `op connect token create "github-actions-terraform-diff" --vault Automation`) - do not reuse the cluster's own ESO Connect token, so a CI-side compromise stays independently revocable |
+
+No other secret is needed. `TERRAFORM_STATE_KEY_ID`/`TERRAFORM_STATE_SECRET_KEY`
+(the names originally suggested for this work, mirroring how
+joryirving/home-ops's reference workflow supplies its own state-backend
+credentials as plain GitHub secrets) turned out to be redundant here: this
+stack's state-backend keys already live as fields on the same
+`authentik-terraform` item, and `secrets-ci.vals.yaml` resolves them through the
+one Connect token above. Adding raw GitHub-side copies would just be a second,
+driftable copy of credentials 1Password already holds - it would not reduce
+what the token above can already reach. `BOT_APP_ID`/`BOT_APP_PRIVATE_KEY` (used
+to post the plan comment) already exist for other workflows; no change needed
+there.
+
+**Read this plainly: `OP_CONNECT_TOKEN` reads every item in the `Automation`
+vault, not just `authentik-terraform`.** 1Password Connect scopes access tokens
+per-vault, not per-item, so this token can read whatever else is
+machine-maintained in that vault today or added later - not only the one item
+this stack uses. A compromised CI job - which for a public repo means any pull
+request from a collaborator with write access, not just a maintainer, since the
+fork guard only blocks true fork PRs - can read all of it. Narrowing this
+further (a dedicated vault holding only CI-facing items) is a reasonable
+follow-up, not something this change blocks on.
+
+### Any future terraform/\* stack
+
+A stack opts into the same live-plan behavior by adding its own
+`secrets-ci.vals.yaml` (mirroring whatever `secrets.vals.yaml` it already has,
+addressed via `ref+onepasswordconnect://` instead of `ref+op://`) - see
+`terraform-diff.yaml`'s header for the exact contract. A stack directory with no
+such file gets schema-only checks (`tofu fmt` + `tofu validate -backend=false`)
+and nothing more, same as today's `validate.yaml` terraform job. If the opt-in
+file is present but `OP_CONNECT_TOKEN` has not been created yet, the workflow
+emits a clear warning and takes that same schema-only path rather than
+half-running `vals`/`tofu` without credentials - so PRs stay green and useful
+before the one-time captain secret setup, and flip to a real plan automatically
+once the secret exists.
