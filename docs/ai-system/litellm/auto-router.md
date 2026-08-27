@@ -7,8 +7,23 @@ is classified by an LLM into one of four complexity tiers and dispatched to the
 backend for that tier: cheap work stays on the local B70, genuinely hard work goes
 to Anthropic. Everything else about the proxy is unchanged.
 
-Config lives in [`kubernetes/apps/base/ai/litellm/app/resources/config.yaml`](../../../kubernetes/apps/base/ai/litellm/app/resources/config.yaml).
+Config lives in the `LiteLLMModel` CRs under
+[`kubernetes/apps/base/ai/litellm/app/models/`](../../../kubernetes/apps/base/ai/litellm/app/models/) -
+the router block itself is [`models/auto.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/auto.yaml),
+the classifier deployment is [`models/qwen3.6-35b-a3b-classifier.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/qwen3.6-35b-a3b-classifier.yaml).
+Since captain decision O1 (2026-08-26) the home-operations litellm-operator
+renders these into the proxy's `config.yaml`; the rendered content is
+semantically identical to the hand-written file that preceded it.
 The governance layer it sits inside is documented in [`README.md`](README.md).
+
+> **Reading the YAML snippets below.** They show the `litellm_params` block as
+> LiteLLM finally sees it, which is what every semantic claim on this page is
+> about. In Git that block is one level down: `LiteLLMModel.spec.params` for the
+> typed keys (`model`, `apiBase`, `apiKey`) and `spec.params.additional` for
+> everything else - the operator merges `additional` verbatim into
+> `litellm_params`, so `complexity_router_default_model` and
+> `complexity_router_config` both live there on `models/auto.yaml`. Nothing on
+> this page changes shape; only where you type it does.
 
 ## It is additive, on purpose
 
@@ -233,8 +248,8 @@ rejection is also visible as
 router resolved to.** A key scoped to `models: ["auto"]` routes to every tier
 including `claude-opus-5`, and can still run the classifier, but cannot call
 `claude-opus-5` *directly*. That makes `auto` a genuine governance boundary, and
-it is why `router-demo` in
-[`consumers.json`](../../../kubernetes/apps/base/ai/litellm/app/resources/consumers.json)
+it is why the `router-demo`
+[`LiteLLMVirtualKey`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/router-demo.yaml)
 lists only the alias.
 
 Cost note: llama.cpp reports prompt-cache hits, and LiteLLM prices cached input
@@ -342,8 +357,8 @@ kubectl -n ai get cm litellm-configmap -o jsonpath='{.data.config\.yaml}' \
 
 # 3. Reach the proxy (no route by design - B4) with the router consumer key.
 kubectl -n ai port-forward svc/litellm 4000:4000 &
-KEY=$(kubectl -n ai get secret litellm-consumer-keys \
-        -o jsonpath='{.data.router-demo}' | base64 -d)
+KEY=$(kubectl -n ai get secret litellm-key-router-demo \
+        -o jsonpath='{.data.key}' | base64 -d)
 
 # 4. SIMPLE prompt -> must stay LOCAL.
 curl -sS -D /tmp/simple.h -X POST localhost:4000/v1/chat/completions \
@@ -376,8 +391,8 @@ curl -sSL localhost:4000/metrics -H "Authorization: Bearer $LITELLM_MASTER_KEY" 
 #    requested_model="qwen3.6-35b-a3b-classifier" series for the classifier.
 
 # 8. Budgets bind on the routed path. Repeat step 5 until the router-demo key's
-#    $0.50 is spent (or lower maxBudget in consumers.json first for a fast
-#    repro) - expect HTTP 429 "Budget has been exceeded!".
+#    $0.50 is spent (or lower maxBudget in virtualkeys/router-demo.yaml first
+#    for a fast repro - it is a decimal STRING) - expect HTTP 429 "Budget has been exceeded!".
 ```
 
 Step 5 spends real money at Anthropic list price. It is a handful of cents at
