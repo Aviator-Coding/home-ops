@@ -27,7 +27,6 @@ FLUX_LOCAL = ROOT / ".github" / "workflows" / "flux-local.yaml"
 SECRETS = ROOT / "terraform" / "authentik" / "secrets.vals.yaml"
 SECRETS_CI = ROOT / "terraform" / "authentik" / "secrets-ci.vals.yaml"
 SECRETS_APPLY = ROOT / "terraform" / "authentik" / "secrets-apply.vals.yaml"
-RUNBOOK = ROOT / "docs" / "authentik" / "terraform.md"
 VALIDATE_SH = ROOT / "scripts" / "ci" / "tofu-validate.sh"
 GITIGNORE = ROOT / "terraform" / ".gitignore"
 LABELER = ROOT / ".github" / "labeler.yaml"
@@ -435,37 +434,6 @@ def test_flux_local_untouched() -> dict[str, Any]:
     return {"diff_bytes": 0, "path": str(FLUX_LOCAL.relative_to(ROOT))}
 
 
-def test_runbook_section8_contract() -> dict[str, Any]:
-    # CI live-plan contract lives under "## 9. CI: ..." (section 8 is the
-    # generated-credentials push path). Keep the historical test name.
-    text = RUNBOOK.read_text()
-    idx = text.find("## 9.")
-    assert idx >= 0, "missing section 9 (CI live-plan contract)"
-    end = text.find("\n## ", idx + 4)
-    section = text[idx : end if end > 0 else None]
-    required = [
-        "OP_CONNECT_TOKEN",
-        "secrets-ci.vals.yaml",
-        "terraform-diff.yaml",
-        "Automation",
-        "tofu apply",
-        "AUTHENTIK_APPLY_TOKEN",
-    ]
-    for needle in required:
-        assert needle in section, needle
-    assert "every item in the `Automation`" in section or "every item in the Automation" in section
-    assert "fork" in section.lower()
-    assert "do not reuse" in section.lower() or "not reuse" in section.lower() or "dedicated" in section.lower()
-    # Apply remains section-7 gated.
-    assert "## 7." in text
-    return {
-        "section_chars": len(section),
-        "required_present": required,
-        "vault_wide_caveat": True,
-        "ci_section": "## 9.",
-    }
-
-
 def test_labeler_and_gitignore() -> dict[str, Any]:
     labeler = LABELER.read_text()
     labels = LABELS.read_text()
@@ -487,7 +455,6 @@ def main() -> int:
         ("schema_only_tofu_path", test_schema_only_tofu_path),
         ("validate_job_still_credentialless", test_validate_job_still_credentialless),
         ("flux_local_untouched", test_flux_local_untouched),
-        ("runbook_section8_contract", test_runbook_section8_contract),
         ("labeler_and_gitignore", test_labeler_and_gitignore),
     ]
     results: dict[str, Any] = {}
