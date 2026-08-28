@@ -75,18 +75,31 @@ check that content capture is working.
 kubectl -n ai port-forward svc/litellm 4000:4000 &
 MK="$(kubectl -n ai get secret litellm-secret -o jsonpath='{.data.LITELLM_MASTER_KEY}' | base64 -d)"
 
-# Recent requests, to find a request_id (list view - no bodies here):
-curl -s -H "Authorization: Bearer $MK" \
-  "http://127.0.0.1:4000/spend/logs?start_date=2026-08-27&end_date=2026-08-28" | jq '.[0]'
+# 1. Find a request_id. This is the list the UI Logs page renders; it carries
+#    no bodies. Dates here are datetimes - "YYYY-MM-DD HH:MM:SS", URL-encoded.
+curl -sG -H "Authorization: Bearer $MK" "http://127.0.0.1:4000/spend/logs/ui" \
+  --data-urlencode "start_date=2026-08-27 00:00:00" \
+  --data-urlencode "end_date=2026-08-29 00:00:00" \
+  --data-urlencode "page_size=10" \
+  | jq '.data[] | {request_id, model_group, spend, startTime, status}'
 
-# One request, WITH the full prompt and response:
+# 2. One request, WITH the full prompt and response. Shortest path:
 curl -s -H "Authorization: Bearer $MK" \
-  "http://127.0.0.1:4000/spend/logs/ui/<request_id>" | jq '{
+  "http://127.0.0.1:4000/spend/logs?request_id=<request_id>" | jq '.[0] | {
      prompt:     .proxy_server_request.messages,
      completion: .response.choices[0].message.content,
-     cost:       .response.usage.cost
+     cost:       .response.usage.cost,
+     spend:      .spend
    }'
+
+# Equivalent, and the exact call the UI row-expand makes:
+curl -s -H "Authorization: Bearer $MK" \
+  "http://127.0.0.1:4000/spend/logs/ui/<request_id>" | jq
 ```
+
+Trap: `GET /spend/logs` **without** `request_id` does not return a request list
+at all - it returns a per-day, per-key spend aggregate. Use `/spend/logs/ui` for
+the list, `/spend/logs?request_id=` for one row.
 
 ## 4. Pull up one request - SQL
 
@@ -238,7 +251,7 @@ a captain call, not an implementation default.
 **Recommendation: `maximum_spend_logs_retention_period: "90d"`,** added next to
 `store_prompts_in_spend_logs` in `litellmproxy.yaml`. Reasoning:
 
-- Growth is modest but real. At ~120 requests/day (measured 2026-08-26..28), a
+- Growth is modest but real. At ~100 requests/day (measured 2026-08-26..28), a
   metadata-only row was ~4-5 kB; with content a small request measured 13.5 kB,
   and a 132,929-prompt-token Claude Code call is roughly 0.5-1 MB. Worst case is
   therefore tens of MB/day on a shared 100Gi `ceph-block` PVC - not urgent, and
