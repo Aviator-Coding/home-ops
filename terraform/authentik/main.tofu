@@ -22,3 +22,6 @@ provider "authentik" {
   url   = var.authentik_url
   token = var.authentik_token
 }
+
+# terraform-diff.yaml re-test (comment-only, no plan impact): confirming Connect
+# resolves onepasswordconnect:// after the OP_CONNECT_TOKEN swap on 2026-08-27.
