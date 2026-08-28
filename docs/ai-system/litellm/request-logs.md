@@ -86,10 +86,10 @@ curl -sG -H "Authorization: Bearer $MK" "http://127.0.0.1:4000/spend/logs/ui" \
 # 2. One request, WITH the full prompt and response. Shortest path:
 curl -s -H "Authorization: Bearer $MK" \
   "http://127.0.0.1:4000/spend/logs?request_id=<request_id>" | jq '.[0] | {
-     prompt:     .proxy_server_request.messages,
-     completion: .response.choices[0].message.content,
-     cost:       .response.usage.cost,
-     spend:      .spend
+     prompt:          .proxy_server_request.messages,
+     completion:      .response.choices[0].message.content,
+     spend:           .spend,
+     cost_breakdown:  .metadata.cost_breakdown
    }'
 
 # Equivalent, and the exact call the UI row-expand makes:
@@ -103,10 +103,11 @@ the list, `/spend/logs?request_id=` for one row.
 
 ## 4. Pull up one request - SQL
 
-Use this when you want to grep across many requests, or when you want the
-`spend` figure LiteLLM actually billed the virtual key (the `response.usage.cost`
-above is what the *provider* reported; `LiteLLM_SpendLogs.spend` is what
-LiteLLM charged, and for local models those differ deliberately - section 6).
+Use this when you want to grep across many requests. Note on cost fields:
+`spend` and `metadata.cost_breakdown` are what LiteLLM charged the virtual key
+and are present on every row. Some providers additionally echo their own figure
+at `response.usage.cost` (OpenRouter does; Anthropic does not), and for local
+models the two deliberately differ - see section 6.
 
 ```bash
 DBURL="$(kubectl -n ai get secret litellm-secret -o jsonpath='{.data.DATABASE_URL}' | base64 -d)"
@@ -203,7 +204,7 @@ different questions:
 
 | Question | Where | Backing table |
 |---|---|---|
-| What did THIS request cost, and why | `metadata.cost_breakdown` on the row (section 4), or `.response.usage` via the API | `LiteLLM_SpendLogs` |
+| What did THIS request cost, and why | `spend` + `metadata.cost_breakdown` on the row (sections 3-4) | `LiteLLM_SpendLogs` |
 | Spend per model / per consumer / per day, with cache and router savings | Admin UI **Usage**, i.e. `GET /user/daily/activity?start_date=..&end_date=..` | `LiteLLM_Daily*Spend` rollups |
 | Top models / keys, last 30 days | `GET /global/spend/models`, `/global/spend/keys`, `/global/spend/provider` | 30-day SQL **views over `LiteLLM_SpendLogs`** |
 
