@@ -137,10 +137,12 @@ spec:
       - chat-ha: ["claude-sonnet-5"]
       # The D3 routed alias. Without this, a B70 outage takes `auto` down
       # completely: the classifier call fails, the router fails OPEN to
-      # `complexity_router_default_model` (qwen3.6-35b-a3b) - which is the very
-      # backend that is down - and the request dies. `auto` is already a
-      # cloud-entitled alias by construction (its COMPLEX/REASONING tiers are
-      # Anthropic), so a cloud fallback here breaches no entitlement.
+      # `complexity_router_default_model` (chat-local, the zero-priced production
+      # local alias) - which is the very backend that is down - and the request
+      # dies. `auto` is already a cloud-entitled alias by construction (its
+      # COMPLEX/REASONING tiers are Anthropic), so a cloud fallback here
+      # breaches no entitlement. Do not add chat-local itself to this list -
+      # its absence is the D4 boundary (CI: chat_local_has_no_cloud_fallback).
       - auto: ["claude-sonnet-5"]
 
     # -- Axis 2: CONTEXT WINDOW (prompt too big for this model) --
