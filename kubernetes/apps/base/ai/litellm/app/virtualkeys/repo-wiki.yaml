@@ -58,10 +58,22 @@ spec:
   # rpmLimit/tpmLimit below plus MAX_REPOS_PER_RUN=1 in the CronJob.
   maxBudget: "30.00"
   budgetDuration: 30d
-  # The REAL bound on this consumer, now that the dollar cap is inert. A batch
-  # job making a handful of sequential calls per tick, not many concurrent
-  # interactive users - kept low but above the sequential-call rate generate.py
-  # actually produces (1 plan + up to 8 page calls per repo).
+  # The REAL bound on this consumer, now that the dollar cap is inert - and
+  # measurement says it is bound too TIGHTLY to finish a repo. Unchanged by the
+  # 2026-08-27 pricing change; flagged here because that change is what made it
+  # diagnosable. generate.py issues 1 plan call + up to 8 page calls back to
+  # back with no retry or backoff, so at 4 rpm the proxy 429s the 5th call
+  # inside the same minute ("Limit type: requests. Current limit: 4,
+  # Remaining: 0") and the generator catches it and skips the whole repo
+  # ("skipped <repo>: HTTP Error 429"). Observed on a real triggered run:
+  # 1 page generated, then skipped. tpmLimit was NOT the limiter.
+  #
+  # Previously a 429 here was ambiguous - budget or rate - and the old comment
+  # in this file guessed wrong, telling the next reader to raise maxBudget. Now
+  # that spend is pinned at $0 by chat-local, any 429 on this key is
+  # unambiguously this rpmLimit. Raising it is a D4 governance call and is
+  # deliberately NOT bundled into the pricing fix; ~10-12 would clear one
+  # repo's 9 sequential calls with headroom.
   rpmLimit: 4
   # Each page call can send up to PAGE_CTX_CHARS (60000 chars =~ 15k tokens) of
   # source context; tpmLimit must clear that comfortably.
