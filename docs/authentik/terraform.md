@@ -1,32 +1,51 @@
 # Authentik configuration as code (OpenTofu)
 
 Status as of 2026-08-27: **the first apply landed; a second captain-approved
-apply is PENDING.** The adoption is in state and the LiteLLM SSO provider and
-application were created (`9 imported, 4 added, 4 changed, 0 destroyed`). The
-four changes were the `property_mappings` ordering artifact this document
-predicted in section 6; they were membership-identical and cleared once state
-carried a local ordering. Immediately after that apply a fresh `tofu plan` was
-empty (`-detailed-exitcode` returns 0).
+apply is PENDING and currently BLOCKED.** The adoption is in state and the
+LiteLLM SSO provider and application were created
+(`9 imported, 4 added, 4 changed, 0 destroyed`). The four changes were the
+`property_mappings` ordering artifact this document predicted in section 6;
+they were membership-identical and cleared once state carried a local
+ordering. Immediately after that apply a fresh `tofu plan` was empty
+(`-detailed-exitcode` returns 0).
 
-That empty plan is no longer the current truth. This branch adds an Authentik
-`litellm_role` scope mapping and attaches it to the LiteLLM provider's
-`property_mappings`, so a fresh plan will show that addition plus the provider
-update. **Do not apply without a current captain go-ahead.** Until that second
-apply runs, the Kubernetes side requests scope `litellm_role` that Authentik
-does not yet emit, so first SSO login still lands as LiteLLM
-`INTERNAL_USER_VIEW_ONLY` even though OAuth itself succeeds.
+That empty plan is no longer the current truth. This branch adds:
+
+1. An Authentik `litellm_role` scope mapping attached to the LiteLLM provider's
+   `property_mappings` (writer already has `add_scopemapping` /
+   `change_scopemapping`; see section 5).
+2. A LiteLLM-only invalidation flow (`authentik_flow.litellm_invalidation` +
+   `authentik_stage_user_logout.litellm_logout` +
+   `authentik_flow_stage_binding.litellm_logout`) and a repoint of only
+   `authentik_provider_oauth2.litellm.invalidation_flow` onto it, so RP logout
+   ends the Authentik browser session. The shared
+   `default-provider-invalidation-flow` is deliberately untouched - every other
+   OIDC/proxy app still uses it.
+
+**The second apply is BLOCKED until the write credential is granted permissions
+for those three new object types** (flow, userlogoutstage, flowstagebinding).
+Only scopemapping was added to `tofu Writers`; `change_flow` in particular is a
+broad model-level grant that would let this credential modify *any* flow,
+including `default-authentication-flow`, so it is a captain security decision
+rather than something to grant quietly. Until both the permission grant and the
+approved apply land, the Kubernetes side requests scope `litellm_role` that
+Authentik does not yet emit (first SSO login still lands as LiteLLM
+`INTERNAL_USER_VIEW_ONLY` even though OAuth itself succeeds), and
+`PROXY_LOGOUT_URL` still hits the stock app-only end-session path. **Do not
+apply without a current captain go-ahead, and do not apply while the flow /
+stage / binding permissions are still missing.**
 
 Post-first-apply verification (still live; does not cover the pending role
-mapping):
+mapping or invalidation flow):
 
 | Check | Result |
 | ----- | ------ |
-| Fresh `tofu plan` after first apply | `No changes` (`-detailed-exitcode` = 0), using the READ-ONLY token - stale once the `litellm_role` mapping is committed |
+| Fresh `tofu plan` after first apply | `No changes` (`-detailed-exitcode` = 0), using the READ-ONLY token - stale once the pending LiteLLM resources are committed |
 | ExtAuth still gating | `https://echo.sklab.dev` -> 302 to Authentik, scope `ak_proxy profile email entitlements openid` (all five proxy scopes intact) |
 | Existing OIDC app still logging in | open-webui authorize -> 302 to `default-authentication-flow` |
 | New application | `litellm` exists, provider 70, redirect `https://litellm.sklab.dev/sso/callback` |
 | Credentials propagated | 1Password `Automation/litellm-sso` client_id is byte-identical to the provider's |
-| Pending second apply | `authentik_property_mapping_provider_scope.litellm_role` create + LiteLLM provider `property_mappings` update - captain approval required, not yet applied |
+| Pending second apply (BLOCKED) | `litellm_role` scope mapping create + LiteLLM provider `property_mappings` / `invalidation_flow` update + LiteLLM-only invalidation flow/stage/binding creates - needs flow/userlogoutstage/flowstagebinding write perms first, then captain approval; not yet applied |
 
 Authentik is the SSO for the whole cluster, including the ExtAuth in front of the
 public gateway. A wrong apply here does not degrade one app; it locks or unlocks
@@ -349,30 +368,45 @@ separate, write-capable credential, minted only when an apply is approved.
 
 Minted the same way, with least privilege, and kept separate from the read-only
 one. `tofu-writer` is in TWO groups: `authentik Read-only` supplies every
-`view_*`, and a purpose-built `tofu Writers` role supplies exactly six
+`view_*`, and a purpose-built `tofu Writers` role supplies exactly eight model
 permissions and nothing else:
 
 ```
-add_application  change_application
+add_application     change_application
 add_oauth2provider  change_oauth2provider
-change_proxyprovider  change_outpost
+add_scopemapping    change_scopemapping
+change_proxyprovider
+change_outpost
 ```
 
-**No delete permission on anything**, which is the point: an additions-plus-
-ordering apply never needs one, and withholding it means this credential cannot
-remove a live SSO object even if something goes badly wrong. Verified against the
-live API rather than assumed, because a DELETE on a *non-existent* object returns
-404 (lookup happens before the object permission check) and that proves nothing.
-The real test creates an inert application and tries to delete it:
+`add_scopemapping` / `change_scopemapping` were granted after the first LiteLLM
+apply so the pending `litellm_role` scope mapping can be created; the first apply
+never needed a property-mapping write. The role still has **no delete permission
+on anything**, which is the point: an additions-plus-ordering apply never needs
+one, and withholding it means this credential cannot remove a live SSO object
+even if something goes badly wrong. Verified against the live API rather than
+assumed, because a DELETE on a *non-existent* object returns 404 (lookup happens
+before the object permission check) and that proves nothing. The real tests
+create inert objects and try the privileged verbs:
 
 | Request | Result |
 | ------- | ------ |
 | `POST /core/applications/` (probe app) | 201 |
 | `DELETE /core/applications/<probe>/` | **403** |
 | `GET /core/applications/<probe>/` | 200, survived |
+| `POST /api/v3/propertymappings/provider/scope/` (throwaway `zz-tofu-scope-probe`) | 201 |
 
-The probe was then removed through `ak shell`, which the write token itself
-cannot do.
+Both probes were then removed through `ak shell`, which the write token itself
+cannot do (the scope-mapping probe in particular, because the writer still has
+no delete on ScopeMapping either).
+
+These eight permissions are still **not enough for the pending second apply**.
+That apply also creates a flow, a user-logout stage, and a flow-stage binding
+for LiteLLM-only full sign-out, and `tofu Writers` has none of those model
+permissions yet. Granting them - especially `change_flow`, which is model-level
+and would cover every flow on the instance - is a captain security decision and
+the reason the second apply is documented as BLOCKED in the status section
+above. Do not silently expand the role to unblock the plan.
 
 The token is deliberately **not** stored in 1Password. `secrets-apply.vals.yaml`
 resolves `AUTHENTIK_APPLY_TOKEN`, and that field staying absent is what makes a
