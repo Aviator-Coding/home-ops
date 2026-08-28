@@ -350,18 +350,46 @@ def test_secrets_ci_mirrors_readonly() -> dict[str, Any]:
     # Apply file is the only place APPLY token may appear, and CI must not use it.
     assert field_name(apply["TF_VAR_authentik_token"]) == "AUTHENTIK_APPLY_TOKEN"
     assert field_name(ci["TF_VAR_authentik_token"]) == "AUTHENTIK_TOKEN"
-    return {"keys": sorted(ci), "fields": fields}
+
+    # Endpoint is a non-secret plain value that MUST differ: local port-forward
+    # vs in-cluster Service DNS. refs_from_vals deliberately ignores it above.
+    def plain_endpoint(path: Path) -> str:
+        data = yaml.safe_load(path.read_text()) or {}
+        value = data.get("AWS_ENDPOINT_URL_S3")
+        assert isinstance(value, str) and value.startswith("http://"), path
+        assert "s3.sklab.dev" not in value, path
+        return value
+
+    local_ep = plain_endpoint(SECRETS)
+    apply_ep = plain_endpoint(SECRETS_APPLY)
+    ci_ep = plain_endpoint(SECRETS_CI)
+    assert local_ep == apply_ep
+    assert "127.0.0.1:18081" in local_ep or "localhost:18081" in local_ep
+    assert "rook-ceph-rgw-ceph-objectstore.rook-ceph.svc" in ci_ep
+    assert "127.0.0.1" not in ci_ep and "localhost" not in ci_ep
+
+    return {
+        "keys": sorted(ci),
+        "fields": fields,
+        "endpoint_local": local_ep,
+        "endpoint_ci": ci_ep,
+    }
 
 
 def test_schema_only_tofu_path() -> dict[str, Any]:
     """Same offline path validate.yaml and no-secrets-ci stacks use."""
     env = os.environ.copy()
+    # Prefer a resolved tofu binary; CI installs via mise (same as stack test).
+    mise_tofu = Path.home() / ".local/share/mise/installs/opentofu/1.12.6"
+    if (mise_tofu / "tofu").exists():
+        env["PATH"] = os.pathsep.join([str(mise_tofu), env.get("PATH", "")])
     # Ensure no Connect/AWS creds leak into this offline path.
     for key in list(env):
         if key.startswith("TF_VAR_") or key in {
             "OP_CONNECT_TOKEN",
             "AWS_ACCESS_KEY_ID",
             "AWS_SECRET_ACCESS_KEY",
+            "AWS_ENDPOINT_URL_S3",
             "OP_CONNECT_HOST",
         }:
             env.pop(key, None)
@@ -408,9 +436,11 @@ def test_flux_local_untouched() -> dict[str, Any]:
 
 
 def test_runbook_section8_contract() -> dict[str, Any]:
+    # CI live-plan contract lives under "## 9. CI: ..." (section 8 is the
+    # generated-credentials push path). Keep the historical test name.
     text = RUNBOOK.read_text()
-    idx = text.find("## 8.")
-    assert idx >= 0, "missing section 8"
+    idx = text.find("## 9.")
+    assert idx >= 0, "missing section 9 (CI live-plan contract)"
     end = text.find("\n## ", idx + 4)
     section = text[idx : end if end > 0 else None]
     required = [
@@ -428,10 +458,14 @@ def test_runbook_section8_contract() -> dict[str, Any]:
     assert "do not reuse" in section.lower() or "not reuse" in section.lower() or "dedicated" in section.lower()
     # Apply remains section-7 gated.
     assert "## 7." in text
+    # Endpoint split: CI must document Service DNS, not only the local port-forward.
+    assert "AWS_ENDPOINT_URL_S3" in text
+    assert "rook-ceph-rgw-ceph-objectstore.rook-ceph.svc" in text
     return {
         "section_chars": len(section),
         "required_present": required,
         "vault_wide_caveat": True,
+        "ci_section": "## 9.",
     }
 
 

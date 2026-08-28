@@ -238,9 +238,16 @@ So open a port-forward first, and leave it open for the whole session:
 kubectl -n rook-ceph port-forward svc/rook-ceph-rgw-ceph-objectstore 18081:80 &
 ```
 
-`backend.tofu` points at `http://127.0.0.1:18081` to match. State traffic then
-never touches the gateway, which for a bucket holding every adopted client secret
-is the better posture anyway.
+`secrets.vals.yaml` / `secrets-apply.vals.yaml` set `AWS_ENDPOINT_URL_S3` to
+`http://127.0.0.1:18081` to match. `backend.tofu` deliberately omits the S3
+`endpoints` block so that env var is what OpenTofu dials - a hardcoded value
+would win over the env and break CI. `secrets-ci.vals.yaml` (used by
+`terraform-diff.yaml` on the in-cluster ARC runner) points the same variable at
+the RGW Service DNS instead (`http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local`),
+because that runner has no ServiceAccount token and cannot open a port-forward,
+but can reach ClusterIP Services directly. State traffic never touches the
+gateway either way, which for a bucket holding every adopted client secret is
+the better posture anyway.
 
 State locking uses S3-native conditional writes (`use_lockfile = true`), which
 RGW supports. There is no DynamoDB equivalent and none is needed.

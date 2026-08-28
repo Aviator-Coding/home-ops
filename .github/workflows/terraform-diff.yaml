@@ -46,6 +46,14 @@
 # captain's decision asked to minimize; only a human approval gate in front of
 # the live-plan steps would have been that, and the captain explicitly chose
 # not to add one.
+#
+# RGW reachability on this runner is via Service DNS, not a kubectl
+# port-forward: the runner has no ServiceAccount token (see AGENTS.md ARC
+# notes), so it cannot open one. Each stack's secrets-ci.vals.yaml must set
+# AWS_ENDPOINT_URL_S3 to the in-cluster RGW Service; backend.tofu omits the
+# endpoints block so that env var wins. Local operator vals files keep the
+# 127.0.0.1:18081 port-forward URL. Never s3.sklab.dev (Envoy breaks
+# aws-sdk-go-v2 SigV4 - see terraform/authentik/backend.tofu).
 name: Terraform Diff
 
 on:

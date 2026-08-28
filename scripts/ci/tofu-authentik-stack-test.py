@@ -611,20 +611,58 @@ def test_stack_hcl_model() -> dict[str, Any]:
     if not pin or not str(pin).startswith("~>"):
         raise Failure(f"authentik provider must use ~> pin, got {pin!r}")
 
-    # Backend endpoint must be the operator port-forward, not Envoy s3.sklab.dev
-    # (SignatureDoesNotMatch through the gateway - measured 2026-08-27).
+    # Backend must NOT hardcode endpoints.s3: a fixed URL cannot serve both the
+    # local operator port-forward (127.0.0.1:18081) and the in-cluster ARC runner
+    # (RGW Service DNS). Endpoint comes from AWS_ENDPOINT_URL_S3 in the secrets
+    # vals files; a hardcoded block would win over that env var. Never Envoy
+    # s3.sklab.dev (SignatureDoesNotMatch - measured 2026-08-27).
     endpoints = s3_body.get("endpoints") or {}
     if isinstance(endpoints, list):
         endpoints = endpoints[0] if endpoints else {}
-    s3_endpoint = ""
-    if isinstance(endpoints, dict):
-        s3_endpoint = _strip_quotes(str(endpoints.get("s3", "")))
-    if "127.0.0.1:18081" not in s3_endpoint and "localhost:18081" not in s3_endpoint:
+    if endpoints:
+        # Even a comment-free hardcoded block is wrong: it wins over the env var.
         raise Failure(
-            f"backend s3 endpoint must be RGW port-forward, got {s3_endpoint!r}"
+            "backend must omit endpoints so AWS_ENDPOINT_URL_S3 can differ "
+            f"between local and CI; got {endpoints!r}"
         )
-    if "s3.sklab.dev" in s3_endpoint:
-        raise Failure("backend must not route state through Envoy s3.sklab.dev")
+    # Guard the live config only - comments may name s3.sklab.dev to forbid it.
+    for raw_line in (STACK / "backend.tofu").read_text().splitlines():
+        code = raw_line.split("#", 1)[0]
+        if "s3.sklab.dev" in code:
+            raise Failure(
+                "backend must not route state through Envoy s3.sklab.dev "
+                f"(code line: {raw_line!r})"
+            )
+
+    # Local vals -> port-forward; CI vals -> in-cluster Service DNS.
+    def _endpoint_from(path: Path) -> str:
+        data = yaml.safe_load(path.read_text()) or {}
+        value = data.get("AWS_ENDPOINT_URL_S3")
+        if not isinstance(value, str) or not value.strip():
+            raise Failure(f"{path.name} must set AWS_ENDPOINT_URL_S3")
+        if "s3.sklab.dev" in value:
+            raise Failure(f"{path.name} must not use Envoy s3.sklab.dev")
+        return value.strip()
+
+    local_ep = _endpoint_from(STACK / "secrets.vals.yaml")
+    apply_ep = _endpoint_from(STACK / "secrets-apply.vals.yaml")
+    ci_ep = _endpoint_from(STACK / "secrets-ci.vals.yaml")
+    if "127.0.0.1:18081" not in local_ep and "localhost:18081" not in local_ep:
+        raise Failure(
+            f"local AWS_ENDPOINT_URL_S3 must be RGW port-forward, got {local_ep!r}"
+        )
+    if apply_ep != local_ep:
+        raise Failure("secrets-apply AWS_ENDPOINT_URL_S3 must match secrets.vals.yaml")
+    if "rook-ceph-rgw-ceph-objectstore.rook-ceph.svc" not in ci_ep:
+        raise Failure(
+            "secrets-ci AWS_ENDPOINT_URL_S3 must be in-cluster RGW Service DNS, "
+            f"got {ci_ep!r}"
+        )
+    if "127.0.0.1" in ci_ep or "localhost" in ci_ep:
+        raise Failure(
+            "secrets-ci must not use localhost port-forward; ARC runner cannot "
+            f"open one, got {ci_ep!r}"
+        )
 
     return {
         "adopted_resources": sorted(adopted),
@@ -632,17 +670,26 @@ def test_stack_hcl_model() -> dict[str, Any]:
         "imports": imports,
         "provider_version": pin,
         "backend_bucket": bucket,
-        "backend_endpoint": s3_endpoint,
+        "backend_endpoint_local": local_ep,
+        "backend_endpoint_ci": ci_ep,
     }
 
 
 def test_secrets_vals_automation_only() -> dict[str, Any]:
+    # Non-secret plain values allowed alongside ref+op:// (endpoint is not a secret).
+    plain_allowed = {"AWS_ENDPOINT_URL_S3"}
     summary: dict[str, Any] = {}
     for name in ("secrets.vals.yaml", "secrets-apply.vals.yaml"):
         data = yaml.safe_load((STACK / name).read_text())
         if not isinstance(data, dict) or not data:
             raise Failure(f"{name} must be a non-empty mapping")
         for key, value in data.items():
+            if key in plain_allowed:
+                if not isinstance(value, str) or not value.startswith("http://"):
+                    raise Failure(
+                        f"{name}:{key} must be a plain http URL, got {value!r}"
+                    )
+                continue
             if not isinstance(value, str) or not value.startswith("ref+op://"):
                 raise Failure(
                     f"{name}:{key} must be a ref+op:// reference, got {value!r}"
@@ -821,6 +868,10 @@ def test_runbook_acceptance_surface() -> dict[str, Any]:
         raise Failure("runbook must record the live LiteLLM redirect URI")
     if "127.0.0.1:18081" not in text and "port-forward" not in text:
         raise Failure("runbook must document RGW port-forward state backend")
+    if "AWS_ENDPOINT_URL_S3" not in text:
+        raise Failure("runbook must document AWS_ENDPOINT_URL_S3 endpoint split")
+    if "rook-ceph-rgw-ceph-objectstore.rook-ceph.svc" not in text:
+        raise Failure("runbook must document in-cluster RGW Service DNS for CI")
 
     return {
         "first_plan_evidence": (
