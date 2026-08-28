@@ -11,7 +11,7 @@ import strategy, the state bucket bootstrap, and the apply approval gate.
 `secrets-ci.vals.yaml` is a CI-only mirror of `secrets.vals.yaml` (same
 1Password item and fields, resolved via 1Password Connect instead of the
 interactive `op` CLI) that lets `.github/workflows/terraform-diff.yaml` run a
-real, read-only plan on every pull request - see that doc's section 8 for the
+real, read-only plan on every pull request - see that doc's section 9 for the
 mechanism and the one GitHub Actions secret it requires. `tofu apply` is
 unaffected by any of this and stays behind section 7's approval gate.
 
@@ -34,7 +34,8 @@ the 28 built-in `blueprintinstance` entries on this instance. Declaring those as
 resources would put OpenTofu and Authentik's blueprint reconciler in a fight over
 the same objects. The LiteLLM rows are the deliberate exception: they never
 existed on the instance before this stack, so they are created rather than
-adopted. The second-apply gate for the role mapping and invalidation flow is in
+adopted. Both applies have landed (including the role mapping and invalidation
+flow); a fresh plan is empty. Delivered evidence and traps live in
 [`docs/authentik/terraform.md`](../../docs/authentik/terraform.md).
 
 ## Safety properties worth keeping

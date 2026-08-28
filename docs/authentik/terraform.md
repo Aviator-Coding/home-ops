@@ -41,7 +41,7 @@ intervention") was to reverse it: `terraform-diff.yaml` now plans for real,
 unattended, on every same-repo PR touching `terraform/**`. It never applies, and
 it only ever reaches the durable read-only `AUTHENTIK_TOKEN` field (section 5) -
 never `AUTHENTIK_APPLY_TOKEN`, which stays absent from 1Password except during
-an approved apply. See section 8 for the full mechanism, the one new credential
+an approved apply. See section 9 for the full mechanism, the one new credential
 involved, and its exact blast radius.
 
 - Code: [`terraform/authentik/`](../../terraform/authentik)
@@ -98,10 +98,11 @@ This is the single most dangerous object in the stack.
 | Sources | 1 | `authentik Built-in` |
 | Outposts | 1 | embedded, `managed = goauthentik.io/outposts/embedded` |
 
-There are **no** hand-written flows, stages, policies or property mappings on
-this instance. 28 `blueprintinstance` rows are `successful` and cover all of the
-above, which is why the stack references them as data sources and owns none of
-them.
+As of the 2026-08-26 snapshot there were **no** hand-written flows, stages,
+policies or property mappings on this instance. 28 `blueprintinstance` rows are
+`successful` and cover all of the above, which is why the stack still references
+those objects as data sources. The one later exception is the hand-written
+`litellm_role` scope mapping created by `litellm.tofu` (see section 2).
 
 ### How the inventory was taken
 
@@ -121,10 +122,13 @@ blocks need. `client_secret` was deliberately never selected.
 
 ## 2. Import strategy
 
-Every resource the stack declares is paired with an `import` block in
-[`imports.tofu`](../../terraform/authentik/imports.tofu). Without them the first
-plan would show nine creates, and applying that would mint new client secrets and
-stand up a second forward-auth provider.
+Every **adopted** resource is paired with an `import` block in
+[`imports.tofu`](../../terraform/authentik/imports.tofu). Without those blocks a
+fresh state would plan creates for the live OAuth2/proxy objects, mint new client
+secrets, and stand up a second forward-auth provider. LiteLLM is the deliberate
+exception: `litellm.tofu` is create-only (provider, application, `litellm_role`
+scope mapping, LiteLLM-only invalidation flow) and has **no** import block -
+do not add one for objects this stack already created and owns.
 
 | Resource | Import ID | Format |
 | -------- | --------- | ------ |
@@ -250,10 +254,14 @@ One 1Password item, `authentik-terraform`, in the **`Automation`** vault:
 | `AUTHENTIK_TOKEN` | read-only Authentik API token, see section 5 |
 | `AUTHENTIK_APPLY_TOKEN` | write-capable token, present only during an approved apply (section 7); deliberately absent otherwise |
 | `CODER_CLIENT_ID` | existing `client_id` of provider 4 |
-| `OPEN_WEBUI_CLIENT_ID` | existing `client_id` of provider 36 |
 | `PGADMIN_CLIENT_ID` | existing `client_id` of provider 2 |
 | `TF_STATE_ACCESS_KEY_ID` | RGW `terraform` user access key, added during section 3 |
 | `TF_STATE_SECRET_ACCESS_KEY` | RGW `terraform` user secret key, added during section 3 |
+
+The PushSecret and this table cover the adopted surface only (`coder` +
+`pg-admin`). An inert `OPEN_WEBUI_CLIENT_ID` field may still exist on the live
+Automation item or the hand-made source Secret from before open-webui was
+removed; leave it alone unless the captain chooses a credential-store cleanup.
 
 **Why `Automation` and not `Home-Lab`.** The rest of this repo's `vals`
 references resolve against `Home-Lab`. This item cannot live there. Every
@@ -287,7 +295,7 @@ is identical except `TF_VAR_authentik_token` resolves `AUTHENTIK_APPLY_TOKEN`
 (section 7).
 [`secrets-ci.vals.yaml`](../../terraform/authentik/secrets-ci.vals.yaml) is the
 same read-only field set addressed via `ref+onepasswordconnect://` for
-unattended CI plans - see section 8.
+unattended CI plans - see section 9.
 
 ## 5. The read-only API token, and how it was minted
 
@@ -331,7 +339,6 @@ Capture the key straight into the source Secret without printing it, then let th
 kubectl -n security create secret generic authentik-terraform-credentials \
   --from-literal=AUTHENTIK_TOKEN="$KEY" \
   --from-literal=CODER_CLIENT_ID="$CID_CODER" \
-  --from-literal=OPEN_WEBUI_CLIENT_ID="$CID_OWUI" \
   --from-literal=PGADMIN_CLIENT_ID="$CID_PGA" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
