@@ -92,7 +92,7 @@ This is the single most dangerous object in the stack.
 | Stages | 18 | built-in blueprints |
 | Policies | 14 | built-in blueprints |
 | Property mappings | 36 | built-in blueprints (`system/providers-*.yaml`), all carry a `managed` marker |
-| Groups | 2 | `authentik Admins`, `authentik Read-only` |
+| Groups | 2 at snapshot | `authentik Admins`, `authentik Read-only`; later out-of-band `tofu Writers` (section 5) is not OpenTofu-managed |
 | Brands | 1 | `authentik-default`, stock |
 | Certificates | 2 | self-signed + internal JWT, generated at first boot |
 | Sources | 1 | `authentik Built-in` |
@@ -369,26 +369,34 @@ separate, write-capable credential, minted only when an apply is approved.
 
 Minted the same way, with least privilege, and kept separate from the read-only
 one. `tofu-writer` is in TWO groups: `authentik Read-only` supplies every
-`view_*`, and a purpose-built `tofu Writers` role supplies exactly eight model
-permissions and nothing else:
+`view_*`, and a purpose-built `tofu Writers` role (out-of-band via `ak shell`,
+not an OpenTofu resource) supplies exactly **fourteen** model permissions and
+nothing else - all `add`/`change`, **zero delete on anything**:
 
 ```
-add_application     change_application
-add_oauth2provider  change_oauth2provider
-add_scopemapping    change_scopemapping
+add_application        change_application
+add_oauth2provider     change_oauth2provider
+add_scopemapping       change_scopemapping
+add_flow               change_flow
+add_userlogoutstage    change_userlogoutstage
+add_flowstagebinding   change_flowstagebinding
 change_proxyprovider
 change_outpost
 ```
 
-`add_scopemapping` / `change_scopemapping` were granted after the first LiteLLM
-apply so the pending `litellm_role` scope mapping can be created; the first apply
-never needed a property-mapping write. The role still has **no delete permission
-on anything**, which is the point: an additions-plus-ordering apply never needs
-one, and withholding it means this credential cannot remove a live SSO object
-even if something goes badly wrong. Verified against the live API rather than
-assumed, because a DELETE on a *non-existent* object returns 404 (lookup happens
-before the object permission check) and that proves nothing. The real tests
-create inert objects and try the privileged verbs:
+How it grew, for anyone reading an older apply log: the first LiteLLM apply ran
+with eight of these (applications, oauth2 providers, scope mappings, proxy
+provider, outpost). `add_scopemapping` / `change_scopemapping` were added so the
+pending `litellm_role` scope mapping could be created. The second apply needed a
+LiteLLM-only invalidation flow, user-logout stage and flow-stage binding, so
+`add`/`change` on `flow`, `userlogoutstage` and `flowstagebinding` were granted
+by explicit captain decision on 2026-08-28 - taking the role to fourteen. Still
+**no delete on anything**, which is the point: an additions-plus-ordering apply
+never needs one, and withholding it means this credential cannot remove a live
+SSO object even if something goes badly wrong. Verified against the live API
+rather than assumed, because a DELETE on a *non-existent* object returns 404
+(lookup happens before the object permission check) and that proves nothing. The
+real tests create inert objects and try the privileged verbs:
 
 | Request | Result |
 | ------- | ------ |
@@ -400,12 +408,6 @@ create inert objects and try the privileged verbs:
 Both probes were then removed through `ak shell`, which the write token itself
 cannot do (the scope-mapping probe in particular, because the writer still has
 no delete on ScopeMapping either).
-
-The role now holds **fourteen** permissions. The second apply also needed to
-create a flow, a user-logout stage and a flow-stage binding for LiteLLM-only full
-sign-out, so `add`/`change` on `flow`, `userlogoutstage` and `flowstagebinding`
-were granted by explicit captain decision on 2026-08-28. Still **zero delete on
-anything**.
 
 `change_flow` deserves a standing note: it is model-level, so this credential can
 now modify **any** flow on the instance, `default-authentication-flow` included.
@@ -470,9 +472,9 @@ Recorded because each is easy to reintroduce:
    the certificate's id is ever used. Both are now explicitly false - which also
    matters because `view_certificate/` is denied to the read-only role, so
    leaving them on breaks the plan outright.
-2. **`redirect_uri_type` must be declared.** These three provider rows predate the
-   field so the database holds no key for it, but the API defaults it to
-   `authorization` and returns it. Omitting it made every plan propose removing it.
+2. **`redirect_uri_type` must be declared.** The adopted OAuth2 provider rows
+   predate the field so the database holds no key for it, but the API defaults it
+   to `authorization` and returns it. Omitting it made every plan propose removing it.
 3. **`client_id` must not be marked `sensitive`.** It is a public OAuth2
    identifier. Terraform renders a sensitivity-marked attribute as
    `~ (sensitive value)` in an import plan even when the value is identical,

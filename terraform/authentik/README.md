@@ -27,7 +27,7 @@ unaffected by any of this and stays behind section 7's approval gate.
 | LiteLLM `litellm_role` scope mapping | yes (`litellm.tofu`) | hand-written claim so SSO users land as `proxy_admin`; not a blueprint object |
 | LiteLLM-only invalidation flow + user-logout stage + binding | yes (`litellm.tofu`) | RP logout ends the Authentik browser session for LiteLLM only; shared default invalidation flow stays untouched |
 | Flows, stages, policies, other property/scope mappings | no, data sources only | all reconciled by Authentik's own built-in blueprints |
-| Groups, users, brand, certificates, sources | no, data sources only | all Authentik defaults; nothing hand-made |
+| Groups, users, brand, certificates, sources | no, data sources only | blueprint defaults; out-of-band `tofu Writers` role is §5 of the runbook, not a resource here |
 
 The split is not arbitrary. Every object in the "no" rows is created by one of
 the 28 built-in `blueprintinstance` entries on this instance. Declaring those as
