@@ -16,7 +16,10 @@ then:
 Governance rule under test (measured live 2026-08-26, docs/ai-system/litellm/
 fallbacks.md): config-declared fallbacks BYPASS virtual-key allow-lists, so a
 cloud fallback may only sit on aliases whose every consumer is already
-cloud-entitled. qwen3.6-35b-a3b stays terminal; chat-ha carries the chain.
+cloud-entitled. qwen3.6-35b-a3b and chat-local stay terminal; chat-ha carries
+the chain. chat-local is the zero-priced alias real traffic runs on (added
+2026-08-27), and it is terminal for the same D4 reason qwen3.6-35b-a3b is:
+holding it must never become a cloud entitlement by the back door.
 """
 from __future__ import annotations
 
@@ -264,15 +267,21 @@ def test_router_settings_entitlement_boundary(cfg: dict) -> None:
         set(ctx) == {"chat-ha", "auto"},
         f"primaries={sorted(ctx)}",
     )
+    # Every terminal local alias, not just the original one. chat-local is the
+    # alias real production traffic runs on since 2026-08-27, so a fallback
+    # appearing on it would silently hand `repo-wiki`'s unattended cron and the
+    # router's SIMPLE/MEDIUM tiers a paid Anthropic model the first time the
+    # B70 hiccupped - the exact failure D4 forbids.
+    terminal_local = ("qwen3.6-35b-a3b", "qwen3.6-35b-a3b-classifier", "chat-local")
     record(
         "qwen_local_alias_has_no_availability_fallback",
-        "qwen3.6-35b-a3b" not in avail and "qwen3.6-35b-a3b-classifier" not in avail,
-        f"avail_keys={sorted(avail)}",
+        all(name not in avail for name in terminal_local),
+        f"terminal={terminal_local} avail_keys={sorted(avail)}",
     )
     record(
         "qwen_local_alias_has_no_context_window_fallback",
-        "qwen3.6-35b-a3b" not in ctx and "qwen3.6-35b-a3b-classifier" not in ctx,
-        f"ctx_keys={sorted(ctx)}",
+        all(name not in ctx for name in terminal_local),
+        f"terminal={terminal_local} ctx_keys={sorted(ctx)}",
     )
     for primary in ("chat-ha", "auto"):
         record(
@@ -357,10 +366,13 @@ def test_virtualkey_entitlement_split() -> None:
     chat_ha_holders = [
         name for name, spec in keys.items() if "chat-ha" in (spec.get("models") or [])
     ]
+    # Both terminal local aliases count as local-only. Without chat-local here
+    # the leak check below would quietly stop covering repo-wiki, which moved
+    # onto that alias on 2026-08-27.
     local_only = {
         name
         for name, spec in keys.items()
-        if set(spec.get("models") or []) <= {"qwen3.6-35b-a3b"}
+        if set(spec.get("models") or []) <= {"qwen3.6-35b-a3b", "chat-local"}
     }
     leak = sorted(set(chat_ha_holders) & local_only)
     record(
@@ -720,7 +732,7 @@ async def test_router_availability_fallback(cfg: dict, bases: dict[str, str]) ->
         m = json.loads(json.dumps(m))
         name = m["model_name"]
         lp = m["litellm_params"]
-        if name in ("qwen3.6-35b-a3b", "chat-ha"):
+        if name in ("qwen3.6-35b-a3b", "chat-ha", "chat-local"):
             lp["model"] = "openai/local-primary"
             lp["api_base"] = bases["primary"]
             lp["api_key"] = "mock"
@@ -816,6 +828,36 @@ async def test_router_availability_fallback(cfg: dict, bases: dict[str, str]) ->
         record(
             "terminal_qwen_does_not_fall_back_to_cloud",
             "sonnet" not in roles,
+            f"error={type(e).__name__}: {e} roles={roles}",
+        )
+
+    # 4) Same proof for chat-local, the zero-priced alias that real production
+    #    traffic actually runs on (auto's SIMPLE/MEDIUM tiers and fail-open
+    #    target, plus repo-wiki's cron). This is the one that matters most in
+    #    practice: qwen3.6-35b-a3b is now reached only by the demo budget test,
+    #    while chat-local carries the daily load. Proving it terminal here -
+    #    against the real Router with a dead primary, not by reading the config -
+    #    is what makes "structurally incapable of reaching a paid API" a
+    #    measured claim rather than an assertion about YAML.
+    STATE.dead_roles.add("primary")
+    STATE.calls.clear()
+    try:
+        resp = await router.acompletion(
+            model="chat-local",
+            messages=[{"role": "user", "content": "ping terminal local"}],
+            max_tokens=4,
+        )
+        content = resp.choices[0].message.content
+        record(
+            "terminal_chat_local_does_not_fall_back_to_cloud",
+            False,
+            f"unexpected success content={content!r} roles={[c['role'] for c in STATE.calls]}",
+        )
+    except Exception as e:
+        roles = [c["role"] for c in STATE.calls]
+        record(
+            "terminal_chat_local_does_not_fall_back_to_cloud",
+            "sonnet" not in roles and "opus" not in roles,
             f"error={type(e).__name__}: {e} roles={roles}",
         )
 

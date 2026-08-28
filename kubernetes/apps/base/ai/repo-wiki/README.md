@@ -39,18 +39,22 @@ repo on the app's PVC, which mkdocs serves `--dirty` (incremental rebuild).
   `LiteLLMVirtualKey` CR (`kubernetes/apps/base/ai/litellm/app/virtualkeys/repo-wiki.yaml`,
   captain decision D4's pattern), the same mechanism `demo`/`router-demo` use
   post-migration (#1455) - no manual key material to create.
-- **Model**: `qwen3.6-35b-a3b` (the local default), matching the reference's
-  own direct-local choice; no reason found to pick differently.
-- **Budget knobs tightened**: `MAX_REPOS_PER_RUN` 2->1 and `MAX_PAGES_PER_REPO`
-  20->8, `PAGE_CTX_CHARS` 120000->60000, to keep per-tick governance spend
-  small (see the `LiteLLMVirtualKey` comment for per-repo cost and backfill
-  math against the current `repos.txt` length).
+- **Model**: `chat-local` (zero-priced terminal local alias on the B70). Must
+  stay in lockstep with the `repo-wiki` `LiteLLMVirtualKey` allow-list, because
+  the proxy checks the model the CALLER asks for - changing only one side fails
+  every generation call. This consumer now spends $0 (verified over a full
+  8-page generation); its `maxBudget` is inert, and the real bounds are
+  `rpmLimit` 12 / `tpmLimit` 200000 plus `MAX_REPOS_PER_RUN=1`.
+- **Volume / context knobs tightened**: `MAX_REPOS_PER_RUN` 2->1 and
+  `MAX_PAGES_PER_REPO` 20->8, `PAGE_CTX_CHARS` 120000->60000, as context-size
+  and volume controls against the current `repos.txt` length - not dollar
+  spend, which no longer accrues on this path.
 - **Timezone**: `America/New_York` (this cluster's convention, e.g.
   `ai/hermes`'s `CONFIG_TIMEZONE`), not the reference's `America/Edmonton`.
 - **Persistence**: reference has no backup for this PVC. This repo's
   convention backs up stateful app data with VolSync; added here even though
-  the wiki content is regenerable, since a full backfill costs real governance
-  budget and generation time to reproduce.
+  the wiki content is regenerable, so a wipe does not force a full multi-hour
+  regeneration to restore served pages.
 
 ## Prerequisites (before first sync)
 

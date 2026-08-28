@@ -71,24 +71,30 @@ resolved target (`can_key_call_resolved_model`) is wired to
 > **A cloud fallback may only be declared on an alias whose every consumer is
 > already entitled to cloud spend.**
 
-`qwen3.6-35b-a3b` is held by `demo`, a deliberately local-only, $0.05-budget key
-(captain decision D4). Putting a cloud fallback on that alias would silently
-convert every local-only consumer into a cloud consumer the first time the B70
-hiccupped - real spend, against budgets sized for governance-accounting play
-money, on keys whose whole purpose is that they cannot reach Anthropic.
+`qwen3.6-35b-a3b` is held by `demo` alone - a deliberately local-only, $0.05-budget
+key (captain decision D4) whose synthetic prices exist only so that cap is
+exhaustible by one smoke test. Putting a cloud fallback on that alias, or on
+the production terminal local alias `chat-local`, would silently convert every
+holder into a cloud consumer the first time the B70 hiccupped - real spend on
+keys whose whole purpose is that they cannot reach Anthropic (and, for `demo`,
+against a budget sized for governance-accounting play money).
 
-So the local model is exposed under **two aliases with different entitlements**:
+So the one local B70 backend is exposed under **four aliases**, each carrying
+exactly one property the others must not. Entitlement is which alias a key holds:
 
-| Alias | Backend | Fallbacks | Who holds it |
-|---|---|---|---|
-| `qwen3.6-35b-a3b` | B70 llama.cpp | **none** - terminal | local-only keys (`demo`) |
-| `chat-ha` | same B70 llama.cpp | `-> claude-sonnet-5` | cloud-entitled keys only |
+| Alias | Backend | Prices | Fallbacks | Who holds it |
+|---|---|---|---|---|
+| `qwen3.6-35b-a3b` | B70 llama.cpp | SYNTHETIC non-zero (demo fixture so the $0.05 cap is exhaustible by one smoke test) | **none** - terminal | `demo` only - never production traffic |
+| `chat-local` | same B70 llama.cpp | none / zero | **none** - terminal | real local-only traffic: auto SIMPLE/MEDIUM, fail-open pin, repo-wiki, and every future local-only key |
+| `chat-ha` | same B70 llama.cpp | none / zero | `-> claude-sonnet-5` (availability + context-window) | cloud-entitled keys that should survive a B70 outage |
+| `qwen3.6-35b-a3b-classifier` | same B70 llama.cpp | none / zero | **none** - terminal; thinking disabled | the auto-router classifier only |
 
-Same weights, same GPU, same cost profile while healthy. The only difference is
-what happens when the B70 is down, and that difference is exactly the
-entitlement boundary. A key that must never reach Anthropic is given
-`qwen3.6-35b-a3b` and is structurally incapable of failing over; a key that is
-*supposed* to survive a GPU outage is given `chat-ha` and pays for it.
+Same weights, same GPU. A key that must never reach Anthropic holds
+`chat-local` (or `qwen3.6-35b-a3b` if and only if it is the demo budget test)
+and is structurally incapable of failing over; a key that is *supposed* to
+survive a GPU outage holds `chat-ha` and pays for it. Holding `chat-ha` IS the
+cloud entitlement, because a config-declared fallback bypasses the calling
+key's allow-list (§1).
 
 This mirrors the property already proven for the `auto` alias (see
 `virtualkeys/router-demo.yaml`): the allow-list is checked against the model the
@@ -130,8 +136,9 @@ Fires on connection errors, 5xx and other retryable provider failures - i.e.
 | `chat-ha` | `claude-sonnet-5` | The cloud-entitled view of the local B70 model. |
 | `auto` | `claude-sonnet-5` | Without it a B70 outage takes the routed alias down completely - see below. |
 
-`qwen3.6-35b-a3b` and `qwen3.6-35b-a3b-classifier` deliberately have **no**
-fallback and are terminal. Adding one to either would breach D4 (see §1).
+`qwen3.6-35b-a3b`, `chat-local`, and `qwen3.6-35b-a3b-classifier` deliberately
+have **no** fallback and are terminal. Adding one to any of them would breach
+D4 (see §1).
 
 ### Why Sonnet and not Opus
 
@@ -151,23 +158,26 @@ each other.
 ### Why `auto` needs its own entry
 
 The D3 router fails **open to local** by design: on classifier failure it routes
-to `complexity_router_default_model` (`qwen3.6-35b-a3b`) without scoring. That is
+to `complexity_router_default_model` (`chat-local`) without scoring. That is
 exactly right when the *classifier* is broken - but when the **B70 itself** is
 down, the classifier call fails *and* the fail-open target is the same dead
 backend, so the whole `auto` alias dies. The `auto -> claude-sonnet-5` entry is
 what turns that into a degraded-but-serving path. `auto` is cloud-entitled by
 construction (its COMPLEX and REASONING tiers are Anthropic models), so this
-breaches no entitlement.
+breaches no entitlement. (`chat-local` is the zero-priced production local
+alias; `qwen3.6-35b-a3b` remains the synthetically priced demo-only fixture.)
 
 **Verification status: PROVEN end-to-end (2026-08-27, post-merge).** This was
 shipped as reasoning-only and has since been measured, so the reasoning above is
 confirmed rather than assumed. Runbook step 3b was executed against the live
 proxy: an `auto-probe` clone of this alias, with all four tiers **and** the
 classifier pointed at a dead backend, returned `served by: qwen3.6-35b-a3b` -
-i.e. the auto-router's failure did propagate out of the `auto` model group and
-its fallback fired, exactly as the control-flow argument predicted. Auto-router
-failures are not swallowed internally, and the `auto:` entries in
-`routerSettings` are load-bearing rather than decorative.
+at the time that name *was* the fail-open target; today's pin is `chat-local`,
+same local B70 backend, same control-flow conclusion. The auto-router's failure
+did propagate out of the `auto` model group and its fallback fired, exactly as
+the control-flow argument predicted. Auto-router failures are not swallowed
+internally, and the `auto:` entries in `routerSettings` are load-bearing rather
+than decorative.
 
 ---
 

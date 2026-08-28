@@ -16,13 +16,35 @@
 #  2. num_retries: 0. The classifier's timeout budget rides every routed
 #     request. With the router default (2 retries) a wedged backend costs
 #     3 x timeout_ms before failing open; at 0 it costs exactly one.
-#  3. Its own modelName, so classifier spend and latency are a separate series
-#     in /metrics instead of being mixed into ordinary local chat traffic (see
-#     the auto-router doc's dashboard section). The PrometheusRule's two
-#     classifier alerts select on exactly this name.
+#  3. Its own modelName, so classifier latency, request counts and failures are
+#     a separate series in /metrics instead of being mixed into ordinary local
+#     chat traffic (see the auto-router doc's dashboard section). The
+#     PrometheusRule's two classifier alerts select on exactly this name.
 #
 # Neither knob has a typed CRD field, so both ride `params.additional`, which
 # the operator merges verbatim into litellm_params.
+#
+# NO `info.extra` PRICES, since 2026-08-27, and this one is easy to get wrong.
+# The classifier runs on the same free B70 as every other alias here, but
+# LiteLLM bills its sub-call to the CALLING key - it forwards the caller's
+# identity metadata precisely so spend lands on the key that caused it. So
+# while this alias carried qwen3.6-35b-a3b's synthetic prices, it was the
+# single largest contributor to an `auto` consumer's recorded spend: measured
+# 2026-08-27, after the SIMPLE/MEDIUM tiers moved to the zero-priced
+# `chat-local`, a trivial routed request still recorded $0.003 and ALL of it
+# was this classifier (the tier completion was genuinely $0.00). On a cold
+# prompt cache it was ~$0.045 of a $0.04735 request, ~95%.
+#
+# With this zeroed, an `auto` key's budget measures exactly one thing: real USD
+# spent on the COMPLEX/REASONING cloud tiers. That is the same property the
+# chat-ha/ha-demo pair already has, and it means a budget alert on a routed
+# consumer now always signals real money. The accepted tradeoff is that
+# rpmLimit/tpmLimit are the ONLY volume bound left on `auto` keys, since local
+# routed traffic can no longer move a budget at all.
+#
+# Metrics are unaffected: the separate series in point 3 comes from modelName,
+# not from prices. Only `litellm_spend_metric_total` for this series goes to 0,
+# which is the correct number for free local inference.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
@@ -39,7 +61,3 @@ spec:
       extra_body:
         chat_template_kwargs:
           enable_thinking: false
-  info:
-    extra:
-      input_cost_per_token: 0.00005
-      output_cost_per_token: 0.0001

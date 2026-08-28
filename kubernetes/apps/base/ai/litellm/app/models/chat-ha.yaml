@@ -16,20 +16,30 @@
 # config-declared chain is unchecked.) Full evidence, response headers and the
 # source-level reason: docs/ai-system/litellm/fallbacks.md#1.
 #
-# `demo` (and every future local-only consumer) holds `qwen3.6-35b-a3b`, which
-# has NO fallback and is therefore structurally incapable of reaching Anthropic.
-# Consumers that are supposed to survive a B70 outage hold THIS alias and pay
-# for it. Never add a cloud fallback to the plain local alias - that single edit
-# would silently convert every local-only key into a cloud spender the first
-# time the GPU hiccupped, which is precisely what captain decision D4 forbids.
+# Four aliases share this B70 backend; each carries exactly one property the
+# others must not. Entitlement is which alias a key holds:
+#   - `qwen3.6-35b-a3b` - terminal, SYNTHETIC non-zero prices, DEMO-ONLY so the
+#     $0.05 smoke-test cap is exhaustible. Never point production traffic here.
+#   - `chat-local` - terminal, ZERO-priced. Real local-only traffic holds this
+#     (auto SIMPLE/MEDIUM, fail-open, repo-wiki, and every future local-only key).
+#   - THIS alias (`chat-ha`) - ZERO-priced but carries the claude-sonnet-5
+#     availability + context-window fallback. Holding it IS the cloud
+#     entitlement, because a config-declared fallback bypasses the calling key's
+#     allow-list.
+#   - `qwen3.6-35b-a3b-classifier` - terminal, ZERO-priced, thinking disabled.
+# A key that must never reach cloud holds `chat-local` (or `qwen3.6-35b-a3b`
+# iff it is the demo budget test). A key that should survive a B70 outage holds
+# THIS alias and pays for it. Never add a cloud fallback to `chat-local` or
+# `qwen3.6-35b-a3b` - that single edit would silently convert every local-only
+# key into a cloud spender the first time the GPU hiccupped, which is precisely
+# what captain decision D4 forbids.
 #
-# NO `info.extra` PRICES, deliberately, unlike qwen3.6-35b-a3b. That alias
-# carries inflated governance-accounting prices so a tiny demo budget can be
-# exhausted by a smoke test. Here that would be actively harmful: local traffic
-# would burn a `chat-ha` key's budget at play-money rates during NORMAL
-# operation and kill the key before the outage it exists for. With local usage
-# priced at zero, a chat-ha key's maxBudget measures exactly one thing - real
-# USD spent on the cloud fallback - which is the number worth capping.
+# NO `info.extra` PRICES, deliberately, unlike the demo-only priced fixture.
+# Pricing local traffic here would burn a `chat-ha` key's budget at play-money
+# rates during NORMAL operation and kill the key before the outage it exists
+# for. With local usage at zero, a chat-ha key's maxBudget measures exactly one
+# thing - real USD spent on the cloud fallback - which is the number worth
+# capping.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:

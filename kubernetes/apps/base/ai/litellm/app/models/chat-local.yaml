@@ -1,0 +1,74 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# The HONESTLY-PRICED view of the local model - the alias real production
+# traffic runs on.
+#
+# Same weights, same B70, same llama.cpp backend as models/qwen3.6-35b-a3b.yaml,
+# models/chat-ha.yaml, and models/qwen3.6-35b-a3b-classifier.yaml. This is one of
+# four aliases of that one backend, and each exists to carry exactly one property
+# the others must not:
+#
+#   | alias                      | prices     | cloud fallback | who calls it              |
+#   |----------------------------|------------|----------------|---------------------------|
+#   | qwen3.6-35b-a3b            | SYNTHETIC  | no             | `demo` budget smoke test  |
+#   |                            |            |                | ONLY                      |
+#   | chat-local (this)          | zero       | no             | real traffic: `auto`'s    |
+#   |                            |            |                | SIMPLE/MEDIUM tiers +     |
+#   |                            |            |                | default_model +           |
+#   |                            |            |                | complexity_router_        |
+#   |                            |            |                | default_model fail-open,  |
+#   |                            |            |                | `repo-wiki`               |
+#   | chat-ha                    | zero       | YES (sonnet-5) | `ha-demo` (cloud-entitled)|
+#   | qwen3.6-35b-a3b-classifier | zero       | no             | used BY the router;       |
+#   |                            |            |                | zeroed because LiteLLM    |
+#   |                            |            |                | bills its sub-call to the |
+#   |                            |            |                | CALLING key, so pricing   |
+#   |                            |            |                | it charged every routed   |
+#   |                            |            |                | consumer for the router's |
+#   |                            |            |                | own local bookkeeping     |
+#
+# WHY THIS ALIAS EXISTS - the pricing axis.
+# models/qwen3.6-35b-a3b.yaml carries deliberately inflated per-token prices so
+# that the `demo` LiteLLMVirtualKey's $0.05 cap can be exhausted by a single
+# smoke test, which is what makes the D4 budget path provable rather than
+# theoretical. That is a good test design and it stays. The problem was that
+# the SAME alias was also the backend for the D3 router's SIMPLE and MEDIUM
+# tiers, its fail-open target, and `repo-wiki`'s direct model - so real
+# production traffic accrued play-money spend and every LiteLLM budget/spend
+# dashboard reported real-looking dollars for compute that costs nothing.
+#
+# Measured live 2026-08-27, before this split: ONE `say ok` request through
+# `auto`, classified SIMPLE and served entirely by the local B70, recorded
+# $0.04735 of spend - 9.5% of `router-demo`'s whole $0.50 monthly budget - and
+# `repo-wiki` had accrued $7.82 of its $30 cap without spending a real cent.
+#
+# NO `info.extra` PRICES, deliberately, exactly as on chat-ha and for the same
+# reason: with local usage priced at zero, a consumer key's maxBudget measures
+# exactly one thing - real USD - and a budget that trips means money was
+# actually spent. Never add prices here; add them to qwen3.6-35b-a3b (whose
+# only consumer is the demo test) if a bigger synthetic budget is ever needed.
+#
+# NO CLOUD FALLBACK, deliberately, and this is a D4 governance boundary rather
+# than a tuning gap. A config-declared fallback BYPASSES the calling key's
+# model allow-list (measured 2026-08-26, docs/ai-system/litellm/fallbacks.md#1),
+# so an alias that appears in the proxy's routerSettings `fallbacks` or
+# `context_window_fallbacks` is a cloud entitlement no matter what its
+# consumers' allow-lists say. `chat-local` appears in NEITHER list in
+# app/litellmproxy.yaml - that absence is the enforcement, and it is what makes
+# this alias structurally incapable of reaching a paid API. Consumers that are
+# supposed to survive a B70 outage hold `chat-ha` and pay for it; consumers on
+# this alias fail closed instead. Adding `chat-local` to either list would
+# silently convert `repo-wiki`'s unattended 12-hourly cron into a cloud spender
+# the first time the GPU hiccupped, against a budget that (correctly) no longer
+# caps anything.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: chat-local
+spec:
+  modelName: chat-local
+  proxyRef: litellm
+  params:
+    model: openai/qwen3.6-35b-a3b
+    apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
+    apiKey: "not-needed" # llama.cpp server has no --api-key set
