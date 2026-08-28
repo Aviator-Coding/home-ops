@@ -34,8 +34,9 @@ the 28 built-in `blueprintinstance` entries on this instance. Declaring those as
 resources would put OpenTofu and Authentik's blueprint reconciler in a fight over
 the same objects. The LiteLLM rows are the deliberate exception: they never
 existed on the instance before this stack, so they are created rather than
-adopted. Both applies have landed (including the role mapping and invalidation
-flow); a fresh plan is empty. Delivered evidence and traps live in
+adopted. Three applies have landed (role mapping, invalidation flow, and the
+post-merge `grant_types` fix on the created provider); a fresh plan is empty.
+Delivered evidence and traps live in
 [`docs/authentik/terraform.md`](../../docs/authentik/terraform.md).
 
 ## Safety properties worth keeping
@@ -46,6 +47,11 @@ flow); a fresh plan is empty. Delivered evidence and traps live in
   login for that application. **LiteLLM is the inverse**: both halves are
   generated in `litellm.tofu` and surfaced via `outputs.tofu`, because there was
   no live secret to protect and the cluster must be told what they are.
+- **`grant_types` on created providers must be declared; on adopted ones must
+  not.** Same optional+computed shape as `client_secret`, opposite correct
+  answer. Omitting it on a create writes `{}` and Authentik rejects authorize
+  with `Invalid grant_type for provider` while every offline check stays green.
+  Detail: runbook section 7b.
 - **`client_id` on adopted providers is fed from 1Password as the existing
   value.** The schema requires it, so it must be declared; it is never generated
   for those apps. LiteLLM's `client_id` is generated (`random_string`) for the

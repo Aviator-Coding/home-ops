@@ -61,7 +61,11 @@ backup window. Mechanism, citations, retrieval runbook and retention:
   (`GENERIC_SCOPE` includes `litellm_role`; `GENERIC_USER_ROLE_ATTRIBUTE=litellm_role`).
   Logout ends the Authentik browser session via the LiteLLM-only invalidation
   flow on that provider (shared default invalidation flow stays untouched).
-  Second apply evidence and live `scopes_supported`: that runbook's status section.
+  Apply evidence, live `scopes_supported`, and the create-path `grant_types`
+  trap: that runbook's status section and §7b. Verification note for v1.98.0:
+  the SSO start path is `/sso/key/generate` (there is no `/sso/login`), and
+  `/ui/` is a client-side SPA, so bare HTTP probes of those two paths read
+  404/200 even when SSO is fully working - drive the real authorize handshake.
 - Zero changes to `agentgateway/` (the existing envoy AI gateway) or to
   `vllm/` (`vllm-app.ai.svc.cluster.local:8000`, which this app points at as
   a backend and never modifies).

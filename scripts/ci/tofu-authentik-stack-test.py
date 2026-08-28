@@ -492,6 +492,18 @@ def test_stack_hcl_model() -> dict[str, Any]:
                 )
             if "client_id" not in block:
                 raise Failure("litellm provider must declare generated client_id")
+            # Create-path only: grant_types is optional+computed. Omitting it on a
+            # CREATED provider writes grant_types={} and Authentik rejects every
+            # authorize with "Invalid grant_type for provider". Imported providers
+            # must keep omitting it so the read adopts the live stock set.
+            grants = block.get("grant_types")
+            if not isinstance(grants, list) or "authorization_code" not in [
+                _strip_quotes(str(g)) for g in grants
+            ]:
+                raise Failure(
+                    "created litellm provider must declare "
+                    f"grant_types including authorization_code, got {grants!r}"
+                )
             # Redirect URI must couple to PROXY_BASE_URL + /sso/callback.
             uris = block.get("allowed_redirect_uris") or []
             flat = json.dumps(uris)
@@ -507,6 +519,13 @@ def test_stack_hcl_model() -> dict[str, Any]:
         if "client_secret" in block:
             raise Failure(
                 f"adopted provider {name!r} must not declare client_secret"
+            )
+        # Opposite of the create path: declaring grant_types on an imported
+        # provider is noise at best and a phantom-diff trap at worst.
+        if "grant_types" in block:
+            raise Failure(
+                f"adopted provider {name!r} must omit grant_types "
+                "(optional+computed; read adopts the live set)"
             )
 
     for block in _proxy_blocks(merged):
@@ -910,6 +929,15 @@ def test_delivered_sso_contract() -> dict[str, Any]:
     if "litellm_invalidation" not in inv or ".uuid" not in inv:
         raise Failure(
             f"litellm provider invalidation_flow must use .uuid, got {inv!r}"
+        )
+    grants = litellm_providers[0].get("grant_types")
+    grant_values = [
+        _strip_quotes(str(g)) for g in (grants if isinstance(grants, list) else [])
+    ]
+    if "authorization_code" not in grant_values:
+        raise Failure(
+            "created litellm provider must declare grant_types including "
+            f"authorization_code after the SSO fix, got {grants!r}"
         )
 
     if "open-webui" in for_each_keys:
