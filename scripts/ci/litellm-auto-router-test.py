@@ -443,6 +443,7 @@ def test_config_semantics(cfg: dict) -> dict:
         set(names) >= {
             "qwen3.6-35b-a3b",
             "qwen3.6-35b-a3b-classifier",
+            "chat-local",
             "claude-sonnet-5",
             "claude-opus-5",
             "auto",
@@ -514,7 +515,7 @@ def test_config_semantics(cfg: dict) -> dict:
     )
     record(
         "fail_open_pin_sibling_is_local",
-        alp.get("complexity_router_default_model") == "qwen3.6-35b-a3b",
+        alp.get("complexity_router_default_model") == "chat-local",
         f"complexity_router_default_model={alp.get('complexity_router_default_model')!r}",
     )
 
@@ -538,7 +539,7 @@ def test_config_semantics(cfg: dict) -> dict:
     )
     record(
         "default_model_is_local",
-        parsed.default_model == "qwen3.6-35b-a3b",
+        parsed.default_model == "chat-local",
         f"got={parsed.default_model!r}",
     )
     record(
@@ -586,8 +587,8 @@ def test_config_semantics(cfg: dict) -> dict:
                     return v
         return None
 
-    record("tier_SIMPLE_local", tier_val("SIMPLE") == "qwen3.6-35b-a3b", f"{tier_val('SIMPLE')!r}")
-    record("tier_MEDIUM_local", tier_val("MEDIUM") == "qwen3.6-35b-a3b", f"{tier_val('MEDIUM')!r}")
+    record("tier_SIMPLE_local", tier_val("SIMPLE") == "chat-local", f"{tier_val('SIMPLE')!r}")
+    record("tier_MEDIUM_local", tier_val("MEDIUM") == "chat-local", f"{tier_val('MEDIUM')!r}")
     record("tier_COMPLEX_sonnet", tier_val("COMPLEX") == "claude-sonnet-5", f"{tier_val('COMPLEX')!r}")
     record("tier_REASONING_opus", tier_val("REASONING") == "claude-opus-5", f"{tier_val('REASONING')!r}")
 
@@ -596,6 +597,119 @@ def test_config_semantics(cfg: dict) -> dict:
         "auto_litellm_params": alp,
         "crc_raw": crc_raw,
     }
+
+
+def test_local_pricing_split(cfg: dict) -> None:
+    """The pricing split that keeps recorded spend honest.
+
+    `qwen3.6-35b-a3b` carries deliberately synthetic per-token prices so the
+    `demo` key's $0.05 cap can be exhausted by one smoke test. That is a
+    captain-approved test design and it stays. What must NOT happen is real
+    production traffic running on a priced local alias: before 2026-08-27 the
+    router's SIMPLE/MEDIUM tiers and repo-wiki both did, so a single trivial
+    routed request recorded $0.04735 and repo-wiki had accrued $7.82 - all of
+    it play money for compute that runs free on our own B70.
+
+    These assertions pin the split in both directions, because either half
+    silently rotting reintroduces the bug: the demo alias must KEEP its prices
+    (or the budget path stops being provable) and the production alias must
+    NEVER gain any (or dashboards start lying again).
+    """
+    model_list = cfg["model_list"]
+    priced = {
+        m["model_name"]
+        for m in model_list
+        if (m.get("model_info") or {}).get("input_cost_per_token") is not None
+    }
+    # Exactly the two local aliases nothing but the demo test and the router's
+    # own classifier sub-call can reach. Cloud models are priced by LiteLLM's
+    # built-in cost map, never by hand - see models/kustomization.yaml.
+    record(
+        "only_demo_and_classifier_aliases_carry_synthetic_prices",
+        priced == {"qwen3.6-35b-a3b", "qwen3.6-35b-a3b-classifier"},
+        f"priced={sorted(priced)}",
+    )
+
+    local = by_name(model_list, "chat-local")
+    qwen = by_name(model_list, "qwen3.6-35b-a3b")
+    record(
+        "chat_local_is_the_same_backend_as_qwen",
+        local["litellm_params"].get("model") == qwen["litellm_params"].get("model")
+        and local["litellm_params"].get("api_base") == qwen["litellm_params"].get("api_base"),
+        f"model={local['litellm_params'].get('model')!r} api_base={local['litellm_params'].get('api_base')!r}",
+    )
+    record(
+        "chat_local_has_no_prices",
+        not (local.get("model_info") or {}),
+        f"model_info={local.get('model_info')!r}",
+    )
+
+    # D4 boundary: a config-declared fallback bypasses the calling key's
+    # allow-list (docs/ai-system/litellm/fallbacks.md#1), so an alias listed in
+    # either fallback map IS a cloud entitlement regardless of who holds it.
+    # `chat-local` must appear in neither, which is what makes it structurally
+    # incapable of reaching a paid API - the same property `qwen3.6-35b-a3b`
+    # has, and the reason `chat-ha` exists separately for consumers that do
+    # want cloud failover.
+    try:
+        import yaml
+    except ImportError:
+        record("chat_local_has_no_cloud_fallback", False, "PyYAML missing")
+        return
+    proxy = yaml.safe_load(PROXY_PATH.read_text())
+    router_settings = proxy["spec"].get("routerSettings") or {}
+    entitled = set()
+    for field in ("fallbacks", "context_window_fallbacks"):
+        for entry in router_settings.get(field) or []:
+            entitled.update(entry.keys())
+    record(
+        "chat_local_has_no_cloud_fallback",
+        "chat-local" not in entitled,
+        f"cloud_entitled_aliases={sorted(entitled)}",
+    )
+    record(
+        "priced_demo_alias_also_has_no_cloud_fallback",
+        "qwen3.6-35b-a3b" not in entitled,
+        f"cloud_entitled_aliases={sorted(entitled)}",
+    )
+
+
+def test_repo_wiki_consumer_matches_generator() -> None:
+    """repo-wiki's allow-list and the CronJob's WIKI_MODEL must move together.
+
+    The proxy checks the model the caller ASKS for, not what it resolves to, so
+    a key scoped to `chat-local` while the generator still requests
+    `qwen3.6-35b-a3b` fails every generation call on the allow-list. These two
+    values live in different apps, which is exactly why this is asserted.
+    """
+    try:
+        import yaml
+    except ImportError:
+        record("repo_wiki_model_matches_allowlist", False, "PyYAML missing")
+        return
+    keys = {k["metadata"]["name"]: k["spec"] for k in _load_crs(VIRTUALKEYS_DIR, "LiteLLMVirtualKey")}
+    spec = keys.get("repo-wiki")
+    if spec is None:
+        record("repo_wiki_model_matches_allowlist", False, "repo-wiki LiteLLMVirtualKey missing")
+        return
+    record(
+        "repo_wiki_scoped_to_zero_priced_local_alias",
+        spec["models"] == ["chat-local"],
+        f"models={spec['models']!r}",
+    )
+    hr = yaml.safe_load(
+        (REPO / "kubernetes/apps/base/ai/repo-wiki/app/helmrelease.yaml").read_text()
+    )
+    env = {}
+    for controller in (hr["spec"]["values"].get("controllers") or {}).values():
+        for container in (controller.get("containers") or {}).values():
+            env.update(container.get("env") or {})
+    wiki_model = env.get("WIKI_MODEL")
+    record(
+        "repo_wiki_model_matches_allowlist",
+        wiki_model in spec["models"],
+        f"WIKI_MODEL={wiki_model!r} allow_list={spec['models']!r}",
+    )
 
 
 def test_consumers() -> None:
@@ -678,7 +792,7 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
         m = json.loads(json.dumps(m))  # deep copy
         name = m["model_name"]
         lp = m["litellm_params"]
-        if name == "qwen3.6-35b-a3b":
+        if name in ("qwen3.6-35b-a3b", "chat-local"):
             lp["model"] = "openai/qwen-local"
             lp["api_base"] = bases["local"]
             lp["api_key"] = "mock"
@@ -740,7 +854,7 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
     record(
         "constructed_router_fallback_default_model",
         cr.config.classifier_fallback == "default_model"
-        and cr.config.default_model == "qwen3.6-35b-a3b",
+        and cr.config.default_model == "chat-local",
         f"fallback={cr.config.classifier_fallback} default={cr.config.default_model}",
     )
 
@@ -757,8 +871,8 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
 
     # Map expected backend from tier
     expected_backend = {
-        "SIMPLE": "qwen3.6-35b-a3b",
-        "MEDIUM": "qwen3.6-35b-a3b",
+        "SIMPLE": "chat-local",
+        "MEDIUM": "chat-local",
         "COMPLEX": "claude-sonnet-5",
         "REASONING": "claude-opus-5",
     }
@@ -822,7 +936,7 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
         cause = outcome.cause
         # default_model_fallback is the expected cause
         ok = cause == "default_model_fallback" or (
-            cause != "llm_classifier" and cr.config.default_model == "qwen3.6-35b-a3b"
+            cause != "llm_classifier" and cr.config.default_model == "chat-local"
         )
         record(
             "fail_open_on_classifier_error",
@@ -838,8 +952,8 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
         decision = getattr(resp, "routing_decision", None) or {}
         record(
             "fail_open_routes_to_local_qwen",
-            routed == "qwen3.6-35b-a3b"
-            and decision.get("routed_model") == "qwen3.6-35b-a3b"
+            routed == "chat-local"
+            and decision.get("routed_model") == "chat-local"
             and decision.get("cause") == "default_model_fallback",
             f"routed={routed!r} decision={decision!r}",
         )
@@ -956,7 +1070,9 @@ def main() -> int:
     cfg = render_config_from_crs()
     print(f"rendered {len(cfg['model_list'])} model_list entries from LiteLLMModel CRs")
     test_config_semantics(cfg)
+    test_local_pricing_split(cfg)
     test_consumers()
+    test_repo_wiki_consumer_matches_generator()
     test_externalsecret_no_new_op_item()
     test_image_version_floor()
     test_docs_exist()
