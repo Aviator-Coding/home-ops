@@ -41,6 +41,14 @@ model the proxy holds no credential for, the deliberate non-use of
 `forward_client_headers_to_llm_api`, `$0` pricing / no-`maxBudget` key shape,
 and the client runbook. Do not restate those facts here.
 
+**Full request/response logging** (captain request 2026-08-27) lives in
+[`request-logs.md`](request-logs.md): the `store_prompts_in_spend_logs`
+mechanism verified against the pinned image, which column actually holds the
+prompt, how to pull one request's prompt/response/cost from the Admin UI, the
+API or SQL, the confidentiality finding (cluster-internal only, caller
+credentials redacted), and the retention recommendation. Do not restate those
+facts here.
+
 ## Scope (binding, from B4/D4)
 
 - **B4**: LiteLLM does **not** front the **public** listener - no
