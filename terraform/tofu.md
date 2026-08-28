@@ -52,7 +52,7 @@ specific, known consequence.
 | `outputs.tofu`     | Output value declarations, if the stack has any              |
 | `backend.tofu`     | Remote state configuration                                   |
 | `imports.tofu`     | `import` blocks adopting the existing live objects           |
-| `secrets.vals.yaml`| `ref+op://` environment for plan/init/state; references only |
+| `secrets.vals.yaml`| plan/init/state env; secret fields are `ref+op://` (plain non-secret wiring allowed, e.g. endpoint URL) |
 | `secrets-ci.vals.yaml` | CI mirror of `secrets.vals.yaml` via `ref+onepasswordconnect://`; optional - without it `terraform-diff` stays schema-only |
 | `secrets-apply.vals.yaml` | apply-only env; token field absent until approval |
 | `*.tofu`           | Resources, grouped by subject (applications, flows, ...)     |
@@ -101,7 +101,7 @@ job and the `terraform-diff` fallback for stacks without `secrets-ci.vals.yaml`:
 ```
 
 Live read-only plans on same-repo PRs are owned by `terraform-diff.yaml` when a
-stack provides `secrets-ci.vals.yaml`; see `docs/authentik/terraform.md` §8.
+stack provides `secrets-ci.vals.yaml`; see `docs/authentik/terraform.md` §9.
 `tofu apply` stays operator-only behind that doc's §7 gate.
 
 ## Applying
