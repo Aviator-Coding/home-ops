@@ -47,6 +47,16 @@ resource "authentik_provider_oauth2" "litellm" {
   # surfaced it.
   invalidation_flow = authentik_flow.litellm_invalidation.uuid
 
+  # MUST be declared explicitly, and this is the one attribute where the
+  # create path differs from the import path. `grant_types` is optional+computed,
+  # so the imported providers can safely omit it - their read adopts the live
+  # stock set. A CREATED provider has nothing to adopt: omitting it here produced
+  # grant_types = {} on the live object, and Authentik then rejected every
+  # authorize with "Invalid grant_type for provider" / invalid_request. Verified
+  # in the server log and against the database (providers 2 and 4 carry the full
+  # set; 70 was empty).
+  grant_types = ["authorization_code"]
+
   include_claims_in_id_token = true
   signing_key                = data.authentik_certificate_key_pair.self_signed.id
 
