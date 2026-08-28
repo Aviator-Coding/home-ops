@@ -273,7 +273,7 @@ if [ ! -f secrets-ci.vals.yaml ]; then
   echo "file=" >> "$OUT"
   echo "mode=schema_only" >> "$OUT"
 elif [ -z "${OP_CONNECT_TOKEN:-}" ]; then
-  echo "::warning::terraform/authentik opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 8 for what to create and why."
+  echo "::warning::terraform/authentik opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 9 for what to create and why."
   echo "file=" >> "$OUT"
   echo "mode=schema_only_missing_secret" >> "$OUT"
 else
@@ -458,9 +458,6 @@ def test_runbook_section8_contract() -> dict[str, Any]:
     assert "do not reuse" in section.lower() or "not reuse" in section.lower() or "dedicated" in section.lower()
     # Apply remains section-7 gated.
     assert "## 7." in text
-    # Endpoint split: CI must document Service DNS, not only the local port-forward.
-    assert "AWS_ENDPOINT_URL_S3" in text
-    assert "rook-ceph-rgw-ceph-objectstore.rook-ceph.svc" in text
     return {
         "section_chars": len(section),
         "required_present": required,

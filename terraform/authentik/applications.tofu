@@ -1,4 +1,4 @@
-# The three OIDC applications on this instance, plus their OAuth2 providers.
+# The two adopted OIDC applications on this instance, plus their OAuth2 providers.
 #
 # Every value below was read out of the live instance before it was written down
 # (see the inventory in ../../docs/authentik/terraform.md). This file adopts what

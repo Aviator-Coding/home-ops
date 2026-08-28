@@ -16,7 +16,7 @@ variable "cluster_domain" {
   default     = "sklab.dev"
 }
 
-# The three client_id variables below are deliberately NOT marked `sensitive`.
+# The two client_id variables below are deliberately NOT marked `sensitive`.
 # An OAuth2 client_id is a public identifier - it travels in browser redirect
 # URLs - so there is nothing to protect. Marking it sensitive actively hurt:
 # Terraform renders a sensitivity-marked attribute as `~ (sensitive value)` in an

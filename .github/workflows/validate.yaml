@@ -24,7 +24,7 @@
 #     captain-approved change (2026-08-27) from this job's original "CI can
 #     never reach the live instance" design. `tofu apply` is unaffected: it
 #     remains fully behind the explicit captain-approval gate in
-#     docs/authentik/terraform.md section 7. See that doc's section 8 for the
+#     docs/authentik/terraform.md section 7. See that doc's section 9 for the
 #     full reasoning and the one credential involved.
 name: Validate
 
@@ -236,7 +236,7 @@ jobs:
       # schema check (`-backend=false`, `tofu validate` never calls the
       # Authentik API). A real plan against the live backend runs separately, in
       # terraform-diff.yaml (read-only, gated only by that workflow's fork
-      # guard) - see docs/authentik/terraform.md section 8 for why that is
+      # guard) - see docs/authentik/terraform.md section 9 for why that is
       # considered safe and `tofu apply` is not.
       - name: Format and Validate OpenTofu Stacks
         run: ./scripts/ci/tofu-validate.sh

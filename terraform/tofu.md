@@ -31,14 +31,17 @@ specific, known consequence.
    LiteLLM (`litellm.tofu`): no prior live object, no `import` block, credentials
    generated in OpenTofu rather than adopted.
 4. **Secrets come from 1Password at invocation time.** Each stack ships a
-   `secrets.vals.yaml` holding only `ref+op://` references, resolved by `vals`,
-   the same mechanism `bootstrap/` and the `just talos` render path already use.
-   Stacks that want unattended CI plans also ship `secrets-ci.vals.yaml`, a
-   field-for-field mirror using `ref+onepasswordconnect://` so GitHub Actions can
-   resolve the same item without an interactive `op` session. The authentik stack
-   also ships `secrets-apply.vals.yaml` for captain-approved apply only (a
-   separate field that is absent until approval, so stray apply fails closed).
-   There is no committed `tfvars` and no committed `backend.tfvars`.
+   `secrets.vals.yaml` whose secret fields are `ref+op://` references, resolved
+   by `vals`, the same mechanism `bootstrap/` and the `just talos` render path
+   already use. Non-secret runtime wiring may sit alongside those refs when it
+   must differ by environment - authentik's plain `AWS_ENDPOINT_URL_S3` (local
+   port-forward vs CI Service DNS) is the documented exception. Stacks that want
+   unattended CI plans also ship `secrets-ci.vals.yaml`, a field-for-field mirror
+   using `ref+onepasswordconnect://` so GitHub Actions can resolve the same item
+   without an interactive `op` session. The authentik stack also ships
+   `secrets-apply.vals.yaml` for captain-approved apply only (a separate field
+   that is absent until approval, so stray apply fails closed). There is no
+   committed `tfvars` and no committed `backend.tfvars`.
 
 ## File organization
 

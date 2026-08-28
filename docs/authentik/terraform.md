@@ -584,8 +584,11 @@ from a clean plan. If a later change breaks something:
 ### Never run destroy
 
 `tofu destroy` in this stack unbinds ExtAuth from the embedded outpost and
-deletes four applications and four providers. There is no scenario where that is
-the right move on a live cluster.
+removes the two adopted applications and providers (`coder`, `pg-admin`), the
+proxy provider and its outpost attachment, and the create-only LiteLLM provider,
+application, scope mapping, and invalidation flow. It does not touch open-webui
+(already removed from the stack). There is no scenario where that is the right
+move on a live cluster.
 
 ## 7b. Two traps this stack has already hit
 
@@ -654,7 +657,7 @@ uploaded anywhere durable.
 ### The one new credential: a 1Password Connect access token
 
 `terraform/authentik/secrets.vals.yaml` already resolves every read-only field
-this stack needs - the state-backend keys and `AUTHENTIK_TOKEN`/the three client
+this stack needs - the state-backend keys and `AUTHENTIK_TOKEN`/the two client
 ids - from the single `Automation/authentik-terraform` item, via the
 interactive `op` CLI (`vals`'s `op://` provider). CI has no interactive session,
 so it resolves the *same item, same fields* through 1Password Connect instead -
