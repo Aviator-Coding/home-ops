@@ -45,9 +45,9 @@ and the client runbook. Do not restate those facts here.
 [`request-logs.md`](request-logs.md): the `store_prompts_in_spend_logs`
 mechanism verified against the pinned image, which column actually holds the
 prompt, how to pull one request's prompt/response/cost from the Admin UI, the
-API or SQL, the confidentiality finding (cluster-internal only, caller
-credentials redacted), and the retention recommendation. Do not restate those
-facts here.
+API or SQL, the confidentiality finding (LAN-only NAS Barman sink accepted
+2026-08-27, caller credentials redacted), and the shipped 30d retention bound.
+Do not restate those facts here.
 
 ## Scope (binding, from B4/D4)
 

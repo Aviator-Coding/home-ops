@@ -21,9 +21,10 @@ feature.
    `x-litellm-call-id` header the proxy hands back. For OpenRouter it looks like
    `gen-1787882691-eK0dnnHsVU5MzNL03Rqx`; for an OpenAI-compatible backend,
    `chatcmpl-...`. Searching by call-id finds nothing.
-3. **Nothing leaves the cluster** and **no caller credential is stored** - see
-   section 5. But full prompt bodies are now readable by anything holding the
-   master key, and Prometheus holds the master key.
+3. **Leaves the k8s cluster onto on-premises NAS only, no third-party path**,
+   and **no caller credential is stored** - see section 5. Full prompt bodies
+   are also readable by anything holding the master key, and Prometheus holds
+   the master key.
 
 ---
 
@@ -158,8 +159,29 @@ Columns that matter, from `proxy/schema.prisma` (`model LiteLLM_SpendLogs`):
 
 ## 5. Confidentiality: what this does and does not persist
 
-**Stays in the cluster.** The only store is the `litellm` database on the shared
-in-cluster `postgres-17` CNPG cluster. There is no external copy:
+**Primary store is the shared in-cluster Postgres.** Content is written to the
+`litellm` database on the shared `postgres-17` CNPG cluster. That is the live
+path every Admin UI / SQL / API retrieval hits.
+
+**Leaves the k8s cluster onto on-premises NAS only - no third-party path.** The
+same `postgres-17` cluster continuously archives WAL plus daily base backups via
+Barman to `s3://home-ops-postgres-cluster/` at
+`https://nas.${SECRET_DOMAIN}:9000` with `retentionPolicy: 30d`
+(`kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml`
+`backup.retentionPolicy`, `backup.barmanObjectStore.destinationPath`,
+`.endpointURL`, plus its `@daily` `ScheduledBackup`). Enabling full-content
+capture therefore copies prompts and responses off the Kubernetes cluster onto
+that backup target for the backup window. The endpoint is the LAN TrueNAS MinIO
+appliance (the same one `kubernetes/components/volsync/minio/externalsecret.yaml`
+already uses for VolSync). It is **not** a third-party or internet service, and
+the postgres bucket is **not** replicated onward to Cloudflare R2 - R2 is used
+by VolSync only (`kubernetes/components/volsync/Readme.md`). Captain decision
+`litellm-log-backup-export` (2026-08-27, option C) explicitly accepted this
+LAN-only exposure as an allowed sink for full-content spend logs, paired with
+the 30d spend-log retention bound in section 7.
+
+**LiteLLM itself still does not export content.** These findings are unchanged
+and still verified:
 
 - LiteLLM's cold-storage feature (S3/GCS offload of prompt bodies) is opt-in via
   `litellm.cold_storage_custom_logger`, which defaults to `None`
@@ -198,9 +220,9 @@ route itself is unchanged - still internal-only, never the public listener.
 
 **Sensitive traffic to be aware of.** `repo-wiki` sends third-party repository
 source through the local model, and `opencode` is a coding-agent workspace that
-may carry the captain's own work. Both are now persisted verbatim in Postgres.
-That is cluster-internal persistence with no export path, but it is persistence:
-the retention question in section 7 is how long it lasts.
+may carry the captain's own work. Both are now persisted verbatim in Postgres
+and ride the Barman path above for the backup window. The retention bound in
+section 7 is how long the live spend-log rows (and matching NAS copies) last.
 
 ---
 
@@ -244,35 +266,45 @@ headline figure is accounting units, not dollars. Filter on
 
 ---
 
-## 7. Retention: there IS a built-in pruner, and it is OFF
+## 7. Retention: built-in pruner is ON at `30d`
 
-`general_settings.maximum_spend_logs_retention_period` (e.g. `"90d"`) is the
-gate. It is unset here, and while it is unset **no cleanup job is ever
-scheduled** - `proxy_server.py:8937` only registers `spend_log_cleanup_job` when
-that key (or `maximum_autorouter_session_retention_period`) is non-null. So spend
-logs, now including full prompts and responses, grow without bound.
+`general_settings.maximum_spend_logs_retention_period: "30d"` is set next to
+`store_prompts_in_spend_logs` in `litellmproxy.yaml`, per captain decision
+`litellm-log-backup-export` (2026-08-27, option C). That key is the gate for the
+whole built-in pruner: while it is null, **no cleanup job is ever scheduled** -
+`proxy_server.py:8937` only registers `spend_log_cleanup_job` when that key (or
+`maximum_autorouter_session_retention_period`) is non-null. Setting it schedules
+the job on the default `1d` interval (`maximum_spend_logs_retention_interval`).
 
-It was left off deliberately: turning it on deletes whole `LiteLLM_SpendLogs`
-rows, which deletes the per-request **cost history** along with the content.
-There is no built-in option to strip content while keeping the cost row. That is
-a captain call, not an implementation default.
+**Why `30d`, not `1mo` or longer.** It matches the Barman `retentionPolicy: 30d`
+on `postgres-17` exactly, so logged prompt/response content does not outlive
+what already rolls off that backup target (boundary detail in section 5).
+Verified on the pinned v1.98.0 image that `duration_in_seconds("30d") == 2592000`
+(exactly 30 days); `"1mo"` parses to 31 days and would outlive the backup
+window, which is why it was not used.
 
-**Recommendation: `maximum_spend_logs_retention_period: "90d"`,** added next to
-`store_prompts_in_spend_logs` in `litellmproxy.yaml`. Reasoning:
+**Tradeoff, stated plainly.** The pruner deletes whole `LiteLLM_SpendLogs` rows,
+so per-request **cost history** is deleted along with the content. v1.98.0 has
+no option to strip content while keeping the cost row. Durable
+per-day/per-model/per-consumer cost history is unaffected because it lives in
+the separate `LiteLLM_Daily*Spend` rollup tables, which the pruner does not
+touch - it prunes `LiteLLM_SpendLogs` and its tool-index table only
+(`db/db_transaction_queue/spend_log_cleanup.py:480`). `/user/daily/activity`
+(the Admin UI Usage page) keeps full cost history via those rollups.
 
-- Growth is modest but real. At ~100 requests/day (measured 2026-08-26..28), a
-  metadata-only row was ~4-5 kB; with content a small request measured 13.5 kB,
-  and a 132,929-prompt-token Claude Code call is roughly 0.5-1 MB. Worst case is
-  therefore tens of MB/day on a shared 100Gi `ceph-block` PVC - not urgent, and
-  not something to leave running for years either.
-- **Do not go below 30 days.** `/global/spend/models`, `/global/spend/keys` and
-  `MonthlyGlobalSpend*` are SQL views defined directly over
-  `LiteLLM_SpendLogs` with a `startTime >= CURRENT_DATE - 30 days` filter, so a
-  shorter window silently truncates those pages.
-- Long-term cost history survives regardless: `/user/daily/activity` (the Admin
-  UI Usage page) reads the `LiteLLM_Daily*Spend` rollup tables, and the pruner
-  only touches `LiteLLM_SpendLogs` plus its tool-index table
-  (`db/db_transaction_queue/spend_log_cleanup.py:480`).
+**Boundary interaction with the last-30d convenience pages.**
+`/global/spend/models`, `/global/spend/keys` and `MonthlyGlobalSpend*` are SQL
+views over `LiteLLM_SpendLogs` filtering `startTime >= CURRENT_DATE - 30 days`,
+while the pruner cuts at exactly `30 * 86400` seconds before the moment it runs.
+Because `CURRENT_DATE` is midnight, the view window is up to ~24h wider than the
+pruner's cutoff, so those last-30d pages can lose their oldest day. That is
+accepted: it is a convenience surface, and the durable `LiteLLM_Daily*Spend`
+rollups keep full cost history regardless.
+
+Growth context (why a bound was needed at all): at ~100 requests/day (measured
+2026-08-26..28), a metadata-only row was ~4-5 kB; with content a small request
+measured 13.5 kB, and a 132,929-prompt-token Claude Code call is roughly
+0.5-1 MB. Worst case is tens of MB/day on the shared 100Gi `ceph-block` PVC.
 
 Related knobs, all off/default and all optional: `maximum_spend_logs_cleanup_cron`
 (cron instead of the default `1d` interval), `use_spend_logs_partitioning`

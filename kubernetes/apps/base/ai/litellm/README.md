@@ -28,10 +28,11 @@ from the CRs here.
 **Request logging.** `generalSettings.store_prompts_in_spend_logs: true`
 (2026-08-27) makes the Postgres spend log carry the actual prompt and
 completion, not just usage/cost. The prompt lands in the `proxy_server_request`
-column, never the `messages` one; caller credentials are redacted and nothing
-leaves the cluster; retention is deliberately unset. Mechanism, citations,
-retrieval runbook and the retention recommendation:
-[`docs/ai-system/litellm/request-logs.md`](../../../../docs/ai-system/litellm/request-logs.md).
+column, never the `messages` one; caller credentials are redacted; content
+leaves the k8s cluster only onto the LAN NAS Barman target (captain-accepted
+2026-08-27) with `maximum_spend_logs_retention_period: "30d"` matching that
+backup window. Mechanism, citations, retrieval runbook and retention:
+[`docs/ai-system/litellm/request-logs.md`](../../../../../docs/ai-system/litellm/request-logs.md).
 
 **Scope per B4 (public half still non-negotiable):**
 - Does **not** front the public listener. No `envoy-external` parentRef, no
