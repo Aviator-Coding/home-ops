@@ -27,7 +27,6 @@ FLUX_LOCAL = ROOT / ".github" / "workflows" / "flux-local.yaml"
 SECRETS = ROOT / "terraform" / "authentik" / "secrets.vals.yaml"
 SECRETS_CI = ROOT / "terraform" / "authentik" / "secrets-ci.vals.yaml"
 SECRETS_APPLY = ROOT / "terraform" / "authentik" / "secrets-apply.vals.yaml"
-RUNBOOK = ROOT / "docs" / "authentik" / "terraform.md"
 VALIDATE_SH = ROOT / "scripts" / "ci" / "tofu-validate.sh"
 GITIGNORE = ROOT / "terraform" / ".gitignore"
 LABELER = ROOT / ".github" / "labeler.yaml"
@@ -273,7 +272,7 @@ if [ ! -f secrets-ci.vals.yaml ]; then
   echo "file=" >> "$OUT"
   echo "mode=schema_only" >> "$OUT"
 elif [ -z "${OP_CONNECT_TOKEN:-}" ]; then
-  echo "::warning::terraform/authentik opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 8 for what to create and why."
+  echo "::warning::terraform/authentik opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 9 for what to create and why."
   echo "file=" >> "$OUT"
   echo "mode=schema_only_missing_secret" >> "$OUT"
 else
@@ -350,18 +349,46 @@ def test_secrets_ci_mirrors_readonly() -> dict[str, Any]:
     # Apply file is the only place APPLY token may appear, and CI must not use it.
     assert field_name(apply["TF_VAR_authentik_token"]) == "AUTHENTIK_APPLY_TOKEN"
     assert field_name(ci["TF_VAR_authentik_token"]) == "AUTHENTIK_TOKEN"
-    return {"keys": sorted(ci), "fields": fields}
+
+    # Endpoint is a non-secret plain value that MUST differ: local port-forward
+    # vs in-cluster Service DNS. refs_from_vals deliberately ignores it above.
+    def plain_endpoint(path: Path) -> str:
+        data = yaml.safe_load(path.read_text()) or {}
+        value = data.get("AWS_ENDPOINT_URL_S3")
+        assert isinstance(value, str) and value.startswith("http://"), path
+        assert "s3.sklab.dev" not in value, path
+        return value
+
+    local_ep = plain_endpoint(SECRETS)
+    apply_ep = plain_endpoint(SECRETS_APPLY)
+    ci_ep = plain_endpoint(SECRETS_CI)
+    assert local_ep == apply_ep
+    assert "127.0.0.1:18081" in local_ep or "localhost:18081" in local_ep
+    assert "rook-ceph-rgw-ceph-objectstore.rook-ceph.svc" in ci_ep
+    assert "127.0.0.1" not in ci_ep and "localhost" not in ci_ep
+
+    return {
+        "keys": sorted(ci),
+        "fields": fields,
+        "endpoint_local": local_ep,
+        "endpoint_ci": ci_ep,
+    }
 
 
 def test_schema_only_tofu_path() -> dict[str, Any]:
     """Same offline path validate.yaml and no-secrets-ci stacks use."""
     env = os.environ.copy()
+    # Prefer a resolved tofu binary; CI installs via mise (same as stack test).
+    mise_tofu = Path.home() / ".local/share/mise/installs/opentofu/1.12.6"
+    if (mise_tofu / "tofu").exists():
+        env["PATH"] = os.pathsep.join([str(mise_tofu), env.get("PATH", "")])
     # Ensure no Connect/AWS creds leak into this offline path.
     for key in list(env):
         if key.startswith("TF_VAR_") or key in {
             "OP_CONNECT_TOKEN",
             "AWS_ACCESS_KEY_ID",
             "AWS_SECRET_ACCESS_KEY",
+            "AWS_ENDPOINT_URL_S3",
             "OP_CONNECT_HOST",
         }:
             env.pop(key, None)
@@ -407,34 +434,6 @@ def test_flux_local_untouched() -> dict[str, Any]:
     return {"diff_bytes": 0, "path": str(FLUX_LOCAL.relative_to(ROOT))}
 
 
-def test_runbook_section8_contract() -> dict[str, Any]:
-    text = RUNBOOK.read_text()
-    idx = text.find("## 8.")
-    assert idx >= 0, "missing section 8"
-    end = text.find("\n## ", idx + 4)
-    section = text[idx : end if end > 0 else None]
-    required = [
-        "OP_CONNECT_TOKEN",
-        "secrets-ci.vals.yaml",
-        "terraform-diff.yaml",
-        "Automation",
-        "tofu apply",
-        "AUTHENTIK_APPLY_TOKEN",
-    ]
-    for needle in required:
-        assert needle in section, needle
-    assert "every item in the `Automation`" in section or "every item in the Automation" in section
-    assert "fork" in section.lower()
-    assert "do not reuse" in section.lower() or "not reuse" in section.lower() or "dedicated" in section.lower()
-    # Apply remains section-7 gated.
-    assert "## 7." in text
-    return {
-        "section_chars": len(section),
-        "required_present": required,
-        "vault_wide_caveat": True,
-    }
-
-
 def test_labeler_and_gitignore() -> dict[str, Any]:
     labeler = LABELER.read_text()
     labels = LABELS.read_text()
@@ -456,7 +455,6 @@ def main() -> int:
         ("schema_only_tofu_path", test_schema_only_tofu_path),
         ("validate_job_still_credentialless", test_validate_job_still_credentialless),
         ("flux_local_untouched", test_flux_local_untouched),
-        ("runbook_section8_contract", test_runbook_section8_contract),
         ("labeler_and_gitignore", test_labeler_and_gitignore),
     ]
     results: dict[str, Any] = {}

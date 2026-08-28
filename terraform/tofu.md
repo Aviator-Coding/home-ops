@@ -24,19 +24,24 @@ specific, known consequence.
    OAuth2 client secrets, in plaintext. It lives in a private bucket, never in
    Git, and `terraform/.gitignore` plus a guard in `scripts/ci/tofu-validate.sh`
    both enforce that.
-3. **Adopt, never recreate.** These stacks manage things that already exist and
-   are in use. Every resource is paired with an `import` block. A plan that
-   proposes to create or destroy an object that is already live is a bug in the
-   code, not a step in the process.
+3. **Adopt existing objects; create only what never lived on the instance.**
+   Adopted resources are paired with an `import` block. A plan that proposes to
+   create or destroy an object that is already live is a bug in the code, not a
+   step in the process. The Authentik stack's one deliberate create-path is
+   LiteLLM (`litellm.tofu`): no prior live object, no `import` block, credentials
+   generated in OpenTofu rather than adopted.
 4. **Secrets come from 1Password at invocation time.** Each stack ships a
-   `secrets.vals.yaml` holding only `ref+op://` references, resolved by `vals`,
-   the same mechanism `bootstrap/` and the `just talos` render path already use.
-   Stacks that want unattended CI plans also ship `secrets-ci.vals.yaml`, a
-   field-for-field mirror using `ref+onepasswordconnect://` so GitHub Actions can
-   resolve the same item without an interactive `op` session. The authentik stack
-   also ships `secrets-apply.vals.yaml` for captain-approved apply only (a
-   separate field that is absent until approval, so stray apply fails closed).
-   There is no committed `tfvars` and no committed `backend.tfvars`.
+   `secrets.vals.yaml` whose secret fields are `ref+op://` references, resolved
+   by `vals`, the same mechanism `bootstrap/` and the `just talos` render path
+   already use. Non-secret runtime wiring may sit alongside those refs when it
+   must differ by environment - authentik's plain `AWS_ENDPOINT_URL_S3` (local
+   port-forward vs CI Service DNS) is the documented exception. Stacks that want
+   unattended CI plans also ship `secrets-ci.vals.yaml`, a field-for-field mirror
+   using `ref+onepasswordconnect://` so GitHub Actions can resolve the same item
+   without an interactive `op` session. The authentik stack also ships
+   `secrets-apply.vals.yaml` for captain-approved apply only (a separate field
+   that is absent until approval, so stray apply fails closed). There is no
+   committed `tfvars` and no committed `backend.tfvars`.
 
 ## File organization
 
@@ -47,7 +52,7 @@ specific, known consequence.
 | `outputs.tofu`     | Output value declarations, if the stack has any              |
 | `backend.tofu`     | Remote state configuration                                   |
 | `imports.tofu`     | `import` blocks adopting the existing live objects           |
-| `secrets.vals.yaml`| `ref+op://` environment for plan/init/state; references only |
+| `secrets.vals.yaml`| plan/init/state env; secret fields are `ref+op://` (plain non-secret wiring allowed, e.g. endpoint URL) |
 | `secrets-ci.vals.yaml` | CI mirror of `secrets.vals.yaml` via `ref+onepasswordconnect://`; optional - without it `terraform-diff` stays schema-only |
 | `secrets-apply.vals.yaml` | apply-only env; token field absent until approval |
 | `*.tofu`           | Resources, grouped by subject (applications, flows, ...)     |
@@ -96,7 +101,7 @@ job and the `terraform-diff` fallback for stacks without `secrets-ci.vals.yaml`:
 ```
 
 Live read-only plans on same-repo PRs are owned by `terraform-diff.yaml` when a
-stack provides `secrets-ci.vals.yaml`; see `docs/authentik/terraform.md` §8.
+stack provides `secrets-ci.vals.yaml`; see `docs/authentik/terraform.md` §9.
 `tofu apply` stays operator-only behind that doc's §7 gate.
 
 ## Applying

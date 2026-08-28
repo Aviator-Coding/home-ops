@@ -5,7 +5,7 @@
 # credential-less: `tofu init -backend=false`, so the S3 backend in
 # terraform/authentik/backend.tofu is never contacted and no state lock is
 # taken. Real read-only plans against the live backend/API live in
-# terraform-diff.yaml (see docs/authentik/terraform.md section 8).
+# terraform-diff.yaml (see docs/authentik/terraform.md section 9).
 # `tofu apply` remains fully behind the explicit approval gate in that doc's
 # section 7 - nothing here mints, reads, or references apply credentials.
 #
@@ -23,7 +23,7 @@
 #     `tofu validate` never calls the API, so it cannot tell you whether an
 #     import id resolves, whether a resource matches the live object, or
 #     whether a plan is free of destructive changes. For that, see the
-#     read-only plan path in terraform-diff.yaml / section 8; apply stays
+#     read-only plan path in terraform-diff.yaml / section 9; apply stays
 #     section 7-gated.
 set -euo pipefail
 

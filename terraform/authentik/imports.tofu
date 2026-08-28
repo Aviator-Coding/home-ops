@@ -1,11 +1,14 @@
 # Adoption of the existing live objects.
 #
-# This stack manages configuration that already exists and is in use. Every
-# resource it declares is therefore paired with an `import` block, so the first
-# `tofu plan` reconciles against the real object instead of proposing to create a
-# second one. Without these, the first plan would show 9 creates - and applying
-# that would mint new client secrets and a second forward-auth provider, breaking
-# every SSO login on the cluster.
+# The import surface is the 7 ADOPTED objects still managed after open-webui was
+# removed: coder + pg-admin providers and applications, the proxy provider, the
+# echo application, and the outpost attachment. Each is paired with an `import`
+# block so a rebuilt state reattaches to the live object instead of minting a
+# second one (new client secrets / a second forward-auth provider would break
+# every SSO login on the cluster).
+#
+# LiteLLM is deliberately create-only in litellm.tofu and has NO import block
+# here - it is the first stack-owned object that did not already exist.
 #
 # The IDs below were read out of the live instance (Authentik's Postgres) during
 # the inventory; the format each resource expects comes from its passthrough
@@ -26,10 +29,6 @@ import {
   id = "4"
 }
 
-import {
-  to = authentik_provider_oauth2.oauth2["open-webui"]
-  id = "36"
-}
 
 import {
   to = authentik_provider_oauth2.oauth2["pg-admin"]
@@ -41,10 +40,6 @@ import {
   id = "coder"
 }
 
-import {
-  to = authentik_application.oauth2["open-webui"]
-  id = "open-webui"
-}
 
 import {
   to = authentik_application.oauth2["pg-admin"]

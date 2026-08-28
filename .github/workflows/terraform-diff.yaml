@@ -18,7 +18,7 @@
 # intervention") of the boundary validate.yaml's terraform job and
 # docs/authentik/terraform.md previously stated: "a pull request can never
 # reach the live SSO instance or the state bucket." Read
-# docs/authentik/terraform.md section 8 before touching any of this - it has
+# docs/authentik/terraform.md section 9 before touching any of this - it has
 # the full reasoning, the one new credential involved, and its exact blast
 # radius (a token that reads every item in the `Automation` 1Password vault,
 # not just authentik-terraform). `tofu apply` is NOT part of this and remains
@@ -46,6 +46,14 @@
 # captain's decision asked to minimize; only a human approval gate in front of
 # the live-plan steps would have been that, and the captain explicitly chose
 # not to add one.
+#
+# RGW reachability on this runner is via Service DNS, not a kubectl
+# port-forward: the runner has no ServiceAccount token (see AGENTS.md ARC
+# notes), so it cannot open one. Each stack's secrets-ci.vals.yaml must set
+# AWS_ENDPOINT_URL_S3 to the in-cluster RGW Service; backend.tofu omits the
+# endpoints block so that env var wins. Local operator vals files keep the
+# 127.0.0.1:18081 port-forward URL. Never s3.sklab.dev (Envoy breaks
+# aws-sdk-go-v2 SigV4 - see terraform/authentik/backend.tofu).
 name: Terraform Diff
 
 on:
@@ -66,7 +74,7 @@ permissions:
 env:
   # In-cluster 1Password Connect service. Not a secret - it has no external
   # ingress, so only a runner already inside the cluster network (this one)
-  # can ever reach it. See docs/authentik/terraform.md section 8.
+  # can ever reach it. See docs/authentik/terraform.md section 9.
   OP_CONNECT_HOST: http://onepassword-connect.security.svc.cluster.local:8080
 
 jobs:
@@ -121,7 +129,7 @@ jobs:
       #     steps stay gated off; fmt/init -backend=false/validate still run
       #     so the PR keeps a green, useful check. Once the secret exists the
       #     same workflow activates the real plan with no further code change.
-      # See docs/authentik/terraform.md section 8.
+      # See docs/authentik/terraform.md section 9.
       - name: Resolve Live-Plan Mode
         id: ci-secrets
         working-directory: ${{ matrix.stack }}
@@ -134,7 +142,7 @@ jobs:
             exit 0
           fi
           if [ -z "${OP_CONNECT_TOKEN}" ]; then
-            echo "::warning::${{ matrix.stack }} opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 8 for what to create and why."
+            echo "::warning::${{ matrix.stack }} opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 9 for what to create and why."
             echo "file=" >> "$GITHUB_OUTPUT"
             echo "mode=schema_only_missing_secret" >> "$GITHUB_OUTPUT"
             exit 0

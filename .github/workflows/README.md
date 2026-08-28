@@ -159,7 +159,7 @@ read-only plan against the live state backend (and Authentik API for
 `authentik`), posted as a PR comment - captain decision
 `terraform-diff-live-plan-scope` option A. A stack without that file falls
 back to schema-only checks. Full credential/blast-radius notes:
-`docs/authentik/terraform.md` section 8. `tofu apply` is not part of this
+`docs/authentik/terraform.md` section 9. `tofu apply` is not part of this
 workflow and stays behind that doc's section 7 gate.
 
 **Jobs:**

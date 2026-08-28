@@ -42,13 +42,26 @@ spec:
 
   envFrom:
     # DATABASE_URL / LITELLM_MASTER_KEY / LITELLM_SALT_KEY plus the four
-    # provider keys (ANTHROPIC/XAI/ZAI/OPENROUTER_API_KEY). LiteLLM picks the
-    # first three up from the environment automatically - do not duplicate
-    # them into config; see docs/ai-system/litellm/README.md. Models resolve
-    # the provider keys via `apiKey: os.environ/<VAR>` (see README model-catalog).
+    # provider keys (ANTHROPIC/XAI/ZAI/OPENROUTER_API_KEY) and
+    # GENERIC_CLIENT_ID / GENERIC_CLIENT_SECRET for the SSO login below.
+    # LiteLLM picks the first three up from the environment automatically - do
+    # not duplicate them into config; see docs/ai-system/litellm/README.md.
+    # Models resolve the provider keys via `apiKey: os.environ/<VAR>` (see
+    # README model-catalog).
     - secretRef:
         name: litellm-secret
 
+  # --- UI single sign-on through Authentik ---------------------------------
+  # Only the two credential halves are secret; everything here is public
+  # configuration and stays in Git rather than being buried in a Secret.
+  #
+  # The Authentik side is managed by OpenTofu, not by Flux:
+  # terraform/authentik/litellm.tofu. These endpoints must keep matching the
+  # provider that file creates, and the redirect URI Authentik allows is derived
+  # from PROXY_BASE_URL below - LiteLLM builds it as
+  # get_custom_url(PROXY_BASE_URL) + "/sso/callback" (ui_sso.py). Change
+  # PROXY_BASE_URL and the allowed redirect URI in litellm.tofu must change with
+  # it, or every login fails at the provider with an opaque redirect_uri error.
   env:
     # `store_prompts_in_spend_logs` alone does NOT give you the full prompt.
     # Both the request body and the response are run through
@@ -72,6 +85,43 @@ spec:
     # declared here so Git stays the source of truth.
     - name: MAX_STRING_LENGTH_PROMPT_IN_DB
       value: "1000000"
+    # authorize/token/userinfo are instance-global in Authentik, not per
+    # application - only the issuer and jwks URLs carry the app slug. Taken from
+    # the live .well-known/openid-configuration, not from documentation.
+    - name: GENERIC_AUTHORIZATION_ENDPOINT
+      value: https://auth.${SECRET_DOMAIN}/application/o/authorize/
+    - name: GENERIC_TOKEN_ENDPOINT
+      value: https://auth.${SECRET_DOMAIN}/application/o/token/
+    - name: GENERIC_USERINFO_ENDPOINT
+      value: https://auth.${SECRET_DOMAIN}/application/o/userinfo/
+    # Drives the callback URL LiteLLM registers and the post-login redirect.
+    # Without it LiteLLM falls back to the request base URL, which behind a
+    # gateway is the in-cluster Service address and produces a redirect the
+    # browser cannot follow.
+    - name: PROXY_BASE_URL
+      value: https://litellm.${SECRET_DOMAIN}
+    # Must match the provider's property_mappings in
+    # terraform/authentik/litellm.tofu (openid/email/profile + litellm_role).
+    # LiteLLM defaults GENERIC_SCOPE to "openid email profile", so without this
+    # the custom litellm_role scope is never requested and Authentik never emits
+    # the claim - first login then lands as INTERNAL_USER_VIEW_ONLY.
+    - name: GENERIC_SCOPE
+      value: openid email profile litellm_role
+    # Claim name Authentik puts on the token/userinfo payload. LiteLLM defaults
+    # this to "role"; the image reads it via get_nested_value (ui_sso.py).
+    - name: GENERIC_USER_ROLE_ATTRIBUTE
+      value: litellm_role
+    # Send the UI straight to Authentik instead of showing the master-key form
+    # first. Master-key browser login moves to /fallback/login once this is on;
+    # API callers using the master key are unaffected.
+    - name: AUTO_REDIRECT_UI_LOGIN_TO_SSO
+      value: "true"
+    # Pair with auto-redirect: LiteLLM logout only clears the local UI session,
+    # so without an end-session hop the next /ui hit immediately re-authenticates
+    # against the still-live Authentik SSO cookie. Slug matches
+    # authentik_application.litellm.
+    - name: PROXY_LOGOUT_URL
+      value: https://auth.${SECRET_DOMAIN}/application/o/litellm/end-session/
 
   # Required for LiteLLMVirtualKey: the operator mints and syncs keys through
   # the proxy's admin API, authenticating with this master key. Endpoint

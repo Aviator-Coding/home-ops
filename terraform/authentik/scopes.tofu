@@ -1,6 +1,8 @@
-# Scope mappings are READ-ONLY here, for the same reason as flows.tofu: all 36
+# Scope mappings are READ-ONLY here, for the same reason as flows.tofu: the stock
 # property mappings on this instance carry a `managed` marker (they come from the
-# `system/providers-*.yaml` blueprints). There are zero hand-written mappings.
+# `system/providers-*.yaml` blueprints). Exactly one hand-written mapping exists
+# outside this file: authentik_property_mapping_provider_scope.litellm_role in
+# litellm.tofu (unmanaged, second-apply create path).
 #
 # `property_mappings` on a provider is a plain optional list, NOT optional+computed
 # - leaving it out of a provider block would make OpenTofu plan the removal of the

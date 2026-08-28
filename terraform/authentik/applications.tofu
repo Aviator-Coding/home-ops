@@ -1,4 +1,4 @@
-# The three OIDC applications on this instance, plus their OAuth2 providers.
+# The two adopted OIDC applications on this instance, plus their OAuth2 providers.
 #
 # Every value below was read out of the live instance before it was written down
 # (see the inventory in ../../docs/authentik/terraform.md). This file adopts what
@@ -31,17 +31,6 @@ locals {
       ]
     }
 
-    open-webui = {
-      application_name   = "open-webui"
-      provider_name      = "open-webui"
-      client_id          = var.open_webui_client_id
-      authorization_flow = data.authentik_flow.provider_authorization_implicit_consent.id
-      launch_url         = "https://chat.${var.cluster_domain}"
-      logout_uri         = "https://chat.${var.cluster_domain}/oauth/oidc/callback"
-      redirect_uris = [
-        "https://chat.${var.cluster_domain}/oauth/oidc/callback",
-      ]
-    }
 
     pg-admin = {
       application_name   = "pgAdmin"
@@ -82,8 +71,8 @@ resource "authentik_provider_oauth2" "oauth2" {
   refresh_token_threshold = "seconds=0"
 
   # `redirect_uri_type` must be declared even though the database rows for these
-  # three providers predate the field: the API defaults it to "authorization" and
-  # returns it, so omitting it makes every plan propose removing it.
+  # two adopted providers predate the field: the API defaults it to "authorization"
+  # and returns it, so omitting it makes every plan propose removing it.
   allowed_redirect_uris = [
     for uri in each.value.redirect_uris : {
       matching_mode     = "strict"
