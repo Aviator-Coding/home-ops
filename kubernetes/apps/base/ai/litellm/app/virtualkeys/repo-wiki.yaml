@@ -58,26 +58,30 @@ spec:
   # rpmLimit/tpmLimit below plus MAX_REPOS_PER_RUN=1 in the CronJob.
   maxBudget: "30.00"
   budgetDuration: 30d
-  # The REAL bound on this consumer, now that the dollar cap is inert - and
-  # measurement says it is bound too TIGHTLY to finish a repo. Unchanged by the
-  # 2026-08-27 pricing change; flagged here because that change is what made it
-  # diagnosable. generate.py issues 1 plan call + up to 8 page calls back to
-  # back with no retry or backoff, so at 4 rpm the proxy 429s the 5th call
-  # inside the same minute ("Limit type: requests. Current limit: 4,
-  # Remaining: 0") and the generator catches it and skips the whole repo
-  # ("skipped <repo>: HTTP Error 429"). Observed on a real triggered run:
-  # 1 page generated, then skipped. tpmLimit was NOT the limiter.
+  # THE bound on this consumer, now that the dollar cap is inert - and the pair
+  # below were measured, not guessed. At the previous rpmLimit: 4 this job was
+  # structurally unable to finish a repo: generate.py issues 1 plan call + up to
+  # 8 page calls back to back with no retry or backoff, so the proxy 429'd the
+  # 5th call inside the same minute ("Limit type: requests. Current limit: 4,
+  # Remaining: 0") and the generator caught it and skipped the whole repo
+  # ("skipped <repo>: HTTP Error 429"). Observed on a real triggered run
+  # 2026-08-27: 1 page generated, then skipped.
   #
-  # Previously a 429 here was ambiguous - budget or rate - and the old comment
-  # in this file guessed wrong, telling the next reader to raise maxBudget. Now
-  # that spend is pinned at $0 by chat-local, any 429 on this key is
-  # unambiguously this rpmLimit. Raising it is a D4 governance call and is
-  # deliberately NOT bundled into the pricing fix; ~10-12 would clear one
-  # repo's 9 sequential calls with headroom.
-  rpmLimit: 4
+  # That 429 used to be ambiguous - budget or rate - and the comment this
+  # replaces guessed wrong, telling the next reader to raise maxBudget. With
+  # spend pinned at $0 by chat-local, any 429 on this key is now unambiguously
+  # one of these two limits, and the error message names which.
+  #
+  # 12 clears one repo's 9 sequential calls with headroom.
+  rpmLimit: 12
   # Each page call can send up to PAGE_CTX_CHARS (60000 chars =~ 15k tokens) of
-  # source context; tpmLimit must clear that comfortably.
-  tpmLimit: 30000
+  # source context, and a full repo regen is ~137k tokens across its 9 calls
+  # (1 plan ~5k + 8 pages ~15k each, plus output). At the previous 30000 this
+  # bound the job even harder than rpmLimit did - two page calls exhausted it -
+  # so it moves in the same pass rather than leaving a second 429 waiting behind
+  # the first. 200000 clears a whole repo inside one minute worst-case (matching
+  # the opencode consumer's value) and stays a real runaway backstop.
+  tpmLimit: 200000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item `litellm-consumer-repo-wiki`

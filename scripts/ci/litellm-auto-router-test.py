@@ -616,18 +616,31 @@ def test_local_pricing_split(cfg: dict) -> None:
     NEVER gain any (or dashboards start lying again).
     """
     model_list = cfg["model_list"]
+    # Non-zero only: an explicit 0 (e.g. claude-code-subscription's flat-rate
+    # pass-through) is an honest zero invoice, not a synthetic price, and must
+    # not count here. Treat missing and 0 the same.
     priced = {
         m["model_name"]
         for m in model_list
-        if (m.get("model_info") or {}).get("input_cost_per_token") is not None
+        if ((m.get("model_info") or {}).get("input_cost_per_token") or 0) != 0
     }
-    # Exactly the two local aliases nothing but the demo test and the router's
-    # own classifier sub-call can reach. Cloud models are priced by LiteLLM's
-    # built-in cost map, never by hand - see models/kustomization.yaml.
+    # Exactly ONE alias, the one only the demo budget smoke test can reach.
+    # The classifier was zeroed on 2026-08-27 too: LiteLLM bills its sub-call to
+    # the CALLING key, so while it was priced it was ~100% of an `auto`
+    # consumer's recorded spend even after the tiers moved to `chat-local`.
+    # Cloud models are priced by LiteLLM's built-in cost map, never by hand -
+    # see models/kustomization.yaml.
     record(
-        "only_demo_and_classifier_aliases_carry_synthetic_prices",
-        priced == {"qwen3.6-35b-a3b", "qwen3.6-35b-a3b-classifier"},
+        "only_the_demo_alias_carries_synthetic_prices",
+        priced == {"qwen3.6-35b-a3b"},
         f"priced={sorted(priced)}",
+    )
+
+    classifier = by_name(model_list, "qwen3.6-35b-a3b-classifier")
+    record(
+        "classifier_has_no_prices",
+        not (classifier.get("model_info") or {}),
+        f"model_info={classifier.get('model_info')!r}",
     )
 
     local = by_name(model_list, "chat-local")

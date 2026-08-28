@@ -24,12 +24,15 @@ kind: Kustomization
 # silently decouple recorded spend from the invoice. The rule is "declared
 # prices must match the invoice", so the exceptions are models whose
 # invoice is not metered per token:
-#   - qwen3.6-35b-a3b (and its classifier twin), local traffic with no
-#     invoice at all, carrying governance-accounting prices so a tiny demo
-#     budget can be exhausted. Real production traffic must NOT run on a
-#     priced local alias - it runs on `chat-local` (zero-priced, no
-#     fallback) precisely so that a consumer's recorded spend means real
-#     USD. See chat-local.yaml for the three-alias split.
+#   - qwen3.6-35b-a3b is the ONLY local entry with prices: inflated
+#     governance-accounting figures so the tiny `demo` budget can be
+#     exhausted by one request, and `demo` is now its only consumer. Real
+#     production traffic must NOT run on a priced local alias - it runs on
+#     `chat-local` (zero-priced, no fallback) precisely so that a consumer's
+#     recorded spend means real USD. The classifier alias was zeroed for the
+#     same reason on 2026-08-27: LiteLLM bills its sub-call to the CALLING
+#     key, so pricing it charged every routed consumer for the router's own
+#     local bookkeeping. See chat-local.yaml for the four-alias split.
 #   - claude-code-subscription, billed to a caller's own FLAT-RATE Claude
 #     subscription, priced at an explicit $0 so the metered cost map cannot
 #     inflate a D4 budget with dollars nobody is charged. Read that file's

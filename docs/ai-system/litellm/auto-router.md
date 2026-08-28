@@ -113,8 +113,10 @@ litellm_params:
     default_model: chat-local             # keep aligned with the sibling above
 ```
 
-**Local, so classification is free.** Every routed request costs one extra
-completion against the B70 and zero cloud spend. Pointing
+**Local, so classification is free** - and since 2026-08-27 that is true in
+recorded spend too, not just in real dollars: the classifier alias carries no
+prices. Every routed request costs one extra completion against the B70 and
+zero cloud spend. Pointing
 `classifier_llm_config.model` at a cloud model would put a paid API call in
 front of every request including the ones that were going to stay local, which
 defeats the entire point.
@@ -297,36 +299,43 @@ lists only the alias.
 
 ### What a routed request actually costs
 
-Since the `chat-local` split (2026-08-27) a routed request that stays local has
-**two** cost components, and only one of them is still synthetic:
+**A routed request that stays local costs $0.** Both of its components are local
+inference on our own B70, and since 2026-08-27 both are priced at zero:
 
-| Component | Priced at | Why |
-|---|---|---|
-| The tier completion (`SIMPLE`/`MEDIUM` -> `chat-local`) | **$0** | Honest. It runs on our own B70. |
-| The classifier sub-call (`qwen3.6-35b-a3b-classifier`) | ~$0.0034-$0.045 | Still carries the synthetic prices. |
+| Component | Priced at |
+|---|---|
+| The tier completion (`SIMPLE`/`MEDIUM` -> `chat-local`) | **$0** |
+| The classifier sub-call (`qwen3.6-35b-a3b-classifier`) | **$0** |
 
-The classifier is deliberately **out of scope** of the pricing split and still
-carries `qwen3.6-35b-a3b`'s inflated `model_info`. It runs on the same free B70,
-so that spend is imaginary too - and because LiteLLM bills the classifier
-sub-call to the *calling* key, an `auto` consumer's recorded spend is not yet
-$0. It is only the classifier residue.
+Zeroing the classifier was the less obvious half, and it mattered more than the
+tiers did. LiteLLM bills the classifier sub-call to the **calling** key - it
+forwards the caller's identity metadata precisely so spend lands on the key that
+caused it - so while that alias carried `qwen3.6-35b-a3b`'s synthetic prices it
+was the dominant term in an `auto` consumer's recorded spend. Measured
+2026-08-27: one `say ok` through `auto` recorded **$0.04735** on a cold prompt
+cache, of which the completion was only ~$0.0022; the classifier prefill was
+~95%. After the tiers moved to `chat-local` but before the classifier was
+zeroed, the same request still recorded **$0.003** - and *all* of it was
+classifier.
 
-That residue is not small relative to the completion, and it is worth knowing
-its shape before reading a dashboard. Its size depends entirely on llama.cpp's
-prompt cache: cached input tokens price at $0 (no `cache_read_input_token_cost`
-is set), so the ~850-token rubric prefix is free once warm. Measured on a cold
-cache 2026-08-27, one `say ok` through `auto` recorded **$0.04735** total, of
-which the completion was only ~$0.0022 - the classifier prefill was ~95% of it.
-Warm, a classification settles to ~$0.0034.
+(The size of that term depended entirely on llama.cpp's prompt cache: cached
+input tokens price at $0 because no `cache_read_input_token_cost` is set, so the
+~850-token rubric prefix was free once warm and a warm classification settled to
+~$0.0034. That is now moot, but it explains the spread in the old numbers.)
 
-So: **a local routed request bills a few tenths of a cent of play money, all of
-it classifier, and none of it real.** Consumer budgets on `auto` keys
-(`opencode`, `router-demo`) therefore still drift downward on purely local
-traffic. Zeroing the classifier's prices too would make an `auto` key's budget
-measure exactly one thing - real cloud USD on the COMPLEX/REASONING tiers -
-which is the same property the `chat-local`/`chat-ha` split already gives direct
-consumers. That change was scoped out of the 2026-08-27 fix rather than
-rejected; it is a live decision, not an oversight.
+**Consequence for budgets.** An `auto` key's `maxBudget` now measures exactly
+one thing: real USD spent on the COMPLEX/REASONING cloud tiers. A budget alert
+on `opencode` or `router-demo` therefore always means real money, never local
+volume - the same property the `chat-local`/`chat-ha` split gives direct
+consumers. The accepted tradeoff is that **`rpmLimit`/`tpmLimit` are the only
+volume bound left on a routed key**, since purely local traffic can no longer
+move a budget at all. Size those, not the budget, when bounding a local workload.
+
+Metrics are unaffected: the separate `requested_model="qwen3.6-35b-a3b-classifier"`
+series comes from the alias name, not from prices, so classifier latency,
+request counts and failure rates all still split out exactly as the dashboard
+queries below assume. Only `litellm_spend_metric_total` for that series is now
+0, which is the correct number for free local inference.
 
 ## Observability
 
