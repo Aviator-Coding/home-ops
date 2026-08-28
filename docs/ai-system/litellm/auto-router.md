@@ -280,14 +280,22 @@ calibration set the rubric was written against, so they flatter it.
 Routed calls bind to the same D4 per-consumer budgets as direct calls, and so do
 the classifier's own sub-calls. LiteLLM forwards the caller's identity metadata
 onto the classifier sub-call precisely so that spend "lands on the same
-key/team/org/user as the request that caused it".
+key/team/org/user as the request that caused it". **What that spend is worth
+depends on the tier:** since 2026-08-27 both local components (`chat-local` tier
+completions and the `qwen3.6-35b-a3b-classifier` sub-call) are priced at zero, so
+an `auto` key's `maxBudget` only moves on COMPLEX/REASONING cloud traffic. See
+[What a routed request actually costs](#what-a-routed-request-actually-costs).
 
-Verified end to end 2026-08-26 on the lab rig: a key with `max_budget: 0.01`
-calling only `auto` served four routed requests, accrued spend from both the
-classifier and the tier backend, and the fifth returned
+The binding itself was verified end to end 2026-08-26 on the lab rig (then still
+on the synthetically priced local alias): a key with `max_budget: 0.01` calling
+only `auto` served four routed requests, accrued spend from both the classifier
+and the tier backend, and the fifth returned
 **HTTP 429 `BudgetExceededError` - "Budget has been exceeded!"**. That
 rejection is also visible as
 `litellm_proxy_failed_requests_metric_total{requested_model="auto",exception_class="BudgetExceededError"}`.
+Today the same local-only path records `$0.00000000` and never trips a budget;
+prove the 429 path with a COMPLEX/REASONING request (verification step 8 below),
+or against the `demo` key on `qwen3.6-35b-a3b`.
 
 **The allow-list is checked against what the caller asked for, not what the
 router resolved to.** A key scoped to `models: ["auto"]` routes to every tier
@@ -471,13 +479,16 @@ curl -sSL localhost:4000/metrics -H "Authorization: Bearer $LITELLM_MASTER_KEY" 
 #    expect one series per tier backend that served traffic, plus a separate
 #    requested_model="qwen3.6-35b-a3b-classifier" series for the classifier.
 
-# 8. Budgets bind on the routed path. Repeat step 5 until the router-demo key's
-#    $0.50 is spent (or lower maxBudget in virtualkeys/router-demo.yaml first
-#    for a fast repro - it is a decimal STRING) - expect HTTP 429 "Budget has been exceeded!".
+# 8. Budgets bind on the routed path - only via CLOUD tiers. Repeat step 5
+#    (COMPLEX, not step 4/SIMPLE) until the router-demo key's $0.50 is spent
+#    (or lower maxBudget in virtualkeys/router-demo.yaml first for a fast
+#    repro - it is a decimal STRING) - expect HTTP 429 "Budget has been exceeded!".
+#    Step 4 alone will never move the budget: chat-local + classifier are $0.
 ```
 
 Step 5 spends real money at Anthropic list price. It is a handful of cents at
-`max_tokens: 32`, and the `router-demo` budget caps the blast radius.
+`max_tokens: 32`, and the `router-demo` budget caps the blast radius. Local-only
+routed traffic (step 4) cannot exhaust a budget anymore - that is intentional.
 
 ## Tuning
 
