@@ -31,17 +31,6 @@ locals {
       ]
     }
 
-    open-webui = {
-      application_name   = "open-webui"
-      provider_name      = "open-webui"
-      client_id          = var.open_webui_client_id
-      authorization_flow = data.authentik_flow.provider_authorization_implicit_consent.id
-      launch_url         = "https://chat.${var.cluster_domain}"
-      logout_uri         = "https://chat.${var.cluster_domain}/oauth/oidc/callback"
-      redirect_uris = [
-        "https://chat.${var.cluster_domain}/oauth/oidc/callback",
-      ]
-    }
 
     pg-admin = {
       application_name   = "pgAdmin"

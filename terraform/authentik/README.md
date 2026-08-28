@@ -19,7 +19,8 @@ unaffected by any of this and stays behind section 7's approval gate.
 
 | Object | Managed | Why |
 | ------ | ------- | --- |
-| 3 OIDC applications and their OAuth2 providers (`coder`, `open-webui`, `pg-admin`) | yes (adopted) | hand-created in the UI; `import` blocks in `imports.tofu` |
+| 2 OIDC applications and their OAuth2 providers (`coder`, `pg-admin`) | yes (adopted) | hand-created in the UI; `import` blocks in `imports.tofu` |
+| open-webui | NO, removed 2026-08-28 | deleted from Authentik by the captain on purpose; dropped from this stack rather than recreated |
 | 1 forward-auth proxy provider and its `echo` application | yes (adopted) | hand-created in the UI; this is the cluster's ExtAuth |
 | Binding of that provider to the embedded outpost | yes (adopted) | hand-created in the UI |
 | LiteLLM OAuth2 provider + application | yes (created, `litellm.tofu`) | first stack-created objects; no `import` block; credentials generated in OpenTofu |

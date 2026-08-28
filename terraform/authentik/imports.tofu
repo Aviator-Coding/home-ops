@@ -26,10 +26,6 @@ import {
   id = "4"
 }
 
-import {
-  to = authentik_provider_oauth2.oauth2["open-webui"]
-  id = "36"
-}
 
 import {
   to = authentik_provider_oauth2.oauth2["pg-admin"]
@@ -41,10 +37,6 @@ import {
   id = "coder"
 }
 
-import {
-  to = authentik_application.oauth2["open-webui"]
-  id = "open-webui"
-}
 
 import {
   to = authentik_application.oauth2["pg-admin"]

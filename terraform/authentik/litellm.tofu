@@ -34,13 +34,18 @@ resource "authentik_provider_oauth2" "litellm" {
   issuer_mode   = "per_provider"
   logout_method = "backchannel"
 
-  # Implicit consent, matching open-webui: this is an interactive UI login for
+  # Implicit consent: this is an interactive UI login for
   # an operator tool, and an explicit consent screen on every sign-in buys
   # nothing here. Authorization reuses the stock implicit-consent flow;
   # invalidation is LiteLLM-only (see litellm_invalidation below) so logout
   # ends the Authentik browser session without changing any other provider.
   authorization_flow = data.authentik_flow.provider_authorization_implicit_consent.id
-  invalidation_flow  = authentik_flow.litellm_invalidation.id
+  # .uuid, NOT .id. authentik_flow's terraform id is the SLUG (the create
+  # returned id=litellm-invalidation-flow), while the provider API validates
+  # invalidation_flow as a UUID and 400s on anything else. The stage binding
+  # below already uses .uuid; this reference did not, and only a live apply
+  # surfaced it.
+  invalidation_flow = authentik_flow.litellm_invalidation.uuid
 
   include_claims_in_id_token = true
   signing_key                = data.authentik_certificate_key_pair.self_signed.id
@@ -100,7 +105,7 @@ resource "authentik_property_mapping_provider_scope" "litellm_role" {
 # session and leaves the Authentik browser session alive. With
 # AUTO_REDIRECT_UI_LOGIN_TO_SSO that makes logout look like a no-op. Binding a
 # User Logout stage onto the shared default would change logout for every
-# OIDC/proxy app (coder, open-webui, pg-admin, echo ExtAuth); this flow is
+# OIDC/proxy app (coder, pg-admin, echo ExtAuth); this flow is
 # scoped to authentik_provider_oauth2.litellm only.
 resource "authentik_flow" "litellm_invalidation" {
   name        = "LiteLLM Invalidation"

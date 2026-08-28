@@ -28,10 +28,6 @@ variable "coder_client_id" {
   description = "OAuth2 client_id of the existing Coder provider. Adopted, not generated - changing it breaks Coder logins."
 }
 
-variable "open_webui_client_id" {
-  type        = string
-  description = "OAuth2 client_id of the existing open-webui provider. Adopted, not generated - changing it breaks open-webui logins."
-}
 
 variable "pgadmin_client_id" {
   type        = string
