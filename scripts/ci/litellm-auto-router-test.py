@@ -644,6 +644,20 @@ def test_local_pricing_split(cfg: dict) -> None:
         f"model_info={local.get('model_info')!r}",
     )
 
+    # The priced alias must stay reachable by the demo budget test and NOTHING
+    # else. Any other consumer appearing here means production traffic is
+    # accruing play money again - the exact regression this split fixed.
+    keys = {k["metadata"]["name"]: k["spec"] for k in _load_crs(VIRTUALKEYS_DIR, "LiteLLMVirtualKey")}
+    priced_holders = sorted(
+        name for name, spec in keys.items()
+        if "qwen3.6-35b-a3b" in (spec.get("models") or [])
+    )
+    record(
+        "demo_is_the_only_consumer_of_the_priced_alias",
+        priced_holders == ["demo"],
+        f"holders={priced_holders}",
+    )
+
     # D4 boundary: a config-declared fallback bypasses the calling key's
     # allow-list (docs/ai-system/litellm/fallbacks.md#1), so an alias listed in
     # either fallback map IS a cloud entitlement regardless of who holds it.
