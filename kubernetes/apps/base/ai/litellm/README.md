@@ -56,9 +56,10 @@ backup window. Mechanism, citations, retrieval runbook and retention:
   `externalsecret.yaml` + `pushsecret-sso.yaml`). Authentik side and the
   credential hop: `terraform/authentik/litellm.tofu` and
   `docs/authentik/terraform.md` §8. Master-key browser login remains at
-  `/fallback/login`; API callers using the master key are unaffected. First SSO
-  login stays view-only until the pending `litellm_role` apply lands - see that
-  runbook's status section.
+  `/fallback/login`; API callers using the master key are unaffected. SSO users
+  land as `proxy_admin` via Authentik's hand-made `litellm_role` claim
+  (`GENERIC_SCOPE` includes `litellm_role`; `GENERIC_USER_ROLE_ATTRIBUTE=litellm_role`).
+  Second apply evidence and live `scopes_supported`: that runbook's status section.
 - Zero changes to `agentgateway/` (the existing envoy AI gateway) or to
   `vllm/` (`vllm-app.ai.svc.cluster.local:8000`, which this app points at as
   a backend and never modifies).

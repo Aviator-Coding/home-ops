@@ -17,13 +17,14 @@ Exercises the same offline contract CI and operators rely on:
   4. The Automation push path is a single-vault *Cluster*SecretStore (not the
      shared multi-vault ``onepassword`` store, and not a namespaced SecretStore
      that cannot leave ``security``).
-  5. The runbook documents inventory, import strategy, first-apply evidence,
-     and the blocked second-apply gate for ``litellm_role`` / logout flow.
+  5. The delivered LiteLLM SSO contract is present in the HCL model:
+     ``litellm_role`` mapping, LiteLLM-only invalidation flow, empty open-webui
+     surface, and create-only resources without import blocks.
 
 Live ``tofu plan`` against Authentik is operator-only (needs the read-only
-token + RGW keys) and is deliberately not attempted here. Plan shape is
-asserted from the runbook's recorded measurement, which is the artifact the
-PR body must carry.
+token + RGW keys) and is deliberately not attempted here. The delivered empty
+plan is recorded in ``docs/authentik/terraform.md`` status and is not grepped
+from prose by this suite.
 """
 
 from __future__ import annotations
@@ -42,7 +43,6 @@ ROOT = Path(__file__).resolve().parents[2]
 STACK = ROOT / "terraform" / "authentik"
 VALIDATE_SH = ROOT / "scripts" / "ci" / "tofu-validate.sh"
 WORKFLOW = ROOT / ".github" / "workflows" / "validate.yaml"
-RUNBOOK = ROOT / "docs" / "authentik" / "terraform.md"
 PUSHSECRET = (
     ROOT
     / "kubernetes"
@@ -100,14 +100,14 @@ LEGACY_NAMESPACED_STORE = (
     / "secretstore-automation.yaml"
 )
 
-# Expected live adoption surface (from the CNPG inventory). Create-only
+# Expected live adoption surface after open-webui removal. Create-only
 # LiteLLM resources are deliberately NOT here - they have no import blocks.
+# for_each OAuth2 keys are derived from locals.oauth2_applications at check
+# time so add/remove cannot silently desync the suite from applications.tofu.
 EXPECTED_IMPORTS: dict[str, str] = {
     'authentik_provider_oauth2.oauth2["coder"]': "4",
-    'authentik_provider_oauth2.oauth2["open-webui"]': "36",
     'authentik_provider_oauth2.oauth2["pg-admin"]': "2",
     'authentik_application.oauth2["coder"]': "coder",
-    'authentik_application.oauth2["open-webui"]': "open-webui",
     'authentik_application.oauth2["pg-admin"]': "pg-admin",
     "authentik_provider_proxy.forward_auth": "37",
     "authentik_application.echo": "echo",
@@ -116,8 +116,10 @@ EXPECTED_IMPORTS: dict[str, str] = {
     ),
 }
 
-# First create-only surface (no import). Pending second-apply pieces
-# (litellm_role mapping, invalidation flow/stage/binding) live here too.
+# Client-id variables that must exist for the remaining adopted OAuth2 apps.
+ADOPTED_OAUTH2_CLIENT_ID_VARS = frozenset({"coder_client_id", "pgadmin_client_id"})
+
+# Create-only LiteLLM surface (no import), including second-apply pieces.
 CREATED_RESOURCE_ADDRS = frozenset(
     {
         "authentik_provider_oauth2.litellm",
@@ -205,11 +207,27 @@ def _iter_typed_blocks(
     return found
 
 
+def _oauth2_for_each_keys(merged: dict[str, Any]) -> set[str]:
+    """Keys of locals.oauth2_applications - the sole for_each source of truth."""
+    keys: set[str] = set()
+    for entry in merged.get("locals", []):
+        if not isinstance(entry, dict):
+            continue
+        apps = entry.get("oauth2_applications")
+        if isinstance(apps, dict):
+            for raw_key in apps:
+                if str(raw_key).startswith("__"):
+                    continue
+                keys.add(_norm_key(raw_key))
+    return keys
+
+
 def _resource_addrs(
     merged: dict[str, Any], types: frozenset[str] | None = None
 ) -> set[str]:
     """Return addrs like authentik_provider_oauth2.oauth2[\"coder\"]."""
     types = types if types is not None else ADOPTED_RESOURCE_TYPES
+    for_each_keys = _oauth2_for_each_keys(merged)
     addrs: set[str] = set()
     for rtype in types:
         for name, body in _iter_typed_blocks(merged, "resource", rtype):
@@ -222,7 +240,7 @@ def _resource_addrs(
                 and name == "oauth2"
                 and "for_each" in body
             ):
-                for key in ("coder", "open-webui", "pg-admin"):
+                for key in for_each_keys:
                     addrs.add(f'{rtype}.{name}["{key}"]')
                 continue
             addrs.add(f"{rtype}.{name}")
@@ -231,6 +249,7 @@ def _resource_addrs(
 
 def _all_resource_addrs(merged: dict[str, Any]) -> set[str]:
     """Every resource addr in the stack, including create-only LiteLLM ones."""
+    for_each_keys = _oauth2_for_each_keys(merged)
     addrs: set[str] = set()
     for entry in merged.get("resource", []):
         if not isinstance(entry, dict):
@@ -254,7 +273,7 @@ def _all_resource_addrs(merged: dict[str, Any]) -> set[str]:
                         and name == "oauth2"
                         and "for_each" in item
                     ):
-                        for key in ("coder", "open-webui", "pg-admin"):
+                        for key in for_each_keys:
                             addrs.add(f'{rtype}.{name}["{key}"]')
                     else:
                         addrs.add(f"{rtype}.{name}")
@@ -542,7 +561,11 @@ def test_stack_hcl_model() -> dict[str, Any]:
         raise Failure("missing authentik_token variable")
     if variables["authentik_token"].get("sensitive") is not True:
         raise Failure("authentik_token must be sensitive")
-    for name in ("coder_client_id", "open_webui_client_id", "pgadmin_client_id"):
+    if "open_webui_client_id" in variables:
+        raise Failure(
+            "open_webui_client_id must stay removed after intentional open-webui deletion"
+        )
+    for name in sorted(ADOPTED_OAUTH2_CLIENT_ID_VARS):
         if name not in variables:
             raise Failure(f"missing variable {name}")
         if variables[name].get("sensitive") is True:
@@ -553,6 +576,16 @@ def test_stack_hcl_model() -> dict[str, Any]:
             raise Failure(f"{name} must carry a description")
         if "type" not in variables[name]:
             raise Failure(f"{name} must declare a type")
+
+    for_each_keys = _oauth2_for_each_keys(merged)
+    if for_each_keys != {"coder", "pg-admin"}:
+        raise Failure(
+            f"oauth2 for_each keys must be coder+pg-admin only, got {sorted(for_each_keys)}"
+        )
+    if any("open-webui" in addr for addr in all_addrs):
+        raise Failure("open-webui must not appear in any resource address")
+    if any("open-webui" in addr for addr in imports):
+        raise Failure("open-webui must not appear in any import block")
 
     # Backend must be S3-shaped (Ceph RGW) with lockfile, not local.
     backends = merged.get("terraform", [])
@@ -814,72 +847,88 @@ def test_pushsecret_single_vault() -> dict[str, Any]:
     }
 
 
-def test_runbook_acceptance_surface() -> dict[str, Any]:
-    text = RUNBOOK.read_text()
-    required_headings = [
-        "## 1. The inventory this code was written from",
-        "## 2. Import strategy",
-        "## 6. Planning",
-        "## 7. Applying",
+def test_delivered_sso_contract() -> dict[str, Any]:
+    """Post-second-apply contract from the typed HCL model, not runbook prose."""
+    merged = _merge_stack()
+    all_addrs = _all_resource_addrs(merged)
+    imports = _import_map(merged)
+    variables = _variables(merged)
+    for_each_keys = _oauth2_for_each_keys(merged)
+
+    missing_created = CREATED_RESOURCE_ADDRS - all_addrs
+    if missing_created:
+        raise Failure(
+            f"delivered LiteLLM resources missing: {sorted(missing_created)}"
+        )
+
+    role_blocks = list(
+        _iter_typed_blocks(
+            merged, "resource", "authentik_property_mapping_provider_scope"
+        )
+    )
+    role = next((b for n, b in role_blocks if n == "litellm_role"), None)
+    if role is None:
+        raise Failure("litellm_role scope mapping must exist after second apply")
+    if _strip_quotes(str(role.get("scope_name", ""))) != "litellm_role":
+        raise Failure(f"litellm_role scope_name mismatch: {role.get('scope_name')!r}")
+    if "proxy_admin" not in str(role.get("expression", "")):
+        raise Failure("litellm_role must emit proxy_admin")
+
+    flows = dict(_iter_typed_blocks(merged, "resource", "authentik_flow"))
+    flow = flows.get("litellm_invalidation")
+    if flow is None:
+        raise Failure("litellm_invalidation flow missing")
+    if _strip_quotes(str(flow.get("slug", ""))) != "litellm-invalidation-flow":
+        raise Failure(f"invalidation flow slug mismatch: {flow.get('slug')!r}")
+    if _strip_quotes(str(flow.get("designation", ""))) != "invalidation":
+        raise Failure("litellm_invalidation must be designation=invalidation")
+
+    bindings = dict(
+        _iter_typed_blocks(merged, "resource", "authentik_flow_stage_binding")
+    )
+    binding = bindings.get("litellm_logout")
+    if binding is None:
+        raise Failure("litellm_logout flow stage binding missing")
+    if binding.get("order") != 0:
+        raise Failure(f"litellm_logout binding order must be 0, got {binding.get('order')!r}")
+    target = str(binding.get("target", ""))
+    if "litellm_invalidation" not in target or ".uuid" not in target:
+        raise Failure(
+            f"litellm_logout target must use litellm_invalidation.uuid, got {target!r}"
+        )
+
+    litellm_providers = [
+        body
+        for name, body in _iter_typed_blocks(
+            merged, "resource", "authentik_provider_oauth2"
+        )
+        if name == "litellm"
     ]
-    missing = [h for h in required_headings if h not in text]
-    if missing:
-        raise Failure(f"runbook missing sections: {missing}")
-
-    for app in ("coder", "open-webui", "pg-admin", "echo"):
-        if app not in text:
-            raise Failure(f"runbook inventory missing app {app!r}")
-
-    if not re.search(r"Flows\s*\|\s*14", text):
-        raise Failure("runbook must record 14 blueprint-managed flows")
-    if not re.search(r"Stages\s*\|\s*18", text):
-        raise Failure("runbook must record 18 blueprint-managed stages")
-
-    if "Plan: 9 to import, 0 to add, 4 to change, 0 to destroy." not in text:
-        raise Failure("runbook must record measured first-plan evidence")
-    if "0 to add and 0 to destroy is the number that matters" not in text:
-        raise Failure("runbook must call out zero creates/destroys for adoption")
-
-    # First apply landed; second apply for litellm_role/logout is gated.
-    if "9 imported, 4 added, 4 changed, 0 destroyed" not in text:
-        raise Failure("runbook must record the authorized first-apply result")
-    if "BLOCKED" not in text or "litellm_role" not in text:
+    if not litellm_providers:
+        raise Failure("authentik_provider_oauth2.litellm missing")
+    inv = str(litellm_providers[0].get("invalidation_flow", ""))
+    if "litellm_invalidation" not in inv or ".uuid" not in inv:
         raise Failure(
-            "runbook must document blocked second apply for litellm_role/logout"
-        )
-    if "INTERNAL_USER_VIEW_ONLY" not in text:
-        raise Failure(
-            "runbook must warn that first SSO login stays view-only until "
-            "litellm_role is applied"
+            f"litellm provider invalidation_flow must use .uuid, got {inv!r}"
         )
 
-    if "explicit go-ahead" not in text and "explicit captain" not in text.lower():
-        raise Failure("runbook must keep the captain-approval apply gate")
-    if "tofu apply" not in text:
-        raise Failure("runbook must document apply procedure")
+    if "open-webui" in for_each_keys:
+        raise Failure("open-webui must not remain in locals.oauth2_applications")
+    if any("open-webui" in addr for addr in all_addrs | set(imports)):
+        raise Failure("open-webui must not remain as a resource or import")
+    if "open_webui_client_id" in variables:
+        raise Failure("open_webui_client_id variable must stay removed")
 
-    if "tofu-readonly" not in text:
-        raise Failure("runbook must document tofu-readonly service account")
-    if "403" not in text:
-        raise Failure("runbook must record write-denied API checks")
-
-    # LiteLLM application + redirect coupling must be in the runbook inventory.
-    if "litellm.sklab.dev/sso/callback" not in text:
-        raise Failure("runbook must record the live LiteLLM redirect URI")
-    if "127.0.0.1:18081" not in text and "port-forward" not in text:
-        raise Failure("runbook must document RGW port-forward state backend")
-    if "AWS_ENDPOINT_URL_S3" not in text:
-        raise Failure("runbook must document AWS_ENDPOINT_URL_S3 endpoint split")
-    if "rook-ceph-rgw-ceph-objectstore.rook-ceph.svc" not in text:
-        raise Failure("runbook must document in-cluster RGW Service DNS for CI")
-
+    # Delivered stack is closed: every create-only addr is declared, nothing
+    # pending is left as a comment-only gate in HCL.
     return {
-        "first_plan_evidence": (
-            "Plan: 9 to import, 0 to add, 4 to change, 0 to destroy."
-        ),
-        "first_apply_evidence": "9 imported, 4 added, 4 changed, 0 destroyed",
-        "sections_present": required_headings,
-        "second_apply_blocked": True,
+        "for_each_keys": sorted(for_each_keys),
+        "created_addrs": sorted(CREATED_RESOURCE_ADDRS),
+        "litellm_role": _strip_quotes(str(role.get("scope_name", ""))),
+        "invalidation_slug": _strip_quotes(str(flow.get("slug", ""))),
+        "logout_binding_order": binding.get("order"),
+        "open_webui_removed": True,
+        "second_apply_complete": True,
     }
 
 
@@ -890,7 +939,7 @@ def main() -> int:
         ("stack_hcl_model", test_stack_hcl_model),
         ("secrets_vals_automation_only", test_secrets_vals_automation_only),
         ("pushsecret_single_vault", test_pushsecret_single_vault),
-        ("runbook_acceptance_surface", test_runbook_acceptance_surface),
+        ("delivered_sso_contract", test_delivered_sso_contract),
     ]
     report: dict[str, Any] = {"results": {}, "ok": True}
     for name, fn in tests:

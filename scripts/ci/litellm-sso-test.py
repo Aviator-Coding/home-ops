@@ -14,19 +14,18 @@ Flux half of the LiteLLM SSO change:
      ClusterSecretStore (not the multi-vault shared store).
   4. ExtAuth regression: ``echo.sklab.dev`` must still 302 to Authentik with all
      five proxy scopes intact after the first apply's property_mappings reorder.
-  5. Pre-merge reality: the running LiteLLM deployment does NOT yet auto-redirect
-     to SSO (Flux has not applied the CR env). The test records that gap rather
-     than pretending full browser login works from this branch alone.
+  5. Live UI may be pre-merge (no SSO auto-redirect yet) or post-merge
+     (Authentik hop). Both are accepted; the branch is the delivery vehicle.
 
 Live checks use public HTTPS endpoints only - no Authentik admin token, no
-cluster kubeconfig, no 1Password credentials.
+cluster kubeconfig, no 1Password credentials. Coupling checks parse the HCL/YAML
+semantic model rather than grepping source text.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 import urllib.error
@@ -35,6 +34,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+import hcl2
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,6 +52,7 @@ OIDC_URL = f"{AUTH_BASE}/application/o/litellm/.well-known/openid-configuration"
 EXPECTED_PROXY_SCOPES = frozenset(
     {"openid", "email", "profile", "ak_proxy", "entitlements"}
 )
+EXPECTED_OIDC_SCOPES = frozenset({"openid", "email", "profile", "litellm_role"})
 
 
 class Failure(Exception):
@@ -96,7 +97,81 @@ def _env_from_proxy_cr() -> dict[str, str]:
 
 
 def _subst_domain(value: str) -> str:
-    return value.replace("${SECRET_DOMAIN}", CLUSTER_DOMAIN)
+    return value.replace("${SECRET_DOMAIN}", CLUSTER_DOMAIN).replace(
+        "${var.cluster_domain}", CLUSTER_DOMAIN
+    )
+
+
+def _strip_hcl(value: Any) -> str:
+    text = str(value)
+    if text.startswith("${") and text.endswith("}"):
+        text = text[2:-1]
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
+        text = text[1:-1]
+    return text
+
+
+def _load_hcl(path: Path) -> dict[str, Any]:
+    with path.open() as fh:
+        return hcl2.load(fh)
+
+
+def _litellm_provider_redirect(path: Path = LITELLM_TOFU) -> str:
+    parsed = _load_hcl(path)
+    for entry in parsed.get("resource", []):
+        if not isinstance(entry, dict):
+            continue
+        bodies = entry.get("authentik_provider_oauth2") or entry.get(
+            '"authentik_provider_oauth2"'
+        )
+        if bodies is None:
+            # python-hcl2 keeps type labels quoted.
+            for raw_type, typed in entry.items():
+                if _strip_hcl(raw_type) == "authentik_provider_oauth2":
+                    bodies = typed
+                    break
+        if not isinstance(bodies, dict):
+            continue
+        for raw_name, block in bodies.items():
+            if _strip_hcl(raw_name) != "litellm":
+                continue
+            item = block[0] if isinstance(block, list) else block
+            if not isinstance(item, dict):
+                continue
+            uris = item.get("allowed_redirect_uris") or []
+            if not isinstance(uris, list):
+                continue
+            for uri in uris:
+                if not isinstance(uri, dict):
+                    continue
+                if _strip_hcl(uri.get("redirect_uri_type", "")) != "authorization":
+                    continue
+                url = _subst_domain(_strip_hcl(uri.get("url", "")))
+                if url:
+                    return url
+    raise Failure("litellm provider missing authorization redirect_uri url")
+
+
+def _litellm_output_endpoints(path: Path = OUTPUTS_TOFU) -> dict[str, str]:
+    parsed = _load_hcl(path)
+    for entry in parsed.get("output", []):
+        if not isinstance(entry, dict):
+            continue
+        for raw_name, body in entry.items():
+            if _strip_hcl(raw_name) != "litellm_oidc_endpoints":
+                continue
+            block = body[0] if isinstance(body, list) else body
+            if not isinstance(block, dict):
+                continue
+            value = block.get("value") or {}
+            if not isinstance(value, dict):
+                continue
+            return {
+                _strip_hcl(k): _subst_domain(_strip_hcl(v))
+                for k, v in value.items()
+                if not str(k).startswith("__")
+            }
+    raise Failure("outputs.tofu missing litellm_oidc_endpoints value map")
 
 
 def test_live_oidc_discovery() -> dict[str, Any]:
@@ -116,13 +191,12 @@ def test_live_oidc_discovery() -> dict[str, Any]:
         if got != expected:
             raise Failure(f"OIDC {key}: got {got!r}, expected {expected!r}")
 
-    # Default scopes always present. litellm_role is pending second apply -
-    # record presence rather than requiring it, so the test stays honest about
-    # the blocked apply gate documented in docs/authentik/terraform.md.
     scopes = set(doc.get("scopes_supported") or [])
-    for base in ("openid", "email", "profile"):
-        if base not in scopes:
-            raise Failure(f"OIDC scopes_supported missing {base!r}: {sorted(scopes)}")
+    missing = EXPECTED_OIDC_SCOPES - scopes
+    if missing:
+        raise Failure(
+            f"OIDC scopes_supported missing {sorted(missing)}: {sorted(scopes)}"
+        )
 
     jwks_uri = doc.get("jwks_uri")
     jcode, _, jbody = _http(str(jwks_uri))
@@ -136,7 +210,7 @@ def test_live_oidc_discovery() -> dict[str, Any]:
         "issuer": doc["issuer"],
         "endpoints": required,
         "scopes_supported": sorted(scopes),
-        "litellm_role_in_discovery": "litellm_role" in scopes,
+        "litellm_role_in_discovery": True,
         "jwks_keys": len(jwks["keys"]),
     }
 
@@ -192,15 +266,8 @@ def test_proxy_cr_couples_to_authentik() -> dict[str, Any]:
             )
         matched[env_key] = want
 
-    # Redirect coupling: tofu allowed URL == PROXY_BASE_URL + /sso/callback
-    tofu = LITELLM_TOFU.read_text()
-    m = re.search(
-        r'redirect_uri_type\s*=\s*"authorization"\s*\n\s*url\s*=\s*"([^"]+)"',
-        tofu,
-    )
-    if not m:
-        raise Failure("litellm.tofu missing authorization redirect_uri url")
-    tofu_redirect = m.group(1).replace("${var.cluster_domain}", CLUSTER_DOMAIN)
+    # Redirect coupling: provider allowed URL == PROXY_BASE_URL + /sso/callback
+    tofu_redirect = _litellm_provider_redirect()
     proxy_base = _subst_domain(env["PROXY_BASE_URL"])
     expected_redirect = f"{proxy_base}/sso/callback"
     if tofu_redirect != expected_redirect:
@@ -209,20 +276,26 @@ def test_proxy_cr_couples_to_authentik() -> dict[str, Any]:
             f"expected from PROXY_BASE_URL={expected_redirect!r}"
         )
 
-    # outputs.tofu endpoint map must agree with the CR (documentation contract).
-    outputs = OUTPUTS_TOFU.read_text()
-    for fragment in (
-        "/application/o/authorize/",
-        "/application/o/token/",
-        "/application/o/userinfo/",
-    ):
-        if fragment not in outputs:
-            raise Failure(f"outputs.tofu missing endpoint fragment {fragment}")
+    # outputs.tofu endpoint map must agree with the CR env (semantic model).
+    output_endpoints = _litellm_output_endpoints()
+    output_pairs = {
+        "authorization": "GENERIC_AUTHORIZATION_ENDPOINT",
+        "token": "GENERIC_TOKEN_ENDPOINT",
+        "userinfo": "GENERIC_USERINFO_ENDPOINT",
+    }
+    for out_key, env_key in output_pairs.items():
+        want = _subst_domain(env[env_key])
+        got = output_endpoints.get(out_key)
+        if got != want:
+            raise Failure(
+                f"outputs.{out_key}={got!r} does not match CR {env_key}={want!r}"
+            )
 
     return {
         "proxy_base_url": proxy_base,
         "redirect_uri": tofu_redirect,
         "matched_live_endpoints": matched,
+        "matched_output_endpoints": output_endpoints,
         "generic_scope": sorted(scopes),
     }
 
@@ -316,53 +389,59 @@ def test_echo_extauth_scopes_intact() -> dict[str, Any]:
     }
 
 
-def test_premerge_litellm_has_no_sso_redirect() -> dict[str, Any]:
-    """Document the intended ordering: Authentik first, Flux second.
+def test_litellm_ui_sso_state() -> dict[str, Any]:
+    """Accept pre-merge (no SSO) and post-merge (Authentik hop) live UI states.
 
-    Until this PR merges, the live UI must NOT auto-bounce to Authentik. A
-    surprise SSO redirect here would mean something else already reconfigured
-    the running proxy, which is outside this branch's delivery claim.
+    This branch delivers AUTO_REDIRECT_UI_LOGIN_TO_SSO, so /ui/ may still serve
+    the SPA until Flux applies, or may already 302 to Authentik afterward.
     """
-    # /ui/ should serve the SPA shell without Authentik hop.
-    code, headers, body = _http(f"{LITELLM_BASE}/ui/")
-    if code != 200:
-        raise Failure(f"litellm /ui/ expected 200, got {code}")
+    code, headers, _body = _http(f"{LITELLM_BASE}/ui/")
     location = headers.get("location") or ""
-    if "auth." in location:
+    ui_pre_merge = code == 200 and "auth." not in location
+    ui_post_merge = code in (301, 302, 303, 307, 308) and (
+        "auth." in location and "/application/o/authorize" in location
+    )
+    if not (ui_pre_merge or ui_post_merge):
         raise Failure(
-            f"live litellm /ui/ unexpectedly redirects to Authentik: {location!r}"
+            f"litellm /ui/ expected pre-merge 200 SPA or post-merge Authentik "
+            f"redirect, got HTTP {code} location={location!r}"
         )
-    text = body.decode("utf-8", errors="replace")
-    if "authentik" in text.lower() and "sso" in text.lower() and "redirect" in text.lower():
-        # Soft signal only - SPA bundles can mention strings without redirecting.
-        pass
 
     # /sso/login is registered only when generic SSO env is configured.
-    scode, _, sbody = _http(f"{LITELLM_BASE}/sso/login")
-    # Pre-merge: 404 (route absent) is the expected "SSO not wired yet" signal.
-    # Post-merge: 302 to Authentik would also be fine; anything else is noise.
-    if scode not in (404, 302, 303, 307, 401, 403):
-        raise Failure(f"unexpected /sso/login status {scode}: {sbody[:200]!r}")
+    scode, sheaders, sbody = _http(f"{LITELLM_BASE}/sso/login")
+    sso_location = sheaders.get("location") or ""
+    sso_pre_merge = scode == 404
+    sso_post_merge = scode in (302, 303, 307) and (
+        "auth." in sso_location and "/application/o/authorize" in sso_location
+    )
+    sso_auth_challenge = scode in (401, 403)
+    if not (sso_pre_merge or sso_post_merge or sso_auth_challenge):
+        raise Failure(
+            f"unexpected /sso/login status {scode} location={sso_location!r}: "
+            f"{sbody[:200]!r}"
+        )
 
     end_code, end_headers, _ = _http(f"{AUTH_BASE}/application/o/litellm/end-session/")
     if end_code not in (301, 302, 303, 307, 308):
         raise Failure(f"litellm end-session expected redirect, got {end_code}")
     end_loc = end_headers.get("location") or ""
     if "flow" not in end_loc and "login" not in end_loc and "authorize" not in end_loc:
-        # Unauthenticated end-session should bounce into an Authentik flow.
         raise Failure(f"end-session redirect unexpected: {end_loc!r}")
 
     return {
         "ui_http": code,
+        "ui_location": location,
+        "ui_state": "post_merge_sso_redirect" if ui_post_merge else "pre_merge_spa",
         "sso_login_http": scode,
+        "sso_login_location": sso_location,
         "sso_login_means": (
             "route_absent_pre_merge"
-            if scode == 404
-            else "sso_route_present"
+            if sso_pre_merge
+            else ("sso_route_redirect" if sso_post_merge else "sso_route_present")
         ),
         "end_session_http": end_code,
         "end_session_location": end_loc,
-        "flux_sso_env_live": scode != 404,
+        "flux_sso_env_live": not sso_pre_merge,
     }
 
 
@@ -425,7 +504,7 @@ def main() -> int:
         ("proxy_cr_couples_to_authentik", test_proxy_cr_couples_to_authentik),
         ("secret_path", test_secret_path),
         ("echo_extauth_scopes_intact", test_echo_extauth_scopes_intact),
-        ("premerge_litellm_has_no_sso_redirect", test_premerge_litellm_has_no_sso_redirect),
+        ("litellm_ui_sso_state", test_litellm_ui_sso_state),
         ("kustomize_build_includes_sso_surface", test_kustomize_build_includes_sso_surface),
     ]
     report: dict[str, Any] = {"results": {}, "ok": True}

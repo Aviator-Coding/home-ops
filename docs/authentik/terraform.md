@@ -129,14 +129,16 @@ stand up a second forward-auth provider.
 | Resource | Import ID | Format |
 | -------- | --------- | ------ |
 | `authentik_provider_oauth2.oauth2["coder"]` | `4` | numeric provider pk |
-| `authentik_provider_oauth2.oauth2["open-webui"]` | `36` | numeric provider pk |
 | `authentik_provider_oauth2.oauth2["pg-admin"]` | `2` | numeric provider pk |
 | `authentik_provider_proxy.forward_auth` | `37` | numeric provider pk |
 | `authentik_application.oauth2["coder"]` | `coder` | slug |
-| `authentik_application.oauth2["open-webui"]` | `open-webui` | slug |
 | `authentik_application.oauth2["pg-admin"]` | `pg-admin` | slug |
 | `authentik_application.echo` | `echo` | slug |
 | `authentik_outpost_provider_attachment.forward_auth` | `a827266f-...-7b59a75a042e:37` | `<outpost uuid>:<provider pk>` |
+
+`open-webui` provider `36` / application slug `open-webui` were removed from
+`imports.tofu` (and dropped with `tofu state rm`) after the intentional 2026-08-27
+Authentik deletion. Do not re-add those import rows.
 
 Each of those resources has a passthrough importer in the provider source, so the
 ID is passed to the read call unchanged.
