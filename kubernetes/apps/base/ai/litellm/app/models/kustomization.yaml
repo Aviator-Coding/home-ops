@@ -1,4 +1,3 @@
----
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -23,10 +22,14 @@ kind: Kustomization
 # LiteLLM's built-in model-cost map already prices them in real USD, which is
 # what the per-consumer D4 budgets must measure; hand-written prices would
 # silently decouple recorded spend from the invoice. The rule is "declared
-# prices must match the invoice", so the two exceptions are models whose
+# prices must match the invoice", so the exceptions are models whose
 # invoice is not metered per token:
-#   - qwen3.6-35b-a3b, local traffic with no invoice at all, carrying
-#     governance-accounting prices so a tiny demo budget can be exhausted.
+#   - qwen3.6-35b-a3b (and its classifier twin), local traffic with no
+#     invoice at all, carrying governance-accounting prices so a tiny demo
+#     budget can be exhausted. Real production traffic must NOT run on a
+#     priced local alias - it runs on `chat-local` (zero-priced, no
+#     fallback) precisely so that a consumer's recorded spend means real
+#     USD. See chat-local.yaml for the three-alias split.
 #   - claude-code-subscription, billed to a caller's own FLAT-RATE Claude
 #     subscription, priced at an explicit $0 so the metered cost map cannot
 #     inflate a D4 budget with dollars nobody is charged. Read that file's
@@ -40,6 +43,7 @@ kind: Kustomization
 resources:
   - ./auto.yaml
   - ./chat-ha.yaml
+  - ./chat-local.yaml
   - ./claude-code-subscription.yaml
   - ./claude-fable-5.yaml
   - ./claude-opus-4-8.yaml

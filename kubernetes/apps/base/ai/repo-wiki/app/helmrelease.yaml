@@ -92,7 +92,17 @@ spec:
               # In-cluster LiteLLM governance proxy (captain decisions B4/D4) -
               # NOT a direct provider key. See this app's README.md.
               OPENAI_BASE_URL: http://litellm.ai.svc.cluster.local:4000/v1
-              WIKI_MODEL: qwen3.6-35b-a3b
+              # The zero-priced local alias. MUST stay in lockstep with the
+              # `models` allow-list on the repo-wiki LiteLLMVirtualKey
+              # (kubernetes/apps/base/ai/litellm/app/virtualkeys/repo-wiki.yaml):
+              # the proxy checks the model the caller ASKS for, so pointing this
+              # at any name that key does not list fails every generation call.
+              # Deliberately not `qwen3.6-35b-a3b` - same B70, same weights, but
+              # that alias carries synthetic per-token prices that exist purely
+              # so a $0.05 demo budget can be exhausted by a smoke test, and
+              # billing this cron against them made a free batch job look like
+              # it was spending ~$7.50 per repo. See models/chat-local.yaml.
+              WIKI_MODEL: chat-local
               MAX_REPOS_PER_RUN: "1"
               MAX_PAGES_PER_REPO: "8"
               LLM_TIMEOUT: "1800"

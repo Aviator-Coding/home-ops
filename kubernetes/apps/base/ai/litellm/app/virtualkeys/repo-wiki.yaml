@@ -1,21 +1,30 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
 # Batch consumer for ai/repo-wiki's 12-hourly generator cron (captain request
-# 2026-08-26). Budget sizing, not guesswork: with MAX_REPOS_PER_RUN=1 and
-# MAX_PAGES_PER_REPO=8 against qwen3.6-35b-a3b's governance prices
-# (input_cost_per_token 5e-05, output 1e-04 - see models/qwen3.6-35b-a3b.yaml),
-# one full repo regen is ~1 plan call (~5k in/500 out) + 8 page calls
-# (~15k in/1.5k out each, PAGE_CTX_CHARS=60000) = ~125k in + 12.5k out =~
-# $7.50/repo. Let N = line count of
-# kubernetes/apps/base/ai/repo-wiki/app/resources/repos.txt (authoritative;
-# do not restate N here). Initial backfill at MAX_REPOS_PER_RUN=1 every 12h
-# costs ~$7.50*N over N/2 days; steady-state only regenerates a repo whose
-# remote HEAD sha moved, so ongoing spend is far lower. This is governance
-# accounting against a LOCAL model (zero real dollars) - the budget is a
-# runaway-usage guard, not a real cost cap. Raise maxBudget here, not the
-# model prices, if generation 429s partway through backfill. maxBudget below
-# was sized for the original 4-repo backfill (~$30) and needs a matching bump
-# whenever repos.txt grows past what $30 covers at ~$7.50/repo.
+# 2026-08-26), running on the LOCAL B70 via the zero-priced `chat-local` alias.
+#
+# This key spends NOTHING, and that is now literally true rather than a
+# footnote. Every model it may call is priced at zero, so its recorded spend
+# stays flat at whatever it had already accrued and `maxBudget` below can never
+# trip. See the maxBudget comment for why the number is still here.
+#
+# HISTORY - what changed and why. Until 2026-08-27 this key called
+# `qwen3.6-35b-a3b`, which carries deliberately inflated per-token prices whose
+# only purpose is letting the `demo` key's $0.05 cap be exhausted by one smoke
+# test (models/qwen3.6-35b-a3b.yaml). Running the generator through that alias
+# meant a batch job on free hardware accrued play money at ~$7.50 per repo
+# regenerated, and this file used to carry a long sizing calculation treating
+# those numbers as a real constraint. They never were. The figures had already
+# stopped describing reality: repos.txt has since grown well past what $30
+# covers at that fictional rate, so the *only* thing the budget was on track to
+# do was 429 the backfill partway through for zero actual cost. Measured live
+# 2026-08-27 before the switch: $7.82 accrued against the $30 cap, all of it
+# imaginary.
+#
+# The generator asks for this alias by name via WIKI_MODEL in
+# kubernetes/apps/base/ai/repo-wiki/app/helmrelease.yaml. That env var and this
+# allow-list have to move together - a key scoped to `chat-local` while the
+# CronJob still requests `qwen3.6-35b-a3b` fails every call on the allow-list.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -26,14 +35,33 @@ spec:
   secretName: litellm-key-repo-wiki
   secretKey: key
   # Direct local model only - this is a scheduled batch job, not a routed
-  # interactive consumer, so it does not need the `auto` alias.
+  # interactive consumer, so it does not need the `auto` alias (and must not
+  # have it: `auto`'s COMPLEX/REASONING tiers are Anthropic, which would put an
+  # unattended cron on a paid API). `chat-local` carries no cloud fallback
+  # either, so this key is structurally incapable of reaching a paid model.
   models:
-    - qwen3.6-35b-a3b
+    - chat-local
+  # INERT, deliberately kept. Every model above is priced at zero, so spend can
+  # never rise and this cap can never fire - it bounds nothing today. It stays
+  # for two reasons. (1) It is the guard that matters the moment anyone widens
+  # `models` above to something real: a cloud alias added to a key with no
+  # budget is an uncapped unattended cron. (2) Deleting it would NOT clean up
+  # the live key. The operator builds its update body with
+  # `MaxBudget *float64  json:"max_budget,omitempty"` and skips the field
+  # entirely when spec.maxBudget is "" (litellm-operator
+  # internal/controller/litellmvirtualkey_controller.go virtualKeyRequest), so
+  # an omitted budget is never sent as an explicit null - while its drift check
+  # compares `reflect.DeepEqual(live.MaxBudget, desired.MaxBudget)`. Live 30.0
+  # vs desired nil never converges, so removing this line leaves the $30 cap
+  # standing on the live key while Git claims there is none, and re-PATCHes it
+  # on every reconcile forever. What actually bounds this consumer is
+  # rpmLimit/tpmLimit below plus MAX_REPOS_PER_RUN=1 in the CronJob.
   maxBudget: "30.00"
   budgetDuration: 30d
-  # Batch job making a handful of sequential calls per tick, not many
-  # concurrent interactive users - kept low but above the sequential-call rate
-  # generate.py actually produces (1 plan + up to 8 page calls per repo).
+  # The REAL bound on this consumer, now that the dollar cap is inert. A batch
+  # job making a handful of sequential calls per tick, not many concurrent
+  # interactive users - kept low but above the sequential-call rate generate.py
+  # actually produces (1 plan + up to 8 page calls per repo).
   rpmLimit: 4
   # Each page call can send up to PAGE_CTX_CHARS (60000 chars =~ 15k tokens) of
   # source context; tpmLimit must clear that comfortably.

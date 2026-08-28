@@ -8,7 +8,7 @@ import io, json, os, pathlib, re, shutil, subprocess, tarfile, urllib.error, url
 LITELLM  = os.environ["OPENAI_BASE_URL"].rstrip("/")
 KEY      = os.environ["OPENAI_API_KEY"]
 TOKEN    = os.environ.get("GITHUB_TOKEN", "")
-MODEL    = os.environ.get("WIKI_MODEL", "qwen3.6-35b-a3b")
+MODEL    = os.environ.get("WIKI_MODEL", "chat-local")
 MAX      = int(os.environ.get("MAX_REPOS_PER_RUN", "1"))
 MAXPAGES = int(os.environ.get("MAX_PAGES_PER_REPO", "8"))
 TIMEOUT  = int(os.environ.get("LLM_TIMEOUT", "1800"))
