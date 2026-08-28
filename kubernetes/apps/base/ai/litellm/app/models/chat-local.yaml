@@ -3,17 +3,29 @@
 # The HONESTLY-PRICED view of the local model - the alias real production
 # traffic runs on.
 #
-# Same weights, same B70, same llama.cpp backend as models/qwen3.6-35b-a3b.yaml
-# and models/chat-ha.yaml. This is the third alias of that one backend, and
-# each of the three exists to carry exactly one property the others must not:
+# Same weights, same B70, same llama.cpp backend as models/qwen3.6-35b-a3b.yaml,
+# models/chat-ha.yaml, and models/qwen3.6-35b-a3b-classifier.yaml. This is one of
+# four aliases of that one backend, and each exists to carry exactly one property
+# the others must not:
 #
-#   | alias                | prices     | cloud fallback | who calls it            |
-#   |----------------------|------------|----------------|-------------------------|
-#   | qwen3.6-35b-a3b      | SYNTHETIC  | no             | `demo` budget smoke test|
-#   | chat-ha              | zero       | YES (sonnet-5) | `ha-demo` (cloud-entitled) |
-#   | chat-local (this)    | zero       | no             | real traffic: `auto`'s   |
-#   |                      |            |                | SIMPLE/MEDIUM tiers +    |
-#   |                      |            |                | fail-open, `repo-wiki`   |
+#   | alias                      | prices     | cloud fallback | who calls it              |
+#   |----------------------------|------------|----------------|---------------------------|
+#   | qwen3.6-35b-a3b            | SYNTHETIC  | no             | `demo` budget smoke test  |
+#   |                            |            |                | ONLY                      |
+#   | chat-local (this)          | zero       | no             | real traffic: `auto`'s    |
+#   |                            |            |                | SIMPLE/MEDIUM tiers +     |
+#   |                            |            |                | default_model +           |
+#   |                            |            |                | complexity_router_        |
+#   |                            |            |                | default_model fail-open,  |
+#   |                            |            |                | `repo-wiki`               |
+#   | chat-ha                    | zero       | YES (sonnet-5) | `ha-demo` (cloud-entitled)|
+#   | qwen3.6-35b-a3b-classifier | zero       | no             | used BY the router;       |
+#   |                            |            |                | zeroed because LiteLLM    |
+#   |                            |            |                | bills its sub-call to the |
+#   |                            |            |                | CALLING key, so pricing   |
+#   |                            |            |                | it charged every routed   |
+#   |                            |            |                | consumer for the router's |
+#   |                            |            |                | own local bookkeeping     |
 #
 # WHY THIS ALIAS EXISTS - the pricing axis.
 # models/qwen3.6-35b-a3b.yaml carries deliberately inflated per-token prices so
