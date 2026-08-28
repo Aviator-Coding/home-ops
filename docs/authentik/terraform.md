@@ -1,23 +1,32 @@
 # Authentik configuration as code (OpenTofu)
 
-Status as of 2026-08-27: **the stack has been applied.** The adoption is in
-state, the LiteLLM SSO provider and application were created, and a fresh
-`tofu plan` is empty (`-detailed-exitcode` returns 0).
+Status as of 2026-08-27: **the first apply landed; a second captain-approved
+apply is PENDING.** The adoption is in state and the LiteLLM SSO provider and
+application were created (`9 imported, 4 added, 4 changed, 0 destroyed`). The
+four changes were the `property_mappings` ordering artifact this document
+predicted in section 6; they were membership-identical and cleared once state
+carried a local ordering. Immediately after that apply a fresh `tofu plan` was
+empty (`-detailed-exitcode` returns 0).
 
-The apply was authorized by the captain against a reviewed plan and executed as
-`9 imported, 4 added, 4 changed, 0 destroyed`. The four changes were the
-`property_mappings` ordering artifact this document predicted in section 6; they
-were membership-identical and are gone now that state carries a local ordering.
+That empty plan is no longer the current truth. This branch adds an Authentik
+`litellm_role` scope mapping and attaches it to the LiteLLM provider's
+`property_mappings`, so a fresh plan will show that addition plus the provider
+update. **Do not apply without a current captain go-ahead.** Until that second
+apply runs, the Kubernetes side requests scope `litellm_role` that Authentik
+does not yet emit, so first SSO login still lands as LiteLLM
+`INTERNAL_USER_VIEW_ONLY` even though OAuth itself succeeds.
 
-Post-apply verification, all live:
+Post-first-apply verification (still live; does not cover the pending role
+mapping):
 
 | Check | Result |
 | ----- | ------ |
-| Fresh `tofu plan` | `No changes` (`-detailed-exitcode` = 0), using the READ-ONLY token |
+| Fresh `tofu plan` after first apply | `No changes` (`-detailed-exitcode` = 0), using the READ-ONLY token - stale once the `litellm_role` mapping is committed |
 | ExtAuth still gating | `https://echo.sklab.dev` -> 302 to Authentik, scope `ak_proxy profile email entitlements openid` (all five proxy scopes intact) |
 | Existing OIDC app still logging in | open-webui authorize -> 302 to `default-authentication-flow` |
 | New application | `litellm` exists, provider 70, redirect `https://litellm.sklab.dev/sso/callback` |
 | Credentials propagated | 1Password `Automation/litellm-sso` client_id is byte-identical to the provider's |
+| Pending second apply | `authentik_property_mapping_provider_scope.litellm_role` create + LiteLLM provider `property_mappings` update - captain approval required, not yet applied |
 
 Authentik is the SSO for the whole cluster, including the ExtAuth in front of the
 public gateway. A wrong apply here does not degrade one app; it locks or unlocks

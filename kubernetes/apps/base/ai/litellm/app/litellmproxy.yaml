@@ -100,11 +100,28 @@ spec:
     # browser cannot follow.
     - name: PROXY_BASE_URL
       value: https://litellm.${SECRET_DOMAIN}
+    # Must match the provider's property_mappings in
+    # terraform/authentik/litellm.tofu (openid/email/profile + litellm_role).
+    # LiteLLM defaults GENERIC_SCOPE to "openid email profile", so without this
+    # the custom litellm_role scope is never requested and Authentik never emits
+    # the claim - first login then lands as INTERNAL_USER_VIEW_ONLY.
+    - name: GENERIC_SCOPE
+      value: openid email profile litellm_role
+    # Claim name Authentik puts on the token/userinfo payload. LiteLLM defaults
+    # this to "role"; the image reads it via get_nested_value (ui_sso.py).
+    - name: GENERIC_USER_ROLE_ATTRIBUTE
+      value: litellm_role
     # Send the UI straight to Authentik instead of showing the master-key form
-    # first. The master key still works for API callers; this only affects the
-    # browser UI.
+    # first. Master-key browser login moves to /fallback/login once this is on;
+    # API callers using the master key are unaffected.
     - name: AUTO_REDIRECT_UI_LOGIN_TO_SSO
       value: "true"
+    # Pair with auto-redirect: LiteLLM logout only clears the local UI session,
+    # so without an end-session hop the next /ui hit immediately re-authenticates
+    # against the still-live Authentik SSO cookie. Slug matches
+    # authentik_application.litellm.
+    - name: PROXY_LOGOUT_URL
+      value: https://auth.${SECRET_DOMAIN}/application/o/litellm/end-session/
 
   # Required for LiteLLMVirtualKey: the operator mints and syncs keys through
   # the proxy's admin API, authenticating with this master key. Endpoint

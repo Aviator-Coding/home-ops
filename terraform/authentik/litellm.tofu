@@ -44,11 +44,14 @@ resource "authentik_provider_oauth2" "litellm" {
   include_claims_in_id_token = true
   signing_key                = data.authentik_certificate_key_pair.self_signed.id
 
-  # openid + email + profile, which is exactly LiteLLM v1.98.0's default
-  # GENERIC_SCOPE ("openid email profile", read from its ui_sso.py). Keeping the
-  # provider's mappings and the app's requested scope identical means a scope
-  # mismatch cannot be the cause of a failed login.
-  property_mappings = data.authentik_property_mapping_provider_scope.oauth2_default.ids
+  # openid + email + profile (LiteLLM's default GENERIC_SCOPE) plus the custom
+  # litellm_role scope below. The Kubernetes side must request the same set via
+  # GENERIC_SCOPE, or Authentik never emits the role claim and first login lands
+  # as INTERNAL_USER_VIEW_ONLY.
+  property_mappings = concat(
+    data.authentik_property_mapping_provider_scope.oauth2_default.ids,
+    [authentik_property_mapping_provider_scope.litellm_role.id],
+  )
 
   access_code_validity    = "minutes=1"
   access_token_validity   = "minutes=5"
@@ -76,4 +79,17 @@ resource "authentik_application" "litellm" {
   group              = ""
   open_in_new_tab    = false
   policy_engine_mode = "any"
+}
+
+# Custom scope claim so SSO users land as proxy_admin without a manual first
+# login + PROXY_ADMIN_ID step. Value must be exactly "proxy_admin"
+# (LitellmUserRoles.PROXY_ADMIN in the running v1.98.0 image). Mirrored from the
+# reference repo's litellm_role mapping shape. LiteLLM reads it via
+# GENERIC_USER_ROLE_ATTRIBUTE over the token/userinfo payload.
+resource "authentik_property_mapping_provider_scope" "litellm_role" {
+  name       = "LiteLLM Role"
+  scope_name = "litellm_role"
+  expression = <<-EOT
+    return {"litellm_role": "proxy_admin"}
+  EOT
 }

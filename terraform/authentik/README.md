@@ -22,7 +22,8 @@ unaffected by any of this and stays behind section 7's approval gate.
 | 3 OIDC applications and their OAuth2 providers (`coder`, `open-webui`, `pg-admin`) | yes | hand-created in the UI |
 | 1 forward-auth proxy provider and its `echo` application | yes | hand-created in the UI; this is the cluster's ExtAuth |
 | Binding of that provider to the embedded outpost | yes | hand-created in the UI |
-| Flows, stages, policies, property mappings, scope mappings | no, data sources only | all reconciled by Authentik's own built-in blueprints |
+| Flows, stages, policies, most property/scope mappings | no, data sources only | all reconciled by Authentik's own built-in blueprints |
+| LiteLLM `litellm_role` scope mapping | yes (`litellm.tofu`) | hand-written claim so SSO users land as `proxy_admin`; not a blueprint object |
 | Groups, users, brand, certificates, sources | no, data sources only | all Authentik defaults; nothing hand-made |
 
 The split is not arbitrary. Every object in the "no" rows is created by one of
