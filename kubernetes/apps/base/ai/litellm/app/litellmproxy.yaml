@@ -49,6 +49,30 @@ spec:
     - secretRef:
         name: litellm-secret
 
+  env:
+    # `store_prompts_in_spend_logs` alone does NOT give you the full prompt.
+    # Both the request body and the response are run through
+    # `_sanitize_request_body_for_spend_logs_payload`
+    # (proxy/spend_tracking/spend_tracking_utils.py:657), which truncates EVERY
+    # string longer than MAX_STRING_LENGTH_PROMPT_IN_DB - default 2048 chars,
+    # ~500 tokens (litellm/constants.py:375) - keeping 35% of the head and 65%
+    # of the tail with a `litellm_truncated` marker in between. At the default,
+    # any repo-wiki page context or pasted file is cut mid-prompt and the
+    # captain sees a stitched fragment, not what was sent.
+    #
+    # The cap is per STRING, not per row, so an ordinary many-turn chat is
+    # already captured whole at 2048; it is single long strings that lose
+    # content. 1,000,000 chars covers the largest call measured on this proxy
+    # (132,929 prompt tokens, ~0.5 MB of text) with ~2x headroom, while still
+    # keeping the safeguard the limit exists for - a runaway base64 image data
+    # URI cannot write an unbounded row.
+    #
+    # This is read at request time via os.getenv (that file:42), not import
+    # time, so it can also be raised without a config rebuild - but keep it
+    # declared here so Git stays the source of truth.
+    - name: MAX_STRING_LENGTH_PROMPT_IN_DB
+      value: "1000000"
+
   # Required for LiteLLMVirtualKey: the operator mints and syncs keys through
   # the proxy's admin API, authenticating with this master key. Endpoint
   # defaults to http://litellm.ai.svc:4000, which is exactly where we want it.
@@ -64,6 +88,96 @@ spec:
     # decision was made against this app's pre-2026-06-07 incarnation. It is
     # also the guard on applyMode above: `api` mode sets this to true.
     store_model_in_db: false
+
+    # --- Full prompt/response capture (captain request, 2026-08-27) ---------
+    # DEFAULT IS FALSE. Without this the Postgres spend log stores usage, cost,
+    # latency and attribution only: `messages`, `response` and
+    # `proxy_server_request` are all literally the string "{}" on every row
+    # (measured on the live DB before this change - 134/134 rows empty in all
+    # three columns). This flag is the ONLY gate; on v1.98.0
+    # `_should_store_prompts_and_responses_in_spend_logs()`
+    # (proxy/spend_tracking/spend_tracking_utils.py:1162) reads exactly
+    # general_settings["store_prompts_in_spend_logs"] or the
+    # STORE_PROMPTS_IN_SPEND_LOGS env var, and every content-bearing column is
+    # written behind it.
+    #
+    # WHERE THE PROMPT ACTUALLY LANDS - not the column you would guess. The
+    # `messages` column stays "{}" for ordinary chat/completions traffic even
+    # with this on: `_get_messages_for_spend_logs_payload` (same file:637)
+    # populates it only when `call_type == "_arealtime"`, i.e. the realtime
+    # API. The prompt for everything else lives in `proxy_server_request`
+    # (:1034, the raw request body incl. `messages`), and the completion in
+    # `response` (:1108). Read both, never `messages`. Retrieval runbook:
+    # docs/ai-system/litellm/request-logs.md
+    #
+    # CONFIDENTIALITY - primary store is the litellm DB on shared postgres-17;
+    # that DOES leave the k8s cluster via the cluster's existing Barman path.
+    # postgres-17 continuously archives WAL + daily base backups to
+    # s3://home-ops-postgres-cluster/ at https://nas.${SECRET_DOMAIN}:9000 with
+    # retentionPolicy 30d (kubernetes/apps/base/database/cloudnative-pg/cluster-17/
+    # cluster-17.yaml backup.retentionPolicy / barmanObjectStore.destinationPath
+    # / .endpointURL, plus its @daily ScheduledBackup). That endpoint is the
+    # LAN TrueNAS MinIO appliance (same one kubernetes/components/volsync/minio/
+    # externalsecret.yaml already uses for VolSync) - NOT a third-party or
+    # internet service, and the postgres bucket is NOT replicated onward to
+    # Cloudflare R2 (R2 is VolSync-only; kubernetes/components/volsync/Readme.md).
+    # So: leaves the k8s cluster, stays on-premises, no third-party path.
+    # Captain decision litellm-log-backup-export (2026-08-27, option C)
+    # explicitly accepted this LAN-only exposure as an allowed sink for
+    # full-content spend logs, paired with the 30d retention bound below.
+    #
+    # LiteLLM's OWN export paths remain closed (verified, still true):
+    # `litellm.cold_storage_custom_logger` defaults to None (litellm/__init__.py:166)
+    # and is not set here, so `_generate_cold_storage_object_key`
+    # (litellm_core_utils/litellm_logging.py:5089) returns None and no S3/GCS
+    # copy is ever written; `callbacks` is `["prometheus"]` only, which emits
+    # labels, never content. Caller credentials do NOT land in the row either:
+    # `proxy_server_request.headers` is built through `redact_credential_headers`
+    # (proxy/litellm_pre_call_utils.py:835, applied at :1614) which masks
+    # authorization / x-api-key / x-litellm-api-key / cookie to
+    # "***REDACTED***" - so the Claude Code Max OAuth token this proxy
+    # deliberately passes through (docs/ai-system/litellm/claude-code-subscription.md)
+    # is not persisted - and the body snapshot excludes `secret_fields`
+    # (:1792), which is where raw headers would otherwise be. Route stays
+    # internal-only.
+    #
+    # WHO CAN NOW READ IT. Content is served by GET /spend/logs/ui/{request_id}
+    # behind the master key, and the master key is also held by Prometheus for
+    # the /metrics scrape (see the deliberate tradeoff recorded in
+    # servicemonitor.yaml). That credential's blast radius therefore now
+    # includes full prompt/response bodies, not just usage counters.
+    #
+    # DOES NOT NEED `store_model_in_db`. The Admin UI's hint for this setting
+    # bundles the two; do not follow it - that would hand the UI authority over
+    # GitOps-declared models and keys, which `applyMode: file` and the line
+    # above exist to prevent. Tested with store_model_in_db false throughout:
+    # content was written, `GET /spend/logs/ui/{request_id}` read it back, and
+    # the UI's own log list endpoint returned rows. `grep -r store_model_in_db
+    # litellm/proxy/spend_tracking/` matches nothing. The UI bundles them only
+    # because ITS way of changing this writes general_settings to the DB, and
+    # that writer (`ProxyConfig.save_config`, proxy/proxy_server.py:4188)
+    # early-returns unless store_model_in_db is true; declaring it in
+    # config.yaml, as the operator does from this CR, needs no DB write.
+    #
+    # RETENTION IS SET TO 30d - matches Barman retentionPolicy 30d exactly so
+    # logged prompt/response content does not outlive what already rolls off
+    # that backup target. Verified on the pinned v1.98.0 image that
+    # duration_in_seconds("30d") == 2592000 (exactly 30 days); "1mo" parses to
+    # 31 days and would outlive the backup window, which is why it was not
+    # used. This key is the gate for the whole built-in pruner: while it is
+    # null, no spend_log_cleanup_job is scheduled at all (proxy/proxy_server.py:8937).
+    # Setting it schedules the job on the default 1d interval
+    # (maximum_spend_logs_retention_interval). TRADEOFF: the pruner deletes
+    # whole LiteLLM_SpendLogs rows, so per-request COST HISTORY is deleted
+    # along with the content; v1.98.0 has no option to strip content while
+    # keeping the cost row. Durable per-day/per-model/per-consumer cost history
+    # is unaffected because it lives in the separate LiteLLM_Daily*Spend
+    # rollup tables, which the pruner does not touch (it prunes
+    # LiteLLM_SpendLogs and its tool-index table only -
+    # db/db_transaction_queue/spend_log_cleanup.py:480). Full runbook:
+    # docs/ai-system/litellm/request-logs.md#retention
+    store_prompts_in_spend_logs: true
+    maximum_spend_logs_retention_period: "30d"
 
   litellmSettings:
     callbacks: ["prometheus"] # exposes /metrics on the proxy port (4000)

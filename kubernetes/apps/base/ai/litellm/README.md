@@ -25,6 +25,15 @@ from the CRs here.
 | [`app/externalsecret.yaml`](app/externalsecret.yaml) | `litellm-secret` (master/salt key, `DATABASE_URL`, `INIT_POSTGRES_*`, and the four provider keys `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`, `OPENROUTER_API_KEY`). |
 | `app/servicemonitor.yaml`, `app/prometheusrule.yaml` | Scrape + alerts against the operator-rendered Service. |
 
+**Request logging.** `generalSettings.store_prompts_in_spend_logs: true`
+(2026-08-27) makes the Postgres spend log carry the actual prompt and
+completion, not just usage/cost. The prompt lands in the `proxy_server_request`
+column, never the `messages` one; caller credentials are redacted; content
+leaves the k8s cluster only onto the LAN NAS Barman target (captain-accepted
+2026-08-27) with `maximum_spend_logs_retention_period: "30d"` matching that
+backup window. Mechanism, citations, retrieval runbook and retention:
+[`docs/ai-system/litellm/request-logs.md`](../../../../../docs/ai-system/litellm/request-logs.md).
+
 **Scope per B4 (public half still non-negotiable):**
 - Does **not** front the public listener. No `envoy-external` parentRef, no
   `AgentgatewayBackend`. That half of B4 is unchanged and must stay that way.
