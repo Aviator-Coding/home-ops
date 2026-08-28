@@ -254,14 +254,26 @@ them - that is expected, not a broken scrape.
 
 ### Reading the numbers: local-model spend is a governance price, not money
 
-`qwen3.6-35b-a3b` and `qwen3.6-35b-a3b-classifier` run on the in-cluster B70 and
-cost nothing, but they carry explicit `input_cost_per_token: 0.00005` /
-`output_cost_per_token: 0.0001` in their `LiteLLMModel` CRs. That is deliberate
-(the rationale is in `app/models/qwen3.6-35b-a3b.yaml`): a $0 model accrues no
-spend, so D4 virtual-key budgets could never constrain local usage. The
-consequence when reading any cost surface: the local model dominates every
-total. As of 2026-08-28 it was $7.95 of $8.73 recorded spend - about 91% of the
-headline figure is accounting units, not dollars. Filter on
+Every local alias runs on the in-cluster B70 and costs nothing, but **one of
+them is priced anyway**: `qwen3.6-35b-a3b` carries an explicit
+`input_cost_per_token: 0.00005` / `output_cost_per_token: 0.0001` in its
+`LiteLLMModel` CR. That is deliberate (rationale in
+`app/models/qwen3.6-35b-a3b.yaml`): a $0 model accrues no spend, so a D4
+virtual-key budget could never constrain direct local usage.
+
+The other local aliases - `qwen3.6-35b-a3b-classifier`, `chat-local` and
+`chat-ha` - carry **no** price. The classifier was zeroed on 2026-08-27 (#1471)
+because LiteLLM bills a classifier sub-call to the *calling* key, so while it
+was priced it dominated an `auto` consumer's recorded spend rather than
+measuring anything real; the reasoning and its measurements are in that CR's
+header. So an `auto` key's budget now tracks only genuine cloud-tier USD.
+
+Consequence when reading any cost surface: the direct `qwen3.6-35b-a3b` alias
+still dominates the headline total. Measured 2026-08-28, after #1471: $8.12 of
+$9.01 recorded spend, about 90%, is accounting units rather than dollars. Note
+rows written *before* 2026-08-27 keep the figures they were written with, so
+historical classifier and `auto` rows still show non-zero spend that no longer
+accrues. Filter on
 `custom_llm_provider IN ('anthropic','openrouter','xai','zai')` for real money.
 
 ---
