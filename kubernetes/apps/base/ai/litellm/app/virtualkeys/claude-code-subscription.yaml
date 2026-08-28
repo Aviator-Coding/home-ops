@@ -1,0 +1,65 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# One interactive `claude` CLI user against the subscription pass-through model
+# (captain decision 2026-08-27, alongside the model CR itself). Scoped to
+# `claude-code-subscription` and nothing else: this key must not be a second
+# way into the metered Anthropic models, so it names neither `auto` nor
+# `claude-sonnet-5`/`claude-opus-5` - a caller wanting those needs a key that
+# says so, priced against a real budget.
+#
+# THE ONLY KEY HERE WITH NO `maxBudget`, AND THAT IS DELIBERATE, NOT AN
+# OVERSIGHT. Its one model is priced at an explicit $0 (see the model CR's
+# `info.extra` header for why a flat-rate subscription must not be priced off
+# LiteLLM's metered cost map), so recorded spend is always $0.00 and ANY
+# maxBudget would be silently inert - a cap that can never trip reads as
+# protection that does not exist. Rate limits are therefore the whole guardrail
+# here, which is why both are set and neither should be dropped.
+#
+# Sizing: one interactive CLI user, same order of magnitude as the
+# `opencode.yaml` workspace key (8 rpm / 200000 tpm) and nudged up because
+# Claude Code's agentic loop issues several requests per human turn - each tool
+# call is its own round trip, so request count tracks tool use, not typing
+# speed. These numbers are a runaway-agent guardrail, not a throughput target:
+# the real ceiling is Anthropic's own rate limiting against the caller's
+# personal subscription, which this proxy neither sees nor can raise. If a
+# normal session 429s here, raise these two numbers - there is no budget to
+# raise, and nothing in this file affects what the subscription is charged.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: claude-code-subscription
+spec:
+  proxyRef: litellm
+  keyAlias: claude-code-subscription
+  secretName: litellm-key-claude-code-subscription
+  secretKey: key
+  models:
+    - claude-code-subscription
+  rpmLimit: 10
+  tpmLimit: 250000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item
+# `litellm-consumer-claude-code-subscription` (auto-created - not a captain
+# prerequisite). This is the value a user puts in ANTHROPIC_CUSTOM_HEADERS as
+# `x-litellm-api-key`; it is NOT the Anthropic subscription token, which never
+# leaves the user's workstation. See
+# docs/ai-system/litellm/claude-code-subscription.md section 5.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-claude-code-subscription
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-claude-code-subscription
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-claude-code-subscription
+          property: key

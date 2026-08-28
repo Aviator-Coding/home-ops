@@ -18,7 +18,7 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | 32 `LiteLLMModel` CRs, one per model. The original six are `auto`, `chat-ha`, `claude-opus-5`, `claude-sonnet-5`, `qwen3.6-35b-a3b`, `qwen3.6-35b-a3b-classifier`: `qwen3.6-35b-a3b` is terminal (no fallback) for local-only keys, `chat-ha` is the same backend carrying the cloud fallback for entitled keys, and the D3 auto-router lives in `auto.yaml`. The other 26 are the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below. |
+| [`app/models/`](app/models/) | 33 `LiteLLMModel` CRs, one per model. The original six are `auto`, `chat-ha`, `claude-opus-5`, `claude-sonnet-5`, `qwen3.6-35b-a3b`, `qwen3.6-35b-a3b-classifier`: `qwen3.6-35b-a3b` is terminal (no fallback) for local-only keys, `chat-ha` is the same backend carrying the cloud fallback for entitled keys, and the D3 auto-router lives in `auto.yaml`. 26 more are the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below. The 33rd, `claude-code-subscription`, is the odd one out: the proxy holds **no credential** for it - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
@@ -113,6 +113,51 @@ rule 1 holds - no key is entitled to it - which is why both GLM CRs stay
 registered despite Z.ai returning `Insufficient balance or no resource package`
 for every completion as of 2026-08-27. That header is the place to look if a
 GLM call ever fails; it is an unfunded account, not a bad route.
+
+## Claude Code subscription pass-through
+
+`claude-code-subscription` (captain request 2026-08-27) is the one model here
+the proxy holds **no credential** for. A `claude` CLI logged in to a personal
+Max/Pro subscription sends its own OAuth token per request; LiteLLM forwards it
+to Anthropic, so the tokens bill that person's flat-rate plan while the cluster
+gets per-request tokens/latency/virtual-key attribution it previously never saw.
+
+Full mechanism, the live security measurements, and the client runbook (env
+vars, virtual key, the one-time interactive OAuth login):
+[`docs/ai-system/litellm/claude-code-subscription.md`](../../../../../docs/ai-system/litellm/claude-code-subscription.md).
+Four things worth knowing before touching it:
+
+**1. We did NOT set `forward_client_headers_to_llm_api`, and the upstream
+tutorial's claim that it is "required" is wrong on v1.98.0.** That flag only
+forwards `x-*` and `anthropic-beta` headers and never `Authorization`. The OAuth
+token travels an entirely separate, **ungated** path
+(`add_provider_specific_headers_to_request`, called unconditionally), so the
+feature works with the flag off. Setting it would forward every client `x-*`
+header to *every* backend - xai, zai, openrouter, local llama.cpp - proxy-wide,
+for no benefit. If it is ever genuinely needed, use the per-model form
+`litellm_settings.model_group_settings.forward_client_headers_to_llm_api`.
+
+**2. A client `sk-ant-oat…` token overrides the shared key on any Anthropic
+model the caller is already entitled to.** Pre-existing, unchanged by this
+model, and measured live: a fake token sent to `claude-sonnet-5` made Anthropic
+answer *"OAuth access token is invalid."*, proving our `ANTHROPIC_API_KEY` was
+never sent. It cannot bypass entitlement - allow-lists still deny first (`403`,
+identical with and without the header) - and non-`sk-ant-oat` values are
+dropped. It also briefly cools down that model group for **all** consumers.
+
+**3. The placeholder `apiKey` is load-bearing.** Omitting it does not make the
+model credential-less: LiteLLM falls back to `os.environ/ANTHROPIC_API_KEY`,
+which the pod has, so a caller who forgets the OAuth header would silently bill
+the household's metered account. The placeholder forces a clean `401` instead.
+
+**4. `$0` prices are the exception that proves this directory's pricing rule.**
+Prices must match the invoice; this model's invoice is flat-rate, so the metered
+cost map is what would lie. Explicit `0` is honoured (`is not None`, not
+truthiness). Consequence: `maxBudget` cannot constrain it, which is why
+[`app/virtualkeys/claude-code-subscription.yaml`](app/virtualkeys/claude-code-subscription.yaml)
+is the only key in that directory carrying **no** budget - `rpmLimit`/`tpmLimit`
+are its entire guardrail, and a budget there would read as protection that
+cannot trip.
 
 ## Pod security posture (known gap, accepted deliberately)
 

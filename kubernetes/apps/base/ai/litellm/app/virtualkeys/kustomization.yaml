@@ -12,7 +12,13 @@ kind: Kustomization
 # limits, add it here. Raising a budget: edit the number and commit - the
 # operator diffs the live key against the spec and PATCHes only what changed,
 # so the credential itself is preserved (same property the old script had).
+#
+# Every key here carries a `maxBudget` except `claude-code-subscription.yaml`,
+# whose single model is subscription-priced at an explicit $0 - a budget on it
+# could never trip, so rate limits are its entire guardrail. Read that file's
+# header before copying its shape.
 resources:
+  - ./claude-code-subscription.yaml
   - ./demo.yaml
   - ./ha-demo.yaml
   - ./router-demo.yaml
