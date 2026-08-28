@@ -62,7 +62,7 @@ so no DB write is involved at all.
 
 The list view deliberately does not carry the bodies (they are excluded from the
 list query "for performance",
-`proxy/spend_tracking/spend_management_endpoints.py:2790`). Opening a row calls
+`proxy/spend_tracking/spend_management_endpoints.py:2793`). Opening a row calls
 `GET /spend/logs/ui/{request_id}` (:2734), which is the endpoint that returns
 `messages`, `response` and `proxy_server_request`.
 
@@ -104,10 +104,17 @@ the list, `/spend/logs?request_id=` for one row.
 ## 4. Pull up one request - SQL
 
 Use this when you want to grep across many requests. Note on cost fields:
-`spend` and `metadata.cost_breakdown` are what LiteLLM charged the virtual key
-and are present on every row. Some providers additionally echo their own figure
-at `response.usage.cost` (OpenRouter does; Anthropic does not), and for local
-models the two deliberately differ - see section 6.
+
+- `spend` is the authoritative amount LiteLLM charged the virtual key. Always
+  present.
+- `metadata.cost_breakdown` is the input / output / cache-read / cache-creation
+  split, and is populated when **LiteLLM** computed the cost from its own price
+  map - every Anthropic row has it. It is `null` when the provider reported a
+  cost directly instead, which is what OpenRouter does (the probe row in
+  section 10 has `cost_breakdown: null` and its figure in
+  `response.usage.cost`).
+- For local models `spend` is a governance-accounting number, not dollars -
+  section 6.
 
 ```bash
 DBURL="$(kubectl -n ai get secret litellm-secret -o jsonpath='{.data.DATABASE_URL}' | base64 -d)"
@@ -208,7 +215,8 @@ different questions:
 | Spend per model / per consumer / per day, with cache and router savings | Admin UI **Usage**, i.e. `GET /user/daily/activity?start_date=..&end_date=..` | `LiteLLM_Daily*Spend` rollups |
 | Top models / keys, last 30 days | `GET /global/spend/models`, `/global/spend/keys`, `/global/spend/provider` | 30-day SQL **views over `LiteLLM_SpendLogs`** |
 
-`metadata.cost_breakdown` is already granular - a real row from this proxy:
+`metadata.cost_breakdown` is already granular where LiteLLM priced the call
+itself - a real Anthropic row from this proxy:
 
 ```json
 {"input_cost": 0.027669, "output_cost": 0.0, "cache_read_cost": 0.026509,
