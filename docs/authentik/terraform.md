@@ -1,6 +1,6 @@
 # Authentik configuration as code (OpenTofu)
 
-Status as of 2026-08-28: **both applies have landed and a fresh `tofu plan` is
+Status as of 2026-08-28: **three applies have landed and a fresh `tofu plan` is
 empty.** The stack owns the adopted objects plus the LiteLLM SSO provider,
 application, `litellm_role` scope mapping and LiteLLM-only invalidation flow.
 
@@ -19,6 +19,20 @@ Second apply, verified live:
 That "no other flow touched" check matters because the write credential now holds
 `change_flow`, which is model-level and therefore reaches every flow. The proof is
 a before/after diff of the live database, not terraform's own account of itself.
+
+Third apply (same day, captain-approved), verified live: provider 70 had shipped
+with `grant_types = {}` because the create path omitted an optional+computed
+attribute the import path can safely leave unset (section 7b). Plan was
+`0 to add, 1 to change, 0 to destroy` touching only `grant_types`. After apply:
+
+| Check | Result |
+| ----- | ------ |
+| Provider 70 `grant_types` | `{authorization_code}` |
+| LiteLLM SSO handshake | `/sso/key/generate` 303s to Authentik; authorize returns 302 to `/if/flow/default-authentication-flow` (no `invalid_request`) |
+| Probe traps | LiteLLM v1.98.0 has no `/sso/login` (start path is `/sso/key/generate`); `/ui/` is a client-side SPA, so bare HTTP probes of those two paths read 404/200 even when SSO works |
+| Regressions | `echo.sklab.dev` ExtAuth still 302s; coder OIDC authorize still 302s |
+| Flows | still 15; all 14 pre-existing flows byte-identical to the pre-first-apply snapshot |
+| Fresh plan | `No changes` (`-detailed-exitcode` = 0), READ-ONLY token |
 
 **open-webui is no longer managed here.** The captain deleted its application and
 provider from Authentik on 2026-08-27 (confirmed in `authentik_events_event`:
@@ -155,8 +169,10 @@ Three properties make the adoption non-destructive, and all three are load-beari
   the secret and breaks every login for that app with no error at plan time.
 - **`property_mappings` is declared on every provider.** It is a plain optional
   list, so omitting it would plan the *removal* of the scopes each provider has.
-- **`grant_types` is not declared.** It is optional+computed and the live values
-  are Authentik's stock set.
+- **`grant_types` is not declared on imported providers.** It is
+  optional+computed and the live values are Authentik's stock set. **Created
+  providers are the opposite** - omit it and Authentik stores `{}` and rejects
+  every authorize (section 7b; `litellm.tofu` declares it).
 
 The import blocks are left in the tree permanently. OpenTofu ignores an import
 block whose target is already in state, and keeping them means the stack can be
@@ -592,14 +608,18 @@ application, scope mapping, and invalidation flow. It does not touch open-webui
 (already removed from the stack). There is no scenario where that is the right
 move on a live cluster.
 
-## 7b. Two traps this stack has already hit
+## 7b. Traps this stack has already hit
+
+None of these are visible to `tofu validate`. AGENTS.md summarises four; the
+fourth (`change_flow` is model-level) lives with the write credential in
+section 5.
 
 **`authentik_flow`'s terraform `id` is the SLUG, not the UUID.** A provider's
 `invalidation_flow` is validated as a UUID, so
 `authentik_flow.x.id` yields
 `400 Bad Request: "litellm-invalidation-flow" is not a valid UUID`. Use
 `authentik_flow.x.uuid`. `authentik_flow_stage_binding.target` needs the same.
-`tofu validate` cannot catch this; only a live apply does.
+Only a live apply surfaces this.
 
 **`grant_types` must be declared on CREATED providers, and only on those.** It is
 optional+computed, so an IMPORTED provider can omit it safely - the read adopts
@@ -609,7 +629,9 @@ writes `grant_types = {}` and Authentik then rejects every authorize with
 optional+computed shape as `client_secret` with the OPPOSITE correct answer, and
 it is invisible to every offline check: `tofu validate` passes, the plan is
 clean, and `-detailed-exitcode` returns 0 while the login cannot work. The only
-thing that catches it is driving the real handshake.
+thing that catches it is driving the real handshake (`/sso/key/generate` →
+Authentik authorize → login flow, not an HTTP probe of `/ui/` or the non-existent
+`/sso/login` on LiteLLM v1.98.0).
 
 **The S3 backend fails OPEN to real AWS.** `backend.tofu` deliberately omits an
 `endpoints` block so `AWS_ENDPOINT_URL_S3` can point at the port-forward. If that

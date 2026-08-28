@@ -390,35 +390,78 @@ def test_echo_extauth_scopes_intact() -> dict[str, Any]:
 
 
 def test_litellm_ui_sso_state() -> dict[str, Any]:
-    """Accept pre-merge (no SSO) and post-merge (Authentik hop) live UI states.
+    """Drive the real LiteLLM SSO start and prove Authentik accepts it.
 
-    This branch delivers AUTO_REDIRECT_UI_LOGIN_TO_SSO, so /ui/ may still serve
-    the SPA until Flux applies, or may already 302 to Authentik afterward.
+    LiteLLM v1.98.0 has no ``/sso/login`` route - the start path is
+    ``/sso/key/generate``. ``/ui/`` is a client-side SPA, so an HTTP probe of
+    those two paths alone can read 404/200 even when SSO is fully working.
+    The regression that this change fixed was Authentik rejecting authorize
+    with ``invalid_request`` / ``Invalid grant_type for provider`` because the
+    created provider had ``grant_types = {}``. Acceptance is therefore:
+
+      1. ``/sso/key/generate`` 303s to Authentik authorize with the right
+         response_type, redirect_uri, and scopes including ``litellm_role``.
+      2. Following that authorize URL (no cookies) returns 302 to
+         ``/if/flow/default-authentication-flow`` - Authentik accepted the
+         request - and never surfaces ``invalid_request``.
     """
     code, headers, _body = _http(f"{LITELLM_BASE}/ui/")
-    location = headers.get("location") or ""
-    ui_pre_merge = code == 200 and "auth." not in location
-    ui_post_merge = code in (301, 302, 303, 307, 308) and (
-        "auth." in location and "/application/o/authorize" in location
-    )
-    if not (ui_pre_merge or ui_post_merge):
+    # Documented: SPA is client-side; HTTP 200 here is expected even with SSO on.
+    if code not in (200, 301, 302, 303, 307, 308):
+        raise Failure(f"litellm /ui/ unexpected HTTP {code}")
+
+    # /sso/login does not exist on LiteLLM v1.98.0 - keep the probe so a future
+    # accidental reintroduction is visible, but never treat it as the SSO start.
+    legacy_code, _, _ = _http(f"{LITELLM_BASE}/sso/login")
+    if legacy_code not in (404, 405):
+        # Soft signal only in the report; the real start path is key/generate.
+        pass
+
+    scode, sheaders, sbody = _http(f"{LITELLM_BASE}/sso/key/generate")
+    sso_location = sheaders.get("location") or ""
+    if scode not in (302, 303, 307):
         raise Failure(
-            f"litellm /ui/ expected pre-merge 200 SPA or post-merge Authentik "
-            f"redirect, got HTTP {code} location={location!r}"
+            f"/sso/key/generate expected redirect to Authentik, got HTTP {scode}: "
+            f"{sbody[:200]!r}"
+        )
+    if "auth." not in sso_location or "/application/o/authorize" not in sso_location:
+        raise Failure(
+            f"/sso/key/generate redirect is not Authentik authorize: {sso_location!r}"
         )
 
-    # /sso/login is registered only when generic SSO env is configured.
-    scode, sheaders, sbody = _http(f"{LITELLM_BASE}/sso/login")
-    sso_location = sheaders.get("location") or ""
-    sso_pre_merge = scode == 404
-    sso_post_merge = scode in (302, 303, 307) and (
-        "auth." in sso_location and "/application/o/authorize" in sso_location
-    )
-    sso_auth_challenge = scode in (401, 403)
-    if not (sso_pre_merge or sso_post_merge or sso_auth_challenge):
+    qs = parse_qs(urlparse(sso_location).query)
+    if (qs.get("response_type") or [""])[0] != "code":
+        raise Failure(f"authorize response_type must be code, got {qs.get('response_type')!r}")
+    redirect_uri = (qs.get("redirect_uri") or [""])[0]
+    if redirect_uri != f"{LITELLM_BASE}/sso/callback":
+        raise Failure(f"authorize redirect_uri mismatch: {redirect_uri!r}")
+    scope_raw = (qs.get("scope") or [""])[0]
+    scopes = set(scope_raw.replace("+", " ").split())
+    missing = EXPECTED_OIDC_SCOPES - scopes
+    if missing:
         raise Failure(
-            f"unexpected /sso/login status {scode} location={sso_location!r}: "
-            f"{sbody[:200]!r}"
+            f"authorize scopes missing {sorted(missing)}; got {sorted(scopes)}"
+        )
+    if not (qs.get("client_id") or [""])[0]:
+        raise Failure("authorize missing client_id")
+
+    # The grant_types fix: Authentik must ACCEPT this authorize, not reject it.
+    acode, aheaders, abody = _http(sso_location)
+    aloc = aheaders.get("location") or ""
+    if b"invalid_request" in abody or b"Invalid grant_type" in abody:
+        raise Failure(
+            "Authentik still rejects authorize (invalid_request / Invalid "
+            f"grant_type); body={abody[:300]!r}"
+        )
+    if acode not in (301, 302, 303, 307, 308):
+        raise Failure(
+            f"Authentik authorize expected redirect to login flow, got HTTP {acode} "
+            f"location={aloc!r} body={abody[:200]!r}"
+        )
+    if "/if/flow/default-authentication-flow" not in aloc and "default-authentication-flow" not in aloc:
+        raise Failure(
+            "Authentik authorize must hand off to default-authentication-flow "
+            f"(grant_types accepted); got location={aloc!r}"
         )
 
     end_code, end_headers, _ = _http(f"{AUTH_BASE}/application/o/litellm/end-session/")
@@ -430,18 +473,21 @@ def test_litellm_ui_sso_state() -> dict[str, Any]:
 
     return {
         "ui_http": code,
-        "ui_location": location,
-        "ui_state": "post_merge_sso_redirect" if ui_post_merge else "pre_merge_spa",
-        "sso_login_http": scode,
-        "sso_login_location": sso_location,
-        "sso_login_means": (
-            "route_absent_pre_merge"
-            if sso_pre_merge
-            else ("sso_route_redirect" if sso_post_merge else "sso_route_present")
-        ),
+        "legacy_sso_login_http": legacy_code,
+        "sso_start_http": scode,
+        "sso_start_location": sso_location,
+        "authorize_query": {
+            "client_id": (qs.get("client_id") or [""])[0],
+            "redirect_uri": redirect_uri,
+            "scopes": sorted(scopes),
+            "response_type": (qs.get("response_type") or [""])[0],
+        },
+        "authentik_authorize_http": acode,
+        "authentik_authorize_location": aloc,
+        "grant_types_accepted": True,
         "end_session_http": end_code,
         "end_session_location": end_loc,
-        "flux_sso_env_live": not sso_pre_merge,
+        "flux_sso_env_live": True,
     }
 
 

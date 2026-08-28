@@ -14,8 +14,9 @@
 #   2. `client_id` is required by the schema, so it must be declared. It is fed
 #      from 1Password as the existing value, never generated. See variables.tofu.
 #
-# `grant_types` is likewise omitted: it is optional+computed and the live values
-# are Authentik's stock set.
+# `grant_types` is likewise omitted here (imported providers only): it is
+# optional+computed and the read adopts Authentik's stock set. Created providers
+# must declare it - see litellm.tofu and docs/authentik/terraform.md §7b.
 
 locals {
   oauth2_applications = {
