@@ -266,6 +266,8 @@ headline figure is accounting units, not dollars. Filter on
 
 ---
 
+<a id="retention"></a>
+
 ## 7. Retention: built-in pruner is ON at `30d`
 
 `general_settings.maximum_spend_logs_retention_period: "30d"` is set next to
@@ -343,8 +345,9 @@ Rows already written keep their content - retrieval decides per row, on actual
 row content rather than on the current config
 (`_resolve_request_response_payload`, `spend_management_endpoints.py:2683`).
 Verified: the probe request below still returned its full prompt through
-`/spend/logs/ui/{request_id}` after the flag was reverted. To actually erase
-history you must delete the rows (or set a retention period and wait).
+`/spend/logs/ui/{request_id}` after the flag was reverted. Content already on
+disk is erased by the shipped `30d` pruner (section 7), or sooner if you delete
+the rows by hand.
 
 ---
 
