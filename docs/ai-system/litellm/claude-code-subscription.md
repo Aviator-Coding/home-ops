@@ -172,9 +172,8 @@ A real client token overrides it (§2b), so it is never used in normal operation
 LiteLLM has **no** OAuth-aware or subscription-aware cost handling - nothing in
 `cost_calculator.py` or `spend_tracking/` distinguishes pass-through traffic. Left
 unpriced, it would be charged against the caller's D4 budget at
-`claude-sonnet-5`'s metered rate: dollars nobody is ever invoiced, exactly the
-"$239/30d phantom spend on a flat-rate plan" shape already noted in
-[`README.md`](README.md).
+`claude-sonnet-5`'s metered rate: dollars nobody is ever invoiced on a flat-rate
+subscription.
 
 The one real risk with `0` is a truthiness bug treating it as "unset". There
 isn't one: `use_custom_pricing_for_model` (`litellm_logging.py:4661`) tests

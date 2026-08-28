@@ -62,10 +62,8 @@ spec:
     # invoice is a person's FLAT-RATE subscription: no per-token line exists,
     # so the built-in map is what decouples spend from reality - it would price
     # subscription traffic at claude-sonnet-5's metered rate and inflate that
-    # consumer's D4 budget with dollars nobody is ever charged. (This repo has
-    # already been bitten by exactly that shape once; see the reference
-    # cluster's "$239/30d phantom spend on a flat-rate plan" note in
-    # docs/ai-system/litellm/README.md.)
+    # consumer's D4 budget with dollars nobody is ever charged. Full pricing
+    # rationale: docs/ai-system/litellm/claude-code-subscription.md §4.
     #
     # Zero is honoured, not mistaken for "unset": LiteLLM's
     # use_custom_pricing_for_model() tests `is not None`, not truthiness, so an

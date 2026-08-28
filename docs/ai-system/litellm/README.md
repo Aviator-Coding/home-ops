@@ -35,6 +35,12 @@ budgets.
 `chat-ha` / `ha-demo` entitlement split, alert expressions, the internal route
 decision, and the post-merge failover runbook. Do not restate those facts here.
 
+**Claude Code Max/Pro subscription pass-through** (captain request 2026-08-27)
+lives in [`claude-code-subscription.md`](claude-code-subscription.md): the one
+model the proxy holds no credential for, the deliberate non-use of
+`forward_client_headers_to_llm_api`, `$0` pricing / no-`maxBudget` key shape,
+and the client runbook. Do not restate those facts here.
+
 ## Scope (binding, from B4/D4)
 
 - **B4**: LiteLLM does **not** front the **public** listener - no
@@ -125,11 +131,13 @@ mechanisms in LiteLLM, and the operator handles them with two different CRDs:
 
 1. **`LiteLLMVirtualKey`** - one CR per consumer in
    `kubernetes/apps/base/ai/litellm/app/virtualkeys/`, carrying `models`
-   (allow-list), `maxBudget` (USD, typed as a decimal **string**),
+   (allow-list), optional `maxBudget` (USD, typed as a decimal **string**),
    `budgetDuration`, `rpmLimit`, `tpmLimit`, plus `keyAlias`, `secretName` and
    `secretKey`. This is the whole surface the retired `consumers.json` had, and
    more (`maxParallelRequests`, `duration`, `aliases`, `userID`/`teamID`,
-   `metadata`).
+   `metadata`). Every current key carries a `maxBudget` except
+   `claude-code-subscription` - its model is subscription-priced at `$0`, so a
+   budget could never trip; see [`claude-code-subscription.md`](claude-code-subscription.md).
 2. The operator's virtual-key controller reconciles each CR against the proxy's
    admin API, authenticating with the master key named by
    `LiteLLMProxy.spec.apiAccess.masterKeyRef`. Branching is by the operator's
