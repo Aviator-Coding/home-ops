@@ -120,9 +120,13 @@ spec:
     # ONLY cloud-entitled aliases appear here. This list is the cloud
     # entitlement boundary, because a config-declared fallback is NOT checked
     # against the calling key's allow-list (measured 2026-08-26; evidence in
-    # fallbacks.md#1). Adding `qwen3.6-35b-a3b` to this list would hand every
-    # local-only key - including `demo` - a paid Anthropic model the first time
-    # the B70 hiccupped. Do not.
+    # fallbacks.md#1). Neither terminal local alias - `qwen3.6-35b-a3b` nor
+    # `chat-local` - may appear here (or in context_window_fallbacks below):
+    # adding either would hand every local-only key a paid Anthropic model the
+    # first time the B70 hiccupped. `chat-local` is the one that matters in
+    # practice - it is what repo-wiki's unattended cron and auto's SIMPLE/MEDIUM
+    # tiers actually run on, so adding it would silently make them cloud
+    # spenders. Do not.
     #
     # Target is SONNET, not Opus. An availability fallback fires on
     # INFRASTRUCTURE failure, not on task difficulty: the traffic it catches is
