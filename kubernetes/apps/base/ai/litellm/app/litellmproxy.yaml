@@ -130,6 +130,18 @@ spec:
     # servicemonitor.yaml). That credential's blast radius therefore now
     # includes full prompt/response bodies, not just usage counters.
     #
+    # DOES NOT NEED `store_model_in_db`. The Admin UI's hint for this setting
+    # bundles the two; do not follow it - that would hand the UI authority over
+    # GitOps-declared models and keys, which `applyMode: file` and the line
+    # above exist to prevent. Tested with store_model_in_db false throughout:
+    # content was written, `GET /spend/logs/ui/{request_id}` read it back, and
+    # the UI's own log list endpoint returned rows. `grep -r store_model_in_db
+    # litellm/proxy/spend_tracking/` matches nothing. The UI bundles them only
+    # because ITS way of changing this writes general_settings to the DB, and
+    # that writer (`ProxyConfig.save_config`, proxy/proxy_server.py:4188)
+    # early-returns unless store_model_in_db is true; declaring it in
+    # config.yaml, as the operator does from this CR, needs no DB write.
+    #
     # RETENTION IS NOT SET, DELIBERATELY - see the `env` note above and
     # docs/ai-system/litellm/request-logs.md#retention. LiteLLM v1.98.0 does
     # have a built-in pruner, but turning it on deletes cost history, which is

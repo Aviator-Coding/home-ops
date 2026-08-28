@@ -27,6 +27,35 @@ feature.
 
 ---
 
+## 1b. `store_prompts_in_spend_logs` is sufficient ALONE - do not also set `store_model_in_db`
+
+The Admin UI's own hint for this setting bundles it with `store_model_in_db`.
+Do not follow that. This repo keeps `store_model_in_db: false` deliberately so
+the Admin UI can never override GitOps-declared models and keys
+(`app/litellmproxy.yaml`, and `applyMode: file` depends on the same decision).
+
+Tested, not assumed. With `store_model_in_db: false` throughout:
+
+- content was **written**: the probe row below stored a 4,683-char prompt and
+  its completion;
+- content was **read back**: `GET /spend/logs/ui/{request_id}` returned both;
+- the Logs **list** the UI page renders, `GET /spend/logs/ui`, returned rows
+  normally.
+
+And in source, `grep -r store_model_in_db litellm/proxy/spend_tracking/` matches
+**nothing** - spend logging never consults it in either direction.
+
+Why the UI bundles them anyway: the UI's Settings page changes
+`general_settings` by writing it to the database, and that write path,
+`ProxyConfig.save_config` (`proxy/proxy_server.py:4188`) and its
+`environment_variables` sibling (`:4235`), returns early unless
+`store_model_in_db` is true. So the UI needs it to **set** the flag from the UI.
+It is not needed to **honor** the flag or to **display** logs. We declare the
+flag in `config.yaml` (rendered by litellm-operator from the `LiteLLMProxy` CR),
+so no DB write is involved at all.
+
+---
+
 ## 2. Pull up one request - Admin UI
 
 `https://litellm.${SECRET_DOMAIN}/ui/` -> **Logs** -> click the row.
