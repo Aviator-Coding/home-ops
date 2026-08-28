@@ -601,6 +601,16 @@ move on a live cluster.
 `authentik_flow.x.uuid`. `authentik_flow_stage_binding.target` needs the same.
 `tofu validate` cannot catch this; only a live apply does.
 
+**`grant_types` must be declared on CREATED providers, and only on those.** It is
+optional+computed, so an IMPORTED provider can omit it safely - the read adopts
+the live stock set. A created provider has nothing to adopt, so omitting it
+writes `grant_types = {}` and Authentik then rejects every authorize with
+`invalid_request`, logging `Invalid grant_type for provider`. This is the same
+optional+computed shape as `client_secret` with the OPPOSITE correct answer, and
+it is invisible to every offline check: `tofu validate` passes, the plan is
+clean, and `-detailed-exitcode` returns 0 while the login cannot work. The only
+thing that catches it is driving the real handshake.
+
 **The S3 backend fails OPEN to real AWS.** `backend.tofu` deliberately omits an
 `endpoints` block so `AWS_ENDPOINT_URL_S3` can point at the port-forward. If that
 variable is unset, the AWS SDK does not error - it talks to **real AWS S3** and
