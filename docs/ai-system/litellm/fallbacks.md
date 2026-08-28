@@ -534,14 +534,14 @@ create a second, competing HTTPRoute for the same Service.
 
 ### Access gating
 
-None added, deliberately, per "do not invent a new auth surface". 49 of the 52
-internal HTTPRoutes in this cluster carry no `SecurityPolicy`; the internal
-gateway is itself the boundary (private VLAN + split DNS, never
-internet-reachable), and LiteLLM's own master-key/DB login still guards the
-admin UI and API. Verified through the gateway: `/v1/models` with a virtual key
-returns only that key's allow-listed models, and **without** a key returns
-`401`. If SSO in front of the UI is wanted later, `monitoring/kromgo-auth` is
-the Authentik ExtAuth pattern to copy.
+No gateway-level ExtAuth/`SecurityPolicy` was added, deliberately, per "do not
+invent a new auth surface". 49 of the 52 internal HTTPRoutes in this cluster
+carry none; the internal gateway is itself the boundary (private VLAN + split
+DNS, never internet-reachable). Verified through the gateway: `/v1/models` with
+a virtual key returns only that key's allow-listed models, and **without** a key
+returns `401`. UI browser login is LiteLLM's built-in generic OIDC SSO against
+Authentik (not ExtAuth) - owned by `kubernetes/apps/base/ai/litellm/README.md`
+and `docs/authentik/terraform.md`, not by this fallbacks page.
 
 ---
 

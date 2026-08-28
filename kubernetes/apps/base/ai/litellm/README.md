@@ -17,12 +17,13 @@ from the CRs here.
 
 | File | What it declares |
 | --- | --- |
-| [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
+| [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, non-secret SSO `env`, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
 | [`app/models/`](app/models/) | 34 `LiteLLMModel` CRs, one per model. Four of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series). Plus `auto` (the D3 router), `claude-opus-5`, `claude-sonnet-5`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - and `claude-code-subscription`, the odd one out: the proxy holds **no credential** for it - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
-| [`app/externalsecret.yaml`](app/externalsecret.yaml) | `litellm-secret` (master/salt key, `DATABASE_URL`, `INIT_POSTGRES_*`, and the four provider keys `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`, `OPENROUTER_API_KEY`). |
+| [`app/externalsecret.yaml`](app/externalsecret.yaml) | `litellm-secret` (master/salt key, `DATABASE_URL`, `INIT_POSTGRES_*`, the four provider keys `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`, `OPENROUTER_API_KEY`, plus `GENERIC_CLIENT_ID`/`GENERIC_CLIENT_SECRET` from `litellm-sso`). |
+| [`app/pushsecret-sso.yaml`](app/pushsecret-sso.yaml) | Pushes OpenTofu-generated OAuth2 credentials into 1Password `Automation/litellm-sso` via the `onepassword-automation` ClusterSecretStore. |
 | `app/servicemonitor.yaml`, `app/prometheusrule.yaml` | Scrape + alerts against the operator-rendered Service. |
 
 **Request logging.** `generalSettings.store_prompts_in_spend_logs: true`
@@ -47,12 +48,17 @@ backup window. Mechanism, citations, retrieval runbook and retention:
   annotations field, and this repo's Gatus/Homepage/external-dns conventions
   are all annotation-driven - rationale and the live DNS evidence are in that
   file's header and in `docs/ai-system/litellm/fallbacks.md`.
-- No extra auth surface was invented for it: 49 of the 52 internal HTTPRoutes
-  in this cluster carry no `SecurityPolicy`, the internal gateway is itself the
-  boundary (private VLAN + split DNS, never internet-reachable), and LiteLLM's
-  own master-key/DB login still guards its admin UI and API. Authentik ExtAuth
-  is available (`monitoring/kromgo-auth` is the pattern) if SSO in front of the
-  UI is wanted later.
+- No gateway-level ExtAuth/`SecurityPolicy` was added: 49 of the 52 internal
+  HTTPRoutes in this cluster carry none, and the internal gateway is itself the
+  boundary (private VLAN + split DNS, never internet-reachable). UI login is
+  LiteLLM's built-in generic OIDC SSO against Authentik (non-secret endpoints /
+  `PROXY_BASE_URL` / auto-redirect on `app/litellmproxy.yaml`; credentials via
+  `externalsecret.yaml` + `pushsecret-sso.yaml`). Authentik side and the
+  credential hop: `terraform/authentik/litellm.tofu` and
+  `docs/authentik/terraform.md` §8. Master-key browser login remains at
+  `/fallback/login`; API callers using the master key are unaffected. First SSO
+  login stays view-only until the pending `litellm_role` apply lands - see that
+  runbook's status section.
 - Zero changes to `agentgateway/` (the existing envoy AI gateway) or to
   `vllm/` (`vllm-app.ai.svc.cluster.local:8000`, which this app points at as
   a backend and never modifies).
@@ -242,9 +248,11 @@ exists - every `postgres-17` client app reads it the same way (see
 `ai-keys` item, which this app's `ExternalSecret` extracts the four provider
 keys from (`ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`,
 `OPENROUTER_API_KEY`) - the same item and field names every
-`agentgateway/app/backends/*.yaml` already reads. **No new 1Password item is
-needed for the router, the model catalog, or the operator**; `litellm` above
-remains the only one to create.
+`agentgateway/app/backends/*.yaml` already reads. **No new hand-typed 1Password
+item is needed for the router, the model catalog, the operator, or SSO**;
+`litellm` above remains the only one to create by hand. `Automation/litellm-sso`
+is written by `app/pushsecret-sso.yaml` from OpenTofu outputs (runbook
+`docs/authentik/terraform.md` §8), not typed in.
 
 > Until the `litellm` item exists, this app's `ExternalSecret` reports
 > `SecretSyncedError` / `key not found in 1Password Vaults: litellm`, the

@@ -275,11 +275,15 @@ reach it at all, so an item there could never be machine-maintained. Do not
 
 The item is kept current by a `PushSecret`
 (`kubernetes/apps/base/security/authentik/app/pushsecret.yaml`) reading the
-in-cluster Secret `authentik-terraform-credentials`. It pushes through a
-dedicated single-vault `SecretStore` (`secretstore-automation.yaml`) rather than
-the shared `onepassword` ClusterSecretStore, because that store lists three
-vaults with priorities and a write resolves through that ordering rather than to
-a vault you named - a push there could land in `Homelab`.
+in-cluster Secret `authentik-terraform-credentials`. It pushes through the
+dedicated single-vault `onepassword-automation` **ClusterSecretStore**
+(`kubernetes/apps/base/security/external-secrets/stores/onepassword/clustersecretstore-automation.yaml`)
+rather than the shared `onepassword` ClusterSecretStore, because that store lists
+three vaults with priorities and a write resolves through that ordering rather
+than to a vault you named - a push there could land in `Homelab`. It is
+cluster-scoped on purpose: a namespaced `SecretStore` may only reference a Secret
+in its own namespace, and the Connect token lives in `security`, so pushers
+outside `security` (notably `ai/litellm`) cannot use a namespaced store at all.
 
 This is deliberately **not** a self-healing reconciler like
 `monitoring/grafana-sa-provisioner`. That CronJob exists because Grafana runs on
@@ -610,12 +614,9 @@ Verify the round trip by comparing the client id in 1Password against the one on
 the Authentik provider; they must be byte-identical, or LiteLLM will present a
 client id Authentik does not recognise.
 
-The push goes through the `onepassword-automation` **ClusterSecretStore**, not
-the shared `onepassword` store, because that one resolves writes by vault
-priority rather than to a named vault. It is cluster-scoped rather than a
-namespaced SecretStore because a namespaced store may only reference a Secret in
-its own namespace, and the Connect token lives in `security` - ESO's admission
-webhook rejects the alternative outright.
+The push goes through the `onepassword-automation` ClusterSecretStore (why that
+store exists and why it is cluster-scoped: section 4 above), not the shared
+`onepassword` store.
 
 ## 9. CI: automatic read-only plans on every pull request
 

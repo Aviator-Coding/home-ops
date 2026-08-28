@@ -8,14 +8,17 @@ Exercises the same offline contract CI and operators rely on:
   2. The Validate workflow's terraform job is path-filtered, installs only
      opentofu, runs that script, and injects no secret env.
   3. The stack HCL (parsed via python-hcl2 into a typed model) pairs every
-     managed resource with an import, never declares client_secret, keeps
-     client_id non-sensitive, forces certificate PEMs out of state, declares
+     *adopted* managed resource with an import, leaves the create-only LiteLLM
+     resources without import blocks, never declares ``client_secret`` on
+     adopted providers (but does generate one for LiteLLM), keeps client_id
+     non-sensitive, forces certificate PEMs out of state, declares
      property_mappings + redirect_uri_type, and scopes secrets to Automation
      vault ``ref+op://`` refs only.
-  4. The PushSecret targets a single-vault Automation SecretStore (not the
-     shared multi-vault ClusterSecretStore).
-  5. The runbook documents inventory, import strategy, and non-destructive
-     plan evidence required for PR acceptance.
+  4. The Automation push path is a single-vault *Cluster*SecretStore (not the
+     shared multi-vault ``onepassword`` store, and not a namespaced SecretStore
+     that cannot leave ``security``).
+  5. The runbook documents inventory, import strategy, first-apply evidence,
+     and the blocked second-apply gate for ``litellm_role`` / logout flow.
 
 Live ``tofu plan`` against Authentik is operator-only (needs the read-only
 token + RGW keys) and is deliberately not attempted here. Plan shape is
@@ -50,17 +53,32 @@ PUSHSECRET = (
     / "app"
     / "pushsecret.yaml"
 )
-SECRETSTORE = (
+# Cluster-scoped on purpose: a namespaced SecretStore can only reference a
+# Secret in its own namespace, and the Connect token lives in `security`, so
+# pushers outside security (ai/litellm) cannot use a namespaced store at all.
+CLUSTER_SECRETSTORE = (
     ROOT
     / "kubernetes"
     / "apps"
     / "base"
     / "security"
-    / "authentik"
-    / "app"
-    / "secretstore-automation.yaml"
+    / "external-secrets"
+    / "stores"
+    / "onepassword"
+    / "clustersecretstore-automation.yaml"
 )
-KUSTOMIZATION = (
+STORE_KUSTOMIZATION = (
+    ROOT
+    / "kubernetes"
+    / "apps"
+    / "base"
+    / "security"
+    / "external-secrets"
+    / "stores"
+    / "onepassword"
+    / "kustomization.yaml"
+)
+AUTHENTIK_KUSTOMIZATION = (
     ROOT
     / "kubernetes"
     / "apps"
@@ -70,8 +88,20 @@ KUSTOMIZATION = (
     / "app"
     / "kustomization.yaml"
 )
+# Tombstone path from #1458 - must stay gone so agents do not reintroduce it.
+LEGACY_NAMESPACED_STORE = (
+    ROOT
+    / "kubernetes"
+    / "apps"
+    / "base"
+    / "security"
+    / "authentik"
+    / "app"
+    / "secretstore-automation.yaml"
+)
 
-# Expected live adoption surface (from the CNPG inventory).
+# Expected live adoption surface (from the CNPG inventory). Create-only
+# LiteLLM resources are deliberately NOT here - they have no import blocks.
 EXPECTED_IMPORTS: dict[str, str] = {
     'authentik_provider_oauth2.oauth2["coder"]': "4",
     'authentik_provider_oauth2.oauth2["open-webui"]': "36",
@@ -86,7 +116,22 @@ EXPECTED_IMPORTS: dict[str, str] = {
     ),
 }
 
-MANAGED_RESOURCE_TYPES = frozenset(
+# First create-only surface (no import). Pending second-apply pieces
+# (litellm_role mapping, invalidation flow/stage/binding) live here too.
+CREATED_RESOURCE_ADDRS = frozenset(
+    {
+        "authentik_provider_oauth2.litellm",
+        "authentik_application.litellm",
+        "authentik_property_mapping_provider_scope.litellm_role",
+        "authentik_flow.litellm_invalidation",
+        "authentik_stage_user_logout.litellm_logout",
+        "authentik_flow_stage_binding.litellm_logout",
+        "random_string.litellm_client_id",
+        "random_password.litellm_client_secret",
+    }
+)
+
+ADOPTED_RESOURCE_TYPES = frozenset(
     {
         "authentik_application",
         "authentik_provider_oauth2",
@@ -160,10 +205,13 @@ def _iter_typed_blocks(
     return found
 
 
-def _resource_addrs(merged: dict[str, Any]) -> set[str]:
+def _resource_addrs(
+    merged: dict[str, Any], types: frozenset[str] | None = None
+) -> set[str]:
     """Return addrs like authentik_provider_oauth2.oauth2[\"coder\"]."""
+    types = types if types is not None else ADOPTED_RESOURCE_TYPES
     addrs: set[str] = set()
-    for rtype in MANAGED_RESOURCE_TYPES:
+    for rtype in types:
         for name, body in _iter_typed_blocks(merged, "resource", rtype):
             if (
                 rtype
@@ -178,6 +226,38 @@ def _resource_addrs(merged: dict[str, Any]) -> set[str]:
                     addrs.add(f'{rtype}.{name}["{key}"]')
                 continue
             addrs.add(f"{rtype}.{name}")
+    return addrs
+
+
+def _all_resource_addrs(merged: dict[str, Any]) -> set[str]:
+    """Every resource addr in the stack, including create-only LiteLLM ones."""
+    addrs: set[str] = set()
+    for entry in merged.get("resource", []):
+        if not isinstance(entry, dict):
+            continue
+        for raw_type, bodies in entry.items():
+            rtype = _norm_key(raw_type)
+            if not isinstance(bodies, dict):
+                continue
+            for raw_name, block in bodies.items():
+                name = _norm_key(raw_name)
+                items = block if isinstance(block, list) else [block]
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    if (
+                        rtype
+                        in {
+                            "authentik_application",
+                            "authentik_provider_oauth2",
+                        }
+                        and name == "oauth2"
+                        and "for_each" in item
+                    ):
+                        for key in ("coder", "open-webui", "pg-admin"):
+                            addrs.add(f'{rtype}.{name}["{key}"]')
+                    else:
+                        addrs.add(f"{rtype}.{name}")
     return addrs
 
 
@@ -340,14 +420,17 @@ def test_workflow_terraform_job() -> dict[str, Any]:
 
 def test_stack_hcl_model() -> dict[str, Any]:
     merged = _merge_stack()
-    resources = _resource_addrs(merged)
+    # Same Authentik kinds are used for both adoption and create-only LiteLLM;
+    # subtract the create-only addrs so the import pairing stays adoption-only.
+    adopted = _resource_addrs(merged, ADOPTED_RESOURCE_TYPES) - CREATED_RESOURCE_ADDRS
     imports = _import_map(merged)
+    all_addrs = _all_resource_addrs(merged)
 
-    if resources != set(EXPECTED_IMPORTS):
+    if adopted != set(EXPECTED_IMPORTS):
         raise Failure(
-            "managed resource set mismatch:\n"
-            f"  only in hcl: {sorted(resources - set(EXPECTED_IMPORTS))}\n"
-            f"  only expected: {sorted(set(EXPECTED_IMPORTS) - resources)}"
+            "adopted resource set mismatch:\n"
+            f"  only in hcl: {sorted(adopted - set(EXPECTED_IMPORTS))}\n"
+            f"  only expected: {sorted(set(EXPECTED_IMPORTS) - adopted)}"
         )
     if imports != EXPECTED_IMPORTS:
         raise Failure(
@@ -355,24 +438,73 @@ def test_stack_hcl_model() -> dict[str, Any]:
             f"  got: {json.dumps(imports, indent=2, sort_keys=True)}\n"
             f"  expected: {json.dumps(EXPECTED_IMPORTS, indent=2, sort_keys=True)}"
         )
-    missing = resources - set(imports)
+    missing = adopted - set(imports)
     if missing:
-        raise Failure(f"resources without import blocks: {sorted(missing)}")
+        raise Failure(f"adopted resources without import blocks: {sorted(missing)}")
 
-    # client_secret must never appear on any provider resource body.
-    for block in _provider_oauth2_blocks(merged) + _proxy_blocks(merged):
+    # Create-only LiteLLM surface must exist and must NOT be imported.
+    missing_created = CREATED_RESOURCE_ADDRS - all_addrs
+    if missing_created:
+        raise Failure(
+            f"create-only LiteLLM resources missing from HCL: {sorted(missing_created)}"
+        )
+    imported_created = CREATED_RESOURCE_ADDRS & set(imports)
+    if imported_created:
+        raise Failure(
+            "create-only LiteLLM resources must not have import blocks: "
+            f"{sorted(imported_created)}"
+        )
+
+    # client_secret must never appear on ADOPTED providers (would rotate live
+    # secrets). The create-only LiteLLM provider is the deliberate inverse:
+    # both halves are generated and must be declared so LiteLLM can be told.
+    oauth2_named = list(
+        _iter_typed_blocks(merged, "resource", "authentik_provider_oauth2")
+    )
+    for name, block in oauth2_named:
+        if "property_mappings" not in block:
+            raise Failure(
+                f"property_mappings must be declared on provider {name!r}"
+            )
+        if name == "litellm":
+            if "client_secret" not in block:
+                raise Failure(
+                    "litellm provider must declare generated client_secret"
+                )
+            if "client_id" not in block:
+                raise Failure("litellm provider must declare generated client_id")
+            # Redirect URI must couple to PROXY_BASE_URL + /sso/callback.
+            uris = block.get("allowed_redirect_uris") or []
+            flat = json.dumps(uris)
+            if "/sso/callback" not in flat:
+                raise Failure("litellm redirect URI must end with /sso/callback")
+            if "litellm." not in flat and "litellm.${" not in flat:
+                # hcl2 may keep the interpolation as a string with var ref
+                if "var.cluster_domain" not in flat and "litellm" not in flat:
+                    raise Failure(
+                        f"litellm redirect URI must target litellm host: {uris!r}"
+                    )
+            continue
         if "client_secret" in block:
             raise Failure(
-                "client_secret must not be declared (optional+computed adopt path)"
+                f"adopted provider {name!r} must not declare client_secret"
+            )
+
+    for block in _proxy_blocks(merged):
+        if "client_secret" in block:
+            raise Failure(
+                "client_secret must not be declared on proxy provider"
             )
         if "property_mappings" not in block:
             raise Failure("property_mappings must be declared on every provider")
 
-    for block in _provider_oauth2_blocks(merged):
+    for name, block in oauth2_named:
         # Provider schema field is allowed_redirect_uris; may be a for-expression.
         uris = block.get("allowed_redirect_uris") or block.get("redirect_uris")
         if not uris:
-            raise Failure("oauth2 providers must declare allowed_redirect_uris")
+            raise Failure(
+                f"oauth2 provider {name!r} must declare allowed_redirect_uris"
+            )
         if isinstance(uris, list):
             for uri in uris:
                 if not isinstance(uri, dict) or "redirect_uri_type" not in uri:
@@ -383,6 +515,21 @@ def test_stack_hcl_model() -> dict[str, Any]:
             raise Failure(
                 "redirect_uri_type must be present in redirect_uris expression"
             )
+
+    # litellm_role scope mapping must emit exactly proxy_admin.
+    role_blocks = list(
+        _iter_typed_blocks(
+            merged, "resource", "authentik_property_mapping_provider_scope"
+        )
+    )
+    role = next((b for n, b in role_blocks if n == "litellm_role"), None)
+    if role is None:
+        raise Failure("missing authentik_property_mapping_provider_scope.litellm_role")
+    if _strip_quotes(str(role.get("scope_name", ""))) != "litellm_role":
+        raise Failure(f"litellm_role scope_name mismatch: {role.get('scope_name')!r}")
+    expr = str(role.get("expression", ""))
+    if "proxy_admin" not in expr:
+        raise Failure("litellm_role expression must emit proxy_admin")
 
     for block in _cert_data_blocks(merged):
         if block.get("fetch_certificate") is not False:
@@ -464,11 +611,28 @@ def test_stack_hcl_model() -> dict[str, Any]:
     if not pin or not str(pin).startswith("~>"):
         raise Failure(f"authentik provider must use ~> pin, got {pin!r}")
 
+    # Backend endpoint must be the operator port-forward, not Envoy s3.sklab.dev
+    # (SignatureDoesNotMatch through the gateway - measured 2026-08-27).
+    endpoints = s3_body.get("endpoints") or {}
+    if isinstance(endpoints, list):
+        endpoints = endpoints[0] if endpoints else {}
+    s3_endpoint = ""
+    if isinstance(endpoints, dict):
+        s3_endpoint = _strip_quotes(str(endpoints.get("s3", "")))
+    if "127.0.0.1:18081" not in s3_endpoint and "localhost:18081" not in s3_endpoint:
+        raise Failure(
+            f"backend s3 endpoint must be RGW port-forward, got {s3_endpoint!r}"
+        )
+    if "s3.sklab.dev" in s3_endpoint:
+        raise Failure("backend must not route state through Envoy s3.sklab.dev")
+
     return {
-        "resources": sorted(resources),
+        "adopted_resources": sorted(adopted),
+        "created_resources": sorted(CREATED_RESOURCE_ADDRS & all_addrs),
         "imports": imports,
         "provider_version": pin,
         "backend_bucket": bucket,
+        "backend_endpoint": s3_endpoint,
     }
 
 
@@ -505,12 +669,24 @@ def test_secrets_vals_automation_only() -> dict[str, Any]:
 
 
 def test_pushsecret_single_vault() -> dict[str, Any]:
-    store = yaml.safe_load(SECRETSTORE.read_text())
+    store = yaml.safe_load(CLUSTER_SECRETSTORE.read_text())
     push = yaml.safe_load(PUSHSECRET.read_text())
-    kust = yaml.safe_load(KUSTOMIZATION.read_text())
+    store_kust = yaml.safe_load(STORE_KUSTOMIZATION.read_text())
+    auth_kust = yaml.safe_load(AUTHENTIK_KUSTOMIZATION.read_text())
 
-    if store.get("kind") != "SecretStore":
-        raise Failure("secretstore-automation.yaml must be a SecretStore")
+    if LEGACY_NAMESPACED_STORE.exists():
+        raise Failure(
+            "namespaced secretstore-automation.yaml must stay deleted; "
+            "ai/litellm cannot reference a Secret in security from a "
+            "namespaced store"
+        )
+
+    if store.get("kind") != "ClusterSecretStore":
+        raise Failure(
+            "clustersecretstore-automation.yaml must be a ClusterSecretStore"
+        )
+    if (store.get("metadata") or {}).get("name") != "onepassword-automation":
+        raise Failure("ClusterSecretStore name must be onepassword-automation")
     vaults = (
         store.get("spec", {})
         .get("provider", {})
@@ -518,31 +694,76 @@ def test_pushsecret_single_vault() -> dict[str, Any]:
         .get("vaults", {})
     )
     if list(vaults.keys()) != ["Automation"]:
-        raise Failure(f"SecretStore must scope only Automation, got {vaults!r}")
+        raise Failure(
+            f"Automation store must scope only Automation, got {vaults!r}"
+        )
+    token_ref = (
+        store.get("spec", {})
+        .get("provider", {})
+        .get("onepassword", {})
+        .get("auth", {})
+        .get("secretRef", {})
+        .get("connectTokenSecretRef", {})
+    )
+    if token_ref.get("namespace") != "security":
+        raise Failure(
+            "ClusterSecretStore must pin Connect token namespace to security"
+        )
 
     if push.get("kind") != "PushSecret":
         raise Failure("pushsecret.yaml must be a PushSecret")
     refs = push.get("spec", {}).get("secretStoreRefs", [])
-    if not any(r.get("name") == "onepassword-automation" for r in refs):
-        raise Failure("PushSecret must reference onepassword-automation SecretStore")
+    if not any(
+        r.get("name") == "onepassword-automation"
+        and r.get("kind") == "ClusterSecretStore"
+        for r in refs
+    ):
+        raise Failure(
+            "PushSecret must reference onepassword-automation ClusterSecretStore"
+        )
     # Must not point at the shared multi-vault ClusterSecretStore.
     if any(r.get("name") == "onepassword" for r in refs):
         raise Failure(
             "PushSecret must not use shared onepassword ClusterSecretStore"
         )
 
-    resources = kust.get("resources", [])
-    for req in ("./secretstore-automation.yaml", "./pushsecret.yaml"):
-        if req not in resources:
-            raise Failure(f"kustomization missing {req}")
+    store_resources = store_kust.get("resources", [])
+    if "./clustersecretstore-automation.yaml" not in store_resources:
+        raise Failure(
+            "onepassword store kustomization missing "
+            "./clustersecretstore-automation.yaml"
+        )
+
+    auth_resources = auth_kust.get("resources", [])
+    if "./pushsecret.yaml" not in auth_resources:
+        raise Failure("authentik kustomization missing ./pushsecret.yaml")
+    if any("secretstore-automation" in str(r) for r in auth_resources):
+        raise Failure(
+            "authentik kustomization must not reintroduce namespaced store"
+        )
+
+    remote_keys = [
+        d.get("match", {}).get("remoteRef", {}).get("remoteKey")
+        for d in push.get("spec", {}).get("data", [])
+    ]
+    properties = [
+        d.get("match", {}).get("remoteRef", {}).get("property")
+        for d in push.get("spec", {}).get("data", [])
+    ]
+    for required in (
+        "AUTHENTIK_TOKEN",
+        "TF_STATE_ACCESS_KEY_ID",
+        "TF_STATE_SECRET_ACCESS_KEY",
+    ):
+        if required not in properties:
+            raise Failure(f"PushSecret missing property {required}")
 
     return {
         "vaults": vaults,
         "push_store": refs,
-        "remote_keys": [
-            d.get("match", {}).get("remoteRef", {}).get("remoteKey")
-            for d in push.get("spec", {}).get("data", [])
-        ],
+        "remote_keys": remote_keys,
+        "properties": properties,
+        "token_namespace": token_ref.get("namespace"),
     }
 
 
@@ -568,9 +789,22 @@ def test_runbook_acceptance_surface() -> dict[str, Any]:
         raise Failure("runbook must record 18 blueprint-managed stages")
 
     if "Plan: 9 to import, 0 to add, 4 to change, 0 to destroy." not in text:
-        raise Failure("runbook must record measured non-destructive plan evidence")
+        raise Failure("runbook must record measured first-plan evidence")
     if "0 to add and 0 to destroy is the number that matters" not in text:
-        raise Failure("runbook must call out zero creates/destroys")
+        raise Failure("runbook must call out zero creates/destroys for adoption")
+
+    # First apply landed; second apply for litellm_role/logout is gated.
+    if "9 imported, 4 added, 4 changed, 0 destroyed" not in text:
+        raise Failure("runbook must record the authorized first-apply result")
+    if "BLOCKED" not in text or "litellm_role" not in text:
+        raise Failure(
+            "runbook must document blocked second apply for litellm_role/logout"
+        )
+    if "INTERNAL_USER_VIEW_ONLY" not in text:
+        raise Failure(
+            "runbook must warn that first SSO login stays view-only until "
+            "litellm_role is applied"
+        )
 
     if "explicit go-ahead" not in text and "explicit captain" not in text.lower():
         raise Failure("runbook must keep the captain-approval apply gate")
@@ -582,9 +816,19 @@ def test_runbook_acceptance_surface() -> dict[str, Any]:
     if "403" not in text:
         raise Failure("runbook must record write-denied API checks")
 
+    # LiteLLM application + redirect coupling must be in the runbook inventory.
+    if "litellm.sklab.dev/sso/callback" not in text:
+        raise Failure("runbook must record the live LiteLLM redirect URI")
+    if "127.0.0.1:18081" not in text and "port-forward" not in text:
+        raise Failure("runbook must document RGW port-forward state backend")
+
     return {
-        "plan_evidence": "Plan: 9 to import, 0 to add, 4 to change, 0 to destroy.",
+        "first_plan_evidence": (
+            "Plan: 9 to import, 0 to add, 4 to change, 0 to destroy."
+        ),
+        "first_apply_evidence": "9 imported, 4 added, 4 changed, 0 destroyed",
         "sections_present": required_headings,
+        "second_apply_blocked": True,
     }
 
 

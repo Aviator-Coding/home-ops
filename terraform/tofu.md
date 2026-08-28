@@ -24,10 +24,12 @@ specific, known consequence.
    OAuth2 client secrets, in plaintext. It lives in a private bucket, never in
    Git, and `terraform/.gitignore` plus a guard in `scripts/ci/tofu-validate.sh`
    both enforce that.
-3. **Adopt, never recreate.** These stacks manage things that already exist and
-   are in use. Every resource is paired with an `import` block. A plan that
-   proposes to create or destroy an object that is already live is a bug in the
-   code, not a step in the process.
+3. **Adopt existing objects; create only what never lived on the instance.**
+   Adopted resources are paired with an `import` block. A plan that proposes to
+   create or destroy an object that is already live is a bug in the code, not a
+   step in the process. The Authentik stack's one deliberate create-path is
+   LiteLLM (`litellm.tofu`): no prior live object, no `import` block, credentials
+   generated in OpenTofu rather than adopted.
 4. **Secrets come from 1Password at invocation time.** Each stack ships a
    `secrets.vals.yaml` holding only `ref+op://` references, resolved by `vals`,
    the same mechanism `bootstrap/` and the `just talos` render path already use.
