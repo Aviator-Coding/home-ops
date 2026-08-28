@@ -52,14 +52,17 @@ from the CRs here.
   D3 adds the additive `auto` router alias (classifier + Anthropic tier
   backends) on top - see `docs/ai-system/litellm/auto-router.md`. Cloud tiers
   use LiteLLM's built-in cost map. Prometheus metrics callback is on.
-- **Only the demo/classifier aliases carry `model_info` prices.** They are a
-  test fixture, not a billing estimate: they exist so the `demo` key's `$0.05`
-  cap can be exhausted by one smoke test. Real traffic runs on the zero-priced
-  [`app/models/chat-local.yaml`](app/models/chat-local.yaml), because billing
-  free B70 compute at those rates made every spend dashboard report
+- **Only the demo alias (`qwen3.6-35b-a3b`) carries synthetic `model_info`
+  prices.** They are a test fixture, not a billing estimate: they exist so the
+  `demo` key's `$0.05` cap can be exhausted by one smoke test, and `demo` is
+  that alias's only consumer. `chat-local` and `qwen3.6-35b-a3b-classifier` are
+  zero-priced (no `info.extra`); `chat-ha` also carries no prices. Real traffic
+  runs on [`app/models/chat-local.yaml`](app/models/chat-local.yaml), because
+  billing free B70 compute at the demo rates made every spend dashboard report
   real-looking dollars (measured 2026-08-27: $0.04735 for one trivial routed
-  request, $7.82 accrued on `repo-wiki`). Never point a production consumer at
-  a priced local alias.
+  request while SIMPLE/MEDIUM/classifier still used the priced alias; $7.82
+  accrued on `repo-wiki`). Never point a production consumer at a priced local
+  alias.
 
 **Per-consumer governance (D4):** virtual keys with a model allow-list and a
 deliberately tiny spend/rate budget, one `LiteLLMVirtualKey` per consumer in

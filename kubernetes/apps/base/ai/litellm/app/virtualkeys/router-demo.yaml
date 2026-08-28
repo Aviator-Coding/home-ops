@@ -19,12 +19,14 @@ spec:
   secretKey: key
   models:
     - auto
-  # Deliberately small but larger than the `demo` cap, because a routed request
-  # costs a classifier call plus the completion. Measured 2026-08-26 on the lab
-  # rig: ~$0.0034 per classification in governance accounting (the ~850-token
-  # rubric prefix is prompt-cached by llama.cpp and cached tokens price at $0),
-  # plus the tier backend's own cost - real USD once a request lands on a cloud
-  # tier. Raise maxBudget here, not the tier prices, when this runs out.
+  # Deliberately small but larger than the `demo` cap. A purely local routed
+  # request (SIMPLE/MEDIUM + classifier) no longer moves spend at all -
+  # chat-local and qwen3.6-35b-a3b-classifier are zero-priced, so both spend
+  # rows stay 0.0 (measured 2026-08-27: a SIMPLE auto request went $0.04735
+  # before the split, $0.003 with tiers moved but classifier still priced, then
+  # $0.00000000 once the classifier was zeroed). This $0.50 cap therefore
+  # measures only cloud-tier spend on COMPLEX/REASONING. Raise maxBudget here
+  # when real Anthropic traffic runs it out; local volume is rpmLimit/tpmLimit.
   maxBudget: "0.5"
   budgetDuration: 30d
   rpmLimit: 6

@@ -130,8 +130,9 @@ Fires on connection errors, 5xx and other retryable provider failures - i.e.
 | `chat-ha` | `claude-sonnet-5` | The cloud-entitled view of the local B70 model. |
 | `auto` | `claude-sonnet-5` | Without it a B70 outage takes the routed alias down completely - see below. |
 
-`qwen3.6-35b-a3b` and `qwen3.6-35b-a3b-classifier` deliberately have **no**
-fallback and are terminal. Adding one to either would breach D4 (see §1).
+`qwen3.6-35b-a3b`, `chat-local`, and `qwen3.6-35b-a3b-classifier` deliberately
+have **no** fallback and are terminal. Adding one to any of them would breach
+D4 (see §1).
 
 ### Why Sonnet and not Opus
 
@@ -151,23 +152,26 @@ each other.
 ### Why `auto` needs its own entry
 
 The D3 router fails **open to local** by design: on classifier failure it routes
-to `complexity_router_default_model` (`qwen3.6-35b-a3b`) without scoring. That is
+to `complexity_router_default_model` (`chat-local`) without scoring. That is
 exactly right when the *classifier* is broken - but when the **B70 itself** is
 down, the classifier call fails *and* the fail-open target is the same dead
 backend, so the whole `auto` alias dies. The `auto -> claude-sonnet-5` entry is
 what turns that into a degraded-but-serving path. `auto` is cloud-entitled by
 construction (its COMPLEX and REASONING tiers are Anthropic models), so this
-breaches no entitlement.
+breaches no entitlement. (`chat-local` is the zero-priced production local
+alias; `qwen3.6-35b-a3b` remains the synthetically priced demo-only fixture.)
 
 **Verification status: PROVEN end-to-end (2026-08-27, post-merge).** This was
 shipped as reasoning-only and has since been measured, so the reasoning above is
 confirmed rather than assumed. Runbook step 3b was executed against the live
 proxy: an `auto-probe` clone of this alias, with all four tiers **and** the
 classifier pointed at a dead backend, returned `served by: qwen3.6-35b-a3b` -
-i.e. the auto-router's failure did propagate out of the `auto` model group and
-its fallback fired, exactly as the control-flow argument predicted. Auto-router
-failures are not swallowed internally, and the `auto:` entries in
-`routerSettings` are load-bearing rather than decorative.
+at the time that name *was* the fail-open target; today's pin is `chat-local`,
+same local B70 backend, same control-flow conclusion. The auto-router's failure
+did propagate out of the `auto` model group and its fallback fired, exactly as
+the control-flow argument predicted. Auto-router failures are not swallowed
+internally, and the `auto:` entries in `routerSettings` are load-bearing rather
+than decorative.
 
 ---
 
