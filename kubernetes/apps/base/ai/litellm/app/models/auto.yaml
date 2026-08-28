@@ -27,13 +27,20 @@ spec:
       # fails open to cloud spend: retargeting MEDIUM to a cloud model while
       # leaving only the inner default_model would silently burn cloud money on
       # every classifier failure.
-      complexity_router_default_model: qwen3.6-35b-a3b
+      #
+      # The local alias here is `chat-local`, NOT `qwen3.6-35b-a3b`. Same B70,
+      # same llama.cpp backend, and equally fallback-free - the difference is
+      # that `qwen3.6-35b-a3b` carries synthetic per-token prices so the `demo`
+      # key's $0.05 cap can be exhausted by a smoke test, and routing real
+      # traffic through it made every consumer's spend dashboard report
+      # play money for free compute. See models/chat-local.yaml.
+      complexity_router_default_model: chat-local
       complexity_router_config:
         # Local-first: the two cheap tiers never leave the cluster. Only work the
         # classifier judges genuinely hard reaches a paid API.
         tiers:
-          SIMPLE: qwen3.6-35b-a3b
-          MEDIUM: qwen3.6-35b-a3b
+          SIMPLE: chat-local
+          MEDIUM: chat-local
           COMPLEX: claude-sonnet-5
           REASONING: claude-opus-5
 
@@ -83,7 +90,7 @@ spec:
         # See PIN 1 above for why the sibling key, not this one, is what the
         # constructor actually reads.
         classifier_fallback: default_model
-        default_model: qwen3.6-35b-a3b
+        default_model: chat-local
 
         # Put the resolved backend in the response's `model` field, so a caller
         # (and the post-merge evidence) can see which tier actually served the

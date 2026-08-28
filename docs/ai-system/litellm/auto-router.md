@@ -34,7 +34,8 @@ Nothing is forced through the router. A consumer opts in by asking for `auto`.
 
 | Alias | What it does |
 |---|---|
-| `qwen3.6-35b-a3b` | Local llama.cpp chat model. Pre-D3 behaviour, byte-identical. |
+| `qwen3.6-35b-a3b` | Local llama.cpp chat model. Pre-D3 behaviour, byte-identical. **Synthetically priced** - see below. |
+| `chat-local` | Same backend, priced at zero. The tier target real traffic runs on. |
 | `qwen3.6-35b-a3b-classifier` | Same backend, thinking disabled. Used *by* the router. |
 | `claude-sonnet-5`, `claude-opus-5` | Anthropic, reachable directly too. |
 | `auto` | **The router.** Classify, then dispatch to one of the four tiers. |
@@ -43,30 +44,65 @@ Phase 5 also exposes the local backend as `chat-ha` (cloud-entitled fallback
 view). That alias is not part of the router and is owned by
 [`fallbacks.md`](fallbacks.md).
 
+### Why the local tiers point at `chat-local`, not `qwen3.6-35b-a3b`
+
+Four aliases now resolve to the same llama.cpp server on the same B70. They
+differ only in properties the others must not carry, and the one that matters
+here is **price**.
+
+`qwen3.6-35b-a3b` carries deliberately inflated `model_info` prices
+(`input_cost_per_token: 5e-05`, `output 1e-04`). They are not a billing
+estimate - nothing about local inference costs money - they exist so the `demo`
+virtual key's `$0.05` cap can be exhausted by a single smoke test, which is what
+makes the D4 budget path provable rather than theoretical. That test design is
+captain-approved and stays.
+
+Until 2026-08-27 the router's SIMPLE and MEDIUM tiers, its `default_model` and
+its fail-open pin all pointed at that same priced alias, so **real traffic paid
+play money**. Measured live on the day of the fix: one `say ok` request through
+`auto`, classified SIMPLE and served entirely by the local B70, recorded
+**$0.04735** of spend - 9.5% of `router-demo`'s whole $0.50 monthly budget - and
+the `repo-wiki` consumer had accrued **$7.82** of its $30 cap without spending a
+real cent. Every spend dashboard and every budget alert was reporting
+real-looking dollars for free compute.
+
+[`models/chat-local.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/chat-local.yaml)
+is the same backend with **no prices at all**, and it is what the local tiers
+target now. `qwen3.6-35b-a3b` is unchanged and its only remaining consumer is
+the `demo` budget test.
+
+`chat-local` is also **terminal**: it appears in neither `fallbacks` nor
+`context_window_fallbacks`, so it is structurally incapable of reaching a paid
+API, exactly like `qwen3.6-35b-a3b`. That is not a detail - a config-declared
+fallback bypasses the calling key's allow-list ([`fallbacks.md`](fallbacks.md#1)),
+so adding one here would silently make every local-only consumer a cloud
+spender. Consumers that *want* cloud failover hold `chat-ha` instead.
+
 ## Tiers
 
 Tier names and criteria are LiteLLM's built-in taxonomy; only the mapping is ours.
 
 | Tier | Upstream criteria (abridged) | Our backend | Where it runs |
 |---|---|---|---|
-| `SIMPLE` | greetings, chitchat, factual lookups with a short known answer | `qwen3.6-35b-a3b` | local B70 |
-| `MEDIUM` | everyday requests needing some explanation, light reasoning, minor code | `qwen3.6-35b-a3b` | local B70 |
+| `SIMPLE` | greetings, chitchat, factual lookups with a short known answer | `chat-local` | local B70, $0 |
+| `MEDIUM` | everyday requests needing some explanation, light reasoning, minor code | `chat-local` | local B70, $0 |
 | `COMPLEX` | non-trivial code, architecture, multi-step technical work, domain depth | `claude-sonnet-5` | Anthropic |
 | `REASONING` | open-ended analysis, proofs, hard problems, tradeoffs | `claude-opus-5` | Anthropic |
 
 The local/cloud boundary sits between `MEDIUM` and `COMPLEX`. That single line is
 the whole cost policy: move it by re-pointing a tier, not by editing the rubric.
 
-**To disable the cloud tier entirely**, point all four tiers at
-`qwen3.6-35b-a3b`. The router keeps working, `ANTHROPIC_API_KEY` simply goes
-unused, and no other file needs to change.
+**To disable the cloud tier entirely**, point all four tiers at `chat-local`.
+The router keeps working, `ANTHROPIC_API_KEY` simply goes unused, and no other
+file needs to change. Use `chat-local`, not `qwen3.6-35b-a3b`: the latter would
+work, but would start charging synthetic dollars to every consumer again.
 
 ## The classifier
 
 ```yaml
 litellm_params:
   model: auto_router/complexity_router
-  complexity_router_default_model: qwen3.6-35b-a3b  # fail-open pin LiteLLM reads
+  complexity_router_default_model: chat-local  # fail-open pin LiteLLM reads
   complexity_router_config:
     classifier_type: llm
     classifier_llm_config:
@@ -74,11 +110,13 @@ litellm_params:
       timeout_ms: 8000
       classification_rubric: agentic
     classifier_fallback: default_model
-    default_model: qwen3.6-35b-a3b        # keep aligned with the sibling above
+    default_model: chat-local             # keep aligned with the sibling above
 ```
 
-**Local, so classification is free.** Every routed request costs one extra
-completion against the B70 and zero cloud spend. Pointing
+**Local, so classification is free** - and since 2026-08-27 that is true in
+recorded spend too, not just in real dollars: the classifier alias carries no
+prices. Every routed request costs one extra completion against the B70 and
+zero cloud spend. Pointing
 `classifier_llm_config.model` at a cloud model would put a paid API call in
 front of every request including the ones that were going to stay local, which
 defeats the entire point.
@@ -124,10 +162,10 @@ upgrading never silently moves an existing router's bill.
 
 ```yaml
 litellm_params:
-  complexity_router_default_model: qwen3.6-35b-a3b
+  complexity_router_default_model: chat-local
   complexity_router_config:
     classifier_fallback: default_model
-    default_model: qwen3.6-35b-a3b
+    default_model: chat-local
 ```
 
 On a classifier timeout, provider error or unparseable reply, the request is
@@ -213,8 +251,9 @@ guard: on a genuinely low-traffic router, a classifier that fails every call is
 exactly what this alert should still catch.
 
 **Consequence for consumers**: `auto` is the wrong alias for latency-sensitive,
-obviously-simple traffic. Such a consumer should keep calling
-`qwen3.6-35b-a3b` directly - which is exactly why the router was built additive.
+obviously-simple traffic. Such a consumer should call `chat-local` directly -
+which is exactly why the router was built additive. (Call `chat-local`, not
+`qwen3.6-35b-a3b`: the latter is the synthetically-priced demo alias.)
 
 ### Measured accuracy
 
@@ -223,8 +262,8 @@ set and the reference repo's examples, 2026-08-26, live B70:
 
 | Expected tier | Routed to | Correct |
 |---|---|---|
-| SIMPLE x4 | local `qwen3.6-35b-a3b` | 4/4 |
-| MEDIUM x4 | local `qwen3.6-35b-a3b` | 4/4 |
+| SIMPLE x4 | local `chat-local` | 4/4 |
+| MEDIUM x4 | local `chat-local` | 4/4 |
 | COMPLEX x4 | `claude-sonnet-5` | 4/4 |
 | REASONING x4 | `claude-opus-5` | 4/4 |
 
@@ -241,14 +280,22 @@ calibration set the rubric was written against, so they flatter it.
 Routed calls bind to the same D4 per-consumer budgets as direct calls, and so do
 the classifier's own sub-calls. LiteLLM forwards the caller's identity metadata
 onto the classifier sub-call precisely so that spend "lands on the same
-key/team/org/user as the request that caused it".
+key/team/org/user as the request that caused it". **What that spend is worth
+depends on the tier:** since 2026-08-27 both local components (`chat-local` tier
+completions and the `qwen3.6-35b-a3b-classifier` sub-call) are priced at zero, so
+an `auto` key's `maxBudget` only moves on COMPLEX/REASONING cloud traffic. See
+[What a routed request actually costs](#what-a-routed-request-actually-costs).
 
-Verified end to end 2026-08-26 on the lab rig: a key with `max_budget: 0.01`
-calling only `auto` served four routed requests, accrued spend from both the
-classifier and the tier backend, and the fifth returned
+The binding itself was verified end to end 2026-08-26 on the lab rig (then still
+on the synthetically priced local alias): a key with `max_budget: 0.01` calling
+only `auto` served four routed requests, accrued spend from both the classifier
+and the tier backend, and the fifth returned
 **HTTP 429 `BudgetExceededError` - "Budget has been exceeded!"**. That
 rejection is also visible as
 `litellm_proxy_failed_requests_metric_total{requested_model="auto",exception_class="BudgetExceededError"}`.
+Today the same local-only path records `$0.00000000` and never trips a budget;
+prove the 429 path with a COMPLEX/REASONING request (verification step 8 below),
+or against the `demo` key on `qwen3.6-35b-a3b`.
 
 **The allow-list is checked against what the caller asked for, not what the
 router resolved to.** A key scoped to `models: ["auto"]` routes to every tier
@@ -258,11 +305,45 @@ it is why the `router-demo`
 [`LiteLLMVirtualKey`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/router-demo.yaml)
 lists only the alias.
 
-Cost note: llama.cpp reports prompt-cache hits, and LiteLLM prices cached input
-tokens at $0 because no `cache_read_input_token_cost` is set. The rubric prefix
-is therefore free after the first classification, which is why a classification
-costs ~$0.0034 in governance accounting rather than the ~$0.044 the raw
-850-token prefill would imply.
+### What a routed request actually costs
+
+**A routed request that stays local costs $0.** Both of its components are local
+inference on our own B70, and since 2026-08-27 both are priced at zero:
+
+| Component | Priced at |
+|---|---|
+| The tier completion (`SIMPLE`/`MEDIUM` -> `chat-local`) | **$0** |
+| The classifier sub-call (`qwen3.6-35b-a3b-classifier`) | **$0** |
+
+Zeroing the classifier was the less obvious half, and it mattered more than the
+tiers did. LiteLLM bills the classifier sub-call to the **calling** key - it
+forwards the caller's identity metadata precisely so spend lands on the key that
+caused it - so while that alias carried `qwen3.6-35b-a3b`'s synthetic prices it
+was the dominant term in an `auto` consumer's recorded spend. Measured
+2026-08-27: one `say ok` through `auto` recorded **$0.04735** on a cold prompt
+cache, of which the completion was only ~$0.0022; the classifier prefill was
+~95%. After the tiers moved to `chat-local` but before the classifier was
+zeroed, the same request still recorded **$0.003** - and *all* of it was
+classifier.
+
+(The size of that term depended entirely on llama.cpp's prompt cache: cached
+input tokens price at $0 because no `cache_read_input_token_cost` is set, so the
+~850-token rubric prefix was free once warm and a warm classification settled to
+~$0.0034. That is now moot, but it explains the spread in the old numbers.)
+
+**Consequence for budgets.** An `auto` key's `maxBudget` now measures exactly
+one thing: real USD spent on the COMPLEX/REASONING cloud tiers. A budget alert
+on `opencode` or `router-demo` therefore always means real money, never local
+volume - the same property the `chat-local`/`chat-ha` split gives direct
+consumers. The accepted tradeoff is that **`rpmLimit`/`tpmLimit` are the only
+volume bound left on a routed key**, since purely local traffic can no longer
+move a budget at all. Size those, not the budget, when bounding a local workload.
+
+Metrics are unaffected: the separate `requested_model="qwen3.6-35b-a3b-classifier"`
+series comes from the alias name, not from prices, so classifier latency,
+request counts and failure rates all still split out exactly as the dashboard
+queries below assume. Only `litellm_spend_metric_total` for that series is now
+0, which is the correct number for free local inference.
 
 ## Observability
 
@@ -351,7 +432,7 @@ kubectl -n ai rollout status deploy/litellm --timeout=5m
 
 # 2. The router alias and its backends are registered.
 kubectl -n ai logs deploy/litellm | grep -A6 "Proxy initialized with Config"
-#    expect: qwen3.6-35b-a3b, qwen3.6-35b-a3b-classifier,
+#    expect: chat-local, qwen3.6-35b-a3b, qwen3.6-35b-a3b-classifier,
 #            claude-sonnet-5, claude-opus-5, auto
 #    This list prints at the DEFAULT log level and is the reliable check.
 #    `grep "ComplexityRouter initialized"` (which prints the four tier -> backend
@@ -375,7 +456,7 @@ curl -sS -D /tmp/simple.h -X POST localhost:4000/v1/chat/completions \
        "messages":[{"role":"user","content":"what is the capital of France?"}]}' \
   | jq -r .model
 grep -i 'x-litellm-model-id\|x-litellm-response-cost' /tmp/simple.h
-#    expect `model` = qwen3.6-35b-a3b (return_raw_model_name: true), and the
+#    expect `model` = chat-local (return_raw_model_name: true), and the
 #    model-id to match the local deployment in `curl localhost:4000/model/info`
 
 # 5. COMPLEX prompt -> must reach the CLOUD tier.
@@ -398,13 +479,16 @@ curl -sSL localhost:4000/metrics -H "Authorization: Bearer $LITELLM_MASTER_KEY" 
 #    expect one series per tier backend that served traffic, plus a separate
 #    requested_model="qwen3.6-35b-a3b-classifier" series for the classifier.
 
-# 8. Budgets bind on the routed path. Repeat step 5 until the router-demo key's
-#    $0.50 is spent (or lower maxBudget in virtualkeys/router-demo.yaml first
-#    for a fast repro - it is a decimal STRING) - expect HTTP 429 "Budget has been exceeded!".
+# 8. Budgets bind on the routed path - only via CLOUD tiers. Repeat step 5
+#    (COMPLEX, not step 4/SIMPLE) until the router-demo key's $0.50 is spent
+#    (or lower maxBudget in virtualkeys/router-demo.yaml first for a fast
+#    repro - it is a decimal STRING) - expect HTTP 429 "Budget has been exceeded!".
+#    Step 4 alone will never move the budget: chat-local + classifier are $0.
 ```
 
 Step 5 spends real money at Anthropic list price. It is a handful of cents at
-`max_tokens: 32`, and the `router-demo` budget caps the blast radius.
+`max_tokens: 32`, and the `router-demo` budget caps the blast radius. Local-only
+routed traffic (step 4) cannot exhaust a budget anymore - that is intentional.
 
 ## Tuning
 
@@ -413,7 +497,7 @@ moves spend.
 
 | Symptom | Knob | Notes |
 |---|---|---|
-| Too much traffic reaching Anthropic | `tiers.COMPLEX: qwen3.6-35b-a3b` | Moves the local/cloud *routing* line up a tier. Blunt, immediate, free. Does **not** move fail-open: that stays on `complexity_router_default_model` (and the aligned in-config `default_model`). Never remove that sibling to "follow" a retargeted MEDIUM/SIMPLE — without it fail-open falls back to MEDIUM and can silently burn cloud spend. |
+| Too much traffic reaching Anthropic | `tiers.COMPLEX: chat-local` | Moves the local/cloud *routing* line up a tier. Blunt, immediate, free. Does **not** move fail-open: that stays on `complexity_router_default_model` (and the aligned in-config `default_model`). Never remove that sibling to "follow" a retargeted MEDIUM/SIMPLE — without it fail-open falls back to MEDIUM and can silently burn cloud spend. |
 | Ordinary engineering graded as REASONING | `classification_rubric` | Confirm it is `agentic`, not `legacy`. This is the single biggest lever on cost. |
 | Classifier timing out under load | `classifier_llm_config.timeout_ms` | Raise toward 12000. Every extra second is paid by every routed request when the backend is wedged. |
 | Classifier too slow even when healthy | `classifier_llm_config.system_prompt` | Replaces the rubric wholesale. Measured: prompt length barely affects latency here (prefix cache), so this rarely helps and it discards the calibration examples and the prompt-injection defense paragraph. Prefer routing latency-sensitive consumers around `auto` instead. |
