@@ -18,7 +18,7 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | 33 `LiteLLMModel` CRs, one per model. The original six are `auto`, `chat-ha`, `claude-opus-5`, `claude-sonnet-5`, `qwen3.6-35b-a3b`, `qwen3.6-35b-a3b-classifier`: `qwen3.6-35b-a3b` is terminal (no fallback) for local-only keys, `chat-ha` is the same backend carrying the cloud fallback for entitled keys, and the D3 auto-router lives in `auto.yaml`. 26 more are the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below. The 33rd, `claude-code-subscription`, is the odd one out: the proxy holds **no credential** for it - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
+| [`app/models/`](app/models/) | 34 `LiteLLMModel` CRs, one per model. Four of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series). Plus `auto` (the D3 router), `claude-opus-5`, `claude-sonnet-5`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - and `claude-code-subscription`, the odd one out: the proxy holds **no credential** for it - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
@@ -50,9 +50,16 @@ from the CRs here.
 - Direct local model is still the lab-proven six-line `qwen3.6-35b-a3b`
   entry, now [`app/models/qwen3.6-35b-a3b.yaml`](app/models/qwen3.6-35b-a3b.yaml).
   D3 adds the additive `auto` router alias (classifier + Anthropic tier
-  backends) on top - see `docs/ai-system/litellm/auto-router.md`. Local
-  entries keep `model_info` governance-accounting prices; cloud tiers use
-  LiteLLM's built-in cost map. Prometheus metrics callback is on.
+  backends) on top - see `docs/ai-system/litellm/auto-router.md`. Cloud tiers
+  use LiteLLM's built-in cost map. Prometheus metrics callback is on.
+- **Only the demo/classifier aliases carry `model_info` prices.** They are a
+  test fixture, not a billing estimate: they exist so the `demo` key's `$0.05`
+  cap can be exhausted by one smoke test. Real traffic runs on the zero-priced
+  [`app/models/chat-local.yaml`](app/models/chat-local.yaml), because billing
+  free B70 compute at those rates made every spend dashboard report
+  real-looking dollars (measured 2026-08-27: $0.04735 for one trivial routed
+  request, $7.82 accrued on `repo-wiki`). Never point a production consumer at
+  a priced local alias.
 
 **Per-consumer governance (D4):** virtual keys with a model allow-list and a
 deliberately tiny spend/rate budget, one `LiteLLMVirtualKey` per consumer in
@@ -255,9 +262,12 @@ so a Renovate image bump can delete-and-recreate an otherwise-immutable Job.
 `kubectl port-forward` + `curl` commands to call the `demo` consumer key
 against `vllm-app` through this proxy, and to confirm the allow-list and
 budget are actually enforced (a second model is rejected; a request past
-budget fails once spend is exhausted). Spend budgets require the non-zero
-`info.extra` per-token prices on the local model CRs - see
-`app/models/qwen3.6-35b-a3b.yaml`.
+budget fails once spend is exhausted). That budget proof requires the non-zero
+`info.extra` per-token prices on `app/models/qwen3.6-35b-a3b.yaml`, which is
+exactly why that alias keeps them and why `demo` is its only consumer. Every
+other local consumer uses `app/models/chat-local.yaml`, which has no prices, so
+its recorded spend stays $0 and a budget that ever trips there means real money
+was spent.
 
 The complexity-tier auto-router (`auto` alias) has its own design, tuning and
 verification notes in `docs/ai-system/litellm/auto-router.md`. Fallback chains

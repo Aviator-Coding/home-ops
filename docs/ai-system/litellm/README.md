@@ -69,7 +69,13 @@ of the lab result). D3's additive `auto` router, classifier deployment and
 cloud tier backends are four more CRs in `app/models/` and are owned by
 [`auto-router.md`](auto-router.md). Phase 5 adds a sixth CR, `chat-ha` (same
 local backend as `qwen3.6-35b-a3b`, cloud-entitled fallback view) - owned by
-[`fallbacks.md`](fallbacks.md).
+[`fallbacks.md`](fallbacks.md). A seventh, `chat-local` (2026-08-27), is the
+same local backend again with **no prices at all**; it exists because those
+`info.extra` prices are a *test fixture* for the `demo` budget, and billing real
+production traffic against them made free B70 compute show up as real-looking
+dollars on every spend dashboard. Real traffic runs on `chat-local`;
+`qwen3.6-35b-a3b` is now the demo test's alias alone. See
+[`auto-router.md`](auto-router.md#why-the-local-tiers-point-at-chat-local-not-qwen36-35b-a3b).
 Nobody could find that lab result committed anywhere in the repo before the
 B4/D4 redeploy (see the scout report referenced in D4's decision trail) -
 this doc is that write-up.
@@ -192,7 +198,7 @@ redesign" property D4 asked for.
 
 | Knob | Value | Why this number | Raise it |
 | --- | --- | --- | --- |
-| `models` | `["qwen3.6-35b-a3b"]` | The local chat backend. Since D3 the proxy also serves the `auto` router alias and its Anthropic tier backends, but `demo` is deliberately *not* given them - see the `router-demo` consumer and [`auto-router.md`](auto-router.md#budgets) for the routed-consumer shape. | Add a `LiteLLMModel` CR under `app/models/` first, then the model name to this consumer's `models`. |
+| `models` | `["qwen3.6-35b-a3b"]` | The local chat backend, in its **synthetically priced** view - and since 2026-08-27 `demo` is that alias's *only* consumer, which is the point: those prices exist so this key's `$0.05` cap can be exhausted by one smoke test, and no production traffic should accrue them. Real consumers use the zero-priced `chat-local` instead. Since D3 the proxy also serves the `auto` router alias and its Anthropic tier backends, but `demo` is deliberately *not* given them - see the `router-demo` consumer and [`auto-router.md`](auto-router.md#budgets) for the routed-consumer shape. | Add a `LiteLLMModel` CR under `app/models/` first, then the model name to this consumer's `models`. |
 | `maxBudget` | `0.05` (USD) | Small enough to exhaust in one manual smoke test, so the budget enforcement path (`429`) is trivially exercisable, not just theoretical. Spend is computed from the per-token prices on the model CR (`info.extra.input_cost_per_token` / `output_cost_per_token`, which the operator renders into `model_info`) - those are governance-accounting prices, not cloud billing; without non-zero prices LiteLLM records $0 spend and `max_budget` never trips. | Edit `maxBudget` on `app/virtualkeys/demo.yaml` - remembering it is a decimal STRING (and the model CR prices if the burn rate should change too). |
 | `budgetDuration` | `30d` | Spend resets monthly rather than being a one-time lifetime cap that permanently bricks the key. | Any LiteLLM duration string (`7d`, `1mo`, ...). |
 | `rpmLimit` | `2` | Deliberately below any real interactive workload - proves the limiter fires without needing sustained load. | Raise once a real consumer is wired up. |
