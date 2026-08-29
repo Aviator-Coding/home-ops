@@ -46,7 +46,7 @@ Gatus is an app under `kubernetes/apps/base/monitoring/gatus`, not a component. 
 
 - **YAML schemas**: Every manifest starts with `# yaml-language-server: $schema=...` comment
 - **Kustomization anchors**: `name: &app myapp`, `namespace: &namespace myns` - referenced via `*app`, `*namespace` on overlay `kubernetes/apps/main/<ns>/<app>.yaml`
-- **Schema URL**: Use `kubernetes-schemas.pages.dev` - never `crd.movishell.pl` or `fluxcd-community`
+- **Schema URL**: Prefer `kubernetes-schemas.pages.dev` - never `crd.movishell.pl` or `fluxcd-community`. When that host does not serve the kind as JSON, use the existing fallback `k8s-schemas.home-operations.com` (do not invent a third host or point at a URL that 404s).
 - **Naming**: All lowercase, kebab-case dirs/files. `helmrelease.yaml`, `kustomization.yaml`, overlay `<app>.yaml`, `externalsecret.yaml`
 - **Commit format**: `type(scope): description` - types: feat, fix, chore, ci, docs, refactor, test. Authoritative rules: `.commitlintrc.yaml` (commit-msg hook in `.pre-commit-config.yaml`)
 - **Commit scopes**: container, helm, github-action, mise, talos, flux, deps, github-release, or app/namespace names
