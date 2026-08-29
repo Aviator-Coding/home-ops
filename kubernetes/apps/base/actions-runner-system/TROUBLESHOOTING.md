@@ -549,16 +549,21 @@ The home-ops scale set's runner container has no Docker daemon: no
 `ai-k8s-sandbox`, which has a `docker:29-dind` sidecar). `docker buildx
 version` works because it's just the CLI plugin binary reporting its version -
 it does not need a daemon connection. Confirmed live (2026-08-21, PR #1361):
-migrating `flux-local.yaml`'s `test`/`diff` jobs (`uses: docker://...`
-container actions), `image-pull.yaml`'s `extract` job (`docker run ...`),
-and `renovate.yaml` (the `renovatebot/github-action` always shells out to
-`docker run ghcr.io/renovatebot/renovate`, with no non-Docker execution mode)
-to this runner failed every job with `failed to connect to the docker API at
-unix:///var/run/docker.sock: ... no such file or directory`. Those jobs, and
-`build-talosctl-busybox.yaml` (a real `docker buildx build --push`), stay on
-`ubuntu-latest` until a Docker daemon is actually provisioned for this scale
-set (a DinD sidecar like `ai-k8s-sandbox`'s, or a privileged/rootful Docker
-setup) - a separate infra decision, not a `runs-on:` line change.
+migrating jobs that needed a Docker daemon to this runner failed with
+`failed to connect to the docker API at unix:///var/run/docker.sock: ... no
+such file or directory`.
+
+As of the 2026-08-29 flate migration, the former `flux-local.yaml` `test`/`diff`
+jobs and `image-pull.yaml` `extract` job no longer need Docker: they run on this
+ARC runner via flate (a static Go binary installed by a composite action). The
+jobs that still genuinely need a Docker daemon stay on `ubuntu-latest` until one
+is provisioned for this scale set (a DinD sidecar like `ai-k8s-sandbox`'s, or a
+privileged/rootful Docker setup) - a separate infra decision, not a `runs-on:`
+line change:
+
+- `renovate.yaml` (`renovatebot/github-action` always shells out to
+  `docker run ghcr.io/renovatebot/renovate`, with no non-Docker execution mode)
+- `build-talosctl-busybox.yaml` (a real `docker buildx build --push`)
 
 ## Related Documentation
 

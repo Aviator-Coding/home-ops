@@ -94,4 +94,4 @@ volsync state:
 
 [private]
 render-local-ks ns ks:
-    flux-local build ks --namespace "{{ ns }}" --path "{{ source_directory() }}/clusters/main" "{{ ks }}"
+    flate build ks "{{ ks }}" --namespace "{{ ns }}" --path "{{ source_directory() }}/clusters/main"
