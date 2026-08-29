@@ -16,6 +16,15 @@ customization:
     - sysctl.kernel.kexec_load_disabled=1 # Meteor Lake CPU & Intel iGPU
     - nvme_core.default_ps_max_latency_us=0 # Disable NVMe APST deep sleep to prevent I/O stalls
     - pcie_aspm=off # Disable PCIe Active State Power Management to prevent link state transitions
+    # pcie_aspm=off above governs ASPM *link* power states only - it does not stop the kernel
+    # runtime-suspending an idle root PORT to D3hot, which is a different mechanism one layer up.
+    # That gap is why this failure survived it: on talos-3 the B70's OCuLink port (00:01.0) was
+    # runtime-suspended to D3hot 218 ms into boot while bus 01 was still empty, and the card only
+    # finished training afterwards. With SLTCAP HotPlugCapable=0 and SLTCTL=0x0000 nothing could
+    # ever rediscover it. pcie_port_pm=off sets pci_bridge_d3_disable, so pci_bridge_d3_possible()
+    # returns false for root ports and portdrv never calls pm_runtime_allow() on them.
+    # See docs/hardware-incidents.md [2026-08-24].
+    - pcie_port_pm=off # Keep PCIe root ports out of runtime D3hot so a late-training card is never orphaned
     - pci=realloc # Reallocate PCIe resource windows for the Arc B70 Pro OCuLink switch
     - pci=assign-busses # BIOS leaves the B70's e2ff switch at [bus 00-00] with no spare bus numbers behind 00:01.0; kernel must renumber all buses (NIC renames are safe: bonds select members via LinkAliasConfig)
     - xe.force_probe=a7a0 # Bind xe to the Raptor Lake i9-13900H iGPU (8086:a7a0), which xe skips by default
