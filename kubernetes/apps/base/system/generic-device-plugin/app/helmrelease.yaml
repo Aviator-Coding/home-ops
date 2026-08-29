@@ -29,7 +29,8 @@ spec:
             args:
               - --log-level=info
               # Pinned image defaults to squat.ai; force the documented domain
-              # so consumers requesting devic.es/b70 match allocatable capacity.
+              # so consumers requesting devic.es/b70 or devic.es/b70-vaapi match
+              # allocatable capacity.
               - --domain=devic.es
               - --config=/config/config.yaml
             resources:

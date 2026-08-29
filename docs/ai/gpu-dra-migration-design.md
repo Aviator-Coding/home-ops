@@ -78,7 +78,7 @@ renderD128
 | Pod | Namespace | Requests |
 |-----|-----------|----------|
 | `vllm` | `ai` | `devic.es/b70: 1` |
-| `tdarr-node` | `media` | `devic.es/b70: 1` |
+| `tdarr-node` | `media` | `devic.es/b70-vaapi: 1` (same physical B70; was `devic.es/b70` at evaluation, split 2026-08-29) |
 | `jellyfin` | `media` | `gpu.intel.com/xe: 1` |
 | `plex` | `media` | `gpu.intel.com/xe: 1` |
 | `playwright` | `selfhosted` | `gpu.intel.com/xe: 1` |
@@ -340,8 +340,10 @@ architectural change than the migration itself, for a worse result.
 ## 6. What holds in the meantime
 
 Nothing is left broken by stopping here. The current arrangement - `devic.es/b70` for
-discrete consumers, `gpu.intel.com/xe` for light QSV/browser work - is the design recorded
-in [`b70-second-card-decision.md`](b70-second-card-decision.md) and remains correct. Two
+Level Zero discrete consumers, `devic.es/b70-vaapi` for VA-API (`tdarr-node`),
+`gpu.intel.com/xe` for light QSV/browser work - is the design recorded
+in [`b70-second-card-decision.md`](b70-second-card-decision.md) (plus the 2026-08-29
+VA-API split in [`../ai-gpu-changelog.md`](../ai-gpu-changelog.md)) and remains correct. Two
 things stay on the books, unaffected by this stop:
 
 - The `allowIDs: "0xa7a0"` follow-up on the Intel GPU plugin, to drop the B70 from the `xe`

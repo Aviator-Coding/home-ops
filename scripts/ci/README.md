@@ -26,6 +26,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
 | `schematic-pcie-port-pm-test.py` | Arc B70 `pcie_port_pm=off` schematic kernel-arg contract |
 | `igpu-xe-allowids-test.py` | scoping `gpu.intel.com/xe` to the iGPU |
+| `b70-vaapi-tdarr-test.py` | B70 VA-API restore: `b70-vaapi` native mounts, hashed plugin config rollout, tdarr-node resource/CPU fallback, libdrm DEVNAME reopen trap |
 | `litellm-auto-router-test.py` | D3 complexity-tier auto-router config |
 | `litellm-claude-code-subscription-test.py` | Claude Code Max/Pro subscription pass-through |
 | `litellm-fallback-chain-test.py` | Phase 5 LiteLLM availability/context fallback chains |

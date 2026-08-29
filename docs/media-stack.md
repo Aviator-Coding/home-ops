@@ -375,7 +375,7 @@ Expect 1 `tdarr-*` server pod + 1 `tdarr-tdarr-node-*` worker on talos-3. The Td
 ### Monitoring GPU usage
 
 ```sh
-kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0")"'
+kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0") b70-vaapi=\(.status.allocatable."devic.es/b70-vaapi" // "0")"'
 ```
 
 `devic.es/b70` and `devic.es/b70-vaapi` are `99` only on talos-3. Both are the
