@@ -31,4 +31,4 @@ spec:
   # Large image pull (intel/llm-scaler-omni, multi-GB) + GPU schedule on first
   # boot; must exceed the HelmRelease timeout (20m).
   timeout: 30m
-  wait: true
+  wait: false
