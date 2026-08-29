@@ -237,10 +237,19 @@ nothing beyond the known self-hosted runner-label notice that every workflow in 
 contracts for this surface, and `scripts/ci/litellm-fallback-chain-test.py` treats `pr-review-local`
 as terminal (no cloud fallback).
 
+**Proven at runtime, on this very PR.** The workflow triggers on same-repo pull requests, so it ran
+against its own PR before merge: run
+[`33281811111`](https://github.com/Aviator-Coding/home-ops/actions/runs/33281811111) completed
+**green on the in-cluster runner**, taking the credential-absent skip path - `Resolve Model
+Credential` emitted the `LITELLM_PR_REVIEW_KEY` warning and the `AI Review` step was skipped, with
+no comment posted. The graceful degradation described in section 6 is therefore observed behaviour,
+not a design claim: this change can merge and sit inert without reddening a single check.
+
 ### What is NOT yet proven
 
-The workflow cannot run until it is on `main`, so **no end-to-end run of the action itself has
-happened**. Specifically unproven until the first live run:
+The workflow itself has now run (above), but **no model-backed review has ever executed** - that
+needs the `LITELLM_PR_REVIEW_KEY` secret, so every run so far has stopped at the skip path.
+Specifically still unproven:
 
 - The action's own behaviour on a real PR: diff collection, corpus assembly, the managed-comment
   publish, and the incremental-review path on a second push.
