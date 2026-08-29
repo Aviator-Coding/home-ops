@@ -29,6 +29,29 @@
 #   - The `python-tests` job runs every `scripts/ci/*-test.py` regression test
 #     (semantic pins of captain decisions/invariants). Inventory, local setup,
 #     and the deliberate litellm pin live in scripts/ci/README.md - not here.
+#
+# Runner contention (measured 2026-08-29, PR #1481, run 33233099018):
+#   Editing this file matches every per-job path filter, so talos / versions /
+#   bootstrap / terraform / python-tests / Validate-Filter all launch at once
+#   onto gha-runner-scale-set-aviator-coding-home-ops (Labeler is a separate
+#   workflow on the same scale set). That is not a runner-slot shortage:
+#   attempt 1 assigned 7 distinct runner pods (`maxRunners: 15` was not the
+#   ceiling). Uncontended `jdx/mise-action` Setup Tools is 10-23s and the
+#   actual validators are 0-2s; python-tests `uv pip install litellm[proxy]`
+#   is 33s on a lucky 8-way run and 416s on an unlucky one. On the unlucky
+#   run, talos spent its entire timeout-minutes: 10 inside Setup Tools
+#   (`cancelled` at 602s, never reached talos-validate.sh) and then passed
+#   in 17s when rerun alone on the same head. Symptom: a random red check
+#   that passes on rerun. Do not raise minRunners/maxRunners to "fix" that.
+#   Timeouts below are sized from those numbers (mise jobs 25m = 2.5x the
+#   10m kill, because Setup Tools never finished so 10m is only a lower
+#   bound). python-tests needs the lighter jobs so the heavy pip install
+#   does not overlap their Setup Tools; always() is required so a skipped
+#   predecessor (path-filter miss) does not skip python-tests. We did not
+#   drop this workflow file from the per-job filters: that would skip
+#   self-test of a workflow edit. We did not job-concurrency-serialize the
+#   whole set: GitHub counts concurrency wait toward timeout-minutes, which
+#   would recreate the same cancel under queue.
 name: Validate
 
 on:
@@ -140,7 +163,10 @@ jobs:
     needs: filter
     name: talos
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    timeout-minutes: 10
+    # Uncontended: 17-24s (Setup Tools 12-19s). Contended lower bound: cancelled
+    # at 602s inside Setup Tools (PR #1481 run 33233099018 attempt 1); same
+    # head passed in 17s alone (attempt 2). 25m is 2.5x that kill.
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -162,7 +188,9 @@ jobs:
     needs: filter
     name: versions
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    timeout-minutes: 5
+    # Uncontended: 18-20s (Setup Tools 13-16s). Same mise-action class as talos;
+    # the old 5m ceiling is below the 10m kill measured on talos.
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -182,7 +210,8 @@ jobs:
     needs: filter
     name: bootstrap
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    timeout-minutes: 10
+    # Uncontended: 15-18s (Setup Tools 10-13s). Same mise-action class as talos.
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -231,7 +260,8 @@ jobs:
     needs: filter
     name: terraform
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    timeout-minutes: 10
+    # Uncontended: 17-31s (Setup Tools 11-23s). Same mise-action class as talos.
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -255,10 +285,28 @@ jobs:
         run: ./scripts/ci/tofu-validate.sh
 
   python-tests:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.pythontests != '[]' }}
-    needs: filter
+    # always() keeps this job running when a sibling is skipped (path-filter
+    # miss) or failed; without it, needs: on skipped jobs would skip us too
+    # and drop scripts/ci coverage. filter must still have succeeded. A
+    # failed talos/versions/bootstrap/terraform/renovate-config must not hide
+    # a python-tests failure. !cancelled() avoids work on a superseded run.
+    if: ${{ always() && !cancelled() && needs.filter.result == 'success' && github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.pythontests != '[]' }}
+    # After the light mise-action jobs so litellm[proxy] pip (measured 33s on
+    # a lucky 8-way fan-out, 416s on the unlucky one that cancelled talos)
+    # does not overlap their Setup Tools. Skipped predecessors complete
+    # immediately, so a scripts/ci-only PR is not delayed.
+    needs:
+      - filter
+      - talos
+      - versions
+      - bootstrap
+      - renovate-config
+      - terraform
     name: python-tests
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    # Uncontended-ish: 96s (pip 33s). Contended success: 469s (pip 416s,
+    # PR #1481 run 33233099018). 20m is ~2.5x that success; this job was
+    # the load, not the victim, so it stays at 20.
     timeout-minutes: 20
     steps:
       - name: Checkout

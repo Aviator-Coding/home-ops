@@ -83,4 +83,6 @@ the pinned cluster proxy image), installs native `promtool` via
 then runs every `scripts/ci/*-test.py` in a loop and fails the job if any of them fails.
 This is a deliberately slower job in exchange for the tests exercising the real `litellm`
 library rather than a stub or a soft-skip - see the job's own comments in `validate.yaml`
-before changing that trade-off.
+before changing that trade-off. It also `needs:` the lighter validate jobs so that pip
+install does not overlap their `mise-action` Setup Tools; measured contention and the
+timeout numbers live in the workflow header.
