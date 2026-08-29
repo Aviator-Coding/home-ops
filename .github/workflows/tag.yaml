@@ -19,8 +19,6 @@ jobs:
     name: Tag
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
-    permissions:
-      contents: write
     steps:
       - name: Generate Token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0

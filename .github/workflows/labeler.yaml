@@ -3,11 +3,14 @@
 name: Labeler
 
 on:
-  workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
       - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -18,9 +21,6 @@ jobs:
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 5
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
       - name: Generate Token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
