@@ -11,7 +11,7 @@ trusting a green run for more than it claims.
 
 ## Python regression tests
 
-The 13 `*-test.py` files are hand-written semantic/behavioral regression tests, each pinning
+The 14 `*-test.py` files are hand-written semantic/behavioral regression tests, each pinning
 one specific captain decision or invariant against the live repo state (not a source grep -
 most render the real manifests via `kubectl kustomize`/`kustomize build`, parse the result,
 and assert on the parsed structure; the `litellm-*` ones additionally exercise the real
@@ -24,6 +24,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `grafana-mcp-deploy-test.py` | in-cluster grafana-mcp ToolHive `MCPServer` deployment |
 | `grafana-sa-provisioner-test.py` | grafana-sa-provisioner (captain option C) |
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
+| `schematic-pcie-port-pm-test.py` | Arc B70 `pcie_port_pm=off` schematic kernel-arg contract |
 | `igpu-xe-allowids-test.py` | scoping `gpu.intel.com/xe` to the iGPU |
 | `litellm-auto-router-test.py` | D3 complexity-tier auto-router config |
 | `litellm-claude-code-subscription-test.py` | Claude Code Max/Pro subscription pass-through |

@@ -41,10 +41,11 @@ talos/
 # 1. Edit machineconfig.yaml.j2, nodes/talos-N.yaml.j2, or schematic.yaml.j2
 # 2. Render + validate offline
 just talos render-config talos-1 | talosctl validate -m metal -c /dev/stdin
-# 3. Preview the diff against the live node, then apply
+# 3. machineconfig / node overlays: preview, then apply-node
 just talos apply-node talos-1 --dry-run
 just talos apply-node talos-1
-# 4. Upgrade Talos / Kubernetes
+# 4. schematic.yaml.j2 (kernel args + extensions) or Talos version: upgrade-node
+#    (apply-node alone does not boot a new factory image - see note below)
 just talos upgrade-node talos-1
 just talos upgrade-k8s v1.36.3
 ```

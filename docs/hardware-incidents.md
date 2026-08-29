@@ -44,7 +44,7 @@ Full remote-probe evidence, register decode, and confidence-ranked causal analys
 
 ### Resolution
 
-**Power-on order is the fix** (external corroboration: RIITOP OCuLink eGPU Dock FAQ, Minisforum DEG1 guidance — both name "dock PSU first" as the standard remedy for exactly this symptom):
+**Power-on order is the recovery** when the card is already gone (external corroboration: RIITOP OCuLink eGPU Dock FAQ, Minisforum DEG1 guidance - both name "dock PSU first" as the standard remedy for exactly this symptom). The durable race mitigation is `pcie_port_pm=off` below; it does not replace this order once the card is lost:
 
 1. Power talos-3 fully **off** (`talosctl reboot` never touches the dock's PSU — it must be a full power-off).
 2. **GPU/dock PSU ON first.**

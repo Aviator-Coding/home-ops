@@ -24,7 +24,7 @@ recently, and why?" without spelunking git.
 | Layer | Value |
 |-------|-------|
 | **GPU (discrete)** | 1× Intel Arc Pro B70 (Battlemage G31, 32 GiB / 32656 MiB reported), talos-3 OCuLink PCI `0000:03:00.0` |
-| **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic: `siderolabs/xe` + `siderolabs/i915` (i915/ firmware for xe; `i915.ko` kept off a7a0), `xe.force_probe=a7a0` + `i915.force_probe=!a7a0` (captain applies via `just talos apply-node`; not Flux) |
+| **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic: `siderolabs/xe` + `siderolabs/i915` (i915/ firmware for xe; `i915.ko` kept off a7a0), `xe.force_probe=a7a0` + `i915.force_probe=!a7a0`, plus `pcie_port_pm=off` for the B70 root-port race (captain activates schematic changes via `just talos upgrade-node`, not `apply-node`; not Flux) |
 | **B70 resource** | `devic.es/b70: 99` via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
 | **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin, `allowIDs: "0xa7a0"` - light QSV/browser (jellyfin/plex/playwright). iGPU-only; the B70 no longer contributes to this pool |
 | **On the B70** | chat (`vllm`) + optional `tdarr-node`. `vllm-embed` and `comfyui` are pinned `replicas: 0` |
@@ -57,6 +57,18 @@ When you merge an AI / GPU config change, prepend an entry (newest first):
 ## [YYYY-MM-DD] Short title  (PR #NNN)
 Change · Why · Evidence · Risk/rollback · Verify
 ```
+
+---
+
+## [2026-08-29] `pcie_port_pm=off` closes B70 root-port runtime-PM race
+
+**Change:** `talos/schematic.yaml.j2` adds `pcie_port_pm=off`. Factory id `a46161e7a33fbde0589543ccc42a80403294ffd09868d4a09c10df0b64732021` (was `7f25ace820d39f0048bfd5fc6cdf882c6af2410f229d495ed2ff384c4c6807b8`).
+
+**Why / evidence / limits / attended reboot runbook:** owned by [`hardware-incidents.md` [2026-08-24]](./hardware-incidents.md) - do not restate here. `pcie_aspm=off` does not cover port runtime D3hot; activation is `just talos upgrade-node` (not `apply-node`).
+
+**Risk / rollback:** Schematic is cluster-wide (idle-power cost on all nodes). talos-3 activation is the attended maintenance in that runbook (also picks up #1479 thunderbolt drop). Revert the arg and `upgrade-node` to undo.
+
+**Verify:** Runbook verify steps in the incident entry (`pcie_port_pm=off` on cmdline, `8086:e2ff`/`e223` present, `00:01.0` in D0, `devic.es/b70=99`).
 
 ---
 
@@ -113,9 +125,9 @@ design doc.
 
 **Evidence:** Unpacked `ghcr.io/siderolabs/i915:20260810-v1.13.9` (amd64) carries the three requested `usr/lib/firmware/i915/adlp_*` blobs and no `xe/` tree (no collision with `siderolabs/xe`); `i915.ko` matches kernel `6.18.44-talos`. Live dmesg on talos-1/2 showed the three `-ENOENT` fetches. New schematic registered at factory.talos.dev with `siderolabs/i915` in the extension list; `talosctl validate -m metal` clean on all three node configs at installer v1.13.9.
 
-**Risk / rollback:** Not Flux-applied — captain rolls `just talos apply-node` one node at a time after merge. Do not drop `i915.force_probe=!a7a0` while `siderolabs/i915` is present, or `i915.ko` can reclaim the iGPU from xe. Revert the extension and re-apply to undo (iGPUs fail firmware load again). Do not re-add `i915.enable_dc=0` / `i915.enable_guc=3` — xe still owns the device.
+**Risk / rollback:** Not Flux-applied - schematic extensions land only via `just talos upgrade-node` (Image Factory image; `apply-node` alone does not boot them). Do not drop `i915.force_probe=!a7a0` while `siderolabs/i915` is present, or `i915.ko` can reclaim the iGPU from xe. Revert the extension and `upgrade-node` to undo (iGPUs fail firmware load again). Do not re-add `i915.enable_dc=0` / `i915.enable_guc=3` - xe still owns the device.
 
-**Verify:** After each `apply-node` on talos-1/2:
+**Verify:** After each `upgrade-node` on talos-1/2:
 ```sh
 # firmware present
 talosctl -n <node> ls /usr/lib/firmware/i915 | grep -E 'adlp_(dmc|guc)'
@@ -138,9 +150,9 @@ Expect non-empty `i915/adlp_*` listing and `gpu.intel.com/xe=99` on talos-1 and 
 
 **Evidence:** Rendered schematic registered at factory.talos.dev under the new ID; `talosctl validate -m metal` clean on all three node configs; installer v1.13.9 and Kubernetes pins v1.36.3 match live (no downgrade risk). B70 recovered via ordered cold cycle and enumerates as Battlemage G31 at `0000:03:00.0`.
 
-**Risk / rollback:** Schematic/kernel-arg changes are **not** Flux-applied - captain rolls `just talos apply-node` one node at a time. Revert the two force_probe args and re-apply to undo iGPU bind; move consumers back to `gpu.intel.com/xe` and drop the `b70` generic-device-plugin entry to undo the resource split. Do not set `allowIDs: "0xa7a0"` until every node advertises xe from its iGPU, or jellyfin/plex/playwright lose their only xe provider.
+**Risk / rollback:** Schematic/kernel-arg changes are **not** Flux-applied - captain rolls `just talos upgrade-node` one node at a time (`apply-node` only restages the install image reference). Revert the two force_probe args and `upgrade-node` to undo iGPU bind; move consumers back to `gpu.intel.com/xe` and drop the `b70` generic-device-plugin entry to undo the resource split. Do not set `allowIDs: "0xa7a0"` until every node advertises xe from its iGPU, or jellyfin/plex/playwright lose their only xe provider.
 
-**Verify:** After each `apply-node`, confirm iGPU xe allocatable and B70 identity:
+**Verify:** After each `upgrade-node`, confirm iGPU xe allocatable and B70 identity:
 ```sh
 kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0")"'
 ```
