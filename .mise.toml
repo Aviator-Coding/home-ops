@@ -17,7 +17,10 @@ MISE_LIST_ALL_VERSIONS = "false"
 [tools]
 "python" = "3.14.7"
 "pipx:pre-commit" = "4.6.2"
-"pipx:flux-local" = "latest"
+# flate replaces the sunsetted flux-local (see .taskfiles/flux). Not in the mise
+# or aqua registries, so it is installed via the ubi backend straight from its
+# GitHub releases; Renovate's mise manager maintains ubi pins.
+"ubi:home-operations/flate" = "0.6.1"
 "just" = "latest"
 "aqua:mitsuhiko/minijinja" = "latest"
 "vals" = "latest"
