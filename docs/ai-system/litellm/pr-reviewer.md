@@ -185,25 +185,57 @@ looks healthy. Delete the colliding key through the admin API first.
 
 ## 7. Verification evidence (2026-08-29)
 
-Run from a live runner pod on `gha-runner-scale-set-aviator-coding-home-ops`, which is the only
-place that proves the network path the workflow actually uses:
+Re-run **2026-08-29T23:39:06Z** from inside the cluster by exec-ing into a live runner pod on the
+target scale set - pod
+`gha-runner-scale-set-aviator-coding-home-ops-lj6tl-runner-dbx8w` on
+`gha-runner-scale-set-aviator-coding-home-ops` - against
+`http://litellm.ai.svc.cluster.local:4000` over in-cluster Service DNS. That is the only place that
+exercises the network path the workflow actually uses.
+`https://litellm.sklab.dev/health/liveliness` (the internal ingress route) was **not** used as a
+substitute: it exercises a different path than the in-cluster Service DNS the workflow uses.
 
-- Required tooling present: `gh` 2.96.0, `jq` 1.7, `curl` 8.5.0, `git` 2.54.0, `python3` 3.12.3.
-- `http://litellm.ai.svc.cluster.local:4000/health/liveliness` -> **HTTP 200**.
-- A full OpenAI-format `/v1/chat/completions` with `response_format: json_object` against the
-  non-thinking alias -> **clean JSON**, `reasoning_content` empty, keys exactly
-  `["verdict","review_markdown"]`.
-- Allow-list enforcement: the same key requesting `claude-sonnet-5` -> **HTTP 403
-  `key_model_access_denied`**. This is the proof that the reviewer cannot reach a paid model.
+The final-named objects were deliberately **not** created early. `pr-review-local` does not exist
+on the proxy yet (it currently serves 34 models), and creating it would roll the live proxy for no
+added evidence. Non-thinking behaviour was therefore exercised through
+`qwen3.6-35b-a3b-classifier`, which carries the identical
+`extra_body.chat_template_kwargs.enable_thinking: false` configuration that `pr-review-local`
+declares. The checks below prove the mechanism and the path; they do **not** claim the final-named
+objects were live-tested.
 
-Those calls used a throwaway `ai-pr-review-preflight` key with the identical shape, deliberately
-under a different alias so a failed cleanup could not collide with the real `ai-pr-review` key. It
-was deleted afterwards and the deletion verified: CR gone, Secret gone, and the key itself rejected
-with **HTTP 401** at the proxy.
+1. `GET /health/liveliness` -> **HTTP 200**, body `I'm alive!`.
+2. `GET /v1/models` with the virtual key -> exactly
+   `['chat-local', 'qwen3.6-35b-a3b-classifier']`, confirming the allow-list is what the key grants.
+3. `POST /v1/chat/completions` with `response_format: json_object` against the non-thinking alias
+   -> served model `qwen3.6-35b-a3b-classifier`, `completion_tokens` 78, `reasoning_len` 0, content
+   parsed cleanly to JSON with keys exactly `["verdict","review_markdown"]`, `verdict`
+   `"approved"`, `review_markdown` 249 chars.
+4. **CONTROL (new evidence this re-run adds)**: same prompt and same settings against `chat-local`
+   with thinking ON -> `completion_tokens` 600, `reasoning_len` 2231, `content_len` 0, JSON parse
+   fails with `Expecting value: line 1 column 1 (char 0)`. This reproduces the empty-content trap
+   in-cluster, in the same run as check 3, and is the direct proof that the dedicated non-thinking
+   `pr-review-local` alias is required rather than a preference. The earlier session did not have
+   this control in this form.
+5. `POST /v1/chat/completions` for `claude-sonnet-5` on the same key -> **HTTP 403**, error type
+   `key_model_access_denied`, message
+   `key not allowed to access model. This key can only access models=['chat-local', 'qwen3.6-35b-a3b-classifier']. Tried to access claude-sonnet-5`.
+   This is the proof the reviewer cannot reach a paid model.
 
-Also verified: `task flux:test:all` passes (302 resources), `actionlint` reports nothing beyond the
-known self-hosted runner-label notice that every workflow in this repo produces, and all 31 action
-inputs used by the workflow exist in `action.yml` at the pinned SHA.
+Throwaway key handling: the checks used a temporary `LiteLLMVirtualKey` under the alias
+`ai-pr-review-recheck` - deliberately distinct from **both** the final `ai-pr-review` and the
+earlier `ai-pr-review-preflight` - so that a failed cleanup could not collide with the real key
+alias (LiteLLM key aliases are globally unique and the operator has no adopt-by-alias path). It was
+deleted immediately afterwards and the deletion verified at **2026-08-29T23:41:09Z**: the CR is
+gone, the Secret `litellm-key-ai-pr-review-recheck` is gone, the key itself is rejected by the proxy
+with **HTTP 401** `token_not_found_in_db`, and the remaining virtual keys are exactly the original
+six (`claude-code-subscription`, `demo`, `ha-demo`, `opencode`, `repo-wiki`, `router-demo`) with no
+residue.
+
+Also verified declaratively: `task flux:test:all` passes (302 resources), `actionlint` reports
+nothing beyond the known self-hosted runner-label notice that every workflow in this repo produces,
+`scripts/ci/workflow-hardening-test.py` passes, all 31 action inputs used by the workflow exist in
+`action.yml` at the pinned SHA, `scripts/ci/litellm-pr-reviewer-test.py` covers the captain-decision
+contracts for this surface, and `scripts/ci/litellm-fallback-chain-test.py` treats `pr-review-local`
+as terminal (no cloud fallback).
 
 ### What is NOT yet proven
 
