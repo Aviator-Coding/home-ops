@@ -24,7 +24,7 @@ sonarr:
           # Comment out the next line if you and all of your users' setups are fully DV compatible
           - 9b27ab6498ec0f31a3353992e19434ca # DV (WEBDL)
         assign_scores_to:
-          - name: WEB-2160p
+          - trash_id: d1498e7d189fbe6c7110ceaabb7473e6 # WEB-2160p
 
       # Unwanted
       - trash_ids:
@@ -39,8 +39,8 @@ sonarr:
           - e2315f990da2e2e0c9b11b485e36a947 # LQ (Release Title)
           - 47435ece6b99a0b477caf360e79ba0bb # x265 (HD)
         assign_scores_to:
-          - name: WEB-1080p
-          - name: WEB-2160p
+          - trash_id: 72dae194fc92bf828f32cde7744e51a1 # WEB-1080p
+          - trash_id: d1498e7d189fbe6c7110ceaabb7473e6 # WEB-2160p
 
       # Miscellaneous
       - trash_ids:
@@ -48,8 +48,8 @@ sonarr:
           - eb3d5cc0a2be0db205fb823640db6a3c # Repack2
           - 44e7c4de10ae50265753082e5dc76047 # Repack3
         assign_scores_to:
-          - name: WEB-1080p
-          - name: WEB-2160p
+          - trash_id: 72dae194fc92bf828f32cde7744e51a1 # WEB-1080p
+          - trash_id: d1498e7d189fbe6c7110ceaabb7473e6 # WEB-2160p
 
       # Streaming Services
       - trash_ids:
@@ -68,8 +68,8 @@ sonarr:
           - ae58039e1319178e6be73f5f551e1afd # SHO
           - 1efe8da11bfd74fbbcd4d8117ddb9213 # STAN
         assign_scores_to:
-          - name: WEB-1080p
-          - name: WEB-2160p
+          - trash_id: 72dae194fc92bf828f32cde7744e51a1 # WEB-1080p
+          - trash_id: d1498e7d189fbe6c7110ceaabb7473e6 # WEB-2160p
 
 radarr:
   radarr_main:
