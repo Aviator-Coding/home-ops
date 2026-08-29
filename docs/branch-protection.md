@@ -48,7 +48,7 @@ PR that auto-merges once green — same outcome, more visible in the PR list.
 Required status checks and path-filtered workflows interact badly: if a required check's
 workflow never triggers for a given PR, GitHub leaves that check `Expected` forever and the PR
 can never merge. This repo's substantive validation workflows —
-[`flux-local.yaml`](../.github/workflows/flux-local.yaml),
+[`flate.yaml`](../.github/workflows/flate.yaml),
 [`image-pull.yaml`](../.github/workflows/image-pull.yaml),
 [`validate.yaml`](../.github/workflows/validate.yaml), and
 [`terraform-diff.yaml`](../.github/workflows/terraform-diff.yaml) — all filter on `paths:` **at the
@@ -69,7 +69,7 @@ the open `renovate/kubectl-1.x` PR which touches `.mise.toml`) — the problem i
 broken, it's that its trigger-level path filter means it simply never runs, and posts nothing,
 for PRs outside `talos/**`, `bootstrap/**`, `.renovate/**`, `.renovaterc.json5`,
 `kubernetes/apps/base/system-upgrade/**`, `kubernetes/apps/main/system-upgrade/**`, `scripts/ci/**`, `.mise.toml`, or its own workflow file.
-The same is true of `flux-local.yaml` / `image-pull.yaml` outside `kubernetes/**`, and of
+The same is true of `flate.yaml` / `image-pull.yaml` outside `kubernetes/**`, and of
 `terraform-diff.yaml` outside `terraform/**`. Root-level docs, `README.md`, `Taskfile.yaml`,
 `.taskfiles/**`, and most of `docs/**` are covered by none of them.
 
@@ -84,11 +84,11 @@ way or another, for every PR.
 
 **This means the ruleset does not yet gate the checks that actually catch a broken
 Kustomization or a bad Talos config** — that gap is real and is the direct consequence of how
-`flux-local.yaml` / `image-pull.yaml` / `validate.yaml` / `terraform-diff.yaml` are triggered, not a gap in this task.
+`flate.yaml` / `image-pull.yaml` / `validate.yaml` / `terraform-diff.yaml` are triggered, not a gap in this task.
 
 ## Follow-up to close the gap
 
-To safely require `Flux Local - Success` / `Image Pull - Success` / a `validate.yaml`
+To safely require `Flate - Success` / `Image Pull - Success` / a `validate.yaml`
 aggregate check (and, if desired later, `terraform-diff`'s success job), those path-filtered
 workflows need their path filtering moved from the `on: pull_request: paths:` trigger down into
 a job-level check (they already compute a `filter` job internally for exactly this kind of path
