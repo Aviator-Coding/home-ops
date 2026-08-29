@@ -98,6 +98,16 @@ namespace's stateless-by-preference apps. Cross-worker enforcement of those
 same budgets also needs `litellm-dragonfly` - see
 `docs/ai-system/litellm/README.md#why-dragonfly-redis`.
 
+One consumer is not in-cluster: `ai-pr-review` is the GitHub Actions AI PR
+reviewer (`.github/workflows/ai-pr-review.yaml`), which runs on the in-cluster
+ARC runner and reaches this proxy over cluster DNS. It is the only key that is
+ALSO copied by hand into a GitHub Actions secret, because that runner has no
+Kubernetes API access and cannot read the minted Secret - so rotating it has a
+second, easy-to-miss step. It is also the reason `models/pr-review-local.yaml`
+exists: the reviewer parses `choices[0].message.content`, which a thinking model
+leaves empty. Both traps, the fork-PR posture and the verification evidence:
+`docs/ai-system/litellm/pr-reviewer.md`.
+
 ## Model catalog
 
 The 26-model `indydevdan-model-stack` batch (captain request 2026-08-27) is
