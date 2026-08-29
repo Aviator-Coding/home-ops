@@ -222,7 +222,7 @@ success:
 
 ### Concurrency Control
 
-All workflows use concurrency groups to prevent parallel runs:
+Every workflow declares a concurrency group. The common PR/push pattern is:
 
 ```yaml
 concurrency:
@@ -230,7 +230,11 @@ concurrency:
   cancel-in-progress: true
 ```
 
-**Behavior:** Cancels in-progress runs when new commits are pushed.
+**Default behavior:** Cancels in-progress runs when a newer run enters the same group (e.g. a new push to the same PR).
+
+**`cancel-in-progress: false` exceptions** (deliberate, not drift):
+- `image-pull.yaml` — cancelling mid-`talosctl image pull` wastes node I/O and the job's 4-attempt retry budget (see the comment on that workflow).
+- `tag.yaml` / `terraform-publish.yaml` — schedule or main-push publish jobs; do not cancel a release/publish mid-flight.
 
 ### Changed Files Detection
 
