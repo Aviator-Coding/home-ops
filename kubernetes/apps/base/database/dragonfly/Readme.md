@@ -14,10 +14,9 @@ The `cluster/` subdir was deleted as dead code (was commented out in `ks.yaml` f
 
 Each consuming app references the component from its `ks.yaml` (`components: - ../../../../components/dragonfly`), which provisions in the app's own namespace:
 
-- `<app>-dragonfly` — the `Dragonfly` CR (2 replicas, `--cluster_mode=emulated`, cache-only).
-- `<app>-dragonfly` — the `PodMonitor` (scrapes admin port `:9999`).
-- `<app>-dragonfly-allow-prometheus` — additive `NetworkPolicy` so Prometheus can reach `:9999` (the operator's default NP blocks it).
-- `<app>-dragonfly-gatus-ep` — `ConfigMap` that registers a Gatus TCP probe on `:6379`.
+- `<app>-dragonfly` - the `Dragonfly` CR (2 replicas, `--cluster_mode=emulated`, cache-only).
+- `<app>-dragonfly` - the `PodMonitor` (scrapes admin port `:9999`).
+- `<app>-dragonfly-allow-prometheus` - additive `NetworkPolicy` so Prometheus can reach `:9999` (the operator's default NP blocks it).
 
 Current consumers and their endpoints:
 
