@@ -142,7 +142,12 @@ kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date
 |-----|---------|--------|
 | Sonarr | WEB-1080p | 720p/1080p WEB content |
 | Sonarr | WEB-2160p | 2160p WEB + HDR |
-| Radarr | SQP-1 (2160p) | Streaming quality 2160p with `min_format_score: 2000` |
+| Radarr | SQP-1 (2160p) | Streaming quality 2160p, guide default `min_format_score: 1000` |
+| Radarr | SQP-1 (1080p) | Streaming quality 1080p, guide default `min_format_score: 1000` - for titles unlikely to ever get a UHD release |
+
+`assign_scores_to` in `recyclarr.yml` matches by `trash_id`, not profile `name`. A 2026-04-09 guide rewrite renamed the synced profile from `SQP-1 (2160p)` to `[SQP] SQP-1 (2160p)`, which silently orphaned every name-matched custom-format score onto a stale 2-movie profile for over four months; a compounding `min_format_score: 2000` override on the *new* profile (double the guide's 1000) then rejected every remaining release, so the 2026-08-29 outage looked like "no grabs" rather than a rename drift. `trash_id` matching survives a guide rename; `name` matching does not.
+
+**Which movies land on which SQP-1 profile is Radarr database state, not GitOps.** Recyclarr only creates/scores the two profiles above - it never assigns a movie to one. The 2026-08-29 fix classified the existing library with one rule, applied once via the Radarr API (`PUT /api/v3/movie/editor`): a movie moves to **SQP-1 (1080p)** if `year < 2010` **or** its genres include `Documentary`; everything else stays on **SQP-1 (2160p)**. New movies keep whatever profile their import list assigns (mostly `Any`, profile 1) or default to 2160p unless re-classified by the same rule. There is no scheduled job re-applying this - a future large cohort of pre-2010/documentary titles added by list will need the same one-off API pass.
 
 **Custom format categories applied:**
 - **Unwanted (Sonarr)**: AV1, BR-DISK, LQ, x265 (HD), Bad Dual Groups, No-RlsGroup, Obfuscated, Retags, Scene
@@ -152,7 +157,7 @@ kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date
 - **Movie versions** (Radarr): Criterion Collection, Hybrid, Remaster, IMAX, IMAX Enhanced
 - **HDR** (WEB-2160p): DV (WEBDL)
 - **Trusted groups** (Radarr): hallowed
-- **Language/naming risk** (Radarr, SQP-1, score -25 each): Language: Not English, MULTi -- deprioritizes (does not block) releases whose filename is more likely to defeat Radarr's import parser and get stuck `importBlocked` in the queue; see "Finding which *arr app is failing imports" below
+- **Language/naming risk** (Radarr, SQP-1 2160p only, score -25 each): Language: Not English, MULTi -- deprioritizes (does not block) releases whose filename is more likely to defeat Radarr's import parser and get stuck `importBlocked` in the queue; see "Finding which *arr app is failing imports" below
 
 ### Bazarr - Subtitle management
 
@@ -289,8 +294,8 @@ mkv,mp4,avi,ts,mov,m4v,wmv,flv,webm
 ### ISO file policy
 
 BR-DISK and ISO files are blocked going forward:
-- Recyclarr adds `BR-DISK` custom format with negative score
-- `min_format_score: 2000` on SQP-1 rejects anything with BR-DISK penalties
+- Both TRaSH SQP-1 score sets include `BR-DISK` with a large negative score (and our Unwanted `assign_scores_to` reinforces it on SQP-1 2160p)
+- That penalty alone drives the release below the guide's `min_format_score: 1000` floor
 - Existing ISO files should be deleted and re-downloaded via Radarr's "Cutoff Unmet" view
 
 ---

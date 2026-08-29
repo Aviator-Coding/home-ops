@@ -36,6 +36,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `tofu-authentik-stack-test.py` | the Authentik OpenTofu adoption stack |
 | `validate-contention-test.py` | validate.yaml runner-pool contention timeouts + python-tests ordering |
 | `workflow-hardening-test.py` | GitHub Actions workflow permissions/concurrency hardening |
+| `recyclarr-quality-profile-test.py` | Radarr SQP-1 recyclarr fix (guide min_format_score, trash_id matching, 1080p profile) |
 
 New `scripts/ci/*-test.py` files need no separate wiring: CI globs `scripts/ci/*-test.py`,
 so any file matching that pattern is picked up automatically.
