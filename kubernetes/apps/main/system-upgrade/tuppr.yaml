@@ -7,8 +7,8 @@ metadata:
 spec:
   targetNamespace: system-upgrade
   healthChecks:
-  - apiVersion: helm.toolkit.fluxcd.io/v2
-    kind: HelmRelease
+  - apiVersion: apps/v1
+    kind: Deployment
     name: tuppr
     namespace: system-upgrade
   interval: 1h

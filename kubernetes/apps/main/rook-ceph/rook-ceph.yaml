@@ -50,10 +50,11 @@ spec:
     name: flux-system
     namespace: flux-system
   wait: false
-  # HelmRelease-only health check avoids CRD permission complexity
-  # while still providing meaningful deployment verification
+  # rook-ceph-cluster's chart only renders the toolbox Deployment directly -
+  # mons/OSDs/mgr are created dynamically by the operator from the CephCluster
+  # CR, not by this Helm template, so they can't be named here.
   healthChecks:
-    - apiVersion: helm.toolkit.fluxcd.io/v2
-      kind: HelmRelease
-      name: rook-ceph-cluster
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: rook-ceph-tools
       namespace: rook-ceph

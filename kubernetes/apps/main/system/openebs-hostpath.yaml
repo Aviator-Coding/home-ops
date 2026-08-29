@@ -10,9 +10,9 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   healthChecks:
-    - apiVersion: helm.toolkit.fluxcd.io/v2
-      kind: HelmRelease
-      name: *app
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: openebs-hostpath-localpv-provisioner
       namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/base/system/openebs-hostpath/app
