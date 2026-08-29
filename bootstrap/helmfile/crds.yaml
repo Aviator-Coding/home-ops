@@ -36,9 +36,3 @@ releases:
 
   - name: kube-prometheus-stack
     namespace: monitoring
-
-  # no OCIRepository in kubernetes/apps — explicit chart + version
-  - name: grafana-operator
-    namespace: monitoring
-    chart: oci://ghcr.io/grafana/helm-charts/grafana-operator
-    version: 5.24.0

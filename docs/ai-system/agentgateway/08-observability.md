@@ -31,12 +31,13 @@ Chart dashboard JSON is **disabled** (`monitoring.grafanaDashboard.enabled: fals
 - `llm-cost.json` - linked from/to `agentgateway.json` via dashboard `links` rather than merged in,
   so the vendored chart JSON survives re-vendoring without losing the custom cost panels
 - sidecar annotations `grafana_folder: AI/ML`, `grafana_dashboard: "true"` - **known bug**: both
-  dashboards actually land in a folder titled `ML`, not `AI/ML` (verified live 2026-08-21: a
-  separate, empty `AI/ML` folder exists from an unused `ai-ml` file-based dashboard provider in
-  the Grafana `HelmRelease`). The Grafana chart's sidecar appears to treat the `/` in the
-  annotation as a path separator rather than a literal folder-name character. Not fixed here -
-  couldn't verify a rename live without applying to the cluster; a real fix needs a
-  cluster-side check after deploy, not just a JSON diff.
+  dashboards actually land in a folder titled `ML`, not `AI/ML` (verified live 2026-08-21). The
+  Grafana chart's sidecar appears to treat the `/` in the annotation as a path separator rather
+  than a literal folder-name character. A separate `AI/ML` folder is also created by the Grafana
+  HelmRelease's `ai-ml` file-based dashboard provider (used since 2026-08-29 for
+  `toolhive-mcp-gateway` and any other `dashboards.ai-ml` entries). Not fixed here - couldn't
+  verify a rename live without applying to the cluster; a real fix needs a cluster-side check
+  after deploy, not just a JSON diff.
 
 ## Tracing
 

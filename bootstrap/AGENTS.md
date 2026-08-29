@@ -62,14 +62,11 @@ duplication — Renovate bumps the OCIRepository tag and helmfile picks it up au
 
 Example: `cilium` in `kube-system` → reads `kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml`.
 
-> `grafana-operator` has no OCIRepository in `kubernetes/apps/` so its `crds.yaml`
-> entry keeps explicit `chart:` / `version:` fields. Bootstrap still extracts
-> grafana-operator CRDs (pinned in `helmfile/crds.yaml`). Several apps ship
-> `kind: GrafanaDashboard` CRs (cilium, spegel, envoy-gateway, cloudflare-tunnel,
-> cert-manager, toolhive, external-secrets), but there is no grafana-operator
-> HelmRelease or OCIRepository under `kubernetes/apps/`. Grafana itself loads
-> file-sidecar dashboards. Confirm on the live cluster whether the operator is
-> an unmanaged leftover from bootstrap or those CRs are orphaned.
+Every `crds.yaml` release must have a matching OCIRepository under `kubernetes/apps/base/`
+so chart/version stay single-sourced. Do not reintroduce explicit `chart:`/`version:` pins
+here — the former `grafana-operator` exception was removed 2026-08-29 (do not re-add
+`GrafanaDashboard` CRs either; full history and live-cluster cleanup in
+`docs/grafana-operator-removal.md`).
 
 ## SECRETS
 
