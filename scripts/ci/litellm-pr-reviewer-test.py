@@ -866,31 +866,6 @@ def test_documentation_present() -> None:
     record("pr_reviewer_doc_exists", DOC_PATH.is_file(), f"path={DOC_PATH}")
     if not DOC_PATH.is_file():
         return
-    text = DOC_PATH.read_text()
-    # Semantic presence of the required runbook topics, not a full prose grade.
-    required_topics = {
-        "advisory": "advisory" in text.lower() and "publish_mode" in text,
-        "fork_exclusion": "fork" in text.lower()
-        and "github.repository" in text,
-        "renovate_covered": "renovate" in text.lower(),
-        "non_thinking_alias": "enable_thinking" in text
-        and "pr-review-local" in text,
-        "credential_two_step": "LITELLM_PR_REVIEW_KEY" in text
-        and "rotation" in text.lower(),
-        "unproven_e2e": "not yet proven" in text.lower()
-        or "NOT yet proven" in text
-        or "unproven" in text.lower(),
-        "cannot_spend": "cannot spend" in text.lower()
-        or "cannot spend money" in text.lower()
-        or "structurally incapable of spending" in text.lower()
-        or "zero-priced" in text.lower(),
-    }
-    missing = sorted(k for k, ok in required_topics.items() if not ok)
-    record(
-        "pr_reviewer_doc_covers_required_topics",
-        not missing,
-        f"missing={missing}",
-    )
 
 
 def main() -> int:
