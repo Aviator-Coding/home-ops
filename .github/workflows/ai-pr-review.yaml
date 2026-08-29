@@ -1,0 +1,242 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+#
+# Advisory AI pull-request review (misospace/pr-reviewer-action), running on the
+# in-cluster ARC runner against this cluster's own LiteLLM proxy. Nothing here
+# leaves the LAN and nothing here can spend money - see the two sections below.
+# Full design, evidence and runbook: docs/ai-system/litellm/pr-reviewer.md
+#
+# ADVISORY ONLY, BY CONSTRUCTION (captain decision, 2026-08-29). The reviewer
+# posts one managed PR comment and can do nothing else:
+#   - `publish_mode: comment` uses `gh pr comment`. The action only reaches
+#     `gh pr review` under `review_comment`/`review_verdict`, so in this mode it
+#     is structurally incapable of submitting a native review of any kind.
+#   - `allow_approve` / `approve_forks` stay false, so no approval path exists
+#     even if the mode were changed by accident.
+#   - `fail_on_request_changes` stays false, so a `request_changes` verdict in
+#     the comment text never reddens the check and never gates a merge.
+# This workflow is deliberately NOT a required status check. Do not add it to
+# the branch-protection ruleset (docs/branch-protection.md) and do not enable
+# "Allow GitHub Actions to create and approve pull requests" - neither is needed
+# for advisory mode. The starting posture is deliberate: judge the output
+# quality first, give it teeth later, if ever.
+#
+# IT CANNOT SPEND MONEY. `ai_model` is `pr-review-local`, a zero-priced local
+# alias on the B70 with no cloud fallback, and the `ai-pr-review`
+# LiteLLMVirtualKey allow-lists that one model and nothing else. Verified live
+# 2026-08-29 from a runner pod on this scale set: requesting `claude-sonnet-5`
+# on that key returns HTTP 403 `key_model_access_denied`. `review_routing_mode`
+# is left `off`, so there is no smart-model escalation to bound - which matters
+# because this fires on every PR in a repo with heavy Renovate traffic, exactly
+# the shape that turns an escalation path into a cost incident.
+#
+# WHY A NON-THINKING MODEL ALIAS. Do not repoint `ai_model` at `chat-local`.
+# Qwen3.6-35B-A3B is a reasoning model: it returns its chain of thought in
+# `reasoning_content` and leaves `content` EMPTY, and this action parses
+# `choices[0].message.content`. Measured live: on `chat-local` it burned all 800
+# completion tokens on reasoning and returned an empty string; on the
+# `enable_thinking:false` alias the identical prompt parsed cleanly in ~1s.
+# See kubernetes/apps/base/ai/litellm/app/models/pr-review-local.yaml.
+#
+# FORK PRs NEVER RUN THIS. This repo is public and this job lands on the
+# in-cluster runner, so it carries the same unconditional guard as
+# validate.yaml / image-pull.yaml / flate.yaml / terraform-diff.yaml:
+# `github.event.pull_request.head.repo.full_name == github.repository`. That is
+# the conservative choice on three independent counts, and any one of them
+# alone would justify it:
+#   1. A fork PR must never execute on a runner that can reach cluster-internal
+#      services (AGENTS.md, ARC notes).
+#   2. On a fork PR, GITHUB_TOKEN is read-only regardless of the `permissions`
+#      block below, so the comment publish could not work anyway.
+#   3. `pull-requests: write` on a workflow reachable from fork PRs is a
+#      textbook privilege-escalation shape. We do NOT use `pull_request_target`
+#      to work around any of this - that would run trusted code against
+#      untrusted PR content, which is the exact anti-pattern.
+# The action's own fork gating (`*_enable_for_forks`) is therefore never
+# reached, and is left at its safe defaults regardless. Consequence, stated
+# plainly: PRs from forks get no AI review, and a maintainer wanting one must
+# re-run from a same-repo branch. Renovate is unaffected - it pushes branches
+# to this repo, not a fork, so its PRs are same-repo and ARE reviewed. That is
+# the highest-value target here: Renovate PRs otherwise receive no review at
+# all.
+#
+# COST AND RUNNER LOAD. `skip_if_diff_unchanged` stays on (the default), so a
+# re-run on an unchanged diff costs nothing, and `review_scope: auto` reviews
+# only the delta on later pushes. `concurrency` cancels superseded runs of the
+# same PR. The B70 is shared with hermes/opencode/repo-wiki and the D3 router's
+# classifier; measured 2026-08-29, prefill is ~310-350 tok/s and decode ~11
+# tok/s, so `model_context_tokens` below is sized to bound how long one review
+# can hold the card. See validate.yaml's header for why this scale set is
+# contention-sensitive and why raising maxRunners is the wrong first move.
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    # Fork guard (see header) plus draft skip. Drafts are excluded because
+    # `ready_for_review` is in the trigger list above, so a draft gets its first
+    # review the moment it is marked ready instead of on every WIP push.
+    if: >-
+      ${{ github.event.pull_request.head.repo.full_name == github.repository
+          && !github.event.pull_request.draft }}
+    name: AI PR Review
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    # Worst case is one maximal review (~385s: ~198s prefill of a full 61.5k-token
+    # prompt at the measured ~310 tok/s, plus ~186s decoding 2048 output tokens at
+    # the measured ~11 tok/s) plus one retry, inside the 600s per-request timeout
+    # set below. 25m covers that with headroom for checkout on a full-history
+    # clone; it is not sized for a wedged endpoint, which fails fast on the 10s
+    # connect timeout instead.
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      # Only for the managed PR comment. `publish_mode: comment` uses
+      # `gh pr comment --edit-last --create-if-none`; nothing here submits a review.
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the action compares against the previous managed
+          # review's head SHA to build an incremental diff, and falls back to a
+          # full review when that comparison is not safe.
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      # Resolve credential availability BEFORE invoking the action, so a repo
+      # without the secret yet gets one clear warning and a green skip rather
+      # than a red check from the action failing to reach an authenticated
+      # endpoint. Same three-outcome shape as terraform-diff.yaml's
+      # "Resolve Live-Plan Mode" step, and the same reason: this workflow can
+      # merge and sit inert until the captain creates the secret, then activate
+      # itself with no further code change.
+      #
+      # `secrets` is not available in a job-level `if:`, which is why this is a
+      # step that publishes an output rather than a condition on the job.
+      - name: Resolve Model Credential
+        id: cred
+        env:
+          LITELLM_PR_REVIEW_KEY: ${{ secrets.LITELLM_PR_REVIEW_KEY }}
+        run: |
+          if [ -z "${LITELLM_PR_REVIEW_KEY}" ]; then
+            echo "::warning::The LITELLM_PR_REVIEW_KEY repository secret is not set, so the AI review is being skipped. It holds the LiteLLM virtual key minted by kubernetes/apps/base/ai/litellm/app/virtualkeys/ai-pr-review.yaml and mirrored to the 1Password item litellm-consumer-ai-pr-review. See docs/ai-system/litellm/pr-reviewer.md for the one-time setup and the two-step rotation."
+            echo "mode=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "mode=review" >> "$GITHUB_OUTPUT"
+
+      - name: AI Review
+        if: steps.cred.outputs.mode == 'review'
+        uses: misospace/pr-reviewer-action@54dfb1aac20e1e410ad8f71dc3681b888500a1ec # v2.2.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+          # -- Endpoint: this cluster's own LiteLLM proxy --
+          # Cluster-internal DNS, reachable only because this job runs on the
+          # in-cluster runner (verified live from a runner pod on this scale
+          # set: /health/liveliness 200, and a full OpenAI chat completion).
+          # LiteLLM is internal-only by captain decision and must never be
+          # reached over the public listener. The `/v1` suffix is required -
+          # the action appends `/chat/completions` to this base.
+          ai_base_url: http://litellm.ai.svc.cluster.local:4000/v1
+          ai_api_format: openai
+          ai_model: pr-review-local
+          ai_api_key: ${{ secrets.LITELLM_PR_REVIEW_KEY }}
+
+          # -- Context budget --
+          # The served window is genuinely 262144 (llama.cpp `--ctx-size` in
+          # kubernetes/apps/base/ai/vllm/app/helmrelease.yaml, confirmed live as
+          # `n_ctx: 262144` on /props), and this is deliberately far below it.
+          # Setting the true window here would be actively harmful: the action
+          # derives its corpus budget as (ctx - reserve) * 3 bytes, so 262144
+          # would authorize a ~756kB prompt, and at the measured ~310 tok/s
+          # prefill that is ~14 MINUTES of B70 time before a single output token
+          # - well past any sane timeout, on a card four other consumers share.
+          # Undershooting the real window is safe (the action truncates and says
+          # so in the step summary); overshooting is what produces the
+          # context-overflow parse failures the upstream docs warn about.
+          # 65536 was chosen against this repo's actual PR sizes, measured over
+          # the last 40 merged PRs: p50 24kB, p75 59kB, p90 117kB. It yields a
+          # ~180kB corpus / ~108kB diff budget, so roughly 85% of PRs are
+          # reviewed with no truncation at all, while one review is bounded to
+          # ~6.5 minutes of GPU rather than 14+.
+          model_context_tokens: "65536"
+          # Output reserve. A median PR review measured 979 completion tokens
+          # (3.9kB of markdown); 2048 leaves headroom without letting decode,
+          # the real bottleneck at ~11 tok/s, run away.
+          ai_max_tokens: "2048"
+
+          # -- Parse reliability --
+          # Upstream explicitly recommends json_object (NOT json_schema) for
+          # LiteLLM endpoints: grammar-constrained decoding under json_schema
+          # makes some models under-emit newlines and produce a single-line wall
+          # of headings. Verified working end-to-end here: clean
+          # {"verdict","review_markdown"} on real PR diffs.
+          ai_response_format: json_object
+
+          # -- Timeouts and retries: homelab profile --
+          # The endpoint is either up or down, so the upstream default of 8
+          # retries x 15s is ~10 wasted minutes on a dead B70. Fail fast on
+          # connect, allow one retry for a genuine blip, and let a real review
+          # take its time (600s covers the ~385s worst case above with margin).
+          ai_connect_timeout_sec: "10"
+          ai_request_timeout_sec: "600"
+          ai_primary_retries: "1"
+          ai_primary_retry_delay_sec: "10"
+          # A GPU outage posts "AI review could not run" on the PR instead of a
+          # bare red X on an advisory check. The notice carries an internal
+          # request_changes verdict, which in `comment` mode is only text in a
+          # comment - it cannot block a merge, and fail_on_request_changes below
+          # keeps the step green.
+          on_model_failure: notice
+
+          # -- Review standards --
+          # Explicit, because the default candidate order would pick AGENTS.md
+          # FIRST - and the action hard-truncates the standards section to the
+          # first 16000 bytes. AGENTS.md is ~70kB, so it would arrive cut
+          # mid-sentence with the whole NOTES section missing. The curated file
+          # below fits whole. See its header.
+          standards_file: .github/ai-review-rules.md
+
+          # -- Publishing: advisory only (see header) --
+          publish_review_comment: "true"
+          publish_mode: comment
+          allow_approve: "false"
+          approve_forks: "false"
+          fail_on_request_changes: "false"
+          inline_findings: "false"
+
+          # -- Everything that could reach outward or escalate, pinned off --
+          # These are all upstream defaults today. They are stated explicitly
+          # anyway so that an upstream default flip cannot silently widen what a
+          # job holding `pull-requests: write` is allowed to do, and so the
+          # posture is reviewable in one place.
+          review_routing_mode: "off"
+          tool_mode: "off"
+          evidence_providers_file: ""
+          linear_api_key: ""
+          search_url: ""
+          tool_enable_for_forks: "false"
+          evidence_enable_for_forks: "false"
+          linear_enable_for_forks: "false"
+
+          # -- Cost containment --
+          # Skip the model call entirely when the patch + config fingerprint
+          # matches the last managed review, and review only the delta on later
+          # pushes.
+          skip_if_diff_unchanged: "true"
+          force_review: "false"
+          review_scope: auto
