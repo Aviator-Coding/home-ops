@@ -12,6 +12,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  # Keep in-flight runs: cancelling mid-`talosctl image pull` wastes node I/O and the 4-attempt retry budget.
   cancel-in-progress: false
 
 permissions:
