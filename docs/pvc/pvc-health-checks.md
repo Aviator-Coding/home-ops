@@ -51,8 +51,8 @@ spec:
 | Component | Purpose |
 |-----------|---------|
 | `dependsOn` | Ensures prerequisite components are ready |
-| `healthCheckExprs` | Waits for specific resource conditions |
-| `wait: true` | Makes Flux wait for health checks to pass |
+| `healthCheckExprs` | Custom readiness expressions for inventory kinds (e.g. PVC `Bound`) |
+| `wait: true` | Assess health of **all** reconciled inventory objects (uses `healthCheckExprs` where defined) |
 
 `healthCheckExprs` apply to objects in that Kustomization's inventory,
 not every PVC in the namespace. The VolSync component also injects a
@@ -265,4 +265,4 @@ When everything is working correctly, you should see:
 
 ---
 
-💡 **Tip**: Always use `wait: true` in your Kustomization when using health checks to ensure proper sequencing.
+💡 **Tip**: For this PVC-in-inventory pattern, `wait: true` is correct so Flux assesses the whole inventory (including the PVC via `healthCheckExprs`). Do **not** copy that onto overlays that use a `spec.healthChecks` list targeting a workload outside the inventory — Flux ignores `healthChecks` when `wait: true`. Workload health-check house rules live in `AGENTS.md`.
