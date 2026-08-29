@@ -125,8 +125,12 @@ spec:
               # the external Windows GPU node (see tdarr-node-lb) still helps out.
               - name: transcodegpuWorkers
                 value: "1"
+              # Keep at least one CPU transcode worker. A GPU-only node turns any
+              # VA-API regression into a silent, total transcoding outage: every job
+              # the GPU worker picks up fails with transcodeError and nothing else
+              # can take it. Cost is speed, not correctness. See docs/media-stack.md.
               - name: transcodecpuWorkers
-                value: "0"
+                value: "1"
               - name: healthcheckgpuWorkers
                 value: "1"
               - name: healthcheckcpuWorkers
