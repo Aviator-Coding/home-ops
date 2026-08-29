@@ -36,4 +36,6 @@ customization:
       - siderolabs/intel-ucode # Intel iGPU
       - siderolabs/mei # Intel iGPU
       - siderolabs/nfsrahead # NFS Performance
-      - siderolabs/thunderbolt #intentionally removed to avoid Thunderbolt NIC getting unwanted DHCP address at early boot
+      # siderolabs/thunderbolt is deliberately excluded: it caused connection
+      # trouble on one node (unwanted DHCP on the Thunderbolt NIC at early boot)
+      # and is not in use. Do not re-add it.
