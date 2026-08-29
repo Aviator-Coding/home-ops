@@ -1,4 +1,5 @@
 ---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/_definitions.json#/definitions/io.k8s.api.core.v1.Namespace
 apiVersion: v1
 kind: Namespace
 metadata:

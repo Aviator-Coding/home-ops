@@ -49,7 +49,7 @@ B70_RESOURCE = "devic.es/b70"
 XE_CONSUMERS: dict[str, Path] = {
     "jellyfin": ROOT / "kubernetes/apps/base/media/jellyfin/app/helmrelease.yaml",
     "plex": ROOT / "kubernetes/apps/base/media/plex/app/helmrelease.yaml",
-    "playwright": ROOT / "kubernetes/apps/base/selfhosted/rsshub/playwright/hr.yaml",
+    "playwright": ROOT / "kubernetes/apps/base/selfhosted/rsshub/playwright/helmrelease.yaml",
 }
 
 # Controllers that must stay on the discrete B70 identity.
