@@ -6,4 +6,3 @@ resources:
   - ./cluster.yaml
   - ./podmonitor.yaml
   - ./networkpolicy.yaml
-  - ./gatus.yaml
