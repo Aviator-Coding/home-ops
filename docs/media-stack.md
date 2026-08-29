@@ -306,7 +306,69 @@ BR-DISK and ISO files are blocked going forward:
 
 Single-pod deployment reading the NFS media mount read-only at `/data/nas-media`. Intel GPU handles hardware transcoding for any clients that can't direct play (rare with the SQP-1 profile since streaming-quality content is widely compatible).
 
-Plex is also deployed in `media` and claims `gpu.intel.com/xe: 1` (`plex/app/helmrelease.yaml`). Seerr is deployed in `media`.
+---
+
+## Plex - Media server
+
+**Namespace:** `media` | **GPU:** `gpu.intel.com/xe: 1` (`plex/app/helmrelease.yaml`). Seerr is also deployed in `media`.
+
+### Library scan triggers (application settings, not GitOps)
+
+Plex ships with **every** scan trigger disabled by default, and this cluster ran that way
+from first boot until 2026-08-29: the library was built entirely by hand-run "Scan Library
+Files" calls, the last one 2026-06-19T00:44:21Z. Because Seerr polls Plex's "recently added"
+every 5 minutes and reports success, a frozen library still looks green on every dashboard --
+it took 71 days and 96 Radarr-imported movies going invisible before anyone noticed.
+
+Two triggers are configured now, and both are UI/API-only state that lives in each app's own
+database -- **a config-volume rebuild of Plex, Radarr, or Sonarr loses this** the same way it
+would lose an Authentik Proxy Provider (see the root `CLAUDE.md` NOTES). Nothing in this repo
+re-applies it, so re-check it after any restore-from-scratch:
+
+1. **Radarr and Sonarr -> Settings -> Connect -> "Plex Media Server"**, host
+   `plex.media.svc.cluster.local:32400`, `On Import` + `On Upgrade` + `On Rename` (+
+   `On Movie Delete` in Radarr, `On Episode File Delete` in Sonarr) enabled. This is the
+   primary trigger: it refreshes only the one changed folder, seconds after every import.
+2. **Plex -> Settings -> Library -> "Update my library periodically"**
+   (`ScheduledLibraryUpdatesEnabled`), hourly. Belt-and-braces for hand-placed files that never
+   go through Radarr/Sonarr (NAS files owned by `uid 3000` with bare names, vs. `uid 2000` +
+   `{imdb-...}` for Radarr imports) -- those get no notification from either app.
+3. **Do not enable** Plex's "scan my library automatically" (`FSEventLibraryUpdatesEnabled`,
+   filesystem-event scanning). Media arrives over NFS from another host, so inotify-style
+   events never fire there; this setting would look correct and silently do nothing.
+
+`autoEmptyTrash` is already on, so a manual or scheduled scan also clears out Plex entries
+whose backing file was deleted or upgraded away (11 such entries existed on 2026-08-29, all
+cleared by the scan that landed this section).
+
+**Counterfactual check, if this is ever suspected to have regressed:** compare Plex's on-disk
+movie folder count against its library size, and check how old `scannedAt` is.
+
+```sh
+export KUBECONFIG=/path/to/kubeconfig   # never the mise-shim-overridden one, see NOTES
+PLEX_TOKEN=$(kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
+  'grep -oE "PlexOnlineToken=\"[^\"]+\"" "/config/Library/Application Support/Plex Media Server/Preferences.xml" | cut -d\" -f2')
+
+# disk truth (movie folder count)
+kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- \
+  find /data/nas-media/Movies -mindepth 1 -maxdepth 1 -type d | wc -l
+
+# Plex library size (MediaContainer totalSize= on /all; Size=0 returns size=\"0\")
+# + section title/scannedAt age
+kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
+  "curl -s -H 'X-Plex-Token: ${PLEX_TOKEN}' 'http://localhost:32400/library/sections/1/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0'" \
+  | grep -oE 'MediaContainer[^>]*totalSize=\"[^\"]*\"'
+kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
+  "curl -s -H 'X-Plex-Token: ${PLEX_TOKEN}' 'http://localhost:32400/library/sections'" \
+  | grep -oE '(title|scannedAt)=\"[^\"]*\"'
+```
+
+The folder count and MediaContainer `totalSize` should match (within a file or two -- Plex does not
+scan every container it can't parse, e.g. a bare `.VOB` DVD rip has no Plex entry and is not a
+scan-trigger fault). With `X-Plex-Container-Size=0`, page `size` is always 0; use `totalSize` for
+the real library count. If they diverge by dozens and `scannedAt` is more than a day old, the
+Connect notifications or the periodic-scan setting were lost -- reapply steps 1-2 above, then
+run one manual "Scan Library Files" to clear the backlog.
 
 ---
 
@@ -330,6 +392,8 @@ User adds movie to Radarr
   ├─> Bazarr detects new file, downloads subtitles
   │
   ├─> Jellyfin / Plex library scan picks up the new file
+  │   └─> Plex does not watch NFS; needs Radarr/Sonarr Connect + hourly scheduled update
+  │       (see "Library scan triggers" under Plex above). Lost on config-volume rebuild.
   │
   └─> Tdarr library scan queues for health check / transcode
       └─> If not already AV1: transcode to AV1 via Intel QSV (B70 on talos-3)
