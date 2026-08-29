@@ -1,6 +1,6 @@
 # Directory (groups, users) is READ-ONLY here.
 #
-# Blueprint groups referenced below: `authentik Admins` (superuser, from
+# Blueprint groups that exist on the instance: `authentik Admins` (superuser, from
 # `system/bootstrap.yaml`) and `authentik Read-only` (from
 # `default/rbac-role-read-only.yaml`). A third, hand-made `tofu Writers` role
 # exists out-of-band for approved applies (docs/authentik/terraform.md §5) and is
@@ -13,7 +13,3 @@
 # Introducing group-scoped access is a real authorization change that locks people
 # out if it lands wrong, so it belongs in its own reviewed change, not smuggled in
 # with the adoption of existing config.
-
-data "authentik_group" "admins" {
-  name = "authentik Admins"
-}
