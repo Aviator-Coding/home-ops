@@ -422,6 +422,56 @@ In Radarr UI:
 
 Radarr queues searches for everything below the SQP-1 cutoff score. Useful after expanding custom formats or deleting low-quality files.
 
+### Backlog missing-movie search
+
+**Nothing in this stack searches for a monitored-but-missing movie on its own.** Radarr's own
+task list has no scheduled "missing movie search", and every import list runs `searchOnAdd:
+false` - a movie a list adds just sits `monitored: true` / no file until Radarr happens to see a
+matching *new* RSS release, or a human triggers a search. This is invisible day to day (RSS
+`Reports grabbed: 0` looks identical to "everything is already downloaded"), so a backlog only
+becomes visible when someone checks `GET /api/v3/movie` for `monitored && !hasFile` - it was 347
+movies on 2026-08-29, discovered while investigating the outage documented above.
+
+Run a backlog search deliberately, after any event that could have left movies stuck missing: the
+initial cause here (a `min_format_score` override rejecting every release), a big import-list
+addition, or a long Radarr outage. **Always size it against free disk first** - a few hundred
+movies at even moderate quality can be multiple TB, and nothing else in this stack checks that
+before grabbing:
+
+1. Count monitored-and-missing movies **per quality profile** (`GET /api/v3/movie`, filter
+   `monitored && !hasFile`, group by `qualityProfileId`) - different profiles have very different
+   expected sizes.
+2. For a small sample per profile, run an interactive search (`GET /api/v3/release?movieId=<id>`)
+   and read the *accepted* releases' real sizes and hit rate - do not guess a flat average. Genre
+   matters: documentary/TV-movie titles on this stack's profiles have a much lower accept rate
+   than mainstream theatrical titles, because no release group produces an HD-Bluray-tier release
+   for them (same defect that caused the original outage, just below the size floor for scoped
+   profiles rather than above it).
+3. Multiply sampled hit-rate x sampled size x population per profile, sum, and compare against
+   the root folder's live free space (`GET /api/v3/rootfolder`). If the estimate is more than
+   roughly half of free space, do not run the full search - stage a subset, or escalate for a
+   decision (a size cap on the profile, accepting the full run anyway, etc).
+4. If it fits, trigger the search in **batches**, not one 300+ movie burst: `POST /api/v3/command`
+   with `{"name": "MoviesSearch", "movieIds": [...]}`, a bounded batch size (used 20), and a pause
+   between batches (used 120s). This stack's enabled indexers are proxied through Prowlarr and
+   include several usenet providers with their own daily/per-window API quotas
+   (`GET /api/v3/indexer` for the current list) - a single unpaced burst across 300+ movies can
+   trip those limits and get the whole indexer set rate-limited or banned, which is worse than a
+   slower backlog clear.
+5. Confirm end to end: releases grabbed (`GET /api/v3/queue`), handed to the download client, and
+   actually downloading - not just that the search command returned. Movies that still find
+   nothing after a real profile fix are an expected outcome, not a bug; group them by what they
+   have in common (language mismatch, no HD-Bluray-tier release group, not yet released) since
+   that tells you whether another profile gap remains.
+
+**Candidate fix, not yet applied:** flipping `searchOnAdd: true` on the import lists
+(`kubernetes/apps/base/downloads/recyclarr/app/config/recyclarr.yml` does not manage import
+lists; they are Radarr-side, `Settings > Lists`) would make a newly-added movie search
+immediately instead of waiting on RSS, closing the root cause of this class of silent backlog.
+It was deliberately **not** enabled as part of the 2026-08-29 fix because it changes ongoing
+behavior (an immediate indexer hit on every future list addition) rather than clearing the
+existing backlog, and needs its own rate-limit/quota consideration for list-driven bulk adds.
+
 ### Deleting files directly from NAS
 
 Not recommended -- go through the *arr UI when possible. For bulk cleanup (e.g., removing ISOs), exec into a pod that has the NFS mount:
