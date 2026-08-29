@@ -66,14 +66,20 @@ def render_schematic() -> str:
     assert_true(MINIJINJA_CONFIG.is_file(), f"missing {MINIJINJA_CONFIG}")
     env = os.environ.copy()
     env["MINIJINJA_CONFIG_FILE"] = str(MINIJINJA_CONFIG)
-    proc = subprocess.run(
-        ["minijinja-cli", str(SCHEMATIC_TEMPLATE)],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=str(ROOT),
-    )
+    try:
+        proc = subprocess.run(
+            ["minijinja-cli", str(SCHEMATIC_TEMPLATE)],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=str(ROOT),
+        )
+    except FileNotFoundError as exc:
+        raise Failure(
+            "minijinja-cli not on PATH (python-tests must install "
+            "aqua:mitsuhiko/minijinja; locally: mise install / PATH via mise bin-paths)"
+        ) from exc
     if proc.returncode != 0:
         raise Failure(
             f"minijinja-cli failed ({proc.returncode}): {proc.stderr.strip()}"
