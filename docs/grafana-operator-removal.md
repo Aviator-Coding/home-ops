@@ -47,8 +47,8 @@ ever deployed. Investigated and removed on the captain's decision; this is the r
 
 ## What is still outstanding (deliberately not done here)
 
-This PR is manifest/git-only. It does **not** touch the live cluster. Two things from the old setup are
-still physically present and need a separate, explicit cleanup pass:
+This PR is manifest/git-only. It does **not** touch the live cluster. Leftovers from the old setup
+still need a separate, explicit cleanup pass:
 
 - The `grafana.integreatly.org` CRDs installed by the old bootstrap step (`grafanadashboards`,
   `grafanadatasources`, `grafanafolders`, `grafanaalertrulegroups`, `grafanacontactpoints`,
@@ -57,9 +57,14 @@ still physically present and need a separate, explicit cleanup pass:
   out-of-band by `helmfile`, not by Flux, so removing the bootstrap entry does not retroactively uninstall
   them. Bootstrap stages are not re-run against a healthy cluster (see `bootstrap/AGENTS.md`), so nothing
   in this PR removes them automatically.
-- The 10 `GrafanaDashboard` CRs this PR deletes from git (plus the already-orphaned `tuppr-dashboard`,
-  which this PR never had a file for) still exist as live objects until pruned by whichever Flux
-  Kustomization owns each namespace, or removed by hand.
+- The 9 git-tracked `GrafanaDashboard` CRs still exist live until their owning Flux Kustomizations
+  prune them after merge. The already-orphaned `tuppr-dashboard` was chart-rendered (never a git
+  file); flipping `grafanaOperator.enabled` off makes the next tuppr Helm upgrade drop it — if it
+  somehow remains, delete by hand (command below).
+- `kubernetes/apps/base/ai/toolhive/mcp-servers/kubectl-mcp/rbac.yaml` still lists
+  `grafana.integreatly.org` in its ClusterRole apiGroups. Harmless while the CRDs remain; drop that
+  entry in the same cleanup pass that deletes the CRDs (not done here — functional RBAC change is
+  out of scope for the git-only removal).
 
 Cleanup commands for a future, explicitly-approved pass (do not run as part of this change):
 
@@ -67,9 +72,8 @@ Cleanup commands for a future, explicitly-approved pass (do not run as part of t
 # Confirm nothing still references the CRDs before removing them
 kubectl get grafanadashboards -A
 
-# Remove the leftover CRs (Flux will already have pruned the git-tracked ones on merge+reconcile;
-# this only matters for the orphaned tuppr-dashboard, which git never owned)
-kubectl delete grafanadashboard tuppr-dashboard -n system-upgrade
+# Only if tuppr-dashboard survived the Helm upgrade that disabled grafanaOperator
+kubectl delete grafanadashboard tuppr-dashboard -n system-upgrade --ignore-not-found
 
 # Remove the CRDs themselves once no CRs of any kind remain
 kubectl get crd -o name | grep grafana.integreatly.org | xargs kubectl delete

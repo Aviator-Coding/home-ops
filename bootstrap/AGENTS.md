@@ -62,19 +62,11 @@ duplication — Renovate bumps the OCIRepository tag and helmfile picks it up au
 
 Example: `cilium` in `kube-system` → reads `kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml`.
 
-> **grafana-operator was investigated and removed (2026-08-29).** It never had an
-> OCIRepository/HelmRelease under `kubernetes/apps/`, and its `crds.yaml` entry
-> was a side-effect of an unrelated bootstrap refactor, not a deliberate deploy
-> decision — full history in `docs/grafana-operator-removal.md`. `kind: GrafanaDashboard`
-> CRs do **not** work in this cluster: no grafana-operator workload has ever been
-> deployed, and the operator's own `Grafana` instance CRD was never even installed,
-> so those CRs sat with permanently empty `.status` and never rendered. Do not
-> re-add a `GrafanaDashboard` CR for a new app. Grafana (`kubernetes/apps/base/monitoring/grafana`)
-> is a standalone HelmRelease with two working delivery mechanisms instead: an
-> entry in its own `dashboards:` values block (`gnetId:`/`url:`/`json:`, ~40 dashboards
-> already use this), or a ConfigMap anywhere in the cluster labelled `grafana_dashboard`
-> (with a `grafana_folder` annotation for folder placement) — its sidecar
-> (`sidecar.dashboards`) auto-discovers those across every namespace.
+Every `crds.yaml` release must have a matching OCIRepository under `kubernetes/apps/base/`
+so chart/version stay single-sourced. Do not reintroduce explicit `chart:`/`version:` pins
+here — the former `grafana-operator` exception was removed 2026-08-29 (do not re-add
+`GrafanaDashboard` CRs either; full history and live-cluster cleanup in
+`docs/grafana-operator-removal.md`).
 
 ## SECRETS
 
