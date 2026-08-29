@@ -11,7 +11,7 @@ trusting a green run for more than it claims.
 
 ## Python regression tests
 
-The 12 `*-test.py` files are hand-written semantic/behavioral regression tests, each pinning
+The 13 `*-test.py` files are hand-written semantic/behavioral regression tests, each pinning
 one specific captain decision or invariant against the live repo state (not a source grep -
 most render the real manifests via `kubectl kustomize`/`kustomize build`, parse the result,
 and assert on the parsed structure; the `litellm-*` ones additionally exercise the real
@@ -32,6 +32,10 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `litellm-sso-test.py` | LiteLLM UI SSO through Authentik |
 | `terraform-ci-workflows-test.py` | terraform-diff / terraform-publish CI contract |
 | `tofu-authentik-stack-test.py` | the Authentik OpenTofu adoption stack |
+| `workflow-hardening-test.py` | GitHub Actions workflow permissions/concurrency hardening |
+
+New `scripts/ci/*-test.py` files need no separate wiring: CI globs `scripts/ci/*-test.py`,
+so any file matching that pattern is picked up automatically.
 
 ### How to run them locally
 
@@ -69,12 +73,10 @@ to a soft pass-with-note instead.
 
 ### CI status
 
-**Not yet wired into any workflow, taskfile, just recipe, or pre-commit hook** - running
-them is manual today. `.github/workflows/validate.yaml`'s path filter already watches
-`scripts/ci/**`, so editing one of these currently triggers CI jobs that never execute it.
-See the task tracked under `homeops-ci-pytest-wiring` (a pending decision blocks wiring a
-`validate.yaml` job that runs them: one test currently fails against the tip of `main`,
-`litellm-auto-router-test.py`'s `externalsecret_only_existing_1password_items` check, after
-`d159d7f5` added a new `litellm-sso` 1Password item the test's allow-list doesn't know
-about yet - see that task's report for detail). Wiring the job is only appropriate once all
-12 pass clean.
+Wired into `.github/workflows/validate.yaml`'s `python-tests` job, gated by the same
+`scripts/ci/**` (plus `.github/workflows/validate.yaml` / `.mise.toml`) path filter as the
+shell-script jobs above. It installs `python-hcl2` and `litellm[proxy]==1.98.0` (matching
+the pinned cluster proxy image), then runs every `scripts/ci/*-test.py` in a loop and fails
+the job if any of them fails. This is a deliberately slower job in exchange for the tests
+exercising the real `litellm` library rather than a stub or a soft-skip - see the job's own
+comments in `validate.yaml` before changing that trade-off.

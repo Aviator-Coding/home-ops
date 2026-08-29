@@ -71,6 +71,7 @@ jobs:
       bootstrap: ${{ steps.bootstrap.outputs.changed_files }}
       renovate: ${{ steps.renovate.outputs.changed_files }}
       terraform: ${{ steps.terraform.outputs.changed_files }}
+      pythontests: ${{ steps.pythontests.outputs.changed_files }}
     steps:
       - name: Talos Changes
         id: talos
@@ -121,6 +122,15 @@ jobs:
             .github/workflows/validate.yaml
             .mise.toml
             scripts/ci/tofu-validate.sh
+
+      - name: Python Regression Test Changes
+        id: pythontests
+        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        with:
+          patterns: |-
+            scripts/ci/**
+            .github/workflows/validate.yaml
+            .mise.toml
 
   talos:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.talos != '[]' }}
@@ -240,3 +250,46 @@ jobs:
       # considered safe and `tofu apply` is not.
       - name: Format and Validate OpenTofu Stacks
         run: ./scripts/ci/tofu-validate.sh
+
+  python-tests:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.pythontests != '[]' }}
+    needs: filter
+    name: python-tests
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # kubectl/kustomize/helm/opentofu are what the tests shell out to (kubectl kustomize,
+      # helm template) to render the real manifests they assert on; python/uv provision the
+      # interpreter and the two extra libraries these tests need beyond the stdlib.
+      - name: Setup Tools
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        with:
+          install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize
+
+      # litellm[proxy]==1.98.0 matches the pinned cluster image
+      # (ghcr.io/berriai/litellm-non_root:v1.98.0, see
+      # kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml) so the auto-router and
+      # request-logs tests exercise the real library the proxy runs, not a stub. This makes
+      # the job slower than the others here on purpose - do not soft-skip it to save time.
+      - name: Install Python Test Dependencies
+        run: uv pip install --system python-hcl2 "litellm[proxy]==1.98.0"
+
+      # Each file is a standalone script, not a pytest module: main() calls its own
+      # test_* functions and prints [PASS]/[FAIL] lines itself. See scripts/ci/README.md.
+      - name: Run scripts/ci Python Regression Tests
+        run: |
+          fail=0
+          for f in scripts/ci/*-test.py; do
+            echo "::group::${f}"
+            if ! python3 "${f}"; then
+              echo "FAILED: ${f}"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "${fail}"
