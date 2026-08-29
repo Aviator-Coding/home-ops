@@ -175,17 +175,22 @@ Autobrr is deployed (`kubernetes/apps/main/downloads/kustomization.yaml`). Cross
 
 **Namespace:** `media` | **Hostname:** `tdarr.${SECRET_DOMAIN}`
 
-Not a DaemonSet. The worker requests `devic.es/b70` (generic-device-plugin on the
-discrete Arc Pro B70 at talos-3 PCI `0000:03:00.0`) because the AV1 QSV codec path
-needs that card; iGPUs restored by `xe.force_probe=a7a0` are not enough. Still a
-single replica (server `internalNode=false`), not a DaemonSet - a DaemonSet would
+Not a DaemonSet. The worker requests `devic.es/b70-vaapi` (generic-device-plugin on
+the discrete Arc Pro B70 at talos-3 PCI `0000:03:00.0`) because the AV1 QSV codec
+path needs that card; iGPUs restored by `xe.force_probe=a7a0` are not enough. Still
+a single replica (server `internalNode=false`), not a DaemonSet - a DaemonSet would
 strand Pending pods on nodes without the B70. Resource split and force_probe
 detail: [`ai-gpu-changelog.md`](ai-gpu-changelog.md).
+
+`b70-vaapi` is the same physical card as `devic.es/b70`, exposed under the device
+names the kernel gives it (`card1`/`renderD129`) instead of the `card0`/`renderD128`
+rename the `b70` group applies. **VA-API cannot use a renamed DRM node** - see
+[Verifying VA-API after a GPU change](#verifying-va-api-after-a-gpu-change).
 
 | Controller | Type | Purpose | GPU |
 |-----------|------|---------|-----|
 | `tdarr` | Deployment (1 pod) | Web UI, orchestrator, database | No |
-| `tdarr-node` | Deployment (`replicas: 1`) | Transcode worker on the B70 (talos-3) | `devic.es/b70: 1` |
+| `tdarr-node` | Deployment (`replicas: 1`) | Transcode worker on the B70 (talos-3) | `devic.es/b70-vaapi: 1` |
 
 Optional external Windows node via Service `tdarr-node-lb` (`10.50.0.54:8266`,
 `tdarr/app/externalservice.yaml`). Live UI (2026-08-21): k8s node `talos-3`
@@ -204,12 +209,48 @@ serverIP=tdarr.media.svc.cluster.local
 serverPort=8266
 nodeType=mapped            # All workers see /media at the same path
 transcodegpuWorkers=1      # One QSV transcode at a time
-transcodecpuWorkers=0      # Force GPU usage
+transcodecpuWorkers=1      # Fallback worker. Never set this to 0: a GPU-only
+                           # node turns any VA-API regression into a silent,
+                           # total transcoding outage (2026-08-26, below).
 healthcheckgpuWorkers=1
 healthcheckcpuWorkers=1
 nodeName=<k8s pod nodeName> # Registers with pod's scheduling node
 ffmpegVersion=7
 ```
+
+### Node library scoping (Tdarr server state, not Git)
+
+Which libraries a node will accept work from is per-node Tdarr state
+(`librariesToNotProcess`, persisted in the server's `NodeJSONDB`, keyed by node
+name). It is **not** GitOps and cannot ship in a PR - it survives pod restarts
+because the node re-reads it from the server when it registers.
+
+Current scoping for `talos-3` (the k8s worker):
+
+| Library | Id | talos-3 | Why |
+|---------|----|---------|-----|
+| Movies AV1 | `gEUZf7Nx6` | **processed** | Restored 2026-08-29 with the B70 VA-API fix |
+| Series | `j5g_Es7sD` | **excluded (deliberate)** | See below |
+
+**The Series exclusion is retained on purpose.** All three Talos nodes were
+excluded from both libraries as a mitigation after the 2026-08-26 VA-API break
+(the job report from that day shows talos-3 still accepting Movies work at
+19:19, so the exclusions post-date it). Restoring one library at a time keeps
+the blast radius small while the B70 VA-API fix is newly landed and while the
+4K remux failures below are still unexplained. Revisit the Series exclusion
+once Movies has run clean for a while. `desktop-aviator` (the external Windows
+node) has never carried either exclusion.
+
+**Follow-up: 8 errored 4K remuxes, root cause unknown.** Eight files sit in
+Tdarr's error table (`table3`), most of them 21-67 GB 2160p DV/HDR10 remux
+masters. Their failure is **not** explained by the VA-API break alone and has
+not been investigated. Tdarr rewrites in place and the AV1 result is lossy and
+irreversible, so **do not bulk-requeue them to clear the error table** - the
+failure needs to be understood on one file first, ideally against a copy.
+Re-enabling a library does not re-queue them: `librariesToNotProcess` is a
+node-side accept filter, and errored files stay parked until explicitly
+requeued (verified 2026-08-29 - clearing the Movies exclusion left all 8 in
+`table3` with the transcode queue at 0).
 
 ### Transcode flow (configured in Tdarr UI, not Git)
 
@@ -334,13 +375,56 @@ Expect 1 `tdarr-*` server pod + 1 `tdarr-tdarr-node-*` worker on talos-3. The Td
 ### Monitoring GPU usage
 
 ```sh
-kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0")"'
+kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0") b70-vaapi=\(.status.allocatable."devic.es/b70-vaapi" // "0")"'
 ```
 
-`devic.es/b70` is `99` only on talos-3 (tdarr-node / AI discrete consumers).
+`devic.es/b70` and `devic.es/b70-vaapi` are `99` only on talos-3. Both are the
+same physical card: `b70` for Level Zero consumers (vllm, comfyui),
+`b70-vaapi` for VA-API consumers (tdarr-node).
 `gpu.intel.com/xe` is the Intel plugin pool for jellyfin/plex/playwright,
 scoped to the iGPU (`allowIDs: "0xa7a0"`) and present as `99` on all three
 nodes. `gpu.intel.com/i915` stays 0 after the xe migration.
+
+### Verifying VA-API after a GPU change
+
+**Allocatable capacity is not proof that transcoding works.** Run this after ANY
+change to `generic-device-plugin`'s config, the Talos GPU kernel args, a node's
+GPU hardware, or the `tdarr_node` image. It takes seconds and it is the only
+check that exercises the path Tdarr actually uses:
+
+```sh
+# 1. Names must match minors. card1 must be minor 1, renderD129 must be minor 129.
+kubectl -n media exec deploy/tdarr-tdarr-node -c app -- ls -l /dev/dri/
+
+# 2. VA-API must open a display and list AV1 encode.
+kubectl -n media exec deploy/tdarr-tdarr-node -c app -- \
+  vainfo --display drm --device /dev/dri/renderD129 | grep -E 'Driver version|AV1.*Enc'
+
+# 3. The encoder Tdarr invokes must actually run.
+kubectl -n media exec deploy/tdarr-tdarr-node -c app -- \
+  tdarr-ffmpeg -y -f lavfi -i testsrc=size=1920x1080:rate=30 -frames:v 120 \
+  -c:v av1_qsv -b:v 5M /tmp/vaapi-check.mp4
+```
+
+Healthy output is `Driver version: Intel iHD driver ... - 26.2.2`,
+`VAProfileAV1Profile0 : VAEntrypointEncSlice`, and an ffmpeg run ending in a
+`frame= 120 ... Lsize=` summary. The failure signature is
+`Failed to a DRM display for the given device` from `vainfo` and
+`Cannot open a VA display from DRM device` / `Device creation failed: -542398533`
+from ffmpeg.
+
+**Why this check exists.** `generic-device-plugin` can rename a device node via
+`mountPath`, and for DRM nodes that rename is fatal to VA-API. libdrm does not
+trust the path you hand it: it `fstat()`s the fd, reads
+`/sys/dev/char/<major>:<minor>/uevent`, and re-derives the canonical `DEVNAME`.
+If the container does not also have the device at that canonical name,
+`vaGetDisplayDRM()` fails before any driver loads. Level Zero (vllm, comfyui)
+opens whatever `/dev/dri/render*` it finds and is unaffected, so **the AI stack
+stays green while transcoding is completely dead**. That is exactly what happened
+on 2026-08-26: PR #1443 renamed the B70 to `card0`/`renderD128`, and because
+`transcodecpuWorkers` was `0` there was no fallback, so every job failed for three
+days with the Tdarr UI showing an idle, healthy server. See
+[`ai-gpu-changelog.md`](ai-gpu-changelog.md).
 
 ### Finding which *arr app is failing imports
 

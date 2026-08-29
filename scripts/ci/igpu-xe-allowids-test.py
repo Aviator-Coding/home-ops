@@ -8,9 +8,11 @@ iGPUs advertised xe. With that precondition closed, the HelmRelease must:
   2. Produce a GpuDevicePlugin CR whose spec.allowIDs is exactly that value
      (chart values map 1:1 onto CR fields - confirmed by helm template).
   3. Keep media/browser consumers (jellyfin/plex/playwright) on
-     gpu.intel.com/xe only, never devic.es/b70.
-  4. Keep discrete B70 consumers (vllm/vllm-embed/comfyui/tdarr-node) on
-     devic.es/b70 only, never gpu.intel.com/xe.
+     gpu.intel.com/xe only, never devic.es/b70 or devic.es/b70-vaapi.
+  4. Keep Level Zero B70 consumers (vllm/vllm-embed/comfyui) on
+     devic.es/b70 only, never gpu.intel.com/xe or devic.es/b70-vaapi.
+  5. Keep the VA-API B70 consumer (tdarr-node) on devic.es/b70-vaapi only,
+     never gpu.intel.com/xe or the renamed devic.es/b70 group.
 
 This test does not grep source text. It:
   - loads the kustomize-built HelmRelease as a structured object
@@ -44,6 +46,7 @@ CHART_VERSION = "0.34.1"
 IGPU_ALLOW_ID = "0xa7a0"
 XE_RESOURCE = "gpu.intel.com/xe"
 B70_RESOURCE = "devic.es/b70"
+B70_VAAPI_RESOURCE = "devic.es/b70-vaapi"
 
 # Controllers that must stay on the shared xe/iGPU pool.
 XE_CONSUMERS: dict[str, Path] = {
@@ -52,10 +55,14 @@ XE_CONSUMERS: dict[str, Path] = {
     "playwright": ROOT / "kubernetes/apps/base/selfhosted/rsshub/playwright/helmrelease.yaml",
 }
 
-# Controllers that must stay on the discrete B70 identity.
+# Controllers that must stay on the renamed Level Zero B70 identity.
 B70_CONSUMERS: dict[str, Path] = {
     "vllm": ROOT / "kubernetes/apps/base/ai/vllm/app/helmrelease.yaml",
     "comfyui": ROOT / "kubernetes/apps/base/ai/comfyui/app/helmrelease.yaml",
+}
+
+# Controllers that must stay on the name-faithful VA-API B70 identity.
+B70_VAAPI_CONSUMERS: dict[str, Path] = {
     "tdarr-node": ROOT / "kubernetes/apps/base/media/tdarr/app/helmrelease.yaml",
 }
 
@@ -308,9 +315,6 @@ def main() -> int:
             assert_true(path.is_file(), f"missing b70 consumer manifest: {path}")
             per = controller_resource_sets(path)
             b70_evidence[name] = {k: sorted(v) for k, v in per.items()}
-            # tdarr has server + node; only node (or any controller that asks
-            # for a GPU) must be b70-only. Controllers with no GPU resources
-            # are fine (tdarr server).
             gpu_controllers = {k: v for k, v in per.items() if v}
             assert_true(
                 gpu_controllers,
@@ -325,15 +329,48 @@ def main() -> int:
                     XE_RESOURCE not in resources,
                     f"{name}/{cname} must NOT request {XE_RESOURCE}, found {sorted(resources)}",
                 )
+                assert_true(
+                    B70_VAAPI_RESOURCE not in resources,
+                    f"{name}/{cname} must NOT request {B70_VAAPI_RESOURCE}, found {sorted(resources)}",
+                )
         evidence["b70Consumers"] = b70_evidence
+
+        b70_vaapi_evidence: dict[str, Any] = {}
+        for name, path in B70_VAAPI_CONSUMERS.items():
+            assert_true(path.is_file(), f"missing b70-vaapi consumer manifest: {path}")
+            per = controller_resource_sets(path)
+            b70_vaapi_evidence[name] = {k: sorted(v) for k, v in per.items()}
+            # tdarr has server + node; only node (or any controller that asks
+            # for a GPU) must be b70-vaapi-only. Controllers with no GPU
+            # resources are fine (tdarr server).
+            gpu_controllers = {k: v for k, v in per.items() if v}
+            assert_true(
+                gpu_controllers,
+                f"{name} expected at least one controller with GPU resources",
+            )
+            for cname, resources in gpu_controllers.items():
+                assert_true(
+                    B70_VAAPI_RESOURCE in resources,
+                    f"{name}/{cname} must request {B70_VAAPI_RESOURCE}, found {sorted(resources)}",
+                )
+                assert_true(
+                    B70_RESOURCE not in resources,
+                    f"{name}/{cname} must NOT request renamed {B70_RESOURCE}, found {sorted(resources)}",
+                )
+                assert_true(
+                    XE_RESOURCE not in resources,
+                    f"{name}/{cname} must NOT request {XE_RESOURCE}, found {sorted(resources)}",
+                )
+        evidence["b70VaapiConsumers"] = b70_vaapi_evidence
 
         # Expected post-reconcile allocatable model (documentation contract).
         # Not live cluster state - records the intended end state the change
         # produces once Flux rolls the plugin.
         evidence["expectedAllocatableAfterReconcile"] = {
-            "talos-1": {XE_RESOURCE: 99, B70_RESOURCE: 0},
-            "talos-2": {XE_RESOURCE: 99, B70_RESOURCE: 0},
-            "talos-3": {XE_RESOURCE: 99, B70_RESOURCE: 99},  # xe was 198 before
+            "talos-1": {XE_RESOURCE: 99, B70_RESOURCE: 0, B70_VAAPI_RESOURCE: 0},
+            "talos-2": {XE_RESOURCE: 99, B70_RESOURCE: 0, B70_VAAPI_RESOURCE: 0},
+            # xe was 198 before allowIDs; both B70 identities stay at 99 on talos-3.
+            "talos-3": {XE_RESOURCE: 99, B70_RESOURCE: 99, B70_VAAPI_RESOURCE: 99},
         }
 
         evidence["result"] = "PASS"
@@ -341,7 +378,8 @@ def main() -> int:
         print(
             f"OK: GpuDevicePlugin allowIDs={IGPU_ALLOW_ID}; "
             f"xe consumers {sorted(XE_CONSUMERS)} exclusive of b70; "
-            f"b70 consumers {sorted(B70_CONSUMERS)} exclusive of xe",
+            f"b70 consumers {sorted(B70_CONSUMERS)} exclusive of xe/vaapi; "
+            f"b70-vaapi consumers {sorted(B70_VAAPI_CONSUMERS)} exclusive of xe/b70",
             file=sys.stderr,
         )
         return 0

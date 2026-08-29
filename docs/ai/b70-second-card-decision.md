@@ -16,6 +16,9 @@
 > - 2026-08-26: `allowIDs: "0xa7a0"` scopes `gpu.intel.com/xe` to the iGPU; the B70
 >   no longer contributes to that pool. Owner:
 >   [`ai-gpu-changelog.md`](../ai-gpu-changelog.md) 2026-08-26 entry.
+> - 2026-08-29: `tdarr-node` moved off `devic.es/b70` onto `devic.es/b70-vaapi` (same
+>   physical card, kernel DRM names). Live inventory owner:
+>   [`ai-gpu-changelog.md`](../ai-gpu-changelog.md) baseline + 2026-08-29 entry.
 
 ## TL;DR
 

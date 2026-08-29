@@ -159,9 +159,11 @@ second card.
 
 ## 4. Single-card workload isolation (B70 time-slice contention)
 
-`talos-3` has **one** B70. Discrete consumers (`vllm`, `vllm-embed`, `comfyui`, `tdarr-node`)
-request `devic.es/b70` from generic-device-plugin (DRM by-path at `0000:03:00.0`) - placement
-is that extended resource, not hostname affinity. **As of 2026-06-28 / 2026-07-08, only chat
+`talos-3` has **one** B70. Level Zero discrete consumers (`vllm`, `vllm-embed`, `comfyui`)
+request `devic.es/b70` from generic-device-plugin (DRM by-path at `0000:03:00.0`);
+`tdarr-node` requests `devic.es/b70-vaapi` for the same card under kernel DRM names
+(VA-API cannot use the renamed `b70` nodes - see [`../media-stack.md`](../media-stack.md#verifying-va-api-after-a-gpu-change)).
+Placement is that extended resource, not hostname affinity. **As of 2026-06-28 / 2026-07-08, only chat
 is on the card by default** among AI workloads. `vllm-embed` is `replicas: 0` (agentmemory
 moved to OpenRouter). `comfyui` stays `replicas: 0` except during a deliberate image session.
 `tdarr-node` may still co-schedule for light QSV. The B70 has **no hardware compute

@@ -85,8 +85,12 @@ spec:
               limits:
                 memory: 2Gi
 
-      # Worker: single replica, placed by its devic.es/b70 request (discrete
-      # Arc Pro B70 on talos-3). Codec requirement needs the discrete card;
+      # Worker: single replica, placed by its devic.es/b70-vaapi request
+      # (discrete Arc Pro B70 on talos-3). b70-vaapi is the same card as
+      # devic.es/b70 but mounted under its kernel-canonical device names,
+      # which VA-API requires and the renamed b70 group cannot provide; see
+      # the generic-device-plugin config for the mechanism.
+      # Codec requirement needs the discrete card;
       # the Raptor Lake iGPUs restored by xe.force_probe=a7a0 are not enough.
       # Still a single replica, not a DaemonSet: the server runs
       # internalNode=false so one worker is enough, and a DaemonSet would
@@ -125,8 +129,12 @@ spec:
               # the external Windows GPU node (see tdarr-node-lb) still helps out.
               - name: transcodegpuWorkers
                 value: "1"
+              # Keep at least one CPU transcode worker. A GPU-only node turns any
+              # VA-API regression into a silent, total transcoding outage: every job
+              # the GPU worker picks up fails with transcodeError and nothing else
+              # can take it. Cost is speed, not correctness. See docs/media-stack.md.
               - name: transcodecpuWorkers
-                value: "0"
+                value: "1"
               - name: healthcheckgpuWorkers
                 value: "1"
               - name: healthcheckcpuWorkers
@@ -148,7 +156,7 @@ spec:
                 cpu: 100m
                 memory: 512Mi
               limits:
-                devic.es/b70: 1
+                devic.es/b70-vaapi: 1
                 memory: 4Gi
 
     service:

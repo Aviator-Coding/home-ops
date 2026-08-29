@@ -19,27 +19,27 @@ recently, and why?" without spelunking git.
 
 ---
 
-## Current baseline (2026-08-26)
+## Current baseline (2026-08-29)
 
 | Layer | Value |
 |-------|-------|
 | **GPU (discrete)** | 1× Intel Arc Pro B70 (Battlemage G31, 32 GiB / 32656 MiB reported), talos-3 OCuLink PCI `0000:03:00.0` |
 | **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic: `siderolabs/xe` + `siderolabs/i915` (i915/ firmware for xe; `i915.ko` kept off a7a0), `xe.force_probe=a7a0` + `i915.force_probe=!a7a0`, plus `pcie_port_pm=off` for the B70 root-port race (captain activates schematic changes via `just talos upgrade-node`, not `apply-node`; not Flux) |
-| **B70 resource** | `devic.es/b70: 99` via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
+| **B70 resources** | `devic.es/b70: 99` (Level Zero / renamed `card0`/`renderD128`) and `devic.es/b70-vaapi: 99` (VA-API / kernel names `card1`/`renderD129`) via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
 | **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin, `allowIDs: "0xa7a0"` - light QSV/browser (jellyfin/plex/playwright). iGPU-only; the B70 no longer contributes to this pool |
-| **On the B70** | chat (`vllm`) + optional `tdarr-node`. `vllm-embed` and `comfyui` are pinned `replicas: 0` |
+| **On the B70** | chat (`vllm` on `devic.es/b70`) + optional `tdarr-node` (on `devic.es/b70-vaapi`). `vllm-embed` and `comfyui` are pinned `replicas: 0` |
 | **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` (pin is load-bearing; do not float to `server-intel`) |
 | **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` |
 | **Chat KV / FA** | `--flash-attn on`, `--cache-type-k/-v q8_0` (accepted on this pin; see 2026-08-21) |
 
-### Workloads on the B70 (`devic.es/b70`)
+### Workloads on the B70
 
-| Pod | Image | Role | VRAM |
-|-----|-------|------|------|
-| `vllm` | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` | Chat - **llama.cpp SYCL**, `Qwen3.6-35B-A3B UD-Q4_K_M`. Keeps the `vllm` name so the service + gateway backend stay stable; real vLLM OOMs the MoE warmup (intel/llm-scaler#382). | ~21.4 GiB weights + ~5.2 GiB KV @262k q8_0 |
-| `vllm-embed` | `intel/llm-scaler-vllm` | Embeddings - `Qwen3-VL-Embedding-2B`. **Default off** (`replicas: 0`); agentmemory moved to OpenRouter 2026-06-28. | (not resident) |
-| `comfyui` | `intel/llm-scaler-omni` | Image generation. **Default off** (`replicas: 0`). | (not resident) |
-| `tdarr-node` | tdarr (media ns) | QSV AV1 worker; codec needs the discrete card | light |
+| Pod | Resource | Image | Role | VRAM |
+|-----|----------|-------|------|------|
+| `vllm` | `devic.es/b70` | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` | Chat - **llama.cpp SYCL**, `Qwen3.6-35B-A3B UD-Q4_K_M`. Keeps the `vllm` name so the service + gateway backend stay stable; real vLLM OOMs the MoE warmup (intel/llm-scaler#382). | ~21.4 GiB weights + ~5.2 GiB KV @262k q8_0 |
+| `vllm-embed` | `devic.es/b70` | `intel/llm-scaler-vllm` | Embeddings - `Qwen3-VL-Embedding-2B`. **Default off** (`replicas: 0`); agentmemory moved to OpenRouter 2026-06-28. | (not resident) |
+| `comfyui` | `devic.es/b70` | `intel/llm-scaler-omni` | Image generation. **Default off** (`replicas: 0`). | (not resident) |
+| `tdarr-node` | `devic.es/b70-vaapi` | tdarr (media ns) | QSV AV1 worker; codec needs the discrete card under kernel DRM names | light |
 
 ### SYCL / Battlemage constraints
 
@@ -57,6 +57,64 @@ When you merge an AI / GPU config change, prepend an entry (newest first):
 ## [YYYY-MM-DD] Short title  (PR #NNN)
 Change · Why · Evidence · Risk/rollback · Verify
 ```
+
+---
+
+## [2026-08-29] Add `devic.es/b70-vaapi` so VA-API can use the B70 again
+
+**Change.** Added a second `generic-device-plugin` group, `b70-vaapi`, exposing the same
+B70 by-path DRM nodes at the names the kernel gives them (`/dev/dri/card1`,
+`/dev/dri/renderD129`) instead of the `card0`/`renderD128` rename the `b70` group applies.
+Moved `tdarr-node` onto it. Also set `transcodecpuWorkers: "1"` on tdarr-node.
+The `b70` group is unchanged, so `vllm` and `comfyui` are untouched.
+
+**Why.** PR #1443 (2026-08-25) moved `tdarr-node` from `gpu.intel.com/xe` to
+`devic.es/b70`, whose group renames the device nodes. That rename is fatal to VA-API:
+libdrm ignores the path you pass, `fstat()`s the fd, reads
+`/sys/dev/char/226:129/uevent` and re-derives the canonical `DEVNAME` (`dri/renderD129`),
+then reopens that path. In a container holding the same device as `renderD128`, the path
+does not exist and `vaGetDisplayDRM()` fails before any driver loads. Every Tdarr GPU job
+failed from 2026-08-26 07:22. With `transcodecpuWorkers: "0"` there was no fallback, and
+because the library was already 99.28% transcoded with an empty queue, the UI showed an
+idle, healthy server. Total transcoding outage, invisible for three days.
+
+**Evidence.** A-B-A inside the running pod, one variable, everything else held constant:
+creating a `renderD129` symlink made the **unchanged** `renderD128` path succeed;
+removing it reproduced `Device creation failed: -542398533`; restoring it succeeded again.
+That disproves the competing hypothesis that `libva 2.23.0` +
+`intel-media-va-driver-non-free 26.2.2` is incompatible with Battlemage - the same driver
+initialises fine (`Intel iHD driver ... 26.2.2`, `VAProfileAV1Profile0 :
+VAEntrypointEncSlice`) the moment the name matches. After the change, a real 25-minute
+1080p library file transcoded end to end with the exact `av1_qsv -preset medium
+-global_quality 28 -look_ahead 1` invocation from the failed job report, at ~13x realtime.
+
+**Why a second group and not an edit to `b70`.** Device IDs are
+`sha1(count_index + every resolved host path in the group)`
+(`deviceplugin/path.go`), so adding paths to `b70` would change all 99 IDs and invalidate
+kubelet's live allocations for the running AI pods. A new group leaves them byte-identical;
+verified live - `devic.es/b70` stayed at `99` and `vllm` kept 0 restarts across the rollout.
+
+**Risk / rollback.** `mountPath` here hardcodes the kernel's current enumeration: the iGPU
+at `0000:00:02.0` probes first and takes `card0`/`renderD128`, leaving the discrete card at
+`card1`/`renderD129`. If that order ever changes, VA-API breaks again - but tdarr now
+degrades to its CPU worker instead of failing every job. Rollback is dropping the
+`b70-vaapi` group and pointing tdarr-node back at `devic.es/b70`, which restores the
+outage, so prefer fixing the names.
+
+**Service restore scope (captain decision, 2026-08-29).** The GPU fix alone does not
+resume transcoding: all three Talos nodes had been excluded from both Tdarr libraries as
+a post-outage mitigation. Only the **Movies AV1** exclusion was cleared on `talos-3`; the
+**Series** exclusion is deliberately retained to restore one library at a time. The eight
+4K remuxes in Tdarr's error table are a separate follow-up whose failure must be
+understood before they are requeued - Tdarr rewrites in place and AV1 is lossy and
+irreversible. Both are Tdarr server state, not GitOps; details and the verification that
+clearing a library does not requeue errored files are in
+[`media-stack.md`](./media-stack.md#node-library-scoping-tdarr-server-state-not-git).
+
+**Verify.** The three-command VA-API check in
+[`media-stack.md`](./media-stack.md#verifying-va-api-after-a-gpu-change). Run it after any
+GPU, device-plugin, kernel-arg or `tdarr_node` image change: allocatable capacity is not
+proof that transcoding works.
 
 ---
 

@@ -11,7 +11,8 @@ devices:
   # owns the B70 under its own name. Discover via stable DRM by-path nodes and
   # re-expose them at the conventional card0/renderD128 paths Level Zero expects
   # inside the container. count matches the former sharedDevNum share-token model
-  # so vllm/vllm-embed/comfyui/tdarr-node can still co-schedule concurrently.
+  # so vllm/vllm-embed/comfyui can still co-schedule concurrently. tdarr-node
+  # uses the separate b70-vaapi group below (VA-API needs the kernel names).
   - name: b70
     groups:
       - count: 99
@@ -20,3 +21,34 @@ devices:
             mountPath: /dev/dri/card0
           - path: /dev/dri/by-path/pci-0000:03:00.0-render
             mountPath: /dev/dri/renderD128
+  # Same physical B70, exposed under the device names the KERNEL gives it.
+  #
+  # The b70 group above renames the nodes to card0/renderD128, and that rename
+  # is fatal to VA-API. libdrm does not trust the path you hand it: it fstat()s
+  # the fd, reads /sys/dev/char/<major>:<minor>/uevent, and re-derives the
+  # canonical DEVNAME (dri/renderD129 for this card). It then reopens
+  # /dev/dri/renderD129 - which does not exist in a container that mounted the
+  # same device as renderD128 - so vaGetDisplayDRM() fails before any driver
+  # loads. Proven live 2026-08-29: creating a renderD129 symlink inside the
+  # running tdarr-node made the UNCHANGED renderD128 path work, and removing it
+  # broke it again (A-B-A, single variable). See docs/media-stack.md.
+  #
+  # Level Zero (vllm, comfyui) opens whatever /dev/dri/renderD* it finds and is
+  # unaffected either way, so the b70 group is left byte-identical: its device
+  # IDs are sha1(count + host paths), so editing its paths would change all 99
+  # IDs and invalidate kubelet's live allocations for the running AI pods.
+  #
+  # NOTE: mountPath here must track the kernel's enumeration of this card. The
+  # iGPU (0000:00:02.0) probes first and takes card0/renderD128, so the discrete
+  # card at 0000:03:00.0 is card1/renderD129. If that order ever changes, VA-API
+  # breaks again - tdarr then degrades to its CPU worker rather than failing
+  # every job. Verify with the vainfo check in docs/media-stack.md after any GPU
+  # or device-plugin change.
+  - name: b70-vaapi
+    groups:
+      - count: 99
+        paths:
+          - path: /dev/dri/by-path/pci-0000:03:00.0-card
+            mountPath: /dev/dri/card1
+          - path: /dev/dri/by-path/pci-0000:03:00.0-render
+            mountPath: /dev/dri/renderD129
