@@ -260,7 +260,11 @@ BR-DISK and ISO files are blocked going forward:
 
 Single-pod deployment reading the NFS media mount read-only at `/data/nas-media`. Intel GPU handles hardware transcoding for any clients that can't direct play (rare with the SQP-1 profile since streaming-quality content is widely compatible).
 
-Plex is also deployed in `media` and claims `gpu.intel.com/xe: 1` (`plex/app/helmrelease.yaml`). Seerr is deployed in `media`.
+---
+
+## Plex - Media server
+
+**Namespace:** `media` | **GPU:** `gpu.intel.com/xe: 1` (`plex/app/helmrelease.yaml`). Seerr is also deployed in `media`.
 
 ### Library scan triggers (application settings, not GitOps)
 
@@ -342,6 +346,8 @@ User adds movie to Radarr
   ├─> Bazarr detects new file, downloads subtitles
   │
   ├─> Jellyfin / Plex library scan picks up the new file
+  │   └─> Plex does not watch NFS; needs Radarr/Sonarr Connect + hourly scheduled update
+  │       (see "Library scan triggers" under Plex above). Lost on config-volume rebuild.
   │
   └─> Tdarr library scan queues for health check / transcode
       └─> If not already AV1: transcode to AV1 via Intel QSV (B70 on talos-3)
