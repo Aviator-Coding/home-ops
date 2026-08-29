@@ -268,8 +268,7 @@ Plex ships with **every** scan trigger disabled by default, and this cluster ran
 from first boot until 2026-08-29: the library was built entirely by hand-run "Scan Library
 Files" calls, the last one 2026-06-19T00:44:21Z. Because Seerr polls Plex's "recently added"
 every 5 minutes and reports success, a frozen library still looks green on every dashboard --
-it took 71 days and 96 Radarr-imported movies going invisible before anyone noticed. Full
-incident evidence: the 2026-08-29 scout report referenced from this repo's task history.
+it took 71 days and 96 Radarr-imported movies going invisible before anyone noticed.
 
 Two triggers are configured now, and both are UI/API-only state that lives in each app's own
 database -- **a config-volume rebuild of Plex, Radarr, or Sonarr loses this** the same way it
@@ -293,28 +292,31 @@ whose backing file was deleted or upgraded away (11 such entries existed on 2026
 cleared by the scan that landed this section).
 
 **Counterfactual check, if this is ever suspected to have regressed:** compare Plex's on-disk
-movie folder count against its library size.
+movie folder count against its library size, and check how old `scannedAt` is.
 
 ```sh
 export KUBECONFIG=/path/to/kubeconfig   # never the mise-shim-overridden one, see NOTES
 PLEX_TOKEN=$(kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
-  'grep -o "PlexOnlineToken=\"[^\"]*\"" "/config/Library/Application Support/Plex Media Server/Preferences.xml"')
+  'grep -oE "PlexOnlineToken=\"[^\"]+\"" "/config/Library/Application Support/Plex Media Server/Preferences.xml" | cut -d\" -f2')
 
-# disk truth
+# disk truth (movie folder count)
 kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- \
   find /data/nas-media/Movies -mindepth 1 -maxdepth 1 -type d | wc -l
 
-# Plex's view, and how stale its last scan is
+# Plex library size (MediaContainer size= on /all) + section title/scannedAt age
 kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
-  "curl -s -H 'X-Plex-Token: <token>' 'http://localhost:32400/library/sections'" \
+  "curl -s -H 'X-Plex-Token: ${PLEX_TOKEN}' 'http://localhost:32400/library/sections/1/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0'" \
+  | grep -oE 'MediaContainer[^>]*size=\"[^\"]*\"'
+kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
+  "curl -s -H 'X-Plex-Token: ${PLEX_TOKEN}' 'http://localhost:32400/library/sections'" \
   | grep -oE '(title|scannedAt)=\"[^\"]*\"'
 ```
 
-The two folder/entry counts should match (within a file or two -- Plex does not scan every
-container it can't parse, e.g. a bare `.VOB` DVD rip has no Plex entry and is not a scan-trigger
-fault). If they diverge by dozens and `scannedAt` is more than a day old, the Connect
-notifications or the periodic-scan setting were lost -- reapply steps 1-2 above, then run one
-manual "Scan Library Files" to clear the backlog.
+The folder count and MediaContainer `size` should match (within a file or two -- Plex does not
+scan every container it can't parse, e.g. a bare `.VOB` DVD rip has no Plex entry and is not a
+scan-trigger fault). If they diverge by dozens and `scannedAt` is more than a day old, the
+Connect notifications or the periodic-scan setting were lost -- reapply steps 1-2 above, then
+run one manual "Scan Library Files" to clear the backlog.
 
 ---
 
