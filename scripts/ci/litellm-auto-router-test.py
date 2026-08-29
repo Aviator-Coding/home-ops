@@ -791,8 +791,12 @@ def test_externalsecret_no_new_op_item() -> None:
         (REPO / "kubernetes/apps/base/ai/litellm/app/externalsecret.yaml").read_text()
     )
     keys = [d["extract"]["key"] for d in es["spec"]["dataFrom"]]
-    # litellm + cloudnative-pg were pre-existing; ai-keys is the shared existing item
-    allowed = {"litellm", "cloudnative-pg", "ai-keys"}
+    # litellm + cloudnative-pg were pre-existing; ai-keys is the shared existing item.
+    # litellm-sso is created and populated by OpenTofu (terraform/authentik/litellm.tofu)
+    # via a PushSecret to wire LiteLLM's UI SSO through Authentik, landed deliberately in
+    # d159d7f5 (PR #1473). Its value never lands in git. This allow-list exists to catch an
+    # UNEXPECTED new secret source; a fifth, unrecognised item must still fail this test.
+    allowed = {"litellm", "cloudnative-pg", "ai-keys", "litellm-sso"}
     record(
         "externalsecret_only_existing_1password_items",
         set(keys) <= allowed and "ai-keys" in keys,

@@ -27,6 +27,7 @@ import importlib
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -855,16 +856,35 @@ PROMTOOL_IMAGE = os.environ.get(
 )
 
 
-def _run_promtool_test(work: Path, test_name: str, test_doc: dict[str, Any]) -> str:
-    """Write a promtool unit-test file and execute it via podman.
+def _promtool_available() -> bool:
+    return shutil.which("promtool") is not None
 
-    Uses Prometheus' own rule unit-test engine (promtool test rules) so the
-    assertions exercise real PromQL evaluation, not string matching on expr.
+
+def _podman_available() -> bool:
+    return (
+        shutil.which("podman") is not None
+        and subprocess.run(
+            ["podman", "--version"], capture_output=True
+        ).returncode
+        == 0
+    )
+
+
+def _run_promtool_test(work: Path, test_name: str, test_doc: dict[str, Any]) -> str:
+    """Write a promtool unit-test file and execute it via native promtool or podman.
+
+    Prefer a native `promtool` on PATH (CI installs it via mise/aqua). Fall back
+    to `podman run` only when no native binary exists. Uses Prometheus' own rule
+    unit-test engine (promtool test rules) so the assertions exercise real PromQL
+    evaluation, not string matching on expr.
     """
     test_path = work / f"{test_name}.yml"
     test_path.write_text(yaml.safe_dump(test_doc, sort_keys=False))
-    proc = subprocess.run(
-        [
+    if _promtool_available():
+        cmd = ["promtool", "test", "rules", test_path.name]
+        cwd: str | None = str(work)
+    elif _podman_available():
+        cmd = [
             "podman",
             "run",
             "--rm",
@@ -878,10 +898,19 @@ def _run_promtool_test(work: Path, test_name: str, test_doc: dict[str, Any]) -> 
             "test",
             "rules",
             test_path.name,
-        ],
+        ]
+        cwd = None
+    else:
+        raise Failure(
+            "promtool is required to evaluate PrometheusRule expr "
+            "(install native promtool, or provide podman for image fallback)"
+        )
+    proc = subprocess.run(
+        cmd,
         check=False,
         capture_output=True,
         text=True,
+        cwd=cwd,
     )
     out = (proc.stdout or "") + (proc.stderr or "")
     if proc.returncode != 0:
@@ -909,10 +938,12 @@ def assert_alert_promql_semantics(
          empty-label series when the metric is healthy - documenting why it was
          replaced - while the shipped expr yields no samples in that case.
     """
-    # Require podman; this is the executable consumer for PromQL alerts.
-    if subprocess.run(["podman", "--version"], capture_output=True).returncode != 0:
+    # Require native promtool or podman fallback; this is the executable
+    # consumer for PromQL alerts.
+    if not _promtool_available() and not _podman_available():
         raise Failure(
-            "podman is required to evaluate PrometheusRule expr with promtool"
+            "promtool is required to evaluate PrometheusRule expr "
+            "(install native promtool, or provide podman for image fallback)"
         )
 
     ann = alert.get("annotations") or {}

@@ -20,6 +20,7 @@ talosconfig
 .task/
 .venv/
 .pytest_cache/
+__pycache__/
 .DS_Store
 Thumbs.db
 1password-credential.json

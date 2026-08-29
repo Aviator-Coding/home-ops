@@ -422,16 +422,48 @@ def test_validate_job_still_credentialless() -> dict[str, Any]:
 
 
 def test_flux_local_untouched() -> dict[str, Any]:
-    base = os.environ.get("NO_MISTAKES_BASE_COMMIT", "e16f27b4995c08a035a8ba0d31b0dc4972a64f06")
-    proc = subprocess.run(
-        ["git", "diff", f"{base}..HEAD", "--", str(FLUX_LOCAL.relative_to(ROOT))],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    assert proc.stdout == ""
-    return {"diff_bytes": 0, "path": str(FLUX_LOCAL.relative_to(ROOT))}
+    """flux-local stays the kubernetes-only peer of terraform CI - not coupled into it.
+
+    The original form of this check was `git diff <pre-terraform-ci-base>..HEAD --
+    flux-local.yaml` empty, so the terraform-diff PR could not silently rewrite the
+    kubernetes Flux-local workflow. That form is not durable: GitHub Actions checkouts
+    are shallow (the frozen base SHA is absent → git exit 128), and any later
+    legitimate flux-local edit would fail forever against a historical pin. The
+    durable contract is the path isolation and lack of terraform coupling the
+    historical diff was protecting.
+    """
+    data, _text = load_workflow(FLUX_LOCAL)
+    on = on_block(data)
+    assert "pull_request" in on, on
+    paths = list(on["pull_request"].get("paths") or [])
+    assert paths, "flux-local must path-filter; an empty paths list runs on every PR"
+    assert all(
+        p == "kubernetes/**" or p.startswith("kubernetes/") for p in paths
+    ), paths
+    assert not any("terraform" in p for p in paths), paths
+
+    jobs = data["jobs"]
+    assert "filter" in jobs and "test" in jobs, sorted(jobs)
+    for name, job in jobs.items():
+        steps = job.get("steps") or []
+        runs = "\n".join(step.get("run") or "" for step in steps)
+        uses = "\n".join(step.get("uses") or "" for step in steps)
+        # No OpenTofu / terraform stack tooling leaked into the kubernetes peer.
+        assert "tofu " not in runs and "tofu\n" not in runs, name
+        assert "terraform apply" not in runs, name
+        assert "terraform-diff" not in uses and "terraform-publish" not in uses, name
+        for step in steps:
+            with_ = step.get("with") or {}
+            patterns = with_.get("patterns")
+            if isinstance(patterns, str) and patterns.strip():
+                assert "terraform" not in patterns, (name, patterns)
+                assert "kubernetes" in patterns, (name, patterns)
+
+    return {
+        "path": str(FLUX_LOCAL.relative_to(ROOT)),
+        "paths": paths,
+        "jobs": sorted(jobs),
+    }
 
 
 def test_labeler_and_gitignore() -> dict[str, Any]:
