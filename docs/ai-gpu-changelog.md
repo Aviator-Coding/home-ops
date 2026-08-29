@@ -60,6 +60,54 @@ Change · Why · Evidence · Risk/rollback · Verify
 
 ---
 
+## [2026-08-29] Add `devic.es/b70-vaapi` so VA-API can use the B70 again
+
+**Change.** Added a second `generic-device-plugin` group, `b70-vaapi`, exposing the same
+B70 by-path DRM nodes at the names the kernel gives them (`/dev/dri/card1`,
+`/dev/dri/renderD129`) instead of the `card0`/`renderD128` rename the `b70` group applies.
+Moved `tdarr-node` onto it. Also set `transcodecpuWorkers: "1"` on tdarr-node.
+The `b70` group is unchanged, so `vllm` and `comfyui` are untouched.
+
+**Why.** PR #1443 (2026-08-25) moved `tdarr-node` from `gpu.intel.com/xe` to
+`devic.es/b70`, whose group renames the device nodes. That rename is fatal to VA-API:
+libdrm ignores the path you pass, `fstat()`s the fd, reads
+`/sys/dev/char/226:129/uevent` and re-derives the canonical `DEVNAME` (`dri/renderD129`),
+then reopens that path. In a container holding the same device as `renderD128`, the path
+does not exist and `vaGetDisplayDRM()` fails before any driver loads. Every Tdarr GPU job
+failed from 2026-08-26 07:22. With `transcodecpuWorkers: "0"` there was no fallback, and
+because the library was already 99.28% transcoded with an empty queue, the UI showed an
+idle, healthy server. Total transcoding outage, invisible for three days.
+
+**Evidence.** A-B-A inside the running pod, one variable, everything else held constant:
+creating a `renderD129` symlink made the **unchanged** `renderD128` path succeed;
+removing it reproduced `Device creation failed: -542398533`; restoring it succeeded again.
+That disproves the competing hypothesis that `libva 2.23.0` +
+`intel-media-va-driver-non-free 26.2.2` is incompatible with Battlemage - the same driver
+initialises fine (`Intel iHD driver ... 26.2.2`, `VAProfileAV1Profile0 :
+VAEntrypointEncSlice`) the moment the name matches. After the change, a real 25-minute
+1080p library file transcoded end to end with the exact `av1_qsv -preset medium
+-global_quality 28 -look_ahead 1` invocation from the failed job report, at ~13x realtime.
+
+**Why a second group and not an edit to `b70`.** Device IDs are
+`sha1(count_index + every resolved host path in the group)`
+(`deviceplugin/path.go`), so adding paths to `b70` would change all 99 IDs and invalidate
+kubelet's live allocations for the running AI pods. A new group leaves them byte-identical;
+verified live - `devic.es/b70` stayed at `99` and `vllm` kept 0 restarts across the rollout.
+
+**Risk / rollback.** `mountPath` here hardcodes the kernel's current enumeration: the iGPU
+at `0000:00:02.0` probes first and takes `card0`/`renderD128`, leaving the discrete card at
+`card1`/`renderD129`. If that order ever changes, VA-API breaks again - but tdarr now
+degrades to its CPU worker instead of failing every job. Rollback is dropping the
+`b70-vaapi` group and pointing tdarr-node back at `devic.es/b70`, which restores the
+outage, so prefer fixing the names.
+
+**Verify.** The three-command VA-API check in
+[`media-stack.md`](./media-stack.md#verifying-va-api-after-a-gpu-change). Run it after any
+GPU, device-plugin, kernel-arg or `tdarr_node` image change: allocatable capacity is not
+proof that transcoding works.
+
+---
+
 ## [2026-08-29] `pcie_port_pm=off` closes B70 root-port runtime-PM race
 
 **Change:** `talos/schematic.yaml.j2` adds `pcie_port_pm=off`. Factory id `a46161e7a33fbde0589543ccc42a80403294ffd09868d4a09c10df0b64732021` (was `7f25ace820d39f0048bfd5fc6cdf882c6af2410f229d495ed2ff384c4c6807b8`).
