@@ -62,14 +62,19 @@ duplication — Renovate bumps the OCIRepository tag and helmfile picks it up au
 
 Example: `cilium` in `kube-system` → reads `kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml`.
 
-> `grafana-operator` has no OCIRepository in `kubernetes/apps/` so its `crds.yaml`
-> entry keeps explicit `chart:` / `version:` fields. Bootstrap still extracts
-> grafana-operator CRDs (pinned in `helmfile/crds.yaml`). Several apps ship
-> `kind: GrafanaDashboard` CRs (cilium, spegel, envoy-gateway, cloudflare-tunnel,
-> cert-manager, toolhive, external-secrets), but there is no grafana-operator
-> HelmRelease or OCIRepository under `kubernetes/apps/`. Grafana itself loads
-> file-sidecar dashboards. Confirm on the live cluster whether the operator is
-> an unmanaged leftover from bootstrap or those CRs are orphaned.
+> **grafana-operator was investigated and removed (2026-08-29).** It never had an
+> OCIRepository/HelmRelease under `kubernetes/apps/`, and its `crds.yaml` entry
+> was a side-effect of an unrelated bootstrap refactor, not a deliberate deploy
+> decision — full history in `docs/grafana-operator-removal.md`. `kind: GrafanaDashboard`
+> CRs do **not** work in this cluster: no grafana-operator workload has ever been
+> deployed, and the operator's own `Grafana` instance CRD was never even installed,
+> so those CRs sat with permanently empty `.status` and never rendered. Do not
+> re-add a `GrafanaDashboard` CR for a new app. Grafana (`kubernetes/apps/base/monitoring/grafana`)
+> is a standalone HelmRelease with two working delivery mechanisms instead: an
+> entry in its own `dashboards:` values block (`gnetId:`/`url:`/`json:`, ~40 dashboards
+> already use this), or a ConfigMap anywhere in the cluster labelled `grafana_dashboard`
+> (with a `grafana_folder` annotation for folder placement) — its sidecar
+> (`sidecar.dashboards`) auto-discovers those across every namespace.
 
 ## SECRETS
 

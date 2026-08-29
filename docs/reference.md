@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **56**. Each of those files is listed exactly once below, including this index. Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **57**. Each of those files is listed exactly once below, including this index. Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -118,4 +118,5 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 | [`talosctl.md`](talosctl.md) | Node IPs (not the VIP) and a short pointer to `just talos` recipes. |
 | [`organisation-services-1password-setup.md`](organisation-services-1password-setup.md) | How to create 1Password items for a new organisation service consumed by ExternalSecret. |
 | [`flux-migration-validation-report.md`](flux-migration-validation-report.md) | **Historical snapshot** from 2026-03-29 of the pre-base/main Flux layout. Do not treat its FAILs as open work. |
+| [`grafana-operator-removal.md`](grafana-operator-removal.md) | Why the 10 `GrafanaDashboard` CRs and the grafana-operator CRD bootstrap were dead, what replaced them, and outstanding live-cluster cleanup. |
 | [`reference.md`](reference.md) | This index. |

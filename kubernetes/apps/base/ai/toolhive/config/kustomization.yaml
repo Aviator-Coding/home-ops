@@ -8,4 +8,3 @@ resources:
   - ./mcpgroup.yaml
   - ./podmonitor.yaml
   - ./virtualmcpserver.yaml
-  - ./dashboard/

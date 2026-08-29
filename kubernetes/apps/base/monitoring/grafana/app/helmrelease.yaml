@@ -335,6 +335,10 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
+        cert-manager:
+          url: https://grafana.com/api/dashboards/20842/revisions/3/download
+          datasource: Prometheus
+
       databases:
         # CloudNativePG dashboard is provisioned by the cloudnative-pg-dashboard
         # OCI helm chart (kubernetes/apps/base/database/cloudnative-pg/dashboard/);
@@ -405,6 +409,11 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
+      ai-ml:
+        toolhive-mcp-gateway:
+          url: https://raw.githubusercontent.com/stacklok/toolhive/main/examples/otel/grafana-dashboards/toolhive-mcp-grafana-dashboard-otel-scrape.json
+          datasource: Prometheus
+
       media:
         plex-media-server-exporter:
           # renovate: dashboardName="plex-media-server-exporter"
@@ -455,6 +464,19 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+
+      networking:
+        cloudflare-tunnels:
+          url: https://grafana.com/api/dashboards/17457/revisions/6/download
+          datasource: Prometheus
+
+        envoy-gateway:
+          url: https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-addons-helm/dashboards/envoy-gateway-global.json
+          datasource: Prometheus
+
+        envoy-proxy:
+          url: https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-addons-helm/dashboards/envoy-proxy-global.json
+          datasource: Prometheus
 
       monitoring:
         prometheus-stats:
