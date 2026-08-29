@@ -89,6 +89,25 @@ Be clear about the limits of this mitigation:
 
 **This reboot is the risk event.** It is also when talos-3 picks up `e22cfb20` (#1479, dropping `siderolabs/thunderbolt`), which is already on `main` and rides the same image. The two were deliberately sequenced into one maintenance window: do not split them into two reboots.
 
+#### 0. What this reboot changes
+
+talos-3 is currently two schematics behind, and this one reboot closes both gaps:
+
+| Schematic | Contents |
+|---|---|
+| `b1a6b2ff…` | **live on talos-3 today** (#1444). `thunderbolt` still loaded, no `pcie_port_pm` |
+| `7f25ace8…` | `main` after `e22cfb20` (#1479): `siderolabs/thunderbolt` dropped |
+| `a46161e7…` | this change: thunderbolt dropped **and** `pcie_port_pm=off` |
+
+`upgrade-node` computes the target ID itself from the template, so these are for
+confirmation only. Recompute after any edit to `schematic.yaml.j2` the same way
+`_schematic-id` does:
+
+```sh
+just template talos/schematic.yaml.j2 \
+  | curl -sX POST --data-binary @- https://factory.talos.dev/schematics | jq -r .id
+```
+
 #### 1. Before: Ceph safety gate
 
 talos-3 hosts live OSDs (2 and 4). Per `AGENTS.md`, confirm `HEALTH_OK` and run `task rook:check-osd-device-paths` first, and roll one node at a time.
