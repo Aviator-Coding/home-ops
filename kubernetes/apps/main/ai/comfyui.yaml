@@ -9,6 +9,11 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
   interval: 1h
   path: "./kubernetes/apps/base/ai/comfyui/app"
   prune: true
