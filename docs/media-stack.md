@@ -218,6 +218,40 @@ nodeName=<k8s pod nodeName> # Registers with pod's scheduling node
 ffmpegVersion=7
 ```
 
+### Node library scoping (Tdarr server state, not Git)
+
+Which libraries a node will accept work from is per-node Tdarr state
+(`librariesToNotProcess`, persisted in the server's `NodeJSONDB`, keyed by node
+name). It is **not** GitOps and cannot ship in a PR - it survives pod restarts
+because the node re-reads it from the server when it registers.
+
+Current scoping for `talos-3` (the k8s worker):
+
+| Library | Id | talos-3 | Why |
+|---------|----|---------|-----|
+| Movies AV1 | `gEUZf7Nx6` | **processed** | Restored 2026-08-29 with the B70 VA-API fix |
+| Series | `j5g_Es7sD` | **excluded (deliberate)** | See below |
+
+**The Series exclusion is retained on purpose.** All three Talos nodes were
+excluded from both libraries as a mitigation after the 2026-08-26 VA-API break
+(the job report from that day shows talos-3 still accepting Movies work at
+19:19, so the exclusions post-date it). Restoring one library at a time keeps
+the blast radius small while the B70 VA-API fix is newly landed and while the
+4K remux failures below are still unexplained. Revisit the Series exclusion
+once Movies has run clean for a while. `desktop-aviator` (the external Windows
+node) has never carried either exclusion.
+
+**Follow-up: 8 errored 4K remuxes, root cause unknown.** Eight files sit in
+Tdarr's error table (`table3`), most of them 21-67 GB 2160p DV/HDR10 remux
+masters. Their failure is **not** explained by the VA-API break alone and has
+not been investigated. Tdarr rewrites in place and the AV1 result is lossy and
+irreversible, so **do not bulk-requeue them to clear the error table** - the
+failure needs to be understood on one file first, ideally against a copy.
+Re-enabling a library does not re-queue them: `librariesToNotProcess` is a
+node-side accept filter, and errored files stay parked until explicitly
+requeued (verified 2026-08-29 - clearing the Movies exclusion left all 8 in
+`table3` with the transcode queue at 0).
+
 ### Transcode flow (configured in Tdarr UI, not Git)
 
 Classic Boosh HEVC plugin stack is **not** in use (`pluginIDs` empty). Both

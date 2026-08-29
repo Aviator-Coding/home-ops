@@ -101,6 +101,16 @@ degrades to its CPU worker instead of failing every job. Rollback is dropping th
 `b70-vaapi` group and pointing tdarr-node back at `devic.es/b70`, which restores the
 outage, so prefer fixing the names.
 
+**Service restore scope (captain decision, 2026-08-29).** The GPU fix alone does not
+resume transcoding: all three Talos nodes had been excluded from both Tdarr libraries as
+a post-outage mitigation. Only the **Movies AV1** exclusion was cleared on `talos-3`; the
+**Series** exclusion is deliberately retained to restore one library at a time. The eight
+4K remuxes in Tdarr's error table are a separate follow-up whose failure must be
+understood before they are requeued - Tdarr rewrites in place and AV1 is lossy and
+irreversible. Both are Tdarr server state, not GitOps; details and the verification that
+clearing a library does not requeue errored files are in
+[`media-stack.md`](./media-stack.md#node-library-scoping-tdarr-server-state-not-git).
+
 **Verify.** The three-command VA-API check in
 [`media-stack.md`](./media-stack.md#verifying-va-api-after-a-gpu-change). Run it after any
 GPU, device-plugin, kernel-arg or `tdarr_node` image change: allocatable capacity is not
