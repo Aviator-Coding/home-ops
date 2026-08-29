@@ -1,0 +1,56 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app konflate
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: *app
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    fullnameOverride: *app
+    image:
+      # Chart 0.6.2 stamps this digest at package time; keep it explicit so we
+      # never float on :latest/:rolling. Digest wins over tag in the chart helper.
+      tag: "0.6.2"
+      digest: sha256:cf5d2656a059a430ecf1eaf87eb58854f00692e2dfbe3b2476a6f88c441a44fb
+    config:
+      repo: github://Aviator-Coding/home-ops
+      # FluxInstance sync.path / flux-local --path. spec.path values still
+      # resolve against the clone root (konflate RepoRoot), so this is the
+      # entry point, not a chroot.
+      clusterPath: kubernetes/clusters/main
+      # Match the live cluster so charts gated on kube version render the same
+      # way helm-controller will. tpl'd by the chart.
+      kubeVersion: "{{ .Capabilities.KubeVersion.Version }}"
+      logFormat: json
+      # Read-only pilot (captain 2026-08-29): write-back stays off. Do not
+      # enable these, and do not add secret.writeToken / app credentials.
+      statusChecks: false
+      prComments: false
+      renderForkPrs: false
+    # No secret.* : anonymous GitHub reads on this public repo. No write
+    # credential enters the cluster.
+    persistence:
+      enabled: true
+      storageClass: ceph-block
+      size: 5Gi
+    monitoring:
+      serviceMonitor:
+        enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 2Gi

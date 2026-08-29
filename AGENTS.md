@@ -41,6 +41,7 @@ Gatus is an app under `kubernetes/apps/base/monitoring/gatus`, not a component. 
 | Tool versions | `.mise.toml` | kubectl, flux, talos, helm, kustomize, vals, 1password-cli, just, minijinja, etc. Resolve with `mise which <cli>` / `mise exec` (see NOTES). |
 | Authentik SSO config | `terraform/authentik/` (OpenTofu) | Adopted apps/providers via `import` blocks, plus stack-created LiteLLM OIDC (`litellm.tofu`). Other flows/stages/mappings stay Authentik-blueprint data sources. **Never `tofu apply` without an explicit go-ahead.** Runbook: `docs/authentik/terraform.md` |
 | AI stack | `kubernetes/apps/main/ai/` (Flux Kustomizations) + `kubernetes/apps/base/ai/` (manifests) | Hermes + ToolHive (`toolhive.stacklok.dev/v1alpha1` `MCPServer`) + agentgateway + LiteLLM (governance + fallback chains; **internal** route only since 2026-08-26, never the public listener; delivered by `litellm.home-operations.com/v1alpha1` CRs from `ai/litellm-operator` - `docs/ai-system/litellm/{README,fallbacks}.md`). kagent/kmcp tombstones: `docs/ai-system/{kagent,kmcp}`. Retired 2026-08-22: `docs/ai-system/retired-2026-08-22.md` |
+| konflate (PR review UI) | `kubernetes/apps/base/flux-system/konflate/` | Read-only Flux PR-review UI, internal HTTPRoute only. Write-back is off and no GitHub credential is in-cluster (public-repo anonymous reads). Do not copy the reference repo's write-back / shared GitHub App wiring. |
 
 ## CONVENTIONS
 
