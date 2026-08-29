@@ -19,10 +19,9 @@ spec:
       kind: Deployment
       name: *app
       namespace: *namespace
-  # Dragonfly is a CR, not a Deployment/StatefulSet - status.phase is its own
-  # readiness signal (see kubernetes/apps/main/media/immich.yaml for the same
-  # pattern). healthChecks and healthCheckExprs are independent Kustomization
-  # spec fields and both apply.
+  # Dragonfly is a CR - status.phase is its readiness signal (same shape as
+  # media/immich). healthCheckExprs only customises objects already in the
+  # assessment set; see AGENTS.md healthChecks house rule.
   healthCheckExprs:
     - apiVersion: dragonflydb.io/v1alpha1
       kind: Dragonfly

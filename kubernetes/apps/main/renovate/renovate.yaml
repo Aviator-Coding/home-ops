@@ -14,8 +14,8 @@ spec:
     - name: onepassword-store
       namespace: security
   healthChecks:
-    - apiVersion: helm.toolkit.fluxcd.io/v2
-      kind: HelmRelease
+    - apiVersion: batch/v1
+      kind: CronJob
       name: *app
       namespace: *namespace
   interval: 1h

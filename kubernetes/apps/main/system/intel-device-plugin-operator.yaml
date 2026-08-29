@@ -10,9 +10,9 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   healthChecks:
-    - apiVersion: helm.toolkit.fluxcd.io/v2
-      kind: HelmRelease
-      name: *app
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: inteldeviceplugins-controller-manager
       namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/base/system/intel-device-plugin-operator/app
@@ -38,11 +38,12 @@ spec:
   dependsOn:
     - name: intel-device-plugin-operator
       namespace: *namespace
+  # GpuDevicePlugin is cluster-scoped; the operator creates its DaemonSet
+  # dynamically, so the CR's own rollout counts are the real signal.
   healthChecks:
-    - apiVersion: helm.toolkit.fluxcd.io/v2
-      kind: HelmRelease
-      name: *app
-      namespace: *namespace
+    - apiVersion: deviceplugin.intel.com/v1
+      kind: GpuDevicePlugin
+      name: xe
   healthCheckExprs:
     - apiVersion: deviceplugin.intel.com/v1
       kind: GpuDevicePlugin
