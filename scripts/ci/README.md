@@ -24,6 +24,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `grafana-mcp-deploy-test.py` | in-cluster grafana-mcp ToolHive `MCPServer` deployment |
 | `grafana-sa-provisioner-test.py` | grafana-sa-provisioner (captain option C) |
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
+| `schematic-pcie-port-pm-test.py` | Arc B70 `pcie_port_pm=off` schematic kernel-arg contract |
 | `igpu-xe-allowids-test.py` | scoping `gpu.intel.com/xe` to the iGPU |
 | `litellm-auto-router-test.py` | D3 complexity-tier auto-router config |
 | `litellm-claude-code-subscription-test.py` | Claude Code Max/Pro subscription pass-through |
@@ -57,8 +58,9 @@ source .venv/bin/activate
 uv pip install python-hcl2 "litellm[proxy]==1.98.0"
 
 # mise-managed CLIs some tests shell out to (kubectl, kustomize, tofu, yq,
-# promtool via aqua:prometheus/prometheus) - put the venv's own bin/ FIRST or
-# its python3 gets shadowed by mise's bare interpreter. grafana-sa-provisioner-test.py
+# promtool via aqua:prometheus/prometheus, minijinja-cli for
+# schematic-pcie-port-pm-test.py) - put the venv's own bin/ FIRST or its
+# python3 gets shadowed by mise's bare interpreter. grafana-sa-provisioner-test.py
 # prefers native promtool and only falls back to podman run when none is on PATH.
 export PATH="$(mise bin-paths | tr '\n' ':')$PATH"
 export PATH="$VIRTUAL_ENV/bin:$PATH"
@@ -81,7 +83,9 @@ Wired into `.github/workflows/validate.yaml`'s `python-tests` job, gated by the 
 shell-script jobs above. It installs `python-hcl2` and `litellm[proxy]==1.98.0` (matching
 the pinned cluster proxy image), installs native `promtool` via
 `aqua:prometheus/prometheus@3.2.1` for PromQL rule evaluation (this runner has no podman),
-then runs every `scripts/ci/*-test.py` in a loop and fails the job if any of them fails.
+and `aqua:mitsuhiko/minijinja` so `schematic-pcie-port-pm-test.py` can render
+`talos/schematic.yaml.j2` the same way the talos job does, then runs every
+`scripts/ci/*-test.py` in a loop and fails the job if any of them fails.
 This is a deliberately slower job in exchange for the tests exercising the real `litellm`
 library rather than a stub or a soft-skip - see the job's own comments in `validate.yaml`
 before changing that trade-off. It also `needs:` the lighter validate jobs so that pip

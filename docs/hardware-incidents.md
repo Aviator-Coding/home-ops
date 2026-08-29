@@ -44,7 +44,7 @@ Full remote-probe evidence, register decode, and confidence-ranked causal analys
 
 ### Resolution
 
-**Power-on order is the fix** (external corroboration: RIITOP OCuLink eGPU Dock FAQ, Minisforum DEG1 guidance — both name "dock PSU first" as the standard remedy for exactly this symptom):
+**Power-on order is the recovery** when the card is already gone (external corroboration: RIITOP OCuLink eGPU Dock FAQ, Minisforum DEG1 guidance - both name "dock PSU first" as the standard remedy for exactly this symptom). The durable race mitigation is `pcie_port_pm=off` below; it does not replace this order once the card is lost:
 
 1. Power talos-3 fully **off** (`talosctl reboot` never touches the dock's PSU — it must be a full power-off).
 2. **GPU/dock PSU ON first.**
@@ -53,6 +53,118 @@ Full remote-probe evidence, register decode, and confidence-ranked causal analys
 5. Never power the dock and host together, and never power the dock after the host.
 
 Verify recovery: `kubectl get nodes -o custom-columns='NAME:.metadata.name,XE:.status.allocatable.gpu\.intel\.com/xe,B70:.status.allocatable.devic\.es/b70'` expects `99`/`99` on talos-3; NICs moving back to `enp6s0f*` is itself confirmation the switch reclaimed its bus numbers (see the 2026-06-10 entry). Before powering talos-3 back on, follow the Ceph reboot-safety rule in `AGENTS.md` (`HEALTH_OK` + `task rook:check-osd-device-paths` first, one node at a time) — talos-3 hosts live OSDs.
+
+### Confirmed recovered (2026-08-26)
+
+**The power-on order above was performed and it worked.** talos-3 booted at **2026-08-26T11:21:12Z** with the B70 enumerated, and the card has run stably under production load for the three days since (uptime at time of writing 3.03 d, matching that boot). Every failure signature in the Evidence table is cleared:
+
+| Signature at failure | State after recovery |
+|---|---|
+| `8086:e2ff` absent | present at `01:00.0` |
+| `8086:e223` absent | present at `03:00.0`, `DRIVER=xe` |
+| `00:01.0` `power_state=D3hot` / `runtime_status=suspended` | `D0` / `active` |
+| `runtime_active_time=218` ms | full uptime, `runtime_suspended_time=0` (never suspended this boot) |
+| bus 01 empty, `busn_res ... end is updated to 01` | `[bus 01-04]` populated, `subordinate_bus_number=4` |
+| NICs at `enp3s0f*` | back to `enp6s0f0np0` / `enp6s0f1np1` |
+
+It is not merely enumerated but working: hwmon `xe` reports 69 °C package / 68 °C VRAM at 2388 RPM, with a live draw of **182 W** derived from the `energy1` counter, and `vllm` decoding tokens on it. `devic.es/b70` is back to `99` on talos-3 and all five previously-Pending GPU pods are Running.
+
+Note the recovery boot was the `just talos apply-node talos-3` maintenance for #1444 (`68c8e2c6`, restoring `siderolabs/i915` firmware), 41 minutes after that commit. Neither that PR's kernel args nor #1443's can explain it: enumeration is a *pre-driver* event and both args target the **iGPU** `a7a0`, not the discrete `e223`. The dock-PSU-first order is the credible cause. The physical sequence cannot be proven from remote telemetry; what is proven is that the card returned at that boot and has been stable since.
+
+### Mitigation: `pcie_port_pm=off`
+
+`talos/schematic.yaml.j2` carries `pcie_port_pm=off`, which closes the race itself rather than working around it. `pcie_port_pm_setup()` sets `pci_bridge_d3_disable`, making `pci_bridge_d3_possible()` return `false` for `PCI_EXP_TYPE_ROOT_PORT`, so `portdrv` never calls `pm_runtime_allow()` on `00:01.0` and the port cannot runtime-suspend to D3hot while it waits for a slow card. Verified against Linux v6.18 (nodes run `6.18.44-talos`): `Documentation/admin-guide/kernel-parameters.txt:5082` (`off` = "Disable power management of all PCIe ports"), `drivers/pci/pci.c:173` and `:2998`, `drivers/pci/pcie/portdrv.c:719`.
+
+**The pre-existing `pcie_aspm=off` does not cover this and never did.** It governs ASPM *link* power states; runtime D-state suspension of the *port* is a separate mechanism one layer up. That distinction is exactly why this failure survived an argument that looks like it should have caught it.
+
+Be clear about the limits of this mitigation:
+
+- It **prevents the race on future boots**. It is **not retroactive** and does nothing for the current boot until the node reboots into an image built from the new schematic.
+- It **does not remove the need for the power-on order**. Once a card has already been lost, `pcie_port_pm=off` cannot recover it: the port still has `SLTCAP PowerController=0`, so a host power cycle still never cycles the dock's PSU. The Resolution steps above remain the recovery procedure.
+- The schematic is **cluster-wide**, so all three nodes get the argument even though only talos-3 has the affected card. The cost is marginally higher idle power from PCIe ports staying in D0.
+
+### Runbook: attended reboot to activate `pcie_port_pm=off`
+
+**Kernel args ride in the factory schematic, not in machine config, so `just talos apply-node` cannot activate this.** `apply-node` only stages config; the argument lands only when the node boots an image built from the new schematic. That is `just talos upgrade-node talos-3`, which resolves the new schematic ID from `talos/schematic.yaml.j2` via `factory.talos.dev` and runs `talosctl upgrade -i <image> -m powercycle` (`talos/mod.just`). The schematic ID is derived automatically, but the render path needs `vals`/1Password context.
+
+**This reboot is the risk event.** It is also when talos-3 picks up `e22cfb20` (#1479, dropping `siderolabs/thunderbolt`), which is already on `main` and rides the same image. The two were deliberately sequenced into one maintenance window: do not split them into two reboots.
+
+#### 0. What this reboot changes
+
+talos-3 is currently two schematics behind, and this one reboot closes both gaps:
+
+| Schematic | Contents |
+|---|---|
+| `b1a6b2ff…` | **live on talos-3 today** (#1444). `thunderbolt` still loaded, no `pcie_port_pm` |
+| `7f25ace8…` | `main` after `e22cfb20` (#1479): `siderolabs/thunderbolt` dropped |
+| `a46161e7…` | this change: thunderbolt dropped **and** `pcie_port_pm=off` |
+
+`upgrade-node` computes the target ID itself from the template, so these are for
+confirmation only. Recompute after any edit to `schematic.yaml.j2` the same way
+`_schematic-id` does:
+
+```sh
+just template talos/schematic.yaml.j2 \
+  | curl -sX POST --data-binary @- https://factory.talos.dev/schematics | jq -r .id
+```
+
+#### 1. Before: Ceph safety gate
+
+talos-3 hosts live OSDs (2 and 4). Per `AGENTS.md`, confirm `HEALTH_OK` and run `task rook:check-osd-device-paths` first, and roll one node at a time.
+
+#### 2. Before: capture the PCIe baseline
+
+Capture this **while the card is still up**, so there is something to compare against afterwards. All reads are read-only.
+
+```sh
+export TALOSCONFIG=talos/talosconfig
+N=10.10.10.13   # talos-3
+
+talosctl -n $N read /sys/bus/pci/devices/0000:01:00.0/device                       # 0xe2ff  (on-card switch)
+talosctl -n $N read /sys/bus/pci/devices/0000:03:00.0/device                       # 0xe223  (Arc Pro B70)
+talosctl -n $N read /sys/bus/pci/devices/0000:03:00.0/uevent                       # DRIVER=xe
+talosctl -n $N read /sys/bus/pci/devices/0000:00:01.0/power_state                  # D0
+talosctl -n $N read /sys/bus/pci/devices/0000:00:01.0/power/runtime_status         # active
+talosctl -n $N read /sys/bus/pci/devices/0000:00:01.0/power/runtime_suspended_time # 0
+talosctl -n $N read /sys/bus/pci/devices/0000:00:01.0/subordinate_bus_number       # 4
+talosctl -n $N read /proc/cmdline | tr ' ' '\n' | grep pcie                        # no pcie_port_pm yet
+kubectl get nodes -o custom-columns='NAME:.metadata.name,XE:.status.allocatable.gpu\.intel\.com/xe,B70:.status.allocatable.devic\.es/b70'
+```
+
+#### 3. The upgrade
+
+```sh
+just talos upgrade-node talos-3
+```
+
+#### 4. If the card does not come back
+
+**A host powercycle does not cycle the dock's PSU** (`SLTCAP PowerController=0`), so `-m powercycle` alone cannot guarantee the dock restarts in the right order. If the B70 is absent after the reboot, the recovery is the documented power-on order, unchanged:
+
+1. Power talos-3 fully **off**.
+2. **Dock/GPU PSU ON first.**
+3. **Wait 5-10 seconds.** Confirm GPU fans spin and the card LED is lit.
+4. **Only then** power on talos-3.
+
+Never power the dock and host together, and never host-first.
+
+#### 5. Verify success
+
+```sh
+talosctl -n $N read /proc/cmdline | tr ' ' '\n' | grep pcie_port_pm   # pcie_port_pm=off  <- arg took effect
+talosctl -n $N read /sys/bus/pci/devices/0000:01:00.0/device          # 0xe2ff
+talosctl -n $N read /sys/bus/pci/devices/0000:03:00.0/device          # 0xe223
+talosctl -n $N read /sys/bus/pci/devices/0000:03:00.0/uevent          # DRIVER=xe
+talosctl -n $N read /sys/bus/pci/devices/0000:00:01.0/power_state     # D0  <- port stayed awake
+talosctl -n $N read /sys/bus/pci/devices/0000:00:01.0/power/runtime_suspended_time  # 0
+kubectl get nodes -o custom-columns='NAME:.metadata.name,XE:.status.allocatable.gpu\.intel\.com/xe,B70:.status.allocatable.devic\.es/b70'
+```
+
+Expect `99`/`99` for talos-3. Also confirm `siderolabs/thunderbolt` is gone (`talosctl -n $N get extensions`) and that the five GPU pods (`vllm`, `tdarr-node`, `jellyfin`, `plex`, `comfyui`) reschedule.
+
+#### 6. Record the result
+
+**This reboot doubles as the test of whether the mitigation works.** The interesting signal is `00:01.0` staying in `D0` with `runtime_suspended_time=0` through a boot where the card trains late. Record the outcome back into this entry either way - a success confirms the fix, and a failure means the D3hot race was not the whole story and the investigation reopens.
 
 ### Lessons
 

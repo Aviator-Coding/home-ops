@@ -41,10 +41,11 @@ talos/
 # 1. Edit machineconfig.yaml.j2, nodes/talos-N.yaml.j2, or schematic.yaml.j2
 # 2. Render + validate offline
 just talos render-config talos-1 | talosctl validate -m metal -c /dev/stdin
-# 3. Preview the diff against the live node, then apply
+# 3. machineconfig / node overlays: preview, then apply-node
 just talos apply-node talos-1 --dry-run
 just talos apply-node talos-1
-# 4. Upgrade Talos / Kubernetes
+# 4. schematic.yaml.j2 (kernel args + extensions) or Talos version: upgrade-node
+#    (apply-node alone does not boot a new factory image - see note below)
 just talos upgrade-node talos-1
 just talos upgrade-k8s v1.36.3
 ```
@@ -54,6 +55,15 @@ the code and runs `.github/workflows/validate.yaml`'s schema-only render/validat
 - no Flux Kustomization or CI workflow applies it. An operator with a live
 `talosconfig` must separately run `just talos apply-node <node>` (or `upgrade-node`)
 against each of the three nodes for the change to take effect.
+
+**Which of the two you need depends on the file.** `apply-node` stages machine
+config, and that is enough for `machineconfig.yaml.j2` and the node overlays. It is
+*not* enough for `schematic.yaml.j2`: kernel args and system extensions are baked into
+the Image Factory image, so they land only when the node boots an image built from the
+new schematic. That is `upgrade-node`, which resolves the new schematic ID from the
+template via `factory.talos.dev` and runs `talosctl upgrade -i <image> -m powercycle`
+(see `_schematic-id`/`_machine-image` in `mod.just`). A `schematic.yaml.j2` change that
+is only `apply-node`d silently does nothing.
 
 A worktree with no `talosconfig`/1Password creds can still validate a `*.j2` edit
 offline: render raw with `minijinja-cli` (skip the `vals`-piped `just
@@ -75,4 +85,10 @@ info` eagerly for any `just talos` invocation via the root `mod bootstrap` impor
 - Control plane VIP: `10.10.10.10`
 - Each node has 2 NVMe disks dedicated to Ceph OSDs
 - `talosconfig` path: `talos/talosconfig` (gitignored)
+- **Rebooting talos-3 can lose the Arc Pro B70, and there is a runbook for it.** The
+  OCuLink dock has its own PSU that a host powercycle does not touch, so the card must
+  be brought up dock-first or it may not enumerate. `schematic.yaml.j2` carries
+  `pcie_port_pm=off` to close the underlying runtime-PM race (it is not retroactive and
+  does not replace the power-on order). Read the attended-reboot runbook in
+  `docs/hardware-incidents.md` [2026-08-24] before any talos-3 `upgrade-node`/`reboot-node`.
 - **tuppr's `TalosUpgrade`/`KubernetesUpgrade` `healthChecks` gate before each node, not just once up front.** Confirmed against tuppr's own docs (2026-08-22): with no `parallelism` set (this repo's default), tuppr runs all `healthChecks` once before touching the first node, then re-evaluates them again before every subsequent node (each node is its own batch). `policy.rebootMode: powercycle` only changes how a node is rebooted (hard reset vs. graceful) - it doesn't affect this gating. Official Talos Kubernetes-version compatibility: `docs.siderolabs.com/talos/<line>/getting-started/support-matrix`.
