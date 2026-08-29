@@ -9,6 +9,11 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
   interval: 1h
   path: "./kubernetes/apps/base/ai/comfyui/app"
   prune: true
@@ -26,4 +31,4 @@ spec:
   # Large image pull (intel/llm-scaler-omni, multi-GB) + GPU schedule on first
   # boot; must exceed the HelmRelease timeout (20m).
   timeout: 30m
-  wait: true
+  wait: false

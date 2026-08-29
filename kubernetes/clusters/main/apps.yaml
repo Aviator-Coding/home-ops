@@ -12,6 +12,7 @@ spec:
   interval: 1h
   path: ./kubernetes/apps/main
   prune: true
+  retryInterval: 2m
   sourceRef:
     kind: GitRepository
     name: flux-system
