@@ -11,7 +11,7 @@ trusting a green run for more than it claims.
 
 ## Python regression tests
 
-The 13 `*-test.py` files are hand-written semantic/behavioral regression tests, each pinning
+The 14 `*-test.py` files are hand-written semantic/behavioral regression tests, each pinning
 one specific captain decision or invariant against the live repo state (not a source grep -
 most render the real manifests via `kubectl kustomize`/`kustomize build`, parse the result,
 and assert on the parsed structure; the `litellm-*` ones additionally exercise the real
@@ -32,6 +32,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `litellm-sso-test.py` | LiteLLM UI SSO through Authentik |
 | `terraform-ci-workflows-test.py` | terraform-diff / terraform-publish CI contract |
 | `tofu-authentik-stack-test.py` | the Authentik OpenTofu adoption stack |
+| `validate-contention-test.py` | validate.yaml runner-pool contention timeouts + python-tests ordering |
 | `workflow-hardening-test.py` | GitHub Actions workflow permissions/concurrency hardening |
 
 New `scripts/ci/*-test.py` files need no separate wiring: CI globs `scripts/ci/*-test.py`,

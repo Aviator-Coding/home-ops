@@ -51,7 +51,8 @@
 #   drop this workflow file from the per-job filters: that would skip
 #   self-test of a workflow edit. We did not job-concurrency-serialize the
 #   whole set: GitHub counts concurrency wait toward timeout-minutes, which
-#   would recreate the same cancel under queue.
+#   would recreate the same cancel under queue. Contract pin:
+#   scripts/ci/validate-contention-test.py (inventory: scripts/ci/README.md).
 name: Validate
 
 on:

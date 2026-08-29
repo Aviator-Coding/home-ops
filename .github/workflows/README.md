@@ -148,9 +148,9 @@ paths/gates the `kubernetes/**`-filtered workflows above (`flux-local`,
 - `bootstrap` - Renders `bootstrap/kustomize/apps` and validates it with `kubeconform` (`bootstrap/helmfile/` is out of scope - no 1Password creds in CI)
 - `renovate-config` - Runs `renovate-config-validator` against `.renovaterc.json5` and `.renovate/*.json5`
 - `terraform` - `tofu fmt -check` + `tofu validate -backend=false` via `scripts/ci/tofu-validate.sh` (schema only; live plans are `terraform-diff.yaml`)
-- `python-tests` - Installs `python-hcl2` + pinned `litellm[proxy]==1.98.0` and native `promtool`, then runs every `scripts/ci/*-test.py` (see `scripts/ci/README.md`)
+- `python-tests` - Installs `python-hcl2` + pinned `litellm[proxy]==1.98.0` and native `promtool`, then runs every `scripts/ci/*-test.py` (see `scripts/ci/README.md`). `needs:` the lighter gates so that pip install does not overlap their `mise-action` Setup Tools; timeouts and measured contention live in the workflow header.
 
-**Details:** See the workflow file header, `scripts/ci/README.md`, and `AGENTS.md`'s CI workflows notes.
+**Details:** See the workflow file header (including runner-contention notes), `scripts/ci/README.md`, and `AGENTS.md`'s CI workflows notes.
 
 ### terraform-diff
 
