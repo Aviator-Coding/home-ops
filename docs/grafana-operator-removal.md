@@ -80,4 +80,4 @@ kubectl get crd -o name | grep grafana.integreatly.org | xargs kubectl delete
 - `task flux:test:all` passes on the resulting tree.
 - `kustomize build` on each touched namespace overlay renders no `GrafanaDashboard` kind and no reference
   to a deleted file.
-- `grep -rn "kind: GrafanaDashboard" kubernetes/` and `grep -rli "grafana-operator" .` are both empty.
+- `grep -rn "kind: GrafanaDashboard" kubernetes/` is empty, and `bootstrap/helmfile/crds.yaml` has no grafana-operator release (prose mentions in this doc, `bootstrap/AGENTS.md`, and `docs/reference.md` are intentional).

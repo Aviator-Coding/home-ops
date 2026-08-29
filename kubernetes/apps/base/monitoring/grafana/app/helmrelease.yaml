@@ -468,7 +468,9 @@ spec:
       networking:
         cloudflare-tunnels:
           url: https://grafana.com/api/dashboards/17457/revisions/6/download
-          datasource: Prometheus
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
 
         envoy-gateway:
           url: https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-addons-helm/dashboards/envoy-gateway-global.json
