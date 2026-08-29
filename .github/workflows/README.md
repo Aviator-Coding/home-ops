@@ -15,7 +15,7 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 | [tag.yaml](#tag) | Schedule/Manual | Creates monthly release tags | ubuntu-latest |
 | [test-runner.yaml](#test-runner) | Schedule/Manual | Tests self-hosted runner functionality | Self-hosted |
 | [build-talosctl-busybox.yaml](#build-talosctl-busybox) | Push/Manual | Builds and pushes the talosctl-busybox image | ubuntu-latest |
-| [validate.yaml](#validate) | Pull Request | Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - the paths Flux-oriented CI never sees | Self-hosted |
+| [validate.yaml](#validate) | Pull Request | Validates `talos/`, `bootstrap/kustomize/`, `.renovate/`, credential-less `terraform/` schema, and `scripts/ci/*-test.py` regression tests | Self-hosted |
 | [terraform-diff.yaml](#terraform-diff) | Pull Request | Real read-only `tofu plan` (or schema-only fallback) for changed `terraform/*` stacks, matrixed per directory | Self-hosted |
 | [terraform-publish.yaml](#terraform-publish) | Push (main) | Publishes `terraform/` as an OCI artifact | ubuntu-latest |
 
@@ -136,8 +136,10 @@ Builds and pushes the `talosctl-busybox` image from
 
 **File:** `validate.yaml`
 
-Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - paths the
-`kubernetes/**`-filtered workflows above (`flux-local`, `image-pull`) never see.
+Validates `talos/`, `bootstrap/kustomize/`, `.renovate/`, credential-less
+`terraform/` schema checks, and `scripts/ci/*-test.py` regression tests -
+paths/gates the `kubernetes/**`-filtered workflows above (`flux-local`,
+`image-pull`) never cover.
 
 **Jobs:**
 - `filter` - Detects changed files per gate
@@ -145,8 +147,10 @@ Validates `talos/`, `bootstrap/kustomize/`, and `.renovate/` - paths the
 - `versions` - Checks `talos/machineconfig.yaml.j2` version pins against the tuppr upgrade CRs
 - `bootstrap` - Renders `bootstrap/kustomize/apps` and validates it with `kubeconform` (`bootstrap/helmfile/` is out of scope - no 1Password creds in CI)
 - `renovate-config` - Runs `renovate-config-validator` against `.renovaterc.json5` and `.renovate/*.json5`
+- `terraform` - `tofu fmt -check` + `tofu validate -backend=false` via `scripts/ci/tofu-validate.sh` (schema only; live plans are `terraform-diff.yaml`)
+- `python-tests` - Installs `python-hcl2` + pinned `litellm[proxy]==1.98.0` and native `promtool`, then runs every `scripts/ci/*-test.py` (see `scripts/ci/README.md`)
 
-**Details:** See the workflow file header and `AGENTS.md`'s CI workflows notes.
+**Details:** See the workflow file header, `scripts/ci/README.md`, and `AGENTS.md`'s CI workflows notes.
 
 ### terraform-diff
 

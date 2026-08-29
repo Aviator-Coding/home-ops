@@ -26,6 +26,9 @@
 #     remains fully behind the explicit captain-approval gate in
 #     docs/authentik/terraform.md section 7. See that doc's section 9 for the
 #     full reasoning and the one credential involved.
+#   - The `python-tests` job runs every `scripts/ci/*-test.py` regression test
+#     (semantic pins of captain decisions/invariants). Inventory, local setup,
+#     and the deliberate litellm pin live in scripts/ci/README.md - not here.
 name: Validate
 
 on:
