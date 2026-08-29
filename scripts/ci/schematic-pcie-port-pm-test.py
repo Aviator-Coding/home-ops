@@ -29,6 +29,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -49,6 +50,14 @@ REQUIRED_KERNEL_ARGS = (
     "pci=realloc",
     "pci=assign-busses",
 )
+
+# factory.talos.dev is the real upgrade-node consumer, but the self-hosted runner
+# has seen intermittent TLS handshake timeouts on otherwise-successful POSTs
+# (python-tests job on PR #1487). Retry transient transport failures only -
+# HTTP 4xx from the factory still fails immediately.
+FACTORY_HTTP_ATTEMPTS = 5
+FACTORY_HTTP_TIMEOUT_S = 30.0
+FACTORY_HTTP_BACKOFF_S = (1.0, 2.0, 4.0, 8.0)
 
 
 class Failure(Exception):
@@ -116,31 +125,78 @@ def assert_required_args(args: list[str]) -> None:
     )
 
 
+def _is_transient_factory_error(exc: BaseException) -> bool:
+    """True for transport/timeouts/5xx that are worth retrying."""
+    if isinstance(exc, TimeoutError):
+        return True
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code >= 500
+    if isinstance(exc, urllib.error.URLError):
+        # URLError.reason is often another exception (timeout, SSL, gaierror)
+        # or a string; both mean the request never got a useful HTTP answer.
+        return True
+    # ssl.SSLError and OSError subclasses can surface outside URLError on some
+    # Python builds when the handshake aborts mid-request.
+    if isinstance(exc, OSError):
+        return True
+    return False
+
+
+def _factory_http(label: str, request: urllib.request.Request) -> bytes:
+    """GET/POST factory.talos.dev with retries on transient transport failures."""
+    attempts = FACTORY_HTTP_ATTEMPTS
+    last_exc: BaseException | None = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(
+                request, timeout=FACTORY_HTTP_TIMEOUT_S
+            ) as resp:
+                return resp.read()
+        except Exception as exc:  # noqa: BLE001 - classified below
+            last_exc = exc
+            if isinstance(exc, urllib.error.HTTPError) and exc.code < 500:
+                raise Failure(
+                    f"factory.talos.dev {label} failed permanently: "
+                    f"HTTP {exc.code} {exc.reason}"
+                ) from exc
+            if not _is_transient_factory_error(exc):
+                raise Failure(f"factory.talos.dev {label} failed: {exc}") from exc
+            if attempt + 1 >= attempts:
+                break
+            sleep_s = FACTORY_HTTP_BACKOFF_S[
+                min(attempt, len(FACTORY_HTTP_BACKOFF_S) - 1)
+            ]
+            print(
+                f"warn: factory.talos.dev {label} attempt {attempt + 1}/{attempts} "
+                f"failed ({exc}); retrying in {sleep_s:.0f}s",
+                file=sys.stderr,
+            )
+            time.sleep(sleep_s)
+    raise Failure(
+        f"factory.talos.dev {label} failed after {attempts} attempts: {last_exc}"
+    ) from last_exc
+
+
 def factory_roundtrip(rendered: str) -> str:
     """POST schematic to Image Factory and GET the stored body back."""
-    req = urllib.request.Request(
+    post_req = urllib.request.Request(
         FACTORY_SCHEMATICS,
         data=rendered.encode(),
         method="POST",
         headers={"Content-Type": "application/yaml"},
     )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            body = json.loads(resp.read().decode())
-    except urllib.error.URLError as exc:
-        raise Failure(f"factory.talos.dev POST failed: {exc}") from exc
+    body = json.loads(_factory_http("POST", post_req).decode())
     schematic_id = body.get("id")
     assert_true(
         isinstance(schematic_id, str) and len(schematic_id) == 64,
         f"factory POST returned unexpected id payload: {body!r}",
     )
 
-    get_url = f"{FACTORY_SCHEMATICS}/{schematic_id}"
-    try:
-        with urllib.request.urlopen(get_url, timeout=30) as resp:
-            stored = resp.read().decode()
-    except urllib.error.URLError as exc:
-        raise Failure(f"factory.talos.dev GET {schematic_id} failed: {exc}") from exc
+    get_req = urllib.request.Request(
+        f"{FACTORY_SCHEMATICS}/{schematic_id}",
+        method="GET",
+    )
+    stored = _factory_http(f"GET {schematic_id}", get_req).decode()
 
     stored_docs = list(yaml.safe_load_all(stored))
     assert_true(stored_docs and stored_docs[0] is not None, "factory GET body empty")
