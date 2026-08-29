@@ -303,18 +303,20 @@ PLEX_TOKEN=$(kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -
 kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- \
   find /data/nas-media/Movies -mindepth 1 -maxdepth 1 -type d | wc -l
 
-# Plex library size (MediaContainer size= on /all) + section title/scannedAt age
+# Plex library size (MediaContainer totalSize= on /all; Size=0 returns size=\"0\")
+# + section title/scannedAt age
 kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
   "curl -s -H 'X-Plex-Token: ${PLEX_TOKEN}' 'http://localhost:32400/library/sections/1/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0'" \
-  | grep -oE 'MediaContainer[^>]*size=\"[^\"]*\"'
+  | grep -oE 'MediaContainer[^>]*totalSize=\"[^\"]*\"'
 kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
   "curl -s -H 'X-Plex-Token: ${PLEX_TOKEN}' 'http://localhost:32400/library/sections'" \
   | grep -oE '(title|scannedAt)=\"[^\"]*\"'
 ```
 
-The folder count and MediaContainer `size` should match (within a file or two -- Plex does not
+The folder count and MediaContainer `totalSize` should match (within a file or two -- Plex does not
 scan every container it can't parse, e.g. a bare `.VOB` DVD rip has no Plex entry and is not a
-scan-trigger fault). If they diverge by dozens and `scannedAt` is more than a day old, the
+scan-trigger fault). With `X-Plex-Container-Size=0`, page `size` is always 0; use `totalSize` for
+the real library count. If they diverge by dozens and `scannedAt` is more than a day old, the
 Connect notifications or the periodic-scan setting were lost -- reapply steps 1-2 above, then
 run one manual "Scan Library Files" to clear the backlog.
 
