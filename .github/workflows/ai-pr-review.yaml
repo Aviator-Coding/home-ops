@@ -90,7 +90,7 @@ jobs:
     # review the moment it is marked ready instead of on every WIP push.
     if: >-
       ${{ github.event.pull_request.head.repo.full_name == github.repository
-          && !github.event.pull_request.draft }}
+      && !github.event.pull_request.draft }}
     name: AI PR Review
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     # Worst case is one maximal review (~385s: ~198s prefill of a full 61.5k-token
