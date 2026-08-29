@@ -55,8 +55,10 @@ Setup, once per environment:
 source .venv/bin/activate
 uv pip install python-hcl2 "litellm[proxy]==1.98.0"
 
-# mise-managed CLIs some tests shell out to (kubectl, kustomize, tofu, yq) -
-# put the venv's own bin/ FIRST or its python3 gets shadowed by mise's bare interpreter
+# mise-managed CLIs some tests shell out to (kubectl, kustomize, tofu, yq,
+# promtool via aqua:prometheus/prometheus) - put the venv's own bin/ FIRST or
+# its python3 gets shadowed by mise's bare interpreter. grafana-sa-provisioner-test.py
+# prefers native promtool and only falls back to podman run when none is on PATH.
 export PATH="$(mise bin-paths | tr '\n' ':')$PATH"
 export PATH="$VIRTUAL_ENV/bin:$PATH"
 
@@ -76,7 +78,9 @@ to a soft pass-with-note instead.
 Wired into `.github/workflows/validate.yaml`'s `python-tests` job, gated by the same
 `scripts/ci/**` (plus `.github/workflows/validate.yaml` / `.mise.toml`) path filter as the
 shell-script jobs above. It installs `python-hcl2` and `litellm[proxy]==1.98.0` (matching
-the pinned cluster proxy image), then runs every `scripts/ci/*-test.py` in a loop and fails
-the job if any of them fails. This is a deliberately slower job in exchange for the tests
-exercising the real `litellm` library rather than a stub or a soft-skip - see the job's own
-comments in `validate.yaml` before changing that trade-off.
+the pinned cluster proxy image), installs native `promtool` via
+`aqua:prometheus/prometheus@3.2.1` for PromQL rule evaluation (this runner has no podman),
+then runs every `scripts/ci/*-test.py` in a loop and fails the job if any of them fails.
+This is a deliberately slower job in exchange for the tests exercising the real `litellm`
+library rather than a stub or a soft-skip - see the job's own comments in `validate.yaml`
+before changing that trade-off.

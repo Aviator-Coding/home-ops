@@ -266,10 +266,12 @@ jobs:
       # kubectl/kustomize/helm/opentofu are what the tests shell out to (kubectl kustomize,
       # helm template) to render the real manifests they assert on; python/uv provision the
       # interpreter and the two extra libraries these tests need beyond the stdlib.
+      # promtool (from aqua:prometheus/prometheus) runs real PromQL rule-evaluation for
+      # grafana-sa-provisioner-test.py - this runner has no podman/container runtime.
       - name: Setup Tools
         uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
         with:
-          install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize
+          install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus@3.2.1
 
       # litellm[proxy]==1.98.0 matches the pinned cluster image
       # (ghcr.io/berriai/litellm-non_root:v1.98.0, see

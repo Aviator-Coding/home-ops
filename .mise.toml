@@ -38,6 +38,9 @@ MISE_LIST_ALL_VERSIONS = "false"
 "aqua:siderolabs/talos" = "1.13.2"
 "aqua:yannh/kubeconform" = "0.8.0"
 "aqua:nektos/act" = "0.2.89"
+# promtool for scripts/ci/grafana-sa-provisioner-test.py PromQL rule evaluation
+# (matches PROMTOOL_IMAGE tag used as podman fallback in that harness).
+"aqua:prometheus/prometheus" = "3.2.1"
 uv = "0.12.5"
 1password-cli = "2.30.3"
 krew = "0.5.0"
