@@ -85,14 +85,16 @@ radarr:
       - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
         reset_unmatched_scores:
           enabled: true
-        min_format_score: 2000
+      - trash_id: 0896c29d74de619df168d23b98104b22 # [SQP] SQP-1 (1080p)
+        reset_unmatched_scores:
+          enabled: true
 
     custom_formats:
       # Trusted Groups
       - trash_ids:
           - 7a0d1ad358fee9f5b074af3ef3f9d9ef # hallowed
         assign_scores_to:
-          - name: SQP-1 (2160p)
+          - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
 
       # Unwanted
       - trash_ids:
@@ -108,7 +110,7 @@ radarr:
           - dc98083c8c6b34cc9ab94e6c4a45b18c # x265 (HD)
           - b8cd450cbfa689c0259a01d9e29ba3d6 # 3D
         assign_scores_to:
-          - name: SQP-1 (2160p)
+          - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
 
       # Miscellaneous
       - trash_ids:
@@ -116,7 +118,7 @@ radarr:
           - ae43b294509409a6a13919dedd49c257 # Repack2
           - 5caaaa1c08c1742aa4342571f427e5c5 # Repack3
         assign_scores_to:
-          - name: SQP-1 (2160p)
+          - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
 
       # Movie Versions
       - trash_ids:
@@ -126,7 +128,7 @@ radarr:
           - eecf3a857724171f968a66cb5719e152 # IMAX
           - 9d27d9d2181838f76dee150882bdc58c # IMAX Enhanced
         assign_scores_to:
-          - name: SQP-1 (2160p)
+          - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
 
       # Language / naming risk - deprioritize (not block) releases whose title format is more
       # likely to defeat Radarr's import parser and trigger the "matched movie by ID, Manual
@@ -138,9 +140,9 @@ radarr:
           - 0dc8aec3bd1c47cd6c40c46ecd27e846 # Language: Not English
         score: -25
         assign_scores_to:
-          - name: SQP-1 (2160p)
+          - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
       - trash_ids:
           - 4b900e171accbfb172729b63323ea8ca # MULTi
         score: -25
         assign_scores_to:
-          - name: SQP-1 (2160p)
+          - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
