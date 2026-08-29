@@ -302,7 +302,67 @@ outside `security` (notably `ai/litellm`) cannot use a namespaced store at all.
 This is deliberately **not** a self-healing reconciler like
 `monitoring/grafana-sa-provisioner`. That CronJob exists because Grafana runs on
 `emptyDir` SQLite and loses its service account on every pod restart. Authentik
-persists tokens in Postgres, so there is no drift here for a timer to heal.
+persists tokens in Postgres, so there is no drift here for a timer to heal. The
+PushSecret *does* still re-upsert whatever is currently in the hand-maintained
+k8s Secret into 1Password on its `1h` interval - that is propagation of an
+operator edit, not automatic key rotation.
+
+### Diagnose RGW state-key drift before regenerating anything
+
+A CI `tofu init` 403 `SignatureDoesNotMatch` against the RGW state bucket is
+**not** the same failure as the gateway rewrite in section 3. Against the RGW
+Service DNS (what `secrets-ci.vals.yaml` uses) it almost always means the
+`TF_STATE_*` fields no longer match the live `terraform` RGW user - typically
+after an out-of-band key rotation (Ceph dashboard, `radosgw-admin`, etc.) that
+has not yet been written back into `authentik-terraform-credentials`.
+
+The only path those fields take into CI is:
+
+```
+authentik-terraform-credentials (hand-maintained Secret, security ns)
+  -> PushSecret (refreshInterval: 1h)
+  -> Automation/authentik-terraform (TF_STATE_ACCESS_KEY_ID / TF_STATE_SECRET_ACCESS_KEY)
+  -> secrets-ci.vals.yaml (ref+onepasswordconnect://)
+```
+
+That chain can already be healthy again by the time anyone acts on a stale
+report. Measured 2026-08-28: a key rotation earlier that day left
+`terraform-diff.yaml` failing with this exact 403 at 01:12 UTC the next day,
+then green again by 11:24 UTC after the PushSecret caught up - hours before a
+credential-heal task was dispatched, with nothing left to fix. Live comparison
+of the k8s Secret, the RGW user, and the 1Password item (via Connect, the same
+path CI uses) matched by SHA-256; `tofu init` + `tofu state list` against the
+real RGW endpoint succeeded. No key was regenerated and no 1Password field was
+changed.
+
+Before regenerating or rewriting anything:
+
+1. Check current CI, not the report that triggered the page:
+   `gh run list --workflow=terraform-diff.yaml`. A recent green run means the
+   chain has already healed.
+2. If still unclear, compare the three stores **by hash only** - never print
+   secret values into a status file, PR, commit, or log. Refer to keys by access
+   key id or field name:
+   - live RGW user: `kubectl -n rook-ceph exec deploy/rook-ceph-tools -- radosgw-admin user info --uid=terraform`
+   - k8s Secret: `authentik-terraform-credentials` in `security`
+   - 1Password item: `Automation/authentik-terraform` fields
+     `TF_STATE_ACCESS_KEY_ID` / `TF_STATE_SECRET_ACCESS_KEY` (read through
+     Connect the way CI does, not a different local `op://` path)
+3. Prove end-to-end only if hashes disagree or CI is still red: port-forward
+   `svc/onepassword-connect` (`security`) and
+   `svc/rook-ceph-rgw-ceph-objectstore` (`rook-ceph`), point a
+   `secrets-ci.vals.yaml`-shaped vals file at both local ports, then
+   `tofu init` / `tofu state list`. A green `tofu init` is the acceptance test.
+
+If they have genuinely drifted, heal in place: put the correct key pair for the
+**existing** `terraform` RGW user back into the **same** k8s Secret field names
+(and let the PushSecret update the same 1Password item/fields). Do not create a
+new 1Password item, rename fields, or change which item the stack reads. Prefer
+adding a new key on the existing user over revoking the old one; confirm the new
+key works before removing an old one. Never delete the RGW user, its bucket, or
+any object in it. Never run `tofu apply` while diagnosing - `init`/`plan` only.
+If the live user is missing entirely, or the fix would need a new RGW user or a
+new 1Password item, stop and get a captain decision.
 
 [`secrets.vals.yaml`](../../terraform/authentik/secrets.vals.yaml) maps the
 read-only plan fields to the environment via `ref+op://` (interactive `op` CLI).
@@ -687,6 +747,13 @@ describes. CI never mints, reads, or references `AUTHENTIK_APPLY_TOKEN`, never
 runs `tofu apply`, and produces no artifact anyone could apply from - the
 `.planfile` a `tofu plan -out` writes is workflow-ephemeral, never committed or
 uploaded anywhere durable.
+
+**CI `tofu init` 403 `SignatureDoesNotMatch` against RGW** is almost always
+state-key drift on the chain in section 4, not the gateway rewrite in section 3
+(CI never talks to the gateway). Check current `terraform-diff.yaml` runs and
+compare the three stores by hash before regenerating anything - full procedure
+and safety limits: section 4 "Diagnose RGW state-key drift before regenerating
+anything".
 
 ### The one new credential: a 1Password Connect access token
 
