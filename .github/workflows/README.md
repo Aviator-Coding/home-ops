@@ -6,7 +6,7 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 
 | Workflow | Trigger | Purpose | Runner |
 |----------|---------|---------|--------|
-| [flux-local.yaml](#flux-local) | Pull Request | Validates Flux manifests and generates diffs | ubuntu-latest |
+| [flate.yaml](#flate) | Pull Request | Validates Flux manifests and generates diffs | Self-hosted |
 | [image-pull.yaml](#image-pull) | Pull Request | Pre-pulls new container images to cluster nodes | Self-hosted |
 | [renovate.yaml](#renovate) | Push/Manual (schedule disabled) | Rollback path for Renovate; live writer is in-cluster | ubuntu-latest |
 | [codeql.yml](#codeql) | PR/Push/Schedule | Security analysis for GitHub Actions | ubuntu-latest |
@@ -21,19 +21,26 @@ This directory contains GitHub Actions workflows for the home-ops repository, su
 
 ## Workflows
 
-### flux-local
+### flate
 
-**File:** `flux-local.yaml`
+**File:** `flate.yaml`
 
-Validates Kubernetes manifests using [flux-local](https://github.com/allenporter/flux-local) when PRs modify files in `kubernetes/**/*`.
+Validates Kubernetes manifests using [flate](https://github.com/home-operations/flate) when PRs modify files in `kubernetes/**/*`. flate is a Go rewrite of the now-sunsetted flux-local; because it is a static binary rather than a `docker://` container action, these jobs run on the self-hosted runner like everything else.
 
 **Jobs:**
 - `filter` - Detects changed files in kubernetes directory
-- `test` - Runs `flux-local test` to validate manifests
-- `diff` - Generates diffs for HelmReleases and Kustomizations, posts as PR comments
+- `test` - Runs `flate test all` to validate every Kustomization, HelmRelease and Flux source CR
+- `diff` - Generates diffs for HelmReleases (`hr`) and Kustomizations (`ks`), posts as PR comments
 - `success` - Aggregates job results for branch protection
 
 **Dependencies:** Requires `BOT_APP_ID` and `BOT_APP_PRIVATE_KEY` secrets.
+
+**Does not close the `postBuild.substitute` blind spot.** flate runs Flux's real
+envsubst engine but in lenient mode, with no strict-mode flag, while the cluster's
+kustomize-controller runs `StrictPostBuildSubstitutions=true`. An undefined
+`${VAR}` renders as empty and passes here while freezing the whole Kustomization
+live. That gap is unchanged from flux-local and still open; see the
+`postBuild.substitute` entry in `AGENTS.md`.
 
 ### image-pull
 
@@ -43,8 +50,7 @@ Pre-pulls new container images to Talos nodes before PRs are merged, reducing de
 
 **Jobs:**
 - `filter` - Detects kubernetes file changes
-- `extract` - Extracts image lists from default and PR branches using flux-local
-- `diff` - Computes new images not present in default branch
+- `images` - Resolves images this PR adds, via `flate diff images` against the default branch, plus a recovery pass for bare Docker Hub references flate does not report (see the job's own comment)
 - `pull` - Pulls new images to cluster nodes via talosctl
 - `success` - Aggregates job results
 
@@ -138,7 +144,7 @@ Builds and pushes the `talosctl-busybox` image from
 
 Validates `talos/`, `bootstrap/kustomize/`, `.renovate/`, credential-less
 `terraform/` schema checks, and `scripts/ci/*-test.py` regression tests -
-paths/gates the `kubernetes/**`-filtered workflows above (`flux-local`,
+paths/gates the `kubernetes/**`-filtered workflows above (`flate`,
 `image-pull`) never cover.
 
 **Jobs:**
@@ -266,11 +272,11 @@ runs-on: gha-runner-scale-set-aviator-coding-home-ops
 
 ## Troubleshooting
 
-### Flux Local Test Failures
+### Flate Test Failures
 
 1. Check if HelmRelease values are valid
 2. Verify Kustomization patches apply correctly
-3. Run locally: `flux-local test --path kubernetes/clusters/main --all-namespaces --enable-helm`
+3. Run locally: `task flux:test:all` (or `flate test all --path kubernetes/clusters/main`)
 
 ### Image Pull Failures
 
@@ -298,4 +304,4 @@ runs-on: gha-runner-scale-set-aviator-coding-home-ops
 - [Talos Linux Documentation](https://www.talos.dev/docs/)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Renovate Documentation](https://docs.renovatebot.com/)
-- [flux-local Documentation](https://github.com/allenporter/flux-local)
+- [flate Documentation](https://github.com/home-operations/flate)

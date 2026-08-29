@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 #
 # CI gates for the parts of this repo Flux never sees. `talos/`, `bootstrap/` and
-# `.renovate/` are outside the `kubernetes/**` paths that Flux Local and Image Pull
+# `.renovate/` are outside the `kubernetes/**` paths that flate and Image Pull
 # filter on, so before this workflow a PR touching only `talos/` ran exactly one
 # check: the labeler.
 #
@@ -82,7 +82,7 @@ permissions:
 jobs:
   # Per-job path filtering. The workflow-level `paths:` above is the union of every
   # gate, so without this a `.renovate/`-only PR would also run the Talos jobs.
-  # Same pattern as flux-local.yaml / image-pull.yaml.
+  # Same pattern as flate.yaml / image-pull.yaml.
   filter:
     # Fork guard. Every job in this workflow lands on the self-hosted runner, which
     # holds node-level Talos credentials, so PR-authored code from a fork must never

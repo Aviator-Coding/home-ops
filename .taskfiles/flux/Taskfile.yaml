@@ -5,21 +5,22 @@ version: '3'
 tasks:
 
   "test:all":
-    desc: Run flux-local tests for the whole cluster (all namespaces)
+    desc: Validate every Kustomization, HelmRelease and Flux source (whole cluster)
     dir: '{{.ROOT_DIR}}'
     cmds:
-      - flux-local test --all-namespaces --enable-helm --path kubernetes/clusters/main --verbose
+      - flate test all --path kubernetes/clusters/main
 
   "test:ns":
-    desc: Run flux-local tests for a single namespace (default flux-system)
+    desc: Validate the whole cluster, reporting one namespace (default flux-system)
     dir: '{{.ROOT_DIR}}'
     vars:
       NAMESPACE: '{{.NAMESPACE | default "flux-system"}}'
+    # Two runs on purpose. flate always reconciles the entire tree, but --namespace
+    # filters the RESULT as well as the output: measured 2026-08-29, a broken
+    # Kustomization in `network` still exits 0 under `-n monitoring`. That is the
+    # same false-green this task had under flux-local, so the scoped run is for
+    # readable output only and the unscoped run below is the authoritative gate.
+    # A full run is ~0.3s warm, so there is no longer a speed reason to scope.
     cmds:
-      - flux-local test --namespace {{.NAMESPACE}} --enable-helm --path kubernetes/clusters/main --verbose
-
-  "test:quick":
-    desc: Quick flux-local test without verbose output (all namespaces)
-    dir: '{{.ROOT_DIR}}'
-    cmds:
-      - flux-local test --all-namespaces --enable-helm --path kubernetes/clusters/main
+      - flate test all --path kubernetes/clusters/main --namespace {{.NAMESPACE}}
+      - flate test all --path kubernetes/clusters/main

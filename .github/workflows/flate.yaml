@@ -1,0 +1,194 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Flate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - kubernetes/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # flate CLI version. Pinned exactly and never floating: the action's own
+  # SHA-ref -> tag lookup silently falls back to "latest" when the tags API
+  # call fails (`curl ... || true` in action/action.yml), so the explicit
+  # `version:` input below is what actually guarantees a reproducible binary.
+  # Keep in step with the action pin on the `uses:` lines.
+  # renovate: datasource=github-releases depName=home-operations/flate
+  FLATE_VERSION: 0.6.1
+
+jobs:
+  filter:
+    # Fork guard. Mirrors labeler.yaml; same-repo PRs are unaffected. Every job
+    # in this workflow now runs on the self-hosted runner, so a fork PR must not
+    # reach any of them.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    name: Flate - Filter
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 5
+    outputs:
+      changed-files: ${{ steps.changed-files.outputs.changed_files }}
+    steps:
+      - name: Get Changed Files
+        id: changed-files
+        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        with:
+          patterns: kubernetes/**/*
+
+  test:
+    if: ${{ needs.filter.outputs.changed-files != '[]' }}
+    needs: filter
+    name: Flate - Test
+    # Runs on the local ARC runner: flate is a single static Go binary installed
+    # by a composite action, so the Docker daemon flux-local's `docker://`
+    # container action required is no longer needed.
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    # flate renders this cluster cold in ~3s; the headroom is for CPU contention
+    # when several workflows fan out onto the single runner pool at once.
+    timeout-minutes: 15
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          token: ${{ steps.app-token.outputs.token }}
+
+      # Explicit empty base: the action otherwise exports FLATE_BASE=<default
+      # branch>, which would silently switch `flate test all` into changed-only
+      # mode and weaken this job from full-tree validation.
+      - name: Setup flate
+        uses: home-operations/flate/action@83b2308bc71043482a2f4e849a74b0a53cc1e014 # v0.6.1
+        with:
+          version: ${{ env.FLATE_VERSION }}
+          base: ""
+
+      # No retry loop: flate links helm/kustomize/go-git/oras in as libraries and
+      # has its own bounded source-fetch retry (--source-retry-attempts, default
+      # 3), so neither flux-local's hardcoded 60s `helm repo update` timeout nor
+      # its fixed-concurrency kustomize-component race applies. A failure here is
+      # a real failure.
+      - name: Run flate test
+        run: |
+          flate test all \
+            --path kubernetes/clusters/main \
+            --no-progress
+
+  diff:
+    if: ${{ needs.filter.outputs.changed-files != '[]' }}
+    needs: filter
+    name: Flate - Diff
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      matrix:
+        resource:
+          - hr
+          - ks
+      fail-fast: false
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
+      # Single checkout: flate's --base materializes the baseline revision's tree
+      # from git itself, so the second "default branch" checkout the flux-local
+      # diff needed is gone. fetch-depth: 0 is what makes origin/<default> present
+      # to resolve --base against; this repo's full history is ~10 MiB packed.
+      - name: Checkout Pull Request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup flate
+        uses: home-operations/flate/action@83b2308bc71043482a2f4e849a74b0a53cc1e014 # v0.6.1
+        with:
+          version: ${{ env.FLATE_VERSION }}
+          base: ""
+
+      # No reset-and-retry loop: that existed because `flux build ks` mutated the
+      # shared kubernetes/components/volsync/backup directory in place while other
+      # Kustomizations read it concurrently, corrupting the checkout. flate never
+      # shells out to `flux`/`kustomize` and never writes into the source tree.
+      #
+      # --strip-attr is omitted deliberately: flate's default set
+      # (helm.sh/chart, checksum/, app.kubernetes.io/version, chart) already
+      # covers the flux-local list, and `checksum/` is a prefix match that
+      # subsumes the old explicit `checksum/config`. Passing any value REPLACES
+      # the default set, so naming them again would be a silent narrowing.
+      - name: Run flate diff
+        run: |
+          flate diff ${{ matrix.resource }} \
+            --path kubernetes/clusters/main \
+            --base "origin/${{ github.event.repository.default_branch }}" \
+            --no-progress \
+            --output diff > diff.patch
+
+      # Kept at 60000 bytes to stay under GitHub's 65536-character comment limit.
+      # Uses `head -c` rather than coreutils `truncate`: this job moved off
+      # ubuntu-latest onto the ARC runner image, and `head` is the portable
+      # spelling that does not assume full coreutils there.
+      - name: Truncate Diff
+        id: diff
+        run: |-
+          if [ "$(wc -c < diff.patch)" -gt 60000 ]; then
+            head -c 60000 diff.patch > diff.patch.tmp
+            mv diff.patch.tmp diff.patch
+          fi
+          if [ -s diff.patch ]; then
+            echo 'has-diff=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: ${{ steps.diff.outputs.has-diff == 'true' }}
+        name: Add Comment
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          header: ${{ github.event.pull_request.number }}/kubernetes/${{ matrix.resource }}
+          path: diff.patch
+          message: |-
+            ```diff
+            {{{content}}}
+            ```
+
+  success:
+    # `!cancelled()` alone would still schedule this job onto the self-hosted runner
+    # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
+    if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
+    needs:
+      - test
+      - diff
+    name: Flate - Success
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 5
+    steps:
+      - name: Any jobs failed?
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
+
+      - name: All jobs passed or skipped?
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"
