@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DIFF_WF = ROOT / ".github" / "workflows" / "terraform-diff.yaml"
 PUB_WF = ROOT / ".github" / "workflows" / "terraform-publish.yaml"
 VALIDATE_WF = ROOT / ".github" / "workflows" / "validate.yaml"
-FLUX_LOCAL = ROOT / ".github" / "workflows" / "flux-local.yaml"
+FLATE = ROOT / ".github" / "workflows" / "flate.yaml"
 SECRETS = ROOT / "terraform" / "authentik" / "secrets.vals.yaml"
 SECRETS_CI = ROOT / "terraform" / "authentik" / "secrets-ci.vals.yaml"
 SECRETS_APPLY = ROOT / "terraform" / "authentik" / "secrets-apply.vals.yaml"
@@ -421,22 +421,23 @@ def test_validate_job_still_credentialless() -> dict[str, Any]:
     return {"job": "terraform", "script": "./scripts/ci/tofu-validate.sh"}
 
 
-def test_flux_local_untouched() -> dict[str, Any]:
-    """flux-local stays the kubernetes-only peer of terraform CI - not coupled into it.
+def test_flate_untouched() -> dict[str, Any]:
+    """flate stays the kubernetes-only peer of terraform CI - not coupled into it.
 
     The original form of this check was `git diff <pre-terraform-ci-base>..HEAD --
     flux-local.yaml` empty, so the terraform-diff PR could not silently rewrite the
-    kubernetes Flux-local workflow. That form is not durable: GitHub Actions checkouts
-    are shallow (the frozen base SHA is absent → git exit 128), and any later
-    legitimate flux-local edit would fail forever against a historical pin. The
+    kubernetes Flux-rendering workflow (renamed to flate.yaml when CI migrated off the
+    sunsetted flux-local). That form is not durable: GitHub Actions checkouts are
+    shallow (the frozen base SHA is absent → git exit 128), and any later legitimate
+    edit to that workflow would fail forever against a historical pin. The
     durable contract is the path isolation and lack of terraform coupling the
     historical diff was protecting.
     """
-    data, _text = load_workflow(FLUX_LOCAL)
+    data, _text = load_workflow(FLATE)
     on = on_block(data)
     assert "pull_request" in on, on
     paths = list(on["pull_request"].get("paths") or [])
-    assert paths, "flux-local must path-filter; an empty paths list runs on every PR"
+    assert paths, "flate must path-filter; an empty paths list runs on every PR"
     assert all(
         p == "kubernetes/**" or p.startswith("kubernetes/") for p in paths
     ), paths
@@ -460,7 +461,7 @@ def test_flux_local_untouched() -> dict[str, Any]:
                 assert "kubernetes" in patterns, (name, patterns)
 
     return {
-        "path": str(FLUX_LOCAL.relative_to(ROOT)),
+        "path": str(FLATE.relative_to(ROOT)),
         "paths": paths,
         "jobs": sorted(jobs),
     }
@@ -486,7 +487,7 @@ def main() -> int:
         ("secrets_ci_mirrors_readonly", test_secrets_ci_mirrors_readonly),
         ("schema_only_tofu_path", test_schema_only_tofu_path),
         ("validate_job_still_credentialless", test_validate_job_still_credentialless),
-        ("flux_local_untouched", test_flux_local_untouched),
+        ("flate_untouched", test_flate_untouched),
         ("labeler_and_gitignore", test_labeler_and_gitignore),
     ]
     results: dict[str, Any] = {}

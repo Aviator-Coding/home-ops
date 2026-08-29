@@ -25,7 +25,7 @@ LABELER = WF / "labeler.yaml"
 TAG = WF / "tag.yaml"
 BUILD = WF / "build-talosctl-busybox.yaml"
 IMAGE_PULL = WF / "image-pull.yaml"
-FLUX_LOCAL = WF / "flux-local.yaml"
+FLATE = WF / "flate.yaml"
 
 FORK_GUARD = "github.event.pull_request.head.repo.full_name == github.repository"
 PEER_CONCURRENCY_GROUP = (
@@ -315,13 +315,13 @@ def test_build_talosctl(f: Failures) -> dict[str, Any]:
 
 def test_image_pull(f: Failures) -> dict[str, Any]:
     data, text = load_workflow(IMAGE_PULL)
-    flux, _ = load_workflow(FLUX_LOCAL)
+    flate_wf, _ = load_workflow(FLATE)
     evidence: dict[str, Any] = {"workflow": "image-pull.yaml"}
 
     conc = data.get("concurrency") or {}
-    flux_conc = flux.get("concurrency") or {}
+    flate_conc = flate_wf.get("concurrency") or {}
     evidence["concurrency"] = conc
-    evidence["flux_local_concurrency"] = flux_conc
+    evidence["flate_concurrency"] = flate_conc
 
     f.check(
         conc.get("group") == PEER_CONCURRENCY_GROUP,
@@ -333,8 +333,8 @@ def test_image_pull(f: Failures) -> dict[str, Any]:
         f"(got {conc.get('cancel-in-progress')!r})",
     )
     f.check(
-        flux_conc.get("cancel-in-progress") is True,
-        "sanity: flux-local peer still cancels in progress",
+        flate_conc.get("cancel-in-progress") is True,
+        "sanity: flate peer still cancels in progress",
     )
 
     comment = concurrency_comment_for(IMAGE_PULL, text)
