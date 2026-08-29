@@ -261,8 +261,8 @@ them is priced anyway**: `qwen3.6-35b-a3b` carries an explicit
 `app/models/qwen3.6-35b-a3b.yaml`): a $0 model accrues no spend, so a D4
 virtual-key budget could never constrain direct local usage.
 
-The other local aliases - `qwen3.6-35b-a3b-classifier`, `chat-local` and
-`chat-ha` - carry **no** price. The classifier was zeroed on 2026-08-27 (#1471)
+The other local aliases - `qwen3.6-35b-a3b-classifier`, `chat-local`,
+`chat-ha` and `pr-review-local` - carry **no** price. The classifier was zeroed on 2026-08-27 (#1471)
 because LiteLLM bills a classifier sub-call to the *calling* key, so while it
 was priced it dominated an `auto` consumer's recorded spend rather than
 measuring anything real; the reasoning and its measurements are in that CR's

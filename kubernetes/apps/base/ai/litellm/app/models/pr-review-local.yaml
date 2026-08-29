@@ -2,8 +2,8 @@
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
 # The non-thinking local alias used by .github/workflows/ai-pr-review.yaml
 # (misospace/pr-reviewer-action). Fifth alias of the ONE llama.cpp backend
-# behind models/chat-local.yaml - read that file's four-alias table first; this
-# entry adds a row to it.
+# behind models/chat-local.yaml - read that file's five-alias table first; this
+# entry is one row of it.
 #
 # WHY THIS ALIAS EXISTS, and why the reviewer must NOT be pointed at
 # `chat-local` directly. Qwen3.6-35B-A3B is a REASONING model. Left alone it

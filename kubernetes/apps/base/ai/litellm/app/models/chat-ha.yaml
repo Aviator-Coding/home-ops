@@ -16,8 +16,9 @@
 # config-declared chain is unchecked.) Full evidence, response headers and the
 # source-level reason: docs/ai-system/litellm/fallbacks.md#1.
 #
-# Four aliases share this B70 backend; each carries exactly one property the
-# others must not. Entitlement is which alias a key holds:
+# Five aliases share this B70 backend; each carries exactly one property the
+# others must not. The full table lives on models/chat-local.yaml. Entitlement
+# is which alias a key holds:
 #   - `qwen3.6-35b-a3b` - terminal, SYNTHETIC non-zero prices, DEMO-ONLY so the
 #     $0.05 smoke-test cap is exhaustible. Never point production traffic here.
 #   - `chat-local` - terminal, ZERO-priced. Real local-only traffic holds this
@@ -27,12 +28,14 @@
 #     entitlement, because a config-declared fallback bypasses the calling key's
 #     allow-list.
 #   - `qwen3.6-35b-a3b-classifier` - terminal, ZERO-priced, thinking disabled.
+#   - `pr-review-local` - terminal, ZERO-priced, thinking disabled for the AI
+#     PR reviewer (docs/ai-system/litellm/pr-reviewer.md). Not a cloud path.
 # A key that must never reach cloud holds `chat-local` (or `qwen3.6-35b-a3b`
 # iff it is the demo budget test). A key that should survive a B70 outage holds
-# THIS alias and pays for it. Never add a cloud fallback to `chat-local` or
-# `qwen3.6-35b-a3b` - that single edit would silently convert every local-only
-# key into a cloud spender the first time the GPU hiccupped, which is precisely
-# what captain decision D4 forbids.
+# THIS alias and pays for it. Never add a cloud fallback to `chat-local`,
+# `qwen3.6-35b-a3b`, or `pr-review-local` - that single edit would silently
+# convert every local-only key into a cloud spender the first time the GPU
+# hiccupped, which is precisely what captain decision D4 forbids.
 #
 # NO `info.extra` PRICES, deliberately, unlike the demo-only priced fixture.
 # Pricing local traffic here would burn a `chat-ha` key's budget at play-money

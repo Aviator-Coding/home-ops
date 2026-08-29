@@ -6,7 +6,9 @@ pre-2026-06-07 role as this cluster's unified LLM proxy (removed in #941 - see
 `docs/ai-system/agentgateway/GLOSSARY.md`). Full rationale, the six-line lab
 design, and the knobs to raise budgets later: `docs/ai-system/litellm/README.md`.
 Fallback chains, allow-list interaction, alerts, internal route, and failover
-runbook: `docs/ai-system/litellm/fallbacks.md`.
+runbook: `docs/ai-system/litellm/fallbacks.md`. AI PR reviewer (advisory GHA
+workflow, `pr-review-local`, two-step key rotation):
+`docs/ai-system/litellm/pr-reviewer.md`.
 
 Since captain decision **O1** (2026-08-26) it is delivered by the
 [home-operations litellm-operator](https://github.com/home-operations/litellm-operator)
@@ -18,7 +20,7 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, non-secret SSO `env`, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | 34 `LiteLLMModel` CRs, one per model. Four of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series). Plus `auto` (the D3 router), `claude-opus-5`, `claude-sonnet-5`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - and `claude-code-subscription`, the odd one out: the proxy holds **no credential** for it - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
+| [`app/models/`](app/models/) | 35 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5`, `claude-sonnet-5`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - and `claude-code-subscription`, the odd one out: the proxy holds **no credential** for it - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
@@ -77,9 +79,10 @@ backup window. Mechanism, citations, retrieval runbook and retention:
 - **Only the demo alias (`qwen3.6-35b-a3b`) carries synthetic `model_info`
   prices.** They are a test fixture, not a billing estimate: they exist so the
   `demo` key's `$0.05` cap can be exhausted by one smoke test, and `demo` is
-  that alias's only consumer. `chat-local` and `qwen3.6-35b-a3b-classifier` are
-  zero-priced (no `info.extra`); `chat-ha` also carries no prices. Real traffic
-  runs on [`app/models/chat-local.yaml`](app/models/chat-local.yaml), because
+  that alias's only consumer. `chat-local`, `qwen3.6-35b-a3b-classifier` and
+  `pr-review-local` are zero-priced (no `info.extra`); `chat-ha` also carries no
+  prices. Real traffic runs on
+  [`app/models/chat-local.yaml`](app/models/chat-local.yaml), because
   billing free B70 compute at the demo rates made every spend dashboard report
   real-looking dollars (measured 2026-08-27: $0.04735 for one trivial routed
   request while SIMPLE/MEDIUM/classifier still used the priced alias; $7.82

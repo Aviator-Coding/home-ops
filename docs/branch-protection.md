@@ -73,14 +73,19 @@ The same is true of `flate.yaml` / `image-pull.yaml` outside `kubernetes/**`, an
 `terraform-diff.yaml` outside `terraform/**`. Root-level docs, `README.md`, `Taskfile.yaml`,
 `.taskfiles/**`, and most of `docs/**` are covered by none of them.
 
-`labeler.yaml` is the only PR-triggered workflow with **no path filter on its trigger** — it
-runs on every PR to `main`, full stop. Its job does carry a same-repo fork guard
-(`if: github.event.pull_request.head.repo.full_name == github.repository`, mirrored from the
-`image-pull`/`validate`/`terraform-diff` fork guards documented in `AGENTS.md`), but a job-level `if` still
-creates a check run (`skipped`), and GitHub treats a skipped required check as passing — unlike
-a trigger-level `paths:` mismatch, which creates no check run at all. That's what makes it the
-only check in this repo that is safe to mark required today: it is guaranteed to resolve, one
-way or another, for every PR.
+Two PR-triggered workflows have **no path filter on their trigger** and therefore run on
+every PR to `main`: [`labeler.yaml`](../.github/workflows/labeler.yaml) and
+[`ai-pr-review.yaml`](../.github/workflows/ai-pr-review.yaml). Both carry the same-repo fork
+guard (`if: github.event.pull_request.head.repo.full_name == github.repository`, mirrored from
+the `image-pull`/`validate`/`terraform-diff` fork guards documented in `AGENTS.md`); a job-level
+`if` still creates a check run (`skipped`), and GitHub treats a skipped required check as
+passing — unlike a trigger-level `paths:` mismatch, which creates no check run at all. That is
+what makes a no-path-filter workflow *structurally* safe to mark required: it is guaranteed to
+resolve, one way or another, for every PR. **Only `Labeler - Labeler` is actually required
+today.** `ai-pr-review` is deliberately left off the ruleset even though it could be required
+without the path-filter trap — it is advisory-only by construction (`publish_mode: comment`,
+not a merge gate) and must not become one; see
+[`docs/ai-system/litellm/pr-reviewer.md`](ai-system/litellm/pr-reviewer.md).
 
 **This means the ruleset does not yet gate the checks that actually catch a broken
 Kustomization or a bad Talos config** — that gap is real and is the direct consequence of how

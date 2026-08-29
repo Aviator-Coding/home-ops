@@ -79,8 +79,9 @@ holder into a cloud consumer the first time the B70 hiccupped - real spend on
 keys whose whole purpose is that they cannot reach Anthropic (and, for `demo`,
 against a budget sized for governance-accounting play money).
 
-So the one local B70 backend is exposed under **four aliases**, each carrying
-exactly one property the others must not. Entitlement is which alias a key holds:
+So the one local B70 backend is exposed under **five aliases**, each carrying
+exactly one property the others must not. Entitlement is which alias a key holds
+(authoritative table also on `models/chat-local.yaml`):
 
 | Alias | Backend | Prices | Fallbacks | Who holds it |
 |---|---|---|---|---|
@@ -88,6 +89,7 @@ exactly one property the others must not. Entitlement is which alias a key holds
 | `chat-local` | same B70 llama.cpp | none / zero | **none** - terminal | real local-only traffic: auto SIMPLE/MEDIUM, fail-open pin, repo-wiki, and every future local-only key |
 | `chat-ha` | same B70 llama.cpp | none / zero | `-> claude-sonnet-5` (availability + context-window) | cloud-entitled keys that should survive a B70 outage |
 | `qwen3.6-35b-a3b-classifier` | same B70 llama.cpp | none / zero | **none** - terminal; thinking disabled | the auto-router classifier only |
+| `pr-review-local` | same B70 llama.cpp | none / zero | **none** - terminal; thinking disabled | AI PR reviewer only - [`pr-reviewer.md`](pr-reviewer.md) |
 
 Same weights, same GPU. A key that must never reach Anthropic holds
 `chat-local` (or `qwen3.6-35b-a3b` if and only if it is the demo budget test)

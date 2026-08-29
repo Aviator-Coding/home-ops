@@ -49,6 +49,13 @@ API or SQL, the confidentiality finding (LAN-only NAS Barman sink accepted
 2026-08-27, caller credentials redacted), and the shipped 30d retention bound.
 Do not restate those facts here.
 
+**AI PR reviewer** (captain decision 2026-08-29) lives in
+[`pr-reviewer.md`](pr-reviewer.md): advisory-only `misospace/pr-reviewer-action`
+on the in-cluster ARC runner, the dedicated non-thinking `pr-review-local`
+alias, the two-step `LITELLM_PR_REVIEW_KEY` rotation, fork-PR exclusion, and
+what is still unproven until the first live run. Do not restate those facts
+here.
+
 ## Scope (binding, from B4/D4)
 
 - **B4**: LiteLLM does **not** front the **public** listener - no
