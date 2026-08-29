@@ -37,7 +37,7 @@ spec:
   timeout: 5m
   path: "./kubernetes/apps/base/ai/toolhive/app"
   prune: true
-  wait: true
+  wait: false
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
