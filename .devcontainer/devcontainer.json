@@ -19,7 +19,12 @@
   },
   "customizations": {
     "vscode": {
-      "extensions": []
+      "extensions": [
+        "blueglassblock.better-json5",
+        "irongeek.vscode-env",
+        "redhat.vscode-yaml",
+        "Anthropic.claude-code"
+      ]
     }
   },
   "postCreateCommand": {
