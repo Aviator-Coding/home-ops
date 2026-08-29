@@ -272,7 +272,7 @@ runs-on: gha-runner-scale-set-aviator-coding-home-ops
 
 ## Troubleshooting
 
-### Flux Local Test Failures
+### Flate Test Failures
 
 1. Check if HelmRelease values are valid
 2. Verify Kustomization patches apply correctly
