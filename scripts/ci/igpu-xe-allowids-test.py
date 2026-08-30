@@ -7,8 +7,9 @@ iGPUs advertised xe. With that precondition closed, the HelmRelease must:
   1. Render `allowIDs: "0xa7a0"` into the chart values Flux applies.
   2. Produce a GpuDevicePlugin CR whose spec.allowIDs is exactly that value
      (chart values map 1:1 onto CR fields - confirmed by helm template).
-  3. Keep media/browser consumers (jellyfin/plex/playwright) on
+  3. Keep media/browser consumers (plex/playwright) on
      gpu.intel.com/xe only, never devic.es/b70 or devic.es/b70-vaapi.
+     (jellyfin was a third xe consumer until it was retired 2026-08-30.)
   4. Keep Level Zero B70 consumers (vllm/vllm-embed/comfyui) on
      devic.es/b70 only, never gpu.intel.com/xe or devic.es/b70-vaapi.
   5. Keep the VA-API B70 consumer (tdarr-node) on devic.es/b70-vaapi only,
@@ -50,7 +51,6 @@ B70_VAAPI_RESOURCE = "devic.es/b70-vaapi"
 
 # Controllers that must stay on the shared xe/iGPU pool.
 XE_CONSUMERS: dict[str, Path] = {
-    "jellyfin": ROOT / "kubernetes/apps/base/media/jellyfin/app/helmrelease.yaml",
     "plex": ROOT / "kubernetes/apps/base/media/plex/app/helmrelease.yaml",
     "playwright": ROOT / "kubernetes/apps/base/selfhosted/rsshub/playwright/helmrelease.yaml",
 }

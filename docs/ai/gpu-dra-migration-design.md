@@ -79,7 +79,7 @@ renderD128
 |-----|-----------|----------|
 | `vllm` | `ai` | `devic.es/b70: 1` |
 | `tdarr-node` | `media` | `devic.es/b70-vaapi: 1` (same physical B70; was `devic.es/b70` at evaluation, split 2026-08-29) |
-| `jellyfin` | `media` | `gpu.intel.com/xe: 1` |
+| `jellyfin` | `media` | `gpu.intel.com/xe: 1` (**retired 2026-08-30** - no longer a consumer) |
 | `plex` | `media` | `gpu.intel.com/xe: 1` |
 | `playwright` | `selfhosted` | `gpu.intel.com/xe: 1` |
 
@@ -97,6 +97,9 @@ and under strict 1-to-1 it still does not fit:
   at a time as routine maintenance (Ceph OSD safety, `just talos apply-node`), and every such
   drain would strand one of them `Pending` with nowhere to go - where today it simply
   co-schedules onto a surviving node.
+  *Updated 2026-08-30:* `jellyfin` was retired, so this group is now `plex` + `playwright` on
+  three iGPUs and would survive a single-node drain. This softens the iGPU half of the argument
+  but changes nothing about the decision - the B70 group above is independently disqualifying.
 
 Sharing works today because both plugins hand out share-count tokens (`count: 99`,
 `sharedDevNum: 99`) rather than exclusive devices. The Intel DRA driver does not do this.
@@ -202,7 +205,7 @@ spec:
           device.attributes["gpu.intel.com"].pciId == "0xe223"
 ---
 # Integrated Raptor Lake-P iGPU (8086:a7a0) - all three nodes.
-# Consumers: jellyfin, plex, playwright.
+# Consumers: plex, playwright.
 apiVersion: resource.k8s.io/v1
 kind: DeviceClass
 metadata:
@@ -264,7 +267,7 @@ its replacement is proven.
 | 1 | Deploy the driver only. No `DeviceClass`, no consumer change. | `ResourceSlice` published per node; `0xe223` on talos-3, `0xa7a0` on all three. Plugins still serving; zero pod churn. |
 | 2 | Add the two narrow `DeviceClass` objects. Still no consumer change. | `kubectl describe deviceclass` resolves; a throwaway test pod binds the intended card and *fails* to bind the wrong one. |
 | 3 | Migrate **one** low-risk consumer (`playwright` - restartable, non-serving) to a claim; leave its plugin request removed only after it is Running. | `playwright` Running on an iGPU, never the B70. Verify via the pod's allocated device in `ResourceClaim.status`. |
-| 4 | Migrate the rest one at a time, serving workloads last (`tdarr-node` → `jellyfin` → `plex` → `comfyui` → `vllm-embed` → `vllm`). | After each: pod Running, correct device, no Pending anywhere. Roll back that single app on failure. |
+| 4 | Migrate the rest one at a time, serving workloads last (`tdarr-node` → `plex` → `comfyui` → `vllm-embed` → `vllm`). | After each: pod Running, correct device, no Pending anywhere. Roll back that single app on failure. |
 | 5 | Retire both plugins; migrate the gpu-loss alerts (§4) and prove the new series. | All GPU pods Running on DRA for a full reconcile interval; alerts firing correctly against a simulated loss. |
 
 Stage 3 is the earliest point anything can break, and it breaks exactly one non-serving pod.

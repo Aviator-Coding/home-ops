@@ -105,7 +105,7 @@ prefixes.
 | `10.50.0.26` | envoy-internal |
 | `10.50.0.27` / `.28` / `.29` | agentgateway (internal / internal-noauth / public) |
 | `10.50.0.30` | emqx |
-| `10.50.0.50` / `.52` / `.54` | jellyfin / plex / tdarr |
+| `10.50.0.52` / `.54` | plex / tdarr (`.50` freed by the jellyfin retirement 2026-08-30) |
 | `10.50.0.51` | syncthing |
 | `10.50.0.121` | kube-api |
 

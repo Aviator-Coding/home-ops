@@ -177,7 +177,7 @@ They remain valid as the contention mechanism; they are not today's default inve
 > `count: 99` only divide **VRAM / device-count** - none isolate **compute**. `devic.es/b70`
 > is a scheduling identity (share-count token), not VRAM fencing. Chat vs ComfyUI is the
 > remaining heavy pair; do not start ComfyUI while `vllm` is up. Re-enabling `vllm-embed`
-> would restore the three-consumer problem. Light media (jellyfin/plex/playwright) stays on
+> would restore the three-consumer problem. Light media (plex/playwright) stays on
 > `gpu.intel.com/xe` - see [`../ai-gpu-changelog.md`](../ai-gpu-changelog.md).
 
 ### Symptom & measured penalty

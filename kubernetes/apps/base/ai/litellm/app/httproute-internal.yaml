@@ -14,7 +14,8 @@
 # `external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}` and
 # external-dns inherits it for every attached route (verified live 2026-08-26:
 # searxng and jellyfin carry NO route-level target annotation and both resolve
-# via CNAME to internal.${SECRET_DOMAIN}). The reason is ANNOTATIONS: the
+# via CNAME to internal.${SECRET_DOMAIN}; jellyfin has since been retired). The
+# reason is ANNOTATIONS: the
 # operator's route schema is exactly {hostnames, parentRefs, filters} and has
 # no annotations field at all, so an operator-owned route cannot carry the
 # `gatus.home-operations.com/endpoint` or `gethomepage.dev/*` keys this repo

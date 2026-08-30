@@ -11,7 +11,7 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 | Namespace | Purpose | Key Apps |
 |-----------|---------|----------|
 | `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, Autobrr, reading-glasses |
-| `media` | Media servers + post-processing | Jellyfin, Plex, Seerr, Tdarr, Calibre-Web-Automated, Calibre-Downloader |
+| `media` | Media servers + post-processing | Plex, Seerr, Tdarr, Calibre-Web-Automated, Calibre-Downloader |
 
 `default/kustomization.yaml` has `resources: []`. CWA + Calibre-Downloader live under `media/calibre/` and Flux-target `media`.
 
@@ -21,13 +21,17 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 and its 100 Gi `immich-library` claim held only nightly dumps of an empty database. Its Ceph,
 MinIO and R2 restic repositories are now orphaned and are deleted by a separate task.
 
+`media/jellyfin/` was retired the same day: the captain watches on Plex, and Jellyfin logged zero
+playback, session or authentication activity in 24 h. Its `10.50.0.50` LoadBalancer IP is now
+free, and it was the third `gpu.intel.com/xe` consumer alongside plex and rsshub-playwright.
+
 FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubernetes/apps/base/network/flaresolverr/`), not `downloads`/`media` - consumed by Prowlarr (IndexerProxy, UI-configured, not GitOps) and Calibre-Downloader (`EXT_BYPASSER_URL`).
 
 In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` were removed (dead, unreferenced directories) and are no longer present in `kubernetes/apps/main/downloads/kustomization.yaml`.
 
 **The stack is usenet-only by deliberate captain decision (2026-08-30), not by accident.** No torrent client is deployed, and Radarr's `qBittorrent` download client entry (pointed at a nonexistent `qbittorrent.downloads.svc.cluster.local`, always `enable: false`) plus Prowlarr's four definition-less torrent indexers (`BitSearch`, `TorrentGalaxyClone`, `Isohunt2`, `iDope` - flagged by Prowlarr's own `IndexerNoDefinitionCheck` health check as broken and unusable) were deleted as leftover state implying a torrent path that did not exist. **Both deletions were live API calls against Radarr's and Prowlarr's own databases, not GitOps** - qBittorrent's download-client config and Prowlarr's indexer list live in each app's Postgres backend, not in a committed manifest, so there is nothing in Git to change beyond this note. Re-adding torrent support later (a qBittorrent deployment plus indexer definitions) remains straightforward; this just removes the illusion that it already half-works. Full record: `data/decisions-2026-08-30/downloads-usenet-only.md`.
 
-Flow: **Indexers** -> Prowlarr -> *arr apps -> SABnzbd -> imports to NAS -> Jellyfin/Plex serve -> Tdarr transcodes in place to AV1.
+Flow: **Indexers** -> Prowlarr -> *arr apps -> SABnzbd -> imports to NAS -> Plex serves -> Tdarr transcodes in place to AV1.
 
 ---
 
@@ -41,7 +45,6 @@ Storage is split between CephFS (complete downloads), Ceph block (SAB incomplete
 | `sabnzbd-incomplete` | `ceph-block` (RWO) | RWO | 1500 Gi | SAB article-assembly (`download_dir`); bind-mounted **over** `/data/downloads/usenet/incomplete` |
 | `{app}-config` | Ceph block (RWO) | RWO | 1-10 Gi | Per-app config PVCs with Volsync backup |
 | NFS `/mnt/storage/Media` | NAS (NFS) | RWX | ~40+ TiB | Permanent media library |
-| `jellyfin-metadata` | Ceph block | RWO | 50 Gi | Jellyfin thumbnails/metadata |
 
 Manifests: `kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml` and `sabnzbd-incomplete.yaml`. There is no `shared-downloads-pvc.yaml`.
 
@@ -57,8 +60,8 @@ Downloads live on CephFS, media lives on NFS -- **hardlinks are impossible acros
 |----------------|--------|
 | `/data/downloads` | `shared-downloads` (all download + *arr apps) |
 | `/data/downloads/usenet/incomplete` | `sabnzbd-incomplete` overlay, **sab pod only** |
-| `/data/nas-media` | NFS mount `nas.${SECRET_DOMAIN}:/mnt/storage/Media` (read-write for *arr imports; read-only on Jellyfin) |
-| `/media` | Same NFS mount, alternative path used by Tdarr and Jellyfin |
+| `/data/nas-media` | NFS mount `nas.${SECRET_DOMAIN}:/mnt/storage/Media` (read-write for *arr imports) |
+| `/media` | Same NFS mount, alternative path used by Tdarr |
 
 ---
 
@@ -305,14 +308,6 @@ BR-DISK and ISO files are blocked going forward:
 
 ---
 
-## Jellyfin - Media server
-
-**Namespace:** `media` | **LoadBalancer IP:** `10.50.0.50` | **GPU:** `gpu.intel.com/xe: 1`
-
-Single-pod deployment reading the NFS media mount read-only at `/data/nas-media`. Intel GPU handles hardware transcoding for any clients that can't direct play (rare with the SQP-1 profile since streaming-quality content is widely compatible).
-
----
-
 ## Plex - Media server
 
 **Namespace:** `media` | **GPU:** `gpu.intel.com/xe: 1` (`plex/app/helmrelease.yaml`). Seerr is also deployed in `media`.
@@ -396,7 +391,7 @@ User adds movie to Radarr
   │
   ├─> Bazarr detects new file, downloads subtitles
   │
-  ├─> Jellyfin / Plex library scan picks up the new file
+  ├─> Plex library scan picks up the new file
   │   └─> Plex does not watch NFS; needs Radarr/Sonarr Connect + hourly scheduled update
   │       (see "Library scan triggers" under Plex above). Lost on config-volume rebuild.
   │
@@ -505,7 +500,7 @@ kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.a
 `devic.es/b70` and `devic.es/b70-vaapi` are `99` only on talos-3. Both are the
 same physical card: `b70` for Level Zero consumers (vllm, comfyui),
 `b70-vaapi` for VA-API consumers (tdarr-node).
-`gpu.intel.com/xe` is the Intel plugin pool for jellyfin/plex/playwright,
+`gpu.intel.com/xe` is the Intel plugin pool for plex/playwright,
 scoped to the iGPU (`allowIDs: "0xa7a0"`) and present as `99` on all three
 nodes. `gpu.intel.com/i915` stays 0 after the xe migration.
 
@@ -579,7 +574,6 @@ All config PVCs have Volsync with triple backup (Ceph snapshots every 4h, NAS Mi
 | Shared downloads PVC | `kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml` |
 | SAB incomplete PVC | `kubernetes/apps/base/downloads/pvc/app/sabnzbd-incomplete.yaml` |
 | SAB disk-space runbook | `docs/downloads/sabnzbd-disk-space-runbook.md` |
-| Jellyfin | `kubernetes/apps/base/media/jellyfin/` |
 | Plex | `kubernetes/apps/base/media/plex/` |
 | Tdarr | `kubernetes/apps/base/media/tdarr/` |
 | GPU changelog | `docs/ai-gpu-changelog.md` |

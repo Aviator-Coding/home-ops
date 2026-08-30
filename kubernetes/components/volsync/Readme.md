@@ -151,7 +151,7 @@ schedule: "0 */6 * * *"   # NAS MinIO (every 6 hours)
 schedule: "0 1 * * *"     # Cloud R2 (daily at 1 AM)
 ```
 
-#### Media Applications (Plex, Jellyfin)
+#### Media Applications (Plex, Tdarr)
 ```yaml
 # Every 4 hours local + 6 hour NAS + daily off-site
 schedule: "55 */4 * * *"  # Local Ceph (staggered)
@@ -301,7 +301,7 @@ Common variables used across all configurations:
 To spread backup times and reduce IOPS contention, override schedules in the app's Flux Kustomization:
 
 ```yaml
-# kubernetes/apps/main/media/jellyfin.yaml
+# kubernetes/apps/main/media/plex.yaml
 postBuild:
   substituteFrom:
     - name: cluster-secrets
@@ -382,7 +382,8 @@ but **not unique** (several apps share the same minute). Do not assume a
 (Postgres-backed governance layer, no app PVC - `docs/ai-system/litellm/README.md`).
 `open-webui`, `qdrant`, `open-notebook` and `perplexica` were retired
 2026-08-22, see `docs/ai-system/retired-2026-08-22.md`. `immich` was retired
-2026-08-30 (never initialized - 0 users, 0 assets). `cross-seed`, `qbittorrent`
+2026-08-30 (never initialized - 0 users, 0 assets), and `jellyfin` the same
+day (the captain uses Plex; 0 playback in 24h of logs). `cross-seed`, `qbittorrent`
 and `calibre-web` were removed as dead, unreferenced app directories - see
 `docs/media-stack.md`.
 
@@ -406,20 +407,19 @@ and `calibre-web` were removed as dead, unreferenced app directories - see
 | 16 | downloads | sabnzbd | `30 */4 * * *` | `15 */6 * * *` | `30 3 * * *` | Medium |
 | 17 | downloads | autobrr | `45 */4 * * *` | `30 */6 * * *` | `45 3 * * *` | Low |
 | 18 | downloads | recyclarr | `50 */4 * * *` | `30 */6 * * *` | `50 3 * * *` | Low |
-| 19 | media | jellyfin | `55 */4 * * *` | `30 */6 * * *` | `0 4 * * *` | Medium |
-| 20 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
-| 21 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
-| 22 | media | seerr | `40 */4 * * *` | `55 */6 * * *` | `40 3 * * *` | Medium |
-| 23 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
-| 24 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
-| 25 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 26 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 27 | selfhosted | obsidian-livesync | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 28 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 29 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
-| 30 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
-| 31 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
-| 32 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
+| 19 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
+| 20 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
+| 21 | media | seerr | `40 */4 * * *` | `55 */6 * * *` | `40 3 * * *` | Medium |
+| 22 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
+| 23 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
+| 24 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 25 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 26 | selfhosted | obsidian-livesync | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 27 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 28 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
+| 29 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
+| 30 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
+| 31 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
 
 ### Distribution Strategy
 
