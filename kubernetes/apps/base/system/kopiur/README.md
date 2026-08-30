@@ -42,7 +42,8 @@ kopiur does **not** create buckets. Each repository needs a bucket named
   creates the bucket and Rook generates its S3 credentials. No manual step, and
   nothing to add to 1Password by hand.
 - **Cloudflare R2** - created by the captain in the R2 console, name confirmed
-  as `kopiur`. It still needs its own API token; see "R2" below.
+  as `kopiur`, and verified empty and read/write-able from in-cluster; see
+  "R2" below.
 
 There is deliberately **no MinIO repository**. MinIO changed its licensing terms
 and the captain intends to retire it, so Stage 0 does not give kopiur a MinIO
@@ -67,7 +68,7 @@ shadow.
 |---|---|---|
 | `kopiur-ceph` | `KOPIA_PASSWORD` | created 2026-08-30, round-trip verified |
 | `kopiur-r2` | `KOPIA_PASSWORD`, `R2_ENDPOINT_URL` | created 2026-08-30, round-trip verified |
-| `kopiur-r2` | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | **captain, still outstanding** - see "R2" below |
+| `kopiur-r2` | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | captain, 2026-08-30; access verified - see "R2" below |
 | `kopiur-ceph-bucket` | `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY` | `backend/`'s `PushSecret`, after merge. Never by hand |
 
 Three notes on why the split falls where it does:
@@ -96,23 +97,34 @@ new layout: MinIO is out of Stage 0, so it has no home in it.
 R2 token under `R2_K8S_*` field names (verified by hash 2026-08-30). Noted as
 future cleanup, deliberately not acted on.
 
-### R2 - a `kopiur`-only token, still outstanding
+### R2 - verified
 
-The bucket and the endpoint are settled: bucket `kopiur`, on the account host
-already recorded in `kopiur-r2` / `R2_ENDPOINT_URL`. What is missing is a
-credential that can reach it.
+Bucket `kopiur` on the account host in `kopiur-r2` / `R2_ENDPOINT_URL`, reached
+with the token the captain added to `kopiur-r2` on 2026-08-30.
 
-**What the captain needs to do:** create an R2 API token scoped to the `kopiur`
-bucket **alone**, and put its keys into `kopiur-r2` as `R2_ACCESS_KEY_ID` and
-`R2_SECRET_ACCESS_KEY`. Nothing else changes, and no VolSync credential is
-involved - which is the point of the 2026-08-30 tidy: the existing 35 offsite
-backups became structurally unreachable from this branch rather than merely
-left alone.
+Measured in-cluster that day, credentials never leaving the cluster, against a
+credential proven fresh (a throwaway `ExternalSecret` created seconds earlier
+fetched it from Connect by explicit property; its key hashes differ from
+VolSync's token, so it is demonstrably a new credential and not a cached one):
 
-Until those two properties exist, `repository/externalsecret.yaml` fails to
-resolve and the `r2` `ClusterRepository` stays unresolved. That is intended:
-the fetch is by explicit `property`, so a missing field fails **loudly** instead
-of materializing a Secret with a blank credential.
+| Operation | Result |
+|---|---|
+| `HeadBucket` | `BucketRegion: ENAM` |
+| `ListObjectsV2` before writing | **empty** - no `Contents`, so nothing to collide with |
+| `PutObject` | succeeded |
+| `GetObject` | succeeded, byte-identical round trip |
+| `DeleteObject` | succeeded; the prefix afterwards lists zero keys |
+
+**One thing worth knowing about this token's scope.** It is not `kopiur`-only.
+`ListBuckets` is denied, but it can also *read* the `volsync` bucket
+(`HeadBucket` succeeds, `ListObjectsV2` returns real keys). No write to that
+bucket was attempted and none ever should be. So the isolation is weaker than
+"scoped to `kopiur` alone": a mistake made with this credential could in
+principle reach VolSync's restic data. Nothing in this repo hands it to
+anything but the `r2` `ClusterRepository`, which only ever addresses the
+`kopiur` bucket, and Stage 0 performs no backup IO at all - but narrowing the
+token to `kopiur` alone remains worth doing, and is a one-line change in the
+Cloudflare console with no repo change at all.
 
 #### Why the VolSync token was not reused (history)
 

@@ -76,15 +76,12 @@ spec:
     all: true
   backend:
     s3:
-      # Name confirmed by the captain from the R2 console:
-      # https://<accountid>.r2.cloudflarestorage.com/kopiur
-      #
-      # ACCESS IS NOT YET GRANTED. This repository stays unresolved until the
-      # captain creates an R2 API token scoped to THIS bucket alone and puts
-      # its keys in the `kopiur-r2` 1Password item. VolSync's own token was
-      # tried first and is scoped to the `volsync` bucket - the measurements
-      # are in the README - but a per-bucket token is the better end state
-      # regardless, so no VolSync credential is involved here at all.
+      # A NEW, EMPTY bucket, not a VolSync restic path. Verified in-cluster
+      # 2026-08-30 on the credential now in `kopiur-r2`, credentials never
+      # leaving the cluster: HeadBucket, PutObject, GetObject (byte-identical
+      # round trip) and DeleteObject all succeed, and ListObjectsV2 showed the
+      # bucket EMPTY beforehand - so there is nothing here to collide with.
+      # The probe object was deleted; the prefix lists zero keys.
       bucket: kopiur
       # <accountid>.r2.cloudflarestorage.com, substituted so the account id
       # stays out of this public repo - see app/externalsecret.yaml.
