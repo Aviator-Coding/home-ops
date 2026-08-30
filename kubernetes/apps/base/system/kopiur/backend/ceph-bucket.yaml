@@ -1,0 +1,18 @@
+---
+# The Ceph bucket is an ObjectBucketClaim, matching
+# kubernetes/apps/base/system/volsync/backend/ceph-bucket.yaml - the same
+# pattern that has held our production Ceph backups for 328 days.
+#
+# Known property (NOT specific to kopiur): the `ceph-bucket` StorageClass is
+# reclaimPolicy: Delete, so deleting this claim deletes the bucket. That is
+# equally true of the live `volsync` OBC next to it, so it is a property of the
+# established pattern rather than a risk this app introduces. If it is worth
+# addressing it is a separate improvement that must cover the volsync bucket
+# too - do not special-case kopiur.
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: kopiur
+spec:
+  bucketName: kopiur
+  storageClassName: ceph-bucket

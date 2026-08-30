@@ -20,6 +20,7 @@ re-creating.
 | Path | What |
 |---|---|
 | `app/` | operator: `OCIRepository`, `HelmRelease`, our absent-alert `PrometheusRule`, and the substitution `ExternalSecret` |
+| `backend/` | the Ceph bucket: `ObjectBucketClaim`, `CephObjectStoreUser`, and the `PushSecret` that records its generated keys in 1Password (included from `app/`) |
 | `repository/` | the three `ClusterRepository` objects and their credential `ExternalSecret`s |
 
 Two Flux Kustomizations, not one (`kubernetes/apps/main/system/kopiur.yaml`).
@@ -37,23 +38,34 @@ Both must exist before the repositories can reach `Ready`.
 kopiur does **not** create buckets. Each repository needs a bucket named
 `kopiur`, new and empty, on its backend:
 
-- **Ceph RGW** - create it by hand (`radosgw-admin`), *not* via an
-  `ObjectBucketClaim`. The `ceph-bucket` StorageClass is `reclaimPolicy: Delete`,
-  so an OBC would tie the bucket's lifetime to a Flux Kustomization with
-  `prune: true` and a prune would destroy every Ceph backup along with the claim.
-  This is the same reasoning that made `terraform-state` a hand-made bucket.
-- **MinIO** (TrueNAS) and **Cloudflare R2** - create through their own consoles.
+- **Ceph RGW** - already handled in Git: the `ObjectBucketClaim` in `backend/`
+  creates the bucket and Rook generates its S3 credentials. No manual step, and
+  nothing to add to 1Password by hand.
+- **MinIO** (TrueNAS) and **Cloudflare R2** - external systems GitOps cannot
+  reach, so these two must be created through their own consoles.
 
 ### 2. The `kopiur` 1Password item
 
-In a **Connect-visible** vault (`Homelab`, `Automation` or `Services` - Connect
-cannot see the hyphenated `Home-Lab` vault at all). Fields:
+In the **`Automation`** vault. It must be that vault specifically: the
+`PushSecret` in `backend/` writes the Ceph keys into this same item through the
+`onepassword-automation` store, which is pinned to `Automation` (the shared
+`onepassword` store resolves writes across three vaults by priority, so its
+target is not deterministic). Connect cannot see the hyphenated `Home-Lab` vault
+at all.
+
+Fields the captain must supply:
 
 ```
-CEPH_KOPIA_PASSWORD    CEPH_ACCESS_KEY_ID    CEPH_SECRET_ACCESS_KEY
+CEPH_KOPIA_PASSWORD
 MINIO_KOPIA_PASSWORD   MINIO_ACCESS_KEY_ID   MINIO_SECRET_ACCESS_KEY
 R2_KOPIA_PASSWORD      R2_ACCESS_KEY_ID      R2_SECRET_ACCESS_KEY
 R2_ENDPOINT            # <accountid>.r2.cloudflarestorage.com - bare host, no scheme
+```
+
+Written automatically, do **not** enter these by hand:
+
+```
+CEPH_ACCESS_KEY_ID     CEPH_SECRET_ACCESS_KEY   # pushed from the OBC's Secret
 ```
 
 > **Lose a `KOPIA_PASSWORD` and that repository is permanently unrecoverable.**
