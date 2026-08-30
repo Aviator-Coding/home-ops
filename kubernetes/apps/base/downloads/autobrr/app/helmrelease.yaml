@@ -23,6 +23,17 @@ spec:
             runAsUser: 2000
             runAsGroup: 2000
             runAsNonRoot: true
+            # Without fsGroup the kubelet performs NO ownership fix-up on the
+            # ceph-block claim, so its root stayed root:1000 mode 2775 (the
+            # VOLSYNC_PUID/PGID:-1000 restore mover's stamp) and this uid-2000
+            # process fell through to the `other` bits: autobrr logged
+            # `open /config/config.toml: permission denied` on every start and
+            # had never written to the volume. Both Ceph CSI drivers are
+            # fsGroupPolicy: File, so the kubelet does apply this; the gid
+            # mismatch (1000 -> 2000) trips OnRootMismatch into its recursive
+            # chown on the next mount, which is what re-owns the volume.
+            fsGroup: 2000
+            fsGroupChangePolicy: OnRootMismatch
 
         initContainers:
           init-db:
