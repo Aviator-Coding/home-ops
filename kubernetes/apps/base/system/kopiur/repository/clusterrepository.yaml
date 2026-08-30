@@ -76,14 +76,20 @@ spec:
     all: true
   backend:
     s3:
-      # UNCONFIRMED - must match the bucket the captain created in the R2
-      # console before this is merged. It could not be confirmed from inside
-      # the cluster: the reused token is denied ListBuckets, and R2 answers
-      # HeadBucket with a blanket 403 for this token whether or not a bucket
-      # exists (measured 2026-08-30 - a deliberately nonexistent name returned
-      # the same 403 as this one), so a failed probe cannot distinguish "wrong
-      # name" from "no access". The same credentials DO reach the existing
-      # `volsync` bucket, so they are valid; only this name is unproven.
+      # Name confirmed by the captain from the R2 console:
+      # https://<accountid>.r2.cloudflarestorage.com/kopiur
+      #
+      # ACCESS IS NOT YET GRANTED. The reused R2_HOME_OPS_* token is scoped to
+      # the existing `volsync` bucket and cannot reach this one - measured
+      # in-cluster 2026-08-30 from one pod, one endpoint, one signing path:
+      # `volsync` HeadBucket returns BucketRegion ENAM and ListObjectsV2
+      # returns real keys, while `kopiur` returns 403/AccessDenied for every
+      # one of HeadBucket, PutObject, ListObjectsV2, GetObject and
+      # DeleteObject. ListBuckets is denied too, and a deliberately
+      # nonexistent bucket returns 403 rather than 404 - which is how an R2
+      # token behaves when it is bucket-scoped rather than account-scoped.
+      # So this repository cannot reach Ready until the captain re-scopes the
+      # token to include `kopiur` (or issues one that does). See README.
       bucket: kopiur
       # <accountid>.r2.cloudflarestorage.com, substituted so the account id
       # stays out of this public repo - see app/externalsecret.yaml.

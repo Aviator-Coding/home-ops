@@ -21,7 +21,7 @@ re-creating.
 |---|---|
 | `app/` | operator: `OCIRepository`, `HelmRelease`, our absent-alert `PrometheusRule`, and the substitution `ExternalSecret` |
 | `backend/` | the Ceph bucket: `ObjectBucketClaim`, `CephObjectStoreUser`, and the `PushSecret` that records its generated keys in 1Password (included from `app/`) |
-| `repository/` | the three `ClusterRepository` objects and their credential `ExternalSecret`s |
+| `repository/` | the two `ClusterRepository` objects (`ceph`, `r2`) and their credential `ExternalSecret`s |
 
 Two Flux Kustomizations, not one (`kubernetes/apps/main/system/kopiur.yaml`).
 `kopiur-repository` `dependsOn` `kopiur` because the admission webhook is
@@ -41,9 +41,8 @@ kopiur does **not** create buckets. Each repository needs a bucket named
 - **Ceph RGW** - already handled in Git: the `ObjectBucketClaim` in `backend/`
   creates the bucket and Rook generates its S3 credentials. No manual step, and
   nothing to add to 1Password by hand.
-- **Cloudflare R2** - created by the captain in the R2 console. **The bucket
-  name in `repository/clusterrepository.yaml` is unconfirmed** and must be
-  checked against the console before merge; see "R2" below.
+- **Cloudflare R2** - created by the captain in the R2 console, and the name is
+  confirmed as `kopiur`. **The reused token cannot reach it**; see "R2" below.
 
 There is deliberately **no MinIO repository**. MinIO changed its licensing terms
 and the captain intends to retire it, so Stage 0 does not give kopiur a MinIO
@@ -81,26 +80,49 @@ copied. Note that `R2_VOLSYNC_RESTIC_REPOSITORY` names the EXISTING restic
 bucket and must never be used here, and `R2_VOLSYNC_RESTIC_PASSWORD` is restic's
 own and is not reusable by kopia.
 
-### R2 - what was verified, and what was not
+### R2 - the reused token is bucket-scoped and cannot reach `kopiur`
 
-Verified from inside the cluster (credentials never left it):
+The bucket name and the account endpoint are both settled. The **credential is
+not**, and that is what blocks the `r2` repository.
 
-- The reused `R2_HOME_OPS_*` credentials authenticate against R2 and reach the
-  existing `volsync` bucket (`HeadBucket` returns `BucketRegion: ENAM`).
+Confirmed:
 
-**Not** verified, and blocking:
+- Bucket name is `kopiur`, given by the captain from the R2 console
+  (`https://<accountid>.r2.cloudflarestorage.com/kopiur`).
+- The endpoint already in 1Password (`volsync-template` /
+  `R2_HOME_OPS_ENDPOINT_URL`, which `app/externalsecret.yaml` trims to a bare
+  host) is the **same** account host as that URL - compared directly against a
+  live VolSync R2 Secret, so no second endpoint value is hard-coded anywhere.
 
-- That they can read and write the **new** bucket. The token is denied
-  `ListBuckets`, so the bucket cannot be enumerated, and `HeadBucket` returns a
-  blanket `403 Forbidden` for this token regardless of whether the bucket
-  exists - a deliberately nonexistent name returned the identical 403. A probe
-  therefore cannot distinguish a wrong bucket name from a bucket-scoped token,
-  and R2 tokens can be bucket-scoped.
+Measured in-cluster 2026-08-30, credentials never leaving the cluster, from one
+pod against one endpoint over one signing path:
 
-Needed from the captain: the exact bucket name from the R2 console. Once it is
-set, re-run the read/write probe. If it still 403s with the correct name, the
-token is bucket-scoped and R2 needs a re-scoped or new credential - the existing
-one would then have been genuinely rejected, not merely misaddressed.
+| Operation | `volsync` (existing) | `kopiur` (new) |
+|---|---|---|
+| `HeadBucket` | `BucketRegion: ENAM` | `403 Forbidden` |
+| `ListObjectsV2` | returns real keys | `AccessDenied` |
+| `PutObject` | not attempted (never write to the restic bucket) | `AccessDenied` |
+| `GetObject` | - | `AccessDenied` |
+| `DeleteObject` | - | `AccessDenied` |
+
+The `volsync` column is the control: it proves the probe, the endpoint and the
+signature are all correct, so the `kopiur` denials are the token's scope and not
+a broken test. Two further readings point the same way: `ListBuckets` is denied,
+and a deliberately nonexistent bucket returns `403` rather than `404` - which is
+how R2 answers a **bucket-scoped** token, whereas an account-scoped one would
+have said `NoSuchBucket`.
+
+Needed from the captain: re-scope this R2 API token to include the `kopiur`
+bucket, or issue one that covers it. Nothing in this repo changes when that
+happens - `repository/externalsecret.yaml` reads the same
+`R2_HOME_OPS_ACCESS_KEY` / `R2_HOME_OPS_SECRET_KEY` fields, so updating them in
+1Password is the whole fix.
+
+One caveat, stated plainly: a bucket-scoped token cannot tell "exists but
+forbidden" apart from "does not exist", so this evidence does **not**
+independently confirm the `kopiur` bucket exists. It rests on the captain's
+console URL. Re-running the probe above after the token is re-scoped settles
+both questions at once.
 
 > **Lose a `KOPIA_PASSWORD` and that repository is permanently unrecoverable.**
 > kopia cannot decrypt without it and there is no recovery path.
@@ -112,16 +134,19 @@ one would then have been genuinely rejected, not merely misaddressed.
 > deliberately left to the captain: take an independent offline record, since a
 > vault outage or mistake would otherwise be unrecoverable.
 
-`R2_ENDPOINT` lives in 1Password rather than in this repo because home-ops is
+The R2 endpoint stays in 1Password rather than in this repo because home-ops is
 **public** and the R2 account id is deliberately not committed anywhere in it
-today. `backend.s3.endpoint` is a plain CRD string with no Secret ref, so the
-value reaches the CR through Flux `postBuild` substitution instead
-(`app/externalsecret.yaml` -> the `kopiur-substitutions` Secret ->
-`substituteFrom` on the `kopiur-repository` Kustomization).
+today - VolSync keeps the whole endpoint in `volsync-template` for the same
+reason. `backend.s3.endpoint` is a plain CRD string with no Secret ref, so the
+value cannot be read from a Secret and reaches the CR through Flux `postBuild`
+substitution instead (`app/externalsecret.yaml` reads
+`R2_HOME_OPS_ENDPOINT_URL` and trims it to a bare host -> the
+`kopiur-substitutions` Secret -> `substituteFrom` on the `kopiur-repository`
+Kustomization).
 
-Until that item exists, `kopiur-repository` fails with
-`envsubst error: variable not set (strict mode): "KOPIUR_R2_ENDPOINT"`. That is
-expected, and it is contained to that one Kustomization.
+If that substitution Secret is ever missing, `kopiur-repository` fails with
+`envsubst error: variable not set (strict mode): "KOPIUR_R2_ENDPOINT"`. That
+failure is contained to this one Kustomization and cannot affect any other.
 
 ## Deletion protection - why it is pinned, and what could not be pinned yet
 
@@ -132,7 +157,7 @@ deleting CRs can delete backup data. VolSync has no equivalent: deleting a
 ownerReference GC fire 600-700 concurrent `kopia snapshot delete` Jobs at one
 repository. **We run Flux with `prune: true`, which is exactly that shape.**
 
-Pinned explicitly on all three repositories (verified against the shipped
+Pinned explicitly on both repositories (verified against the shipped
 0.10.5 CRDs, not transcribed):
 
 | Field | Set to | Axis it guards |
