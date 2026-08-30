@@ -383,7 +383,13 @@ but **not unique** (several apps share the same minute). Do not assume a
 `open-webui`, `qdrant`, `open-notebook` and `perplexica` were retired
 2026-08-22, see `docs/ai-system/retired-2026-08-22.md`. `immich` was retired
 2026-08-30 (never initialized - 0 users, 0 assets), and `jellyfin` the same
-day (the captain uses Plex; 0 playback in 24h of logs). `cross-seed`, `qbittorrent`
+day (the captain uses Plex; 0 playback in 24h of logs). `rsshub` dropped this
+component 2026-08-30: its HelmRelease declares no `persistence:` at all (it is
+stateless and caches to Dragonfly), so the only reason a `rsshub` claim existed
+was `pvc.yaml` below creating one unconditionally. It measured 0 B at the block
+level after 222 days and no pod ever mounted it. **Do not re-add the component
+to an app that declares no persistence** - it manufactures a claim and three
+mover jobs that protect nothing. `cross-seed`, `qbittorrent`
 and `calibre-web` were removed as dead, unreferenced app directories - see
 `docs/media-stack.md`.
 
@@ -418,8 +424,7 @@ and `calibre-web` were removed as dead, unreferenced app directories - see
 | 27 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
 | 28 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
 | 29 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
-| 30 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
-| 31 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
+| 30 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
 
 ### Distribution Strategy
 
