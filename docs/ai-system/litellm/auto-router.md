@@ -46,9 +46,11 @@ view). That alias is not part of the router and is owned by
 
 ### Why the local tiers point at `chat-local`, not `qwen3.6-35b-a3b`
 
-Four aliases now resolve to the same llama.cpp server on the same B70. They
-differ only in properties the others must not carry, and the one that matters
-here is **price**.
+Five aliases now resolve to the same llama.cpp server on the same B70 (the
+full table is on `models/chat-local.yaml`; `pr-review-local` is owned by
+[`pr-reviewer.md`](pr-reviewer.md) and is not part of the router). They differ
+only in properties the others must not carry, and the one that matters here is
+**price**.
 
 `qwen3.6-35b-a3b` carries deliberately inflated `model_info` prices
 (`input_cost_per_token: 5e-05`, `output 1e-04`). They are not a billing

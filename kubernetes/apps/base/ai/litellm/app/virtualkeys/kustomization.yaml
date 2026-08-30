@@ -24,3 +24,4 @@ resources:
   - ./router-demo.yaml
   - ./repo-wiki.yaml
   - ./opencode.yaml
+  - ./ai-pr-review.yaml

@@ -1,0 +1,69 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# The non-thinking local alias used by .github/workflows/ai-pr-review.yaml
+# (misospace/pr-reviewer-action). Fifth alias of the ONE llama.cpp backend
+# behind models/chat-local.yaml - read that file's five-alias table first; this
+# entry is one row of it.
+#
+# WHY THIS ALIAS EXISTS, and why the reviewer must NOT be pointed at
+# `chat-local` directly. Qwen3.6-35B-A3B is a REASONING model. Left alone it
+# emits its chain of thought into `reasoning_content` and returns an EMPTY
+# `content`, which is exactly the trap models/qwen3.6-35b-a3b-classifier.yaml
+# documents for the D3 router. pr-reviewer-action parses
+# `choices[0].message.content` (README: "ai_api_format=openai ... parses
+# choices[0].message.content"), so on `chat-local` it gets an empty string,
+# fails its JSON parse, burns its retry budget and posts nothing.
+#
+# Measured live 2026-08-29 through the proxy, `response_format: json_object`,
+# max_tokens 800, identical prompt:
+#   chat-local (thinking on)  -> 800/800 completion tokens spent on
+#                                reasoning_content, content = "", JSON parse
+#                                FAILS.
+#   enable_thinking:false     -> 78 completion tokens, ~1s, content parses
+#                                cleanly to {"verdict","review_markdown"}.
+# Passing `chat_template_kwargs` per REQUEST does not fix it: the same call
+# through the proxy came back byte-identical (still empty content). The flag
+# only works declared here, in litellm_params, exactly as the classifier does
+# it - llama.cpp takes it as a body field, not an OpenAI-spec parameter.
+# `reasoning_effort: none`, `chat_template_kwargs.thinking` and
+# `chat_template_kwargs.reasoning_effort` were already tested on this
+# llama.cpp build for the classifier and do NOT work.
+#
+# WHY NOT JUST REUSE `qwen3.6-35b-a3b-classifier`. That alias carries
+# `num_retries: 0` because its timeout budget rides in front of every routed
+# `auto` request, and its PrometheusRule alerts select on its modelName.
+# Putting PR-review traffic on it would both inherit a retry posture chosen
+# for a different job and pollute the classifier's latency/error series that
+# those alerts watch. Its header states the separate-modelName property is
+# load-bearing; this file honours that rather than working around it.
+#
+# NO `info.extra` PRICES, deliberately - same rule as chat-local/chat-ha. The
+# B70 is free, so this consumer's recorded spend stays $0 and the D4 budget on
+# ../virtualkeys/ai-pr-review.yaml therefore measures only real USD, of which
+# there can be none. See models/kustomization.yaml for the repo-wide rule.
+#
+# NO CLOUD FALLBACK, deliberately, and this is the D4 governance boundary, not
+# a tuning gap. A config-declared fallback BYPASSES the calling key's model
+# allow-list (docs/ai-system/litellm/fallbacks.md#1). This alias appears in
+# NEITHER `fallbacks` nor `context_window_fallbacks` in app/litellmproxy.yaml,
+# and that absence is what makes an unattended reviewer running on every PR -
+# including the repo's heavy Renovate traffic - structurally incapable of
+# spending money. Adding it to either list would silently convert this
+# workflow into a cloud spender. The reviewer fails closed instead: the
+# workflow runs with on_model_failure=notice and posts "AI review could not
+# run" when the B70 is down.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: pr-review-local
+spec:
+  modelName: pr-review-local
+  proxyRef: litellm
+  params:
+    model: openai/qwen3.6-35b-a3b
+    apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
+    apiKey: "not-needed" # llama.cpp server has no --api-key set
+    additional:
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false

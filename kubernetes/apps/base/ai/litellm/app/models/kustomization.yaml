@@ -73,6 +73,7 @@ resources:
   - ./minimax-m3.yaml
   - ./muse-glimmer-30b.yaml
   - ./nemotron-3.5-lightning.yaml
+  - ./pr-review-local.yaml
   - ./qwen3.6-27b.yaml
   - ./qwen3.6-35b-a3b-classifier.yaml
   - ./qwen3.6-35b-a3b.yaml

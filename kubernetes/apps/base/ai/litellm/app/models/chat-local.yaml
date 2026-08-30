@@ -4,9 +4,9 @@
 # traffic runs on.
 #
 # Same weights, same B70, same llama.cpp backend as models/qwen3.6-35b-a3b.yaml,
-# models/chat-ha.yaml, and models/qwen3.6-35b-a3b-classifier.yaml. This is one of
-# four aliases of that one backend, and each exists to carry exactly one property
-# the others must not:
+# models/chat-ha.yaml, models/qwen3.6-35b-a3b-classifier.yaml, and
+# models/pr-review-local.yaml. This is one of five aliases of that one backend,
+# and each exists to carry exactly one property the others must not:
 #
 #   | alias                      | prices     | cloud fallback | who calls it              |
 #   |----------------------------|------------|----------------|---------------------------|
@@ -26,6 +26,11 @@
 #   |                            |            |                | it charged every routed   |
 #   |                            |            |                | consumer for the router's |
 #   |                            |            |                | own local bookkeeping     |
+#   | pr-review-local            | zero       | no             | AI PR reviewer only;      |
+#   |                            |            |                | thinking disabled so      |
+#   |                            |            |                | content is non-empty.     |
+#   |                            |            |                | docs/ai-system/litellm/   |
+#   |                            |            |                | pr-reviewer.md            |
 #
 # WHY THIS ALIAS EXISTS - the pricing axis.
 # models/qwen3.6-35b-a3b.yaml carries deliberately inflated per-token prices so

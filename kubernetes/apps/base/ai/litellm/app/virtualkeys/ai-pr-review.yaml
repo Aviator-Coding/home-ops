@@ -1,0 +1,101 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# The CI consumer for .github/workflows/ai-pr-review.yaml - the
+# misospace/pr-reviewer-action AI reviewer, which runs on the in-cluster ARC
+# runner and calls this proxy over cluster-internal DNS. Design, evidence and
+# the operator runbook: docs/ai-system/litellm/pr-reviewer.md
+#
+# UNLIKE every other key here, this one is ALSO copied by hand into a GitHub
+# Actions repository secret (LITELLM_PR_REVIEW_KEY). The ARC runner runs with
+# `automountServiceAccountToken: false` and no ServiceAccount (see the ARC
+# notes in ../../../../../../AGENTS.md), so it has no Kubernetes API access and
+# cannot read the Secret this CR mints. The PushSecret below is what makes that
+# copy maintainable: it mirrors the live key into 1Password so there is a
+# durable source of truth to re-copy from, rather than a value that exists only
+# inside the cluster. Rotating this key therefore has TWO steps, and skipping
+# the second one silently breaks the reviewer - see the runbook.
+#
+# Deliberately NOT fetched at run time from 1Password Connect, even though the
+# runner can reach Connect and `OP_CONNECT_TOKEN` already exists for
+# terraform-diff.yaml. That token reads EVERY item in the `Automation` vault
+# (docs/authentik/terraform.md section 9 says so in those words), including the
+# `authentik-terraform` state-backend and Authentik API credentials. Handing it
+# to a workflow whose whole job is to feed attacker-influenceable PR diffs to
+# an LLM would widen that token's blast radius to the cluster's live SSO
+# tooling to save one manual secret. A dedicated GitHub secret holding only
+# this key is both simpler and strictly narrower: the worst it can do is spend
+# free local GPU time, which the 403 below is the proof of.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: ai-pr-review
+spec:
+  proxyRef: litellm
+  keyAlias: ai-pr-review
+  secretName: litellm-key-ai-pr-review
+  secretKey: key
+  # Exactly one model, and it must stay that way. `pr-review-local` is the
+  # zero-priced, fallback-free, non-thinking local alias
+  # (../models/pr-review-local.yaml). This key must NOT hold `auto`: the D3
+  # router's COMPLEX/REASONING tiers are Anthropic, and this consumer fires
+  # unattended on every pull request in a repo that receives heavy Renovate
+  # traffic - precisely the shape that turns an escalation path into a cost
+  # incident. The workflow correspondingly leaves the action's
+  # `review_routing_mode` at its default `off`, so there is no smart-model
+  # escalation to bound in the first place. Verified live 2026-08-29 on a
+  # preflight key with this same allow-list: requesting `claude-sonnet-5`
+  # returned HTTP 403 `key_model_access_denied`.
+  models:
+    - pr-review-local
+  # INERT, deliberately kept - identical reasoning to repo-wiki.yaml, read that
+  # file's maxBudget comment for the full version. `pr-review-local` is priced
+  # at zero, so spend can never rise and this cap can never fire. It stays
+  # because (1) it is the guard that matters the instant anyone widens `models`
+  # above to a cloud alias, and (2) deleting it would NOT clear the live cap:
+  # the operator omits `max_budget` from its update body when spec.maxBudget is
+  # "" while still diffing live-vs-desired, so live 5.0 vs desired nil never
+  # converges and it re-PATCHes forever.
+  maxBudget: "5.00"
+  budgetDuration: 30d
+  # THE real bound on this consumer, since the dollar cap is inert.
+  #
+  # rpmLimit: one review is one model call, but Renovate opens several PRs at
+  # once and the workflow's concurrency group is per-PR (it only cancels
+  # superseded runs of the SAME PR), so concurrent reviews are the normal case.
+  # 10/min clears roughly five simultaneous first-attempt reviews plus the
+  # action's retry budget (ai_primary_retries: 1) without letting a stuck loop
+  # saturate the card.
+  rpmLimit: 10
+  # tpmLimit: worst case for a single review is the whole prompt budget the
+  # workflow sizes with model_context_tokens: 65536 - about 61.5k prompt tokens
+  # plus 2048 of output, so ~63.5k for one maximal PR. 200000 (the same value
+  # opencode and repo-wiki carry) admits about three such reviews per minute
+  # and stays a real runaway backstop. Measured 2026-08-29 for scale: a 26.7kB
+  # diff - this repo's median PR - was 8957 prompt + 979 completion tokens.
+  tpmLimit: 200000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item `litellm-consumer-ai-pr-review`
+# (auto-created - not a captain prerequisite), the same continuity pattern as
+# litellm-consumer-opencode/repo-wiki. Here it is load-bearing rather than just
+# continuity: it is the durable source the LITELLM_PR_REVIEW_KEY GitHub Actions
+# secret is copied from. Uses the shared `onepassword` store like every other
+# consumer in this directory, so the item lands in the same vault they do.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-ai-pr-review
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-ai-pr-review
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-ai-pr-review
+          property: key

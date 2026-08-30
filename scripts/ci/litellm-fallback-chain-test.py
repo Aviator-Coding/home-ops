@@ -272,7 +272,15 @@ def test_router_settings_entitlement_boundary(cfg: dict) -> None:
     # appearing on it would silently hand `repo-wiki`'s unattended cron and the
     # router's SIMPLE/MEDIUM tiers a paid Anthropic model the first time the
     # B70 hiccupped - the exact failure D4 forbids.
-    terminal_local = ("qwen3.6-35b-a3b", "qwen3.6-35b-a3b-classifier", "chat-local")
+    # pr-review-local is the AI PR reviewer alias (scripts/ci/litellm-pr-reviewer-test.py):
+    # zero-priced, non-thinking, and must stay terminal so an unattended reviewer on
+    # every PR cannot spend money via a config-declared fallback bypass.
+    terminal_local = (
+        "qwen3.6-35b-a3b",
+        "qwen3.6-35b-a3b-classifier",
+        "chat-local",
+        "pr-review-local",
+    )
     record(
         "qwen_local_alias_has_no_availability_fallback",
         all(name not in avail for name in terminal_local),
