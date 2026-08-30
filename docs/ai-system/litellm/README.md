@@ -52,9 +52,8 @@ Do not restate those facts here.
 **AI PR reviewer** (captain decision 2026-08-29) lives in
 [`pr-reviewer.md`](pr-reviewer.md): advisory-only `misospace/pr-reviewer-action`
 on the in-cluster ARC runner, the dedicated non-thinking `pr-review-local`
-alias, the two-step `LITELLM_PR_REVIEW_KEY` rotation, fork-PR exclusion, the
-proven credential-absent skip path, and what is still unproven (model-backed
-review). Do not restate those facts here.
+alias, the two-step `LITELLM_PR_REVIEW_KEY` rotation, fork-PR exclusion, and
+the verification evidence. Do not restate those facts here.
 
 ## Scope (binding, from B4/D4)
 

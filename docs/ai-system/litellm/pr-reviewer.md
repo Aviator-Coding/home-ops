@@ -194,13 +194,13 @@ exercises the network path the workflow actually uses.
 `https://litellm.sklab.dev/health/liveliness` (the internal ingress route) was **not** used as a
 substitute: it exercises a different path than the in-cluster Service DNS the workflow uses.
 
-The final-named objects were deliberately **not** created early. `pr-review-local` does not exist
-on the proxy yet (it currently serves 34 models), and creating it would roll the live proxy for no
-added evidence. Non-thinking behaviour was therefore exercised through
-`qwen3.6-35b-a3b-classifier`, which carries the identical
+When these pre-merge checks ran, the final-named objects deliberately did not exist yet - creating
+them early would have rolled the live proxy for no added evidence - so non-thinking behaviour was
+exercised through `qwen3.6-35b-a3b-classifier`, which carries the identical
 `extra_body.chat_template_kwargs.enable_thinking: false` configuration that `pr-review-local`
-declares. The checks below prove the mechanism and the path; they do **not** claim the final-named
-objects were live-tested.
+declares. The checks immediately below therefore prove the mechanism and the network path. The
+final-named objects were verified separately once Flux had reconciled them - see "The final-named
+objects, verified live" further down.
 
 1. `GET /health/liveliness` -> **HTTP 200**, body `I'm alive!`.
 2. `GET /v1/models` with the virtual key -> exactly
@@ -245,19 +245,36 @@ Credential` emitted the `LITELLM_PR_REVIEW_KEY` warning and the `AI Review` step
 no comment posted. The graceful degradation described in section 6 is therefore observed behaviour,
 not a design claim: this change can merge and sit inert without reddening a single check.
 
+**The final-named objects, verified live.** After this change merged (PR #1495, merge commit
+`302ec680`), Flux reconciled `pr-review-local` and `ai-pr-review` onto the proxy, which went from 34
+to 35 models. Verified **2026-08-30T00:07:59Z** from pod
+`gha-runner-scale-set-aviator-coding-home-ops-lj6tl-runner-hgd78`, against the real objects rather
+than the preflight stand-ins:
+
+- `GET /v1/models` with the real `ai-pr-review` key -> exactly `['pr-review-local']`, so the
+  allow-list is precisely what the key grants.
+- `POST /v1/chat/completions` on the real `pr-review-local` with `response_format: json_object` ->
+  `reasoning_len` 0, `content_len` 301, parsed to keys exactly `["verdict","review_markdown"]`,
+  `verdict` `"approved"`. The `enable_thinking: false` configuration works on the real alias, not
+  just on the classifier stand-in.
+- The real key requesting `claude-sonnet-5` -> **HTTP 403** `key_model_access_denied`. The reviewer
+  provably cannot reach a paid model.
+
 ### What is NOT yet proven
 
-The workflow itself has now run (above), but **no model-backed review has ever executed** - that
-needs the `LITELLM_PR_REVIEW_KEY` secret, so every run so far has stopped at the skip path.
-Specifically still unproven:
+The remaining gap is a precondition, not a matter of time: **a model-backed review of a real diff
+requires the repository secret `LITELLM_PR_REVIEW_KEY`** (section 6). While that secret is unset the
+workflow takes the credential-absent skip path proven above, produces no review, and therefore
+exercises none of the following:
 
-- The action's own behaviour on a real PR: diff collection, corpus assembly, the managed-comment
+- The action's own behaviour on a live diff: diff collection, corpus assembly, the managed-comment
   publish, and the incremental-review path on a second push.
-- `pr-review-local` and `ai-pr-review` under their final names. The mechanism is proven, but those
-  exact objects do not exist until Flux reconciles them - creating them early would have rolled the
-  live proxy for no added evidence.
-- Real review quality on real home-ops PRs, which is the entire reason the captain chose an
-  advisory-only starting posture.
+- Review *quality* on real home-ops PRs - the entire reason the captain chose an advisory-only
+  starting posture, and something only real reviews can show.
+
+Read this as a standing precondition rather than a prediction: it describes what that secret
+unlocks and what the first real reviews demonstrate, so it stays accurate whether or not the secret
+has been set.
 
 ## 8. Turning it off
 
