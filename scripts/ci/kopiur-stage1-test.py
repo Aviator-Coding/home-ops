@@ -2,9 +2,12 @@
 """Semantic regression test for kopiur Stage 1 (backup component + one pilot).
 
 Stage 1 is the first LIVE use of kopiur: a reusable backup component that
-mirrors components/volsync, onboarded on EXACTLY one pilot volume
-(downloads/autobrr) ALONGSIDE its existing VolSync backups. MinIO is not a
-kopiur destination. Credentials are pilot-scoped copies into downloads only.
+mirrors components/volsync, onboarded first on downloads/autobrr ALONGSIDE its
+existing VolSync backups. MinIO is not a kopiur destination. Credentials are
+pilot-scoped copies into downloads only. Stage 2 later added sabnzbd-config as
+a second volume (see kopiur-stage2-test.py for the two-volume set and the
+PUID/claim contracts); this file still pins the Stage 1 component + autobrr
+contract and only requires that autobrr remain onboarded.
 
 This test does not grep source text as its evidence. It:
   1. Renders the real kustomize builds Flux would apply for the kopiur backup
@@ -27,9 +30,9 @@ This test does not grep source text as its evidence. It:
        - Restore is ${APP}-kopiur-dst (not ${APP}-dst), passive populator,
          onMissingSnapshot Continue, ssa IfNotPresent
        - parent Component resources only ./backup (no pvc.yaml)
-       - ONLY downloads/autobrr includes components/kopiur; its components
-         list still includes components/volsync unchanged
-       - no other apps/main overlay picks up the component
+       - downloads/autobrr includes components/kopiur alongside components/volsync
+         (Stage 2 may add further authorised volumes; the exclusive set is
+         owned by kopiur-stage2-test.py)
        - credentials: ClusterSecretStore restricted to [downloads], three
          ExternalSecrets targeting the exact Secret names the ClusterRepos
          reference, Ceph S3 keys from the OBC Secret via the kubernetes store
@@ -624,38 +627,45 @@ def test_autobrr_overlay_wiring() -> None:
     )
 
 
-def test_exactly_one_pilot() -> None:
-    """Walk every apps/main overlay; only autobrr references components/kopiur."""
-    onboarded: list[str] = []
+def test_autobrr_still_onboarded() -> None:
+    """autobrr remains a kopiur+volsync dual-backup volume after Stage 2."""
+    onboarded: list[tuple[str, str, Path]] = []
     for path in sorted(APPS_MAIN.rglob("*.yaml")):
-        # Skip kustomization indexes and the credentials scaffolding itself.
         if path.name == "kustomization.yaml":
             continue
-        text = path.read_text()
-        # Parse as multi-doc and inspect components lists - the real consumer
-        # shape, not a raw substring of the path string alone.
         try:
-            docs = [d for d in yaml.safe_load_all(text) if d]
+            docs = [d for d in yaml.safe_load_all(path.read_text()) if d]
         except yaml.YAMLError:
             continue
         for d in docs:
             if d.get("kind") != "Kustomization":
                 continue
             if d.get("apiVersion", "").startswith("kustomize.config.k8s.io"):
-                # native kustomize, not Flux
                 continue
             components = d.get("spec", {}).get("components") or []
             for c in components:
                 if isinstance(c, str) and c.rstrip("/").endswith("components/kopiur"):
                     name = d.get("metadata", {}).get("name", path.name)
                     ns = d.get("metadata", {}).get("namespace", "?")
-                    onboarded.append(f"{ns}/{name} ({path.relative_to(ROOT)})")
+                    onboarded.append((ns, name, path))
+    keys = {(ns, name) for ns, name, _ in onboarded}
     require(
-        onboarded == [f"{PILOT_NS}/{PILOT_APP} ({AUTOBRR_OVERLAY.relative_to(ROOT)})"],
-        f"exactly one pilot must include components/kopiur, got {onboarded}",
+        (PILOT_NS, PILOT_APP) in keys,
+        f"Stage 1 pilot {PILOT_NS}/{PILOT_APP} must still include components/kopiur, "
+        f"got {sorted(f'{ns}/{name}' for ns, name in keys)}",
+    )
+    # autobrr's own components list is still volsync THEN kopiur.
+    docs = load_multi(AUTOBRR_OVERLAY)
+    components = docs[0]["spec"].get("components") or []
+    require(
+        components
+        == [
+            "../../../../../components/volsync",
+            "../../../../../components/kopiur",
+        ],
+        f"autobrr components must stay volsync+kopiur, got {components}",
     )
 
-    # downloads kustomization lists credentials scaffolding + autobrr, nothing else kopiur.
     dl = yaml.safe_load(DOWNLOADS_OVERLAY_KUST.read_text())
     resources = dl.get("resources") or []
     require("./autobrr.yaml" in resources, "downloads overlay must list autobrr")
@@ -946,7 +956,7 @@ def main() -> int:
     run("restore_passive", lambda: test_restore_passive_contract(kopiur_docs))
     run("volsync_pilot_still_triple", lambda: test_volsync_pilot_still_triple(volsync_docs))
     run("autobrr_overlay_wiring", test_autobrr_overlay_wiring)
-    run("exactly_one_pilot", test_exactly_one_pilot)
+    run("autobrr_still_onboarded", test_autobrr_still_onboarded)
     run("credentials_pilot_scoped", test_credentials_pilot_scoped)
     run(
         "no_embedded_credentials",

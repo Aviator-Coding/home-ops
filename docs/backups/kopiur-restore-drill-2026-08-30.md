@@ -542,35 +542,25 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
 - Deleting drill objects cannot reach snapshot data, with the mechanism recorded.
 - kopiur backing up a claim does not disturb VolSync's objects on that same claim: all six
   `ReplicationSource`s across both pilot apps stayed `Successful` throughout, and nothing in
-  this drill touched them. **This is not yet the full simultaneity proof** - see below.
+  this drill touched them.
+- **VolSync simultaneity on both onboarded volumes.** After the kopiur snapshots, VolSync
+  completed successful runs on the same claims. Observed live from
+  `.status.lastSyncTime` / `.status.latestMoverStatus.result` (not inferred from schedule):
 
-**Observed-pending - NOT proven at the time of writing:**
-
-- **That a VolSync sync *completes successfully after* a kopiur snapshot on the same claim.**
-  This is the last open Stage 1 thread ("both systems working simultaneously") and it is a
-  scheduling wait, not a result. At the close of this drill, no VolSync run had yet fired since
-  the kopiur snapshots:
-
-  | `ReplicationSource` | last successful sync | kopiur snapshot on that claim | next scheduled sync |
+  | `ReplicationSource` | kopiur snapshot on that claim | VolSync `lastSyncTime` | `latestMoverStatus.result` |
   |---|---|---|---|
-  | `autobrr-ceph` | 2026-08-30T16:45:47Z | 18:53:22Z | **2026-08-30T20:45:00Z** |
-  | `autobrr-minio` | 2026-08-30T16:31:31Z | - | 2026-08-30T22:30:00Z |
-  | `autobrr-r2` | 2026-08-30T07:46:04Z | 18:53:47Z | 2026-08-31T07:45:00Z |
-  | `sabnzbd-ceph` | 2026-08-30T16:31:32Z | 19:45:46Z | **2026-08-30T20:30:00Z** |
-  | `sabnzbd-minio` | 2026-08-30T16:15:40Z | - | 2026-08-30T22:15:00Z |
-  | `sabnzbd-r2` | 2026-08-30T07:30:30Z | 19:45:40Z | 2026-08-31T07:30:00Z |
+  | `sabnzbd-ceph` | 2026-08-30T19:45:46Z | **2026-08-30T20:31:24Z** | Successful |
+  | `autobrr-ceph` | 2026-08-30T18:53:22Z | **2026-08-30T20:46:07Z** | Successful |
 
-  All six read `Successful` with pre-kopiur timestamps. Confirm by re-reading
-  `.status.lastSyncTime` and `.status.latestMoverStatus.result` after the times above:
+  Both VolSync completions are strictly after the matching kopiur snapshot. The Stage 1
+  "both systems working simultaneously" thread is therefore closed as observed, not pending.
+  Re-check with:
 
   ```bash
   kubectl -n downloads get replicationsource \
     -o custom-columns='NAME:.metadata.name,LASTSYNC:.status.lastSyncTime,RESULT:.status.latestMoverStatus.result' \
     | grep -E 'autobrr|sabnzbd'
   ```
-
-  Until a `Successful` result carries a timestamp later than the kopiur snapshot on the same
-  claim, treat simultaneity as untested rather than working.
 
 **Did not prove:**
 
