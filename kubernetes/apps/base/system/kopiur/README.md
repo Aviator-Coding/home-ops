@@ -46,33 +46,42 @@ kopiur does **not** create buckets. Each repository needs a bucket named
 
 ### 2. The `kopiur` 1Password item
 
-In the **`Automation`** vault. It must be that vault specifically: the
-`PushSecret` in `backend/` writes the Ceph keys into this same item through the
-`onepassword-automation` store, which is pinned to `Automation` (the shared
-`onepassword` store resolves writes across three vaults by priority, so its
-target is not deterministic). Connect cannot see the hyphenated `Home-Lab` vault
-at all.
+Item `kopiur` in the **`Homelab`** vault. Everything writes and reads through
+the shared `onepassword` ClusterSecretStore, whose vault priority (Homelab 1,
+Automation 2, Services 3) resolves there. Keep all fields in this one item:
+splitting them across vaults would let the priority-ordered read path silently
+shadow one. Connect cannot see the hyphenated `Home-Lab` vault at all.
 
-Fields the captain must supply:
+**Already created and verified** (2026-08-30) - do not regenerate, and note that
+overwriting one after its repository is initialized loses that repository:
 
 ```
-CEPH_KOPIA_PASSWORD
-MINIO_KOPIA_PASSWORD   MINIO_ACCESS_KEY_ID   MINIO_SECRET_ACCESS_KEY
-R2_KOPIA_PASSWORD      R2_ACCESS_KEY_ID      R2_SECRET_ACCESS_KEY
+CEPH_KOPIA_PASSWORD    MINIO_KOPIA_PASSWORD    R2_KOPIA_PASSWORD
+```
+
+Written automatically by `backend/`'s `PushSecret`, never by hand:
+
+```
+CEPH_ACCESS_KEY_ID     CEPH_SECRET_ACCESS_KEY
+```
+
+Still to be supplied by the captain - external systems GitOps cannot reach:
+
+```
+MINIO_ACCESS_KEY_ID    MINIO_SECRET_ACCESS_KEY
+R2_ACCESS_KEY_ID       R2_SECRET_ACCESS_KEY
 R2_ENDPOINT            # <accountid>.r2.cloudflarestorage.com - bare host, no scheme
 ```
 
-Written automatically, do **not** enter these by hand:
-
-```
-CEPH_ACCESS_KEY_ID     CEPH_SECRET_ACCESS_KEY   # pushed from the OBC's Secret
-```
-
 > **Lose a `KOPIA_PASSWORD` and that repository is permanently unrecoverable.**
-> kopia cannot decrypt without it and there is no recovery path. The three
-> passwords must be long, random, distinct from each other and from every restic
-> password, and **recorded outside the cluster** - 1Password alone is the same
-> failure domain as the thing being restored.
+> kopia cannot decrypt without it and there is no recovery path.
+>
+> The three were generated in-cluster (`openssl rand -base64 48`, distinct,
+> never printed or committed), pushed to 1Password, and verified by reading them
+> back out and comparing hashes - including once more after every temporary
+> object was deleted. **1Password now holds the only copy.** Recommended, and
+> deliberately left to the captain: take an independent offline record, since a
+> vault outage or mistake would otherwise be unrecoverable.
 
 `R2_ENDPOINT` lives in 1Password rather than in this repo because home-ops is
 **public** and the R2 account id is deliberately not committed anywhere in it
