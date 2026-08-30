@@ -41,8 +41,17 @@ kopiur does **not** create buckets. Each repository needs a bucket named
 - **Ceph RGW** - already handled in Git: the `ObjectBucketClaim` in `backend/`
   creates the bucket and Rook generates its S3 credentials. No manual step, and
   nothing to add to 1Password by hand.
-- **MinIO** (TrueNAS) and **Cloudflare R2** - external systems GitOps cannot
-  reach, so these two must be created through their own consoles.
+- **Cloudflare R2** - created by the captain in the R2 console. **The bucket
+  name in `repository/clusterrepository.yaml` is unconfirmed** and must be
+  checked against the console before merge; see "R2" below.
+
+There is deliberately **no MinIO repository**. MinIO changed its licensing terms
+and the captain intends to retire it, so Stage 0 does not give kopiur a MinIO
+destination. This does not touch MinIO in any way: the existing VolSync MinIO
+backups keep running exactly as before, and retiring them is a separate future
+job. The `MINIO_KOPIA_PASSWORD` already in the `kopiur` item is therefore unused
+- it is left in place rather than deleted, because casually deleting credentials
+is not worth the risk and it costs nothing to keep.
 
 ### 2. The `kopiur` 1Password item
 
@@ -56,7 +65,7 @@ shadow one. Connect cannot see the hyphenated `Home-Lab` vault at all.
 overwriting one after its repository is initialized loses that repository:
 
 ```
-CEPH_KOPIA_PASSWORD    MINIO_KOPIA_PASSWORD    R2_KOPIA_PASSWORD
+CEPH_KOPIA_PASSWORD    R2_KOPIA_PASSWORD      MINIO_KOPIA_PASSWORD  # unused, see above
 ```
 
 Written automatically by `backend/`'s `PushSecret`, never by hand:
@@ -65,13 +74,33 @@ Written automatically by `backend/`'s `PushSecret`, never by hand:
 CEPH_ACCESS_KEY_ID     CEPH_SECRET_ACCESS_KEY
 ```
 
-Still to be supplied by the captain - external systems GitOps cannot reach:
+**No further 1Password fields are needed.** R2's S3 credentials and endpoint are
+reused from the existing `volsync-template` item (`R2_HOME_OPS_ACCESS_KEY`,
+`R2_HOME_OPS_SECRET_KEY`, `R2_HOME_OPS_ENDPOINT_URL`), read directly rather than
+copied. Note that `R2_VOLSYNC_RESTIC_REPOSITORY` names the EXISTING restic
+bucket and must never be used here, and `R2_VOLSYNC_RESTIC_PASSWORD` is restic's
+own and is not reusable by kopia.
 
-```
-MINIO_ACCESS_KEY_ID    MINIO_SECRET_ACCESS_KEY
-R2_ACCESS_KEY_ID       R2_SECRET_ACCESS_KEY
-R2_ENDPOINT            # <accountid>.r2.cloudflarestorage.com - bare host, no scheme
-```
+### R2 - what was verified, and what was not
+
+Verified from inside the cluster (credentials never left it):
+
+- The reused `R2_HOME_OPS_*` credentials authenticate against R2 and reach the
+  existing `volsync` bucket (`HeadBucket` returns `BucketRegion: ENAM`).
+
+**Not** verified, and blocking:
+
+- That they can read and write the **new** bucket. The token is denied
+  `ListBuckets`, so the bucket cannot be enumerated, and `HeadBucket` returns a
+  blanket `403 Forbidden` for this token regardless of whether the bucket
+  exists - a deliberately nonexistent name returned the identical 403. A probe
+  therefore cannot distinguish a wrong bucket name from a bucket-scoped token,
+  and R2 tokens can be bucket-scoped.
+
+Needed from the captain: the exact bucket name from the R2 console. Once it is
+set, re-run the read/write probe. If it still 403s with the correct name, the
+token is bucket-scoped and R2 needs a re-scoped or new credential - the existing
+one would then have been genuinely rejected, not merely misaddressed.
 
 > **Lose a `KOPIA_PASSWORD` and that repository is permanently unrecoverable.**
 > kopia cannot decrypt without it and there is no recovery path.

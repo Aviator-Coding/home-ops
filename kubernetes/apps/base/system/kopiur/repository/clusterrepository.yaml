@@ -1,9 +1,12 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/clusterrepository_v1alpha1.json
 #
-# Three destinations, mirroring VolSync's triple-backup topology (Ceph / MinIO
-# NAS / Cloudflare R2). Each is CLUSTER-SCOPED with allowedNamespaces.all so one
-# repository object serves every namespace.
+# Two destinations: `ceph` (local) and `r2` (offsite). MinIO is deliberately
+# NOT defined here - the captain is retiring it over its licensing change, so
+# Stage 0 does not give kopiur a MinIO destination. The existing VolSync MinIO
+# backups keep running untouched; retiring them is a separate future job.
+# Each is CLUSTER-SCOPED with allowedNamespaces.all so one repository object
+# serves every namespace.
 #
 # EVERY repository points at a NEW, DEDICATED bucket - never at a VolSync restic
 # path. VolSync's repositories are all `volsync/<app>` on all three backends
@@ -67,41 +70,20 @@ spec:
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: ClusterRepository
 metadata:
-  name: minio
-spec:
-  allowedNamespaces:
-    all: true
-  backend:
-    s3:
-      bucket: kopiur
-      endpoint: nas.${SECRET_DOMAIN}:9000
-      # MinIO accepts any region string.
-      region: us-east-1
-      auth:
-        secretRef:
-          name: kopiur-minio-secret
-          namespace: system
-  encryption:
-    passwordSecretRef:
-      name: kopiur-minio-secret
-      namespace: system
-      key: KOPIA_PASSWORD
-  create:
-    enabled: true
-  mode: ReadWrite
-  deletionProtection:
-    threshold: 10
-  onNamespaceDelete: Orphan
----
-apiVersion: kopiur.home-operations.com/v1alpha1
-kind: ClusterRepository
-metadata:
   name: r2
 spec:
   allowedNamespaces:
     all: true
   backend:
     s3:
+      # UNCONFIRMED - must match the bucket the captain created in the R2
+      # console before this is merged. It could not be confirmed from inside
+      # the cluster: the reused token is denied ListBuckets, and R2 answers
+      # HeadBucket with a blanket 403 for this token whether or not a bucket
+      # exists (measured 2026-08-30 - a deliberately nonexistent name returned
+      # the same 403 as this one), so a failed probe cannot distinguish "wrong
+      # name" from "no access". The same credentials DO reach the existing
+      # `volsync` bucket, so they are valid; only this name is unproven.
       bucket: kopiur
       # <accountid>.r2.cloudflarestorage.com, substituted so the account id
       # stays out of this public repo - see app/externalsecret.yaml.
