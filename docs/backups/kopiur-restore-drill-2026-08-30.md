@@ -1,7 +1,7 @@
 # kopiur restore drill - 2026-08-30
 
 > **Historical snapshot, but the procedure is durable.** Numbers below were measured live
-> against the cluster on 2026-08-30 between 19:20Z and 19:32Z, on branch
+> against the cluster on 2026-08-30 between 19:20Z and 20:50Z, on branch
 > `fm/homeops-kopiur-stage2`. Re-measure timings before relying on them; the *procedure*
 > itself (manifests, ordering, verification method, cleanup) is the reusable part.
 >
@@ -9,39 +9,36 @@
 > exercise against VolSync, and is the house standard this one is built to. Read its
 > "Hard constraint this procedure satisfies" section first; it is binding here too.
 
-## Headline result - read this before the rest
+## Result
 
-**The restore path works from both destinations. Byte-level data fidelity was NOT proven,
-and could not be, because the Stage 1 pilot volume contains no data.**
+**Stage 2 PASSES.** kopiur restored `downloads/sabnzbd-config` from both the ceph and the r2
+repositories into fresh volumes, and all **2,062 files / 2,208,506,538 bytes** came back
+byte-identical to the live claim, verified by per-file sha256:
 
-`downloads/autobrr` keeps all of its state in the shared `postgres-17` CNPG cluster
-(`AUTOBRR__DATABASE_TYPE=postgres`). Its 5Gi `ceph-block` claim holds **zero files** and has
-done so for the 328 days it has existed. Four independent sources agree, and none of them is
-this drill's own restore:
+| | files | bytes | sha256 manifest digest |
+|---|---:|---:|---|
+| live claim (stable set) | 2062 | 2 208 506 538 | `5f748bb724937dabd5c5030135c772d50a6056b38221fcc3dd04356fdb5b4e6f` |
+| restored from **ceph** | 2062 | 2 208 506 538 | `5f748bb7…4e6f` |
+| restored from **r2** | 2062 | 2 208 506 538 | `5f748bb7…4e6f` |
 
-| Evidence | Result |
-|---|---|
-| Live pod, `find /config -xdev -type f \| wc -l` | `0` (only the `log` mount point dir) |
-| Live pod, `df -k /config` | `12` KiB used of 5 074 592 KiB |
-| kopiur `Snapshot` CRs, `.status.stats`, both destinations | `{"filesNew":0,"sizeBytes":0}` |
-| VolSync restic mover logs, all **three** destinations | `processed 0 files, 0 B in 0:00` |
+File modes and numeric ownership were reproduced exactly as well, including five `0600` files.
+The live claim was never mounted, scaled, or written to. `ceph health` was unchanged throughout.
 
-So the two Stage 1 "real first backups" are two faithful backups of an empty volume, and
-Stage 1's gate (`Snapshot` reaches `Succeeded`) passed without ever moving a byte of data.
+Getting there took two attempts and produced **two findings that matter more than the pass
+itself**:
 
-This does not make the drill worthless - see [What this drill proved](#what-this-drill-proved-and-did-not-prove)
-below; the restore *mechanism* is now exercised end to end against both repository backends,
-including the offsite one. But the Stage 2 acceptance criterion as written - byte-level
-equivalence demonstrated by checksums - is **not met**, and cannot be met on this volume.
-Choosing a pilot volume with real files on disk is a prerequisite for closing it.
+1. [The original Stage 1 pilot holds no data at all](#finding-1-the-stage-1-pilot-volume-is-empty),
+   so it could never have proven fidelity - and Stage 1's gate did not notice.
+2. [kopiur cannot read a claim whose files it does not own](#finding-2-a-mover-identity-mismatch-fails-the-backup-outright),
+   which failed both destinations outright until the mover identity was matched to the workload.
+   VolSync survives the same mismatch, by a mechanism that has its own consequence.
 
 ## Why this exists
 
-kopiur is the staged replacement for VolSync (migration plan: `kubernetes/apps/base/system/kopiur/README.md`
-and `kubernetes/components/kopiur/Readme.md`). Stage 1 put `downloads/autobrr` on both backup
-systems simultaneously. Stage 2 is the acceptance gate for the entire migration: **nothing gets
-retired anywhere until a restore has been demonstrated.** A backup that has never been restored
-is a hypothesis, not a backup.
+kopiur is the staged replacement for VolSync (plan: `kubernetes/apps/base/system/kopiur/README.md`,
+component: `kubernetes/components/kopiur/Readme.md`). Stage 2 is the acceptance gate for the
+entire migration: **nothing gets retired anywhere until a restore has been demonstrated.** A
+backup that has never been restored is a hypothesis, not a backup.
 
 kopiur raises the stakes over VolSync in one specific way, which is why the gate matters more
 here than it did on 2026-08-23: a kopiur `Snapshot` CR **owns** its kopia snapshot through a
@@ -68,44 +65,57 @@ briefly, not "just to check".**
   way) but it is the wrong mode for a drill because it waits to be claimed rather than
   producing a volume you can inspect.
 - Set `policy.onMissingSnapshot: Fail`. This is a **deliberate departure from the component's
-  standing Restore**, and it is what makes an empty result trustworthy: with `Fail`, an empty
-  restored volume means the snapshot was genuinely empty, not that the restore quietly found
-  nothing. This drill depended on that distinction entirely.
+  standing Restore**, and it is what makes an empty or short result trustworthy rather than
+  ambiguous.
 - Mount the restored volume **read-only**, and mark it `readOnly: true` on the *volume source*,
   not only on the `volumeMount`. A `volumeMount`-only `readOnly` still lets kubelet run its
-  `fsGroup` ownership walk over the volume, which would destroy the restored ownership and
-  permission bits before you can record them.
+  `fsGroup` ownership walk over the volume, which would rewrite the restored ownership and
+  permission bits before you can record them - destroying exactly the evidence
+  [finding 2](#finding-2-a-mover-identity-mismatch-fails-the-backup-outright) turns on.
 
 Every object created below is new, uniquely named, labelled `fm.homeops/restore-drill`, and
 owned solely by the drill. Nothing that already exists is patched, scaled, or written into.
 
 ## Procedure
 
-### 0. Baseline: record `ceph health` and the live claim's identity
+### 0. Baseline: `ceph health` and the live claim's identity
 
 ```bash
 kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph health detail
-kubectl -n <ns> get pvc <app> -o jsonpath='uid={.metadata.uid}{"\n"}pv={.spec.volumeName}{"\n"}'
+kubectl -n <ns> get pvc <claim> -o jsonpath='uid={.metadata.uid}{"\n"}pv={.spec.volumeName}{"\n"}'
 kubectl -n <ns> get pod -l app.kubernetes.io/name=<app> \
   -o jsonpath='{range .items[*]}pod={.metadata.name} started={.status.startTime} restarts={.status.containerStatuses[0].restartCount}{"\n"}{end}'
 ```
 
-Re-run all three at the end. The PVC uid/PV pair and the pod's `startTime` + `restartCount`
-are the proof that nothing scaled the app down or re-provisioned its volume.
+Re-run all three at the end. The PVC uid/PV pair and the pod's `startTime` + `restartCount` are
+the proof that nothing scaled the app down or re-provisioned its volume.
 
-### 1. Confirm the source snapshots exist, and record what they claim to contain
+### 1. Check the volume is a valid fidelity subject *before* trusting any snapshot of it
 
 ```bash
-kubectl -n <ns> get snapshot.kopiur.home-operations.com -o wide
+kubectl -n <ns> exec deploy/<app> -- sh -c 'find /<datadir> -xdev -type f | wc -l; df -k /<datadir>'
 kubectl -n <ns> get snapshot.kopiur.home-operations.com <name> \
   -o jsonpath='{.status.phase}{" "}{.status.snapshot.kopiaSnapshotID}{" "}{.status.stats}{"\n"}'
 ```
 
-**Read `.status.stats` before restoring, every time.** `{"filesNew":0,"sizeBytes":0}` means
-the snapshot is empty and no restore of it can prove anything about data fidelity. That one
-field is the check this drill's headline finding turned on, and it costs nothing to run.
+**`.status.stats` is the check that this drill was created by missing.**
+`{"filesNew":0,"sizeBytes":0}` means the snapshot is empty and no restore of it can prove
+anything about data fidelity, no matter how green everything looks. See
+[finding 1](#finding-1-the-stage-1-pilot-volume-is-empty).
 
-### 2. Check the drill names are free, and that credentials exist in the workload namespace
+### 2. Check the mover identity matches the workload that owns the files
+
+```bash
+kubectl -n <ns> get deploy <app> -o jsonpath='{.spec.template.spec.securityContext}{"\n"}'
+kubectl -n <ns> exec deploy/<app> -- sh -c 'find /<datadir> -xdev -type f ! -perm -o=r | head'
+```
+
+If the app's `runAsUser`/`fsGroup` is not `1000`, the component's `KOPIUR_PUID`/`KOPIUR_PGID`
+defaults will not match it, and any file without a world-read bit becomes unreadable to the
+mover. kopiur's admission webhook warns about this at apply time - **do not dismiss that
+warning**. See [finding 2](#finding-2-a-mover-identity-mismatch-fails-the-backup-outright).
+
+### 3. Check the drill names are free, and credentials exist in the workload namespace
 
 ```bash
 kubectl -n <ns> get restore.kopiur.home-operations.com <drill-name>   # must 404
@@ -117,11 +127,47 @@ kubectl -n <ns> get secret | grep kopiur
 That last one is load-bearing and easy to miss: a kopiur mover Job runs **in the workload
 namespace** and loads repository credentials with `envFrom`, which is namespace-local. A
 `ClusterRepository` whose Secrets live only in `system` reconciles perfectly clean and then
-fails at run time. The Stage 1 pilot copies them into `downloads` (see
-`kubernetes/components/kopiur/Readme.md` "Credentials"); a restore needs them just as a backup
-does.
+fails at run time. See `kubernetes/components/kopiur/Readme.md` "Credentials".
 
-### 3. Create a scratch `Restore` per destination
+### 4. Capture the live checksum manifest, twice, bracketing the snapshot
+
+A live volume is being written to while you drill it, so "compare the restore to live" is not
+well defined unless you say *which* live. Bracket it:
+
+```bash
+MANIFEST='cd /<datadir> && find . -xdev -path ./lost+found -prune -o -type f -print \
+  | LC_ALL=C sort | while IFS= read -r f; do sha256sum "$f"; done'
+
+kubectl -n <ns> exec deploy/<app> -c app -- sh -c "$MANIFEST" > L1-live.txt   # BEFORE snapshot
+#   ... take the snapshots (step 5) ...
+kubectl -n <ns> exec deploy/<app> -c app -- sh -c "$MANIFEST" > L2-live.txt   # AFTER  snapshot
+
+comm -12 <(sort L1-live.txt) <(sort L2-live.txt) > STABLE.txt   # unchanged across the window
+```
+
+`STABLE.txt` is the **stable set**: files whose content did not change while the snapshot was
+being taken. Every one of them *must* come back byte-identical; a mismatch there is a genuine
+fidelity failure and not drift. Files outside the stable set are legitimately allowed to differ.
+
+Two portability notes: `-xdev` is required so `find` does not descend into `emptyDir`/ConfigMap
+volumes mounted *inside* the data directory (sabnzbd mounts a ConfigMap at `/config/scripts`,
+autobrr an `emptyDir` at `/config/log`); and `lost+found` is `root:root 0700`, unreadable by the
+app's own uid and recreated by `mkfs` on any restore target, so prune it on both sides.
+
+### 5. Take a snapshot per destination (only if the volume is not already covered)
+
+```yaml
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Snapshot
+metadata: { name: <app>-<dest>-verify, namespace: <ns> }
+spec:
+  policyRef: { name: <app>-<dest> }
+  description: "on-demand verification"
+```
+
+Then confirm `filesNew` and `sizeBytes` are what you expect from step 1 before going further.
+
+### 6. Create a scratch `Restore` per destination
 
 One per repository backend. A restore that works only from local storage does not prove the
 offsite copy.
@@ -150,40 +196,40 @@ spec:
       capacity: <same as the app's real PVC>
       storageClassName: ceph-block
   policy:
-    onMissingSnapshot: Fail                      # fail-closed; see the hard constraint above
+    onMissingSnapshot: Fail                      # fail-closed
   mover:
-    podSecurityContext:                          # mirror the app's SnapshotPolicy
-      runAsUser: 1000
-      runAsGroup: 1000
-      fsGroup: 1000
+    podSecurityContext:                          # MUST match the app - see finding 2
+      runAsUser: 2000
+      runAsGroup: 2000
+      fsGroup: 2000
     cache:
       mode: Ephemeral
       capacity: 2Gi
 ```
 
 `source.fromPolicy` is preferred over `source.snapshotRef` for a drill: it creates no reference
-of any kind to a `Snapshot` CR, so there is no path by which the drill's own lifecycle can
-reach snapshot data. Confirm afterwards that `offset: 0` resolved to the snapshot you expected
-by matching `.status.resolved.kopiaSnapshotID` against step 1 - that gives you `snapshotRef`'s
-precision without its coupling.
+of any kind to a `Snapshot` CR, so there is no path by which the drill's own lifecycle can reach
+snapshot data. Confirm afterwards that `offset: 0` resolved to the snapshot you expected by
+matching `.status.resolved.kopiaSnapshotID` - that gives you `snapshotRef`'s precision without
+its coupling.
 
-### 4. Wait for each restore, and verify which snapshot it actually read
+### 7. Wait, and verify which snapshot each restore actually read
 
 ```bash
-kubectl -n <ns> wait --for=condition=Complete job/<drill-name> --timeout=300s
+kubectl -n <ns> wait --for=jsonpath='{.status.phase}'=Completed \
+  restore.kopiur.home-operations.com/<drill-name-ceph> \
+  restore.kopiur.home-operations.com/<drill-name-r2> --timeout=300s
 kubectl -n <ns> get restore.kopiur.home-operations.com <drill-name> \
-  -o jsonpath='{.status.phase}{" | "}{.status.logTail}{"\nsnapID="}{.status.resolved.kopiaSnapshotID}{"\n"}'
-kubectl -n <ns> logs job/<drill-name> -c mover
+  -o jsonpath='{.status.phase}{" "}{.status.resolved.kopiaSnapshotID}{"\n"}'
 ```
 
-`phase: Completed` with `Restore completed: snapshot <id>`, and `<id>` equal to the snapshot
-recorded in step 1. The mover pod has a `k8tz` init container, so `kubectl logs job/... -c mover`
-(or `--all-containers` after it starts) is needed rather than a bare `logs`.
+The mover pod has a `k8tz` init container, so use `kubectl logs job/<name> -c mover` rather than
+a bare `logs`.
 
-### 5. Mount both restored volumes read-only in one pod and build checksum manifests
+### 8. Mount both restored volumes read-only in one pod and compare
 
-Both restored PVCs are RWO but nothing else holds them, so a single pod can mount both - which
-lets you diff the destinations against each other directly as well as against live.
+Both restored PVCs are RWO but nothing else holds them, so one pod can mount both - which lets
+you diff the destinations against each other as well as against live.
 
 ```yaml
 apiVersion: v1
@@ -195,11 +241,11 @@ metadata:
     fm.homeops/restore-drill: kopiur-verify
 spec:
   restartPolicy: Never
-  securityContext: { runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true }
+  securityContext: { runAsUser: 2000, runAsGroup: 2000, runAsNonRoot: true }   # match the app
   containers:
     - name: verify
       image: docker.io/library/busybox:1.36
-      command: ["sh", "-c", "sleep 900"]
+      command: ["sh", "-c", "sleep 1800"]
       securityContext:
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
@@ -214,59 +260,55 @@ spec:
       persistentVolumeClaim: { claimName: <app>-kopiur-drill-<date>-r2,   readOnly: true }
 ```
 
-Then produce a real manifest, not an eyeball check:
+Run the same `$MANIFEST` command from step 4 against `/restore-ceph` and `/restore-r2`, then:
 
 ```bash
-kubectl -n <ns> exec kopiur-restore-drill-verify -- sh -c '
-for d in /restore-ceph /restore-r2; do
-  echo "############ $d ############"
-  ls -ldn $d                                              # root dir mode + numeric owner
-  find $d                                                 # every entry, all types, incl. hidden
-  printf "files: %s\n" "$(find $d -type f | wc -l)"
-  find $d -type f -exec cat {} + 2>/dev/null | wc -c      # total bytes in regular files
-  ( cd $d && find . -type f | sort | while read -r f; do sha256sum "$f"; done )
-  ( cd $d && find . -type f | sort | while read -r f; do sha256sum "$f"; done | sha256sum )
-done'
+diff <(sort STABLE.txt) <(sort R-ceph.txt)    # must be empty
+diff <(sort STABLE.txt) <(sort R-r2.txt)      # must be empty
+diff <(sort R-ceph.txt) <(sort R-r2.txt)      # must be empty
+sort R-ceph.txt | sha256sum                   # the manifest digest, for the record
 ```
 
-The last line is the **manifest digest**: one sha256 over the sorted `sha256(path)` list. Two
-volumes with the same manifest digest have identical file content at identical paths. Compare
-it between destinations, and against the live claim.
+Also record the file count and total byte count next to the digest:
+
+```bash
+find /restore-<dest> -xdev -path '*/lost+found' -prune -o -type f -print | wc -l
+find /restore-<dest> -xdev -path '*/lost+found' -prune -o -type f -exec cat {} + | wc -c
+```
 
 > **Beware the empty manifest.** `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
 > is the sha256 of the empty string. If both sides show it, your manifests matched because both
-> were **empty**, which proves nothing. Always print the file count and byte total alongside the
-> digest so an empty match cannot be mistaken for a successful comparison. That is precisely
-> what happened here.
+> were **empty**, which proves nothing. Printing the count and byte total alongside the digest is
+> what makes an empty match impossible to mistake for a successful comparison. That is exactly
+> the trap the first attempt below fell into.
 
-For the live side, `kubectl exec` into the running app pod and run the same manifest command -
-read-only reads against a live volume, never a mount. Two caveats on this app-specific point:
-`find` needs `-xdev` so it does not descend into `emptyDir`s mounted *inside* the data dir, and
-anything an `emptyDir` masks (autobrr mounts one at `/config/log`) is invisible from the live
-pod but **is** present in the restore, so the trees legitimately differ there.
+And compare permissions, not only content:
 
-### 6. Prove the live claim was never touched
+```bash
+kubectl -n <ns> exec deploy/<app>                  -- sh -c 'cd /<datadir>    && ls -lan <files> | awk "{print \$1,\$3,\$4,\$NF}"'
+kubectl -n <ns> exec kopiur-restore-drill-verify   -- sh -c 'cd /restore-ceph && ls -lan <files> | awk "{print \$1,\$3,\$4,\$NF}"'
+```
+
+### 9. Prove the live claim was never touched
 
 ```bash
 kubectl -n <ns> get job <drill-name> \
-  -o jsonpath='{range .spec.template.spec.volumes[*]}{.name}{" -> pvc="}{.persistentVolumeClaim.claimName}{"\n"}{end}'
+  -o jsonpath='{range .spec.template.spec.volumes[*]}{.name}=>{.persistentVolumeClaim.claimName}{"\n"}{end}'
 ```
 
 Every mover Job must mount only its own drill PVC. Combine with the step 0 re-run.
 
-### 7. Clean up - drill artifacts only
+### 10. Clean up - drill artifacts only
 
-**Confirm what each deletion can reach before running it.** For a drill, all three object kinds
-are safe, and here is why:
+**Confirm what each deletion can reach before running it.**
 
 ```bash
 # Restore CRs: no finalizers, no ownerReferences -> deletion cannot cascade anywhere.
 kubectl -n <ns> get restore.kopiur.home-operations.com <drill-name> \
   -o jsonpath='finalizers={.metadata.finalizers} ownerRefs={.metadata.ownerReferences}{"\n"}'
 # Snapshot CRs: carry kopiur.home-operations.com/snapshot-cleanup and OWN their kopia data.
-# Confirm none of them has an ownerReference to anything you are about to delete.
 kubectl -n <ns> get snapshot.kopiur.home-operations.com \
-  -o jsonpath='{range .items[*]}{.metadata.name}{" ownerRefs="}{.metadata.ownerReferences}{"\n"}{end}'
+  -o custom-columns='NAME:.metadata.name,SNAPID:.status.snapshot.kopiaSnapshotID,OWNERREFS:.metadata.ownerReferences'
 ```
 
 Then delete, in this order:
@@ -277,11 +319,11 @@ kubectl -n <ns> delete restore.kopiur.home-operations.com <drill-name-ceph> <dri
 kubectl -n <ns> delete pvc <drill-name-ceph> <drill-name-r2>     # only if still present
 ```
 
-Deleting the `Restore` CRs is sufficient for almost everything: they own their mover Jobs, so
-GC reaps Job -> pod -> the pod's generic-ephemeral `*-kopia-cache` PVC, and releasing the mover
-pod is also what lets a `Terminating` drill PVC finish. Deleting the PVCs *first* leaves them
-stuck in `Terminating` behind `kubernetes.io/pvc-protection` until the completed mover pod goes
-away - harmless, but it makes `kubectl delete --wait` hang, which is what happened here.
+Deleting the `Restore` CRs first is what makes the rest simple: they own their mover Jobs, so GC
+reaps Job -> pod -> the pod's generic-ephemeral `*-kopia-cache` PVC, and releasing the mover pod
+is also what lets a drill PVC finish deleting. Deleting the PVCs *first* leaves them stuck in
+`Terminating` behind `kubernetes.io/pvc-protection` until the completed mover pod goes away -
+harmless, but `kubectl delete --wait` hangs, which is what happened on the first attempt here.
 
 Final sweep - must return nothing:
 
@@ -289,60 +331,101 @@ Final sweep - must return nothing:
 kubectl get restore.kopiur.home-operations.com,pvc,pod,job -A -l fm.homeops/restore-drill
 ```
 
-**Never delete an unlabelled object.** In particular never delete a `Snapshot` CR: with
-`deletionPolicy: Delete` (the default) that deletes the backup data out of the repository.
-Upstream ADR-0006 records a real incident where ownerReference GC fired 600-700 concurrent
-snapshot deletions at one repository.
+**Never delete an unlabelled object.** In particular never delete a `Snapshot` CR that has a
+`kopiaSnapshotID`: with `deletionPolicy: Delete` (the default) that deletes the backup data out
+of the repository. Upstream ADR-0006 records a real incident where ownerReference GC fired
+600-700 concurrent snapshot deletions at one repository. A **failed** Snapshot CR
+(`SNAPID <none>`) holds no data and is safe to delete, which is how the failed attempts in
+finding 2 were cleared.
 
 ## Results
 
-Both restores ran against `downloads/autobrr`, restoring the two Stage 1 verification snapshots
-into fresh 5Gi `ceph-block` PVCs. Both resolved `offset: 0` to exactly the expected snapshot.
+### Attempt 1 - `downloads/autobrr`: mechanism proven, fidelity impossible
 
-| Destination | Snapshot restored | Expected (Stage 1) | Match | Apply -> `Completed` | Mover runtime | PVC bind |
-|---|---|---|:--:|---:|---:|---|
-| **ceph** (in-cluster RGW) | `8ff00143e56f37faa572f0ef79a7a06c` | `8ff00143…a06c` | yes | 19:23:13Z -> 19:23:23Z, **10s** | 12s (Job) | immediate |
-| **r2** (Cloudflare, offsite) | `0a55e125322f1786663b353788d5d135` | `0a55e125…d135` | yes | 19:25:33Z -> 19:25:45Z, **12s** | 14s (Job) | immediate |
+The Stage 1 pilot. Both restores completed and resolved to exactly the expected snapshots:
 
-Content of both restored volumes, measured read-only:
+| Destination | Snapshot restored | Expected (Stage 1) | Match | Apply -> `Completed` |
+|---|---|---|:--:|---:|
+| **ceph** | `8ff00143e56f37faa572f0ef79a7a06c` | `8ff00143…a06c` | yes | 19:23:13Z -> 19:23:23Z, **10s** |
+| **r2** | `0a55e125322f1786663b353788d5d135` | `0a55e125…d135` | yes | 19:25:33Z -> 19:25:45Z, **12s** |
 
-| Measure | `/restore-ceph` | `/restore-r2` | Live `autobrr` claim |
-|---|---|---|---|
-| Regular files | 0 | 0 | 0 |
-| Total bytes in regular files | 0 | 0 | 0 (12 KiB fs overhead) |
-| Directories | `lost+found`, `log` | `lost+found`, `log` | `log` (see note) |
-| Root dir mode / owner | `drwxrwsr-x 0:1000` | `drwxrwsr-x 0:1000` | `drwxrwsr-x root:1000` |
-| sha256 manifest digest | `e3b0c442…b855` | `e3b0c442…b855` | `e3b0c442…b855` |
-| Filesystem | ext4 | ext4 | ext4 |
+Both restored volumes contained **0 files, 0 bytes**, matching the live claim, with the empty
+`log` directory and the root directory's setgid `root:1000` mode reproduced identically. The
+sha256 manifest digest agreed across ceph, r2 and live - at `e3b0c442…b855`, the digest of the
+empty string. See [finding 1](#finding-1-the-stage-1-pilot-volume-is-empty).
 
-The manifest digests are equal across all three - and that equality is **vacuous**, because
-`e3b0c442…b855` is the sha256 of the empty string. This is the finding, stated plainly: there
-was nothing to compare.
+This attempt is retained in the record because it is a valid **mechanism** test - it is the
+proof that the restore path, the R2 credentials, and `target.pvc` all work - and because a drill
+that hides why its first attempt proved nothing is less useful than one that says so.
 
-What the restore *did* faithfully reproduce is the volume's structure and metadata: the empty
-`log` directory that exists in the claim, and the root directory's setgid mode and `root:1000`
-ownership, identical on both destinations and matching live. `lost+found` appears only on the
-restored volumes because it is created by `mkfs` on the fresh target filesystem, not carried in
-the snapshot.
+### Attempt 2 - `downloads/sabnzbd-config`: the fidelity proof
 
-### Live claim untouched - how we know
+2,062 files / 2.06 GiB of real config data; claim name (`sabnzbd-config`) differs from the app
+name (`sabnzbd`), so this also exercised the `${KOPIUR_CLAIM:-${APP}}` override that autobrr
+never did.
 
-| Check | Result |
+First run of both destinations **failed** - see
+[finding 2](#finding-2-a-mover-identity-mismatch-fails-the-backup-outright). After matching the
+mover identity to the workload (`KOPIUR_PUID`/`KOPIUR_PGID: 2000`):
+
+| Destination | Snapshot | `filesNew` | `sizeBytes` | Restore resolved to | Apply -> `Completed` |
+|---|---|---:|---:|---|---:|
+| **ceph** | `da9290a7b5f2e30b8144459ed60386a8` | 2062 | 2 208 506 538 | `da9290a7…86a8` | 19:46:27Z -> ≤19:47:53Z, **≤86s** |
+| **r2** | `3597d0ea386278da00ff7457079b7fc3` | 2062 | 2 208 506 538 | `3597d0ea…7fc3` | 19:46:27Z -> ≤19:47:53Z, **≤86s** |
+
+Both restores were applied together and waited on together, so 86s is an upper bound covering
+both, not a per-destination measurement.
+
+**Content comparison.** The live manifest was captured at 19:39:17Z and again at 19:46:04Z,
+bracketing the snapshots at 19:45:4xZ. All 2062 files were byte-identical between the two live
+captures, so the **stable set was the entire volume** - there were no files legitimately allowed
+to differ, which makes this an unusually strict comparison.
+
+| Comparison | Result |
 |---|---|
-| `autobrr` PVC uid / PV | `897b4178-…` / `pvc-6f0f5288-…`, unchanged; created 2025-10-06 |
-| Drill PVCs' PVs | `pvc-3a276ed6-…`, `pvc-a717fd36-…` - three distinct volumes |
-| Deployment replicas | `1/1` throughout; never scaled |
-| App pod | `autobrr-6cd76b8d99-54pjd`, started 2026-08-26T10:57:30Z, **0 restarts**, ready |
-| Mover Job volumes | each mounted only its own drill PVC; the string `autobrr` alone never appears |
-| Live-side reads | `kubectl exec` into the running pod only - read-only commands, no mount |
+| live stable set vs **ceph** restore | **identical** - every path, every sha256 |
+| live stable set vs **r2** restore | **identical** - every path, every sha256 |
+| **ceph** restore vs **r2** restore | **identical** - the two destinations agree byte-for-byte |
+| file count (live / ceph / r2) | 2062 / 2062 / 2062 |
+| total bytes (ceph / r2) | 2 208 506 538 / 2 208 506 538, matching `sizeBytes` exactly |
+| manifest digest (all three) | `5f748bb724937dabd5c5030135c772d50a6056b38221fcc3dd04356fdb5b4e6f` |
 
-One trap worth naming: the verify pod's `/restore-ceph` and the live pod's `/config` both
-appeared as `/dev/rbd8`. RBD device numbering is per-node and the pods were on talos-3 and
-talos-1 respectively; the distinct PV names above are the real proof, not the device path.
+**Permission comparison.** Mode and numeric ownership were also reproduced exactly on both
+destinations, across all eleven `sabnzbd.ini*` files - including the five `0600` and two `0660`
+files that the identity mismatch had made unreadable:
+
+```
+-rw-rw-r-- 2000 2000 sabnzbd.ini          -rw------- 2000 2000 sabnzbd.iniEpDANg
+-rw-rw-r-- 2000 2000 sabnzbd.ini.bak      -rw------- 2000 2000 sabnzbd.iniHpnibH
+-rw------- 2000 2000 sabnzbd.iniEAbhLb    -rw-rw---- 2000 2000 sabnzbd.inialCDKK
+-rw-rw---- 2000 2000 sabnzbd.iniEbGjeJ    -rw------- 2000 2000 sabnzbd.inibdaNcG
+-rw------- 2000 2000 sabnzbd.inicgFcbA    -rw-rw-r-- 2000 2000 sabnzbd.inidihDpF
+-rw-rw-r-- 2000 2000 sabnzbd.inigOEpkO
+```
+
+### Live claims untouched - how we know
+
+| Check | `autobrr` | `sabnzbd-config` |
+|---|---|---|
+| PVC uid / PV, before and after | `897b4178…` / `pvc-6f0f5288…` unchanged | `b67944c2…` / `pvc-4bfd61af…` unchanged |
+| Deployment replicas | `1/1` throughout | `1/1` throughout |
+| App pod | started 2026-08-26T10:57:30Z, **0 restarts** | started 2026-08-26T10:57:32Z, **0 restarts** |
+| Mover Job volumes | only its own drill PVC | only its own drill PVC |
+| Live-side reads | `kubectl exec` into the running pod only - read-only commands, never a mount | same |
+
+kopiur's own staging is what makes this structurally safe rather than merely careful: each
+`SnapshotPolicy` took its **own CSI `VolumeSnapshot`** of `sabnzbd-config`
+(`sabnzbd-ceph-stage2-verify-snap`, `sabnzbd-r2-stage2-verify-snap`, both `readyToUse: true`)
+and the mover mounted a clone of that, `readOnly: true`. The live claim is never mounted by
+kopiur at all.
+
+One trap worth naming: the verify pod's `/restore-ceph` and the live pod's data volume both
+appeared as `/dev/rbd8`. RBD device numbering is per-node and the pods were on different nodes;
+the distinct PV names are the real proof, not the device path.
 
 ### Ceph health
 
-Identical before and after, unchanged by the drill:
+Identical before, during and after. Unchanged by the drill:
 
 ```
 HEALTH_WARN 1 OSD(s) experiencing slow operations in BlueStore; 1 MDSs report slow metadata IOs;
@@ -350,80 +433,137 @@ HEALTH_WARN 1 OSD(s) experiencing slow operations in BlueStore; 1 MDSs report sl
           AUTH_INSECURE_KEYS_ALLOWED AUTH_INSECURE_KEYS_CREATABLE)
 ```
 
-`osd.3` slow BlueStore ops, `mds.ceph-filesystem-c` slow metadata IOs. This is the pre-existing
-baseline, not a drill effect. The four muted alerts are the tracked CephX items (see
-`docs/ceph-cluster-changelog.md`).
+`osd.3` slow BlueStore ops, `mds.ceph-filesystem-c` slow metadata IOs - the pre-existing
+baseline, not a drill effect. Raw usage 30.86%, 12 TiB available. The four muted alerts are the
+tracked CephX items (`docs/ceph-cluster-changelog.md`).
 
-### Cleanup
+## Finding 1: the Stage 1 pilot volume is empty
 
-All drill objects removed; sweep returns nothing:
+`downloads/autobrr` keeps all of its state in the shared `postgres-17` CNPG cluster
+(`AUTOBRR__DATABASE_TYPE=postgres`). Its 5Gi `ceph-block` claim holds **zero files** and has done
+for the 328 days it has existed. Four independent sources agree, none of them this drill:
+
+| Evidence | Result |
+|---|---|
+| live pod, `find /config -xdev -type f \| wc -l` | `0` (only the `log` mount point dir) |
+| live pod, `df -k /config` | `12` KiB used of 5 074 592 KiB |
+| kopiur `Snapshot` CRs, `.status.stats`, both destinations | `{"filesNew":0,"sizeBytes":0}` |
+| VolSync restic mover logs, all **three** destinations | `processed 0 files, 0 B in 0:00` |
+
+**Consequences worth carrying forward:**
+
+- Stage 1's gate ("kopiur `Snapshot` reaches `Succeeded`") is satisfiable by a volume that moves
+  no data. A `Succeeded` snapshot of 0 bytes is not evidence that backup works. The
+  `.status.stats` check in step 1 above is the cheap fix.
+- VolSync has been storing three copies of an empty volume for 328 days. Whether `autobrr`
+  should be backed up at all is a separate captain call, deliberately not actioned here.
+- `autobrr` remains onboarded to kopiur. It is a working dual-backup volume and a valid
+  mechanism test; it is simply not a fidelity subject.
+
+## Finding 2: a mover identity mismatch fails the backup outright
+
+With the component's default `KOPIUR_PUID`/`KOPIUR_PGID` of `1000`, **both destinations failed**
+on `sabnzbd-config`:
+
+```
+snapshot create failed (class PermissionDenied): ... Found 7 fatal error(s) while snapshotting
+Error when processing "sabnzbd.iniEAbhLb": unable to open file: ... permission denied
+```
+
+The 7 files are exactly those with **no world-read bit** - five `0600` and two `0660` owned by
+group `2000`. The other four `sabnzbd.ini*` files are `0664` and were readable through the
+"other" bit. sabnzbd runs as `2000:2000`.
+
+**Three things make this worth recording rather than just fixing:**
+
+1. **kopiur failed closed.** It wrote no snapshot at all rather than a partial one - `phase:
+   Failed`, `kopiaSnapshotID` empty. The admission webhook had also warned at apply time, naming
+   the exact risk: *"the backup may fail with permission denied or silently skip unreadable
+   files"*. It failed rather than skipped, which is the safe half of that warning.
+2. **VolSync does not fail on the same claim, and the reason has a consequence.** VolSync's
+   component carries the identical `VOLSYNC_PUID:-1000` default and `sabnzbd` does not override
+   it, yet its movers report `Successful`, `processed 2061 files, 2.057 GiB`. The difference is
+   the mount: kopiur mounts the staged source `readOnly: true` (`sources[].readOnly` defaults
+   true) and **kubelet does not apply `fsGroup` to a read-only mount**, so the mover's gid never
+   gains access. VolSync mounts its staged clone writable, so kubelet's `fsGroup` walk rewrites
+   group ownership and permissions before restic reads it. That is why kopiur, with a matched
+   identity and no such rewrite, reproduced the **original** `0600` modes exactly.
+3. **The fix is per-app and must not be forgotten.** Any app whose pod `securityContext` is not
+   `1000` needs `KOPIUR_PUID`/`KOPIUR_PGID` set to match, or the mover cannot read its files.
+   `kubernetes/apps/main/downloads/sabnzbd.yaml` carries the pair with the reasoning inline.
+   Step 2 of the procedure is the pre-flight check.
+
+## Cleanup
+
+All drill objects removed; the sweep returns nothing:
 
 ```
 $ kubectl get restore.kopiur.home-operations.com,pvc,pod,job -A -l fm.homeops/restore-drill
 No resources found
 ```
 
-Deliberately retained: both Stage 1 `Snapshot` CRs (`autobrr-ceph-stage1-verify`,
-`autobrr-r2-stage1-verify`), the two `SnapshotPolicy`/`SnapshotSchedule` pairs, and the standing
-`autobrr-kopiur-dst` `Restore`. All are Git-managed or deliberate Stage 1 state, and deleting a
-`Snapshot` CR would delete backup data.
+**Deliberately retained** - four `Snapshot` CRs, each owning real kopia data:
+
+| Snapshot CR | kopia snapshot | What it is |
+|---|---|---|
+| `autobrr-ceph-stage1-verify` | `8ff00143…a06c` | Stage 1 first backup (empty volume) |
+| `autobrr-r2-stage1-verify` | `0a55e125…d135` | Stage 1 first backup (empty volume) |
+| `sabnzbd-ceph-stage2-verify` | `da9290a7…86a8` | Stage 2 first backup, 2.06 GiB |
+| `sabnzbd-r2-stage2-verify` | `3597d0ea…7fc3` | Stage 2 first backup, 2.06 GiB |
+
+Also retained: both apps' `SnapshotPolicy`/`SnapshotSchedule` pairs and their standing
+`*-kopiur-dst` `Restore` objects. The standing Restores sit `Pending`, which is their correct
+steady state for the whole parallel run - `target.populator` means "waiting to be claimed", and
+every claim's `dataSourceRef` still points at VolSync until Stage 5. Do not "tidy" them.
+
+The two **failed** `sabnzbd-*-stage2-verify` Snapshot CRs from the first attempt were deleted
+after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
 
 ## What this drill proved, and did not prove
 
 **Proved:**
 
-- The kopiur restore path works end to end from **both** repository backends: `Restore` CR ->
-  mover Job -> newly provisioned PVC -> bound -> mountable. Roughly 10-12s each for a 5Gi claim.
-- The **offsite** R2 repository is readable and its credentials work, independently of the local
-  Ceph one. R2 was never exercised by the 2026-08-23 VolSync drill, so this is the first restore
-  proof of any kind from that destination.
-- `target.pvc` creates a brand-new PVC and never addresses a live claim - the drill-safe mode.
-- `source.fromPolicy` with `offset: 0` resolves to the expected newest snapshot in both
-  repositories, verified by kopia snapshot ID.
-- The Stage 1 namespace-local credential copy (`kopiur-ceph-secret` / `kopiur-r2-secret` in
-  `downloads`) is sufficient for the **restore** path, not only the backup path.
-- Deleting drill `Restore` CRs and PVCs does not reach snapshot data, and the mechanism why
-  (no finalizers, no ownerReferences on the drill objects; no ownerReference from any `Snapshot`
-  CR to anything the drill owns) is recorded above.
-- The drill leaves `ceph health` unchanged.
+- **Byte-level restore fidelity from both destinations**, over 2062 files / 2.06 GiB, by per-file
+  sha256 against a bracketed live baseline - content, file count, total bytes, modes and
+  ownership all identical. This is the Stage 2 acceptance gate, and it is met.
+- The **offsite** R2 repository restores independently of the local Ceph one. R2 was never
+  exercised by the 2026-08-23 VolSync drill, so this is the first restore proof from that
+  destination by either engine.
+- `target.pvc` creates a brand-new PVC and never addresses a live claim; `source.fromPolicy`
+  with `offset: 0` resolves to the expected snapshot, verified by kopia snapshot ID all four
+  times.
+- The `${KOPIUR_CLAIM:-${APP}}` override works where claim name ≠ app name.
+- kopiur's staging never mounts the live claim - each policy takes its own CSI `VolumeSnapshot`.
+- The Stage 1 namespace-local credential copy serves the **restore** path, not only backup.
+- Deleting drill objects cannot reach snapshot data, with the mechanism recorded.
+- Two backup systems run simultaneously on both pilot claims without interfering.
 
-**Did not prove - and this is the gate that remains open:**
+**Did not prove:**
 
-- **Byte-level data fidelity. There were no bytes.** The Stage 2 acceptance criterion is not
-  met. Until a kopiur restore reproduces real file content verified by checksum, no VolSync
-  retirement (Stage 5) is justified for any volume.
-- Restore of a volume with meaningful size. Both restores moved 0 bytes, so the 10-12s timings
-  measure orchestration overhead only and **must not** be extrapolated - kopia mover time scales
-  with snapshot content.
-- Restore of a CephFS / RWX claim. This drill covered `ceph-block`/RWO only.
-- `target.populator` mode against a real claim (Stage 5 mechanism, deliberately out of scope).
-- Retention/pruning behaviour, and `Maintenance`.
+- Restore of a large PVC. 2.06 GiB restored in under ~86s; `immich` (100Gi) and `syncthing-data`
+  (100Gi) will be substantially slower and should be measured, not extrapolated.
+- Restore of a CephFS / RWX claim. Both attempts covered `ceph-block`/RWO only.
+- `target.populator` mode against a real claim - the Stage 5 mechanism, deliberately out of scope.
+- Retention/pruning behaviour, `Maintenance`, or restore from any snapshot other than the newest
+  (`offset: 0` throughout).
+- Anything about the other 103 VolSync-covered claims. Two volumes are onboarded to kopiur; this
+  is not fleet coverage.
 
-## Follow-up required before Stage 2 can be signed off
+## Follow-ups
 
-1. **Re-run this drill on a pilot volume that actually has files on disk.** The procedure above
-   is unchanged; only the app changes. Verify with `.status.stats` (step 1) *before* restoring
-   that the chosen snapshot has non-zero `sizeBytes`.
-2. **Add the `.status.stats` check to the Stage 1 gate.** As written, Stage 1's gate
-   ("kopiur `Snapshot` reaches `Succeeded`") is satisfied by an empty volume, which is how a
-   pilot that moves no data passed it. A `Succeeded` snapshot of 0 bytes is not evidence that
-   backup works.
-3. **Re-check whether `downloads/autobrr` should be backed up at all.** VolSync has been storing
-   three copies of an empty volume for 328 days. Its real state lives in `postgres-17`, which is
-   covered by CNPG Barman. This is a captain call, not a drill outcome, and it is deliberately
-   *not* actioned here - but it is the cheapest coverage cleanup on the board.
-
-## Safety notes for whoever runs this next
-
-- A restore performs **no writes to the repository**. Kopia takes no lock for a read of this
-  shape and the drill wrote nothing to either bucket.
-- `mover.cache.mode: Ephemeral` still provisions a real PVC - the CRD calls `capacity` the
-  "Size of the PVC backing the mover's kopia cache". It is a generic ephemeral volume named
-  `<mover-pod>-kopia-cache`, owned by the mover pod and reaped with it, so nothing *stands*
-  after the run; but a drill does transiently consume 2Gi of `ceph-block` per destination.
-- Always verify the `<app>-kopiur-drill-*` names are free before applying, so a re-run cannot
-  collide with a previous drill's leftovers.
-- Do not "tidy up" the standing `<app>-kopiur-dst` `Restore` while it sits `Pending`. `Pending`
-  is its correct steady state for the whole parallel run - `target.populator` means it is
-  waiting to be claimed, and every claim's `dataSourceRef` still points at VolSync until
-  Stage 5.
+1. **Add the `.status.stats` non-zero check to the Stage 1/Stage 3 onboarding gate.** A
+   `Succeeded` snapshot of an empty volume currently passes it.
+2. **Add the mover-identity check to the Stage 3 rollout.** Every app whose pod
+   `securityContext` is not `1000` needs `KOPIUR_PUID`/`KOPIUR_PGID`. Worth considering whether
+   the component should adopt `mover.inheritSecurityContextFrom.pvcConsumer` - which the webhook
+   itself recommends - so the identity is derived rather than hand-maintained per app. That is a
+   component-wide change and was deliberately **not** made here.
+3. **Reconcile the 2061 vs 2062 file count.** kopiur records 2062 files for `sabnzbd-config`,
+   matching a live count taken as the app's own uid; VolSync's restic reports 2061. The
+   difference may be nothing more than restic's counting convention, but it has not been
+   investigated and should not be assumed benign.
+4. **Consider whether VolSync's writable staging is a fidelity concern of its own.** kopiur
+   reproduces the original modes; whether a VolSync restore does was not tested here and is a
+   separate drill.
+5. **Re-examine whether `downloads/autobrr` needs volume backup at all** (finding 1).
+6. Measure a large-PVC and a CephFS/RWX restore before Stage 5 retires anything in those classes.
