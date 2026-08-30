@@ -20,9 +20,9 @@ Where feasible the real consumer artifact is also exercised:
 
 Live cluster proof (OpenAI chat completion through the virtual key from a
 runner pod) is intentionally outside this unit: it needs the in-cluster ARC
-runner and a minted key. That path is documented in
-docs/ai-system/litellm/pr-reviewer.md §7 and remains unproven until first
-post-merge run of the action itself.
+runner and a minted key. Evidence, the proven credential-absent skip path,
+and what is still unproven (model-backed review) are owned by
+docs/ai-system/litellm/pr-reviewer.md §7.
 """
 
 from __future__ import annotations
