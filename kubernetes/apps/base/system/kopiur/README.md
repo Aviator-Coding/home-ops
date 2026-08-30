@@ -115,16 +115,13 @@ VolSync's token, so it is demonstrably a new credential and not a cached one):
 | `GetObject` | succeeded, byte-identical round trip |
 | `DeleteObject` | succeeded; the prefix afterwards lists zero keys |
 
-**One thing worth knowing about this token's scope.** It is not `kopiur`-only.
-`ListBuckets` is denied, but it can also *read* the `volsync` bucket
-(`HeadBucket` succeeds, `ListObjectsV2` returns real keys). No write to that
-bucket was attempted and none ever should be. So the isolation is weaker than
-"scoped to `kopiur` alone": a mistake made with this credential could in
-principle reach VolSync's restic data. Nothing in this repo hands it to
-anything but the `r2` `ClusterRepository`, which only ever addresses the
-`kopiur` bucket, and Stage 0 performs no backup IO at all - but narrowing the
-token to `kopiur` alone remains worth doing, and is a one-line change in the
-Cloudflare console with no repo change at all.
+**The token is scoped to `kopiur` alone**, verified 2026-08-30 after the
+captain narrowed it: `volsync` is refused (`HeadBucket` 403, `ListObjectsV2`
+`AccessDenied`) and `ListBuckets` is denied, while the operations above keep
+passing. So this credential reaches exactly one bucket, with full read and
+write on it, and cannot touch VolSync's restic data at all. VolSync's own R2
+credential is a different key pair and was re-checked against its bucket after
+the narrowing - unaffected.
 
 #### Why the VolSync token was not reused (history)
 
