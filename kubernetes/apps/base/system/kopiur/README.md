@@ -124,6 +124,36 @@ independently confirm the `kopiur` bucket exists. It rests on the captain's
 console URL. Re-running the probe above after the token is re-scoped settles
 both questions at once.
 
+#### Re-probed 2026-08-30 05:21-05:27Z after the captain reported R2 was set up
+
+Same result: the credential 1Password holds **today** is still refused on
+`kopiur`. The `volsync` control still passes from the identical pod, endpoint
+and signing path (`HeadBucket` -> `BucketRegion: ENAM`), and `kopiur` still
+returns `403 Forbidden` on `HeadBucket` and `AccessDenied` on `PutObject`.
+
+The credential tested was provably current, which is the part a stale
+materialized Secret could otherwise hide:
+
+- A throwaway `ExternalSecret` was created for the probe, so it fetched
+  `volsync-template` from 1Password Connect at probe time rather than reusing
+  any Secret ESO had materialized earlier; it was re-created and re-fetched a
+  second time before the retry.
+- 1Password Connect reports that item as version 17889, `updatedAt`
+  `2026-08-30T04:48:19Z` - i.e. the captain's edit had landed and Connect could
+  see it well before the probe ran.
+- `R2_HOME_OPS_ENDPOINT_URL` in that item is still the captain's account host,
+  and `R2_HOME_OPS_ACCESS_KEY` / `R2_HOME_OPS_SECRET_KEY` hash identically to
+  what the live VolSync R2 Secrets already carry - so the R2 key pair was not
+  replaced, and an in-place scope edit (which keeps the same keys) evidently
+  did not extend to `kopiur` either.
+
+Existing offsite backups are unaffected and were re-confirmed rather than
+assumed: all 105 `ReplicationSource`s are present, the 35 `*-r2` ones have no
+failing conditions, and several synced successfully **after** the 04:48Z
+1Password edit (latest observed `2026-08-30T05:21:16Z`). Every probe object -
+the throwaway `ExternalSecret`, its Secret, and both probe pods - was deleted
+afterwards.
+
 > **Lose a `KOPIA_PASSWORD` and that repository is permanently unrecoverable.**
 > kopia cannot decrypt without it and there is no recovery path.
 >
