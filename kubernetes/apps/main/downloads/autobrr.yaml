@@ -24,10 +24,24 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
+    # kopiur runs ALONGSIDE volsync on this claim (migration Stage 1 pilot).
+    # kopiur-repository, not kopiur: it is the Kustomization that applies the
+    # `ceph` and `r2` ClusterRepository objects the policies below reference,
+    # and it already dependsOn the operator itself. The admission webhook is
+    # failurePolicy: Fail, so with the operator down the API server REJECTS
+    # these CRs outright rather than leaving them unreconciled.
+    - name: kopiur-repository
+      namespace: system
     - name: postgres-cluster-17
       namespace: database
   components:
+    # BOTH backup systems, deliberately and simultaneously. This is the whole
+    # safety property of migration Stage 1: autobrr is the pilot volume and it
+    # has two independent, working backups, not one being swapped for another.
+    # volsync's entry is unchanged and must stay that way until a restore has
+    # been demonstrated from kopiur for this volume (Stage 2).
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -37,3 +51,9 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "45 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "45 3 * * *"
+      # kopiur takes no schedule overrides on purpose: the component's
+      # defaults hash the minute (`H`) and offset the HOUR away from the
+      # volsync lines above (ceph 01/05/09/13/17/21 vs volsync's 00/04/08/...,
+      # r2 04:xx vs volsync's 03:45), so the two systems cannot land on the
+      # same minute for this claim. Every other KOPIUR_* default already
+      # matches this app: claim name == app name, uid/gid 1000, 5Gi PVC.

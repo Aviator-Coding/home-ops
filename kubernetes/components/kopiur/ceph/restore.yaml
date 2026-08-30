@@ -1,0 +1,63 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/restore_v1alpha1.json
+#
+# kopiur's counterpart to ../../volsync/ceph/replicationdestination.yaml: the
+# standing restore-target-in-waiting, declared once per app so a rebuilt claim
+# can be seeded from the newest ceph snapshot without anyone hand-writing a
+# manifest during an incident. Only the CEPH destination gets one, exactly as
+# VolSync only has a ceph ReplicationDestination - it is the local, fastest
+# repository. Restoring from r2 is a deliberate, hand-written act.
+#
+# PASSIVE for the whole of the parallel run. `target.populator` means "wait to
+# be claimed by a PVC's spec.dataSourceRef", and during the migration every
+# claim's dataSourceRef still points at VolSync's ${APP}-dst
+# ReplicationDestination. So this object is inert until Stage 5 repoints it.
+# It costs nothing to declare now and it means the restore path ships and is
+# reviewed with the backup path rather than being invented under pressure.
+#
+# NOT the object to use for a restore DRILL. Per
+# docs/backups/restore-drill-2026-08-23.md a drill must create a NEW, uniquely
+# named target and never touch a live claim or the standing destination - use a
+# scratch Restore with `target.pvc`, which makes its own PVC. The same document
+# explains why editing a standing destination in place is a trap: it carries
+# the Flux ssa: IfNotPresent label below, so Flux creates it once and then never
+# reconciles it again, and any manual edit persists silently forever (a live
+# VolSync ReplicationDestination has been drifted since October 2025 this way).
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: "${APP}-kopiur-dst"
+  labels:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+spec:
+  repository:
+    kind: ClusterRepository
+    name: ceph
+  source:
+    fromPolicy:
+      name: "${APP}-ceph"
+      # 0 = the newest snapshot.
+      offset: 0
+  target:
+    populator: {}
+  policy:
+    # Deploy-or-restore, and a DELIBERATE departure from the CRD's `Fail`
+    # default. `Continue` provisions an EMPTY volume when the policy has no
+    # snapshot yet, which is what makes a first deploy of a brand-new app work
+    # at all; `Fail` would wedge the claim forever waiting for history that
+    # cannot exist. This mirrors VolSync's ReplicationDestination behaviour and
+    # is the setting both large adopters ship.
+    #
+    # The trade-off is real and worth stating: `Continue` means a restore that
+    # finds nothing silently yields an empty volume instead of erroring. That is
+    # correct for a populator seeding a fresh claim and WRONG for a drill, which
+    # is the other reason a drill uses its own scratch Restore (fail-closed).
+    onMissingSnapshot: Continue
+  mover:
+    podSecurityContext:
+      runAsUser: ${KOPIUR_PUID:-1000}
+      runAsGroup: ${KOPIUR_PGID:-1000}
+      fsGroup: ${KOPIUR_PGID:-1000}
+    cache:
+      mode: Ephemeral
+      capacity: "${KOPIUR_CACHE_CAPACITY:-2Gi}"

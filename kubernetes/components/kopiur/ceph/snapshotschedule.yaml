@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotschedule_v1alpha1.json
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotSchedule
+metadata:
+  name: "${APP}-ceph"
+spec:
+  policyRef:
+    name: "${APP}-ceph"
+  schedule:
+    # Every 4 hours, matching VolSync's ceph cadence - but on the ODD 4-hour
+    # slots (01,05,09,13,17,21) where VolSync runs on the even ones
+    # (00,04,08,...). That hour offset is what keeps the two systems off each
+    # other, and it is structural rather than probabilistic.
+    #
+    # The MINUTE is Jenkins-style `H`: kopiur hashes it deterministically from
+    # the schedule's identity, which spreads 100+ future volumes across the
+    # hour on its own. This is the native replacement for VolSync's
+    # hand-maintained per-app stagger table and its MutatingAdmissionPolicy
+    # (which injects a `sleep $(shuf -i 0-90 -n 1)` initContainer into every
+    # volsync-src-* Job). Do NOT hand-assign minutes here.
+    #
+    # Note kopiur accepts BARE `H` only - Jenkins range syntax `H(0-19)` is
+    # rejected by the webhook ("CronPattern contains illegal character 'H'"),
+    # which is why the hour field, not a bounded minute, does the separating.
+    cron: "${KOPIUR_SCHEDULE_CEPH:-H 1-23/4 * * *}"
+    # Deterministic, derived from (scheduleUID, slot) - decorrelates the actual
+    # firing instant on top of the hashed minute.
+    jitter: 5m
+  # See ../ceph/snapshotpolicy.yaml for why this is pinned rather than defaulted.
+  deletion:
+    onScheduleDelete: Retain

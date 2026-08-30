@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Backup-only bundle: a SnapshotPolicy + SnapshotSchedule per destination (plus
+# the ceph Restore) for an EXISTING PVC named ${KOPIUR_CLAIM:-${APP}}. Mirrors
+# ../../volsync/backup/kustomization.yaml field for field, including its two
+# ways of being used:
+#   1. via the ../ parent Component - the normal single-claim case.
+#   2. as the `path` of a dedicated Flux Kustomization - the multi-claim case.
+#      Flux allows one postBuild.substitute map per Kustomization, so each extra
+#      claim needs its own Kustomization with its own APP/KOPIUR_CLAIM pair.
+#      This is why ./backup stays a plain Kustomization rather than a Component:
+#      `kustomize build` (and therefore Flux's `path`) cannot render a Component
+#      directly. See ../Readme.md "Apps with more than one volume".
+#
+# TWO destinations, not three. MinIO is deliberately absent - Stage 0 gave
+# kopiur no MinIO ClusterRepository (the captain is retiring MinIO over its
+# licensing change). The live VolSync MinIO backups keep running untouched.
+resources:
+  - ../ceph
+  - ../r2
