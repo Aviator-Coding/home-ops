@@ -80,7 +80,11 @@ Three notes on why the split falls where it does:
 - `kopiur-ceph-bucket` is a **record**, not an input: nothing in the cluster
   reads it. It is separate from `kopiur-ceph` because the two have different
   lifetimes - Rook owns and can regenerate those S3 keys, whereas a lost kopia
-  password is unrecoverable.
+  password is unrecoverable. Still true as of Stage 1: the migration pilot needs
+  those same S3 keys inside its own namespace, and mirrors them from the OBC's
+  generated `system/kopiur` Secret - the authoritative source - rather than
+  reading this record back. See `kubernetes/components/kopiur/Readme.md`
+  "Credentials".
 - Nothing kopiur owns reads `volsync-template` any more. That item is live for
   105 `ReplicationSource`s (35 of them on R2) and is **not** ours to touch,
   restructure or migrate; its cleanup belongs to VolSync's retirement, not to

@@ -60,6 +60,54 @@ one governs **retention pruning** and has to be `Delete` or expired snapshots
 would never reclaim space. The repository-level circuit breaker
 (`deletionProtection.threshold: 10`) is pinned in Stage 0.
 
+## Credentials - a known, deliberate, PILOT-ONLY compromise
+
+> **This is scaffolding with an open decision behind it, not the permanent
+> design. Do not extend it to another namespace.** Captain decision 2026-08-30,
+> key `kopiur-workload-ns-credentials`.
+
+A kopiur mover Job runs in the **workload** namespace and loads its repository
+credentials with `envFrom`, which is namespace-local. Both `ClusterRepository`
+objects pin their Secrets to `system`, so a backup in `downloads` cannot see
+them - the CRs reconcile perfectly clean and the backup fails at run time. This
+was a real gap in Stage 0, found while building this component.
+
+Upstream's own answer is **credential projection**, where the operator copies the
+Secret into the mover's namespace for the duration of a run and reaps it after.
+That is the better end state and it is **deferred, not rejected**: turning it on
+requires granting the operator unscoped Secret create/patch/delete cluster-wide,
+which makes a compromised backup operator a cluster-wide credential-rewrite
+primitive. That is a permanent, security-sensitive architecture change, and
+making it to unblock a single 5Gi pilot volume is the wrong order of operations.
+
+So the pilot instead copies the credentials into `downloads` only:
+
+* `kubernetes/apps/base/downloads/kopiur-credentials/` - three `ExternalSecret`s
+  producing `kopiur`, `kopiur-ceph-secret` and `kopiur-r2-secret`, under the
+  exact names the `ClusterRepository` specs reference.
+* `kubernetes/apps/base/security/external-secrets/stores/kopiur-system-secrets/` -
+  a kubernetes-provider `ClusterSecretStore` reading `system`, **restricted to
+  `namespaces: [downloads]`**. That restriction is load-bearing: `system` also
+  holds `cluster-secrets`, which every Flux `postBuild` substitution reads.
+
+The Ceph S3 keys are mirrored from the ObjectBucketClaim's own generated Secret
+(`system/kopiur`), not from 1Password. Rook generates and rotates them, so the
+OBC Secret is the authoritative source; Stage 0's `kopiur-ceph-bucket` 1Password
+item stays a **record that nothing reads**, exactly as its README says.
+
+### The accepted risk, stated plainly
+
+At pilot scale this is three objects in one namespace - negligible. **At Stage 3
+it would mean standing backup credentials in ~19 app namespaces, so compromising
+any single app namespace would yield read/write access to the backup
+repositories.** That is the ransomware-shaped risk, and it is precisely why the
+permanent shape is deferred to a decision rather than defaulted into by
+inheritance. The captain chooses it before Stage 3, when the cost actually
+appears.
+
+**Anyone onboarding a second namespace must resolve that decision first.** This
+section exists so the compromise cannot become the permanent design by inertia.
+
 ## Per-Application Usage
 
 In the app's Flux Kustomization (`apps/main/<ns>/<app>.yaml`), **alongside**
@@ -71,6 +119,9 @@ volsync - not instead of it:
       namespace: system
     - name: kopiur-repository        # applies the ceph/r2 ClusterRepositories
       namespace: system              # and itself dependsOn the operator
+    - name: kopiur-credentials       # PILOT ONLY - see "Credentials" above.
+      namespace: downloads           # A new namespace has no equivalent yet,
+                                     # and creating one needs that decision.
   components:
     - ../../../../../components/volsync
     - ../../../../../components/kopiur

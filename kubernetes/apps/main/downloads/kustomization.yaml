@@ -12,6 +12,7 @@ resources:
   # Flux-Kustomizations
   - ./autobrr.yaml
   - ./bazarr.yaml
+  - ./kopiur-credentials.yaml
   - ./lidarr.yaml
   - ./maintenance.yaml
   - ./prowlarr.yaml
