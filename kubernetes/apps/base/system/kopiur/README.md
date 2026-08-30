@@ -7,12 +7,23 @@ credentials. What to back up lives in
 [`kubernetes/components/kopiur/`](../../../../components/kopiur/Readme.md).
 
 Stage 0 installs the operator and declares *where* backups could go. It creates
-no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status:**
-Stage 1 put exactly one pilot volume (`downloads/autobrr`) on the backup
-component alongside untouched VolSync; every other claim is still VolSync-only.
-Do not read this directory's presence as fleet coverage, and do not onboard a
-second app without the Stage 2 restore proof. Details, schedules, credentials
-compromise and rollback: the component Readme.
+no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status:** Stages 1-2 put two volumes on the backup component
+alongside untouched VolSync - `downloads/autobrr` (Stage 1 pilot) and
+`downloads/sabnzbd-config` (Stage 2 fidelity subject); every other claim is
+still VolSync-only. Stage 2's restore gate **passed** on 2026-08-30 -
+[`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
+- sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
+2.06 GiB, per-file sha256, modes and ownership included). Do not read this
+directory's presence as fleet coverage, and do **not** onboard any further app:
+that is Stage 3 and needs its own captain decision; passing Stage 2 is
+explicitly not authorisation to begin it. `KOPIUR_PUID`/`KOPIUR_PGID` must match
+the workload that owns the claim's files, or the backup fails outright on any
+file lacking a world-read bit (kopiur fails closed; drill finding 2) - a
+prerequisite for every future onboarding, not a sabnzbd quirk. The Stage 1 pilot
+holds **zero** files (all state is in `postgres-17`), so it is a valid mechanism
+test but never could prove byte-level fidelity; a `Succeeded` snapshot with
+`.status.stats sizeBytes 0` is not evidence backup works. Details, schedules,
+credentials compromise and rollback: the component Readme.
 
 **Stage 0 rollback** (operator/repos only): delete the `kopiur` and
 `kopiur-repository` Flux Kustomizations. That removes the control plane; it does

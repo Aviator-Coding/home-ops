@@ -8,10 +8,23 @@ Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stage 1 (pilot).** Exactly one volume - `downloads/autobrr`
-> - is on this component. Every other volume in the cluster is still backed up
-> by VolSync alone, and autobrr is backed up by **both**. Do not add a second app
-> here without the migration's Stage 2 restore proof. Plan of record:
+> **Migration status: Stages 1-2.** Live on exactly two volumes -
+> `downloads/autobrr` (Stage 1 pilot) and `downloads/sabnzbd-config` (Stage 2
+> fidelity subject) - both running **alongside** an untouched
+> `components/volsync`. Every other volume is still VolSync-only. Stage 2's
+> restore gate **passed** on 2026-08-30:
+> [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
+> - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
+> 2.06 GiB, per-file sha256, modes and ownership included). Do **not** onboard
+> any further app: that is Stage 3 and needs its own captain decision; passing
+> Stage 2 is explicitly not authorisation to begin it. `KOPIUR_PUID`/`KOPIUR_PGID`
+> must match the workload that owns the claim's files, or the backup fails
+> outright on any file lacking a world-read bit (kopiur fails closed; its
+> admission webhook warns at apply time) - a prerequisite for every future
+> onboarding, not a sabnzbd quirk (drill finding 2). The Stage 1 pilot holds
+> **zero** files (all state is in `postgres-17`), so it is a valid mechanism test
+> but never could prove byte-level fidelity; a `Succeeded` snapshot with
+> `.status.stats sizeBytes 0` is not evidence backup works. Plan of record:
 > firstmate's `homeops-kopiur-vs-volsync-scout` report, section 6.
 
 ## Directory Structure
@@ -157,7 +170,7 @@ added complexity at exactly the wrong moment.
 | `KOPIUR_CLAIM` | `${APP}` | source PVC when it differs from the app name |
 | `KOPIUR_SNAPSHOTCLASS` | `csi-ceph-blockpool` | |
 | `KOPIUR_CACHE_CAPACITY` | `2Gi` | ephemeral, discarded after each run |
-| `KOPIUR_PUID` / `KOPIUR_PGID` | `1000` | mirrors `VOLSYNC_PUID`/`PGID` |
+| `KOPIUR_PUID` / `KOPIUR_PGID` | `1000` | must match the workload uid/gid or backup fails closed on non-world-readable files (drill finding 2); mirrors `VOLSYNC_PUID`/`PGID` defaults only |
 | `KOPIUR_SCHEDULE_CEPH` | `H 1-23/4 * * *` | |
 | `KOPIUR_SCHEDULE_R2` | `H 4 * * *` | |
 
@@ -269,4 +282,5 @@ immediate reconcile.
 * Stage 0 (operator, repositories, credentials): [`kubernetes/apps/base/system/kopiur/README.md`](../../apps/base/system/kopiur/README.md)
 * The system this runs beside: [`../volsync/Readme.md`](../volsync/Readme.md)
 * Restore drill procedure and its hard constraints: [`docs/backups/restore-drill-2026-08-23.md`](../../../docs/backups/restore-drill-2026-08-23.md)
+* Stage 2 restore gate (both destinations, both findings): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 * Upstream docs: <https://kopiur.home-operations.com>

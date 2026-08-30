@@ -26,8 +26,25 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
+      namespace: system
+    - name: kopiur-credentials
+      namespace: downloads
   components:
+    # BOTH backup systems, deliberately and simultaneously - the same shape as
+    # downloads/autobrr, which see for the full rationale.
+    #
+    # This is the SECOND and LAST volume onboarded under migration Stage 2. It
+    # is not the start of Stage 3. autobrr, the original Stage 1 pilot, turned
+    # out to hold ZERO files (all its state is in postgres-17), so a restore of
+    # it could never demonstrate byte-level fidelity - Stage 2's whole purpose.
+    # sabnzbd-config was chosen to replace it as the fidelity subject because it
+    # holds ~2,000 files / 2.1 GB of real data and is already backed by all
+    # three volsync sources. Captain decision `kopiur-stage2-empty-pilot`,
+    # 2026-08-30; evidence in docs/backups/kopiur-restore-drill-2026-08-30.md.
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -38,3 +55,32 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "30 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "30 3 * * *"
+      # The claim is `sabnzbd-config` while the app is `sabnzbd`, so kopiur
+      # needs the same override volsync takes above. This is the common case
+      # for real apps, and autobrr (claim name == app name) never exercised it.
+      KOPIUR_CLAIM: sabnzbd-config
+      # LOAD-BEARING, and NOT cosmetic parity with the app's securityContext.
+      # sabnzbd runs as 2000:2000 and owns its files as 2000:2000. The kopiur
+      # component defaults to 1000 (mirroring volsync's own default, which
+      # this app also does not override). At 1000 the ceph and r2 snapshots
+      # BOTH FAIL: 7 of sabnzbd-config's files carry no world-read bit
+      # (five 0600, two 0660 group 2000) and kopia cannot open them ->
+      # `snapshot create failed (class PermissionDenied) ... Found 7 fatal
+      # error(s)`. Measured 2026-08-30; the admission webhook warns about it at
+      # apply time too.
+      #
+      # volsync survives the same mismatch only because it mounts the staged
+      # clone read-write, so kubelet's fsGroup walk rewrites group ownership
+      # and permissions before restic reads it. kopiur mounts the staged source
+      # readOnly (sources[].readOnly defaults true), and kubelet does not apply
+      # fsGroup to a read-only mount - so the mover's gid never gains access.
+      # Matching the workload is the fix that needs no such rewrite, and it is
+      # what makes a kopiur restore reproduce the ORIGINAL modes.
+      #
+      # Any future app whose pod securityContext is not 1000 needs this pair.
+      # See docs/backups/kopiur-restore-drill-2026-08-30.md.
+      KOPIUR_PUID: "2000"
+      KOPIUR_PGID: "2000"
+      # Schedules are deliberately left at the component defaults, which offset
+      # kopiur onto the ODD 4-hour slots and hash the minute, keeping it clear
+      # of the volsync lines above. Do not hand-assign minutes.

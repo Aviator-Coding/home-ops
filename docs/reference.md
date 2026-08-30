@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **57**. Each of those files is listed exactly once below, including this index. Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **59**. Each of those files is listed exactly once below, including this index. Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -18,7 +18,7 @@ These are not under `docs/`. They are the day-to-day starting points.
 | [`README.md`](../README.md) | Cluster overview |
 | [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md) | Volsync schedules, multi-volume pattern, and restore (fleet live backups) |
 | [`kubernetes/apps/base/system/kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md) | kopiur Stage 0: operator + ceph/r2 repositories, deletion-protection and credential layout |
-| [`kubernetes/components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md) | kopiur Stage 1 backup component: schedules, restore-vs-drill, pilot-only credentials, rollback. Exactly one pilot volume today. |
+| [`kubernetes/components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md) | kopiur backup component (Stages 1-2): schedules, restore-vs-drill, pilot-only credentials, mover-identity requirement, rollback. Live on exactly two volumes today. |
 
 ## AI
 
@@ -35,6 +35,7 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 | [`ai-system/litellm/fallbacks.md`](ai-system/litellm/fallbacks.md) | Phase 5 availability and context-window fallbacks, plus the config-fallback allow-list bypass. Read before adding a cloud fallback or proving failover. |
 | [`ai-system/litellm/claude-code-subscription.md`](ai-system/litellm/claude-code-subscription.md) | Claude Code Max/Pro pass-through: OAuth token forwarding, $0 pricing, no cluster Anthropic key. Use when wiring the `claude` CLI through the proxy. |
 | [`ai-system/litellm/request-logs.md`](ai-system/litellm/request-logs.md) | How to read stored prompts, responses, and cost from Postgres spend logs. Use when investigating what a caller sent or spent. |
+| [`ai-system/litellm/pr-reviewer.md`](ai-system/litellm/pr-reviewer.md) | In-cluster AI PR reviewer: advisory-only comments, zero-priced local alias, standards file and rotation traps. |
 | [`ai-system/agentgateway/README.md`](ai-system/agentgateway/README.md) | Cluster-specific AgentGateway install (standalone v1.4.1 in `ai`). Start here; do not follow kgateway docs. |
 | [`ai-system/agentgateway/01-quickstart.md`](ai-system/agentgateway/01-quickstart.md) | Live-cluster smoke commands for the three Gateways and the unified `/v1` route. |
 | [`ai-system/agentgateway/02-installation.md`](ai-system/agentgateway/02-installation.md) | Flux install tree (CRDs + chart). Use this instead of `helm upgrade -i kgateway`. |
@@ -67,10 +68,11 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 
 ## Backups
 
-Fleet PVC backup remains VolSync (105 `ReplicationSource`s). kopiur Stage 1 runs **alongside** VolSync on exactly one pilot volume (`downloads/autobrr`); every other claim is VolSync-only. Operator/repos: [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md). Component and pilot rules: [`components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md).
+Fleet PVC backup remains VolSync (105 `ReplicationSource`s). kopiur Stages 1-2 run **alongside** VolSync on exactly two volumes (`downloads/autobrr`, `downloads/sabnzbd-config`); every other claim is VolSync-only. Stage 2 restore gate passed 2026-08-30. Operator/repos: [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md). Component and pilot rules: [`components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md).
 
 | Path | What it covers |
 |---|---|
+| [`backups/kopiur-restore-drill-2026-08-30.md`](backups/kopiur-restore-drill-2026-08-30.md) | Verified kopiur restore procedure and Stage 2 gate (ceph + r2, sabnzbd-config byte-identical). Durable procedure plus two findings (empty Stage 1 pilot; mover-identity prerequisite). Timings are a **historical snapshot** from 2026-08-30. |
 | [`backups/restore-drill-2026-08-23.md`](backups/restore-drill-2026-08-23.md) | Verified VolSync restore procedure (Ceph + MinIO destinations, scratch-PVC method). Timings are a **historical snapshot** from 2026-08-23; the procedure is durable. |
 | [`backups/volsync-coverage-2026-08-22.md`](backups/volsync-coverage-2026-08-22.md) | **Historical snapshot** of a full PVC-vs-VolSync coverage audit from 2026-08-22. Re-measure before trusting any figure. Current pattern: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md). |
 
