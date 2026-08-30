@@ -30,8 +30,12 @@ itself**:
 1. [The original Stage 1 pilot holds no data at all](#finding-1-the-stage-1-pilot-volume-is-empty),
    so it could never have proven fidelity - and Stage 1's gate did not notice.
 2. [kopiur cannot read a claim whose files it does not own](#finding-2-a-mover-identity-mismatch-fails-the-backup-outright),
-   which failed both destinations outright until the mover identity was matched to the workload.
-   VolSync survives the same mismatch, by a mechanism that has its own consequence.
+   which failed both destinations outright, against real data, until the mover identity was
+   matched to the workload. VolSync survives the same mismatch, by a mechanism that has its own
+   consequence. **This is a rollout prerequisite for every app in Stage 3, not a sabnzbd
+   quirk:** any claim whose owning workload does not run as uid 1000, and which contains any
+   file without a world-read bit, will fail the same way until `KOPIUR_PUID`/`KOPIUR_PGID` are
+   set to match it.
 
 ## Why this exists
 
@@ -536,7 +540,37 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
 - kopiur's staging never mounts the live claim - each policy takes its own CSI `VolumeSnapshot`.
 - The Stage 1 namespace-local credential copy serves the **restore** path, not only backup.
 - Deleting drill objects cannot reach snapshot data, with the mechanism recorded.
-- Two backup systems run simultaneously on both pilot claims without interfering.
+- kopiur backing up a claim does not disturb VolSync's objects on that same claim: all six
+  `ReplicationSource`s across both pilot apps stayed `Successful` throughout, and nothing in
+  this drill touched them. **This is not yet the full simultaneity proof** - see below.
+
+**Observed-pending - NOT proven at the time of writing:**
+
+- **That a VolSync sync *completes successfully after* a kopiur snapshot on the same claim.**
+  This is the last open Stage 1 thread ("both systems working simultaneously") and it is a
+  scheduling wait, not a result. At the close of this drill, no VolSync run had yet fired since
+  the kopiur snapshots:
+
+  | `ReplicationSource` | last successful sync | kopiur snapshot on that claim | next scheduled sync |
+  |---|---|---|---|
+  | `autobrr-ceph` | 2026-08-30T16:45:47Z | 18:53:22Z | **2026-08-30T20:45:00Z** |
+  | `autobrr-minio` | 2026-08-30T16:31:31Z | - | 2026-08-30T22:30:00Z |
+  | `autobrr-r2` | 2026-08-30T07:46:04Z | 18:53:47Z | 2026-08-31T07:45:00Z |
+  | `sabnzbd-ceph` | 2026-08-30T16:31:32Z | 19:45:46Z | **2026-08-30T20:30:00Z** |
+  | `sabnzbd-minio` | 2026-08-30T16:15:40Z | - | 2026-08-30T22:15:00Z |
+  | `sabnzbd-r2` | 2026-08-30T07:30:30Z | 19:45:40Z | 2026-08-31T07:30:00Z |
+
+  All six read `Successful` with pre-kopiur timestamps. Confirm by re-reading
+  `.status.lastSyncTime` and `.status.latestMoverStatus.result` after the times above:
+
+  ```bash
+  kubectl -n downloads get replicationsource \
+    -o custom-columns='NAME:.metadata.name,LASTSYNC:.status.lastSyncTime,RESULT:.status.latestMoverStatus.result' \
+    | grep -E 'autobrr|sabnzbd'
+  ```
+
+  Until a `Successful` result carries a timestamp later than the kopiur snapshot on the same
+  claim, treat simultaneity as untested rather than working.
 
 **Did not prove:**
 
