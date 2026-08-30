@@ -12,5 +12,6 @@ resources:
   - ./fstrim.yaml
   - ./generic-device-plugin.yaml
   - ./intel-device-plugin-operator.yaml
+  - ./kopiur.yaml
   - ./volsync.yaml
   - ./openebs-hostpath.yaml
