@@ -79,17 +79,12 @@ spec:
       # Name confirmed by the captain from the R2 console:
       # https://<accountid>.r2.cloudflarestorage.com/kopiur
       #
-      # ACCESS IS NOT YET GRANTED. The reused R2_HOME_OPS_* token is scoped to
-      # the existing `volsync` bucket and cannot reach this one - measured
-      # in-cluster 2026-08-30 from one pod, one endpoint, one signing path:
-      # `volsync` HeadBucket returns BucketRegion ENAM and ListObjectsV2
-      # returns real keys, while `kopiur` returns 403/AccessDenied for every
-      # one of HeadBucket, PutObject, ListObjectsV2, GetObject and
-      # DeleteObject. ListBuckets is denied too, and a deliberately
-      # nonexistent bucket returns 403 rather than 404 - which is how an R2
-      # token behaves when it is bucket-scoped rather than account-scoped.
-      # So this repository cannot reach Ready until the captain re-scopes the
-      # token to include `kopiur` (or issues one that does). See README.
+      # ACCESS IS NOT YET GRANTED. This repository stays unresolved until the
+      # captain creates an R2 API token scoped to THIS bucket alone and puts
+      # its keys in the `kopiur-r2` 1Password item. VolSync's own token was
+      # tried first and is scoped to the `volsync` bucket - the measurements
+      # are in the README - but a per-bucket token is the better end state
+      # regardless, so no VolSync credential is involved here at all.
       bucket: kopiur
       # <accountid>.r2.cloudflarestorage.com, substituted so the account id
       # stays out of this public repo - see app/externalsecret.yaml.
