@@ -51,24 +51,24 @@ destination. This does not touch MinIO in any way: the existing VolSync MinIO
 backups keep running exactly as before, and retiring them is a separate future
 job.
 
-### 2. Two 1Password items, one per destination
+### 2. Three 1Password items (one per purpose)
 
 Per-purpose items following the `litellm-consumer-*` convention rather than one
 grab-bag - captain decision 2026-08-30, taken now precisely because nothing has
-migrated yet, so the layout is free to change at zero risk.
+migrated yet, so the layout is free to change at zero risk. Two destinations
+plus one record-only item for the OBC-generated Ceph S3 keys.
 
-Both live in the **`Homelab`** vault. Everything writes and reads through the
-shared `onepassword` ClusterSecretStore, whose vault priority (Homelab 1,
+All three live in the **`Homelab`** vault. Everything writes and reads through
+the shared `onepassword` ClusterSecretStore, whose vault priority (Homelab 1,
 Automation 2, Services 3) resolves there; Connect cannot see the hyphenated
-`Home-Lab` vault at all. Verified 2026-08-30 that both items exist in `Homelab`
-and in neither other vault, so the priority-ordered read path has nothing to
-shadow.
+`Home-Lab` vault at all. Verified 2026-08-30 that the destination items exist
+in `Homelab` and in neither other vault, so the priority-ordered read path has
+nothing to shadow. `kopiur-ceph-bucket` is written by PushSecret after merge.
 
 | Item | Fields | Who writes it |
 |---|---|---|
 | `kopiur-ceph` | `KOPIA_PASSWORD` | created 2026-08-30, round-trip verified |
-| `kopiur-r2` | `KOPIA_PASSWORD`, `R2_ENDPOINT_URL` | created 2026-08-30, round-trip verified |
-| `kopiur-r2` | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | captain, 2026-08-30; access verified - see "R2" below |
+| `kopiur-r2` | `KOPIA_PASSWORD`, `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | password/endpoint 2026-08-30 round-trip verified; R2 token captain 2026-08-30, access verified - see "R2" below |
 | `kopiur-ceph-bucket` | `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY` | `backend/`'s `PushSecret`, after merge. Never by hand |
 
 Three notes on why the split falls where it does:
@@ -87,11 +87,11 @@ Three notes on why the split falls where it does:
   Stage 0. The R2 endpoint was copied into `kopiur-r2` once, and the reused
   `R2_HOME_OPS_*` credentials were dropped entirely.
 
-Nothing in the cluster reads the old flat `kopiur` item (which held all three
-kopia passwords plus an unused `MINIO_KOPIA_PASSWORD`). It is **superseded and
-safe to delete**, but deleting credentials is the captain's call and is
-deliberately left undone here. The MinIO password was **not** carried into the
-new layout: MinIO is out of Stage 0, so it has no home in it.
+Nothing in the cluster reads the old flat `kopiur` item (which held the three
+originally generated kopia passwords, including the MinIO one). It is
+**superseded and safe to delete**, but deleting credentials is the captain's
+call and is deliberately left undone here. The MinIO password was **not**
+carried into the new layout: MinIO is out of Stage 0, so it has no home in it.
 
 `Services/cloudflare-r2` is separate pre-existing cruft: it duplicates VolSync's
 R2 token under `R2_K8S_*` field names (verified by hash 2026-08-30). Noted as
@@ -158,12 +158,15 @@ rather than unblocked.
 > **Lose a `KOPIA_PASSWORD` and that repository is permanently unrecoverable.**
 > kopia cannot decrypt without it and there is no recovery path.
 >
-> The three were generated in-cluster (`openssl rand -base64 48`, distinct,
-> never printed or committed), pushed to 1Password, and verified by reading them
-> back out and comparing hashes - including once more after every temporary
-> object was deleted. **1Password now holds the only copy.** Recommended, and
-> deliberately left to the captain: take an independent offline record, since a
-> vault outage or mistake would otherwise be unrecoverable.
+> The two live passwords (`kopiur-ceph`, `kopiur-r2`) were generated in-cluster
+> (`openssl rand -base64 48`, distinct, never printed or committed), pushed to
+> 1Password, and verified by reading them back out and comparing hashes -
+> including once more after every temporary object was deleted. A third was
+> generated when Stage 0 still named a MinIO destination; it remains only in
+> the superseded flat `kopiur` item and was not carried forward. **1Password
+> now holds the only copy of the live passwords.** Recommended, and deliberately
+> left to the captain: take an independent offline record, since a vault outage
+> or mistake would otherwise be unrecoverable.
 
 The R2 endpoint stays in 1Password rather than in this repo because home-ops is
 **public** and the R2 account id is deliberately not committed anywhere in it -

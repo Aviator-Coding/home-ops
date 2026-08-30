@@ -26,7 +26,7 @@ spec:
   values:
     # Load-bearing and pinned deliberately: a namespaced install swaps the
     # ClusterRole for a Role, which silently stops ClusterRepository being
-    # reconciled at all - and all three of our repositories are that kind.
+    # reconciled at all - and both of our repositories (ceph, r2) are that kind.
     installScope: cluster
 
     # HA. The webhook runs failurePolicy: Fail, so a single replica evicted by a
