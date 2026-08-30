@@ -2,18 +2,23 @@
 
 kopiur is being introduced as the eventual replacement for VolSync, in a staged
 migration whose governing constraint is **no window in which any PVC is
-unprotected**. This directory is **Stage 0 only**.
+unprotected**. This directory is **Stage 0 only** - operator, repositories and
+credentials. What to back up lives in
+[`kubernetes/components/kopiur/`](../../../../components/kopiur/Readme.md).
 
 Stage 0 installs the operator and declares *where* backups could go. It creates
-no `SnapshotPolicy` and no `SnapshotSchedule`, so **nothing is backed up by
-kopiur yet** and every one of the 105 VolSync `ReplicationSource`s keeps running
-exactly as before. The change is purely additive.
+no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status:**
+Stage 1 put exactly one pilot volume (`downloads/autobrr`) on the backup
+component alongside untouched VolSync; every other claim is still VolSync-only.
+Do not read this directory's presence as fleet coverage, and do not onboard a
+second app without the Stage 2 restore proof. Details, schedules, credentials
+compromise and rollback: the component Readme.
 
-**Rollback:** delete the `kopiur` and `kopiur-repository` Flux Kustomizations.
-Because no policy or schedule exists, no kopia snapshot exists either, so there
-is nothing to lose and zero backup impact. The repositories themselves are
-`create.enabled: true` and idempotent - re-applying reconnects rather than
-re-creating.
+**Stage 0 rollback** (operator/repos only): delete the `kopiur` and
+`kopiur-repository` Flux Kustomizations. That removes the control plane; it does
+not touch VolSync. The repositories themselves are `create.enabled: true` and
+idempotent - re-applying reconnects rather than re-creating. For the pilot's
+policies/schedules, use the component Readme's Rollback section instead.
 
 ## Layout
 
@@ -182,7 +187,7 @@ If that substitution Secret is ever missing, `kopiur-repository` fails with
 `envsubst error: variable not set (strict mode): "KOPIUR_R2_ENDPOINT"`. That
 failure is contained to this one Kustomization and cannot affect any other.
 
-## Deletion protection - why it is pinned, and what could not be pinned yet
+## Deletion protection - why it is pinned
 
 A kopiur `Snapshot` CR **owns** its kopia snapshot through a finalizer, so
 deleting CRs can delete backup data. VolSync has no equivalent: deleting a
@@ -200,22 +205,16 @@ Pinned explicitly on both repositories (verified against the shipped
 | `onNamespaceDelete` | `Orphan` | namespace teardown |
 
 The breaker is deliberately **axis-independent**: it also holds a
-schedule-deletion cascade and a namespace teardown that cross the threshold. So
-this one field is a real backstop today, before any policy exists. kopiur's own
-retention prunes are stamped `pruned-by` and are never held.
+schedule-deletion cascade and a namespace teardown that cross the threshold.
+kopiur's own retention prunes are stamped `pruned-by` and are never held.
 
-**Not pinnable at Stage 0, and this is a genuine finding.**
 `SnapshotPolicy.spec.deletion.onPolicyDelete` and
-`SnapshotSchedule.spec.deletion.onScheduleDelete` are **per-object** fields.
-`ClusterRepository.spec.scheduleDefaults` carries only `timezone`, so there is
-no repository-level default to pin them through, and setting them would require
-creating policy/schedule objects - which is Stage 1, not Stage 0. Both default
-to `Retain` in the 0.10.5 CRDs (verified from the shipped schema, enum
-`Retain|Delete`).
-
-> **Stage 1 acceptance criterion:** the backup component must set
-> `deletion.onPolicyDelete: Retain` and `deletion.onScheduleDelete: Retain`
-> explicitly rather than inheriting the defaults.
+`SnapshotSchedule.spec.deletion.onScheduleDelete` are **per-object** fields -
+`ClusterRepository.spec.scheduleDefaults` carries only `timezone`, so Stage 0
+cannot pin them here. Stage 1's backup component pins both to `Retain` on every
+policy and schedule it creates (see that component's Readme). Both still default
+to `Retain` in the 0.10.5 CRDs; the pin is so neither an upstream default change
+nor a careless edit can quietly arm the cascade.
 
 ## Upgrades - treat like a Talos bump, not a dependency bump
 
@@ -231,16 +230,26 @@ to `Retain` in the 0.10.5 CRDs (verified from the shipped schema, enum
   is `v1alpha1` and broke its user-visible API roughly once a fortnight through
   July 2026 (settling since 0.10.1). The alpha risk is captain-accepted.
 
-## Deferred to Stage 1 (deliberately not decided here)
+## What Stage 1 decided (and what is still open)
+
+Stage 1's backup component owns retention, schedules, mover cache mode,
+`copyMethod`, and the per-object deletion pins - see
+[`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
+Do not re-decide those here.
+
+Still open beyond Stage 0:
 
 - **`features.credentialProjection` stays `false`** (chart default, least
   privilege - enabling it grants the operator `create`/`patch`/`delete` on
   Secrets in *every* namespace it manages, and `create` cannot be scoped to a
-  name). Movers running outside `system` therefore need the repository Secret in
-  their own namespace. onedr0p solves this with a per-namespace `ExternalSecret`
-  component instead of the projection feature. Pick one in Stage 1.
-- Retention, schedules, mover cache mode and `copyMethod` are all Stage 1.
-- Repository `maintenance` and `verification` schedules are left at their
-  managed defaults (quick every 6h, full daily) until there is data to maintain.
+  name). Stage 1 unblocked the pilot with a **downloads-only** ExternalSecret
+  credential copy instead; that is deliberate scaffolding with the permanent
+  shape deferred to a captain decision before Stage 3 (key
+  `kopiur-workload-ns-credentials`). Details and the accepted risk live in the
+  component Readme "Credentials" section - do not extend the copy to another
+  namespace from this directory.
+- Repository `maintenance` and `verification` schedules remain at their managed
+  defaults (quick every 6h, full daily) until there is enough data to justify
+  retuning.
 
 [adr6]: https://github.com/home-operations/kopiur/blob/main/docs/adr/0006-mass-deletion-protection.md
