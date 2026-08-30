@@ -155,6 +155,15 @@ jobs:
           ai_api_format: openai
           ai_model: pr-review-local
           ai_api_key: ${{ secrets.LITELLM_PR_REVIEW_KEY }}
+          # Availability fallback only - NOT a cloud escalation path. The pinned
+          # action always exports AI_FALLBACK_BASE_URL as
+          # (ai_fallback_base_url || ai_base_url), then config.sh refuses to run
+          # when that URL is set and AI_FALLBACK_MODEL is empty. Leaving the
+          # model blank therefore hard-fails the review step the moment the
+          # credential is present (previous greens were the secret-absent skip
+          # path). Point it at the same zero-priced local alias so a primary
+          # blip retries the free model rather than opening a paid route.
+          ai_fallback_model: pr-review-local
 
           # -- Context budget --
           # The served window is genuinely 262144 (llama.cpp `--ctx-size` in

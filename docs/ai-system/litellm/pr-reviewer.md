@@ -37,6 +37,14 @@ cloud fallback, and the `ai-pr-review` virtual key allow-lists that one model an
 `review_routing_mode` is left `off`, so there is no smart-model escalation path to bound - which
 matters because this fires on every PR in a repo with heavy Renovate traffic.
 
+`ai_fallback_model` is also set to `pr-review-local`. That is an **availability** fallback on the
+same free alias, not a cloud escalation path. The pinned action always exports
+`AI_FALLBACK_BASE_URL` as `(ai_fallback_base_url || ai_base_url)` and then refuses to run when that
+URL is set and `AI_FALLBACK_MODEL` is empty - so leaving the model blank hard-fails the review step
+the moment `LITELLM_PR_REVIEW_KEY` is present (the pre-secret greens were the credential-absent skip
+path, not a working review). Do not clear it, and do not point it at anything other than the local
+alias.
+
 ## 2. Fork PRs: excluded, deliberately
 
 The job carries the same unconditional guard as `validate.yaml`, `image-pull.yaml`, `flate.yaml`

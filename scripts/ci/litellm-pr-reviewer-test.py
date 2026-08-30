@@ -474,9 +474,14 @@ def test_workflow_contracts() -> dict[str, Any]:
         not w("ai_smart_model"),
         f"got={w('ai_smart_model')!r}",
     )
+    # The pinned action always sets AI_FALLBACK_BASE_URL from ai_base_url when
+    # ai_fallback_base_url is blank, then requires AI_FALLBACK_MODEL whenever
+    # that URL is non-empty. The only spend-safe value is the same local alias
+    # as ai_model; empty fails the review step, and any other model would open
+    # a non-local route the virtual key must still 403.
     record(
-        "no_fallback_model_configured",
-        not w("ai_fallback_model"),
+        "fallback_model_is_same_local_alias",
+        w("ai_fallback_model") == "pr-review-local",
         f"got={w('ai_fallback_model')!r}",
     )
     record(

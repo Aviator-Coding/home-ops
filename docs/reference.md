@@ -16,7 +16,8 @@ These are not under `docs/`. They are the day-to-day starting points.
 | [`talos/AGENTS.md`](../talos/AGENTS.md) | Talos templates, render/apply/upgrade |
 | [`bootstrap/AGENTS.md`](../bootstrap/AGENTS.md) | First-time / disaster-recovery bootstrap |
 | [`README.md`](../README.md) | Cluster overview |
-| [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md) | Volsync schedules, multi-volume pattern, and restore |
+| [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md) | Volsync schedules, multi-volume pattern, and restore (live backups today) |
+| [`kubernetes/apps/base/system/kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md) | kopiur Stage 0: inert operator + ceph/r2 repositories only; deletion-protection and credential layout. Not live backup coverage yet. |
 
 ## AI
 
@@ -64,6 +65,8 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 | [`authentik/terraform.md`](authentik/terraform.md) | Authentik OpenTofu stack: inventory, import vs create, RGW state bucket, apply approval gate, CI read-only plans. Read before any `tofu plan` / `tofu apply`. |
 
 ## Backups
+
+Live PVC backup remains VolSync. kopiur Stage 0 is installed but inert (no policies/schedules); see the Operator row for [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md).
 
 | Path | What it covers |
 |---|---|

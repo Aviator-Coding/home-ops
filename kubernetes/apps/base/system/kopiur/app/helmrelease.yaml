@@ -1,0 +1,90 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kopiur
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: kopiur
+  install:
+    remediation:
+      retries: -1
+    # Helm's crds/ directory is INSTALL-ONLY: `helm upgrade` never updates a CRD
+    # schema. Without CreateReplace on BOTH install and upgrade, a chart bump
+    # that adds a CRD field leaves the old schema in place, the API server
+    # prunes the new field, and every policy is silently refused. kopiur 0.10.0
+    # shipped exactly that shape (three schema changes).
+    crds: CreateReplace
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+    crds: CreateReplace
+  values:
+    # Load-bearing and pinned deliberately: a namespaced install swaps the
+    # ClusterRole for a Role, which silently stops ClusterRepository being
+    # reconciled at all - and both of our repositories (ceph, r2) are that kind.
+    installScope: cluster
+
+    # HA. The webhook runs failurePolicy: Fail, so a single replica evicted by a
+    # node drain blocks every kopiur CR write until it reschedules. This cluster
+    # drains its 3 nodes one at a time for Talos rolls, so that is a routine
+    # event, not a rare one.
+    replicaCount: 2
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        # A memory limit BELOW the controller's startup burst OOM-loops it
+        # (OOM -> restart -> re-reconcile burst -> OOM), which is why the chart
+        # ships no limit at all. 2Gi is the ceiling the largest adopter runs.
+        memory: 2Gi
+
+    # Pinned to the chart's own hardened defaults so a future chart change
+    # cannot quietly loosen them. distroless nonroot; no filesystem backend is
+    # in use, so the controller never needs a relaxed context.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+
+    webhook:
+      replicaCount: 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      serviceMonitor:
+        enabled: true
+
+    monitoring:
+      serviceMonitor:
+        enabled: true
+      prometheusRule:
+        # 12 shipped alerts. None of them covers "the operator vanished" - they
+        # all depend on the operator emitting metrics - so ./prometheusrule.yaml
+        # carries our own absent() rule alongside them.
+        enabled: true
+      dashboards:
+        enabled: true
+        # Grafana here is the kube-prometheus-stack sidecar (searchNamespace:
+        # ALL, label grafana_dashboard, folderAnnotation grafana_folder), not
+        # grafana-operator - so the default sidecar ConfigMap is the right mode.
+        namespace: monitoring
+        folderAnnotation: grafana_folder
+        folder: Backups

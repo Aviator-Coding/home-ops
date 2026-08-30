@@ -25,5 +25,24 @@
       minimumReleaseAge: "3 days",
       ignoreTests: false,
     },
+    {
+      // MUST stay LAST: Renovate evaluates packageRules in order and a later
+      // matching rule overrides an earlier one, so this has to sit after the
+      // three blanket automerge rules above to actually win for kopiur.
+      description: "Never auto merge kopiur - it is the backup system on an alpha API",
+      matchPackageNames: [
+        "ghcr.io/home-operations/charts/kopiur",
+        "ghcr.io/home-operations/kopiur-controller",
+        "ghcr.io/home-operations/kopiur-webhook",
+        "ghcr.io/home-operations/kopiur-mover",
+        "home-operations/kopiur",
+      ],
+      // kopiur broke its user-visible API roughly once a fortnight through July
+      // 2026, and Helm's crds/ directory is install-only, so an unattended
+      // patch that crosses a CRD change can silently refuse every backup
+      // policy. Renovate still PROPOSES bumps as PRs - only the merge is
+      // withheld. Read upstream docs/upgrade.md before taking one.
+      automerge: false,
+    },
   ],
 }

@@ -1,0 +1,23 @@
+---
+apiVersion: ceph.rook.io/v1
+kind: CephObjectStoreUser
+metadata:
+  name: kopiur
+spec:
+  store: ceph-objectstore
+  clusterNamespace: rook-ceph
+  displayName: kopiur-user
+  quotas:
+    # Sized from measurement, not copied: the live `volsync` bucket holds
+    # 59.5 GiB across 14,466 objects today (radosgw-admin bucket stats,
+    # 2026-08-30), and Stage 3 runs both backup systems in parallel. 500G is
+    # ~8x the current Ceph backup footprint - real headroom for the parallel
+    # run plus growth - while staying ~14% of the pool's 3.5 TiB MAX AVAIL.
+    # volsync's own 20G is already exceeded 3x over, which is a good reason not
+    # to copy it.
+    maxSize: 500G
+    maxObjects: 1000000
+    maxBuckets: 10
+  capabilities:
+    user: "*"
+    bucket: "*"

@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kopiur-absent
+spec:
+  groups:
+    - name: kopiur-absent.rules
+      rules:
+        # The chart's own 12 alerts (group kopiur.rules) are all evaluated over
+        # kopiur_* series, so every one of them goes SILENT rather than firing
+        # when the operator itself disappears. This is the same absent() guard
+        # we keep for VolSync, carried over deliberately.
+        #
+        # job label = the metrics Service name (verified live: VolSync's
+        # Service is volsync-metrics and its series carry job="volsync-metrics").
+        - alert: KopiurComponentAbsent
+          expr: |
+            absent(up{job="kopiur-controller-metrics"})
+          annotations:
+            summary: >-
+              kopiur controller has disappeared from Prometheus target discovery
+          for: 5m
+          labels:
+            severity: critical
+
+        # The admission webhook runs failurePolicy: Fail, so if it is gone the
+        # API server REJECTS every kopiur CR write rather than leaving CRs
+        # unreconciled - backups stop being schedulable, not just unobserved.
+        - alert: KopiurWebhookAbsent
+          expr: |
+            absent(up{job="kopiur-webhook"})
+          annotations:
+            summary: >-
+              kopiur admission webhook has disappeared from Prometheus target
+              discovery; kopiur CR writes are being rejected
+          for: 5m
+          labels:
+            severity: critical
