@@ -28,7 +28,7 @@ Gatus is an app under `kubernetes/apps/base/monitoring/gatus`, not a component. 
 |------|----------|-------|
 | Add new app | `kubernetes/apps/base/{namespace}/{app}/` + overlay `kubernetes/apps/main/{namespace}/{app}.yaml` | Overlay is a Flux `Kustomization` CR (one yaml per former `ks.yaml`). All 19 namespaces are on this layout. See NOTES. |
 | Add app to namespace | `kubernetes/apps/main/{namespace}/kustomization.yaml` | Add `- ./{app}.yaml` |
-| Enable backups | overlay `kubernetes/apps/main/{ns}/{app}.yaml` | Flux `spec.components` + `dependsOn: volsync` (namespace `system`) + `VOLSYNC_*` substitute keys. Example: `kubernetes/apps/main/media/immich.yaml` |
+| Enable backups | overlay `kubernetes/apps/main/{ns}/{app}.yaml` | Flux `spec.components` + `dependsOn: volsync` (namespace `system`) + `VOLSYNC_*` substitute keys. Example: `kubernetes/apps/main/media/seerr.yaml` |
 | App secrets | `kubernetes/apps/base/{ns}/{app}/app/externalsecret.yaml` | OnePassword via ClusterSecretStore `onepassword` |
 | Bootstrap secrets | `bootstrap/kustomize/apps/security/` | `vals` injects `ref+op://Home-Lab/1password/*` |
 | Flux entry point | `kubernetes/clusters/main/{meta,apps}.yaml` | `cluster-meta` -> `cluster-apps` dependency chain |

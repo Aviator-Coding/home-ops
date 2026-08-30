@@ -11,11 +11,15 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 | Namespace | Purpose | Key Apps |
 |-----------|---------|----------|
 | `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, Autobrr, reading-glasses |
-| `media` | Media servers + post-processing | Jellyfin, Plex, Seerr, Immich, Tdarr, Calibre-Web-Automated, Calibre-Downloader |
+| `media` | Media servers + post-processing | Jellyfin, Plex, Seerr, Tdarr, Calibre-Web-Automated, Calibre-Downloader |
 
 `default/kustomization.yaml` has `resources: []`. CWA + Calibre-Downloader live under `media/calibre/` and Flux-target `media`.
 
 `media/calibre-web/` was removed; CWA is the only Calibre app under `media/calibre/`.
+
+`media/immich/` was retired 2026-08-30 - it was never initialized (0 users, 0 assets in 152 days)
+and its 100 Gi `immich-library` claim held only nightly dumps of an empty database. Its Ceph,
+MinIO and R2 restic repositories are now orphaned and are deleted by a separate task.
 
 FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubernetes/apps/base/network/flaresolverr/`), not `downloads`/`media` - consumed by Prowlarr (IndexerProxy, UI-configured, not GitOps) and Calibre-Downloader (`EXT_BYPASSER_URL`).
 
@@ -37,7 +41,6 @@ Storage is split between CephFS (complete downloads), Ceph block (SAB incomplete
 | `sabnzbd-incomplete` | `ceph-block` (RWO) | RWO | 1500 Gi | SAB article-assembly (`download_dir`); bind-mounted **over** `/data/downloads/usenet/incomplete` |
 | `{app}-config` | Ceph block (RWO) | RWO | 1-10 Gi | Per-app config PVCs with Volsync backup |
 | NFS `/mnt/storage/Media` | NAS (NFS) | RWX | ~40+ TiB | Permanent media library |
-| `immich-library` | CephFS (RWX) | RWX | 100 Gi | Photos |
 | `jellyfin-metadata` | Ceph block | RWO | 50 Gi | Jellyfin thumbnails/metadata |
 
 Manifests: `kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml` and `sabnzbd-incomplete.yaml`. There is no `shared-downloads-pvc.yaml`.

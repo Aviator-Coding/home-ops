@@ -23,7 +23,6 @@ Current consumers and their endpoints:
 | App | Namespace | Endpoint |
 | --- | --------- | -------- |
 | `authentik` | security | `authentik-dragonfly.security.svc.cluster.local:6379` |
-| `immich` | media | `immich-dragonfly.media.svc.cluster.local:6379` |
 | `paperless-ngx` | selfhosted | `paperless-ngx-dragonfly.selfhosted.svc.cluster.local:6379` |
 | `rsshub` | selfhosted | `rsshub-dragonfly.selfhosted.svc.cluster.local:6379` |
 | `searxng` | ai | `searxng-dragonfly.ai.svc.cluster.local:6379` |
@@ -73,7 +72,7 @@ Expect exactly one `master` per `<app>-dragonfly` cluster, the rest `replica`.
 
 ## Operational notes
 
-- **Cache-only policy.** Every cluster runs with `--cache_mode=true`; LRU eviction is the consistency model. Snapshot/RDB backup is **intentionally** disabled — consumers must tolerate full data loss on pod restart. Authentik's session cache, Immich's job state, etc. all reset on rollout.
+- **Cache-only policy.** Every cluster runs with `--cache_mode=true`; LRU eviction is the consistency model. Snapshot/RDB backup is **intentionally** disabled — consumers must tolerate full data loss on pod restart. Authentik's session cache, rsshub's route cache, etc. all reset on rollout.
 - **No password auth.** Mitigated by two NetworkPolicies in front of every pod: the operator-installed one (peer-pods + operator controller-manager only on `:9999`, and any pod in the same namespace on `:6379`) plus the additive `<app>-dragonfly-allow-prometheus` NP from the component.
 - **QoS lands as Burstable, not Guaranteed.** The CR-level `requests` and `limits` match exactly, but the cluster-wide `k8tz` mutating webhook injects an init container with empty resources into nearly every pod (only 1 pod cluster-wide is currently Guaranteed). Fixing this is a `k8tz` config change, not a Dragonfly one.
 - **Memory floor (since v1.38.0, still true at v1.40.1).** `--maxmemory` must be ≥ `256MiB × proactor_threads`. With our `--proactor_threads=2`, the floor is 512MiB. Don't drop `limits.memory` below 640Mi without first lowering `proactor_threads`, or pods crash-loop on startup with `"There are 2 threads, so 512.00MiB are required. Exiting..."`.

@@ -187,7 +187,7 @@ spec:
                   "id": 3,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-observatory)\n- [Ollama](/d/ollama-llm-inference)\n\n## 🎬 Media\n- [Plex](/d/plex-media-server-exporter)\n- [Jellyfin](/d/jellyfin-media-server)\n- [Immich](/d/immich-overview)\n- [Tdarr](/d/tdarr)",
+                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-observatory)\n- [Ollama](/d/ollama-llm-inference)\n\n## 🎬 Media\n- [Plex](/d/plex-media-server-exporter)\n- [Jellyfin](/d/jellyfin-media-server)\n- [Tdarr](/d/tdarr)",
                     "mode": "markdown"
                   },
                   "title": "AI/ML & Media",
@@ -427,14 +427,6 @@ spec:
           # renovate: dashboardName="Homers - Media Server Dashboard"
           gnetId: 20744
           revision: 7
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        immich-overview:
-          # renovate: dashboardName="Immich"
-          gnetId: 22555
-          revision: 1
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus

@@ -381,7 +381,8 @@ but **not unique** (several apps share the same minute). Do not assume a
 (paperless-ngx uses component defaults). `litellm` is not a VolSync client
 (Postgres-backed governance layer, no app PVC - `docs/ai-system/litellm/README.md`).
 `open-webui`, `qdrant`, `open-notebook` and `perplexica` were retired
-2026-08-22, see `docs/ai-system/retired-2026-08-22.md`. `cross-seed`, `qbittorrent`
+2026-08-22, see `docs/ai-system/retired-2026-08-22.md`. `immich` was retired
+2026-08-30 (never initialized - 0 users, 0 assets). `cross-seed`, `qbittorrent`
 and `calibre-web` were removed as dead, unreferenced app directories - see
 `docs/media-stack.md`.
 
@@ -410,16 +411,15 @@ and `calibre-web` were removed as dead, unreferenced app directories - see
 | 21 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
 | 22 | media | seerr | `40 */4 * * *` | `55 */6 * * *` | `40 3 * * *` | Medium |
 | 23 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
-| 24 | media | immich | `15 */4 * * *` | `45 */6 * * *` | `30 4 * * *` | High |
-| 25 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
-| 26 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 27 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 28 | selfhosted | obsidian-livesync | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 29 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 30 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
-| 31 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
-| 32 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
-| 33 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
+| 24 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
+| 25 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 26 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 27 | selfhosted | obsidian-livesync | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 28 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 29 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
+| 30 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
+| 31 | selfhosted | rsshub | `20 */4 * * *` | `0 */6 * * *` | `25 4 * * *` | Low |
+| 32 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
 
 ### Distribution Strategy
 
