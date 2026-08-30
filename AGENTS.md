@@ -11,7 +11,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 ├── kubernetes/
 │   ├── apps/           # 19 namespaces at apps/base/<ns> + overlay apps/main/<ns> (see NOTES)
 │   ├── clusters/main/  # Flux entry point: meta.yaml + apps.yaml (see NOTES)
-│   └── components/     # alerts, common, dragonfly, volsync, kopiur (Stage 1 pilot only)
+│   └── components/     # alerts, common, dragonfly, volsync, kopiur (Stages 1-2 pilot)
 ├── talos/              # minijinja templates (see talos/AGENTS.md)
 ├── bootstrap/          # just bootstrap stages (see bootstrap/AGENTS.md)
 ├── .taskfiles/         # included: 1password, k8s, flux, rook, network, actions-runner
