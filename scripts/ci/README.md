@@ -25,6 +25,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `grafana-sa-provisioner-test.py` | grafana-sa-provisioner (captain option C) |
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
 | `kopiur-stage0-test.py` | kopiur Stage 0: operator pin/CRDs/monitoring, ceph+r2 ClusterRepositories + deletion protection, no SnapshotPolicy/Schedule, Renovate automerge exclusion, VolSync untouched |
+| `kopiur-stage1-test.py` | kopiur Stage 1: reusable backup component (ceph+r2 only, Ephemeral cache, pinned Retain deletion), EXACTLY one pilot (`downloads/autobrr`) alongside untouched VolSync, pilot-scoped credentials + downloads-only ClusterSecretStore |
 | `schematic-pcie-port-pm-test.py` | Arc B70 `pcie_port_pm=off` schematic kernel-arg contract |
 | `igpu-xe-allowids-test.py` | scoping `gpu.intel.com/xe` to the iGPU |
 | `b70-vaapi-tdarr-test.py` | B70 VA-API restore: `b70-vaapi` native mounts, hashed plugin config rollout, tdarr-node resource/CPU fallback, libdrm DEVNAME reopen trap |

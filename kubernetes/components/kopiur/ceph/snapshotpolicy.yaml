@@ -1,0 +1,70 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotpolicy_v1alpha1.json
+#
+# The CEPH (local, in-cluster RGW) destination for ${KOPIUR_CLAIM:-${APP}}.
+# Sibling of ../../volsync/ceph/replicationsource.yaml - same claim, same
+# snapshot class, same retention, a different backup engine.
+#
+# ONE single-repository policy per claim per destination (the 1:1 shape), NOT
+# spec.repositories fan-out. Fan-out was measured and rejected: `retention` is a
+# single block on the policy and one SnapshotSchedule fires the whole fan-out,
+# so ceph and r2 could not keep the differing schedules and retention they have
+# today (ceph 4-hourly with an hourly tier, r2 daily with a year of monthlies).
+# Fan-out also cannot be combined with `hooks`, which we will want for
+# database/surrealdb later.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: "${APP}-ceph"
+spec:
+  # Explicit, though it is also the CRD default. Same value VolSync uses: the
+  # mover reads a temporary PVC restored from a CSI VolumeSnapshot and never
+  # mounts the live claim, which is what makes running both backup systems
+  # against one PVC safe. sources[].readOnly likewise defaults to true.
+  copyMethod: Snapshot
+  volumeSnapshotClassName: "${KOPIUR_SNAPSHOTCLASS:-csi-ceph-blockpool}"
+  repository:
+    kind: ClusterRepository
+    name: ceph
+  sources:
+    - pvc:
+        name: "${KOPIUR_CLAIM:-${APP}}"
+  mover:
+    cache:
+      # Ephemeral (also the CRD default, pinned because it is load-bearing):
+      # the kopia cache lives only for the run and is discarded, so running
+      # kopiur alongside VolSync adds NO standing cache PVCs. VolSync already
+      # holds 105 cache PVCs / 324 GiB of ceph-block; Persistent here would
+      # start a second such set.
+      mode: Ephemeral
+      capacity: "${KOPIUR_CACHE_CAPACITY:-2Gi}"
+    # Mirrors VolSync's moverSecurityContext {runAsUser, runAsGroup, fsGroup}
+    # so both engines read the claim as the same identity and a kopiur restore
+    # reproduces the ownership a VolSync restore would.
+    podSecurityContext:
+      runAsUser: ${KOPIUR_PUID:-1000}
+      runAsGroup: ${KOPIUR_PGID:-1000}
+      fsGroup: ${KOPIUR_PGID:-1000}
+  # Matched to ../../volsync/ceph/replicationsource.yaml's retain block so the
+  # two systems are directly comparable during the parallel run.
+  retention:
+    keepHourly: 6
+    keepDaily: 14
+    keepWeekly: 10
+    keepMonthly: 6
+  # --- deletion protection (upstream ADR-0006), pinned, not defaulted ---
+  # A kopiur Snapshot CR OWNS its kopia snapshot through a finalizer, so
+  # deleting CRs can delete BACKUP DATA - unlike a VolSync ReplicationSource,
+  # which never touches the restic repository. ADR-0006 records a real incident
+  # where ownerReference GC fired 600-700 concurrent snapshot deletions at one
+  # repository. We run Flux with prune: true, which is exactly that shape.
+  # Retain is the current default; pinning it means a future default change, or
+  # a careless edit, cannot quietly arm the cascade.
+  #
+  # spec.defaultDeletionPolicy is deliberately left at its `Delete` default:
+  # that is the policy governing RETENTION pruning, and it has to be Delete or
+  # expired snapshots would never reclaim space. The blast radius that matters
+  # here is bounded by these deletion.* fields plus the repository-level
+  # deletionProtection.threshold already pinned in Stage 0.
+  deletion:
+    onPolicyDelete: Retain

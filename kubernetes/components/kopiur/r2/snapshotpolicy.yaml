@@ -1,0 +1,42 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotpolicy_v1alpha1.json
+#
+# The R2 (offsite, Cloudflare) destination for ${KOPIUR_CLAIM:-${APP}}.
+# Sibling of ../../volsync/r2/replicationsource.yaml. See ../ceph/snapshotpolicy.yaml
+# for the reasoning behind the 1:1 single-repository shape, Ephemeral cache and
+# pinned deletion protection - all of it applies identically here.
+#
+# There is no r2 Restore object: the standing restore-target-in-waiting is
+# declared against the local ceph repository only (../ceph/restore.yaml), the
+# same asymmetry VolSync has.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: "${APP}-r2"
+spec:
+  copyMethod: Snapshot
+  volumeSnapshotClassName: "${KOPIUR_SNAPSHOTCLASS:-csi-ceph-blockpool}"
+  repository:
+    kind: ClusterRepository
+    name: r2
+  sources:
+    - pvc:
+        name: "${KOPIUR_CLAIM:-${APP}}"
+  mover:
+    cache:
+      mode: Ephemeral
+      capacity: "${KOPIUR_CACHE_CAPACITY:-2Gi}"
+    podSecurityContext:
+      runAsUser: ${KOPIUR_PUID:-1000}
+      runAsGroup: ${KOPIUR_PGID:-1000}
+      fsGroup: ${KOPIUR_PGID:-1000}
+  # Matched to ../../volsync/r2/replicationsource.yaml's retain block. Note the
+  # deliberate absence of keepHourly: R2 is the offsite copy, billed per
+  # operation and per GB, and takes one snapshot a day - an hourly tier would
+  # retain nothing it ever creates.
+  retention:
+    keepDaily: 30
+    keepWeekly: 12
+    keepMonthly: 12
+  deletion:
+    onPolicyDelete: Retain

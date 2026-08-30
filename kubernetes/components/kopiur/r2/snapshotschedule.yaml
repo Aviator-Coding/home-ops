@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotschedule_v1alpha1.json
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotSchedule
+metadata:
+  name: "${APP}-r2"
+spec:
+  policyRef:
+    name: "${APP}-r2"
+  schedule:
+    # Daily, matching VolSync's r2 cadence, but in the 04:00 hour where VolSync
+    # runs in the 03:00 one - the same structural hour offset used for ceph.
+    # Minute is hashed (`H`); do not hand-assign it. See
+    # ../ceph/snapshotschedule.yaml for why the hour, not the minute, separates
+    # the two systems.
+    cron: "${KOPIUR_SCHEDULE_R2:-H 4 * * *}"
+    jitter: 5m
+  deletion:
+    onScheduleDelete: Retain
