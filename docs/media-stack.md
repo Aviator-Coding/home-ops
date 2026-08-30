@@ -21,6 +21,8 @@ FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubern
 
 In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` were removed (dead, unreferenced directories) and are no longer present in `kubernetes/apps/main/downloads/kustomization.yaml`.
 
+**The stack is usenet-only by deliberate captain decision (2026-08-30), not by accident.** No torrent client is deployed, and Radarr's `qBittorrent` download client entry (pointed at a nonexistent `qbittorrent.downloads.svc.cluster.local`, always `enable: false`) plus Prowlarr's four definition-less torrent indexers (`BitSearch`, `TorrentGalaxyClone`, `Isohunt2`, `iDope` - flagged by Prowlarr's own `IndexerNoDefinitionCheck` health check as broken and unusable) were deleted as leftover state implying a torrent path that did not exist. **Both deletions were live API calls against Radarr's and Prowlarr's own databases, not GitOps** - qBittorrent's download-client config and Prowlarr's indexer list live in each app's Postgres backend, not in a committed manifest, so there is nothing in Git to change beyond this note. Re-adding torrent support later (a qBittorrent deployment plus indexer definitions) remains straightforward; this just removes the illusion that it already half-works. Full record: `data/decisions-2026-08-30/downloads-usenet-only.md`.
+
 Flow: **Indexers** -> Prowlarr -> *arr apps -> SABnzbd -> imports to NAS -> Jellyfin/Plex serve -> Tdarr transcodes in place to AV1.
 
 ---
