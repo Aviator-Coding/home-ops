@@ -47,7 +47,7 @@ Component, so a Component alone could not serve the multi-claim case below.
 | | `../volsync` | this component |
 |---|---|---|
 | Destinations | ceph, minio, r2 | **ceph, r2** - Stage 0 gave kopiur no MinIO repository (MinIO is being retired over its licensing change). The VolSync MinIO backups keep running. |
-| Objects per claim | 3 ReplicationSource + 1 ReplicationDestination + 3 ExternalSecret + 3 Secret | 2 SnapshotPolicy + 2 SnapshotSchedule + 1 Restore |
+| Objects per claim | 3 ReplicationSource + 1 ReplicationDestination + 3 ExternalSecret + 3 Secret | 2 SnapshotPolicy + 2 SnapshotSchedule + 1 Restore - and **no credential objects at all**, standing or per-claim, because the operator mints them per run (see "Credentials") |
 | Creates the app's PVC | yes (`pvc.yaml`) | **no** - VolSync still owns every claim during the parallel run, and two components creating the same PVC from `${APP}` is a kustomize collision |
 | Cache PVCs | one per source, standing (matches the live VolSync `ReplicationSource` count in `../volsync/Readme.md`) | **none** - `mover.cache.mode: Ephemeral`, the cache lives only for the run |
 | Stagger | hand-maintained per-app minute table + a `MutatingAdmissionPolicy` injecting `sleep $(shuf -i 0-90 -n 1)` | native hashed `H` minute + `jitter` |
@@ -73,53 +73,107 @@ one governs **retention pruning** and has to be `Delete` or expired snapshots
 would never reclaim space. The repository-level circuit breaker
 (`deletionProtection.threshold: 10`) is pinned in Stage 0.
 
-## Credentials - a known, deliberate, PILOT-ONLY compromise
+## Credentials - operator-minted, per-run, nothing at rest
 
-> **This is scaffolding with an open decision behind it, not the permanent
-> design. Do not extend it to another namespace.** Captain decision 2026-08-30,
-> key `kopiur-workload-ns-credentials`.
+> Captain decision 2026-08-30, key `credential-scope` (Option B). This closes
+> the question Stage 1 deliberately deferred; it is the permanent shape, not
+> scaffolding. **No repository credential sits at rest in any app namespace.**
 
 A kopiur mover Job runs in the **workload** namespace and loads its repository
 credentials with `envFrom`, which is namespace-local. Both `ClusterRepository`
 objects pin their Secrets to `system`, so a backup in `downloads` cannot see
-them - the CRs reconcile perfectly clean and the backup fails at run time. This
-was a real gap in Stage 0, found while building this component.
+them - the CRs reconcile perfectly clean and the backup fails at run time. That
+was a real gap found in Stage 0, and it is the failure mode to keep in mind
+whenever anything in this area changes: **every CR goes green and the mover
+still fails.**
 
-Upstream's own answer is **credential projection**, where the operator copies the
-Secret into the mover's namespace for the duration of a run and reaps it after.
-That is the better end state and it is **deferred, not rejected**: turning it on
-requires granting the operator unscoped Secret create/patch/delete cluster-wide,
-which makes a compromised backup operator a cluster-wide credential-rewrite
-primitive. That is a permanent, security-sensitive architecture change, and
-making it to unblock a single 5Gi pilot volume is the wrong order of operations.
+The answer we run is upstream's own **credential projection**. The operator
+SSA-copies the repository's credential Secret(s) into the mover's namespace for
+the length of the run, owner-refs them to the `Snapshot`, and reaps them
+afterwards. Exposure is one mover run, not permanent.
 
-So the pilot instead copies the credentials into `downloads` only:
+### Three legs, and all three are required
 
-* `kubernetes/apps/base/downloads/kopiur-credentials/` - three `ExternalSecret`s
-  producing `kopiur`, `kopiur-ceph-secret` and `kopiur-r2-secret`, under the
-  exact names the `ClusterRepository` specs reference.
-* `kubernetes/apps/base/security/external-secrets/stores/kopiur-system-secrets/` -
-  a kubernetes-provider `ClusterSecretStore` reading `system`, **restricted to
-  `namespaces: [downloads]`**. That restriction is load-bearing: `system` also
-  holds `cluster-secrets`, which every Flux `postBuild` substitution reads.
+Projection is gated three times over, deliberately, and each leg lives in a
+different file. Turning on fewer than three is the trap: with leg 1 missing the
+operator surfaces an actionable `403` in the resource status, but with **leg 2
+or leg 3 missing everything reconciles clean and the mover fails at run time**.
 
-The Ceph S3 keys are mirrored from the ObjectBucketClaim's own generated Secret
-(`system/kopiur`), not from 1Password. Rook generates and rotates them, so the
-OBC Secret is the authoritative source; Stage 0's `kopiur-ceph-bucket` 1Password
-item stays a **record that nothing reads**, exactly as its README says.
+| # | What | Where | Field |
+|---|---|---|---|
+| 1 | Operator RBAC | [`apps/base/system/kopiur/app/helmrelease.yaml`](../../apps/base/system/kopiur/app/helmrelease.yaml) | `features.credentialProjection.enabled: true` |
+| 2 | Repository-owner consent | [`apps/base/system/kopiur/repository/clusterrepository.yaml`](../../apps/base/system/kopiur/repository/clusterrepository.yaml) (**both** `ceph` and `r2`) | `credentialProjection.allowed: true` |
+| 3 | Consumer opt-in | `./ceph/snapshotpolicy.yaml`, `./r2/snapshotpolicy.yaml`, `./ceph/restore.yaml` | `credentialProjection.enabled: true` |
 
-### The accepted risk, stated plainly
+A fourth thing is load-bearing and easy to delete by accident: every `secretRef`
+in the `ClusterRepository` spec sets `namespace:` **explicitly**. The CRD
+requires that for projection - without it the operator does not know what to
+copy.
 
-At pilot scale this is three objects in one namespace - negligible. **At Stage 3
-it would mean standing backup credentials in ~19 app namespaces, so compromising
-any single app namespace would yield read/write access to the backup
-repositories.** That is the ransomware-shaped risk, and it is precisely why the
-permanent shape is deferred to a decision rather than defaulted into by
-inheritance. The captain chooses it before Stage 3, when the cost actually
-appears.
+Because leg 3 lives in this component, **an app onboarded through
+`components/kopiur` gets projection automatically**. There is nothing per-app to
+add and nothing per-namespace to create: no `ExternalSecret`, no
+`ClusterSecretStore`, no `dependsOn` credential edge.
 
-**Anyone onboarding a second namespace must resolve that decision first.** This
-section exists so the compromise cannot become the permanent design by inertia.
+### The accepted trade-off, stated plainly
+
+Leg 1 is the only thing that adds `create`/`patch`/`delete` on `secrets` to the
+operator's ClusterRole, and **`create` cannot be scoped to a Secret name**. A
+compromised kopiur operator therefore becomes a **cluster-wide credential-rewrite
+primitive** - it can write a Secret in any namespace it manages. The captain took
+that cost with it named. It is not glossed and it is not mitigated away.
+
+What it buys, measured against the alternative it replaced: the pilot kept three
+standing credential objects in one namespace. Extending that shape to Stage 3
+would have meant **18 standing credential objects across 6 app namespaces**, each
+granting read **and** write to both backup repositories - so compromising any
+single app namespace would have yielded the ability to read every backup and
+write to both. That is the ransomware-shaped risk. Projection drops exposure
+from permanent to the length of one mover run.
+
+Two properties make the cost tolerable rather than merely accepted:
+
+* **Observable.** The operator exports `kopiur_projected_secrets_live`. It should
+  read `0` between runs, and rise only while a mover is running. A non-zero
+  reading at rest means a reap did not happen - investigate, do not ignore.
+  Per-run, `Snapshot.status.cleanup.credsReapedAt` records the reap, and
+  `kopiur_secrets_projected_total` counts projections.
+* **Reversible**, by flipping one boolean per repository (leg 2). Note that
+  reverting alone leaves movers outside `system` with **no** credentials at all:
+  the standing per-namespace copies are gone, so a rollback means re-creating
+  them, not just unflipping a flag.
+
+**Do not widen anything further on top of this.** The decision authorises
+exactly the RBAC projection needs and nothing else. In particular it does not
+authorise `features.kopiaUi`, which asks for the same unscoped Secret verbs for
+a different purpose.
+
+### What this replaced
+
+Stage 1 unblocked the pilot with a **`downloads`-only** copy: three
+`ExternalSecret`s in `apps/base/downloads/kopiur-credentials/` producing
+`kopiur`, `kopiur-ceph-secret` and `kopiur-r2-secret`, fed partly by a
+kubernetes-provider `ClusterSecretStore` restricted to `namespaces: [downloads]`.
+All of it is **deleted** - a standing credential nothing needs is exactly what
+this change exists to eliminate. Do not reintroduce any of it; if a mover cannot
+reach its credentials, the fault is in one of the three legs above.
+
+One historical detail survives the deletion and still matters: the Ceph S3 keys
+are generated and rotated by Rook's `ObjectBucketClaim`, so `system/kopiur` is
+their authoritative source. Stage 0's `kopiur-ceph-bucket` 1Password item stays a
+**record that nothing reads**, exactly as its README says.
+
+### Restores carry the same caveat as any `ssa: IfNotPresent` object
+
+`./ceph/restore.yaml` carries leg 3, but it also carries
+`kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`, so **Flux creates it once and
+never reconciles it again**. Adding the field does not reach a `Restore` that
+already exists in the cluster. The two live `*-kopiur-dst` objects in `downloads`
+predate this change; they are inert (`target.populator`, and every claim's
+`dataSourceRef` still points at VolSync's `${APP}-dst`), so nothing breaks today,
+but they must be recreated or hand-patched before Stage 5 repoints anything at
+them. A scratch drill `Restore` written today needs `credentialProjection.enabled:
+true` in its own spec - see "Restore" below.
 
 ## Per-Application Usage
 
@@ -132,9 +186,6 @@ volsync - not instead of it:
       namespace: system
     - name: kopiur-repository        # applies the ceph/r2 ClusterRepositories
       namespace: system              # and itself dependsOn the operator
-    - name: kopiur-credentials       # PILOT ONLY - see "Credentials" above.
-      namespace: downloads           # A new namespace has no equivalent yet,
-                                     # and creating one needs that decision.
   components:
     - ../../../../../components/volsync
     - ../../../../../components/kopiur
@@ -146,6 +197,10 @@ volsync - not instead of it:
 `dependsOn: kopiur-repository` is not optional. The kopiur admission webhook is
 `failurePolicy: Fail`, so with the operator down the API server **rejects** these
 CRs outright rather than leaving them unreconciled.
+
+There is deliberately **no credential dependency here**. Credentials are minted
+per run by the operator and reaped afterwards - see "Credentials" above. A new
+namespace needs nothing created in it.
 
 ### Apps with more than one volume
 
@@ -225,6 +280,10 @@ metadata:
   namespace: downloads
 spec:
   repository: {kind: ClusterRepository, name: ceph}
+  # Required, and easy to forget in a hand-written manifest: there are no
+  # standing repository credentials in any app namespace, so a mover with no
+  # projection opt-in has nothing to authenticate with. See "Credentials".
+  credentialProjection: {enabled: true}
   source: {fromPolicy: {name: autobrr-ceph, offset: 0}}
   target:
     pvc: {name: autobrr-drill-restored, accessModes: [ReadWriteOnce], capacity: 5Gi}
