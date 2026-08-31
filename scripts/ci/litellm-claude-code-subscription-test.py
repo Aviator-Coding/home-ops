@@ -55,8 +55,12 @@ MODEL_NAME = "claude-code-subscription"
 PLACEHOLDER_PREFIX = "sk-ant-oat"
 PLACEHOLDER = "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
 EXPECTED_UPSTREAM = "anthropic/claude-sonnet-5"
-EXPECTED_RPM = 10
-EXPECTED_TPM = 250000
+# Raised 2026-08-30 after measured proxy 429s at the old 10/250000 ceilings
+# (~556 request-limit + ~171 token-limit in 24h). 7500000 keeps the same
+# tokens-per-request headroom at 300 rpm. Guardrail only - not a throughput
+# target; Anthropic's own subscription rate limit is the real ceiling.
+EXPECTED_RPM = 300
+EXPECTED_TPM = 7500000
 
 RESULTS: list[dict[str, Any]] = []
 
