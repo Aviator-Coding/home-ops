@@ -7,14 +7,21 @@ whole stage is that BOTH engines stay live on every volume: nothing is retired
 here, and no VolSync object is touched. Retirement is Stage 5 and needs a
 per-volume restore proof first.
 
-Two claims are deliberately NOT onboarded and this test pins their absence, so
-a later change cannot quietly sweep them in without the component work they
-need:
+One claim is deliberately NOT onboarded and this test pins its absence, so a
+later change cannot quietly sweep it in without the component work it needs:
   * home-automation/matter-server      - runs as root by design (0:0:0)
-  * selfhosted/changedetection-config  - needs a 0:1000 root mover
 
-Both need a root mover the component cannot express, and both stay fully
+It needs a root mover the component cannot express, and stays fully
 VolSync-protected meanwhile.
+
+`selfhosted/changedetection-config` was the second such claim and is onboarded
+here (Stage 4, 2026-08-31). It never actually needed a root mover: the app had
+NO securityContext at all, so it ran as the image default (root) and wrote
+2292 mode-0600 root-owned files, while the overlay declared a 2000:2000
+identity that nothing consumed. Giving the app the 1000:1000 identity its data
+already carried, and re-owning the volume to match, removed the need for a
+0:1000 mover entirely - which is why this arrives with no KOPIUR_PUID/PGID
+override and no namespace-wide privileged-mover grant on `selfhosted`.
 
 This test does not grep source text as its evidence. It:
   1. Parses every Flux Kustomization under kubernetes/apps/main into structured
@@ -83,6 +90,9 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("media", "plex"): ("2000", "2000"),
     ("media", "seerr"): ("2000", "2000"),
     ("media", "tdarr-config"): ("2000", "2000"),
+    # Measured 2026-08-31, after the Stage 4 re-own: all 3063 entries 1000:1000,
+    # zero unreadable at 1000, all 5 setgid directories preserved.
+    ("selfhosted", "changedetection-config"): ("1000", "1000"),
     ("selfhosted", "linkwarden"): ("1000", "1000"),
     ("selfhosted", "n8n"): ("1000", "1000"),
     ("selfhosted", "ntfy"): ("1000", "1000"),
@@ -93,10 +103,9 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("selfhosted", "syncthing-data"): ("1000", "1000"),
 }
 
-# Deliberately absent - each needs a root mover the component cannot express.
+# Deliberately absent - needs a root mover the component cannot express.
 DEFERRED_CLAIMS = {
     ("home-automation", "matter-server"),
-    ("selfhosted", "changedetection-config"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of

@@ -21,6 +21,14 @@ spec:
   uninstall:
     keepHistory: false
   values:
+    # The `main` container alone is pinned to 1000:1000; the pod-level block
+    # carries only fsGroup. `browser` (browserless/chrome) ships its own
+    # `blessuser` uid 999 and a pod-wide runAsUser would force it off that
+    # identity, so it deliberately keeps the image default.
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
     controllers:
       main:
         containers:
@@ -28,6 +36,17 @@ spec:
             image:
               repository: ghcr.io/dgtlmoon/changedetection.io
               tag: 0.55.8@sha256:5438423d5e906eff4e8f7886823482ad23f472bf7b8530ccaca89fb48c337882
+            # Identity is MEASURED, not declared-and-hoped: the image default is
+            # root, and before this the pod ran as uid 0 while the overlay
+            # claimed 2000:2000 and both VolSync movers ran 1000:1000. 1000:1000
+            # is the only value with a real claim to the data - every file and
+            # every setgid directory under /datastore is already group 1000 (the
+            # stamp of a VolSync restore mover) - and it is kopiur's fleet
+            # default, so no KOPIUR_PUID/PGID override is needed.
+            securityContext:
+              runAsUser: 1000
+              runAsGroup: 1000
+              runAsNonRoot: true
             env:
               PORT: &port 5000
               USE_X_SETTINGS: 1
