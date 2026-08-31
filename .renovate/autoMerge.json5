@@ -26,6 +26,35 @@
       ignoreTests: false,
     },
     {
+      // Must sit after the three blanket automerge rules above (same reasoning
+      // as the kopiur rule below): Renovate evaluates packageRules in order
+      // and a later matching rule overrides an earlier one. Kept immediately
+      // before the kopiur exclusion so that rule remains last - scripts/ci/
+      // kopiur-stage0-test.py::test_renovate_automerge_exclusion asserts
+      // rules[-1] is the kopiur package-name exclusion. The two exclusions
+      // match disjoint dependencies, so their relative order to each other
+      // does not matter.
+      //
+      // This is Renovate's own chart-pin exclusion, the condition the
+      // 2026-08-22 in-cluster-Renovate decision called non-negotiable.
+      // Matched by file path rather than package name because the tracked
+      // dependency is the chart OCIRepository
+      // (ghcr.io/renovatebot/charts/renovate, kubernetes/apps/base/renovate/app/ocirepository.yaml)
+      // - a path match also covers the CronJob's own image tag if Renovate's
+      // helm-values manager ever starts tracking it too.
+      //
+      // Verified live 2026-08-31: this repo's branch protection requires 0
+      // approving reviews and only the "Labeler" status check, so with no
+      // exclusion a matching patch/minor/digest update to Renovate's own
+      // chart automerges with zero human review - confirmed via the pending
+      // ghcr.io/renovatebot/charts/renovate 46.255.0 -> 46.265.0 minor update
+      // sitting in the dependency dashboard, unexcluded, at the moment this
+      // rule was added.
+      description: "Never auto merge Renovate's own chart/image - self-update must be reviewed",
+      matchFileNames: ["kubernetes/apps/base/renovate/**"],
+      automerge: false,
+    },
+    {
       // MUST stay LAST: Renovate evaluates packageRules in order and a later
       // matching rule overrides an earlier one, so this has to sit after the
       // three blanket automerge rules above to actually win for kopiur.
@@ -42,27 +71,6 @@
       // patch that crosses a CRD change can silently refuse every backup
       // policy. Renovate still PROPOSES bumps as PRs - only the merge is
       // withheld. Read upstream docs/upgrade.md before taking one.
-      automerge: false,
-    },
-    {
-      // MUST stay LAST (after the blanket automerge rules, same reasoning as
-      // the kopiur rule above): this is Renovate's own chart-pin exclusion,
-      // the condition the 2026-08-22 in-cluster-Renovate decision called
-      // non-negotiable. Matched by file path rather than package name because
-      // the tracked dependency is the chart OCIRepository
-      // (ghcr.io/renovatebot/charts/renovate, kubernetes/apps/base/renovate/app/ocirepository.yaml)
-      // - a path match also covers the CronJob's own image tag if Renovate's
-      // helm-values manager ever starts tracking it too.
-      //
-      // Verified live 2026-08-31: this repo's branch protection requires 0
-      // approving reviews and only the "Labeler" status check, so with no
-      // exclusion a matching patch/minor/digest update to Renovate's own
-      // chart automerges with zero human review - confirmed via the pending
-      // ghcr.io/renovatebot/charts/renovate 46.255.0 -> 46.265.0 minor update
-      // sitting in the dependency dashboard, unexcluded, at the moment this
-      // rule was added.
-      description: "Never auto merge Renovate's own chart/image - self-update must be reviewed",
-      matchFileNames: ["kubernetes/apps/base/renovate/**"],
       automerge: false,
     },
   ],
