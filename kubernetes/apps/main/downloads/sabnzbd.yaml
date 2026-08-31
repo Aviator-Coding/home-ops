@@ -29,8 +29,6 @@ spec:
     # kopiur runs ALONGSIDE volsync on this claim. See the components block.
     - name: kopiur-repository
       namespace: system
-    - name: kopiur-credentials
-      namespace: downloads
   components:
     # BOTH backup systems, deliberately and simultaneously - the same shape as
     # downloads/autobrr, which see for the full rationale.
