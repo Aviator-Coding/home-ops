@@ -16,6 +16,24 @@ the single authority.
 
 Diagnosis this builds on: the 2026-08-31 scout report on the errored remuxes.
 
+### How to read provenance
+
+Two kinds of claim appear below. They decay differently, so each proof is
+labelled **at the point it is made**:
+
+- **One-time live observation** — operator-executed against the live cluster on
+  2026-08-31. Not reproducible in CI. Nothing will re-fire if it stops being
+  true; re-verify before relying on it.
+- **Re-checked by CI** — exercised on every run from the Git-visible artifacts
+  under `docs/tdarr/` (node sources, `flow-movies_av1_nvenc_v1.after.json`, and
+  `docs/tdarr/flow-nodes/behavior-test.js`). A CI-verified claim either stays
+  true or goes red on the next run, so it defends itself.
+
+Where a live finding has a committed counterpart that CI re-checks, both labels
+appear. That is the strongest position (the dead-guard finding is one of these:
+observed live in the job reports, pinned going forward by the after-flow
+artifact).
+
 ---
 
 ## 1. Scope: `librariesToNotProcess` never worked here
@@ -61,7 +79,8 @@ const authStatus = async (saU) =>
 status"*. Called with `saU: false` - which is what `getNextTask` does - it
 cannot even trigger verification; it returns the cached flag.
 
-Live, on this server:
+**Provenance: one-time live observation** — operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. Live, on this server:
 
 ```console
 $ curl -s -XPOST .../api/v2/auth-status -d '{"data":{"saU":false}}'
@@ -70,7 +89,9 @@ $ sqlite3 database.db "select json_extract(json_data,'$.tdarrKey') from settings
                        # empty string
 ```
 
-So the clause is never added, on either path.
+So the clause is never added, on either path. The licence-gating shape in the
+bundled source above is what makes that empty key fatal; the live call only
+confirms this install is unauthorised.
 
 ### 1.2 The "server push" hypothesis is refuted
 
@@ -132,6 +153,12 @@ if (excluded.length) wheres.push(`${fileColumns.db} NOT IN (...)`);
 Health checks and folder scanning stay on; only transcoding is refused.
 
 ### 1.4 Proof that it holds
+
+**Provenance: one-time live observation** — operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. The whole before/after table1
+proof below (Series present then refused, Movies positive control staying
+present, refused file still `TranscodeDecisionMaker=Queued`, and the same file
+accepted by table4 while refused by table1) is live-only.
 
 Node paused first (`nodePaused: true`), so no dispatch was possible during the
 test. Both files set to `TranscodeDecisionMaker: Queued`. The probe is
@@ -209,6 +236,19 @@ so every one of the five nodes unconditionally returns **output 1**.
 
 ### 2.2 Evidence
 
+**Provenance: one-time live observation** — operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. The 6514-report sweep (0
+executed-only guard signatures vs 1187 code-dump forms) and the `dv_check`
+`outputNumber: 1` on a bt709 h264 file are live-only.
+
+**Provenance: re-checked by CI** — the committed counterpart is that every
+`customFunction` node in `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` is
+keyed `inputsDB.code` (and the before dump still carries `inputsDB.function`).
+`docs/tdarr/flow-nodes/behavior-test.js` executes those after-flow bodies and
+asserts they jobLog domain-specific output rather than the silent stub. Dead
+guards were observed live; the after-flow artifact pins the repair going
+forward.
+
 Job reports dump the resolved inputs, and show both keys side by side - the
 default in `code`, the real code stranded in `function`:
 
@@ -266,6 +306,13 @@ before and after; `docs/tdarr/flow-nodes/*.js` hold the node sources.
 
 ### 3.1 The CPU worker: encoder-aware arguments
 
+**Provenance: re-checked by CI** — `docs/tdarr/flow-nodes/cargs_template.js` and
+the embedded `cargs22/23/24` bodies in
+`docs/tdarr/flow-movies_av1_nvenc_v1.after.json` are executed by
+`docs/tdarr/flow-nodes/behavior-test.js`. The harness asserts `libsvtav1` emits
+`-preset 8 -crf N`, `av1_qsv` keeps the QSV args, and an unrecognised encoder
+fails closed (`outputNumber: 2`).
+
 The three `cargs` nodes appended QSV-only options unconditionally:
 
 ```
@@ -292,6 +339,12 @@ arguments it may reject.
 throughput during a GPU/VA-API outage. Tunable in `cargs*`.
 
 ### 3.2 Verified on a real transcode
+
+**Provenance: one-time live observation** — operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. Both real rewrites (SPF-18 CPU
+path and Destination Wedding GPU path) and the job-report lines quoted from
+them are live-only. The encoder-argument branching those reports show is the
+same behaviour CI re-checks from the committed node sources in §3.1.
 
 Low-value, non-master file, CPU worker forced (`transcodegpu: 0`):
 
@@ -326,6 +379,16 @@ ffmpeg: -c:0 av1_qsv -c:1 copy      (338 fps)
 
 ### 3.3 guard_scope observed refusing a file
 
+**Provenance: one-time live observation** — operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. The end-to-end refusal of the
+`zzflowtest` file through the real Tdarr flow is live-only.
+
+**Provenance: re-checked by CI** — `docs/tdarr/flow-nodes/guard_scope.js` (and
+the matching after-flow body) is executed by
+`docs/tdarr/flow-nodes/behavior-test.js`: in-scope Movies under `/media/Movies/`
+continues (`outputNumber: 1`); Series library, Series path, both-wrong, and
+empty input all refuse (`outputNumber: 2`).
+
 A file in a temporary library on `/temp` (never on the NAS) was queued with the
 node running:
 
@@ -341,6 +404,19 @@ never reached. That is the flow-layer counterpart to the queue-layer refusal in
 section 1.4.
 
 ### 3.4 Subtitles: convert, never drop
+
+**Provenance: one-time live observation** — operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. The ffmpeg reproduction of
+`Subtitle codec 94213 is not supported` and the end-to-end conform run through
+the real Tdarr flow on the disposable `/temp` file are live-only.
+
+**Provenance: re-checked by CI** — `docs/tdarr/flow-nodes/subconform.js` (and
+the embedded `sub22/23/24` bodies) plus the after-flow `cont22/23/24`
+`forceConform: "false"` pins are executed/asserted by
+`docs/tdarr/flow-nodes/behavior-test.js`: synthetic 5 `mov_text` → 5 srt kept;
+master-shaped fixtures preserve 14/2/1/19/46/37/35 subtitle tracks and all
+audio; Amelie drops only its 7 zero-dimension mjpeg; forceConform stays off on
+every Set Container rung.
 
 `Set Container mkv` has a `forceConform` input. **Do not turn it on.** It does
 not convert - it deletes (`ffmpegCommandSetContainer/1.0.0/index.js`):
@@ -381,6 +457,10 @@ ffmpeg: -c:0 libsvtav1 -c:1 copy -c:2 srt -c:3 srt -c:4 srt -c:5 srt -c:6 srt
 
 ### 3.5 What it would do to the seven - unit-proved, not run
 
+**Provenance: re-checked by CI** — read-only against committed master-shaped
+`ffProbeData` fixtures (same counts the unit harness and
+`docs/tdarr/flow-nodes/behavior-test.js` assert). None of the seven was queued.
+
 `docs/tdarr/flow-nodes/unit-test-conform-against-masters.js` runs the node
 against each master's **real** `ffProbeData`, read-only. None was queued.
 
@@ -409,6 +489,11 @@ Every subtitle and audio track survives on every one of the seven.
   HDR, not track counts.
 
 ## 4. The seven parked masters
+
+**Provenance: one-time live observation** — operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. Size, mtime and inode for all
+seven masters were checked on the live NFS media tree; that check cannot run in
+CI.
 
 All seven verified byte-intact on 2026-08-31 (size + mtime + inode). None was
 queued, retried or processed by this work.
@@ -460,6 +545,16 @@ left on the node untouched; the node config itself was not changed
 (`docs/tdarr/node-config.json` is a current snapshot, for reference only).
 
 ### Live state at the end of this work
+
+**Provenance: one-time live observation** — operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. Library toggles, flow node/edge
+counts, queue depths, error-table composition, and the final byte-intact check
+of the seven masters are live-only Tdarr/NFS state.
+
+**Provenance: re-checked by CI (flow half only)** — the after-flow artifact
+still carries 12 `customFunction` nodes all keyed `inputsDB.code` and is the
+single restore authority above; CI re-checks that contract, not the live queue
+or error-table numbers.
 
 ```
 libraries   j5g_Es7sD  Series      processTranscodes=False  processHealthChecks=True
