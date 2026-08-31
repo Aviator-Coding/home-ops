@@ -5,9 +5,11 @@
 > `fm/homeops-kopiur-stage2`. Re-measure timings before relying on them; the *procedure*
 > itself (manifests, ordering, verification method, cleanup) is the reusable part.
 >
-> Sibling document: [`restore-drill-2026-08-23.md`](restore-drill-2026-08-23.md) is the same
+> Sibling documents: [`restore-drill-2026-08-23.md`](restore-drill-2026-08-23.md) is the same
 > exercise against VolSync, and is the house standard this one is built to. Read its
 > "Hard constraint this procedure satisfies" section first; it is binding here too.
+> Rebuilding a live claim rather than proving a repository is a different procedure:
+> [`corrupt-claim-recreation-runbook.md`](corrupt-claim-recreation-runbook.md).
 
 ## Result
 
@@ -611,8 +613,12 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
    matching a live count taken as the app's own uid; VolSync's restic reports 2061. The
    difference may be nothing more than restic's counting convention, but it has not been
    investigated and should not be assumed benign.
-4. **Consider whether VolSync's writable staging is a fidelity concern of its own.** kopiur
-   reproduces the original modes; whether a VolSync restore does was not tested here and is a
-   separate drill.
+4. **VolSync's writable staging is a mode-fidelity concern - answered 2026-08-31.** A VolSync
+   restore permanently relaxes every file mode by one group-write bit (`644→664`, `600→660`,
+   …), credentials included; ownership is unaffected. Measured across all 4,749 files of
+   `ai/opencode` (including `.git-credentials` `0600→0660`). Owner:
+   `docs/backups/corrupt-claim-recreation-runbook.md` and the matching `AGENTS.md` entry;
+   evidence: `docs/backups/opencode-volume-recreation-2026-08-31.md`. kopiur restores still
+   reproduce the original modes.
 5. **Re-examine whether `downloads/autobrr` needs volume backup at all** (finding 1).
 6. Measure a large-PVC and a CephFS/RWX restore before Stage 5 retires anything in those classes.

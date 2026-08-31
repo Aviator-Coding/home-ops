@@ -204,15 +204,19 @@ on a representative large app.
 ## What this drill did and did not prove
 
 - **Proved**: the Ceph destination restore path works end-to-end today (post the RGW
-  `v20.2.4` SigV4 fix earlier the same day), producing byte-identical file content to the live
+  `v20.2.4` SigV4 fix earlier the same day), producing byte-identical file **content** to the live
   app. The MinIO path, already known to be healthy, was re-proven identically as a baseline.
   The manual-trigger + scratch-PVC pattern above is safe to repeat against any app without
   touching its live volume.
-- **Did not prove**: R2-destination restores (not exercised - time did not permit; the R2
-  restic repository uses the same shape, only the `ReplicationDestination`'s
-  `repository:` Secret name changes to `<app>-volsync-r2-secret`, so the same procedure applies
-  unmodified). Restore behavior for a large PVC (100Gi-class). Restore of a CephFS
-  (`ReadWriteMany`) claim - this drill only covered `ceph-block`/RWO.
+- **Did not prove**: file-mode fidelity (this drill did not compare modes; a later run showed
+  VolSync restores permanently relax every mode by one group-write bit - see
+  `docs/backups/corrupt-claim-recreation-runbook.md`). R2-destination restores (not exercised -
+  time did not permit; the R2 restic repository uses the same shape, only the
+  `ReplicationDestination`'s `repository:` Secret name changes to `<app>-volsync-r2-secret`, so
+  the same procedure applies unmodified). Restore behavior for a large PVC (100Gi-class).
+  Restore of a CephFS (`ReadWriteMany`) claim - this drill only covered `ceph-block`/RWO.
+  Rebuilding a live claim from `dataSourceRef`/`latestImage` (that path has its own trap and
+  runbook: `docs/backups/corrupt-claim-recreation-runbook.md`).
 - **Follow-up worth doing**: turn this into a recurring, scheduled drill (e.g. quarterly,
   rotating which app) now that a safe procedure exists, rather than relying on ad hoc exercises.
   R1.2 in the task's supporting investigation's ordered work list already flagged "exercise one

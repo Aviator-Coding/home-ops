@@ -246,18 +246,33 @@ kubectl get replicationsource ${APP}-ceph -o yaml | grep schedule
 
 ## Restore Operations
 
-### All ReplicationDestinations (Manual Only)
+### `${APP}-dst` (create-once populator source)
+
 ```yaml
 trigger:
   manual: restore-once
 ```
 
 **Behavior**:
-- **NEVER runs automatically**
-- **Only when manually triggered** by changing the trigger value
-- Downloads from respective backup repository
-- Creates new PVC in your Ceph cluster
-- Used for disaster recovery
+- Runs **exactly once**, when the object is first created (the `restore-once` trigger fires on
+  admit). It does **not** re-run on a schedule, and Flux will not re-run it later -
+  `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent` freezes the object after first apply.
+- That single run writes into the destination's own temp PVC and publishes
+  `status.latestImage` (a VolumeSnapshot). It does not populate the app claim by itself.
+- `pvc.yaml` then creates `${VOLSYNC_CLAIM:-${APP}}` with
+  `dataSourceRef -> ReplicationDestination/${APP}-dst`, so the volume populator clones
+  **`status.latestImage`**, not the restic repository. If the first run found an empty repo
+  (`No eligible snapshots found` / `No data will be restored`), `latestImage` is a snapshot of
+  an empty volume and stays that way forever - deleting only the PVC and letting Flux recreate
+  it restores nothing while PVC `Bound` / app `Running` / Flux `Ready` all report success.
+  Always read `status.latestMoverStatus.logs` and `status.lastSyncTime` before trusting the
+  populator; to re-fire restore against a now-populated repo, delete the
+  `ReplicationDestination` *together with* the PVC so Flux recreates both. Full procedure:
+  `docs/backups/corrupt-claim-recreation-runbook.md` (measured on `ai/opencode` 2026-08-31).
+- A VolSync restore is **not mode-faithful**: the mover stages the destination writable, so
+  kubelet's recursive `fsGroup` walk relaxes every mode by one group-write bit before restic
+  writes (`644→664`, `600→660`, …). Ownership is unaffected; kopiur restores preserve modes.
+  Details: the VolSync mode-relaxation entry in `AGENTS.md` and the same runbook.
 
 ### Manual Restore Process
 
@@ -273,6 +288,8 @@ drift trap in `AGENTS.md`).
 - **Verifying a restore without touching live data**: follow
   `docs/backups/restore-drill-2026-08-23.md` - it restores into a scratch PVC via a
   drill-specific `ReplicationDestination`, never `${APP}-dst`.
+- **Replacing a corrupt claim** (live mount works, snapshot clones fail fsck): follow
+  `docs/backups/corrupt-claim-recreation-runbook.md`. Do not delete only the PVC.
 
 ## Daily Timeline Example
 
