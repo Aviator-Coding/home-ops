@@ -201,6 +201,45 @@ Code actually uses, not just `/v1/chat/completions`.
 reaches it. Grant it only on a virtual key that carries `rpmLimit`/`tpmLimit`;
 the real ceiling is Anthropic's own subscription rate limiting.
 
+### 4a. OPEN DEFECT - the `$0` is NOT reaching the route Claude Code uses
+
+Measured against the production spend log on 2026-08-30 while verifying the
+Opus work, and it contradicts the paragraph above for the endpoint that matters
+most. Grouping `LiteLLM_SpendLogs` by the subscription key's alias:
+
+| `call_type` | `model` recorded | rows | recorded spend |
+| --- | --- | --- | --- |
+| `anthropic_messages` | `anthropic/claude-sonnet-5` | 1223 | **$52.45** |
+| *(other)* | `claude-code-subscription` | 755 | $0.00 |
+
+The **successful** `/v1/messages` requests - the route the `claude` CLI actually
+drives - are logged under the *upstream* id `anthropic/claude-sonnet-5`, not the
+model group, and are therefore priced from LiteLLM's built-in metered cost map
+rather than the CR's `model_info`. A sample row's
+`metadata.cost_breakdown` is fully populated (`cache_read_cost`,
+`cache_creation_cost`, …), which is the signature of LiteLLM computing the cost
+itself. The $0 rows are the failures. It is ongoing, not historical: 362 rows /
+$14.20 on 2026-08-31 alone.
+
+**No real money moves** - the caller's OAuth token still pays Anthropic, which
+§2b/§7 prove independently. What is wrong is the *accounting*: recorded spend
+on this key is fiction, and it climbs. Practical consequences:
+
+- The `$0` claim in §4 and §5d holds only for the non-`anthropic_messages`
+  paths. Do not quote "spend will read $0" as a check that the feature is
+  healthy.
+- Any future `maxBudget` on this key **would** trip, on dollars nobody is
+  invoiced - so the "a budget here is inert" reasoning in §5b is currently true
+  for the wrong reason. Leave the key budgetless regardless.
+- `claude-code-subscription-opus` inherits the same defect at Opus's higher
+  rate, so recorded spend will climb faster once it is in use.
+
+**Not fixed here.** The 2026-08-30 Opus change was scoped to adding one model
+CR, and this is a pre-existing defect in how LiteLLM's passthrough
+`anthropic_messages` handler resolves `model_info` - fixing it means changing
+the existing Sonnet CR (or the proxy's pricing configuration), which is a
+separate captain decision. Filed as a finding rather than silently carried.
+
 ---
 
 ## 5. Client runbook
@@ -316,8 +355,10 @@ header as proxy auth and stops forwarding it upstream (`clean_headers`,
 kubectl -n ai logs deploy/litellm -c litellm --since=5m | grep claude-code-subscription
 ```
 
-Spend will read `$0` by design (§4); tokens, duration and the owning virtual key
-are the signal. The same rows drive the Prometheus metrics scraped by
+Tokens, duration and the owning virtual key are the signal. Spend is *intended*
+to read `$0` (§4) but currently does not on the `/v1/messages` route the CLI
+uses - see the open defect in §4a before drawing any conclusion from a spend
+figure on this key. The same rows drive the Prometheus metrics scraped by
 [`app/servicemonitor.yaml`](../../../kubernetes/apps/base/ai/litellm/app/servicemonitor.yaml).
 
 ### 5e. Adding a further family (Haiku, Fable)
@@ -442,3 +483,46 @@ class of manual step as the one-time OAuth login in §5a. What the repo *can*
 enforce, and does, is that no misconfiguration on the client can turn into
 metered spend: the allow-list names no metered route and the CI test fails the
 build if that ever changes.
+
+### 7c. Money-safety verification, measured live
+
+Run 2026-08-30 against the running proxy with the Opus CR applied and a
+throwaway key carrying the exact post-merge allow-list
+(`['claude-code-subscription', 'claude-code-subscription-opus']`). The captain's
+own key was never modified. Both temporary objects were deleted afterwards and
+the rendered `litellm-config` hashed **byte-identical** to its pre-test value.
+
+| # | Model requested | Client `Authorization` | Result |
+| --- | --- | --- | --- |
+| V1 | `claude-code-subscription-opus` | *(none)* | `401 AnthropicException … "OAuth access token is invalid."` |
+| V2 | `claude-code-subscription-opus` | `Bearer sk-ant-oat01-FAKE…` | `401` - same |
+| V2m | same, on **`/v1/messages`** | *(none)* | `401` - same |
+| V3 | `claude-code-subscription` | *(none)* | `401` - existing Sonnet path unchanged |
+| V4 | `claude-opus-5` (metered) | *(none)* | `403 key_model_access_denied` |
+| V5 | `claude-sonnet-5` (metered) | *(none)* | `403` |
+| V6 | `auto` (D3 router) | *(none)* | `403` |
+| V7 | `claude-opus-5` (metered) | `Bearer sk-ant-oat01-FAKE…` | `403` - a client header cannot move the boundary |
+
+**V1 is the money-safety proof, and it is the same measurement the original
+design rested on.** Anthropic itself answering *"OAuth access token is
+invalid."* means the request was admitted by the allow-list, was dispatched on
+the Anthropic Opus route, and **carried no `sk-ant-api…` household key** - if
+our metered credential had been sent, that request would have succeeded and
+been billed. The throwaway key's recorded spend was `0.0` after the whole
+matrix.
+
+V4-V7 are the negative half: the two-model allow-list is not a widening. Every
+metered route stays refused, and the rendered config still shows
+`claude-opus-5` and `claude-sonnet-5` carrying `os.environ/ANTHROPIC_API_KEY`,
+untouched.
+
+**What is NOT proven here, stated plainly:** a *successful* Opus completion. That
+needs a real subscription OAuth token, which lives only on a person's
+workstation and which neither this repo nor CI can hold - the same boundary §5a
+draws around the interactive login. The 401 proves every link in the chain
+except the token itself, and the identical chain is what serves Sonnet in
+production today. Confirm on a logged-in workstation with:
+
+```bash
+claude -p 'reply with the single word: ok' --model claude-code-subscription-opus
+```
