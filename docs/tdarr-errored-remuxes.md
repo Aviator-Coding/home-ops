@@ -6,8 +6,13 @@ seven parked 4K remux masters.
 
 **Almost everything here is Tdarr server state (SQLite under
 `/app/server/Tdarr/DB2/`), not GitOps.** It does not survive a rebuild of the
-Tdarr PVC and is invisible to Flux. `docs/tdarr/*.before.json` are recovery
-copies of the flow and node config as they stood on 2026-08-31.
+Tdarr PVC and is invisible to Flux. The only correct flow recovery source is
+`docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (post-fix state). The matching
+`*.before.json` dumps are the pre-fix baseline retained for diffing only -
+never restore from them: their customFunction nodes still use the dead
+`inputsDB.function` key (Guards 1-3 never execute) and their cargs nodes are
+QSV-only (every CPU job fails at ffmpeg init). Section 5's restore command is
+the single authority.
 
 Diagnosis this builds on: the 2026-08-31 scout report on the errored remuxes.
 
@@ -429,15 +434,18 @@ bulk UI requeue (7.02 GB h264 -> 1.41 GB AV1). Lossy and irreversible.
 
 None of the following is GitOps. It does not survive a rebuild of the
 `tdarr-config` PVC and Flux cannot see or restore it. `docs/tdarr/` holds
-recovery copies.
+recovery copies. Authoritative flow restore source on every flow row below is
+`docs/tdarr/flow-movies_av1_nvenc_v1.after.json`; `docs/tdarr/flow-nodes/*.js`
+are readable excerpts of the node bodies, not restore inputs. Never restore a
+flow from `*.before.json`.
 
 | Change | Where | Recovery copy |
 |---|---|---|
 | `processTranscodes: false` on Series | `LibrarySettingsJSONDB` `j5g_Es7sD` | this document, §1.3 |
-| `guard_scope` node + `input1` rewire | `FlowsJSONDB` `movies_av1_nvenc_v1` | `docs/tdarr/flow-*.json`, `flow-nodes/guard_scope.js` |
-| 5 nodes rekeyed `function` -> `code` | same flow | `docs/tdarr/flow-*.json` |
-| `cargs22/23/24` encoder-aware | same flow | `flow-nodes/cargs_template.js` |
-| `sub22/23/24` stream conform | same flow | `flow-nodes/subconform.js` |
+| `guard_scope` node + `input1` rewire | `FlowsJSONDB` `movies_av1_nvenc_v1` | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (readable excerpt: `flow-nodes/guard_scope.js`) |
+| 5 nodes rekeyed `function` -> `code` | same flow | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` |
+| `cargs22/23/24` encoder-aware | same flow | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (readable excerpt: `flow-nodes/cargs_template.js`) |
+| `sub22/23/24` stream conform | same flow | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (readable excerpt: `flow-nodes/subconform.js`) |
 
 Restore with `POST /api/v2/cruddb`:
 

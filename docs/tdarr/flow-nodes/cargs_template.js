@@ -10,7 +10,9 @@
 
 module.exports = async (args) => {
   const QUALITY = __QUALITY__;   // av1_qsv -global_quality, libsvtav1 -crf
-  const SVT_PRESET = '6';        // libsvtav1 -preset, 0-13, lower = slower/better
+  const SVT_PRESET = '8';        // libsvtav1 -preset, 0-13, lower = slower/better.
+                                 // 8, not 6: this is the FALLBACK worker, so keep
+                                 // throughput up during a GPU outage. Tunable.
   const HDR = __HDR__;           // emit HDR10 signalling tags
 
   const cmd = args.variables && args.variables.ffmpegCommand;
