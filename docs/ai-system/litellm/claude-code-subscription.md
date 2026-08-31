@@ -223,12 +223,17 @@ a second door into the metered Anthropic models.
 
 It is also **the only key in that directory with no `maxBudget`**, deliberately:
 per §4 its model is priced at $0, so any budget could never trip and would read
-as protection that does not exist. `rpmLimit: 10` / `tpmLimit: 250000` are the
-whole guardrail - one interactive CLI user, same order of magnitude as the
-`opencode` workspace key and nudged up because Claude Code's agentic loop spends
-requests per tool call, not per human turn. Raise those two numbers if a normal
-session 429s; there is no budget to raise, and nothing in that file changes what
-the subscription is charged.
+as protection that does not exist. `rpmLimit` / `tpmLimit` on that CR are
+therefore the whole guardrail (currently `300` / `7500000`, raised 2026-08-30
+after measured proxy 429s at the old `10` / `250000` ceilings - sizing comment
+and evidence live on the CR). These numbers are a runaway-agent guardrail, not
+a throughput target: the real ceiling is Anthropic's own rate limiting against
+the caller's personal subscription, which this proxy neither sees nor can raise.
+Raise those two numbers if a normal session 429s at the proxy; there is no
+budget to raise, and nothing in that file changes what the subscription is
+charged. The `LiteLLMVirtualKey` is server-side state reconciled by
+litellm-operator, so a limit change only takes effect on the live key after
+merge + operator reconcile.
 
 The operator mints the key into a Secret and a `PushSecret` mirrors it to
 1Password (`litellm-consumer-claude-code-subscription`). Read it from either:
