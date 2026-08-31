@@ -79,6 +79,28 @@ the node's own `requestNewItem`. There is no node-side accept filter at all -
 `librariesToNotProcess` is evaluated server-side inside the queue query. The
 failure is licence-gating, not push-bypass.
 
+### 1.2b `nodeTags` is inert for the same reason - do not reach for it next
+
+The obvious replacement boundary is node tags. It is not one. The tag filter in
+`getStagedFiles.js` sits inside the **same** `if (auth)` block as
+`librariesToNotProcess`:
+
+```js
+if (auth) {                                   // <- Tdarr Pro, false here
+  const { nodeTags } = nodes[nodeID] || '';
+  if (typeof nodeTags === 'string') { files = await asyncFilter(files, tagsMatch); }
+}
+```
+
+and `getQueuedFiles.js` never references node tags at all, so they do not
+constrain the queued path under any licence.
+
+These three - `librariesToNotProcess`, `nodeTags`, and the per-node accept
+behaviour they imply - all share one shape worth recognising: **configuration
+that is stored, rendered in the UI, and returned by the API, but never
+consumed.** Nothing reports an error, so the only way to tell is to read the
+consumer or to observe a refusal. Scope belongs on the library, per §1.3.
+
 ### 1.3 What actually holds: the library-level toggles
 
 `server/qb/qbUtils.js` -> `plugins/queueQueryFuncs.js` build the same
