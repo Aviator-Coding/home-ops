@@ -63,7 +63,7 @@ spec:
             # walk.sh is a real reviewable file in the repo rather than a
             # string inside this script, because it has to cross a container
             # boundary intact (piped to `sh -s` in the app container) and
-            # because scripts/ci/pvc-mover-readable-walk-test.py exercises it
+            # because scripts/ci/pvc-mover-readable-check-test.py exercises it
             # directly. Mounted as a whole volume, never a subPath: kubelet
             # never refreshes a subPath ConfigMap mount.
             - name: walk

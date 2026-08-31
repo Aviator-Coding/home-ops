@@ -379,5 +379,7 @@ kubectl -n downloads get cronjob recyclarr \
 * Restore-drill house standard this procedure adapts:
   `docs/backups/restore-drill-2026-08-23.md`,
   `docs/backups/kopiur-restore-drill-2026-08-30.md`
-* Open, separate decision (not addressed here): a fleet-wide `pvc-mover-readable-check`
-  CronJob generalizing this one-off check, captain decision `mover-readable-check`.
+* Separate fleet-wide check (built under captain decision `mover-readable-check`; not this
+  one-off procedure): `kubernetes/apps/base/system/pvc-mover-readable-check/app/README.md`.
+  This claim stays UNMEASURED there (CronJob pod ~18s/day), so the procedure above remains
+  the way to prove its readability.

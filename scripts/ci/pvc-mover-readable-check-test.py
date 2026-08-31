@@ -246,9 +246,19 @@ def test_walker_group_read_grants_access() -> None:
     with tempfile.TemporaryDirectory(prefix="walk-group-") as tmp:
         root = Path(tmp) / "vol"
         root.mkdir()
-        (root / "group.txt").write_text("group readable")
-        (root / "group.txt").chmod(0o040)
-        v = run_walk(root, (ALIEN_UID, os.getgid()), (ALIEN_UID, ALIEN_GID))
+        group_file = root / "group.txt"
+        group_file.write_text("group readable")
+        group_file.chmod(0o040)
+        # Use the file's actual group, not os.getgid(). Temp trees on macOS
+        # (and under nix-shell /private/tmp) often land with gid 0 rather than
+        # the caller's primary group, so a hard-coded getgid() would make this
+        # assert the fixture rather than the group-read branch of can_read.
+        file_gid = group_file.stat().st_gid
+        require(
+            file_gid != ALIEN_GID,
+            f"fixture group {file_gid} must differ from ALIEN_GID so the deny path is real",
+        )
+        v = run_walk(root, (ALIEN_UID, file_gid), (ALIEN_UID, ALIEN_GID))
         require(
             v["VS_UNREADABLE_FILES"] == "0",
             f"group-read must grant access to a group member: {v}",
