@@ -65,6 +65,16 @@ def substitute(d: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _contains_key(obj: Any, key: str) -> bool:
+    if isinstance(obj, dict):
+        if key in obj:
+            return True
+        return any(_contains_key(v, key) for v in obj.values())
+    if isinstance(obj, list):
+        return any(_contains_key(v, key) for v in obj)
+    return False
+
+
 def test_matter_server_is_onboarded() -> None:
     d = matter_ks()
     spec = d.get("spec") or {}
@@ -86,15 +96,18 @@ def test_matter_server_is_onboarded() -> None:
 
 
 def test_root_mover_is_explicit_substitutions() -> None:
-    sub = substitute(matter_ks())
+    d = matter_ks()
+    sub = substitute(d)
     require(
         sub.get("KOPIUR_PUID") == "0" and sub.get("KOPIUR_PGID") == "0",
         f"matter-server mover identity must be explicit 0:0, got "
         f"PUID={sub.get('KOPIUR_PUID')!r} PGID={sub.get('KOPIUR_PGID')!r}",
     )
-    spec = yaml.dump(matter_ks().get("spec") or {})
+    # inheritSecurityContextFrom is a SnapshotPolicy field, not a Flux KS one;
+    # refuse any attempt to sneak it onto this onboarding document so Restore
+    # (which only sees KOPIUR_PUID/PGID) cannot drift from SnapshotPolicy.
     require(
-        "inheritSecurityContextFrom" not in spec,
+        not _contains_key(d, "inheritSecurityContextFrom"),
         "Stage 4 uses KOPIUR_PUID/PGID substitutions so Restore gets the same "
         "identity; do not put inheritSecurityContextFrom on this claim without "
         "also changing the shared Restore",
@@ -143,18 +156,36 @@ def test_privileged_mover_annotation_is_gitops() -> None:
         anns.get(PRIVILEGED_ANN) == "true",
         f"home-automation Namespace must carry {PRIVILEGED_ANN}=true via GitOps, got {anns}",
     )
-    overlay_text = HA_KUSTOMIZATION.read_text()
+    # Pin HOW the annotation is produced: a kustomize patch on the common
+    # component's pre-transform Namespace name. Parsing the overlay as YAML
+    # (not grepping its text) keeps this a structural contract.
+    overlay_docs = load_multi(HA_KUSTOMIZATION)
+    require(len(overlay_docs) == 1, f"expected 1 doc in {HA_KUSTOMIZATION}")
+    patches = overlay_docs[0].get("patches") or []
+    require(patches, "the annotation must be a kustomize patch on the overlay, not hand-applied")
+    matching = []
+    for p in patches:
+        if not isinstance(p, dict):
+            continue
+        target = p.get("target") or {}
+        if target.get("kind") != "Namespace" or target.get("name") != "not-used":
+            continue
+        body = p.get("patch")
+        ops = yaml.safe_load(body) if isinstance(body, str) else body
+        if not isinstance(ops, list):
+            continue
+        for op in ops:
+            if not isinstance(op, dict):
+                continue
+            path = str(op.get("path") or "")
+            if path.endswith("/kopiur.home-operations.com~1privileged-movers") or path.endswith(
+                "/" + PRIVILEGED_ANN.replace("/", "~1")
+            ):
+                matching.append(op)
     require(
-        "patches:" in overlay_text
-        and (
-            PRIVILEGED_ANN in overlay_text
-            or "kopiur.home-operations.com~1privileged-movers" in overlay_text
-        ),
-        "the annotation must be a kustomize patch on the overlay, not a hand-applied kubectl annotate",
-    )
-    require(
-        "name: not-used" in overlay_text,
-        "the patch target must be the common component's pre-transform name (not-used)",
+        any(str(op.get("value")) == "true" for op in matching),
+        "the patch target must be the common component's pre-transform name (not-used) "
+        f"and set {PRIVILEGED_ANN}=true; matching ops={matching!r}",
     )
 
 
