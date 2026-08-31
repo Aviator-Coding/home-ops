@@ -11,4 +11,6 @@ spec:
     operation: copy
   ref:
     tag: v1.4.1
-  url: oci://cr.agentgateway.dev/charts/agentgateway
+  # ghcr mirror of the same chart (identical digest to cr.agentgateway.dev).
+  # See crds/ocirepository.yaml for why we prefer GHCR over cr.agentgateway.dev.
+  url: oci://ghcr.io/agentgateway/charts/agentgateway
