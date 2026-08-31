@@ -1,0 +1,104 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Opus half of the Claude Code Max/Pro SUBSCRIPTION pass-through (captain
+# report 2026-08-30: a `claude` subagent asked for Opus by name and the
+# subscription key answered
+# `403 ... can only access models=['claude-code-subscription']. Tried to
+# access claude-opus-5`).
+#
+# This is the second CR that ../claude-code-subscription.yaml's header
+# anticipated ("Sonnet is what `claude` drives by default; an Opus alias would
+# be a second CR, not an edit here"). Read that file first: every rule it
+# states applies here unchanged and for the same measured reasons. The two
+# differ in exactly one line, `params.model`.
+#
+# LIKE ITS SIBLING AND UNLIKE EVERY OTHER CLOUD MODEL IN THIS DIRECTORY, THE
+# PROXY HOLDS NO CREDENTIAL FOR THIS ONE. The caller's own `claude` CLI sends
+# its subscription OAuth token (`Authorization: Bearer sk-ant-oat...`) per
+# request and Anthropic bills that person's flat-rate plan, never this
+# household's metered `ANTHROPIC_API_KEY`.
+#
+# WHY A SECOND MODEL NAME RATHER THAN A PER-KEY ALIAS OF `claude-opus-5`.
+# LiteLLM v1.98.0 does support key-level `aliases` (the LiteLLMVirtualKey CRD
+# exposes the field), but the alias is applied in
+# `_update_model_if_key_alias_exists` (`proxy/litellm_pre_call_utils.py:2177`),
+# which runs inside `add_litellm_data_to_request` - AFTER `can_key_call_model`
+# has already rejected the request from the `user_api_key_auth` dependency.
+# The access check consults `team_model_aliases` only; `auth_checks.py` has no
+# `_model_in_key_aliases` counterpart at all. Measured live 2026-08-30 with a
+# throwaway key carrying models=['claude-code-subscription'] and
+# aliases={'claude-opus-5': 'claude-code-subscription'}: the request for
+# `claude-opus-5` still returned the identical 403, while the same key on
+# `claude-code-subscription` returned the expected OAuth 401. So an alias
+# could only be made to work by ALSO allow-listing the metered
+# `claude-opus-5` on this key - which would leave the household's metered
+# route one dropped rewrite away from being reachable, exactly the outcome
+# the sibling CR exists to prevent. The collision is therefore closed on the
+# CLIENT instead, with `ANTHROPIC_DEFAULT_OPUS_MODEL`.
+#
+# Client runbook, the header-forwarding mechanism, and the alias evidence:
+# docs/ai-system/litellm/claude-code-subscription.md (sections 5c and 7).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: claude-code-subscription-opus
+spec:
+  modelName: claude-code-subscription-opus
+  proxyRef: litellm
+  params:
+    # Resolved against Anthropic's DIRECT catalog (models/kustomization.yaml
+    # rule 3) - the same dash-form id the metered ./claude-opus-5.yaml uses.
+    # Only this line differs from the Sonnet sibling.
+    model: anthropic/claude-opus-5
+
+    # NOT `os.environ/ANTHROPIC_API_KEY`, and NOT omitted - both silently spend
+    # this household's metered money on traffic the caller believes their
+    # subscription covers. `AnthropicModelInfo.get_api_key` is
+    # `api_key or get_secret_str("ANTHROPIC_API_KEY")` and the proxy pod holds
+    # that env var, so an omitted key is NOT a credential-less model. This
+    # placeholder is not a secret and authenticates nothing: it is non-None (so
+    # the env fallback cannot fire) and `sk-ant-oat`-prefixed (so the request
+    # takes LiteLLM's OAuth branch). A caller who sends no token therefore gets
+    # Anthropic's own self-describing 401 "OAuth access token is invalid." and
+    # spends nothing. A real client token overrides it, so it is never used
+    # when the feature works. Full evidence: the sibling CR's header and the
+    # doc's sections 2b/3.
+    apiKey: "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
+
+  info:
+    # Same DELIBERATE exception as the sibling, for the same reason: this
+    # model's invoice is a person's FLAT-RATE subscription, so there is no
+    # per-token line for LiteLLM's built-in cost map to match. Left unpriced it
+    # would bill the caller's D4 budget at claude-opus-5's METERED rate -
+    # dollars nobody is ever charged, and Opus's rate is the highest in the
+    # catalog, so the distortion here is larger than on Sonnet.
+    #
+    # Zero is honoured, not read as "unset": use_custom_pricing_for_model()
+    # tests `is not None`. Zeroing input/output alone is NOT enough - see the
+    # five cache fields below (runbook §4a; measured on the Sonnet sibling).
+    # With the full set declared, recorded spend is $0, so a maxBudget could
+    # never trip and would read as protection that does not exist. Keep the
+    # calling key budgetless for that reason; rpmLimit/tpmLimit are the entire
+    # real guardrail, and the true ceiling is Anthropic's own subscription
+    # rate limiting. (Pre-fix note: until 2026-08-31 only input/output were
+    # zeroed and ~$54 of cache-only fictional spend accrued on the sibling
+    # key; a budget then WOULD have locked the key out. That gap is closed;
+    # historical rows are not repriced.)
+    extra:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      # Same five cache fields as the Sonnet sibling, and load-bearing for the
+      # same measured reason: zeroing only input/output leaves prompt-cache
+      # pricing to fall through to LiteLLM's built-in cost map, and cache is
+      # where essentially all of Claude Code's recorded cost lives (measured
+      # 2026-08-31 on the Sonnet key: of $54.31 recorded, output_cost was
+      # exactly $0.00 while cache_read + cache_creation were $54.31).
+      # Opus's built-in cache rates are the highest in the catalog, so omitting
+      # these here would distort recorded spend faster than on Sonnet.
+      # Mechanism, probe evidence and the end-to-end 6e-07 -> 0 verification:
+      # the runbook's §4a.
+      cache_read_input_token_cost: 0
+      cache_read_input_token_cost_above_200k_tokens: 0
+      cache_creation_input_token_cost: 0
+      cache_creation_input_token_cost_above_1hr: 0
+      cache_creation_input_token_cost_above_200k_tokens: 0

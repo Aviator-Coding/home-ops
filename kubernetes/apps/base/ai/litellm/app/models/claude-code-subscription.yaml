@@ -72,11 +72,42 @@ spec:
     # both /v1/chat/completions and /v1/messages (it reads model_info from
     # `litellm_metadata` on the latter). Evidence: the doc's pricing section.
     #
-    # Consequence, stated plainly: D4 *budgets* cannot constrain this model,
-    # because $0 spend never reaches a maxBudget. The real ceiling is
-    # Anthropic's own subscription rate limiting, plus the rpmLimit/tpmLimit on
-    # whichever LiteLLMVirtualKey is allowed to call it - so grant it with
-    # those set, never on a budget alone.
+    # Zeroing input/output alone is NOT enough - see the five cache fields
+    # below (runbook §4a). With the full set declared, recorded spend is $0,
+    # so a maxBudget could never trip and would read as protection that does
+    # not exist. Keep the calling key budgetless for that reason;
+    # rpmLimit/tpmLimit are the entire real guardrail, and the true ceiling is
+    # Anthropic's own subscription rate limiting. Grant this model only on a
+    # key with those rate limits set, never on a budget alone. (Pre-fix note:
+    # until 2026-08-31 only input/output were zeroed and ~$54 of cache-only
+    # fictional spend accrued; a budget then WOULD have locked the key out on
+    # dollars nobody is invoiced. That gap is closed; historical rows are not
+    # repriced.)
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0
+      # THE CACHE FIELDS ARE NOT OPTIONAL EXTRAS - WITHOUT THEM THE $0 ABOVE
+      # DOES ALMOST NOTHING FOR CLAUDE CODE. Zeroing only input/output leaves
+      # prompt-cache pricing to resolve from LiteLLM's built-in cost map:
+      # `_resolve_builtin_model_cost_entry` copies `_CACHE_PRICING_FIELDS`
+      # (utils.py) onto a custom key, and the built-in `claude-sonnet-5` entry
+      # declares cache_creation 2.5e-06 / cache_creation_above_1hr 4e-06 /
+      # cache_read 2e-07. Claude Code caches its context aggressively, so those
+      # three fields are where essentially ALL of its recorded cost comes from.
+      #
+      # Measured on the live spend log 2026-08-31, before this block existed:
+      # $54.31 recorded on this key, of which output_cost was exactly $0.00
+      # (proving the two zeros above already worked) while cache_read was
+      # $27.80 and cache_creation $26.51 - the whole figure was cache. Verified
+      # end-to-end with a throwaway probe model whose upstream id carried a
+      # built-in price: recorded spend went 6e-07 -> exactly 0 on BOTH
+      # /v1/chat/completions and /v1/messages once these keys were added.
+      #
+      # The `_above_*` variants are zeroed too because Claude Code routinely
+      # exceeds a 200k context and caches for over an hour, which is precisely
+      # when those tiers apply. Full evidence: the runbook's §4a.
+      cache_read_input_token_cost: 0
+      cache_read_input_token_cost_above_200k_tokens: 0
+      cache_creation_input_token_cost: 0
+      cache_creation_input_token_cost_above_1hr: 0
+      cache_creation_input_token_cost_above_200k_tokens: 0

@@ -1,19 +1,24 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
-# One interactive `claude` CLI user against the subscription pass-through model
-# (captain decision 2026-08-27, alongside the model CR itself). Scoped to
-# `claude-code-subscription` and nothing else: this key must not be a second
-# way into the metered Anthropic models, so it names neither `auto` nor
-# `claude-sonnet-5`/`claude-opus-5` - a caller wanting those needs a key that
-# says so, priced against a real budget.
+# One interactive `claude` CLI user against the subscription pass-through
+# models (captain decision 2026-08-27, alongside the model CR itself; Opus
+# added 2026-08-30). Scoped to the two `claude-code-subscription*` CRs and
+# nothing else: this key must not be a second way into the metered Anthropic
+# models, so it names neither `auto` nor `claude-sonnet-5`/`claude-opus-5` -
+# a caller wanting those needs a key that says so, priced against a real
+# budget.
 #
 # THE ONLY KEY HERE WITH NO `maxBudget`, AND THAT IS DELIBERATE, NOT AN
-# OVERSIGHT. Its one model is priced at an explicit $0 (see the model CR's
-# `info.extra` header for why a flat-rate subscription must not be priced off
-# LiteLLM's metered cost map), so recorded spend is always $0.00 and ANY
-# maxBudget would be silently inert - a cap that can never trip reads as
-# protection that does not exist. Rate limits are therefore the whole guardrail
-# here, which is why both are set and neither should be dropped.
+# OVERSIGHT. The model CRs are priced at an explicit $0 on EVERY field - input,
+# output, and the five prompt-cache fields (see each CR's `info.extra` header;
+# zeroing only input/output left ~$54 of fictional recorded spend on this key
+# until 2026-08-31, because Claude Code's cost is almost entirely cache). With
+# the full set declared, recorded spend is $0.00 and any maxBudget could never
+# trip - a cap that cannot fire reads as protection that does not exist. Rate
+# limits are the real guardrail here, which is why both are set and neither
+# should be dropped. If a future change ever drops one of those cache zeros,
+# recorded spend starts climbing again and a budget added in response would
+# then lock the key out on dollars nobody is invoiced.
 #
 # Sizing history: raised from 10 rpm / 250000 tpm to 300 rpm / 7500000 tpm on
 # 2026-08-30 after measured rate-limiting - LiteLLM logs showed ~556
@@ -52,7 +57,19 @@ spec:
   secretName: litellm-key-claude-code-subscription
   secretKey: key
   models:
+    # BOTH entries are subscription pass-through CRs for which the proxy holds
+    # NO credential (../models/claude-code-subscription{,-opus}.yaml). Neither
+    # is the metered `claude-sonnet-5`/`claude-opus-5`, and adding either of
+    # those here is the one change this file exists to prevent - it would make
+    # subscription traffic bill the household's metered ANTHROPIC_API_KEY.
+    # `claude-code-subscription-opus` was added 2026-08-30 after a `claude`
+    # subagent requested Opus by name and was correctly refused; the name
+    # collision with the metered `claude-opus-5` is closed CLIENT-side via
+    # ANTHROPIC_DEFAULT_OPUS_MODEL, because LiteLLM applies a key's `aliases`
+    # only after this allow-list has already rejected the request (measured
+    # 2026-08-30 - see the -opus CR header and the doc's section 7).
     - claude-code-subscription
+    - claude-code-subscription-opus
   rpmLimit: 3000
   tpmLimit: 750000000
 ---

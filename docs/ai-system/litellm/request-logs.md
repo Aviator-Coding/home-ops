@@ -208,7 +208,7 @@ these values "must never reach a logging callback or a spend log"; it masks
 `spend_tracking_utils.py:654`).
 
 That matters here specifically because this proxy deliberately passes a Claude
-Code Max/Pro OAuth token through on `claude-code-subscription`
+Code Max/Pro OAuth token through on the subscription pass-through models
 (`claude-code-subscription.md`). That token is **not** written to the spend log.
 
 **What did widen.** Prompt and completion bodies are now readable by anything

@@ -14,9 +14,13 @@ kind: Kustomization
 # so the credential itself is preserved (same property the old script had).
 #
 # Every key here carries a `maxBudget` except `claude-code-subscription.yaml`,
-# whose single model is subscription-priced at an explicit $0 - a budget on it
-# could never trip, so rate limits are its entire guardrail. Read that file's
-# header before copying its shape.
+# whose allow-list names the two subscription pass-through models
+# (`claude-code-subscription` and `claude-code-subscription-opus`). It stays
+# budgetless because those models are zero-priced across every field including
+# the five prompt-cache ones (runbook §4a - zeroing only input/output left ~$54
+# of fictional recorded spend until 2026-08-31), so recorded spend is $0 and a
+# maxBudget could never trip. Rate limits are its entire real guardrail. Read
+# that file's header before copying its shape.
 resources:
   - ./claude-code-subscription.yaml
   - ./demo.yaml
