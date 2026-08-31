@@ -286,9 +286,11 @@ restart**, so the fix was real but not yet demonstrated against live traffic.
 Rather than zero the figure to make it look resolved, `LiteLLMClaudeCodeSubscriptionSpendRegression`
 in
 [`app/prometheusrule.yaml`](../../../kubernetes/apps/base/ai/litellm/app/prometheusrule.yaml)
-watches `litellm_spend_metric{api_key_alias="claude-code-subscription"}` (a
-per-request Counter incremented on every logged call regardless of amount) for
-a nonzero increase - that is the signal that either confirms the fix once real
+watches `litellm_spend_metric_total{api_key_alias="claude-code-subscription"}`
+(the Prometheus scrape name for the per-request Counter incremented on every
+logged call regardless of amount; process counters reset at the 2026-08-31
+restart, so the series starts fresh and does not carry the DB's ~$54.31) for a
+nonzero increase - that is the signal that either confirms the fix once real
 traffic resumes, or catches a regression before it re-accrues another $54.
 
 ## 4b. Rate limits removed (captain decision, 2026-08-31)

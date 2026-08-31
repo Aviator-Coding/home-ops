@@ -83,14 +83,18 @@
 # had ever been proven against real traffic (zero requests had hit this key
 # since the restart at the time this comment was written). The
 # `LiteLLMClaudeCodeSubscriptionSpendRegression` alert in `../prometheusrule.yaml`
-# is what proves or disproves the fix once traffic resumes: `litellm_spend_metric`
-# is a per-request Counter (incremented on every logged call regardless of
-# amount, `_increment_top_level_request_and_spend_metrics`, v1.98.0), so the
-# first real request after the restart makes that series exist, and its value
-# should stay flat at the pre-restart total if the fix holds. Historical
-# `LiteLLM_SpendLogs` rows and this key's `spend` column must never be edited
-# or zeroed to make this figure "clean" - the accounting bug is the thing to
-# fix, not the record of it.
+# is what proves or disproves the fix once traffic resumes:
+# `litellm_spend_metric_total` is a per-request Counter (incremented on every
+# logged call regardless of amount,
+# `_increment_top_level_request_and_spend_metrics`, v1.98.0; scrape name ends
+# in `_total` on this cluster). The 2026-08-31T04:09:50Z proxy restart reset
+# process counters, so the series starts fresh near 0 rather than carrying the
+# DB's ~$54.31 - that figure lives only on this key's `spend` column /
+# `LiteLLM_SpendLogs`. When pricing is correct the series should not increase
+# as traffic resumes; `increase(...[1h]) > 0` is the regression signal.
+# Historical `LiteLLM_SpendLogs` rows and this key's `spend` column must never
+# be edited or zeroed to make this figure "clean" - the accounting bug is the
+# thing to fix, not the record of it.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
