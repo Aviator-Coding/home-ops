@@ -22,7 +22,10 @@ This test does not grep source text as its evidence. It:
        - sabnzbd workload securityContext is 2000 (the reason the override
          is load-bearing); autobrr remains at the component default 1000
        - no KOPIUR_SCHEDULE_* overrides; hour non-collision with sabnzbd VolSync
-       - dependsOn includes kopiur-repository + kopiur-credentials + volsync
+       - dependsOn includes kopiur-repository + volsync, and NOT
+         kopiur-credentials (credential-scope 2026-08-30 replaced the standing
+         per-namespace copies with operator-minted per-run projection; the
+         three projection legs are pinned by kopiur-stage1-test.py)
        - drill document records: Stage 2 PASS, both-destination identical
          sha256 digest, finding 1 (empty pilot / .status.stats), finding 2
          (mover identity), proved VolSync simultaneity with the observed
@@ -334,9 +337,11 @@ def test_sabnzbd_overlay_wiring() -> None:
         ("kopiur-repository", "system") in deps,
         f"must dependOn kopiur-repository/system, got {deps}",
     )
+    # Credentials are projected per run - no credential dependency, and a
+    # reappearing one means the retired standing-copy shape is back.
     require(
-        ("kopiur-credentials", "downloads") in deps,
-        f"must dependOn kopiur-credentials/downloads, got {deps}",
+        not any(n == "kopiur-credentials" for n, _ in deps),
+        f"must NOT dependOn kopiur-credentials (projection replaced it), got {deps}",
     )
 
     sub = ((spec.get("postBuild") or {}).get("substitute")) or {}

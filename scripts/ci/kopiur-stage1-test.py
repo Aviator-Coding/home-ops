@@ -3,11 +3,15 @@
 
 Stage 1 is the first LIVE use of kopiur: a reusable backup component that
 mirrors components/volsync, onboarded first on downloads/autobrr ALONGSIDE its
-existing VolSync backups. MinIO is not a kopiur destination. Credentials are
-pilot-scoped copies into downloads only. Stage 2 later added sabnzbd-config as
-a second volume (see kopiur-stage2-test.py for the two-volume set and the
-PUID/claim contracts); this file still pins the Stage 1 component + autobrr
-contract and only requires that autobrr remain onboarded.
+existing VolSync backups. MinIO is not a kopiur destination. Stage 2 later
+added sabnzbd-config as a second volume (see kopiur-stage2-test.py for the
+two-volume set and the PUID/claim contracts); this file still pins the Stage 1
+component + autobrr contract and only requires that autobrr remain onboarded.
+
+Credentials are NO LONGER per-namespace copies. Captain decision 2026-08-30,
+key `credential-scope`, replaced them with operator-minted per-run projection,
+and this file now pins that shape instead: all three projection legs present,
+and the pilot's standing credential objects gone.
 
 This test does not grep source text as its evidence. It:
   1. Renders the real kustomize builds Flux would apply for the kopiur backup
@@ -33,10 +37,12 @@ This test does not grep source text as its evidence. It:
        - downloads/autobrr includes components/kopiur alongside components/volsync
          (Stage 2 may add further authorised volumes; the exclusive set is
          owned by kopiur-stage2-test.py)
-       - credentials: ClusterSecretStore restricted to [downloads], three
-         ExternalSecrets targeting the exact Secret names the ClusterRepos
-         reference, Ceph S3 keys from the OBC Secret via the kubernetes store
-         (not 1Password), no embedded secret values
+       - credentials: ALL THREE projection legs wired (chart feature flag,
+         `allowed` on both ClusterRepositories, `enabled` on every consuming
+         SnapshotPolicy/Restore), every repository secretRef carrying an
+         explicit namespace, and NO standing per-namespace credential objects
+         anywhere - missing leg 2 or 3 leaves every CR green while the mover
+         fails at run time, which no other gate in this repo can catch
        - Stage 0 operator/repository tree still free of SnapshotPolicy
 
 Live Snapshot Succeeded / bucket contents / VolSync lastSyncTime remain
@@ -61,11 +67,16 @@ VOLSYNC_BACKUP = ROOT / "kubernetes/components/volsync/backup"
 VOLSYNC_COMPONENT_KUST = ROOT / "kubernetes/components/volsync/kustomization.yaml"
 AUTOBRR_OVERLAY = ROOT / "kubernetes/apps/main/downloads/autobrr.yaml"
 DOWNLOADS_OVERLAY_KUST = ROOT / "kubernetes/apps/main/downloads/kustomization.yaml"
-KOPIUR_CREDS_OVERLAY = ROOT / "kubernetes/apps/main/downloads/kopiur-credentials.yaml"
-KOPIUR_CREDS_APP = ROOT / "kubernetes/apps/base/downloads/kopiur-credentials/app"
-KOPIUR_SYSTEM_STORE = (
+# Retired by captain decision `credential-scope` (2026-08-30). Kept as paths so
+# the test can assert they are ABSENT - reintroducing standing credentials is
+# exactly what that decision removed.
+RETIRED_CREDS_OVERLAY = ROOT / "kubernetes/apps/main/downloads/kopiur-credentials.yaml"
+RETIRED_CREDS_APP = ROOT / "kubernetes/apps/base/downloads/kopiur-credentials"
+RETIRED_SYSTEM_STORE = (
     ROOT / "kubernetes/apps/base/security/external-secrets/stores/kopiur-system-secrets"
 )
+KOPIUR_HELMRELEASE = ROOT / "kubernetes/apps/base/system/kopiur/app/helmrelease.yaml"
+KOPIUR_REPOSITORY = ROOT / "kubernetes/apps/base/system/kopiur/repository"
 SECURITY_ES_OVERLAY = ROOT / "kubernetes/apps/main/security/external-secrets.yaml"
 APPS_MAIN = ROOT / "kubernetes/apps/main"
 KOPIUR_STAGE0_BASE = ROOT / "kubernetes/apps/base/system/kopiur"
@@ -591,9 +602,11 @@ def test_autobrr_overlay_wiring() -> None:
         ("kopiur-repository", "system") in deps,
         f"must dependOn kopiur-repository/system (webhook Fail), got {deps}",
     )
+    # Credentials are projected per run, so there is deliberately NO credential
+    # dependency. A reappearing one means the standing-copy shape is back.
     require(
-        ("kopiur-credentials", "downloads") in deps,
-        f"must dependOn kopiur-credentials/downloads, got {deps}",
+        not any(n == "kopiur-credentials" for n, _ in deps),
+        f"must NOT dependOn kopiur-credentials (projection replaced it), got {deps}",
     )
     # Must NOT dependOn the bare 'kopiur' operator Kustomization name alone as
     # a substitute for repository - repository already chains to the operator.
@@ -670,145 +683,123 @@ def test_autobrr_still_onboarded() -> None:
     resources = dl.get("resources") or []
     require("./autobrr.yaml" in resources, "downloads overlay must list autobrr")
     require(
-        "./kopiur-credentials.yaml" in resources,
-        "downloads overlay must list kopiur-credentials scaffolding",
+        "./kopiur-credentials.yaml" not in resources,
+        "downloads overlay must NOT list kopiur-credentials (projection replaced it)",
     )
 
 
-def test_credentials_pilot_scoped() -> None:
-    # ClusterSecretStore restricted to downloads.
-    store_docs = kustomize_build(KOPIUR_SYSTEM_STORE)
-    stores = by_kind(store_docs, "ClusterSecretStore")
-    require(len(stores) == 1, f"expected 1 ClusterSecretStore, got {len(stores)}")
-    store = stores[0]
-    require(store["metadata"]["name"] == "kopiur-system-secrets", "store name")
-    conditions = store.get("spec", {}).get("conditions") or []
-    require(len(conditions) == 1, f"store must have exactly one condition, got {conditions}")
-    nss = conditions[0].get("namespaces") or []
+def test_credential_projection_wired_and_nothing_standing() -> None:
+    """The permanent credential shape: projected per run, nothing at rest.
+
+    Captain decision 2026-08-30, key `credential-scope`. This is the gate that
+    catches the failure mode nothing else in this repo can: projection is gated
+    in THREE places, and if leg 2 (repository consent) or leg 3 (consumer
+    opt-in) is missing, every CR still reconciles perfectly clean while the
+    mover fails at run time. flate cannot see it; only this can.
+    """
+    # --- leg 1: operator RBAC, on the chart's own feature flag ---
+    hr = yaml.safe_load(KOPIUR_HELMRELEASE.read_text())
+    features = ((hr.get("spec") or {}).get("values") or {}).get("features") or {}
     require(
-        nss == [PILOT_NS],
-        f"store conditions.namespaces must be exactly [{PILOT_NS}] (load-bearing), got {nss}",
+        ((features.get("credentialProjection") or {}).get("enabled")) is True,
+        "leg 1: HelmRelease must set features.credentialProjection.enabled: true "
+        f"(the operator RBAC), got {features!r}",
     )
-    provider = (store.get("spec") or {}).get("provider") or {}
-    require("kubernetes" in provider, "store must be kubernetes provider")
-    k8s = provider["kubernetes"]
+    # It must not quietly pick up the OTHER feature asking for the same
+    # unscoped Secret verbs - that is outside the decision.
     require(
-        k8s.get("remoteNamespace") == "system",
-        f"remoteNamespace must be system, got {k8s.get('remoteNamespace')!r}",
-    )
-    sa = (k8s.get("auth") or {}).get("serviceAccount") or {}
-    require(
-        sa.get("name") == "external-secrets" and sa.get("namespace") == "security",
-        f"store must reuse ESO SA, got {sa}",
+        "kopiaUi" not in features,
+        f"features.kopiaUi is not covered by the credential-scope decision, got {sorted(features)}",
     )
 
-    # Security overlay wires the store Kustomization with dependsOn external-secrets.
-    sec_docs = load_multi(SECURITY_ES_OVERLAY)
-    by_name = {d["metadata"]["name"]: d for d in sec_docs if d.get("kind") == "Kustomization"}
+    # --- leg 2: repository-owner consent, on BOTH repositories ---
+    repo_docs = [
+        d
+        for d in yaml.safe_load_all((KOPIUR_REPOSITORY / "clusterrepository.yaml").read_text())
+        if d
+    ]
+    repos = {d["metadata"]["name"]: d for d in repo_docs if d.get("kind") == "ClusterRepository"}
     require(
-        "kopiur-system-secrets" in by_name,
-        f"security/external-secrets overlay must define kopiur-system-secrets, got {sorted(by_name)}",
+        set(repos) == {"ceph", "r2"},
+        f"expected ClusterRepositories ceph + r2, got {sorted(repos)}",
     )
-    kss = by_name["kopiur-system-secrets"]["spec"]
-    require(
-        kss.get("path")
-        == "./kubernetes/apps/base/security/external-secrets/stores/kopiur-system-secrets",
-        f"unexpected store path {kss.get('path')!r}",
-    )
-    deps = {(d.get("name"), d.get("namespace")) for d in (kss.get("dependsOn") or [])}
-    require(("external-secrets", "security") in deps, f"store dependsOn missing, got {deps}")
-
-    # Credentials overlay: downloads-only, dependsOn both stores.
-    cred_overlay = load_multi(KOPIUR_CREDS_OVERLAY)
-    require(len(cred_overlay) == 1, "kopiur-credentials overlay must be one doc")
-    co = cred_overlay[0]
-    require(co["metadata"]["name"] == "kopiur-credentials", "creds overlay name")
-    require(co["metadata"]["namespace"] == PILOT_NS, "creds overlay namespace")
-    require(co["spec"].get("targetNamespace") == PILOT_NS, "creds targetNamespace")
-    require(
-        co["spec"].get("path") == "./kubernetes/apps/base/downloads/kopiur-credentials/app",
-        f"unexpected creds path {co['spec'].get('path')!r}",
-    )
-    cdeps = {(d.get("name"), d.get("namespace")) for d in (co["spec"].get("dependsOn") or [])}
-    require(
-        ("onepassword-store", "security") in cdeps
-        and ("kopiur-system-secrets", "security") in cdeps,
-        f"creds dependsOn must include both stores, got {cdeps}",
-    )
-
-    # Three ExternalSecrets with the exact target Secret names + property form.
-    cred_docs = kustomize_build(KOPIUR_CREDS_APP)
-    es = by_kind(cred_docs, "ExternalSecret")
-    require(len(es) == 3, f"expected 3 ExternalSecrets, got {len(es)}")
-    by_es = {e["metadata"]["name"]: e for e in es}
-    require(
-        set(by_es) == {"kopiur-ceph-bucket", "kopiur-ceph", "kopiur-r2"},
-        f"ExternalSecret names unexpected: {sorted(by_es)}",
-    )
-
-    # Ceph bucket keys from OBC Secret via kubernetes store - NOT 1Password.
-    bucket = by_es["kopiur-ceph-bucket"]
-    bspec = bucket["spec"]
-    require(
-        (bspec.get("secretStoreRef") or {})
-        == {"kind": "ClusterSecretStore", "name": "kopiur-system-secrets"},
-        f"bucket storeRef must be kopiur-system-secrets, got {bspec.get('secretStoreRef')}",
-    )
-    require(
-        (bspec.get("target") or {}).get("name") == "kopiur",
-        f"bucket target Secret must be 'kopiur' (ClusterRepository auth name), "
-        f"got {(bspec.get('target') or {}).get('name')!r}",
-    )
-    require("dataFrom" not in bspec, "bucket must not use dataFrom.extract")
-    bdata = {d["secretKey"]: d["remoteRef"] for d in bspec.get("data") or []}
-    require(
-        set(bdata) == {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"},
-        f"bucket keys unexpected: {sorted(bdata)}",
-    )
-    for sk, ref in bdata.items():
+    for name, repo in sorted(repos.items()):
+        spec = repo["spec"]
         require(
-            ref.get("key") == "kopiur" and ref.get("property") == sk,
-            f"bucket {sk} must read system/kopiur property {sk}, got {ref}",
+            ((spec.get("credentialProjection") or {}).get("allowed")) is True,
+            f"leg 2: ClusterRepository {name} must set credentialProjection.allowed: true",
+        )
+        # Load-bearing for projection: the CRD needs an EXPLICIT namespace on
+        # every secretRef or the operator cannot know what to copy.
+        refs = []
+        auth = ((spec.get("backend") or {}).get("s3") or {}).get("auth") or {}
+        if "secretRef" in auth:
+            refs.append(("backend.s3.auth", auth["secretRef"]))
+        enc = spec.get("encryption") or {}
+        if "passwordSecretRef" in enc:
+            refs.append(("encryption", enc["passwordSecretRef"]))
+        require(refs, f"{name} declares no secretRef at all")
+        for where, ref in refs:
+            require(
+                ref.get("namespace"),
+                f"leg 2: {name} {where}.secretRef must set an EXPLICIT namespace "
+                f"for projection to know what to copy, got {ref!r}",
+            )
+
+    # --- leg 3: consumer opt-in, on every mover-running CR in the component ---
+    for path in sorted(KOPIUR_COMPONENT.rglob("*.yaml")):
+        for doc in yaml.safe_load_all(path.read_text()):
+            if not doc or doc.get("kind") not in {"SnapshotPolicy", "Restore"}:
+                continue
+            rel = path.relative_to(ROOT)
+            require(
+                ((doc["spec"].get("credentialProjection") or {}).get("enabled")) is True,
+                f"leg 3: {rel} {doc['kind']}/{doc['metadata']['name']} must set "
+                "credentialProjection.enabled: true, or its mover runs with no "
+                "credentials while every CR still reports Ready",
+            )
+
+    # --- nothing standing: the pilot copies must be genuinely gone ---
+    for path, what in (
+        (RETIRED_CREDS_APP, "downloads kopiur-credentials ExternalSecrets"),
+        (RETIRED_CREDS_OVERLAY, "downloads kopiur-credentials Flux Kustomization"),
+        (RETIRED_SYSTEM_STORE, "downloads-scoped kopiur-system-secrets ClusterSecretStore"),
+    ):
+        require(
+            not path.exists(),
+            f"{what} must stay deleted ({path.relative_to(ROOT)}) - standing repository "
+            "credentials in an app namespace are what credential-scope removed",
         )
 
-    # kopia password for ceph from 1Password item, target name matches ClusterRepository.
-    ceph = by_es["kopiur-ceph"]
-    cspec = ceph["spec"]
+    # And nothing may re-declare that store Kustomization in the security overlay.
+    sec_docs = load_multi(SECURITY_ES_OVERLAY)
+    names = {d["metadata"]["name"] for d in sec_docs if d.get("kind") == "Kustomization"}
     require(
-        (cspec.get("secretStoreRef") or {})
-        == {"kind": "ClusterSecretStore", "name": "onepassword"},
-        f"ceph password storeRef must be onepassword, got {cspec.get('secretStoreRef')}",
-    )
-    require((cspec.get("target") or {}).get("name") == "kopiur-ceph-secret", "ceph target name")
-    require("dataFrom" not in cspec, "ceph must not use dataFrom.extract")
-    cdata = {d["secretKey"]: d["remoteRef"] for d in cspec.get("data") or []}
-    require(set(cdata) == {"KOPIA_PASSWORD"}, f"ceph secret keys unexpected: {sorted(cdata)}")
-    require(
-        cdata["KOPIA_PASSWORD"].get("key") == "kopiur-ceph"
-        and cdata["KOPIA_PASSWORD"].get("property") == "KOPIA_PASSWORD",
-        f"ceph password remoteRef unexpected: {cdata['KOPIA_PASSWORD']}",
+        "kopiur-system-secrets" not in names,
+        f"security/external-secrets overlay must no longer define kopiur-system-secrets, got {sorted(names)}",
     )
 
-    r2 = by_es["kopiur-r2"]
-    rspec = r2["spec"]
+    # Belt and braces: no manifest anywhere may target the three Secret names
+    # the ClusterRepositories reference, in any namespace other than `system`.
+    offenders: list[str] = []
+    repo_secret_names = {"kopiur", "kopiur-ceph-secret", "kopiur-r2-secret"}
+    for path in sorted((ROOT / "kubernetes/apps").rglob("*.yaml")):
+        if "/system/kopiur/" in str(path):
+            continue
+        try:
+            docs = [d for d in yaml.safe_load_all(path.read_text()) if d]
+        except yaml.YAMLError:
+            continue
+        for d in docs:
+            if d.get("kind") not in {"ExternalSecret", "Secret", "PushSecret"}:
+                continue
+            target = ((d.get("spec") or {}).get("target") or {}).get("name")
+            for candidate in (target, d.get("metadata", {}).get("name")):
+                if candidate in repo_secret_names:
+                    offenders.append(f"{path.relative_to(ROOT)}:{d['kind']}->{candidate}")
     require(
-        (rspec.get("secretStoreRef") or {})
-        == {"kind": "ClusterSecretStore", "name": "onepassword"},
-        f"r2 storeRef must be onepassword, got {rspec.get('secretStoreRef')}",
-    )
-    require((rspec.get("target") or {}).get("name") == "kopiur-r2-secret", "r2 target name")
-    require("dataFrom" not in rspec, "r2 must not use dataFrom.extract")
-    rdata = {d["secretKey"]: d["remoteRef"] for d in rspec.get("data") or []}
-    require(
-        set(rdata)
-        == {"KOPIA_PASSWORD", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"},
-        f"r2 secret keys unexpected: {sorted(rdata)}",
-    )
-    require(rdata["KOPIA_PASSWORD"].get("key") == "kopiur-r2", "r2 password item")
-    require(rdata["AWS_ACCESS_KEY_ID"].get("property") == "R2_ACCESS_KEY_ID", "r2 access key property")
-    require(
-        rdata["AWS_SECRET_ACCESS_KEY"].get("property") == "R2_SECRET_ACCESS_KEY",
-        "r2 secret key property",
+        not offenders,
+        f"no manifest outside system/kopiur may materialise a repository credential Secret: {offenders}",
     )
 
 
@@ -870,32 +861,45 @@ def test_stage0_readme_record_only_still_true() -> None:
     )
 
 
-def test_component_readme_records_pilot_risk() -> None:
-    """Readme is the operator-facing contract for the credential compromise."""
-    readme = (KOPIUR_COMPONENT / "Readme.md").read_text()
-    require(
-        (KOPIUR_COMPONENT / "Readme.md").is_file(),
-        "components/kopiur/Readme.md must exist",
-    )
-    # Observable contract statements a future operator relies on - not a
-    # source-grep of implementation tokens. These are the doc's own public
-    # claims about scope and risk.
+def test_component_readme_records_projection_tradeoff() -> None:
+    """Readme is the operator-facing contract for the credential trade-off."""
+    readme_path = KOPIUR_COMPONENT / "Readme.md"
+    require(readme_path.is_file(), "components/kopiur/Readme.md must exist")
+    readme = readme_path.read_text()
+    # Normalise markdown emphasis and line wrapping before matching a claim -
+    # we are asserting the document SAYS something, not how it is formatted.
+    lowered = re.sub(r"\s+", " ", readme.replace("*", "").replace("`", "")).lower()
+
     require(
         "Stage 1" in readme and "autobrr" in readme,
         "Readme must name Stage 1 pilot autobrr",
     )
+    # The design we actually run, not the one we retired.
     require(
-        "PILOT" in readme.upper() or "pilot" in readme,
-        "Readme must mark credentials as pilot-scoped",
+        "credentialprojection" in lowered.replace(" ", "")
+        or "credential projection" in lowered,
+        "Readme must document credential projection as the credential model",
     )
     require(
-        "credential" in readme.lower() and "downloads" in readme,
-        "Readme must document downloads credential copy",
+        "at rest" in lowered,
+        "Readme must state that no repository credential sits at rest in an app namespace",
+    )
+    # The accepted cost must be recorded, not glossed.
+    require(
+        "cannot be scoped" in lowered,
+        "Readme must record that `create` cannot be scoped to a Secret name",
     )
     require(
-        "Stage 3" in readme,
-        "Readme must keep the Stage 3 credentials decision explicitly open",
+        "credential-rewrite primitive" in lowered,
+        "Readme must state the accepted cost: a compromised operator is a "
+        "cluster-wide credential-rewrite primitive",
     )
+    # And it must not still describe the removed shape as current.
+    require(
+        "PILOT ONLY" not in readme.upper(),
+        "Readme must no longer describe the per-namespace credential copy as the current design",
+    )
+
     require(
         "onPolicyDelete" in readme and "Retain" in readme,
         "Readme must document pinned deletion Retain",
@@ -942,8 +946,6 @@ def main() -> int:
     try:
         kopiur_docs = render_with_substitute(KOPIUR_BACKUP, pilot_env)
         volsync_docs = render_with_substitute(VOLSYNC_BACKUP, pilot_env)
-        cred_docs = kustomize_build(KOPIUR_CREDS_APP)
-        store_docs = kustomize_build(KOPIUR_SYSTEM_STORE)
     except Failure as e:
         print(f"[FAIL] render: {e}")
         print("Summary: 0 passed, 1 failed")
@@ -957,16 +959,17 @@ def main() -> int:
     run("volsync_pilot_still_triple", lambda: test_volsync_pilot_still_triple(volsync_docs))
     run("autobrr_overlay_wiring", test_autobrr_overlay_wiring)
     run("autobrr_still_onboarded", test_autobrr_still_onboarded)
-    run("credentials_pilot_scoped", test_credentials_pilot_scoped)
+    run(
+        "credential_projection_wired",
+        test_credential_projection_wired_and_nothing_standing,
+    )
     run(
         "no_embedded_credentials",
-        lambda: test_no_embedded_credentials(
-            [kopiur_docs, volsync_docs, cred_docs, store_docs]
-        ),
+        lambda: test_no_embedded_credentials([kopiur_docs, volsync_docs]),
     )
     run("stage0_tree_policy_free", test_stage0_tree_still_policy_free)
     run("stage0_readme_record_only", test_stage0_readme_record_only_still_true)
-    run("component_readme_pilot_risk", test_component_readme_records_pilot_risk)
+    run("component_readme_projection_tradeoff", test_component_readme_records_projection_tradeoff)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")
