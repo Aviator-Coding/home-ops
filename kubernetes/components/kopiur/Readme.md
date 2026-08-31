@@ -185,12 +185,12 @@ Two properties make the cost tolerable rather than merely accepted:
   credentials sit permanently at rest - worse than no alert, because it reads as
   proof of safety. `KopiurProjectedCredentialsLeaking` in
   [`apps/base/system/kopiur/app/prometheusrule.yaml`](../../apps/base/system/kopiur/app/prometheusrule.yaml)
-  therefore alerts on the **level** (`kopiur_projected_secrets_live > 0` for 1h):
-  healthy runs reaped in ~90s stay silent, a permanent left-behind copy keeps
-  firing for its whole life, and any accumulation deriv would have caught also
-  holds the gauge above zero continuously. None of the chart's 12 shipped alerts
-  watch the series, so without this rule the decision's "observable" mitigation
-  would be a claim rather than a fact.
+  is the single authoritative source for the alert expression and its sampling
+  rationale: it watches the gauge level (not `deriv`) so a permanent left-behind
+  copy keeps firing for its whole life, while a single frozen census of a healthy
+  short-lived run does not. None of the chart's 12 shipped alerts watch the
+  series, so without this rule the decision's "observable" mitigation would be a
+  claim rather than a fact.
 
   For **per-run** evidence use the operator log line
   `reaped projected credentials copy secret=<snapshot>-creds-N` and the

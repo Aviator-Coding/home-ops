@@ -50,47 +50,122 @@ spec:
         # permanently at rest would be worse than no alert, because it reads as
         # proof of safety.
         #
-        # `kopiur_projected_secrets_live` is a POPULATION gauge sampled on the
-        # operator's periodic sweep, NOT a per-run indicator. Measured here
-        # 2026-08-31: two projected Secrets existed for ~90s during a real
-        # backup and the gauge read 0 at every 30s scrape across that window, so
-        # a flat 0 during a run is expected and is NOT evidence projection is
-        # off. The control that keeps healthy runs silent is the `for:` window,
-        # not the comparison: alert on the level staying above zero longer than
-        # any legitimate mover can leave a copy live.
+        # `kopiur_projected_secrets_live` is a POPULATION gauge, and the
+        # original `for: 1h` level alert below fired for hours on 2026-08-31
+        # while zero projected Secrets existed anywhere in the cluster - traced
+        # to source (ghcr.io/home-operations/kopiur-controller, cloned at
+        # crates/controller/src/sweep.rs `spawn_sweep`/`run_sweep`) and
+        # confirmed live. Three findings, in order:
         #
-        # Why `for: 1h` and not 15m. Measured 2026-08-31 on this cluster: a
-        # projected credential Secret for one real backup lived ~90s end to end
-        # (CSI VolumeSnapshot staging + staged PVC bind + mover Job); mover
-        # Jobs themselves completed in 12-23s. Longest VolSync sync in
-        # downloads is ~2m17s, so 15m already carries roughly a 10x margin over
-        # anything observed. 1h is chosen instead because those runs were all
-        # on volumes of at most 2.06 GiB, kopiur takes no activeDeadlineSeconds
-        # in this repo so a run is not bounded from above, and Stage 3 will
-        # onboard larger claims whose FIRST full kopia snapshot can legitimately
-        # run far longer than any incremental measured here. 1h stays silent on
-        # every legitimate run including a large initial backup, while still
-        # surfacing a permanent leak within the hour.
+        # (a) NOT a per-replica artefact. Both controller replicas were queried
+        # directly on their :8081/metrics: the non-leader
+        # (kopiur-controller-...-9pqvv, confirmed non-leader via `kubectl get
+        # lease kopiur -n system`) exports NO `kopiur_projected_secrets_live`
+        # series at all - only leader-election bookkeeping
+        # (`kopiur_leader_is_leader 0` and the coordination-lease client-request
+        # counter). `spawn_sweep` runs "ONLY after leader election is won" per
+        # its own doc comment, so exactly one series exists cluster-wide, from
+        # whichever pod holds the Lease. There is no split/aggregation bug to
+        # correct for here.
+        #
+        # (b) The gauge is a PERIODIC CENSUS, not a live signal.
+        # `run_sweep` calls `metrics.set_projected_secrets_live(...)` exactly
+        # once per pass, gated by `KOPIUR_WORK_SPEC_SWEEP_INTERVAL_SECS`
+        # (default 6h, unset - so default - in this repo's HelmRelease).
+        # Confirmed from the leader's own logs: sweep passes landed at
+        # 2026-08-31T09:29:44Z and 15:29:44Z, exactly 6h apart and aligned to
+        # the pod's 2026-08-30T15:28:41Z start. Between passes the exported
+        # value is frozen - every 30s scrape returns the byte-identical number
+        # no matter what happens to real Secrets in that window.
+        #
+        # (c) Caught the exact transition live in Prometheus's stored series:
+        # the gauge stepped 0->4 at the 09:29:44 pass and 4->0 at the 15:29:44
+        # pass - a full 6h plateau at 4, bracketed by genuinely zero live
+        # Secrets on both sides. The 4 was real but momentary and entirely
+        # legitimate: this fleet runs dozens of ceph/r2 backups on staggered
+        # per-namespace hours (Readme.md "Timezone: kopiur vs VolSync") and
+        # frequently has several movers mid-run at once, each holding a
+        # projected credential Secret for ~12-90s (this file's own
+        # measurements below) before the reconciler's fast path (`by=terminal`
+        # in `kopiur_creds_secrets_reaped_total`) reaps it - confirmed by dozens
+        # of `reaped projected credentials copy ... what="run finished"` log
+        # lines every few minutes through this exact window. The 09:29:44
+        # `List()` simply caught 4 such Secrets in flight; ordinary operation,
+        # not a leak.
+        #
+        # So: yes, the gauge self-corrects on its own (demonstrated above), but
+        # only at the NEXT sweep pass - up to a full sweep interval (6h by
+        # default) later. A `for: 1h` duration is far shorter than that refresh
+        # cadence, so any pass that happens to catch a benign nonzero
+        # population (routine, given this fleet's overlapping schedule) freezes
+        # the gauge above zero for hours after the real Secrets are gone,
+        # guaranteeing the alert fires - the exact 2026-08-31 incident.
+        #
+        # THE FIX distinguishes "one census caught a legitimate momentary
+        # population" from "the population stayed elevated across a sweep
+        # boundary that would otherwise have cleared it": require the gauge to
+        # read positive across at least two sweep passes, not just "some
+        # evaluation window over one frozen post-pass value". `min_over_time`
+        # over a span comfortably longer than 2x the sweep interval requires
+        # exactly that - the value must never have touched zero at any sample
+        # across the whole span, i.e. it survived a pass that had every
+        # opportunity to reset it. 13h (>2x the 6h default, with slack for
+        # scheduling jitter or a missed pass across a controller restart) is
+        # used instead of the bare interval for that margin. A genuine one-shot
+        # leak (the scenario this rule exists for) is unaffected: an un-reaped
+        # Secret is rediscovered by every subsequent `List()` forever, so it
+        # reads positive at every sample across any window, however long - the
+        # upstream `deriv()`-over-a-day gap this rule was written to close
+        # (documented below) still does not reopen. The honest cost, stated
+        # plainly: detection latency for a genuine leak grows from the old
+        # (already-fictional, since the metric was never live) ~1h to roughly
+        # one-to-two sweep intervals (~6-13h worst case) - inherent to this
+        # being a periodic, not continuous, signal. No configuration of this
+        # alert can detect a leak faster than the operator's own sweep
+        # discovers one; only lowering `KOPIUR_WORK_SPEC_SWEEP_INTERVAL_SECS`
+        # (a settled operator-config decision, out of scope here) would.
+        #
+        # Why the underlying `for: 1h` reasoning below is kept verbatim: it
+        # measured real single-run credential lifetimes and is still the
+        # correct floor for `CREDS_MIN_AGE_FLOOR_SECS`-style reasoning; it was
+        # simply built on the wrong assumption that the gauge reflected live
+        # state continuously rather than once per sweep pass.
+        #
+        # Why `for: 1h` and not 15m (original reasoning, still valid for how
+        # long a single legitimate run may hold a copy). Measured 2026-08-31 on
+        # this cluster: a projected credential Secret for one real backup lived
+        # ~90s end to end (CSI VolumeSnapshot staging + staged PVC bind + mover
+        # Job); mover Jobs themselves completed in 12-23s. Longest VolSync sync
+        # in downloads is ~2m17s, so 15m already carries roughly a 10x margin
+        # over anything observed. 1h was chosen instead because those runs were
+        # all on volumes of at most 2.06 GiB, kopiur takes no
+        # activeDeadlineSeconds in this repo so a run is not bounded from
+        # above, and Stage 3 onboarded larger claims whose FIRST full kopia
+        # snapshot can legitimately run far longer than any incremental
+        # measured here.
         #
         # Upstream's HELP text still prescribes `deriv() > 0 over a day`. We
         # deliberately do NOT follow that: a one-shot leak that steps 0 to N and
         # stays flat leaves deriv ~0 once older zeros age out of the window, so
         # a deriv rule goes quiet exactly when credentials are permanently at
-        # rest. Any accumulation deriv would catch also holds the gauge above
-        # zero continuously, so the level alert covers that case too.
+        # rest. `min_over_time` above zero over a span spanning multiple sweep
+        # passes catches that same case (the value never returns to zero) while
+        # ALSO closing the periodic-census gap deriv shares with the plain
+        # level check.
         #
         # Per-run evidence, when you need it, is the operator's own log line
         # (`reaped projected credentials copy secret=<snapshot>-creds-N`) and
-        # the `kopiur_secrets_projected_total` counter - not this gauge.
+        # the `kopiur_secrets_projected_total` / `kopiur_creds_secrets_reaped_total`
+        # counters - not this gauge.
         - alert: KopiurProjectedCredentialsLeaking
           expr: |
-            kopiur_projected_secrets_live > 0
+            min_over_time(kopiur_projected_secrets_live[13h]) > 0
           annotations:
             summary: >-
-              kopiur projected credential Secrets have remained live longer
-              than any legitimate mover run; repository credentials may be
+              kopiur projected credential Secrets have remained live across at
+              least two periodic sweep passes; repository credentials may be
               sitting at rest in an app namespace
-          for: 1h
+          for: 5m
           labels:
             severity: critical
 
