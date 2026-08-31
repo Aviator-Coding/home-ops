@@ -162,9 +162,9 @@ being taken. Every one of them *must* come back byte-identical; a mismatch there
 fidelity failure and not drift. Files outside the stable set are legitimately allowed to differ.
 
 Two portability notes: `-xdev` is required so `find` does not descend into `emptyDir`/ConfigMap
-volumes mounted *inside* the data directory (sabnzbd mounts a ConfigMap at `/config/scripts`,
-autobrr an `emptyDir` at `/config/log`); and `lost+found` is `root:root 0700`, unreadable by the
-app's own uid and recreated by `mkfs` on any restore target, so prune it on both sides.
+volumes mounted *inside* the data directory (e.g. autobrr's `emptyDir` at `/config/log`); and
+`lost+found` is `root:root 0700`, unreadable by the app's own uid and recreated by `mkfs` on any
+restore target, so prune it on both sides.
 
 ### 5. Take a snapshot per destination (only if the volume is not already covered)
 

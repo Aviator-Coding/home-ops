@@ -75,8 +75,6 @@ spec:
                 sabnzbd.downloads.svc.cluster,
                 sabnzbd.downloads.svc.cluster.local,
                 sabnzbd.${SECRET_DOMAIN}
-              XSEED_HOST: cross-seed.downloads.svc.cluster.local
-              XSEED_PORT: 2468
             envFrom:
               - secretRef:
                   name: sabnzbd-secret
@@ -194,14 +192,6 @@ spec:
           sabnzbd:
             app:
               - path: /tmp
-      scripts:
-        type: configMap
-        name: sabnzbd-scripts
-        defaultMode: 0775
-        advancedMounts:
-          sabnzbd:
-            app:
-              - path: /config/scripts
 
     route:
       app:
