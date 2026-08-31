@@ -75,8 +75,14 @@ spec:
       create: false
       name: headlamp-admin
     volumeMounts:
+      # headlamp-plugins initContainer (runAsUser: 0, its own separate writable
+      # mount below) is the only writer; the main container only reads. kubelet
+      # enforces readOnly per-container-mount, so the initContainer's own mount
+      # is unaffected. Preferred signal for pvc-writable-check expected
+      # read-only (kubernetes/apps/base/system/pvc-writable-check).
       - mountPath: /build/plugins
         name: headlamp-plugins
+        readOnly: true
     volumes:
       - name: headlamp-plugins
         persistentVolumeClaim:

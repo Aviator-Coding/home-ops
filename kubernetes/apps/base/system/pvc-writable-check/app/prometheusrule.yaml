@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# No custom metric/exporter needed: kube-state-metrics already exposes
+# kube_job_status_failed/succeeded for every Job it sees, including ones
+# created by a CronJob, with zero extra config. The check script's own exit
+# code (1 = at least one genuine NOT WRITABLE result, 0 = everything writable
+# or cleanly skipped) becomes the Job's status, which becomes this metric.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pvc-writable-check-rules
+  namespace: system
+spec:
+  groups:
+    - name: pvc-writable-check.rules
+      rules:
+        - alert: PVCVolumeNotWritable
+          # kube-state-metrics v2.20.0 (measured on this cluster):
+          # - A Job that fails once then succeeds (restartPolicy:OnFailure +
+          #   backoffLimit) emits a bare kube_job_status_failed{job_name=...} 0
+          #   series with NO reason label at all.
+          # - A Job that exhausts backoffLimit and genuinely fails emits one
+          #   0/1 series per known reason (BackoffLimitExceeded / DeadlineExceeded
+          #   / Evicted - the only three this version implements), e.g.
+          #   reason="BackoffLimitExceeded" 1.
+          # - Separately, when status.failed>0 without a JobFailed condition
+          #   (e.g. restartPolicy:Never with multiple pod attempts that later
+          #   Complete), ksm can emit reason="" with value=status.failed - a
+          #   raw failed-pod counter, not a boolean terminal-failure signal.
+          # reason!="" matches every real terminal-failure series observed and
+          # by construction excludes bare-gauge / empty-reason pod-count series.
+          expr: |-
+            kube_job_status_failed{namespace="system", job_name=~"^pvc-writable-check-.+", reason!=""} > 0
+          for: 10m
+          annotations:
+            summary: >-
+              The pvc-writable-check sweep found at least one application that
+              cannot write to its own mounted volume - the same silent-failure
+              class that let downloads/autobrr and selfhosted/rsshub-playwright
+              back up empty volumes for months (2026-08-30 empty-volume audit).
+              Read the failing run's own log for exactly which
+              namespace/pod/claim: `kubectl -n system logs -l
+              app.kubernetes.io/name=pvc-writable-check --tail=300
+              --since=12h | grep -A5 'FAILURES'`. Design and known
+              limitations: kubernetes/apps/base/system/pvc-writable-check/app/README.md.
+          labels:
+            severity: warning
