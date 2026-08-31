@@ -133,11 +133,26 @@ from permanent to the length of one mover run.
 
 Two properties make the cost tolerable rather than merely accepted:
 
-* **Observable.** The operator exports `kopiur_projected_secrets_live`. It should
-  read `0` between runs, and rise only while a mover is running. A non-zero
-  reading at rest means a reap did not happen - investigate, do not ignore.
-  Per-run, `Snapshot.status.cleanup.credsReapedAt` records the reap, and
-  `kopiur_secrets_projected_total` counts projections.
+* **Observable** - but read the right signal. `kopiur_projected_secrets_live` is
+  a **population gauge sampled on the operator's periodic sweep, not a per-run
+  indicator**, and upstream's own HELP text prescribes alerting on
+  `deriv() > 0` over a day. Measured here 2026-08-31: two projected Secrets
+  existed for ~90s during a real backup and the gauge read `0` at every 30s
+  scrape across that window. **A flat 0 during a run is correct and is not
+  evidence that projection is not happening.** Its job is to stay flat over
+  time; a sustained positive derivative means copies are accumulating faster
+  than the reap reclaims them (the per-run leak upstream #240 describes running
+  unseen). `KopiurProjectedCredentialsLeaking` in
+  [`apps/base/system/kopiur/app/prometheusrule.yaml`](../../apps/base/system/kopiur/app/prometheusrule.yaml)
+  watches exactly that - none of the chart's 12 shipped alerts do, so without it
+  the decision's "observable" mitigation would be a claim rather than a fact.
+
+  For **per-run** evidence use the operator log line
+  `reaped projected credentials copy secret=<snapshot>-creds-N` and the
+  `kopiur_secrets_projected_total` counter. Do **not** use
+  `Snapshot.status.cleanup.credsReapedAt` as proof projection happened: that
+  field is populated on every run, projection on or off (it is set on Snapshots
+  taken before this change).
 * **Reversible**, by flipping one boolean per repository (leg 2). Note that
   reverting alone leaves movers outside `system` with **no** credentials at all:
   the standing per-namespace copies are gone, so a rollback means re-creating
@@ -327,6 +342,15 @@ kubectl get clusterrepository -o wide
 
 # Confirm the parallel run is intact - VolSync must still be green
 kubectl -n downloads get replicationsource
+
+# Did credential projection actually happen for a run? (per-run evidence)
+kubectl -n system logs -l app.kubernetes.io/name=kopiur -c controller --since=1h \
+  | grep 'projected credentials'
+
+# Projected copies live RIGHT NOW. Expect none between runs; during a run you
+# see one `<snapshot>-creds-N` per repository Secret (ceph has two - auth and
+# encryption; r2 has one serving both).
+kubectl -n downloads get secret | grep -- -creds-
 ```
 
 A `Ready=False` on a kopiur CR can be **stale**: controller-runtime backs a

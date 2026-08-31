@@ -38,3 +38,38 @@ spec:
           for: 5m
           labels:
             severity: critical
+
+        # CREDENTIAL-PROJECTION LEAK. Captain decision `credential-scope`
+        # (2026-08-30) accepts unscoped Secret create/patch/delete for the
+        # operator on the explicit grounds that the resulting exposure is
+        # BOUNDED TO ONE MOVER RUN and that the leak is OBSERVABLE. Nothing in
+        # the chart's 12 alerts watches it, so this rule is what makes that
+        # second half true - without it a projected credential left behind in an
+        # app namespace is silent, and the decision's stated mitigation is only
+        # a claim.
+        #
+        # `kopiur_projected_secrets_live` is a POPULATION gauge sampled on the
+        # operator's periodic sweep, NOT a per-run indicator - upstream's own
+        # HELP text says so and prescribes `deriv() > 0 over a day`. Measured
+        # here 2026-08-31: two projected Secrets existed for ~90s during a real
+        # backup and the gauge read 0 at every 30s scrape across that window.
+        # So DO NOT alert on `> 0`: it would never fire on a healthy run and
+        # would teach the next operator that a flat 0 means projection is not
+        # happening. A sustained positive derivative is the leak signal - copies
+        # accumulating faster than the reap reclaims them, which is exactly the
+        # per-run leak upstream #240 describes running unseen.
+        #
+        # Per-run evidence, when you need it, is the operator's own log line
+        # (`reaped projected credentials copy secret=<snapshot>-creds-N`) and
+        # the `kopiur_secrets_projected_total` counter - not this gauge.
+        - alert: KopiurProjectedCredentialsLeaking
+          expr: |
+            deriv(kopiur_projected_secrets_live[1d]) > 0
+          annotations:
+            summary: >-
+              kopiur projected credential Secrets are accumulating rather than
+              being reaped; repository credentials may be sitting at rest in an
+              app namespace
+          for: 1h
+          labels:
+            severity: critical
