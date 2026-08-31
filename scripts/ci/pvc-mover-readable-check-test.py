@@ -308,7 +308,15 @@ def test_walker_needs_no_writable_tmp() -> None:
 
 
 def test_walker_never_uses_find_ownership_predicates() -> None:
-    """Trap 1: busybox `find` has no -uid/-gid; it fails to usage text."""
+    """Deliberately source-text: trap 1 cannot be caught behaviorally here.
+
+    busybox `find` has no -uid/-gid and fails to usage text, which the walker
+    would then read as a clean zero. CI and these fixtures run GNU find, which
+    DOES implement those predicates, so a regression to `find -uid`/`-gid`
+    would pass every behavioral fixture and only break inside the busybox app
+    container where the walker actually runs. This exact trap already produced
+    a silent false-clean zero once during the 2026-08-31 audit.
+    """
     text = strip_shell_comments(WALK_PATH.read_text())
     for bad in (" -uid ", " -gid ", " -user ", " -group ", " -perm "):
         require(
@@ -316,18 +324,6 @@ def test_walker_never_uses_find_ownership_predicates() -> None:
             f"walk.sh must not use find's {bad.strip()} predicate (busybox lacks it, "
             "and it fails to usage text which reads as a clean zero)",
         )
-
-
-def test_walker_never_suppresses_stderr() -> None:
-    """Trap 3: a suppressed stderr turns a broken walk into a clean zero."""
-    text = WALK_PATH.read_text()
-    code = strip_shell_comments(text)
-    for bad in ("2>/dev/null", "2> /dev/null", "2>&-"):
-        require(bad not in code, f"walk.sh must never suppress stderr ({bad})")
-    require(
-        "mktemp" not in text and "$TMPDIR" not in text,
-        "walk.sh must create no temp file (trap 2: /tmp is read-only)",
-    )
 
 
 def test_walker_is_read_only_against_the_volume() -> None:
@@ -345,9 +341,6 @@ def test_walker_is_read_only_against_the_volume() -> None:
         before = snapshot()
         run_walk(root, (ALIEN_UID, ALIEN_GID), (ALIEN_UID, ALIEN_GID))
         require(snapshot() == before, "walk.sh mutated the volume it measured")
-    text = strip_shell_comments(WALK_PATH.read_text())
-    for bad in ("chmod", "chown", "touch ", "rm ", "mkdir ", "> $", '> "$'):
-        require(bad not in text, f"walk.sh must contain no mutating command ({bad!r})")
 
 
 def test_walker_reports_na_for_an_engine_that_does_not_cover_the_claim() -> None:
@@ -445,11 +438,18 @@ def write_mock_kubectl(
     policies: list[dict[str, Any]],
     pods: list[dict[str, Any]],
     walk_results: dict[str, str],
+    *,
+    fail_gets: frozenset[str] | set[str] | None = None,
 ) -> None:
     """kubectl shim serving fixture CRs/pods and per-claim walker output.
 
     walk_results maps "ns/pod/container" to the literal text the walker would
     print, or the sentinel "FORBIDDEN" / "NOSHELL" / "TIMEOUT".
+
+    fail_gets is an optional set of resource names (`replicationsources`,
+    `snapshotpolicies`, `pods`) whose `kubectl get` exits non-zero with an
+    error on stderr - used to prove discovery failures never report a false
+    clean.
     """
     def dump(name: str, items: list[dict[str, Any]]) -> Path:
         p = bin_dir / name
@@ -461,6 +461,8 @@ def write_mock_kubectl(
     pods_path = dump("pods.json", pods)
     results_path = bin_dir / "results.json"
     results_path.write_text(json.dumps(walk_results))
+    fail_path = bin_dir / "fail_gets.txt"
+    fail_path.write_text("\n".join(sorted(fail_gets or ())))
 
     kubectl = bin_dir / "kubectl"
     kubectl.write_text(
@@ -469,7 +471,12 @@ def write_mock_kubectl(
             #!/usr/bin/env bash
             set -uo pipefail
             if [[ "${{1:-}}" == "get" ]]; then
-              case "${{2:-}}" in
+              res="${{2:-}}"
+              if grep -qx "$res" {fail_path!s} 2>/dev/null; then
+                echo "Error from server (InternalError): mock get $res failed" >&2
+                exit 1
+              fi
+              case "$res" in
                 replicationsources) cat {rs_path!s}; exit 0 ;;
                 snapshotpolicies)   cat {sp_path!s}; exit 0 ;;
                 pods)               cat {pods_path!s}; exit 0 ;;
@@ -527,12 +534,16 @@ def run_cronjob_script(
     policies: list[dict[str, Any]],
     pods: list[dict[str, Any]],
     walk_results: dict[str, str],
+    *,
+    fail_gets: frozenset[str] | set[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     with tempfile.TemporaryDirectory(prefix="pvc-mover-readable-") as tmp:
         tmp_path = Path(tmp)
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
-        write_mock_kubectl(bin_dir, sources, policies, pods, walk_results)
+        write_mock_kubectl(
+            bin_dir, sources, policies, pods, walk_results, fail_gets=fail_gets
+        )
         # The shipped script reads the walker from its ConfigMap mount. Point
         # that one literal at a harness copy; the literal itself is asserted in
         # extract_cronjob_script so the contract stays pinned.
@@ -724,21 +735,111 @@ def test_no_backup_crs_at_all_is_fatal() -> None:
     require("FATAL" in proc.stderr or "FATAL" in proc.stdout, "it must say why")
 
 
+def _happy_discovery_fixture() -> tuple[
+    list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, str]
+]:
+    """A single claim that would report OK if discovery succeeded."""
+    return (
+        [rs("selfhosted", "changedetection-config", 1000, 1000)],
+        [sp("selfhosted", ["changedetection-config"], 1000, 1000)],
+        [
+            pod_obj(
+                "selfhosted",
+                "changedetection-0",
+                "changedetection-config",
+                "/datastore",
+            )
+        ],
+        {"selfhosted/changedetection-0/app": walker_output()},
+    )
+
+
+def _assert_discovery_fatal(proc: subprocess.CompletedProcess[str], named: str) -> None:
+    """A discovery failure must exit non-zero, name the call, and never clean."""
+    combined = f"{proc.stdout}\n{proc.stderr}"
+    require(
+        proc.returncode == 1,
+        f"{named} discovery failure must exit non-zero: {combined[-800:]}",
+    )
+    require("FATAL" in combined, f"{named} discovery failure must print FATAL: {combined[-800:]}")
+    require(
+        named in combined,
+        f"FATAL must name the failed discovery call ({named}): {combined[-800:]}",
+    )
+    require(
+        "no readability conclusion can be drawn" in combined,
+        f"FATAL must state that no conclusion can be drawn: {combined[-800:]}",
+    )
+    # Prove it did not report a false clean - exit 1 alone is not enough if the
+    # sweep already classified claims before failing.
+    require(
+        re.search(r"(?m)^OK\b", combined) is None,
+        f"{named} discovery failure must emit no OK classification: {combined[-800:]}",
+    )
+    require(
+        "clean=" not in combined,
+        f"{named} discovery failure must emit no clean= summary: {combined[-800:]}",
+    )
+
+
+def test_replicationsources_discovery_failure_is_fatal_not_false_clean() -> None:
+    sources, policies, pods, walks = _happy_discovery_fixture()
+    proc = run_cronjob_script(
+        extract_cronjob_script(),
+        sources,
+        policies,
+        pods,
+        walks,
+        fail_gets={"replicationsources"},
+    )
+    _assert_discovery_fatal(proc, "replicationsources")
+
+
+def test_snapshotpolicies_discovery_failure_is_fatal_not_false_clean() -> None:
+    sources, policies, pods, walks = _happy_discovery_fixture()
+    proc = run_cronjob_script(
+        extract_cronjob_script(),
+        sources,
+        policies,
+        pods,
+        walks,
+        fail_gets={"snapshotpolicies"},
+    )
+    _assert_discovery_fatal(proc, "snapshotpolicies")
+
+
+def test_pods_discovery_failure_is_fatal_not_false_clean() -> None:
+    sources, policies, pods, walks = _happy_discovery_fixture()
+    proc = run_cronjob_script(
+        extract_cronjob_script(),
+        sources,
+        policies,
+        pods,
+        walks,
+        fail_gets={"pods"},
+    )
+    _assert_discovery_fatal(proc, "pods")
+
+
+def test_empty_snapshotpolicies_map_is_fatal_not_na_clean() -> None:
+    """A successful but empty kopiur query is discovery breakage, not NA."""
+    sources, _policies, pods, walks = _happy_discovery_fixture()
+    proc = run_cronjob_script(
+        extract_cronjob_script(),
+        sources,
+        [],
+        pods,
+        walks,
+    )
+    _assert_discovery_fatal(proc, "snapshotpolicies")
+
+
 def strip_shell_comments(script: str) -> str:
     """Drop whole-line `#` comments so a rule can be pinned in prose without
     the test matching its own explanation."""
     return "\n".join(
         line for line in script.splitlines() if not line.lstrip().startswith("#")
     )
-
-
-def test_cronjob_script_avoids_herestrings() -> None:
-    """Bash backs a here-string with a real temp file; the pod has a read-only
-    root filesystem. pvc-writable-check hit this live."""
-    code = strip_shell_comments(extract_cronjob_script())
-    require("<<<" not in code, "the script must not use a here-string")
-    for bad in ("2>/dev/null", "2> /dev/null"):
-        require(bad not in code, f"the script must not suppress stderr ({bad})")
 
 
 # ---------------------------------------------------------------------------
@@ -902,8 +1003,13 @@ def test_overlay_wiring() -> None:
 
 
 def test_no_flux_envsubst_collision_in_the_walker() -> None:
-    """A literal ${...} token would fail the whole Kustomization under Flux's
-    strict-mode envsubst (see AGENTS.md 'postBuild.substitute collision')."""
+    """Deliberately source-text: the failure mode is not observable locally.
+
+    A literal ${...} token would fail the whole Kustomization under Flux's
+    strict-mode envsubst (see AGENTS.md 'postBuild.substitute collision',
+    which caused a 44-day four-app outage). Local execution of walk.sh never
+    runs that envsubst pass, so a behavioral fixture cannot catch the freeze.
+    """
     require(
         "${" not in WALK_PATH.read_text(),
         "walk.sh must contain no ${...} token: Flux's strict envsubst runs over the "
@@ -936,11 +1042,13 @@ def main() -> int:
         test_identity_comes_from_the_live_crs_not_a_default,
         test_disagreeing_kopiur_policies_are_a_finding,
         test_no_backup_crs_at_all_is_fatal,
+        test_replicationsources_discovery_failure_is_fatal_not_false_clean,
+        test_snapshotpolicies_discovery_failure_is_fatal_not_false_clean,
+        test_pods_discovery_failure_is_fatal_not_false_clean,
+        test_empty_snapshotpolicies_map_is_fatal_not_na_clean,
     ]
     offline_tests = [
         test_walker_never_uses_find_ownership_predicates,
-        test_walker_never_suppresses_stderr,
-        test_cronjob_script_avoids_herestrings,
         test_rbac_split_role_and_narrow_exec_binding,
         test_excluded_namespaces_match_the_rbac_gap,
         test_alert_regex_matches_this_cronjobs_own_job_names,

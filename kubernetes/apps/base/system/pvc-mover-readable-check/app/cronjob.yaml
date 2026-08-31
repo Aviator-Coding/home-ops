@@ -23,8 +23,9 @@ metadata:
     app.kubernetes.io/name: pvc-mover-readable-check
 spec:
   # Every 6h, matching pvc-writable-check's cadence. Measured cost of a full
-  # fleet sweep is ~30s wall-clock for 31 claims / ~230k entries (the largest,
-  # ai/hermes at 104k entries, walks in ~1s), so 6h is comfortably affordable.
+  # fleet sweep is ~10s wall-clock for 31 claims / ~230k entries, ~14s total
+  # Job duration (an earlier run of the same sweep took 21s); the largest,
+  # ai/hermes at 104k entries, walks in ~1s, so 6h is comfortably affordable.
   # Offset to :47 so it never overlaps pvc-writable-check's :17 sweep, and off
   # the hour so it does not pile onto the many jobs scheduled exactly on :00.
   schedule: "47 */6 * * *"
@@ -110,7 +111,12 @@ spec:
                   # they range from 0 to 10000), so a default-derived identity
                   # would measure the wrong thing and report a false clean.
                   # ---------------------------------------------------------
-                  VS_TSV=$(kubectl get replicationsources -A -o json | jq -r '
+                  # Capture each discovery pipeline's status separately.
+                  # pipefail is already on, so a failed kubectl OR jq fails the
+                  # whole assignment. Never continue with a partial map: an
+                  # empty identity list after a failed get is the same green-
+                  # while-measuring-nothing failure this check exists to catch.
+                  if ! VS_TSV=$(kubectl get replicationsources -A -o json | jq -r '
                     .items[]
                     | select(.spec.sourcePVC != null)
                     | select(.spec.restic.moverSecurityContext.runAsUser != null)
@@ -118,11 +124,14 @@ spec:
                     | [ .metadata.namespace, .spec.sourcePVC,
                         (.spec.restic.moverSecurityContext.runAsUser  | tostring),
                         (.spec.restic.moverSecurityContext.runAsGroup | tostring) ]
-                    | @tsv' | sort -u)
+                    | @tsv' | sort -u); then
+                    echo "FATAL: kubectl get replicationsources discovery failed; no readability conclusion can be drawn" >&2
+                    exit 1
+                  fi
 
                   # A SnapshotPolicy carries one podSecurityContext and may
                   # list several sources; each source names its own claim.
-                  KP_TSV=$(kubectl get snapshotpolicies -A -o json | jq -r '
+                  if ! KP_TSV=$(kubectl get snapshotpolicies -A -o json | jq -r '
                     .items[]
                     | .metadata.namespace as $ns
                     | (.spec.mover.podSecurityContext // {}) as $sc
@@ -131,10 +140,24 @@ spec:
                     | .spec.sources[]
                     | select(.pvc.name != null)
                     | [ $ns, .pvc.name, ($sc.runAsUser | tostring), ($sc.runAsGroup | tostring) ]
-                    | @tsv' | sort -u)
+                    | @tsv' | sort -u); then
+                    echo "FATAL: kubectl get snapshotpolicies discovery failed; no readability conclusion can be drawn" >&2
+                    exit 1
+                  fi
 
                   if [[ -z "${VS_TSV}" && -z "${KP_TSV}" ]]; then
                     echo "FATAL: no ReplicationSource or SnapshotPolicy mover identities resolved" >&2
+                    exit 1
+                  fi
+
+                  # kopiur is live on every VolSync-protected claim in the
+                  # fleet. A successful query that returns zero rows means
+                  # discovery broke (wrong API group, empty list, filter
+                  # mismatch), not that the fleet is kopiur-free. A per-claim
+                  # missing kopiur identity stays legal and reports NA - only
+                  # a globally empty map is fatal.
+                  if [[ -z "${KP_TSV}" ]]; then
+                    echo "FATAL: kubectl get snapshotpolicies returned zero mover identities; no readability conclusion can be drawn" >&2
                     exit 1
                   fi
 
@@ -142,7 +165,7 @@ spec:
                   # when the mount exposes the whole volume, subpath when it
                   # exposes only a slice of it - a subPath mount cannot see
                   # the volume root, so it can never stand in for one.
-                  TARGETS_TSV=$(kubectl get pods -A -o json | jq -r '
+                  if ! TARGETS_TSV=$(kubectl get pods -A -o json | jq -r '
                     .items[]
                     | . as $pod
                     | (($pod.spec.volumes // [])
@@ -160,7 +183,10 @@ spec:
                             (($running[$c.name] // false) | tostring),
                             $pod.metadata.name, $c.name, .mountPath ]
                         | @tsv)
-                  ')
+                  '); then
+                    echo "FATAL: kubectl get pods discovery failed; no readability conclusion can be drawn" >&2
+                    exit 1
+                  fi
 
                   declare -A CLAIMS=() VS_U=() VS_G=() KP_U=() KP_G=()
                   declare -A VS_CONFLICT=() KP_CONFLICT=()
