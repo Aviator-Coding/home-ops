@@ -478,6 +478,25 @@ def test_pin_shape(rule: dict[str, Any]) -> None:
 
 
 def test_automerge_rule_last(rules: list[dict[str, Any]]) -> None:
+    """Talos automerge:false must beat earlier blanket true rules.
+
+    It does not need to be the absolute last packageRule - sibling
+    never-auto-merge rules (e.g. kopiur) may share the trailing block - but it
+    must remain the last automerge-setting match for every Talos package name.
+    """
+    talos_names = {
+        "ghcr.io/siderolabs/installer",
+        "ghcr.io/siderolabs/talosctl",
+        "siderolabs/talos",
+        r"/factory\.talos\.dev/",
+    }
+
+    def rule_matches(rule: dict[str, Any], pkg: str) -> bool:
+        names = rule.get("matchPackageNames")
+        if names is not None:
+            return pkg in names
+        return "matchPackageNames" not in rule
+
     talos_idxs = [
         i
         for i, r in enumerate(rules)
@@ -486,17 +505,30 @@ def test_automerge_rule_last(rules: list[dict[str, Any]]) -> None:
         and r.get("automerge") is False
     ]
     require(talos_idxs, "autoMerge.json5 missing Never-auto-merge-Talos rule")
-    require(
-        talos_idxs[-1] == len(rules) - 1,
-        f"Talos automerge:false rule must be LAST (last-match-wins); "
-        f"found at index {talos_idxs[-1]} of {len(rules) - 1}",
-    )
+    talos_idx = talos_idxs[-1]
     # Blanket minor automerge must exist earlier so the override is load-bearing.
     earlier_minor = any(
         r.get("automerge") is True and "minor" in (r.get("matchUpdateTypes") or [])
-        for r in rules[: talos_idxs[-1]]
+        for r in rules[:talos_idx]
     )
     require(earlier_minor, "expected an earlier blanket minor automerge:true rule to override")
+
+    for pkg in sorted(talos_names):
+        winning_automerge: bool | None = None
+        winning_index = -1
+        for idx, rule in enumerate(rules):
+            if isinstance(rule, dict) and rule_matches(rule, pkg) and "automerge" in rule:
+                winning_automerge = bool(rule["automerge"])
+                winning_index = idx
+        require(
+            winning_automerge is False,
+            f"{pkg}: final automerge winner must be false (got {winning_automerge} from rule {winning_index})",
+        )
+        require(
+            winning_index == talos_idx,
+            f"{pkg}: last automerge-setting match must be the Talos exclusion "
+            f"(won at index {winning_index}, Talos exclusion at {talos_idx})",
+        )
 
 
 def test_renovate_behavior(probe: dict[str, Any]) -> None:
@@ -668,7 +700,10 @@ def main() -> int:
     run("talos pin shape is negated-regex exclusion of v1.13.3 only", lambda: test_pin_shape(rule))
 
     am_rules = load_automerge_rules()
-    run("talos automerge:false rule is last (last-match-wins)", lambda: test_automerge_rule_last(am_rules))
+    run(
+        "talos automerge:false beats earlier blanket true (last-match-wins)",
+        lambda: test_automerge_rule_last(am_rules),
+    )
 
     probe_holder: dict[str, Any] = {}
 

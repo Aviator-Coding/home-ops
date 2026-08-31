@@ -317,14 +317,35 @@ def test_unrelated_updates_still_automerge(rules: list[dict[str, Any]]) -> None:
         )
 
 
-def test_kopiur_exclusion_still_last_and_wins(rules: list[dict[str, Any]]) -> None:
-    """The renovate exclusion must not displace the kopiur last-rule contract."""
-    last = rules[-1]
-    require(
-        set(last.get("matchPackageNames") or []) >= KOPIUR_PACKAGE_NAMES,
-        f"last packageRule must remain the kopiur package-name exclusion, got {last}",
+def test_kopiur_exclusion_still_wins(rules: list[dict[str, Any]]) -> None:
+    """The renovate exclusion must not displace the kopiur never-auto-merge contract.
+
+    The kopiur exclusion does not have to be the absolute last packageRule -
+    sibling never-auto-merge rules (e.g. Talos) may follow - but it must sit
+    after the blanket automerge:true rules and remain the last rule that sets
+    automerge for every kopiur package name.
+    """
+    kopiur_rule_idxs = [
+        i
+        for i, rule in enumerate(rules)
+        if isinstance(rule, dict)
+        and rule.get("automerge") is False
+        and KOPIUR_PACKAGE_NAMES <= set(rule.get("matchPackageNames") or [])
+    ]
+    require(kopiur_rule_idxs, "autoMerge.json5 missing Never-auto-merge-kopiur rule")
+    kopiur_idx = kopiur_rule_idxs[-1]
+
+    earlier_blanket_true = any(
+        isinstance(r, dict)
+        and r.get("automerge") is True
+        and "matchPackageNames" not in r
+        and "matchFileNames" not in r
+        for r in rules[:kopiur_idx]
     )
-    require(last.get("automerge") is False, "last rule must set automerge: false")
+    require(
+        earlier_blanket_true,
+        "kopiur exclusion must sit after at least one blanket automerge:true rule",
+    )
 
     for pkg in sorted(KOPIUR_PACKAGE_NAMES):
         dep = DepUpdate(
@@ -335,8 +356,9 @@ def test_kopiur_exclusion_still_last_and_wins(rules: list[dict[str, Any]]) -> No
         )
         winner, idx = winning_automerge(rules, dep)
         require(
-            winner is False and idx == len(rules) - 1,
-            f"{pkg}: kopiur exclusion must win as last rule (winner={winner}, idx={idx})",
+            winner is False and idx == kopiur_idx,
+            f"{pkg}: last automerge-setting match must be the kopiur exclusion "
+            f"(winner={winner}, idx={idx}, kopiur exclusion at {kopiur_idx})",
         )
 
 
@@ -438,7 +460,7 @@ def main() -> int:
     if rules is not None:
         run("renovate_self_update_blocked", test_renovate_self_update_blocked, rules)
         run("unrelated_updates_still_automerge", test_unrelated_updates_still_automerge, rules)
-        run("kopiur_exclusion_still_last_and_wins", test_kopiur_exclusion_still_last_and_wins, rules)
+        run("kopiur_exclusion_still_wins", test_kopiur_exclusion_still_wins, rules)
 
     docs = run("kustomize_build_renovate_app", kustomize_build, RENOVATE_APP)
     if docs is not None:

@@ -27,13 +27,11 @@
     },
     {
       // Must sit after the three blanket automerge rules above (same reasoning
-      // as the kopiur rule below): Renovate evaluates packageRules in order
-      // and a later matching rule overrides an earlier one. Kept immediately
-      // before the kopiur exclusion so that rule remains last - scripts/ci/
-      // kopiur-stage0-test.py::test_renovate_automerge_exclusion asserts
-      // rules[-1] is the kopiur package-name exclusion. The two exclusions
-      // match disjoint dependencies, so their relative order to each other
-      // does not matter.
+      // as the kopiur/Talos rules below): Renovate evaluates packageRules in
+      // order and a later matching rule overrides an earlier one. Sibling
+      // never-auto-merge rules may share this trailing block; their relative
+      // order to each other does not matter because they match disjoint
+      // dependencies, and none may re-enable automerge for these paths.
       //
       // This is Renovate's own chart-pin exclusion, the condition the
       // 2026-08-22 in-cluster-Renovate decision called non-negotiable.
@@ -55,9 +53,10 @@
       automerge: false,
     },
     {
-      // MUST stay LAST: Renovate evaluates packageRules in order and a later
-      // matching rule overrides an earlier one, so this has to sit after the
-      // three blanket automerge rules above to actually win for kopiur.
+      // MUST stay AFTER the three blanket automerge rules above: Renovate
+      // evaluates packageRules in order and a later matching rule overrides an
+      // earlier one. Sibling never-auto-merge rules (Talos below) may follow;
+      // none of them may re-enable automerge for these names.
       description: "Never auto merge kopiur - it is the backup system on an alpha API",
       matchPackageNames: [
         "ghcr.io/home-operations/charts/kopiur",
@@ -74,8 +73,10 @@
       automerge: false,
     },
     {
-      // MUST stay LAST (same reasoning as kopiur above): overrides the three
-      // blanket automerge rules for these four packages specifically.
+      // MUST stay AFTER the three blanket automerge rules above (same reasoning
+      // as kopiur): overrides them for these four packages specifically.
+      // Sibling never-auto-merge rules may share this trailing block; none may
+      // re-enable automerge for these names.
       //
       // `ghcr.io/siderolabs/installer` feeds the live `TalosUpgrade` CR
       // (kubernetes/apps/base/system-upgrade/tuppr/upgrades/talosupgrade.yaml),
