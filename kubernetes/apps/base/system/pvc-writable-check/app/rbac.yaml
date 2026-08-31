@@ -3,38 +3,351 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: pvc-writable-check
+  namespace: system
 ---
-# Cluster-wide by design: the whole point of this check is to cover every
-# PVC-mounting workload without a hand-maintained namespace list (a Role +
-# RoleBinding per namespace would just move the "someone has to remember to
-# add it" problem from an app list to a namespace list). That means this is
-# the only ServiceAccount in the repo with a cluster-wide `pods/exec: create`
-# grant - equivalent to arbitrary command execution in any pod, cluster-wide.
-# Accepted tradeoff, not an oversight: see the "Why cluster-wide exec" section
-# in ../README.md for the full argument and the mitigations in place
-# (get/list is the only other verb granted, the exec target command is never
-# built from untrusted input, the container is hardened, and no other
-# workload references this ServiceAccount or its token).
+# Split-role design (captain decision after review of the first cut's
+# cluster-wide pods/exec grant):
+#
+# (a) pvc-writable-check-read  - pods get/list, ClusterRoleBinding, cluster-wide.
+#     Low-risk discovery only; same shape as ai/toolhive/mcp-servers/kubectl-mcp.
+# (b) pvc-writable-check-exec  - pods/exec create, ClusterRole that is NEVER
+#     bound via a ClusterRoleBinding. Instead one namespaced RoleBinding per
+#     covered namespace (below) points at this ClusterRole. The three excluded
+#     namespaces - rook-ceph, database, security - have no RoleBinding at all,
+#     so the API server itself returns 403 for pods/exec there
+#     (`kubectl auth can-i create pods --subresource=exec
+#     --as=system:serviceaccount:system:pvc-writable-check -n rook-ceph` -> no;
+#     a live kubectl exec against a real database pod returns
+#     "is forbidden ... cannot create resource pods/exec ... in the namespace
+#     database"). The script also short-circuits those namespaces before any
+#     exec attempt so logs don't mislabel a permanent policy exclusion as a
+#     transient skip.
+#
+# Why exclude those three: an unrestricted pods/exec grant would turn a
+# compromise of this one ServiceAccount into arbitrary command execution
+# inside Ceph, the databases, and the secret plumbing (1Password Connect /
+# External Secrets). The bug class this check exists to catch lives in
+# ordinary app workloads on the app-template/fsGroup pattern, not in those
+# three namespaces - storage there is owned by Rook/CloudNativePG and secrets
+# by 1Password Connect - so the excluded coverage is close to worthless while
+# the excluded risk is the worst of it.
+#
+# CRITICAL Flux gotcha: the overlay Kustomization CR MUST NOT set
+# targetNamespace. Flux's targetNamespace unconditionally overwrites
+# metadata.namespace on every namespaced resource in the build output, even
+# ones that already declare their own - so per-namespace RoleBindings all
+# collapse onto system and collide by name (namespace-transformation ID
+# conflict). That is why ServiceAccount/CronJob/PrometheusRule declare
+# namespace: system explicitly, and each RoleBinding keeps its own target
+# namespace. Do not reintroduce targetNamespace on the overlay.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: pvc-writable-check
+  name: pvc-writable-check-read
 rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
-  - apiGroups: [""]
-    resources: ["pods/exec"]
-    verbs: ["create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: pvc-writable-check
+  name: pvc-writable-check-read
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: pvc-writable-check
+  name: pvc-writable-check-read
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pvc-writable-check-exec
+rules:
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+# One RoleBinding per covered namespace. Excluded (no binding): rook-ceph,
+# database, security. Keep in lockstep with EXCLUDED_NAMESPACES in cronjob.yaml.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: actions-runner-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: cert-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: cilium-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: coder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: downloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: home-automation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: kube-node-lease
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: kube-public
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: media
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: network
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: renovate
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: selfhosted
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: system-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-writable-check-exec
+  namespace: system-upgrade
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check-exec
 subjects:
   - kind: ServiceAccount
     name: pvc-writable-check

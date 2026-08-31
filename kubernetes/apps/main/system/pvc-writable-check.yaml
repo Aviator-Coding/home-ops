@@ -4,7 +4,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app pvc-writable-check
-  namespace: &namespace system
+  namespace: system
 spec:
   commonMetadata:
     labels:
@@ -17,6 +17,10 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: *namespace
+  # Deliberately no targetNamespace: Flux would overwrite metadata.namespace
+  # on every namespaced resource in the build - including the per-namespace
+  # RoleBindings in rbac.yaml - collapsing them all onto one namespace and
+  # failing with a namespace-transformation ID conflict. ServiceAccount,
+  # CronJob, and PrometheusRule declare namespace: system explicitly instead.
   timeout: 5m
   wait: false

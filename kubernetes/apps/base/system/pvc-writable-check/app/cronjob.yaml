@@ -11,6 +11,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: pvc-writable-check
+  namespace: system
   labels:
     app.kubernetes.io/name: pvc-writable-check
 spec:
@@ -63,6 +64,10 @@ spec:
               env:
                 - name: SKIP_ANNOTATION
                   value: pvc-writable-check.home-operations.com/skip
+                # Must match the namespaces that have no pvc-writable-check-exec
+                # RoleBinding in rbac.yaml (API-server denial, not script-only).
+                - name: EXCLUDED_NAMESPACES
+                  value: "rook-ceph database security"
               command:
                 - /bin/bash
                 - -c
@@ -118,6 +123,7 @@ spec:
                   CANDIDATES=0
                   CHECKED=0
                   WRITABLE=0
+                  SKIPPED_NAMESPACE_EXCLUDED=0
                   SKIPPED_NOT_RUNNING=0
                   SKIPPED_NO_EXEC_TOOL=0
                   SKIPPED_TRANSIENT=0
@@ -126,6 +132,24 @@ spec:
                   while IFS=$'\t' read -r ns pod container claim mountpath running; do
                     [[ -z "${ns}" ]] && continue
                     CANDIDATES=$((CANDIDATES + 1))
+
+                    # Permanent policy exclusion (rook-ceph / database /
+                    # security): no RoleBinding grants pods/exec there, so the
+                    # API server would 403. Short-circuit with its own counter
+                    # rather than letting a 403 land in the generic transient
+                    # skip bucket and look like a flaky condition.
+                    excluded=false
+                    for excl in ${EXCLUDED_NAMESPACES}; do
+                      if [[ "${ns}" == "${excl}" ]]; then
+                        excluded=true
+                        break
+                      fi
+                    done
+                    if [[ "${excluded}" == "true" ]]; then
+                      echo "SKIP  (namespace excluded by design) ${ns}/${pod} [${container}] ${mountpath} (claim=${claim})"
+                      SKIPPED_NAMESPACE_EXCLUDED=$((SKIPPED_NAMESPACE_EXCLUDED + 1))
+                      continue
+                    fi
 
                     # Awkward case: scaled-to-zero apps and claims with no pod
                     # at all never produce a row here in the first place
@@ -215,7 +239,7 @@ spec:
                   echo ""
                   echo "pvc-writable-check: sweep finished at $(date -u +%FT%TZ)"
                   echo "  candidates=${CANDIDATES} checked=${CHECKED} writable=${WRITABLE}"
-                  echo "  skipped_not_running=${SKIPPED_NOT_RUNNING} skipped_no_exec_tool=${SKIPPED_NO_EXEC_TOOL} skipped_transient=${SKIPPED_TRANSIENT}"
+                  echo "  skipped_namespace_excluded=${SKIPPED_NAMESPACE_EXCLUDED} skipped_not_running=${SKIPPED_NOT_RUNNING} skipped_no_exec_tool=${SKIPPED_NO_EXEC_TOOL} skipped_transient=${SKIPPED_TRANSIENT}"
                   echo "  not_writable=${#FAILURES[@]}"
 
                   if [[ ${#FAILURES[@]} -gt 0 ]]; then
