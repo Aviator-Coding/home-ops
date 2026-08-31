@@ -20,7 +20,7 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, non-secret SSO `env`, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | 35 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5`, `claude-sonnet-5`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - and `claude-code-subscription`, the odd one out: the proxy holds **no credential** for it - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
+| [`app/models/`](app/models/) | 36 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5`, `claude-sonnet-5`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - and `claude-code-subscription` + `claude-code-subscription-opus`, the odd ones out: the proxy holds **no credential** for either - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
@@ -161,16 +161,18 @@ GLM call ever fails; it is an unfunded account, not a bad route.
 
 ## Claude Code subscription pass-through
 
-`claude-code-subscription` (captain request 2026-08-27) is the one model here
-the proxy holds **no credential** for. A `claude` CLI logged in to a personal
+`claude-code-subscription` (Sonnet, captain request 2026-08-27) and
+`claude-code-subscription-opus` (added 2026-08-30) are the two models here the
+proxy holds **no credential** for. A `claude` CLI logged in to a personal
 Max/Pro subscription sends its own OAuth token per request; LiteLLM forwards it
 to Anthropic, so the tokens bill that person's flat-rate plan while the cluster
 gets per-request tokens/latency/virtual-key attribution it previously never saw.
+The two CRs differ in exactly one line (`params.model`).
 
 Full mechanism, the live security measurements, and the client runbook (env
 vars, virtual key, the one-time interactive OAuth login):
 [`docs/ai-system/litellm/claude-code-subscription.md`](../../../../../docs/ai-system/litellm/claude-code-subscription.md).
-Four things worth knowing before touching it:
+Five things worth knowing before touching it:
 
 **1. We did NOT set `forward_client_headers_to_llm_api`, and the upstream
 tutorial's claim that it is "required" is wrong on v1.98.0.** That flag only
@@ -203,6 +205,21 @@ truthiness). Consequence: `maxBudget` cannot constrain it, which is why
 is the only key in that directory carrying **no** budget - `rpmLimit`/`tpmLimit`
 are its entire guardrail, and a budget there would read as protection that
 cannot trip.
+
+**5. Opus is a SECOND CR, never a per-key alias of the metered
+`claude-opus-5`.** Claude Code resolves a by-family model request (a subagent
+asking for `opus`) through `ANTHROPIC_DEFAULT_OPUS_MODEL`, which defaults to
+the literal `claude-opus-5` - the metered CR - so the subscription key 403s.
+Per-key `aliases` look like the clean fix and are **not**: LiteLLM applies them
+in `_update_model_if_key_alias_exists` (`litellm_pre_call_utils.py`), which runs
+*after* `can_key_call_model` has already denied the request from the
+`user_api_key_auth` dependency, and `auth_checks.py` has no key-alias
+counterpart to its `_model_in_team_aliases`. Measured 2026-08-30 with a
+throwaway aliased key: byte-identical 403. Making an alias fire would require
+allow-listing the metered `claude-opus-5` on this key, leaving metered billing
+one dropped rewrite away. The collision is therefore closed **client-side** via
+`ANTHROPIC_DEFAULT_OPUS_MODEL=claude-code-subscription-opus`; evidence table in
+§7 of the runbook.
 
 ## Pod security posture (known gap, accepted deliberately)
 

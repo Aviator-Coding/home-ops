@@ -10,8 +10,15 @@ stay billed to that person's flat-rate plan. What the cluster gains is the
 "more insight" half - per-request token counts, latency and per-virtual-key
 attribution for traffic that was previously invisible.
 
-Declared by [`kubernetes/apps/base/ai/litellm/app/models/claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-code-subscription.yaml).
-It is **the only model CR in this repo for which the proxy holds no credential.**
+Declared by two model CRs - Sonnet
+[`claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-code-subscription.yaml)
+and, since 2026-08-30, Opus
+[`claude-code-subscription-opus.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-code-subscription-opus.yaml).
+They are **the only model CRs in this repo for which the proxy holds no
+credential**, they differ from each other in exactly one line (`params.model`),
+and everything this document says about one applies unchanged to the other.
+Why Opus is a separate CR rather than a per-key alias of the metered
+`claude-opus-5`, with the measurements behind that: **§7**.
 
 Upstream tutorial: <https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription>.
 Everything below that contradicts it was measured against our own pinned image
@@ -218,8 +225,13 @@ is sent per-request.
 Registration is not entitlement, so this model ships with its own key
 (captain decision 2026-08-27):
 [`app/virtualkeys/claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/claude-code-subscription.yaml).
-It is allow-listed to `claude-code-subscription` and nothing else, so it is not
-a second door into the metered Anthropic models.
+It is allow-listed to the two `claude-code-subscription*` pass-through models
+and nothing else, so it is not a second door into the metered Anthropic models.
+Both allow-listed models are CRs for which **the proxy holds no credential**;
+that property, not the length of the list, is what keeps this key unable to
+spend the household's money, and `scripts/ci/litellm-claude-code-subscription-test.py`
+asserts it directly (every allow-listed name must carry the placeholder
+`apiKey`, and none may be a metered route).
 
 It is also **the only key in that directory with no `maxBudget`**, deliberately:
 per §4 its model is priced at $0, so any budget could never trip and would read
@@ -252,9 +264,40 @@ bucket.
 ```bash
 export ANTHROPIC_BASE_URL="https://litellm.${SECRET_DOMAIN}"   # internal gateway
 export ANTHROPIC_MODEL="claude-code-subscription"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="claude-code-subscription"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-code-subscription-opus"
 export ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-…your-virtual-key…"
 claude
 ```
+
+**All four model variables are required, not just `ANTHROPIC_MODEL`.** That one
+only names the model for the *main* loop. Anything that asks for a model by
+family - a subagent declared `model: opus`, `/model opus`, a Task tool call -
+resolves that family through `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` instead, and
+those default to Anthropic's own public ids. Left unset, Claude Code asks this
+proxy for the literal `claude-opus-5` / `claude-sonnet-5`, which here are the
+**metered** CRs the subscription key is deliberately not allow-listed for, so
+the request dies with:
+
+```text
+API Error: 403 key not allowed to access model. This key can only access
+models=['claude-code-subscription']. Tried to access claude-opus-5
+```
+
+That 403 is the guardrail working - see §7 for why it is closed here on the
+client and not by aliasing on the proxy. Measured in the live proxy log
+(2026-08-30, 48h window) **before** this fix: 2 refusals on `claude-opus-5` and
+8 on `claude-sonnet-5` from this key, so the Sonnet variable is not
+hypothetical tidiness - the same collision was already happening for Sonnet
+whenever something requested it by family rather than inheriting
+`ANTHROPIC_MODEL`.
+
+The installed CLI (2.1.251) also honours `ANTHROPIC_DEFAULT_HAIKU_MODEL` and
+`ANTHROPIC_DEFAULT_FABLE_MODEL`. **Deliberately left unset**: no pass-through
+CR exists for those families, and inventing one is a catalog decision, not part
+of this fix. A request that resolves to either will 403 exactly as Opus did.
+If background/Haiku traffic starts failing visibly, the fix is a third CR
+following §5e, not an allow-list edit.
 
 `litellm.${SECRET_DOMAIN}` resolves on the private VLAN only (split DNS,
 `envoy-internal`); in-cluster callers can use
@@ -277,25 +320,125 @@ Spend will read `$0` by design (§4); tokens, duration and the owning virtual ke
 are the signal. The same rows drive the Prometheus metrics scraped by
 [`app/servicemonitor.yaml`](../../../kubernetes/apps/base/ai/litellm/app/servicemonitor.yaml).
 
-### 5e. Adding Opus, or a background model
+### 5e. Adding a further family (Haiku, Fable)
 
-Copy the CR to a second file with its own `metadata.name`/`modelName` and a
-different `params.model` (resolve the id against Anthropic's **direct** catalog -
-`models/kustomization.yaml` rule 3), add it to
-`models/kustomization.yaml`, and add its name to the virtual key's allow-list.
-Keep the placeholder `apiKey` and the `$0` prices; both apply for the same
-reasons.
+Opus is already done -
+[`app/models/claude-code-subscription-opus.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-code-subscription-opus.yaml),
+added 2026-08-30. To add another family, follow the same shape:
+
+1. Copy either subscription CR to a new file with its own
+   `metadata.name`/`modelName` (`claude-code-subscription-<family>`) and a
+   different `params.model`, resolving the id against Anthropic's **direct**
+   catalog (`models/kustomization.yaml` rule 3 - the dash form
+   `anthropic/claude-opus-5`, never OpenRouter's dotted spelling).
+2. Add the file to `models/kustomization.yaml`.
+3. Add the new `modelName` to the virtual key's allow-list.
+4. Point the matching `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` at it (§5c).
+
+**Keep the placeholder `apiKey` and the explicit `$0` prices.** Both apply for
+exactly the same measured reasons (§3, §4), and the CI test will fail the
+change if either is dropped: an omitted `apiKey` is not a credential-less
+model, it is a silent fallback to the household's metered
+`ANTHROPIC_API_KEY`.
+
+**Never solve a new family by adding its metered name to the allow-list**
+(`claude-opus-5`, `claude-sonnet-5`, `auto`). That converts this key into the
+second door into metered billing the whole design exists to prevent, and it is
+what §7 rules out on measured grounds.
 
 ---
 
-## 6. What this change did NOT touch
+## 6. What these changes did NOT touch
 
-Additive by design. One model CR and one new virtual key were added; no
+Additive by design, in both passes.
+
+**2026-08-27 (original).** One model CR and one new virtual key were added; no
 *existing* model CR, virtual key, allow-list, fallback chain or
-`generalSettings` value was modified, and the new key names only the new model.
+`generalSettings` value was modified, and the new key named only the new model.
+
+**2026-08-30 (Opus).** One model CR added, plus one line on the subscription
+key's own allow-list naming it. No other virtual key, no rate limit (the
+2026-08-30 sizing raise in §5b is untouched), no metered model CR, no fallback
+chain, no `generalSettings`/`litellmSettings` value, and no household
+credential. The metered `claude-opus-5` and `claude-sonnet-5` CRs still carry
+`os.environ/ANTHROPIC_API_KEY` and are still absent from this key's allow-list;
+the CI test asserts both.
 The cloud entitlement boundary in
 `routerSettings.fallbacks` ([`fallbacks.md`](fallbacks.md)) is unchanged, and
 `claude-code-subscription` is deliberately absent from every fallback chain -
 a config-declared fallback bypasses the calling key's allow-list, and pointing
 one at a model that requires a client-supplied token would fail every caller who
 does not send one.
+
+---
+
+## 7. The `claude-opus-5` name collision, and why it is closed on the client
+
+Added 2026-08-30, after a `claude` subagent requested Opus by name and got
+`403 … can only access models=['claude-code-subscription']. Tried to access
+claude-opus-5`.
+
+The awkward part is that the name Claude Code sends, `claude-opus-5`, **already
+means the metered model on this proxy**. So a second pass-through CR is
+necessary but not sufficient: the client's request still has to reach it. Two
+options were considered.
+
+### 7a. Per-key model aliasing - evaluated against v1.98.0, and rejected
+
+LiteLLM does have key-level aliases, and our CRD exposes them
+(`LiteLLMVirtualKey.spec.aliases`, type `object`). The appealing shape was
+`aliases: {claude-opus-5: claude-code-subscription-opus}` on this key only,
+leaving every other key's `claude-opus-5` metered. **It does not work, and the
+reason is an ordering that no amount of config can change.**
+
+The rewrite lives in `_update_model_if_key_alias_exists`
+(`proxy/litellm_pre_call_utils.py:2177`), which runs inside
+`add_litellm_data_to_request` - i.e. in the route handler. The 403 is raised
+much earlier, by `can_key_call_model` (`proxy/auth/auth_checks.py:3370`) called
+from the `user_api_key_auth` FastAPI **dependency**, before the handler body
+executes. And that check has no key-alias awareness at all: it consults
+`_model_in_team_aliases` (`auth_checks.py:3334`) for *team* aliases, and
+`auth_checks.py` contains no `_model_in_key_aliases` counterpart. So the
+allow-list is always evaluated against the **raw** requested name.
+
+Measured live against the running pod on 2026-08-30 with a throwaway key
+(`key_alias=fm-alias-probe-TEMP`, `duration=20m`, deleted immediately after -
+it never held a metered model):
+
+| # | Key `models` | Key `aliases` | Requested | Result |
+| --- | --- | --- | --- | --- |
+| E1 | `['claude-code-subscription']` | *(none)* | `claude-opus-5` | `403 key_model_access_denied` - the captain's error, reproduced |
+| E2 | `['claude-code-subscription']` | `{claude-opus-5: claude-code-subscription}` | `claude-opus-5` | `403` - **byte-identical denial; the alias changed nothing** |
+| E3 | `['claude-code-subscription']` | `{claude-opus-5: claude-code-subscription}` | `claude-code-subscription` | `401 "OAuth access token is invalid."` - control: the key does work |
+
+E2 is the whole argument. The only way to make an alias fire would be to *also*
+put `claude-opus-5` on the key's `models` - and then the key's entitlement
+names the metered route, with nothing but a downstream string rewrite standing
+between subscription traffic and the household's `ANTHROPIC_API_KEY`. Drop the
+alias (a CRD field pruned, a hand-edited key, an operator regression) and the
+key silently bills real money. That is precisely the failure this feature was
+built to make impossible, so per-key aliasing is rejected on money-safety
+grounds, not merely because it is unsupported.
+
+Team-level aliases *are* consulted by the access check and would technically
+work. They are not used: `team_model_aliases` is marked deprecated in this very
+source file, it would introduce a LiteLLM team construct this repo has no other
+use for, and it buys nothing over the client-side option below.
+
+### 7b. Chosen: a distinct model name plus the client's own alias vars
+
+`claude-code-subscription-opus` is a distinct name, so it never collides with
+the metered CR, and the allow-list keeps its real invariant - *every* model on
+this key is one for which the proxy holds no credential. The client points its
+Opus family at that name with `ANTHROPIC_DEFAULT_OPUS_MODEL` (§5c), which the
+installed Claude Code 2.1.251 supports alongside `ANTHROPIC_DEFAULT_SONNET_MODEL`,
+`ANTHROPIC_DEFAULT_HAIKU_MODEL` and `ANTHROPIC_DEFAULT_FABLE_MODEL`.
+
+The cost of this option is honest and worth stating: **it is workstation
+configuration, so it cannot be enforced from Git.** A user who sets only
+`ANTHROPIC_MODEL` still gets the 403 on Opus. That is the right failure - it is
+loud, it is free, and it never reaches the metered account - and it is the same
+class of manual step as the one-time OAuth login in §5a. What the repo *can*
+enforce, and does, is that no misconfiguration on the client can turn into
+metered spend: the allow-list names no metered route and the CI test fails the
+build if that ever changes.

@@ -52,9 +52,23 @@ RUNBOOK = REPO / "docs/ai-system/litellm/claude-code-subscription.md"
 README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 
 MODEL_NAME = "claude-code-subscription"
+# Opus half, added 2026-08-30 after a `claude` subagent asked for Opus by name
+# and the subscription key correctly refused it (403). It is a SECOND
+# credential-less CR rather than a per-key alias of the metered
+# `claude-opus-5`, because LiteLLM v1.98.0 applies a key's `aliases` in
+# litellm_pre_call_utils only AFTER can_key_call_model has already 403'd in the
+# auth dependency - measured, see the CR header and runbook section 7.
+OPUS_MODEL_NAME = "claude-code-subscription-opus"
+# Every model this key may name. The invariant is not "exactly one model" but
+# "only models for which the proxy holds NO credential", which the
+# allowlist_holds_only_credential_less_models check below enforces directly.
+SUBSCRIPTION_MODELS = [MODEL_NAME, OPUS_MODEL_NAME]
+# Metered Anthropic routes that must never appear on this key's allow-list.
+METERED_MODELS = ["claude-sonnet-5", "claude-opus-5", "claude-opus-4-8", "auto"]
 PLACEHOLDER_PREFIX = "sk-ant-oat"
 PLACEHOLDER = "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
 EXPECTED_UPSTREAM = "anthropic/claude-sonnet-5"
+EXPECTED_UPSTREAM_OPUS = "anthropic/claude-opus-5"
 # History: 10/250000 -> 300/7500000 on 2026-08-30 after measured proxy 429s
 # (~556 request-limit + ~171 token-limit in 24h); captain then raised live in
 # the LiteLLM UI to 3000/750000000 and Git was brought up to match so the
@@ -210,6 +224,57 @@ def test_model_render(cfg: dict) -> None:
         f"{type(info.get('output_cost_per_token')).__name__})",
     )
 
+    # --- Opus sibling: identical shape, one line different -----------------
+    om = by_name(cfg["model_list"], OPUS_MODEL_NAME)
+    record(
+        "opus_subscription_model_present_in_operator_render",
+        om is not None,
+        f"has={om is not None}",
+    )
+    if om is None:
+        return
+    olp = om.get("litellm_params") or {}
+    record(
+        "opus_upstream_model_id_is_anthropic_claude_opus_5_dash_form",
+        olp.get("model") == EXPECTED_UPSTREAM_OPUS,
+        f"model={olp.get('model')!r}",
+    )
+    # The whole money-safety argument in one assertion: no env credential, not
+    # absent (absent falls back to ANTHROPIC_API_KEY), and oat-prefixed so a
+    # tokenless caller gets Anthropic's 401 instead of a silent metered charge.
+    oak = olp.get("api_key")
+    record(
+        "opus_api_key_is_present_non_env_placeholder",
+        isinstance(oak, str)
+        and oak == PLACEHOLDER
+        and not str(oak).startswith("os.environ/"),
+        f"api_key={oak!r}",
+    )
+    record(
+        "opus_api_key_carries_sk_ant_oat_prefix_for_oauth_branch",
+        isinstance(oak, str) and oak.startswith(PLACEHOLDER_PREFIX),
+        f"prefix_ok={isinstance(oak, str) and oak.startswith(PLACEHOLDER_PREFIX)}",
+    )
+    # Sibling metered Opus must still use the env credential - proves this is
+    # an addition, not a rewrite of the metered route.
+    metered_opus = by_name(cfg["model_list"], "claude-opus-5")
+    record(
+        "sibling_claude_opus_5_still_uses_shared_env_key",
+        bool(metered_opus)
+        and (metered_opus.get("litellm_params") or {}).get("api_key")
+        == "os.environ/ANTHROPIC_API_KEY",
+        f"opus_api_key={(metered_opus or {}).get('litellm_params', {}).get('api_key')!r}",
+    )
+    oinfo = om.get("model_info") or {}
+    record(
+        "opus_model_info_declares_explicit_zero_token_prices",
+        oinfo.get("input_cost_per_token") == 0
+        and oinfo.get("output_cost_per_token") == 0
+        and type(oinfo.get("input_cost_per_token")) in (int, float)
+        and type(oinfo.get("output_cost_per_token")) in (int, float),
+        f"model_info={oinfo!r}",
+    )
+
 
 def test_no_global_forward_headers_flag(cfg: dict) -> None:
     gs = cfg.get("general_settings") or {}
@@ -255,19 +320,28 @@ def test_absent_from_fallback_chains(cfg: dict) -> None:
         record("fallback_maps_parse", False, str(e))
         return
 
-    as_primary = MODEL_NAME in avail or MODEL_NAME in ctx
-    as_target = any(MODEL_NAME in targets for targets in avail.values()) or any(
-        MODEL_NAME in targets for targets in ctx.values()
-    )
+    # Both pass-through models must stay out of every chain, in both roles.
+    # As a PRIMARY, a fallback would send a tokenless caller's failed request
+    # on to a metered model - a config-declared fallback bypasses the calling
+    # key's allow-list (see docs/ai-system/litellm/fallbacks.md). As a TARGET,
+    # it would route some other consumer's traffic at a model that requires a
+    # client-supplied OAuth token nobody else sends.
+    as_primary = [s for s in SUBSCRIPTION_MODELS if s in avail or s in ctx]
+    as_target = [
+        s
+        for s in SUBSCRIPTION_MODELS
+        if any(s in targets for targets in avail.values())
+        or any(s in targets for targets in ctx.values())
+    ]
     record(
         "claude_code_subscription_not_a_fallback_primary",
-        not as_primary,
-        f"in_avail={MODEL_NAME in avail} in_ctx={MODEL_NAME in ctx}",
+        as_primary == [],
+        f"offenders={as_primary} avail={sorted(avail)} ctx={sorted(ctx)}",
     )
     record(
         "claude_code_subscription_not_a_fallback_target",
-        not as_target,
-        f"avail_targets={avail} ctx_targets={ctx}",
+        as_target == [],
+        f"offenders={as_target} avail_targets={avail} ctx_targets={ctx}",
     )
 
 
@@ -284,10 +358,40 @@ def test_virtual_key_semantics() -> None:
     if MODEL_NAME not in keys:
         return
     spec = keys[MODEL_NAME]["spec"]
+    allowed = spec.get("models") or []
     record(
-        "virtualkey_scoped_only_to_subscription_model",
-        spec.get("models") == [MODEL_NAME],
-        f"models={spec.get('models')!r}",
+        "virtualkey_scoped_only_to_subscription_models",
+        sorted(allowed) == sorted(SUBSCRIPTION_MODELS),
+        f"models={allowed!r} expected={sorted(SUBSCRIPTION_MODELS)!r}",
+    )
+    # THE MONEY-SAFETY INVARIANT, and the reason the check above is a set and
+    # not a length. Adding a model to this key is only safe when the proxy
+    # holds NO credential for it: every allow-listed name must resolve to a
+    # model CR whose params.apiKey is the non-secret placeholder, never
+    # `os.environ/ANTHROPIC_API_KEY` and never absent (an absent key is NOT
+    # credential-less - AnthropicModelInfo.get_api_key falls back to the env
+    # var the pod holds). This is what actually stops subscription traffic
+    # billing the household's metered account.
+    model_crs = {
+        c["metadata"]["name"]: ((c.get("spec") or {}).get("params") or {})
+        for c in _load_crs(MODELS_DIR, "LiteLLMModel")
+    }
+    not_credential_less = [
+        name
+        for name in allowed
+        if model_crs.get(name, {}).get("apiKey") != PLACEHOLDER
+    ]
+    record(
+        "virtualkey_allowlist_holds_only_credential_less_models",
+        not_credential_less == [],
+        f"offenders={not_credential_less} "
+        f"(each allow-listed model must carry apiKey={PLACEHOLDER!r})",
+    )
+    metered_on_key = [m for m in allowed if m in METERED_MODELS]
+    record(
+        "virtualkey_allowlist_names_no_metered_route",
+        metered_on_key == [],
+        f"metered_on_key={metered_on_key} checked={METERED_MODELS}",
     )
     record(
         "virtualkey_key_alias_matches_name",
@@ -315,12 +419,19 @@ def test_virtual_key_semantics() -> None:
         no_budget == [MODEL_NAME],
         f"no_budget_keys={no_budget}",
     )
-    # No other key should hold this model (entitlement is dedicated).
-    other_holders = [
-        name
-        for name, cr in keys.items()
-        if name != MODEL_NAME and MODEL_NAME in (cr["spec"].get("models") or [])
-    ]
+    # No other key should hold either subscription model (entitlement is
+    # dedicated). A second holder would break the per-consumer attribution the
+    # whole feature exists for, and would hand a pass-through model to a key
+    # whose caller may send no OAuth token at all.
+    other_holders = sorted(
+        {
+            f"{name}:{sub}"
+            for name, cr in keys.items()
+            if name != MODEL_NAME
+            for sub in SUBSCRIPTION_MODELS
+            if sub in (cr["spec"].get("models") or [])
+        }
+    )
     record(
         "no_other_virtualkey_holds_subscription_model",
         other_holders == [],
@@ -415,25 +526,43 @@ def test_kustomize_emits_resources() -> None:
             True,
             "skipped: kubectl not in this environment (host run covers kustomize)",
         )
+        # Both subscription CRs must be listed in models/kustomization.yaml, or
+        # the operator never renders them and the allow-list names a model that
+        # does not exist.
+        missing = [
+            s
+            for s in SUBSCRIPTION_MODELS
+            if s not in models or not any(s in r for r in model_kust)
+        ]
         record(
             "kustomize_emits_subscription_model_key_pushsecret",
-            MODEL_NAME in models
+            missing == []
             and MODEL_NAME in keys
-            and any(MODEL_NAME in r for r in model_kust)
             and any(MODEL_NAME in r for r in key_kust),
-            f"models_has={MODEL_NAME in models} keys_has={MODEL_NAME in keys}",
+            f"missing_models={missing} keys_has={MODEL_NAME in keys}",
         )
         # Mirror the emitted-shape checks against the source CRs directly.
-        m = next(c for c in _load_crs(MODELS_DIR, "LiteLLMModel") if c["metadata"]["name"] == MODEL_NAME)
-        pr = (m.get("spec") or {}).get("params") or {}
-        info_extra = ((m.get("spec") or {}).get("info") or {}).get("extra") or {}
+        by_cr = {c["metadata"]["name"]: c for c in _load_crs(MODELS_DIR, "LiteLLMModel")}
+        expected_upstream = {
+            MODEL_NAME: EXPECTED_UPSTREAM,
+            OPUS_MODEL_NAME: EXPECTED_UPSTREAM_OPUS,
+        }
+        bad = []
+        for name, want in expected_upstream.items():
+            cr = by_cr.get(name)
+            pr = ((cr or {}).get("spec") or {}).get("params") or {}
+            extra = (((cr or {}).get("spec") or {}).get("info") or {}).get("extra") or {}
+            if (
+                pr.get("apiKey") != PLACEHOLDER
+                or pr.get("model") != want
+                or extra.get("input_cost_per_token") != 0
+                or extra.get("output_cost_per_token") != 0
+            ):
+                bad.append({name: {"params": pr, "extra": extra, "want": want}})
         record(
             "kustomize_emitted_model_keeps_placeholder_and_zero_prices",
-            pr.get("apiKey") == PLACEHOLDER
-            and pr.get("model") == EXPECTED_UPSTREAM
-            and info_extra.get("input_cost_per_token") == 0
-            and info_extra.get("output_cost_per_token") == 0,
-            f"params={pr} extra={info_extra} (source CR; no kubectl)",
+            bad == [],
+            f"offenders={bad} (source CRs; no kubectl)",
         )
         k = next(
             c for c in _load_crs(VIRTUALKEYS_DIR, "LiteLLMVirtualKey") if c["metadata"]["name"] == MODEL_NAME
@@ -441,7 +570,7 @@ def test_kustomize_emits_resources() -> None:
         spec = k.get("spec") or {}
         record(
             "kustomize_emitted_key_has_limits_no_budget",
-            spec.get("models") == [MODEL_NAME]
+            sorted(spec.get("models") or []) == sorted(SUBSCRIPTION_MODELS)
             and spec.get("rpmLimit") == EXPECTED_RPM
             and spec.get("tpmLimit") == EXPECTED_TPM
             and "maxBudget" not in spec,
@@ -480,29 +609,39 @@ def test_kustomize_emits_resources() -> None:
         f"missing={missing}",
     )
 
-    # Re-parse the emitted model from the consumer output (not the source file).
-    model_doc = next(
-        (
-            d
-            for d in docs
-            if d.get("kind") == "LiteLLMModel"
-            and d.get("metadata", {}).get("name") == MODEL_NAME
-        ),
-        None,
+    # Re-parse the emitted models from the consumer output (not the source
+    # files). Both subscription CRs must survive the kustomize build with the
+    # placeholder key and the zero prices intact.
+    expected_upstream = {
+        MODEL_NAME: EXPECTED_UPSTREAM,
+        OPUS_MODEL_NAME: EXPECTED_UPSTREAM_OPUS,
+    }
+    emitted = {
+        d.get("metadata", {}).get("name"): d
+        for d in docs
+        if d.get("kind") == "LiteLLMModel"
+        and d.get("metadata", {}).get("name") in expected_upstream
+    }
+    bad = []
+    for name, want in expected_upstream.items():
+        doc = emitted.get(name)
+        if doc is None:
+            bad.append({name: "missing doc"})
+            continue
+        pr = (doc.get("spec") or {}).get("params") or {}
+        info_extra = ((doc.get("spec") or {}).get("info") or {}).get("extra") or {}
+        if (
+            pr.get("apiKey") != PLACEHOLDER
+            or pr.get("model") != want
+            or info_extra.get("input_cost_per_token") != 0
+            or info_extra.get("output_cost_per_token") != 0
+        ):
+            bad.append({name: {"params": pr, "extra": info_extra, "want": want}})
+    record(
+        "kustomize_emitted_model_keeps_placeholder_and_zero_prices",
+        bad == [],
+        f"offenders={bad}",
     )
-    if model_doc:
-        pr = (model_doc.get("spec") or {}).get("params") or {}
-        info_extra = ((model_doc.get("spec") or {}).get("info") or {}).get("extra") or {}
-        record(
-            "kustomize_emitted_model_keeps_placeholder_and_zero_prices",
-            pr.get("apiKey") == PLACEHOLDER
-            and pr.get("model") == EXPECTED_UPSTREAM
-            and info_extra.get("input_cost_per_token") == 0
-            and info_extra.get("output_cost_per_token") == 0,
-            f"params={pr} extra={info_extra}",
-        )
-    else:
-        record("kustomize_emitted_model_keeps_placeholder_and_zero_prices", False, "missing doc")
 
     key_doc = next(
         (
@@ -517,7 +656,7 @@ def test_kustomize_emits_resources() -> None:
         spec = key_doc.get("spec") or {}
         record(
             "kustomize_emitted_key_has_limits_no_budget",
-            spec.get("models") == [MODEL_NAME]
+            sorted(spec.get("models") or []) == sorted(SUBSCRIPTION_MODELS)
             and spec.get("rpmLimit") == EXPECTED_RPM
             and spec.get("tpmLimit") == EXPECTED_TPM
             and "maxBudget" not in spec,
@@ -539,10 +678,18 @@ def test_runbook_contract() -> None:
     if not exists:
         return
 
-    # Required client env contract.
+    # Required client env contract. The two ANTHROPIC_DEFAULT_*_MODEL vars are
+    # load-bearing since 2026-08-30: ANTHROPIC_MODEL alone only covers the main
+    # loop, so a subagent that asks for "opus" or "sonnet" by name resolves the
+    # alias through these vars instead and, left at their defaults, requests the
+    # METERED `claude-opus-5`/`claude-sonnet-5` and is refused with a 403. That
+    # is the client half of the fix - the collision cannot be closed on the
+    # proxy, because per-key `aliases` are applied after the allow-list check.
     needed_env = [
         "ANTHROPIC_BASE_URL",
         "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
         "ANTHROPIC_CUSTOM_HEADERS",
         "x-litellm-api-key",
     ]
@@ -558,6 +705,36 @@ def test_runbook_contract() -> None:
         or "ANTHROPIC_MODEL=claude-code-subscription" in text
         or "ANTHROPIC_MODEL" in text and MODEL_NAME in text,
         "model assignment present",
+    )
+    # The Opus alias must be pointed at the pass-through CR, never left to
+    # resolve to the metered claude-opus-5.
+    record(
+        "runbook_maps_opus_alias_to_subscription_model",
+        OPUS_MODEL_NAME in text
+        and "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
+        and any(
+            f"ANTHROPIC_DEFAULT_OPUS_MODEL={q}{OPUS_MODEL_NAME}{q}" in text
+            for q in ('"', "'", "")
+        ),
+        "opus alias assignment present",
+    )
+    record(
+        "runbook_maps_sonnet_alias_to_subscription_model",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
+        and any(
+            f"ANTHROPIC_DEFAULT_SONNET_MODEL={q}{MODEL_NAME}{q}" in text
+            for q in ('"', "'", "")
+        ),
+        "sonnet alias assignment present",
+    )
+    # The per-key-alias route was evaluated and rejected against the installed
+    # version; keep that reasoning in the doc so it is not re-litigated.
+    record(
+        "runbook_records_why_per_key_alias_was_rejected",
+        "aliases" in text
+        and ("can_key_call_model" in text or "allow-list" in text.lower())
+        and "403" in text,
+        "per-key alias rejection recorded",
     )
     record(
         "runbook_forbids_putting_virtual_key_in_authorization",
