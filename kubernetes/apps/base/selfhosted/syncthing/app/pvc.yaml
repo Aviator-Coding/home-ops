@@ -8,5 +8,12 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 100Gi
+      # Right-sized 2026-08-31 from 100Gi (which held 28 KB): Documents ~2Gi,
+      # Screenshots ~2Gi, Projects/code-scratch ~4Gi, Camera-roll headroom
+      # ~5Gi (no phone paired yet, the only folder with real growth upside),
+      # plus ~2Gi buffer. allowVolumeExpansion permits growing this later;
+      # shrinking a PVC is not supported by Kubernetes, so this intentionally
+      # starts conservative. See kubernetes/apps/main/selfhosted/syncthing.yaml
+      # for the matching VOLSYNC_CAPACITY on the backup destination.
+      storage: 15Gi
   storageClassName: ceph-block

@@ -92,7 +92,12 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CLAIM: *app
-      VOLSYNC_CAPACITY: 100Gi
+      # Matches the syncthing-data PVC's real size (kubernetes/apps/base/selfhosted/syncthing/app/pvc.yaml).
+      # Right-sized 2026-08-31 from 100Gi (28 KB actually used) down to 15Gi -
+      # see that file for the per-folder sizing reasoning. This value sizes the
+      # ReplicationDestination's restic destination volume, so it must track
+      # the claim size for a future restore to have room.
+      VOLSYNC_CAPACITY: 15Gi
       VOLSYNC_CACHE_CAPACITY: 5Gi
       VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
@@ -136,12 +141,13 @@ spec:
       APP: syncthing-data
       KOPIUR_CLAIM: syncthing-data
       # Identity left at the component default of 1000:1000, measured rather
-      # than assumed: the 3 entries present are owned 1000:1000 / 0:1000 and
-      # the pod runs 1000:1000:1000, with nothing unreadable at 1000.
+      # than assumed: entries present are owned 1000:1000 and the pod runs
+      # 1000:1000:1000, with nothing unreadable at 1000.
       #
-      # This volume is EMPTY today (2 files, 118 B against a 100Gi claim). Same
-      # caveat as paperless-ngx-media above: onboarded so the first synced file
-      # is protected from its first backup window, but a Succeeded snapshot
-      # here proves nothing until .status.stats is non-zero.
+      # syncthing-data was recreated at 15Gi on 2026-08-31 (previously 100Gi
+      # holding 28 KB, right-sized alongside the new four-folder layout - see
+      # kubernetes/apps/base/selfhosted/syncthing/app/pvc.yaml). A manual
+      # syncthing-data-ceph-resize-verify Snapshot proved a non-empty, non-zero
+      # backup against the recreated claim same day.
       KOPIUR_CACHE_CAPACITY: 5Gi
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
