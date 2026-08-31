@@ -6,9 +6,10 @@ Renders the litellm-operator CR surface the way the operator does in file mode
 then asserts the captain-approved semantics for
 `claude-code-subscription` (2026-08-27):
 
-  1. Model CR is rendered into model_list with anthropic/claude-sonnet-5,
-     a non-secret sk-ant-oat placeholder api_key (NOT os.environ/ANTHROPIC_*),
-     and explicit $0 custom prices.
+  1. Model CRs (Sonnet + Opus) are rendered into model_list with the matching
+     anthropic/claude-*-5 upstream, a non-secret sk-ant-oat placeholder
+     api_key (NOT os.environ/ANTHROPIC_*), and explicit $0 custom prices on
+     all seven fields (input, output, and the five prompt-cache ones).
   2. Proxy general/litellm settings do NOT enable the global
      forward_client_headers_to_llm_api flag.
   3. The model is absent from every config-declared fallback chain.
@@ -952,6 +953,137 @@ def test_litellm_runtime_pricing_and_oauth_helpers() -> None:
             and info.get("output_cost_per_token") == 0,
             f"model_info={info}",
         )
+
+        # --- cache pricing: the real $54 defect path -----------------------------
+        # Router._inherit_builtin_cache_pricing copies the backend model's
+        # _CACHE_PRICING_FIELDS onto a custom-priced deployment whenever those
+        # fields are missing/None. IO-only zeros therefore still bill cache at
+        # the metered rate under the deployment's model_info.id (the key the
+        # proxy cost path looks up). Declaring all five cache fields as 0 is
+        # what stops the inheritance. Reproduce with Claude-Code-shaped cache
+        # usage (heavy cache_read + cache_creation, modest completion).
+        def _router_cost_for_model_info(
+            model_name: str, upstream: str, model_info: dict
+        ) -> tuple[float, dict]:
+            r = Router(
+                model_list=[
+                    {
+                        "model_name": model_name,
+                        "litellm_params": {
+                            "model": upstream,
+                            "api_key": PLACEHOLDER,
+                        },
+                        "model_info": dict(model_info),
+                    }
+                ],
+                num_retries=0,
+                set_verbose=False,
+            )
+            dep = r.model_list[0]
+            mid = (dep.get("model_info") or {}).get("id")
+            registered = {
+                f: (litellm.model_cost.get(mid) or {}).get(f)
+                for f in REQUIRED_ZERO_PRICE_FIELDS
+            }
+            cache_usage = litellm.Usage(
+                prompt_tokens=1000,
+                completion_tokens=100,
+                total_tokens=1100,
+                cache_read_input_tokens=50000,
+                cache_creation_input_tokens=20000,
+            )
+            resp = litellm.ModelResponse(
+                id="ccs-cache-probe",
+                choices=[
+                    litellm.Choices(
+                        index=0,
+                        message=litellm.Message(role="assistant", content="hi"),
+                        finish_reason="stop",
+                    )
+                ],
+                model=model_name,
+                usage=cache_usage,
+            )
+            cost = float(
+                completion_cost(
+                    completion_response=resp,
+                    model=model_name,
+                    custom_pricing=True,
+                    router_model_id=mid,
+                    custom_llm_provider="anthropic",
+                )
+            )
+            return cost, registered
+
+        io_only = {
+            "input_cost_per_token": 0,
+            "output_cost_per_token": 0,
+        }
+        full_zero = {f: 0 for f in REQUIRED_ZERO_PRICE_FIELDS}
+
+        defect_cost, defect_reg = _router_cost_for_model_info(
+            "ccs-probe-io-only", EXPECTED_UPSTREAM, io_only
+        )
+        fixed_cost, fixed_reg = _router_cost_for_model_info(
+            "ccs-probe-full-zero", EXPECTED_UPSTREAM, full_zero
+        )
+        # Actual CR extras must behave like full_zero, not like io_only.
+        cr_sonnet = by_name(render_config_from_crs()["model_list"], MODEL_NAME) or {}
+        cr_opus = by_name(render_config_from_crs()["model_list"], OPUS_MODEL_NAME) or {}
+        sonnet_cost, sonnet_reg = _router_cost_for_model_info(
+            MODEL_NAME,
+            EXPECTED_UPSTREAM,
+            dict((cr_sonnet.get("model_info") or {})),
+        )
+        opus_cost, opus_reg = _router_cost_for_model_info(
+            OPUS_MODEL_NAME,
+            EXPECTED_UPSTREAM_OPUS,
+            dict((cr_opus.get("model_info") or {})),
+        )
+
+        record(
+            "runtime_io_only_zeros_still_bill_inherited_cache_prices",
+            defect_cost > 0
+            and any(
+                defect_reg.get(f) not in (0, 0.0, None)
+                for f in (
+                    "cache_read_input_token_cost",
+                    "cache_creation_input_token_cost",
+                )
+            ),
+            f"cost={defect_cost} registered={defect_reg}",
+        )
+        record(
+            "runtime_full_zero_cache_fields_record_exactly_zero_spend",
+            fixed_cost == 0.0
+            and all(fixed_reg.get(f) in (0, 0.0) for f in REQUIRED_ZERO_PRICE_FIELDS),
+            f"cost={fixed_cost} registered={fixed_reg}",
+        )
+        record(
+            "runtime_subscription_cr_model_info_records_zero_spend",
+            sonnet_cost == 0.0 and opus_cost == 0.0,
+            f"sonnet_cost={sonnet_cost} opus_cost={opus_cost} "
+            f"sonnet_reg={sonnet_reg} opus_reg={opus_reg}",
+        )
+        # Dropping any one required cache field must re-open non-zero spend
+        # (the pin is load-bearing, not decorative).
+        drop_costs = {}
+        for field in REQUIRED_ZERO_PRICE_FIELDS[2:]:  # the five cache fields
+            partial = dict(full_zero)
+            del partial[field]
+            drop_cost, _ = _router_cost_for_model_info(
+                f"ccs-probe-drop-{field}", EXPECTED_UPSTREAM, partial
+            )
+            drop_costs[field] = drop_cost
+        # At least the fields the builtin sonnet map actually prices must
+        # re-open spend when dropped (above_* tiers may be absent upstream).
+        reopened = [f for f, c in drop_costs.items() if c and c > 0]
+        record(
+            "runtime_dropping_a_cache_zero_reopens_nonzero_spend",
+            "cache_read_input_token_cost" in reopened
+            or "cache_creation_input_token_cost" in reopened,
+            f"drop_costs={drop_costs} reopened={reopened}",
+        )
     except Exception as e:
         record(
             "runtime_use_custom_pricing_honours_explicit_zero",
@@ -960,6 +1092,10 @@ def test_litellm_runtime_pricing_and_oauth_helpers() -> None:
         )
         record("runtime_completion_cost_zero_custom_vs_metered_sonnet", False, str(e))
         record("runtime_router_preserves_explicit_zero_model_info", False, str(e))
+        record("runtime_io_only_zeros_still_bill_inherited_cache_prices", False, str(e))
+        record("runtime_full_zero_cache_fields_record_exactly_zero_spend", False, str(e))
+        record("runtime_subscription_cr_model_info_records_zero_spend", False, str(e))
+        record("runtime_dropping_a_cache_zero_reopens_nonzero_spend", False, str(e))
 
     # --- oauth key detection on the placeholder ---
     try:

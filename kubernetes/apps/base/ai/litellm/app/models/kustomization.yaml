@@ -34,13 +34,15 @@ kind: Kustomization
 #     key, so pricing it charged every routed consumer for the router's own
 #     local bookkeeping. See chat-local.yaml for the four-alias split.
 #   - claude-code-subscription and claude-code-subscription-opus, billed to a
-#     caller's own FLAT-RATE Claude subscription, priced at an explicit $0 so
-#     the metered cost map cannot inflate a D4 budget with dollars nobody is
-#     charged. Read claude-code-subscription.yaml's header before copying
-#     their shape - they are the only entries here for which the proxy holds
-#     no credential, and the -opus one exists as a SECOND CR rather than a
-#     per-key alias of the metered claude-opus-5 because LiteLLM applies key
-#     aliases after the allow-list check (measured; see that file's header).
+#     caller's own FLAT-RATE Claude subscription, priced at an explicit $0 on
+#     every field including the five prompt-cache ones (runbook §4a - IO-only
+#     zeros left ~$54 of fictional cache spend) so the metered cost map cannot
+#     inflate a D4 budget with dollars nobody is charged. Read
+#     claude-code-subscription.yaml's header before copying their shape - they
+#     are the only entries here for which the proxy holds no credential, and
+#     the -opus one exists as a SECOND CR rather than a per-key alias of the
+#     metered claude-opus-5 because LiteLLM applies key aliases after the
+#     allow-list check (measured; see that file's header).
 #
 # The 2026-08-27 batch resolved every id against the live provider catalog
 # rather than the sheet's display names; two rows had no real-catalog match and

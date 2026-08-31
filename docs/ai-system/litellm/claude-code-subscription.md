@@ -420,11 +420,12 @@ added 2026-08-30. To add another family, follow the same shape:
 3. Add the new `modelName` to the virtual key's allow-list.
 4. Point the matching `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` at it (§5c).
 
-**Keep the placeholder `apiKey` and the explicit `$0` prices.** Both apply for
-exactly the same measured reasons (§3, §4), and the CI test will fail the
-change if either is dropped: an omitted `apiKey` is not a credential-less
-model, it is a silent fallback to the household's metered
-`ANTHROPIC_API_KEY`.
+**Keep the placeholder `apiKey` and the full set of explicit `$0` prices** -
+input, output, **and** the five prompt-cache fields (§4a). All of them apply
+for the same measured reasons (§3, §4), and the CI test fails the change if any
+one is dropped: an omitted `apiKey` is not a credential-less model, it is a
+silent fallback to the household's metered `ANTHROPIC_API_KEY`; dropping a
+cache zero restarts the fictional-spend accrual that §4a closed.
 
 **Never solve a new family by adding its metered name to the allow-list**
 (`claude-opus-5`, `claude-sonnet-5`, `auto`). That converts this key into the
@@ -435,25 +436,30 @@ what §7 rules out on measured grounds.
 
 ## 6. What these changes did NOT touch
 
-Additive by design, in both passes.
+Additive by design across three passes. The money-safety boundary is unchanged
+in all of them: no other virtual key, no metered model CR, no fallback chain,
+no `generalSettings`/`litellmSettings` value, and no household credential was
+touched. The metered `claude-opus-5` and `claude-sonnet-5` CRs still carry
+`os.environ/ANTHROPIC_API_KEY` and stay absent from this key's allow-list; the
+CI test asserts both. The cloud entitlement boundary in
+`routerSettings.fallbacks` ([`fallbacks.md`](fallbacks.md)) is unchanged, and
+both subscription models are deliberately absent from every fallback chain - a
+config-declared fallback bypasses the calling key's allow-list, and pointing
+one at a model that requires a client-supplied token would fail every caller
+who does not send one.
 
 **2026-08-27 (original).** One model CR and one new virtual key were added; no
 *existing* model CR, virtual key, allow-list, fallback chain or
 `generalSettings` value was modified, and the new key named only the new model.
 
 **2026-08-30 (Opus).** One model CR added, plus one line on the subscription
-key's own allow-list naming it. No other virtual key, no rate limit (the
-2026-08-30 sizing raise in §5b is untouched), no metered model CR, no fallback
-chain, no `generalSettings`/`litellmSettings` value, and no household
-credential. The metered `claude-opus-5` and `claude-sonnet-5` CRs still carry
-`os.environ/ANTHROPIC_API_KEY` and are still absent from this key's allow-list;
-the CI test asserts both.
-The cloud entitlement boundary in
-`routerSettings.fallbacks` ([`fallbacks.md`](fallbacks.md)) is unchanged, and
-`claude-code-subscription` is deliberately absent from every fallback chain -
-a config-declared fallback bypasses the calling key's allow-list, and pointing
-one at a model that requires a client-supplied token would fail every caller who
-does not send one.
+key's own allow-list naming it. Rate limits on that key were raised in the same
+window (sizing history on the CR / §5b) but no other virtual key moved.
+
+**2026-08-31 (cache-price zeros).** Both subscription model CRs gained the five
+prompt-cache `$0` fields (§4a). No allow-list, rate-limit, virtual-key,
+fallback, or credential change - only the incomplete `info.extra` price set on
+the two pass-through CRs. Historical spend rows were not rewritten.
 
 ---
 
