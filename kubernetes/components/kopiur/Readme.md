@@ -8,21 +8,34 @@ Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stage 3 complete.** kopiur is live on **29 of the fleet's
-> 31** VolSync-protected claims, onboarded namespace by namespace in Stage 3
-> (2026-08-30). **Both engines run on every one of those volumes** - every
+> **Migration status: Stage 4 complete.** kopiur is live on **30 of the fleet's
+> 31** VolSync-protected claims - 29 onboarded namespace by namespace in Stage 3
+> (2026-08-30), plus `selfhosted/changedetection-config` in Stage 4
+> (2026-08-31). **Both engines run on every one of those volumes** - every
 > VolSync source is still live, nothing has been retired, and retirement is
-> Stage 5, which needs a per-volume restore proof first. Exactly **two claims
-> are deliberately NOT on kopiur** and must stay off until the component can
-> express a root mover: `home-automation/matter-server` (runs as root by design)
-> and `selfhosted/changedetection-config` (needs a `0:1000` root mover; the
-> captain chose to fix the app's missing security context separately). Both
-> remain fully VolSync-protected. **Being onboarded is not the same as being
-> proven** - a per-volume restore has been demonstrated only for
-> `sabnzbd-config`. Stage 2's restore gate **passed** on 2026-08-30:
+> Stage 5, which needs a per-volume restore proof first. Exactly **one claim is
+> deliberately NOT on kopiur** and must stay off until the component can express
+> a root mover: `home-automation/matter-server` (runs as root by design). It
+> remains fully VolSync-protected.
+>
+> Stage 4 is worth reading before assuming any other deferral needs a root
+> mover: `changedetection` did not. It had **no `securityContext` at all**, so
+> it ran as its image default (root) and wrote 2292 mode-`0600` root-owned
+> files, while its Flux Kustomization declared an `APP_UID`/`APP_GID` of
+> 2000:2000 that no manifest in this repo consumes. Giving the app the 1000:1000
+> identity its data already carried (every file's group, every setgid directory)
+> and re-owning the volume to match removed the need for a `0:1000` mover
+> entirely - so it onboarded with no `KOPIUR_PUID`/`PGID` override, no component
+> change, and no namespace-wide privileged-mover grant. **Being onboarded is not the same as being
+> proven** - a per-volume restore has been demonstrated for exactly two claims,
+> `sabnzbd-config` (Stage 2) and `changedetection-config` (Stage 4: kopia
+> snapshot `c1127a61`, 3058 files / 36,993,597 B restored into a scratch PVC,
+> per-file sha256 manifest identical to live, and modes reproduced exactly -
+> 2292x`600`, 565x`644`, 197x`660`, 4x`664` - where the VolSync restore of the
+> same volume returns `660`/`664` because it stages writable). Stage 2's restore gate **passed** on 2026-08-30:
 > [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 > - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 29
+> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 30
 > onboardings as fleet-wide backup verification. `KOPIUR_PUID`/`KOPIUR_PGID`
 > must match the workload that owns the claim's files, or the backup fails
 > outright on any file lacking a world-read bit (kopiur fails closed; its
@@ -201,6 +214,49 @@ predate this change; they are inert (`target.populator`, and every claim's
 but they must be recreated or hand-patched before Stage 5 repoints anything at
 them. A scratch drill `Restore` written today needs `credentialProjection.enabled:
 true` in its own spec - see "Restore" below.
+
+## `SecurityContextCompatible` is positive-only AND narrower than it looks
+
+The operator emits this condition on a `Snapshot` only when the mover's uid
+matches **every container of every pod that mounts the claim - initContainers
+included**, not merely the container that actually writes it. It is
+positive-only: there is no `False` variant, so **absence is not a pass and is
+also not a failure**. Read it as "the operator could prove compatibility",
+never as "the operator found a problem".
+
+Measured across the live fleet 2026-08-31, absence has four distinct causes and
+only one of them is a real defect:
+
+| Claim | Why absent | Real problem? |
+|---|---|---|
+| `downloads/recyclarr-config` | no pod exists at snapshot time (CronJob, ~18 s/day) | no |
+| `database/pgadmin` | `fix-permissions` **initContainer** runs as uid 0 vs mover 5050 | no |
+| `selfhosted/changedetection-config` | `browser` sidecar runs as uid 999 vs mover 1000, and mounts nothing | no |
+| `media/tdarr-config`, `media/calibre-web-automated` | pod really does run `runAsUser: 0` vs mover 2000 | the known measured mismatch |
+
+`changedetection`'s sidecar **cannot** be moved onto the mover's uid to buy the
+condition: browserless/chrome was tested at uid 1000 on 2026-08-31 and Chrome
+fails to launch outright (`chrome_crashpad_handler: --database is required`,
+"retries exhausted") while the container still reports `Ready` - so forcing it
+would silently kill every browser-backed watch and trade a working app for a
+cosmetic condition. Do not do it.
+
+The condition is also not reliably emitted even when it should be: `autobrr`'s
+04:54 r2 run carried it while its 01:36 ceph run did not, same claim, same pod,
+same identity, no operator restart in between. So a run without it is not even
+evidence about the pod shape.
+
+**The load-bearing proof is the mover's own read, not this condition.** kopia
+fails closed on the first unreadable file, so a `Succeeded` snapshot whose
+`.status.stats` covers the whole volume already proves the identity works. The
+direct check, which is what Stage 4 used, is to mount the claim **read-only**
+in a pod running as the mover's uid and open every file - read-only is the
+point, because kubelet applies no `fsGroup` fixup to a read-only mount, which
+is exactly what the mover sees:
+
+```bash
+kubectl -n <ns> exec <probe> -- sh -c 'find /datastore -type f ! -readable | wc -l'
+```
 
 ## Per-Application Usage
 

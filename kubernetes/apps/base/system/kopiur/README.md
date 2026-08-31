@@ -7,31 +7,17 @@ credentials. What to back up lives in
 [`kubernetes/components/kopiur/`](../../../../components/kopiur/Readme.md).
 
 Stage 0 installs the operator and declares *where* backups could go. It creates
-no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status:
-Stage 3 complete.** kopiur is live on **29 of the fleet's 31** VolSync-protected
-claims, onboarded namespace by namespace in Stage 3 (2026-08-30). **Both engines
-run on every one of those volumes** - every VolSync source is still live,
-nothing has been retired, and retirement is Stage 5, which needs a per-volume
-restore proof first. Exactly **two claims are deliberately NOT on kopiur** and
-must stay off until the component can express a root mover:
-`home-automation/matter-server` (runs as root by design) and
-`selfhosted/changedetection-config` (needs a `0:1000` root mover; the captain
-chose to fix the app's missing security context separately). Both remain fully
-VolSync-protected. **Being onboarded is not the same as being proven** - a
-per-volume restore has been demonstrated only for `sabnzbd-config`. Stage 2's
-restore gate **passed** on 2026-08-30 -
-[`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
-- sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-2.06 GiB, per-file sha256, modes and ownership included). Do not read this
-directory's presence, or the 29 onboardings, as fleet-wide backup verification.
+no `SnapshotPolicy` and no `SnapshotSchedule` of its own. Do not treat this
+directory's presence as fleet coverage - live onboarded/deferred claim counts
+are owned by the component Readme. Stage 2's restore gate **passed** on
+2026-08-30: `sabnzbd-config` restored byte-identically from both ceph and r2
+(2062 files, 2.06 GiB, per-file sha256, modes and ownership included) -
+[`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
 `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's files,
-or the backup fails outright on any file lacking a world-read bit (kopiur fails
-closed; drill finding 2) - a prerequisite for every onboarding, not a sabnzbd
-quirk. The Stage 1 pilot `downloads/autobrr` held **zero** files at Stage 1 time
-(all state is in `postgres-17`), so it is a valid mechanism test but never could
-prove byte-level fidelity; a `Succeeded` snapshot with `.status.stats sizeBytes
-0` is not evidence backup works. Details, schedules, credentials compromise and
-rollback: the component Readme.
+or the backup fails closed on any file lacking a world-read bit (drill finding
+2) - a prerequisite for every onboarding, not a sabnzbd quirk. Details,
+schedules, credentials compromise, later restore proofs and rollback:
+[`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
 
 **Stage 0 rollback** (operator/repos only): delete the `kopiur` and
 `kopiur-repository` Flux Kustomizations. That removes the control plane; it does

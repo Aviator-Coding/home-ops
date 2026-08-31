@@ -20,21 +20,51 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
+      namespace: system
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 3. volsync's entry is unchanged and
+    # stays that way until a restore has been demonstrated from kopiur for this
+    # volume (Stage 5).
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      APP_UID: "2000"
-      APP_GID: "2000"
+      # APP_UID/APP_GID deliberately absent. They used to say 2000:2000 here,
+      # which was wrong three ways over: the pod ran as root, both VolSync
+      # movers ran 1000:1000, and every file on disk was group 1000. They were
+      # also consumed by nothing - no manifest in this repo reads either
+      # variable - so the app's real identity now lives where it is actually
+      # enforced, in the HelmRelease securityContext.
       VOLSYNC_CLAIM: changedetection-config
       VOLSYNC_CAPACITY: 1Gi
       VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "20 4 * * *"
+      KOPIUR_CLAIM: changedetection-config
+      # Identity left at the component default of 1000:1000, and that is a
+      # MEASURED result: on 2026-08-31 every one of the 3063 entries under
+      # /datastore was group 1000, all 5 directories were setgid, and the two
+      # newest watch directories were already owned 1000:1000 outright. The
+      # matching app-side securityContext ships in this change, so the mover
+      # and the workload now read the claim as the same identity.
+      #
+      # Namespace r2 hour. The component default (`H 4 * * *`) is especially
+      # wrong for `selfhosted`: EVERY claim in this namespace already runs its
+      # volsync r2 job in the 04:00 hour - this one at 04:20 - so the default
+      # would stack both systems into one hour for the same claim. Hour 14
+      # carries no volsync destination and no kopiur ceph slot
+      # (01/05/09/13/17/21). Ceph stays on the component default, which is
+      # already structurally offset. Both engines evaluate cron in
+      # America/New_York (kopiur via KOPIUR_SCHEDULE_TIMEZONE default;
+      # VolSync via the k8tz-injected TZ) so the stagger holds across DST.
+      KOPIUR_SCHEDULE_R2: "H 14 * * *"
   prune: true
   wait: false
   interval: 30m

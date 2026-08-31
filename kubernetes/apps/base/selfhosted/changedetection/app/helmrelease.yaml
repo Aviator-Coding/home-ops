@@ -21,6 +21,28 @@ spec:
   uninstall:
     keepHistory: false
   values:
+    # Identity is declared POD-level, matching every other onboarded app in the
+    # fleet, so the workload identity lives in one place rather than only on the
+    # container that happens to mount the claim. `browser` (browserless/chrome)
+    # then needs its own container-level override back to its image's
+    # `blessuser` uid 999 - see its comment below for why it cannot move.
+    #
+    # This placement does NOT buy kopiur's `SecurityContextCompatible`
+    # condition, and nothing here can: measured 2026-08-31, the operator emits
+    # it only when the mover uid matches EVERY container of every pod mounting
+    # the claim, initContainers included, so the 999 sidecar suppresses it even
+    # though it mounts nothing. The condition is positive-only - its absence is
+    # neither a pass nor a failure - and `database/pgadmin` is absent for the
+    # identical reason (root `fix-permissions` initContainer). What actually
+    # proves this identity works is that kopia read the whole volume: see
+    # `components/kopiur/Readme.md` "SecurityContextCompatible".
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
     controllers:
       main:
         containers:
@@ -28,6 +50,14 @@ spec:
             image:
               repository: ghcr.io/dgtlmoon/changedetection.io
               tag: 0.55.8@sha256:5438423d5e906eff4e8f7886823482ad23f472bf7b8530ccaca89fb48c337882
+            # Identity (1000:1000, inherited from defaultPodOptions above) is
+            # MEASURED, not declared-and-hoped: the image default is root, and
+            # before this the pod ran as uid 0 while the overlay claimed
+            # 2000:2000 and both VolSync movers ran 1000:1000. 1000:1000 is the
+            # only value with a real claim to the data - every file and every
+            # setgid directory under /datastore is already group 1000 (the stamp
+            # of a VolSync restore mover) - and it is kopiur's fleet default, so
+            # no KOPIUR_PUID/PGID override is needed.
             env:
               PORT: &port 5000
               USE_X_SETTINGS: 1
@@ -43,6 +73,17 @@ spec:
               repository: docker.io/browserless/chrome
               tag: latest@sha256:57d19e414d9fe4ae9d2ab12ba768c97f38d51246c5b31af55a009205c136012f
               pullPolicy: IfNotPresent
+            # Overrides the pod-level 1000:1000 back to this image's own
+            # `blessuser`, and this is NOT cosmetic: tested at uid 1000 on
+            # 2026-08-31, Chrome fails to launch outright
+            # (`chrome_crashpad_handler: --database is required`, "retries
+            # exhausted") while the container still reports Ready - so every
+            # browser-backed watch would break silently. It mounts no PVC, so
+            # nothing about the backup identity depends on it.
+            securityContext:
+              runAsUser: 999
+              runAsGroup: 999
+              runAsNonRoot: true
             env:
               - { name: SCREEN_WIDTH, value: "1920" }
               - { name: SCREEN_HEIGHT, value: "1024" }
