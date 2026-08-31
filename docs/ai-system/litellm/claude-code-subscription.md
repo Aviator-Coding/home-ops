@@ -494,7 +494,7 @@ what §7 rules out on measured grounds.
 
 ## 6. What these changes did NOT touch
 
-Additive by design across three passes. The money-safety boundary is unchanged
+Additive by design across four passes. The money-safety boundary is unchanged
 in all of them: no other virtual key, no metered model CR, no fallback chain,
 no `generalSettings`/`litellmSettings` value, and no household credential was
 touched. The metered `claude-opus-5` and `claude-sonnet-5` CRs still carry
@@ -512,12 +512,19 @@ who does not send one.
 
 **2026-08-30 (Opus).** One model CR added, plus one line on the subscription
 key's own allow-list naming it. Rate limits on that key were raised in the same
-window (sizing history on the CR / §5b) but no other virtual key moved.
+window (sizing history on the CR / §4b) but no other virtual key moved.
 
 **2026-08-31 (cache-price zeros).** Both subscription model CRs gained the five
 prompt-cache `$0` fields (§4a). No allow-list, rate-limit, virtual-key,
 fallback, or credential change - only the incomplete `info.extra` price set on
 the two pass-through CRs. Historical spend rows were not rewritten.
+
+**2026-08-31 (rate-limit removal / phantom-spend annotation).** The subscription
+key's `rpmLimit`/`tpmLimit` were removed entirely (§4b); the ~$54.31 historical
+phantom spend was annotated on the CR header, not zeroed; and
+`LiteLLMClaudeCodeSubscriptionSpendRegression` was added. No `LiteLLM_SpendLogs`
+row and no key `spend` column was altered. No metered model, other virtual key,
+fallback, credential, or `/anthropic` route change.
 
 ---
 
