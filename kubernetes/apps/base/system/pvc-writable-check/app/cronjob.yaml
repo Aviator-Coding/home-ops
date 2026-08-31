@@ -6,7 +6,7 @@
 # container can *write* to the volume it mounts. VolSync backed up two such
 # volumes (downloads/autobrr, selfhosted/rsshub-playwright) for months before
 # it was noticed by chance. Design rationale, RBAC tradeoff, and the awkward
-# cases this deliberately does NOT alert on: ../README.md.
+# cases this deliberately does NOT alert on: README.md (same directory).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -272,7 +272,15 @@ spec:
                   # keeps the whole script free of a construct that silently
                   # depends on payload size), and it still runs the loop in
                   # the current shell so FAILURES survives past the loop.
-                  done < <(printf '%s' "${ROWS}")
+                  # Trailing newline is load-bearing: command substitution
+                  # strips every trailing newline from jq's output, and
+                  # `while read` then drops the final row on EOF-without-\n
+                  # (classic bash gotcha). A sweep with a single candidate
+                  # would check nothing; an N-candidate sweep silently skipped
+                  # whichever row sorted last. printf '%s\n' restores exactly
+                  # one terminator; an empty ROWS still yields one empty
+                  # iteration which the [[ -z ns ]] guard continues past.
+                  done < <(printf '%s\n' "${ROWS}")
 
                   echo ""
                   echo "pvc-writable-check: sweep finished at $(date -u +%FT%TZ)"

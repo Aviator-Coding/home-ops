@@ -199,6 +199,13 @@ The check's own `readOnlyRootFilesystem: true` initially broke bash
 here-strings on multi-MB pod JSON (temp file under RO rootfs). Fixed by
 switching the large payload path to a pipe / process substitution.
 
+A second script bug, caught by the offline behavioral test
+(`scripts/ci/pvc-writable-check-test.py`): command substitution strips
+every trailing newline from `jq`'s row list, and `while read` then drops
+the final row on EOF-without-`\n`. An N-candidate sweep silently skipped
+whichever row sorted last; a single-candidate sweep checked nothing.
+Fixed by feeding the loop with `printf '%s\n' "${ROWS}"`.
+
 **Re-measured coverage after the narrowed RBAC design** (fixed design
 deployed via `kubectl create job --from=cronjob/pvc-writable-check`):
 
