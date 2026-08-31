@@ -135,17 +135,22 @@ Two properties make the cost tolerable rather than merely accepted:
 
 * **Observable** - but read the right signal. `kopiur_projected_secrets_live` is
   a **population gauge sampled on the operator's periodic sweep, not a per-run
-  indicator**, and upstream's own HELP text prescribes alerting on
-  `deriv() > 0` over a day. Measured here 2026-08-31: two projected Secrets
-  existed for ~90s during a real backup and the gauge read `0` at every 30s
-  scrape across that window. **A flat 0 during a run is correct and is not
-  evidence that projection is not happening.** Its job is to stay flat over
-  time; a sustained positive derivative means copies are accumulating faster
-  than the reap reclaims them (the per-run leak upstream #240 describes running
-  unseen). `KopiurProjectedCredentialsLeaking` in
+  indicator**. Measured here 2026-08-31: two projected Secrets existed for ~90s
+  during a real backup and the gauge read `0` at every 30s scrape across that
+  window. **A flat 0 during a run is correct and is not evidence that projection
+  is not happening.** Upstream's HELP text still prescribes alerting on
+  `deriv() > 0` over a day; we deliberately do **not** follow that. A one-shot
+  permanent leak that steps 0 to N and stays flat leaves `deriv` approximately 0
+  once older zeros age out of the window, so a deriv rule goes quiet exactly when
+  credentials sit permanently at rest - worse than no alert, because it reads as
+  proof of safety. `KopiurProjectedCredentialsLeaking` in
   [`apps/base/system/kopiur/app/prometheusrule.yaml`](../../apps/base/system/kopiur/app/prometheusrule.yaml)
-  watches exactly that - none of the chart's 12 shipped alerts do, so without it
-  the decision's "observable" mitigation would be a claim rather than a fact.
+  therefore alerts on the **level** (`kopiur_projected_secrets_live > 0` for 1h):
+  healthy runs reaped in ~90s stay silent, a permanent left-behind copy keeps
+  firing for its whole life, and any accumulation deriv would have caught also
+  holds the gauge above zero continuously. None of the chart's 12 shipped alerts
+  watch the series, so without this rule the decision's "observable" mitigation
+  would be a claim rather than a fact.
 
   For **per-run** evidence use the operator log line
   `reaped projected credentials copy secret=<snapshot>-creds-N` and the

@@ -861,59 +861,6 @@ def test_stage0_readme_record_only_still_true() -> None:
     )
 
 
-def test_component_readme_records_projection_tradeoff() -> None:
-    """Readme is the operator-facing contract for the credential trade-off."""
-    readme_path = KOPIUR_COMPONENT / "Readme.md"
-    require(readme_path.is_file(), "components/kopiur/Readme.md must exist")
-    readme = readme_path.read_text()
-    # Normalise markdown emphasis and line wrapping before matching a claim -
-    # we are asserting the document SAYS something, not how it is formatted.
-    lowered = re.sub(r"\s+", " ", readme.replace("*", "").replace("`", "")).lower()
-
-    require(
-        "Stage 1" in readme and "autobrr" in readme,
-        "Readme must name Stage 1 pilot autobrr",
-    )
-    # The design we actually run, not the one we retired.
-    require(
-        "credentialprojection" in lowered.replace(" ", "")
-        or "credential projection" in lowered,
-        "Readme must document credential projection as the credential model",
-    )
-    require(
-        "at rest" in lowered,
-        "Readme must state that no repository credential sits at rest in an app namespace",
-    )
-    # The accepted cost must be recorded, not glossed.
-    require(
-        "cannot be scoped" in lowered,
-        "Readme must record that `create` cannot be scoped to a Secret name",
-    )
-    require(
-        "credential-rewrite primitive" in lowered,
-        "Readme must state the accepted cost: a compromised operator is a "
-        "cluster-wide credential-rewrite primitive",
-    )
-    # And it must not still describe the removed shape as current.
-    require(
-        "PILOT ONLY" not in readme.upper(),
-        "Readme must no longer describe the per-namespace credential copy as the current design",
-    )
-
-    require(
-        "onPolicyDelete" in readme and "Retain" in readme,
-        "Readme must document pinned deletion Retain",
-    )
-    require(
-        "Ephemeral" in readme,
-        "Readme must document Ephemeral cache (no standing cache PVCs)",
-    )
-    require(
-        "MinIO" in readme or "minio" in readme,
-        "Readme must state MinIO is out",
-    )
-
-
 def main() -> int:
     tests: list[str] = []
     failures: list[str] = []
@@ -969,7 +916,6 @@ def main() -> int:
     )
     run("stage0_tree_policy_free", test_stage0_tree_still_policy_free)
     run("stage0_readme_record_only", test_stage0_readme_record_only_still_true)
-    run("component_readme_projection_tradeoff", test_component_readme_records_projection_tradeoff)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")

@@ -43,33 +43,53 @@ spec:
         # (2026-08-30) accepts unscoped Secret create/patch/delete for the
         # operator on the explicit grounds that the resulting exposure is
         # BOUNDED TO ONE MOVER RUN and that the leak is OBSERVABLE. Nothing in
-        # the chart's 12 alerts watches it, so this rule is what makes that
-        # second half true - without it a projected credential left behind in an
-        # app namespace is silent, and the decision's stated mitigation is only
-        # a claim.
+        # the chart's 12 alerts watches this series, so this rule is what makes
+        # that second half true - without it a projected credential left behind
+        # in an app namespace is silent, and the decision's stated mitigation is
+        # only a claim. An alert that goes quiet while credentials sit
+        # permanently at rest would be worse than no alert, because it reads as
+        # proof of safety.
         #
         # `kopiur_projected_secrets_live` is a POPULATION gauge sampled on the
-        # operator's periodic sweep, NOT a per-run indicator - upstream's own
-        # HELP text says so and prescribes `deriv() > 0 over a day`. Measured
-        # here 2026-08-31: two projected Secrets existed for ~90s during a real
-        # backup and the gauge read 0 at every 30s scrape across that window.
-        # So DO NOT alert on `> 0`: it would never fire on a healthy run and
-        # would teach the next operator that a flat 0 means projection is not
-        # happening. A sustained positive derivative is the leak signal - copies
-        # accumulating faster than the reap reclaims them, which is exactly the
-        # per-run leak upstream #240 describes running unseen.
+        # operator's periodic sweep, NOT a per-run indicator. Measured here
+        # 2026-08-31: two projected Secrets existed for ~90s during a real
+        # backup and the gauge read 0 at every 30s scrape across that window, so
+        # a flat 0 during a run is expected and is NOT evidence projection is
+        # off. The control that keeps healthy runs silent is the `for:` window,
+        # not the comparison: alert on the level staying above zero longer than
+        # any legitimate mover can leave a copy live.
+        #
+        # Why `for: 1h` and not 15m. Measured 2026-08-31 on this cluster: a
+        # projected credential Secret for one real backup lived ~90s end to end
+        # (CSI VolumeSnapshot staging + staged PVC bind + mover Job); mover
+        # Jobs themselves completed in 12-23s. Longest VolSync sync in
+        # downloads is ~2m17s, so 15m already carries roughly a 10x margin over
+        # anything observed. 1h is chosen instead because those runs were all
+        # on volumes of at most 2.06 GiB, kopiur takes no activeDeadlineSeconds
+        # in this repo so a run is not bounded from above, and Stage 3 will
+        # onboard larger claims whose FIRST full kopia snapshot can legitimately
+        # run far longer than any incremental measured here. 1h stays silent on
+        # every legitimate run including a large initial backup, while still
+        # surfacing a permanent leak within the hour.
+        #
+        # Upstream's HELP text still prescribes `deriv() > 0 over a day`. We
+        # deliberately do NOT follow that: a one-shot leak that steps 0 to N and
+        # stays flat leaves deriv ~0 once older zeros age out of the window, so
+        # a deriv rule goes quiet exactly when credentials are permanently at
+        # rest. Any accumulation deriv would catch also holds the gauge above
+        # zero continuously, so the level alert covers that case too.
         #
         # Per-run evidence, when you need it, is the operator's own log line
         # (`reaped projected credentials copy secret=<snapshot>-creds-N`) and
         # the `kopiur_secrets_projected_total` counter - not this gauge.
         - alert: KopiurProjectedCredentialsLeaking
           expr: |
-            deriv(kopiur_projected_secrets_live[1d]) > 0
+            kopiur_projected_secrets_live > 0
           annotations:
             summary: >-
-              kopiur projected credential Secrets are accumulating rather than
-              being reaped; repository credentials may be sitting at rest in an
-              app namespace
+              kopiur projected credential Secrets have remained live longer
+              than any legitimate mover run; repository credentials may be
+              sitting at rest in an app namespace
           for: 1h
           labels:
             severity: critical
