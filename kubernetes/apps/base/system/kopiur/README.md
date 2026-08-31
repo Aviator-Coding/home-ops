@@ -8,7 +8,7 @@ credentials. What to back up lives in
 
 Stage 0 installs the operator and declares *where* backups could go. It creates
 no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status:
-Stage 4 complete - 31 of 31 claims onboarded, zero deferred.** Stage 3
+Stage 4 complete - 30 of 30 claims onboarded, zero deferred.** Stage 3
 (2026-08-30) onboarded namespace by namespace; Stage 4 (2026-08-31) added
 both `selfhosted/changedetection-config` (1000:1000 after fixing the app's
 missing securityContext - no privileged-mover grant) and

@@ -158,7 +158,7 @@ manifests only, never PVC contents.
   `docs/ai-system/agentgateway/09-advanced-features.md`,
   `docs/ai-system/litellm/fallbacks.md`); one dated measurement in
   `kubernetes/components/volsync/Readme.md` ("29 dual-engine claims" at the
-  2026-08-31 DST-timezone fix, now 28) describing a fixed historical count,
+  2026-08-31 DST-timezone fix, now 30) describing a fixed historical count,
   not current state; this doc itself; and this change's own commit history.
   None of these assert agentmemory is still deployed.
 - `kubectl -n ai get pod -l app.kubernetes.io/name=agentmemory` returns

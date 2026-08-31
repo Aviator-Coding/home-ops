@@ -18,7 +18,7 @@ These are not under `docs/`. They are the day-to-day starting points.
 | [`README.md`](../README.md) | Cluster overview |
 | [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md) | Volsync schedules, multi-volume pattern, and restore (fleet live backups) |
 | [`kubernetes/apps/base/system/kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md) | kopiur Stage 0: operator + ceph/r2 repositories, deletion-protection and credential layout |
-| [`kubernetes/components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md) | kopiur backup component (authoritative migration status: 31 of 31 onboarded, zero deferred; schedules, wait:true split, per-namespace r2 hours, credential projection, mover-identity, privileged-mover root gate, SecurityContextCompatible semantics, rollback). |
+| [`kubernetes/components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md) | kopiur backup component (authoritative migration status: 30 of 30 onboarded, zero deferred; schedules, wait:true split, per-namespace r2 hours, credential projection, mover-identity, privileged-mover root gate, SecurityContextCompatible semantics, rollback). |
 
 ## AI
 
@@ -68,7 +68,7 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 
 ## Backups
 
-Fleet PVC backup remains VolSync on every protected claim (live claim list and `ReplicationSource` count: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md)). kopiur runs **alongside** VolSync on **all 31** of those claims (Stage 4 onboarded both `selfhosted/changedetection-config` at 1000:1000 and `home-automation/matter-server` with a root mover; zero deferred). Nothing has been retired - that is Stage 5 and needs a per-volume restore proof first. Restores proven so far: Stage 2 `sabnzbd-config` (ceph + r2, byte-identical; gate **passed** 2026-08-30), Stage 4 `changedetection-config`, and Stage 4 `matter-server` (ceph only) - owner [`components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md). Operator/repos: [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md).
+Fleet PVC backup remains VolSync on every protected claim (live claim list and `ReplicationSource` count: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md)). kopiur runs **alongside** VolSync on **all 30** of those claims (Stage 4 onboarded both `selfhosted/changedetection-config` at 1000:1000 and `home-automation/matter-server` with a root mover; zero deferred). Nothing has been retired - that is Stage 5 and needs a per-volume restore proof first. Restores proven so far: Stage 2 `sabnzbd-config` (ceph + r2, byte-identical; gate **passed** 2026-08-30), Stage 4 `changedetection-config`, and Stage 4 `matter-server` (ceph only) - owner [`components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md). Operator/repos: [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md).
 
 | Path | What it covers |
 |---|---|
