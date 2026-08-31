@@ -66,7 +66,53 @@ spec:
       namespace: network
       sectionName: https
   rules:
+    # CLOSES the unused built-in `/anthropic/{endpoint}` pass-through
+    # (docs/ai-system/litellm/README.md#anthropic-pass-through-route). That
+    # route resolves a SERVER-SIDE Anthropic credential (falling back to the
+    # household ANTHROPIC_API_KEY the pod holds) and is not gated by any
+    # virtual key's model allow-list, so any key valid on this proxy could in
+    # principle reach it - the exact hole the subscription-route invariant
+    # forbids. Measured against the live v1.98.0 image (2026-08-31): no
+    # config.yaml/general_settings flag disables it - the route is registered
+    # unconditionally in litellm/proxy/pass_through_endpoints/
+    # llm_passthrough_endpoints.py with no premium_user or config gate, and
+    # the LiteLLMProxy CRD has no field for it either. The gateway is
+    # therefore the narrowest layer that actually works, per this file's own
+    # header note on why annotations (and now routing) live here rather than
+    # on the operator's `spec.route`. Non-use was verified across three
+    # independent sources (LiteLLM_SpendLogs, LiteLLM_DailyGatewayRequests,
+    # and Prometheus's litellm_proxy_total_requests_metric_total route label)
+    # before this was added - see the doc section above for the evidence and
+    # the re-open procedure. Gateway API path matching is most-specific-wins
+    # regardless of list order, so this rule intercepts `/anthropic` before
+    # the catch-all below sends it to the litellm backend.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /anthropic
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: litellm-anthropic-passthrough-block
     - backendRefs:
         - name: litellm
           namespace: ai
           port: 4000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/httproutefilter_v1alpha1.json
+# Referenced by the `/anthropic` rule above. A single revert of that rule plus
+# this resource fully restores the route - nothing else on this HTTPRoute or
+# any other route is touched.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: litellm-anthropic-passthrough-block
+spec:
+  directResponse:
+    statusCode: 404
+    contentType: text/plain
+    body:
+      type: Inline
+      inline: "not found\n"
