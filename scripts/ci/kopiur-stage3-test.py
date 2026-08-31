@@ -37,6 +37,13 @@ This test does not grep source text as its evidence. It:
      under each onboarded claim's own substitute map.
   3. Asserts the Stage 3 contract on those rendered objects.
 
+Note: EXPECTED_IDENTITY pins the kopiur mover (and the files on disk). VolSync
+often rides a different mover identity because it stages a writable clone and
+kubelet's fsGroup walk rewrites group bits before restic reads - so this file
+does NOT require VOLSYNC_PUID == KOPIUR_PUID fleet-wide. The
+selfhosted/obsidian-livesync VolSync alignment is pinned in
+`selfhosted-backup-identity-test.py`.
+
 The identity table below is the measured result of execing into every running
 pod on 2026-08-30 and reading uid/gid/mode of every file - NOT the pods'
 declared securityContexts, which are wrong for four of these volumes

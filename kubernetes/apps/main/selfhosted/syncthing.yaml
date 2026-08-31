@@ -38,17 +38,19 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      APP_UID: "1000"
-      APP_GID: "1000"
       VOLSYNC_CLAIM: syncthing
       VOLSYNC_CAPACITY: 1Gi
       VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "15 4 * * *"
+      # APP_UID/APP_GID deliberately absent - see changedetection.yaml for the
+      # precedent. No manifest in this repo reads either variable, so a second,
+      # unenforced identity declaration is a liability, not documentation.
       # Identity left at the component default of 1000:1000, and that is a
       # MEASURED result rather than an assumption: live measurement 2026-08-30
-      # found every entry owned 1000:1000 (pod securityContext 1000:1000:1000)
-      # and nothing unreadable at 1000.
+      # (reconfirmed 2026-08-31, workload `id`, mover moverSecurityContext/
+      # podSecurityContext) found every entry owned 1000:1000 (pod
+      # securityContext 1000:1000:1000) and nothing unreadable at 1000.
       # Namespace r2 hour. The component default (`H 4 * * *`) is especially
       # wrong for `selfhosted`: EVERY claim in this namespace already runs its
       # volsync r2 job in the 04:00 hour, so the default would stack both
