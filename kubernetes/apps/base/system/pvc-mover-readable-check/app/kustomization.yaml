@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./rbac.yaml
+  - ./cronjob.yaml
+  - ./prometheusrule.yaml
+configMapGenerator:
+  # The name-suffix hash is deliberately left enabled (the default): the
+  # CronJob must pick up an edited walker on the next run rather than keep
+  # serving a stale ConfigMap.
+  - name: pvc-mover-readable-check-walk
+    namespace: system
+    files:
+      - walk.sh

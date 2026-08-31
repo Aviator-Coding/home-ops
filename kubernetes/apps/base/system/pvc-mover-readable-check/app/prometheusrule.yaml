@@ -1,0 +1,49 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# Same alert path as pvc-writable-check: no custom metric or exporter is
+# needed, because kube-state-metrics already exposes kube_job_status_failed
+# for every Job it sees, including CronJob-created ones, with zero extra
+# config. The sweep's own exit code (1 = at least one kopiur finding or one
+# INCONCLUSIVE claim, 0 = everything measurable is readable) becomes the Job's
+# status, which becomes this metric.
+#
+# Deliberately NOT alerted on: VolSync unreadable counts (report-only, see
+# cronjob.yaml and README.md) and structurally UNMEASURED claims (unmounted,
+# subPath-only, RBAC-excluded), which are permanent known conditions and would
+# otherwise fire on every single run forever.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pvc-mover-readable-check-rules
+  namespace: system
+spec:
+  groups:
+    - name: pvc-mover-readable-check.rules
+      rules:
+        - alert: PVCMoverCannotReadVolume
+          # reason!="" matches every real terminal-failure series from
+          # kube-state-metrics v2.20.0 and by construction excludes the
+          # bare-gauge / empty-reason failed-pod-count series. The mechanics
+          # are identical to PVCVolumeNotWritable; that rule's comment carries
+          # the measured detail on each ksm series shape.
+          expr: |-
+            kube_job_status_failed{namespace="system", job_name=~"^pvc-mover-readable-check-.+", reason!=""} > 0
+          for: 10m
+          annotations:
+            summary: >-
+              The pvc-mover-readable-check sweep found at least one claim whose
+              kopiur mover identity cannot read the volume it is configured to
+              back up, or could not enumerate a volume at all. kopia fails
+              closed on the first unreadable file, so an affected claim is at
+              risk of having NO usable backup from the engine that survives the
+              VolSync retirement - and nothing else in the cluster shows it:
+              a 2026-08-31 audit found selfhosted/changedetection-config with
+              2292 of 3058 files unreadable while every status surface was
+              green. Read the failing run's own log for exactly which claim and
+              identity: `kubectl -n system logs -l
+              app.kubernetes.io/name=pvc-mover-readable-check --tail=300
+              --since=12h | grep -E 'FINDING|INCONCLUSIVE|FAILURES'`. Design,
+              the VolSync report-only rule, and the known coverage gaps:
+              kubernetes/apps/base/system/pvc-mover-readable-check/app/README.md.
+          labels:
+            severity: warning

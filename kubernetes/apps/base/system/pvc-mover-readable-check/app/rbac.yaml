@@ -1,0 +1,156 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pvc-mover-readable-check
+  namespace: system
+---
+# Split-role design, copied deliberately from pvc-writable-check rather than
+# invented here - see that app's rbac.yaml and README for the review history
+# that produced it.
+#
+# (a) pvc-mover-readable-check-read - pods get/list plus get/list on the two
+#     backup CRDs, ClusterRoleBinding, cluster-wide. Discovery only, no exec.
+# (b) pvc-mover-readable-check-exec - pods/exec create, on a ClusterRole that
+#     is NEVER bound by a ClusterRoleBinding. One namespaced RoleBinding per
+#     covered namespace points at it instead, so every namespace without a
+#     binding is denied by the API server itself, not by the script choosing
+#     not to look.
+#
+# THE RBAC COST, STATED PLAINLY: this grants `create` on `pods/exec`, which is
+# arbitrary command execution inside every pod in the five bound namespaces.
+# That is the same grant pvc-writable-check already carries and it is the price
+# of asking the real question. Reading a volume as root from the host would
+# always see "readable" and would measure nothing, because root bypasses the
+# exact permission check this exists to catch; the only way to evaluate a
+# volume's real modes and ownership is from a container that already mounts it.
+# The captain accepted this cost knowingly on 2026-08-31.
+#
+# It is bound NARROWER than pvc-writable-check, not wider: only the five
+# namespaces that actually contain a claim covered by a backup engine
+# (ai, downloads, home-automation, media, selfhosted). pvc-writable-check binds
+# ~20. The sixth covered namespace, `database` (database/pgadmin), is
+# deliberately NOT bound - it is one of pvc-writable-check's three permanent
+# exclusions, and this check does not widen that boundary. pgadmin is therefore
+# reported UNMEASURED on every run; see README.md "Known coverage gaps".
+#
+# CRITICAL Flux gotcha, same as the sibling: the overlay Kustomization CR MUST
+# NOT set targetNamespace. Flux's targetNamespace unconditionally overwrites
+# metadata.namespace on every namespaced resource in the build output, even
+# ones that already declare their own, so the per-namespace RoleBindings would
+# all collapse onto `system` and collide by name. That is why the
+# ServiceAccount, ConfigMap, CronJob and PrometheusRule declare
+# namespace: system explicitly and each RoleBinding keeps its own.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pvc-mover-readable-check-read
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # Mover identities must come from the live CRs: KOPIUR_PUID/PGID are
+  # overridden per claim and range from 0 to 10000 across the fleet, so a
+  # component-default identity would measure the wrong thing entirely.
+  - apiGroups: ["volsync.backube"]
+    resources: ["replicationsources"]
+    verbs: ["get", "list"]
+  - apiGroups: ["kopiur.home-operations.com"]
+    resources: ["snapshotpolicies"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pvc-mover-readable-check-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-mover-readable-check-read
+subjects:
+  - kind: ServiceAccount
+    name: pvc-mover-readable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pvc-mover-readable-check-exec
+rules:
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+# One RoleBinding per namespace that holds a backup-covered claim. Keep in
+# lockstep with EXCLUDED_NAMESPACES in cronjob.yaml: a namespace that gains a
+# ReplicationSource or SnapshotPolicy and has no binding here is reported
+# UNMEASURED (rbac) rather than silently passing.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-mover-readable-check-exec
+  namespace: ai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-mover-readable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-mover-readable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-mover-readable-check-exec
+  namespace: downloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-mover-readable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-mover-readable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-mover-readable-check-exec
+  namespace: home-automation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-mover-readable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-mover-readable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-mover-readable-check-exec
+  namespace: media
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-mover-readable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-mover-readable-check
+    namespace: system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pvc-mover-readable-check-exec
+  namespace: selfhosted
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-mover-readable-check-exec
+subjects:
+  - kind: ServiceAccount
+    name: pvc-mover-readable-check
+    namespace: system
