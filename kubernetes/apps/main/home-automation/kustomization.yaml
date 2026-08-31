@@ -16,3 +16,28 @@ resources:
   - ./home-assistant.yaml
   - ./matter-server.yaml
   - ./zigbee2mqtt.yaml # We sare using SLZB-06M
+
+# The live Namespace object is produced by components/common (metadata.name:
+# not-used, then this overlay's `namespace:` field renames it), NOT by the
+# commented-out ./namespace.yaml or by
+# kubernetes/apps/base/home-automation/namespace.yaml (that file is not in
+# any Flux inventory). The patch target is therefore `not-used`, the name
+# kustomize still has when patches run. cluster-apps SSA-applies the result;
+# kustomize.toolkit.fluxcd.io/prune: disabled only prevents DELETE of the
+# Namespace, it does not freeze annotations.
+#
+# BLAST RADIUS: this annotation is namespace-wide. It permits a root/privileged
+# kopiur mover for every claim in home-automation, not just matter-server.
+# esphome (2000), home-assistant (1000) and zigbee2mqtt (2000) keep their
+# existing non-root mover identities - the annotation is an admission gate,
+# not an identity change. Measured 2026-08-31: kopiur admits a SnapshotPolicy
+# with runAsUser: 0, then refuses the Snapshot at MoverPermitted=False /
+# PrivilegedMoverNotPermitted until this annotation is present.
+patches:
+  - target:
+      kind: Namespace
+      name: not-used
+    patch: |-
+      - op: add
+        path: /metadata/annotations/kopiur.home-operations.com~1privileged-movers
+        value: "true"

@@ -8,34 +8,37 @@ Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stage 4 complete.** kopiur is live on **30 of the fleet's
-> 31** VolSync-protected claims - 29 onboarded namespace by namespace in Stage 3
-> (2026-08-30), plus `selfhosted/changedetection-config` in Stage 4
-> (2026-08-31). **Both engines run on every one of those volumes** - every
-> VolSync source is still live, nothing has been retired, and retirement is
-> Stage 5, which needs a per-volume restore proof first. Exactly **one claim is
-> deliberately NOT on kopiur** and must stay off until the component can express
-> a root mover: `home-automation/matter-server` (runs as root by design). It
-> remains fully VolSync-protected.
+> **Migration status: Stage 4 complete.** kopiur is live on **all 31 of the
+> fleet's 31** VolSync-protected claims - zero deferred. Stage 3 (2026-08-30)
+> onboarded namespace by namespace; Stage 4 (2026-08-31) added both remaining
+> claims. **Both engines run on every volume** - every VolSync source is still
+> live, nothing has been retired, and retirement is Stage 5, which needs a
+> per-volume restore proof first.
 >
-> Stage 4 is worth reading before assuming any other deferral needs a root
-> mover: `changedetection` did not. It had **no `securityContext` at all**, so
-> it ran as its image default (root) and wrote 2292 mode-`0600` root-owned
-> files, while its Flux Kustomization declared an `APP_UID`/`APP_GID` of
-> 2000:2000 that no manifest in this repo consumes. Giving the app the 1000:1000
-> identity its data already carried (every file's group, every setgid directory)
-> and re-owning the volume to match removed the need for a `0:1000` mover
-> entirely - so it onboarded with no `KOPIUR_PUID`/`PGID` override, no component
-> change, and no namespace-wide privileged-mover grant. **Being onboarded is not the same as being
-> proven** - a per-volume restore has been demonstrated for exactly two claims,
-> `sabnzbd-config` (Stage 2) and `changedetection-config` (Stage 4: kopia
-> snapshot `c1127a61`, 3058 files / 36,993,597 B restored into a scratch PVC,
-> per-file sha256 manifest identical to live, and modes reproduced exactly -
-> 2292x`600`, 565x`644`, 197x`660`, 4x`664` - where the VolSync restore of the
-> same volume returns `660`/`664` because it stages writable). Stage 2's restore gate **passed** on 2026-08-30:
+> Stage 4 onboardings:
+> * `selfhosted/changedetection-config` did **not** need a root mover. It had
+>   **no `securityContext` at all**, so it ran as its image default (root) and
+>   wrote 2292 mode-`0600` root-owned files, while its Flux Kustomization
+>   declared an `APP_UID`/`APP_GID` of 2000:2000 that no manifest in this repo
+>   consumes. Giving the app the 1000:1000 identity its data already carried
+>   and re-owning the volume removed the need for a `0:1000` mover - onboarded
+>   with no `KOPIUR_PUID`/`PGID` override and no privileged-mover grant on
+>   `selfhosted`.
+> * `home-automation/matter-server` stays root by design: explicit
+>   `KOPIUR_PUID/PGID: 0` plus the namespace-wide
+>   `kopiur.home-operations.com/privileged-movers=true` annotation on the
+>   overlay that actually produces the Namespace (`not-used` patch target).
+>
+> **Being onboarded is not the same as being proven** - restores demonstrated
+> so far include `sabnzbd-config` (Stage 2) and `changedetection-config`
+> (Stage 4: kopia snapshot `c1127a61`, 3058 files / 36,993,597 B restored into
+> a scratch PVC, per-file sha256 manifest identical to live, and modes
+> reproduced exactly - 2292x`600`, 565x`644`, 197x`660`, 4x`664` - where the
+> VolSync restore of the same volume returns `660`/`664` because it stages
+> writable). Stage 2's restore gate **passed** on 2026-08-30:
 > [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 > - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 30
+> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 31
 > onboardings as fleet-wide backup verification. `KOPIUR_PUID`/`KOPIUR_PGID`
 > must match the workload that owns the claim's files, or the backup fails
 > outright on any file lacking a world-read bit (kopiur fails closed; its

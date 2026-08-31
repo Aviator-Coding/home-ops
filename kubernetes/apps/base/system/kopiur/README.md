@@ -7,12 +7,22 @@ credentials. What to back up lives in
 [`kubernetes/components/kopiur/`](../../../../components/kopiur/Readme.md).
 
 Stage 0 installs the operator and declares *where* backups could go. It creates
-no `SnapshotPolicy` and no `SnapshotSchedule` of its own. Do not treat this
-directory's presence as fleet coverage - live onboarded/deferred claim counts
-are owned by the component Readme. Stage 2's restore gate **passed** on
-2026-08-30: `sabnzbd-config` restored byte-identically from both ceph and r2
-(2062 files, 2.06 GiB, per-file sha256, modes and ownership included) -
-[`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
+no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status:
+Stage 4 complete - 31 of 31 claims onboarded, zero deferred.** Stage 3
+(2026-08-30) onboarded namespace by namespace; Stage 4 (2026-08-31) added
+both `selfhosted/changedetection-config` (1000:1000 after fixing the app's
+missing securityContext - no privileged-mover grant) and
+`home-automation/matter-server` (explicit root mover `KOPIUR_PUID/PGID: 0` plus
+namespace-wide `kopiur.home-operations.com/privileged-movers=true`). **Both
+engines run on every volume** - every VolSync source is still live, nothing has
+been retired, and retirement is Stage 5, which needs a per-volume restore proof
+first. **Being onboarded is not the same as being proven.** Stage 2's restore
+gate **passed** on 2026-08-30 -
+[`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
+- sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
+2.06 GiB, per-file sha256, modes and ownership included). Do not treat this
+directory's presence as fleet-wide backup verification - live claim detail is
+owned by the component Readme.
 `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's files,
 or the backup fails closed on any file lacking a world-read bit (drill finding
 2) - a prerequisite for every onboarding, not a sabnzbd quirk. Continuous fleet

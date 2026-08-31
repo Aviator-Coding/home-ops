@@ -7,21 +7,24 @@ whole stage is that BOTH engines stay live on every volume: nothing is retired
 here, and no VolSync object is touched. Retirement is Stage 5 and needs a
 per-volume restore proof first.
 
-One claim is deliberately NOT onboarded and this test pins its absence, so a
-later change cannot quietly sweep it in without the component work it needs:
-  * home-automation/matter-server      - runs as root by design (0:0:0)
+No remaining deferred claims: Stage 4 onboarded both previously deferred
+volumes, so kopiur is live on 31 of 31 VolSync-protected claims (alongside
+untouched VolSync). This test pins the fleet coverage set and measured mover
+identities; Stage 4 root-mover / GitOps annotation specifics for
+`home-automation/matter-server` live in `kopiur-stage4-test.py`.
 
-It needs a root mover the component cannot express, and stays fully
-VolSync-protected meanwhile.
+`selfhosted/changedetection-config` (Stage 4, 2026-08-31) never actually needed
+a root mover: the app had NO securityContext at all, so it ran as the image
+default (root) and wrote 2292 mode-0600 root-owned files, while the overlay
+declared a 2000:2000 identity that nothing consumed. Giving the app the
+1000:1000 identity its data already carried, and re-owning the volume to match,
+removed the need for a 0:1000 mover entirely - which is why it arrives with no
+KOPIUR_PUID/PGID override and no namespace-wide privileged-mover grant on
+`selfhosted`.
 
-`selfhosted/changedetection-config` was the second such claim and is onboarded
-here (Stage 4, 2026-08-31). It never actually needed a root mover: the app had
-NO securityContext at all, so it ran as the image default (root) and wrote
-2292 mode-0600 root-owned files, while the overlay declared a 2000:2000
-identity that nothing consumed. Giving the app the 1000:1000 identity its data
-already carried, and re-owning the volume to match, removed the need for a
-0:1000 mover entirely - which is why this arrives with no KOPIUR_PUID/PGID
-override and no namespace-wide privileged-mover grant on `selfhosted`.
+`home-automation/matter-server` (Stage 4, 2026-08-31) stays root by design:
+explicit `KOPIUR_PUID/PGID: 0` plus the namespace-wide privileged-mover
+annotation on the home-automation overlay.
 
 This test does not grep source text as its evidence. It:
   1. Parses every Flux Kustomization under kubernetes/apps/main into structured
@@ -85,6 +88,7 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("downloads", "sonarr-config"): ("2000", "2000"),
     ("home-automation", "esphome-config"): ("2000", "2000"),
     ("home-automation", "home-assistant"): ("1000", "1000"),
+    ("home-automation", "matter-server"): ("0", "0"),
     ("home-automation", "zigbee2mqtt-data"): ("2000", "2000"),
     ("media", "calibre-web-automated"): ("2000", "2000"),
     ("media", "plex"): ("2000", "2000"),
@@ -103,10 +107,10 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("selfhosted", "syncthing-data"): ("1000", "1000"),
 }
 
-# Deliberately absent - needs a root mover the component cannot express.
-DEFERRED_CLAIMS = {
-    ("home-automation", "matter-server"),
-}
+# Both previously deferred claims are now onboarded (Stage 4). Keep empty so a
+# regression that re-defers either fails coverage_is_exact instead of silently
+# shrinking the fleet pin.
+DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 
 # One free hour per namespace: free of every VolSync destination and of
 # kopiur's own ceph slots (01/05/09/13/17/21). The component default `H 4 * * *`
