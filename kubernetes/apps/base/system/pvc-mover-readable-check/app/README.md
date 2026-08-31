@@ -117,12 +117,22 @@ statted separately, so it stays counted and is never a finding.
 ## Why `pods/exec`, and the RBAC cost
 
 **Stated plainly: this grants `create` on `pods/exec`, which is arbitrary
-command execution inside every pod in the namespaces it is bound to. The captain
-accepted that cost knowingly on 2026-08-31.**
+command execution inside every pod in the five namespaces it is bound to. The
+captain accepted that cost knowingly on 2026-08-31.**
 
-It is the price of asking the real question. Reading the volume as root from the
-host would always see "readable" and would measure nothing, because root
-bypasses the exact permission check this exists to catch. The only way to
+**There is no cluster-wide `pods/exec` grant here, and there must never be one.**
+This was originally specified as needing cluster-wide `pods/exec`, "the same
+grant `pvc-writable-check` already carries". That premise was wrong, and the
+captain confirmed it on 2026-08-31: `pvc-writable-check` carries no such grant.
+Its first cut did, review flagged the blast radius, and a captain decision
+replaced it with the split-role shape below **precisely so that an unrestricted
+`pods/exec` grant cannot exist**. Following the sibling therefore means
+inheriting that constraint, not the overstated cost - so this check ships
+strictly narrower than it was specified to be.
+
+The grant is the price of asking the real question. Reading the volume as root
+from the host would always see "readable" and would measure nothing, because
+root bypasses the exact permission check this exists to catch. The only way to
 evaluate a volume's real modes and ownership is from a container that already
 mounts it.
 
@@ -180,9 +190,15 @@ KP_UNREADABLE_FILES=0 KP_UNTRAVERSABLE_DIRS=0
 WALK_ERRORS=0
 ```
 
-kopiur reads it today. Closing the gap for real needs a captain decision to add
-a `database` RoleBinding, which is a deliberate widening of the sibling's
-exclusion list rather than something to slip in here.
+kopiur reads it today. **This gap is deliberate, not an oversight.** Binding
+`pods/exec` in `database` would put arbitrary command execution inside the
+CloudNativePG cluster that backs half the fleet, and `database` is one of the
+three namespaces a captain decision permanently excluded for exactly that
+reason. Closing the gap for real is therefore a captain decision to widen the
+sibling's exclusion list - a decision with its own blast-radius argument, not
+something to slip in under a monitoring change. Until then `pgadmin` is reported
+`UNMEASURED` on every run so the gap is legible in the log rather than hidden
+inside a passing count.
 
 ### Flux `targetNamespace` gotcha (do not reintroduce)
 
