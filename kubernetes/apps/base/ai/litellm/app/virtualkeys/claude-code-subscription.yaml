@@ -15,19 +15,24 @@
 # protection that does not exist. Rate limits are therefore the whole guardrail
 # here, which is why both are set and neither should be dropped.
 #
-# Sizing: raised from 10 to 300 rpm on 2026-08-30 after measured rate-limiting
-# - LiteLLM logs showed hundreds of 429s/24h at 10 rpm ("Limit type: requests.
-# Current limit: 10") that presented to the client as timeouts, since a
+# Sizing: raised from 10 rpm / 250000 tpm to 300 rpm / 7500000 tpm on
+# 2026-08-30 after measured rate-limiting - LiteLLM logs showed ~556
+# request-limit 429s and ~171 token-limit 429s in 24 hours at the old values
+# ("Limit type: requests. Current limit: 10" and "Limit type: tokens. Current
+# limit: 250000"), both of which presented to the client as timeouts, since a
 # throttled request that retries looks like a hang rather than an explicit
-# 429. Claude Code's agentic loop issues several requests per human turn -
-# each tool call is its own round trip, so request count tracks tool use, not
-# typing speed - which is why the old single-interactive-user sizing (in line
-# with `opencode.yaml`'s 8 rpm) undercounted real usage. These numbers are a
-# runaway-agent guardrail, not a throughput target: the real ceiling is
-# Anthropic's own rate limiting against the caller's personal subscription,
-# which this proxy neither sees nor can raise. If a normal session 429s here,
-# raise these two numbers - there is no budget to raise, and nothing in this
-# file affects what the subscription is charged.
+# 429. Both numbers had to move together: Claude Code's agentic loop issues
+# several requests per human turn (each tool call is its own round trip, so
+# request count tracks tool use, not typing speed) and each of those requests
+# can carry a large context (50-200k tokens), so raising rpm alone without a
+# proportional tpm increase just re-throttles at the token ceiling instead -
+# 7500000 preserves the same tokens-per-request headroom the key had at
+# 10 rpm / 250000 tpm. These numbers are a runaway-agent guardrail, not a
+# throughput target: the real ceiling is Anthropic's own rate limiting against
+# the caller's personal subscription, which this proxy neither sees nor can
+# raise. If a normal session 429s here, raise these two numbers - there is no
+# budget to raise, and nothing in this file affects what the subscription is
+# charged.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -40,7 +45,7 @@ spec:
   models:
     - claude-code-subscription
   rpmLimit: 300
-  tpmLimit: 250000
+  tpmLimit: 7500000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item
