@@ -195,9 +195,11 @@ not an empty repository skeleton.
 | **MinIO** (`nas.sklab.dev:9000`) | `7c7999a7`, 2026-08-23 12:15:38 EDT (newest) | 23.9s | 3s | 20:54:27Z (34s after trigger) | 20:54:42Z (49s after trigger) | **~50s** |
 
 Both destinations restore in under a minute for a small (5Gi-class, sub-100-object-repo) app.
-Larger apps (`immich` at 100Gi, `syncthing-data` at 100Gi) will take substantially longer -
-restic mover time scales with snapshot size, not just object count - so do not extrapolate
-these timings to the whole fleet without re-measuring on a representative large app.
+Larger apps (`immich` at 100Gi; at drill time `syncthing-data` was also 100Gi, right-sized
+to 15Gi on 2026-08-31 — see `kubernetes/apps/base/selfhosted/syncthing/app/README.md`)
+will take substantially longer - restic mover time scales with snapshot size, not just
+object count - so do not extrapolate these timings to the whole fleet without re-measuring
+on a representative large app.
 
 ## What this drill did and did not prove
 

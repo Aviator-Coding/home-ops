@@ -577,8 +577,10 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
 
 **Did not prove:**
 
-- Restore of a large PVC. 2.06 GiB restored in under ~86s; `immich` (100Gi) and `syncthing-data`
-  (100Gi) will be substantially slower and should be measured, not extrapolated.
+- Restore of a large PVC. 2.06 GiB restored in under ~86s; `immich` (100Gi) will be
+  substantially slower and should be measured, not extrapolated. (`syncthing-data` was
+  100Gi at drill time; right-sized to 15Gi on 2026-08-31 — see
+  `kubernetes/apps/base/selfhosted/syncthing/app/README.md`.)
 - Restore of a CephFS / RWX claim. Both attempts covered `ceph-block`/RWO only.
 - `target.populator` mode against a real claim - the Stage 5 mechanism, deliberately out of scope.
 - Retention/pruning behaviour, `Maintenance`, or restore from any snapshot other than the newest

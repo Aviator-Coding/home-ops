@@ -90,16 +90,15 @@ Self device `JGKUDZA…` renamed from the stale pod name
 - Completing the sync still requires the captain to **accept the share in the
   Mac Syncthing UI** (manual, out of scope for GitOps)
 
-## Post-merge operational follow-up
+## Flux suspend during the resize window
 
-`selfhosted/syncthing` was **deliberately left suspended** until merge so Flux
-would not server-side-apply stale `main` (100Gi) back onto the live 15Gi PVC
-(legal silent grow that undoes the resize). While suspended, dependents
-`syncthing-data` and `syncthing-data-kopiur` may show `Ready=False` with
-`dependency revision not up to date` — expected, self-healing, no prune/data
-loss; clears when `syncthing` is resumed.
-
-**Immediately after merge:**
+While live `syncthing-data` was already 15Gi and git still declared 100Gi,
+`selfhosted/syncthing` was **deliberately suspended** so Flux would not
+server-side-apply a silent legal grow back to 100Gi. Dependents
+`syncthing-data` and `syncthing-data-kopiur` may show `Ready=False` /
+`dependency revision not up to date` in that window — expected, self-healing,
+no prune or data loss; clears when `syncthing` is resumed after this change is
+on `main`:
 
 ```bash
 flux resume kustomization syncthing -n selfhosted
@@ -107,6 +106,6 @@ flux resume kustomization syncthing -n selfhosted
 
 ## Remaining captain-side manual steps
 
-1. Accept each folder share on the Mac Syncthing UI.
-2. Pair a phone when camera-roll should have a source.
-3. Resume the Flux Kustomization (command above) if not already done post-merge.
+1. Accept each folder share on the Mac Syncthing UI (cluster already offers).
+2. Pair a phone when `camera-roll` should have a source.
+3. Resume the Flux Kustomization (command above) if it is still suspended.
