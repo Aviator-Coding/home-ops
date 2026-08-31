@@ -1,0 +1,270 @@
+{
+  "l6GR0HZk9": {
+    "_id": "l6GR0HZk9",
+    "allowGpuDoCpu": true,
+    "config": {
+      "apiKey": "",
+      "cronPluginUpdate": "",
+      "ffmpegPath": "",
+      "handbrakePath": "",
+      "logLevel": "INFO",
+      "maxLogSizeMB": 10,
+      "mkvpropeditPath": "",
+      "nodeID": "l6GR0HZk9",
+      "nodeName": "talos-3",
+      "nodeRegisteredCount": 0,
+      "nodeType": "mapped",
+      "pathTranslators": [
+        {
+          "node": "",
+          "server": ""
+        }
+      ],
+      "platform_arch_isdocker": "linux_x64_docker_true",
+      "pollInterval": 2000,
+      "priority": -1,
+      "processPid": 316,
+      "seededWorkerLimits": {
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 1,
+        "transcodegpu": 1
+      },
+      "serverIP": "tdarr.media.svc.cluster.local",
+      "serverPort": "8266",
+      "serverURL": "http://tdarr.media.svc.cluster.local:8266",
+      "startPaused": false,
+      "unmappedNodeCache": "/app/unmappedNodeCache"
+    },
+    "deleteCacheAnyStageError": true,
+    "gpuSelect": "-",
+    "librariesToNotProcess": {
+      "j5g_Es7sD": true
+    },
+    "maxGpuWorkers": 100,
+    "nodeEngine": "nodejs",
+    "nodeName": "talos-3",
+    "nodePaused": true,
+    "nodeTags": "mapped",
+    "priority": 0,
+    "processPriority": "normal",
+    "processes": {
+      "316": {
+        "execPath": "/app/Tdarr_Node/runtime/Tdarr_Node_Runtime",
+        "filename": "/app/Tdarr_Node/srcug/node/main.js",
+        "lastUpdateTime": 1788217205064,
+        "memory": {
+          "arrayBuffers": 1146174,
+          "external": 4852516,
+          "heapTotal": 28839936,
+          "heapUsed": 20240696,
+          "rss": 111509504
+        },
+        "pid": 316,
+        "ppid": 295
+      }
+    },
+    "protocolVersion": "socket.io-node-v1",
+    "queueLengths": {
+      "healthcheckcpu": 0,
+      "healthcheckgpu": 0,
+      "transcodecpu": 0,
+      "transcodegpu": 0
+    },
+    "remoteAddress": "10.42.1.98",
+    "resStats": {
+      "os": {
+        "cpuPerc": "7.10",
+        "memTotalGB": "94.0",
+        "memUsedGB": "41.3"
+      },
+      "process": {
+        "heapTotalMB": "27.5",
+        "heapUsedMB": "19.2",
+        "uptime": 201937
+      }
+    },
+    "schedule": [
+      {
+        "_id": "00-01",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "01-02",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "02-03",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "03-04",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "04-05",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "05-06",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "06-07",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "07-08",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "08-09",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "09-10",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "10-11",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "11-12",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "12-13",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "13-14",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "14-15",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "15-16",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "16-17",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "17-18",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "18-19",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "19-20",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "20-21",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "21-22",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "22-23",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      },
+      {
+        "_id": "23-00",
+        "healthcheckcpu": 1,
+        "healthcheckgpu": 1,
+        "transcodecpu": 0,
+        "transcodegpu": 1
+      }
+    ],
+    "scheduleEnabled": false,
+    "thoroughHealthCheckCpuExtraArgs": "",
+    "thoroughHealthCheckCpuExtraInputArgs": "",
+    "thoroughHealthCheckGpuExtraArgs": "",
+    "thoroughHealthCheckGpuExtraInputArgs": "",
+    "workerLimits": {
+      "healthcheckcpu": 1,
+      "healthcheckgpu": 1,
+      "transcodecpu": 1,
+      "transcodegpu": 1
+    },
+    "workers": {}
+  }
+}
