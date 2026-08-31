@@ -446,7 +446,7 @@ local time and shifts together with DST - the UTC instant moves, but the
 | r2 | `45 3 * * *` -> local 03:45 | `H 4 * * *` -> local **04:xx** | daily 30, weekly 12, monthly 12 |
 
 Resulting UTC hours for the ceph cadence, both seasons (identical across every
-namespace - `database/pgadmin` shown, all 29 dual-engine claims match):
+namespace - `database/pgadmin` shown, all 30 dual-engine claims match):
 
 | Season | VolSync ceph (UTC) | kopiur ceph (UTC) | Collision? |
 |---|---|---|---|

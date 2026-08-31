@@ -132,35 +132,73 @@ or `docs/backups/kopiur-restore-drill-2026-08-30.md` /
 `kubernetes/components/kopiur/Readme.md` for kopiur. `git revert` restores
 manifests only, never PVC contents.
 
+## Fleet backup coverage pin (31 → 30)
+
+Removing agentmemory's VolSync + kopiur configuration shrinks the fleet's
+parallel-run coverage set from **31 of 31** to **30 of 30** VolSync-protected
+claims. That pin is load-bearing for kopiur migration Stage 5 (per-volume
+VolSync retirement against exactly this set), so both sides were updated
+together:
+
+- `scripts/ci/kopiur-stage3-test.py` - `EXPECTED_IDENTITY` dropped
+  `("ai", "agentmemory")`, and the git-parsed `onboarded()` set shrank with
+  it (identical 30-entry sets after this change, not a dict-only edit).
+- Live pre-merge cluster still showed 31 `SnapshotPolicy`-covered
+  `(namespace, claim)` pairs including agentmemory - confirming this was the
+  only entry removed.
+- Authoritative live status prose updated in lockstep:
+  `kubernetes/components/kopiur/Readme.md`,
+  `kubernetes/apps/base/system/kopiur/README.md`,
+  `kubernetes/components/volsync/Readme.md` (30 Kustomizations / 90
+  `ReplicationSource`s), `AGENTS.md`, `docs/reference.md`,
+  `scripts/ci/README.md`.
+
+Separately, `scripts/ci/backup-silent-failure-alerting-test.py` still mentions
+a historical `31/31/31` VolSync `ReplicationSource` count from a live cluster
+confirmation on 2026-08-31. That docstring is a point-in-time record for an
+unrelated alerting-rule unit test that uses synthetic Prometheus series, not
+a live assertion tied to fleet size - left as-is on purpose; do not "fix"
+it to 30.
+
 ## Verified after removal
 
 - Repo-wide `grep -rn agentmemory` (excluding `.git/`) after this change hits
-  only: dated/historical decision records and incident logs that describe
-  *past* state accurately (`docs/ai-gpu-changelog.md`,
-  `docs/ai/b70-llm-serving-tuning.md`, `docs/ai/b70-second-card-decision.md`,
-  `docs/hardware-incidents.md`,
-  `docs/network/envoy-gateway-internal-domains-analysis-2026-07.md` - the last
-  already carries its own "do not treat as current" caveat and is in fact the
-  original 2026-07-04 record of the broken Gatus check this retirement makes
-  moot; `docs/ai-system/retired-2026-08-22.md` also names agentmemory once, in
-  its own Verification section, accurately describing the `ai` pod list as it
-  stood on 2026-08-22); live-infrastructure comments explaining *why* a still-standing
-  routing/exclusion decision was made, where agentmemory was the historical
-  example that motivated it but the config itself serves a broader purpose
-  (`kubernetes/apps/base/ai/agentgateway/app/{backends/vllm.yaml,httproute-unified.yaml,rules/cost.yaml}`,
-  `kubernetes/apps/main/ai/agentgateway.yaml` (a comment naming agentmemory as
-  one of several apps that share this Kustomization's 5m timeout value - never
-  a functional dependency, confirmed in the evaluation report section 1.2),
-  `kubernetes/apps/base/ai/litellm/app/httproute-internal.yaml`,
-  `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`,
-  `kubernetes/apps/base/network/envoy-gateway/app/prometheusrule.yaml`,
-  `kubernetes/apps/base/system/volsync/app/prometheusrule.yaml`,
-  `docs/ai-system/agentgateway/09-advanced-features.md`,
-  `docs/ai-system/litellm/fallbacks.md`); one dated measurement in
-  `kubernetes/components/volsync/Readme.md` ("29 dual-engine claims" at the
-  2026-08-31 DST-timezone fix, now 30) describing a fixed historical count,
-  not current state; this doc itself; and this change's own commit history.
-  None of these assert agentmemory is still deployed.
+  only three classes of residue - none assert the app is still deployed:
+  1. **Forward pointers** to this doc (current-state inventory that names the
+     retirement): `kubernetes/apps/base/ai/Readme.md`,
+     `kubernetes/apps/base/ai/hermes/README.md`,
+     `kubernetes/apps/base/ai/hermes/app/resources/config.yaml`,
+     `kubernetes/apps/base/ai/opencode/README.md`,
+     `kubernetes/apps/main/ai/kustomization.yaml`,
+     `docs/reference.md`, and this file.
+  2. **Dated/historical** decision records and incident logs describing *past*
+     state accurately: `docs/ai-gpu-changelog.md`,
+     `docs/ai/b70-llm-serving-tuning.md`, `docs/ai/b70-second-card-decision.md`,
+     `docs/hardware-incidents.md`,
+     `docs/network/envoy-gateway-internal-domains-analysis-2026-07.md` (carries
+     its own "do not treat as current" caveat; original 2026-07-04 record of
+     the broken Gatus check this retirement makes moot),
+     `docs/ai-system/retired-2026-08-22.md` (Verification section pod list as
+     of 2026-08-22). Dated dual-engine timezone measurements that still say
+     "29" (`kubernetes/components/volsync/Readme.md`,
+     `kubernetes/components/kopiur/Readme.md` DST-collision narrative) are
+     fixed historical counts from the 2026-08-31 timezone fix, not live fleet
+     size - live dual-engine coverage after this change is 30.
+  3. **Live-infrastructure comments** explaining *why* a still-standing
+     routing/exclusion decision was made, where agentmemory was the historical
+     example that motivated it but the config itself serves a broader purpose:
+     `kubernetes/apps/base/ai/agentgateway/app/{backends/vllm.yaml,httproute-unified.yaml,rules/cost.yaml}`,
+     `kubernetes/apps/main/ai/agentgateway.yaml` (5m Kustomization timeout
+     shared with other apps - never a functional dependency; evaluation report
+     section 1.2),
+     `kubernetes/apps/base/ai/litellm/app/httproute-internal.yaml`,
+     `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`,
+     `kubernetes/apps/base/network/envoy-gateway/app/prometheusrule.yaml`,
+     `kubernetes/apps/base/system/volsync/app/prometheusrule.yaml`,
+     `kubernetes/apps/base/ai/hermes/app/resources/config.yaml` (deepseek
+     consolidation model already trusted),
+     `docs/ai-system/agentgateway/09-advanced-features.md`,
+     `docs/ai-system/litellm/fallbacks.md`.
 - `kubectl -n ai get pod -l app.kubernetes.io/name=agentmemory` returns
   nothing once Flux reconciles this PR (pre-merge: still running, 8 OOM
   restarts, matching the evaluation report's model).
