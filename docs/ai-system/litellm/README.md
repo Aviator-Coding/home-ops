@@ -97,6 +97,70 @@ Nobody could find that lab result committed anywhere in the repo before the
 B4/D4 redeploy (see the scout report referenced in D4's decision trail) -
 this doc is that write-up.
 
+## Anthropic pass-through route (closed 2026-08-31)
+
+**Scope of this close: gateway/hostname path ONLY.** The
+`HTTPRouteFilter` on `litellm-internal` blocks
+`https://litellm.${SECRET_DOMAIN}/anthropic/...` (traffic that enters via
+`envoy-internal`). It does **not** cover the in-cluster Service DNS path
+`http://litellm.ai.svc.cluster.local:4000/anthropic/...` - the address
+ai-pr-review, opencode, and repo-wiki actually use. That Service path remains
+fully open and unallowlisted to any pod holding a valid virtual key, and can
+still fall back to the household `ANTHROPIC_API_KEY` through it. Closing the
+in-cluster path is a separate, not-yet-tracked follow-up decision; this change
+did not accomplish it.
+
+**Invariant: the subscription route must never reach a household-metered
+credential.** `claude-code-subscription`/`-opus` (app README
+["Claude Code subscription pass-through"](../../../kubernetes/apps/base/ai/litellm/README.md#claude-code-subscription-pass-through),
+detail in [`claude-code-subscription.md`](claude-code-subscription.md)) exist
+specifically so that a key scoped to them can never bill the household
+`ANTHROPIC_API_KEY`.
+That boundary is enforced by the model allow-list on `LiteLLMVirtualKey` - but
+LiteLLM also ships a **built-in** `/anthropic/{endpoint}` pass-through
+(`litellm/proxy/pass_through_endpoints/llm_passthrough_endpoints.py`,
+`anthropic_proxy_route`) that forwards ANY authenticated request straight to
+`https://api.anthropic.com`, resolving a server-side credential that falls
+back to `ANTHROPIC_API_KEY` when none is configured for the request. That
+route is registered unconditionally (`app.include_router(llm_passthrough_router)`
+in `proxy_server.py`, no `general_settings`/CRD gate, no `premium_user`
+check) and is **not** checked against a calling key's model allow-list the
+way `/v1/messages` and `/v1/chat/completions` are - so any valid virtual key
+on this proxy could in principle reach the metered household credential
+through it, which is exactly what the subscription-route invariant forbids.
+
+The **gateway hostname path** was closed in
+`kubernetes/apps/base/ai/litellm/app/httproute-internal.yaml` on 2026-08-31
+after confirming it had never been used, across three independent sources -
+`LiteLLM_SpendLogs` and `LiteLLM_DailyGatewayRequests` in Postgres, plus
+Prometheus's `litellm_proxy_total_requests_metric_total` `route` label (14d
+retention, live since this proxy's 2026-08-26 deployment) - all showing zero
+`/anthropic` traffic. A `PathPrefix` rule on that HTTPRoute returns a plain
+404 via an Envoy Gateway `HTTPRouteFilter` `directResponse` before the
+catch-all rule reaches the litellm backend, so the block is outside the proxy
+entirely and needs no proxy restart or config change to take effect. Again:
+only traffic via `https://litellm.${SECRET_DOMAIN}` is blocked; Service DNS
+and port-forward remain open (see scope above).
+
+**Why the gateway and not `config.yaml`:** verified against the running
+v1.98.0 image (see the route registration above) that LiteLLM has no
+configuration surface - no `general_settings` key, no env var, no
+`LiteLLMProxy` CRD field - that disables this specific built-in route. The
+`generalSettings`/`extraConfig` fields on the CRD pass through to
+`config.yaml` verbatim, but there is nothing in that file for LiteLLM itself
+to set. The gateway is therefore the narrowest layer that actually closes the
+hostname-routed path; it was never claimed to close the Service path.
+
+**Re-opening the gateway block deliberately:** delete (or comment out) the
+`/anthropic` rule and its `HTTPRouteFilter` in `httproute-internal.yaml` - a
+single revert restores the hostname route exactly as it was, with nothing else
+on this HTTPRoute or any other route affected. Before doing so, either give
+the pass-through a scoped credential of its own (`ANTHROPIC_API_BASE`/a
+dedicated key, so it cannot fall back to the household `ANTHROPIC_API_KEY`)
+or otherwise re-establish that no virtual key with access to it can reach a
+household-metered credential - re-opening it without that check silently
+recreates this hole on the gateway path (the Service path was never closed).
+
 ## Why Postgres
 
 LiteLLM has **no config-file-only way to declare a virtual key with a budget

@@ -33,6 +33,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `litellm-auto-router-test.py` | D3 complexity-tier auto-router config |
 | `litellm-claude-code-subscription-test.py` | Claude Code Max/Pro subscription pass-through |
 | `litellm-fallback-chain-test.py` | Phase 5 LiteLLM availability/context fallback chains |
+| `litellm-anthropic-passthrough-test.py` | Gateway-level close of LiteLLM `/anthropic` pass-through (HTTPRouteFilter directResponse 404, catch-all backend preserved) |
 | `litellm-pr-reviewer-test.py` | AI PR reviewer workflow + `pr-review-local` / `ai-pr-review` D4 contracts |
 | `litellm-request-logs-test.py` | full prompt/response capture in LiteLLM spend logs |
 | `litellm-sso-test.py` | LiteLLM UI SSO through Authentik |
