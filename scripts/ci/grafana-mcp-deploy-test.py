@@ -66,7 +66,6 @@ ACTIVE_SERVERS = frozenset(
         "grafana-mcp",
         "kubectl",
         "kubesearch",
-        "memory",
     }
 )
 DEACTIVATED_SERVERS = frozenset(
