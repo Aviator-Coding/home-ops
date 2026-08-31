@@ -224,16 +224,17 @@ a second door into the metered Anthropic models.
 It is also **the only key in that directory with no `maxBudget`**, deliberately:
 per §4 its model is priced at $0, so any budget could never trip and would read
 as protection that does not exist. `rpmLimit` / `tpmLimit` on that CR are
-therefore the whole guardrail (currently `300` / `7500000`, raised 2026-08-30
-after measured proxy 429s at the old `10` / `250000` ceilings - sizing comment
-and evidence live on the CR). These numbers are a runaway-agent guardrail, not
-a throughput target: the real ceiling is Anthropic's own rate limiting against
-the caller's personal subscription, which this proxy neither sees nor can raise.
-Raise those two numbers if a normal session 429s at the proxy; there is no
-budget to raise, and nothing in that file changes what the subscription is
-charged. The `LiteLLMVirtualKey` is server-side state reconciled by
-litellm-operator, so a limit change only takes effect on the live key after
-merge + operator reconcile.
+therefore the whole guardrail - current values, sizing history, and the
+captain's call that today's ceilings are no longer a meaningful runaway-agent
+guardrail all live on the CR itself (do not restate them here). Git is the
+source of truth for those numbers; the LiteLLM UI is not - a live UI edit is
+reverted on the next operator reconcile unless the CR is updated first. The
+real ceiling the proxy cannot see or raise is Anthropic's own rate limiting
+against the caller's personal subscription. There is no budget to raise, and
+nothing in that file changes what the subscription is charged. The
+`LiteLLMVirtualKey` is server-side state reconciled by litellm-operator, so a
+limit change only takes effect on the live key after merge + operator
+reconcile.
 
 The operator mints the key into a Secret and a `PushSecret` mirrors it to
 1Password (`litellm-consumer-claude-code-subscription`). Read it from either:
