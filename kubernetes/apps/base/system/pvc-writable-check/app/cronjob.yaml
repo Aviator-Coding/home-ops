@@ -126,8 +126,38 @@ spec:
                   SKIPPED_NAMESPACE_EXCLUDED=0
                   SKIPPED_NOT_RUNNING=0
                   SKIPPED_NO_EXEC_TOOL=0
+                  SKIPPED_RBAC=0
                   SKIPPED_TRANSIENT=0
                   declare -a FAILURES=()
+
+                  # Classify a non-zero kubectl-exec outcome. kubectl-level
+                  # errors are inconclusive (never failure); only a clean
+                  # test -w exit 1 with no API/client error text is genuine.
+                  # Prints: rbac | transient | failure
+                  classify_exec_failure() {
+                    local rc="$1" out="$2"
+                    # timeout(1) 124; SIGKILL 137; SIGTERM 143 - the wrapper
+                    # killed kubectl before test -w could answer.
+                    case "${rc}" in
+                      124|137|143) echo transient; return ;;
+                    esac
+                    # Missing RoleBinding / SA drift: API-server Forbidden on
+                    # pods/exec. Distinct from generic transient so log readers
+                    # can spot RBAC coverage gaps without paging as a volume bug.
+                    if grep -qiE 'Error from server \(Forbidden\)|is forbidden:|cannot create resource "pods/exec"|pods/exec' <<<"${out}"; then
+                      echo rbac
+                      return
+                    fi
+                    # client-go "Error from server (...)", kubectl "error:", and
+                    # the common mid-sweep connection phrases. Case-insensitive:
+                    # live Forbidden/NotFound wording is capital-E "Error from
+                    # server", which a ^error: anchor alone misses.
+                    if grep -qiE '^error:|error from server|cannot exec into a container|unable to upgrade connection|container not found' <<<"${out}"; then
+                      echo transient
+                      return
+                    fi
+                    echo failure
+                  }
 
                   while IFS=$'\t' read -r ns pod container claim mountpath running; do
                     [[ -z "${ns}" ]] && continue
@@ -202,33 +232,41 @@ spec:
                         echo "SKIP  (no shell or test binary)    ${ns}/${pod} [${container}] ${mountpath} (claim=${claim})"
                         SKIPPED_NO_EXEC_TOOL=$((SKIPPED_NO_EXEC_TOOL + 1))
                         continue
-                      elif grep -qE '^error:|cannot exec into a container|unable to upgrade connection|container not found' <<<"${OUT2}"; then
-                        echo "SKIP  (exec unavailable, transient) ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT2}"
-                        SKIPPED_TRANSIENT=$((SKIPPED_TRANSIENT + 1))
-                        continue
-                      else
-                        echo "NOT WRITABLE                       ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT2}"
-                        FAILURES+=("${ns}/${claim} (pod ${pod}, container ${container}, path ${mountpath})")
-                        continue
                       fi
-                    fi
-
-                    # Awkward case: the pod existed a moment ago but is being
-                    # deleted/rescheduled right now, or some other transient
-                    # API-server/kubelet exec error. Any kubectl-level error
-                    # we don't specifically recognize is treated as
-                    # inconclusive, never as a failure - the one thing that
-                    # counts as a genuine failure is a clean process exit with
-                    # code 1 and no such error prefix, which is exactly what
-                    # `test -w` prints when it ran fine and said no.
-                    if grep -qE '^error:|cannot exec into a container|unable to upgrade connection|container not found' <<<"${OUT}"; then
-                      echo "SKIP  (exec unavailable, transient) ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT}"
-                      SKIPPED_TRANSIENT=$((SKIPPED_TRANSIENT + 1))
+                      case "$(classify_exec_failure "${RC2}" "${OUT2}")" in
+                        rbac)
+                          echo "SKIP  (pods/exec forbidden, RBAC)  ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT2}"
+                          SKIPPED_RBAC=$((SKIPPED_RBAC + 1))
+                          ;;
+                        transient)
+                          echo "SKIP  (exec unavailable, transient) ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT2}"
+                          SKIPPED_TRANSIENT=$((SKIPPED_TRANSIENT + 1))
+                          ;;
+                        *)
+                          echo "NOT WRITABLE                       ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT2}"
+                          FAILURES+=("${ns}/${claim} (pod ${pod}, container ${container}, path ${mountpath})")
+                          ;;
+                      esac
                       continue
                     fi
 
-                    echo "NOT WRITABLE                       ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT}"
-                    FAILURES+=("${ns}/${claim} (pod ${pod}, container ${container}, path ${mountpath})")
+                    # kubectl-level / timeout errors are inconclusive, never
+                    # failure. Genuine unwritable is only a clean test -w exit
+                    # (typically RC=1, empty or non-matching OUT).
+                    case "$(classify_exec_failure "${RC}" "${OUT}")" in
+                      rbac)
+                        echo "SKIP  (pods/exec forbidden, RBAC)  ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT}"
+                        SKIPPED_RBAC=$((SKIPPED_RBAC + 1))
+                        ;;
+                      transient)
+                        echo "SKIP  (exec unavailable, transient) ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT}"
+                        SKIPPED_TRANSIENT=$((SKIPPED_TRANSIENT + 1))
+                        ;;
+                      *)
+                        echo "NOT WRITABLE                       ${ns}/${pod} [${container}] ${mountpath} (claim=${claim}) - ${OUT}"
+                        FAILURES+=("${ns}/${claim} (pod ${pod}, container ${container}, path ${mountpath})")
+                        ;;
+                    esac
                   # Process substitution, not a `<<<` here-string: same
                   # temp-file concern as above (ROWS is small today, but this
                   # keeps the whole script free of a construct that silently
@@ -239,7 +277,7 @@ spec:
                   echo ""
                   echo "pvc-writable-check: sweep finished at $(date -u +%FT%TZ)"
                   echo "  candidates=${CANDIDATES} checked=${CHECKED} writable=${WRITABLE}"
-                  echo "  skipped_namespace_excluded=${SKIPPED_NAMESPACE_EXCLUDED} skipped_not_running=${SKIPPED_NOT_RUNNING} skipped_no_exec_tool=${SKIPPED_NO_EXEC_TOOL} skipped_transient=${SKIPPED_TRANSIENT}"
+                  echo "  skipped_namespace_excluded=${SKIPPED_NAMESPACE_EXCLUDED} skipped_not_running=${SKIPPED_NOT_RUNNING} skipped_no_exec_tool=${SKIPPED_NO_EXEC_TOOL} skipped_rbac=${SKIPPED_RBAC} skipped_transient=${SKIPPED_TRANSIENT}"
                   echo "  not_writable=${#FAILURES[@]}"
 
                   if [[ ${#FAILURES[@]} -gt 0 ]]; then

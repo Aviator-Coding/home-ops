@@ -164,7 +164,9 @@ Two ways, in order of preference:
 | Scaled-to-zero apps | Discovery is pod-driven: a claim with no running pod produces zero rows. |
 | CronJob-owned claims that only exist briefly | Same mechanism / container-running filter; mid-check exits land in the transient-error branch. |
 | Claims with no pod at all (orphaned) | No row, no mention - this check is about workloads, not claims. |
-| A pod being deleted/rescheduled mid-check, or any other kubectl/API-level exec error | Pattern-matched and logged as `SKIP (exec unavailable, transient)`, never as a failure. Only a clean process exit with code 1 and none of those error prefixes counts as `NOT WRITABLE`. |
+| A pod being deleted/rescheduled mid-check, timeout killing kubectl (RC 124/137/143), or any other kubectl/API-level exec error | Classified via shared `classify_exec_failure`: matches case-insensitive `error:` / `Error from server (...)` and known connection phrases, plus timeout/signal RCs, as `SKIP (exec unavailable, transient)`. Never a failure. |
+| Namespace missing its `pvc-writable-check-exec` RoleBinding (reconcile lag after a new NS) | Same classifier; API-server `Forbidden` / `pods/exec` denial is `SKIP (pods/exec forbidden, RBAC)` with its own counter so coverage drift is visible in logs without paging as a volume bug. |
+| Genuine unwritable mount | Only a clean `test -w` exit (typically RC=1 with empty/non-matching output) counts as `NOT WRITABLE`. |
 | Multiple containers/mounts on the same claim | Tested independently per (pod, container, mountPath) tuple. |
 
 ## Measured against the live cluster (2026-08-30/31, re-measured after RBAC narrow)
