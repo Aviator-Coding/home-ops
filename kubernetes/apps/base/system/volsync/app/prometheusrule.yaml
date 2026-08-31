@@ -27,3 +27,102 @@ spec:
           for: 5m
           labels:
             severity: critical
+
+        # Stuck-sync detector. A ReplicationSource wedged mid-sync reports
+        # Synchronizing=True/SyncInProgress, which is INDISTINGUISHABLE from
+        # one legitimately mid-sync - measured live on ai/opencode-ceph/-minio
+        # 2026-08-31 (staged RBD devices corrupted by an fsck error, mover
+        # pods stuck Init:0/2 for 8h+/12h+). volsync_volume_out_of_sync does
+        # NOT cover this: the mover never got far enough to compare
+        # checksums, so the volume was never marked out of sync.
+        #
+        # VolSync also exports volsync_missed_intervals_total ("failed to
+        # complete before the next scheduled start"), which sounds like
+        # exactly this signal - but measured live against the stuck
+        # ai/opencode ReplicationSources over the preceding 24h it stayed
+        # flat at 0 throughout, so it does not fire for this failure mode
+        # and cannot be relied on. volsync_sync_duration_seconds is a
+        # SUMMARY recorded only once a sync COMPLETES, so it has nothing for
+        # an in-progress sync either. That leaves one usable approach: no
+        # completed sync in a window sized to that destination's own
+        # schedule, via increase(..._count[window]) == 0.
+        #
+        # Schedules differ per destination (ceph 4h / minio 6h / r2 daily,
+        # kubernetes/components/volsync/Readme.md), so one fixed window
+        # either misses the daily r2 syncs or flaps on the frequent ceph
+        # ones - hence 3 rules below, one per destination suffix, instead of
+        # one rule for all. Measured real inter-completion gaps across the
+        # healthy fleet over the preceding 7-14 days (repo-wiki/hermes/
+        # agentmemory/sabnzbd/matter-server): ceph 3.92-4.08h (one outlier
+        # 11.17h on 2026-08-23, isolated, self-recovered - a real rule would
+        # also have fired during that window, which is correct: a backup
+        # that hasn't run in over 6h is worth surfacing regardless of
+        # cause), minio 5.92-6.08h, r2 20-24h (one outlier 48h on
+        # downloads/lidarr-r2 - same reasoning). Each window below is 1.5x
+        # the nominal schedule: far clear of routine jitter (<2% of
+        # interval) while still catching a stuck sync within one extra
+        # missed cycle.
+        #
+        # Verified live 2026-08-31: fires for ai/opencode-ceph (no
+        # completion in 6h) and ai/opencode-minio (no completion in 9h);
+        # silent for ai/opencode-r2 (not yet due) and for every other
+        # claim on the fleet, including a re-measured downloads/recyclarr
+        # (succeeds daily - this rule reads VolSync's own Prometheus
+        # counters, never Kubernetes Job history, so it is unaffected by
+        # recyclarr's own unrelated successfulJobsHistoryLimit: 0 CronJob
+        # quirk).
+        #
+        # The `and on (obj_namespace, pvc) kube_persistentvolumeclaim_info`
+        # join guards a separately-discovered exporter leak: volsync-metrics
+        # keeps serving a fresh-timestamped series for a ReplicationSource
+        # whose CR (and PVC) were deleted, until the volsync pod itself
+        # restarts. Measured live on media/jellyfin-ceph (app retired
+        # 2026-08-30): its CR is gone but its zero-completions series is
+        # still scraped and would otherwise alert forever. label_replace
+        # aligns obj_name's "<pvc>-<dest>" shape against
+        # kube_persistentvolumeclaim_info's real, live PVC inventory so a
+        # deleted app's leaked series can never match.
+        - alert: VolSyncSyncStalledCeph
+          expr: |-
+            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ceph$"}[6h]), "pvc", "$1", "obj_name", "(.+)-ceph$") == 0
+            and on (obj_namespace, pvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "pvc", "$1", "persistentvolumeclaim", "(.+)")
+          for: 5m
+          annotations:
+            summary: >-
+              {{ $labels.obj_namespace }}/{{ $labels.obj_name }} has had no
+              completed VolSync sync in over 6h (1.5x its 4h ceph schedule).
+              Its ReplicationSource may still read Synchronizing=True the
+              whole time, which looks identical to a healthy mid-sync. Check
+              `kubectl -n {{ $labels.obj_namespace }} describe
+              replicationsource {{ $labels.obj_name }}` for a wedged mover pod.
+          labels:
+            severity: critical
+
+        - alert: VolSyncSyncStalledMinio
+          expr: |-
+            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-minio$"}[9h]), "pvc", "$1", "obj_name", "(.+)-minio$") == 0
+            and on (obj_namespace, pvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "pvc", "$1", "persistentvolumeclaim", "(.+)")
+          for: 5m
+          annotations:
+            summary: >-
+              {{ $labels.obj_namespace }}/{{ $labels.obj_name }} has had no
+              completed VolSync sync in over 9h (1.5x its 6h minio schedule).
+              Check `kubectl -n {{ $labels.obj_namespace }} describe
+              replicationsource {{ $labels.obj_name }}` for a wedged mover pod.
+          labels:
+            severity: critical
+
+        - alert: VolSyncSyncStalledR2
+          expr: |-
+            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-r2$"}[36h]), "pvc", "$1", "obj_name", "(.+)-r2$") == 0
+            and on (obj_namespace, pvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "pvc", "$1", "persistentvolumeclaim", "(.+)")
+          for: 5m
+          annotations:
+            summary: >-
+              {{ $labels.obj_namespace }}/{{ $labels.obj_name }} has had no
+              completed VolSync sync in over 36h (1.5x its daily r2
+              schedule). Check `kubectl -n {{ $labels.obj_namespace }}
+              describe replicationsource {{ $labels.obj_name }}` for a
+              wedged mover pod.
+          labels:
+            severity: critical

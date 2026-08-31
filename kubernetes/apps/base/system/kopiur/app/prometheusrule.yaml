@@ -93,3 +93,57 @@ spec:
           for: 1h
           labels:
             severity: critical
+
+        # MOVER-READABILITY, PART 2: a snapshot that succeeded while moving
+        # nothing. Snapshot CRs carry a positive-only SecurityContextCompatible
+        # condition ("the mover's uid exactly matches every workload writing
+        # the source PVC") - but it is NOT exported to Prometheus at all
+        # (checked: kopiur_resource_phase and every other kopiur_* series
+        # carry no condition/message detail, only kind/name/phase). That is
+        # the finding for that half of the ask.
+        #
+        # It is a smaller gap than it looks, though: kopiur "fails closed
+        # rather than writing a partial snapshot" (kubernetes/components/
+        # kopiur/Readme.md) - a real uid mismatch does not slip through as a
+        # quiet Succeeded/SecurityContextCompatible=absent snapshot, it
+        # drives the Snapshot CR to phase=Failed. That consequence is
+        # already caught by three alerts the kopiur chart itself ships in
+        # the SAME "kopiur.rules" group this file supplements
+        # (kubernetes/apps/base/system/kopiur/app/helmrelease.yaml,
+        # monitoring.prometheusRule.enabled: true): KopiurSnapshotFailed
+        # (kopiur_resource_phase{kind="Snapshot",phase="Failed"}==1, 10m),
+        # KopiurLastBackupFailed (kopiur_snapshotpolicy_last_backup_success
+        # ==0, 10m), and KopiurBackupConsecutiveFailures
+        # (kopiur_snapshot_consecutive_failures>=3, 15m). Confirmed against
+        # real history: downloads/sabnzbd-ceph's uid mismatch (fixed
+        # 2026-08-30, see CLAUDE.md Stage 3 trap 0) left exactly one
+        # kopiur_snapshots_completed_total{result="failed"} sample, i.e. it
+        # would have tripped KopiurLastBackupFailed at the time. So no new
+        # rule was added for "SecurityContextCompatible==False or absent" -
+        # it would duplicate coverage that already exists and already routes
+        # the same way as every other backup alert.
+        #
+        # What genuinely was not covered: a Succeeded snapshot that moved
+        # zero files - the exact downloads/autobrr Stage 1 shape (a passing
+        # gate on an empty volume). kopiur exports only a CUMULATIVE file
+        # count per snapshot (new+modified+unchanged combined,
+        # kopiur_policy_last_backup_files/kopiur_snapshot_files - "only when
+        # at least one category is recorded", no filesNew/bytesNew delta
+        # breakdown exists to alert on "moved nothing new" specifically), so
+        # this alerts on the narrower but unambiguous case below instead.
+        # Verified live 2026-08-31: all 18 policies with a completed backup
+        # report > 0 files (autobrr-ceph itself is now 1, since its
+        # write-access fix), so this rule is silent on the current fleet.
+        - alert: KopiurBackupEmpty
+          expr: |
+            kopiur_policy_last_backup_files == 0
+          for: 15m
+          annotations:
+            summary: >-
+              The latest succeeded kopiur backup for {{ $labels.namespace }}/
+              {{ $labels.policy }} contains zero files - the source volume
+              was empty or entirely unreadable when the snapshot ran, the
+              same shape of failure that let downloads/autobrr's Stage 1
+              gate pass on an empty volume.
+          labels:
+            severity: warning
