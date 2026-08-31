@@ -27,8 +27,12 @@ This component only declares what to back up.
 > and re-owning the volume to match removed the need for a `0:1000` mover
 > entirely - so it onboarded with no `KOPIUR_PUID`/`PGID` override, no component
 > change, and no namespace-wide privileged-mover grant. **Being onboarded is not the same as being
-> proven** - a per-volume restore has been demonstrated only for
-> `sabnzbd-config`. Stage 2's restore gate **passed** on 2026-08-30:
+> proven** - a per-volume restore has been demonstrated for exactly two claims,
+> `sabnzbd-config` (Stage 2) and `changedetection-config` (Stage 4: kopia
+> snapshot `c1127a61`, 3058 files / 36,993,597 B restored into a scratch PVC,
+> per-file sha256 manifest identical to live, and modes reproduced exactly -
+> 2292x`600`, 565x`644`, 197x`660`, 4x`664` - where the VolSync restore of the
+> same volume returns `660`/`664` because it stages writable). Stage 2's restore gate **passed** on 2026-08-30:
 > [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 > - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
 > 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 29
