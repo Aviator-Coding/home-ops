@@ -69,10 +69,11 @@ litellmSettings:
   model_group_settings:
     forward_client_headers_to_llm_api:
       - claude-code-subscription
+      - claude-code-subscription-opus
 ```
 
-That is the supported way to scope it to this model alone. We need neither
-today.
+That is the supported way to scope it to these two models alone. We need
+neither today.
 
 ---
 

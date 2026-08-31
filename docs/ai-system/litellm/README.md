@@ -35,11 +35,14 @@ budgets.
 `chat-ha` / `ha-demo` entitlement split, alert expressions, the internal route
 decision, and the post-merge failover runbook. Do not restate those facts here.
 
-**Claude Code Max/Pro subscription pass-through** (captain request 2026-08-27)
-lives in [`claude-code-subscription.md`](claude-code-subscription.md): the one
-model the proxy holds no credential for, the deliberate non-use of
+**Claude Code Max/Pro subscription pass-through** (captain request 2026-08-27;
+Opus CR 2026-08-30) lives in
+[`claude-code-subscription.md`](claude-code-subscription.md): the two models
+the proxy holds no credential for (`claude-code-subscription` +
+`claude-code-subscription-opus`), the deliberate non-use of
 `forward_client_headers_to_llm_api`, `$0` pricing / no-`maxBudget` key shape,
-and the client runbook. Do not restate those facts here.
+the client-side `ANTHROPIC_DEFAULT_*_MODEL` contract, and the client runbook.
+Do not restate those facts here.
 
 **Full request/response logging** (captain request 2026-08-27) lives in
 [`request-logs.md`](request-logs.md): the `store_prompts_in_spend_logs`
