@@ -293,7 +293,7 @@ drift trap in `AGENTS.md`).
 
 ## Daily Timeline Example
 
-With per-app schedules (31 Flux Kustomizations include this component).
+With per-app schedules (30 Flux Kustomizations include this component).
 Times are America/New_York local (see [Timezone: VolSync vs kopiur](#timezone-volsync-vs-kopiur)):
 
 ```
@@ -429,7 +429,7 @@ schedule: "0 2 * * *"
 
 ## Application Schedule Distribution
 
-31 Flux Kustomizations include `components/volsync` (93 `ReplicationSource`s).
+30 Flux Kustomizations include `components/volsync` (90 `ReplicationSource`s).
 Schedules are staggered but **not unique** (several apps share the same minute).
 Do not assume a 2-3 app cap on simultaneous Ceph backups. Regenerated from
 `rg 'components/volsync' kubernetes/apps` plus each overlay yaml's `VOLSYNC_SCHEDULE_*`

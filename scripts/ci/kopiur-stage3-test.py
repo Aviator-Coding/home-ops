@@ -8,7 +8,7 @@ here, and no VolSync object is touched. Retirement is Stage 5 and needs a
 per-volume restore proof first.
 
 No remaining deferred claims: Stage 4 onboarded both previously deferred
-volumes, so kopiur is live on 31 of 31 VolSync-protected claims (alongside
+volumes, so kopiur is live on 30 of 30 VolSync-protected claims (alongside
 untouched VolSync). This test pins the fleet coverage set and measured mover
 identities; Stage 4 root-mover / GitOps annotation specifics for
 `home-automation/matter-server` live in `kopiur-stage4-test.py`.

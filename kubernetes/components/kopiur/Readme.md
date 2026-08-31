@@ -8,8 +8,8 @@ Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stage 4 complete.** kopiur is live on **all 31 of the
-> fleet's 31** VolSync-protected claims - zero deferred. Stage 3 (2026-08-30)
+> **Migration status: Stage 4 complete.** kopiur is live on **all 30 of the
+> fleet's 30** VolSync-protected claims - zero deferred. Stage 3 (2026-08-30)
 > onboarded namespace by namespace; Stage 4 (2026-08-31) added both remaining
 > claims. **Both engines run on every volume** - every VolSync source is still
 > live, nothing has been retired, and retirement is Stage 5, which needs a
@@ -51,7 +51,7 @@ This component only declares what to back up.
 > measure it through: `downloads/recyclarr-config` (2026-08-31) - see
 > "SecurityContextCompatible" below. It still needs its own restore-fidelity drill before
 > Stage 5, same as every other claim in this table.
-> Do not read the 31 onboardings as fleet-wide backup verification; Stage 5
+> Do not read the 30 onboardings as fleet-wide backup verification; Stage 5
 > still needs a per-volume restore proof before retiring VolSync.
 > `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's
 > files, or the backup fails outright on any file lacking a world-read bit
