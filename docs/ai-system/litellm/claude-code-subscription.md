@@ -205,10 +205,10 @@ two prices above are not the whole job:** prompt-cache pricing has its own
 fields, and until they were zeroed too they carried essentially the entire
 recorded bill (§4a). With the full set declared, recorded spend really is $0,
 so a `maxBudget` can never trip and would read as protection that does not
-exist. As of 2026-08-31 the calling key also carries no `rpmLimit`/`tpmLimit`
-(§4b) - this model may only be granted on a key with **no local ceiling at
-all**. The true ceiling is, and always was, Anthropic's own subscription rate
-limiting.
+exist. As of 2026-08-31 the dedicated calling key also carries no
+`rpmLimit`/`tpmLimit` and currently has no local ceiling at all (§4b); do not
+put these models on a budget-gated metered key. The true money ceiling is, and
+always was, Anthropic's own subscription rate limiting.
 
 ### 4a. The `$0` needs the CACHE price fields too (fixed 2026-08-31)
 
