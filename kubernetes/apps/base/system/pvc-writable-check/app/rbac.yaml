@@ -1,0 +1,41 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pvc-writable-check
+---
+# Cluster-wide by design: the whole point of this check is to cover every
+# PVC-mounting workload without a hand-maintained namespace list (a Role +
+# RoleBinding per namespace would just move the "someone has to remember to
+# add it" problem from an app list to a namespace list). That means this is
+# the only ServiceAccount in the repo with a cluster-wide `pods/exec: create`
+# grant - equivalent to arbitrary command execution in any pod, cluster-wide.
+# Accepted tradeoff, not an oversight: see the "Why cluster-wide exec" section
+# in ../README.md for the full argument and the mitigations in place
+# (get/list is the only other verb granted, the exec target command is never
+# built from untrusted input, the container is hardened, and no other
+# workload references this ServiceAccount or its token).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pvc-writable-check
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pvc-writable-check
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-writable-check
+subjects:
+  - kind: ServiceAccount
+    name: pvc-writable-check
+    namespace: system
