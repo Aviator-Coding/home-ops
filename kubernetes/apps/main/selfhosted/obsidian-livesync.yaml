@@ -40,18 +40,31 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      APP_UID: "5984"
-      APP_GID: "5984"
       VOLSYNC_CLAIM: obsidian-livesync
       VOLSYNC_CAPACITY: 2Gi
       VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "15 4 * * *"
+      # APP_UID/APP_GID deliberately absent - see changedetection.yaml for the
+      # precedent. No manifest in this repo reads either variable.
+      #
       # LOAD-BEARING. CouchDB runs as 5984:5984 (pod securityContext
-      # 5984:5984:5984) and owns all 13 entries on this volume as 5984:5984.
-      # Measured 2026-08-30: the default of 1000 happens to read this volume
-      # today, but the mover is matched to the workload that owns the files so
-      # a restore reproduces the ownership CouchDB expects.
+      # 5984:5984:5984, reconfirmed live 2026-08-31) and owns all 8 files on
+      # this volume as 5984:5984. Both movers are now pinned to 5984:5984,
+      # matching KOPIUR_PUID/PGID below. VOLSYNC_PUID/PGID were added
+      # 2026-08-31: the 2026-08-30 audit had already found and documented that
+      # the VolSync mover ran at the unmatched 1000:1000 component default and
+      # only "happens to read this volume" - every file is mode 644/755, so a
+      # uid-1000 mover can read them despite not owning them, purely by luck of
+      # permissive modes. That is the identical shape of latent trap that
+      # caused the changedetection defect (a declared/enforced split nobody
+      # closed), so it is fixed here rather than left as documented-but-live
+      # drift. Verified safe before applying: 5984:5984 already owns 100% of
+      # the volume's files (VolSync's own backup log independently confirms
+      # "processed 8 files" against the live claim), so this mover identity
+      # change can only gain read access, never lose it.
+      VOLSYNC_PUID: "5984"
+      VOLSYNC_PGID: "5984"
       KOPIUR_PUID: "5984"
       KOPIUR_PGID: "5984"
       # Namespace r2 hour. The component default (`H 4 * * *`) is especially
