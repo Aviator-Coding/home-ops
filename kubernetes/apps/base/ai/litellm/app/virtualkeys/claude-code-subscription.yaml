@@ -8,45 +8,93 @@
 # a caller wanting those needs a key that says so, priced against a real
 # budget.
 #
-# THE ONLY KEY HERE WITH NO `maxBudget`, AND THAT IS DELIBERATE, NOT AN
-# OVERSIGHT. The model CRs are priced at an explicit $0 on EVERY field - input,
-# output, and the five prompt-cache fields (see each CR's `info.extra` header;
-# zeroing only input/output left ~$54 of fictional recorded spend on this key
-# until 2026-08-31, because Claude Code's cost is almost entirely cache). With
-# the full set declared, recorded spend is $0.00 and any maxBudget could never
-# trip - a cap that cannot fire reads as protection that does not exist. Rate
-# limits are the real guardrail here, which is why both are set and neither
-# should be dropped. If a future change ever drops one of those cache zeros,
-# recorded spend starts climbing again and a budget added in response would
-# then lock the key out on dollars nobody is invoiced.
+# THE ONLY KEY HERE WITH NO `maxBudget`, AND - AS OF 2026-08-31 - NO
+# `rpmLimit`/`tpmLimit` EITHER. THIS KEY HAS NO LOCAL CEILING AT ALL, AND THAT
+# IS DELIBERATE, NOT AN OVERSIGHT.
 #
-# Sizing history: raised from 10 rpm / 250000 tpm to 300 rpm / 7500000 tpm on
-# 2026-08-30 after measured rate-limiting - LiteLLM logs showed ~556
-# request-limit 429s and ~171 token-limit 429s in 24 hours at the old values
-# ("Limit type: requests. Current limit: 10" and "Limit type: tokens. Current
-# limit: 250000"), both of which presented to the client as timeouts, since a
-# throttled request that retries looks like a hang rather than an explicit
-# 429. Both numbers had to move together: Claude Code's agentic loop issues
-# several requests per human turn (each tool call is its own round trip, so
-# request count tracks tool use, not typing speed) and each of those requests
-# can carry a large context (50-200k tokens), so raising rpm alone without a
-# proportional tpm increase just re-throttles at the token ceiling instead -
-# 7500000 preserved the same tokens-per-request headroom the key had at
-# 10 rpm / 250000 tpm.
+# No budget: the model CRs are priced at an explicit $0 on EVERY field - input,
+# output, and the five prompt-cache fields (see each CR's `info.extra` header).
+# With the full set declared, recorded spend is $0.00 and any maxBudget could
+# never trip - a cap that cannot fire reads as protection that does not exist.
 #
-# The captain then raised both again, directly in the LiteLLM UI, to
-# 3000 rpm / 750000000 tpm. This file is being updated to match that live
-# state so Git is the source of truth and the operator does not silently
-# revert the captain's change on its next reconcile - the UI is NOT the
-# source of truth; any future change to these numbers belongs here, in Git.
+# No rate limits (captain decision, 2026-08-31): firstmate measured usage
+# across all 212 minutes this key had ever been active before the removal -
 #
-# Caveat, stated rather than solved here: at 750000000 tpm these limits are
-# no longer a meaningful runaway-agent guardrail, which is the whole reason
-# rate limits exist on this budget-less key (see above). That is the
-# captain's call and it stands. The real ceiling is now Anthropic's own rate
-# limiting against the caller's personal subscription, which this proxy
-# neither sees nor can raise - and unlike the guardrail these numbers used to
-# provide, that ceiling was never something this file controlled anyway.
+#   | metric        | observed              | old limit   | headroom |
+#   |----------------|-----------------------|-------------|----------|
+#   | requests/min   | peak 70, p99 60       | 3000        | 43x      |
+#   | tokens/min     | peak 2,808,629        | 750000000   | 267x     |
+#
+# - and the captain chose to drop both rather than keep chasing a number that
+# was never actually load-bearing. The real ceiling was always Anthropic's own
+# rate limiting against the caller's personal subscription (this proxy neither
+# sees nor can raise it), so `rpmLimit`/`tpmLimit` were only ever a
+# runaway-agent guardrail against a local bug, and 43x/267x measured headroom
+# means they had already stopped being one. Enforcement now lives entirely
+# upstream, on Anthropic's side.
+#
+# Sizing history, kept for context: 10 rpm / 250000 tpm at creation (2026-08-27)
+# -> 300 rpm / 7500000 tpm on 2026-08-30 (measured ~556 request-limit and ~171
+# token-limit 429s/24h at the old values, both of which presented to the client
+# as hangs rather than explicit errors) -> 3000 rpm / 750000000 tpm, raised
+# directly in the LiteLLM UI by the captain the same day -> REMOVED entirely
+# 2026-08-31.
+#
+# THE CRD CANNOT EXPRESS "CLEAR AN EXISTING LIMIT", ONLY "STOP MANAGING IT" -
+# removing `rpmLimit`/`tpmLimit` from this spec is not sufficient on its own.
+# `LiteLLMVirtualKeySpec.{TPMLimit,RPMLimit}` are Go `*int64` with
+# `json:",omitempty"`; an absent field marshals to nothing in the `/key/update`
+# body rather than an explicit `null`. LiteLLM's `prepare_key_update_data`
+# builds that update via `data.model_dump(exclude_unset=True)`
+# (key_management_endpoints.py, v1.98.0), so a field that is merely ABSENT from
+# the request is treated as "leave the DB column alone", not "clear it" - only
+# an explicit JSON `null` clears it. Measured live 2026-08-31: after removing
+# both fields from this CR, litellm-operator's reconciler correctly detected
+# drift and called `POST /key/update` (the key's `updated_at` advanced), but
+# `rpm_limit`/`tpm_limit` on the live key were unchanged at `3000`/`750000000`
+# afterwards - proving the operator's update was a no-op for these two fields.
+# Clearing them required one manual, one-time
+# `POST /key/update {"key": "<key>", "rpm_limit": null, "tpm_limit": null}`
+# against the proxy's admin API with the master key, verified by a follow-up
+# `GET /key/info` showing both `null`. This is an operational action, not
+# something Git or the operator can perform - it only has to happen once per
+# already-limited key going unlimited; a key that starts unlimited (fresh
+# `/key/generate`, or a limit that only ever gets raised, never dropped to
+# none) never hits this gap. If this key is ever regenerated (rotation,
+# Secret deletion) after a future spec still carries no limits, no manual step
+# is needed - the new key is created with no limits from the start.
+#
+# PHANTOM SPEND (annotated, not zeroed - see the runbook's disclaimer below):
+# this key shows $54.31 of recorded spend nobody is ever invoiced
+# (`LiteLLM_VerificationToken.spend`; live-measured 2026-08-31 as $54.27, a
+# small rounding/timing difference from the same underlying figure). Cause:
+# the two model CRs originally zeroed only `input_cost_per_token`/
+# `output_cost_per_token`; the five prompt-cache pricing fields were left
+# unset and fell back to LiteLLM's built-in metered `claude-sonnet-5` cost map
+# - and Claude Code caches almost every turn, so that gap priced essentially
+# the whole bill (output_cost was exactly $0.00; the total was 100% cache_read
+# + cache_creation). Fix: the five cache fields were zeroed on both
+# `../models/claude-code-subscription{,-opus}.yaml` on 2026-08-31, and the
+# proxy was restarted at 2026-08-31T04:09:50Z to pick it up. Full mechanism
+# and probe evidence: `docs/ai-system/litellm/claude-code-subscription.md`
+# §4a. This $54.31 is deliberately left ON THE KEY, not zeroed: with no
+# `maxBudget`, the number constrains nothing operationally, it only pollutes
+# reporting, and zeroing it would destroy the evidence trail before the fix
+# had ever been proven against real traffic (zero requests had hit this key
+# since the restart at the time this comment was written). The
+# `LiteLLMClaudeCodeSubscriptionSpendRegression` alert in `../prometheusrule.yaml`
+# is what proves or disproves the fix once traffic resumes:
+# `litellm_spend_metric_total` is a per-request Counter (incremented on every
+# logged call regardless of amount,
+# `_increment_top_level_request_and_spend_metrics`, v1.98.0; scrape name ends
+# in `_total` on this cluster). The 2026-08-31T04:09:50Z proxy restart reset
+# process counters, so the series starts fresh near 0 rather than carrying the
+# DB's ~$54.31 - that figure lives only on this key's `spend` column /
+# `LiteLLM_SpendLogs`. When pricing is correct the series should not increase
+# as traffic resumes; `increase(...[1h]) > 0` is the regression signal.
+# Historical `LiteLLM_SpendLogs` rows and this key's `spend` column must never
+# be edited or zeroed to make this figure "clean" - the accounting bug is the
+# thing to fix, not the record of it.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -70,8 +118,6 @@ spec:
     # 2026-08-30 - see the -opus CR header and the doc's section 7).
     - claude-code-subscription
     - claude-code-subscription-opus
-  rpmLimit: 3000
-  tpmLimit: 750000000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item

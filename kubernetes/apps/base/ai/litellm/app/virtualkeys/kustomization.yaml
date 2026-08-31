@@ -19,8 +19,10 @@ kind: Kustomization
 # budgetless because those models are zero-priced across every field including
 # the five prompt-cache ones (runbook §4a - zeroing only input/output left ~$54
 # of fictional recorded spend until 2026-08-31), so recorded spend is $0 and a
-# maxBudget could never trip. Rate limits are its entire real guardrail. Read
-# that file's header before copying its shape.
+# maxBudget could never trip. As of 2026-08-31 it also carries no rpmLimit/
+# tpmLimit - enforcement is entirely upstream on Anthropic's subscription
+# ceiling; LiteLLMClaudeCodeSubscriptionSpendRegression watches for renewed
+# phantom spend. Read that file's header before copying its shape.
 resources:
   - ./claude-code-subscription.yaml
   - ./demo.yaml

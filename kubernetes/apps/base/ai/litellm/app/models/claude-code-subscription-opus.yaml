@@ -78,12 +78,15 @@ spec:
     # five cache fields below (runbook §4a; measured on the Sonnet sibling).
     # With the full set declared, recorded spend is $0, so a maxBudget could
     # never trip and would read as protection that does not exist. Keep the
-    # calling key budgetless for that reason; rpmLimit/tpmLimit are the entire
-    # real guardrail, and the true ceiling is Anthropic's own subscription
-    # rate limiting. (Pre-fix note: until 2026-08-31 only input/output were
-    # zeroed and ~$54 of cache-only fictional spend accrued on the sibling
-    # key; a budget then WOULD have locked the key out. That gap is closed;
-    # historical rows are not repriced.)
+    # calling key budgetless for that reason. As of 2026-08-31 the calling key
+    # also carries no rpmLimit/tpmLimit (captain decision, measured 43x/267x
+    # headroom) - see ../virtualkeys/claude-code-subscription.yaml. This key
+    # now has NO local ceiling at all; the real ceiling is, and always was,
+    # Anthropic's own subscription rate limiting. (Pre-fix note: until
+    # 2026-08-31 only input/output were zeroed and ~$54 of cache-only
+    # fictional spend accrued on the sibling key; a budget then WOULD have
+    # locked the key out. That pricing gap is closed; historical rows are not
+    # repriced.)
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0

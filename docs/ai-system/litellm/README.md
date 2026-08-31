@@ -226,8 +226,11 @@ mechanisms in LiteLLM, and the operator handles them with two different CRDs:
    `claude-code-subscription` - keep it budgetless because its models are
    zero-priced across every field (input, output **and** the prompt-cache
    fields, which is what actually makes recorded spend $0 - see
-   [`claude-code-subscription.md`](claude-code-subscription.md) §4a), so a
-   budget could never trip; `rpmLimit`/`tpmLimit` are the real guardrail.
+   [`claude-code-subscription.md`](claude-code-subscription.md) §4a). As of
+   2026-08-31 that same key also carries no `rpmLimit`/`tpmLimit` (§4b of that
+   doc) - it is the only key in this directory with **no local ceiling at
+   all**, by deliberate captain decision, relying entirely on Anthropic's own
+   subscription rate limiting.
 2. The operator's virtual-key controller reconciles each CR against the proxy's
    admin API, authenticating with the master key named by
    `LiteLLMProxy.spec.apiAccess.masterKeyRef`. Branching is by the operator's
@@ -262,7 +265,10 @@ the next reconcile rather than within 15 minutes.
    `kubernetes/apps/base/ai/litellm/app/virtualkeys/` and change the CR name,
    `keyAlias`, `secretName`, the PushSecret's `remoteKey`, and the limits - or
    just edit an existing CR's `maxBudget`/`budgetDuration`/`rpmLimit`/
-   `tpmLimit`/`models` to raise a limit.
+   `tpmLimit`/`models` to raise a limit. Removing an already-set limit field
+   from the CR does **not** clear the live key - the operator omits the field
+   rather than sending JSON `null`; see the LiteLLMVirtualKey omitempty NOTES
+   entry in `AGENTS.md` and §4b of [`claude-code-subscription.md`](claude-code-subscription.md).
 2. Add the file to that directory's `kustomization.yaml`.
 3. Commit, merge. Flux applies the CR; the operator mints (no output Secret yet)
    or PATCHes (Secret already exists). Reusing a `keyAlias` that already exists
