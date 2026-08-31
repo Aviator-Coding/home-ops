@@ -127,13 +127,25 @@ spec:
         # zero files - the exact downloads/autobrr Stage 1 shape (a passing
         # gate on an empty volume). kopiur exports only a CUMULATIVE file
         # count per snapshot (new+modified+unchanged combined,
-        # kopiur_policy_last_backup_files/kopiur_snapshot_files - "only when
-        # at least one category is recorded", no filesNew/bytesNew delta
-        # breakdown exists to alert on "moved nothing new" specifically), so
-        # this alerts on the narrower but unambiguous case below instead.
-        # Verified live 2026-08-31: all 18 policies with a completed backup
-        # report > 0 files (autobrr-ceph itself is now 1, since its
-        # write-access fix), so this rule is silent on the current fleet.
+        # kopiur_policy_last_backup_files/kopiur_snapshot_files; no
+        # filesNew/bytesNew delta breakdown exists to alert on "moved
+        # nothing new" specifically), so this alerts on the narrower but
+        # unambiguous case below instead.
+        #
+        # Zero is published, not omitted: the historical empty-volume CR
+        # (`kubectl get snapshot.kopiur.home-operations.com -n downloads
+        # autobrr-ceph-stage1-verify -o jsonpath='{.status.stats}'`) returns
+        # literally {"filesNew":0,"sizeBytes":0}, and fleet-wide the
+        # (namespace,policy) set of kopiur_snapshotpolicy_last_backup_success
+        # equals the set of kopiur_policy_last_backup_files exactly (27==27,
+        # zero set difference either direction) - there is no live or
+        # historical case where a policy has a terminal backup but no files
+        # count. So `== 0` is the correct formulation; an absent-safe
+        # wrapper is not needed.
+        #
+        # Verified live 2026-08-31: all policies with a completed backup
+        # currently report > 0 files (autobrr-ceph itself is now 1, since
+        # its write-access fix), so this rule is silent on the current fleet.
         - alert: KopiurBackupEmpty
           expr: |
             kopiur_policy_last_backup_files == 0

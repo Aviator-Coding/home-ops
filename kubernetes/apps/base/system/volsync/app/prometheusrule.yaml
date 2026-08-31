@@ -72,20 +72,40 @@ spec:
         # recyclarr's own unrelated successfulJobsHistoryLimit: 0 CronJob
         # quirk).
         #
-        # The `and on (obj_namespace, pvc) kube_persistentvolumeclaim_info`
+        # The `and on (obj_namespace, cachepvc) kube_persistentvolumeclaim_info`
         # join guards a separately-discovered exporter leak: volsync-metrics
         # keeps serving a fresh-timestamped series for a ReplicationSource
         # whose CR (and PVC) were deleted, until the volsync pod itself
         # restarts. Measured live on media/jellyfin-ceph (app retired
         # 2026-08-30): its CR is gone but its zero-completions series is
-        # still scraped and would otherwise alert forever. label_replace
-        # aligns obj_name's "<pvc>-<dest>" shape against
-        # kube_persistentvolumeclaim_info's real, live PVC inventory so a
-        # deleted app's leaked series can never match.
+        # still scraped and would otherwise alert forever.
+        #
+        # Join key is the per-ReplicationSource cache PVC VolSync creates as
+        # "volsync-src-<obj_name>-cache" (obj_name = full RS name, e.g.
+        # opencode-ceph), owned via a controller ownerReference on the RS and
+        # garbage-collected when the RS is deleted (verified: retired apps
+        # jellyfin/immich/rsshub/rsshub-playwright have no leftover cache
+        # PVCs). This is deliberately NOT the app's source PVC: sourcePVC is
+        # ${VOLSYNC_CLAIM:-${APP}} and 12 live claims override VOLSYNC_CLAIM
+        # (downloads/*-config, media/tdarr-config, home-automation/
+        # esphome-config + zigbee2mqtt-data, selfhosted/changedetection-
+        # config), so stripping "-<dest>" from obj_name and joining on that
+        # as the claim name drops those series and never alerts on a stuck
+        # sync there. Cache PVC names are keyed off obj_name itself, so the
+        # APP-vs-sourcePVC ambiguity cannot arise.
+        #
+        # Coverage verified live: count of the left-hand series matched via
+        # this join equals 31 for EACH of ceph/minio/r2 - exactly matching
+        # `kubectl get replicationsource -A` counts per suffix (31/31/31,
+        # zero dropped). All 93 live ReplicationSources have a matching
+        # Prometheus series with zero gap. The only 12 Prometheus series
+        # with no live ReplicationSource (correctly excluded by the join)
+        # are the 4 known-retired apps' 3 destinations each: media/jellyfin,
+        # media/immich, selfhosted/rsshub, selfhosted/rsshub-playwright.
         - alert: VolSyncSyncStalledCeph
           expr: |-
-            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ceph$"}[6h]), "pvc", "$1", "obj_name", "(.+)-ceph$") == 0
-            and on (obj_namespace, pvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "pvc", "$1", "persistentvolumeclaim", "(.+)")
+            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ceph$"}[6h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
+            and on (obj_namespace, cachepvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "cachepvc", "$1", "persistentvolumeclaim", "(.+)")
           for: 5m
           annotations:
             summary: >-
@@ -100,8 +120,8 @@ spec:
 
         - alert: VolSyncSyncStalledMinio
           expr: |-
-            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-minio$"}[9h]), "pvc", "$1", "obj_name", "(.+)-minio$") == 0
-            and on (obj_namespace, pvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "pvc", "$1", "persistentvolumeclaim", "(.+)")
+            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-minio$"}[9h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
+            and on (obj_namespace, cachepvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "cachepvc", "$1", "persistentvolumeclaim", "(.+)")
           for: 5m
           annotations:
             summary: >-
@@ -114,8 +134,8 @@ spec:
 
         - alert: VolSyncSyncStalledR2
           expr: |-
-            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-r2$"}[36h]), "pvc", "$1", "obj_name", "(.+)-r2$") == 0
-            and on (obj_namespace, pvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "pvc", "$1", "persistentvolumeclaim", "(.+)")
+            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-r2$"}[36h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
+            and on (obj_namespace, cachepvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "cachepvc", "$1", "persistentvolumeclaim", "(.+)")
           for: 5m
           annotations:
             summary: >-
