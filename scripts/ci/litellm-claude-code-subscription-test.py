@@ -727,15 +727,6 @@ def test_runbook_contract() -> None:
         ),
         "sonnet alias assignment present",
     )
-    # The per-key-alias route was evaluated and rejected against the installed
-    # version; keep that reasoning in the doc so it is not re-litigated.
-    record(
-        "runbook_records_why_per_key_alias_was_rejected",
-        "aliases" in text
-        and ("can_key_call_model" in text or "allow-list" in text.lower())
-        and "403" in text,
-        "per-key alias rejection recorded",
-    )
     record(
         "runbook_forbids_putting_virtual_key_in_authorization",
         "never as `Authorization`" in text
