@@ -154,3 +154,66 @@ SABnzbd still healthy on the usenet path.
    - `POST /api/v3/downloadclient/test?forceTest=true` with the body of
      download client id 2 (SABnzbd).
    - HTTP **200**, empty JSON body `{}` (Servarr success shape).
+
+## Re-verification (post-commit, no-mistakes pipeline — second live pass)
+
+Date/time: 2026-08-30T23:59:39Z (UTC)
+
+Second independent live pass from the no-mistakes test/fix step after the
+user confirmed cluster reachability via
+`KUBECONFIG=/Users/coder/firstmate/projects/home-ops/kubeconfig`. Distinct
+from both the original post-delete verification and the 23:57:33Z
+re-verification above; full command transcript saved outside Git as
+pipeline evidence.
+
+**Result: no contradictions.** Runtime state still matches the usenet-only
+decision. No qBittorrent pod/Service, no Radarr qBittorrent client, none of
+the four deleted definition-less Prowlarr indexers, clean health (routine
+update notices only), SABnzbd healthy, and Radarr→SABnzbd connection test
+still passes.
+
+1. **No qbittorrent in-cluster**
+   - `kubectl -n downloads get pods,svc | grep -i qbit` → **NO_QBIT_MATCH**.
+   - Running pods: autobrr, bazarr, lidarr, prowlarr, radarr, readarr,
+     reading-glasses, sabnzbd, sonarr (+ completed CronJobs).
+   - Services: same set; **no** `qbittorrent` Service.
+
+2. **Radarr download clients** (`GET /api/v3/downloadclient`, API key from
+   Secret `radarr-secret` / `RADARR__AUTH__APIKEY`, port-forward
+   `svc/radarr 17878:7878`)
+   - Exactly one client: SABnzbd id **2**, `enable: true`,
+     `protocol: usenet`, `implementation: Sabnzbd`, host `sabnzbd.downloads`,
+     port `8080`, category `movies`.
+   - **No** qBittorrent entry (deleted id 1 still absent).
+
+3. **Radarr health** (`GET /api/v3/health`)
+   - Only routine `UpdateCheck` warning: "New update is available:
+     v6.4.2.10590".
+   - No download-client, indexer, or connection errors.
+
+4. **Prowlarr indexers** (`GET /api/v1/indexer`, API key from Secret
+   `prowlarr-secret` / `PROWLARR__AUTH__APIKEY`, port-forward
+   `svc/prowlarr 19696:9696`)
+   - 16 indexers total.
+   - BitSearch / TorrentGalaxyClone / Isohunt2 / iDope: **ABSENT** (string
+     search and ids 1 / 7 / 81 / 80 all absent).
+   - Retained disabled torrent indexers still present: `1337x` (45),
+     `The Pirate Bay` (4), `Nyaa.si` (9), plus others left deliberately.
+   - Enabled usenet indexers still present: Miatrix (12), NZBFinder (11),
+     NZBgeek (14).
+
+5. **Prowlarr health** (`GET /api/v1/health`)
+   - `IndexerNoDefinitionCheck` **gone**.
+   - Only routine `UpdateCheck` warning: "New update is available:
+     v2.6.2.5562".
+
+6. **SABnzbd usenet path** (API key from Secret `sabnzbd-secret` /
+   `SABNZBD_API_KEY`, port-forward `svc/sabnzbd 18080:8080`)
+   - `mode=version` → `{"version": "5.1.0"}`.
+   - `mode=queue` → `status: Idle`, `paused: false`, `noofslots_total: 0`,
+     empty slots; responsive.
+
+7. **Radarr → SABnzbd connection test**
+   - `POST /api/v3/downloadclient/test?forceTest=true` with download client
+     id 2 body.
+   - HTTP **200**, body `{}` (Servarr success).
