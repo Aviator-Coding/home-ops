@@ -321,30 +321,44 @@ def load_automerge_rules() -> list[dict[str, Any]]:
     return rules
 
 
-def find_renovate_node_path() -> str | None:
-    env = os.environ.get("RENOVATE_NODE_PATH")
-    if env and (Path(env) / "package.json").is_file():
-        return env
-    # Prefer a previously provisioned temp install used by local evidence runs.
-    for candidate in Path("/tmp").glob("renovate-test-*/node_modules/renovate"):
-        if (candidate / "package.json").is_file():
-            return str(candidate)
-    # Try resolvable from cwd / NODE_PATH
+def _node_on_path() -> bool:
     try:
         proc = subprocess.run(
-            [
-                "node",
-                "-e",
-                "console.log(require('path').dirname(require.resolve('renovate/package.json')))",
-            ],
+            ["node", "-e", "process.exit(0)"],
             check=False,
             capture_output=True,
             text=True,
         )
-        if proc.returncode == 0 and proc.stdout.strip():
-            return proc.stdout.strip()
-    except FileNotFoundError as e:
-        raise Failure("node is required on PATH") from e
+        return proc.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def find_renovate_node_path() -> str | None:
+    env = os.environ.get("RENOVATE_NODE_PATH")
+    if env and (Path(env) / "package.json").is_file():
+        return env
+    # Prefer a previously provisioned temp install used by local evidence runs
+    # or by CI's "Install renovate for pin tests" step (prefix renovate-ci).
+    for pattern in ("renovate-ci/node_modules/renovate", "renovate-test-*/node_modules/renovate"):
+        for candidate in Path("/tmp").glob(pattern):
+            if (candidate / "package.json").is_file():
+                return str(candidate)
+    if not _node_on_path():
+        return None
+    # Try resolvable from cwd / NODE_PATH
+    proc = subprocess.run(
+        [
+            "node",
+            "-e",
+            "console.log(require('path').dirname(require.resolve('renovate/package.json')))",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 0 and proc.stdout.strip():
+        return proc.stdout.strip()
     return None
 
 
@@ -352,15 +366,26 @@ def ensure_renovate() -> str:
     existing = find_renovate_node_path()
     if existing:
         return existing
+    if not _node_on_path():
+        raise Failure(
+            "node is required on PATH (python-tests installs it via actions/setup-node; "
+            "locally: provide node + RENOVATE_NODE_PATH or npm install renovate@44.52.1)"
+        )
     # Last resort: npm install into a temp dir (needs network).
     tmp = Path(tempfile.mkdtemp(prefix="renovate-pin-test-"))
-    proc = subprocess.run(
-        ["npm", "install", "--no-save", "--no-package-lock", "renovate@44.52.1"],
-        cwd=tmp,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        proc = subprocess.run(
+            ["npm", "install", "--no-save", "--no-package-lock", "renovate@44.52.1"],
+            cwd=tmp,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as e:
+        raise Failure(
+            "npm is required on PATH to provision renovate@44.52.1 when "
+            "RENOVATE_NODE_PATH is unset"
+        ) from e
     if proc.returncode != 0:
         raise Failure(
             "renovate package unavailable and npm install failed "

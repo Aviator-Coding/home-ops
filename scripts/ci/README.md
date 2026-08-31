@@ -53,7 +53,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `kopiur-timezone-test.py` | kopiur/VolSync cron timezone alignment: rendered `SnapshotSchedule.spec.schedule.timezone` default + override, pre-fix EST total ceph collision, post-fix zero collision across all dual-engine claims in both DST seasons |
 | `kopiur-projected-secrets-leak-alert-test.py` | `KopiurProjectedCredentialsLeaking` multi-pass census semantics: live PrometheusRule must use `min_over_time(...[13h])` (not bare `> 0` / `for: 1h`); promtool unit-tests silent on the 6h benign plateau, fire on a permanent leak across 2+ sweeps, silent on healthy zero |
 | `kopiur-stage4-test.py` | kopiur Stage 4: `home-automation/matter-server` onboarded with explicit `KOPIUR_PUID/PGID: 0`, GitOps privileged-mover annotation on the overlay Namespace, sibling movers unchanged |
-| `talos-renovate-pin-test.py` | Talos Renovate pin unfreeze: `allowedVersions: "!/^v?1\\.13\\.3$/"` excludes only v1.13.3 (not a `<1.13.3` ceiling); renovate@44.52.1 getRegexPredicate/filterVersions/docker-isStable/applyPackageRules prove old pin freezes, new pin proposes, alpha is docker-stable+minor, and autoMerge last-rule blocks automerge for all four Talos packages |
+| `talos-renovate-pin-test.py` | Talos Renovate pin unfreeze: `allowedVersions: "!/^v?1\\.13\\.3$/"` excludes only v1.13.3 (not a `<1.13.3` ceiling); requires node + renovate@44.52.1 (CI installs both; locally set `RENOVATE_NODE_PATH` or let the test `npm install`) so getRegexPredicate/filterVersions/docker-isStable/applyPackageRules prove old pin freezes, new pin proposes, alpha is docker-stable+minor, and autoMerge last-rule blocks automerge for all four Talos packages |
 | `syncthing-data-capacity-test.py` | `syncthing-data` 15Gi right-size: plain PVC + VolSync `VOLSYNC_CAPACITY`/`CACHE` substitutes + rendered ReplicationDestination capacity (not live claim create); config claim stays 1Gi |
 
 New `scripts/ci/*-test.py` files need no separate wiring: CI globs `scripts/ci/*-test.py`,
@@ -103,8 +103,11 @@ Wired into `.github/workflows/validate.yaml`'s `python-tests` job, gated by the 
 shell-script jobs above. It installs `python-hcl2` and `litellm[proxy]==1.98.0` (matching
 the pinned cluster proxy image), installs native `promtool` via
 `aqua:prometheus/prometheus@3.2.1` for PromQL rule evaluation (this runner has no podman),
-and `aqua:mitsuhiko/minijinja` so `schematic-pcie-port-pm-test.py` can render
-`talos/schematic.yaml.j2` the same way the talos job does, then runs every
+`aqua:mitsuhiko/minijinja` so `schematic-pcie-port-pm-test.py` can render
+`talos/schematic.yaml.j2` the same way the talos job does, and Node 24 + pinned
+`renovate@44.52.1` (via the same `actions/setup-node` pin as `renovate-config`, with
+`RENOVATE_NODE_PATH` exported) so `talos-renovate-pin-test.py` can drive Renovate's own
+compiled matchers rather than grepping config text, then runs every
 `scripts/ci/*-test.py` in a loop and fails the job if any of them fails.
 This is a deliberately slower job in exchange for the tests exercising the real `litellm`
 library rather than a stub or a soft-skip - see the job's own comments in `validate.yaml`
