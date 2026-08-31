@@ -7,10 +7,16 @@ credentials. What to back up lives in
 [`kubernetes/components/kopiur/`](../../../../components/kopiur/Readme.md).
 
 Stage 0 installs the operator and declares *where* backups could go. It creates
-no `SnapshotPolicy` and no `SnapshotSchedule` of its own. Live migration status
-(onboarded claim count, deferred claims, restore proofs) is owned by the
-component Readme - do not treat this directory's presence as fleet coverage.
-Details, schedules, credentials compromise and rollback:
+no `SnapshotPolicy` and no `SnapshotSchedule` of its own. Do not treat this
+directory's presence as fleet coverage - live onboarded/deferred claim counts
+are owned by the component Readme. Stage 2's restore gate **passed** on
+2026-08-30: `sabnzbd-config` restored byte-identically from both ceph and r2
+(2062 files, 2.06 GiB, per-file sha256, modes and ownership included) -
+[`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
+`KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's files,
+or the backup fails closed on any file lacking a world-read bit (drill finding
+2) - a prerequisite for every onboarding, not a sabnzbd quirk. Details,
+schedules, credentials compromise, later restore proofs and rollback:
 [`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
 
 **Stage 0 rollback** (operator/repos only): delete the `kopiur` and

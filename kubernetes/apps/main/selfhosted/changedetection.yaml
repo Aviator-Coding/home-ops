@@ -61,7 +61,9 @@ spec:
       # would stack both systems into one hour for the same claim. Hour 14
       # carries no volsync destination and no kopiur ceph slot
       # (01/05/09/13/17/21). Ceph stays on the component default, which is
-      # already structurally offset. Both engines evaluate cron in UTC.
+      # already structurally offset. Both engines evaluate cron in
+      # America/New_York (kopiur via KOPIUR_SCHEDULE_TIMEZONE default;
+      # VolSync via the k8tz-injected TZ) so the stagger holds across DST.
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
   prune: true
   wait: false
