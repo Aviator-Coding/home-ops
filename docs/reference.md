@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **59**. Each of those files is listed exactly once below, including this index. Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **61**. Each of those files is listed exactly once below, including this index. Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -72,6 +72,8 @@ Fleet PVC backup remains VolSync on every protected claim (live claim list and `
 
 | Path | What it covers |
 |---|---|
+| [`backups/corrupt-claim-recreation-runbook.md`](backups/corrupt-claim-recreation-runbook.md) | Durable procedure for destroying and rebuilding a claim whose live mount works but whose snapshots will not clone (ext4 resize-inode inconsistency). Owns the empty-`latestImage` trap and the VolSync restore mode-relaxation warning. |
+| [`backups/opencode-volume-recreation-2026-08-31.md`](backups/opencode-volume-recreation-2026-08-31.md) | **Historical snapshot** / measured evidence for the first execution of the corrupt-claim runbook against `ai/opencode` on 2026-08-31. |
 | [`backups/kopiur-restore-drill-2026-08-30.md`](backups/kopiur-restore-drill-2026-08-30.md) | Verified kopiur restore procedure and Stage 2 gate (ceph + r2, sabnzbd-config byte-identical). Durable procedure plus two findings (empty Stage 1 pilot; mover-identity prerequisite). Timings are a **historical snapshot** from 2026-08-30. |
 | [`backups/restore-drill-2026-08-23.md`](backups/restore-drill-2026-08-23.md) | Verified VolSync restore procedure (Ceph + MinIO destinations, scratch-PVC method). Timings are a **historical snapshot** from 2026-08-23; the procedure is durable. |
 | [`backups/volsync-coverage-2026-08-22.md`](backups/volsync-coverage-2026-08-22.md) | **Historical snapshot** of a full PVC-vs-VolSync coverage audit from 2026-08-22. Re-measure before trusting any figure. Current pattern: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md). |
