@@ -119,19 +119,24 @@ defaults will not match it, and any file without a world-read bit becomes unread
 mover. kopiur's admission webhook warns about this at apply time - **do not dismiss that
 warning**. See [finding 2](#finding-2-a-mover-identity-mismatch-fails-the-backup-outright).
 
-### 3. Check the drill names are free, and credentials exist in the workload namespace
+### 3. Check the drill names are free, and projection is what will feed the mover
 
 ```bash
 kubectl -n <ns> get restore.kopiur.home-operations.com <drill-name>   # must 404
 kubectl -n <ns> get pvc <drill-name>                                  # must 404
 kubectl get restore.kopiur.home-operations.com,pvc,pod -A -l fm.homeops/restore-drill  # must be empty
-kubectl -n <ns> get secret | grep kopiur
+# Between runs there must be NO standing repository credential in the workload ns.
+# During a run you may briefly see <snapshot>-creds-N copies; that is projection working.
+kubectl -n <ns> get secret | grep -E 'kopiur|-creds-' || true
 ```
 
-That last one is load-bearing and easy to miss: a kopiur mover Job runs **in the workload
-namespace** and loads repository credentials with `envFrom`, which is namespace-local. A
-`ClusterRepository` whose Secrets live only in `system` reconciles perfectly clean and then
-fails at run time. See `kubernetes/components/kopiur/Readme.md` "Credentials".
+Do **not** expect a standing `kopiur` / `kopiur-*-secret` Secret in the workload namespace -
+those pilot copies are gone. A kopiur mover Job still runs **in the workload namespace** and
+still loads credentials with `envFrom`, which is namespace-local, but the operator now mints
+the Secret for the length of the run and reaps it. A hand-written drill `Restore` therefore
+**must** set `credentialProjection.enabled: true` (step 6) or the CRs reconcile clean and the
+mover fails at run time with nothing to authenticate with. Full contract:
+`kubernetes/components/kopiur/Readme.md` "Credentials".
 
 ### 4. Capture the live checksum manifest, twice, bracketing the snapshot
 
@@ -189,6 +194,11 @@ spec:
   repository:
     kind: ClusterRepository
     name: <dest>                                 # ceph | r2
+  # Required on every hand-written Restore: no standing repo credentials live in app
+  # namespaces any more. Without this the CR goes green and the mover fails at run time.
+  # See kubernetes/components/kopiur/Readme.md "Credentials".
+  credentialProjection:
+    enabled: true
   source:
     fromPolicy:
       name: <app>-<dest>                         # the app's SnapshotPolicy

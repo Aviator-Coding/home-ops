@@ -25,7 +25,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `grafana-sa-provisioner-test.py` | grafana-sa-provisioner (captain option C) |
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
 | `kopiur-stage0-test.py` | kopiur Stage 0: operator pin/CRDs/monitoring, ceph+r2 ClusterRepositories + deletion protection, no SnapshotPolicy/Schedule, Renovate automerge exclusion, VolSync untouched |
-| `kopiur-stage1-test.py` | kopiur Stage 1: reusable backup component (ceph+r2 only, Ephemeral cache, pinned Retain deletion), `downloads/autobrr` dual-backup alongside untouched VolSync, pilot-scoped credentials + downloads-only ClusterSecretStore (Stage 2 owns the exclusive two-volume set) |
+| `kopiur-stage1-test.py` | kopiur Stage 1: reusable backup component (ceph+r2 only, Ephemeral cache, pinned Retain deletion), `downloads/autobrr` dual-backup alongside untouched VolSync, and the credential contract - all three `credentialProjection` legs wired plus zero standing per-namespace credential objects (Stage 2 owns the exclusive two-volume set) |
 | `kopiur-stage2-test.py` | kopiur Stage 2: exactly two onboarded volumes (`autobrr` + `sabnzbd`), `KOPIUR_CLAIM=sabnzbd-config` + load-bearing `KOPIUR_PUID/PGID=2000`, volsync still triple-dest, drill doc result contract (both-destination sha256 digest, findings 1-2, proved VolSync simultaneity with observed lastSync times) |
 | `schematic-pcie-port-pm-test.py` | Arc B70 `pcie_port_pm=off` schematic kernel-arg contract |
 | `igpu-xe-allowids-test.py` | scoping `gpu.intel.com/xe` to the iGPU |

@@ -19,6 +19,10 @@ spec:
   repository:
     kind: ClusterRepository
     name: r2
+  # Consumer half of the credential-projection gate - see
+  # ../ceph/snapshotpolicy.yaml for the full rationale; it applies identically.
+  credentialProjection:
+    enabled: true
   sources:
     - pvc:
         name: "${KOPIUR_CLAIM:-${APP}}"

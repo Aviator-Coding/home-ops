@@ -32,11 +32,6 @@ spec:
     # these CRs outright rather than leaving them unreconciled.
     - name: kopiur-repository
       namespace: system
-    # Materialises kopiur's repository credentials inside `downloads`. The
-    # mover Job loads them with namespace-local envFrom, so without this the
-    # backup fails at run time even though every CR reconciles clean.
-    - name: kopiur-credentials
-      namespace: downloads
     - name: postgres-cluster-17
       namespace: database
   components:

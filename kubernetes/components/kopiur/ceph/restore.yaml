@@ -33,6 +33,21 @@ spec:
   repository:
     kind: ClusterRepository
     name: ceph
+  # Consumer half of the credential-projection gate. A Restore's mover runs in
+  # the workload namespace exactly as a backup mover does, so the restore path
+  # needs this as much as the backup path - and it must ship WITH it, because
+  # the standing per-namespace credentials it used to fall back on are gone.
+  # See kubernetes/components/kopiur/ceph/snapshotpolicy.yaml for the rationale.
+  #
+  # CAVEAT, and it is a real one: this object carries the `ssa: IfNotPresent`
+  # label below, so Flux creates it once and NEVER reconciles it again. Adding
+  # this field does not reach a Restore that already exists in the cluster - the
+  # two live `*-kopiur-dst` objects in `downloads` predate it. They are inert
+  # (`target.populator`, and every claim's dataSourceRef still points at
+  # VolSync's `${APP}-dst`), so nothing breaks today, but they must be recreated
+  # or hand-patched before Stage 5 repoints anything at them.
+  credentialProjection:
+    enabled: true
   source:
     fromPolicy:
       name: "${APP}-ceph"

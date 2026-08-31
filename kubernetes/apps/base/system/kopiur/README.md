@@ -96,11 +96,11 @@ Three notes on why the split falls where it does:
 - `kopiur-ceph-bucket` is a **record**, not an input: nothing in the cluster
   reads it. It is separate from `kopiur-ceph` because the two have different
   lifetimes - Rook owns and can regenerate those S3 keys, whereas a lost kopia
-  password is unrecoverable. Still true as of Stage 1: the migration pilot needs
-  those same S3 keys inside its own namespace, and mirrors them from the OBC's
-  generated `system/kopiur` Secret - the authoritative source - rather than
-  reading this record back. See `kubernetes/components/kopiur/Readme.md`
-  "Credentials".
+  password is unrecoverable. Still true since credential projection: a mover in
+  another namespace needs those same S3 keys, and the operator projects them
+  from the OBC's generated `system/kopiur` Secret - the authoritative source -
+  for the length of the run rather than reading this record back. See
+  `kubernetes/components/kopiur/Readme.md` "Credentials".
 - Nothing kopiur owns reads `volsync-template` any more. That item is still live
   for every fleet VolSync `ReplicationSource` (count and destinations:
   `kubernetes/components/volsync/Readme.md`) and is **not** ours to touch,
@@ -249,17 +249,26 @@ Stage 1's backup component owns retention, schedules, mover cache mode,
 [`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
 Do not re-decide those here.
 
+**Decided since Stage 0: credential projection is ON.**
+`features.credentialProjection.enabled: true` in `app/helmrelease.yaml` and
+`credentialProjection.allowed: true` on **both** `ClusterRepository` objects in
+`repository/clusterrepository.yaml`. Captain decision 2026-08-30, key
+`credential-scope`. The operator mints a repository credential into the mover's
+namespace for the length of a run and reaps it, so no repository credential sits
+at rest in any app namespace - which is why there is no longer a per-namespace
+credential copy to extend. The accepted cost is that this flag adds unscoped
+`create`/`patch`/`delete` on `secrets` to the operator's ClusterRole
+(`create` cannot be scoped to a name), making a compromised kopiur operator a
+cluster-wide credential-rewrite primitive. Full rationale, the third required
+leg (the consumer opt-in, which lives in the component), and the observability
+and rollback story: the component Readme's
+[Credentials](../../../../components/kopiur/Readme.md#credentials---operator-minted-per-run-nothing-at-rest)
+section. **Do not widen the operator's Secret permissions further on top of
+this** - in particular `features.kopiaUi` asks for the same unscoped verbs for a
+different purpose and is not covered by that decision.
+
 Still open beyond Stage 0:
 
-- **`features.credentialProjection` stays `false`** (chart default, least
-  privilege - enabling it grants the operator `create`/`patch`/`delete` on
-  Secrets in *every* namespace it manages, and `create` cannot be scoped to a
-  name). Stage 1 unblocked the pilot with a **downloads-only** ExternalSecret
-  credential copy instead; that is deliberate scaffolding with the permanent
-  shape deferred to a captain decision before Stage 3 (key
-  `kopiur-workload-ns-credentials`). Details and the accepted risk live in the
-  component Readme "Credentials" section - do not extend the copy to another
-  namespace from this directory.
 - Repository `maintenance` and `verification` schedules remain at their managed
   defaults (quick every 6h, full daily) until there is enough data to justify
   retuning.
