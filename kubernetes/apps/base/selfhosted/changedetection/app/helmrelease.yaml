@@ -21,16 +21,21 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    # Identity is declared POD-level, not only on the container that mounts the
-    # claim, and that placement is load-bearing: kopiur's operator reads the
-    # POD securityContext to decide whether the mover uid matches the workload,
-    # and emits the positive-only `SecurityContextCompatible` condition from it.
-    # Measured 2026-08-31 - with 1000:1000 set only on the `main` container the
-    # snapshot still Succeeded but the condition was ABSENT, which per
-    # `components/kopiur/Readme.md` is not a pass. Every other onboarded app in
-    # the fleet declares its identity here for the same reason.
-    # `browser` (browserless/chrome) then needs its own container-level override
-    # back to its image's `blessuser` uid 999.
+    # Identity is declared POD-level, matching every other onboarded app in the
+    # fleet, so the workload identity lives in one place rather than only on the
+    # container that happens to mount the claim. `browser` (browserless/chrome)
+    # then needs its own container-level override back to its image's
+    # `blessuser` uid 999 - see its comment below for why it cannot move.
+    #
+    # This placement does NOT buy kopiur's `SecurityContextCompatible`
+    # condition, and nothing here can: measured 2026-08-31, the operator emits
+    # it only when the mover uid matches EVERY container of every pod mounting
+    # the claim, initContainers included, so the 999 sidecar suppresses it even
+    # though it mounts nothing. The condition is positive-only - its absence is
+    # neither a pass nor a failure - and `database/pgadmin` is absent for the
+    # identical reason (root `fix-permissions` initContainer). What actually
+    # proves this identity works is that kopia read the whole volume: see
+    # `components/kopiur/Readme.md` "SecurityContextCompatible".
     defaultPodOptions:
       securityContext:
         runAsUser: 1000
@@ -69,9 +74,12 @@ spec:
               tag: latest@sha256:57d19e414d9fe4ae9d2ab12ba768c97f38d51246c5b31af55a009205c136012f
               pullPolicy: IfNotPresent
             # Overrides the pod-level 1000:1000 back to this image's own
-            # `blessuser`. Chrome needs its home and user-data-dir, both owned
-            # by 999 in the image; it mounts no PVC, so nothing about the
-            # backup identity depends on it.
+            # `blessuser`, and this is NOT cosmetic: tested at uid 1000 on
+            # 2026-08-31, Chrome fails to launch outright
+            # (`chrome_crashpad_handler: --database is required`, "retries
+            # exhausted") while the container still reports Ready - so every
+            # browser-backed watch would break silently. It mounts no PVC, so
+            # nothing about the backup identity depends on it.
             securityContext:
               runAsUser: 999
               runAsGroup: 999
