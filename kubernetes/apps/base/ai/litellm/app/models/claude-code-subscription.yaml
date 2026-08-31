@@ -72,15 +72,17 @@ spec:
     # both /v1/chat/completions and /v1/messages (it reads model_info from
     # `litellm_metadata` on the latter). Evidence: the doc's pricing section.
     #
-    # That CR-level zero remains correct, but it does NOT make recorded spend
-    # always $0 or a maxBudget inert: live Claude Code traffic is call_type
-    # anthropic_messages, logged under the upstream id and priced off the
-    # built-in metered map (runbook §4a, ~$52 fictional and climbing). A
-    # maxBudget WOULD trip on dollars nobody is invoiced and lock the key out,
-    # so keep the calling key budgetless because the accounting is broken;
+    # Zeroing input/output alone is NOT enough - see the five cache fields
+    # below (runbook §4a). With the full set declared, recorded spend is $0,
+    # so a maxBudget could never trip and would read as protection that does
+    # not exist. Keep the calling key budgetless for that reason;
     # rpmLimit/tpmLimit are the entire real guardrail, and the true ceiling is
     # Anthropic's own subscription rate limiting. Grant this model only on a
-    # key with those rate limits set, never on a budget alone.
+    # key with those rate limits set, never on a budget alone. (Pre-fix note:
+    # until 2026-08-31 only input/output were zeroed and ~$54 of cache-only
+    # fictional spend accrued; a budget then WOULD have locked the key out on
+    # dollars nobody is invoiced. That gap is closed; historical rows are not
+    # repriced.)
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0

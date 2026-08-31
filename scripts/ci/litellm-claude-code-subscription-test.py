@@ -12,9 +12,9 @@ then asserts the captain-approved semantics for
   2. Proxy general/litellm settings do NOT enable the global
      forward_client_headers_to_llm_api flag.
   3. The model is absent from every config-declared fallback chain.
-  4. Its dedicated virtual key is scoped only to that model, carries
-     rpm/tpm limits and deliberately NO maxBudget, and has a matching
-     PushSecret.
+  4. Its dedicated virtual key is scoped only to the subscription models
+     (Sonnet + Opus pass-through CRs), carries rpm/tpm limits and
+     deliberately NO maxBudget, and has a matching PushSecret.
   5. No ExternalSecret change is required for this model (proxy still only
      pulls the shared ai-keys / litellm secrets).
   6. kustomize build emits both CRs + PushSecret.
@@ -597,13 +597,22 @@ def test_kustomize_emits_resources() -> None:
             cr = by_cr.get(name)
             pr = ((cr or {}).get("spec") or {}).get("params") or {}
             extra = (((cr or {}).get("spec") or {}).get("info") or {}).get("extra") or {}
+            price_bad = _zero_price_offenders(extra)
             if (
                 pr.get("apiKey") != PLACEHOLDER
                 or pr.get("model") != want
-                or extra.get("input_cost_per_token") != 0
-                or extra.get("output_cost_per_token") != 0
+                or price_bad
             ):
-                bad.append({name: {"params": pr, "extra": extra, "want": want}})
+                bad.append(
+                    {
+                        name: {
+                            "params": pr,
+                            "extra": extra,
+                            "want": want,
+                            "price_offenders": price_bad,
+                        }
+                    }
+                )
         record(
             "kustomize_emitted_model_keeps_placeholder_and_zero_prices",
             bad == [],
@@ -675,13 +684,22 @@ def test_kustomize_emits_resources() -> None:
             continue
         pr = (doc.get("spec") or {}).get("params") or {}
         info_extra = ((doc.get("spec") or {}).get("info") or {}).get("extra") or {}
+        price_bad = _zero_price_offenders(info_extra)
         if (
             pr.get("apiKey") != PLACEHOLDER
             or pr.get("model") != want
-            or info_extra.get("input_cost_per_token") != 0
-            or info_extra.get("output_cost_per_token") != 0
+            or price_bad
         ):
-            bad.append({name: {"params": pr, "extra": info_extra, "want": want}})
+            bad.append(
+                {
+                    name: {
+                        "params": pr,
+                        "extra": info_extra,
+                        "want": want,
+                        "price_offenders": price_bad,
+                    }
+                }
+            )
     record(
         "kustomize_emitted_model_keeps_placeholder_and_zero_prices",
         bad == [],
