@@ -43,8 +43,9 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `recyclarr-quality-profile-test.py` | Radarr SQP-1 recyclarr fix (guide min_format_score, trash_id matching, 1080p profile) |
 | `pvc-writable-check-test.py` | system/pvc-writable-check: real CronJob script vs mock kubectl (motivating unwritable bugs, clean sweep, readOnly/skip/excluded-NS/shell-less/kubectl-error skips, RO-rootfs large JSON, split-role RBAC, PrometheusRule, headlamp readOnly mount) |
 | `backup-silent-failure-alerting-test.py` | VolSync stalled-sync + kopiur empty-backup PrometheusRules: promtool unit-tests fire for stuck ai/opencode, stay silent for healthy fleet / recyclarr / jellyfin leaked series, and KopiurBackupEmpty on zero files |
-| `kopiur-stage3-test.py` | kopiur fleet parallel-run pin: onboarded set + measured mover identity (`EXPECTED_IDENTITY`), per-namespace r2 hour, deferred root-mover claim(s) in `DEFERRED_CLAIMS`, and VolSync still on every volume |
+| `kopiur-stage3-test.py` | kopiur fleet parallel-run pin: 31/31 onboarded set + measured mover identity (`EXPECTED_IDENTITY`, includes changedetection-config 1000:1000 and matter-server 0:0), per-namespace r2 hour, empty `DEFERRED_CLAIMS`, and VolSync still on every volume |
 | `kopiur-timezone-test.py` | kopiur/VolSync cron timezone alignment: rendered `SnapshotSchedule.spec.schedule.timezone` default + override, pre-fix EST total ceph collision, post-fix zero collision across all dual-engine claims in both DST seasons |
+| `kopiur-stage4-test.py` | kopiur Stage 4: `home-automation/matter-server` onboarded with explicit `KOPIUR_PUID/PGID: 0`, GitOps privileged-mover annotation on the overlay Namespace, sibling movers unchanged |
 
 New `scripts/ci/*-test.py` files need no separate wiring: CI globs `scripts/ci/*-test.py`,
 so any file matching that pattern is picked up automatically.

@@ -11,7 +11,12 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 4. volsync's entry is unchanged and
+    # stays that way until a restore has been demonstrated from kopiur for this
+    # volume (Stage 5).
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   interval: 10m
   path: "./kubernetes/apps/base/home-automation/matter-server/app"
   prune: true
@@ -20,11 +25,14 @@ spec:
       namespace: system
     - name: multus-networks
       namespace: kube-system
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
+      namespace: system
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  wait: false # no flux ks dependents
+  wait: false # no flux ks dependents; the standing kopiur Restore is Ready=False by design
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -36,3 +44,31 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "20 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "20 1 * * *"
+      # LOAD-BEARING, measured live 2026-08-31: 163 entries / 161 files /
+      # 1,548,374 bytes on the claim. 12 entries are 0:0 (including five 0600
+      # fabric-credential files that a uid-1000 mover cannot open) and 151 are
+      # 1000:0. kopia treats an unreadable file as fatal, so the default 1000
+      # mover would fail closed on the least-replaceable data in this
+      # namespace. Explicit 0:0 matches the workload (runAsUser/Group/fsGroup
+      # 0) and needs no component change - inheritSecurityContextFrom would
+      # only cover SnapshotPolicy, not the standing Restore, which uses the
+      # same KOPIUR_PUID/PGID substitutions.
+      #
+      # A root mover also trips kopiur's privileged-mover gate, which is
+      # namespace-wide and lives on the overlay kustomization.yaml, not here.
+      KOPIUR_PUID: "0"
+      KOPIUR_PGID: "0"
+      # Namespace r2 hour, America/New_York (the component default after
+      # #1509). The component default cron (`H 4 * * *`) would put every
+      # kopiur r2 policy into the single 04:00 hour. Hour 10 is the
+      # home-automation assignment: free of this claim's VolSync destinations
+      # (ceph 00/04/08/12/16/20, minio 00/06/12/18, r2 01:20) and of kopiur
+      # ceph's odd 4-hour slots (01/05/09/13/17/21). Nearest own-VolSync
+      # neighbours in both DST seasons are minio 12:15 (~2h later) and ceph
+      # 08:20 (~1h52m earlier). Do not keep evaluating this as UTC: live
+      # gen=1 schedules were UTC and put r2 10:12Z against minio 10:15Z
+      # (2.2 min). Flux applying timezone: America/New_York shifts the same
+      # cron to 10:12 local (14:12Z EDT / 15:12Z EST), matching the other
+      # three home-automation claims. Ceph stays on the component default,
+      # which is already structurally offset.
+      KOPIUR_SCHEDULE_R2: "H 10 * * *"

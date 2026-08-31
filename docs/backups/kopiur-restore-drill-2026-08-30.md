@@ -584,9 +584,9 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
 - Retention/pruning behaviour, `Maintenance`, or restore from any snapshot other than the newest
   (`offset: 0` throughout).
 - Anything about the rest of the fleet at drill time. Only two volumes were onboarded to kopiur
-  then; this drill is not fleet coverage. Stage 3 later put 29 of 31 VolSync claims on kopiur
-  alongside VolSync - still not a fleet-wide restore proof (status owner:
-  [`kubernetes/components/kopiur/Readme.md`](../../kubernetes/components/kopiur/Readme.md)).
+  then; this drill is not fleet coverage. Later onboardings and any additional restore proofs are
+  tracked in [`kubernetes/components/kopiur/Readme.md`](../../kubernetes/components/kopiur/Readme.md)
+  - still not a fleet-wide restore proof.
 
 ## Follow-ups
 
@@ -600,10 +600,11 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
    GitOps-contract only, not a live stats gate.*
 2. **Add the mover-identity check to the Stage 3 rollout.** **Done in Stage 3** - every
    onboarded claim pins a measured `KOPIUR_PUID`/`KOPIUR_PGID` (from file ownership, not
-   `runAsUser`), enforced by `scripts/ci/kopiur-stage3-test.py`. Still open: whether the
-   component should adopt `mover.inheritSecurityContextFrom.pvcConsumer` - which the webhook
-   itself recommends - so the identity is derived rather than hand-maintained per app. That is a
-   component-wide change and was deliberately **not** made in Stage 2 or 3.
+   `runAsUser`), enforced by `scripts/ci/kopiur-stage3-test.py`. Still open for non-root apps:
+   whether the component should adopt `mover.inheritSecurityContextFrom.pvcConsumer` so identity
+   is derived rather than hand-maintained. Stage 4 deliberately kept **explicit** `KOPIUR_*`
+   substitutions for the root mover - inherit is SnapshotPolicy-only and would not reach the
+   standing Restore (owner: component Readme "Root movers").
 3. **Reconcile the 2061 vs 2062 file count.** kopiur records 2062 files for `sabnzbd-config`,
    matching a live count taken as the app's own uid; VolSync's restic reports 2061. The
    difference may be nothing more than restic's counting convention, but it has not been
