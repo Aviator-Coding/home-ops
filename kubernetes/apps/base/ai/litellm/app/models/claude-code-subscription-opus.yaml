@@ -74,10 +74,15 @@ spec:
     # catalog, so the distortion here is larger than on Sonnet.
     #
     # Zero is honoured, not read as "unset": use_custom_pricing_for_model()
-    # tests `is not None`. Consequence, stated plainly: a maxBudget cannot
-    # constrain this model, because $0 spend never reaches one. The guardrail
-    # is the rpmLimit/tpmLimit on the calling LiteLLMVirtualKey, plus
-    # Anthropic's own subscription rate limiting.
+    # tests `is not None`. That CR-level zero remains correct, but it does NOT
+    # make recorded spend always $0 or a maxBudget inert: live Claude Code
+    # traffic is call_type anthropic_messages, logged under the upstream id
+    # and priced off the built-in metered map (runbook §4a, ~$52 fictional and
+    # climbing on the sibling key). A maxBudget WOULD trip on dollars nobody
+    # is invoiced and lock the key out, so keep the calling key budgetless
+    # because the accounting is broken; rpmLimit/tpmLimit are the entire real
+    # guardrail, and the true ceiling is Anthropic's own subscription rate
+    # limiting.
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0

@@ -197,9 +197,16 @@ That function also reads `model_info` from `litellm_metadata`, which is where
 the `/v1/messages` route stores it - so the zero applies on the endpoint Claude
 Code actually uses, not just `/v1/chat/completions`.
 
-**Consequence:** a `maxBudget` cannot constrain this model, since $0 spend never
-reaches it. Grant it only on a virtual key that carries `rpmLimit`/`tpmLimit`;
-the real ceiling is Anthropic's own subscription rate limiting.
+**Consequence for the CR prices:** declaring explicit `$0` remains correct - a
+flat-rate subscription has no per-token invoice, so LiteLLM's metered cost map
+would otherwise inflate a D4 budget with dollars nobody is charged. **Do not
+infer from that that a `maxBudget` is inert.** Live Claude Code traffic is
+`call_type` `anthropic_messages` and is priced off the built-in metered map
+instead (§4a below, ~$52 fictional and climbing), so a `maxBudget` **would**
+trip on dollars nobody is invoiced and lock the key out. Keep the calling key
+budgetless because that accounting is broken; grant this model only on a virtual
+key that carries `rpmLimit`/`tpmLimit` (the entire real guardrail). The true
+ceiling is Anthropic's own subscription rate limiting.
 
 ### 4a. OPEN DEFECT - the `$0` is NOT reaching the route Claude Code uses
 

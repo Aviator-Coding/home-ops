@@ -72,11 +72,15 @@ spec:
     # both /v1/chat/completions and /v1/messages (it reads model_info from
     # `litellm_metadata` on the latter). Evidence: the doc's pricing section.
     #
-    # Consequence, stated plainly: D4 *budgets* cannot constrain this model,
-    # because $0 spend never reaches a maxBudget. The real ceiling is
-    # Anthropic's own subscription rate limiting, plus the rpmLimit/tpmLimit on
-    # whichever LiteLLMVirtualKey is allowed to call it - so grant it with
-    # those set, never on a budget alone.
+    # That CR-level zero remains correct, but it does NOT make recorded spend
+    # always $0 or a maxBudget inert: live Claude Code traffic is call_type
+    # anthropic_messages, logged under the upstream id and priced off the
+    # built-in metered map (runbook §4a, ~$52 fictional and climbing). A
+    # maxBudget WOULD trip on dollars nobody is invoiced and lock the key out,
+    # so keep the calling key budgetless because the accounting is broken;
+    # rpmLimit/tpmLimit are the entire real guardrail, and the true ceiling is
+    # Anthropic's own subscription rate limiting. Grant this model only on a
+    # key with those rate limits set, never on a budget alone.
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0
