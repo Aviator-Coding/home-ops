@@ -499,6 +499,12 @@ kubectl get secret ${APP}-volsync-r2-secret -o yaml
 2. **Storage class missing**: Verify `ceph-block` StorageClass is available
 3. **Permission errors**: Check `runAsUser`/`runAsGroup` settings match PVC requirements
 4. **Network issues**: Verify connectivity to backup destinations
+5. **Stuck mid-sync looking healthy**: `Synchronizing=True`/`SyncInProgress` is
+   indistinguishable from a legitimate mid-sync. `VolSyncVolumeOutOfSync` does not
+   cover a mover that never finishes; alert owner is
+   `kubernetes/apps/base/system/volsync/app/prometheusrule.yaml`
+   (`VolSyncSyncStalled{Ceph,Minio,R2}` - no completed sync in 1.5x that destination's
+   schedule, joined to a live cache PVC so deleted-RS metric leaks do not page).
 
 ## References
 
