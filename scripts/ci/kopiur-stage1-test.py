@@ -633,11 +633,27 @@ def test_autobrr_overlay_wiring() -> None:
         sub.get("VOLSYNC_SCHEDULE_R2") == PILOT_VOLSYNC_R2,
         "VOLSYNC_SCHEDULE_R2 must stay untouched",
     )
-    # No KOPIUR_SCHEDULE_* overrides - component defaults own non-collision.
+    # KOPIUR_SCHEDULE_CEPH must stay at the component default: its structural
+    # offset onto the ODD 4-hour slots (01/05/09/13/17/21) against volsync's
+    # even ones is what keeps the two engines off each other, and it needs no
+    # per-app tuning.
     require(
-        not any(k.startswith("KOPIUR_SCHEDULE") for k in sub),
-        f"pilot must not override KOPIUR_SCHEDULE_*; got {sorted(sub)}",
+        "KOPIUR_SCHEDULE_CEPH" not in sub,
+        f"ceph schedule must stay at the component default; got {sorted(sub)}",
     )
+    # KOPIUR_SCHEDULE_R2 MAY be overridden, and since Stage 3 it is: the
+    # component default `H 4 * * *` puts every kopiur r2 policy in the fleet
+    # into a single hour that already carries volsync's whole ceph slot plus 13
+    # volsync r2 runs. Stage 3 assigns one free hour per namespace. What must
+    # NOT happen is a hand-assigned minute - `H` is hashed from the schedule
+    # identity and jitter decorrelates on top, and that is the native
+    # replacement for volsync's stagger table.
+    r2 = sub.get("KOPIUR_SCHEDULE_R2")
+    if r2 is not None:
+        require(
+            re.fullmatch(r"H \d{1,2} \* \* \*", r2) is not None,
+            f"KOPIUR_SCHEDULE_R2 must be a bare-H hourly cron, got {r2!r}",
+        )
 
 
 def test_autobrr_still_onboarded() -> None:

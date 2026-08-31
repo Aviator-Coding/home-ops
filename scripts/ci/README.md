@@ -26,7 +26,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
 | `kopiur-stage0-test.py` | kopiur Stage 0: operator pin/CRDs/monitoring, ceph+r2 ClusterRepositories + deletion protection, no SnapshotPolicy/Schedule, Renovate automerge exclusion, VolSync untouched |
 | `kopiur-stage1-test.py` | kopiur Stage 1: reusable backup component (ceph+r2 only, Ephemeral cache, pinned Retain deletion), `downloads/autobrr` dual-backup alongside untouched VolSync, and the credential contract - all three `credentialProjection` legs wired plus zero standing per-namespace credential objects (Stage 2 owns the exclusive two-volume set) |
-| `kopiur-stage2-test.py` | kopiur Stage 2: exactly two onboarded volumes (`autobrr` + `sabnzbd`), `KOPIUR_CLAIM=sabnzbd-config` + load-bearing `KOPIUR_PUID/PGID=2000`, volsync still triple-dest, drill doc result contract (both-destination sha256 digest, findings 1-2, proved VolSync simultaneity with observed lastSync times) |
+| `kopiur-stage2-test.py` | kopiur Stage 2: both pilot volumes stay onboarded (`autobrr` + `sabnzbd`; the exact fleet set moved to stage3), `KOPIUR_CLAIM=sabnzbd-config` + load-bearing `KOPIUR_PUID/PGID=2000`, volsync still triple-dest, drill doc result contract (both-destination sha256 digest, findings 1-2, proved VolSync simultaneity with observed lastSync times) |
 | `schematic-pcie-port-pm-test.py` | Arc B70 `pcie_port_pm=off` schematic kernel-arg contract |
 | `igpu-xe-allowids-test.py` | scoping `gpu.intel.com/xe` to the iGPU |
 | `b70-vaapi-tdarr-test.py` | B70 VA-API restore: `b70-vaapi` native mounts, hashed plugin config rollout, tdarr-node resource/CPU fallback, libdrm DEVNAME reopen trap |
@@ -42,6 +42,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `workflow-hardening-test.py` | GitHub Actions workflow permissions/concurrency hardening |
 | `recyclarr-quality-profile-test.py` | Radarr SQP-1 recyclarr fix (guide min_format_score, trash_id matching, 1080p profile) |
 | `pvc-writable-check-test.py` | system/pvc-writable-check: real CronJob script vs mock kubectl (motivating unwritable bugs, clean sweep, readOnly/skip/excluded-NS/shell-less/kubectl-error skips, RO-rootfs large JSON, split-role RBAC, PrometheusRule, headlamp readOnly mount) |
+| `kopiur-stage3-test.py` | kopiur Stage 3 fleet-wide parallel run: exact coverage set, per-volume measured mover identity, per-namespace r2 hour, the two deferred root-mover claims staying off, and VolSync staying on every volume |
 
 New `scripts/ci/*-test.py` files need no separate wiring: CI globs `scripts/ci/*-test.py`,
 so any file matching that pattern is picked up automatically.

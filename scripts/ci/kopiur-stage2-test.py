@@ -5,7 +5,9 @@ Stage 2 is the migration acceptance gate: prove a restore from BOTH kopiur
 destinations (ceph and r2) on a volume that actually holds data, and record the
 drill. Captain decision `kopiur-stage2-empty-pilot` authorised ONE additional
 volume - downloads/sabnzbd-config - because the Stage 1 pilot (autobrr) holds
-zero files. This is NOT permission to begin Stage 3.
+zero files. Stage 3 (2026-08-30) has since onboarded the rest of the fleet;
+this file still pins the Stage 2 fidelity contract, and the fleet-wide
+coverage set now lives in kopiur-stage3-test.py.
 
 This test does not grep source text as its evidence. It:
   1. Renders the real kustomize builds Flux would apply for the kopiur and
@@ -15,13 +17,15 @@ This test does not grep source text as its evidence. It:
      list, the sabnzbd workload securityContext, and the Stage 2 drill
      document into structured objects / measured fields.
   3. Asserts the Stage 2 safety contract on those objects:
-       - exactly two onboarded volumes: downloads/autobrr + downloads/sabnzbd
+       - both Stage 2 volumes stay onboarded (autobrr + sabnzbd); the exact
+         fleet set is pinned by kopiur-stage3-test.py
        - sabnzbd components are volsync THEN kopiur; volsync stays triple-dest
        - rendered SnapshotPolicy PVC name is sabnzbd-config (claim override)
        - rendered mover podSecurityContext is uid/gid/fsGroup 2000 (finding 2)
        - sabnzbd workload securityContext is 2000 (the reason the override
          is load-bearing); autobrr remains at the component default 1000
-       - no KOPIUR_SCHEDULE_* overrides; hour non-collision with sabnzbd VolSync
+       - ceph schedule stays at the component default and any r2 override is
+         a bare-H hourly cron (no hand-assigned minute)
        - dependsOn includes kopiur-repository + volsync, and NOT
          kopiur-credentials (credential-scope 2026-08-30 replaced the standing
          per-namespace copies with operator-minted per-run projection; the
@@ -289,24 +293,30 @@ def workload_security_context(hr_path: Path) -> dict[str, Any]:
     return {"pod": pod_sc or {}, "container": ctr_sc or {}}
 
 
-def test_exactly_two_onboarded() -> None:
+def test_stage2_volumes_still_onboarded() -> None:
+    """Both Stage 2 pilots remain on kopiur.
+
+    This asserted an EXACT two-volume set until Stage 3 (2026-08-30), which
+    deliberately onboarded the rest of the fleet. Freezing the fleet at two is
+    no longer the invariant; what Stage 2 still owns is that its own two
+    volumes - the restore-proof subject `sabnzbd-config` and the original pilot
+    `autobrr` - are never quietly dropped. The exact Stage 3 coverage set,
+    including the two volumes deliberately left off, is pinned by
+    kopiur-stage3-test.py.
+    """
     onboarded = flux_overlays_with_kopiur()
     keys = {(ns, name) for ns, name, _ in onboarded}
+    missing = STAGE2_ONBOARDED - keys
     require(
-        keys == STAGE2_ONBOARDED,
-        f"Stage 2 onboarded set must be exactly {sorted(f'{n}/{a}' for n, a in STAGE2_ONBOARDED)}, "
-        f"got {sorted(f'{n}/{a}' for n, a in keys)}",
+        not missing,
+        f"Stage 2 volumes must stay onboarded; missing {sorted(f'{n}/{a}' for n, a in missing)}",
     )
-    # Paths must be the two known overlays (no surprise third file name).
     paths = {p.resolve() for _, _, p in onboarded}
-    require(
-        paths
-        == {
-            AUTOBRR_OVERLAY.resolve(),
-            SABNZBD_OVERLAY.resolve(),
-        },
-        f"unexpected overlay paths for kopiur onboard: {sorted(str(p) for p in paths)}",
-    )
+    for required in (AUTOBRR_OVERLAY.resolve(), SABNZBD_OVERLAY.resolve()):
+        require(
+            required in paths,
+            f"{required.name} must still be a kopiur-onboarded overlay",
+        )
 
 
 def test_sabnzbd_overlay_wiring() -> None:
@@ -377,10 +387,19 @@ def test_sabnzbd_overlay_wiring() -> None:
         f"KOPIUR_PGID must be {STAGE2_PGID} (finding 2), got {sub.get('KOPIUR_PGID')!r}",
     )
     # No schedule overrides - component defaults own hour non-collision.
+    # See kopiur-stage1-test.py for the full rationale: ceph stays at the
+    # component default (structurally offset), r2 may carry the per-namespace
+    # hour Stage 3 assigns, and a hand-assigned MINUTE is what stays forbidden.
     require(
-        not any(k.startswith("KOPIUR_SCHEDULE") for k in sub),
-        f"sabnzbd must not override KOPIUR_SCHEDULE_*; got {sorted(sub)}",
+        "KOPIUR_SCHEDULE_CEPH" not in sub,
+        f"ceph schedule must stay at the component default; got {sorted(sub)}",
     )
+    r2 = sub.get("KOPIUR_SCHEDULE_R2")
+    if r2 is not None:
+        require(
+            re.fullmatch(r"H \d{1,2} \* \* \*", r2) is not None,
+            f"KOPIUR_SCHEDULE_R2 must be a bare-H hourly cron, got {r2!r}",
+        )
 
 
 def test_rendered_claim_override_and_puid(
@@ -826,7 +845,7 @@ def main() -> int:
         print("Summary: 0 passed, 1 failed")
         return 1
 
-    run("exactly_two_onboarded", test_exactly_two_onboarded)
+    run("stage2_volumes_still_onboarded", test_stage2_volumes_still_onboarded)
     run("sabnzbd_overlay_wiring", test_sabnzbd_overlay_wiring)
     run(
         "rendered_claim_override_and_puid",
