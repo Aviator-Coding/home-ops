@@ -249,6 +249,24 @@ added complexity at exactly the wrong moment.
 | `KOPIUR_SCHEDULE_CEPH` | `H 1-23/4 * * *` | |
 | `KOPIUR_SCHEDULE_R2` | `H 4 * * *` | |
 
+## `wait: true` is incompatible with this component
+
+`ceph/restore.yaml` is a standing `Restore` in passive populator mode, and it
+reports **`Ready=False` for the whole parallel run by design**
+(`AwaitingPvcDataSourceRef` - it is waiting for a PVC `dataSourceRef` that only
+Stage 5 will point at it). Flux with `wait: true` assesses **every** object in a
+Kustomization's inventory, so adding this component inline to such a
+Kustomization makes Flux block on an object that can never become Ready, and the
+Kustomization times out.
+
+Two apps hit this in Stage 3 and ship the kopiur half as their own `wait: false`
+Kustomization with `path: ./kubernetes/components/kopiur/backup`:
+`database/pgadmin` (in `kubernetes/apps/main/database/cloudnative-pg.yaml`) and
+`media/calibre-web-automated`. An overlay with `wait: false` plus explicit
+workload `healthChecks` is unaffected, because Flux then assesses only the
+objects that are listed. **`flate` does not catch this** - it validates that the
+Kustomization builds, not Flux's runtime health assessment.
+
 ## Schedules
 
 Cadence matches VolSync per destination; the **hour** is offset so the two
@@ -262,6 +280,29 @@ systems cannot collide on the same claim:
 
 Retention is copied field-for-field from each destination's VolSync `retain`
 block so the two systems stay directly comparable through the parallel run.
+
+**`KOPIUR_SCHEDULE_R2` must be overridden per namespace - the `H 4 * * *`
+default above does not scale past the pilot.** It puts *every* kopiur r2 policy
+into a single hour, and 04:00 already carries VolSync's entire ceph slot plus 13
+VolSync r2 runs; at full Stage 3 that is 83 mover runs, the busiest hour of the
+day. Worse, for every `selfhosted` claim and for `media/calibre-web-automated`
+VolSync's own r2 job is *also* in the 04:00 hour, so the default stacks both
+engines onto the same claim - exactly what the hour offset exists to prevent.
+Stage 3 assigns one free hour per namespace (free of every VolSync destination
+and of kopiur's own ceph slots):
+
+| namespace | `KOPIUR_SCHEDULE_R2` |
+|---|---|
+| `database` | `H 7 * * *` |
+| `home-automation` | `H 10 * * *` |
+| `downloads` | `H 11 * * *` |
+| `selfhosted` | `H 14 * * *` |
+| `media` | `H 15 * * *` |
+| `ai` | `H 19 * * *` |
+
+`KOPIUR_SCHEDULE_CEPH` stays at the component default: it is already
+structurally disjoint from VolSync's even 4-hour slots and needs no per-app
+override.
 
 **Do not hand-assign minutes.** `H` is Jenkins-style hashing: kopiur derives the
 minute deterministically from the schedule's identity, which spreads 100+ future
