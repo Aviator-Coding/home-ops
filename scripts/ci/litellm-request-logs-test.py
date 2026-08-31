@@ -19,8 +19,10 @@ Renders the litellm-operator LiteLLMProxy CR the way file-mode does, then:
        - messages column stays "{}" for ordinary (non-realtime) traffic
        - redact_credential_headers masks Authorization / x-api-key
        - cold_storage_object_key is None when cold_storage_custom_logger is unset
-       - duration_in_seconds("30d") == 2592000; "1mo" is calendar-month
-         (pinned to a Jan 1 clock so it is exactly 31d, not date-flaky)
+       - duration_in_seconds("30d") == 2592000, always, on every calendar date
+       - duration_in_seconds("1mo") is a calendar month clamped to the target
+         month's length (28-31 days), so it is NOT a fixed 30-day span and is
+         not a safe stand-in for "30d" - the actual reason "30d" is pinned
   7. Asserts the request-logs runbook is a published retrieval contract.
   8. Asserts postgres-17 Barman retentionPolicy is 30d on the LAN NAS endpoint.
 
@@ -29,6 +31,7 @@ render output, CR semantic model, and live library call results.
 """
 from __future__ import annotations
 
+import calendar
 import json
 import os
 import sys
@@ -244,6 +247,7 @@ def test_runtime_spend_log_behaviour() -> None:
 
     import litellm
     from litellm.constants import LITELLM_TRUNCATED_PAYLOAD_FIELD
+    from litellm.litellm_core_utils import duration_parser
     from litellm.litellm_core_utils.duration_parser import duration_in_seconds
     from litellm.litellm_core_utils.litellm_logging import (
         StandardLoggingPayloadSetup,
@@ -479,26 +483,40 @@ def test_runtime_spend_log_behaviour() -> None:
     )
 
     # --- retention duration parsing ---
-    # "1mo" is calendar-relative (same wall-clock day next month), so its
-    # second count depends on *today*. On Aug 31 it collapses to exactly 30d
-    # (Sep has 30 days), which made this check fail in CI on 2026-08-31.
-    # Pin the clock to Jan 1 so next month is Feb 1 = 31d every run.
-    fixed_jan1 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
-    with mock.patch(
-        "litellm.litellm_core_utils.duration_parser.time_module.time",
-        return_value=fixed_jan1,
-    ):
-        d30 = duration_in_seconds("30d")
-        d1mo = duration_in_seconds("1mo")
+    d30 = duration_in_seconds("30d")
     record(
         "runtime_30d_is_exactly_2592000_seconds",
         d30 == 2_592_000,
         f"30d={d30}",
     )
+
+    # "1mo" resolves to a *calendar* month clamped to the target month's
+    # length (litellm_core_utils/duration_parser.py), so its length is
+    # 28-31 days depending on the date the proxy happens to compute it on -
+    # it is NOT a fixed 30-day span, and comparing it against "30d" with the
+    # real current date is itself date-dependent (measured: false on 42% of
+    # calendar dates, e.g. any Aug 31, where Aug 31 -> Sep 30 clamps to
+    # exactly 30 days). That is the actual reason "30d" is pinned instead of
+    # "1mo" for maximum_spend_logs_retention_period. Prove the calendar
+    # dependence deterministically by freezing "now" at two fixed dates
+    # (a 31-day and a 28-day month) instead of relying on the date the test
+    # happens to run on, so this assertion is true on every calendar date.
+    def frozen_1mo_seconds(year: int, month: int) -> int:
+        frozen_ts = datetime(year, month, 1, 12, 0, 0).timestamp()
+        with mock.patch.object(duration_parser.time_module, "time", return_value=frozen_ts):
+            return duration_in_seconds("1mo")
+
+    jan_1mo = frozen_1mo_seconds(2027, 1)
+    feb_1mo = frozen_1mo_seconds(2027, 2)  # 2027 is not a leap year
+    expected_jan = calendar.monthrange(2027, 1)[1] * 86400
+    expected_feb = calendar.monthrange(2027, 2)[1] * 86400
     record(
-        "runtime_1mo_is_longer_than_30d",
-        d1mo > d30 and d1mo == 31 * 86400,
-        f"1mo={d1mo} 30d={d30}",
+        "runtime_1mo_is_calendar_dependent_not_a_fixed_30d",
+        jan_1mo == expected_jan
+        and feb_1mo == expected_feb
+        and jan_1mo != feb_1mo
+        and (jan_1mo != 2_592_000 or feb_1mo != 2_592_000),
+        f"jan_1mo={jan_1mo} feb_1mo={feb_1mo} 30d={d30}",
     )
 
     # Probe size sanity - the live verification used 4683 chars.
