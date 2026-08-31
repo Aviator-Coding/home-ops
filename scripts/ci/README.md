@@ -53,6 +53,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `kopiur-timezone-test.py` | kopiur/VolSync cron timezone alignment: rendered `SnapshotSchedule.spec.schedule.timezone` default + override, pre-fix EST total ceph collision, post-fix zero collision across all dual-engine claims in both DST seasons |
 | `kopiur-projected-secrets-leak-alert-test.py` | `KopiurProjectedCredentialsLeaking` multi-pass census semantics: live PrometheusRule must use `min_over_time(...[13h])` (not bare `> 0` / `for: 1h`); promtool unit-tests silent on the 6h benign plateau, fire on a permanent leak across 2+ sweeps, silent on healthy zero |
 | `kopiur-stage4-test.py` | kopiur Stage 4: `home-automation/matter-server` onboarded with explicit `KOPIUR_PUID/PGID: 0`, GitOps privileged-mover annotation on the overlay Namespace, sibling movers unchanged |
+| `talos-renovate-pin-test.py` | Talos Renovate pin unfreeze: `allowedVersions: "!/^v?1\\.13\\.3$/"` excludes only v1.13.3 (not a `<1.13.3` ceiling); renovate@44.52.1 getRegexPredicate/filterVersions/docker-isStable/applyPackageRules prove old pin freezes, new pin proposes, alpha is docker-stable+minor, and autoMerge last-rule blocks automerge for all four Talos packages |
 | `syncthing-data-capacity-test.py` | `syncthing-data` 15Gi right-size: plain PVC + VolSync `VOLSYNC_CAPACITY`/`CACHE` substitutes + rendered ReplicationDestination capacity (not live claim create); config claim stays 1Gi |
 
 New `scripts/ci/*-test.py` files need no separate wiring: CI globs `scripts/ci/*-test.py`,
