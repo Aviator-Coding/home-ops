@@ -215,6 +215,31 @@ spec:
                     fi
                   done < <(printf '%s\n' "${TARGETS_TSV}")
 
+                  # Classify an exec that produced no walker output. Order is
+                  # load-bearing: kubectl's own transient "container not found"
+                  # contains the substring "not found", so a broad no-tools
+                  # match placed first would mislabel a rescheduling pod as a
+                  # permanently unmeasurable container. Every branch here is
+                  # UNMEASURED - a failure to run the walker is never evidence
+                  # about the volume, and must never become a readability
+                  # finding. Prints: rbac | no-tools | transient
+                  classify_exec_failure() {
+                    local rc="$1" out="$2"
+                    # timeout(1) 124; SIGKILL 137; SIGTERM 143.
+                    case "${rc}" in
+                      124|137|143) echo transient; return ;;
+                    esac
+                    case "${out}" in
+                      *"Forbidden"*|*"is forbidden:"*|*'cannot create resource "pods/exec"'*)
+                        echo rbac; return ;;
+                      *"unable to upgrade connection"*|*"container not found"*|*"cannot exec into a container"*)
+                        echo transient; return ;;
+                      *"executable file not found"*|*": not found"*|*": command not found"*)
+                        echo no-tools; return ;;
+                    esac
+                    echo transient
+                  }
+
                   # ---------------------------------------------------------
                   # Sweep
                   # ---------------------------------------------------------
@@ -284,16 +309,16 @@ spec:
                     # fails under readOnlyRootFilesystem (pvc-writable-check hit
                     # this live). `case` is a builtin and touches no disk.
                     if [[ "${OUT}" != *"WALK_ERRORS="* ]]; then
-                      case "${OUT}" in
-                        *'"sh": executable file not found'*|*"exec: \"sh\""*|*"not found"*)
-                          echo "UNMEASURED (container lacks sh/find/stat/awk) ${key} ${ids} pod=${pod} ctr=${ctr} - ${OUT}"
-                          UNMEASURED+=("${key} - container lacks sh/find/stat/awk")
-                          UNMEASURED_NO_TOOLS=$((UNMEASURED_NO_TOOLS + 1))
-                          ;;
-                        *"Forbidden"*|*"is forbidden:"*|*"pods/exec"*)
+                      case "$(classify_exec_failure "${RC}" "${OUT}")" in
+                        rbac)
                           echo "UNMEASURED (pods/exec forbidden, RBAC) ${key} ${ids} - ${OUT}"
                           UNMEASURED+=("${key} - pods/exec forbidden (RBAC coverage gap)")
                           UNMEASURED_RBAC=$((UNMEASURED_RBAC + 1))
+                          ;;
+                        no-tools)
+                          echo "UNMEASURED (container lacks sh/find/stat/awk) ${key} ${ids} pod=${pod} ctr=${ctr} - ${OUT}"
+                          UNMEASURED+=("${key} - container lacks sh/find/stat/awk")
+                          UNMEASURED_NO_TOOLS=$((UNMEASURED_NO_TOOLS + 1))
                           ;;
                         *)
                           echo "UNMEASURED (exec unavailable, transient rc=${RC}) ${key} ${ids} - ${OUT}"
