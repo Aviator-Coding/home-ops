@@ -10,8 +10,6 @@ components:
 
 resources:
   - ./calibre.yaml
-  - ./immich.yaml
-  - ./jellyfin.yaml
   - ./plex.yaml
   - ./seerr.yaml
   - ./tdarr.yaml

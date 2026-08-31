@@ -26,7 +26,7 @@ recently, and why?" without spelunking git.
 | **GPU (discrete)** | 1× Intel Arc Pro B70 (Battlemage G31, 32 GiB / 32656 MiB reported), talos-3 OCuLink PCI `0000:03:00.0` |
 | **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic: `siderolabs/xe` + `siderolabs/i915` (i915/ firmware for xe; `i915.ko` kept off a7a0), `xe.force_probe=a7a0` + `i915.force_probe=!a7a0`, plus `pcie_port_pm=off` for the B70 root-port race (captain activates schematic changes via `just talos upgrade-node`, not `apply-node`; not Flux) |
 | **B70 resources** | `devic.es/b70: 99` (Level Zero / renamed `card0`/`renderD128`) and `devic.es/b70-vaapi: 99` (VA-API / kernel names `card1`/`renderD129`) via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
-| **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin, `allowIDs: "0xa7a0"` - light QSV/browser (jellyfin/plex/playwright). iGPU-only; the B70 no longer contributes to this pool |
+| **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin, `allowIDs: "0xa7a0"` - light QSV/browser (plex/playwright; jellyfin retired 2026-08-30). iGPU-only; the B70 no longer contributes to this pool |
 | **On the B70** | chat (`vllm` on `devic.es/b70`) + optional `tdarr-node` (on `devic.es/b70-vaapi`). `vllm-embed` and `comfyui` are pinned `replicas: 0` |
 | **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` (pin is load-bearing; do not float to `server-intel`) |
 | **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` |

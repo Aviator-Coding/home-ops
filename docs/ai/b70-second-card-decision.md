@@ -41,7 +41,7 @@ OCuLink/M.2 adapter).
 workloads now request the dedicated `devic.es/b70` extended resource
 (generic-device-plugin on the B70 DRM by-path at `0000:03:00.0`, advertised with
 `--domain=devic.es`). Consumers: vllm, vllm-embed, comfyui, and tdarr-node.
-`gpu.intel.com/xe` is the Intel plugin pool for jellyfin/plex/playwright
+`gpu.intel.com/xe` is the Intel plugin pool for plex/playwright
 (light QSV/browser), scoped to the iGPU only (`allowIDs: "0xa7a0"`). Live
 inventory: [`ai-gpu-changelog.md`](../ai-gpu-changelog.md). `devic.es/b70` is a
 scheduling identity only (share count 99) — not VRAM fencing — so concurrent

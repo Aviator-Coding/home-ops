@@ -264,8 +264,8 @@ spec:
     # uvicorn/gunicorn layer runs multiple workers inside that one pod. No
     # password: the dragonfly component ships with no auth mechanism (see
     # kubernetes/components/dragonfly/cluster.yaml), matching every other
-    # consumer in this repo (searxng, immich, authentik, paperless-ngx,
-    # rsshub) - all plain host:port, same-namespace network boundary only.
+    # consumer in this repo (searxng, authentik, paperless-ngx, rsshub) -
+    # all plain host:port, same-namespace network boundary only.
     redis_host: litellm-dragonfly.ai.svc.cluster.local
     redis_port: 6379
 

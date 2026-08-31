@@ -108,7 +108,7 @@ So D4's "virtual keys with budgets from day one" requirement forces a real
 database, which is why this app - unlike most of this namespace's
 otherwise-stateless apps - depends on the shared `postgres-17` CNPG cluster
 (`kubernetes/apps/base/database/cloudnative-pg/`), the same way
-`immich`/`linkwarden`/`seerr` do. This is the same tradeoff this app's
+`linkwarden`/`seerr` do. This is the same tradeoff this app's
 pre-removal incarnation made (its removal PR #941 explicitly had to `DROP
 DATABASE litellm` as a manual follow-up) - it's inherent to LiteLLM's
 architecture, not a design choice made here.
@@ -133,7 +133,7 @@ of what D4 was for.
 
 The fix is `litellm-dragonfly` (this repo's own
 [`kubernetes/components/dragonfly`](../../../kubernetes/components/dragonfly),
-the same component `searxng`/`immich`/`authentik`/`paperless-ngx`/`rsshub`
+the same component `searxng`/`authentik`/`paperless-ngx`/`rsshub`
 already use), wired on
 [`kubernetes/apps/main/ai/litellm.yaml`](../../../kubernetes/apps/main/ai/litellm.yaml)
 and consumed by the `LiteLLMProxy` CR

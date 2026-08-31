@@ -497,8 +497,8 @@ untouched and still forbidden.
 **Not a DNS decision.** `spec.route` would have resolved correctly: the
 `envoy-internal` Gateway itself carries
 `external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}` and
-external-dns applies it to every attached route. Verified live - `searxng` and
-`jellyfin` carry no route-level target annotation and both resolve
+external-dns applies it to every attached route. Verified live - `searxng` (and formerly `jellyfin`, retired 2026-08-30)
+carries no route-level target annotation and resolves
 `CNAME -> internal.${SECRET_DOMAIN} -> 10.50.0.26`. (Before this change,
 `litellm.${SECRET_DOMAIN}` resolved to `10.50.0.27` only via the `*.${SECRET_DOMAIN}`
 wildcard that the agentgateway `internal` Gateway publishes; a specific record

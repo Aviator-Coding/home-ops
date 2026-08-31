@@ -94,53 +94,7 @@ op item create \
 
 ---
 
-### 2. immich
-
-- **1Password item name**: `immich`
-- **Namespace**: `media`
-
-**Generate secrets first:**
-
-```bash
-# IMMICH_SECRET_KEY -- 32-byte hex string
-openssl rand -hex 32
-
-# POSTGRES_DB_USER_PASSWORD -- strong random password
-openssl rand -base64 24
-```
-
-**Create the 1Password item with these fields:**
-
-| Field Name                  | Value                                   |
-| --------------------------- | --------------------------------------- |
-| `POSTGRES_DB_NAME`          | `immich`                                |
-| `POSTGRES_DB_USER_NAME`     | `immich`                                |
-| `POSTGRES_DB_USER_PASSWORD` | _(output of `openssl rand -base64 24`)_ |
-| `IMMICH_SECRET_KEY`         | _(output of `openssl rand -hex 32`)_    |
-
-The ExternalSecret maps Immich `DB_PASSWORD` from `POSTGRES_DB_USER_PASSWORD`. A separate `DB_PASSWORD` field in 1Password is unused.
-
-> **Note**: `POSTGRES_SUPER_PASS` comes from the `cloudnative-pg` item.
-
-**CLI creation (optional):**
-
-```bash
-IMMICH_SECRET=$(openssl rand -hex 32)
-DB_PASS=$(openssl rand -base64 24)
-
-op item create \
-  --category=login \
-  --title="immich" \
-  --vault="Homelab" \
-  "POSTGRES_DB_NAME=immich" \
-  "POSTGRES_DB_USER_NAME=immich" \
-  "POSTGRES_DB_USER_PASSWORD=$DB_PASS" \
-  "IMMICH_SECRET_KEY=$IMMICH_SECRET"
-```
-
----
-
-### 3. paperless-ngx
+### 2. paperless-ngx
 
 - **1Password item name**: `paperless-ngx`
 - **Namespace**: `selfhosted`
@@ -192,7 +146,7 @@ op item create \
 
 ---
 
-### 4. obsidian-livesync
+### 3. obsidian-livesync
 
 - **1Password item name**: `obsidian-livesync`
 - **Namespace**: `selfhosted`
@@ -234,7 +188,7 @@ op item create \
 
 ---
 
-### 5. ntfy (ConfigMap-only; no 1Password item)
+### 4. ntfy (ConfigMap-only; no 1Password item)
 
 ntfy auth is a ConfigMap (`kubernetes/apps/base/selfhosted/ntfy/app/configmap.yaml`):
 `auth-default-access: read-write`. There is no ntfy ExternalSecret. Creating an
@@ -256,7 +210,6 @@ kubectl get externalsecret -A
 # Expected output for healthy secrets (namespaces match GitOps):
 # NAMESPACE    NAME                   STORE        REFRESH   STATUS         READY
 # selfhosted   linkwarden-secret      onepassword  5m        SecretSynced   True
-# media        immich-secret          onepassword  5m        SecretSynced   True
 # selfhosted   paperless-ngx-secret   onepassword  5m        SecretSynced   True
 # selfhosted   obsidian-livesync-...  onepassword  5m        SecretSynced   True
 ```
