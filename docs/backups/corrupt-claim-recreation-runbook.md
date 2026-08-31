@@ -175,9 +175,17 @@ while you are trying to delete the destination.
      finalizer, so deleting the CR deletes backup data. Delete its Job and staging
      artifacts only, and leave the CR. A wedged kopiur Job carries
      `activeDeadlineSeconds: 172800` (48 h), so it will not clear itself in any useful
-     time - you do have to clear it by hand.
-   - VolSync's `ReplicationSource` has no such property; deleting its Job or the source
-     never touches the restic repository.
+     time - you do have to clear it by hand. A CR left `Running` also blocks later
+     scheduled kopiur backups for that claim under `concurrencyPolicy: Forbid` - check
+     the phase rather than waiting on the 48 h deadline (on the 2026-08-31 run the
+     wedged CR flipped to `Failed` within ~4 minutes after its staging PVC was removed,
+     and the replacement run started on its own).
+   - **Delete the VolSync `ReplicationSource`s too**, not only their Jobs. Flux is
+     suspended so Git will not recreate them mid-procedure, but the in-cluster VolSync
+     controller still reconciles live RS objects and **re-stages a new clone within
+     seconds of each Job/clone delete** - fighting that loop is how the 2026-08-31 run
+     got stuck. Deleting an RS never touches the restic repository; Flux recreates the
+     sources cleanly on resume.
    - Dependent VolumeSnapshots must go before the PVC. Deleting the claim while RBD
      snapshots of its image still exist makes the ceph-csi `DeleteVolume` fall back to the
      RBD trash instead of a clean delete.
