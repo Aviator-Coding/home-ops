@@ -231,39 +231,79 @@ nodeName=<k8s pod nodeName> # Registers with pod's scheduling node
 ffmpegVersion=7
 ```
 
-### Node library scoping (Tdarr server state, not Git)
+### Library scoping (Tdarr server state, not Git)
 
-Which libraries a node will accept work from is per-node Tdarr state
-(`librariesToNotProcess`, persisted in the server's `NodeJSONDB`, keyed by node
-name). It is **not** GitOps and cannot ship in a PR - it survives pod restarts
-because the node re-reads it from the server when it registers.
+**`librariesToNotProcess` is a Tdarr Pro feature and is inert on this
+unlicensed install. Never use it as a safety boundary.** It is stored in
+`NodeJSONDB`, shown in the UI and returned by `GET /api/v2/get-nodes`, so it
+looks live - `talos-3` has carried `{"j5g_Es7sD": true}` since 2026-08-29 - but
+it has never excluded anything here. A Series file was transcoded by that node
+on 2026-08-31 11:35:30Z while the setting was present and correct.
 
-Current scoping for `talos-3` (the k8s worker):
+Mechanism, read out of the server's own bundled source in
+`/app/Tdarr_Server/srcug/` (2.86.01) and confirmed live:
 
-| Library | Id | talos-3 | Why |
-|---------|----|---------|-----|
+| Step | File | Behaviour |
+|------|------|-----------|
+| Node asks for work | `api/v2/get-new-task.js` | node **polls**; the log line `Server relay sending job to Node relay: <node>` is the server's **reply**, not a push |
+| Server picks a file | `api/nodeRelay/fileQueues/getNextTask.js` | computes `auth = await authStatus(false)`, passes it to both queue readers |
+| Queued path | `fileQueues/getQueuedFiles.js` | `if (auth && librariesToNotProcess.length > 0)` -> adds the `db NOT IN (...)` clause |
+| Staged path | `fileQueues/getStagedFiles.js` | `return auth && librariesToNotProcess.length > 0 && (filter...)` |
+| What `auth` means | `server/auth.js` | **not** a login. `authorised` is set only by `authUpdate()`, which POSTs `tdarrKey` to `tdarrio/api/v2/verify-key`. `/api/v2/auth-status` describes itself as *"For checking Tdarr Pro status"* |
+
+`authStatus(false)` cannot even trigger the verification (`a === true && ...`
+short-circuits), so it returns the cached flag. Live proof, using the exact
+call `getNextTask` makes on every dispatch:
+
+```console
+$ curl -s -XPOST .../api/v2/auth-status -d '{"data":{"saU":false}}'
+false
+$ sqlite3 database.db "select json_extract(json_data,'$.tdarrKey') from settingsglobaljsondb"
+        # empty
+```
+
+So the filter clause is never added, on either path. This **refutes** the
+earlier "server pushes work, bypassing a node-side accept filter" hypothesis:
+the filter is server-side, in the queue query, and there is no node-side accept
+filter to bypass. It is licence-gated, not push-bypassed.
+
+**What actually holds: the library-level toggles.** `server/qb/qbUtils.js`
+`getAllDisabledLibraries()` and `plugins/queueQueryFuncs.js`
+`getAdditionalQueries({type})` build the same `db NOT IN (...)` clause for
+`table1` (the transcode queue) with **no `auth` check anywhere**:
+
+| Library field | Excluded from | Licence-gated? |
+|---------------|---------------|----------------|
+| `processLibrary: false` | transcodes **and** health checks | no |
+| `processTranscodes: false` | transcodes only | no |
+| `processHealthChecks: false` | health checks only | no |
+| `schedule[i].checked: false` | both, for that hour slot | no |
+
+Current scoping:
+
+| Library | Id | Transcodes | How enforced |
+|---------|----|------------|--------------|
 | Movies AV1 | `gEUZf7Nx6` | **processed** | Restored 2026-08-29 with the B70 VA-API fix |
-| Series | `j5g_Es7sD` | **excluded (deliberate)** | See below |
+| Series | `j5g_Es7sD` | **excluded** | `processTranscodes: false` (2026-08-31) + flow guard `guard_scope`, see below |
 
-**The Series exclusion is retained on purpose.** All three Talos nodes were
-excluded from both libraries as a mitigation after the 2026-08-26 VA-API break
-(the job report from that day shows talos-3 still accepting Movies work at
-19:19, so the exclusions post-date it). Restoring one library at a time keeps
-the blast radius small while the B70 VA-API fix is newly landed and while the
-4K remux failures below are still unexplained. Revisit the Series exclusion
-once Movies has run clean for a while. `desktop-aviator` (the external Windows
-node) has never carried either exclusion.
+Health checks and folder scanning stay enabled on Series; only transcoding is
+refused. `librariesToNotProcess` was left in place on the node but is
+documented above as decorative - do not add to it and do not trust it.
 
-**Follow-up: 8 errored 4K remuxes, root cause unknown.** Eight files sit in
-Tdarr's error table (`table3`), most of them 21-67 GB 2160p DV/HDR10 remux
-masters. Their failure is **not** explained by the VA-API break alone and has
-not been investigated. Tdarr rewrites in place and the AV1 result is lossy and
-irreversible, so **do not bulk-requeue them to clear the error table** - the
-failure needs to be understood on one file first, ideally against a copy.
-Re-enabling a library does not re-queue them: `librariesToNotProcess` is a
-node-side accept filter, and errored files stay parked until explicitly
-requeued (verified 2026-08-29 - clearing the Movies exclusion left all 8 in
-`table3` with the transcode queue at 0).
+**Follow-up: the errored 4K remux masters.** As of 2026-08-31 the error table
+(`table3`) holds **47** files - 46 Movies and 1 Series - not the 8 recorded
+before 2026-08-29. Of those 47, **7** are the original 21-67 GB 2160p DV/HDR10
+remux masters and **40** are collateral from the CPU-worker argument bug fixed
+in the same change. An eighth master, `Johnny Mnemonic (1995)`, was rewritten
+in place by a bulk UI requeue on 2026-08-30 - lossily and irreversibly. Tdarr
+rewrites in place, so **do not bulk-requeue**. Root causes and the
+subtitle-preserving path are in
+[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md).
+
+Errored files stay parked until explicitly requeued: they leave `table1`
+because `table1` is `transcode_decision_maker = 'Queued'`, so re-enabling a
+library does not re-queue them (verified 2026-08-29, and again 2026-08-31 with
+the transcode queue at 0).
 
 ### Transcode flow (configured in Tdarr UI, not Git)
 
