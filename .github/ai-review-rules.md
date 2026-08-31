@@ -116,9 +116,15 @@ agree. A pure digest or patch bump with nothing else in the diff is normally fin
   is a proposal, not a deployment - flag any claim that merging applies it.
 - `talos/machineconfig.yaml.j2` carries six version pins that can drift from the live cluster, which
   tuppr actually drives. Applying a stale template can downgrade a running node.
-- The Talos `allowedVersions: "<1.13.3"` pin in `.renovate/overrides.json5` gates a live, unattended
-  upgrade: `tuppr`'s `TalosUpgrade` CR is Flux-applied with `rebootMode: powercycle`. Raising that
-  ceiling is not a routine dependency bump.
+- The Talos `allowedVersions` pin in `.renovate/overrides.json5` (excludes exactly v1.13.3, not a
+  version ceiling) gates a live, unattended upgrade: `tuppr`'s `TalosUpgrade` CR is Flux-applied with
+  `rebootMode: powercycle`. Changing this pin is not a routine dependency bump. Flag a bare `<X.Y.Z`
+  form here as a regression - once the tracked value passes such a ceiling it silently blocks every
+  future Talos proposal, not just the excluded version (see the pin's own comment for the history).
+  `.renovate/autoMerge.json5` carries a matching "Never auto merge Talos" rule for the same four
+  packages - flag its removal or narrowing too, since `ghcr.io/siderolabs/installer`'s "docker"
+  versioning does not treat Talos `-alpha`/`-beta`/`-rc` tags as unstable, so without that rule a
+  prerelease can auto-merge into the live upgrade CR via the repo-wide minor-update automerge rule.
 - `quay.io/ceph/ceph` is constrained to stable `x.2.z` tags because the registry also publishes RCs.
   Do not apply that regex to `ghcr.io/rook/ceph`.
 - Merging a change to `.renovaterc.json5` or `.renovate/**` fires the Renovate workflow's `push`

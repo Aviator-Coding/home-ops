@@ -21,8 +21,10 @@ This test does not grep source text as its evidence. It:
        - no SnapshotPolicy / SnapshotSchedule / ReplicationSource objects
        - credentials use explicit remoteRef.property (no dataFrom.extract) and
          never embed secret values
-       - Renovate still matches kopiur packages but the LAST matching rule sets
-         automerge: false (packageRules are last-match-wins)
+       - Renovate still matches kopiur packages but the last matching rule that
+         sets automerge for those names is false (packageRules are
+         last-match-wins; other never-auto-merge rules may follow as long as
+         they do not re-enable kopiur)
 
 Live Ready / `kubectl kopiur doctor` remain post-merge gates; this pins the
 GitOps contract that must hold before merge.
@@ -513,7 +515,13 @@ def test_overlay_healthchecks_and_wiring() -> None:
 
 
 def test_renovate_automerge_exclusion() -> None:
-    """Simulate Renovate last-match-wins against kopiur package names."""
+    """Simulate Renovate last-match-wins against kopiur package names.
+
+    The kopiur exclusion does not have to be the absolute last packageRule -
+    sibling never-auto-merge rules (e.g. Talos) may follow - but it must sit
+    after the blanket automerge:true rules and remain the last rule that sets
+    automerge for every kopiur package name.
+    """
     cfg = parse_json5_comments(AUTOMERGE.read_text())
     rules = cfg.get("packageRules") or []
     require(rules, "autoMerge.json5 has no packageRules")
@@ -527,6 +535,27 @@ def test_renovate_automerge_exclusion() -> None:
         # later kopiur-specific rule can override them.
         return "matchPackageNames" not in rule
 
+    kopiur_rule_idxs = [
+        i
+        for i, rule in enumerate(rules)
+        if isinstance(rule, dict)
+        and rule.get("automerge") is False
+        and KOPIUR_PACKAGE_NAMES <= set(rule.get("matchPackageNames") or [])
+    ]
+    require(kopiur_rule_idxs, "autoMerge.json5 missing Never-auto-merge-kopiur rule")
+    kopiur_idx = kopiur_rule_idxs[-1]
+
+    earlier_blanket_true = any(
+        isinstance(r, dict)
+        and r.get("automerge") is True
+        and "matchPackageNames" not in r
+        for r in rules[:kopiur_idx]
+    )
+    require(
+        earlier_blanket_true,
+        "kopiur exclusion must sit after at least one blanket automerge:true rule",
+    )
+
     for pkg in sorted(KOPIUR_PACKAGE_NAMES):
         winning_automerge: bool | None = None
         winning_index = -1
@@ -539,16 +568,10 @@ def test_renovate_automerge_exclusion() -> None:
             f"{pkg}: final automerge winner must be false (got {winning_automerge} from rule {winning_index})",
         )
         require(
-            winning_index == len(rules) - 1,
-            f"{pkg}: kopiur exclusion must be the LAST packageRule so it wins "
-            f"(won at index {winning_index}, last is {len(rules) - 1})",
+            winning_index == kopiur_idx,
+            f"{pkg}: last automerge-setting match must be the kopiur exclusion "
+            f"(won at index {winning_index}, kopiur exclusion at {kopiur_idx})",
         )
-
-    last = rules[-1]
-    require(
-        set(last.get("matchPackageNames") or []) >= KOPIUR_PACKAGE_NAMES,
-        f"last rule must cover all kopiur packages, got {last.get('matchPackageNames')}",
-    )
 
 
 def test_volsync_tree_not_in_kopiur_builds(

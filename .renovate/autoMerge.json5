@@ -27,13 +27,11 @@
     },
     {
       // Must sit after the three blanket automerge rules above (same reasoning
-      // as the kopiur rule below): Renovate evaluates packageRules in order
-      // and a later matching rule overrides an earlier one. Kept immediately
-      // before the kopiur exclusion so that rule remains last - scripts/ci/
-      // kopiur-stage0-test.py::test_renovate_automerge_exclusion asserts
-      // rules[-1] is the kopiur package-name exclusion. The two exclusions
-      // match disjoint dependencies, so their relative order to each other
-      // does not matter.
+      // as the kopiur/Talos rules below): Renovate evaluates packageRules in
+      // order and a later matching rule overrides an earlier one. Sibling
+      // never-auto-merge rules may share this trailing block; their relative
+      // order to each other does not matter because they match disjoint
+      // dependencies, and none may re-enable automerge for these paths.
       //
       // This is Renovate's own chart-pin exclusion, the condition the
       // 2026-08-22 in-cluster-Renovate decision called non-negotiable.
@@ -55,9 +53,10 @@
       automerge: false,
     },
     {
-      // MUST stay LAST: Renovate evaluates packageRules in order and a later
-      // matching rule overrides an earlier one, so this has to sit after the
-      // three blanket automerge rules above to actually win for kopiur.
+      // MUST stay AFTER the three blanket automerge rules above: Renovate
+      // evaluates packageRules in order and a later matching rule overrides an
+      // earlier one. Sibling never-auto-merge rules (Talos below) may follow;
+      // none of them may re-enable automerge for these names.
       description: "Never auto merge kopiur - it is the backup system on an alpha API",
       matchPackageNames: [
         "ghcr.io/home-operations/charts/kopiur",
@@ -71,6 +70,51 @@
       // patch that crosses a CRD change can silently refuse every backup
       // policy. Renovate still PROPOSES bumps as PRs - only the merge is
       // withheld. Read upstream docs/upgrade.md before taking one.
+      automerge: false,
+    },
+    {
+      // MUST stay AFTER the three blanket automerge rules above (same reasoning
+      // as kopiur): overrides them for these four packages specifically.
+      // Sibling never-auto-merge rules may share this trailing block; none may
+      // re-enable automerge for these names.
+      //
+      // `ghcr.io/siderolabs/installer` feeds the live `TalosUpgrade` CR
+      // (kubernetes/apps/base/system-upgrade/tuppr/upgrades/talosupgrade.yaml),
+      // which tuppr applies directly with rebootMode: powercycle - no
+      // apply-node/human step between a merge and a real node reboot. Talos
+      // node upgrades are attended captain operations (see the pin comment in
+      // .renovate/overrides.json5 and the AGENTS.md NOTES entry on this CR);
+      // they must never auto-merge, patch or otherwise.
+      //
+      // This is not hypothetical: verified live 2026-08-31 that
+      // ghcr.io/siderolabs/installer already carries a real, currently
+      // published prerelease tag (v1.14.0-alpha.0, published 2026-04-29 per
+      // `gh api repos/siderolabs/talos/releases/tags/v1.14.0-alpha.0` - so
+      // already well past the "minor" rule's 3-day minimumReleaseAge). Talos's
+      // "-alpha.N"/"-beta.N"/"-rc.N" suffixed tags are NOT filtered by
+      // Renovate's `ignoreUnstable` default for these packages: confirmed by
+      // exercising the installed renovate@44.52.1 package's own
+      // modules/versioning/docker `isStable()` directly - it parses only the
+      // dash-separated prefix ("1.14.0") for its version/prerelease groups and
+      // discards the "-alpha.0" suffix entirely, so isStable("v1.14.0-alpha.0")
+      // returns true for the "docker" versioning scheme used by
+      // ghcr.io/siderolabs/installer and ghcr.io/siderolabs/talosctl. Its own
+      // getUpdateType (workers/repository/process/lookup/update-type.js)
+      // therefore classifies v1.13.9 -> v1.14.0-alpha.0 as an ordinary
+      // "minor" update, which without this rule would be eligible for the
+      // unattended "Auto merge all container and helm minor updates" rule
+      // above. (The "siderolabs/talos" custom-datasource package is
+      // unaffected by this specific quirk - its factory.talos.dev
+      // customManager declares versioningTemplate: "semver", which correctly
+      // treats a dash suffix as an unstable prerelease - but is included here
+      // anyway since it feeds the same installer image by a different route.)
+      description: "Never auto merge Talos - node upgrades are attended captain operations, and ghcr.io/siderolabs/installer's docker versioning does not treat -alpha/-beta/-rc suffixes as unstable",
+      matchPackageNames: [
+        "ghcr.io/siderolabs/installer",
+        "ghcr.io/siderolabs/talosctl",
+        "siderolabs/talos",
+        "/factory\\.talos\\.dev/",
+      ],
       automerge: false,
     },
   ],

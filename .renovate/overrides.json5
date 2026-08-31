@@ -42,21 +42,78 @@
     {
       // v1.13.3 upgrade failed permanently on talos-1 (tuppr TalosUpgrade
       // stuck Failed, nodes stranded on v1.12.6). Pinned to v1.13.2 in #867.
-      // Hold the installer image + talosctl CLI here until v1.13.3+ is proven.
       // "ghcr.io/siderolabs/talosctl" (the CLI image used by
       // .github/docker/talosctl-busybox/Dockerfile) was missing from
       // matchPackageNames, so this pin never actually caught it: five PRs
       // (#1023-#1291) already carried it to v1.13.8 unblocked, and a sixth
       // (v1.13.9) was sitting on an open Renovate branch. Added below to
       // close the gap.
-      description: "Pin Talos to <1.13.3 (1.13.3 upgrade fails on talos-1, see #867)",
+      //
+      // DO NOT go back to a `<1.13.3` (or any bare `<X.Y.Z`) ceiling here.
+      // That form reads as "block only 1.13.3" but actually blocks every
+      // version above it too: once the tracked value passes the ceiling
+      // (it did - all four matched deps sit at v1.13.8/v1.13.9 today),
+      // there is no candidate simultaneously greater than current and less
+      // than the ceiling, so Renovate silently proposes NOTHING for Talos
+      // - not v1.13.10, not v1.14.x, nothing. This sat unnoticed for
+      // months: zero open/recent Renovate Talos PRs, and
+      // .github/docker/talosctl-busybox/Dockerfile stuck at v1.13.8 while
+      // the cluster ran v1.13.9. Root-cause and decision record:
+      // data/homeops-talos-pin-root-cause/report.md and
+      // data/decisions-2026-08-31/talos-1133-pin-scope.md (firstmate-local,
+      // not in this repo).
+      //
+      // All three contributing causes of the original failure are
+      // independently resolved: the upstream k8s.RenderConfigsStaticPodController
+      // "cannot deep copy int" panic is fixed in Talos v1.13.4+
+      // (siderolabs/talos#13445/#13454, commit 5ed296b76); talos-1's faulty
+      // DDR5 SODIMM that caused the underlying instability was RMA'd
+      // (closed 2026-08-21, see docs/hardware-incidents.md); and tuppr's
+      // reboot-vs-terminal-failure misclassification and status-truthfulness
+      // bugs are fixed between the chart version live at the incident
+      // (0.1.36) and today's deployed 0.5.0. So the exclusion below exists
+      // purely as institutional memory - v1.13.3 itself has never been
+      // retried since the one attempt that failed (the cluster jumped
+      // v1.13.2 -> v1.13.9 directly in PR #1383, skipping it) - not as an
+      // active guard against a live, unfixed defect.
+      //
+      // Negated-regex form excludes exactly v1.13.3 and nothing else, and
+      // keeps working regardless of how far the tracked value moves past
+      // it. Renovate's regex allowedVersions is a plain RegExp.test against
+      // each release's raw, unnormalized version string (matches
+      // getRegexPredicate/filterVersions in Renovate's own source - verified
+      // against the installed renovate@44.52.1 package, not just the docs).
+      // `v?` covers both prefix styles: verified live 2026-08-31 that all
+      // three real registries behind these four matchPackageNames
+      // (ghcr.io/siderolabs/installer, ghcr.io/siderolabs/talosctl, and the
+      // factory.talos.dev-backed "siderolabs/talos" custom datasource) only
+      // ever publish "v"-prefixed tags (e.g. "v1.13.3", never bare
+      // "1.13.3") - but the four matched packages don't all share one
+      // extraction path, so the pattern stays defensive rather than
+      // assuming that holds forever.
+      //
+      // This rule only controls which versions Renovate is allowed to
+      // PROPOSE - it says nothing about auto-merge. See the matching "Never
+      // auto merge Talos" rule in .renovate/autoMerge.json5: unfreezing
+      // proposals here also exposes that ghcr.io/siderolabs/installer and
+      // ghcr.io/siderolabs/talosctl use the "docker" versioning scheme,
+      // whose isStable() does not treat Talos's "-alpha.N"/"-beta.N"/
+      // "-rc.N" suffixes as unstable (verified against installed
+      // renovate@44.52.1) - so ignoreUnstable alone would NOT have kept a
+      // prerelease (a real one, v1.14.0-alpha.0, is live on the registry
+      // today) out of the repo-wide "auto merge minor updates" rule. That
+      // autoMerge.json5 entry blocks automerge for all four packages here,
+      // not just prereleases, because any Talos bump - stable or not -
+      // triggers tuppr's live, unattended, powercycle node reboot and must
+      // stay an attended captain operation regardless of update type.
+      description: "Exclude Talos v1.13.3 only (permanent upgrade failure on talos-1, see #867) - not a version ceiling",
       matchPackageNames: [
         "ghcr.io/siderolabs/installer",
         "ghcr.io/siderolabs/talosctl",
         "siderolabs/talos",
         "/factory\\.talos\\.dev/",
       ],
-      allowedVersions: "<1.13.3",
+      allowedVersions: "!/^v?1\\.13\\.3$/",
     },
     {
       // This registry hosts TWO distinct lineages under the same repo, and

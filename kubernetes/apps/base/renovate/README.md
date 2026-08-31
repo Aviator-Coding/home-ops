@@ -73,10 +73,9 @@ CronJob that actually shipped. Two shipped correctly; two shipped silently missi
    automerge with zero human review once its 3-day `minimumReleaseAge` cleared - exactly the
    self-update failure mode the condition existed to prevent. Closed with the smallest available
    change: a `matchFileNames: ["kubernetes/apps/base/renovate/**"]` / `automerge: false` rule
-   in `.renovate/autoMerge.json5`, placed after the three blanket automerge rules and
-   immediately before the existing kopiur package-name exclusion (that kopiur rule stays last -
-   `scripts/ci/kopiur-stage0-test.py` pins `rules[-1]`). The two exclusions match disjoint
-   dependencies, so their relative order to each other does not matter; both must sit after the
+   in `.renovate/autoMerge.json5`, placed after the three blanket automerge rules alongside the
+   other never-auto-merge exclusions (kopiur, Talos). Those exclusions match disjoint
+   dependencies, so their relative order to each other does not matter; all must sit after the
    blankets so last-match-wins actually disables automerge. Any change to this app's own
    manifests - the chart pin today, the CronJob's `image.tag` too if Renovate's helm-values
    manager ever starts tracking it - always lands as a reviewable PR instead of a package-name

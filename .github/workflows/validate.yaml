@@ -327,6 +327,21 @@ jobs:
         with:
           install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus@3.2.1 aqua:mitsuhiko/minijinja
 
+      # Node is required by talos-renovate-pin-test.py, which drives renovate@44.52.1's own
+      # getRegexPredicate/filterVersions/isStable/applyPackageRules (not a source grep).
+      # Same setup-node pin as renovate-config; the package is pinned to the version that
+      # test was verified against so CI does not drift onto a different compiled API.
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Install renovate for pin tests
+        run: |
+          mkdir -p /tmp/renovate-ci
+          npm install --prefix /tmp/renovate-ci --no-save --no-package-lock renovate@44.52.1
+          echo "RENOVATE_NODE_PATH=/tmp/renovate-ci/node_modules/renovate" >> "${GITHUB_ENV}"
+
       # litellm[proxy]==1.98.0 matches the pinned cluster image
       # (ghcr.io/berriai/litellm-non_root:v1.98.0, see
       # kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml) so the auto-router and
