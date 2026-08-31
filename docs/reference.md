@@ -18,7 +18,7 @@ These are not under `docs/`. They are the day-to-day starting points.
 | [`README.md`](../README.md) | Cluster overview |
 | [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md) | Volsync schedules, multi-volume pattern, and restore (fleet live backups) |
 | [`kubernetes/apps/base/system/kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md) | kopiur Stage 0: operator + ceph/r2 repositories, deletion-protection and credential layout |
-| [`kubernetes/components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md) | kopiur backup component (Stages 1-2): schedules, restore-vs-drill, operator-minted credential projection, mover-identity requirement, rollback. Live on exactly two volumes today. |
+| [`kubernetes/components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md) | kopiur backup component (Stage 3 parallel): schedules, wait:true split, per-namespace r2 hours, operator-minted credential projection, mover-identity requirement, rollback. Live on 29 of 31 VolSync claims alongside VolSync. |
 
 ## AI
 
@@ -68,7 +68,7 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 
 ## Backups
 
-Fleet PVC backup remains VolSync (live claim list and `ReplicationSource` count: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md)). kopiur Stages 1-2 run **alongside** VolSync on exactly two volumes (`downloads/autobrr`, `downloads/sabnzbd-config`); every other claim is VolSync-only. Stage 2 restore gate passed 2026-08-30. Operator/repos: [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md). Component, schedules, and credential-projection contract: [`components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md).
+Fleet PVC backup remains VolSync on every protected claim (live claim list and `ReplicationSource` count: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md)). kopiur Stage 3 runs **alongside** VolSync on 29 of those 31 claims; the two deferred root-mover claims stay VolSync-only. Nothing has been retired - that is Stage 5 and needs a per-volume restore proof first. Stage 2 restore gate passed 2026-08-30 on `sabnzbd-config` only. Operator/repos: [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md). Component, schedules, and credential-projection contract: [`components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md).
 
 | Path | What it covers |
 |---|---|
