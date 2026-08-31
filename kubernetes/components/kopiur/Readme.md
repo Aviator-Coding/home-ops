@@ -46,6 +46,11 @@ This component only declares what to back up.
 >   restore preserves modes and content but rewrites mixed live uids to `0:0`
 >   (see "Root movers" below) - functional for this root app, not a
 >   content-fidelity failure.
+> Separately, **readability** (a precondition for a restore-fidelity drill, not a
+> substitute for one) is now proven for the one claim that had no running container to
+> measure it through: `downloads/recyclarr-config` (2026-08-31) - see
+> "SecurityContextCompatible" below. It still needs its own restore-fidelity drill before
+> Stage 5, same as every other claim in this table.
 > Do not read the 31 onboardings as fleet-wide backup verification; Stage 5
 > still needs a per-volume restore proof before retiring VolSync.
 > `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's
@@ -244,7 +249,7 @@ only one of them is a real defect:
 
 | Claim | Why absent | Real problem? |
 |---|---|---|
-| `downloads/recyclarr-config` | no pod exists at snapshot time (CronJob, ~18 s/day) | no |
+| `downloads/recyclarr-config` | no pod exists at snapshot time (CronJob, ~18 s/day) | no - readability independently proven 2026-08-31 via a snapshot-and-restore probe against a scratch copy (2913/2913 files, 607/607 dirs readable by mover identity 2000:2000, 0 walk errors): [`docs/backups/recyclarr-config-readable-check-2026-08-31.md`](../../../docs/backups/recyclarr-config-readable-check-2026-08-31.md) |
 | `database/pgadmin` | `fix-permissions` **initContainer** runs as uid 0 vs mover 5050 | no |
 | `selfhosted/changedetection-config` | `browser` sidecar runs as uid 999 vs mover 1000, and mounts nothing | no |
 | `media/tdarr-config`, `media/calibre-web-automated` | pod really does run `runAsUser: 0` vs mover 2000 | the known measured mismatch |
@@ -595,5 +600,6 @@ immediate reconcile.
 * The system this runs beside: [`../volsync/Readme.md`](../volsync/Readme.md)
 * Restore drill procedure and its hard constraints: [`docs/backups/restore-drill-2026-08-23.md`](../../../docs/backups/restore-drill-2026-08-23.md)
 * Stage 2 restore gate (both destinations, both findings): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
+* `downloads/recyclarr-config` readability probe (CronJob claim; not restore-fidelity): [`docs/backups/recyclarr-config-readable-check-2026-08-31.md`](../../../docs/backups/recyclarr-config-readable-check-2026-08-31.md)
 * Stage 4 root-mover onboarding (`matter-server`): this Readme's "Root movers" section + `scripts/ci/kopiur-stage4-test.py`
 * Upstream docs: <https://kopiur.home-operations.com>

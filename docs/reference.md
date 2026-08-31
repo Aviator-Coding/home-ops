@@ -73,6 +73,7 @@ Fleet PVC backup remains VolSync on every protected claim (live claim list and `
 | Path | What it covers |
 |---|---|
 | [`backups/kopiur-restore-drill-2026-08-30.md`](backups/kopiur-restore-drill-2026-08-30.md) | Verified kopiur restore procedure and Stage 2 gate (ceph + r2, sabnzbd-config byte-identical). Durable procedure plus two findings (empty Stage 1 pilot; mover-identity prerequisite). Timings are a **historical snapshot** from 2026-08-30. |
+| [`backups/recyclarr-config-readable-check-2026-08-31.md`](backups/recyclarr-config-readable-check-2026-08-31.md) | CSI snapshot-restore readability probe for `downloads/recyclarr-config` (CronJob claim, no standing pod). Proves mover 2000:2000 can read the claim (2913/2913 files, 607/607 dirs) - readability only, not Stage 5 restore-fidelity. |
 | [`backups/restore-drill-2026-08-23.md`](backups/restore-drill-2026-08-23.md) | Verified VolSync restore procedure (Ceph + MinIO destinations, scratch-PVC method). Timings are a **historical snapshot** from 2026-08-23; the procedure is durable. |
 | [`backups/volsync-coverage-2026-08-22.md`](backups/volsync-coverage-2026-08-22.md) | **Historical snapshot** of a full PVC-vs-VolSync coverage audit from 2026-08-22. Re-measure before trusting any figure. Current pattern: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md). |
 

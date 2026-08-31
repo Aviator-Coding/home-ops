@@ -44,18 +44,17 @@ spec:
       VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "50 3 * * *"
       KOPIUR_CLAIM: recyclarr-config
-      # 2000:2000 taken from the pod securityContext DECLARED in
+      # 2000:2000 matches the pod securityContext DECLARED in
       # kubernetes/apps/base/downloads/recyclarr/app/helmrelease.yaml
-      # (runAsUser/runAsGroup/fsGroup 2000), NOT from live file measurement -
-      # recyclarr is a CronJob whose pod exists for roughly 18 seconds a day,
-      # so there was no running container to measure through. This is the ONLY
-      # identity in Stage 3 derived from declaration rather than observation,
-      # and it is called out here so nobody later mistakes it for a measured
-      # value. It is the same pair the six sibling *arr claims in this
-      # namespace need and that sabnzbd-config proved end to end. If it is
-      # wrong kopiur fails closed and loudly, and volsync keeps protecting the
-      # claim throughout - so the failure mode is a visibly red policy, not a
-      # silent gap. Check .status.stats on the first run.
+      # (runAsUser/runAsGroup/fsGroup 2000). Live-pod exec could not measure
+      # this claim during Stage 3 (CronJob, ~18 s/day), so the pair was first
+      # taken from that declaration. Readability for this identity was later
+      # proven 2026-08-31 via a CSI snapshot-restore probe of the claim
+      # (2913/2913 files, 607/607 dirs; mover 2000:2000):
+      # docs/backups/recyclarr-config-readable-check-2026-08-31.md
+      # That is readability only - not Stage 5 restore-fidelity. If the pair
+      # is wrong kopiur fails closed and loudly, and volsync keeps protecting
+      # the claim throughout. Check .status.stats on the first run.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
