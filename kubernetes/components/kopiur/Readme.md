@@ -31,11 +31,10 @@ This component only declares what to back up.
 >
 > **Being onboarded is not the same as being proven.** Restores demonstrated
 > so far:
-> * Stage 2 (2026-08-30) - `sabnzbd-config` from **both** ceph and r2,
+> * Stage 2 (2026-08-30) restore gate **passed** - `sabnzbd-config` from **both** ceph and r2,
 >   byte-identical (2062 files, 2.06 GiB, modes and ownership): durable
 >   procedure in
 >   [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
->   Stage 2's restore gate **passed**.
 > * Stage 4 (2026-08-31) - `changedetection-config` (kopia snapshot `c1127a61`,
 >   3058 files / 36,993,597 B restored into a scratch PVC, per-file sha256
 >   manifest identical to live, modes reproduced exactly - 2292x`600`,
