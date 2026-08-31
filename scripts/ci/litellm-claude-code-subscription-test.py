@@ -55,12 +55,14 @@ MODEL_NAME = "claude-code-subscription"
 PLACEHOLDER_PREFIX = "sk-ant-oat"
 PLACEHOLDER = "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
 EXPECTED_UPSTREAM = "anthropic/claude-sonnet-5"
-# Raised 2026-08-30 after measured proxy 429s at the old 10/250000 ceilings
-# (~556 request-limit + ~171 token-limit in 24h). 7500000 keeps the same
-# tokens-per-request headroom at 300 rpm. Guardrail only - not a throughput
-# target; Anthropic's own subscription rate limit is the real ceiling.
-EXPECTED_RPM = 300
-EXPECTED_TPM = 7500000
+# History: 10/250000 -> 300/7500000 on 2026-08-30 after measured proxy 429s
+# (~556 request-limit + ~171 token-limit in 24h); captain then raised live in
+# the LiteLLM UI to 3000/750000000 and Git was brought up to match so the
+# operator does not revert the UI change. Git is source of truth. At this
+# tpm the proxy limits are no longer a meaningful runaway-agent guardrail;
+# Anthropic's own subscription rate limit is the real ceiling.
+EXPECTED_RPM = 3000
+EXPECTED_TPM = 750000000
 
 RESULTS: list[dict[str, Any]] = []
 
