@@ -9,10 +9,10 @@ kubernetes/apps/main/ai/kustomization.yaml     # includes ./agentgateway.yaml
 kubernetes/apps/main/ai/agentgateway.yaml      # Flux Kustomizations: agentgateway + agentgateway-crds
 kubernetes/apps/base/ai/agentgateway/
   crds/
-    ocirepository.yaml                         # oci://cr.agentgateway.dev/charts/agentgateway-crds v1.4.1
+    ocirepository.yaml                         # oci://ghcr.io/agentgateway/charts/agentgateway-crds v1.4.1
     helmrelease.yaml                           # CRDs, helm.sh/resource-policy: keep
   app/
-    ocirepository.yaml                         # oci://cr.agentgateway.dev/charts/agentgateway v1.4.1
+    ocirepository.yaml                         # oci://ghcr.io/agentgateway/charts/agentgateway v1.4.1
     helmrelease.yaml                           # controller replicaCount 2, monitoring, parameters ref
     agentgatewayparameters.yaml
     backends/  gateways/  policies/  ...

@@ -4,8 +4,8 @@ This page is the **actual** history of this GitOps install. It is not a kgateway
 
 ## What we run now
 
-- Chart: `oci://cr.agentgateway.dev/charts/agentgateway` tag **`v1.4.1`**
-- CRDs: `oci://cr.agentgateway.dev/charts/agentgateway-crds` tag **`v1.4.1`**
+- Chart: `oci://ghcr.io/agentgateway/charts/agentgateway` tag **`v1.4.1`**
+- CRDs: `oci://ghcr.io/agentgateway/charts/agentgateway-crds` tag **`v1.4.1`**
 - Namespace: `ai`
 - API: `agentgateway.dev/v1alpha1` (`AgentgatewayBackend`, `AgentgatewayPolicy`, `AgentgatewayParameters`)
 

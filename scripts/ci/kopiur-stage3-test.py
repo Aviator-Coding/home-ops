@@ -8,7 +8,7 @@ here, and no VolSync object is touched. Retirement is Stage 5 and needs a
 per-volume restore proof first.
 
 No remaining deferred claims: Stage 4 onboarded both previously deferred
-volumes, so kopiur is live on 31 of 31 VolSync-protected claims (alongside
+volumes, so kopiur is live on 30 of 30 VolSync-protected claims (alongside
 untouched VolSync). This test pins the fleet coverage set and measured mover
 identities; Stage 4 root-mover / GitOps annotation specifics for
 `home-automation/matter-server` live in `kopiur-stage4-test.py`.
@@ -79,7 +79,6 @@ VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 
 # (namespace, claim) -> (uid, gid), measured live 2026-08-30.
 EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
-    ("ai", "agentmemory"): ("1000", "1000"),
     ("ai", "hermes"): ("10000", "10000"),
     ("ai", "opencode"): ("1000", "1000"),
     ("ai", "repo-wiki"): ("1000", "1000"),

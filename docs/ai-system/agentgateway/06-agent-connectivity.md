@@ -12,7 +12,7 @@ http://internal-noauth.ai.svc.cluster.local/v1
 
 Chat: `POST /v1/chat/completions` with a `model` id the unified router knows. Embeddings: `POST /v1/embeddings`. Catalog: `GET /v1/models`.
 
-Hermes, Open WebUI, agentmemory, and similar apps in `ai` should target that base URL (or `llm-api.${SECRET_DOMAIN}` with a Bearer key if they sit outside the cluster). They must **not** use `/openai`, `/openrouter`, or other retired prefixes.
+Hermes, Open WebUI, and similar apps in `ai` should target that base URL (or `llm-api.${SECRET_DOMAIN}` with a Bearer key if they sit outside the cluster). They must **not** use `/openai`, `/openrouter`, or other retired prefixes.
 
 ## A2A
 

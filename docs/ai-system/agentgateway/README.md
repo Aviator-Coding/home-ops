@@ -17,8 +17,8 @@ A March 2026 lab notebook still exists as a [historical testing report](../agent
 | Item | Live value | Source of truth |
 |------|------------|-----------------|
 | Namespace | `ai` | `kubernetes/apps/main/ai/agentgateway.yaml` |
-| Chart | `oci://cr.agentgateway.dev/charts/agentgateway` `v1.4.1` | `app/ocirepository.yaml` |
-| CRDs | `oci://cr.agentgateway.dev/charts/agentgateway-crds` `v1.4.1` | `crds/ocirepository.yaml` |
+| Chart | `oci://ghcr.io/agentgateway/charts/agentgateway` `v1.4.1` | `app/ocirepository.yaml` |
+| CRDs | `oci://ghcr.io/agentgateway/charts/agentgateway-crds` `v1.4.1` | `crds/ocirepository.yaml` |
 | API | `agentgateway.dev/v1alpha1` | kinds below |
 | Kinds | `AgentgatewayBackend`, `AgentgatewayPolicy`, `AgentgatewayParameters` | `app/backends/`, `app/policies/`, `app/agentgatewayparameters.yaml` |
 | Gateway class | `agentgateway` | `app/gateways/` |

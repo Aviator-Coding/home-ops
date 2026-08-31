@@ -4,7 +4,7 @@ Terms as they are used in `kubernetes/apps/base/ai/agentgateway/`. Upstream prod
 
 ## AgentGateway
 
-Standalone Rust AI gateway. Chart `oci://cr.agentgateway.dev/charts/agentgateway` tag `v1.4.1`, namespace `ai`. Not a kgateway feature flag.
+Standalone Rust AI gateway. Chart `oci://ghcr.io/agentgateway/charts/agentgateway` tag `v1.4.1`, namespace `ai`. Not a kgateway feature flag.
 
 ## AgentgatewayBackend
 

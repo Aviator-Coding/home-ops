@@ -27,7 +27,6 @@ patches:
     group: helm.toolkit.fluxcd.io
     kind: HelmRelease
 resources:
-- ./agentmemory-plugin.yaml
 - ./externalsecret.yaml
 - ./helmrelease.yaml
 configMapGenerator:

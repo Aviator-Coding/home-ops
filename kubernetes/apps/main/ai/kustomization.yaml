@@ -12,11 +12,14 @@ components:
 # perplexica, qdrant. Flux prunes their workloads and PVCs; the retained
 # out-of-band data and the revival path for each are in
 # docs/ai-system/retired-2026-08-22.md.
+#
+# Retired 2026-08-31: agentmemory. Manifest-only retirement (Flux prunes the
+# PVC on merge); the retained backups and revival path are in
+# docs/ai-system/agentmemory-retirement-2026-08-31.md.
 
 resources:
   - ./agentgateway.yaml
   - ./agentgateway-dashboards.yaml
-  - ./agentmemory.yaml
   - ./comfyui.yaml
   - ./gpu-node-dashboard.yaml
   - ./hermes.yaml

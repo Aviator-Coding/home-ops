@@ -125,6 +125,9 @@
       // standalone 1.x line (latest v1.3.0); upgrade across lineages by hand only.
       description: "Pin agentgateway to the standalone 1.x lineage (<2.0.0)",
       matchPackageNames: [
+        "ghcr.io/agentgateway/charts/agentgateway",
+        "ghcr.io/agentgateway/charts/agentgateway-crds",
+        // Keep the old host so any leftover refs still get the lineage pin.
         "cr.agentgateway.dev/charts/agentgateway",
         "cr.agentgateway.dev/charts/agentgateway-crds",
       ],
