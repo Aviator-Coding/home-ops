@@ -14,8 +14,9 @@ then asserts the captain-approved semantics for
      forward_client_headers_to_llm_api flag.
   3. The model is absent from every config-declared fallback chain.
   4. Its dedicated virtual key is scoped only to the subscription models
-     (Sonnet + Opus pass-through CRs), carries rpm/tpm limits and
-     deliberately NO maxBudget, and has a matching PushSecret.
+     (Sonnet + Opus pass-through CRs), and carries no rpmLimit/tpmLimit
+     (removed 2026-08-31) and deliberately NO maxBudget - no local ceiling
+     of any kind - and has a matching PushSecret.
   5. No ExternalSecret change is required for this model (proxy still only
      pulls the shared ai-keys / litellm secrets).
   6. kustomize build emits both CRs + PushSecret.
@@ -104,13 +105,12 @@ def _zero_price_offenders(info: dict) -> list[str]:
             bad.append(f"{field}={v!r}")
     return bad
 # History: 10/250000 -> 300/7500000 on 2026-08-30 after measured proxy 429s
-# (~556 request-limit + ~171 token-limit in 24h); captain then raised live in
-# the LiteLLM UI to 3000/750000000 and Git was brought up to match so the
-# operator does not revert the UI change. Git is source of truth. At this
-# tpm the proxy limits are no longer a meaningful runaway-agent guardrail;
-# Anthropic's own subscription rate limit is the real ceiling.
-EXPECTED_RPM = 3000
-EXPECTED_TPM = 750000000
+# (~556 request-limit + ~171 token-limit in 24h) -> 3000/750000000 raised live
+# in the LiteLLM UI the same day -> REMOVED entirely on 2026-08-31 (captain
+# decision: measured headroom was 43x on requests / 267x on tokens, so the
+# limits were no longer a meaningful runaway-agent guardrail). This key now
+# has no rpmLimit/tpmLimit at all; Anthropic's own subscription rate limit is
+# the only ceiling left, same as it always was in practice.
 
 RESULTS: list[dict[str, Any]] = []
 
@@ -450,8 +450,8 @@ def test_virtual_key_semantics() -> None:
         f"spec_keys={sorted(spec)}",
     )
     record(
-        "virtualkey_rpm_tpm_match_captain_sizing",
-        spec.get("rpmLimit") == EXPECTED_RPM and spec.get("tpmLimit") == EXPECTED_TPM,
+        "virtualkey_has_no_rate_limits",
+        "rpmLimit" not in spec and "tpmLimit" not in spec,
         f"rpm={spec.get('rpmLimit')!r} tpm={spec.get('tpmLimit')!r}",
     )
     # Uniqueness: this is the only key without maxBudget.
@@ -624,10 +624,10 @@ def test_kustomize_emits_resources() -> None:
         )
         spec = k.get("spec") or {}
         record(
-            "kustomize_emitted_key_has_limits_no_budget",
+            "kustomize_emitted_key_has_no_ceiling",
             sorted(spec.get("models") or []) == sorted(SUBSCRIPTION_MODELS)
-            and spec.get("rpmLimit") == EXPECTED_RPM
-            and spec.get("tpmLimit") == EXPECTED_TPM
+            and "rpmLimit" not in spec
+            and "tpmLimit" not in spec
             and "maxBudget" not in spec,
             f"spec={spec} (source CR; no kubectl)",
         )
@@ -719,15 +719,15 @@ def test_kustomize_emits_resources() -> None:
     if key_doc:
         spec = key_doc.get("spec") or {}
         record(
-            "kustomize_emitted_key_has_limits_no_budget",
+            "kustomize_emitted_key_has_no_ceiling",
             sorted(spec.get("models") or []) == sorted(SUBSCRIPTION_MODELS)
-            and spec.get("rpmLimit") == EXPECTED_RPM
-            and spec.get("tpmLimit") == EXPECTED_TPM
+            and "rpmLimit" not in spec
+            and "tpmLimit" not in spec
             and "maxBudget" not in spec,
             f"spec={spec}",
         )
     else:
-        record("kustomize_emitted_key_has_limits_no_budget", False, "missing doc")
+        record("kustomize_emitted_key_has_no_ceiling", False, "missing doc")
 
 
 def test_runbook_contract() -> None:

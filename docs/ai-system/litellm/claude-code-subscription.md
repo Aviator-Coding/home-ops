@@ -205,9 +205,10 @@ two prices above are not the whole job:** prompt-cache pricing has its own
 fields, and until they were zeroed too they carried essentially the entire
 recorded bill (§4a). With the full set declared, recorded spend really is $0,
 so a `maxBudget` can never trip and would read as protection that does not
-exist. Grant this model only on a virtual key carrying `rpmLimit`/`tpmLimit` -
-the entire real guardrail. The true ceiling is Anthropic's own subscription
-rate limiting.
+exist. As of 2026-08-31 the calling key also carries no `rpmLimit`/`tpmLimit`
+(§4b) - this model may only be granted on a key with **no local ceiling at
+all**. The true ceiling is, and always was, Anthropic's own subscription rate
+limiting.
 
 ### 4a. The `$0` needs the CACHE price fields too (fixed 2026-08-31)
 
@@ -272,8 +273,57 @@ spend on this key as $0 only for requests made **after** this change.
 **Consequence for `maxBudget` is unchanged.** With the cache fields zeroed a
 budget can never trip, so one would be inert; before the fix a budget would have
 tripped on fictional dollars and locked the key out. Either way a budget is the
-wrong instrument here - `rpmLimit`/`tpmLimit` stay the real guardrail, and the
-true ceiling is Anthropic's own subscription rate limiting.
+wrong instrument here.
+
+**Annotated, not zeroed, and unproven as of the 2026-08-31 rate-limit removal
+below.** The historical **$54.31** stays on this key's `spend` column and in
+`LiteLLM_SpendLogs` - see the disclaimer two paragraphs up - and is
+additionally recorded in the header of
+[`virtualkeys/claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/claude-code-subscription.yaml)
+(cause, amount, date, fix, all alongside the key itself). At the time that fix
+shipped, **zero requests had hit this key since the 2026-08-31T04:09:50Z proxy
+restart**, so the fix was real but not yet demonstrated against live traffic.
+Rather than zero the figure to make it look resolved, `LiteLLMClaudeCodeSubscriptionSpendRegression`
+in
+[`app/prometheusrule.yaml`](../../../kubernetes/apps/base/ai/litellm/app/prometheusrule.yaml)
+watches `litellm_spend_metric{api_key_alias="claude-code-subscription"}` (a
+per-request Counter incremented on every logged call regardless of amount) for
+a nonzero increase - that is the signal that either confirms the fix once real
+traffic resumes, or catches a regression before it re-accrues another $54.
+
+## 4b. Rate limits removed (captain decision, 2026-08-31)
+
+`rpmLimit`/`tpmLimit` (raised to 3000/750000000 by the captain on 2026-08-30,
+sizing history in the CR header) were dropped entirely on 2026-08-31.
+Firstmate measured this key's actual usage across all 212 minutes it had ever
+been active: peak 70 requests/min (p99 60) against a 3000 limit (43x headroom),
+and peak 2,808,629 tokens/min against a 750000000 limit (267x headroom). At
+that much headroom the limits were not functioning as the runaway-agent
+guardrail they were introduced to be, and the real ceiling was always
+Anthropic's own rate limiting against the caller's personal subscription -
+this proxy neither sees nor can raise it. The captain chose to drop both and
+rely on that upstream ceiling entirely. **This key now has no local ceiling of
+any kind** - no `maxBudget` (§4/§4a), no `rpmLimit`, no `tpmLimit`.
+
+**Removing the fields from the CR does not, by itself, clear an
+already-set limit on the live key - this was measured, not assumed.**
+`LiteLLMVirtualKeySpec.{TPMLimit,RPMLimit}` are Go `*int64` with
+`json:",omitempty"`, so an absent field marshals to nothing in the
+`/key/update` request body rather than an explicit JSON `null`. LiteLLM's
+`prepare_key_update_data` (`key_management_endpoints.py`, v1.98.0) builds the
+DB update via `data.model_dump(exclude_unset=True)`, which treats a field
+that is merely *absent* from the request as "leave the column alone" - only a
+field present with value `null` clears it. Measured live 2026-08-31: removing
+both fields from the CR made litellm-operator's reconciler detect drift and
+call `POST /key/update` (the key's `updated_at` timestamp advanced), but
+`rpm_limit`/`tpm_limit` on the live key were unchanged at `3000`/`750000000`
+immediately afterward. Clearing them for real took one manual, one-time
+`POST /key/update` with `{"rpm_limit": null, "tpm_limit": null}` against the
+admin API using the master key, confirmed by a follow-up `GET /key/info`
+showing both `null`. That one-time step is only needed when an
+*already-limited* key is going unlimited; a key created with no limits from
+the start, or regenerated after its spec already carries none, never hits
+this gap. Full narrative and the exact measurements: the CR header itself.
 
 ---
 
@@ -312,18 +362,24 @@ its models are priced at an explicit $0 across every field including the cache
 ones (§4a), so recorded spend is $0 and any budget could never trip - a cap that
 cannot fire reads as protection that does not exist. Note this only became true
 on 2026-08-31: before the cache fields were zeroed, a budget here would have
-tripped on ~$54 of fictional spend and locked the key out. Either way a budget
-is the wrong instrument. `rpmLimit` / `tpmLimit` on that CR are therefore the whole real
-guardrail - current values, sizing history, and the captain's call that today's
-ceilings are no longer a meaningful runaway-agent guardrail all live on the CR
-itself (do not restate them here). Git is the source of truth for those numbers;
-the LiteLLM UI is not - a live UI edit is reverted on the next operator
-reconcile unless the CR is updated first. The real ceiling the proxy cannot see
-or raise is Anthropic's own rate limiting against the caller's personal
-subscription. There is no budget to raise, and nothing in that file changes what
-the subscription is charged. The `LiteLLMVirtualKey` is server-side state
-reconciled by litellm-operator, so a limit change only takes effect on the live
-key after merge + operator reconcile.
+tripped on ~$54 of fictional spend and locked the key out. As of 2026-08-31
+(§4b) it also carries no `rpmLimit`/`tpmLimit` - the captain's call, after
+measured headroom showed neither was functioning as a real guardrail anymore.
+**This key has no local ceiling of any kind.** Current state, the full sizing
+history, and the 2026-08-31 removal rationale all live on the CR itself (do not
+restate them here). Git is the source of truth for those numbers; the LiteLLM
+UI is not - a live UI edit is reverted on the next operator reconcile unless
+the CR is updated first. The real ceiling the proxy cannot see or raise is
+Anthropic's own rate limiting against the caller's personal subscription.
+There is no budget to raise, and nothing in that file changes what the
+subscription is charged. The `LiteLLMVirtualKey` is server-side state
+reconciled by litellm-operator, so *raising* a limit takes effect on the live
+key after merge + operator reconcile alone. **Clearing an already-set limit
+does not** - the operator can only omit a field, never send it as an explicit
+`null`, and LiteLLM's `/key/update` leaves an omitted field's existing value
+untouched (§4b). Dropping a limit to none therefore needs a one-time manual
+admin-API call in addition to the Git change, same as it did here on
+2026-08-31.
 
 The operator mints the key into a Secret and a `PushSecret` mirrors it to
 1Password (`litellm-consumer-claude-code-subscription`). Read it from either:

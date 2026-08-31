@@ -218,8 +218,16 @@ with the probe evidence). With the full set declared, recorded spend is $0, so a
 `maxBudget` can never trip and would read as protection that does not exist.
 That is why
 [`app/virtualkeys/claude-code-subscription.yaml`](app/virtualkeys/claude-code-subscription.yaml)
-is the only key in that directory carrying **no** budget; `rpmLimit`/`tpmLimit`
-are the entire real guardrail.
+is the only key in that directory carrying **no** budget. As of 2026-08-31 it
+also carries no `rpmLimit`/`tpmLimit` (captain decision - measured headroom
+was 43x on requests and 267x on tokens, so the limits were never a meaningful
+guardrail): **this key now has no local ceiling of any kind**, and enforcement
+lives entirely upstream, on Anthropic's own subscription rate limiting.
+Clearing an already-set `rpmLimit`/`tpmLimit` on a live key needs a one-time
+direct admin-API call, not just removing the fields from the CR - the CRD's
+Go client omits an absent field rather than sending it as an explicit `null`,
+and LiteLLM's `/key/update` only clears a field that arrives as an explicit
+`null`. Full mechanism and the live proof: the CR's own header.
 
 **5. Opus is a SECOND CR, never a per-key alias of the metered
 `claude-opus-5`.** Claude Code resolves a by-family model request (a subagent

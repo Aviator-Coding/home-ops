@@ -231,3 +231,42 @@ spec:
           for: 1h
           labels:
             severity: warning
+        # --- Claude Code subscription pass-through phantom-spend regression
+        # (docs/ai-system/litellm/claude-code-subscription.md §4a,
+        # virtualkeys/claude-code-subscription.yaml) ---
+        # This key has NO maxBudget (its two models are priced $0 on every
+        # field including the five prompt-cache ones) and, since 2026-08-31,
+        # NO rpmLimit/tpmLimit either - litellm_spend_metric is therefore the
+        # only ceiling-adjacent signal left on this key, and it exists purely
+        # to catch a REGRESSION of the 2026-08-31 cache-pricing fix, not to
+        # cap anything. litellm_spend_metric is a per-request Counter
+        # incremented on every logged call regardless of amount
+        # (_increment_top_level_request_and_spend_metrics, v1.98.0,
+        # labelnames include api_key_alias) - verified against the pinned
+        # image's source, not yet against a live scrape with data, because
+        # zero requests had hit this key since the 2026-08-31T04:09:50Z
+        # restart at the time this rule was added. The first real request
+        # after that restart is what proves this alert can fire at all.
+        - alert: LiteLLMClaudeCodeSubscriptionSpendRegression
+          annotations:
+            description: >-
+              The claude-code-subscription virtual key is recording NONZERO
+              spend again. Both models it may call
+              (claude-code-subscription/-opus) are priced at an explicit $0 on
+              every field, including the five prompt-cache fields, specifically
+              BECAUSE this key carries no maxBudget and no rate limits - a
+              nonzero reading here means the pricing has regressed (a cache
+              field un-zeroed, a new unpriced model added to the key's
+              allow-list, etc), exactly as happened before 2026-08-31 when this
+              key accrued $54.31 of fictional spend from unpriced prompt-cache
+              tokens. No real money moves either way - the caller's own OAuth
+              subscription pays Anthropic, never this cluster's metered key -
+              but recorded spend climbing again means the accounting bug is
+              back, and with no budget on this key, this counter is the only
+              thing that will ever notice.
+            summary: Claude Code subscription key spend is nonzero again - the cache-pricing zero-fix may have regressed.
+          expr: |-
+            increase(litellm_spend_metric{api_key_alias="claude-code-subscription"}[1h]) > 0
+          for: 5m
+          labels:
+            severity: warning

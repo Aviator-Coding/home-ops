@@ -75,14 +75,16 @@ spec:
     # Zeroing input/output alone is NOT enough - see the five cache fields
     # below (runbook §4a). With the full set declared, recorded spend is $0,
     # so a maxBudget could never trip and would read as protection that does
-    # not exist. Keep the calling key budgetless for that reason;
-    # rpmLimit/tpmLimit are the entire real guardrail, and the true ceiling is
-    # Anthropic's own subscription rate limiting. Grant this model only on a
-    # key with those rate limits set, never on a budget alone. (Pre-fix note:
-    # until 2026-08-31 only input/output were zeroed and ~$54 of cache-only
-    # fictional spend accrued; a budget then WOULD have locked the key out on
-    # dollars nobody is invoiced. That gap is closed; historical rows are not
-    # repriced.)
+    # not exist. Keep the calling key budgetless for that reason. As of
+    # 2026-08-31 the calling key also carries no rpmLimit/tpmLimit (captain
+    # decision - measured headroom was 43x/267x, so they were never a real
+    # guardrail either) - see ../virtualkeys/claude-code-subscription.yaml for
+    # the full rationale. This key now has NO local ceiling at all; the real
+    # ceiling is, and always was, Anthropic's own subscription rate limiting.
+    # (Pre-fix note: until 2026-08-31 only input/output were zeroed and ~$54 of
+    # cache-only fictional spend accrued - annotated, not zeroed, on the
+    # virtual key CR, with an alert watching for a regression. That pricing
+    # gap is closed; historical rows are not repriced.)
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0
