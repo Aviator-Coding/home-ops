@@ -35,7 +35,7 @@ This component only declares what to back up.
 > same volume returns `660`/`664` because it stages writable). Stage 2's restore gate **passed** on 2026-08-30:
 > [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 > - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 29
+> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 30
 > onboardings as fleet-wide backup verification. `KOPIUR_PUID`/`KOPIUR_PGID`
 > must match the workload that owns the claim's files, or the backup fails
 > outright on any file lacking a world-read bit (kopiur fails closed; its
