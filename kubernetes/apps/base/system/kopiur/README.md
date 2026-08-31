@@ -101,8 +101,9 @@ Three notes on why the split falls where it does:
   generated `system/kopiur` Secret - the authoritative source - rather than
   reading this record back. See `kubernetes/components/kopiur/Readme.md`
   "Credentials".
-- Nothing kopiur owns reads `volsync-template` any more. That item is live for
-  105 `ReplicationSource`s (35 of them on R2) and is **not** ours to touch,
+- Nothing kopiur owns reads `volsync-template` any more. That item is still live
+  for every fleet VolSync `ReplicationSource` (count and destinations:
+  `kubernetes/components/volsync/Readme.md`) and is **not** ours to touch,
   restructure or migrate; its cleanup belongs to VolSync's retirement, not to
   Stage 0. The R2 endpoint was copied into `kopiur-r2` once, and the reused
   `R2_HOME_OPS_*` credentials were dropped entirely.

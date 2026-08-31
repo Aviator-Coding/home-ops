@@ -239,7 +239,7 @@ drift trap in `AGENTS.md`).
 
 ## Daily Timeline Example
 
-With per-app schedules (35 Flux Kustomizations include this component):
+With per-app schedules (31 Flux Kustomizations include this component):
 
 ```
 00:00 ──── [Ceph] 4-hour backup (apps at :00) ──── [MinIO] 6-hour backup (apps at :00) ─────
@@ -374,9 +374,9 @@ schedule: "0 2 * * *"
 
 ## Application Schedule Distribution
 
-35 Flux Kustomizations include `components/volsync`. Schedules are staggered
-but **not unique** (several apps share the same minute). Do not assume a
-2-3 app cap on simultaneous Ceph backups. Regenerated from
+31 Flux Kustomizations include `components/volsync` (93 `ReplicationSource`s).
+Schedules are staggered but **not unique** (several apps share the same minute).
+Do not assume a 2-3 app cap on simultaneous Ceph backups. Regenerated from
 `rg 'components/volsync' kubernetes/apps` plus each overlay yaml's `VOLSYNC_SCHEDULE_*`
 (paperless-ngx uses component defaults). `litellm` is not a VolSync client
 (Postgres-backed governance layer, no app PVC - `docs/ai-system/litellm/README.md`).
@@ -391,7 +391,8 @@ level after 222 days and no pod ever mounted it. **Do not re-add the component
 to an app that declares no persistence** - it manufactures a claim and three
 mover jobs that protect nothing. `cross-seed`, `qbittorrent`
 and `calibre-web` were removed as dead, unreferenced app directories - see
-`docs/media-stack.md`.
+`docs/media-stack.md`. `rsshub-playwright` dropped VolSync when its `/config`
+mount became an `emptyDir` (stateless browserless; captain decision 2026-08-30).
 
 | # | Namespace | Application | Ceph Schedule | MinIO Schedule | R2 Schedule | Priority |
 |---|-----------|-------------|---------------|----------------|-------------|----------|
@@ -424,7 +425,6 @@ and `calibre-web` were removed as dead, unreferenced app directories - see
 | 27 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
 | 28 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
 | 29 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
-| 30 | selfhosted | rsshub-playwright | `25 */4 * * *` | `0 */6 * * *` | `30 4 * * *` | Low |
 
 ### Distribution Strategy
 
