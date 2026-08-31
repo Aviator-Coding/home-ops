@@ -26,6 +26,21 @@ spec:
   repository:
     kind: ClusterRepository
     name: ceph
+  # --- credential projection (captain decision `credential-scope`, 2026-08-30) ---
+  # The CONSUMER half of the gate, and the leg that is easiest to forget: the
+  # repository's `credentialProjection.allowed` only permits projection, it does
+  # not request it. Without this the mover Job gets no credentials in its own
+  # namespace, every CR still reconciles perfectly clean, and the run fails at
+  # mover time - the exact shape of the Stage 1 gap.
+  #
+  # With it on, the operator SSA-copies the `ceph` repository's credential
+  # Secrets into this policy's namespace for the life of the run and reaps them
+  # afterwards (`Snapshot.status.cleanup.credsReapedAt` records the reap; the
+  # operator exports `kopiur_projected_secrets_live`, which must return to 0
+  # between runs). NOTHING is left at rest, which is the whole point: there are
+  # no standing repository credentials in any app namespace.
+  credentialProjection:
+    enabled: true
   sources:
     - pvc:
         name: "${KOPIUR_CLAIM:-${APP}}"

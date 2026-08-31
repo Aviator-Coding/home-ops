@@ -54,6 +54,29 @@ spec:
   create:
     enabled: true
   mode: ReadWrite
+  # --- credential projection (captain decision `credential-scope`, 2026-08-30) ---
+  # The REPOSITORY-OWNER half of the gate: this repository consents to having
+  # its credential Secrets copied into a consumer namespace. It is one of three
+  # legs and grants nothing on its own - the operator also needs
+  # `features.credentialProjection.enabled` (../app/helmrelease.yaml, the RBAC),
+  # and each consuming SnapshotPolicy/Restore needs its own
+  # `credentialProjection.enabled` (kubernetes/components/kopiur/).
+  #
+  # Why it is on: a mover Job runs in the WORKLOAD namespace and loads these
+  # Secrets with namespace-local `envFrom`, but they are pinned to `system`
+  # below. Projection is what lets a backup in any namespace read them WITHOUT
+  # a standing copy sitting there between runs. The Secret exists for the length
+  # of one mover run and is then reaped.
+  #
+  # `namespace:` on every secretRef in this file is load-bearing for this: the
+  # CRD requires it be set EXPLICITLY for projection to know what to copy.
+  #
+  # Reversible by flipping this one boolean back to false (and the consumer
+  # opt-ins with it) - but note that reverting alone leaves movers outside
+  # `system` with no credentials at all, because the standing per-namespace
+  # copies this decision removed are gone.
+  credentialProjection:
+    allowed: true
   # --- deletion protection (ADR-0006), pinned, not defaulted ---
   # Mass-deletion circuit breaker. At or above this many pending EXTERNAL
   # destructive Snapshot deletions, kopiur HOLDS them until a human acks with
@@ -99,6 +122,10 @@ spec:
   create:
     enabled: true
   mode: ReadWrite
+  # See the `ceph` repository above for the full rationale. Same owner-side
+  # consent, same three-leg gate, same captain decision (`credential-scope`).
+  credentialProjection:
+    allowed: true
   deletionProtection:
     threshold: 10
   onNamespaceDelete: Orphan

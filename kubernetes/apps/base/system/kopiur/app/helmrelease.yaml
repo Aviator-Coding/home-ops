@@ -29,6 +29,41 @@ spec:
     # reconciled at all - and both of our repositories (ceph, r2) are that kind.
     installScope: cluster
 
+    # CREDENTIAL PROJECTION. Captain decision 2026-08-30, key `credential-scope`
+    # (Option B), which closes the question Stage 1 deliberately deferred.
+    #
+    # What it buys: a mover Job runs in the WORKLOAD namespace and loads its
+    # repository credentials with namespace-local `envFrom`, while both of our
+    # ClusterRepository objects pin their Secrets to `system`. With this on, the
+    # operator SSA-copies those Secrets into the mover's namespace for the life
+    # of the run and reaps them afterwards, so NO repository credential sits at
+    # rest in an app namespace. Stage 1 instead kept three standing Secrets in
+    # `downloads`; extending that shape to Stage 3 would have meant 18 standing
+    # objects across 6 app namespaces, each granting read AND write to both
+    # backup repositories - the ransomware-shaped risk the component Readme
+    # names in terms.
+    #
+    # THE ACCEPTED COST, STATED PLAINLY: this flag is the only thing that adds
+    # `create`/`patch`/`delete` on `secrets` to the operator's ClusterRole (see
+    # the chart's templates/role.tpl), and `create` CANNOT be scoped to a Secret
+    # name. A compromised kopiur operator therefore becomes a cluster-wide
+    # credential-rewrite primitive. The captain took that trade with it named.
+    # Do not widen anything further on top of it.
+    #
+    # This flag alone grants only the RBAC. Projection needs all three legs:
+    #   1. this flag                                     (operator RBAC)
+    #   2. `credentialProjection.allowed: true` on each  (repository-owner gate)
+    #      ClusterRepository - ../repository/clusterrepository.yaml
+    #   3. `credentialProjection.enabled: true` on each  (consumer opt-in)
+    #      SnapshotPolicy/Restore - kubernetes/components/kopiur/
+    # Miss leg 2 or 3 and every CR still reconciles clean while the mover fails
+    # at run time; miss leg 1 and the operator surfaces an actionable 403 in the
+    # resource status. All three are CRD/chart fields verified against the
+    # installed 0.10.5, not a fork.
+    features:
+      credentialProjection:
+        enabled: true
+
     # HA. The webhook runs failurePolicy: Fail, so a single replica evicted by a
     # node drain blocks every kopiur CR write until it reschedules. This cluster
     # drains its 3 nodes one at a time for Talos rolls, so that is a routine
