@@ -16,8 +16,12 @@ and the pilot's standing credential objects gone.
 This test does not grep source text as its evidence. It:
   1. Renders the real kustomize builds Flux would apply for the kopiur backup
      component and the volsync backup sibling, then runs a Flux-shaped
-     envsubst (including ${VAR:-default} and nested ${A:-${B}}) with the pilot
-     APP=autobrr map.
+     envsubst (including ${VAR:-default} and nested ${A:-${B}}) with the
+     PRODUCTION pilot substitute map parsed from downloads/autobrr.yaml
+     (Stage 3 values: KOPIUR_PUID/PGID=2000, KOPIUR_SCHEDULE_R2='H 11 * * *',
+     ceph schedule deliberately absent so the component default applies).
+     A separate negative-control render uses an empty/synthetic env to pin
+     the component defaults themselves (uid/gid 1000, r2 'H 4 * * *').
   2. Parses the pilot Flux Kustomization, the downloads credentials overlay,
      the security store overlay, and every apps/main/*/app overlay into
      structured objects.
@@ -26,11 +30,12 @@ This test does not grep source text as its evidence. It:
          1 Restore; NO MinIO policy/schedule, NO PVC, NO ReplicationSource
        - both policies use ClusterRepository ceph/r2, claim name autobrr
          (default ${KOPIUR_CLAIM:-${APP}}), copyMethod Snapshot, Ephemeral
-         cache, retention matching VolSync for that destination, and pinned
+         cache, retention matching VolSync for that destination, mover
+         identity 2000:2000 from the live overlay, and pinned
          deletion.onPolicyDelete: Retain
        - both schedules pin deletion.onScheduleDelete: Retain, jitter 5m,
          native bare H minute, and HOUR slots that cannot collide with the
-         pilot's VolSync schedules (ceph odd 4h vs even :45; r2 04 vs 03)
+         pilot's VolSync schedules (ceph odd 4h vs even :45; r2 11 vs 03)
        - Restore is ${APP}-kopiur-dst (not ${APP}-dst), passive populator,
          onMissingSnapshot Continue, ssa IfNotPresent
        - parent Component resources only ./backup (no pvc.yaml)
@@ -90,9 +95,21 @@ PILOT_VOLSYNC_CEPH = "45 */4 * * *"
 PILOT_VOLSYNC_MINIO = "30 */6 * * *"
 PILOT_VOLSYNC_R2 = "45 3 * * *"
 
-# Component defaults that keep kopiur off those minutes via the HOUR field.
-EXPECTED_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
-EXPECTED_KOPIUR_R2_CRON = "H 4 * * *"
+# Production pilot kopiur pins (Stage 3). The live overlay is the source of
+# truth at render time; these are the values that overlay must currently carry.
+PILOT_KOPIUR_PUID = 2000
+PILOT_KOPIUR_PGID = 2000
+PILOT_KOPIUR_R2_CRON = "H 11 * * *"
+
+# Component defaults. Production autobrr no longer uses the identity/r2 ones;
+# they are pinned only by the explicit negative-control render below. Ceph
+# stays on the component default in production too (structurally offset).
+COMPONENT_DEFAULT_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
+COMPONENT_DEFAULT_KOPIUR_R2_CRON = "H 4 * * *"
+COMPONENT_DEFAULT_PUID = 1000
+COMPONENT_DEFAULT_PGID = 1000
+# Alias used by the production ceph schedule pin (still the component default).
+PILOT_KOPIUR_CEPH_CRON = COMPONENT_DEFAULT_KOPIUR_CEPH_CRON
 
 STAGE1_KINDS = frozenset({"SnapshotPolicy", "SnapshotSchedule", "Restore"})
 FORBIDDEN_RENDERED_KINDS = frozenset(
@@ -211,6 +228,17 @@ def flux_envsubst(text: str, env: dict[str, str]) -> str:
         return "".join(out)
 
     return expand(text)
+
+
+def overlay_substitute(path: Path) -> dict[str, str]:
+    """Parse postBuild.substitute from a live Flux Kustomization overlay."""
+    docs = load_multi(path)
+    require(len(docs) == 1, f"{path.name} must be one document, got {len(docs)}")
+    ks = docs[0]
+    require(ks.get("kind") == "Kustomization", f"{path.name} must be a Flux Kustomization")
+    sub = (((ks.get("spec") or {}).get("postBuild") or {}).get("substitute")) or {}
+    require(isinstance(sub, dict) and sub, f"{path.name} missing postBuild.substitute")
+    return {str(k): str(v) for k, v in sub.items()}
 
 
 def render_with_substitute(path: Path, env: dict[str, str]) -> list[dict[str, Any]]:
@@ -411,10 +439,11 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
         require(cache.get("capacity") == "2Gi", f"{dest}: cache capacity default 2Gi, got {cache}")
         psc = ((spec.get("mover") or {}).get("podSecurityContext")) or {}
         require(
-            psc.get("runAsUser") == 1000
-            and psc.get("runAsGroup") == 1000
-            and psc.get("fsGroup") == 1000,
-            f"{dest}: podSecurityContext must be uid/gid/fsGroup 1000, got {psc}",
+            psc.get("runAsUser") == PILOT_KOPIUR_PUID
+            and psc.get("runAsGroup") == PILOT_KOPIUR_PGID
+            and psc.get("fsGroup") == PILOT_KOPIUR_PGID,
+            f"{dest}: production autobrr mover must be "
+            f"{PILOT_KOPIUR_PUID}:{PILOT_KOPIUR_PGID} from the live overlay, got {psc}",
         )
         deletion = spec.get("deletion") or {}
         require(
@@ -453,10 +482,11 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
 
 
 def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
+    """Production autobrr schedules from the live overlay substitute map."""
     schedules = {s["metadata"]["name"]: s for s in by_kind(docs, "SnapshotSchedule")}
     for dest, expected_cron in (
-        ("ceph", EXPECTED_KOPIUR_CEPH_CRON),
-        ("r2", EXPECTED_KOPIUR_R2_CRON),
+        ("ceph", PILOT_KOPIUR_CEPH_CRON),
+        ("r2", PILOT_KOPIUR_R2_CRON),
     ):
         s = schedules[f"{PILOT_APP}-{dest}"]
         spec = s["spec"]
@@ -485,7 +515,7 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
         )
 
     # Structural hour non-overlap with the pilot's VolSync schedules.
-    k_ceph_hours = cron_hours(EXPECTED_KOPIUR_CEPH_CRON)
+    k_ceph_hours = cron_hours(PILOT_KOPIUR_CEPH_CRON)
     # VolSync ceph "45 */4 * * *" -> hours 0,4,8,12,16,20
     v_ceph_hours = cron_hours(PILOT_VOLSYNC_CEPH)
     require(
@@ -497,14 +527,58 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
         f"kopiur ceph hours must be the odd 4h slots, got {sorted(k_ceph_hours)}",
     )
 
-    k_r2_hours = cron_hours(EXPECTED_KOPIUR_R2_CRON)
+    k_r2_hours = cron_hours(PILOT_KOPIUR_R2_CRON)
     v_r2_hours = cron_hours(PILOT_VOLSYNC_R2)
     require(
         k_r2_hours.isdisjoint(v_r2_hours),
         f"kopiur r2 hours {sorted(k_r2_hours)} overlap volsync {sorted(v_r2_hours)}",
     )
-    require(k_r2_hours == {4}, f"kopiur r2 hour must be 4, got {sorted(k_r2_hours)}")
+    require(
+        k_r2_hours == {11},
+        f"production autobrr kopiur r2 hour must be 11 (downloads namespace), got {sorted(k_r2_hours)}",
+    )
     require(v_r2_hours == {3}, f"pilot volsync r2 hour must stay 3, got {sorted(v_r2_hours)}")
+
+
+def test_component_defaults_without_override() -> None:
+    """Negative control: component defaults with a synthetic env (NOT production autobrr).
+
+    Production autobrr carries KOPIUR_PUID/PGID=2000 and KOPIUR_SCHEDULE_R2='H 11 * * *'
+    from Stage 3. This render deliberately omits those overrides so the component's
+    own defaults stay pinned: mover 1000:1000, ceph 'H 1-23/4 * * *', r2 'H 4 * * *'.
+    """
+    docs = render_with_substitute(
+        KOPIUR_BACKUP,
+        {
+            # Synthetic env only - do not read the live overlay here.
+            "APP": PILOT_APP,
+            "SECRET_DOMAIN": "example.test",
+            # deliberately omit KOPIUR_PUID/PGID and KOPIUR_SCHEDULE_*
+        },
+    )
+    for p in by_kind(docs, "SnapshotPolicy"):
+        psc = ((p["spec"].get("mover") or {}).get("podSecurityContext")) or {}
+        require(
+            psc.get("runAsUser") == COMPONENT_DEFAULT_PUID
+            and psc.get("runAsGroup") == COMPONENT_DEFAULT_PGID
+            and psc.get("fsGroup") == COMPONENT_DEFAULT_PGID,
+            f"component default mover must be "
+            f"{COMPONENT_DEFAULT_PUID}:{COMPONENT_DEFAULT_PGID}, got {psc}",
+        )
+    schedules = {s["metadata"]["name"]: s for s in by_kind(docs, "SnapshotSchedule")}
+    for dest, expected_cron in (
+        ("ceph", COMPONENT_DEFAULT_KOPIUR_CEPH_CRON),
+        ("r2", COMPONENT_DEFAULT_KOPIUR_R2_CRON),
+    ):
+        cron = ((schedules[f"{PILOT_APP}-{dest}"]["spec"].get("schedule")) or {}).get("cron")
+        require(
+            cron == expected_cron,
+            f"component default {dest} cron must be {expected_cron!r}, got {cron!r}",
+        )
+    require(
+        cron_hours(COMPONENT_DEFAULT_KOPIUR_R2_CRON) == {4},
+        "component default r2 hour pin drifted",
+    )
 
 
 def test_restore_passive_contract(docs: list[dict[str, Any]]) -> None:
@@ -633,27 +707,30 @@ def test_autobrr_overlay_wiring() -> None:
         sub.get("VOLSYNC_SCHEDULE_R2") == PILOT_VOLSYNC_R2,
         "VOLSYNC_SCHEDULE_R2 must stay untouched",
     )
-    # KOPIUR_SCHEDULE_CEPH must stay at the component default: its structural
-    # offset onto the ODD 4-hour slots (01/05/09/13/17/21) against volsync's
-    # even ones is what keeps the two engines off each other, and it needs no
-    # per-app tuning.
+    # Stage 3 corrected mover identity to match measured file ownership.
+    require(
+        str(sub.get("KOPIUR_PUID")) == str(PILOT_KOPIUR_PUID),
+        f"KOPIUR_PUID must be {PILOT_KOPIUR_PUID} (production), got {sub.get('KOPIUR_PUID')!r}",
+    )
+    require(
+        str(sub.get("KOPIUR_PGID")) == str(PILOT_KOPIUR_PGID),
+        f"KOPIUR_PGID must be {PILOT_KOPIUR_PGID} (production), got {sub.get('KOPIUR_PGID')!r}",
+    )
+    # KOPIUR_SCHEDULE_CEPH must stay absent: its structural offset onto the ODD
+    # 4-hour slots (01/05/09/13/17/21) against volsync's even ones is what keeps
+    # the two engines off each other, and it needs no per-app tuning.
     require(
         "KOPIUR_SCHEDULE_CEPH" not in sub,
         f"ceph schedule must stay at the component default; got {sorted(sub)}",
     )
-    # KOPIUR_SCHEDULE_R2 MAY be overridden, and since Stage 3 it is: the
-    # component default `H 4 * * *` puts every kopiur r2 policy in the fleet
-    # into a single hour that already carries volsync's whole ceph slot plus 13
-    # volsync r2 runs. Stage 3 assigns one free hour per namespace. What must
-    # NOT happen is a hand-assigned minute - `H` is hashed from the schedule
-    # identity and jitter decorrelates on top, and that is the native
-    # replacement for volsync's stagger table.
+    # KOPIUR_SCHEDULE_R2 is set since Stage 3 (downloads free hour 11). The
+    # component default `H 4 * * *` would put every kopiur r2 policy into the
+    # fleet's busiest hour. Minute must stay bare H - never hand-assigned.
     r2 = sub.get("KOPIUR_SCHEDULE_R2")
-    if r2 is not None:
-        require(
-            re.fullmatch(r"H \d{1,2} \* \* \*", r2) is not None,
-            f"KOPIUR_SCHEDULE_R2 must be a bare-H hourly cron, got {r2!r}",
-        )
+    require(
+        r2 == PILOT_KOPIUR_R2_CRON,
+        f"KOPIUR_SCHEDULE_R2 must be {PILOT_KOPIUR_R2_CRON!r}, got {r2!r}",
+    )
 
 
 def test_autobrr_still_onboarded() -> None:
@@ -893,13 +970,20 @@ def main() -> int:
             print(f"[FAIL] {name}: unexpected {type(e).__name__}: {e}")
             failures.append(f"{name}: {e}")
 
+    # Production pilot render: parse the LIVE overlay substitute map so the
+    # pin stays honest as downloads/autobrr.yaml evolves. Stage 3 carries
+    # KOPIUR_PUID/PGID=2000 and KOPIUR_SCHEDULE_R2='H 11 * * *'; ceph stays
+    # absent (component default) because that odd-slot offset is what keeps
+    # kopiur and VolSync apart.
+    try:
+        pilot_sub = overlay_substitute(AUTOBRR_OVERLAY)
+    except Failure as e:
+        print(f"[FAIL] parse autobrr overlay: {e}")
+        print("Summary: 0 passed, 1 failed")
+        return 1
+
     pilot_env = {
-        "APP": PILOT_APP,
-        # Match the pilot overlay: VolSync schedules are substituted; kopiur
-        # uses component defaults (no KOPIUR_SCHEDULE_* in the overlay).
-        "VOLSYNC_SCHEDULE_CEPH": PILOT_VOLSYNC_CEPH,
-        "VOLSYNC_SCHEDULE_MINIO": PILOT_VOLSYNC_MINIO,
-        "VOLSYNC_SCHEDULE_R2": PILOT_VOLSYNC_R2,
+        **pilot_sub,
         # cluster-secrets keys the volsync ExternalSecrets reference. Value is
         # a non-secret placeholder - we only need the render to complete so the
         # ReplicationSource contracts can be asserted.
@@ -918,6 +1002,7 @@ def main() -> int:
     run("rendered_pilot_kinds", lambda: test_rendered_pilot_kinds_and_names(kopiur_docs))
     run("policies_contract", lambda: test_policies_contract(kopiur_docs, volsync_docs))
     run("schedules_non_collision", lambda: test_schedules_non_collision(kopiur_docs))
+    run("component_defaults_without_override", test_component_defaults_without_override)
     run("restore_passive", lambda: test_restore_passive_contract(kopiur_docs))
     run("volsync_pilot_still_triple", lambda: test_volsync_pilot_still_triple(volsync_docs))
     run("autobrr_overlay_wiring", test_autobrr_overlay_wiring)

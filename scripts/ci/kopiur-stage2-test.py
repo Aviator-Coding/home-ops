@@ -11,8 +11,11 @@ coverage set now lives in kopiur-stage3-test.py.
 
 This test does not grep source text as its evidence. It:
   1. Renders the real kustomize builds Flux would apply for the kopiur and
-     volsync backup components under the sabnzbd substitute map
-     (KOPIUR_CLAIM=sabnzbd-config, KOPIUR_PUID/PGID=2000).
+     volsync backup components under the PRODUCTION sabnzbd substitute map
+     parsed from downloads/sabnzbd.yaml (KOPIUR_CLAIM=sabnzbd-config,
+     KOPIUR_PUID/PGID=2000, KOPIUR_SCHEDULE_R2='H 11 * * *'). A separate
+     negative-control render pins the component defaults (uid/gid 1000,
+     r2 'H 4 * * *') when those overrides are omitted.
   2. Parses the sabnzbd Flux overlay, every apps/main overlay's components
      list, the sabnzbd workload securityContext, and the Stage 2 drill
      document into structured objects / measured fields.
@@ -23,9 +26,10 @@ This test does not grep source text as its evidence. It:
        - rendered SnapshotPolicy PVC name is sabnzbd-config (claim override)
        - rendered mover podSecurityContext is uid/gid/fsGroup 2000 (finding 2)
        - sabnzbd workload securityContext is 2000 (the reason the override
-         is load-bearing); autobrr remains at the component default 1000
-       - ceph schedule stays at the component default and any r2 override is
-         a bare-H hourly cron (no hand-assigned minute)
+         is load-bearing); production autobrr also renders at 2000 from its
+         live overlay (Stage 3 identity correction)
+       - ceph schedule stays at the component default; production r2 is the
+         downloads free hour 'H 11 * * *' (no hand-assigned minute)
        - dependsOn includes kopiur-repository + volsync, and NOT
          kopiur-credentials (credential-scope 2026-08-30 replaced the standing
          per-namespace copies with operator-minted per-run projection; the
@@ -78,8 +82,20 @@ SAB_VOLSYNC_CEPH = "30 */4 * * *"
 SAB_VOLSYNC_MINIO = "15 */6 * * *"
 SAB_VOLSYNC_R2 = "30 3 * * *"
 
-EXPECTED_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
-EXPECTED_KOPIUR_R2_CRON = "H 4 * * *"
+# Production ceph stays on the component default (structurally offset).
+# Production r2 is the downloads free hour from Stage 3.
+PRODUCTION_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
+PRODUCTION_KOPIUR_R2_CRON = "H 11 * * *"
+
+# Component defaults - pinned only by the explicit negative-control renders.
+COMPONENT_DEFAULT_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
+COMPONENT_DEFAULT_KOPIUR_R2_CRON = "H 4 * * *"
+COMPONENT_DEFAULT_PUID = 1000
+COMPONENT_DEFAULT_PGID = 1000
+
+# Production autobrr identity (Stage 3 correction; matches measured ownership).
+STAGE1_PUID = 2000
+STAGE1_PGID = 2000
 
 # Measured Stage 2 fidelity digest from the live drill (public result contract).
 STAGE2_MANIFEST_DIGEST = (
@@ -177,6 +193,17 @@ def flux_envsubst(text: str, env: dict[str, str]) -> str:
         return "".join(out)
 
     return expand(text)
+
+
+def overlay_substitute(path: Path) -> dict[str, str]:
+    """Parse postBuild.substitute from a live Flux Kustomization overlay."""
+    docs = load_multi(path)
+    require(len(docs) == 1, f"{path.name} must be one document, got {len(docs)}")
+    ks = docs[0]
+    require(ks.get("kind") == "Kustomization", f"{path.name} must be a Flux Kustomization")
+    sub = (((ks.get("spec") or {}).get("postBuild") or {}).get("substitute")) or {}
+    require(isinstance(sub, dict) and sub, f"{path.name} missing postBuild.substitute")
+    return {str(k): str(v) for k, v in sub.items()}
 
 
 def render_with_substitute(path: Path, env: dict[str, str]) -> list[dict[str, Any]]:
@@ -386,20 +413,17 @@ def test_sabnzbd_overlay_wiring() -> None:
         str(sub.get("KOPIUR_PGID")) == str(STAGE2_PGID),
         f"KOPIUR_PGID must be {STAGE2_PGID} (finding 2), got {sub.get('KOPIUR_PGID')!r}",
     )
-    # No schedule overrides - component defaults own hour non-collision.
-    # See kopiur-stage1-test.py for the full rationale: ceph stays at the
-    # component default (structurally offset), r2 may carry the per-namespace
-    # hour Stage 3 assigns, and a hand-assigned MINUTE is what stays forbidden.
+    # Ceph stays at the component default (structurally offset). r2 carries the
+    # downloads free hour Stage 3 assigns. A hand-assigned MINUTE stays forbidden.
     require(
         "KOPIUR_SCHEDULE_CEPH" not in sub,
         f"ceph schedule must stay at the component default; got {sorted(sub)}",
     )
     r2 = sub.get("KOPIUR_SCHEDULE_R2")
-    if r2 is not None:
-        require(
-            re.fullmatch(r"H \d{1,2} \* \* \*", r2) is not None,
-            f"KOPIUR_SCHEDULE_R2 must be a bare-H hourly cron, got {r2!r}",
-        )
+    require(
+        r2 == PRODUCTION_KOPIUR_R2_CRON,
+        f"KOPIUR_SCHEDULE_R2 must be {PRODUCTION_KOPIUR_R2_CRON!r}, got {r2!r}",
+    )
 
 
 def test_rendered_claim_override_and_puid(
@@ -443,8 +467,8 @@ def test_rendered_claim_override_and_puid(
     require(len(schedules) == 2, f"expected 2 SnapshotSchedule, got {len(schedules)}")
     by_name = {s["metadata"]["name"]: s for s in schedules}
     for dest, expected in (
-        ("ceph", EXPECTED_KOPIUR_CEPH_CRON),
-        ("r2", EXPECTED_KOPIUR_R2_CRON),
+        ("ceph", PRODUCTION_KOPIUR_CEPH_CRON),
+        ("r2", PRODUCTION_KOPIUR_R2_CRON),
     ):
         cron = ((by_name[f"{STAGE2_APP}-{dest}"]["spec"].get("schedule")) or {}).get("cron")
         require(cron == expected, f"{dest}: cron must be {expected!r}, got {cron!r}")
@@ -452,18 +476,19 @@ def test_rendered_claim_override_and_puid(
         require(minute == "H", f"{dest}: minute must be bare H, got {minute!r}")
 
     # Hour non-overlap with sabnzbd VolSync.
-    k_ceph = cron_hours(EXPECTED_KOPIUR_CEPH_CRON)
+    k_ceph = cron_hours(PRODUCTION_KOPIUR_CEPH_CRON)
     v_ceph = cron_hours(SAB_VOLSYNC_CEPH)
     require(
         k_ceph.isdisjoint(v_ceph),
         f"kopiur ceph hours {sorted(k_ceph)} overlap sabnzbd volsync {sorted(v_ceph)}",
     )
-    k_r2 = cron_hours(EXPECTED_KOPIUR_R2_CRON)
+    k_r2 = cron_hours(PRODUCTION_KOPIUR_R2_CRON)
     v_r2 = cron_hours(SAB_VOLSYNC_R2)
     require(
         k_r2.isdisjoint(v_r2),
         f"kopiur r2 hours {sorted(k_r2)} overlap sabnzbd volsync {sorted(v_r2)}",
     )
+    require(k_r2 == {11}, f"production sabnzbd r2 hour must be 11, got {sorted(k_r2)}")
 
     restores = by_kind(kopiur_docs, "Restore")
     require(len(restores) == 1, f"expected 1 standing Restore, got {len(restores)}")
@@ -516,7 +541,8 @@ def test_volsync_sabnzbd_still_triple(vs_docs: list[dict[str, Any]]) -> None:
 def test_workload_identity_matches_override() -> None:
     """sabnzbd runs as 2000; that is why KOPIUR_PUID/PGID=2000 is required.
 
-    autobrr stays at a non-2000 identity so the stage-1 default path remains valid.
+    Production autobrr is also 2000 since Stage 3 (measured file ownership).
+    Both are rendered from their LIVE overlay substitute maps.
     """
     sab = workload_security_context(SABNZBD_HR)
     # Prefer pod-level fsGroup/runAsUser; fall back to container.
@@ -537,55 +563,77 @@ def test_workload_identity_matches_override() -> None:
         f"container={sab['container']}",
     )
 
-    # autobrr must NOT need the 2000 override (its files are empty anyway, but the
-    # default path should still render at 1000).
-    auto_docs = render_with_substitute(
-        KOPIUR_BACKUP,
-        {
-            "APP": STAGE1_APP,
-            "SECRET_DOMAIN": "example.test",
-        },
-    )
+    # Production autobrr: render with the REAL overlay substitute map.
+    auto_env = {
+        **overlay_substitute(AUTOBRR_OVERLAY),
+        "SECRET_DOMAIN": "example.test",
+    }
+    auto_docs = render_with_substitute(KOPIUR_BACKUP, auto_env)
     for p in by_kind(auto_docs, "SnapshotPolicy"):
         psc = ((p["spec"].get("mover") or {}).get("podSecurityContext")) or {}
         require(
-            psc.get("runAsUser") == 1000
-            and psc.get("runAsGroup") == 1000
-            and psc.get("fsGroup") == 1000,
-            f"autobrr must keep default mover identity 1000, got {psc}",
+            psc.get("runAsUser") == STAGE1_PUID
+            and psc.get("runAsGroup") == STAGE1_PGID
+            and psc.get("fsGroup") == STAGE1_PGID,
+            f"production autobrr mover must be {STAGE1_PUID}:{STAGE1_PGID} "
+            f"from the live overlay, got {psc}",
         )
         claim = ((p["spec"].get("sources") or [{}])[0].get("pvc") or {}).get("name")
         require(
             claim == STAGE1_APP,
             f"autobrr claim must default to app name, got {claim!r}",
         )
+    auto_schedules = {
+        s["metadata"]["name"]: s for s in by_kind(auto_docs, "SnapshotSchedule")
+    }
+    auto_r2 = ((auto_schedules[f"{STAGE1_APP}-r2"]["spec"].get("schedule")) or {}).get(
+        "cron"
+    )
+    require(
+        auto_r2 == PRODUCTION_KOPIUR_R2_CRON,
+        f"production autobrr r2 cron must be {PRODUCTION_KOPIUR_R2_CRON!r}, got {auto_r2!r}",
+    )
 
 
 def test_default_puid_without_override_is_1000() -> None:
-    """Negative control: rendering sabnzbd WITHOUT KOPIUR_PUID stays at 1000.
+    """Negative control: component default identity/schedules (NOT production).
 
-    This is the failure mode finding 2 measured live - the test pins that the
-    component default really is 1000 so the overlay override is doing real work.
+    Synthetic env deliberately omits KOPIUR_PUID/PGID and KOPIUR_SCHEDULE_* so
+    the component defaults stay pinned: mover 1000:1000, ceph
+    'H 1-23/4 * * *', r2 'H 4 * * *'. Production sabnzbd/autobrr overlays
+    override identity and r2; this proves those overrides do real work.
     """
     docs = render_with_substitute(
         KOPIUR_BACKUP,
         {
+            # Synthetic env only - do not read a live overlay here.
             "APP": STAGE2_APP,
             "KOPIUR_CLAIM": STAGE2_CLAIM,
-            # deliberately omit KOPIUR_PUID/PGID
+            # deliberately omit KOPIUR_PUID/PGID and KOPIUR_SCHEDULE_*
             "SECRET_DOMAIN": "example.test",
         },
     )
     for p in by_kind(docs, "SnapshotPolicy"):
         psc = ((p["spec"].get("mover") or {}).get("podSecurityContext")) or {}
         require(
-            psc.get("runAsUser") == 1000
-            and psc.get("runAsGroup") == 1000
-            and psc.get("fsGroup") == 1000,
-            f"without override, mover must default to 1000 (finding 2 baseline), got {psc}",
+            psc.get("runAsUser") == COMPONENT_DEFAULT_PUID
+            and psc.get("runAsGroup") == COMPONENT_DEFAULT_PGID
+            and psc.get("fsGroup") == COMPONENT_DEFAULT_PGID,
+            f"without override, mover must default to "
+            f"{COMPONENT_DEFAULT_PUID}:{COMPONENT_DEFAULT_PGID}, got {psc}",
         )
         claim = ((p["spec"].get("sources") or [{}])[0].get("pvc") or {}).get("name")
         require(claim == STAGE2_CLAIM, f"claim override must still apply, got {claim!r}")
+    schedules = {s["metadata"]["name"]: s for s in by_kind(docs, "SnapshotSchedule")}
+    for dest, expected in (
+        ("ceph", COMPONENT_DEFAULT_KOPIUR_CEPH_CRON),
+        ("r2", COMPONENT_DEFAULT_KOPIUR_R2_CRON),
+    ):
+        cron = ((schedules[f"{STAGE2_APP}-{dest}"]["spec"].get("schedule")) or {}).get("cron")
+        require(
+            cron == expected,
+            f"component default {dest} cron must be {expected!r}, got {cron!r}",
+        )
 
 
 def test_drill_document_contract() -> None:
@@ -825,15 +873,17 @@ def main() -> int:
             print(f"[FAIL] {name}: unexpected {type(e).__name__}: {e}")
             failures.append(f"{name}: {e}")
 
+    # Production sabnzbd render: parse the LIVE overlay substitute map so the
+    # pin stays honest as downloads/sabnzbd.yaml evolves.
+    try:
+        sab_sub = overlay_substitute(SABNZBD_OVERLAY)
+    except Failure as e:
+        print(f"[FAIL] parse sabnzbd overlay: {e}")
+        print("Summary: 0 passed, 1 failed")
+        return 1
+
     sab_env = {
-        "APP": STAGE2_APP,
-        "VOLSYNC_CLAIM": STAGE2_CLAIM,
-        "KOPIUR_CLAIM": STAGE2_CLAIM,
-        "KOPIUR_PUID": str(STAGE2_PUID),
-        "KOPIUR_PGID": str(STAGE2_PGID),
-        "VOLSYNC_SCHEDULE_CEPH": SAB_VOLSYNC_CEPH,
-        "VOLSYNC_SCHEDULE_MINIO": SAB_VOLSYNC_MINIO,
-        "VOLSYNC_SCHEDULE_R2": SAB_VOLSYNC_R2,
+        **sab_sub,
         "SECRET_DOMAIN": "example.test",
     }
 
