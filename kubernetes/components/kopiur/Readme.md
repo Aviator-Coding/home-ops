@@ -8,24 +8,31 @@ Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stages 1-2.** Live on exactly two volumes -
-> `downloads/autobrr` (Stage 1 pilot) and `downloads/sabnzbd-config` (Stage 2
-> fidelity subject) - both running **alongside** an untouched
-> `components/volsync`. Every other volume is still VolSync-only. Stage 2's
-> restore gate **passed** on 2026-08-30:
+> **Migration status: Stage 3 complete.** kopiur is live on **29 of the fleet's
+> 31** VolSync-protected claims, onboarded namespace by namespace in Stage 3
+> (2026-08-30). **Both engines run on every one of those volumes** - every
+> VolSync source is still live, nothing has been retired, and retirement is
+> Stage 5, which needs a per-volume restore proof first. Exactly **two claims
+> are deliberately NOT on kopiur** and must stay off until the component can
+> express a root mover: `home-automation/matter-server` (runs as root by design)
+> and `selfhosted/changedetection-config` (needs a `0:1000` root mover; the
+> captain chose to fix the app's missing security context separately). Both
+> remain fully VolSync-protected. **Being onboarded is not the same as being
+> proven** - a per-volume restore has been demonstrated only for
+> `sabnzbd-config`. Stage 2's restore gate **passed** on 2026-08-30:
 > [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 > - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-> 2.06 GiB, per-file sha256, modes and ownership included). Do **not** onboard
-> any further app: that is Stage 3 and needs its own captain decision; passing
-> Stage 2 is explicitly not authorisation to begin it. `KOPIUR_PUID`/`KOPIUR_PGID`
+> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 29
+> onboardings as fleet-wide backup verification. `KOPIUR_PUID`/`KOPIUR_PGID`
 > must match the workload that owns the claim's files, or the backup fails
 > outright on any file lacking a world-read bit (kopiur fails closed; its
-> admission webhook warns at apply time) - a prerequisite for every future
-> onboarding, not a sabnzbd quirk (drill finding 2). The Stage 1 pilot holds
-> **zero** files (all state is in `postgres-17`), so it is a valid mechanism test
-> but never could prove byte-level fidelity; a `Succeeded` snapshot with
-> `.status.stats sizeBytes 0` is not evidence backup works. Plan of record:
-> firstmate's `homeops-kopiur-vs-volsync-scout` report, section 6.
+> admission webhook warns at apply time) - a prerequisite for every onboarding,
+> not a sabnzbd quirk (drill finding 2). The Stage 1 pilot `downloads/autobrr`
+> held **zero** files at Stage 1 time (all state is in `postgres-17`), so it is
+> a valid mechanism test but never could prove byte-level fidelity; a
+> `Succeeded` snapshot with `.status.stats sizeBytes 0` is not evidence backup
+> works. Plan of record: firstmate's `homeops-kopiur-vs-volsync-scout` report,
+> section 6.
 
 ## Directory Structure
 
@@ -249,6 +256,24 @@ added complexity at exactly the wrong moment.
 | `KOPIUR_SCHEDULE_CEPH` | `H 1-23/4 * * *` | |
 | `KOPIUR_SCHEDULE_R2` | `H 4 * * *` | |
 
+## `wait: true` is incompatible with this component
+
+`ceph/restore.yaml` is a standing `Restore` in passive populator mode, and it
+reports **`Ready=False` for the whole parallel run by design**
+(`AwaitingPvcDataSourceRef` - it is waiting for a PVC `dataSourceRef` that only
+Stage 5 will point at it). Flux with `wait: true` assesses **every** object in a
+Kustomization's inventory, so adding this component inline to such a
+Kustomization makes Flux block on an object that can never become Ready, and the
+Kustomization times out.
+
+Two apps hit this in Stage 3 and ship the kopiur half as their own `wait: false`
+Kustomization with `path: ./kubernetes/components/kopiur/backup`:
+`database/pgadmin` (in `kubernetes/apps/main/database/cloudnative-pg.yaml`) and
+`media/calibre-web-automated`. An overlay with `wait: false` plus explicit
+workload `healthChecks` is unaffected, because Flux then assesses only the
+objects that are listed. **`flate` does not catch this** - it validates that the
+Kustomization builds, not Flux's runtime health assessment.
+
 ## Schedules
 
 Cadence matches VolSync per destination; the **hour** is offset so the two
@@ -262,6 +287,29 @@ systems cannot collide on the same claim:
 
 Retention is copied field-for-field from each destination's VolSync `retain`
 block so the two systems stay directly comparable through the parallel run.
+
+**`KOPIUR_SCHEDULE_R2` must be overridden per namespace - the `H 4 * * *`
+default above does not scale past the pilot.** It puts *every* kopiur r2 policy
+into a single hour, and 04:00 already carries VolSync's entire ceph slot plus 13
+VolSync r2 runs; at full Stage 3 that is 83 mover runs, the busiest hour of the
+day. Worse, for every `selfhosted` claim and for `media/calibre-web-automated`
+VolSync's own r2 job is *also* in the 04:00 hour, so the default stacks both
+engines onto the same claim - exactly what the hour offset exists to prevent.
+Stage 3 assigns one free hour per namespace (free of every VolSync destination
+and of kopiur's own ceph slots):
+
+| namespace | `KOPIUR_SCHEDULE_R2` |
+|---|---|
+| `database` | `H 7 * * *` |
+| `home-automation` | `H 10 * * *` |
+| `downloads` | `H 11 * * *` |
+| `selfhosted` | `H 14 * * *` |
+| `media` | `H 15 * * *` |
+| `ai` | `H 19 * * *` |
+
+`KOPIUR_SCHEDULE_CEPH` stays at the component default: it is already
+structurally disjoint from VolSync's even 4-hour slots and needs no per-app
+override.
 
 **Do not hand-assign minutes.** `H` is Jenkins-style hashing: kopiur derives the
 minute deterministically from the schedule's identity, which spreads 100+ future

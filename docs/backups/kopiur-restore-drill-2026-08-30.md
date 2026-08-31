@@ -110,14 +110,17 @@ anything about data fidelity, no matter how green everything looks. See
 ### 2. Check the mover identity matches the workload that owns the files
 
 ```bash
-kubectl -n <ns> get deploy <app> -o jsonpath='{.spec.template.spec.securityContext}{"\n"}'
+# Prefer measured FILE ownership over the pod's declared runAsUser (Stage 3: plex/tdarr/
+# calibre-web-automated run as 0 while owning files 2000:2000; hermes pins no runAsUser).
+kubectl -n <ns> exec deploy/<app> -- sh -c 'find /<datadir> -xdev -printf "%u:%g %m %p\n" | head'
 kubectl -n <ns> exec deploy/<app> -- sh -c 'find /<datadir> -xdev -type f ! -perm -o=r | head'
+kubectl -n <ns> get deploy <app> -o jsonpath='{.spec.template.spec.securityContext}{"\n"}'
 ```
 
-If the app's `runAsUser`/`fsGroup` is not `1000`, the component's `KOPIUR_PUID`/`KOPIUR_PGID`
-defaults will not match it, and any file without a world-read bit becomes unreadable to the
-mover. kopiur's admission webhook warns about this at apply time - **do not dismiss that
-warning**. See [finding 2](#finding-2-a-mover-identity-mismatch-fails-the-backup-outright).
+Set `KOPIUR_PUID`/`KOPIUR_PGID` to the uid/gid that owns the files. The component defaults
+(`1000`) fail closed on any file without a world-read bit when ownership differs. kopiur's
+admission webhook warns about this at apply time - **do not dismiss that warning**. See
+[finding 2](#finding-2-a-mover-identity-mismatch-fails-the-backup-outright).
 
 ### 3. Check the drill names are free, and projection is what will feed the mover
 
@@ -580,18 +583,23 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
 - `target.populator` mode against a real claim - the Stage 5 mechanism, deliberately out of scope.
 - Retention/pruning behaviour, `Maintenance`, or restore from any snapshot other than the newest
   (`offset: 0` throughout).
-- Anything about the other 103 VolSync-covered claims. Two volumes are onboarded to kopiur; this
-  is not fleet coverage.
+- Anything about the rest of the fleet at drill time. Only two volumes were onboarded to kopiur
+  then; this drill is not fleet coverage. Stage 3 later put 29 of 31 VolSync claims on kopiur
+  alongside VolSync - still not a fleet-wide restore proof (status owner:
+  [`kubernetes/components/kopiur/Readme.md`](../../kubernetes/components/kopiur/Readme.md)).
 
 ## Follow-ups
 
 1. **Add the `.status.stats` non-zero check to the Stage 1/Stage 3 onboarding gate.** A
-   `Succeeded` snapshot of an empty volume currently passes it.
-2. **Add the mover-identity check to the Stage 3 rollout.** Every app whose pod
-   `securityContext` is not `1000` needs `KOPIUR_PUID`/`KOPIUR_PGID`. Worth considering whether
-   the component should adopt `mover.inheritSecurityContextFrom.pvcConsumer` - which the webhook
+   `Succeeded` snapshot of an empty volume currently passes it. *Stage 3 recorded the lesson
+   (empty/near-empty volumes stay onboarded but a green snapshot proves nothing until
+   `.status.stats` is non-zero); the CI pin is still GitOps-contract only, not a live stats gate.*
+2. **Add the mover-identity check to the Stage 3 rollout.** **Done in Stage 3** - every
+   onboarded claim pins a measured `KOPIUR_PUID`/`KOPIUR_PGID` (from file ownership, not
+   `runAsUser`), enforced by `scripts/ci/kopiur-stage3-test.py`. Still open: whether the
+   component should adopt `mover.inheritSecurityContextFrom.pvcConsumer` - which the webhook
    itself recommends - so the identity is derived rather than hand-maintained per app. That is a
-   component-wide change and was deliberately **not** made here.
+   component-wide change and was deliberately **not** made in Stage 2 or 3.
 3. **Reconcile the 2061 vs 2062 file count.** kopiur records 2062 files for `sabnzbd-config`,
    matching a live count taken as the app's own uid; VolSync's restic reports 2061. The
    difference may be nothing more than restic's counting convention, but it has not been

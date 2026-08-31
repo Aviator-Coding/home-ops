@@ -63,3 +63,62 @@ spec:
         kind: Secret
     substitute:
       APP: *app
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# kopiur backup for `calibre-web-automated`, running ALONGSIDE the volsync
+# component on the first Kustomization in this file (migration Stage 3).
+# volsync is untouched and keeps protecting this claim.
+#
+# WHY THIS IS A SEPARATE KUSTOMIZATION rather than a `components:` entry on the
+# calibre-web-automated Kustomization above, which is the normal shape: that
+# Kustomization sets `wait: true`, and with `wait: true` Flux assesses EVERY
+# object in the inventory. The kopiur component ships a standing `Restore` in
+# passive populator mode which reports `Ready=False` for the whole parallel run
+# BY DESIGN (`AwaitingPvcDataSourceRef` - verified on the two live Stage 1/2
+# objects in `downloads`), until Stage 5 repoints the claim's dataSourceRef at
+# it. Inline, Flux would wait on an object that can never become Ready and time
+# this Kustomization out. database/cloudnative-pg.yaml carries the same split
+# for the same reason.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: calibre-web-automated-kopiur
+  namespace: &namespace media
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: calibre-web-automated
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/kopiur/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: kopiur-repository
+      namespace: system
+    - name: calibre-web-automated
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: calibre-web-automated
+      # Matched to the file ownership, measured live 2026-08-30: all 50 entries
+      # on this volume are owned 2000:2000 (the pod's own runAsUser is 0 with
+      # fsGroup 2000, so it is the measured file ownership that decides here,
+      # not the pod uid). This also matches VOLSYNC_PUID/PGID above, so both
+      # engines read the claim as the same identity.
+      KOPIUR_PUID: "2000"
+      KOPIUR_PGID: "2000"
+      # Namespace r2 hour. Note this app's volsync r2 job already runs at
+      # 04:05, so the component default of `H 4 * * *` would have stacked both
+      # engines into the same hour for this very claim. Hour 15 carries no
+      # volsync destination and no kopiur ceph slot (01/05/09/13/17/21).
+      KOPIUR_SCHEDULE_R2: "H 15 * * *"

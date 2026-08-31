@@ -79,6 +79,12 @@ spec:
       # See docs/backups/kopiur-restore-drill-2026-08-30.md.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
-      # Schedules are deliberately left at the component defaults, which offset
-      # kopiur onto the ODD 4-hour slots and hash the minute, keeping it clear
-      # of the volsync lines above. Do not hand-assign minutes.
+      # Ceph stays on the component default, which offsets kopiur onto the ODD
+      # 4-hour slots and hashes the minute, keeping it clear of the volsync
+      # lines above. Do not hand-assign minutes.
+      #
+      # r2 moves off the component default in Stage 3: `H 4 * * *` would put
+      # every kopiur r2 policy in the fleet into the single 04:00 hour, already
+      # the busiest of the day. Hour 11 carries no volsync destination and no
+      # kopiur ceph slot, and every claim in `downloads` now shares it.
+      KOPIUR_SCHEDULE_R2: "H 11 * * *"

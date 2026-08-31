@@ -10,7 +10,12 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 3. volsync's entry is unchanged and
+    # stays that way until a restore has been demonstrated from kopiur for this
+    # volume (Stage 5).
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
@@ -21,6 +26,9 @@ spec:
       namespace: security
     - name: litellm
       namespace: *namespace
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
+      namespace: system
   interval: 1h
   path: "./kubernetes/apps/base/ai/opencode/app"
   prune: true
@@ -42,3 +50,16 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "45 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "30 2 * * *"
+      # Identity left at the component default of 1000:1000, and that is a
+      # MEASURED result rather than an assumption: live measurement 2026-08-30
+      # found every entry owned 1000:1000 (pod securityContext 1000:1000:1000)
+      # and nothing unreadable at 1000.
+      # Carried across from VOLSYNC_CACHE_CAPACITY above. The cache is
+      # Ephemeral, so this sizes an emptyDir for the run and adds no PVC.
+      KOPIUR_CACHE_CAPACITY: 5Gi
+      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
+      # kopiur r2 policy in the fleet into the single 04:00 hour, which already
+      # carries volsync's ceph slot. Hour 19 carries no volsync destination and
+      # no kopiur ceph slot (01/05/09/13/17/21). Ceph stays on the component
+      # default, which is already structurally offset.
+      KOPIUR_SCHEDULE_R2: "H 19 * * *"

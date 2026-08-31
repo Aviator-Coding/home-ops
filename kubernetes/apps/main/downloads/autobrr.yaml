@@ -51,23 +51,25 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "45 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "45 3 * * *"
-      # kopiur takes no schedule overrides on purpose: the component's
-      # defaults hash the minute (`H`) and offset the HOUR away from the
-      # volsync lines above (ceph 01/05/09/13/17/21 vs volsync's 00/04/08/...,
-      # r2 04:xx vs volsync's 03:45), so the two systems cannot land on the
-      # same minute for this claim.
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed.
       #
-      # The claim name (== app name) and the 5Gi PVC do match the KOPIUR_*
-      # defaults. The uid/gid pair does NOT: this pod runs as 2000/2000, while
-      # KOPIUR_PUID/PGID default to 1000. An earlier revision of this comment
-      # claimed 1000 and was simply wrong.
-      #
-      # Left at 1000 deliberately, and it does not break the backup. The
-      # mismatch is only fatal when the mover cannot READ a file (the
-      # sabnzbd-config case: uid 2000 writing mode 0600). autobrr's write mode
-      # was unknown while the volume was unwritable; with the fsGroup fix in
-      # place it was measured directly - autobrr writes config.toml as
-      # `-rw-r--r--` (0644), inside a 2775 directory whose `other` bits allow
-      # traverse, so the uid-1000 mover can read it and the snapshot succeeds.
-      # Aligning these to 2000 is still the more correct end state for restore
-      # fidelity and is an open Stage 3 question, not a fix this change needs.
+      # Identity CORRECTED in Stage 3. This was left at the component default
+      # of 1000 during Stage 1, on the reasoning that autobrr's only file is
+      # written 0644 and a uid-1000 mover can therefore read it. That is still
+      # true and no backup was ever failing - but the pod runs 2000:2000:2000
+      # and owns its files as 2000:2000, and leaving the mover at 1000 means a
+      # kopiur restore would not reproduce the ownership the app expects, and
+      # the first 0600 file autobrr ever writes would fail the backup closed.
+      # Live measurement 2026-08-30 confirms the pod securityContext and the
+      # file ownership; this aligns the mover with the workload, which is the
+      # rule every other volume in Stage 3 follows.
+      KOPIUR_PUID: "2000"
+      KOPIUR_PGID: "2000"
+      # Namespace r2 hour, moved off the component default in Stage 3. The
+      # default (`H 4 * * *`) would put every kopiur r2 policy in the fleet
+      # into the single 04:00 hour, already the busiest. Hour 11 carries no
+      # volsync destination and no kopiur ceph slot (01/05/09/13/17/21), and
+      # every claim in `downloads` now shares it. Ceph stays on the component
+      # default, which is already structurally offset onto the odd 4-hour slots
+      # (01/05/09/13/17/21 against volsync's 00/04/08/12/16/20).
+      KOPIUR_SCHEDULE_R2: "H 11 * * *"

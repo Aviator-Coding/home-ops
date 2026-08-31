@@ -10,7 +10,12 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 3. volsync's entry is unchanged and
+    # stays that way until a restore has been demonstrated from kopiur for this
+    # volume (Stage 5).
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
@@ -25,6 +30,9 @@ spec:
     # Long-term memory backend (plugin enabled in config.yaml).
     - name: agentmemory
       namespace: *namespace
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
+      namespace: system
   interval: 1h
   path: ./kubernetes/apps/base/ai/hermes/app
   postBuild:
@@ -39,6 +47,26 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "35 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "10 2 * * *"
+      # LOAD-BEARING, and the single most consequential identity in Stage 3.
+      # hermes is the largest object in the fleet - 104,062 entries, 10.05 GiB,
+      # including one 7 GB file - and its pod pins NO runAsUser at all, only
+      # fsGroup: 10000, so the identity is NOT inferable from the manifest and
+      # had to be measured. Live measurement 2026-08-30: 104,060 of 104,062
+      # entries are owned 10000:10000, the volume root is 10000:10000 mode 0700,
+      # and at the component default of 1000 the mover cannot read 1,948 files
+      # or traverse 310 directories. kopia treats an unreadable file as fatal,
+      # so BOTH destinations would fail closed on the largest volume we have.
+      KOPIUR_PUID: "10000"
+      KOPIUR_PGID: "10000"
+      # Carried across from VOLSYNC_CACHE_CAPACITY above. Ephemeral, so it
+      # sizes an emptyDir for the run and adds no PVC.
+      KOPIUR_CACHE_CAPACITY: 5Gi
+      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
+      # kopiur r2 policy in the fleet into the single 04:00 hour, which already
+      # carries volsync's ceph slot. Hour 19 carries no volsync destination and
+      # no kopiur ceph slot (01/05/09/13/17/21). Ceph stays on the component
+      # default, which is already structurally offset.
+      KOPIUR_SCHEDULE_R2: "H 19 * * *"
   prune: true
   retryInterval: 2m
   sourceRef:

@@ -10,13 +10,21 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 3. volsync's entry is unchanged and
+    # stays that way until a restore has been demonstrated from kopiur for this
+    # volume (Stage 5).
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   dependsOn:
     - name: onepassword-store
       namespace: security
     - name: rook-ceph-cluster
       namespace: rook-ceph
     - name: volsync
+      namespace: system
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
       namespace: system
   interval: 30m
   path: ./kubernetes/apps/base/media/seerr/app
@@ -30,6 +38,18 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "55 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "40 3 * * *"
+      # Matched to the workload: the pod runs 2000:2000:2000 and owns 79 of 80
+      # entries as 2000:2000. Measured 2026-08-30 the default of 1000 reads
+      # this volume today, but the mover is matched to the workload so a
+      # restore reproduces the ownership seerr expects.
+      KOPIUR_PUID: "2000"
+      KOPIUR_PGID: "2000"
+      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
+      # kopiur r2 policy in the fleet into the single 04:00 hour, which already
+      # carries volsync's ceph slot. Hour 15 carries no volsync destination and
+      # no kopiur ceph slot (01/05/09/13/17/21). Ceph stays on the component
+      # default, which is already structurally offset.
+      KOPIUR_SCHEDULE_R2: "H 15 * * *"
   prune: true
   sourceRef:
     kind: GitRepository

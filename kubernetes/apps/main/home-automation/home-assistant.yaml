@@ -8,7 +8,12 @@ metadata:
 spec:
   targetNamespace: *namespace
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 3. volsync's entry is unchanged and
+    # stays that way until a restore has been demonstrated from kopiur for this
+    # volume (Stage 5).
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
@@ -16,6 +21,9 @@ spec:
     - name: onepassword-store
       namespace: security
     - name: volsync
+      namespace: system
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
       namespace: system
     - name: multus-networks
       namespace: kube-system
@@ -39,3 +47,13 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "5 1 * * *"
+      # Identity left at the component default of 1000:1000, and that is a
+      # MEASURED result rather than an assumption: live measurement 2026-08-30
+      # found all 142 entries owned 1000:1000 (pod securityContext
+      # 1000:1000:1000) and zero unreadable files or directories at 1000.
+      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
+      # kopiur r2 policy in the fleet into the single 04:00 hour, which already
+      # carries volsync's ceph slot plus 13 volsync r2 runs. Hour 10 carries no
+      # volsync destination and no kopiur ceph slot (01/05/09/13/17/21). Ceph
+      # stays on the component default, which is already structurally offset.
+      KOPIUR_SCHEDULE_R2: "H 10 * * *"

@@ -22,8 +22,16 @@ spec:
   dependsOn:
     - name: volsync
       namespace: system
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
+      namespace: system
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 3. volsync's entry is unchanged and
+    # stays that way until a restore has been demonstrated from kopiur for this
+    # volume (Stage 5).
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -37,6 +45,17 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "15 4 * * *"
+      # Identity left at the component default of 1000:1000, and that is a
+      # MEASURED result rather than an assumption: live measurement 2026-08-30
+      # found every entry owned 1000:1000 (pod securityContext 1000:1000:1000)
+      # and nothing unreadable at 1000.
+      # Namespace r2 hour. The component default (`H 4 * * *`) is especially
+      # wrong for `selfhosted`: EVERY claim in this namespace already runs its
+      # volsync r2 job in the 04:00 hour, so the default would stack both
+      # systems into one hour for every one of them. Hour 14 carries no volsync
+      # destination and no kopiur ceph slot (01/05/09/13/17/21). Ceph stays on
+      # the component default, which is already structurally offset.
+      KOPIUR_SCHEDULE_R2: "H 14 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 # Second volume: the volsync component above only protects the single ${VOLSYNC_CLAIM}
@@ -78,3 +97,51 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "45 4 * * *"
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# kopiur backup for the SECOND volume, `syncthing-data` (the synced files).
+# Needs its own Kustomization for the same reason the volsync one above does:
+# Flux allows one postBuild.substitute map per Kustomization and every kopiur
+# object is named from ${APP}. The volsync Kustomization above is untouched,
+# and syncthing's own folder configuration is not touched at all.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: syncthing-data-kopiur
+  namespace: &namespace selfhosted
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: syncthing
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/kopiur/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: kopiur-repository
+      namespace: system
+    - name: syncthing
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: syncthing-data
+      KOPIUR_CLAIM: syncthing-data
+      # Identity left at the component default of 1000:1000, measured rather
+      # than assumed: the 3 entries present are owned 1000:1000 / 0:1000 and
+      # the pod runs 1000:1000:1000, with nothing unreadable at 1000.
+      #
+      # This volume is EMPTY today (2 files, 118 B against a 100Gi claim). Same
+      # caveat as paperless-ngx-media above: onboarded so the first synced file
+      # is protected from its first backup window, but a Succeeded snapshot
+      # here proves nothing until .status.stats is non-zero.
+      KOPIUR_CACHE_CAPACITY: 5Gi
+      KOPIUR_SCHEDULE_R2: "H 14 * * *"

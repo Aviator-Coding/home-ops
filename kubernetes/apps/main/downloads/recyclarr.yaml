@@ -24,8 +24,15 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
+      namespace: system
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 3, the same shape as downloads/sabnzbd
+    # which see for the full rationale. volsync's entry is unchanged.
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -36,3 +43,24 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "50 3 * * *"
+      KOPIUR_CLAIM: recyclarr-config
+      # 2000:2000 taken from the pod securityContext DECLARED in
+      # kubernetes/apps/base/downloads/recyclarr/app/helmrelease.yaml
+      # (runAsUser/runAsGroup/fsGroup 2000), NOT from live file measurement -
+      # recyclarr is a CronJob whose pod exists for roughly 18 seconds a day,
+      # so there was no running container to measure through. This is the ONLY
+      # identity in Stage 3 derived from declaration rather than observation,
+      # and it is called out here so nobody later mistakes it for a measured
+      # value. It is the same pair the six sibling *arr claims in this
+      # namespace need and that sabnzbd-config proved end to end. If it is
+      # wrong kopiur fails closed and loudly, and volsync keeps protecting the
+      # claim throughout - so the failure mode is a visibly red policy, not a
+      # silent gap. Check .status.stats on the first run.
+      KOPIUR_PUID: "2000"
+      KOPIUR_PGID: "2000"
+      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
+      # kopiur r2 policy in the fleet into the single 04:00 hour, already the
+      # busiest. Hour 11 carries no volsync destination and no kopiur ceph slot
+      # (01/05/09/13/17/21). Ceph stays on the component default, which is
+      # already structurally offset onto the odd 4-hour slots.
+      KOPIUR_SCHEDULE_R2: "H 11 * * *"
