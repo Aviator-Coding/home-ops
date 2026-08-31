@@ -799,7 +799,14 @@ def test_drill_document_contract() -> None:
 
 
 def test_operator_docs_reflect_stage2() -> None:
-    """Operator-facing docs are part of the Stage 2 hand-off contract."""
+    """Operator-facing docs keep the Stage 2 documentary facts that still hold.
+
+    Stage 3 advanced the fleet past two-volume coverage; this pin no longer
+    freezes that end-state or a captain-gated Stage 3 freeze. It owns the Stage
+    2 facts that remain true after the parallel run landed: sabnzbd-config as
+    the fidelity subject, the mover-identity trap, the Stage 2 PASS result, and
+    both-destination evidence. Fleet coverage counts live in stage3-test.
+    """
     for path, label in (
         (COMPONENT_README, "components/kopiur/Readme.md"),
         (STAGE0_README, "system/kopiur/README.md"),
@@ -810,27 +817,32 @@ def test_operator_docs_reflect_stage2() -> None:
         lowered = text.lower()
         require(
             "sabnzbd" in lowered,
-            f"{label} must name sabnzbd as the Stage 2 volume",
+            f"{label} must name sabnzbd as the Stage 2 fidelity subject",
         )
         require(
-            "two" in lowered or "2" in text,
-            f"{label} must reflect two-volume coverage (not still 'exactly one')",
-        )
-        # Must not still claim single-volume-only without Stage 2 update.
-        require(
-            not re.search(
-                r"live on exactly ONE volume",
-                text,
-            ),
+            not re.search(r"live on exactly ONE volume", text),
             f"{label} must not still say 'exactly ONE volume'",
         )
         require(
-            "KOPIUR_PUID" in text or "mover" in lowered and "1000" in text,
+            "KOPIUR_PUID" in text or ("mover" in lowered and "1000" in text),
             f"{label} must document the mover-identity trap",
         )
         require(
-            "stage 3" in lowered,
-            f"{label} must keep Stage 3 closed / captain-gated",
+            re.search(
+                r"stage\s*2[\s\S]{0,120}?(?:pass|passed)|(?:pass|passed)[\s\S]{0,120}?stage\s*2",
+                lowered,
+            ),
+            f"{label} must record that Stage 2's restore gate passed",
+        )
+        require(
+            ("both" in lowered and ("ceph" in lowered and "r2" in lowered))
+            or "both destinations" in lowered
+            or "from both" in lowered,
+            f"{label} must record both-destination (ceph and r2) restore evidence",
+        )
+        require(
+            "byte-identically" in lowered or "byte-identical" in lowered,
+            f"{label} must record the sabnzbd byte-identical restore result",
         )
 
 

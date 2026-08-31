@@ -57,6 +57,8 @@ APPS_MAIN = REPO / "kubernetes" / "apps" / "main"
 KOPIUR_BACKUP = REPO / "kubernetes" / "components" / "kopiur" / "backup"
 KOPIUR_COMPONENT_SUFFIX = "components/kopiur"
 KOPIUR_BACKUP_PATH = "kubernetes/components/kopiur/backup"
+VOLSYNC_COMPONENT_SUFFIX = "components/volsync"
+VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 
 # (namespace, claim) -> (uid, gid), measured live 2026-08-30.
 EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
@@ -379,17 +381,51 @@ def test_rendered_objects_hold_the_contract() -> None:
             )
 
 
-def test_volsync_untouched() -> None:
-    """Every onboarded claim keeps its VolSync component; nothing is retired here."""
-    for ns, claim, sub, d, path in onboarded():
+def volsync_covered() -> set[tuple[str, str]]:
+    """(namespace, claim) pairs protected by VolSync via component or backup path.
+
+    Mirrors onboarded() discovery for kopiur: a Flux Kustomization either lists
+    components/volsync, or points its path at components/volsync/backup (the
+    second-claim / split shape). Claim resolution is VOLSYNC_CLAIM if present,
+    else APP - the same substitute-map rule kopiur uses with KOPIUR_CLAIM.
+    """
+    covered: set[tuple[str, str]] = set()
+    for d, _path in flux_kustomizations():
         spec = d.get("spec") or {}
-        if str(spec.get("path") or "").strip("./") == KOPIUR_BACKUP_PATH:
-            continue  # the split/second-claim shape; its VolSync sibling is a separate doc
         comps = [c for c in (spec.get("components") or []) if isinstance(c, str)]
+        via_component = any(
+            c.rstrip("/").endswith(VOLSYNC_COMPONENT_SUFFIX) for c in comps
+        )
+        via_path = str(spec.get("path") or "").strip("./") == VOLSYNC_BACKUP_PATH
+        if not (via_component or via_path):
+            continue
+        sub = {
+            str(k): str(v)
+            for k, v in (((spec.get("postBuild") or {}).get("substitute")) or {}).items()
+        }
+        app = sub.get("APP") or d.get("metadata", {}).get("name", "?")
+        claim = sub.get("VOLSYNC_CLAIM", app)
+        ns = d.get("metadata", {}).get("namespace") or spec.get("targetNamespace") or "?"
+        covered.add((ns, claim))
+    return covered
+
+
+def test_volsync_untouched() -> None:
+    """Every onboarded claim still has a VolSync sibling; nothing is retired here.
+
+    Covers both onboarding shapes: inline components/volsync, and path-based
+    splits (pgadmin, calibre-web-automated, paperless-ngx-media, syncthing-data)
+    whose kopiur half is a separate Kustomization. Building the VolSync-covered
+    set from every Flux Kustomization means dropping volsync from a parent or
+    deleting a second-claim volsync KS fails this pin rather than being skipped.
+    """
+    covered = volsync_covered()
+    for ns, claim, _sub, _d, path in onboarded():
         require(
-            any(c.rstrip("/").endswith("components/volsync") for c in comps),
-            f"{ns}/{claim} ({path.name}): VolSync component must stay - both engines run "
-            f"on every volume through the parallel run. Retirement is Stage 5.",
+            (ns, claim) in covered,
+            f"{ns}/{claim} ({path.name}): no VolSync sibling covering this claim - both "
+            f"engines must run on every volume through the parallel run. Retirement is "
+            f"Stage 5.",
         )
 
 

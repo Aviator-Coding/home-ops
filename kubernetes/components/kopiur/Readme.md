@@ -8,24 +8,31 @@ Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stages 1-2.** Live on exactly two volumes -
-> `downloads/autobrr` (Stage 1 pilot) and `downloads/sabnzbd-config` (Stage 2
-> fidelity subject) - both running **alongside** an untouched
-> `components/volsync`. Every other volume is still VolSync-only. Stage 2's
-> restore gate **passed** on 2026-08-30:
+> **Migration status: Stage 3 complete.** kopiur is live on **29 of the fleet's
+> 31** VolSync-protected claims, onboarded namespace by namespace in Stage 3
+> (2026-08-30). **Both engines run on every one of those volumes** - every
+> VolSync source is still live, nothing has been retired, and retirement is
+> Stage 5, which needs a per-volume restore proof first. Exactly **two claims
+> are deliberately NOT on kopiur** and must stay off until the component can
+> express a root mover: `home-automation/matter-server` (runs as root by design)
+> and `selfhosted/changedetection-config` (needs a `0:1000` root mover; the
+> captain chose to fix the app's missing security context separately). Both
+> remain fully VolSync-protected. **Being onboarded is not the same as being
+> proven** - a per-volume restore has been demonstrated only for
+> `sabnzbd-config`. Stage 2's restore gate **passed** on 2026-08-30:
 > [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 > - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-> 2.06 GiB, per-file sha256, modes and ownership included). Do **not** onboard
-> any further app: that is Stage 3 and needs its own captain decision; passing
-> Stage 2 is explicitly not authorisation to begin it. `KOPIUR_PUID`/`KOPIUR_PGID`
+> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 29
+> onboardings as fleet-wide backup verification. `KOPIUR_PUID`/`KOPIUR_PGID`
 > must match the workload that owns the claim's files, or the backup fails
 > outright on any file lacking a world-read bit (kopiur fails closed; its
-> admission webhook warns at apply time) - a prerequisite for every future
-> onboarding, not a sabnzbd quirk (drill finding 2). The Stage 1 pilot holds
-> **zero** files (all state is in `postgres-17`), so it is a valid mechanism test
-> but never could prove byte-level fidelity; a `Succeeded` snapshot with
-> `.status.stats sizeBytes 0` is not evidence backup works. Plan of record:
-> firstmate's `homeops-kopiur-vs-volsync-scout` report, section 6.
+> admission webhook warns at apply time) - a prerequisite for every onboarding,
+> not a sabnzbd quirk (drill finding 2). The Stage 1 pilot `downloads/autobrr`
+> held **zero** files at Stage 1 time (all state is in `postgres-17`), so it is
+> a valid mechanism test but never could prove byte-level fidelity; a
+> `Succeeded` snapshot with `.status.stats sizeBytes 0` is not evidence backup
+> works. Plan of record: firstmate's `homeops-kopiur-vs-volsync-scout` report,
+> section 6.
 
 ## Directory Structure
 
