@@ -593,7 +593,11 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
 1. **Add the `.status.stats` non-zero check to the Stage 1/Stage 3 onboarding gate.** A
    `Succeeded` snapshot of an empty volume currently passes it. *Stage 3 recorded the lesson
    (empty/near-empty volumes stay onboarded but a green snapshot proves nothing until
-   `.status.stats` is non-zero); the CI pin is still GitOps-contract only, not a live stats gate.*
+   `.status.stats` is non-zero). Continuous fleet monitoring is done (2026-08-31):
+   `KopiurBackupEmpty` in `kubernetes/apps/base/system/kopiur/app/prometheusrule.yaml`
+   pages on `kopiur_policy_last_backup_files == 0`, pinned by
+   `scripts/ci/backup-silent-failure-alerting-test.py`. The onboarding CI pin is still
+   GitOps-contract only, not a live stats gate.*
 2. **Add the mover-identity check to the Stage 3 rollout.** **Done in Stage 3** - every
    onboarded claim pins a measured `KOPIUR_PUID`/`KOPIUR_PGID` (from file ownership, not
    `runAsUser`), enforced by `scripts/ci/kopiur-stage3-test.py`. Still open: whether the

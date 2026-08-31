@@ -15,7 +15,9 @@ are owned by the component Readme. Stage 2's restore gate **passed** on
 [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
 `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's files,
 or the backup fails closed on any file lacking a world-read bit (drill finding
-2) - a prerequisite for every onboarding, not a sabnzbd quirk. Details,
+2) - a prerequisite for every onboarding, not a sabnzbd quirk. Continuous fleet
+signal for an empty successful backup is `KopiurBackupEmpty` in
+`app/prometheusrule.yaml` (`kopiur_policy_last_backup_files == 0`). Details,
 schedules, credentials compromise, later restore proofs and rollback:
 [`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
 
@@ -29,7 +31,7 @@ policies/schedules, use the component Readme's Rollback section instead.
 
 | Path | What |
 |---|---|
-| `app/` | operator: `OCIRepository`, `HelmRelease`, our absent-alert `PrometheusRule`, and the substitution `ExternalSecret` |
+| `app/` | operator: `OCIRepository`, `HelmRelease`, supplement `PrometheusRule` (operator/webhook absent, projected-credential leak, empty-backup; chart ships the rest of `kopiur.rules`), and the substitution `ExternalSecret` |
 | `backend/` | the Ceph bucket: `ObjectBucketClaim`, `CephObjectStoreUser`, and the `PushSecret` that records its generated keys in 1Password (included from `app/`) |
 | `repository/` | the two `ClusterRepository` objects (`ceph`, `r2`) and their credential `ExternalSecret`s, one 1Password item each |
 

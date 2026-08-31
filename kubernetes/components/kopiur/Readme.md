@@ -44,8 +44,10 @@ This component only declares what to back up.
 > held **zero** files at Stage 1 time (all state is in `postgres-17`), so it is
 > a valid mechanism test but never could prove byte-level fidelity; a
 > `Succeeded` snapshot with `.status.stats sizeBytes 0` is not evidence backup
-> works. Plan of record: firstmate's `homeops-kopiur-vs-volsync-scout` report,
-> section 6.
+> works. Fleet continuous signal: `KopiurBackupEmpty` in
+> [`apps/base/system/kopiur/app/prometheusrule.yaml`](../../apps/base/system/kopiur/app/prometheusrule.yaml)
+> (`kopiur_policy_last_backup_files == 0`). Plan of record: firstmate's
+> `homeops-kopiur-vs-volsync-scout` report, section 6.
 
 ## Directory Structure
 
