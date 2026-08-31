@@ -80,6 +80,41 @@ and `kubernetes/apps/main/selfhosted/paperless-ngx.yaml` (`paperless-ngx-media`)
 in the same namespace - three movers snapshotting the same Ceph pool at the same minute
 is the one avoidable way to make backups slow.
 
+## Timezone: VolSync vs kopiur
+
+**Every cron schedule in this component is evaluated in `America/New_York`,
+not UTC.** The cluster-wide `k8tz` mutating webhook (`system-controller/k8tz`,
+`failurePolicy: Fail`) injects `TZ=America/New_York` plus
+`/etc/localtime`/`/usr/share/zoneinfo` into essentially every pod, and
+VolSync's Go scheduler honours the process `TZ` - so a `VOLSYNC_SCHEDULE_*`
+hour is a **local** hour, and its actual UTC firing time shifts by exactly one
+hour at every US DST transition (e.g. `0 */4 * * *` fires at UTC
+`0,4,8,12,16,20` in EDT/summer and `1,5,9,13,17,21` in EST/winter).
+
+kopiur (`kubernetes/components/kopiur/`) receives the identical injected `TZ`
+from the same `k8tz` webhook but **its operator resolves its own timezone and
+defaults to UTC regardless** - it silently ignores `k8tz` unless
+`spec.schedule.timezone` is set on the `SnapshotSchedule`. Before 2026-08-31
+that field was unset, so every kopiur cron hour was a literal UTC hour while
+every VolSync cron hour was an `America/New_York` local hour - two engines
+protecting the same claim, disagreeing about what the hour numbers meant.
+
+The ceph and r2 hour offsets in this component (and in kopiur's own
+`ceph/`/`r2/` schedules) are **deliberate**: they exist so the two engines
+never fire on the same claim in the same UTC hour. With kopiur on literal UTC,
+that stagger held only because `4 mod 4 == 0` in EDT - it would have collided
+on all 29 dual-engine claims at the 2026-11-01 DST transition. kopiur's
+`SnapshotSchedule`s now set `spec.schedule.timezone` (via
+`KOPIUR_SCHEDULE_TIMEZONE`, defaulting to `America/New_York`) to match
+VolSync, so both engines shift together across DST and the stagger holds in
+every season. Full measurement, arithmetic, and the resulting hour tables:
+`kubernetes/components/kopiur/Readme.md` "Timezone: kopiur vs VolSync".
+
+**When changing any `VOLSYNC_SCHEDULE_*` or `KOPIUR_SCHEDULE_*` value, treat
+the written hour as `America/New_York` local time for both engines**, and
+re-check that the two engines' hours still differ in both DST seasons before
+committing - not just in whichever season it is today.
+
 ## Backup Schedules & Execution
 
 ### 1. Local Ceph (`ceph/`)

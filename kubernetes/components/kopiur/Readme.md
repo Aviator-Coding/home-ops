@@ -255,6 +255,7 @@ added complexity at exactly the wrong moment.
 | `KOPIUR_PUID` / `KOPIUR_PGID` | `1000` | must match the workload uid/gid or backup fails closed on non-world-readable files (drill finding 2); mirrors `VOLSYNC_PUID`/`PGID` defaults only |
 | `KOPIUR_SCHEDULE_CEPH` | `H 1-23/4 * * *` | |
 | `KOPIUR_SCHEDULE_R2` | `H 4 * * *` | |
+| `KOPIUR_SCHEDULE_TIMEZONE` | `America/New_York` | IANA zone the cron above is evaluated in - see "Timezone: kopiur vs VolSync" below |
 
 ## `wait: true` is incompatible with this component
 
@@ -274,16 +275,75 @@ workload `healthChecks` is unaffected, because Flux then assesses only the
 objects that are listed. **`flate` does not catch this** - it validates that the
 Kustomization builds, not Flux's runtime health assessment.
 
+## Timezone: kopiur vs VolSync
+
+**Both engines run behind the cluster-wide `k8tz` mutating webhook
+(`system-controller/k8tz`, `failurePolicy: Fail`), which injects
+`TZ=America/New_York` plus `/etc/localtime`/`/usr/share/zoneinfo` into
+essentially every pod - but they do not agree on what to do with it.**
+VolSync's Go scheduler honours the process `TZ`, so a VolSync cron hour is a
+**America/New_York local hour**. kopiur's operator resolves its own timezone
+and defaults to UTC **regardless of the injected `TZ`** - it silently ignores
+`k8tz` unless `spec.schedule.timezone` (IANA name) is set on the
+`SnapshotSchedule`, which is why both files in `ceph/` and `r2/` now pin it via
+`KOPIUR_SCHEDULE_TIMEZONE` (default `America/New_York`, matching VolSync).
+
+This is not cosmetic. The ceph and r2 hour offsets documented below exist
+specifically so the two engines never fire on the same claim in the same UTC
+hour, and that stagger is arithmetic, not just "different numbers":
+
+- Measured live 2026-08-31 (EDT, UTC-4): `database/pgadmin-r2` kopiur cron `H 7
+  * * *` reports `status.nextSchedule.timezone: UTC` and fires at
+  `07:42:18Z`; VolSync's sibling `pgadmin-r2` (cron `0 1 * * *`, same injected
+  `TZ`) fires at `05:00:00Z` - honouring `America/New_York`. All 31 single-hour
+  VolSync `ReplicationSource`s in the fleet fire exactly 4 hours later in UTC
+  than their written hour (the EDT offset); every kopiur `SnapshotSchedule`
+  reports `status.nextSchedule.timezone: UTC` regardless of season.
+- Before this change, the 4-hourly ceph schedules relied on kopiur's literal
+  UTC hours `1,5,9,13,17,21` happening to sit one hour after VolSync's
+  DST-shifted `0,4,8,12,16,20` (EDT). Because `4 mod 4 == 0`, that held by
+  coincidence all summer. At the 2026-11-01 DST transition (EST, UTC-5),
+  VolSync's UTC hours shift to `1,5,9,13,17,21` - landing on **every one** of
+  kopiur's hours, on **all 29 claims running both engines on the 4-hourly
+  cadence**. Verified with a live collision check across every namespace: 0
+  collisions pre-fix in summer, 29 claims colliding pre-fix in winter, 0
+  collisions in **either** season once `spec.schedule.timezone` is set to the
+  same zone VolSync already runs in (the fix keeps the hour *values* the same
+  and lets them shift together with DST, instead of only one engine
+  shifting).
+- Aligning kopiur to VolSync's zone (rather than pinning both engines to UTC)
+  was the chosen fix: it is the smaller, safer change, and it matches the
+  cluster's existing `k8tz` convention. Pinning to UTC would mean changing
+  VolSync's actual run times and touching the cluster-wide,
+  `failurePolicy: Fail` `k8tz` webhook - a much larger blast radius for the
+  same outcome.
+
+**When editing any `KOPIUR_SCHEDULE_*` or `VOLSYNC_SCHEDULE_*` value, re-check
+the hour tables below in both DST seasons** - the two engines are only
+guaranteed to line up because they now evaluate cron in the same zone, not
+because the written hour numbers alone keep them apart.
+
 ## Schedules
 
 Cadence matches VolSync per destination; the **hour** is offset so the two
-systems cannot collide on the same claim:
+systems cannot collide on the same claim. Both engines now evaluate these
+hours in `America/New_York` (see above), so the table below is written in
+local time and shifts together with DST - the UTC instant moves, but the
+1-hour kopiur/VolSync stagger does not:
 
 | Destination | VolSync (autobrr) | kopiur | Retention |
 |---|---|---|---|
-| ceph | `45 */4 * * *` -> 00,04,08,12,16,20 at :45 | `H 1-23/4 * * *` -> **01,05,09,13,17,21** at a hashed minute | hourly 6, daily 14, weekly 10, monthly 6 |
-| minio | `30 */6 * * *` -> 00,06,12,18 at :30 | *(no kopiur destination)* | - |
-| r2 | `45 3 * * *` -> 03:45 | `H 4 * * *` -> **04:xx** | daily 30, weekly 12, monthly 12 |
+| ceph | `45 */4 * * *` -> local 00,04,08,12,16,20 at :45 | `H 1-23/4 * * *` -> local **01,05,09,13,17,21** at a hashed minute | hourly 6, daily 14, weekly 10, monthly 6 |
+| minio | `30 */6 * * *` -> local 00,06,12,18 at :30 | *(no kopiur destination)* | - |
+| r2 | `45 3 * * *` -> local 03:45 | `H 4 * * *` -> local **04:xx** | daily 30, weekly 12, monthly 12 |
+
+Resulting UTC hours for the ceph cadence, both seasons (identical across every
+namespace - `database/pgadmin` shown, all 29 dual-engine claims match):
+
+| Season | VolSync ceph (UTC) | kopiur ceph (UTC) | Collision? |
+|---|---|---|---|
+| EDT (summer, UTC-4) | 0, 4, 8, 12, 16, 20 | 1, 5, 9, 13, 17, 21 | No |
+| EST (winter, UTC-5) | 1, 5, 9, 13, 17, 21 | 2, 6, 10, 14, 18, 22 | No |
 
 Retention is copied field-for-field from each destination's VolSync `retain`
 block so the two systems stay directly comparable through the parallel run.
@@ -306,6 +366,19 @@ and of kopiur's own ceph slots):
 | `selfhosted` | `H 14 * * *` |
 | `media` | `H 15 * * *` |
 | `ai` | `H 19 * * *` |
+
+These hours are now `America/New_York` local (see "Timezone: kopiur vs
+VolSync" above), so their UTC instant moves with DST - verified to stay clear
+of every VolSync destination in the same namespace in both seasons:
+
+| namespace | local hour | UTC (EDT, summer) | UTC (EST, winter) |
+|---|---|---|---|
+| `database` | 07 | 11 | 12 |
+| `home-automation` | 10 | 14 | 15 |
+| `downloads` | 11 | 15 | 16 |
+| `selfhosted` | 14 | 18 | 19 |
+| `media` | 15 | 19 | 20 |
+| `ai` | 19 | 23 | 00 |
 
 `KOPIUR_SCHEDULE_CEPH` stays at the component default: it is already
 structurally disjoint from VolSync's even 4-hour slots and needs no per-app

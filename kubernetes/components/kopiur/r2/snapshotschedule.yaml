@@ -15,5 +15,10 @@ spec:
     # the two systems.
     cron: "${KOPIUR_SCHEDULE_R2:-H 4 * * *}"
     jitter: 5m
+    # Same reasoning as ../ceph/snapshotschedule.yaml: without this, the hour
+    # is evaluated as literal UTC rather than the America/New_York VolSync and
+    # k8tz already use, which breaks the engine stagger at the next DST
+    # transition. See ../Readme.md "Timezone: kopiur vs VolSync".
+    timezone: "${KOPIUR_SCHEDULE_TIMEZONE:-America/New_York}"
   deletion:
     onScheduleDelete: Retain
