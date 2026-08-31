@@ -12,8 +12,7 @@ The pod runs two containers (one controller, one PVC):
 | `app` | Hermes gateway + built-in dashboard (basic auth) | `https://hermes.${SECRET_DOMAIN}` |
 | `codeserver` | Browser VS Code over `/opt/data` (skills/config/sessions) | `https://hermes-code.${SECRET_DOMAIN}` (LAN) |
 
-Plus an OpenAI-compatible API on `:8642` and a companion **agentmemory** service
-(`../agentmemory/`) for long-term cross-session memory.
+Plus an OpenAI-compatible API on `:8642`.
 
 > The `app` container exposes a terminal + cluster RBAC + git, so the dashboard is
 > gated by basic auth. `codeserver` has **no auth of its own** — it is only on the
@@ -102,28 +101,25 @@ This is read-everywhere + a narrow self-heal write surface. Widen the
 `hermes-exec-deploy` Role (or add namespaced bindings) if you want it to operate
 beyond `ai`.
 
-## Long-term memory (agentmemory)
+## Long-term memory (holographic)
 
-The `../agentmemory/` app runs the memory service; this app mounts the Hermes
-[memory plugin](app/agentmemory-plugin.yaml) at `/opt/data/plugins/agentmemory`
-(`HERMES_HOME=/opt/data`). Mounting at `/opt/hermes/plugins/` does **not** register
-it as a memory provider. Activate it via `memory.provider: agentmemory` only (not
-`plugins.enabled` - see the note in config.yaml). Hermes gets `memory_recall` /
-`memory_save` tools and auto-saves turns; recall survives restarts and new sessions.
+**agentmemory (retired 2026-08-31, see
+[docs/ai-system/agentmemory-retirement-2026-08-31.md](../../../../../docs/ai-system/agentmemory-retirement-2026-08-31.md))
+used to run this as a shared in-cluster service.** It was retired: 100% of its
+routine traffic was a broken Gatus health check, Hermes itself wrote 9
+observations in 16 days against a declared `dependsOn`, and its runtime could
+not be stabilised at any memory limit (whole-store-in-a-HashMap, no eviction).
 
-agentmemory is also the memory backend for the ToolHive gateway: the `memory`
-`toolhive.stacklok.dev/v1alpha1` MCPServer (`../toolhive/mcp-servers/agentmemory-mcp/`)
-runs the same image in its
-stdio-shim mode and proxies to the central service, so every vmcp client gets
-`memory_*`-prefixed tools backed by the same store. The plugin remains the deep
-integration (session lifecycle + context injection); the gateway tools are the
-explicit-access path.
-
-**agentmemory needs an embeddings endpoint** — it points at the agentgateway
-unified `/v1` (`OPENAI_BASE_URL=http://internal-noauth.ai.svc.cluster.local/v1`),
-which routes its model ids by vendor slug to OpenRouter: embeddings on
-**openai/text-embedding-3-small** (1536-dim) and consolidation chat on
-**deepseek/deepseek-v4-flash**. Nothing runs on the local GPU for memory.
+Hermes now uses its own bundled `holographic` memory provider instead -
+`memory.provider: holographic` in `config.yaml`. It is a local SQLite fact
+store (FTS5 search, trust scoring, entity resolution, HRR-based compositional
+retrieval) already shipped in the image at
+`/opt/hermes/plugins/memory/holographic`, requiring no new infrastructure,
+no shared network service, and no embeddings endpoint. Hermes gets
+`fact_store` / `fact_feedback` tools; recall survives restarts and new
+sessions but is scoped to this pod's own `/opt/data/memory_store.db` - it
+cannot be shared with workstation agents or the ToolHive gateway the way
+agentmemory was.
 
 ## Skills (GitOps-managed)
 
@@ -159,8 +155,6 @@ Both come from the `hermes` secret.
    - `HOMELAB_GH_TOKEN` — classic GitHub PAT, **`public_repo` only** (commit-watcher)
    - `DISCORD_WEBHOOK` — channel → Integrations → Webhooks → New
    - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` — BotFather token + numeric ids
-2. **1Password item `agentmemory`** with `AGENTMEMORY_SECRET` — `openssl rand -hex 32`
-   (shared between the agentmemory service and the Hermes plugin).
 
 ## Git access (single private repo)
 

@@ -79,7 +79,6 @@ VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 
 # (namespace, claim) -> (uid, gid), measured live 2026-08-30.
 EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
-    ("ai", "agentmemory"): ("1000", "1000"),
     ("ai", "hermes"): ("10000", "10000"),
     ("ai", "opencode"): ("1000", "1000"),
     ("ai", "repo-wiki"): ("1000", "1000"),

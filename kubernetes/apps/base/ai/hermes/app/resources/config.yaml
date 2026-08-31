@@ -138,15 +138,19 @@ mcp_servers:
     url: http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp
     enabled: true
 
-# Persistent cross-session memory via the agentmemory service (ns ai). The memory-
-# provider plugin is mounted at $HERMES_HOME/plugins/agentmemory (=/opt/data/plugins/
-# agentmemory, see helmrelease.yaml) — the user-installed dir the memory loader scans;
-# AGENTMEMORY_URL / AGENTMEMORY_SECRET env wire it to the service. `memory.provider`
-# below ACTIVATES it (without it Hermes shows `provider: none` and captures nothing).
-# NOTE: this is the memory-provider system, NOT the general `plugins.enabled` hook
-# system — don't add agentmemory there.
+# Persistent cross-session memory. agentmemory (the shared in-cluster service) was
+# retired 2026-08-31 - see docs/ai-system/agentmemory-retirement-2026-08-31.md: it
+# received 1 real usage window in 14 days, Hermes itself wrote 9 observations in 16
+# days, and its runtime (iii 0.11.2, whole-store-in-a-HashMap) could not be stabilised
+# at any memory limit. `holographic` is Hermes' bundled provider instead: a local
+# SQLite fact store (FTS5 search, trust scoring, HRR-based compositional retrieval)
+# already shipped in the image at /opt/hermes/plugins/memory/holographic, requiring no
+# new infrastructure and no shared network service. It is in-process to Hermes only -
+# it cannot serve workstation agents the way agentmemory did - but it is the near-zero
+# consumer this pod actually needs. `memory.provider` below ACTIVATES a provider
+# (without it Hermes shows `provider: none` and captures nothing).
 memory:
-  provider: agentmemory
+  provider: holographic
   auto_migrate: true
 
 # Messaging platforms. The gateway-default profile starts the Telegram platform

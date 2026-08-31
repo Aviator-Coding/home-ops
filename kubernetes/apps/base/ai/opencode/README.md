@@ -33,8 +33,10 @@ internal gateway, never the public one.
   this cluster's actual model set.
 - **Memory plugin dropped**: the reference's `@eleboucher/opencode-memini`
   plugin integration was not carried over - out of scope for this task
-  (LLM-access wiring only) and would need its own compatibility check
-  against this cluster's `ai/agentmemory` app.
+  (LLM-access wiring only). `ai/agentmemory`, the shared memory service this
+  would have targeted, was itself retired 2026-08-31 (see
+  `docs/ai-system/agentmemory-retirement-2026-08-31.md`), so a future
+  integration needs a new backend, not a compatibility check against this one.
 - **Context7 MCP dropped**: needs a new external API key/service with no
   existing prerequisite in this repo; out of scope here.
 - **ToolHive MCP kept**: `mcp.toolhive` points at this cluster's own

@@ -27,9 +27,6 @@ spec:
     # Hermes routes all LLM traffic through the internal agentgateway.
     - name: agentgateway
       namespace: *namespace
-    # Long-term memory backend (plugin enabled in config.yaml).
-    - name: agentmemory
-      namespace: *namespace
     # kopiur runs ALONGSIDE volsync on this claim. See the components block.
     - name: kopiur-repository
       namespace: system

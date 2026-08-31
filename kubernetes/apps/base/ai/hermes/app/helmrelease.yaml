@@ -117,11 +117,6 @@ spec:
               # --- Web search backend (config.yaml sets web.search_backend:
               # searxng); point Hermes at the SearXNG already running in ns ai. ---
               SEARXNG_URL: http://searxng.ai.svc.cluster.local:8080
-              # --- Long-term memory: the agentmemory plugin (mounted at
-              # /opt/data/plugins/agentmemory, memory.provider: agentmemory) talks to
-              # the agentmemory service. AGENTMEMORY_SECRET comes from the secret. ---
-              AGENTMEMORY_URL: http://agentmemory.ai.svc.cluster.local:3111
-              AGENTMEMORY_PROJECT: hermes
               # --- homelab-commit-watcher skill (GitOps-managed, copied to
               # /opt/data/skills by seed-skills). HOMELAB_GH_TOKEN + DISCORD_WEBHOOK
               # arrive via envFrom (the hermes secret); these point its per-repo
@@ -317,19 +312,6 @@ spec:
             copy-config:
               - path: /run/config/config.yaml
                 subPath: config.yaml
-                readOnly: true
-      # agentmemory memory-provider plugin. The memory loader scans the
-      # user-installed dir $HERMES_HOME/plugins/<name> (= /opt/data/plugins/agentmemory,
-      # HERMES_HOME=/opt/data) alongside the bundled /opt/hermes/plugins/memory/.
-      # Mounting at the general /opt/hermes/plugins/ does NOT register it as a memory
-      # provider. Activated by `memory.provider: agentmemory` in config.yaml.
-      plugin-agentmemory:
-        type: configMap
-        name: hermes-agentmemory-plugin
-        advancedMounts:
-          hermes:
-            app:
-              - path: /opt/data/plugins/agentmemory
                 readOnly: true
       # Skill sources, mounted into the seed-skills init which copies them onto
       # the PVC at /opt/data/skills (see initContainers above).
