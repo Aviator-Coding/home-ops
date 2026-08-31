@@ -24,8 +24,15 @@ spec:
       namespace: security
     - name: volsync
       namespace: system
+    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    - name: kopiur-repository
+      namespace: system
   components:
+    # BOTH backup systems, deliberately and simultaneously - the parallel-run
+    # safety property of migration Stage 3, the same shape as downloads/sabnzbd
+    # which see for the full rationale. volsync's entry is unchanged.
     - ../../../../../components/volsync
+    - ../../../../../components/kopiur
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -36,3 +43,17 @@ spec:
       VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
       VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
       VOLSYNC_SCHEDULE_R2: "25 3 * * *"
+      KOPIUR_CLAIM: prowlarr-config
+      # LOAD-BEARING and the only 3002:3000 pair in the fleet. The pod runs
+      # 3002:3000:3000; the volume mixes 1000:3000 (526 entries) with
+      # 3002:3000 (188). Measured 2026-08-30 the default of 1000 reads it
+      # today, but the mover is matched to the workload so a restore
+      # reproduces the ownership prowlarr expects.
+      KOPIUR_PUID: "3002"
+      KOPIUR_PGID: "3000"
+      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
+      # kopiur r2 policy in the fleet into the single 04:00 hour, already the
+      # busiest. Hour 11 carries no volsync destination and no kopiur ceph slot
+      # (01/05/09/13/17/21). Ceph stays on the component default, which is
+      # already structurally offset onto the odd 4-hour slots.
+      KOPIUR_SCHEDULE_R2: "H 11 * * *"
