@@ -91,6 +91,21 @@
       // "1.13.3") - but the four matched packages don't all share one
       // extraction path, so the pattern stays defensive rather than
       // assuming that holds forever.
+      //
+      // This rule only controls which versions Renovate is allowed to
+      // PROPOSE - it says nothing about auto-merge. See the matching "Never
+      // auto merge Talos" rule in .renovate/autoMerge.json5: unfreezing
+      // proposals here also exposes that ghcr.io/siderolabs/installer and
+      // ghcr.io/siderolabs/talosctl use the "docker" versioning scheme,
+      // whose isStable() does not treat Talos's "-alpha.N"/"-beta.N"/
+      // "-rc.N" suffixes as unstable (verified against installed
+      // renovate@44.52.1) - so ignoreUnstable alone would NOT have kept a
+      // prerelease (a real one, v1.14.0-alpha.0, is live on the registry
+      // today) out of the repo-wide "auto merge minor updates" rule. That
+      // autoMerge.json5 entry blocks automerge for all four packages here,
+      // not just prereleases, because any Talos bump - stable or not -
+      // triggers tuppr's live, unattended, powercycle node reboot and must
+      // stay an attended captain operation regardless of update type.
       description: "Exclude Talos v1.13.3 only (permanent upgrade failure on talos-1, see #867) - not a version ceiling",
       matchPackageNames: [
         "ghcr.io/siderolabs/installer",
