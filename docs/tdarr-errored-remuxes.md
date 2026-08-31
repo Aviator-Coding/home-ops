@@ -225,7 +225,163 @@ the flow is Tdarr database state.
 
 ---
 
-## 3. The seven parked masters
+## 3. The flow: what changed and what proves it
+
+All four changes are Tdarr database state. `docs/tdarr/flow-*.json` hold the
+before and after; `docs/tdarr/flow-nodes/*.js` hold the node sources.
+
+| Node | Change |
+|---|---|
+| `guard_scope` (new, first node) | refuses anything not both library `gEUZf7Nx6` and `/media/Movies/`; fails closed, output 2 dead-ends |
+| `dv_check`, `snapshot`, `size_check`, `duration_check`, `hdr_survival` | `inputsDB.function` -> `inputsDB.code`, so the written code actually runs |
+| `cargs22/23/24` | `ffmpegCommandCustomArguments` -> encoder-aware `customFunction` |
+| `sub22/23/24` (new) | `mov_text` -> `srt`; drop only `data`/`bin_data` and 0x0 mjpeg |
+
+### 3.1 The CPU worker: encoder-aware arguments
+
+The three `cargs` nodes appended QSV-only options unconditionally:
+
+```
+-color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -color_range tv \
+-preset medium -global_quality 28 -look_ahead 1
+```
+
+On a CPU job `getEncoder` returns `libsvtav1` (`FlowHelpers/1.0.0/hardwareUtils.js`),
+which needs a **numeric** preset and `-crf`, so ffmpeg died at encoder init:
+`Unable to parse option value "medium"`. 88 of 88 CPU jobs failed from
+2026-08-29.
+
+They now read back the encoder `SetVideoEncoder` actually chose - it pushes
+`['-c:{outputIndex}', <encoder>]` onto the video stream's `outputArgs` - and
+emit tuning to match. An unrecognised encoder dead-ends rather than shipping
+arguments it may reject.
+
+| Encoder | Emitted |
+|---|---|
+| `av1_qsv` | `-preset medium -global_quality N -look_ahead 1` (unchanged) |
+| `libsvtav1` | `-preset 8 -crf N` |
+
+`-preset 8` rather than 6: this is the **fallback** worker, whose job is to keep
+throughput during a GPU/VA-API outage. Tunable in `cargs*`.
+
+### 3.2 Verified on a real transcode
+
+Low-value, non-master file, CPU worker forced (`transcodegpu: 0`):
+
+```
+/media/Movies/SPF-18 (2017)/...[NF][WEBDL-1080p][AC3 5.1][x264]-SiGMA.mkv
+  before  4,238,088,154 bytes  h264   1 video, 1 audio, 5 subrip
+  after   1,504,164,956 bytes  av1    1 video, 1 audio, 5 subrip   (35.5%)
+```
+
+Job report, all of it executed code that had never run before:
+
+```
+input1 guard_scope guard_home dv_check snapshot is_hevc is_av1 res_legacy
+start24 cont24 enc24 cargs24 exec24 size_check duration_check hdr_survival replace
+
+Scope guard: library="gEUZf7Nx6" libOk=true pathOk=true -> IN SCOPE (continue)
+DV detect: codec_tag="[0][0][0][0]" p5=false p7=false -> NOT DV (continue)
+AV1 tuning: encoder="libsvtav1" quality=28 hdr=false args=[-preset 8 -crf 28]
+Size check: 3.85GiB -> 1.37GiB (35.5%)
+Duration check: 4529.3s -> 4529.3s (100.00%)
+HDR survival: source was SDR - PASS
+Transcode success
+```
+
+GPU path re-confirmed afterwards on a separate low-value file - the *same*
+node, the *same* rung, correct alternate arguments:
+
+```
+AV1 tuning: encoder="av1_qsv" quality=28 hdr=false args=[-preset medium -global_quality 28 -look_ahead 1]
+ffmpeg: -c:0 av1_qsv -c:1 copy      (338 fps)
+```
+
+### 3.3 guard_scope observed refusing a file
+
+A file in a temporary library on `/temp` (never on the NAS) was queued with the
+node running:
+
+```
+Found next plugin: input1
+Found next plugin: guard_scope
+Scope guard: library="zzflowtest" libOk=false pathOk=false -> OUT OF SCOPE (refused, flow ends here)
+-> Not required
+```
+
+The flow stopped at the second node. `guard_home` and every encoder node were
+never reached. That is the flow-layer counterpart to the queue-layer refusal in
+section 1.4.
+
+### 3.4 Subtitles: convert, never drop
+
+`Set Container mkv` has a `forceConform` input. **Do not turn it on.** It does
+not convert - it deletes (`ffmpegCommandSetContainer/1.0.0/index.js`):
+
+```js
+if (newContainer === 'mkv') {
+  if (codecType === 'data' || ['mov_text','eia_608','timed_id3'].includes(codecName)) {
+    stream.removed = true;
+  }
+}
+```
+
+On the seven masters that is 14, 2, 1, 46, 37 and 35 subtitle tracks destroyed
+in an irreversible in-place rewrite, and it would not help Amelie at all.
+
+`sub22/23/24` convert instead. Reproduced and fixed at ffmpeg level on a
+synthetic file:
+
+```console
+# current behaviour - the masters' exact error
+$ ffmpeg -i in.mp4 -map 0:2 -c:2 copy ... out.mkv
+[matroska] Subtitle codec 94213 is not supported.
+Could not write header (incorrect codec parameters ?): Function not implemented
+
+# with conversion
+$ ffmpeg -i in.mp4 -map 0:2 -c:2 srt ... out.mkv
+  before: subtitles=5 audio=1 video=1   (mov_text)
+  after : subtitles=5 audio=1 video=1   (subrip, eng/fre/ger/spa/ita, text intact)
+```
+
+Then end-to-end through the real Tdarr flow on that disposable file:
+
+```
+... cont24 sub24 enc24 cargs24 exec24 ...
+Stream conform: in v=1 a=1 s=5 other=0 | mov_text->srt=5 droppedData=0 dropped0x0Art=0
+ffmpeg: -c:0 libsvtav1 -c:1 copy -c:2 srt -c:3 srt -c:4 srt -c:5 srt -c:6 srt
+```
+
+### 3.5 What it would do to the seven - unit-proved, not run
+
+`docs/tdarr/flow-nodes/unit-test-conform-against-masters.js` runs the node
+against each master's **real** `ffProbeData`, read-only. None was queued.
+
+| File | subtitles | audio | dropped |
+|---|---|---|---|
+| The Silence of the Lambs | 14 -> **14** (14 converted) | 1 -> 1 | 1 data/bin_data |
+| The Departed | 2 -> **2** (2 converted) | 5 -> 5 | none |
+| Gladiator | 1 -> **1** (1 converted) | 3 -> 3 | 1 data/bin_data |
+| Amelie | 19 -> **19** (0 converted) | 3 -> 3 | 7 x mjpeg 0x0 (valid 1719x2023 kept) |
+| Wake Up Dead Man | 46 -> **46** (46 converted) | 8 -> 8 | 1 data/bin_data |
+| The Rip | 37 -> **37** (37 converted) | 11 -> 11 | 1 data/bin_data |
+| A House of Dynamite | 35 -> **35** (35 converted) | 7 -> 7 | none |
+
+Every subtitle and audio track survives on every one of the seven.
+
+### 3.6 Still open - deliberately not changed
+
+- **`dv_check`'s skip output is wired to continue.** Edge `e_dv_bypass` routes
+  output 1 (IS DV) to `snapshot`, so Dolby Vision files still encode. That was
+  harmless while the node always returned 1; now that it works, removing the
+  edge would actually start skipping DV. Six of the seven masters are DV HDR10,
+  so this is a real behaviour choice and is left to the captain.
+- Same for the `br_*_bypass` edges, which route the below-threshold output of
+  each bitrate check into the encoder anyway, making those checks inert.
+- **There is still no stream-count guard.** Guards 1-3 check size, duration and
+  HDR, not track counts.
+
+## 4. The seven parked masters
 
 All seven verified byte-intact on 2026-08-31 (size + mtime + inode). None was
 queued, retried or processed by this work.
