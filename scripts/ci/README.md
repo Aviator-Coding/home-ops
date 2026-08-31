@@ -48,6 +48,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `kopiur-stage3-test.py` | kopiur fleet parallel-run pin: 31/31 onboarded set + measured mover identity (`EXPECTED_IDENTITY`, includes changedetection-config 1000:1000 and matter-server 0:0), per-namespace r2 hour, empty `DEFERRED_CLAIMS`, and VolSync still on every volume |
 | `kopiur-timezone-test.py` | kopiur/VolSync cron timezone alignment: rendered `SnapshotSchedule.spec.schedule.timezone` default + override, pre-fix EST total ceph collision, post-fix zero collision across all dual-engine claims in both DST seasons |
 | `kopiur-stage4-test.py` | kopiur Stage 4: `home-automation/matter-server` onboarded with explicit `KOPIUR_PUID/PGID: 0`, GitOps privileged-mover annotation on the overlay Namespace, sibling movers unchanged |
+| `syncthing-data-capacity-test.py` | `syncthing-data` 15Gi right-size: plain PVC + VolSync `VOLSYNC_CAPACITY`/`CACHE` substitutes + rendered ReplicationDestination capacity (not live claim create); config claim stays 1Gi |
 
 New `scripts/ci/*-test.py` files need no separate wiring: CI globs `scripts/ci/*-test.py`,
 so any file matching that pattern is picked up automatically.
