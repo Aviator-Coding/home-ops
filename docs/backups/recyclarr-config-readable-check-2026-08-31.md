@@ -89,10 +89,10 @@ kubectl -n downloads get snapshotpolicy recyclarr-ceph \
 ```
 
 This matches the value substituted on the app's Flux Kustomization
-(`KOPIUR_PUID`/`KOPIUR_PGID: "2000"` in `kubernetes/apps/main/downloads/recyclarr.yaml`), which
-in turn is documented there as taken from the pod's *declared* `securityContext` rather than
-live file measurement, because - as above - there was never a running container to measure
-through. This check is what turns that declared value into a measured one.
+(`KOPIUR_PUID`/`KOPIUR_PGID: "2000"` in `kubernetes/apps/main/downloads/recyclarr.yaml`). That
+overlay first took the pair from the pod's *declared* `securityContext` during Stage 3,
+because - as above - there was never a running container to measure through; the same
+overlay comment now points at this document as the later readability proof for that pair.
 
 ## Procedure
 

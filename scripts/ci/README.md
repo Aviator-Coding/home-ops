@@ -42,6 +42,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `validate-contention-test.py` | validate.yaml runner-pool contention timeouts + python-tests ordering |
 | `workflow-hardening-test.py` | GitHub Actions workflow permissions/concurrency hardening |
 | `recyclarr-quality-profile-test.py` | Radarr SQP-1 recyclarr fix (guide min_format_score, trash_id matching, 1080p profile) |
+| `recyclarr-config-readable-check-test.py` | recyclarr-config kopiur mover readability procedure (2026-08-31): executes measure.sh from the procedure doc against fixtures (empty-file / lost+found / walk-error traps), pins live 2913/2913 verdict + overlay/Readme pointers |
 | `pvc-writable-check-test.py` | system/pvc-writable-check: real CronJob script vs mock kubectl (motivating unwritable bugs, clean sweep, readOnly/skip/excluded-NS/shell-less/kubectl-error skips, RO-rootfs large JSON, split-role RBAC, PrometheusRule, headlamp readOnly mount) |
 | `backup-silent-failure-alerting-test.py` | VolSync stalled-sync + kopiur empty-backup PrometheusRules: promtool unit-tests fire for stuck ai/opencode, stay silent for healthy fleet / recyclarr / jellyfin leaked series, and KopiurBackupEmpty on zero files |
 | `kopiur-stage3-test.py` | kopiur fleet parallel-run pin: 31/31 onboarded set + measured mover identity (`EXPECTED_IDENTITY`, includes changedetection-config 1000:1000 and matter-server 0:0), per-namespace r2 hour, empty `DEFERRED_CLAIMS`, and VolSync still on every volume |
