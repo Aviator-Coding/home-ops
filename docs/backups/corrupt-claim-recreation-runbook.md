@@ -11,6 +11,36 @@
 > throwing a live volume away and rebuilding it from that repository.** Read the
 > "Hard constraint" section of the 2026-08-23 drill first - it binds here too.
 
+---
+
+## ⚠ Read this before you delete anything
+
+**"Delete the PVC and let Flux recreate it from `dataSourceRef`" does not restore from your
+latest backup, and on a newly-onboarded app it may restore NOTHING while every signal
+reports success.**
+
+The populator clones `${APP}-dst.status.latestImage` - a snapshot frozen at first-deploy
+time - **not** the restic repository. If that app was onboarded before its repository held
+a snapshot, `latestImage` is a snapshot of an empty volume, permanently, because
+`ssa: IfNotPresent` stops Flux ever re-running the destination.
+
+**One command decides whether this applies to you:**
+
+```sh
+kubectl -n <ns> get replicationdestination <app>-dst \
+  -o jsonpath='{.status.lastSyncTime}{"\n"}{.status.latestMoverStatus.logs}{"\n"}'
+```
+
+`No eligible snapshots found` / `No data will be restored` in that output means the
+naive path destroys the data. **`ai/opencode` read exactly that on 2026-08-31, four days
+after onboarding** - the task that produced this runbook was briefed on the assumption
+that the populator restores from the last good backup, and that assumption was wrong.
+
+The fix is [below](#the-trap-that-decides-the-whole-procedure): delete the
+`ReplicationDestination` **together with** the PVC.
+
+---
+
 ## When this applies
 
 A claim whose **live mount works fine** but whose **snapshots cannot be cloned**. The
@@ -74,6 +104,13 @@ reads `No eligible snapshots found` / `No data will be restored` and `latestImag
 snapshot of an **empty 20 GiB volume**. Deleting the PVC and letting Flux recreate it
 would then restore *nothing at all*, and it would look like a success: PVC `Bound`, app
 `Running`, Flux `Ready`. This is exactly the state `ai/opencode` was in.
+
+**Precision about the evidence**, because this claim is load-bearing: what is *measured*
+is VolSync's own mover log for that run (`No data will be restored`) plus the fact that
+`latestImage` names the snapshot of that same destination PVC. The empty image was not
+separately cloned and file-counted - it is deleted as part of this procedure, so the
+opportunity is gone once you start. Treat the mover log as conclusive enough to act on,
+and never as a reason to skip the pre-check restore below.
 
 **The fix is to make the ReplicationDestination run again against the now-populated
 repository.** Do that by **deleting the `ReplicationDestination` along with the PVC** and
@@ -196,10 +233,25 @@ full manifest out of the repository anyway and publish only the aggregate digest
 A running app is **not** proof. The volume was mountable throughout the original failure.
 All five of these:
 
-1. **Data is back.** Re-run the inventory and diff it against step 1. Expect two benign
-   differences and be able to name them: files the app rewrites on its own between the
-   backup and the cutover (caches), and `lost+found`, which restic never stores and which
-   VolSync's `--delete` restore removes from the fresh filesystem.
+1. **Data is back.** Re-run the inventory and diff it against step 1. Expect three
+   differences and be able to name each:
+   - files the app rewrites on its own between the backup and the cutover (caches, logs,
+     SQLite state);
+   - `lost+found`, which restic never stores and which VolSync's `--delete` restore
+     removes from the fresh filesystem;
+   - **every file mode relaxed by one group-write bit** - see the warning below. Check
+     modes explicitly; a file-content diff alone will not show this.
+
+   > **A VolSync restore silently widens permissions, credential files included.** The
+   > mover stages its destination PVC **writable**, so kubelet's recursive `fsGroup` walk
+   > runs before restic writes: the volume comes back `644→664`, `755→775`, `2755→2775`,
+   > `600→660`, `444→664`. On `ai/opencode` that took `.git-credentials` from `0600` to
+   > `0660` across the restore. It was benign there only because the widened group was the
+   > app's own gid and the app is the sole principal on the volume - **that is not
+   > something to assume.** Before restoring a volume that holds credentials, work out who
+   > else is in that gid, and re-tighten modes afterwards if anyone is. Ownership is
+   > unaffected, and the relaxation persists on the live volume. kopiur restores stage
+   > read-only and reproduce the original modes.
 2. **kopiur backs up successfully** to ceph, with a non-zero file count matching the live
    claim. A `Succeeded` phase alone is worth nothing - **read `.status.stats`**; a snapshot
    of an empty volume also succeeds.
