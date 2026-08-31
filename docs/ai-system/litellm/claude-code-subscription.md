@@ -309,7 +309,7 @@ export ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-…your-virtual-ke
 claude
 ```
 
-**All four model variables are required, not just `ANTHROPIC_MODEL`.** That one
+**All three model variables are required, not just `ANTHROPIC_MODEL`.** That one
 only names the model for the *main* loop. Anything that asks for a model by
 family - a subagent declared `model: opus`, `/model opus`, a Task tool call -
 resolves that family through `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` instead, and
@@ -324,12 +324,16 @@ models=['claude-code-subscription']. Tried to access claude-opus-5
 ```
 
 That 403 is the guardrail working - see §7 for why it is closed here on the
-client and not by aliasing on the proxy. Measured in the live proxy log
-(2026-08-30, 48h window) **before** this fix: 2 refusals on `claude-opus-5` and
-8 on `claude-sonnet-5` from this key, so the Sonnet variable is not
+client and not by aliasing on the proxy. Counted in the live proxy log
+(2026-08-30, 48h window) **before** this fix, this key was refused **once** on
+`claude-opus-5` and **three times** on `claude-sonnet-5` (each refusal is
+logged twice, as an `auth_exception_handler` ERROR and again as the raised
+`ProxyException`; a fourth `claude-sonnet-5` refusal in the same window
+belonged to the unrelated `pr-review-local` key). So the Sonnet variable is not
 hypothetical tidiness - the same collision was already happening for Sonnet
 whenever something requested it by family rather than inheriting
-`ANTHROPIC_MODEL`.
+`ANTHROPIC_MODEL`. Note these counts are a floor, not a total: the proxy pod
+rolls on every config change and its logs go with it.
 
 The installed CLI (2.1.251) also honours `ANTHROPIC_DEFAULT_HAIKU_MODEL` and
 `ANTHROPIC_DEFAULT_FABLE_MODEL`. **Deliberately left unset**: no pass-through
