@@ -60,5 +60,19 @@ spec:
       # defaults hash the minute (`H`) and offset the HOUR away from the
       # volsync lines above (ceph 01/05/09/13/17/21 vs volsync's 00/04/08/...,
       # r2 04:xx vs volsync's 03:45), so the two systems cannot land on the
-      # same minute for this claim. Every other KOPIUR_* default already
-      # matches this app: claim name == app name, uid/gid 1000, 5Gi PVC.
+      # same minute for this claim.
+      #
+      # The claim name (== app name) and the 5Gi PVC do match the KOPIUR_*
+      # defaults. The uid/gid pair does NOT: this pod runs as 2000/2000, while
+      # KOPIUR_PUID/PGID default to 1000. An earlier revision of this comment
+      # claimed 1000 and was simply wrong.
+      #
+      # Left at 1000 deliberately, and it does not break the backup. The
+      # mismatch is only fatal when the mover cannot READ a file (the
+      # sabnzbd-config case: uid 2000 writing mode 0600). autobrr's write mode
+      # was unknown while the volume was unwritable; with the fsGroup fix in
+      # place it was measured directly - autobrr writes config.toml as
+      # `-rw-r--r--` (0644), inside a 2775 directory whose `other` bits allow
+      # traverse, so the uid-1000 mover can read it and the snapshot succeeds.
+      # Aligning these to 2000 is still the more correct end state for restore
+      # fidelity and is an open Stage 3 question, not a fix this change needs.
