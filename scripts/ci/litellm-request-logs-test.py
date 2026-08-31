@@ -19,7 +19,8 @@ Renders the litellm-operator LiteLLMProxy CR the way file-mode does, then:
        - messages column stays "{}" for ordinary (non-realtime) traffic
        - redact_credential_headers masks Authorization / x-api-key
        - cold_storage_object_key is None when cold_storage_custom_logger is unset
-       - duration_in_seconds("30d") == 2592000; "1mo" is longer (31d)
+       - duration_in_seconds("30d") == 2592000; "1mo" is calendar-month
+         (pinned to a Jan 1 clock so it is exactly 31d, not date-flaky)
   7. Asserts the request-logs runbook is a published retrieval contract.
   8. Asserts postgres-17 Barman retentionPolicy is 30d on the LAN NAS endpoint.
 
@@ -478,8 +479,17 @@ def test_runtime_spend_log_behaviour() -> None:
     )
 
     # --- retention duration parsing ---
-    d30 = duration_in_seconds("30d")
-    d1mo = duration_in_seconds("1mo")
+    # "1mo" is calendar-relative (same wall-clock day next month), so its
+    # second count depends on *today*. On Aug 31 it collapses to exactly 30d
+    # (Sep has 30 days), which made this check fail in CI on 2026-08-31.
+    # Pin the clock to Jan 1 so next month is Feb 1 = 31d every run.
+    fixed_jan1 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    with mock.patch(
+        "litellm.litellm_core_utils.duration_parser.time_module.time",
+        return_value=fixed_jan1,
+    ):
+        d30 = duration_in_seconds("30d")
+        d1mo = duration_in_seconds("1mo")
     record(
         "runtime_30d_is_exactly_2592000_seconds",
         d30 == 2_592_000,
@@ -487,7 +497,7 @@ def test_runtime_spend_log_behaviour() -> None:
     )
     record(
         "runtime_1mo_is_longer_than_30d",
-        d1mo > d30,
+        d1mo > d30 and d1mo == 31 * 86400,
         f"1mo={d1mo} 30d={d30}",
     )
 
