@@ -26,7 +26,9 @@ labelled **at the point it is made**:
   true; re-verify before relying on it.
 - **Re-checked by CI** — exercised on every run from the Git-visible artifacts
   under `docs/tdarr/` (node sources, `flow-movies_av1_nvenc_v1.after.json`, and
-  `docs/tdarr/flow-nodes/behavior-test.js`). A CI-verified claim either stays
+  `docs/tdarr/flow-nodes/behavior-test.js`). `scripts/ci/tdarr-flow-nodes-test.py`
+  is the validate.yaml `python-tests` entrypoint that executes that harness
+  (path filter also covers `docs/tdarr/**`). A CI-verified claim either stays
   true or goes red on the next run, so it defends itself.
 
 Where a live finding has a committed counterpart that CI re-checks, both labels

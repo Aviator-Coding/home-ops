@@ -156,6 +156,8 @@ jobs:
         with:
           patterns: |-
             scripts/ci/**
+            docs/tdarr/**
+            docs/tdarr-errored-remuxes.md
             .github/workflows/validate.yaml
             .mise.toml
 
@@ -314,6 +316,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Node runs docs/tdarr/flow-nodes/behavior-test.js via
+      # scripts/ci/tdarr-flow-nodes-test.py (Tdarr safe-transcode recovery harness).
+      # Same setup-node pin as renovate-config; the ARC runner has no system Node.
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
 
       # kubectl/kustomize/helm/opentofu are what the tests shell out to (kubectl kustomize,
       # helm template) to render the real manifests they assert on; python/uv provision the
