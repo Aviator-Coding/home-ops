@@ -197,7 +197,7 @@ def test_deferred_claims_absent() -> None:
     swept = DEFERRED_CLAIMS & got
     require(
         not swept,
-        f"these need a root mover the component cannot express and must stay off kopiur: {sorted(swept)}",
+        f"these stay VolSync-only until their deferred root-mover work lands: {sorted(swept)}",
     )
 
 
@@ -309,7 +309,7 @@ _RAW_BUILD: str | None = None
 
 
 def _kustomize_build(path: Path) -> str:
-    """Build once and memoise - the path is the same for all 29 claims.
+    """Build once and memoise - the path is the same for every onboarded claim.
 
     Mirrors kopiur-stage2-test.py: prefer `kustomize`, fall back to
     `kubectl kustomize`, and surface a build failure as a Failure rather than

@@ -29,28 +29,39 @@ This component only declares what to back up.
 >   `kopiur.home-operations.com/privileged-movers=true` annotation on the
 >   overlay that actually produces the Namespace (`not-used` patch target).
 >
-> **Being onboarded is not the same as being proven** - restores demonstrated
-> so far include `sabnzbd-config` (Stage 2) and `changedetection-config`
-> (Stage 4: kopia snapshot `c1127a61`, 3058 files / 36,993,597 B restored into
-> a scratch PVC, per-file sha256 manifest identical to live, and modes
-> reproduced exactly - 2292x`600`, 565x`644`, 197x`660`, 4x`664` - where the
-> VolSync restore of the same volume returns `660`/`664` because it stages
-> writable). Stage 2's restore gate **passed** on 2026-08-30:
-> [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
-> - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-> 2.06 GiB, per-file sha256, modes and ownership included). Do not read the 31
-> onboardings as fleet-wide backup verification. `KOPIUR_PUID`/`KOPIUR_PGID`
-> must match the workload that owns the claim's files, or the backup fails
-> outright on any file lacking a world-read bit (kopiur fails closed; its
-> admission webhook warns at apply time) - a prerequisite for every onboarding,
-> not a sabnzbd quirk (drill finding 2). The Stage 1 pilot `downloads/autobrr`
-> held **zero** files at Stage 1 time (all state is in `postgres-17`), so it is
-> a valid mechanism test but never could prove byte-level fidelity; a
-> `Succeeded` snapshot with `.status.stats sizeBytes 0` is not evidence backup
-> works. Fleet continuous signal: `KopiurBackupEmpty` in
+> **Being onboarded is not the same as being proven.** Restores demonstrated
+> so far:
+> * Stage 2 (2026-08-30) - `sabnzbd-config` from **both** ceph and r2,
+>   byte-identical (2062 files, 2.06 GiB, modes and ownership): durable
+>   procedure in
+>   [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
+>   Stage 2's restore gate **passed**.
+> * Stage 4 (2026-08-31) - `changedetection-config` (kopia snapshot `c1127a61`,
+>   3058 files / 36,993,597 B restored into a scratch PVC, per-file sha256
+>   manifest identical to live, modes reproduced exactly - 2292x`600`,
+>   565x`644`, 197x`660`, 4x`664` - where the VolSync restore of the same
+>   volume returns `660`/`664` because it stages writable).
+> * Stage 4 (2026-08-31) - `home-automation/matter-server` from **ceph only**
+>   (161 files / 1,548,374 bytes; live and scratch sha256
+>   `6a777d64bacc9f0836ad2d574175821b55d1b1bd90f5e30adeebd17fc8aa2052`). A root
+>   restore preserves modes and content but rewrites mixed live uids to `0:0`
+>   (see "Root movers" below) - functional for this root app, not a
+>   content-fidelity failure.
+> Do not read the 31 onboardings as fleet-wide backup verification; Stage 5
+> still needs a per-volume restore proof before retiring VolSync.
+> `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's
+> files, or the backup fails outright on any file lacking a world-read bit
+> (kopiur fails closed; its admission webhook warns at apply time) - a
+> prerequisite for every onboarding, not a sabnzbd quirk (drill finding 2).
+> The Stage 1 pilot `downloads/autobrr` held **zero** files at Stage 1 time
+> (all state is in `postgres-17`), so it is a valid mechanism test but never
+> could prove byte-level fidelity; a `Succeeded` snapshot with `.status.stats
+> sizeBytes 0` is not evidence backup works. Fleet continuous signal:
+> `KopiurBackupEmpty` in
 > [`apps/base/system/kopiur/app/prometheusrule.yaml`](../../apps/base/system/kopiur/app/prometheusrule.yaml)
 > (`kopiur_policy_last_backup_files == 0`). Plan of record: firstmate's
 > `homeops-kopiur-vs-volsync-scout` report, section 6.
+
 
 ## Directory Structure
 
@@ -313,10 +324,42 @@ added complexity at exactly the wrong moment.
 | `KOPIUR_CLAIM` | `${APP}` | source PVC when it differs from the app name |
 | `KOPIUR_SNAPSHOTCLASS` | `csi-ceph-blockpool` | |
 | `KOPIUR_CACHE_CAPACITY` | `2Gi` | ephemeral, discarded after each run |
-| `KOPIUR_PUID` / `KOPIUR_PGID` | `1000` | must match the workload uid/gid or backup fails closed on non-world-readable files (drill finding 2); mirrors `VOLSYNC_PUID`/`PGID` defaults only |
+| `KOPIUR_PUID` / `KOPIUR_PGID` | `1000` | must match the workload uid/gid or backup fails closed on non-world-readable files (drill finding 2); mirrors `VOLSYNC_PUID`/`PGID` defaults only. Root (`0`) also needs the privileged-mover annotation below |
 | `KOPIUR_SCHEDULE_CEPH` | `H 1-23/4 * * *` | |
 | `KOPIUR_SCHEDULE_R2` | `H 4 * * *` | |
 | `KOPIUR_SCHEDULE_TIMEZONE` | `America/New_York` | IANA zone the cron above is evaluated in - see "Timezone: kopiur vs VolSync" below |
+
+## Root movers (`KOPIUR_PUID`/`PGID: 0`)
+
+The component already substitutes `mover.podSecurityContext.runAsUser` /
+`runAsGroup` / `fsGroup` from `KOPIUR_PUID`/`KOPIUR_PGID`, so a root mover needs
+**no component change** - set both substitutions to `"0"` on the app overlay
+(example: `kubernetes/apps/main/home-automation/matter-server.yaml`). Prefer
+explicit substitutions over `mover.inheritSecurityContextFrom.pvcConsumer`:
+inherit is a SnapshotPolicy-only field and does **not** flow to the standing
+`Restore`, which uses the same `KOPIUR_*` substitutions.
+
+A root mover still trips kopiur's privileged-mover gate regardless of how the
+identity was chosen. Measured 2026-08-31: a SnapshotPolicy with `runAsUser: 0`
+is **admitted**, then the Snapshot sits `Pending` with
+`MoverPermitted=False` / `PrivilegedMoverNotPermitted` until the namespace
+carries `kopiur.home-operations.com/privileged-movers=true`.
+
+Apply that annotation through GitOps on the overlay that actually produces the
+Namespace - typically a strategic patch of `kind: Namespace` / `name: not-used`
+(the common component's pre-transform name) on
+`kubernetes/apps/main/<ns>/kustomization.yaml`. The base `namespace.yaml` is
+often not in any Flux inventory, and `kustomize.toolkit.fluxcd.io/prune:
+disabled` only prevents DELETE - it does not freeze annotations. The annotation
+is **namespace-wide**: it permits a root mover for every claim in that
+namespace. It is a gate, not an identity change - sibling claims keep their
+existing non-root `KOPIUR_PUID`/`PGID` values (home-automation: esphome 2000,
+home-assistant 1000, zigbee2mqtt 2000).
+
+A root **restore** mover preserves modes and file content but materialises
+mixed live uids as `0:0` (matter-server: 151 files were `1000:0` live and
+`0:0` restored; the five `0600` fabric files stayed `0:0`). That is expected
+for a root-owned workload and is not a content-fidelity failure.
 
 ## `wait: true` is incompatible with this component
 
@@ -553,4 +596,5 @@ immediate reconcile.
 * The system this runs beside: [`../volsync/Readme.md`](../volsync/Readme.md)
 * Restore drill procedure and its hard constraints: [`docs/backups/restore-drill-2026-08-23.md`](../../../docs/backups/restore-drill-2026-08-23.md)
 * Stage 2 restore gate (both destinations, both findings): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
+* Stage 4 root-mover onboarding (`matter-server`): this Readme's "Root movers" section + `scripts/ci/kopiur-stage4-test.py`
 * Upstream docs: <https://kopiur.home-operations.com>

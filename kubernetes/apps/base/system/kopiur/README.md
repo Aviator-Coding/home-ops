@@ -20,9 +20,11 @@ first. **Being onboarded is not the same as being proven.** Stage 2's restore
 gate **passed** on 2026-08-30 -
 [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-2.06 GiB, per-file sha256, modes and ownership included). Do not treat this
-directory's presence as fleet-wide backup verification - live claim detail is
-owned by the component Readme.
+2.06 GiB, per-file sha256, modes and ownership included). Restore coverage also
+includes Stage 4 `changedetection-config` and Stage 4 `matter-server` (ceph
+only). Owner of that list, root-mover rules, schedules and rollback:
+[`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
+Do not treat this directory's presence as fleet-wide backup verification.
 `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's files,
 or the backup fails closed on any file lacking a world-read bit (drill finding
 2) - a prerequisite for every onboarding, not a sabnzbd quirk. Continuous fleet
