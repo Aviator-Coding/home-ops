@@ -152,10 +152,10 @@ spec:
           for: 15m
           annotations:
             summary: >-
-              The latest succeeded kopiur backup for {{ $labels.namespace }}/
-              {{ $labels.policy }} contains zero files - the source volume
-              was empty or entirely unreadable when the snapshot ran, the
-              same shape of failure that let downloads/autobrr's Stage 1
-              gate pass on an empty volume.
+              The latest succeeded kopiur backup for
+              {{ $labels.namespace }}/{{ $labels.policy }} contains zero
+              files - the source volume was empty or entirely unreadable
+              when the snapshot ran, the same shape of failure that let
+              downloads/autobrr's Stage 1 gate pass on an empty volume.
           labels:
             severity: warning

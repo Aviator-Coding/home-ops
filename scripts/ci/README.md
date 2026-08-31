@@ -42,6 +42,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `workflow-hardening-test.py` | GitHub Actions workflow permissions/concurrency hardening |
 | `recyclarr-quality-profile-test.py` | Radarr SQP-1 recyclarr fix (guide min_format_score, trash_id matching, 1080p profile) |
 | `pvc-writable-check-test.py` | system/pvc-writable-check: real CronJob script vs mock kubectl (motivating unwritable bugs, clean sweep, readOnly/skip/excluded-NS/shell-less/kubectl-error skips, RO-rootfs large JSON, split-role RBAC, PrometheusRule, headlamp readOnly mount) |
+| `backup-silent-failure-alerting-test.py` | VolSync stalled-sync + kopiur empty-backup PrometheusRules: promtool unit-tests fire for stuck ai/opencode, stay silent for healthy fleet / recyclarr / jellyfin leaked series, and KopiurBackupEmpty on zero files |
 | `kopiur-stage3-test.py` | kopiur fleet parallel-run pin: onboarded set + measured mover identity (`EXPECTED_IDENTITY`), per-namespace r2 hour, deferred root-mover claim(s) in `DEFERRED_CLAIMS`, and VolSync still on every volume |
 | `kopiur-timezone-test.py` | kopiur/VolSync cron timezone alignment: rendered `SnapshotSchedule.spec.schedule.timezone` default + override, pre-fix EST total ceph collision, post-fix zero collision across all dual-engine claims in both DST seasons |
 
