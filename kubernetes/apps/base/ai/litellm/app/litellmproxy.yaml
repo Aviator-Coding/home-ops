@@ -211,10 +211,10 @@ spec:
     #
     # RETENTION IS SET TO 30d - matches Barman retentionPolicy 30d exactly so
     # logged prompt/response content does not outlive what already rolls off
-    # that backup target. Verified on the pinned v1.98.0 image that
-    # duration_in_seconds("30d") == 2592000 (exactly 30 days); "1mo" parses to
-    # 31 days and would outlive the backup window, which is why it was not
-    # used. This key is the gate for the whole built-in pruner: while it is
+    # that backup target. Prefer "30d" over "1mo": "30d" is always 2592000s;
+    # "1mo" is calendar-month-clamped (28-31d) and not a safe stand-in - full
+    # rationale in docs/ai-system/litellm/request-logs.md#retention. This key
+    # is the gate for the whole built-in pruner: while it is
     # null, no spend_log_cleanup_job is scheduled at all (proxy/proxy_server.py:8937).
     # Setting it schedules the job on the default 1d interval
     # (maximum_spend_logs_retention_interval). TRADEOFF: the pruner deletes
