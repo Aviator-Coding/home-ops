@@ -132,3 +132,79 @@ spec:
     namespace: flux-system
   targetNamespace: *namespace
   wait: true
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# kopiur backup for `pgadmin`, running ALONGSIDE the volsync component on the
+# Kustomization above (migration Stage 3). Nothing about volsync changes; this
+# claim simply gains a second, independent set of backups. Retiring either one
+# is Stage 5 and needs a per-volume restore proof first.
+#
+# WHY THIS IS A SEPARATE KUSTOMIZATION rather than a `components:` entry on the
+# pgadmin Kustomization above, which is the normal shape (see
+# kubernetes/apps/main/downloads/sabnzbd.yaml): that Kustomization sets
+# `wait: true`, and with `wait: true` Flux assesses EVERY object in the
+# inventory. The kopiur component ships a standing `Restore` in passive
+# populator mode, which reports `Ready=False` for the whole parallel run BY
+# DESIGN - measured on the two live Stage 1/2 objects:
+#
+#   $ kubectl -n downloads get restore autobrr-kopiur-dst -o json | jq .status
+#   Ready=False  reason=AwaitingPvcDataSourceRef
+#   "passive populator: awaiting a PVC dataSourceRef to claim this Restore"
+#
+# It stays that way until Stage 5 repoints the claim's dataSourceRef at it. So
+# adding the component inline here would make Flux wait on an object that can
+# never become Ready and time this Kustomization out. Splitting it off keeps
+# `wait: false` where the kopiur objects live and leaves pgadmin's existing
+# `wait: true` behaviour untouched. media/calibre.yaml has the same shape for
+# the same reason.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: pgadmin-kopiur
+  namespace: &namespace database
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: pgadmin
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/kopiur/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    # kopiur-repository, not kopiur: it applies the `ceph` and `r2`
+    # ClusterRepository objects these policies reference, and it already
+    # dependsOn the operator. The admission webhook is failurePolicy: Fail, so
+    # with the operator down the API server REJECTS these CRs outright.
+    - name: kopiur-repository
+      namespace: system
+    - name: pgadmin
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: pgadmin
+      # LOAD-BEARING. Measured live 2026-08-30 against the running pod: every
+      # one of the 10 entries on this volume is owned `5050:5050`, and the pod
+      # itself runs `5050:5050:5050`. At the component default of 1000 the
+      # mover cannot read 1 file or traverse 3 directories, and kopia treats an
+      # unreadable file as fatal - BOTH destinations would fail. This is the
+      # first non-1000, non-2000 identity in the migration.
+      KOPIUR_PUID: "5050"
+      KOPIUR_PGID: "5050"
+      # Namespace r2 hour. The component default is `H 4 * * *`, which would
+      # put all 35 kopiur r2 policies into the single 04:00 hour - already the
+      # hour carrying volsync's ceph slot plus 13 volsync r2 runs, taking it to
+      # 83 mover runs and making it the busiest hour of the day. Hour 07 is
+      # free of every volsync destination and of kopiur's own ceph slots
+      # (01/05/09/13/17/21). One hour per namespace; ceph stays on the
+      # component default, which is already structurally offset.
+      KOPIUR_SCHEDULE_R2: "H 7 * * *"
