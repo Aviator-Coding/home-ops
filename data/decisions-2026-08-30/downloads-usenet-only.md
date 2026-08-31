@@ -16,8 +16,8 @@ torrent path rather than leave it half-configured:
 Radarr's qBittorrent download client pointed at
 `qbittorrent.downloads.svc.cluster.local`, which has no pod and no Service in
 the cluster - `qbittorrent` was already removed as a dead, unreferenced app
-directory (see `docs/media-stack.md`, `kubernetes/components/volsync/Readme.md`
-line ~384). The client was harmless only because it was `enable: false` and
+directory (see `docs/media-stack.md` and the retired-app note in
+`kubernetes/components/volsync/Readme.md`). The client was harmless only because it was `enable: false` and
 every torrent indexer in Radarr was disabled, but its presence implied a
 torrent path that did not actually exist and could silently be relied upon by
 a future change.

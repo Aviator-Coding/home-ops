@@ -174,7 +174,7 @@ Connects to Sonarr and Radarr for series/movie metadata. Provider priority: Open
 
 ### Autobrr
 
-Autobrr is deployed (`kubernetes/apps/main/downloads/kustomization.yaml`). Cross-Seed and qBittorrent were removed; Autobrr's torrent-side integrations are unused until those are (re-)added.
+Autobrr is deployed (`kubernetes/apps/main/downloads/kustomization.yaml`). Cross-Seed and qBittorrent were removed with the stack committed usenet-only; Autobrr's torrent-side integrations stay unused unless torrent support is deliberately re-added (Overview above; full record `data/decisions-2026-08-30/downloads-usenet-only.md`).
 
 ---
 
