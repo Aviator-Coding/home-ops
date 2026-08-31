@@ -15,4 +15,5 @@ resources:
   - ./kopiur.yaml
   - ./volsync.yaml
   - ./openebs-hostpath.yaml
+  - ./pvc-mover-readable-check.yaml
   - ./pvc-writable-check.yaml
