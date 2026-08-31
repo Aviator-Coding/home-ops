@@ -68,7 +68,7 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 
 ## Backups
 
-Fleet PVC backup remains VolSync (105 `ReplicationSource`s). kopiur Stages 1-2 run **alongside** VolSync on exactly two volumes (`downloads/autobrr`, `downloads/sabnzbd-config`); every other claim is VolSync-only. Stage 2 restore gate passed 2026-08-30. Operator/repos: [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md). Component and pilot rules: [`components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md).
+Fleet PVC backup remains VolSync (live claim list and `ReplicationSource` count: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md)). kopiur Stages 1-2 run **alongside** VolSync on exactly two volumes (`downloads/autobrr`, `downloads/sabnzbd-config`); every other claim is VolSync-only. Stage 2 restore gate passed 2026-08-30. Operator/repos: [`kopiur/README.md`](../kubernetes/apps/base/system/kopiur/README.md). Component and pilot rules: [`components/kopiur/Readme.md`](../kubernetes/components/kopiur/Readme.md).
 
 | Path | What it covers |
 |---|---|

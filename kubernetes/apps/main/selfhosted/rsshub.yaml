@@ -43,8 +43,11 @@ metadata:
   name: &app rsshub-playwright
   namespace: &namespace selfhosted
 spec:
-  components:
-    - ../../../../../components/volsync
+  # No components: browserless is stateless, so /config is an emptyDir in the
+  # HelmRelease and there is nothing for volsync to protect. Dropping the
+  # component prunes the 5Gi claim, its 3 ReplicationSources, the -dst
+  # ReplicationDestination and the 3 mover credential ExternalSecrets; volsync
+  # then GCs the 3 cache PVCs it owns. Captain decision 2026-08-30.
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
@@ -57,10 +60,6 @@ spec:
     substitute:
       APP: *app
       CONFIG_TIMEZONE: America/New_York
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "30 4 * * *"
   prune: true
   retryInterval: 3m
   sourceRef:
@@ -70,8 +69,6 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
     - name: dragonfly-operator
       namespace: database
   targetNamespace: *namespace
