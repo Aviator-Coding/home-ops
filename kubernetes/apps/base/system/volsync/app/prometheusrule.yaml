@@ -94,14 +94,22 @@ spec:
         # sync there. Cache PVC names are keyed off obj_name itself, so the
         # APP-vs-sourcePVC ambiguity cannot arise.
         #
-        # Coverage verified live: count of the left-hand series matched via
-        # this join equals 31 for EACH of ceph/minio/r2 - exactly matching
+        # Coverage verified live against kube-prometheus-stack-prometheus
+        # (port-forwarded): count of the left-hand series matched via this
+        # join equals 31 for EACH of ceph/minio/r2 - exactly matching
         # `kubectl get replicationsource -A` counts per suffix (31/31/31,
         # zero dropped). All 93 live ReplicationSources have a matching
-        # Prometheus series with zero gap. The only 12 Prometheus series
-        # with no live ReplicationSource (correctly excluded by the join)
-        # are the 4 known-retired apps' 3 destinations each: media/jellyfin,
-        # media/immich, selfhosted/rsshub, selfhosted/rsshub-playwright.
+        # Prometheus series with zero gap (set difference empty both
+        # directions). The only 12 Prometheus series with no live
+        # ReplicationSource (correctly excluded by the join) are the 4
+        # known-retired apps' 3 destinations each: media/jellyfin,
+        # media/immich, selfhosted/rsshub, selfhosted/rsshub-playwright -
+        # all confirmed to have zero live PVC/ReplicationSource/cache-PVC
+        # remaining. The 12 VOLSYNC_CLAIM-overridden claims that the old
+        # source-PVC join silently dropped (radarr, bazarr, lidarr,
+        # prowlarr, readarr, recyclarr, sonarr, sabnzbd, tdarr, esphome,
+        # zigbee2mqtt, changedetection) are individually confirmed MATCHED
+        # by this cache-PVC join for the -ceph destination.
         - alert: VolSyncSyncStalledCeph
           expr: |-
             label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ceph$"}[6h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0

@@ -22,9 +22,36 @@ This test does NOT grep source text as evidence. It:
      case, and an empty kopiur policy.
   3. Asserts observable alert fire/silence and PromQL sample sets.
 
-Live cluster confirmation (port-forwarded Prometheus query against the real
-opencode series) remains a post-merge / operator gate; this pins the rule
-semantics so a refactor cannot silently re-open the blind spots.
+Live cluster confirmation was already completed against the real
+kube-prometheus-stack Prometheus (port-forwarded) for the final cache-PVC-join
+expressions and is recorded in the PrometheusRule comments next to each alert.
+Fresh worktrees never carry kubeconfig (AGENTS.md); this CI gate therefore pins
+the same fire/silence matrix with promtool rather than re-querying the cluster.
+Recorded live results (final join version):
+
+  VolSyncSyncStalledCeph/Minio/R2
+  - Fires only for ai/opencode-ceph (increase==0 over 6h) and
+    ai/opencode-minio (increase==0 over 9h); ai/opencode-r2 correctly silent
+    (not yet due on its daily schedule).
+  - Join matches exactly 31 series per destination = live ReplicationSource
+    counts (31/31/31); all 93 live sources have a matching series (set
+    difference empty both ways).
+  - Excludes the 12 leaked stale series with no live RS/PVC/cache-PVC:
+    media/jellyfin, media/immich, selfhosted/rsshub,
+    selfhosted/rsshub-playwright (3 destinations each).
+  - downloads/recyclarr does not fire on any destination (VolSync counters,
+    not Job history - immune to successfulJobsHistoryLimit:0).
+  - All 12 VOLSYNC_CLAIM-overridden claims (radarr, bazarr, lidarr, prowlarr,
+    readarr, recyclarr, sonarr, sabnzbd, tdarr, esphome, zigbee2mqtt,
+    changedetection) are matched by the cache-PVC join on -ceph.
+
+  KopiurBackupEmpty
+  - Silent fleet-wide (every completed policy reports >0 files).
+  - Historical empty-volume Snapshot downloads/autobrr-ceph-stage1-verify has
+    status.stats = {"filesNew":0,"sizeBytes":0} (explicit zero, not omitted).
+  - kopiur_snapshotpolicy_last_backup_success and
+    kopiur_policy_last_backup_files share the exact same (namespace,policy)
+    set (27==27, zero set difference).
 """
 
 from __future__ import annotations

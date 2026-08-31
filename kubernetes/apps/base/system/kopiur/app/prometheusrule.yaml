@@ -143,9 +143,12 @@ spec:
         # count. So `== 0` is the correct formulation; an absent-safe
         # wrapper is not needed.
         #
-        # Verified live 2026-08-31: all policies with a completed backup
-        # currently report > 0 files (autobrr-ceph itself is now 1, since
-        # its write-access fix), so this rule is silent on the current fleet.
+        # Verified live 2026-08-31 against kube-prometheus-stack-prometheus
+        # (port-forwarded): all policies with a completed backup currently
+        # report > 0 files (autobrr-ceph itself is now 1, since its
+        # write-access fix), so this rule is silent on the current fleet -
+        # no live/historical case exists where a completed backup lacks a
+        # files count (success metric set == files metric set, 27==27).
         - alert: KopiurBackupEmpty
           expr: |
             kopiur_policy_last_backup_files == 0
