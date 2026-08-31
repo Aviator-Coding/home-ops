@@ -159,11 +159,11 @@ mechanisms in LiteLLM, and the operator handles them with two different CRDs:
    `secretKey`. This is the whole surface the retired `consumers.json` had, and
    more (`maxParallelRequests`, `duration`, `aliases`, `userID`/`teamID`,
    `metadata`). Every current key carries a `maxBudget` except
-   `claude-code-subscription` - keep it budgetless because live
-   `anthropic_messages` accounting prices successful traffic off the metered
-   cost map (~$52 fictional; a budget would trip on dollars nobody is invoiced),
-   not because CR `$0` prices make spend always zero; `rpmLimit`/`tpmLimit` are
-   the real guardrail. See [`claude-code-subscription.md`](claude-code-subscription.md) §4a.
+   `claude-code-subscription` - keep it budgetless because its models are
+   zero-priced across every field (input, output **and** the prompt-cache
+   fields, which is what actually makes recorded spend $0 - see
+   [`claude-code-subscription.md`](claude-code-subscription.md) §4a), so a
+   budget could never trip; `rpmLimit`/`tpmLimit` are the real guardrail.
 2. The operator's virtual-key controller reconciles each CR against the proxy's
    admin API, authenticating with the master key named by
    `LiteLLMProxy.spec.apiAccess.masterKeyRef`. Branching is by the operator's

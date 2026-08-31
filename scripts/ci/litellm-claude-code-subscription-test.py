@@ -69,6 +69,39 @@ PLACEHOLDER_PREFIX = "sk-ant-oat"
 PLACEHOLDER = "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
 EXPECTED_UPSTREAM = "anthropic/claude-sonnet-5"
 EXPECTED_UPSTREAM_OPUS = "anthropic/claude-opus-5"
+# Zeroing input/output alone does NOT make recorded spend $0. Prompt-cache
+# pricing lives in its own fields and `_resolve_builtin_model_cost_entry`
+# (litellm utils.py) copies the built-in map's `_CACHE_PRICING_FIELDS` onto a
+# custom key, so they keep billing at the metered rate. Claude Code caches on
+# nearly every turn, so that gap alone put ~$54 of fictional recorded spend on
+# the subscription key (measured 2026-08-31: output_cost exactly $0.00, while
+# cache_read + cache_creation were the entire total). Verified end-to-end with
+# a throwaway probe: recorded spend went 6e-07 -> exactly 0 on both
+# /v1/chat/completions and /v1/messages once these five were declared. Dropping
+# any one of them silently restarts the accrual, which is why they are pinned.
+REQUIRED_ZERO_PRICE_FIELDS = (
+    "input_cost_per_token",
+    "output_cost_per_token",
+    "cache_read_input_token_cost",
+    "cache_read_input_token_cost_above_200k_tokens",
+    "cache_creation_input_token_cost",
+    "cache_creation_input_token_cost_above_1hr",
+    "cache_creation_input_token_cost_above_200k_tokens",
+)
+
+
+def _zero_price_offenders(info: dict) -> list[str]:
+    """Names of required price fields that are missing or not numeric zero.
+
+    Numeric-zero, not falsey: a missing key falls back to the built-in metered
+    map, and None would too, so both must fail.
+    """
+    bad = []
+    for field in REQUIRED_ZERO_PRICE_FIELDS:
+        v = info.get(field)
+        if v is None or type(v) not in (int, float) or v != 0:
+            bad.append(f"{field}={v!r}")
+    return bad
 # History: 10/250000 -> 300/7500000 on 2026-08-30 after measured proxy 429s
 # (~556 request-limit + ~171 token-limit in 24h); captain then raised live in
 # the LiteLLM UI to 3000/750000000 and Git was brought up to match so the
@@ -213,6 +246,13 @@ def test_model_render(cfg: dict) -> None:
         and info.get("output_cost_per_token") == 0,
         f"model_info={info!r}",
     )
+    # Cache pricing is where Claude Code's cost actually lives - see
+    # REQUIRED_ZERO_PRICE_FIELDS.
+    record(
+        "model_info_zeroes_cache_prices_not_just_input_output",
+        _zero_price_offenders(info) == [],
+        f"offenders={_zero_price_offenders(info)}",
+    )
     # Truthiness trap: 0 must remain int/float 0, not missing/None/falsey drop.
     record(
         "zero_prices_are_numeric_zero_not_none",
@@ -266,6 +306,11 @@ def test_model_render(cfg: dict) -> None:
         f"opus_api_key={(metered_opus or {}).get('litellm_params', {}).get('api_key')!r}",
     )
     oinfo = om.get("model_info") or {}
+    record(
+        "opus_model_info_zeroes_cache_prices_not_just_input_output",
+        _zero_price_offenders(oinfo) == [],
+        f"offenders={_zero_price_offenders(oinfo)}",
+    )
     record(
         "opus_model_info_declares_explicit_zero_token_prices",
         oinfo.get("input_cost_per_token") == 0

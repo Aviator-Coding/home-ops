@@ -86,3 +86,18 @@ spec:
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0
+      # Same five cache fields as the Sonnet sibling, and load-bearing for the
+      # same measured reason: zeroing only input/output leaves prompt-cache
+      # pricing to fall through to LiteLLM's built-in cost map, and cache is
+      # where essentially all of Claude Code's recorded cost lives (measured
+      # 2026-08-31 on the Sonnet key: of $54.31 recorded, output_cost was
+      # exactly $0.00 while cache_read + cache_creation were $54.31).
+      # Opus's built-in cache rates are the highest in the catalog, so omitting
+      # these here would distort recorded spend faster than on Sonnet.
+      # Mechanism, probe evidence and the end-to-end 6e-07 -> 0 verification:
+      # the runbook's §4a.
+      cache_read_input_token_cost: 0
+      cache_read_input_token_cost_above_200k_tokens: 0
+      cache_creation_input_token_cost: 0
+      cache_creation_input_token_cost_above_1hr: 0
+      cache_creation_input_token_cost_above_200k_tokens: 0

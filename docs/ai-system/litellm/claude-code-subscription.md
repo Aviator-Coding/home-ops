@@ -198,56 +198,82 @@ That function also reads `model_info` from `litellm_metadata`, which is where
 the `/v1/messages` route stores it - so the zero applies on the endpoint Claude
 Code actually uses, not just `/v1/chat/completions`.
 
-**Consequence for the CR prices:** declaring explicit `$0` remains correct - a
+**Consequence for the CR prices:** declaring explicit `$0` is correct - a
 flat-rate subscription has no per-token invoice, so LiteLLM's metered cost map
-would otherwise inflate a D4 budget with dollars nobody is charged. **Do not
-infer from that that a `maxBudget` is inert.** Live Claude Code traffic is
-`call_type` `anthropic_messages` and is priced off the built-in metered map
-instead (§4a below, ~$52 fictional and climbing), so a `maxBudget` **would**
-trip on dollars nobody is invoiced and lock the key out. Keep the calling key
-budgetless because that accounting is broken; grant this model only on a virtual
-key that carries `rpmLimit`/`tpmLimit` (the entire real guardrail). The true
-ceiling is Anthropic's own subscription rate limiting.
+would otherwise inflate a D4 budget with dollars nobody is charged. **But the
+two prices above are not the whole job:** prompt-cache pricing has its own
+fields, and until they were zeroed too they carried essentially the entire
+recorded bill (§4a). With the full set declared, recorded spend really is $0,
+so a `maxBudget` can never trip and would read as protection that does not
+exist. Grant this model only on a virtual key carrying `rpmLimit`/`tpmLimit` -
+the entire real guardrail. The true ceiling is Anthropic's own subscription
+rate limiting.
 
-### 4a. OPEN DEFECT - the `$0` is NOT reaching the route Claude Code uses
+### 4a. The `$0` needs the CACHE price fields too (fixed 2026-08-31)
 
-Measured against the production spend log on 2026-08-30 while verifying the
-Opus work, and it contradicts the paragraph above for the endpoint that matters
-most. Grouping `LiteLLM_SpendLogs` by the subscription key's alias:
+The two prices above are necessary and **not sufficient**, and the gap was
+large: this key had accrued **$54.31** of recorded spend on a model nobody is
+invoiced for. Corrected here after measuring the live spend log.
 
-| `call_type` | `model` recorded | rows | recorded spend |
-| --- | --- | --- | --- |
-| `anthropic_messages` | `anthropic/claude-sonnet-5` | 1223 | **$52.45** |
-| *(other)* | `claude-code-subscription` | 755 | $0.00 |
+**Where the money appeared to go.** Decomposing `metadata.cost_breakdown` over
+every priced row on this key:
 
-The **successful** `/v1/messages` requests - the route the `claude` CLI actually
-drives - are logged under the *upstream* id `anthropic/claude-sonnet-5`, not the
-model group, and are therefore priced from LiteLLM's built-in metered cost map
-rather than the CR's `model_info`. A sample row's
-`metadata.cost_breakdown` is fully populated (`cache_read_cost`,
-`cache_creation_cost`, …), which is the signature of LiteLLM computing the cost
-itself. The $0 rows are the failures. It is ongoing, not historical: 362 rows /
-$14.20 on 2026-08-31 alone.
+| component | recorded |
+| --- | --- |
+| `output_cost` | **$0.0000** |
+| `cache_read_cost` | $27.7977 |
+| `cache_creation_cost` | $26.5120 |
+| **total** | **$54.3097** |
 
-**No real money moves** - the caller's OAuth token still pays Anthropic, which
-§2b/§7 prove independently. What is wrong is the *accounting*: recorded spend
-on this key is fiction, and it climbs. Practical consequences:
+`output_cost` being exactly zero is the tell: the `output_cost_per_token: 0`
+above was working perfectly. **Every recorded dollar was prompt-cache cost.**
 
-- The `$0` claim in §4 and §5d holds only for the non-`anthropic_messages`
-  paths. Do not quote "spend will read $0" as a check that the feature is
-  healthy.
-- Any future `maxBudget` on this key **would** trip, on dollars nobody is
-  invoiced, and would lock the key out. The "a budget here is inert" reasoning
-  does **not** hold; keep the key budgetless because the accounting is broken,
-  not because spend is zero. `rpmLimit`/`tpmLimit` remain the real guardrail.
-- `claude-code-subscription-opus` inherits the same defect at Opus's higher
-  rate, so recorded spend will climb faster once it is in use.
+**Mechanism.** `info.extra` declared only `input_cost_per_token` and
+`output_cost_per_token`, but cache pricing lives in its own fields. On
+registration `_resolve_builtin_model_cost_entry` copies `_CACHE_PRICING_FIELDS`
+(`utils.py`) from the built-in entry onto the custom key, and built-in
+`claude-sonnet-5` declares `cache_creation_input_token_cost` 2.5e-06,
+`cache_creation_input_token_cost_above_1hr` 4e-06 and
+`cache_read_input_token_cost` 2e-07. Claude Code caches its context on almost
+every turn, so those three fields carried essentially the entire bill. The fix
+is to zero them explicitly, including the `_above_*` tiers, since Claude Code
+routinely exceeds a 200k context and caches for over an hour.
 
-**Not fixed here.** The 2026-08-30 Opus change was scoped to adding one model
-CR, and this is a pre-existing defect in how LiteLLM's passthrough
-`anthropic_messages` handler resolves `model_info` - fixing it means changing
-the existing Sonnet CR (or the proxy's pricing configuration), which is a
-separate captain decision. Filed as a finding rather than silently carried.
+**Verified end-to-end, at zero cost.** A throwaway probe model was pointed at
+the local llama.cpp backend while declaring an upstream id that *does* carry a
+built-in price (`openai/gpt-4o-mini`), so the fallback price is observable
+without ever calling a cloud provider:
+
+| probe state | `/v1/chat/completions` | `/v1/messages` |
+| --- | --- | --- |
+| input/output zeroed only | `6e-07` (all `cache_read_cost`) | `6e-07` |
+| **plus the five cache fields** | **`0`** | **`0`** |
+
+So the fix lands on both routes, and the residual goes to exactly zero. The
+probe model and its key were deleted afterwards and the rendered
+`litellm-config` hashed byte-identical to its pre-test value.
+
+**This corrects an earlier reading.** A first pass attributed the figure to the
+`anthropic_messages` route being priced from the metered map while
+`/v1/chat/completions` was fine. That was wrong: the route is irrelevant - the
+probe reproduces the identical residual on both - and the `$0` was always
+honoured for input and output. The real fault was incomplete price coverage.
+The mistaken framing survives nowhere in this document; it is recorded here only
+so the corrected mechanism is not re-litigated from the old numbers.
+
+**No real money ever moved.** The caller's OAuth token pays Anthropic
+throughout (§2b/§7). What was wrong was only the *accounting*, and the
+historical rows are not retroactively repriced - `LiteLLM_SpendLogs` stores the
+computed figure, so the ~$54 already recorded stays on this key until the 30-day
+retention window (§10 of [`request-logs.md`](request-logs.md)) ages it out.
+Expect the recorded total to keep showing that history for a while, and read
+spend on this key as $0 only for requests made **after** this change.
+
+**Consequence for `maxBudget` is unchanged.** With the cache fields zeroed a
+budget can never trip, so one would be inert; before the fix a budget would have
+tripped on fictional dollars and locked the key out. Either way a budget is the
+wrong instrument here - `rpmLimit`/`tpmLimit` stay the real guardrail, and the
+true ceiling is Anthropic's own subscription rate limiting.
 
 ---
 
@@ -282,12 +308,12 @@ asserts it directly (every allow-listed name must carry the placeholder
 `apiKey`, and none may be a metered route).
 
 It is also **the only key in that directory with no `maxBudget`**, deliberately:
-live `/v1/messages` accounting on this path is wrong (runbook §4a -
-`anthropic_messages` traffic is priced off LiteLLM's built-in metered cost map
-under the upstream id, ~$52 of fictional recorded spend and climbing), so a
-`maxBudget` **would** trip on dollars nobody is invoiced and lock the key out.
-The key stays budgetless because that accounting is broken, not because spend
-is zero. `rpmLimit` / `tpmLimit` on that CR are therefore the whole real
+its models are priced at an explicit $0 across every field including the cache
+ones (§4a), so recorded spend is $0 and any budget could never trip - a cap that
+cannot fire reads as protection that does not exist. Note this only became true
+on 2026-08-31: before the cache fields were zeroed, a budget here would have
+tripped on ~$54 of fictional spend and locked the key out. Either way a budget
+is the wrong instrument. `rpmLimit` / `tpmLimit` on that CR are therefore the whole real
 guardrail - current values, sizing history, and the captain's call that today's
 ceilings are no longer a meaningful runaway-agent guardrail all live on the CR
 itself (do not restate them here). Git is the source of truth for those numbers;
@@ -371,10 +397,12 @@ header as proxy auth and stops forwarding it upstream (`clean_headers`,
 kubectl -n ai logs deploy/litellm -c litellm --since=5m | grep claude-code-subscription
 ```
 
-Tokens, duration and the owning virtual key are the signal. Spend is *intended*
-to read `$0` (§4) but currently does not on the `/v1/messages` route the CLI
-uses - see the open defect in §4a before drawing any conclusion from a spend
-figure on this key. The same rows drive the Prometheus metrics scraped by
+Tokens, duration and the owning virtual key are the signal. Spend reads `$0` by
+design (§4), but only for requests made **after** 2026-08-31: rows recorded
+before the prompt-cache fields were zeroed carry real-looking dollars nobody was
+invoiced, and are not retroactively repriced (§4a). Read a non-zero total on this
+key as history, not as spend - and if NEW rows start carrying cost again, a cache
+price field has been dropped from a model CR. The same rows drive the Prometheus metrics scraped by
 [`app/servicemonitor.yaml`](../../../kubernetes/apps/base/ai/litellm/app/servicemonitor.yaml).
 
 ### 5e. Adding a further family (Haiku, Fable)

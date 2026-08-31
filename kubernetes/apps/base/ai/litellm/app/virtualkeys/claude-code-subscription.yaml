@@ -9,16 +9,16 @@
 # budget.
 #
 # THE ONLY KEY HERE WITH NO `maxBudget`, AND THAT IS DELIBERATE, NOT AN
-# OVERSIGHT. The model CRs are priced at an explicit $0 (see each CR's
-# `info.extra` header for why a flat-rate subscription must not be priced off
-# LiteLLM's metered cost map), but that does NOT make recorded spend always
-# $0.00: on the live Claude Code path (`/v1/messages`, call_type
-# `anthropic_messages`) spend logs are priced off the metered cost map under
-# the upstream id (~$52 fictional and climbing; runbook §4a). A maxBudget
-# would therefore trip on dollars nobody is invoiced and lock the key out, so
-# the key stays budgetless because that accounting is WRONG, not because spend
-# is zero. Rate limits are the real guardrail here, which is why both are set
-# and neither should be dropped.
+# OVERSIGHT. The model CRs are priced at an explicit $0 on EVERY field - input,
+# output, and the five prompt-cache fields (see each CR's `info.extra` header;
+# zeroing only input/output left ~$54 of fictional recorded spend on this key
+# until 2026-08-31, because Claude Code's cost is almost entirely cache). With
+# the full set declared, recorded spend is $0.00 and any maxBudget could never
+# trip - a cap that cannot fire reads as protection that does not exist. Rate
+# limits are the real guardrail here, which is why both are set and neither
+# should be dropped. If a future change ever drops one of those cache zeros,
+# recorded spend starts climbing again and a budget added in response would
+# then lock the key out on dollars nobody is invoiced.
 #
 # Sizing history: raised from 10 rpm / 250000 tpm to 300 rpm / 7500000 tpm on
 # 2026-08-30 after measured rate-limiting - LiteLLM logs showed ~556

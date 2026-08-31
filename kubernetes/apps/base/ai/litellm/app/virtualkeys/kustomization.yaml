@@ -16,11 +16,11 @@ kind: Kustomization
 # Every key here carries a `maxBudget` except `claude-code-subscription.yaml`,
 # whose allow-list names the two subscription pass-through models
 # (`claude-code-subscription` and `claude-code-subscription-opus`). It stays
-# budgetless because live `/v1/messages` accounting is wrong (runbook §4a:
-# anthropic_messages traffic is priced off the metered cost map, ~$52 fictional
-# and climbing), so a maxBudget would trip on dollars nobody is invoiced and
-# lock the key out. Rate limits are its entire real guardrail. Read that file's
-# header before copying its shape.
+# budgetless because those models are zero-priced across every field including
+# the five prompt-cache ones (runbook §4a - zeroing only input/output left ~$54
+# of fictional recorded spend until 2026-08-31), so recorded spend is $0 and a
+# maxBudget could never trip. Rate limits are its entire real guardrail. Read
+# that file's header before copying its shape.
 resources:
   - ./claude-code-subscription.yaml
   - ./demo.yaml
