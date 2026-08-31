@@ -180,9 +180,10 @@ Additive, alongside the running plugins:
 ### 3.2 The invariant, enforced structurally
 
 This is the part worth having. Today `gpu.intel.com/xe` is a **pooled token**: it means "an
-xe-bound Intel GPU", and the B70 and the iGPUs both answer to it. That is why jellyfin,
-plex and playwright are sitting on the B70 right now, and why the changelog has a standing
-`allowIDs: "0xa7a0"` follow-up to eventually fence them off. The pool cannot tell a 32 GiB
+xe-bound Intel GPU", and without an `allowIDs` fence the B70 and the iGPUs both answer to
+it. That is why light QSV/browser consumers (plex, playwright; jellyfin until its 2026-08-30
+retirement) could land on the B70, and why the changelog carried a standing
+`allowIDs: "0xa7a0"` follow-up (applied 2026-08-26). The pool cannot tell a 32 GiB
 discrete card from an integrated one.
 
 DRA replaces the token with **per-device identity**. The driver publishes each physical GPU
