@@ -15,15 +15,19 @@
 # protection that does not exist. Rate limits are therefore the whole guardrail
 # here, which is why both are set and neither should be dropped.
 #
-# Sizing: one interactive CLI user, same order of magnitude as the
-# `opencode.yaml` workspace key (8 rpm / 200000 tpm) and nudged up because
-# Claude Code's agentic loop issues several requests per human turn - each tool
-# call is its own round trip, so request count tracks tool use, not typing
-# speed. These numbers are a runaway-agent guardrail, not a throughput target:
-# the real ceiling is Anthropic's own rate limiting against the caller's
-# personal subscription, which this proxy neither sees nor can raise. If a
-# normal session 429s here, raise these two numbers - there is no budget to
-# raise, and nothing in this file affects what the subscription is charged.
+# Sizing: raised from 10 to 300 rpm on 2026-08-30 after measured rate-limiting
+# - LiteLLM logs showed hundreds of 429s/24h at 10 rpm ("Limit type: requests.
+# Current limit: 10") that presented to the client as timeouts, since a
+# throttled request that retries looks like a hang rather than an explicit
+# 429. Claude Code's agentic loop issues several requests per human turn -
+# each tool call is its own round trip, so request count tracks tool use, not
+# typing speed - which is why the old single-interactive-user sizing (in line
+# with `opencode.yaml`'s 8 rpm) undercounted real usage. These numbers are a
+# runaway-agent guardrail, not a throughput target: the real ceiling is
+# Anthropic's own rate limiting against the caller's personal subscription,
+# which this proxy neither sees nor can raise. If a normal session 429s here,
+# raise these two numbers - there is no budget to raise, and nothing in this
+# file affects what the subscription is charged.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -35,7 +39,7 @@ spec:
   secretKey: key
   models:
     - claude-code-subscription
-  rpmLimit: 10
+  rpmLimit: 300
   tpmLimit: 250000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
