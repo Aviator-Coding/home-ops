@@ -229,8 +229,9 @@ on this key is fiction, and it climbs. Practical consequences:
   paths. Do not quote "spend will read $0" as a check that the feature is
   healthy.
 - Any future `maxBudget` on this key **would** trip, on dollars nobody is
-  invoiced - so the "a budget here is inert" reasoning in §5b is currently true
-  for the wrong reason. Leave the key budgetless regardless.
+  invoiced, and would lock the key out. The "a budget here is inert" reasoning
+  does **not** hold; keep the key budgetless because the accounting is broken,
+  not because spend is zero. `rpmLimit`/`tpmLimit` remain the real guardrail.
 - `claude-code-subscription-opus` inherits the same defect at Opus's higher
   rate, so recorded spend will climb faster once it is in use.
 
@@ -273,19 +274,22 @@ asserts it directly (every allow-listed name must carry the placeholder
 `apiKey`, and none may be a metered route).
 
 It is also **the only key in that directory with no `maxBudget`**, deliberately:
-per §4 its model is priced at $0, so any budget could never trip and would read
-as protection that does not exist. `rpmLimit` / `tpmLimit` on that CR are
-therefore the whole guardrail - current values, sizing history, and the
-captain's call that today's ceilings are no longer a meaningful runaway-agent
-guardrail all live on the CR itself (do not restate them here). Git is the
-source of truth for those numbers; the LiteLLM UI is not - a live UI edit is
-reverted on the next operator reconcile unless the CR is updated first. The
-real ceiling the proxy cannot see or raise is Anthropic's own rate limiting
-against the caller's personal subscription. There is no budget to raise, and
-nothing in that file changes what the subscription is charged. The
-`LiteLLMVirtualKey` is server-side state reconciled by litellm-operator, so a
-limit change only takes effect on the live key after merge + operator
-reconcile.
+live `/v1/messages` accounting on this path is wrong (runbook §4a -
+`anthropic_messages` traffic is priced off LiteLLM's built-in metered cost map
+under the upstream id, ~$52 of fictional recorded spend and climbing), so a
+`maxBudget` **would** trip on dollars nobody is invoiced and lock the key out.
+The key stays budgetless because that accounting is broken, not because spend
+is zero. `rpmLimit` / `tpmLimit` on that CR are therefore the whole real
+guardrail - current values, sizing history, and the captain's call that today's
+ceilings are no longer a meaningful runaway-agent guardrail all live on the CR
+itself (do not restate them here). Git is the source of truth for those numbers;
+the LiteLLM UI is not - a live UI edit is reverted on the next operator
+reconcile unless the CR is updated first. The real ceiling the proxy cannot see
+or raise is Anthropic's own rate limiting against the caller's personal
+subscription. There is no budget to raise, and nothing in that file changes what
+the subscription is charged. The `LiteLLMVirtualKey` is server-side state
+reconciled by litellm-operator, so a limit change only takes effect on the live
+key after merge + operator reconcile.
 
 The operator mints the key into a Secret and a `PushSecret` mirrors it to
 1Password (`litellm-consumer-claude-code-subscription`). Read it from either:

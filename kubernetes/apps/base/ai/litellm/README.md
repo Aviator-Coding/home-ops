@@ -200,11 +200,14 @@ the household's metered account. The placeholder forces a clean `401` instead.
 **4. `$0` prices are the exception that proves this directory's pricing rule.**
 Prices must match the invoice; this model's invoice is flat-rate, so the metered
 cost map is what would lie. Explicit `0` is honoured (`is not None`, not
-truthiness). Consequence: `maxBudget` cannot constrain it, which is why
+truthiness). That CR-level zero is still correct, but it does **not** make a
+`maxBudget` inert: live `/v1/messages` accounting prices successful traffic off
+the metered cost map (~$52 fictional and climbing; runbook §4a), so a budget
+would trip on dollars nobody is invoiced and lock the key out. That is why
 [`app/virtualkeys/claude-code-subscription.yaml`](app/virtualkeys/claude-code-subscription.yaml)
-is the only key in that directory carrying **no** budget - `rpmLimit`/`tpmLimit`
-are its entire guardrail, and a budget there would read as protection that
-cannot trip.
+is the only key in that directory carrying **no** budget - keep it budgetless
+because the accounting is wrong, and treat `rpmLimit`/`tpmLimit` as the entire
+real guardrail.
 
 **5. Opus is a SECOND CR, never a per-key alias of the metered
 `claude-opus-5`.** Claude Code resolves a by-family model request (a subagent

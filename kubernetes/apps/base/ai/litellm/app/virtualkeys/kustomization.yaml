@@ -14,8 +14,12 @@ kind: Kustomization
 # so the credential itself is preserved (same property the old script had).
 #
 # Every key here carries a `maxBudget` except `claude-code-subscription.yaml`,
-# whose single model is subscription-priced at an explicit $0 - a budget on it
-# could never trip, so rate limits are its entire guardrail. Read that file's
+# whose allow-list names the two subscription pass-through models
+# (`claude-code-subscription` and `claude-code-subscription-opus`). It stays
+# budgetless because live `/v1/messages` accounting is wrong (runbook §4a:
+# anthropic_messages traffic is priced off the metered cost map, ~$52 fictional
+# and climbing), so a maxBudget would trip on dollars nobody is invoiced and
+# lock the key out. Rate limits are its entire real guardrail. Read that file's
 # header before copying its shape.
 resources:
   - ./claude-code-subscription.yaml
