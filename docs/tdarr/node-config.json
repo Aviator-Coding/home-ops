@@ -44,20 +44,76 @@
     "maxGpuWorkers": 100,
     "nodeEngine": "nodejs",
     "nodeName": "talos-3",
-    "nodePaused": true,
+    "nodePaused": false,
     "nodeTags": "mapped",
     "priority": 0,
     "processPriority": "normal",
     "processes": {
+      "14473": {
+        "execPath": "/app/Tdarr_Node/runtime/Tdarr_Node_Runtime",
+        "filename": "/app/Tdarr_Node/srcug/node/workers/worker1/index.js",
+        "lastUpdateTime": 1788219185118,
+        "memory": {
+          "arrayBuffers": 93897,
+          "external": 3814168,
+          "heapTotal": 33153024,
+          "heapUsed": 17461584,
+          "rss": 87896064
+        },
+        "pid": 14473,
+        "ppid": 316
+      },
+      "14511": {
+        "execPath": "/app/Tdarr_Node/runtime/Tdarr_Node_Runtime",
+        "filename": "/app/Tdarr_Node/srcug/node/workers/worker2.js",
+        "lastUpdateTime": 1788219184833,
+        "memory": {
+          "arrayBuffers": 23228,
+          "external": 1791922,
+          "heapTotal": 8327168,
+          "heapUsed": 4807856,
+          "rss": 48963584
+        },
+        "pid": 14511,
+        "ppid": 14473
+      },
+      "14590": {
+        "execPath": "/app/Tdarr_Node/runtime/Tdarr_Node_Runtime",
+        "filename": "/app/Tdarr_Node/srcug/commonModules/fileScanner/runExifToolSub.js launching...",
+        "lastUpdateTime": 1788219181694,
+        "memory": {
+          "arrayBuffers": 0,
+          "external": 0,
+          "heapTotal": 0,
+          "heapUsed": 0,
+          "rss": 0
+        },
+        "pid": 14590,
+        "ppid": 14577
+      },
+      "14603": {
+        "execPath": "/app/Tdarr_Node/runtime/Tdarr_Node_Runtime",
+        "filename": "/app/Tdarr_Node/srcug/commonModules/fileScanner/runExifToolSub.js launching...",
+        "lastUpdateTime": 1788219182061,
+        "memory": {
+          "arrayBuffers": 0,
+          "external": 0,
+          "heapTotal": 0,
+          "heapUsed": 0,
+          "rss": 0
+        },
+        "pid": 14603,
+        "ppid": 14577
+      },
       "316": {
         "execPath": "/app/Tdarr_Node/runtime/Tdarr_Node_Runtime",
         "filename": "/app/Tdarr_Node/srcug/node/main.js",
-        "lastUpdateTime": 1788217205064,
+        "lastUpdateTime": 1788219184932,
         "memory": {
-          "arrayBuffers": 1146174,
-          "external": 4852516,
+          "arrayBuffers": 1187760,
+          "external": 4894102,
           "heapTotal": 28839936,
-          "heapUsed": 20240696,
+          "heapUsed": 21207336,
           "rss": 111509504
         },
         "pid": 316,
@@ -74,14 +130,14 @@
     "remoteAddress": "10.42.1.98",
     "resStats": {
       "os": {
-        "cpuPerc": "7.10",
+        "cpuPerc": "11.78",
         "memTotalGB": "94.0",
-        "memUsedGB": "41.3"
+        "memUsedGB": "42.6"
       },
       "process": {
         "heapTotalMB": "27.5",
-        "heapUsedMB": "19.2",
-        "uptime": 201937
+        "heapUsedMB": "20.2",
+        "uptime": 203918
       }
     },
     "schedule": [
@@ -265,6 +321,39 @@
       "transcodecpu": 1,
       "transcodegpu": 1
     },
-    "workers": {}
+    "workers": {
+      "left-lamb": {
+        "CLIType": "ffmpeg",
+        "ETA": "0:01:46",
+        "_id": "left-lamb",
+        "bypassWorkerLimits": false,
+        "created": true,
+        "estSize": 0,
+        "file": "/media/Movies/Destination Wedding (2018)/Destination Wedding (2018) {imdb-tt6987770} [][WEBDL-1080p][AC3 5.1][h264]-CMRG.mkv",
+        "fps": 1106,
+        "idle": false,
+        "isFlowWorker": false,
+        "job": {
+          "fileId": "XPkqLXmjD()2.86.01()healthcheck()73nnmV4iF()1788219179145.txt",
+          "footprintId": "XPkqLXmjD",
+          "jobId": "73nnmV4iF",
+          "start": 1788219179145,
+          "type": "healthcheck",
+          "version": "2.86.01"
+        },
+        "lastPluginDetails": {},
+        "originalfileSizeInGbytes": 0.6146940984725953,
+        "outputFileSizeInGbytes": 0,
+        "percentage": 4.42,
+        "preset": "-stats -v error , -f null -max_muxing_queue_size 9999 ",
+        "sourcefileSizeInGbytes": 0.6002872055396438,
+        "startTime": 1788219179807,
+        "status": "Processing",
+        "statusTs": 1788219184851,
+        "workDir": "",
+        "workerLog": "",
+        "workerType": "healthcheckcpu"
+      }
+    }
   }
 }

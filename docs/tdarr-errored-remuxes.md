@@ -400,3 +400,49 @@ An eighth, `Johnny Mnemonic (1995)`, was rewritten in place on 2026-08-30 by a
 bulk UI requeue (7.02 GB h264 -> 1.41 GB AV1). Lossy and irreversible.
 
 **Never bulk-requeue.** Tdarr rewrites in place.
+
+---
+
+## 5. What lives only in Tdarr's database
+
+None of the following is GitOps. It does not survive a rebuild of the
+`tdarr-config` PVC and Flux cannot see or restore it. `docs/tdarr/` holds
+recovery copies.
+
+| Change | Where | Recovery copy |
+|---|---|---|
+| `processTranscodes: false` on Series | `LibrarySettingsJSONDB` `j5g_Es7sD` | this document, §1.3 |
+| `guard_scope` node + `input1` rewire | `FlowsJSONDB` `movies_av1_nvenc_v1` | `docs/tdarr/flow-*.json`, `flow-nodes/guard_scope.js` |
+| 5 nodes rekeyed `function` -> `code` | same flow | `docs/tdarr/flow-*.json` |
+| `cargs22/23/24` encoder-aware | same flow | `flow-nodes/cargs_template.js` |
+| `sub22/23/24` stream conform | same flow | `flow-nodes/subconform.js` |
+
+Restore with `POST /api/v2/cruddb`:
+
+```json
+{"data":{"collection":"FlowsJSONDB","mode":"update","docID":"movies_av1_nvenc_v1",
+         "obj":{"_id":"movies_av1_nvenc_v1","flowPlugins":[...],"flowEdges":[...]}}}
+```
+
+taking `flowPlugins` / `flowEdges` from
+`docs/tdarr/flow-movies_av1_nvenc_v1.after.json`. `librariesToNotProcess` was
+left on the node untouched; the node config itself was not changed
+(`docs/tdarr/node-config.json` is a current snapshot, for reference only).
+
+### Live state at the end of this work
+
+```
+libraries   j5g_Es7sD  Series      processTranscodes=False  processHealthChecks=True
+            gEUZf7Nx6  Movies AV1  processTranscodes=True   processHealthChecks=True
+flow        movies_av1_nvenc_v1   38 nodes / 62 edges
+            12 customFunction nodes, 0 still on the dead "function" key
+node        talos-3  unpaused  workerLimits {gpu 1, cpu 1, hc-cpu 1, hc-gpu 1}
+queues      table1 (transcode) 0     table4 (health check) 0
+error table 45  =  44 Movies + 1 Series
+```
+
+The error table fell from 47 to 45 because the two low-value verification files
+transcoded successfully. It will keep falling as the 40 files that were only
+ever blocked by the CPU-argument bug are retried. The 7 masters remain parked
+and were never queued; all seven verified byte-identical (size, mtime and inode
+unchanged) at the end of this work.

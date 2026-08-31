@@ -290,11 +290,12 @@ Health checks and folder scanning stay enabled on Series; only transcoding is
 refused. `librariesToNotProcess` was left in place on the node but is
 documented above as decorative - do not add to it and do not trust it.
 
-**Follow-up: the errored 4K remux masters.** As of 2026-08-31 the error table
-(`table3`) holds **47** files - 46 Movies and 1 Series - not the 8 recorded
-before 2026-08-29. Of those 47, **7** are the original 21-67 GB 2160p DV/HDR10
-remux masters and **40** are collateral from the CPU-worker argument bug fixed
-in the same change. An eighth master, `Johnny Mnemonic (1995)`, was rewritten
+**Follow-up: the errored 4K remux masters.** The error table (`table3`) held
+**47** files on 2026-08-31 - 46 Movies and 1 Series - not the 8 recorded before
+2026-08-29. Of those 47, **7** are the original 21-67 GB 2160p DV/HDR10 remux
+masters and **40** were collateral from the CPU-worker argument bug, now fixed;
+it stands at 45 after two of that collateral transcoded successfully as
+verification, and will keep falling as the rest are retried. An eighth master, `Johnny Mnemonic (1995)`, was rewritten
 in place by a bulk UI requeue on 2026-08-30 - lossily and irreversibly. Tdarr
 rewrites in place, so **do not bulk-requeue**. Root causes and the
 subtitle-preserving path are in
