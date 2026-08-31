@@ -68,8 +68,8 @@ spec:
   rules:
     # CLOSES the unused built-in `/anthropic/{endpoint}` pass-through on the
     # GATEWAY/HOSTNAME path ONLY (https://litellm.${SECRET_DOMAIN}/anthropic/...).
-    # docs/ai-system/litellm/README.md#anthropic-pass-through-route. That route
-    # resolves a SERVER-SIDE Anthropic credential (falling back to the
+    # docs/ai-system/litellm/README.md#anthropic-pass-through-route-closed-2026-08-31.
+    # That route resolves a SERVER-SIDE Anthropic credential (falling back to the
     # household ANTHROPIC_API_KEY the pod holds) and is not gated by any
     # virtual key's model allow-list, so any key valid on this proxy could in
     # principle reach it - the exact hole the subscription-route invariant
