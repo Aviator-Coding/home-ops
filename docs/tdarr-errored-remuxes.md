@@ -446,3 +446,21 @@ transcoded successfully. It will keep falling as the 40 files that were only
 ever blocked by the CPU-argument bug are retried. The 7 masters remain parked
 and were never queued; all seven verified byte-identical (size, mtime and inode
 unchanged) at the end of this work.
+
+### Files this work rewrote
+
+Two low-value, non-master files were transcoded as the Phase 2 verification the
+work required. Tdarr rewrites in place, so both are now AV1 and the originals
+are gone. Neither is one of the seven.
+
+| File | Before | After | Path |
+|---|---|---|---|
+| SPF-18 (2017) | 4,238,088,154 B h264 | 1,504,164,956 B av1 (35.5%) | CPU / `libsvtav1` |
+| Destination Wedding (2018) | 3,254,265,921 B h264 | 644,553,479 B av1 (19.8%) | GPU / `av1_qsv` |
+
+Both kept every stream (SPF-18: 1 video, 1 audio, 5 subrip, unchanged) and both
+passed the now-live size and duration guards before replacement.
+
+A third file, a synthetic 30-second clip, was built in `/temp/flowtest` to prove
+the subtitle conversion and was deleted afterwards along with its temporary
+library. Nothing under `/media` was created or deleted by this work.
