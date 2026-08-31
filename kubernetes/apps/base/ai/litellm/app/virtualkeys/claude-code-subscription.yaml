@@ -15,7 +15,7 @@
 # protection that does not exist. Rate limits are therefore the whole guardrail
 # here, which is why both are set and neither should be dropped.
 #
-# Sizing: raised from 10 rpm / 250000 tpm to 300 rpm / 7500000 tpm on
+# Sizing history: raised from 10 rpm / 250000 tpm to 300 rpm / 7500000 tpm on
 # 2026-08-30 after measured rate-limiting - LiteLLM logs showed ~556
 # request-limit 429s and ~171 token-limit 429s in 24 hours at the old values
 # ("Limit type: requests. Current limit: 10" and "Limit type: tokens. Current
@@ -26,13 +26,22 @@
 # request count tracks tool use, not typing speed) and each of those requests
 # can carry a large context (50-200k tokens), so raising rpm alone without a
 # proportional tpm increase just re-throttles at the token ceiling instead -
-# 7500000 preserves the same tokens-per-request headroom the key had at
-# 10 rpm / 250000 tpm. These numbers are a runaway-agent guardrail, not a
-# throughput target: the real ceiling is Anthropic's own rate limiting against
-# the caller's personal subscription, which this proxy neither sees nor can
-# raise. If a normal session 429s here, raise these two numbers - there is no
-# budget to raise, and nothing in this file affects what the subscription is
-# charged.
+# 7500000 preserved the same tokens-per-request headroom the key had at
+# 10 rpm / 250000 tpm.
+#
+# The captain then raised both again, directly in the LiteLLM UI, to
+# 3000 rpm / 750000000 tpm. This file is being updated to match that live
+# state so Git is the source of truth and the operator does not silently
+# revert the captain's change on its next reconcile - the UI is NOT the
+# source of truth; any future change to these numbers belongs here, in Git.
+#
+# Caveat, stated rather than solved here: at 750000000 tpm these limits are
+# no longer a meaningful runaway-agent guardrail, which is the whole reason
+# rate limits exist on this budget-less key (see above). That is the
+# captain's call and it stands. The real ceiling is now Anthropic's own rate
+# limiting against the caller's personal subscription, which this proxy
+# neither sees nor can raise - and unlike the guardrail these numbers used to
+# provide, that ceiling was never something this file controlled anyway.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -44,8 +53,8 @@ spec:
   secretKey: key
   models:
     - claude-code-subscription
-  rpmLimit: 300
-  tpmLimit: 7500000
+  rpmLimit: 3000
+  tpmLimit: 750000000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item
