@@ -27,6 +27,19 @@ spec:
     # Deterministic, derived from (scheduleUID, slot) - decorrelates the actual
     # firing instant on top of the hashed minute.
     jitter: 5m
+    # Without this, an unset timezone makes the operator evaluate the cron
+    # literally as UTC, while VolSync's Go scheduler honours the process TZ -
+    # America/New_York, injected cluster-wide by the k8tz mutating webhook
+    # (system-controller/k8tz). The two engines then silently disagree about
+    # what these hour numbers mean. Today that accidentally still keeps the
+    # ODD/EVEN 4-hour stagger above intact (both offsets are multiples of the
+    # 4-hour period), but the offset between UTC and America/New_York changes
+    # by exactly 1 hour at every US DST transition, so it does NOT keep working
+    # after 2026-11-01 (EST) - see ../Readme.md "Timezone: kopiur vs VolSync"
+    # for the measured collision. Pinning both engines to the same IANA zone
+    # VolSync already runs in makes the written cron mean what a human reading
+    # it expects, and holds the 1-hour stagger constant across DST.
+    timezone: "${KOPIUR_SCHEDULE_TIMEZONE:-America/New_York}"
   # See ../ceph/snapshotpolicy.yaml for why this is pinned rather than defaulted.
   deletion:
     onScheduleDelete: Retain

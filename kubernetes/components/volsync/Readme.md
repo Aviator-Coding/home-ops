@@ -80,11 +80,48 @@ and `kubernetes/apps/main/selfhosted/paperless-ngx.yaml` (`paperless-ngx-media`)
 in the same namespace - three movers snapshotting the same Ceph pool at the same minute
 is the one avoidable way to make backups slow.
 
+## Timezone: VolSync vs kopiur
+
+**Every cron schedule in this component is evaluated in `America/New_York`,
+not UTC.** The cluster-wide `k8tz` mutating webhook (`system-controller/k8tz`,
+`failurePolicy: Fail`) injects `TZ=America/New_York` plus
+`/etc/localtime`/`/usr/share/zoneinfo` into essentially every pod, and
+VolSync's Go scheduler honours the process `TZ` - so a `VOLSYNC_SCHEDULE_*`
+hour is a **local** hour, and its actual UTC firing time shifts by exactly one
+hour at every US DST transition (e.g. `0 */4 * * *` fires at UTC
+`0,4,8,12,16,20` in EDT/summer and `1,5,9,13,17,21` in EST/winter).
+
+kopiur (`kubernetes/components/kopiur/`) receives the identical injected `TZ`
+from the same `k8tz` webhook but **its operator resolves its own timezone and
+defaults to UTC regardless** - it silently ignores `k8tz` unless
+`spec.schedule.timezone` is set on the `SnapshotSchedule`. Before 2026-08-31
+that field was unset, so every kopiur cron hour was a literal UTC hour while
+every VolSync cron hour was an `America/New_York` local hour - two engines
+protecting the same claim, disagreeing about what the hour numbers meant.
+
+The ceph and r2 hour offsets in this component (and in kopiur's own
+`ceph/`/`r2/` schedules) are **deliberate**: they exist so the two engines
+never fire on the same claim in the same UTC hour. With kopiur on literal UTC,
+that stagger held only because `4 mod 4 == 0` in EDT - it would have collided
+on all 29 dual-engine claims at the 2026-11-01 DST transition. kopiur's
+`SnapshotSchedule`s now set `spec.schedule.timezone` (via
+`KOPIUR_SCHEDULE_TIMEZONE`, defaulting to `America/New_York`) to match
+VolSync, so both engines shift together across DST and the stagger holds in
+every season. Full measurement, arithmetic, and the resulting hour tables:
+`kubernetes/components/kopiur/Readme.md` "Timezone: kopiur vs VolSync".
+
+**When changing any `VOLSYNC_SCHEDULE_*` or `KOPIUR_SCHEDULE_*` value, treat
+the written hour as `America/New_York` local time for both engines**, and
+re-check that the two engines' hours still differ in both DST seasons before
+committing - not just in whichever season it is today.
+
 ## Backup Schedules & Execution
+
+Hours below are **America/New_York local** (see [Timezone: VolSync vs kopiur](#timezone-volsync-vs-kopiur) above) - not UTC.
 
 ### 1. Local Ceph (`ceph/`)
 - **Schedule**: `0 */4 * * *` (Every 4 hours at minute 0)
-- **Frequency**: **EVERY 4 HOURS** (00:00, 04:00, 08:00, 12:00, 16:00, 20:00)
+- **Frequency**: **EVERY 4 HOURS** (local 00:00, 04:00, 08:00, 12:00, 16:00, 20:00)
 - **Process**:
   - Takes snapshot of `${APP}` PVC
   - Uploads to local Ceph S3 bucket
@@ -93,7 +130,7 @@ is the one avoidable way to make backups slow.
 
 ### 2. Remote NAS MinIO (`minio/`)
 - **Schedule**: `30 */6 * * *` (Every 6 hours at minute 30)
-- **Frequency**: **EVERY 6 HOURS** (00:30, 06:30, 12:30, 18:30)
+- **Frequency**: **EVERY 6 HOURS** (local 00:30, 06:30, 12:30, 18:30)
 - **Process**:
   - Takes snapshot of `${APP}` PVC
   - Uploads to MinIO S3 bucket at `s3://bucket/path/${APP}/`
@@ -101,8 +138,8 @@ is the one avoidable way to make backups slow.
   - Prunes old backups every 14 days
 
 ### 3. Cloudflare R2 (`r2/`)
-- **Schedule**: `0 2 * * *` (Daily at 2:00 AM)
-- **Frequency**: **DAILY at 02:00**
+- **Schedule**: `0 2 * * *` (Daily at 2:00 AM local)
+- **Frequency**: **DAILY at local 02:00**
 - **Process**:
   - Takes snapshot of `${APP}` PVC
   - Uploads to Cloudflare R2 bucket
@@ -239,7 +276,8 @@ drift trap in `AGENTS.md`).
 
 ## Daily Timeline Example
 
-With per-app schedules (31 Flux Kustomizations include this component):
+With per-app schedules (31 Flux Kustomizations include this component).
+Times are America/New_York local (see [Timezone: VolSync vs kopiur](#timezone-volsync-vs-kopiur)):
 
 ```
 00:00 ──── [Ceph] 4-hour backup (apps at :00) ──── [MinIO] 6-hour backup (apps at :00) ─────

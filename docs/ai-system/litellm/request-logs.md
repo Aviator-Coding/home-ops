@@ -294,8 +294,10 @@ the job on the default `1d` interval (`maximum_spend_logs_retention_interval`).
 on `postgres-17` exactly, so logged prompt/response content does not outlive
 what already rolls off that backup target (boundary detail in section 5).
 Verified on the pinned v1.98.0 image that `duration_in_seconds("30d") == 2592000`
-(exactly 30 days); `"1mo"` parses to 31 days and would outlive the backup
-window, which is why it was not used.
+(exactly 30 days). `"1mo"` is calendar-relative (same wall-clock day next
+month), so on a Jan 1 clock it is 31 days and would outlive the backup window;
+on Aug 31 it collapses to exactly 30d. Prefer the fixed `30d` unit so retention
+never depends on the day the pruner runs.
 
 **Tradeoff, stated plainly.** The pruner deletes whole `LiteLLM_SpendLogs` rows,
 so per-request **cost history** is deleted along with the content. v1.98.0 has
