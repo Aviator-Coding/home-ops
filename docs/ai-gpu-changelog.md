@@ -60,6 +60,53 @@ Change · Why · Evidence · Risk/rollback · Verify
 
 ---
 
+## [2026-08-31] Reconcile the undeclared `devic.es/b70` on `tdarr-tdarr-node`
+
+**Change.** Removed `devic.es/b70` from the LIVE `tdarr-tdarr-node` Deployment with a
+merge patch, so the live object matches Git. No manifest changed: Git already declared
+`devic.es/b70-vaapi` alone, and that is now what runs. This is a live-cluster action, not
+a GitOps change - a rebuild reproduces the correct state on its own.
+
+**Why.** Git declared one GPU resource; the live Deployment carried two. This is the
+documented "Helm cannot un-set a field it never set" drift (see `AGENTS.md`): a hand
+`kubectl patch` - almost certainly left behind by the 2026-08-29 VA-API A-B-A debugging -
+survives every reconcile, and Flux reports `Ready=True` throughout. Undeclared state on
+the one GPU consumer that rewrites irreplaceable masters is worth closing even when it is
+currently harmless.
+
+**Evidence the extra resource was vestigial, not load-bearing.** The direction was chosen
+from measurement, not convention:
+
+- Both groups mount the SAME physical device. Inside the two-resource pod, `card0` and
+  `card1` were both `226:1`, and `renderD128` and `renderD129` were both `226:129`. The
+  `b70` group only adds *renamed aliases* of nodes `b70-vaapi` already provides.
+- The kernel's own canonical names are the `b70-vaapi` ones: `/sys/dev/char/226:1/uevent`
+  reports `DEVNAME=dri/card1`, `226:129` reports `dri/renderD129`. So `renderD128` worked
+  only *because* `renderD129` was present for libdrm to reopen - `b70` was never what made
+  VA-API work.
+- A scratch pod holding **only** `devic.es/b70-vaapi` (same image, same node) ran a real
+  hardware `av1_qsv` encode to completion with **no device argument** - the way Tdarr
+  invokes ffmpeg, which passes no `/dev/dri` path at all (confirmed: zero `/dev/dri`,
+  `-hwaccel` or `qsv_device` strings in any job report). oneVPL auto-discovery finds
+  `renderD129` unaided. `vainfo` on `renderD128` in that pod correctly failed.
+- It really is the B70, not the iGPU: the probe device advertises
+  `VAProfileAV1Profile0 : VAEntrypointEncSlice`, and AV1 **encode** is Arc-only.
+- Capacity was never the issue either way (`devic.es/b70: 99`), so nothing was starved.
+
+**Risk / rollback.** Low. Re-add with
+`kubectl -n media patch deploy tdarr-tdarr-node --type=strategic -p` setting
+`devic.es/b70: 1` back on the container. Nothing in Git changes in either direction, and
+`scripts/ci/b70-vaapi-tdarr-test.py` already asserts tdarr-node must NOT request the
+renamed `devic.es/b70` - so declaring it in Git was never the available option.
+
+**Verify.** After the rollout the pod carries only `card1` + `renderD129`; the node's own
+startup encoder probe reports `av1_qsv-true-true` (enabled AND working); and a real Tdarr
+GPU transcode completed on the `av1_qsv` rung. Allocatable capacity is still not proof -
+use the VA-API check in
+[`media-stack.md`](./media-stack.md#verifying-va-api-after-a-gpu-change).
+
+---
+
 ## [2026-08-29] Add `devic.es/b70-vaapi` so VA-API can use the B70 again
 
 **Change.** Added a second `generic-device-plugin` group, `b70-vaapi`, exposing the same
