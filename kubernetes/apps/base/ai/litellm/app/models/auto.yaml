@@ -38,11 +38,17 @@ spec:
       complexity_router_config:
         # Local-first: the two cheap tiers never leave the cluster. Only work the
         # classifier judges genuinely hard reaches a paid API.
+        # RENAMED 2026-08-31 (captain decision, Alternative B of
+        # data/homeops-claude-code-passthrough-design/report.md): these must
+        # keep pointing at the METERED CRs (`-metered` suffix), never the
+        # natural `claude-sonnet-5`/`claude-opus-5` names, which now belong to
+        # the Claude Code subscription pass-through and hold no credential of
+        # their own - routing tiers there would 401 every classified request.
         tiers:
           SIMPLE: chat-local
           MEDIUM: chat-local
-          COMPLEX: claude-sonnet-5
-          REASONING: claude-opus-5
+          COMPLEX: claude-sonnet-5-metered
+          REASONING: claude-opus-5-metered
 
         # -- Classifier: LLM, on the LOCAL model --
         # `heuristic` (the upstream default) is the rule-based scorer the

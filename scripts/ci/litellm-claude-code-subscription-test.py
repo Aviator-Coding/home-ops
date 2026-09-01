@@ -3,8 +3,15 @@
 
 Renders the litellm-operator CR surface the way the operator does in file mode
 (same approach as litellm-fallback-chain-test.py / litellm-auto-router-test.py),
-then asserts the captain-approved semantics for
-`claude-code-subscription` (2026-08-27):
+then asserts the captain-approved semantics for the pass-through models,
+`claude-sonnet-5` and `claude-opus-5` (2026-08-27; RENAMED 2026-08-31 from
+`claude-code-subscription`/`claude-code-subscription-opus` to the natural
+names - captain decision, Alternative B of
+data/homeops-claude-code-passthrough-design/report.md - freeing those names
+from the formerly-metered CRs, which moved to `claude-sonnet-5-metered` /
+`claude-opus-5-metered`). The dedicated virtual key KEEPS its original name,
+alias and Secret (`claude-code-subscription`) - only the two models it is
+scoped to were renamed:
 
   1. Model CRs (Sonnet + Opus) are rendered into model_list with the matching
      anthropic/claude-*-5 upstream, a non-secret sk-ant-oat placeholder
@@ -26,7 +33,11 @@ then asserts the captain-approved semantics for
        - omitting api_key is NOT how credential-less models work
          (get_api_key(None) falls back to ANTHROPIC_API_KEY env)
   8. Client runbook doc is a published contract (required env vars +
-     x-litellm-api-key header guidance).
+     x-litellm-api-key header guidance) that no longer requires the
+     ANTHROPIC_DEFAULT_OPUS_MODEL/ANTHROPIC_DEFAULT_SONNET_MODEL overrides -
+     the natural names ARE the pass-through now - and documents the metered
+     admin escape hatch (`claude-sonnet-5-metered`/`claude-opus-5-metered`)
+     plus the deliberate 401 an admin gets asking for the bare name instead.
 
 This is intentionally NOT a source-grep test: assertions are on the operator
 render output, CR semantic model, kustomize consumer output, and (when
@@ -53,20 +64,38 @@ EXTERNAL_SECRET_PATH = APP_DIR / "externalsecret.yaml"
 RUNBOOK = REPO / "docs/ai-system/litellm/claude-code-subscription.md"
 README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 
-MODEL_NAME = "claude-code-subscription"
+# The virtual key's own name/alias/Secret - UNCHANGED by the 2026-08-31
+# rename. It still accurately describes what the key is FOR (the Claude Code
+# CLI subscription user); only the two models it is allow-listed to changed
+# names, which is why this is a separate constant from MODEL_NAME below.
+KEY_NAME = "claude-code-subscription"
+# RENAMED 2026-08-31 from `claude-code-subscription` to the natural
+# `claude-sonnet-5` (captain decision, Alternative B of
+# data/homeops-claude-code-passthrough-design/report.md), freeing the name
+# from the formerly-metered CR, which moved to `claude-sonnet-5-metered`.
+MODEL_NAME = "claude-sonnet-5"
 # Opus half, added 2026-08-30 after a `claude` subagent asked for Opus by name
 # and the subscription key correctly refused it (403). It is a SECOND
-# credential-less CR rather than a per-key alias of the metered
-# `claude-opus-5`, because LiteLLM v1.98.0 applies a key's `aliases` in
-# litellm_pre_call_utils only AFTER can_key_call_model has already 403'd in the
-# auth dependency - measured, see the CR header and runbook section 7.
-OPUS_MODEL_NAME = "claude-code-subscription-opus"
+# credential-less CR rather than a per-key alias, because LiteLLM v1.98.0
+# applies a key's `aliases` in litellm_pre_call_utils only AFTER
+# can_key_call_model has already 403'd in the auth dependency - measured, see
+# the CR header and runbook section 7. RENAMED 2026-08-31 from
+# `claude-code-subscription-opus` to the natural `claude-opus-5`, freeing the
+# name from the formerly-metered CR, which moved to `claude-opus-5-metered`.
+OPUS_MODEL_NAME = "claude-opus-5"
 # Every model this key may name. The invariant is not "exactly one model" but
 # "only models for which the proxy holds NO credential", which the
 # allowlist_holds_only_credential_less_models check below enforces directly.
 SUBSCRIPTION_MODELS = [MODEL_NAME, OPUS_MODEL_NAME]
 # Metered Anthropic routes that must never appear on this key's allow-list.
-METERED_MODELS = ["claude-sonnet-5", "claude-opus-5", "claude-opus-4-8", "auto"]
+# `-metered` suffix since the 2026-08-31 rename freed the bare names above for
+# the pass-through models this key IS scoped to.
+METERED_MODELS = [
+    "claude-sonnet-5-metered",
+    "claude-opus-5-metered",
+    "claude-opus-4-8",
+    "auto",
+]
 PLACEHOLDER_PREFIX = "sk-ant-oat"
 PLACEHOLDER = "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
 EXPECTED_UPSTREAM = "anthropic/claude-sonnet-5"
@@ -230,10 +259,11 @@ def test_model_render(cfg: dict) -> None:
         f"prefix_ok={isinstance(api_key, str) and api_key.startswith(PLACEHOLDER_PREFIX)}",
     )
     # Sibling metered model still uses env credential - proves this one is the
-    # exception, not a wholesale rewrite of Anthropic models.
-    sonnet = by_name(cfg["model_list"], "claude-sonnet-5")
+    # exception, not a wholesale rewrite of Anthropic models. `-metered` name
+    # since the 2026-08-31 rename freed the bare name for this pass-through CR.
+    sonnet = by_name(cfg["model_list"], "claude-sonnet-5-metered")
     record(
-        "sibling_claude_sonnet_5_still_uses_shared_env_key",
+        "sibling_claude_sonnet_5_metered_still_uses_shared_env_key",
         bool(sonnet)
         and (sonnet.get("litellm_params") or {}).get("api_key")
         == "os.environ/ANTHROPIC_API_KEY",
@@ -297,10 +327,11 @@ def test_model_render(cfg: dict) -> None:
         f"prefix_ok={isinstance(oak, str) and oak.startswith(PLACEHOLDER_PREFIX)}",
     )
     # Sibling metered Opus must still use the env credential - proves this is
-    # an addition, not a rewrite of the metered route.
-    metered_opus = by_name(cfg["model_list"], "claude-opus-5")
+    # an addition, not a rewrite of the metered route. `-metered` name since
+    # the 2026-08-31 rename freed the bare name for this pass-through CR.
+    metered_opus = by_name(cfg["model_list"], "claude-opus-5-metered")
     record(
-        "sibling_claude_opus_5_still_uses_shared_env_key",
+        "sibling_claude_opus_5_metered_still_uses_shared_env_key",
         bool(metered_opus)
         and (metered_opus.get("litellm_params") or {}).get("api_key")
         == "os.environ/ANTHROPIC_API_KEY",
@@ -398,12 +429,12 @@ def test_virtual_key_semantics() -> None:
     }
     record(
         "virtualkey_cr_present",
-        MODEL_NAME in keys,
+        KEY_NAME in keys,
         f"keys={sorted(keys)}",
     )
-    if MODEL_NAME not in keys:
+    if KEY_NAME not in keys:
         return
-    spec = keys[MODEL_NAME]["spec"]
+    spec = keys[KEY_NAME]["spec"]
     allowed = spec.get("models") or []
     record(
         "virtualkey_scoped_only_to_subscription_models",
@@ -441,7 +472,7 @@ def test_virtual_key_semantics() -> None:
     )
     record(
         "virtualkey_key_alias_matches_name",
-        spec.get("keyAlias") == MODEL_NAME,
+        spec.get("keyAlias") == KEY_NAME,
         f"keyAlias={spec.get('keyAlias')!r}",
     )
     record(
@@ -462,7 +493,7 @@ def test_virtual_key_semantics() -> None:
     ]
     record(
         "only_subscription_key_lacks_maxBudget",
-        no_budget == [MODEL_NAME],
+        no_budget == [KEY_NAME],
         f"no_budget_keys={no_budget}",
     )
     # No other key should hold either subscription model (entitlement is
@@ -473,7 +504,7 @@ def test_virtual_key_semantics() -> None:
         {
             f"{name}:{sub}"
             for name, cr in keys.items()
-            if name != MODEL_NAME
+            if name != KEY_NAME
             for sub in SUBSCRIPTION_MODELS
             if sub in (cr["spec"].get("models") or [])
         }
@@ -499,7 +530,7 @@ def test_virtual_key_semantics() -> None:
         for f in VIRTUALKEYS_DIR.glob("*.yaml")
         for d in load_all_yaml(f)
         if d.get("kind") == "PushSecret"
-        and d.get("metadata", {}).get("name") == f"litellm-key-{MODEL_NAME}"
+        and d.get("metadata", {}).get("name") == f"litellm-key-{KEY_NAME}"
     ]
     record(
         "pushsecret_companion_present",
@@ -511,9 +542,9 @@ def test_virtual_key_semantics() -> None:
         remote = ps["data"][0]["match"]["remoteRef"]
         record(
             "pushsecret_targets_litellm_consumer_item",
-            remote.get("remoteKey") == f"litellm-consumer-{MODEL_NAME}"
+            remote.get("remoteKey") == f"litellm-consumer-{KEY_NAME}"
             and remote.get("property") == "key"
-            and ps["selector"]["secret"]["name"] == f"litellm-key-{MODEL_NAME}",
+            and ps["selector"]["secret"]["name"] == f"litellm-key-{KEY_NAME}",
             f"remote={remote} selector={ps.get('selector')}",
         )
 
@@ -529,7 +560,11 @@ def test_no_externalsecret_for_subscription_model() -> None:
     blob = yaml.dump(es_docs[0])
     record(
         "externalsecret_does_not_reference_subscription_model_or_placeholder",
-        MODEL_NAME not in blob and PLACEHOLDER not in blob and "sk-ant-oat" not in blob,
+        MODEL_NAME not in blob
+        and OPUS_MODEL_NAME not in blob
+        and KEY_NAME not in blob
+        and PLACEHOLDER not in blob
+        and "sk-ant-oat" not in blob,
         f"es_name={es_docs[0].get('metadata', {}).get('name')}",
     )
     # Shared provider keys still present (ai-keys extract).
@@ -583,9 +618,9 @@ def test_kustomize_emits_resources() -> None:
         record(
             "kustomize_emits_subscription_model_key_pushsecret",
             missing == []
-            and MODEL_NAME in keys
-            and any(MODEL_NAME in r for r in key_kust),
-            f"missing_models={missing} keys_has={MODEL_NAME in keys}",
+            and KEY_NAME in keys
+            and any(KEY_NAME in r for r in key_kust),
+            f"missing_models={missing} keys_has={KEY_NAME in keys}",
         )
         # Mirror the emitted-shape checks against the source CRs directly.
         by_cr = {c["metadata"]["name"]: c for c in _load_crs(MODELS_DIR, "LiteLLMModel")}
@@ -620,7 +655,7 @@ def test_kustomize_emits_resources() -> None:
             f"offenders={bad} (source CRs; no kubectl)",
         )
         k = next(
-            c for c in _load_crs(VIRTUALKEYS_DIR, "LiteLLMVirtualKey") if c["metadata"]["name"] == MODEL_NAME
+            c for c in _load_crs(VIRTUALKEYS_DIR, "LiteLLMVirtualKey") if c["metadata"]["name"] == KEY_NAME
         )
         spec = k.get("spec") or {}
         record(
@@ -652,8 +687,8 @@ def test_kustomize_emits_resources() -> None:
     }
     required = {
         ("LiteLLMModel", MODEL_NAME),
-        ("LiteLLMVirtualKey", MODEL_NAME),
-        ("PushSecret", f"litellm-key-{MODEL_NAME}"),
+        ("LiteLLMVirtualKey", KEY_NAME),
+        ("PushSecret", f"litellm-key-{KEY_NAME}"),
         ("LiteLLMProxy", "litellm"),
         ("ExternalSecret", "litellm"),
     }
@@ -712,7 +747,7 @@ def test_kustomize_emits_resources() -> None:
             d
             for d in docs
             if d.get("kind") == "LiteLLMVirtualKey"
-            and d.get("metadata", {}).get("name") == MODEL_NAME
+            and d.get("metadata", {}).get("name") == KEY_NAME
         ),
         None,
     )
@@ -742,18 +777,15 @@ def test_runbook_contract() -> None:
     if not exists:
         return
 
-    # Required client env contract. The two ANTHROPIC_DEFAULT_*_MODEL vars are
-    # load-bearing since 2026-08-30: ANTHROPIC_MODEL alone only covers the main
-    # loop, so a subagent that asks for "opus" or "sonnet" by name resolves the
-    # alias through these vars instead and, left at their defaults, requests the
-    # METERED `claude-opus-5`/`claude-sonnet-5` and is refused with a 403. That
-    # is the client half of the fix - the collision cannot be closed on the
-    # proxy, because per-key `aliases` are applied after the allow-list check.
+    # Required client env contract. As of the 2026-08-31 rename, the
+    # ANTHROPIC_DEFAULT_OPUS_MODEL/ANTHROPIC_DEFAULT_SONNET_MODEL overrides
+    # that used to be load-bearing (steering by-family requests AWAY from the
+    # then-natural-named metered CRs) are gone: the natural names now resolve
+    # directly to the pass-through models, so ANTHROPIC_MODEL is the only
+    # model-selecting variable a client needs.
     needed_env = [
         "ANTHROPIC_BASE_URL",
         "ANTHROPIC_MODEL",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL",
         "ANTHROPIC_CUSTOM_HEADERS",
         "x-litellm-api-key",
     ]
@@ -764,32 +796,45 @@ def test_runbook_contract() -> None:
         f"missing={missing_env}",
     )
     record(
-        "runbook_model_value_is_claude_code_subscription",
-        'ANTHROPIC_MODEL="claude-code-subscription"' in text
-        or "ANTHROPIC_MODEL=claude-code-subscription" in text
+        "runbook_model_value_is_claude_sonnet_5",
+        f'ANTHROPIC_MODEL="{MODEL_NAME}"' in text
+        or f"ANTHROPIC_MODEL={MODEL_NAME}" in text
         or "ANTHROPIC_MODEL" in text and MODEL_NAME in text,
         "model assignment present",
     )
-    # The Opus alias must be pointed at the pass-through CR, never left to
-    # resolve to the metered claude-opus-5.
+    # THE ACTUAL PRIZE: the quick-setup block must NOT require the client-side
+    # family overrides anymore. Scope the check to the client quick-setup
+    # section only (between its start marker and the next section heading) so
+    # historical prose in §7 describing the OLD alias-based workaround (which
+    # necessarily still names these variables) cannot make this assertion a
+    # false negative.
+    setup_start = text.find("### 5c.")
+    setup_end = text.find("### 5d.", setup_start) if setup_start != -1 else -1
+    setup_block = text[setup_start:setup_end] if setup_start != -1 and setup_end != -1 else ""
     record(
-        "runbook_maps_opus_alias_to_subscription_model",
-        OPUS_MODEL_NAME in text
-        and "ANTHROPIC_DEFAULT_OPUS_MODEL" in text
-        and any(
-            f"ANTHROPIC_DEFAULT_OPUS_MODEL={q}{OPUS_MODEL_NAME}{q}" in text
-            for q in ('"', "'", "")
-        ),
-        "opus alias assignment present",
+        "runbook_setup_block_present_for_override_removal_check",
+        bool(setup_block),
+        f"setup_start={setup_start} setup_end={setup_end}",
     )
+    # Check for an actual assignment/export, not bare mention - the setup
+    # block's own prose explains why these vars are no longer needed, which
+    # necessarily still names them.
     record(
-        "runbook_maps_sonnet_alias_to_subscription_model",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL" in text
-        and any(
-            f"ANTHROPIC_DEFAULT_SONNET_MODEL={q}{MODEL_NAME}{q}" in text
-            for q in ('"', "'", "")
-        ),
-        "sonnet alias assignment present",
+        "runbook_client_setup_no_longer_needs_default_family_overrides",
+        bool(setup_block)
+        and "ANTHROPIC_DEFAULT_OPUS_MODEL=" not in setup_block
+        and "ANTHROPIC_DEFAULT_SONNET_MODEL=" not in setup_block,
+        f"setup_block_bytes={len(setup_block)}",
+    )
+    # Admin escape hatch: the deliberate 401 an admin gets from the bare
+    # natural name must be explained, and the metered names to use instead
+    # must be discoverable in the same document.
+    record(
+        "runbook_documents_metered_admin_escape_hatch",
+        "claude-sonnet-5-metered" in text
+        and "claude-opus-5-metered" in text
+        and "401" in text,
+        "metered admin path present",
     )
     record(
         "runbook_forbids_putting_virtual_key_in_authorization",
@@ -819,7 +864,7 @@ def test_runbook_contract() -> None:
     readme = README_APP.read_text() if README_APP.exists() else ""
     record(
         "app_readme_links_subscription_pass_through_section",
-        MODEL_NAME in readme and "pass-through" in readme.lower(),
+        MODEL_NAME in readme and KEY_NAME in readme and "pass-through" in readme.lower(),
         f"readme_bytes={len(readme)}",
     )
 

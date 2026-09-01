@@ -36,13 +36,14 @@ budgets.
 decision, and the post-merge failover runbook. Do not restate those facts here.
 
 **Claude Code Max/Pro subscription pass-through** (captain request 2026-08-27;
-Opus CR 2026-08-30) lives in
+Opus CR 2026-08-30; renamed to the natural model names 2026-08-31) lives in
 [`claude-code-subscription.md`](claude-code-subscription.md): the two models
-the proxy holds no credential for (`claude-code-subscription` +
-`claude-code-subscription-opus`), the deliberate non-use of
+the proxy holds no credential for (`claude-sonnet-5` + `claude-opus-5`,
+previously `claude-code-subscription`/`-opus`), the deliberate non-use of
 `forward_client_headers_to_llm_api`, `$0` pricing / no-`maxBudget` key shape,
-the client-side `ANTHROPIC_DEFAULT_*_MODEL` contract, and the client runbook.
-Do not restate those facts here.
+why no client-side `ANTHROPIC_DEFAULT_*_MODEL` override is needed anymore, the
+metered `-metered` admin escape hatch, and the client runbook. Do not restate
+those facts here.
 
 **Full request/response logging** (captain request 2026-08-27) lives in
 [`request-logs.md`](request-logs.md): the `store_prompts_in_spend_logs`
@@ -111,7 +112,8 @@ in-cluster path is a separate, not-yet-tracked follow-up decision; this change
 did not accomplish it.
 
 **Invariant: the subscription route must never reach a household-metered
-credential.** `claude-code-subscription`/`-opus` (app README
+credential.** `claude-sonnet-5`/`claude-opus-5` (renamed 2026-08-31 from
+`claude-code-subscription`/`-opus`; app README
 ["Claude Code subscription pass-through"](../../../kubernetes/apps/base/ai/litellm/README.md#claude-code-subscription-pass-through),
 detail in [`claude-code-subscription.md`](claude-code-subscription.md)) exist
 specifically so that a key scoped to them can never bill the household

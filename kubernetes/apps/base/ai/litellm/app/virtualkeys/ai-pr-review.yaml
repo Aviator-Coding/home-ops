@@ -44,7 +44,11 @@ spec:
   # `review_routing_mode` at its default `off`, so there is no smart-model
   # escalation to bound in the first place. Verified live 2026-08-29 on a
   # preflight key with this same allow-list: requesting `claude-sonnet-5`
-  # returned HTTP 403 `key_model_access_denied`.
+  # returned HTTP 403 `key_model_access_denied` (that name was the metered
+  # route at the time; since the 2026-08-31 rename the paid route this
+  # allow-list must keep excluding is `claude-sonnet-5-metered` -
+  # ../models/claude-sonnet-5-metered.yaml - and the same allow-list denial
+  # applies to it unchanged, since the check runs before model dispatch).
   models:
     - pr-review-local
   # INERT, deliberately kept - identical reasoning to repo-wiki.yaml, read that

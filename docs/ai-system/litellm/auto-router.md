@@ -37,7 +37,7 @@ Nothing is forced through the router. A consumer opts in by asking for `auto`.
 | `qwen3.6-35b-a3b` | Local llama.cpp chat model. Pre-D3 behaviour, byte-identical. **Synthetically priced** - see below. |
 | `chat-local` | Same backend, priced at zero. The tier target real traffic runs on. |
 | `qwen3.6-35b-a3b-classifier` | Same backend, thinking disabled. Used *by* the router. |
-| `claude-sonnet-5`, `claude-opus-5` | Anthropic, reachable directly too. |
+| `claude-sonnet-5-metered`, `claude-opus-5-metered` | Anthropic, reachable directly too. |
 | `auto` | **The router.** Classify, then dispatch to one of the four tiers. |
 
 Phase 5 also exposes the local backend as `chat-ha` (cloud-entitled fallback
@@ -88,8 +88,8 @@ Tier names and criteria are LiteLLM's built-in taxonomy; only the mapping is our
 |---|---|---|---|
 | `SIMPLE` | greetings, chitchat, factual lookups with a short known answer | `chat-local` | local B70, $0 |
 | `MEDIUM` | everyday requests needing some explanation, light reasoning, minor code | `chat-local` | local B70, $0 |
-| `COMPLEX` | non-trivial code, architecture, multi-step technical work, domain depth | `claude-sonnet-5` | Anthropic |
-| `REASONING` | open-ended analysis, proofs, hard problems, tradeoffs | `claude-opus-5` | Anthropic |
+| `COMPLEX` | non-trivial code, architecture, multi-step technical work, domain depth | `claude-sonnet-5-metered` | Anthropic |
+| `REASONING` | open-ended analysis, proofs, hard problems, tradeoffs | `claude-opus-5-metered` | Anthropic |
 
 The local/cloud boundary sits between `MEDIUM` and `COMPLEX`. That single line is
 the whole cost policy: move it by re-pointing a tier, not by editing the rubric.
@@ -266,8 +266,8 @@ set and the reference repo's examples, 2026-08-26, live B70:
 |---|---|---|
 | SIMPLE x4 | local `chat-local` | 4/4 |
 | MEDIUM x4 | local `chat-local` | 4/4 |
-| COMPLEX x4 | `claude-sonnet-5` | 4/4 |
-| REASONING x4 | `claude-opus-5` | 4/4 |
+| COMPLEX x4 | `claude-sonnet-5-metered` | 4/4 |
+| REASONING x4 | `claude-opus-5-metered` | 4/4 |
 
 16/16 on the routing decision that matters (local vs cloud). A separate
 tier-exact run over 12 single prompts scored 11/12; the one miss graded
@@ -301,8 +301,8 @@ or against the `demo` key on `qwen3.6-35b-a3b`.
 
 **The allow-list is checked against what the caller asked for, not what the
 router resolved to.** A key scoped to `models: ["auto"]` routes to every tier
-including `claude-opus-5`, and can still run the classifier, but cannot call
-`claude-opus-5` *directly*. That makes `auto` a genuine governance boundary, and
+including `claude-opus-5-metered`, and can still run the classifier, but cannot call
+`claude-opus-5-metered` *directly*. That makes `auto` a genuine governance boundary, and
 it is why the `router-demo`
 [`LiteLLMVirtualKey`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/router-demo.yaml)
 lists only the alias.
@@ -435,7 +435,7 @@ kubectl -n ai rollout status deploy/litellm --timeout=5m
 # 2. The router alias and its backends are registered.
 kubectl -n ai logs deploy/litellm | grep -A6 "Proxy initialized with Config"
 #    expect: chat-local, qwen3.6-35b-a3b, qwen3.6-35b-a3b-classifier,
-#            claude-sonnet-5, claude-opus-5, auto
+#            claude-sonnet-5-metered, claude-opus-5-metered, auto
 #    This list prints at the DEFAULT log level and is the reliable check.
 #    `grep "ComplexityRouter initialized"` (which prints the four tier -> backend
 #    pairs) is a DEBUG-level line: it matches nothing unless the pod runs with
@@ -467,7 +467,7 @@ curl -sS -D /tmp/complex.h -X POST localhost:4000/v1/chat/completions \
   -d '{"model":"auto","max_tokens":32,
        "messages":[{"role":"user","content":"implement a distributed token bucket rate limiter on Redis, correct under concurrency"}]}' \
   | jq -r .model
-#    expect `model` = claude-sonnet-5
+#    expect `model` = claude-sonnet-5-metered
 
 # 6. The classifier decision itself, per request.
 kubectl -n ai logs deploy/litellm --since=5m | grep -i "complexityrouter\|classifier"
@@ -515,7 +515,7 @@ To rewrite the classifier prompt safely: set
 `classifier_llm_config.system_prompt`, remembering it replaces the built-in
 rubric *entirely* - including the paragraph that tells the classifier to ignore
 tier requests embedded in the caller's own system prompt. Without it, a caller
-can pin themselves to `claude-opus-5` by asking for it. `system_prompt` and
+can pin themselves to `claude-opus-5-metered` by asking for it. `system_prompt` and
 `classification_rubric` are mutually exclusive.
 
 ## Version floor

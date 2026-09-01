@@ -438,14 +438,20 @@ def test_config_semantics(cfg: dict) -> dict:
 
     model_list = cfg["model_list"]
     names = [m["model_name"] for m in model_list]
+    # `-metered` names: the D3 router's cloud tiers are the METERED CRs,
+    # renamed 2026-08-31 (captain decision, Alternative B of
+    # data/homeops-claude-code-passthrough-design/report.md). The bare
+    # `claude-sonnet-5`/`claude-opus-5` now belong to the credential-less
+    # Claude Code subscription pass-through and must never be routed to by the
+    # classifier.
     record(
         "model_list_contains_required_aliases",
         set(names) >= {
             "qwen3.6-35b-a3b",
             "qwen3.6-35b-a3b-classifier",
             "chat-local",
-            "claude-sonnet-5",
-            "claude-opus-5",
+            "claude-sonnet-5-metered",
+            "claude-opus-5-metered",
             "auto",
             "chat-ha",
         },
@@ -493,7 +499,7 @@ def test_config_semantics(cfg: dict) -> dict:
         f"num_retries={lp.get('num_retries')!r}",
     )
 
-    for cloud in ("claude-sonnet-5", "claude-opus-5"):
+    for cloud in ("claude-sonnet-5-metered", "claude-opus-5-metered"):
         c = by_name(model_list, cloud)
         record(
             f"{cloud}_uses_existing_anthropic_env_key",
@@ -589,8 +595,8 @@ def test_config_semantics(cfg: dict) -> dict:
 
     record("tier_SIMPLE_local", tier_val("SIMPLE") == "chat-local", f"{tier_val('SIMPLE')!r}")
     record("tier_MEDIUM_local", tier_val("MEDIUM") == "chat-local", f"{tier_val('MEDIUM')!r}")
-    record("tier_COMPLEX_sonnet", tier_val("COMPLEX") == "claude-sonnet-5", f"{tier_val('COMPLEX')!r}")
-    record("tier_REASONING_opus", tier_val("REASONING") == "claude-opus-5", f"{tier_val('REASONING')!r}")
+    record("tier_COMPLEX_sonnet", tier_val("COMPLEX") == "claude-sonnet-5-metered", f"{tier_val('COMPLEX')!r}")
+    record("tier_REASONING_opus", tier_val("REASONING") == "claude-opus-5-metered", f"{tier_val('REASONING')!r}")
 
     return {
         "parsed": parsed,
@@ -616,9 +622,10 @@ def test_local_pricing_split(cfg: dict) -> None:
     NEVER gain any (or dashboards start lying again).
     """
     model_list = cfg["model_list"]
-    # Non-zero only: an explicit 0 (e.g. claude-code-subscription's flat-rate
-    # pass-through) is an honest zero invoice, not a synthetic price, and must
-    # not count here. Treat missing and 0 the same.
+    # Non-zero only: an explicit 0 (e.g. the claude-sonnet-5/claude-opus-5
+    # subscription pass-through's flat-rate pricing) is an honest zero
+    # invoice, not a synthetic price, and must not count here. Treat missing
+    # and 0 the same.
     priced = {
         m["model_name"]
         for m in model_list
@@ -832,11 +839,17 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
             lp["api_base"] = bases["classifier"]
             lp["api_key"] = "mock"
             # keep enable_thinking + num_retries
-        elif name == "claude-sonnet-5":
+        elif name == "claude-sonnet-5-metered":
+            # Real D3 COMPLEX-tier backend since the 2026-08-31 rename. Must be
+            # intercepted here or this deployment keeps its real
+            # `anthropic/claude-sonnet-5` + `os.environ/ANTHROPIC_API_KEY`
+            # params from the rendered CR, and a classified COMPLEX request in
+            # this test would place a real call against the household's
+            # metered key.
             lp["model"] = "openai/claude-sonnet-5"
             lp["api_base"] = bases["sonnet"]
             lp["api_key"] = "mock"
-        elif name == "claude-opus-5":
+        elif name == "claude-opus-5-metered":
             lp["model"] = "openai/claude-opus-5"
             lp["api_base"] = bases["opus"]
             lp["api_key"] = "mock"
@@ -904,8 +917,8 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
     expected_backend = {
         "SIMPLE": "chat-local",
         "MEDIUM": "chat-local",
-        "COMPLEX": "claude-sonnet-5",
-        "REASONING": "claude-opus-5",
+        "COMPLEX": "claude-sonnet-5-metered",
+        "REASONING": "claude-opus-5-metered",
     }
 
     for tier_name, backend in expected_backend.items():

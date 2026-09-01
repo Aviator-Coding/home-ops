@@ -1,20 +1,32 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# Cloud tier backend for the D3 auto-router (COMPLEX tier).
+# Claude Code Max/Pro SUBSCRIPTION pass-through (captain request 2026-08-27:
+# "use the claude code subscription claude-code cli and get more insight").
 #
-# Credentials are the ALREADY-EXISTING 1Password `ai-keys` item that every
-# agentgateway backend in this namespace already extracts (see
-# kubernetes/apps/base/ai/agentgateway/app/backends/anthropic.yaml). No new
-# 1Password item is introduced by the router; externalsecret.yaml just adds a
-# second `extract` of that same item so ANTHROPIC_API_KEY reaches this pod,
-# where the proxy's envFrom makes it visible to `os.environ/...`.
+# RENAMED from `claude-code-subscription` to the natural `claude-sonnet-5` on
+# 2026-08-31 (captain decision, Alternative B of
+# data/homeops-claude-code-passthrough-design/report.md). The formerly-metered
+# `claude-sonnet-5` moved to `claude-sonnet-5-metered`
+# (./claude-sonnet-5-metered.yaml) to free this name. This is now the primary
+# way `claude`/Claude Code reaches Sonnet through this proxy - no client-side
+# `ANTHROPIC_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` override is needed
+# anymore, because the natural name IS this model. Full rationale, the
+# deliberate 401 an admin gets when they instead want the metered route, and
+# what to use for it: docs/ai-system/litellm/claude-code-subscription.md.
 #
-# Reachable directly as well (`model: claude-sonnet-5`), which is deliberate:
-# the router is one more way in, never the only way in.
+# UNLIKE EVERY OTHER CLOUD MODEL IN THIS DIRECTORY, THE PROXY HOLDS NO
+# CREDENTIAL FOR THIS ONE. Each caller's own `claude` CLI is logged in to a
+# personal Claude subscription and sends its own OAuth token
+# (`Authorization: Bearer sk-ant-oat...`) on every request; LiteLLM forwards it
+# upstream and the tokens are billed to that person's flat-rate subscription,
+# not to this household's metered `ANTHROPIC_API_KEY`. What the cluster gets in
+# return is observability: per-request tokens/duration and per-virtual-key
+# attribution for traffic that would otherwise bypass the proxy entirely.
 #
-# Prices come from LiteLLM's built-in model-cost map, so routed cloud spend is
-# real USD against the per-consumer D4 budgets - do NOT add `info.extra`
-# prices here or the accounting stops matching the invoice.
+# Client runbook (env vars, how to get a virtual key, the one-time interactive
+# OAuth login), the full header-forwarding mechanism, and the security
+# measurements behind the two rules below:
+# docs/ai-system/litellm/claude-code-subscription.md
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
@@ -23,9 +35,96 @@ spec:
   modelName: claude-sonnet-5
   proxyRef: litellm
   params:
+    # Resolved against Anthropic's DIRECT catalog (models/kustomization.yaml
+    # rule 3), same dash-form id family as the metered
+    # ./claude-sonnet-5-metered.yaml sibling. Sonnet is what `claude` drives by
+    # default; an Opus alias is a second CR (./claude-opus-5.yaml), not an edit
+    # here.
     model: anthropic/claude-sonnet-5
-    # Literal `os.environ/` reference, not apiKeyRef: the key already reaches
-    # the pod through the proxy's envFrom on litellm-secret. apiKeyRef would
-    # inject a second, differently-named env var (LITELLM_MODELKEY_*) for the
-    # same value.
-    apiKey: os.environ/ANTHROPIC_API_KEY
+
+    # NOT `os.environ/ANTHROPIC_API_KEY`, and NOT omitted. Both of those spend
+    # this household's metered money on traffic the caller believes their
+    # subscription is paying for:
+    #
+    #   - Omitting apiKey does NOT make the model credential-less. LiteLLM
+    #     resolves `AnthropicModelInfo.get_api_key(None)` as
+    #     `api_key or get_secret_str("ANTHROPIC_API_KEY")`, and the proxy pod
+    #     carries ANTHROPIC_API_KEY via the proxy's envFrom - so a caller who
+    #     forgets the OAuth header SILENTLY bills the shared metered key.
+    #     Measured in the running pod 2026-08-27: get_api_key(None) returns the
+    #     real `sk-ant-api...` key.
+    #   - This placeholder is not a secret and authenticates nothing. It exists
+    #     so `api_key` is non-None (blocking that env fallback) while still
+    #     carrying the `sk-ant-oat` prefix, which routes the request down
+    #     LiteLLM's OAuth branch. A caller who sends no token therefore gets
+    #     Anthropic's own self-describing 401 "OAuth access token is invalid."
+    #     and spends nothing, instead of a silent metered charge. This is also
+    #     the 401 an admin gets by asking for this name without a subscription
+    #     OAuth token - the deliberate cost of the rename, documented in the
+    #     runbook.
+    #
+    # A real client OAuth token OVERRIDES this value - proven live, see the
+    # doc's B2/C2 measurements - so the placeholder is never used when the
+    # feature is working as intended.
+    apiKey: "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
+
+  info:
+    # DELIBERATE EXCEPTION to this directory's "no info.extra prices on cloud
+    # models" rule (models/kustomization.yaml), and it is the same rule, not a
+    # break from it: prices here must match the invoice. For every other cloud
+    # model the invoice is metered per token, so LiteLLM's built-in cost map IS
+    # the invoice and hand-written prices would decouple the two. This model's
+    # invoice is a person's FLAT-RATE subscription: no per-token line exists,
+    # so the built-in map is what decouples spend from reality - it would price
+    # subscription traffic at the metered `claude-sonnet-5-metered` rate and
+    # inflate that consumer's D4 budget with dollars nobody is ever charged.
+    # Full pricing rationale: docs/ai-system/litellm/claude-code-subscription.md §4.
+    #
+    # Zero is honoured, not mistaken for "unset": LiteLLM's
+    # use_custom_pricing_for_model() tests `is not None`, not truthiness, so an
+    # explicit 0 selects custom pricing while OMITTING these keys is what falls
+    # back to the metered cost map. Verified live in the pod 2026-08-27 for
+    # both /v1/chat/completions and /v1/messages (it reads model_info from
+    # `litellm_metadata` on the latter). Evidence: the doc's pricing section.
+    #
+    # Zeroing input/output alone is NOT enough - see the five cache fields
+    # below (runbook §4a). With the full set declared, recorded spend is $0,
+    # so a maxBudget could never trip and would read as protection that does
+    # not exist. Keep the calling key budgetless for that reason. As of
+    # 2026-08-31 the calling key also carries no rpmLimit/tpmLimit (captain
+    # decision - measured headroom was 43x/267x, so they were never a real
+    # guardrail either) - see ../virtualkeys/claude-code-subscription.yaml for
+    # the full rationale. This key now has NO local ceiling at all; the real
+    # ceiling is, and always was, Anthropic's own subscription rate limiting.
+    # (Pre-fix note: until 2026-08-31 only input/output were zeroed and ~$54 of
+    # cache-only fictional spend accrued - annotated, not zeroed, on the
+    # virtual key CR, with an alert watching for a regression. That pricing
+    # gap is closed; historical rows are not repriced.)
+    extra:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      # THE CACHE FIELDS ARE NOT OPTIONAL EXTRAS - WITHOUT THEM THE $0 ABOVE
+      # DOES ALMOST NOTHING FOR CLAUDE CODE. Zeroing only input/output leaves
+      # prompt-cache pricing to resolve from LiteLLM's built-in cost map:
+      # `_resolve_builtin_model_cost_entry` copies `_CACHE_PRICING_FIELDS`
+      # (utils.py) onto a custom key, and the built-in `claude-sonnet-5` entry
+      # declares cache_creation 2.5e-06 / cache_creation_above_1hr 4e-06 /
+      # cache_read 2e-07. Claude Code caches its context aggressively, so those
+      # three fields are where essentially ALL of its recorded cost comes from.
+      #
+      # Measured on the live spend log 2026-08-31, before this block existed:
+      # $54.31 recorded on this key, of which output_cost was exactly $0.00
+      # (proving the two zeros above already worked) while cache_read was
+      # $27.80 and cache_creation $26.51 - the whole figure was cache. Verified
+      # end-to-end with a throwaway probe model whose upstream id carried a
+      # built-in price: recorded spend went 6e-07 -> exactly 0 on BOTH
+      # /v1/chat/completions and /v1/messages once these keys were added.
+      #
+      # The `_above_*` variants are zeroed too because Claude Code routinely
+      # exceeds a 200k context and caches for over an hour, which is precisely
+      # when those tiers apply. Full evidence: the runbook's §4a.
+      cache_read_input_token_cost: 0
+      cache_read_input_token_cost_above_200k_tokens: 0
+      cache_creation_input_token_cost: 0
+      cache_creation_input_token_cost_above_1hr: 0
+      cache_creation_input_token_cost_above_200k_tokens: 0

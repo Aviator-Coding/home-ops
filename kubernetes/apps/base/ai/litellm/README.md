@@ -20,7 +20,7 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, non-secret SSO `env`, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | 36 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5`, `claude-sonnet-5`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - and `claude-code-subscription` + `claude-code-subscription-opus`, the odd ones out: the proxy holds **no credential** for either - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
+| [`app/models/`](app/models/) | 36 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5-metered`, `claude-sonnet-5-metered`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - and `claude-sonnet-5` + `claude-opus-5` (renamed 2026-08-31 from `claude-code-subscription` / `claude-code-subscription-opus`), the odd ones out: the proxy holds **no credential** for either - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through). |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
@@ -171,13 +171,27 @@ GLM call ever fails; it is an unfunded account, not a bad route.
 
 ## Claude Code subscription pass-through
 
-`claude-code-subscription` (Sonnet, captain request 2026-08-27) and
-`claude-code-subscription-opus` (added 2026-08-30) are the two models here the
-proxy holds **no credential** for. A `claude` CLI logged in to a personal
-Max/Pro subscription sends its own OAuth token per request; LiteLLM forwards it
-to Anthropic, so the tokens bill that person's flat-rate plan while the cluster
-gets per-request tokens/latency/virtual-key attribution it previously never saw.
-The two CRs differ in exactly one line (`params.model`).
+`claude-sonnet-5` (Sonnet, captain request 2026-08-27) and `claude-opus-5`
+(added 2026-08-30) are the two models here the proxy holds **no credential**
+for. A `claude` CLI logged in to a personal Max/Pro subscription sends its own
+OAuth token per request; LiteLLM forwards it to Anthropic, so the tokens bill
+that person's flat-rate plan while the cluster gets per-request
+tokens/latency/virtual-key attribution it previously never saw. The two CRs
+differ in exactly one line (`params.model`).
+
+**RENAMED 2026-08-31** (captain decision, Alternative B of the pass-through
+investigation report): these two CRs used to be `claude-code-subscription` /
+`claude-code-subscription-opus`, and the natural names belonged to the
+METERED, household-billed CRs. The metered CRs moved to
+`claude-sonnet-5-metered` / `claude-opus-5-metered` to free the natural names
+for this pass-through. **Point 5 below is now historical** - the
+`ANTHROPIC_DEFAULT_OPUS_MODEL` client override it describes is retired,
+because the natural names ARE this pass-through now. The dedicated virtual key
+(`claude-code-subscription`) keeps its original name; only the two models on
+its allow-list were renamed. An admin who wants the metered route on purpose
+now asks for `claude-sonnet-5-metered` / `claude-opus-5-metered` by name and
+gets a real metered call instead of the pass-through's 401 - see the runbook's
+new §8.
 
 Full mechanism, the live security measurements, and the client runbook (env
 vars, virtual key, the one-time interactive OAuth login):
@@ -196,11 +210,13 @@ for no benefit. If it is ever genuinely needed, use the per-model form
 
 **2. A client `sk-ant-oat…` token overrides the shared key on any Anthropic
 model the caller is already entitled to.** Pre-existing, unchanged by this
-model, and measured live: a fake token sent to `claude-sonnet-5` made Anthropic
-answer *"OAuth access token is invalid."*, proving our `ANTHROPIC_API_KEY` was
-never sent. It cannot bypass entitlement - allow-lists still deny first (`403`,
-identical with and without the header) - and non-`sk-ant-oat` values are
-dropped. It also briefly cools down that model group for **all** consumers.
+model, and measured live 2026-08-27 (before the rename, against the model then
+named `claude-sonnet-5` - today `claude-sonnet-5-metered`): a fake token sent
+to it made Anthropic answer *"OAuth access token is invalid."*, proving our
+`ANTHROPIC_API_KEY` was never sent. It cannot bypass entitlement - allow-lists
+still deny first (`403`, identical with and without the header) - and
+non-`sk-ant-oat` values are dropped. It also briefly cools down that model
+group for **all** consumers.
 
 **3. The placeholder `apiKey` is load-bearing.** Omitting it does not make the
 model credential-less: LiteLLM falls back to `os.environ/ANTHROPIC_API_KEY`,
@@ -229,20 +245,27 @@ Go client omits an absent field rather than sending it as an explicit `null`,
 and LiteLLM's `/key/update` only clears a field that arrives as an explicit
 `null`. Full mechanism and the live proof: the CR's own header.
 
-**5. Opus is a SECOND CR, never a per-key alias of the metered
-`claude-opus-5`.** Claude Code resolves a by-family model request (a subagent
-asking for `opus`) through `ANTHROPIC_DEFAULT_OPUS_MODEL`, which defaults to
-the literal `claude-opus-5` - the metered CR - so the subscription key 403s.
-Per-key `aliases` look like the clean fix and are **not**: LiteLLM applies them
-in `_update_model_if_key_alias_exists` (`litellm_pre_call_utils.py`), which runs
+**5. HISTORICAL (2026-08-30 to 2026-08-31): Opus was a SECOND CR, never a
+per-key alias of the metered `claude-opus-5`** (that name, before the rename,
+meant the metered CR - today's `claude-opus-5-metered`). Claude Code resolves
+a by-family model request (a subagent asking for `opus`) through
+`ANTHROPIC_DEFAULT_OPUS_MODEL`, which at the time defaulted to the then-metered
+`claude-opus-5`, so the subscription key 403'd. Per-key `aliases` looked like
+the clean fix and were **not**: LiteLLM applies them in
+`_update_model_if_key_alias_exists` (`litellm_pre_call_utils.py`), which runs
 *after* `can_key_call_model` has already denied the request from the
 `user_api_key_auth` dependency, and `auth_checks.py` has no key-alias
 counterpart to its `_model_in_team_aliases`. Measured 2026-08-30 with a
-throwaway aliased key: byte-identical 403. Making an alias fire would require
-allow-listing the metered `claude-opus-5` on this key, leaving metered billing
-one dropped rewrite away. The collision is therefore closed **client-side** via
-`ANTHROPIC_DEFAULT_OPUS_MODEL=claude-code-subscription-opus`; evidence table in
-§7 of the runbook.
+throwaway aliased key: byte-identical 403. Making an alias fire would have
+required allow-listing the metered CR on this key, leaving metered billing one
+dropped rewrite away - so the collision was closed **client-side** via
+`ANTHROPIC_DEFAULT_OPUS_MODEL` instead (evidence table in the runbook's §7).
+**The 2026-08-31 rename retired this override entirely**: Opus is still a
+second CR (same reason - a metered model needs its own credentialed entry, now
+named `claude-opus-5-metered`, and the aliasing math above hasn't changed), but
+the pass-through CR now owns the natural `claude-opus-5` name outright, so
+there is nothing left to override client-side. §7 and the new §8 of the
+runbook carry the full history and the current admin-facing contract.
 
 ## Pod security posture (known gap, accepted deliberately)
 

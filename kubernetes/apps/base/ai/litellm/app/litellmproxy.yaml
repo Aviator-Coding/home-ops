@@ -301,8 +301,14 @@ spec:
     # is no capability regression in the swap. Opus stays reserved for the D3
     # router's REASONING tier, where difficulty - not an outage - is what
     # selects it.
+    # RENAMED 2026-08-31 (captain decision, Alternative B of
+    # data/homeops-claude-code-passthrough-design/report.md): fallback targets
+    # must name the METERED `claude-sonnet-5-metered` CR, never the natural
+    # `claude-sonnet-5` name, which now belongs to the Claude Code subscription
+    # pass-through and holds no credential of its own - a config-declared
+    # fallback there would 401 every failed-over request instead of serving it.
     fallbacks:
-      - chat-ha: ["claude-sonnet-5"]
+      - chat-ha: ["claude-sonnet-5-metered"]
       # The D3 routed alias. Without this, a B70 outage takes `auto` down
       # completely: the classifier call fails, the router fails OPEN to
       # `complexity_router_default_model` (chat-local, the zero-priced production
@@ -311,7 +317,7 @@ spec:
       # COMPLEX/REASONING tiers are Anthropic), so a cloud fallback here
       # breaches no entitlement. Do not add chat-local itself to this list -
       # its absence is the D4 boundary (CI: chat_local_has_no_cloud_fallback).
-      - auto: ["claude-sonnet-5"]
+      - auto: ["claude-sonnet-5-metered"]
 
     # -- Axis 2: CONTEXT WINDOW (prompt too big for this model) --
     # A SEPARATE key on purpose: "the backend is down" and "the prompt does not
@@ -335,8 +341,8 @@ spec:
     # overflows a 1M window cannot fit 262k, so it would be a chain that is
     # guaranteed to fail on its second leg.
     context_window_fallbacks:
-      - chat-ha: ["claude-sonnet-5"]
-      - auto: ["claude-sonnet-5"]
+      - chat-ha: ["claude-sonnet-5-metered"]
+      - auto: ["claude-sonnet-5-metered"]
 
   # The CRD has no startupProbe field, so the old startup probe (30 x 10s =
   # 300s of boot budget before liveness could kill the pod) is emulated by

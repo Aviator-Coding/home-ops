@@ -4,10 +4,11 @@
 #
 # `demo` holds `qwen3.6-35b-a3b` (no fallback, cannot reach Anthropic by any
 # path). This key holds `chat-ha` - the same B70 model, but with a
-# `claude-sonnet-5` availability + context-window fallback declared on it in the
-# proxy's routerSettings. Holding this key IS the cloud entitlement, because a
-# config-declared fallback is not allow-list checked (measured 2026-08-26,
-# docs/ai-system/litellm/fallbacks.md#1).
+# `claude-sonnet-5-metered` availability + context-window fallback declared on
+# it in the proxy's routerSettings (RENAMED from the bare `claude-sonnet-5` on
+# 2026-08-31 - see ../models/claude-sonnet-5-metered.yaml). Holding this key IS
+# the cloud entitlement, because a config-declared fallback is not allow-list
+# checked (measured 2026-08-26, docs/ai-system/litellm/fallbacks.md#1).
 #
 # It is also the vehicle for the post-merge failover proof - see
 # docs/ai-system/litellm/fallbacks.md#5, which exercises the chain against a

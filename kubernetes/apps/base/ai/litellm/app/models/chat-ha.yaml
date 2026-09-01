@@ -23,10 +23,10 @@
 #     $0.05 smoke-test cap is exhaustible. Never point production traffic here.
 #   - `chat-local` - terminal, ZERO-priced. Real local-only traffic holds this
 #     (auto SIMPLE/MEDIUM, fail-open, repo-wiki, and every future local-only key).
-#   - THIS alias (`chat-ha`) - ZERO-priced but carries the claude-sonnet-5
-#     availability + context-window fallback. Holding it IS the cloud
-#     entitlement, because a config-declared fallback bypasses the calling key's
-#     allow-list.
+#   - THIS alias (`chat-ha`) - ZERO-priced but carries the claude-sonnet-5-metered
+#     availability + context-window fallback (renamed from the bare
+#     claude-sonnet-5 on 2026-08-31). Holding it IS the cloud entitlement,
+#     because a config-declared fallback bypasses the calling key's allow-list.
 #   - `qwen3.6-35b-a3b-classifier` - terminal, ZERO-priced, thinking disabled.
 #   - `pr-review-local` - terminal, ZERO-priced, thinking disabled for the AI
 #     PR reviewer (docs/ai-system/litellm/pr-reviewer.md). Not a cloud path.

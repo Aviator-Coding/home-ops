@@ -10,15 +10,34 @@ stay billed to that person's flat-rate plan. What the cluster gains is the
 "more insight" half - per-request token counts, latency and per-virtual-key
 attribution for traffic that was previously invisible.
 
+**RENAMED 2026-08-31** (captain decision - Alternative B of the pass-through
+investigation report, selected over firstmate's own recommendation to leave
+the naming alone): the
+two pass-through model CRs moved from `claude-code-subscription` /
+`claude-code-subscription-opus` to the **natural** `claude-sonnet-5` /
+`claude-opus-5`, and the models that held those natural names - billed to this
+household's metered Anthropic key - moved to `claude-sonnet-5-metered` /
+`claude-opus-5-metered` to free them. **Every client-side
+`ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` override this
+document used to require is gone** - §5c and §7 below are updated for the new
+names, and §8 is new: it documents the deliberate 401 an admin now gets
+asking for the bare natural name, and the metered names to use on purpose
+instead. The dedicated virtual key keeps its original name, alias and Secret
+(`claude-code-subscription` - it still accurately names what the key is FOR);
+only the two models it is scoped to were renamed. Nothing else in this
+document changed meaning: every measurement, table and mechanism below was
+re-verified against the current config and still holds, with names updated
+in place.
+
 Declared by two model CRs - Sonnet
-[`claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-code-subscription.yaml)
+[`claude-sonnet-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-sonnet-5.yaml)
 and, since 2026-08-30, Opus
-[`claude-code-subscription-opus.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-code-subscription-opus.yaml).
+[`claude-opus-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-opus-5.yaml).
 They are **the only model CRs in this repo for which the proxy holds no
 credential**, they differ from each other in exactly one line (`params.model`),
 and everything this document says about one applies unchanged to the other.
-Why Opus is a separate CR rather than a per-key alias of the metered
-`claude-opus-5`, with the measurements behind that: **§7**.
+Why Opus is a separate CR rather than a per-key alias, with the measurements
+behind that: **§7**.
 
 Upstream tutorial: <https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription>.
 Everything below that contradicts it was measured against our own pinned image
@@ -82,6 +101,15 @@ neither today.
 `forward_client_headers_to_llm_api` was absent from the live rendered
 `litellm-config` ConfigMap for every measurement below - so these numbers
 describe **production as it already is**, not as this change makes it.
+
+**Naming note:** every measurement below was taken 2026-08-27, before the
+2026-08-31 rename. `claude-sonnet-5` in this section's tables is the model
+that was named that at measurement time - today that CR is
+`claude-sonnet-5-metered`. The mechanism these measurements prove (a client
+OAuth token overrides the shared key on any Anthropic-family model the caller
+is already entitled to; entitlement is still checked first) is a property of
+the allow-list and header-forwarding code path, not of any one model's name,
+so it holds unchanged under the new name.
 
 ### 2a. Virtual-key governance is NOT bypassable by a client header
 
@@ -179,8 +207,8 @@ A real client token overrides it (§2b), so it is never used in normal operation
 
 LiteLLM has **no** OAuth-aware or subscription-aware cost handling - nothing in
 `cost_calculator.py` or `spend_tracking/` distinguishes pass-through traffic. Left
-unpriced, it would be charged against the caller's D4 budget at
-`claude-sonnet-5`'s metered rate: dollars nobody is ever invoiced on a flat-rate
+unpriced, it would be charged against the caller's D4 budget at the metered
+`claude-sonnet-5-metered` rate: dollars nobody is ever invoiced on a flat-rate
 subscription.
 
 The one real risk with `0` is a truthiness bug treating it as "unset". There
@@ -351,9 +379,11 @@ is sent per-request.
 Registration is not entitlement, so this model ships with its own key
 (captain decision 2026-08-27):
 [`app/virtualkeys/claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/claude-code-subscription.yaml).
-It is allow-listed to the two `claude-code-subscription*` pass-through models
-and nothing else, so it is not a second door into the metered Anthropic models.
-Both allow-listed models are CRs for which **the proxy holds no credential**;
+It is allow-listed to the two pass-through models (`claude-sonnet-5` and
+`claude-opus-5` since the 2026-08-31 rename) and nothing else, so it is not a
+second door into the metered Anthropic models (`claude-sonnet-5-metered` /
+`claude-opus-5-metered`). Both allow-listed models are CRs for which **the
+proxy holds no credential**;
 that property, not the length of the list, is what keeps this key unable to
 spend the household's money, and `scripts/ci/litellm-claude-code-subscription-test.py`
 asserts it directly (every allow-listed name must carry the placeholder
@@ -398,45 +428,31 @@ bucket.
 
 ```bash
 export ANTHROPIC_BASE_URL="https://litellm.${SECRET_DOMAIN}"   # internal gateway
-export ANTHROPIC_MODEL="claude-code-subscription"
-export ANTHROPIC_DEFAULT_SONNET_MODEL="claude-code-subscription"
-export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-code-subscription-opus"
+export ANTHROPIC_MODEL="claude-sonnet-5"
 export ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-…your-virtual-key…"
 claude
 ```
 
-**All three model variables are required, not just `ANTHROPIC_MODEL`.** That one
-only names the model for the *main* loop. Anything that asks for a model by
-family - a subagent declared `model: opus`, `/model opus`, a Task tool call -
-resolves that family through `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` instead, and
-those default to Anthropic's own public ids. Left unset, Claude Code asks this
-proxy for the literal `claude-opus-5` / `claude-sonnet-5`, which here are the
-**metered** CRs the subscription key is deliberately not allow-listed for, so
-the request dies with:
-
-```text
-API Error: 403 key not allowed to access model. This key can only access
-models=['claude-code-subscription']. Tried to access claude-opus-5
-```
-
-That 403 is the guardrail working - see §7 for why it is closed here on the
-client and not by aliasing on the proxy. Counted in the live proxy log
-(2026-08-30, 48h window) **before** this fix, this key was refused **once** on
-`claude-opus-5` and **three times** on `claude-sonnet-5` (each refusal is
-logged twice, as an `auth_exception_handler` ERROR and again as the raised
-`ProxyException`; a fourth `claude-sonnet-5` refusal in the same window
-belonged to the unrelated `pr-review-local` key). So the Sonnet variable is not
-hypothetical tidiness - the same collision was already happening for Sonnet
-whenever something requested it by family rather than inheriting
-`ANTHROPIC_MODEL`. Note these counts are a floor, not a total: the proxy pod
-rolls on every config change and its logs go with it.
+**As of the 2026-08-31 rename, that is the whole client contract - no
+`ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` override is
+needed anymore.** Before the rename, `ANTHROPIC_MODEL` alone only named the
+model for the *main* loop, and anything that asked for a model by family - a
+subagent declared `model: opus`, `/model opus`, a Task tool call - resolved
+that family through `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` instead, defaulting to
+Anthropic's own public ids `claude-opus-5` / `claude-sonnet-5` - which were,
+at the time, the **metered** CRs this key was correctly refused for (§7 tells
+that history and why it was fixed on the client rather than by proxy-side
+aliasing). Now those exact ids ARE this pass-through's own model names, so a
+by-family request resolves to the same place `ANTHROPIC_MODEL` does, with
+nothing to override. See §8 for what happens if you deliberately want the
+metered route instead.
 
 The installed CLI (2.1.251) also honours `ANTHROPIC_DEFAULT_HAIKU_MODEL` and
 `ANTHROPIC_DEFAULT_FABLE_MODEL`. **Deliberately left unset**: no pass-through
 CR exists for those families, and inventing one is a catalog decision, not part
-of this fix. A request that resolves to either will 403 exactly as Opus did.
-If background/Haiku traffic starts failing visibly, the fix is a third CR
-following §5e, not an allow-list edit.
+of this fix. A request that resolves to either 403s (no allow-listed model of
+that name at all, pass-through or metered). If background/Haiku traffic starts
+failing visibly, the fix is a third CR following §5e, not an allow-list edit.
 
 `litellm.${SECRET_DOMAIN}` resolves on the private VLAN only (split DNS,
 `envoy-internal`); in-cluster callers can use
@@ -466,17 +482,26 @@ price field has been dropped from a model CR. The same rows drive the Prometheus
 ### 5e. Adding a further family (Haiku, Fable)
 
 Opus is already done -
-[`app/models/claude-code-subscription-opus.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-code-subscription-opus.yaml),
-added 2026-08-30. To add another family, follow the same shape:
+[`app/models/claude-opus-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-opus-5.yaml),
+added 2026-08-30, renamed 2026-08-31. To add another family, follow the same
+shape:
 
 1. Copy either subscription CR to a new file with its own
-   `metadata.name`/`modelName` (`claude-code-subscription-<family>`) and a
-   different `params.model`, resolving the id against Anthropic's **direct**
-   catalog (`models/kustomization.yaml` rule 3 - the dash form
-   `anthropic/claude-opus-5`, never OpenRouter's dotted spelling).
+   `metadata.name`/`modelName` and a different `params.model`, resolving the
+   id against Anthropic's **direct** catalog (`models/kustomization.yaml`
+   rule 3 - the dash form `anthropic/claude-haiku-5` or similar, never
+   OpenRouter's dotted spelling).
 2. Add the file to `models/kustomization.yaml`.
 3. Add the new `modelName` to the virtual key's allow-list.
-4. Point the matching `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` at it (§5c).
+4. **Decide the name deliberately, the same choice the 2026-08-31 rename made
+   for Sonnet and Opus.** If nothing else on this proxy already holds that
+   family's natural name (there is no metered `claude-haiku-5`/`claude-fable-5`
+   CR today), give the new pass-through CR the natural name outright and no
+   client override is needed - this is the now-preferred shape. Only reach for
+   `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` (§5c's pre-rename mechanism) if the
+   natural name is already taken by a metered CR you are not renaming; in that
+   case, follow §7's evidence for why a per-key alias does not work and why
+   the client override was the fallback, not the first choice.
 
 **Keep the placeholder `apiKey` and the full set of explicit `$0` prices** -
 input, output, **and** the five prompt-cache fields (§4a). All of them apply
@@ -486,25 +511,24 @@ silent fallback to the household's metered `ANTHROPIC_API_KEY`; dropping a
 cache zero restarts the fictional-spend accrual that §4a closed.
 
 **Never solve a new family by adding its metered name to the allow-list**
-(`claude-opus-5`, `claude-sonnet-5`, `auto`). That converts this key into the
-second door into metered billing the whole design exists to prevent, and it is
-what §7 rules out on measured grounds.
+(`claude-opus-5-metered`, `claude-sonnet-5-metered`, `auto`). That converts
+this key into the second door into metered billing the whole design exists to
+prevent, and it is what §7 rules out on measured grounds.
 
 ---
 
 ## 6. What these changes did NOT touch
 
-Additive by design across four passes. The money-safety boundary is unchanged
-in all of them: no other virtual key, no metered model CR, no fallback chain,
-no `generalSettings`/`litellmSettings` value, and no household credential was
-touched. The metered `claude-opus-5` and `claude-sonnet-5` CRs still carry
+Additive by design across five passes. The money-safety boundary is unchanged
+in all of them: no other virtual key, no household credential, and no
+metered-model *credential* was touched. The metered CRs still carry
 `os.environ/ANTHROPIC_API_KEY` and stay absent from this key's allow-list; the
-CI test asserts both. The cloud entitlement boundary in
-`routerSettings.fallbacks` ([`fallbacks.md`](fallbacks.md)) is unchanged, and
-both subscription models are deliberately absent from every fallback chain - a
-config-declared fallback bypasses the calling key's allow-list, and pointing
-one at a model that requires a client-supplied token would fail every caller
-who does not send one.
+CI test asserts both, under their current names. The cloud entitlement
+boundary in `routerSettings.fallbacks` ([`fallbacks.md`](fallbacks.md)) is
+unchanged, and both pass-through models are deliberately absent from every
+fallback chain - a config-declared fallback bypasses the calling key's
+allow-list, and pointing one at a model that requires a client-supplied token
+would fail every caller who does not send one.
 
 **2026-08-27 (original).** One model CR and one new virtual key were added; no
 *existing* model CR, virtual key, allow-list, fallback chain or
@@ -526,18 +550,50 @@ phantom spend was annotated on the CR header, not zeroed; and
 row and no key `spend` column was altered. No metered model, other virtual key,
 fallback, credential, or `/anthropic` route change.
 
+**2026-08-31 (rename, Alternative B).** The two pass-through model CRs moved
+from `claude-code-subscription`/`claude-code-subscription-opus` to the natural
+`claude-sonnet-5`/`claude-opus-5`; the metered CRs that held those names moved
+to `claude-sonnet-5-metered`/`claude-opus-5-metered`; the D3 auto-router's tier
+map (`models/auto.yaml`) and both `routerSettings` fallback chains
+(`litellmproxy.yaml`) were repointed at the `-metered` names in the same
+change, since a fallback or tier pointed at a credential-less pass-through
+model would 401 instead of serving. The dedicated virtual key's own name,
+alias and Secret did not change - only its `models` allow-list values did.
+Every client-side `ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL`
+override was removed (§5c). No virtual key's entitlement changed: nothing
+named either metered model or the pass-through models directly before this
+change, so the rename alone could not silently grant or revoke access -
+verified against the current repo, not assumed from the 2026-08-30 report. No
+household credential, no `/anthropic` route, and no rate limit or budget was
+touched.
+
 ---
 
-## 7. The `claude-opus-5` name collision, and why it is closed on the client
+## 7. HISTORICAL: the `claude-opus-5` name collision, and why it was closed on the client (2026-08-30 to 2026-08-31)
+
+**This entire section describes the state BEFORE the 2026-08-31 rename.** At
+the time, the pass-through CRs were named `claude-code-subscription` /
+`claude-code-subscription-opus` and the natural names `claude-sonnet-5` /
+`claude-opus-5` belonged to the metered CRs - so a client asking for a model
+by family collided with the household's metered account, and the fix living
+here was a client-side environment variable, not a rename. The rename in §6's
+last entry is what actually retired this collision: it is kept below, names
+unchanged from the original measurements, because it is the evidence trail
+that justified the client-side workaround being the right interim fix, and
+because §7a's finding (per-key aliasing cannot work at all, for a structural
+ordering reason) is still true today and still the reason a future
+name-collision cannot be solved by aliasing either. If you are adding a new
+pass-through family, read §5e first - the current answer is "own the natural
+name outright," not "add a client override."
 
 Added 2026-08-30, after a `claude` subagent requested Opus by name and got
 `403 … can only access models=['claude-code-subscription']. Tried to access
 claude-opus-5`.
 
-The awkward part is that the name Claude Code sends, `claude-opus-5`, **already
-means the metered model on this proxy**. So a second pass-through CR is
-necessary but not sufficient: the client's request still has to reach it. Two
-options were considered.
+The awkward part was that the name Claude Code sends, `claude-opus-5`,
+**already meant the metered model on this proxy at the time**. So a second
+pass-through CR was necessary but not sufficient: the client's request still
+had to reach it. Two options were considered.
 
 ### 7a. Per-key model aliasing - evaluated against v1.98.0, and rejected
 
@@ -636,8 +692,61 @@ needs a real subscription OAuth token, which lives only on a person's
 workstation and which neither this repo nor CI can hold - the same boundary §5a
 draws around the interactive login. The 401 proves every link in the chain
 except the token itself, and the identical chain is what serves Sonnet in
-production today. Confirm on a logged-in workstation with:
+production today. At the time this was measured, that was confirmed on a
+logged-in workstation with `claude -p '...' --model claude-code-subscription-opus`;
+today the equivalent command names the current pass-through model directly,
+`claude -p '...' --model claude-opus-5`.
 
-```bash
-claude -p 'reply with the single word: ok' --model claude-code-subscription-opus
-```
+---
+
+## 8. Reaching the metered models on purpose
+
+The 2026-08-31 rename has one deliberate, unavoidable cost: **an admin who
+asks for `claude-sonnet-5` or `claude-opus-5` without a subscription OAuth
+token now reaches the pass-through CR and gets Anthropic's own
+`401 "OAuth access token is invalid."`, not a working metered call.** This is
+not a bug and not the pre-existing §7 collision reappearing - it is the
+mechanism in §3 doing exactly what it was built to do (refuse cleanly rather
+than silently bill the household key), now firing for a new class of caller:
+someone who deliberately wants the metered, household-billed route and no
+longer has a natural name that reaches it.
+
+**If you hit that 401 and you wanted the metered account, not your own
+subscription, use the metered names instead:**
+
+- `claude-sonnet-5-metered` - [`app/models/claude-sonnet-5-metered.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-sonnet-5-metered.yaml)
+- `claude-opus-5-metered` - [`app/models/claude-opus-5-metered.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-opus-5-metered.yaml)
+
+Both are the same models that used to answer to the bare `claude-sonnet-5` /
+`claude-opus-5` names before 2026-08-31 - same upstream `anthropic/claude-*-5`
+id, same `os.environ/ANTHROPIC_API_KEY` credential, same real per-token
+billing against this household's metered account and D4 consumer budgets.
+Nothing about how they work changed, only their name.
+
+**Reaching them requires a key entitled to the metered route.** The dedicated
+`claude-code-subscription` key (§5b) is deliberately NOT one - its allow-list
+holds only the two credential-less pass-through CRs, and the CI test
+(`scripts/ci/litellm-claude-code-subscription-test.py`,
+`virtualkey_allowlist_names_no_metered_route`) fails the build if that ever
+changes. Reach the metered models the same way every other cloud consumer in
+this proxy already does: a virtual key whose `models` allow-list names
+`claude-sonnet-5-metered`/`claude-opus-5-metered` directly, or `auto`
+(the D3 router, whose COMPLEX/REASONING tiers point at these same CRs -
+`models/auto.yaml`), each carrying a real `maxBudget` since these routes bill
+real money. `curl`/API callers can also use `-H 'Authorization: Bearer sk-…'`
+against `/v1/chat/completions` or `/v1/messages` with `"model":
+"claude-sonnet-5-metered"` and no OAuth header at all - the master key or any
+metered-entitled virtual key authenticates the call normally, exactly as
+before the rename.
+
+**Where an admin will actually see this documented at the point of failure:**
+the Kustomization comment on both metered model CRs
+([`claude-sonnet-5-metered.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-sonnet-5-metered.yaml),
+[`claude-opus-5-metered.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-opus-5-metered.yaml))
+and the pass-through CRs
+([`claude-sonnet-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-sonnet-5.yaml),
+[`claude-opus-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-opus-5.yaml))
+all cross-reference this document and each other by name, and
+[`kubernetes/apps/base/ai/litellm/README.md`](../../../kubernetes/apps/base/ai/litellm/README.md#claude-code-subscription-pass-through)
+links here from the app's own model-catalog table - the two places an admin
+debugging a 401 against this proxy is most likely to already be looking.
