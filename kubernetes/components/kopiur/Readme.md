@@ -250,12 +250,16 @@ their authoritative source. Stage 0's `kopiur-ceph-bucket` 1Password item stays 
 `./ceph/restore.yaml` carries leg 3, but it also carries
 `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`, so **Flux creates it once and
 never reconciles it again**. Adding the field does not reach a `Restore` that
-already exists in the cluster. The two live `*-kopiur-dst` objects in `downloads`
-predate this change; they are inert (`target.populator`, and every claim's
-`dataSourceRef` still points at VolSync's `${APP}-dst`), so nothing breaks today,
-but they must be recreated or hand-patched before Stage 5 repoints anything at
-them. A scratch drill `Restore` written today needs `credentialProjection.enabled:
-true` in its own spec - see "Restore" below.
+already exists in the cluster. A missing `credentialProjection` is fixed by
+**deleting and recreating** that Restore (safe: it has no finalizers and no
+ownerReferences, and owns no backup data, unlike a Snapshot) - not by repointing
+anything. `sabnzbd-kopiur-dst` was recreated during the Stage 5 pilot;
+`downloads/autobrr` is the one still missing the field and must be recreated
+before it is ever retired. Bound claims never repoint: `spec.dataSourceRef` is
+immutable, so a live claim keeps its (now often inert) VolSync `${APP}-dst` ref
+forever and the standing Restore stays Pending until a **rebuilt** claim from
+`components/kopiur/pvc` claims it. A scratch drill `Restore` written today needs
+`credentialProjection.enabled: true` in its own spec - see "Restore" below.
 
 ## `SecurityContextCompatible` is positive-only AND narrower than it looks
 
@@ -618,9 +622,13 @@ stagger table. Note kopiur accepts **bare `H` only** - the Jenkins range form
 counterpart to VolSync's `ReplicationDestination`. Only the local ceph
 destination gets one, the same asymmetry VolSync has.
 
-It is **passive for the whole parallel run**: `target.populator` means "wait to
-be claimed by a PVC's `spec.dataSourceRef`", and every claim's `dataSourceRef`
-still points at VolSync's `${APP}-dst`. It is inert until migration Stage 5.
+It is **passive until a rebuilt claim claims it**: `target.populator` means
+"wait to be claimed by a PVC's `spec.dataSourceRef`". Bound claims never
+repoint - `spec.dataSourceRef` is immutable - so a live claim keeps its VolSync
+`${APP}-dst` ref (inert once VolSync is retired) and the standing Restore stays
+`Pending` / `AwaitingPvcDataSourceRef` indefinitely. It is claimed only by a
+**rebuilt** claim created fresh from `components/kopiur/pvc`; on the four Stage 5
+pilot volumes that is already the contract today.
 
 It carries `policy.onMissingSnapshot: Continue`, a deliberate departure from the
 CRD's `Fail` default: `Continue` provisions an empty volume when no snapshot

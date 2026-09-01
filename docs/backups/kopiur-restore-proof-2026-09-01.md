@@ -125,7 +125,8 @@ Every object this run created carries `fm.homeops/restore-drill: kopiur-stage5`.
 - **Restores only ever targeted new scratch PVCs.** `Restore.spec.target.pvc` creates a new
   claim and cannot address a live one.
 - **The standing `*-kopiur-dst` passive populators were not touched.** They report `Pending`
-  by design until Stage 5 repoints a claim's `dataSourceRef`.
+  by design until a rebuilt claim from `components/kopiur/pvc` claims them - bound claims never
+  repoint (`dataSourceRef` is immutable).
 - **`KOPIUR_WORKER_THREADS=2` was left alone.** The operator's global mover concurrency
   throttles this run; raising it for a drill would have been a production change.
 

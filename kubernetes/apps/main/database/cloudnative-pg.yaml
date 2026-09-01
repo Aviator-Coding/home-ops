@@ -152,12 +152,12 @@ spec:
 #   Ready=False  reason=AwaitingPvcDataSourceRef
 #   "passive populator: awaiting a PVC dataSourceRef to claim this Restore"
 #
-# It stays that way until Stage 5 repoints the claim's dataSourceRef at it. So
-# adding the component inline here would make Flux wait on an object that can
-# never become Ready and time this Kustomization out. Splitting it off keeps
-# `wait: false` where the kopiur objects live and leaves pgadmin's existing
-# `wait: true` behaviour untouched. media/calibre.yaml has the same shape for
-# the same reason.
+# Bound claims never repoint (`dataSourceRef` is immutable), so it stays that
+# way until a rebuilt claim from `components/kopiur/pvc` claims it. Adding the
+# component inline here would make Flux wait on an object that can never become
+# Ready and time this Kustomization out. Splitting it off keeps `wait: false`
+# where the kopiur objects live and leaves pgadmin's existing `wait: true`
+# behaviour untouched. media/calibre.yaml has the same shape for the same reason.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

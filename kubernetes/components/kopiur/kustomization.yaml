@@ -7,11 +7,13 @@ kind: Component
 # owns the app's claim (the PVC's dataSourceRef points at its
 # ReplicationDestination, which is how a restore seeds a fresh deploy).
 #
-# kopiur's does NOT create a PVC. During the parallel run VolSync still owns
-# every claim, and two components creating the same PersistentVolumeClaim from
-# the same ${APP} would be a straight kustomize resource collision. The kopiur
-# Restore below is therefore declared in passive populator mode and simply sits
-# unclaimed until VolSync's PVC is retired (migration Stage 5), at which point
-# the claim's dataSourceRef moves to it and ./pvc.yaml lands here.
+# kopiur's does NOT create a PVC here. During the parallel run VolSync still
+# owns every dual-engine claim, and two components creating the same
+# PersistentVolumeClaim from the same ${APP} would be a straight kustomize
+# resource collision. The kopiur Restore below is therefore declared in passive
+# populator mode and sits unclaimed for bound claims forever - dataSourceRef is
+# immutable, so nothing repoints an existing claim. A rebuilt claim is created
+# fresh from the separate components/kopiur/pvc Component (never folded in here,
+# or it would collide with volsync's PVC on every still-dual-engine app).
 resources:
   - ./backup

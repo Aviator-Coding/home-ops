@@ -212,10 +212,11 @@ manifest in Git names the kopiur `Restore`, which is what a rebuild would actual
 
 ### `sabnzbd-kopiur-dst` had to be recreated
 
-`components/kopiur/ceph/restore.yaml` carries its own warning: the two `*-kopiur-dst` objects in
-`downloads` predate the `credentialProjection` field, they carry `ssa: IfNotPresent` so Flux will
-never update them, and they "must be recreated or hand-patched before Stage 5 repoints anything at
-them". `sabnzbd-kopiur-dst` was one of them. Verified live before deleting: **no finalizers, no
+`components/kopiur/ceph/restore.yaml` carries its own warning: a Restore that predates the
+`credentialProjection` field carries `ssa: IfNotPresent` so Flux will never update it, and the
+fix is to **delete and recreate** that Restore - not to repoint a claim (`dataSourceRef` is
+immutable on a bound PVC). `sabnzbd-kopiur-dst` was one of the two pre-projection objects in
+`downloads`. Verified live before deleting: **no finalizers, no
 ownerReferences** - a `Restore` owns no backup data (only a `Snapshot` CR does, through its
 finalizer). Deleted and recreated at 10:49:43Z, picking up both `credentialProjection: enabled`
 and the raised cache. All four standing populators now read:
