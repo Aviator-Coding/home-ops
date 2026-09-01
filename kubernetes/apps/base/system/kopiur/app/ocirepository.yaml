@@ -14,5 +14,5 @@ spec:
     # user-visible surface roughly once a fortnight through July 2026. Renovate
     # may propose bumps as PRs but must never merge one unattended - see the
     # kopiur exclusion in .renovate/autoMerge.json5 and README.md "Upgrades".
-    tag: 0.10.5
+    tag: 0.10.6
   url: oci://ghcr.io/home-operations/charts/kopiur
