@@ -417,6 +417,16 @@ All **78** remaining `ReplicationSource` objects (26 claims × ceph/minio/r2) ar
 never-synced, and none stale beyond its own cadence (ceph 4h, minio 6h, r2 24h, checked with
 generous ceilings). No VolSync object outside the four retired apps was read, written or deleted.
 
+A `lastSyncTime` inside cadence only proves VolSync was working *before* the retirement, so the
+stronger check is a run that **completed after** it: three did within the first half hour
+(`media/plex-minio`, `selfhosted/n8n-minio`, `selfhosted/ntfy-minio`). The other 75 had simply
+not reached their next slot - the cadences are 4-hourly, 6-hourly and daily - which is the
+expected shape, not a stall. The VolSync operator, its schedules and its credentials were never
+touched; only four apps' own objects were removed.
+
+Fleet-wide, every other Flux Kustomization is `Ready` and every `HelmRelease` in the cluster is
+`Ready`; the only suspended Kustomizations are the four in the handover below.
+
 ## What is NOT proven, and what did not change
 
 - **No restic repository data was deleted.** Retiring the source stops future backups; the
