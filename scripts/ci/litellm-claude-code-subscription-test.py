@@ -33,11 +33,9 @@ scoped to were renamed:
        - omitting api_key is NOT how credential-less models work
          (get_api_key(None) falls back to ANTHROPIC_API_KEY env)
   8. Client runbook doc is a published contract (required env vars +
-     x-litellm-api-key header guidance) that no longer requires the
-     ANTHROPIC_DEFAULT_OPUS_MODEL/ANTHROPIC_DEFAULT_SONNET_MODEL overrides -
-     the natural names ARE the pass-through now - and documents the metered
-     admin escape hatch (`claude-sonnet-5-metered`/`claude-opus-5-metered`)
-     plus the deliberate 401 an admin gets asking for the bare name instead.
+     x-litellm-api-key header guidance). Rename invariants live in the
+     operator-render/CR/fallback assertions above and in the sibling
+     auto-router / fallback-chain tests, not in runbook greps.
 
 This is intentionally NOT a source-grep test: assertions are on the operator
 render output, CR semantic model, kustomize consumer output, and (when
@@ -801,40 +799,6 @@ def test_runbook_contract() -> None:
         or f"ANTHROPIC_MODEL={MODEL_NAME}" in text
         or "ANTHROPIC_MODEL" in text and MODEL_NAME in text,
         "model assignment present",
-    )
-    # THE ACTUAL PRIZE: the quick-setup block must NOT require the client-side
-    # family overrides anymore. Scope the check to the client quick-setup
-    # section only (between its start marker and the next section heading) so
-    # historical prose in §7 describing the OLD alias-based workaround (which
-    # necessarily still names these variables) cannot make this assertion a
-    # false negative.
-    setup_start = text.find("### 5c.")
-    setup_end = text.find("### 5d.", setup_start) if setup_start != -1 else -1
-    setup_block = text[setup_start:setup_end] if setup_start != -1 and setup_end != -1 else ""
-    record(
-        "runbook_setup_block_present_for_override_removal_check",
-        bool(setup_block),
-        f"setup_start={setup_start} setup_end={setup_end}",
-    )
-    # Check for an actual assignment/export, not bare mention - the setup
-    # block's own prose explains why these vars are no longer needed, which
-    # necessarily still names them.
-    record(
-        "runbook_client_setup_no_longer_needs_default_family_overrides",
-        bool(setup_block)
-        and "ANTHROPIC_DEFAULT_OPUS_MODEL=" not in setup_block
-        and "ANTHROPIC_DEFAULT_SONNET_MODEL=" not in setup_block,
-        f"setup_block_bytes={len(setup_block)}",
-    )
-    # Admin escape hatch: the deliberate 401 an admin gets from the bare
-    # natural name must be explained, and the metered names to use instead
-    # must be discoverable in the same document.
-    record(
-        "runbook_documents_metered_admin_escape_hatch",
-        "claude-sonnet-5-metered" in text
-        and "claude-opus-5-metered" in text
-        and "401" in text,
-        "metered admin path present",
     )
     record(
         "runbook_forbids_putting_virtual_key_in_authorization",
