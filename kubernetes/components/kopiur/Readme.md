@@ -562,7 +562,8 @@ local time and shifts together with DST - the UTC instant moves, but the
 | r2 | `45 3 * * *` -> local 03:45 | `H 4 * * *` -> local **04:xx** | daily 30, weekly 12, monthly 12 |
 
 Resulting UTC hours for the ceph cadence, both seasons (identical across every
-namespace - `database/pgadmin` shown, all 30 dual-engine claims match):
+namespace - `database/pgadmin` shown; the 26 dual-engine claims match, and the
+four Stage 5 kopiur-only claims keep the same kopiur hours with no VolSync peer):
 
 | Season | VolSync ceph (UTC) | kopiur ceph (UTC) | Collision? |
 |---|---|---|---|
@@ -665,8 +666,12 @@ way since October 2025.
 
 ## Rollback
 
-Either of these leaves VolSync completely untouched and loses nothing, because
-VolSync is still backing up every volume this component covers:
+On a **dual-engine** volume either of these leaves VolSync completely untouched
+and loses nothing, because VolSync is still backing that claim up. On a **Stage 5
+kopiur-only** volume (the four in `RETIRED_CLAIMS`) there is no VolSync peer left
+- suspending or removing this component is a real protection gap until VolSync is
+restored or another engine is added. Do not treat the dual-engine rollback as
+safe on a retired claim:
 
 1. **Suspend** - `spec.suspend: true` on the `SnapshotPolicy` (or
    `spec.schedule.suspend: true` on the `SnapshotSchedule`). Stops new
@@ -720,6 +725,7 @@ immediate reconcile.
 * The system this runs beside: [`../volsync/Readme.md`](../volsync/Readme.md)
 * Restore drill procedure and its hard constraints: [`docs/backups/restore-drill-2026-08-23.md`](../../../docs/backups/restore-drill-2026-08-23.md)
 * Fleet restore-proof authority (all 30 claims, both destinations, 2026-09-01): [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md)
+* Stage 5 pilot retirement (four kopiur-only volumes, 2026-09-01): [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
 * Stage 2 restore gate (both destinations, both findings; durable procedure): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 * `downloads/recyclarr-config` readability probe (CronJob claim; not restore-fidelity - restore proof is the fleet table above): [`docs/backups/recyclarr-config-readable-check-2026-08-31.md`](../../../docs/backups/recyclarr-config-readable-check-2026-08-31.md)
 * Stage 4 root-mover onboarding (`matter-server`): this Readme's "Root movers" section + `scripts/ci/kopiur-stage4-test.py`

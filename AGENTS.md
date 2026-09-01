@@ -11,7 +11,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 ├── kubernetes/
 │   ├── apps/           # 19 namespaces at apps/base/<ns> + overlay apps/main/<ns> (see NOTES)
 │   ├── clusters/main/  # Flux entry point: meta.yaml + apps.yaml (see NOTES)
-│   └── components/     # alerts, common, dragonfly, volsync, kopiur (Stage 3 parallel)
+│   └── components/     # alerts, common, dragonfly, volsync, kopiur (+ kopiur/pvc for Stage 5 retired)
 ├── talos/              # minijinja templates (see talos/AGENTS.md)
 ├── bootstrap/          # just bootstrap stages (see bootstrap/AGENTS.md)
 ├── .taskfiles/         # included: 1password, k8s, flux, rook, network, actions-runner
@@ -28,7 +28,7 @@ Gatus is an app under `kubernetes/apps/base/monitoring/gatus`, not a component. 
 |------|----------|-------|
 | Add new app | `kubernetes/apps/base/{namespace}/{app}/` + overlay `kubernetes/apps/main/{namespace}/{app}.yaml` | Overlay is a Flux `Kustomization` CR (one yaml per former `ks.yaml`). All 19 namespaces are on this layout. See NOTES. |
 | Add app to namespace | `kubernetes/apps/main/{namespace}/kustomization.yaml` | Add `- ./{app}.yaml` |
-| Enable backups | overlay `kubernetes/apps/main/{ns}/{app}.yaml` | VolSync: `spec.components` + `dependsOn: volsync` (namespace `system`) + `VOLSYNC_*` keys (example: `media/seerr.yaml`). Stage 3 dual-engine also adds `components/kopiur` + measured `KOPIUR_*` keys - owner: `kubernetes/components/kopiur/Readme.md` |
+| Enable backups | overlay `kubernetes/apps/main/{ns}/{app}.yaml` | Dual-engine (26 claims): `components/volsync` + `dependsOn: volsync` (namespace `system`) + `VOLSYNC_*` keys, plus `components/kopiur` + measured `KOPIUR_*` keys (example: `downloads/autobrr.yaml`). Kopiur-only (4 Stage 5 pilot claims): drop volsync and add `components/kopiur/pvc` - owner: `kubernetes/components/kopiur/Readme.md` "Retiring a volume" |
 | App secrets | `kubernetes/apps/base/{ns}/{app}/app/externalsecret.yaml` | OnePassword via ClusterSecretStore `onepassword` |
 | Bootstrap secrets | `bootstrap/kustomize/apps/security/` | `vals` injects `ref+op://Home-Lab/1password/*` |
 | Flux entry point | `kubernetes/clusters/main/{meta,apps}.yaml` | `cluster-meta` -> `cluster-apps` dependency chain |
