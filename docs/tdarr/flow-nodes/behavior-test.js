@@ -226,10 +226,16 @@ async function testCargs() {
       .replace(/__LABEL__/g, 'test');
   }
 
-  async function runCargs(code, encoder, quality, hdr) {
+  async function runCargs(code, encoder, quality, hdr, width, height) {
     const node = loadCodeString(code, 'cargs');
     const streams = mkStreams([
-      { codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080, outputArgs: ['-c:{outputIndex}', encoder] },
+      {
+        codec_type: 'video',
+        codec_name: 'h264',
+        width: width === undefined ? 1920 : width,
+        height: height === undefined ? 1080 : height,
+        outputArgs: ['-c:{outputIndex}', encoder],
+      },
       { codec_type: 'audio', codec_name: 'aac' },
     ]);
     const overall = [];
@@ -239,7 +245,7 @@ async function testCargs() {
       variables: { ffmpegCommand: { streams, overallOuputArguments: overall } },
       jobLog: (s) => logs.push(s),
     });
-    return { r, overall, logs };
+    return { r, overall, logs, streams };
   }
 
   // CPU path
@@ -252,6 +258,50 @@ async function testCargs() {
     assert.ok(!overall.includes('medium'), 'CPU must not get QSV preset medium');
     assert.ok(!overall.includes('-global_quality'), 'CPU must not get -global_quality');
     assert.ok(!overall.includes('-look_ahead'), 'CPU must not get -look_ahead');
+  }
+
+  // 4K CPU guard: libsvtav1 on a frame too big for the 4Gi container is
+  // rewritten to av1_qsv. Measured 2026-08-31: 3840x2160 libsvtav1 -preset 8
+  // peaks ~7100 MiB RSS and OOM-kills the node (exit 137); av1_qsv ~1225 MiB.
+  {
+    const code = instantiate(28, false);
+    const { r, overall, logs, streams } = await runCargs(code, 'libsvtav1', 28, false, 3840, 2160);
+    const enc = streams[0].outputArgs[1];
+    log(`  4K+libsvtav1 -> enc=${enc} args=[${overall.join(' ')}]`);
+    assert.strictEqual(r.outputNumber, 1);
+    assert.strictEqual(enc, 'av1_qsv', '4K must not encode with libsvtav1');
+    assert.deepStrictEqual(overall, ['-preset', 'medium', '-global_quality', '28', '-look_ahead', '1']);
+    assert.ok(logs.join(' ').includes('4K CPU guard'), '4K guard must log');
+  }
+
+  // 1440p is already over budget at the measured 856 MiB/Mpx.
+  {
+    const code = instantiate(28, false);
+    const { streams } = await runCargs(code, 'libsvtav1', 28, false, 2560, 1440);
+    assert.strictEqual(streams[0].outputArgs[1], 'av1_qsv', '1440p is over the CPU budget');
+  }
+
+  // 1080p stays on the CPU: the PR #1443 fallback must survive the guard.
+  {
+    const code = instantiate(28, false);
+    const { overall, streams } = await runCargs(code, 'libsvtav1', 28, false, 1920, 1080);
+    assert.strictEqual(streams[0].outputArgs[1], 'libsvtav1', '1080p keeps the CPU fallback');
+    assert.deepStrictEqual(overall, ['-preset', '8', '-crf', '28']);
+  }
+
+  // Unknown dimensions fail towards the GPU, never towards an OOM.
+  {
+    const code = instantiate(28, false);
+    const { streams } = await runCargs(code, 'libsvtav1', 28, false, 0, 0);
+    assert.strictEqual(streams[0].outputArgs[1], 'av1_qsv', 'unknown dims must not run libsvtav1');
+  }
+
+  // A GPU worker on 4K is untouched by the guard.
+  {
+    const code = instantiate(28, false);
+    const { streams, overall } = await runCargs(code, 'av1_qsv', 28, false, 3840, 2160);
+    assert.strictEqual(streams[0].outputArgs[1], 'av1_qsv');
+    assert.deepStrictEqual(overall, ['-preset', 'medium', '-global_quality', '28', '-look_ahead', '1']);
   }
 
   // GPU path
