@@ -474,12 +474,18 @@ for a root-owned workload and is not a content-fidelity failure.
 ## `wait: true` is incompatible with this component
 
 `ceph/restore.yaml` is a standing `Restore` in passive populator mode, and it
-reports **`Ready=False` for the whole parallel run by design**
-(`AwaitingPvcDataSourceRef` - it is waiting for a PVC `dataSourceRef` that only
-Stage 5 will point at it). Flux with `wait: true` assesses **every** object in a
-Kustomization's inventory, so adding this component inline to such a
-Kustomization makes Flux block on an object that can never become Ready, and the
-Kustomization times out.
+reports **`Ready=False` by design** (`AwaitingPvcDataSourceRef`). Stage 5 does
+**not** repoint an already-bound claim at it: `spec.dataSourceRef` is immutable
+on a bound PVC, so a live claim keeps its now-inert VolSync ref forever and the
+standing Restore stays Pending until a **rebuilt** claim is created fresh from
+`components/kopiur/pvc` (see "Retiring a volume" above and `pvc/pvc.yaml` for the
+measured API error). A passive populator therefore never becomes Ready on its
+own for an existing claim, and it still cannot sit in a Kustomization that
+assesses its whole inventory.
+
+Flux with `wait: true` assesses **every** object in a Kustomization's inventory,
+so adding this component inline to such a Kustomization makes Flux block on an
+object that can never become Ready, and the Kustomization times out.
 
 Two apps hit this in Stage 3 and ship the kopiur half as their own `wait: false`
 Kustomization with `path: ./kubernetes/components/kopiur/backup`:

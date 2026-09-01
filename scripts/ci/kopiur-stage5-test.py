@@ -23,10 +23,14 @@ This test does not grep source text as its evidence. It:
   2. Renders the real kustomize build of components/kopiur/pvc under each
      overlay's OWN substitute map, with a Flux-shaped envsubst, and asserts on
      the resulting PersistentVolumeClaim.
-  3. Cross-checks the retired set against RETIRED_CLAIMS in
-     kopiur-stage3-test.py, which is the fleet's authoritative record, so the
-     two cannot drift apart.
-  4. Asserts the pilot document records the results it claims.
+  3. Renders components/kopiur/backup the same way and asserts the volume still
+     has a complete single-engine backup after losing VolSync (both destinations'
+     SnapshotPolicy + SnapshotSchedule, the standing Restore, credentialProjection
+     on each, and matching mover identities so the populator can read back what
+     was written).
+  4. Cross-checks the retired set against RETIRED_CLAIMS loaded via importlib
+     from kopiur-stage3-test.py, the fleet's authoritative record, so the two
+     cannot drift apart.
 
 Live evidence - snapshots Succeeded on both destinations after the removal,
 restores Completed through the populator path, byte-identical trees - is in the
@@ -35,6 +39,7 @@ pilot document and was collected before merge. This pins the GitOps contract.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import shutil
 import subprocess
@@ -47,11 +52,8 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 APPS_MAIN = REPO / "kubernetes" / "apps" / "main"
 KOPIUR_PVC = REPO / "kubernetes" / "components" / "kopiur" / "pvc"
+KOPIUR_BACKUP = REPO / "kubernetes" / "components" / "kopiur" / "backup"
 STAGE3_TEST = REPO / "scripts" / "ci" / "kopiur-stage3-test.py"
-PILOT_DOC = REPO / "docs" / "backups" / "kopiur-stage5-pilot-retirement-2026-09-01.md"
-PROOF_DOC = REPO / "docs" / "backups" / "kopiur-restore-proof-2026-09-01.md"
-KOPIUR_README = REPO / "kubernetes" / "components" / "kopiur" / "Readme.md"
-VOLSYNC_README = REPO / "kubernetes" / "components" / "volsync" / "Readme.md"
 
 KOPIUR_COMPONENT = "../../../../../components/kopiur"
 KOPIUR_PVC_COMPONENT = "../../../../../components/kopiur/pvc"
@@ -142,13 +144,13 @@ def flux_envsubst(text: str, env: dict[str, str]) -> str:
     return expand(text)
 
 
-_BUILD: str | None = None
+_BUILD_CACHE: dict[Path, str] = {}
 
 
 def kustomize_build(path: Path) -> str:
-    global _BUILD
-    if _BUILD is not None:
-        return _BUILD
+    cached = _BUILD_CACHE.get(path)
+    if cached is not None:
+        return cached
     exe = shutil.which("kustomize")
     cmd = [exe, "build", str(path)] if exe else None
     if cmd is None:
@@ -157,21 +159,52 @@ def kustomize_build(path: Path) -> str:
         cmd = [kubectl, "kustomize", str(path)]
     proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
     require(proc.returncode == 0, f"{' '.join(cmd)} failed: {proc.stderr.strip()}")
-    _BUILD = proc.stdout
-    return _BUILD
+    _BUILD_CACHE[path] = proc.stdout
+    return proc.stdout
+
+
+def render_docs(path: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    rendered = flux_envsubst(kustomize_build(path), env)
+    unresolved = sorted(set(re.findall(r"\$\{[A-Za-z_][^}]*\}", rendered)))
+    require(not unresolved, f"unresolved substitution tokens after render of {path}: {unresolved}")
+    return [d for d in yaml.safe_load_all(rendered) if d]
 
 
 def render_pvc(env: dict[str, str]) -> dict[str, Any]:
-    rendered = flux_envsubst(kustomize_build(KOPIUR_PVC), env)
-    unresolved = sorted(set(re.findall(r"\$\{[A-Za-z_][^}]*\}", rendered)))
-    require(not unresolved, f"unresolved substitution tokens: {unresolved}")
-    docs = [d for d in yaml.safe_load_all(rendered) if d]
+    docs = render_docs(KOPIUR_PVC, env)
     claims = [d for d in docs if d.get("kind") == "PersistentVolumeClaim"]
     require(
         len(claims) == 1 and len(docs) == 1,
         f"kopiur pvc Component must render exactly one PersistentVolumeClaim, got {[d.get('kind') for d in docs]}",
     )
     return claims[0]
+
+
+def render_backup(env: dict[str, str]) -> list[dict[str, Any]]:
+    return render_docs(KOPIUR_BACKUP, env)
+
+
+def load_stage3_retired_claims() -> set[tuple[str, str]]:
+    """Import RETIRED_CLAIMS as a real Python object from the stage3 module."""
+    require(STAGE3_TEST.is_file(), f"missing {STAGE3_TEST}")
+    name = "kopiur_stage3_under_test"
+    sys.modules.pop(name, None)
+    spec = importlib.util.spec_from_file_location(name, STAGE3_TEST)
+    require(spec is not None and spec.loader is not None, f"cannot load {STAGE3_TEST}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    claims = getattr(mod, "RETIRED_CLAIMS", None)
+    require(
+        isinstance(claims, set),
+        f"kopiur-stage3-test.py RETIRED_CLAIMS must be a set, got {type(claims).__name__}",
+    )
+    return {(str(ns), str(claim)) for ns, claim in claims}
+
+
+def mover_identity(doc: dict[str, Any]) -> tuple[Any, Any, Any]:
+    psc = ((doc.get("spec") or {}).get("mover") or {}).get("podSecurityContext") or {}
+    return (psc.get("runAsUser"), psc.get("runAsGroup"), psc.get("fsGroup"))
 
 
 # ---------------------------------------------------------------------------
@@ -316,12 +349,11 @@ def test_retired_set_matches_stage3() -> None:
     stage3's RETIRED_CLAIMS is the fleet's authoritative single-engine record -
     it is what enforces that every OTHER claim still has two engines. If the two
     lists drift, one of them is silently wrong about which volumes have a safety
-    net, so they are compared rather than maintained in parallel.
+    net, so they are compared rather than maintained in parallel. Loaded via
+    importlib so a renamed, moved, or non-set value fails instead of matching
+    source text.
     """
-    src = STAGE3_TEST.read_text()
-    m = re.search(r"RETIRED_CLAIMS: set\[tuple\[str, str\]\] = \{(.*?)\}", src, re.S)
-    require(m, "could not find RETIRED_CLAIMS in kopiur-stage3-test.py")
-    stage3 = set(re.findall(r'\("([^"]+)",\s*"([^"]+)"\)', m.group(1)))
+    stage3 = load_stage3_retired_claims()
     here = {(ns, claim) for (ns, _app, claim, _cap) in RETIRED.values()}
     require(
         stage3 == here,
@@ -354,65 +386,100 @@ def test_no_other_overlay_uses_the_pvc_component() -> None:
     require(not offenders, "kopiur/pvc Component misuse: " + "; ".join(offenders))
 
 
-def test_pilot_document_records_the_result() -> None:
-    """The document must state what was actually measured, not just that it happened."""
-    require(PILOT_DOC.is_file(), f"missing {PILOT_DOC}")
-    text = PILOT_DOC.read_text()
-    for needle, why in [
-        ("kopiur-restore-proof-2026-09-01.md", "must cite the authorising evidence"),
-        # The quoted API error is line-wrapped in the document, so match the
-        # distinctive fragments rather than the whole sentence.
-        ("Forbidden", "must record the measured dataSourceRef API rejection"),
-        ("spec is immutable", "must quote the immutability error verbatim"),
-        ("IfNotPresent", "must explain the ssa policy that makes the swap possible"),
-        ("prune: true", "must state the prune hazard that would delete the claim"),
-        ("populator", "must record that the restore proof used the real populator path"),
-        ("ownerReference", "must explain why the cache PVCs and Secrets needed no cleanup"),
-        ("flux resume ks", "must hand over the suspended Kustomizations"),
-        ("RETIRED_CLAIMS", "must point at the machine-readable record"),
-    ]:
-        require(needle in text, f"pilot document {why} (missing {needle!r})")
-    for _rel, (ns, _app, claim, _cap) in RETIRED.items():
-        require(f"{ns}/{claim}" in text, f"pilot document must name {ns}/{claim}")
-    # The two findings that gate FURTHER retirement must not be quietly dropped.
-    require(
-        "finding 2" in text and "hermes" in text and "plex" in text,
-        "pilot document must record that restore-proof finding 2 still blocks the large claims",
-    )
-    # And it must be honest about what the pilot does not cover.
-    require(
-        "26" in text,
-        "pilot document must state how many claims remain dual-engine",
-    )
+def test_retired_backup_shape_is_complete() -> None:
+    """After losing VolSync, every retired claim must still render a full kopiur backup.
 
+    Retirement must never leave a claim with zero engines or half a configuration.
+    Render components/kopiur/backup under each overlay's own substitute map and
+    require both destinations' SnapshotPolicy + SnapshotSchedule, the standing
+    Restore, credentialProjection on each of those, and a Restore mover identity
+    equal to the SnapshotPolicy's so the populator can read back what was written.
+    """
+    for rel, (_ns, app, claim, _cap) in RETIRED.items():
+        env = {**substitute(overlay(rel)), "SECRET_DOMAIN": "example.test"}
+        docs = render_backup(env)
+        by_kind: dict[str, list[dict[str, Any]]] = {}
+        for d in docs:
+            by_kind.setdefault(d.get("kind") or "", []).append(d)
 
-def test_surrounding_docs_agree() -> None:
-    """The proof doc, both component Readmes and the pilot doc tell one story."""
-    proof = PROOF_DOC.read_text()
-    require(
-        "kopiur-stage5-pilot-retirement-2026-09-01.md" in proof,
-        "the restore proof must forward-point at what it authorised, or a reader lands on "
-        "'Nothing was retired by this exercise' and believes the fleet is still dual-engine",
-    )
-    kopiur = KOPIUR_README.read_text()
-    require(
-        "Retiring a volume" in kopiur,
-        "components/kopiur/Readme.md must document the retirement procedure",
-    )
-    require(
-        "pvc/" in kopiur and "KOPIUR_CAPACITY" in kopiur,
-        "components/kopiur/Readme.md must document the pvc Component and its variables",
-    )
-    volsync = VOLSYNC_README.read_text()
-    require(
-        "78" in volsync and "26" in volsync,
-        "components/volsync/Readme.md must record the reduced footprint (26 claims / 78 sources)",
-    )
-    for name in ("repo-wiki", "recyclarr", "sabnzbd", "seerr"):
+        policies = {d["metadata"]["name"]: d for d in by_kind.get("SnapshotPolicy", [])}
+        schedules = {d["metadata"]["name"]: d for d in by_kind.get("SnapshotSchedule", [])}
+        restores = {d["metadata"]["name"]: d for d in by_kind.get("Restore", [])}
+
+        ceph_policy_name = f"{app}-ceph"
+        r2_policy_name = f"{app}-r2"
+        restore_name = f"{app}-kopiur-dst"
+
         require(
-            name in volsync,
-            f"components/volsync/Readme.md must name {name} as retired so a reader of the "
-            f"schedule table knows why it is absent",
+            set(policies) == {ceph_policy_name, r2_policy_name},
+            f"{rel}: expected SnapshotPolicy names {{{ceph_policy_name}, {r2_policy_name}}}, "
+            f"got {sorted(policies)}",
+        )
+        require(
+            set(schedules) == {ceph_policy_name, r2_policy_name},
+            f"{rel}: expected SnapshotSchedule names {{{ceph_policy_name}, {r2_policy_name}}}, "
+            f"got {sorted(schedules)}",
+        )
+        require(
+            set(restores) == {restore_name},
+            f"{rel}: expected standing Restore {restore_name!r}, got {sorted(restores)}",
+        )
+
+        for name, policy in policies.items():
+            sources = (policy.get("spec") or {}).get("sources") or []
+            pvc_names = [
+                ((s.get("pvc") or {}).get("name"))
+                for s in sources
+                if isinstance(s, dict)
+            ]
+            require(
+                claim in pvc_names,
+                f"{rel}: SnapshotPolicy/{name} must source claim {claim!r}, got {pvc_names}",
+            )
+            proj = (policy.get("spec") or {}).get("credentialProjection") or {}
+            require(
+                proj.get("enabled") is True,
+                f"{rel}: SnapshotPolicy/{name} must enable credentialProjection, got {proj}",
+            )
+
+        for name, schedule in schedules.items():
+            pref = ((schedule.get("spec") or {}).get("policyRef") or {}).get("name")
+            require(
+                pref == name,
+                f"{rel}: SnapshotSchedule/{name} must policyRef {name!r}, got {pref!r}",
+            )
+
+        restore = restores[restore_name]
+        rproj = (restore.get("spec") or {}).get("credentialProjection") or {}
+        require(
+            rproj.get("enabled") is True,
+            f"{rel}: Restore/{restore_name} must enable credentialProjection, got {rproj}",
+        )
+        from_policy = (((restore.get("spec") or {}).get("source") or {}).get("fromPolicy") or {}).get(
+            "name"
+        )
+        require(
+            from_policy == ceph_policy_name,
+            f"{rel}: Restore/{restore_name} must fromPolicy {ceph_policy_name!r}, got {from_policy!r}",
+        )
+        target = (restore.get("spec") or {}).get("target") or {}
+        require(
+            "populator" in target,
+            f"{rel}: Restore/{restore_name} must be a standing populator, got target={target}",
+        )
+
+        ceph_id = mover_identity(policies[ceph_policy_name])
+        r2_id = mover_identity(policies[r2_policy_name])
+        restore_id = mover_identity(restore)
+        require(
+            ceph_id == r2_id == restore_id,
+            f"{rel}: mover identity must match across ceph policy / r2 policy / restore so the "
+            f"populator can read back what was written; got ceph={ceph_id} r2={r2_id} "
+            f"restore={restore_id}",
+        )
+        require(
+            all(v is not None for v in ceph_id),
+            f"{rel}: mover identity must be fully set, got {ceph_id}",
         )
 
 
@@ -439,8 +506,7 @@ def main() -> int:
     run("sabnzbd_restore_cache_raised", test_sabnzbd_restore_cache_raised)
     run("retired_set_matches_stage3", test_retired_set_matches_stage3)
     run("no_other_overlay_uses_the_pvc_component", test_no_other_overlay_uses_the_pvc_component)
-    run("pilot_document_records_the_result", test_pilot_document_records_the_result)
-    run("surrounding_docs_agree", test_surrounding_docs_agree)
+    run("retired_backup_shape_is_complete", test_retired_backup_shape_is_complete)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")
