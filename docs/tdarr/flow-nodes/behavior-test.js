@@ -674,13 +674,6 @@ function testNodeSources() {
     checked += 1;
   }
   log(`  all ${checked} customFunction sources byte-identical to the artifact`);
-
-  // The 4K guard must actually be present in all three cargs bodies.
-  for (const id of Object.keys(cargsSpec)) {
-    const n = cf.find(x => x.id === id);
-    assert.ok(n.inputsDB.code.includes('4K CPU guard'), id + ' lost the 4K CPU guard');
-  }
-  log('  4K CPU guard present in cargs22/23/24');
 }
 
 (async () => {

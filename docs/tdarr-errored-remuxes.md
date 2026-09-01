@@ -521,12 +521,22 @@ cluster on 2026-08-31; not reproducible in CI.
 Chosen as the smallest of the seven (20.92 GB → 7.18 GB), which bounds both
 blast radius and time-to-signal. **It was never itself queued.** A
 byte-identical copy was staged under `/media/Movies/zz-tdarr-canary/` (so
-`guard_scope` would admit it), the flow ran against the copy, and the master
-was only replaced after the output had been verified. The staging tree was
-deleted again once the verified `.mkv` was in place. That is what kept the
-master intact through five node OOM kills that happened during the same
-session - a direct contrast with `Johnny Mnemonic`, which a bulk requeue
-rewrote in place on 2026-08-30 with no verification.
+`guard_scope` would admit it). Tdarr ran the flow against that copy and its
+decisions executed there - `guard_scope` passed, `sub23` logged
+`Stream conform: in v=1 a=7 s=35 | mov_text->srt=35 droppedData=0 dropped0x0Art=0`,
+and `cargs23` emitted the full 44-stream mapping (all in the job report) - but
+**Tdarr did not complete the encode**. The CPU worker won the queue race and
+`libsvtav1` at 4K OOM-killed the node at ffmpeg exec; that is exactly what
+motivated the 4K guard (section 4b.1). The encode was finished **out of band**
+in a scratch pod with a raised memory limit, running the flow's own emitted
+ffmpeg command on the GPU rung (`av1_qsv` branch of `cargs23`), then verified,
+then swapped onto the master path by hand. The master was replaced only after
+that verification. The staging tree was deleted once the verified `.mkv` was
+in place. That is what kept the master intact through five node OOM kills in
+the same session - a direct contrast with `Johnny Mnemonic`, which a bulk
+requeue rewrote in place on 2026-08-30 with no verification. **After** the
+guard shipped, a 4K job offered to the CPU worker does complete inside Tdarr on
+`av1_qsv` (observed on `zzGuard 4K d`).
 
 Every stream survived:
 
@@ -678,11 +688,22 @@ Three consequences worth knowing before touching the transcode path:
   the stale row is removed (`POST /api/v2/cruddb`, `mode: removeOne`,
   `collection: StagedJSONDB`). A crash therefore silently parks its own victims.
 
-This is why the 2026-08-31 canary run did not complete through Tdarr: the CPU
-worker won the queue race and the node died before ffmpeg produced a frame. The
-GPU rung is the one this file's path (`start23`/`enc23`, `hardwareType: qsv`) is
-designed for, and it fits the current limit comfortably - the problem is purely
-that nothing stops the CPU worker taking a 4K job.
+That is the canary sequence in full (same facts as §4.1, restated here for the
+OOM cause): Tdarr **did** run the flow on the staged copy and its decisions
+executed there (`guard_scope` passed, `sub23` logged
+`Stream conform: in v=1 a=7 s=35 | mov_text->srt=35 droppedData=0 dropped0x0Art=0`,
+`cargs23` emitted the full 44-stream mapping - all in the job report). Tdarr
+**did not** complete the encode: the CPU worker won the queue race and
+`libsvtav1` at 4K OOM-killed the node at ffmpeg exec, which is exactly what
+motivated the 4K guard below. The encode was finished **out of band** in a
+scratch pod with a raised memory limit, running the flow's own emitted ffmpeg
+command on the GPU rung (`av1_qsv` branch of `cargs23`), then verified, then
+swapped onto the master path by hand. The master was replaced only after that
+verification. **After** the guard shipped, a 4K job offered to the CPU worker
+does complete inside Tdarr on `av1_qsv` (observed on `zzGuard 4K d`). The GPU
+rung is the one this file's path (`start23`/`enc23`, `hardwareType: qsv`) is
+designed for and fits the current limit comfortably - the pre-guard problem was
+purely that nothing stopped the CPU worker taking a 4K job.
 
 ### 4b.1 Resolution: option C, a flow guard inside `cargs22/23/24`
 
