@@ -132,6 +132,7 @@ class WorkflowModel:
     jobs: dict[str, Job]
     concurrency: dict[str, Any]
     path_filters: dict[str, list[str]]  # job_id filter step -> patterns
+    trigger_paths: list[str]  # on.pull_request.paths
 
 
 def _as_list(value: Any) -> list[str]:
@@ -181,10 +182,17 @@ def load_validate() -> WorkflowModel:
             if line.strip()
         ]
 
+    on_block = data.get(True) or data.get("on") or {}
+    if not isinstance(on_block, dict):
+        raise Failure(f"validate.yaml `on` must be mapping, got {type(on_block)}")
+    pull_request = on_block.get("pull_request") or {}
+    trigger_paths = _as_list(pull_request.get("paths"))
+
     return WorkflowModel(
         jobs=jobs,
         concurrency=dict(data.get("concurrency") or {}),
         path_filters=path_filters,
+        trigger_paths=trigger_paths,
     )
 
 
@@ -673,6 +681,53 @@ def test_scheduler_scenarios(model: WorkflowModel) -> dict[str, Any]:
     return scenarios
 
 
+def _trigger_covers(pattern: str, trigger_paths: list[str]) -> bool:
+    """Would a file matching `pattern` also start the workflow?
+
+    GitHub filters at the trigger AND inside the filter job, and the trigger
+    wins: if a path is absent from on.pull_request.paths the workflow never
+    starts, so the per-job pattern is dead no matter what it says.
+    """
+    if pattern in trigger_paths:
+        return True
+    for trigger in trigger_paths:
+        if trigger.endswith("/**") and pattern.startswith(trigger[: -len("**")]):
+            return True
+    return False
+
+
+def test_trigger_paths_cover_job_filters(model: WorkflowModel) -> dict[str, Any]:
+    """Every per-job filter pattern must be reachable from the trigger paths.
+
+    Regression: from PR #1530 until 2026-09-01 the pythontests filter listed
+    docs/tdarr/** and docs/tdarr-errored-remuxes.md while on.pull_request.paths
+    did not, so a docs/tdarr-only change started no workflow at all and
+    tdarr-flow-nodes-test.py - which byte-checks every Tdarr flow node source
+    against the committed flow artifact - never ran in CI. A dead per-job
+    pattern is worse than a missing one: it reads as coverage.
+    """
+    failures: list[str] = []
+    uncovered: dict[str, list[str]] = {}
+    for sid, patterns in sorted(model.path_filters.items()):
+        missing = [p for p in patterns if not _trigger_covers(p, model.trigger_paths)]
+        if missing:
+            uncovered[sid] = missing
+            _check(
+                False,
+                f"filter step {sid!r} matches {missing} which on.pull_request.paths "
+                f"does not cover, so those patterns can never fire; "
+                f"trigger paths are {model.trigger_paths}",
+                failures,
+            )
+    if failures:
+        raise Failure("; ".join(failures))
+    return {
+        "trigger_paths": model.trigger_paths,
+        "uncovered": uncovered,
+        "checked_steps": sorted(model.path_filters),
+    }
+
+
 def test_path_filters_keep_workflow_self_test(model: WorkflowModel) -> dict[str, Any]:
     failures: list[str] = []
     # Every per-job filter step must still include the workflow file so an edit
@@ -777,6 +832,7 @@ def main() -> int:
         ("python_tests_if_preserves_coverage", lambda: test_python_tests_if_preserves_coverage(model)),
         ("scheduler_scenarios", lambda: test_scheduler_scenarios(model)),
         ("path_filters_keep_workflow_self_test", lambda: test_path_filters_keep_workflow_self_test(model)),
+        ("trigger_paths_cover_job_filters", lambda: test_trigger_paths_cover_job_filters(model)),
         ("runner_capacity_unchanged", test_runner_capacity_unchanged),
         ("jobs_still_on_home_ops_runner", lambda: test_jobs_still_on_home_ops_runner(model)),
         ("validation_entrypoints_preserved", lambda: test_validation_entrypoints_preserved(model)),

@@ -40,7 +40,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `litellm-sso-test.py` | LiteLLM UI SSO through Authentik |
 | `terraform-ci-workflows-test.py` | terraform-diff / terraform-publish CI contract |
 | `tofu-authentik-stack-test.py` | the Authentik OpenTofu adoption stack |
-| `validate-contention-test.py` | validate.yaml runner-pool contention timeouts + python-tests ordering |
+| `validate-contention-test.py` | validate.yaml runner-pool contention timeouts + python-tests ordering; every per-job filter pattern must also be reachable from `on.pull_request.paths` (dead-filter regression that left `docs/tdarr/**` untested until 2026-09-01) |
 | `workflow-hardening-test.py` | GitHub Actions workflow permissions/concurrency hardening |
 | `recyclarr-quality-profile-test.py` | Radarr SQP-1 recyclarr fix (guide min_format_score, trash_id matching, 1080p profile) |
 | `renovate-binding-conditions-test.py` | 2026-08-22 keep-in-cluster Renovate conditions vs shipped chart+CronJob: autoMerge last-match-wins exclusion for `kubernetes/apps/base/renovate/**`, silence alerts present, no hostRules/RENOVATE_HOST_RULES (condition 3 retired) |
@@ -99,9 +99,14 @@ to a soft pass-with-note instead.
 
 ### CI status
 
-Wired into `.github/workflows/validate.yaml`'s `python-tests` job, gated by the same
-`scripts/ci/**` (plus `.github/workflows/validate.yaml` / `.mise.toml`) path filter as the
-shell-script jobs above. It installs `python-hcl2` and `litellm[proxy]==1.98.0` (matching
+Wired into `.github/workflows/validate.yaml`'s `python-tests` job. Path filtering is
+two-level and the trigger wins: a path must appear in both `on.pull_request.paths` and
+the job's own filter, or the workflow never starts and the per-job pattern is dead.
+`python-tests` covers `scripts/ci/**`, `docs/tdarr/**`, `docs/tdarr-errored-remuxes.md`,
+`.github/workflows/validate.yaml`, and `.mise.toml` at both levels (the shell-script
+jobs share the `scripts/ci/**` / workflow / `.mise.toml` subset only).
+`validate-contention-test.py::test_trigger_paths_cover_job_filters` fails if any
+per-job pattern becomes unreachable from the trigger again. It installs `python-hcl2` and `litellm[proxy]==1.98.0` (matching
 the pinned cluster proxy image), installs native `promtool` via
 `aqua:prometheus/prometheus@3.2.1` for PromQL rule evaluation (this runner has no podman),
 `aqua:mitsuhiko/minijinja` so `schematic-pcie-port-pm-test.py` can render

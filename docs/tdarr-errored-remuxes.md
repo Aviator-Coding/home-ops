@@ -30,7 +30,8 @@ labelled **at the point it is made**:
   under `docs/tdarr/` (node sources, `flow-movies_av1_nvenc_v1.after.json`, and
   `docs/tdarr/flow-nodes/behavior-test.js`). `scripts/ci/tdarr-flow-nodes-test.py`
   is the validate.yaml `python-tests` entrypoint that executes that harness
-  (path filter also covers `docs/tdarr/**`). A CI-verified claim either stays
+  (trigger and job filters both cover `docs/tdarr/**`; dual-level detail in
+  [`docs/tdarr/README.md`](./tdarr/README.md)). A CI-verified claim either stays
   true or goes red on the next run, so it defends itself.
 
 Where a live finding has a committed counterpart that CI re-checks, both labels
