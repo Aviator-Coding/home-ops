@@ -552,9 +552,11 @@ mastering-display and content-light metadata the source did not carry
 explicitly), but the **Dolby Vision RPU layer is gone**. This is inherent to the
 AV1 re-encode, not to the subtitle work, and it follows directly from the
 `e_dv_bypass` edge that section 3.6 already flagged as an open behaviour choice:
-that edge routes `dv_check`'s "IS DV" output into the encoder anyway, and **six
-of the seven masters are DV HDR10**. Anyone deciding about the remaining six
-should weigh that first.
+that edge routes `dv_check`'s "IS DV" output into the encoder anyway. Measured:
+**five of the six remaining masters carry a DV RPU** (all profile 8), and the
+loss is **not** inherent to AV1 - it is specific to `av1_qsv`. Section 4.2 has
+the per-title survey and the encoder comparison; read it before deciding about
+the five.
 
 The original master was **not** deleted. It is retained byte-intact (size and
 mtime preserved) at:
@@ -572,6 +574,65 @@ An eighth, `Johnny Mnemonic (1995)`, was rewritten in place on 2026-08-30 by a
 bulk UI requeue (7.02 GB h264 -> 1.41 GB AV1). Lossy and irreversible.
 
 **Never bulk-requeue.** Tdarr rewrites in place.
+
+---
+
+### 4.2 Dolby Vision: who is affected, and is the loss avoidable
+
+**Provenance: one-time live observation** - operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. Both the survey and the encoder
+comparison were run against the real masters.
+
+**Who is affected: five of the six remaining, not all seven.** Surveyed with
+`ffprobe -show_streams` on the live files:
+
+| Master | Dolby Vision |
+|---|---|
+| The Silence of the Lambs (1991) | **yes** - profile 8, `bl_compat_id` 1, `rpu_present` 1 |
+| The Departed (2006) | **yes** - profile 8, `bl_compat_id` 1 |
+| Gladiator (2000) | **yes** - profile 8, `bl_compat_id` 1 |
+| Wake Up Dead Man (2025) | **yes** - profile 8, `bl_compat_id` 1 |
+| The Rip (2026) | **yes** - profile 8, `bl_compat_id` 1 |
+| Amelie (2001) | **no** - carries no HDR at all (1080p AVC) |
+
+So the finding is **not** moot: it applies to five of the six. `Amelie` is
+unaffected and can be judged purely on the subtitle result.
+
+All five are **profile 8 with `bl_signal_compatibility_id: 1`**, which matters:
+the base layer is itself valid HDR10, so losing the RPU degrades them to
+correct HDR10 rather than breaking them. (Profile 5 would have no usable base
+layer and losing the RPU there would be catastrophic. None of these are
+profile 5.) What is lost is Dolby Vision's per-scene dynamic metadata.
+
+**Is the loss inherent? No - it is specific to the `av1_qsv` encoder.** Measured
+on a 10-second segment of the canary's own retained original, same source, two
+encoders:
+
+| Encoder | Result |
+|---|---|
+| `av1_qsv -preset medium` (what the canary actually ran) | **RPU dropped.** Output side data is `Content light level` + `Mastering display` only. `av1_qsv` exposes no `-dolbyvision` option at all. |
+| `libsvtav1 -dolbyvision true` | **RPU preserved.** Output carries a `DOVI configuration record`, `dv_profile: 10` (the AV1 Dolby Vision profile), `rpu_present_flag: 1`, `bl_signal_compatibility_id: 1`, alongside the HDR10 metadata. |
+
+`ffmpeg -h encoder=...` on the running node confirms the asymmetry directly:
+`libsvtav1` and `libx265` both advertise
+`-dolbyvision <boolean> ... Enable Dolby Vision RPU coding`; `av1_qsv` and
+`hevc_qsv` do not. A `dovi_rpu` bitstream filter is also present.
+
+**This is in direct tension with the 4K CPU guard in section 4b.1, and the
+captain should see that before deciding about the five.** The only encoder on
+this box that can carry the RPU is `libsvtav1`, and a 4K `libsvtav1` encode is
+exactly the ~7,100 MiB job that OOM-kills the node at its 4Gi limit - which is
+why the guard now routes every 4K job to `av1_qsv`. As things stand:
+
+- the guard makes 4K transcoding **safe**, and
+- it simultaneously makes DV preservation on 4K **impossible**.
+
+Reconciling them needs one of: raise `tdarr-node` memory so 4K `libsvtav1` fits
+(the option A rejected on 2026-08-31, now with a second reason in its favour);
+add a DV-aware exception to the guard **and** the memory to back it; accept
+HDR10-only output for the five; or leave the five parked. Nothing here has been
+changed to force that choice - the guard as shipped keeps the node alive, which
+was the decision actually taken.
 
 ---
 

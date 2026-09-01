@@ -625,12 +625,71 @@ function testDocsContract() {
   log('  media-stack/errored-remuxes/AGENTS content + provenance contracts OK');
 }
 
+
+// --- 6. every customFunction node source is byte-identical to the flow artifact ---
+// The runbook (docs/tdarr/README.md) promises these cannot drift. Make that true:
+// each of the 12 customFunction bodies must equal its committed source file, or
+// the template instantiation for the generated ones.
+function testNodeSources() {
+  log('\n== node sources vs flow artifact ==');
+  const flow = JSON.parse(fs.readFileSync(path.join(FLOW_DIR, 'flow-movies_av1_nvenc_v1.after.json'), 'utf8'));
+  const cf = flow.flowPlugins.filter(n => n.pluginName === 'customFunction');
+  assert.strictEqual(cf.length, 12, 'expected 12 customFunction nodes');
+
+  const read = (f) => fs.readFileSync(path.join(NODES, f), 'utf8');
+  const template = read('cargs_template.js');
+  const cargsSpec = {
+    cargs22: ['cq24 HDR', '24', 'true'],
+    cargs23: ['cq26 HDR', '26', 'true'],
+    cargs24: ['cq28 SDR', '28', 'false'],
+  };
+  const direct = {
+    guard_scope: 'guard_scope.js',
+    dv_check: 'dv_check.js',
+    snapshot: 'snapshot.js',
+    size_check: 'size_check.js',
+    duration_check: 'duration_check.js',
+    hdr_survival: 'hdr_survival.js',
+  };
+  const subconform = read('subconform.js');
+
+  let checked = 0;
+  for (const n of cf) {
+    const code = n.inputsDB.code;
+    let expected;
+    if (cargsSpec[n.id]) {
+      const [lab, q, h] = cargsSpec[n.id];
+      expected = template
+        .replace(/__LABEL__/g, lab)
+        .replace(/__QUALITY__/g, q)
+        .replace(/__HDR__/g, h);
+    } else if (direct[n.id]) {
+      expected = read(direct[n.id]);
+    } else if (/^sub2[234]$/.test(n.id)) {
+      expected = subconform;
+    } else {
+      throw new Error('customFunction node with no committed source: ' + n.id);
+    }
+    assert.strictEqual(code, expected, n.id + ' source has drifted from the flow artifact');
+    checked += 1;
+  }
+  log(`  all ${checked} customFunction sources byte-identical to the artifact`);
+
+  // The 4K guard must actually be present in all three cargs bodies.
+  for (const id of Object.keys(cargsSpec)) {
+    const n = cf.find(x => x.id === id);
+    assert.ok(n.inputsDB.code.includes('4K CPU guard'), id + ' lost the 4K CPU guard');
+  }
+  log('  4K CPU guard present in cargs22/23/24');
+}
+
 (async () => {
   try {
     await testGuardScope();
     await testSubconform();
     await testCargs();
     await testFlowContract();
+    testNodeSources();
     testDocsContract();
   } catch (e) {
     fail(e.stack || String(e));

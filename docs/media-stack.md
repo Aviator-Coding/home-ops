@@ -256,8 +256,11 @@ transcodes; an eighth master (`Johnny Mnemonic (1995)`) was already destroyed
 by a bulk UI requeue on 2026-08-30. **Six masters remain parked**: the seventh
 and smallest, `A House of Dynamite (2025)`, was processed as a single approved
 canary on 2026-08-31 - all 44 streams and all 35 subtitle tracks survived, but
-its Dolby Vision layer did not (HDR10 is preserved), so weigh that before
-deciding about the other six. Its untouched original is retained at
+its Dolby Vision layer did not (HDR10 is preserved). **Five of the six remaining
+masters also carry DV**, and that loss is specific to the `av1_qsv` encoder, not
+to AV1 - `libsvtav1 -dolbyvision true` preserves it, but a 4K `libsvtav1` encode
+is the ~7 GiB job the 4K CPU guard exists to prevent. Weigh that before deciding
+about the other six. Its untouched original is retained at
 `/media/.tdarr-canary-rollback/`. Current count, root causes, subtitle path,
 the 4K CPU guard, and recovery copies:
 [`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md).
