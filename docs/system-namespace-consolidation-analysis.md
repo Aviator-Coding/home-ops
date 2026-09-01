@@ -182,7 +182,7 @@ k8tz half becomes worth revisiting. Until then it is a regression.
 
 ## 6. What was changed instead
 
-One real defect found inside the blast radius, fixed in the same commit:
+One real defect found inside the blast radius, fixed on this branch:
 
 `kubernetes/apps/base/system-controller/k8tz/app/helmrepository.yaml` declared
 `metadata.namespace: system-controller**s**` - a namespace that does not exist. It is
