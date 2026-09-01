@@ -233,84 +233,41 @@ ffmpegVersion=7
 
 ### Library scoping (Tdarr server state, not Git)
 
-**`librariesToNotProcess` is a Tdarr Pro feature and is inert on this
-unlicensed install. Never use it as a safety boundary.** It is stored in
-`NodeJSONDB`, shown in the UI and returned by `GET /api/v2/get-nodes`, so it
-looks live - `talos-3` has carried `{"j5g_Es7sD": true}` since 2026-08-29 - but
-it has never excluded anything here. A Series file was transcoded by that node
-on 2026-08-31 11:35:30Z while the setting was present and correct.
-
-Mechanism, read out of the server's own bundled source in
-`/app/Tdarr_Server/srcug/` (2.86.01) and confirmed live:
-
-| Step | File | Behaviour |
-|------|------|-----------|
-| Node asks for work | `api/v2/get-new-task.js` | node **polls**; the log line `Server relay sending job to Node relay: <node>` is the server's **reply**, not a push |
-| Server picks a file | `api/nodeRelay/fileQueues/getNextTask.js` | computes `auth = await authStatus(false)`, passes it to both queue readers |
-| Queued path | `fileQueues/getQueuedFiles.js` | `if (auth && librariesToNotProcess.length > 0)` -> adds the `db NOT IN (...)` clause |
-| Staged path | `fileQueues/getStagedFiles.js` | `return auth && librariesToNotProcess.length > 0 && (filter...)` |
-| What `auth` means | `server/auth.js` | **not** a login. `authorised` is set only by `authUpdate()`, which POSTs `tdarrKey` to `tdarrio/api/v2/verify-key`. `/api/v2/auth-status` describes itself as *"For checking Tdarr Pro status"* |
-
-`authStatus(false)` cannot even trigger the verification (`a === true && ...`
-short-circuits), so it returns the cached flag. Live proof, using the exact
-call `getNextTask` makes on every dispatch:
-
-```console
-$ curl -s -XPOST .../api/v2/auth-status -d '{"data":{"saU":false}}'
-false
-$ sqlite3 database.db "select json_extract(json_data,'$.tdarrKey') from settingsglobaljsondb"
-        # empty
-```
-
-So the filter clause is never added, on either path. This **refutes** the
-earlier "server pushes work, bypassing a node-side accept filter" hypothesis:
-the filter is server-side, in the queue query, and there is no node-side accept
-filter to bypass. It is licence-gated, not push-bypassed.
-
-**What actually holds: the library-level toggles.** `server/qb/qbUtils.js`
-`getAllDisabledLibraries()` and `plugins/queueQueryFuncs.js`
-`getAdditionalQueries({type})` build the same `db NOT IN (...)` clause for
-`table1` (the transcode queue) with **no `auth` check anywhere**:
-
-| Library field | Excluded from | Licence-gated? |
-|---------------|---------------|----------------|
-| `processLibrary: false` | transcodes **and** health checks | no |
-| `processTranscodes: false` | transcodes only | no |
-| `processHealthChecks: false` | health checks only | no |
-| `schedule[i].checked: false` | both, for that hour slot | no |
-
-Current scoping:
+**`librariesToNotProcess` is a silent no-op on this unlicensed install - never
+use it as a scope boundary.** Mechanism, live proof, and the refuted "server
+push" hypothesis are owned by
+[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §1 (and the durable
+trap in root `AGENTS.md`). What holds here without a licence is the
+library-level toggle:
 
 | Library | Id | Transcodes | How enforced |
 |---------|----|------------|--------------|
 | Movies AV1 | `gEUZf7Nx6` | **processed** | Restored 2026-08-29 with the B70 VA-API fix |
-| Series | `j5g_Es7sD` | **excluded** | `processTranscodes: false` (2026-08-31) + flow guard `guard_scope`, see below |
+| Series | `j5g_Es7sD` | **excluded** | `processTranscodes: false` (2026-08-31) + flow `guard_scope` |
 
-Health checks and folder scanning stay enabled on Series; only transcoding is
-refused. `librariesToNotProcess` was left in place on the node but is
-documented above as decorative - do not add to it and do not trust it.
+Health checks and folder scanning stay on for Series; only transcoding is
+refused. `librariesToNotProcess` remains on the node as decoration - do not add
+to it and do not trust it.
 
-**Follow-up: the errored 4K remux masters.** The error table (`table3`) held
-**47** files on 2026-08-31 - 46 Movies and 1 Series - not the 8 recorded before
-2026-08-29. Of those 47, **7** are the original 21-67 GB 2160p DV/HDR10 remux
-masters and **40** were collateral from the CPU-worker argument bug, now fixed;
-it stands at 45 after two of that collateral transcoded successfully as
-verification, and will keep falling as the rest are retried. An eighth master, `Johnny Mnemonic (1995)`, was rewritten
-in place by a bulk UI requeue on 2026-08-30 - lossily and irreversibly. Tdarr
-rewrites in place, so **do not bulk-requeue**. Root causes and the
-subtitle-preserving path are in
-[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md).
-
-Errored files stay parked until explicitly requeued: they leave `table1`
-because `table1` is `transcode_decision_maker = 'Queued'`, so re-enabling a
-library does not re-queue them (verified 2026-08-29, and again 2026-08-31 with
-the transcode queue at 0).
+**Errored 4K remux masters.** Do **not** bulk-requeue: Tdarr rewrites in place
+and AV1 is lossy. As of 2026-08-31 the error table held 47 files (7 parked
+masters + CPU-argument collateral), then 45 after two low-value verification
+transcodes; an eighth master (`Johnny Mnemonic (1995)`) was already destroyed
+by a bulk UI requeue on 2026-08-30. Current count, root causes, subtitle path,
+and recovery copies: [`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md).
+Errored files stay out of `table1` until explicitly requeued - re-enabling a
+library does not pull them back (verified 2026-08-29 and 2026-08-31).
 
 ### Transcode flow (configured in Tdarr UI, not Git)
 
 Classic Boosh HEVC plugin stack is **not** in use (`pluginIDs` empty). Both
 libraries use Tdarr Flow `movies_av1_nvenc_v1`, named
-**Movies AV1 (QSV/B70 xe) - DV-safe v4**.
+**Movies AV1 (QSV/B70 xe) - DV-safe v4**. The flow is **Tdarr SQLite state, not
+GitOps** - it does not survive a `tdarr-config` PVC rebuild. Authoritative
+recovery source is `docs/tdarr/flow-movies_av1_nvenc_v1.after.json`; node
+excerpts and the CI harness live under `docs/tdarr/flow-nodes/`. Full change
+list, proofs, and still-open edges (`e_dv_bypass`, `br_*_bypass`):
+[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §3.
 
 Libraries (2026-08-21):
 
@@ -327,10 +284,13 @@ Flow encoder plugins (Community `ffmpegCommandSetVideoEncoder`):
 | `hardwareType` | `qsv` |
 | `hardwareEncoding` / `hardwareDecoding` | `true` |
 | container | `mkv` |
-| quality ladders | cq24 / cq26 / cq28 (`ffmpegQuality` 22/23/24 with quality flag off; CQ via custom args) |
+| quality ladders | cq24 / cq26 / cq28 (`ffmpegQuality` 22/23/24 with quality flag off; CQ via encoder-aware custom args) |
 
-The flow skips files that are already AV1 and has DV-detect / HDR-survival
-guards. The flow **id** still says `nvenc`; the live plugins are QSV on the B70.
+The flow skips files that are already AV1. Post-2026-08-31 it also carries a
+Movies-path scope guard, working size/duration/HDR checks (customFunction nodes
+must use `inputsDB.code`, not `function`), encoder-aware CPU/GPU args, and
+subtitle conversion (`mov_text` → `srt`) - never `forceConform`, which deletes
+tracks. The flow **id** still says `nvenc`; the live plugins are QSV on the B70.
 
 ### Library file type filter
 
