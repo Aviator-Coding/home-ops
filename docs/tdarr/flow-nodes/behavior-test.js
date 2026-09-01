@@ -557,7 +557,10 @@ function testDocsContract() {
     ['3.2', '3.2 Verified on a real transcode'],
     ['3.3', '3.3 guard_scope observed refusing'],
     ['3.4', '3.4 Subtitles'],
-    ['4', '4. The seven parked masters'],
+    ['4', '4. The seven masters'],
+    ['4.1', '4.1 The canary'],
+    ['4b', '4b. The CPU fallback cannot encode 4K'],
+    ['4b.2', '4b.2 Proof that the guard holds'],
   ];
   for (const [id, prefix] of liveOnly) {
     const sec = sectionByPrefix(sections, prefix);

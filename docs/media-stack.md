@@ -253,8 +253,14 @@ to it and do not trust it.
 and AV1 is lossy. As of 2026-08-31 the error table held 47 files (7 parked
 masters + CPU-argument collateral), then 45 after two low-value verification
 transcodes; an eighth master (`Johnny Mnemonic (1995)`) was already destroyed
-by a bulk UI requeue on 2026-08-30. Current count, root causes, subtitle path,
-and recovery copies: [`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md).
+by a bulk UI requeue on 2026-08-30. **Six masters remain parked**: the seventh
+and smallest, `A House of Dynamite (2025)`, was processed as a single approved
+canary on 2026-08-31 - all 44 streams and all 35 subtitle tracks survived, but
+its Dolby Vision layer did not (HDR10 is preserved), so weigh that before
+deciding about the other six. Its untouched original is retained at
+`/media/.tdarr-canary-rollback/`. Current count, root causes, subtitle path,
+the 4K CPU guard, and recovery copies:
+[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md).
 Errored files stay out of `table1` until explicitly requeued - re-enabling a
 library does not pull them back (verified 2026-08-29 and 2026-08-31).
 

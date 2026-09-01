@@ -490,25 +490,83 @@ Every subtitle and audio track survives on every one of the seven.
 - **There is still no stream-count guard.** Guards 1-3 check size, duration and
   HDR, not track counts.
 
-## 4. The seven parked masters
+## 4. The seven masters: six parked, one canary
 
 **Provenance: one-time live observation** — operator-executed against the live
 cluster on 2026-08-31; not reproducible in CI. Size, mtime and inode for all
 seven masters were checked on the live NFS media tree; that check cannot run in
 CI.
 
-All seven verified byte-intact on 2026-08-31 (size + mtime + inode). None was
-queued, retried or processed by this work.
+**Six remain parked.** The seventh, `A House of Dynamite (2025)`, was processed
+on 2026-08-31 as the captain's single canary - see 4.1 below. All six others
+verified byte-intact at the end of that work (size + mtime + inode unchanged
+against the baseline taken before it started). None of the six was queued,
+retried or processed.
 
-| GB | mtime | File |
+| GB | mtime | File | State |
+|---|---|---|---|
+| 66.08 | 2023-08-31 | The Silence of the Lambs (1991) | parked |
+| 64.95 | 2024-04-28 | The Departed (2006) | parked |
+| 52.70 | 2023-09-05 | Gladiator (2000) | parked |
+| 33.33 | 2025-12-24 | Amelie (2001) | parked |
+| 27.00 | 2025-12-12 | Wake Up Dead Man (2025) | parked |
+| 21.74 | 2026-01-18 | The Rip (2026) | parked |
+| 20.92 | 2026-06-05 | A House of Dynamite (2025) | **canary, transcoded 2026-08-31** |
+
+### 4.1 The canary: `A House of Dynamite (2025)`
+
+**Provenance: one-time live observation** - operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI.
+
+Chosen as the smallest of the seven (20.92 GB), which bounds both blast radius
+and time-to-signal. **It was never itself queued.** A byte-identical copy was
+staged inside `/media/Movies/` (so `guard_scope` would admit it), the flow ran
+against the copy, and the master was only replaced after the output had been
+verified. That is what kept the master intact through five node OOM kills that
+happened during the same session - a direct contrast with `Johnny Mnemonic`,
+which a bulk requeue rewrote in place on 2026-08-30 with no verification.
+
+Every stream survived:
+
+| | Before | After |
 |---|---|---|
-| 66.08 | 2023-08-31 | The Silence of the Lambs (1991) |
-| 64.95 | 2024-04-28 | The Departed (2006) |
-| 52.70 | 2023-09-05 | Gladiator (2000) |
-| 33.33 | 2025-12-24 | Amelie (2001) |
-| 27.00 | 2025-12-12 | Wake Up Dead Man (2025) |
-| 21.74 | 2026-01-18 | The Rip (2026) |
-| 20.92 | 2026-06-05 | A House of Dynamite (2025) |
+| Container / size | `.mp4`, 22,462,708,376 B | `.mkv`, 7,710,589,817 B (**34.3%**) |
+| Video | `hevc` 3840x2160 10-bit | `av1` 3840x2160 10-bit |
+| Cover art | `mjpeg` 600x900 | `mjpeg` 600x900 (copied, not re-encoded) |
+| Audio | 7x `eac3` | 7x `eac3`, same languages and channel counts |
+| Subtitles | **35x `mov_text`** | **35x `subrip`** |
+| Duration | 6904.256 s | 6904.256 s (exact) |
+| Total streams | 44 | 44 |
+
+The 35 subtitle languages come back in the identical order
+(`eng eng spa spa fra fra por por ara cat ces dan deu ell eus fin glg hrv hun
+ind ita jpn kor nob nld pol ron rus swe tha tur ukr vie zho zho`), and the first
+English track's cues are byte-identical including timings, italics markup and
+line breaks. Decode-verified at 5 s, 3450 s and 6835 s across video and all
+seven audio streams with no errors.
+
+**One material fidelity loss, and it is not a defect in the conform.** The
+source carries a `DOVI configuration record`; the output does not. HDR10 is
+fully preserved (10-bit `yuv420p10le`, `bt2020` / `smpte2084` / `bt2020nc`, plus
+mastering-display and content-light metadata the source did not carry
+explicitly), but the **Dolby Vision RPU layer is gone**. This is inherent to the
+AV1 re-encode, not to the subtitle work, and it follows directly from the
+`e_dv_bypass` edge that section 3.6 already flagged as an open behaviour choice:
+that edge routes `dv_check`'s "IS DV" output into the encoder anyway, and **six
+of the seven masters are DV HDR10**. Anyone deciding about the remaining six
+should weigh that first.
+
+The original master was **not** deleted. It is retained byte-intact (size and
+mtime preserved) at:
+
+```
+/media/.tdarr-canary-rollback/A House of Dynamite (2025) {imdb-tt32376165} [NF][WEBDL-2160p][EAC3 Atmos 5.1][DV HDR10][h265]-BEN.mp4
+```
+
+so the Dolby Vision loss is reversible by moving that file back over the `.mkv`.
+It sits outside `/media/Movies/` deliberately, so neither Tdarr's folder watcher
+nor Plex/Radarr sees a second copy. Delete it only once the captain has accepted
+the trade for good.
 
 An eighth, `Johnny Mnemonic (1995)`, was rewritten in place on 2026-08-30 by a
 bulk UI requeue (7.02 GB h264 -> 1.41 GB AV1). Lossy and irreversible.
@@ -563,14 +621,82 @@ GPU rung is the one this file's path (`start23`/`enc23`, `hardwareType: qsv`) is
 designed for, and it fits the current limit comfortably - the problem is purely
 that nothing stops the CPU worker taking a 4K job.
 
-Options, none of them taken here because each changes a deliberately-reasoned
-setting and belongs to the captain:
+### 4b.1 Resolution: option C, a flow guard inside `cargs22/23/24`
 
-| # | Change | Cost |
-|---|---|---|
-| A | Raise `tdarr-node` memory to ~10Gi | Keeps the fallback working for 4K; spends ~6Gi more on talos-3, which also hosts the B70 and `vllm` |
-| B | `transcodecpuWorkers: 0` | Removes the hazard and forces 4K to the GPU; reverses PR #1443's anti-outage rationale outright |
-| C | Flow guard: CPU rung refuses 4K | Preserves both intents (1080p keeps a CPU fallback, 4K waits for the GPU); costs a flow change, which is Tdarr DB state |
+Captain's decision 2026-08-31: **option C**. Not A (spending ~6Gi on talos-3,
+which also hosts the B70 and `vllm`, to enable a path slower than the GPU it
+backs up is the wrong trade) and not B (`transcodecpuWorkers: 0` reverses
+PR #1443's anti-outage rationale). C preserves both intents: 1080p keeps its CPU
+fallback, 4K goes to the GPU.
+
+The guard lives in the three `cargs2X` nodes, which are already the single place
+that reads back the encoder `SetVideoEncoder` chose. When that encoder is
+`libsvtav1` and the video's own pixel count implies more RSS than the container
+can hold, it rewrites the encoder to `av1_qsv` before ffmpeg runs. The B70 is
+mounted into this container unconditionally (`devic.es/b70-vaapi`), so the GPU
+encoder is reachable from either worker.
+
+It decides on **measured memory need derived from the video's pixel count** -
+never filename, library or path - so 4K arriving by any route is covered:
+
+| Source | Estimate at 856 MiB/Mpx | Budget 2800 MiB | Encoder used on a CPU worker |
+|---|---|---|---|
+| 1920x1080 | 1,775 MiB | under | `libsvtav1` (fallback preserved) |
+| 2560x1440 | 3,155 MiB | over | `av1_qsv` |
+| 3840x2160 | 7,100 MiB | over | `av1_qsv` |
+| dimensions unknown | n/a | fails closed | `av1_qsv` |
+
+**Two mechanisms were implemented first and PROVEN NOT TO WORK.** Both looked
+correct, both were silently inert, and both are the same shape as the
+`librariesToNotProcess` trap in section 1 - configuration that is stored,
+accepted and rendered, but never consumed:
+
+1. **`tagsRequeue` cannot hand the file to a GPU worker.** The node does set the
+   staged status to `queued:requireGPU` (observed directly in `stagedjsondb`),
+   and the `require*` routing in `getStagedFiles.js` is genuinely **not**
+   Pro-gated - unlike `nodeTags`, it sits outside the `if (auth)` block, so only
+   a `transcodegpu` worker can match it. But when the flow then *ends*, the job
+   is finalised `Not required`, the staged row is deleted, and the file leaves
+   the queue permanently. Measured three times, the last in isolation with
+   health checks suppressed: `Queued` -> staged `queued:requireGPU` -> `Not
+   required` within 24 s, and it never came back. A refusal that silently
+   un-queues 4K is worse than the OOM it prevents.
+2. **`args.workerType` mutated in an earlier `customFunction` does not reach
+   `ffmpegCommandSetVideoEncoder`.** Flipping it to `transcodegpu` upstream is
+   the obvious way to make `getEncoder` pick QSV, and the guard logged the flip
+   - but the job still ran `-c:0 libsvtav1` and OOM-killed the node anyway
+   (restart #5, 03:05:25Z). Each node is handed its own worker context.
+
+### 4b.2 Proof that the guard holds
+
+**Provenance: one-time live observation** - operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI.
+
+A configured guard is not a guard. Three real jobs, same flow, same moment,
+observed from the job reports:
+
+```
+zzGuard 4K d    worker=transcodecpu
+  AV1 tuning: 4K CPU guard - pixels=8294400 estCpuRss=7100MiB budget=2800MiB
+              -> libsvtav1 would OOM this container, encoding av1_qsv instead
+  -c:0 av1_qsv                                            Transcode success
+
+zzGuard 4K c    worker=transcodegpu
+  -c:0 av1_qsv                                            Transcode success
+
+zzGuard 1080p x worker=transcodecpu
+  AV1 tuning: encoder="libsvtav1" quality=26 ...
+  -c:0 libsvtav1                                          Transcode success
+```
+
+So the CPU rung was genuinely offered a 4K job and declined to encode it itself,
+a GPU job still succeeded, and 1080p still ran on the CPU - the PR #1443
+fallback survives. The node did **not** restart during these three jobs, against
+five OOM kills earlier the same evening on the same 4K shape.
+
+The offline half is pinned by `scripts/ci/tdarr-flow-nodes-test.py`, which
+executes `flow-nodes/cargs_template.js` and the three embedded `cargs2X` bodies
+and asserts the 1080p / 1440p / 4K / unknown-dimension outcomes above.
 
 ---
 
@@ -588,8 +714,12 @@ flow from `*.before.json`.
 | `processTranscodes: false` on Series | `LibrarySettingsJSONDB` `j5g_Es7sD` | this document, §1.3 |
 | `guard_scope` node + `input1` rewire | `FlowsJSONDB` `movies_av1_nvenc_v1` | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (readable excerpt: `flow-nodes/guard_scope.js`) |
 | 5 nodes rekeyed `function` -> `code` | same flow | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` |
-| `cargs22/23/24` encoder-aware | same flow | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (readable excerpt: `flow-nodes/cargs_template.js`) |
+| `cargs22/23/24` encoder-aware **plus the 4K CPU guard** (section 4b.1) | same flow | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (readable excerpt/template: `flow-nodes/cargs_template.js`) |
 | `sub22/23/24` stream conform | same flow | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (readable excerpt: `flow-nodes/subconform.js`) |
+
+Rebuild checklist, restore commands and the behavioural verification that a
+restored flow is actually running (rather than silently executing Tdarr's
+default stub): [`tdarr/README.md`](./tdarr/README.md).
 
 Restore with `POST /api/v2/cruddb`:
 
