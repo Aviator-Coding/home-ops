@@ -352,7 +352,48 @@ Ownership is the mover's, which is expected and already documented for `prowlarr
 
 `repo-wiki` and `seerr` show zero ownership differences as well as zero mode differences.
 
-### 4. No orphaned VolSync artefacts
+### 4. The merge itself was dry-run against the live cluster
+
+`ssa: IfNotPresent` is doing something subtle - it has to keep the claim in the inventory while
+*not* attempting an apply the API server would reject. Reasoning about that from the docs is not
+the same as knowing it, and getting it wrong would leave four Kustomizations permanently
+`Ready=False` after merge. So it was measured, with `flux diff kustomization`, which builds
+locally and performs a **real server-side dry-run** against the cluster:
+
+```console
+$ flux diff kustomization sabnzbd -n downloads \
+    --path ./kubernetes/apps/base/downloads/sabnzbd/app \
+    --kustomization-file ./kubernetes/apps/main/downloads/sabnzbd.yaml
+...
+► Restore/downloads/sabnzbd-kopiur-dst              skipped
+► PersistentVolumeClaim/downloads/sabnzbd-config    skipped
+► ExternalSecret/downloads/sabnzbd-volsync-ceph     deleted
+► ExternalSecret/downloads/sabnzbd-volsync-minio    deleted
+► ExternalSecret/downloads/sabnzbd-volsync-r2       deleted
+► ReplicationDestination/downloads/sabnzbd-dst      deleted
+► ReplicationSource/downloads/sabnzbd-ceph          deleted
+► ReplicationSource/downloads/sabnzbd-minio         deleted
+► ReplicationSource/downloads/sabnzbd-r2            deleted
+```
+
+`skipped`, not an error and not a drift: Flux short-circuits on the `IfNotPresent` label before
+it ever builds an apply patch, so the forbidden `dataSourceRef` change is never attempted. The
+same result on all four claims. The `deleted` lines are the prune of objects already removed by
+hand, so they are no-ops on resume.
+
+One real difference showed up and was applied live so the cluster matches the branch:
+`SnapshotPolicy/downloads/sabnzbd-{ceph,r2}` `spec.mover.cache.capacity` 2Gi -> 10Gi. Re-running
+the diff afterwards shows no policy drift.
+
+Each of the four also reports `HelmRelease/<ns>/<app> drifted` with `three map entries removed`
+(`install.crds`, `rollback`, `upgrade`). **That is not this change.** It is the `cluster-apps`
+parent Kustomization's HelmRelease default patches, which `flux diff kustomization` does not
+apply because it builds only the app's own Kustomization. The identical output appears for an
+untouched dual-engine control (`downloads/bazarr`, whose diff also shows its
+`ReplicationDestination` and `Restore` as `skipped` and no PVC difference at all), which is what
+establishes it as an artefact of the tool rather than a finding.
+
+### 5. No orphaned VolSync artefacts
 
 Swept across all four namespaces after the deletions:
 
@@ -370,7 +411,7 @@ Fleet totals: `ReplicationSource` 90 -> **78**, `ReplicationDestination` 34 -> *
 `volsync-*` cache PVCs 90 -> **78**. kopiur unchanged at 60 `SnapshotPolicy` + 60
 `SnapshotSchedule` + 30 `Restore`.
 
-### 5. The other 26 volumes are untouched
+### 6. The other 26 volumes are untouched
 
 All **78** remaining `ReplicationSource` objects (26 claims × ceph/minio/r2) are live: none
 never-synced, and none stale beyond its own cadence (ceph 4h, minio 6h, r2 24h, checked with
