@@ -2,18 +2,35 @@
 
 Reusable Flux component that backs up one PVC to the cluster's two kopiur
 repositories. It is the deliberate sibling of [`../volsync`](../volsync/Readme.md)
-and, for now, runs **alongside** it rather than replacing it.
+and runs **alongside** it on 26 of 30 claims; on the four Stage 5 pilot volumes
+it has replaced it outright.
 
 Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stage 4 complete.** kopiur is live on **all 30 of the
-> fleet's 30** VolSync-protected claims - zero deferred. Stage 3 (2026-08-30)
-> onboarded namespace by namespace; Stage 4 (2026-08-31) added both remaining
-> claims. **Both engines run on every volume** - every VolSync source is still
-> live, nothing has been retired, and retirement is Stage 5, the remaining
-> deliberately-not-yet-done step.
+> **Migration status: Stage 5 STARTED - a four-volume pilot, 2026-09-01.**
+> kopiur is live on **all 30 of the fleet's 30** VolSync-protected claims - zero
+> deferred (Stage 3 onboarded namespace by namespace on 2026-08-30; Stage 4
+> added both remaining claims on 2026-08-31).
+>
+> **VolSync has now been RETIRED from four of them**, so those four have kopiur
+> as their ONLY backup engine:
+> `ai/repo-wiki`, `downloads/recyclarr-config`, `downloads/sabnzbd-config`,
+> `media/seerr`. **The other 26 remain dual-engine** with every VolSync source
+> live. The four were chosen for regenerable or reconstructible content and
+> clean restore proofs; retiring the rest is a separate captain decision.
+>
+> Authoritative machine-readable record of which claims are single-engine:
+> `RETIRED_CLAIMS` in
+> [`scripts/ci/kopiur-stage3-test.py`](../../../scripts/ci/kopiur-stage3-test.py),
+> asserted exactly in both directions. Selection rationale, mechanics and the
+> post-retirement re-proof:
+> [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
+>
+> **Retiring a volume swaps which component owns its PVC - it does not delete
+> the claim, and getting that wrong would.** See "Retiring a volume" below
+> before touching any of this.
 >
 > Stage 4 onboardings:
 > * `selfhosted/changedetection-config` did **not** need a root mover. It had
@@ -34,8 +51,10 @@ This component only declares what to back up.
 > open r2-vs-ceph cache-capacity Stage 5 blocker:
 > [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
 > That fleet table is the authority on restore coverage, and it is the satisfied
-> Stage 5 **prerequisite**, not Stage 5 itself - every VolSync source is still
-> live and nothing has been retired.
+> Stage 5 **prerequisite**. It records the state *before* any retirement - every
+> VolSync source was still live when it was written. Four have since been
+> retired (above); the rest of that document stands unamended, including the two
+> findings that gate further retirement.
 >
 > The earlier per-volume drills remain the procedural precedent it is built on,
 > and are still accurate:
@@ -76,7 +95,8 @@ components/kopiur/
 ├── kustomization.yaml   # Component -> ./backup  (what an app includes)
 ├── backup/              # Kustomization -> ../ceph ../r2  (Flux `path` for multi-claim apps)
 ├── ceph/                # local, in-cluster RGW: policy + schedule + Restore
-└── r2/                  # offsite, Cloudflare: policy + schedule
+├── r2/                  # offsite, Cloudflare: policy + schedule
+└── pvc/                 # Component, added ONLY by a volume that has retired volsync
 ```
 
 Same two-level split as `../volsync`, and for the same reason: `backup/` is a
@@ -90,7 +110,7 @@ Component, so a Component alone could not serve the multi-claim case below.
 |---|---|---|
 | Destinations | ceph, minio, r2 | **ceph, r2** - Stage 0 gave kopiur no MinIO repository (MinIO is being retired over its licensing change). The VolSync MinIO backups keep running. |
 | Objects per claim | 3 ReplicationSource + 1 ReplicationDestination + 3 ExternalSecret + 3 Secret | 2 SnapshotPolicy + 2 SnapshotSchedule + 1 Restore - and **no credential objects at all**, standing or per-claim, because the operator mints them per run (see "Credentials") |
-| Creates the app's PVC | yes (`pvc.yaml`) | **no** - VolSync still owns every claim during the parallel run, and two components creating the same PVC from `${APP}` is a kustomize collision |
+| Creates the app's PVC | yes (`pvc.yaml`) | **only after retirement**, via the separate `./pvc` Component. While both engines run, VolSync owns the claim and two components emitting the same PVC from `${APP}` would be a kustomize collision - see "Retiring a volume" |
 | Cache PVCs | one per source, standing (matches the live VolSync `ReplicationSource` count in `../volsync/Readme.md`) | **none** - `mover.cache.mode: Ephemeral`, the cache lives only for the run |
 | Stagger | hand-maintained per-app minute table + a `MutatingAdmissionPolicy` injecting `sleep $(shuf -i 0-90 -n 1)` | native hashed `H` minute + `jitter` |
 | Deleting the backup object | never touches the restic repository | **can delete backup data** - see below |
@@ -283,7 +303,9 @@ kubectl -n <ns> exec <probe> -- sh -c 'find /datastore -type f ! -readable | wc 
 ## Per-Application Usage
 
 In the app's Flux Kustomization (`apps/main/<ns>/<app>.yaml`), **alongside**
-volsync - not instead of it:
+volsync while both engines run. Retiring volsync from a volume is a separate,
+evidence-gated step - see "Retiring a volume" below; do not drop the volsync
+entry as part of onboarding.
 
 ```yaml
   dependsOn:
@@ -306,6 +328,85 @@ CRs outright rather than leaving them unreconciled.
 There is deliberately **no credential dependency here**. Credentials are minted
 per run by the operator and reaped afterwards - see "Credentials" above. A new
 namespace needs nothing created in it.
+
+## Retiring a volume (Stage 5)
+
+Removing VolSync from a volume that kopiur already protects. Four volumes have
+been through this - `ai/repo-wiki`, `downloads/recyclarr-config`,
+`downloads/sabnzbd-config`, `media/seerr` (2026-09-01) - and the full record,
+including why those four, is
+[`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
+
+**A per-volume restore proof comes first.** The fleet proof
+(`docs/backups/kopiur-restore-proof-2026-09-01.md`) is that evidence for all 30
+claims. Its finding 2 is still open for the large claims and blocks `ai/hermes`
+and `media/plex` specifically.
+
+The overlay change is small:
+
+```yaml
+  dependsOn:
+    # the `volsync` (system) entry goes - nothing here renders a VolSync object
+    - name: kopiur-repository
+      namespace: system
+  components:
+    - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc     # <- NEW, and not optional
+  postBuild:
+    substitute:
+      APP: *app
+      KOPIUR_CAPACITY: 5Gi                     # must match the LIVE claim
+      # every VOLSYNC_* key is deleted
+```
+
+### The claim is the hazard, and `./pvc` is the whole point
+
+`../volsync/pvc.yaml` is the **only** manifest that emits the app's PVC, and app
+overlays run `prune: true`. Dropping the volsync Component therefore takes the
+claim out of the Flux inventory and Flux garbage-collects it - **deleting the
+app's data volume** for a change meant only to remove a backup engine. `./pvc`
+puts the claim back in the inventory, owned by kopiur instead.
+
+It is a separate Component rather than part of this one because retirement is
+per-volume: a claim moves engines one app at a time, and folding the PVC into
+`../kustomization.yaml` would make it collide with `../volsync/pvc.yaml` for
+every app still running both. When the last volume retires, it collapses in.
+
+### `dataSourceRef` is immutable, hence `ssa: IfNotPresent`
+
+Repointing an existing claim's `spec.dataSourceRef` from `${APP}-dst` to
+`${APP}-kopiur-dst` is **rejected** - `spec is immutable after creation except
+resources.requests and volumeAttributesClassName for bound claims`. Omitting the
+field is the same forbidden change, because Flux owns it and SSA would remove
+it. `ssa: IfNotPresent` keeps the claim inventoried (never pruned) while
+skipping the apply, so an existing claim keeps its now-inert VolSync
+`dataSourceRef` and a **rebuilt** one is created from this file and seeded from
+kopiur. Never add `kustomize.toolkit.fluxcd.io/force: enabled` to "fix" that
+drift - it resolves an immutable-field conflict by deleting and recreating the
+object, which here is the volume. Full mechanics and the measured API error are
+in [`pvc/pvc.yaml`](pvc/pvc.yaml).
+
+### Check the standing `Restore` before you rely on it
+
+`ceph/restore.yaml` carries `ssa: IfNotPresent`, so Flux created each
+`${APP}-kopiur-dst` once and never reconciles it again. Objects created before
+`credentialProjection` was added still lack it, and a `Restore` without it fails
+at mover time while every CR reads clean. `downloads/sabnzbd` was recreated for
+exactly this on retirement; **`downloads/autobrr` is still in that state** and
+must be recreated before it is ever retired. Deleting a `Restore` is safe - it
+has no finalizers and owns no data, unlike a `Snapshot` - but verify that on the
+object first.
+
+### What gets removed, and what cleans itself up
+
+3 `ReplicationSource` + 1 `ReplicationDestination` + 3 `ExternalSecret` are
+Flux-managed and go with the Component. Their 3 cache PVCs (2Gi each) and 3
+Secrets are **cascades** - the `ReplicationSource` is its cache PVC's
+`controller: true` owner, and ESO's `creationPolicy: Owner` owns the target
+Secret - so no manual cleanup is needed. Nothing touches the restic repository:
+deleting a `ReplicationSource` never does, which is the load-bearing asymmetry
+against kopiur's `Snapshot`. The old restic repositories stay readable as a
+fallback.
 
 ### Apps with more than one volume
 
@@ -334,6 +435,9 @@ added complexity at exactly the wrong moment.
 | `KOPIUR_SCHEDULE_CEPH` | `H 1-23/4 * * *` | |
 | `KOPIUR_SCHEDULE_R2` | `H 4 * * *` | |
 | `KOPIUR_SCHEDULE_TIMEZONE` | `America/New_York` | IANA zone the cron above is evaluated in - see "Timezone: kopiur vs VolSync" below |
+| `KOPIUR_CAPACITY` | `5Gi` | **`./pvc` Component only** - size of the claim. Must match the LIVE claim: under `ssa: IfNotPresent` it is create-time-only and therefore unexercised until someone rebuilds the claim, which is what makes a wrong value dangerous rather than harmless |
+| `KOPIUR_ACCESSMODES` | `ReadWriteOnce` | `./pvc` Component only |
+| `KOPIUR_STORAGECLASS` | `ceph-block` | `./pvc` Component only |
 
 ## Root movers (`KOPIUR_PUID`/`PGID: 0`)
 

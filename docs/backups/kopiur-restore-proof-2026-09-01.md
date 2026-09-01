@@ -5,6 +5,18 @@
 > anywhere. Every VolSync source remains live and untouched. This document is the evidence
 > that a later, separate, irreversible retirement step is entitled to rely on.
 
+> **That step has since happened, for four volumes.** On 2026-09-01, after this document merged,
+> VolSync was retired from `ai/repo-wiki`, `downloads/recyclarr-config`,
+> `downloads/sabnzbd-config` and `media/seerr` - a deliberate pilot on low-stakes targets, not a
+> fleet-wide retirement. **Those four claims now have kopiur as their only backup engine; the
+> other 26 remain dual-engine.** Selection rationale, the retirement mechanics, and the
+> post-retirement re-proof are in
+> [`kopiur-stage5-pilot-retirement-2026-09-01.md`](kopiur-stage5-pilot-retirement-2026-09-01.md);
+> the machine-readable record of which claims are single-engine is `RETIRED_CLAIMS` in
+> `scripts/ci/kopiur-stage3-test.py`. Nothing in the results below was re-measured or amended by
+> that exercise - the two findings that gate further retirement (below) both still stand, and
+> finding 2 in particular still blocks `ai/hermes` and `media/plex`.
+
 This is the Stage 5 prerequisite: a per-volume restore proof for **every** kopiur-protected
 claim, on **both** the `ceph` and `r2` destinations. The captain chose a demonstrated restore
 over file-count parity as the bar (2026-09-01) precisely so that no volume loses its second
