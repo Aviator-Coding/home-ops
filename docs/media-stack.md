@@ -231,45 +231,43 @@ nodeName=<k8s pod nodeName> # Registers with pod's scheduling node
 ffmpegVersion=7
 ```
 
-### Node library scoping (Tdarr server state, not Git)
+### Library scoping (Tdarr server state, not Git)
 
-Which libraries a node will accept work from is per-node Tdarr state
-(`librariesToNotProcess`, persisted in the server's `NodeJSONDB`, keyed by node
-name). It is **not** GitOps and cannot ship in a PR - it survives pod restarts
-because the node re-reads it from the server when it registers.
+**`librariesToNotProcess` is a silent no-op on this unlicensed install - never
+use it as a scope boundary.** Mechanism, live proof, and the refuted "server
+push" hypothesis are owned by
+[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §1 (and the durable
+trap in root `AGENTS.md`). What holds here without a licence is the
+library-level toggle:
 
-Current scoping for `talos-3` (the k8s worker):
-
-| Library | Id | talos-3 | Why |
-|---------|----|---------|-----|
+| Library | Id | Transcodes | How enforced |
+|---------|----|------------|--------------|
 | Movies AV1 | `gEUZf7Nx6` | **processed** | Restored 2026-08-29 with the B70 VA-API fix |
-| Series | `j5g_Es7sD` | **excluded (deliberate)** | See below |
+| Series | `j5g_Es7sD` | **excluded** | `processTranscodes: false` (2026-08-31) + flow `guard_scope` |
 
-**The Series exclusion is retained on purpose.** All three Talos nodes were
-excluded from both libraries as a mitigation after the 2026-08-26 VA-API break
-(the job report from that day shows talos-3 still accepting Movies work at
-19:19, so the exclusions post-date it). Restoring one library at a time keeps
-the blast radius small while the B70 VA-API fix is newly landed and while the
-4K remux failures below are still unexplained. Revisit the Series exclusion
-once Movies has run clean for a while. `desktop-aviator` (the external Windows
-node) has never carried either exclusion.
+Health checks and folder scanning stay on for Series; only transcoding is
+refused. `librariesToNotProcess` remains on the node as decoration - do not add
+to it and do not trust it.
 
-**Follow-up: 8 errored 4K remuxes, root cause unknown.** Eight files sit in
-Tdarr's error table (`table3`), most of them 21-67 GB 2160p DV/HDR10 remux
-masters. Their failure is **not** explained by the VA-API break alone and has
-not been investigated. Tdarr rewrites in place and the AV1 result is lossy and
-irreversible, so **do not bulk-requeue them to clear the error table** - the
-failure needs to be understood on one file first, ideally against a copy.
-Re-enabling a library does not re-queue them: `librariesToNotProcess` is a
-node-side accept filter, and errored files stay parked until explicitly
-requeued (verified 2026-08-29 - clearing the Movies exclusion left all 8 in
-`table3` with the transcode queue at 0).
+**Errored 4K remux masters.** Do **not** bulk-requeue: Tdarr rewrites in place
+and AV1 is lossy. As of 2026-08-31 the error table held 47 files (7 parked
+masters + CPU-argument collateral), then 45 after two low-value verification
+transcodes; an eighth master (`Johnny Mnemonic (1995)`) was already destroyed
+by a bulk UI requeue on 2026-08-30. Current count, root causes, subtitle path,
+and recovery copies: [`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md).
+Errored files stay out of `table1` until explicitly requeued - re-enabling a
+library does not pull them back (verified 2026-08-29 and 2026-08-31).
 
 ### Transcode flow (configured in Tdarr UI, not Git)
 
 Classic Boosh HEVC plugin stack is **not** in use (`pluginIDs` empty). Both
 libraries use Tdarr Flow `movies_av1_nvenc_v1`, named
-**Movies AV1 (QSV/B70 xe) - DV-safe v4**.
+**Movies AV1 (QSV/B70 xe) - DV-safe v4**. The flow is **Tdarr SQLite state, not
+GitOps** - it does not survive a `tdarr-config` PVC rebuild. Authoritative
+recovery source is `docs/tdarr/flow-movies_av1_nvenc_v1.after.json`; node
+excerpts and the CI harness live under `docs/tdarr/flow-nodes/`. Full change
+list, proofs, and still-open edges (`e_dv_bypass`, `br_*_bypass`):
+[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §3.
 
 Libraries (2026-08-21):
 
@@ -286,10 +284,13 @@ Flow encoder plugins (Community `ffmpegCommandSetVideoEncoder`):
 | `hardwareType` | `qsv` |
 | `hardwareEncoding` / `hardwareDecoding` | `true` |
 | container | `mkv` |
-| quality ladders | cq24 / cq26 / cq28 (`ffmpegQuality` 22/23/24 with quality flag off; CQ via custom args) |
+| quality ladders | cq24 / cq26 / cq28 (`ffmpegQuality` 22/23/24 with quality flag off; CQ via encoder-aware custom args) |
 
-The flow skips files that are already AV1 and has DV-detect / HDR-survival
-guards. The flow **id** still says `nvenc`; the live plugins are QSV on the B70.
+The flow skips files that are already AV1. Post-2026-08-31 it also carries a
+Movies-path scope guard, working size/duration/HDR checks (customFunction nodes
+must use `inputsDB.code`, not `function`), encoder-aware CPU/GPU args, and
+subtitle conversion (`mov_text` → `srt`) - never `forceConform`, which deletes
+tracks. The flow **id** still says `nvenc`; the live plugins are QSV on the B70.
 
 ### Library file type filter
 

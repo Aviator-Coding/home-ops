@@ -104,12 +104,14 @@ outage, so prefer fixing the names.
 **Service restore scope (captain decision, 2026-08-29).** The GPU fix alone does not
 resume transcoding: all three Talos nodes had been excluded from both Tdarr libraries as
 a post-outage mitigation. Only the **Movies AV1** exclusion was cleared on `talos-3`; the
-**Series** exclusion is deliberately retained to restore one library at a time. The eight
-4K remuxes in Tdarr's error table are a separate follow-up whose failure must be
-understood before they are requeued - Tdarr rewrites in place and AV1 is lossy and
-irreversible. Both are Tdarr server state, not GitOps; details and the verification that
-clearing a library does not requeue errored files are in
-[`media-stack.md`](./media-stack.md#node-library-scoping-tdarr-server-state-not-git).
+**Series** exclusion was left intending one-library-at-a-time restore. That exclusion
+lived in `librariesToNotProcess`, which a 2026-08-31 investigation found is licence-gated
+and was never enforced here - Series is now scoped with `processTranscodes: false`
+instead. The errored 4K remux masters are a separate follow-up (the pre-investigation
+"eight" count was wrong and grew; do not bulk-requeue - Tdarr rewrites in place). Both
+are Tdarr server state, not GitOps; current scope, proofs, and recovery path:
+[`tdarr-errored-remuxes.md`](./tdarr-errored-remuxes.md). Media-stack pointer:
+[`media-stack.md`](./media-stack.md#library-scoping-tdarr-server-state-not-git).
 
 **Verify.** The three-command VA-API check in
 [`media-stack.md`](./media-stack.md#verifying-va-api-after-a-gpu-change). Run it after any

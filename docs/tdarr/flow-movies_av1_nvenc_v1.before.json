@@ -1,0 +1,940 @@
+{
+  "_id": "movies_av1_nvenc_v1",
+  "flowEdges": [
+    {
+      "id": "e1",
+      "source": "input1",
+      "sourceHandle": "1",
+      "target": "guard_home",
+      "targetHandle": null
+    },
+    {
+      "id": "e2",
+      "source": "guard_home",
+      "sourceHandle": "2",
+      "target": "dv_check",
+      "targetHandle": null
+    },
+    {
+      "id": "e3",
+      "source": "dv_check",
+      "sourceHandle": "2",
+      "target": "snapshot",
+      "targetHandle": null
+    },
+    {
+      "id": "e4",
+      "source": "snapshot",
+      "sourceHandle": "1",
+      "target": "is_hevc",
+      "targetHandle": null
+    },
+    {
+      "id": "e5",
+      "source": "is_hevc",
+      "sourceHandle": "1",
+      "target": "res_hevc",
+      "targetHandle": null
+    },
+    {
+      "id": "e6",
+      "source": "is_hevc",
+      "sourceHandle": "2",
+      "target": "is_av1",
+      "targetHandle": null
+    },
+    {
+      "id": "e7",
+      "source": "is_av1",
+      "sourceHandle": "2",
+      "target": "res_legacy",
+      "targetHandle": null
+    },
+    {
+      "id": "e8",
+      "source": "res_hevc",
+      "sourceHandle": "1",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e9",
+      "source": "res_hevc",
+      "sourceHandle": "2",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e10",
+      "source": "res_hevc",
+      "sourceHandle": "3",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e11",
+      "source": "res_hevc",
+      "sourceHandle": "4",
+      "target": "hdr_1080",
+      "targetHandle": null
+    },
+    {
+      "id": "e12",
+      "source": "res_hevc",
+      "sourceHandle": "5",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e13",
+      "source": "res_hevc",
+      "sourceHandle": "6",
+      "target": "hdr_4k",
+      "targetHandle": null
+    },
+    {
+      "id": "e14",
+      "source": "res_hevc",
+      "sourceHandle": "7",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e15",
+      "source": "res_hevc",
+      "sourceHandle": "8",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e16",
+      "source": "res_hevc",
+      "sourceHandle": "9",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e17",
+      "source": "res_legacy",
+      "sourceHandle": "1",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e18",
+      "source": "res_legacy",
+      "sourceHandle": "2",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e19",
+      "source": "res_legacy",
+      "sourceHandle": "3",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e20",
+      "source": "res_legacy",
+      "sourceHandle": "4",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e21",
+      "source": "res_legacy",
+      "sourceHandle": "5",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e22",
+      "source": "res_legacy",
+      "sourceHandle": "6",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e23",
+      "source": "res_legacy",
+      "sourceHandle": "7",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e24",
+      "source": "res_legacy",
+      "sourceHandle": "8",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e25",
+      "source": "res_legacy",
+      "sourceHandle": "9",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e26",
+      "source": "hdr_1080",
+      "sourceHandle": "1",
+      "target": "br_hdr1080",
+      "targetHandle": null
+    },
+    {
+      "id": "e27",
+      "source": "hdr_1080",
+      "sourceHandle": "2",
+      "target": "br_sdr1080",
+      "targetHandle": null
+    },
+    {
+      "id": "e28",
+      "source": "br_hdr1080",
+      "sourceHandle": "1",
+      "target": "start23",
+      "targetHandle": null
+    },
+    {
+      "id": "e29",
+      "source": "br_sdr1080",
+      "sourceHandle": "1",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e30",
+      "source": "hdr_4k",
+      "sourceHandle": "1",
+      "target": "is_remux",
+      "targetHandle": null
+    },
+    {
+      "id": "e31",
+      "source": "hdr_4k",
+      "sourceHandle": "2",
+      "target": "br_4k_sdr",
+      "targetHandle": null
+    },
+    {
+      "id": "e32",
+      "source": "br_4k_sdr",
+      "sourceHandle": "1",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e33",
+      "source": "is_remux",
+      "sourceHandle": "1",
+      "target": "start22",
+      "targetHandle": null
+    },
+    {
+      "id": "e34",
+      "source": "is_remux",
+      "sourceHandle": "2",
+      "target": "br_4k",
+      "targetHandle": null
+    },
+    {
+      "id": "e35",
+      "source": "br_4k",
+      "sourceHandle": "1",
+      "target": "start23",
+      "targetHandle": null
+    },
+    {
+      "id": "e36",
+      "source": "start23",
+      "sourceHandle": "1",
+      "target": "cont23",
+      "targetHandle": null
+    },
+    {
+      "id": "e37",
+      "source": "cont23",
+      "sourceHandle": "1",
+      "target": "enc23",
+      "targetHandle": null
+    },
+    {
+      "id": "e38",
+      "source": "enc23",
+      "sourceHandle": "1",
+      "target": "cargs23",
+      "targetHandle": null
+    },
+    {
+      "id": "e39",
+      "source": "cargs23",
+      "sourceHandle": "1",
+      "target": "exec23",
+      "targetHandle": null
+    },
+    {
+      "id": "e40",
+      "source": "exec23",
+      "sourceHandle": "1",
+      "target": "size_check",
+      "targetHandle": null
+    },
+    {
+      "id": "e41",
+      "source": "start22",
+      "sourceHandle": "1",
+      "target": "cont22",
+      "targetHandle": null
+    },
+    {
+      "id": "e42",
+      "source": "cont22",
+      "sourceHandle": "1",
+      "target": "enc22",
+      "targetHandle": null
+    },
+    {
+      "id": "e43",
+      "source": "enc22",
+      "sourceHandle": "1",
+      "target": "cargs22",
+      "targetHandle": null
+    },
+    {
+      "id": "e44",
+      "source": "cargs22",
+      "sourceHandle": "1",
+      "target": "exec22",
+      "targetHandle": null
+    },
+    {
+      "id": "e45",
+      "source": "exec22",
+      "sourceHandle": "1",
+      "target": "size_check",
+      "targetHandle": null
+    },
+    {
+      "id": "e46",
+      "source": "start24",
+      "sourceHandle": "1",
+      "target": "cont24",
+      "targetHandle": null
+    },
+    {
+      "id": "e47",
+      "source": "cont24",
+      "sourceHandle": "1",
+      "target": "enc24",
+      "targetHandle": null
+    },
+    {
+      "id": "e48",
+      "source": "enc24",
+      "sourceHandle": "1",
+      "target": "cargs24",
+      "targetHandle": null
+    },
+    {
+      "id": "e49",
+      "source": "exec24",
+      "sourceHandle": "1",
+      "target": "size_check",
+      "targetHandle": null
+    },
+    {
+      "id": "e50",
+      "source": "size_check",
+      "sourceHandle": "1",
+      "target": "duration_check",
+      "targetHandle": null
+    },
+    {
+      "id": "e51",
+      "source": "duration_check",
+      "sourceHandle": "1",
+      "target": "hdr_survival",
+      "targetHandle": null
+    },
+    {
+      "id": "e48b",
+      "source": "cargs24",
+      "sourceHandle": "1",
+      "target": "exec24",
+      "targetHandle": null
+    },
+    {
+      "id": "e_dv_bypass",
+      "source": "dv_check",
+      "sourceHandle": "1",
+      "target": "snapshot",
+      "targetHandle": null
+    },
+    {
+      "id": "e_br_hdr1080_bypass",
+      "source": "br_hdr1080",
+      "sourceHandle": "2",
+      "target": "start23",
+      "targetHandle": null
+    },
+    {
+      "id": "e_br_sdr1080_bypass",
+      "source": "br_sdr1080",
+      "sourceHandle": "2",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e_br_4k_sdr_bypass",
+      "source": "br_4k_sdr",
+      "sourceHandle": "2",
+      "target": "start24",
+      "targetHandle": null
+    },
+    {
+      "id": "e_br_4k_bypass",
+      "source": "br_4k",
+      "sourceHandle": "2",
+      "target": "start23",
+      "targetHandle": null
+    },
+    {
+      "id": "e_hdr_to_replace",
+      "source": "hdr_survival",
+      "sourceHandle": "1",
+      "target": "replace",
+      "targetHandle": null
+    }
+  ],
+  "flowPlugins": [
+    {
+      "fpEnabled": true,
+      "id": "input1",
+      "inputsDB": {},
+      "name": "Input File",
+      "pluginName": "inputFile",
+      "position": {
+        "x": -500,
+        "y": 500
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "guard_home",
+      "inputsDB": {
+        "codec": "av1"
+      },
+      "name": "Already AV1? (skip)",
+      "pluginName": "checkVideoCodec",
+      "position": {
+        "x": -250,
+        "y": 500
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "dv_check",
+      "inputsDB": {
+        "function": "// Node: \"Is Dolby Vision? (P5 + P7)\"\n// Place: AFTER guard_home, BEFORE snapshot.\n// Output 1 \u00e2\u2020\u2019 IS DV (skip, dead-end)\n// Output 2 \u00e2\u2020\u2019 NOT DV (continue)\n// Purpose: Catches single-layer DV (Profile 5) via codec_tag_string AND\n//          dual-layer DV (Profile 7, common on UHD discs) via side_data_list.\n\nmodule.exports = async (args) => {\n  const streams = (args.inputFileObj.ffProbeData || {}).streams || [];\n  const videoStream = streams.find((s) => s.codec_type === 'video') || {};\n\n  // Profile 5: codec tag tells us\n  const tag = (videoStream.codec_tag_string || '').toLowerCase();\n  const profile5 = ['dvhe', 'dvh1', 'dvh11', 'dvav', 'dav1'].some((t) => tag.includes(t));\n\n  // Profile 7: signaled via stream side data\n  const sideData = videoStream.side_data_list || [];\n  const profile7 = sideData.some((sd) =>\n    (sd.side_data_type || '').toLowerCase().includes('dovi'),\n  );\n\n  const isDV = profile5 || profile7;\n  args.jobLog(\n    `DV detect: codec_tag=\"${videoStream.codec_tag_string || ''}\" ` +\n      `p5=${profile5} p7=${profile7} \u00e2\u2020\u2019 ${isDV ? 'IS DV (skip)' : 'NOT DV (continue)'}`,\n  );\n\n  return {\n    outputFileObj: args.inputFileObj,\n    outputNumber: isDV ? 1 : 2,\n    variables: args.variables,\n  };\n};\n"
+      },
+      "name": "DV Detect (P5 + P7)",
+      "pluginName": "customFunction",
+      "position": {
+        "x": 0,
+        "y": 500
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "snapshot",
+      "inputsDB": {
+        "function": "// Node: \"Snapshot source metadata\"\n// Place: AFTER guard_home + dv_check, BEFORE is_hevc / is_av1.\n// Purpose: Captures source file size, duration, and HDR status into args.variables\n//          so post-encode guards can compare against original (args.inputFileObj\n//          gets mutated by ffmpegCommandExecute to point at the encoded output).\n\nmodule.exports = async (args) => {\n  const streams = (args.inputFileObj.ffProbeData || {}).streams || [];\n  const videoStream = streams.find((s) => s.codec_type === 'video') || {};\n  const fmt = (args.inputFileObj.ffProbeData || {}).format || {};\n\n  args.variables = args.variables || {};\n  args.variables.user = args.variables.user || {};\n\n  args.variables.user.sourceSize = args.inputFileObj.file_size;\n  args.variables.user.sourceDuration = parseFloat(fmt.duration || 0);\n  args.variables.user.sourceWasHDR = (videoStream.color_transfer || '') === 'smpte2084';\n\n  args.jobLog(\n    `Snapshot: size=${(args.variables.user.sourceSize / 1e9).toFixed(2)}GB ` +\n      `duration=${args.variables.user.sourceDuration.toFixed(1)}s ` +\n      `HDR=${args.variables.user.sourceWasHDR}`,\n  );\n\n  return {\n    outputFileObj: args.inputFileObj,\n    outputNumber: 1,\n    variables: args.variables,\n  };\n};\n"
+      },
+      "name": "Snapshot source metadata",
+      "pluginName": "customFunction",
+      "position": {
+        "x": 250,
+        "y": 500
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "is_hevc",
+      "inputsDB": {
+        "codec": "hevc"
+      },
+      "name": "Codec is HEVC?",
+      "pluginName": "checkVideoCodec",
+      "position": {
+        "x": 500,
+        "y": 350
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "is_av1",
+      "inputsDB": {
+        "codec": "av1"
+      },
+      "name": "Codec is AV1?",
+      "pluginName": "checkVideoCodec",
+      "position": {
+        "x": 500,
+        "y": 850
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "res_hevc",
+      "inputsDB": {},
+      "name": "Resolution (HEVC path)",
+      "pluginName": "checkVideoResolution",
+      "position": {
+        "x": 750,
+        "y": 350
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "res_legacy",
+      "inputsDB": {},
+      "name": "Resolution (legacy path)",
+      "pluginName": "checkVideoResolution",
+      "position": {
+        "x": 750,
+        "y": 950
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "hdr_1080",
+      "inputsDB": {},
+      "name": "HDR? (1080p)",
+      "pluginName": "checkHdr",
+      "position": {
+        "x": 1000,
+        "y": 150
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "hdr_4k",
+      "inputsDB": {},
+      "name": "HDR? (4K)",
+      "pluginName": "checkHdr",
+      "position": {
+        "x": 1000,
+        "y": 450
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "br_hdr1080",
+      "inputsDB": {
+        "greaterThan": "6",
+        "lessThan": "100000",
+        "unit": "mbps"
+      },
+      "name": "Bitrate >6 Mbps (HDR 1080p)",
+      "pluginName": "checkOverallBitrate",
+      "position": {
+        "x": 1250,
+        "y": 50
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "br_sdr1080",
+      "inputsDB": {
+        "greaterThan": "6",
+        "lessThan": "100000",
+        "unit": "mbps"
+      },
+      "name": "Bitrate >6 Mbps (SDR 1080p)",
+      "pluginName": "checkOverallBitrate",
+      "position": {
+        "x": 1250,
+        "y": 250
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "br_4k_sdr",
+      "inputsDB": {
+        "greaterThan": "10",
+        "lessThan": "100000",
+        "unit": "mbps"
+      },
+      "name": "Bitrate >10 Mbps (4K SDR)",
+      "pluginName": "checkOverallBitrate",
+      "position": {
+        "x": 1250,
+        "y": 450
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "is_remux",
+      "inputsDB": {
+        "terms": "Remux,REMUX,remux"
+      },
+      "name": "Is Remux?",
+      "pluginName": "checkFileNameIncludes",
+      "position": {
+        "x": 1250,
+        "y": 650
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "br_4k",
+      "inputsDB": {
+        "greaterThan": "12",
+        "lessThan": "100000",
+        "unit": "mbps"
+      },
+      "name": "Bitrate >12 Mbps (4K HDR non-remux)",
+      "pluginName": "checkOverallBitrate",
+      "position": {
+        "x": 1500,
+        "y": 750
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "start23",
+      "inputsDB": {},
+      "name": "Begin (ICQ23)",
+      "pluginName": "ffmpegCommandStart",
+      "position": {
+        "x": 1800,
+        "y": 100
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "cont23",
+      "inputsDB": {
+        "container": "mkv",
+        "forceConform": "false"
+      },
+      "name": "Set Container mkv (ICQ23)",
+      "pluginName": "ffmpegCommandSetContainer",
+      "position": {
+        "x": 2000,
+        "y": 100
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "enc23",
+      "inputsDB": {
+        "ffmpegPreset": "slow",
+        "ffmpegPresetEnabled": "false",
+        "ffmpegQuality": "23",
+        "ffmpegQualityEnabled": "false",
+        "forceEncoding": "true",
+        "hardwareDecoding": "true",
+        "hardwareEncoding": "true",
+        "hardwareType": "qsv",
+        "outputCodec": "av1"
+      },
+      "name": "AV1 QSV cq26 hw-decode",
+      "pluginName": "ffmpegCommandSetVideoEncoder",
+      "position": {
+        "x": 2250,
+        "y": 100
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "cargs23",
+      "inputsDB": {
+        "inputArguments": "",
+        "outputArguments": "-color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -color_range tv -preset medium -global_quality 26 -look_ahead 1"
+      },
+      "name": "AV1 QSV tuning + HDR10 tags (cq26)",
+      "pluginName": "ffmpegCommandCustomArguments",
+      "position": {
+        "x": 2550,
+        "y": 100
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "exec23",
+      "inputsDB": {},
+      "name": "Execute (ICQ23)",
+      "pluginName": "ffmpegCommandExecute",
+      "position": {
+        "x": 2850,
+        "y": 100
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "start22",
+      "inputsDB": {},
+      "name": "Begin (ICQ22)",
+      "pluginName": "ffmpegCommandStart",
+      "position": {
+        "x": 1800,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "cont22",
+      "inputsDB": {
+        "container": "mkv",
+        "forceConform": "false"
+      },
+      "name": "Set Container mkv (ICQ22)",
+      "pluginName": "ffmpegCommandSetContainer",
+      "position": {
+        "x": 2000,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "enc22",
+      "inputsDB": {
+        "ffmpegPreset": "slow",
+        "ffmpegPresetEnabled": "false",
+        "ffmpegQuality": "22",
+        "ffmpegQualityEnabled": "false",
+        "forceEncoding": "true",
+        "hardwareDecoding": "true",
+        "hardwareEncoding": "true",
+        "hardwareType": "qsv",
+        "outputCodec": "av1"
+      },
+      "name": "AV1 QSV cq24 hw-decode",
+      "pluginName": "ffmpegCommandSetVideoEncoder",
+      "position": {
+        "x": 2250,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "cargs22",
+      "inputsDB": {
+        "inputArguments": "",
+        "outputArguments": "-color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -color_range tv -preset medium -global_quality 24 -look_ahead 1"
+      },
+      "name": "AV1 QSV tuning + HDR10 tags (cq24)",
+      "pluginName": "ffmpegCommandCustomArguments",
+      "position": {
+        "x": 2550,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "exec22",
+      "inputsDB": {},
+      "name": "Execute (ICQ22)",
+      "pluginName": "ffmpegCommandExecute",
+      "position": {
+        "x": 2850,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "start24",
+      "inputsDB": {},
+      "name": "Begin (ICQ24)",
+      "pluginName": "ffmpegCommandStart",
+      "position": {
+        "x": 1800,
+        "y": 1200
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "cont24",
+      "inputsDB": {
+        "container": "mkv",
+        "forceConform": "false"
+      },
+      "name": "Set Container mkv (ICQ24)",
+      "pluginName": "ffmpegCommandSetContainer",
+      "position": {
+        "x": 2000,
+        "y": 1200
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "enc24",
+      "inputsDB": {
+        "ffmpegPreset": "slow",
+        "ffmpegPresetEnabled": "false",
+        "ffmpegQuality": "24",
+        "ffmpegQualityEnabled": "false",
+        "forceEncoding": "true",
+        "hardwareDecoding": "true",
+        "hardwareEncoding": "true",
+        "hardwareType": "qsv",
+        "outputCodec": "av1"
+      },
+      "name": "AV1 QSV cq28 hw-decode",
+      "pluginName": "ffmpegCommandSetVideoEncoder",
+      "position": {
+        "x": 2250,
+        "y": 1200
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "exec24",
+      "inputsDB": {},
+      "name": "Execute (ICQ24)",
+      "pluginName": "ffmpegCommandExecute",
+      "position": {
+        "x": 2700,
+        "y": 1200
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "size_check",
+      "inputsDB": {
+        "function": "// Node: \"Guard 1: Size sanity\"\n// Place: AFTER all ffmpegCommandExecute nodes (they all converge here).\n// Output 1 \u00e2\u2020\u2019 Pass (continue to duration check)\n// Output 2 \u00e2\u2020\u2019 Fail (dead-end, source NOT replaced)\n// Purpose: Reject encodes that didn't shrink the file meaningfully, OR\n//          produced suspiciously small output (likely corrupt).\n\nmodule.exports = async (args) => {\n  const snap = (args.variables && args.variables.user) || {};\n  const inputBytes = snap.sourceSize;\n  const outputBytes = args.inputFileObj.file_size;\n\n  if (!inputBytes) {\n    args.jobLog('Size check: no source snapshot found \u00e2\u20ac\u201d FAIL (will not replace)');\n    return {\n      outputFileObj: args.inputFileObj,\n      outputNumber: 2,\n      variables: args.variables,\n    };\n  }\n\n  const ratio = outputBytes / inputBytes;\n  args.jobLog(\n    `Size check: ${(inputBytes / 1e9).toFixed(2)}GB \u00e2\u2020\u2019 ` +\n      `${(outputBytes / 1e9).toFixed(2)}GB (${(ratio * 100).toFixed(1)}%)`,\n  );\n\n  if (outputBytes < inputBytes * 0.05) {\n    args.jobLog('Size check: FAIL \u00e2\u20ac\u201d output suspiciously small (<5% of source), likely corrupt');\n    return {\n      outputFileObj: args.inputFileObj,\n      outputNumber: 2,\n      variables: args.variables,\n    };\n  }\n\n  if (ratio >= 0.95) {\n    args.jobLog('Size check: FAIL \u00e2\u20ac\u201d output not meaningfully smaller (>=95% of source)');\n    return {\n      outputFileObj: args.inputFileObj,\n      outputNumber: 2,\n      variables: args.variables,\n    };\n  }\n\n  return {\n    outputFileObj: args.inputFileObj,\n    outputNumber: 1,\n    variables: args.variables,\n  };\n};\n"
+      },
+      "name": "Guard 1: Size sanity",
+      "pluginName": "customFunction",
+      "position": {
+        "x": 3200,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "duration_check",
+      "inputsDB": {
+        "function": "// Node: \"Guard 2: Duration integrity\"\n// Place: AFTER size check.\n// Output 1 \u00e2\u2020\u2019 Pass\n// Output 2 \u00e2\u2020\u2019 Fail (truncated or corrupt output)\n// Purpose: Catches encodes that crashed mid-way and produced a truncated file.\n//          Allows up to 0.5% duration drift (rounding/container differences).\n\nmodule.exports = async (args) => {\n  const snap = (args.variables && args.variables.user) || {};\n  const inDur = snap.sourceDuration;\n\n  const fmt = (args.inputFileObj.ffProbeData || {}).format || {};\n  const outDur = parseFloat(fmt.duration || 0);\n\n  if (!inDur) {\n    args.jobLog('Duration check: no source snapshot \u00e2\u20ac\u201d PASS (skipping)');\n    return {\n      outputFileObj: args.inputFileObj,\n      outputNumber: 1,\n      variables: args.variables,\n    };\n  }\n\n  if (!outDur) {\n    args.jobLog('Duration check: cannot read output duration \u00e2\u20ac\u201d FAIL');\n    return {\n      outputFileObj: args.inputFileObj,\n      outputNumber: 2,\n      variables: args.variables,\n    };\n  }\n\n  const ratio = outDur / inDur;\n  args.jobLog(\n    `Duration check: ${inDur.toFixed(1)}s \u00e2\u2020\u2019 ${outDur.toFixed(1)}s (${(ratio * 100).toFixed(2)}%)`,\n  );\n\n  if (ratio < 0.995 || ratio > 1.005) {\n    args.jobLog('Duration check: FAIL \u00e2\u20ac\u201d duration drift > 0.5%');\n    return {\n      outputFileObj: args.inputFileObj,\n      outputNumber: 2,\n      variables: args.variables,\n    };\n  }\n\n  return {\n    outputFileObj: args.inputFileObj,\n    outputNumber: 1,\n    variables: args.variables,\n  };\n};\n"
+      },
+      "name": "Guard 2: Duration integrity",
+      "pluginName": "customFunction",
+      "position": {
+        "x": 3450,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "hdr_survival",
+      "inputsDB": {
+        "function": "// Node: \"Guard 3: HDR metadata survived\"\n// Place: AFTER duration check, BEFORE rename.\n// Output 1 \u00e2\u2020\u2019 Pass (continue to rename \u00e2\u2020\u2019 replace)\n// Output 2 \u00e2\u2020\u2019 Fail (HDR side data was lost in encode, source NOT replaced)\n// Purpose: Ensures mastering display + content light level survived the QSV pipeline.\n//          SDR sources pass through automatically (no HDR to check).\n\nmodule.exports = async (args) => {\n  const snap = (args.variables && args.variables.user) || {};\n\n  if (!snap.sourceWasHDR) {\n    args.jobLog('HDR survival: source was SDR \u00e2\u20ac\u201d PASS (no HDR check needed)');\n    return {\n      outputFileObj: args.inputFileObj,\n      outputNumber: 1,\n      variables: args.variables,\n    };\n  }\n\n  // First check stream-level side data (fast, already in ffProbeData)\n  const streams = (args.inputFileObj.ffProbeData || {}).streams || [];\n  const videoStream = streams.find((s) => s.codec_type === 'video') || {};\n  const streamSd = videoStream.side_data_list || [];\n\n  let hasMaster = streamSd.some((x) =>\n    (x.side_data_type || '').toLowerCase().includes('mastering'),\n  );\n  let hasCLL = streamSd.some((x) =>\n    (x.side_data_type || '').toLowerCase().includes('content light'),\n  );\n\n  // Fall back to frame-level probe if stream-level didn't have it\n  if (!hasMaster || !hasCLL) {\n    try {\n      const { execSync } = require('child_process');\n      const out = execSync(\n        `ffprobe -v error -select_streams v:0 -read_intervals \"%+#1\" ` +\n          `-show_frames -show_entries frame=side_data_list -of json ` +\n          `\"${args.inputFileObj._id}\"`,\n        { maxBuffer: 10 * 1024 * 1024 },\n      ).toString();\n      const frameSd = ((JSON.parse(out).frames || [])[0] || {}).side_data_list || [];\n      hasMaster =\n        hasMaster ||\n        frameSd.some((x) => (x.side_data_type || '').toLowerCase().includes('mastering'));\n      hasCLL =\n        hasCLL ||\n        frameSd.some((x) => (x.side_data_type || '').toLowerCase().includes('content light'));\n    } catch (e) {\n      args.jobLog(`HDR survival: frame-level ffprobe failed (${e.message})`);\n    }\n  }\n\n  args.jobLog(`HDR survival: mastering=${hasMaster} cll=${hasCLL}`);\n\n  if (!hasMaster || !hasCLL) {\n    args.jobLog('HDR survival: FAIL \u00e2\u20ac\u201d HDR side data missing from output');\n    return {\n      outputFileObj: args.inputFileObj,\n      outputNumber: 2,\n      variables: args.variables,\n    };\n  }\n\n  return {\n    outputFileObj: args.inputFileObj,\n    outputNumber: 1,\n    variables: args.variables,\n  };\n};\n"
+      },
+      "name": "Guard 3: HDR metadata survived (SDR passthrough)",
+      "pluginName": "customFunction",
+      "position": {
+        "x": 3700,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "replace",
+      "inputsDB": {},
+      "name": "Replace Original File",
+      "pluginName": "replaceOriginalFile",
+      "position": {
+        "x": 4200,
+        "y": 700
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    },
+    {
+      "fpEnabled": true,
+      "id": "cargs24",
+      "inputsDB": {
+        "inputArguments": "",
+        "outputArguments": "-preset medium -global_quality 28 -look_ahead 1"
+      },
+      "name": "AV1 QSV tuning (cq28, SDR)",
+      "pluginName": "ffmpegCommandCustomArguments",
+      "position": {
+        "x": 2400,
+        "y": 1200
+      },
+      "sourceRepo": "Community",
+      "version": "1.0.0"
+    }
+  ],
+  "isUiLocked": false,
+  "name": "Movies AV1 (QSV/B70 xe) - DV-safe v4",
+  "priority": 2
+}
