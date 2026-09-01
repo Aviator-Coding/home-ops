@@ -1,5 +1,26 @@
 # kopiur Stage 5 pilot - VolSync retired from four volumes - 2026-09-01
 
+> ## ⚠️ FOUR FLUX KUSTOMIZATIONS ARE SUSPENDED. RESUME THEM **AFTER** MERGE, NEVER BEFORE.
+>
+> ```bash
+> flux resume ks repo-wiki -n ai
+> flux resume ks recyclarr -n downloads
+> flux resume ks sabnzbd   -n downloads
+> flux resume ks seerr     -n media
+> ```
+>
+> **Resuming BEFORE this change is on `main` silently undoes the retirement.** `main` still
+> carries the volsync Component for these four apps, so Flux would immediately re-apply it and
+> recreate all 12 `ReplicationSource`s, the 4 `ReplicationDestination`s and the 12
+> `ExternalSecret`s that were removed here. Nothing would error and nothing would alert: every
+> Kustomization would report `Ready`, both engines would be running again, and the only visible
+> trace would be VolSync objects quietly existing on volumes this document says are kopiur-only.
+> After merge the same command is a no-op reconcile against the state that is already live.
+>
+> The suspension exists because Flux reconciles from `main` on a 30m/1h interval, and the
+> retirement had to be executed by hand to be provable *before* merge. Details in
+> [Handover](#handover-the-four-kustomizations-are-suspended).
+
 > **Status: the first irreversible step of the migration.** Four volumes now have exactly ONE
 > backup engine. Everything before this was additive - kopiur ran *alongside* VolSync and nothing
 > was removed. This document records which four, why those four, what "retiring" mechanically
@@ -460,14 +481,38 @@ flux resume ks sabnzbd   -n downloads
 flux resume ks seerr     -n media
 ```
 
-Resume is safe and idempotent: `main` will then describe exactly the live state - the VolSync
-objects are already gone and are no longer rendered, and the kopiur `pvc.yaml` is
-`ssa: IfNotPresent` against claims that already exist, so it is skipped. Expect no changes.
+**After merge**, resume is safe and idempotent: `main` then describes exactly the live state - the
+VolSync objects are already gone and are no longer rendered, and the kopiur `pvc.yaml` is
+`ssa: IfNotPresent` against claims that already exist, so it is skipped. This was measured, not
+assumed: `flux diff kustomization` against this branch reports the claims as `skipped` and shows
+no change beyond the already-executed prunes (section 4). Expect no changes.
 
-While suspended these four apps do not reconcile, so merge promptly. If the PR is abandoned
-instead, resuming restores the previous state on its own: `main` still carries the volsync
-Component, so Flux recreates all 28 objects and the ExternalSecrets repopulate from 1Password. The
-restic repositories were never touched, so VolSync simply resumes.
+### Resuming BEFORE merge silently undoes the retirement
+
+This is the one way to get a bad outcome from here, and it does not look like one.
+
+`main` still carries `../../../../../components/volsync` for all four apps. A `flux resume ks`
+while that is true makes Flux reconcile from `main` on the spot and **re-apply the volsync
+Component**: 12 `ReplicationSource`s, 4 `ReplicationDestination`s and 12 `ExternalSecret`s come
+straight back, the ExternalSecrets repopulate their Secrets from 1Password, and VolSync starts
+taking backups again on its old schedules.
+
+Nothing errors. Every Kustomization reports `Ready`, every app stays healthy, no alert fires -
+because a volume gaining a *second* backup engine is not a fault condition anywhere in this
+cluster. The retirement is simply gone, while this document, `RETIRED_CLAIMS` in
+`scripts/ci/kopiur-stage3-test.py` and both component Readmes all still say those four volumes
+are kopiur-only. That divergence is the actual damage: the fleet's written record of which claims
+are single-engine would be wrong, in the direction that makes people trust it less.
+
+It is fully recoverable - re-run the deletions in this document - but it is avoidable by simply
+not resuming until the merge has landed.
+
+**So: merge first, then resume.** While suspended these four apps do not reconcile at all, so
+merge promptly rather than leaving them parked.
+
+Deliberately abandoning the PR is the *only* case where resuming first is correct: it is then the
+clean rollback, restoring both engines by exactly the mechanism described above. The restic
+repositories were never touched, so VolSync simply picks up where it left off.
 
 ## Fleet state after this change
 
