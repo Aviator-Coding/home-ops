@@ -33,12 +33,28 @@ This component only declares what to back up.
 > Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the
 > open r2-vs-ceph cache-capacity Stage 5 blocker:
 > [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
-> Procedure that proof follows (and the earlier Stage 2 `sabnzbd-config`
-> gate): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
-> That proof is the Stage 5 **prerequisite**, not Stage 5 itself - every
-> VolSync source is still live and nothing has been retired. Do not reverse
-> the conclusion from older Stage 2/4 spot checks; those are superseded by the
-> 2026-09-01 fleet table.
+> That fleet table is the authority on restore coverage, and it is the Stage 5
+> **prerequisite**, not Stage 5 itself - every VolSync source is still live and
+> nothing has been retired.
+>
+> The earlier per-volume drills remain the procedural precedent it is built on,
+> and are still accurate:
+> * Stage 2 (2026-08-30) restore gate **passed** - `sabnzbd-config` from **both** ceph and r2,
+>   byte-identical (2062 files, 2.06 GiB, modes and ownership): durable
+>   procedure in
+>   [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
+> * Stage 4 (2026-08-31) - `changedetection-config` (kopia snapshot `c1127a61`,
+>   3058 files, per-file sha256 manifest identical to live, modes reproduced
+>   exactly where the VolSync restore of the same volume returns `660`/`664`
+>   because it stages writable).
+> * Stage 4 (2026-08-31) - `home-automation/matter-server` from ceph only. A root
+>   restore preserves modes and content but rewrites mixed live uids to `0:0`
+>   (see "Root movers" below) - functional for this root app, not a
+>   content-fidelity failure.
+>
+> Those three are spot checks superseded in *scope* by the 2026-09-01 fleet
+> table, which covers all 30 claims on both destinations; do not read them as
+> the current limit of restore coverage.
 > `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's
 > files, or the backup fails outright on any file lacking a world-read bit
 > (kopiur fails closed; its admission webhook warns at apply time) - a
