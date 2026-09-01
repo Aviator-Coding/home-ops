@@ -66,16 +66,17 @@ spec:
       # exists, but it is exactly what a REBUILD would provision - so it has to
       # stay true to the live claim rather than drift into decoration.
       KOPIUR_CAPACITY: 5Gi
-      # Identity left at the component default of 1000:1000, and that is a
-      # MEASURED result rather than an assumption: live measurement 2026-08-30
-      # found every entry owned 1000:1000 (pod securityContext 1000:1000:1000)
-      # and nothing unreadable at 1000.
       # Ephemeral, so it sizes a per-run volume and adds no standing PVC. Left
       # at 2Gi: restore-proof finding 2 (an r2 restore needs materially more
       # kopia cache than the same restore from ceph) is a large-claim problem -
       # 2Gi is ~4600x this volume's 450 KB, and the post-retirement r2 restore
-      # was re-proven at this value. See the pilot document.
+      # was re-proven at this value rather than assumed from the ceph one.
+      # See docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
       KOPIUR_CACHE_CAPACITY: 2Gi
+      # No KOPIUR_PUID/PGID: the identity is left at the component default of
+      # 1000:1000, and that is a MEASURED result rather than an assumption -
+      # live measurement 2026-08-30 found every entry owned 1000:1000 (pod
+      # securityContext 1000:1000:1000) and nothing unreadable at 1000.
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, which already
       # carries volsync's ceph slot. Hour 19 carries no volsync destination and
