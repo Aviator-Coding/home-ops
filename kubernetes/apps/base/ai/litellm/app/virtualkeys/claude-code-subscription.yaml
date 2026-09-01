@@ -18,9 +18,10 @@
 # describes what the key is FOR (the Claude Code CLI subscription user), it is
 # only the two models it is allow-listed to that changed names. The client-side
 # `ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` overrides
-# that section 7 below describes are gone: the natural names now resolve
+# that the runbook's §7 describes are gone: the natural names now resolve
 # directly to these pass-through CRs, so no override is needed. Full rationale
-# and the deliberate 401 an admin gets asking for the bare metered name:
+# and the deliberate 401 an admin gets asking for the bare natural name
+# (without a subscription OAuth token) instead of the `-metered` escape hatch:
 # docs/ai-system/litellm/claude-code-subscription.md.
 #
 # THE ONLY KEY HERE WITH NO `maxBudget`, AND - AS OF 2026-08-31 - NO

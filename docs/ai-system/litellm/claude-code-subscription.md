@@ -683,9 +683,9 @@ been billed. The throwaway key's recorded spend was `0.0` after the whole
 matrix.
 
 V4-V7 are the negative half: the two-model allow-list is not a widening. Every
-metered route stays refused, and the rendered config still shows
-`claude-opus-5` and `claude-sonnet-5` carrying `os.environ/ANTHROPIC_API_KEY`,
-untouched.
+metered route stayed refused, and the rendered config at measurement time
+showed `claude-opus-5` and `claude-sonnet-5` (then the metered CRs; today
+`claude-*-5-metered`) carrying `os.environ/ANTHROPIC_API_KEY`, untouched.
 
 **What is NOT proven here, stated plainly:** a *successful* Opus completion. That
 needs a real subscription OAuth token, which lives only on a person's
