@@ -12,8 +12,8 @@ This component only declares what to back up.
 > fleet's 30** VolSync-protected claims - zero deferred. Stage 3 (2026-08-30)
 > onboarded namespace by namespace; Stage 4 (2026-08-31) added both remaining
 > claims. **Both engines run on every volume** - every VolSync source is still
-> live, nothing has been retired, and retirement is Stage 5, which needs a
-> per-volume restore proof first.
+> live, nothing has been retired, and retirement is Stage 5, the remaining
+> deliberately-not-yet-done step.
 >
 > Stage 4 onboardings:
 > * `selfhosted/changedetection-config` did **not** need a root mover. It had
@@ -33,9 +33,9 @@ This component only declares what to back up.
 > Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the
 > open r2-vs-ceph cache-capacity Stage 5 blocker:
 > [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
-> That fleet table is the authority on restore coverage, and it is the Stage 5
-> **prerequisite**, not Stage 5 itself - every VolSync source is still live and
-> nothing has been retired.
+> That fleet table is the authority on restore coverage, and it is the satisfied
+> Stage 5 **prerequisite**, not Stage 5 itself - every VolSync source is still
+> live and nothing has been retired.
 >
 > The earlier per-volume drills remain the procedural precedent it is built on,
 > and are still accurate:
