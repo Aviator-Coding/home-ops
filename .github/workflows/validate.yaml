@@ -66,6 +66,19 @@ on:
       - .renovate/**
       - .renovaterc.json5
       - bootstrap/**
+      # docs/tdarr/** and docs/tdarr-errored-remuxes.md are here because the
+      # pythontests per-job filter matches them: tdarr-flow-nodes-test.py runs
+      # docs/tdarr/flow-nodes/behavior-test.js, which byte-checks every flow node
+      # source against docs/tdarr/flow-movies_av1_nvenc_v1.after.json. Path
+      # filtering happens at BOTH levels and the trigger wins, so a per-job
+      # pattern that is absent here never gets evaluated at all - the workflow
+      # simply does not start. That gap was live from PR #1530 until 2026-09-01:
+      # the filter listed docs/tdarr/** while the trigger did not, so a
+      # docs/tdarr-only change ran no python tests and the byte-check the rebuild
+      # runbook promises never executed. Pinned by
+      # scripts/ci/validate-contention-test.py::test_trigger_paths_cover_job_filters.
+      - docs/tdarr-errored-remuxes.md
+      - docs/tdarr/**
       - kubernetes/apps/base/system-upgrade/**
       - kubernetes/apps/main/system-upgrade/**
       - scripts/ci/**
