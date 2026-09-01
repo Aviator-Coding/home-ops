@@ -79,6 +79,99 @@ Every object this run created carries `fm.homeops/restore-drill: kopiur-stage5`.
 - **`KOPIUR_WORKER_THREADS=2` was left alone.** The operator's global mover concurrency
   throttles this run; raising it for a drill would have been a production change.
 
+## Findings
+
+Four things this run established that no manifest test, and no snapshot status, would have
+caught. Two of them change how a future reader must read the table.
+
+### Finding 1: kopia excludes `CACHEDIR.TAG` directories, so restored file counts are legitimately lower than live
+
+kopia honours the [Cache Directory Tagging Specification](https://bford.info/cachedir/): any
+directory holding a `CACHEDIR.TAG` file whose first bytes are the standard signature is skipped.
+The **directory itself is restored**, with its mode and ownership intact - only its contents are
+omitted. Three claims are affected fleet-wide:
+
+| claim | live files | snapshot `filesNew` | omitted | tagged directories |
+|---|--:|--:|--:|---|
+| `ai/hermes` | 89 388 | 65 921 | 23 467 | `.cache/uv`, `home/.cache/uv` (+2 nested `archive-v0` entries), `home/.local/share/uv/tools/pytest`, `wiki/.venv`, `skills/media/youtube-content/.venv`, `venv-httpx`, `.hw-venv`, `scripts/.pytest_cache` |
+| `home-automation/home-assistant` | 96 | 79 | 17 | `.venv` |
+| `media/calibre-web-automated` | 37 | 23 | 14 | `.cache/fontconfig` |
+
+The omitted content is a Python virtualenv, a `uv` download cache, a `pytest` cache and a
+fontconfig cache - all regenerable, none of it application state. The fleet-wide sweep for
+`CACHEDIR.TAG` and `.kopiaignore` found no other claim carrying either marker.
+
+**Why this matters for retirement.** VolSync's restic mover is **not** configured with
+`--exclude-caches` (restic's opt-in flag for the same convention), and nothing in
+`kubernetes/components/volsync/` sets it, so the restic repositories very likely *do* hold this
+content while the kopia ones do not. Retiring VolSync for `hermes` in particular therefore drops
+23 467 files from the fleet's backup coverage. That is almost certainly an acceptable trade -
+they are caches and virtualenvs - but it is a real change in coverage and it should be a
+deliberate decision rather than a surprise. It was **not** verified by a VolSync restore here;
+only the kopiur side was measured.
+
+### Finding 2: an r2 restore needs a materially larger kopia cache than the same restore from ceph
+
+Both `hermes` and `plex` failed their **r2** restore with
+`no space left on device` on `/var/cache/kopia`, using the 2 GiB ephemeral cache that this
+repo's drill document uses in its worked example. The decisive observation is that
+**`plex` restored successfully from `ceph` on that same 2 GiB and failed from `r2` on it** -
+same volume, same snapshot content, same mover identity, different repository. So this is a
+property of the offsite backend, not of volume size alone.
+
+```
+error restoring: restore error: copy file: error creating file:
+  unable to open snapshot file for /restore/... : unable to open object:
+  ... unable to write to cache: kopia.repository: cannot write data to tempfile
+  "/var/cache/kopia/cache/kopia.repository...": no space left on device
+```
+
+A failed `Restore` is terminal - kopiur says so in the condition message ("a Failed Restore is
+terminal and never retries") - so recovering means creating a **new** `Restore`, not patching
+the old one. Re-running with a larger cache is what produced the proofs in the table.
+
+**Why this matters for retirement.** The component default is
+`KOPIUR_CACHE_CAPACITY:-2Gi` (`kubernetes/components/kopiur/ceph/restore.yaml`). The standing
+populator `Restore`s that Stage 5 would actually rely on carry `hermes` 5 GiB and `plex` 10 GiB.
+Neither has ever been exercised against r2. A real offsite disaster recovery is exactly the
+moment this would be discovered, so the cache capacity on the large claims deserves a look
+before VolSync is retired - it is a one-line change per overlay, and it is the difference
+between a DR restore working and failing terminally.
+
+### Finding 3: reading "live" through the app pod can include bytes the claim does not hold
+
+`home-automation/esphome-config` first scored FAIL: `./secrets.yaml` came back from **both**
+destinations with digest `e3b0c442...`, the sha256 of the empty string, against a live digest of
+`eb48ead0...`.
+
+It is not data loss. `/config/secrets.yaml` is an ESO-managed **Secret volume mounted over the
+claim path** (`subPath: secrets.yaml`, from `secret/esphome-secrets`), on a different device
+(`2097250` vs the claim's `64640`). The claim itself holds a zero-byte placeholder at that path,
+which is exactly what kopiur backed up and exactly what it restored. The 222 bytes of real
+content live in 1Password, not in any backup of this claim, and that is by design.
+
+`find -xdev` does not protect against this: it declines to *descend* into another filesystem,
+but a single file that is itself a bind mount inside an otherwise same-device directory is still
+reported. Re-measured against a CSI `VolumeSnapshot` clone of the claim - which has no pod
+overlay at all - `esphome-config` restores 46/46 byte-identically and passes.
+
+A fleet-wide audit of every mount landing **inside** a backed-up data directory found exactly
+four, and this is the only file-level one; the other three (`autobrr` `/config/log`,
+`home-assistant` `/config/logs` and `/config/tts`) are `emptyDir` **directories**, which `-xdev`
+does prune correctly.
+
+### Finding 4: four claims are too small for a restore to prove much
+
+`downloads/autobrr` holds **one** file (2 179 bytes). Its restore matches byte-for-byte from
+both destinations, and that result is close to meaningless as a fidelity proof - it exercises
+the mechanism, not the data path at scale. The Stage 2 drill made the same point about this
+claim's Stage 1 snapshot, which succeeded while moving zero bytes.
+
+Three more are in the same category and are marked in the table rather than counted as ordinary
+passes: `selfhosted/paperless-ngx-media` (1 file), `selfhosted/syncthing-data` (5 files) and
+`selfhosted/obsidian-livesync` (8 files). `database/pgadmin` is a borderline case in the other
+direction - only 3 files, but 979 MiB of them, so its restore does exercise bulk data.
+
 ## Results
 
 _(table generated below)_
