@@ -3,9 +3,15 @@
 
 Stage 3 onboarded every remaining VolSync-protected claim onto kopiur ALONGSIDE
 VolSync, namespace by namespace, one commit each. The safety property of the
-whole stage is that BOTH engines stay live on every volume: nothing is retired
-here, and no VolSync object is touched. Retirement is Stage 5 and needs a
-per-volume restore proof first.
+whole stage was that BOTH engines stay live on every volume: nothing was retired
+there, and no VolSync object was touched.
+
+UPDATED 2026-09-01 for Stage 5, which began retiring VolSync per volume after
+docs/backups/kopiur-restore-proof-2026-09-01.md restore-proved all 30 claims on
+both destinations. The dual-engine invariant is therefore no longer universal -
+it is now EXACT, against the RETIRED_CLAIMS set below (the pilot four). A claim
+that goes single-engine without being listed there still fails, and so does a
+listed claim that still renders VolSync.
 
 No remaining deferred claims: Stage 4 onboarded both previously deferred
 volumes, so kopiur is live on 30 of 30 VolSync-protected claims (alongside
@@ -117,6 +123,26 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
 # regression that re-defers either fails coverage_is_exact instead of silently
 # shrinking the fleet pin.
 DEFERRED_CLAIMS: set[tuple[str, str]] = set()
+
+# --- Stage 5: claims VolSync has been RETIRED from (kopiur is their only engine) ---
+#
+# The pilot four, retired 2026-09-01. Each was restore-proven on BOTH
+# destinations first (docs/backups/kopiur-restore-proof-2026-09-01.md) and
+# re-proven after retirement
+# (docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md). They were chosen
+# for regenerable/reconstructible content and clean, unambiguous proofs; the
+# remaining 26 claims stay dual-engine pending a separate captain decision.
+#
+# This set is the fleet's legibility record: anything in it has ONE backup
+# engine, and anything not in it must still have two. Adding a row here is an
+# assertion that a restore proof exists for that volume - do not add one to
+# quiet a failing test.
+RETIRED_CLAIMS: set[tuple[str, str]] = {
+    ("ai", "repo-wiki"),
+    ("downloads", "recyclarr-config"),
+    ("downloads", "sabnzbd-config"),
+    ("media", "seerr"),
+}
 
 # One free hour per namespace: free of every VolSync destination and of
 # kopiur's own ceph slots (01/05/09/13/17/21). The component default `H 4 * * *`
@@ -429,8 +455,19 @@ def volsync_covered() -> set[tuple[str, str]]:
     return covered
 
 
-def test_volsync_untouched() -> None:
-    """Every onboarded claim still has a VolSync sibling; nothing is retired here.
+def test_volsync_still_on_every_unretired_claim() -> None:
+    """VolSync still covers every onboarded claim EXCEPT the Stage 5 pilot four.
+
+    Stage 3's original invariant was absolute - both engines on every volume,
+    nothing retired. Stage 5 (2026-09-01) began retiring VolSync per volume, so
+    the invariant is now exact rather than universal: the retired set is
+    enumerated in RETIRED_CLAIMS and everything else must still be dual-engine.
+
+    Stating it as an exact set is the point. A blanket "some claims may have no
+    VolSync" would let the next accidental component deletion pass silently,
+    which is precisely the failure this pin exists to catch. Both directions are
+    checked: a claim retired without being listed here fails, and a claim listed
+    here that still renders VolSync fails too (a half-reverted retirement).
 
     Covers both onboarding shapes: inline components/volsync, and path-based
     splits (pgadmin, calibre-web-automated, paperless-ngx-media, syncthing-data)
@@ -439,13 +476,39 @@ def test_volsync_untouched() -> None:
     deleting a second-claim volsync KS fails this pin rather than being skipped.
     """
     covered = volsync_covered()
+    onboarded_claims = {(ns, claim) for ns, claim, _s, _d, _p in onboarded()}
+
+    stale = sorted(RETIRED_CLAIMS - onboarded_claims)
+    require(
+        not stale,
+        f"RETIRED_CLAIMS names claims that are not kopiur-onboarded at all: {stale}. "
+        f"Retiring VolSync from a claim kopiur does not protect leaves it with NO backup.",
+    )
+
     for ns, claim, _sub, _d, path in onboarded():
+        if (ns, claim) in RETIRED_CLAIMS:
+            require(
+                (ns, claim) not in covered,
+                f"{ns}/{claim} ({path.name}): listed in RETIRED_CLAIMS but a VolSync "
+                f"sibling still covers it - either the retirement was half-reverted or "
+                f"the claim should come off RETIRED_CLAIMS.",
+            )
+            continue
         require(
             (ns, claim) in covered,
-            f"{ns}/{claim} ({path.name}): no VolSync sibling covering this claim - both "
-            f"engines must run on every volume through the parallel run. Retirement is "
-            f"Stage 5.",
+            f"{ns}/{claim} ({path.name}): no VolSync sibling covering this claim, and it "
+            f"is not in RETIRED_CLAIMS - both engines must run on every volume that has "
+            f"not been through a Stage 5 retirement with its own restore proof "
+            f"(docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).",
         )
+
+    retired_now = onboarded_claims - covered
+    require(
+        retired_now == RETIRED_CLAIMS,
+        f"single-engine set drifted from RETIRED_CLAIMS: "
+        f"unexpected {sorted(retired_now - RETIRED_CLAIMS)}, "
+        f"missing {sorted(RETIRED_CLAIMS - retired_now)}",
+    )
 
 
 def main() -> int:
@@ -471,7 +534,7 @@ def main() -> int:
     run("wait_true_apps_use_a_split_kustomization", test_wait_true_apps_use_a_split_kustomization)
     run("depends_on_repository", test_every_onboarded_kustomization_depends_on_repository)
     run("rendered_objects_hold_the_contract", test_rendered_objects_hold_the_contract)
-    run("volsync_untouched", test_volsync_untouched)
+    run("volsync_still_on_every_unretired_claim", test_volsync_still_on_every_unretired_claim)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")

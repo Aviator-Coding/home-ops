@@ -27,6 +27,11 @@ This test does NOT grep source text. It:
      post-fix model (both=local), and asserts:
        - pre-fix EST collides on every dual-engine ceph claim (the bug)
        - post-fix collides on zero claims in either season for ceph and r2
+  3. Separately asserts the timezone pin over the WHOLE kopiur fleet, not just
+     the dual-engine intersection. Stage 5 (2026-09-01) retired VolSync from
+     four claims, which drops them out of that intersection - and a claim with
+     one engine left has nothing to collide with, so losing its timezone pin
+     would be invisible to every assertion in (2).
 
 Live status.nextSchedule.timezone against the running cluster is a separate
 post-merge / operator gate this sandbox cannot reach; the rendered CR field
@@ -51,6 +56,21 @@ KOPIUR_COMPONENT_SUFFIX = "components/kopiur"
 KOPIUR_BACKUP_PATH = "kubernetes/components/kopiur/backup"
 VOLSYNC_COMPONENT_SUFFIX = "components/volsync"
 VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
+
+# Floor on the dual-engine population, so a discovery bug that finds nothing
+# fails loudly instead of vacuously passing every collision assertion.
+#
+# Was 29 (30 claims, all dual-engine). Stage 5 retired VolSync from four of them
+# on 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config, seerr - leaving
+# 26. Lower this ONLY alongside a real retirement; the authoritative retired set
+# is RETIRED_CLAIMS in kopiur-stage3-test.py. Note the timezone contract itself
+# is checked over ALL kopiur claims (see kopiur_claims), not just these.
+MIN_DUAL_ENGINE_CLAIMS = 26
+
+# The whole kopiur fleet, dual-engine or retired. Unlike the floor above this
+# does NOT drop when a volume retires - retiring VolSync does not remove the
+# claim from kopiur, and lowering this would be the bug, not the fix.
+MIN_KOPIUR_CLAIMS = 30
 
 DEFAULT_TZ = "America/New_York"
 DEFAULT_KOPIUR_CEPH = "H 1-23/4 * * *"
@@ -252,8 +272,16 @@ def _engine_schedules(
     return found
 
 
-def dual_engine_claims() -> list[tuple[str, str, dict[str, str], dict[str, str]]]:
-    kopiur_raw = _engine_schedules(
+def kopiur_claims() -> dict[tuple[str, str], dict[str, str]]:
+    """Every kopiur-onboarded claim's schedule triple, retired-from-VolSync or not.
+
+    The timezone contract belongs to kopiur alone: a claim VolSync has been
+    retired from still evaluates its own cron, and still gets it wrong (literal
+    UTC) if KOPIUR_SCHEDULE_TIMEZONE is dropped. Iterating only the dual-engine
+    intersection would silently stop checking the Stage 5 retired claims, which
+    is how a fixed bug quietly comes back on the volumes with one engine left.
+    """
+    return _engine_schedules(
         KOPIUR_COMPONENT_SUFFIX,
         KOPIUR_BACKUP_PATH,
         "KOPIUR_CLAIM",
@@ -263,6 +291,10 @@ def dual_engine_claims() -> list[tuple[str, str, dict[str, str], dict[str, str]]
             "tz": ("KOPIUR_SCHEDULE_TIMEZONE", DEFAULT_TZ),
         },
     )
+
+
+def dual_engine_claims() -> list[tuple[str, str, dict[str, str], dict[str, str]]]:
+    kopiur_raw = kopiur_claims()
     volsync_raw = _engine_schedules(
         VOLSYNC_COMPONENT_SUFFIX,
         VOLSYNC_BACKUP_PATH,
@@ -332,10 +364,43 @@ def test_rendered_schedules_timezone_override() -> None:
         )
 
 
+def test_every_kopiur_claim_pins_the_timezone() -> None:
+    """The timezone fix must cover EVERY kopiur claim, retired-from-VolSync or not.
+
+    The collision tests below iterate the dual-engine intersection, because a
+    collision needs two engines. That is the right population for them and the
+    wrong one for this: after Stage 5 retired VolSync from four claims, those
+    four leave the intersection entirely, and dropping
+    KOPIUR_SCHEDULE_TIMEZONE on one of them would sail through every other
+    assertion in this file while the operator silently went back to evaluating
+    its cron as literal UTC - a 4h/5h shift with nothing left to collide with
+    to reveal it.
+    """
+    claims = kopiur_claims()
+    require(
+        len(claims) >= MIN_KOPIUR_CLAIMS,
+        f"expected >={MIN_KOPIUR_CLAIMS} kopiur claims, got {len(claims)}",
+    )
+    bad = sorted(
+        f"{ns}/{claim}={sched['tz']}"
+        for (ns, claim), sched in claims.items()
+        if sched["tz"] != DEFAULT_TZ
+    )
+    require(
+        not bad,
+        f"every kopiur claim must evaluate cron in {DEFAULT_TZ} (explicitly or by the "
+        f"component default) - kopiur ignores the k8tz-injected process TZ and falls "
+        f"back to literal UTC; got {bad}",
+    )
+
+
 def test_pre_fix_est_ceph_collision_is_total() -> None:
     """Reproduce the bug: with kopiur on UTC and VolSync on local, EST collides everywhere."""
     dual = dual_engine_claims()
-    require(len(dual) >= 29, f"expected >=29 dual-engine claims, got {len(dual)}")
+    require(
+        len(dual) >= MIN_DUAL_ENGINE_CLAIMS,
+        f"expected >={MIN_DUAL_ENGINE_CLAIMS} dual-engine claims, got {len(dual)}",
+    )
     collisions: list[str] = []
     for ns, claim, ksub, vsub in dual:
         k_hours = cron_hours(ksub["ceph"])  # literal UTC under the pre-fix model
@@ -365,7 +430,10 @@ def test_pre_fix_est_ceph_collision_is_total() -> None:
 def test_post_fix_no_collision_either_season() -> None:
     """After aligning zones, no dual-engine claim collides on ceph or r2 in either season."""
     dual = dual_engine_claims()
-    require(len(dual) >= 29, f"expected >=29 dual-engine claims, got {len(dual)}")
+    require(
+        len(dual) >= MIN_DUAL_ENGINE_CLAIMS,
+        f"expected >={MIN_DUAL_ENGINE_CLAIMS} dual-engine claims, got {len(dual)}",
+    )
 
     # Every onboarded claim must evaluate cron in America/New_York (default or set).
     bad_tz = [
@@ -476,6 +544,7 @@ def main() -> int:
 
     run("rendered_schedules_default_timezone", test_rendered_schedules_default_timezone)
     run("rendered_schedules_timezone_override", test_rendered_schedules_timezone_override)
+    run("every_kopiur_claim_pins_the_timezone", test_every_kopiur_claim_pins_the_timezone)
     run("pre_fix_est_ceph_collision_is_total", test_pre_fix_est_ceph_collision_is_total)
     run("post_fix_no_collision_either_season", test_post_fix_no_collision_either_season)
     run("ceph_stagger_is_exactly_one_hour", test_ceph_stagger_is_exactly_one_hour)
