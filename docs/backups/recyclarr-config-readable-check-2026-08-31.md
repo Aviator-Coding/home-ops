@@ -19,13 +19,16 @@
 | `lost+found` | not present |
 
 This clears the **readability** sub-criterion the 2026-08-31 fleet audit flagged this claim as
-unable to measure. It does **not** by itself satisfy migration Stage 5's full "per-volume
-restore proof" bar (`kubernetes/components/kopiur/Readme.md`) - that still needs a restore +
-fidelity check of the kind done for `sabnzbd-config`, `changedetection-config`, and
-`matter-server` (`docs/backups/kopiur-restore-drill-2026-08-30.md`). This document proves the
-narrower, previously-missing fact: kopiur's mover identity can read every byte of metadata on
-this claim, so a restore-fidelity drill for it is no longer blocked on an unmeasurable
-precondition.
+unable to measure. It is readability only and does **not** by itself constitute Stage 5
+restore-fidelity or a per-volume restore proof - that bar is a separate restore + sha256
+comparison. The restore-fidelity drill for this claim (and the other 29) completed on
+2026-09-01 and lives in
+[`kopiur-restore-proof-2026-09-01.md`](kopiur-restore-proof-2026-09-01.md); the Stage 2
+procedure it follows is [`kopiur-restore-drill-2026-08-30.md`](kopiur-restore-drill-2026-08-30.md).
+This document keeps the narrower, previously-missing fact: kopiur's mover identity can read
+every byte of metadata on this claim, which is why the later restore-fidelity drill was no
+longer blocked on an unmeasurable precondition. The CSI-clone live-reference technique below
+was reused by that fleet proof for this claim and for `ntfy`.
 
 ## Why this was unmeasurable before
 
@@ -379,6 +382,8 @@ kubectl -n downloads get cronjob recyclarr \
 * Restore-drill house standard this procedure adapts:
   `docs/backups/restore-drill-2026-08-23.md`,
   `docs/backups/kopiur-restore-drill-2026-08-30.md`
+* Fleet restore-fidelity proof (includes this claim on both destinations):
+  `docs/backups/kopiur-restore-proof-2026-09-01.md`
 * Separate fleet-wide check (built under captain decision `mover-readable-check`; not this
   one-off procedure): `kubernetes/apps/base/system/pvc-mover-readable-check/app/README.md`.
   This claim stays UNMEASURED there (CronJob pod ~18s/day), so the procedure above remains
