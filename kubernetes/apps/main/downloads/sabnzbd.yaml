@@ -24,39 +24,72 @@ spec:
       namespace: downloads
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component below -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   components:
-    # BOTH backup systems, deliberately and simultaneously - the same shape as
-    # downloads/autobrr, which see for the full rationale.
+    # VOLSYNC RETIRED 2026-09-01 - migration Stage 5, pilot volume 3 of 4.
+    # kopiur is now the ONLY backup engine on this claim.
     #
-    # This is the SECOND and LAST volume onboarded under migration Stage 2. It
-    # is not the start of Stage 3. autobrr, the original Stage 1 pilot, turned
-    # out to hold ZERO files (all its state is in postgres-17), so a restore of
-    # it could never demonstrate byte-level fidelity - Stage 2's whole purpose.
-    # sabnzbd-config was chosen to replace it as the fidelity subject because it
-    # holds ~2,000 files / 2.1 GB of real data and is already backed by all
-    # three volsync sources. Captain decision `kopiur-stage2-empty-pilot`,
-    # 2026-08-30; evidence in docs/backups/kopiur-restore-drill-2026-08-30.md.
-    - ../../../../../components/volsync
+    # This claim was the Stage 2 fidelity subject (captain decision
+    # `kopiur-stage2-empty-pilot`, 2026-08-30) after autobrr - the original
+    # Stage 1 pilot - turned out to hold ZERO files. It is the most-proven
+    # volume in the fleet: a byte-identical restore from BOTH destinations in
+    # docs/backups/kopiur-restore-drill-2026-08-30.md, again in
+    # docs/backups/kopiur-restore-proof-2026-09-01.md (row 12,
+    # `downloads/sabnzbd-config`: 2064/2064 files, ceph and r2 identical), and
+    # once more after this retirement. That is why it leads the pilot.
+    #
+    # Post-retirement proof and selection rationale:
+    # docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: sabnzbd-config
-      VOLSYNC_SCHEDULE_CEPH: "30 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "30 3 * * *"
-      # The claim is `sabnzbd-config` while the app is `sabnzbd`, so kopiur
-      # needs the same override volsync takes above. This is the common case
-      # for real apps, and autobrr (claim name == app name) never exercised it.
+      # The claim is `sabnzbd-config` while the app is `sabnzbd`. This is the
+      # common case for real apps, and autobrr (claim name == app name) never
+      # exercised it. It now also drives the pvc Component's PVC name.
       KOPIUR_CLAIM: sabnzbd-config
+      # Inherited from the retired VOLSYNC_CAPACITY default and matched to the
+      # live claim (5Gi, holding 2.06 GiB). Under the pvc Component's
+      # `ssa: IfNotPresent` this is create-time-only for the claim that already
+      # exists, but it is exactly what a REBUILD would provision - so it is
+      # stated rather than left to the component default.
+      KOPIUR_CAPACITY: 5Gi
+      # RAISED from the 2Gi component default on retirement, and this is the
+      # one place in the pilot where restore-proof finding 2 actually bites.
+      # kopia needs materially more cache to restore from r2 than from ceph:
+      # `media/plex` (4.4 GB) restored from ceph on 2Gi and FAILED from r2 on
+      # that same 2Gi with `no space left on device`, needing 20Gi. A failed
+      # Restore is TERMINAL and never retries, so the discovery would land in
+      # the middle of a real disaster.
+      #
+      # This is the only pilot volume of comparable size (2.06 GiB against a
+      # 2Gi cache - the Stage 2 drill did restore it from r2 at 2Gi, but with
+      # no margin at all, and the volume grows). 10Gi is ~4.5x the data, the
+      # ratio plex actually needed. The cache is Ephemeral, so this costs
+      # nothing standing and only sizes a per-run volume.
+      #
+      # NOTE this also raises the BACKUP movers' cache, which is intended.
+      # Changing it does NOT reach the existing `sabnzbd-kopiur-dst` Restore -
+      # that object carries `ssa: IfNotPresent`, so it must be deleted and let
+      # Flux recreate it. See the pilot document; the same delete was required
+      # anyway to pick up `credentialProjection`, which this Restore predates.
+      KOPIUR_CACHE_CAPACITY: 10Gi
       # LOAD-BEARING, and NOT cosmetic parity with the app's securityContext.
       # sabnzbd runs as 2000:2000 and owns its files as 2000:2000. The kopiur
       # component defaults to 1000 (mirroring volsync's own default, which

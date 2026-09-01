@@ -13,7 +13,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 - **Secrets:** 1Password + External Secrets Operator. Bootstrap and Talos secrets are injected by `vals` from vault `Home-Lab`
 - **Ingress:** Gateway API (`envoy-internal` / `envoy-external` in `network`) plus Cloudflare Tunnel
 - **DNS:** External-DNS to Cloudflare (public) and the Unifi webhook (`network/unifi-dns`, internal)
-- **Backup:** Volsync to local Ceph S3, NAS MinIO, and Cloudflare R2
+- **Backup:** kopiur on all 30 protected claims (ceph + r2); VolSync still dual-engine on 26 of them (ceph + MinIO + r2) and retired from 4 Stage 5 pilot volumes
 
 ## Operator docs
 
@@ -31,7 +31,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 ├── kubernetes/
 │   ├── apps/           # Flux apps at apps/base/<ns> + overlay apps/main/<ns>
 │   ├── clusters/main/  # Flux entry point (cluster-meta + cluster-apps)
-│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, volsync)
+│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, volsync, kopiur)
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
 ├── .taskfiles/         # task recipes (flux, rook, network, 1password, actions-runner)
@@ -74,7 +74,7 @@ Do not pass the control-plane VIP `10.10.10.10` as a node target. Node addresses
 1. Create `kubernetes/apps/base/{namespace}/{app}/` with an `app/` directory, plus overlay `kubernetes/apps/main/{namespace}/{app}.yaml`.
 2. Register `./{app}.yaml` in `kubernetes/apps/main/{namespace}/kustomization.yaml`.
 3. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
-4. Optional backups: add `spec.components` (`../../../../../components/volsync` from `apps/main/<ns>/`), `dependsOn: volsync` (namespace `system`), and `VOLSYNC_*` substitute keys on the Flux Kustomization. Example: `kubernetes/apps/main/media/seerr.yaml`.
+4. Optional backups: most protected claims still run dual-engine VolSync + kopiur - add both `components/volsync` and `components/kopiur`, `dependsOn: volsync` and `kopiur-repository` (namespace `system`), plus `VOLSYNC_*` / measured `KOPIUR_*` keys. Example still dual-engine: `kubernetes/apps/main/downloads/autobrr.yaml`. Four Stage 5 pilot volumes are kopiur-only (`components/kopiur` + `components/kopiur/pvc`); owner: `kubernetes/components/kopiur/Readme.md`.
 
 Flux reconciles from Git. After a merge, `task reconcile` forces a sync.
 

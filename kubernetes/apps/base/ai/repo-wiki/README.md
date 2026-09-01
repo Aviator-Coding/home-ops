@@ -51,10 +51,14 @@ repo on the app's PVC, which mkdocs serves `--dirty` (incremental rebuild).
   spend, which no longer accrues on this path.
 - **Timezone**: `America/New_York` (this cluster's convention, e.g.
   `ai/hermes`'s `CONFIG_TIMEZONE`), not the reference's `America/Edmonton`.
-- **Persistence**: reference has no backup for this PVC. This repo's
-  convention backs up stateful app data with VolSync; added here even though
-  the wiki content is regenerable, so a wipe does not force a full multi-hour
-  regeneration to restore served pages.
+- **Persistence**: reference has no backup for this PVC. This repo backs up
+  stateful app data; added here even though the wiki content is regenerable, so
+  a wipe does not force a full multi-hour regeneration to restore served pages.
+  Originally VolSync, then VolSync + kopiur in parallel from 2026-08-31. VolSync
+  was **retired from this claim on 2026-09-01** (migration Stage 5, pilot volume
+  1 of 4) and kopiur is now the sole engine - selected precisely *because* the
+  content is regenerable. Evidence and rationale:
+  [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
 
 ## Prerequisites (before first sync)
 

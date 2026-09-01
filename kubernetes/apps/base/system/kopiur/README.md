@@ -7,23 +7,23 @@ credentials. What to back up lives in
 [`kubernetes/components/kopiur/`](../../../../components/kopiur/Readme.md).
 
 Stage 0 installs the operator and declares *where* backups could go. It creates
-no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status:
-Stage 4 complete - 30 of 30 claims onboarded, zero deferred.** Stage 3
-(2026-08-30) onboarded namespace by namespace; Stage 4 (2026-08-31) added
-both `selfhosted/changedetection-config` (1000:1000 after fixing the app's
-missing securityContext - no privileged-mover grant) and
-`home-automation/matter-server` (explicit root mover `KOPIUR_PUID/PGID: 0` plus
-namespace-wide `kopiur.home-operations.com/privileged-movers=true`). **Both
-engines run on every volume** - every VolSync source is still live and nothing
-has been retired.
+no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status
+lives on the component, not here** -
+[`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md):
+30 of 30 claims onboarded (Stage 4, zero deferred), and VolSync **RETIRED from
+four of them** as the 2026-09-01 Stage 5 pilot (`ai/repo-wiki`,
+`downloads/recyclarr-config`, `downloads/sabnzbd-config`, `media/seerr`). The
+other 26 remain dual-engine. This directory is still Stage 0 only - operator,
+repos, credentials - and does not own the onboarding or retirement overlays.
 
 **All 30 claims are restore-proven on both destinations** (2026-09-01).
 Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the open
-r2-vs-ceph cache-capacity Stage 5 blocker:
+r2-vs-ceph cache-capacity blocker that still gates further large-claim
+retirement:
 [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
-That fleet table is the authority on restore coverage, and it is the Stage 5
-**prerequisite**, not Stage 5 itself - every VolSync source is still live and
-nothing has been retired.
+That fleet table is the Stage 5 **prerequisite** (it records the state *before*
+any retirement). The pilot it authorised, and the post-retirement re-proof:
+[`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
 
 The earlier per-volume drills remain the procedural precedent it is built on,
 and are still accurate. Stage 2's restore gate **passed** on 2026-08-30 -

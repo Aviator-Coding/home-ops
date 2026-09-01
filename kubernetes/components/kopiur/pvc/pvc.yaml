@@ -1,0 +1,67 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/_definitions.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim
+#
+# The retired-from-volsync claim. Identical in role to ../../volsync/pvc.yaml -
+# it keeps the app's PVC inside the owning Flux Kustomization's inventory, and
+# it names the populator a REBUILT claim is seeded from - but it points at
+# kopiur's standing `${APP}-kopiur-dst` Restore instead of volsync's
+# `${APP}-dst` ReplicationDestination.
+#
+# Keeping it in the inventory is not cosmetic. Every app overlay runs
+# `prune: true`, so the moment the volsync Component stops emitting this claim
+# the PVC leaves the inventory and Flux DELETES IT - the app's whole volume,
+# for a change that was only ever meant to remove a backup engine. This file is
+# what makes retirement a swap rather than a deletion.
+#
+# --- ssa: IfNotPresent is LOAD-BEARING, and not the usual "create once" idiom ---
+#
+# A bound PVC's spec is immutable except `resources.requests` and
+# `volumeAttributesClassName`. `dataSourceRef` is NOT in that list, so applying
+# this file to a claim that volsync already created is rejected outright.
+# Measured 2026-09-01 against the live `downloads/sabnzbd-config`:
+#
+#   $ kubectl -n downloads patch pvc sabnzbd-config --type=merge --dry-run=server \
+#       -p '{"spec":{"dataSourceRef":{"apiGroup":"kopiur.home-operations.com",
+#            "kind":"Restore","name":"sabnzbd-kopiur-dst"}}}'
+#   The PersistentVolumeClaim "sabnzbd-config" is invalid: spec: Forbidden:
+#   spec is immutable after creation except resources.requests and
+#   volumeAttributesClassName for bound claims
+#
+# Dropping the field instead of changing it fails the same way: Flux owns
+# `spec.dataSourceRef` today, so omitting it from the applied config makes SSA
+# REMOVE it, which is the same forbidden spec change. There is no manifest that
+# both describes the kopiur populator and applies cleanly to an existing claim.
+#
+# `IfNotPresent` resolves that: Flux keeps the object in the inventory (so it is
+# never pruned) but skips the apply entirely while the claim exists. The live
+# claim therefore keeps the now-inert `dataSourceRef` volsync stamped on it at
+# provisioning time - inert because `dataSourceRef` is consulted once, by the
+# provisioner, and never again for a bound claim. A REBUILT claim (deleted and
+# recreated, per docs/backups/corrupt-claim-recreation-runbook.md) is created
+# fresh from this file and is seeded from kopiur.
+#
+# DO NOT "fix" the resulting drift by adding `kustomize.toolkit.fluxcd.io/force:
+# enabled`. That label tells Flux to resolve an immutable-field conflict by
+# DELETING AND RECREATING the object - here, the app's data volume.
+#
+# The one thing `IfNotPresent` costs: `KOPIUR_CAPACITY` becomes create-time-only
+# for a claim that already exists, so growing one is `kubectl patch pvc` (PVC
+# expansion is allowed on a bound claim) rather than a git edit. volsync's
+# fully-managed pvc.yaml could do it from git. Keep this value in step with the
+# live claim regardless - it is what a rebuild would provision.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "${KOPIUR_CLAIM:-${APP}}"
+  labels:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+spec:
+  accessModes: ["${KOPIUR_ACCESSMODES:-ReadWriteOnce}"]
+  dataSourceRef:
+    kind: Restore
+    apiGroup: kopiur.home-operations.com
+    name: "${APP}-kopiur-dst"
+  resources:
+    requests:
+      storage: "${KOPIUR_CAPACITY:-5Gi}"
+  storageClassName: "${KOPIUR_STORAGECLASS:-ceph-block}"

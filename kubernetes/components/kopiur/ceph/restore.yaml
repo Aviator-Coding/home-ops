@@ -8,12 +8,14 @@
 # VolSync only has a ceph ReplicationDestination - it is the local, fastest
 # repository. Restoring from r2 is a deliberate, hand-written act.
 #
-# PASSIVE for the whole of the parallel run. `target.populator` means "wait to
-# be claimed by a PVC's spec.dataSourceRef", and during the migration every
-# claim's dataSourceRef still points at VolSync's ${APP}-dst
-# ReplicationDestination. So this object is inert until Stage 5 repoints it.
-# It costs nothing to declare now and it means the restore path ships and is
-# reviewed with the backup path rather than being invented under pressure.
+# PASSIVE until a rebuilt claim claims it. `target.populator` means "wait to
+# be claimed by a PVC's spec.dataSourceRef". Bound claims never repoint -
+# spec.dataSourceRef is immutable on a bound PVC - so a live claim keeps its
+# VolSync ${APP}-dst ref (inert once VolSync is retired) and this Restore stays
+# Pending / AwaitingPvcDataSourceRef indefinitely. It is claimed only by a
+# REBUILT claim created fresh from components/kopiur/pvc. Declaring it now still
+# ships the restore path with the backup path rather than inventing it under
+# pressure.
 #
 # NOT the object to use for a restore DRILL. Per
 # docs/backups/restore-drill-2026-08-23.md a drill must create a NEW, uniquely
@@ -41,11 +43,13 @@ spec:
   #
   # CAVEAT, and it is a real one: this object carries the `ssa: IfNotPresent`
   # label below, so Flux creates it once and NEVER reconciles it again. Adding
-  # this field does not reach a Restore that already exists in the cluster - the
-  # two live `*-kopiur-dst` objects in `downloads` predate it. They are inert
-  # (`target.populator`, and every claim's dataSourceRef still points at
-  # VolSync's `${APP}-dst`), so nothing breaks today, but they must be recreated
-  # or hand-patched before Stage 5 repoints anything at them.
+  # this field does not reach a Restore that already exists in the cluster. Fix
+  # a missing credentialProjection by DELETING and recreating the Restore (safe:
+  # no finalizers, no ownerReferences, owns no backup data) - not by repointing
+  # a claim. sabnzbd-kopiur-dst was recreated in the Stage 5 pilot;
+  # downloads/autobrr is the remaining one and must be recreated before it is
+  # ever retired. Bound claims keep their VolSync ${APP}-dst dataSourceRef
+  # forever; only a rebuilt claim from components/kopiur/pvc claims this object.
   credentialProjection:
     enabled: true
   source:

@@ -76,10 +76,11 @@ spec:
 # object in the inventory. The kopiur component ships a standing `Restore` in
 # passive populator mode which reports `Ready=False` for the whole parallel run
 # BY DESIGN (`AwaitingPvcDataSourceRef` - verified on the two live Stage 1/2
-# objects in `downloads`), until Stage 5 repoints the claim's dataSourceRef at
-# it. Inline, Flux would wait on an object that can never become Ready and time
-# this Kustomization out. database/cloudnative-pg.yaml carries the same split
-# for the same reason.
+# objects in `downloads`). Bound claims never repoint (`dataSourceRef` is
+# immutable), so the Restore stays Pending until a rebuilt claim from
+# `components/kopiur/pvc` claims it. Inline, Flux would wait on an object that
+# can never become Ready and time this Kustomization out.
+# database/cloudnative-pg.yaml carries the same split for the same reason.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

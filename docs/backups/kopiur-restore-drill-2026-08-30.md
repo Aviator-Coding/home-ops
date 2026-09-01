@@ -536,8 +536,11 @@ No resources found
 
 Also retained: both apps' `SnapshotPolicy`/`SnapshotSchedule` pairs and their standing
 `*-kopiur-dst` `Restore` objects. The standing Restores sit `Pending`, which is their correct
-steady state for the whole parallel run - `target.populator` means "waiting to be claimed", and
-every claim's `dataSourceRef` still points at VolSync until Stage 5. Do not "tidy" them.
+steady state - `target.populator` means "waiting to be claimed". Bound claims never repoint
+(`dataSourceRef` is immutable); Stage 5 retired VolSync from four volumes without changing that
+(including `sabnzbd-config`), and a standing Restore is claimed only by a **rebuilt** claim from
+`components/kopiur/pvc`. Do not "tidy" them. Current contract:
+[`kubernetes/components/kopiur/Readme.md`](../../kubernetes/components/kopiur/Readme.md).
 
 The two **failed** `sabnzbd-*-stage2-verify` Snapshot CRs from the first attempt were deleted
 after confirming `kopiaSnapshotID` was empty, so no backup data was involved.

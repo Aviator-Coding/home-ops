@@ -9,9 +9,16 @@ zero files. Stage 3 (2026-08-30) has since onboarded the rest of the fleet;
 this file still pins the Stage 2 fidelity contract, and the fleet-wide
 coverage set now lives in kopiur-stage3-test.py.
 
+UPDATED 2026-09-01 for Stage 5. `downloads/sabnzbd-config` was one of the four
+pilot volumes VolSync was RETIRED from, so the assertions that used to demand a
+live VolSync sibling here now demand its absence, plus the thing that replaced
+it: the kopiur pvc Component. The Stage 2 fidelity contract itself is unchanged
+- this claim being the most-proven volume in the fleet is exactly why it led
+the pilot. Retired-set coverage lives in kopiur-stage5-test.py.
+
 This test does not grep source text as its evidence. It:
-  1. Renders the real kustomize builds Flux would apply for the kopiur and
-     volsync backup components under the PRODUCTION sabnzbd substitute map
+  1. Renders the real kustomize builds Flux would apply for the kopiur backup
+     and kopiur pvc components under the PRODUCTION sabnzbd substitute map
      parsed from downloads/sabnzbd.yaml (KOPIUR_CLAIM=sabnzbd-config,
      KOPIUR_PUID/PGID=2000, KOPIUR_SCHEDULE_R2='H 11 * * *'). A separate
      negative-control render pins the component defaults (uid/gid 1000,
@@ -22,7 +29,12 @@ This test does not grep source text as its evidence. It:
   3. Asserts the Stage 2 safety contract on those objects:
        - both Stage 2 volumes stay onboarded (autobrr + sabnzbd); the exact
          fleet set is pinned by kopiur-stage3-test.py
-       - sabnzbd components are volsync THEN kopiur; volsync stays triple-dest
+       - sabnzbd components are kopiur THEN kopiur/pvc, no volsync, no
+         VOLSYNC_* substitute key, and no volsync/system dependency
+       - the claim SURVIVES retirement: the kopiur pvc Component still emits
+         `sabnzbd-config`, carrying `ssa: IfNotPresent` (dataSourceRef is
+         immutable on a bound claim) and never the `force` label (which would
+         resolve that conflict by deleting the data volume)
        - rendered SnapshotPolicy PVC name is sabnzbd-config (claim override)
        - rendered mover podSecurityContext is uid/gid/fsGroup 2000 (finding 2)
        - sabnzbd workload securityContext is 2000 (the reason the override
@@ -30,7 +42,10 @@ This test does not grep source text as its evidence. It:
          live overlay (Stage 3 identity correction)
        - ceph schedule stays at the component default; production r2 is the
          downloads free hour 'H 11 * * *' (no hand-assigned minute)
-       - dependsOn includes kopiur-repository + volsync, and NOT
+       - KOPIUR_CACHE_CAPACITY is raised to 10Gi (restore-proof finding 2: an
+         r2 restore needs materially more kopia cache than a ceph one, and a
+         failed Restore is terminal)
+       - dependsOn includes kopiur-repository, and NOT volsync (retired) nor
          kopiur-credentials (credential-scope 2026-08-30 replaced the standing
          per-namespace copies with operator-minted per-run projection; the
          three projection legs are pinned by kopiur-stage1-test.py)
@@ -56,7 +71,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 KOPIUR_BACKUP = ROOT / "kubernetes/components/kopiur/backup"
-VOLSYNC_BACKUP = ROOT / "kubernetes/components/volsync/backup"
+KOPIUR_PVC = ROOT / "kubernetes/components/kopiur/pvc"
 SABNZBD_OVERLAY = ROOT / "kubernetes/apps/main/downloads/sabnzbd.yaml"
 AUTOBRR_OVERLAY = ROOT / "kubernetes/apps/main/downloads/autobrr.yaml"
 SABNZBD_HR = ROOT / "kubernetes/apps/base/downloads/sabnzbd/app/helmrelease.yaml"
@@ -77,15 +92,23 @@ STAGE2_PGID = 2000
 STAGE1_APP = "autobrr"
 STAGE1_NS = "downloads"
 
-# sabnzbd overlay VolSync schedules (must stay untouched by kopiur onboarding).
-SAB_VOLSYNC_CEPH = "30 */4 * * *"
-SAB_VOLSYNC_MINIO = "15 */6 * * *"
-SAB_VOLSYNC_R2 = "30 3 * * *"
+# Live claim size, now carried by KOPIUR_CAPACITY (the kopiur pvc Component
+# emits the PVC since VolSync was retired from this volume on 2026-09-01).
+STAGE2_CAPACITY = "5Gi"
+# Raised from the 2Gi component default on retirement - restore-proof
+# finding 2 (docs/backups/kopiur-restore-proof-2026-09-01.md).
+STAGE2_CACHE_CAPACITY = "10Gi"
 
 # Production ceph stays on the component default (structurally offset).
 # Production r2 is the downloads free hour from Stage 3.
 PRODUCTION_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
 PRODUCTION_KOPIUR_R2_CRON = "H 11 * * *"
+
+# VolSync component defaults (kubernetes/components/volsync/*/replicationsource.yaml).
+# The engine stagger is measured against these now that this claim runs no
+# VolSync of its own - same constants kopiur-timezone-test.py uses.
+COMPONENT_DEFAULT_VOLSYNC_CEPH_CRON = "0 */4 * * *"
+COMPONENT_DEFAULT_VOLSYNC_R2_CRON = "0 2 * * *"
 
 # Component defaults - pinned only by the explicit negative-control renders.
 COMPONENT_DEFAULT_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
@@ -362,14 +385,22 @@ def test_sabnzbd_overlay_wiring() -> None:
     require(
         components
         == [
-            "../../../../../components/volsync",
             "../../../../../components/kopiur",
+            "../../../../../components/kopiur/pvc",
         ],
-        f"components must be volsync THEN kopiur (both, parallel), got {components}",
+        f"components must be kopiur THEN kopiur/pvc (volsync retired 2026-09-01, "
+        f"Stage 5 pilot), got {components}",
     )
 
     deps = {(d.get("name"), d.get("namespace")) for d in (spec.get("dependsOn") or [])}
-    require(("volsync", "system") in deps, f"must dependOn volsync/system, got {deps}")
+    # The volsync operator dependency went with the volsync Component. Nothing
+    # in this Kustomization renders a VolSync object any more, so a dependency
+    # on it would be a wait on an unrelated app - and a reappearing one is the
+    # signature of a half-reverted retirement.
+    require(
+        ("volsync", "system") not in deps,
+        f"must NOT dependOn volsync/system after retirement, got {deps}",
+    )
     require(
         ("kopiur-repository", "system") in deps,
         f"must dependOn kopiur-repository/system, got {deps}",
@@ -384,25 +415,36 @@ def test_sabnzbd_overlay_wiring() -> None:
     sub = ((spec.get("postBuild") or {}).get("substitute")) or {}
     require(sub.get("APP") == STAGE2_APP, f"APP must be {STAGE2_APP}, got {sub.get('APP')!r}")
     require(
-        sub.get("VOLSYNC_CLAIM") == STAGE2_CLAIM,
-        f"VOLSYNC_CLAIM must stay {STAGE2_CLAIM!r}, got {sub.get('VOLSYNC_CLAIM')!r}",
-    )
-    require(
         sub.get("KOPIUR_CLAIM") == STAGE2_CLAIM,
         f"KOPIUR_CLAIM must override to {STAGE2_CLAIM!r} (claim != app name), "
         f"got {sub.get('KOPIUR_CLAIM')!r}",
     )
+    # Every VOLSYNC_* key went with the Component. A leftover key is dead
+    # weight at best (nothing reads it) and, on the claim variables, an active
+    # lie about what a rebuild would provision - the exact dead-substitute
+    # shape the selfhosted APP_UID/APP_GID cleanup removed fleet-wide.
+    leftover = sorted(k for k in sub if k.startswith("VOLSYNC_"))
     require(
-        sub.get("VOLSYNC_SCHEDULE_CEPH") == SAB_VOLSYNC_CEPH,
-        f"VOLSYNC_SCHEDULE_CEPH must stay {SAB_VOLSYNC_CEPH!r}, got {sub.get('VOLSYNC_SCHEDULE_CEPH')!r}",
+        not leftover,
+        f"no VOLSYNC_* substitute key may survive retirement, got {leftover}",
     )
+    # The claim's size is now carried by KOPIUR_CAPACITY, because the kopiur
+    # pvc Component is what emits the PVC. It must match the live claim: under
+    # `ssa: IfNotPresent` it is create-time-only, so it is silently untested
+    # until the day someone rebuilds the claim.
     require(
-        sub.get("VOLSYNC_SCHEDULE_MINIO") == SAB_VOLSYNC_MINIO,
-        "VOLSYNC_SCHEDULE_MINIO must stay untouched",
+        sub.get("KOPIUR_CAPACITY") == STAGE2_CAPACITY,
+        f"KOPIUR_CAPACITY must be {STAGE2_CAPACITY!r} (live claim size), "
+        f"got {sub.get('KOPIUR_CAPACITY')!r}",
     )
+    # Restore-proof finding 2: an r2 restore needs materially more kopia cache
+    # than the same restore from ceph, and a failed Restore is terminal. This
+    # is the only pilot volume near the measured danger zone (2.06 GiB of data
+    # against the 2Gi component default).
     require(
-        sub.get("VOLSYNC_SCHEDULE_R2") == SAB_VOLSYNC_R2,
-        "VOLSYNC_SCHEDULE_R2 must stay untouched",
+        sub.get("KOPIUR_CACHE_CAPACITY") == STAGE2_CACHE_CAPACITY,
+        f"KOPIUR_CACHE_CAPACITY must be raised to {STAGE2_CACHE_CAPACITY!r} "
+        f"(restore-proof finding 2), got {sub.get('KOPIUR_CACHE_CAPACITY')!r}",
     )
     # Finding 2: load-bearing mover identity.
     require(
@@ -475,18 +517,23 @@ def test_rendered_claim_override_and_puid(
         minute = cron.split()[0]
         require(minute == "H", f"{dest}: minute must be bare H, got {minute!r}")
 
-    # Hour non-overlap with sabnzbd VolSync.
+    # Hour non-overlap with VolSync's cadence. sabnzbd itself no longer runs
+    # VolSync (Stage 5 retirement), so this is checked against the VOLSYNC
+    # COMPONENT DEFAULTS rather than this claim's retired per-app schedules:
+    # 26 of the fleet's 30 claims still run both engines, and sabnzbd's kopiur
+    # hours are drawn from that same fleet-wide stagger. Asserting against a
+    # schedule this overlay no longer contains would be asserting nothing.
     k_ceph = cron_hours(PRODUCTION_KOPIUR_CEPH_CRON)
-    v_ceph = cron_hours(SAB_VOLSYNC_CEPH)
+    v_ceph = cron_hours(COMPONENT_DEFAULT_VOLSYNC_CEPH_CRON)
     require(
         k_ceph.isdisjoint(v_ceph),
-        f"kopiur ceph hours {sorted(k_ceph)} overlap sabnzbd volsync {sorted(v_ceph)}",
+        f"kopiur ceph hours {sorted(k_ceph)} overlap volsync {sorted(v_ceph)}",
     )
     k_r2 = cron_hours(PRODUCTION_KOPIUR_R2_CRON)
-    v_r2 = cron_hours(SAB_VOLSYNC_R2)
+    v_r2 = cron_hours(COMPONENT_DEFAULT_VOLSYNC_R2_CRON)
     require(
         k_r2.isdisjoint(v_r2),
-        f"kopiur r2 hours {sorted(k_r2)} overlap sabnzbd volsync {sorted(v_r2)}",
+        f"kopiur r2 hours {sorted(k_r2)} overlap volsync {sorted(v_r2)}",
     )
     require(k_r2 == {11}, f"production sabnzbd r2 hour must be 11, got {sorted(k_r2)}")
 
@@ -505,37 +552,61 @@ def test_rendered_claim_override_and_puid(
     )
 
 
-def test_volsync_sabnzbd_still_triple(vs_docs: list[dict[str, Any]]) -> None:
-    sources = by_kind(vs_docs, "ReplicationSource")
-    dests = by_kind(vs_docs, "ReplicationDestination")
-    names = sorted(s["metadata"]["name"] for s in sources)
-    # VolSync names objects from APP, not VOLSYNC_CLAIM, for the source name;
-    # the claim itself is inside the restic source PVC ref.
+def test_volsync_retired_and_claim_survives(pvc_docs: list[dict[str, Any]]) -> None:
+    """VolSync is gone from sabnzbd, and the claim did NOT go with it.
+
+    This is the whole hazard of Stage 5 in one assertion. The volsync Component
+    was the only manifest emitting `sabnzbd-config`, and the overlay runs
+    `prune: true` - so dropping that Component without a replacement would have
+    Flux delete the app's 2.06 GiB data volume as an ordinary garbage-collect,
+    for a change that was only ever meant to remove a backup engine.
+    """
+    claims = by_kind(pvc_docs, "PersistentVolumeClaim")
+    require(len(claims) == 1, f"kopiur pvc Component must emit exactly one PVC, got {len(claims)}")
+    pvc = claims[0]
     require(
-        names == [f"{STAGE2_APP}-ceph", f"{STAGE2_APP}-minio", f"{STAGE2_APP}-r2"],
-        f"volsync must still emit all three sources, got {names}",
+        pvc["metadata"]["name"] == STAGE2_CLAIM,
+        f"PVC name must follow KOPIUR_CLAIM to {STAGE2_CLAIM!r}, "
+        f"got {pvc['metadata']['name']!r}",
     )
-    require(len(dests) == 1, f"volsync must still emit one destination, got {len(dests)}")
-    by_name = {s["metadata"]["name"]: s for s in sources}
+
+    # ssa: IfNotPresent is load-bearing, not stylistic. `dataSourceRef` is
+    # immutable on a bound claim (measured 2026-09-01: a server-side dry-run of
+    # the swap returns `spec: Forbidden: spec is immutable after creation
+    # except resources.requests and volumeAttributesClassName for bound
+    # claims`). Without the label Flux would try the forbidden change on every
+    # reconcile and the Kustomization would never go Ready again.
+    labels = (pvc["metadata"].get("labels") or {})
     require(
-        by_name[f"{STAGE2_APP}-ceph"]["spec"]["trigger"]["schedule"] == SAB_VOLSYNC_CEPH,
-        "sabnzbd volsync ceph schedule drifted",
+        labels.get("kustomize.toolkit.fluxcd.io/ssa") == "IfNotPresent",
+        "retired claim must carry ssa: IfNotPresent - dataSourceRef is immutable "
+        f"on a bound PVC; got labels {labels}",
+    )
+    # `force: enabled` resolves an immutable-field conflict by DELETING and
+    # recreating the object. On a PVC that is the data volume.
+    require(
+        labels.get("kustomize.toolkit.fluxcd.io/force") is None,
+        f"retired claim must NEVER carry the force label (it would delete the "
+        f"volume to resolve the immutable dataSourceRef), got labels {labels}",
+    )
+
+    dsr = pvc["spec"].get("dataSourceRef") or {}
+    require(
+        dsr.get("kind") == "Restore"
+        and dsr.get("apiGroup") == "kopiur.home-operations.com"
+        and dsr.get("name") == f"{STAGE2_APP}-kopiur-dst",
+        f"rebuilt claim must be populated from the kopiur Restore, got {dsr}",
     )
     require(
-        by_name[f"{STAGE2_APP}-minio"]["spec"]["trigger"]["schedule"] == SAB_VOLSYNC_MINIO,
-        "sabnzbd volsync minio schedule drifted",
+        pvc["spec"]["resources"]["requests"]["storage"] == STAGE2_CAPACITY,
+        "rendered claim capacity must match the live claim",
     )
-    require(
-        by_name[f"{STAGE2_APP}-r2"]["spec"]["trigger"]["schedule"] == SAB_VOLSYNC_R2,
-        "sabnzbd volsync r2 schedule drifted",
+
+    # And nothing VolSync-shaped may survive the render.
+    stray = sorted(
+        d["kind"] for d in pvc_docs if d.get("apiVersion", "").startswith("volsync.backube")
     )
-    # Claim name on each source must be sabnzbd-config (spec.sourcePVC).
-    for s in sources:
-        pvc = s["spec"].get("sourcePVC")
-        require(
-            pvc == STAGE2_CLAIM,
-            f"{s['metadata']['name']}: volsync sourcePVC must be {STAGE2_CLAIM!r}, got {pvc!r}",
-        )
+    require(not stray, f"no VolSync object may render for sabnzbd after retirement, got {stray}")
 
 
 def test_workload_identity_matches_override() -> None:
@@ -901,7 +972,9 @@ def main() -> int:
 
     try:
         kopiur_docs = render_with_substitute(KOPIUR_BACKUP, sab_env)
-        volsync_docs = render_with_substitute(VOLSYNC_BACKUP, sab_env)
+        # The claim itself now comes from the kopiur pvc Component, which is
+        # what replaced volsync's pvc.yaml when this volume retired.
+        pvc_docs = render_with_substitute(KOPIUR_PVC, sab_env)
     except Failure as e:
         print(f"[FAIL] render: {e}")
         print("Summary: 0 passed, 1 failed")
@@ -914,8 +987,8 @@ def main() -> int:
         lambda: test_rendered_claim_override_and_puid(kopiur_docs),
     )
     run(
-        "volsync_sabnzbd_still_triple",
-        lambda: test_volsync_sabnzbd_still_triple(volsync_docs),
+        "volsync_retired_and_claim_survives",
+        lambda: test_volsync_retired_and_claim_survives(pvc_docs),
     )
     run("workload_identity_matches_override", test_workload_identity_matches_override)
     run("default_puid_without_override_is_1000", test_default_puid_without_override_is_1000)
@@ -923,7 +996,7 @@ def main() -> int:
     run("operator_docs_reflect_stage2", test_operator_docs_reflect_stage2)
     run(
         "no_embedded_credentials",
-        lambda: test_no_embedded_credentials([kopiur_docs, volsync_docs]),
+        lambda: test_no_embedded_credentials([kopiur_docs, pvc_docs]),
     )
 
     passed = len(tests) - len(failures)
