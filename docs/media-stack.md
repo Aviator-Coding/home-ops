@@ -272,11 +272,13 @@ library does not pull them back (verified 2026-08-29 and 2026-08-31).
 Classic Boosh HEVC plugin stack is **not** in use (`pluginIDs` empty). Both
 libraries use Tdarr Flow `movies_av1_nvenc_v1`, named
 **Movies AV1 (QSV/B70 xe) - DV-safe v4**. The flow is **Tdarr SQLite state, not
-GitOps** - it does not survive a `tdarr-config` PVC rebuild. Authoritative
-recovery source is `docs/tdarr/flow-movies_av1_nvenc_v1.after.json`; node
-excerpts and the CI harness live under `docs/tdarr/flow-nodes/`. Full change
-list, proofs, and still-open edges (`e_dv_bypass`, `br_*_bypass`):
-[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §3.
+GitOps** - it does not survive a `tdarr-config` PVC rebuild. Rebuild runbook
+(order, restore commands, behavioural verification):
+[`docs/tdarr/README.md`](tdarr/README.md). Recovery *artifact* is
+`docs/tdarr/flow-movies_av1_nvenc_v1.after.json`; node excerpts and the CI
+harness live under `docs/tdarr/flow-nodes/`. Full change list, proofs, the 4K
+CPU guard, and still-open edges (`e_dv_bypass`, `br_*_bypass`):
+[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §3 / §4b.
 
 Libraries (2026-08-21):
 
@@ -297,9 +299,12 @@ Flow encoder plugins (Community `ffmpegCommandSetVideoEncoder`):
 
 The flow skips files that are already AV1. Post-2026-08-31 it also carries a
 Movies-path scope guard, working size/duration/HDR checks (customFunction nodes
-must use `inputsDB.code`, not `function`), encoder-aware CPU/GPU args, and
-subtitle conversion (`mov_text` → `srt`) - never `forceConform`, which deletes
-tracks. The flow **id** still says `nvenc`; the live plugins are QSV on the B70.
+must use `inputsDB.code`, not `function`), encoder-aware CPU/GPU args, the 4K
+CPU guard inside `cargs22/23/24` (refuses `libsvtav1` above a measured memory
+budget so a 4K CPU job cannot OOM the node), and subtitle conversion
+(`mov_text` → `srt`) - never `forceConform`, which deletes tracks. None of
+those flow/library rows is GitOps - see the rebuild runbook. The flow **id**
+still says `nvenc`; the live plugins are QSV on the B70.
 
 ### Library file type filter
 

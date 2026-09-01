@@ -6,13 +6,15 @@ seven 4K remux masters (six still parked; one canary processed 2026-08-31).
 
 **Almost everything here is Tdarr server state (SQLite under
 `/app/server/Tdarr/DB2/`), not GitOps.** It does not survive a rebuild of the
-Tdarr PVC and is invisible to Flux. The only correct flow recovery source is
-`docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (post-fix state). The matching
-`*.before.json` dumps are the pre-fix baseline retained for diffing only -
-never restore from them: their customFunction nodes still use the dead
+Tdarr PVC and is invisible to Flux. The only correct flow recovery *artifact*
+is `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` (post-fix state). The
+matching `*.before.json` dumps are the pre-fix baseline retained for diffing
+only - never restore from them: their customFunction nodes still use the dead
 `inputsDB.function` key (Guards 1-3 never execute) and their cargs nodes are
-QSV-only (every CPU job fails at ffmpeg init). Section 5's restore command is
-the single authority.
+QSV-only (every CPU job fails at ffmpeg init). The rebuild *runbook* (order,
+commands, behavioural verification) is owned by
+[`docs/tdarr/README.md`](./tdarr/README.md); section 5 inventories what is
+database-only.
 
 Diagnosis this builds on: the 2026-08-31 scout report on the errored remuxes.
 
@@ -457,14 +459,17 @@ Stream conform: in v=1 a=1 s=5 other=0 | mov_text->srt=5 droppedData=0 dropped0x
 ffmpeg: -c:0 libsvtav1 -c:1 copy -c:2 srt -c:3 srt -c:4 srt -c:5 srt -c:6 srt
 ```
 
-### 3.5 What it would do to the seven - unit-proved, not run
+### 3.5 What it would do to the seven - unit-proved (live canary in §4.1)
 
 **Provenance: re-checked by CI** — read-only against committed master-shaped
 `ffProbeData` fixtures (same counts the unit harness and
-`docs/tdarr/flow-nodes/behavior-test.js` assert). None of the seven was queued.
+`docs/tdarr/flow-nodes/behavior-test.js` assert). This section is the offline
+conform proof only: none of the seven masters was queued for it.
 
 `docs/tdarr/flow-nodes/unit-test-conform-against-masters.js` runs the node
-against each master's **real** `ffProbeData`, read-only. None was queued.
+against each master's **real** `ffProbeData`, read-only. The §4.1 canary later
+ran the same conform live against a staged copy of `A House of Dynamite`
+(35/35 `mov_text` → `subrip`); the other six remain unit-proved only.
 
 | File | subtitles | audio | dropped |
 |---|---|---|---|
@@ -803,19 +808,12 @@ flow from `*.before.json`.
 
 Rebuild checklist, restore commands and the behavioural verification that a
 restored flow is actually running (rather than silently executing Tdarr's
-default stub): [`tdarr/README.md`](./tdarr/README.md).
+default stub): [`tdarr/README.md`](./tdarr/README.md). Do not re-copy the
+restore procedure here - that runbook is the single owner.
 
-Restore with `POST /api/v2/cruddb`:
-
-```json
-{"data":{"collection":"FlowsJSONDB","mode":"update","docID":"movies_av1_nvenc_v1",
-         "obj":{"_id":"movies_av1_nvenc_v1","flowPlugins":[...],"flowEdges":[...]}}}
-```
-
-taking `flowPlugins` / `flowEdges` from
-`docs/tdarr/flow-movies_av1_nvenc_v1.after.json`. `librariesToNotProcess` was
-left on the node untouched; the node config itself was not changed
-(`docs/tdarr/node-config.json` is a current snapshot, for reference only).
+`librariesToNotProcess` was left on the node untouched; the node config itself
+was not changed (`docs/tdarr/node-config.json` is a current snapshot, for
+reference only).
 
 ### Live state at the end of this work
 
