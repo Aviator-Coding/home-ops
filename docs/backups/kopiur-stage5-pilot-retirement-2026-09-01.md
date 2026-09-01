@@ -103,7 +103,7 @@ byte-identical (`6a95dbce8b79`).
 
 Worked out from the repo rather than assumed. Per volume it is:
 
-| removed | how | count |
+| removed | how | count across the 4 volumes |
 |---|---|--:|
 | `ReplicationSource` × 3 (ceph, minio, r2) | Flux prune once the Component goes; deleted by hand here, pre-merge | 12 |
 | `ReplicationDestination` `${APP}-dst` | same | 4 |
