@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# kopiur's counterpart to ../../volsync/pvc.yaml, kept in its OWN Component
+# rather than folded into ../kustomization.yaml.
+#
+# WHY SEPARATE. During the parallel run every claim is created by the volsync
+# Component, and two Components emitting the same PersistentVolumeClaim from
+# the same ${APP} is a straight kustomize resource collision - see
+# ../kustomization.yaml, which says exactly this and defers the PVC to
+# "migration Stage 5". Retirement is per-volume, not fleet-wide, so the claim
+# has to move engines one app at a time. An app that has retired volsync adds
+# BOTH ../ and ./ ; an app still running in parallel adds only ../ and keeps
+# taking its claim from the volsync Component. Folding this file into the
+# parent instead would break every still-parallel app in the fleet at once.
+#
+# When the last volume retires, this collapses into ../kustomization.yaml and
+# the extra include disappears from every overlay.
+resources:
+  - ./pvc.yaml

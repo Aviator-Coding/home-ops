@@ -22,28 +22,44 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component below -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3, the same shape as downloads/sabnzbd
-    # which see for the full rationale. volsync's entry is unchanged.
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-01 - migration Stage 5, pilot volume 2 of 4.
+    # kopiur is now the ONLY backup engine on this claim.
+    #
+    # Authorising evidence, per volume and per destination:
+    # docs/backups/kopiur-restore-proof-2026-09-01.md (row 11,
+    # `downloads/recyclarr-config`: 2913/2913 files restored from ceph AND r2,
+    # byte-identical to each other). Why this volume was chosen, and the
+    # post-retirement re-proof:
+    # docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: recyclarr-config
-      VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "50 3 * * *"
       KOPIUR_CLAIM: recyclarr-config
+      # Inherited from the retired VOLSYNC_CAPACITY default and matched to the
+      # live claim (5Gi; the volume holds ~79 MB). Under the pvc Component's
+      # `ssa: IfNotPresent` this is create-time-only for the claim that already
+      # exists, but it is exactly what a REBUILD would provision - so it is
+      # stated rather than left to the component default.
+      KOPIUR_CAPACITY: 5Gi
       # 2000:2000 matches the pod securityContext DECLARED in
       # kubernetes/apps/base/downloads/recyclarr/app/helmrelease.yaml
       # (runAsUser/runAsGroup/fsGroup 2000). Live-pod exec could not measure

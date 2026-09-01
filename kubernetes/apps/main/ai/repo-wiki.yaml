@@ -10,12 +10,23 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-01 - migration Stage 5, pilot volume 1 of 4.
+    # kopiur is now the ONLY backup engine on this claim.
+    #
+    # Authorising evidence, per volume and per destination:
+    # docs/backups/kopiur-restore-proof-2026-09-01.md (row 3, `ai/repo-wiki`:
+    # 165/165 files restored from ceph AND r2, byte-identical to each other).
+    # Why this volume was chosen, and the post-retirement re-proof:
+    # docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   healthChecks:
     # app-template names multi-controller Deployments <release>-<controller>,
     # so the mkdocs workload is repo-wiki-mkdocs (not repo-wiki).
@@ -28,7 +39,9 @@ spec:
       namespace: security
     - name: litellm
       namespace: *namespace
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # kopiur is the sole backup engine on this claim since 2026-09-01. See the
+    # components block. There is no `volsync` dependency to drop here - this
+    # overlay never carried one.
     - name: kopiur-repository
       namespace: system
   interval: 1h
@@ -47,17 +60,21 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_CACHE_CAPACITY: 2Gi
-      VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "40 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "20 2 * * *"
+      # Inherited from the retired VOLSYNC_CAPACITY and matched to the live
+      # claim (5Gi; the volume holds ~450 KB). Under the pvc Component's
+      # `ssa: IfNotPresent` this is create-time-only for the claim that already
+      # exists, but it is exactly what a REBUILD would provision - so it has to
+      # stay true to the live claim rather than drift into decoration.
+      KOPIUR_CAPACITY: 5Gi
       # Identity left at the component default of 1000:1000, and that is a
       # MEASURED result rather than an assumption: live measurement 2026-08-30
       # found every entry owned 1000:1000 (pod securityContext 1000:1000:1000)
       # and nothing unreadable at 1000.
-      # Carried across from VOLSYNC_CACHE_CAPACITY above. Ephemeral, so it
-      # sizes an emptyDir for the run and adds no PVC.
+      # Ephemeral, so it sizes a per-run volume and adds no standing PVC. Left
+      # at 2Gi: restore-proof finding 2 (an r2 restore needs materially more
+      # kopia cache than the same restore from ceph) is a large-claim problem -
+      # 2Gi is ~4600x this volume's 450 KB, and the post-retirement r2 restore
+      # was re-proven at this value. See the pilot document.
       KOPIUR_CACHE_CAPACITY: 2Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, which already

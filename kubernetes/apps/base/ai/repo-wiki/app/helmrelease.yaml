@@ -121,7 +121,13 @@ spec:
 
     persistence:
       data:
-        existingClaim: ${VOLSYNC_CLAIM:-repo-wiki}
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
+        # on 2026-09-01 (Stage 5 pilot) and the overlay no longer defines any
+        # VOLSYNC_* key. The `:-repo-wiki` default meant this kept rendering
+        # correctly under Flux's strict envsubst either way, which is exactly
+        # how a stale reference survives unnoticed - it is renamed rather than
+        # left to rot. The claim name is unchanged.
+        existingClaim: ${KOPIUR_CLAIM:-repo-wiki}
         advancedMounts:
           mkdocs:
             app:
