@@ -291,15 +291,21 @@ def test_router_settings_entitlement_boundary(cfg: dict) -> None:
         all(name not in ctx for name in terminal_local),
         f"terminal={terminal_local} ctx_keys={sorted(ctx)}",
     )
+    # Targets must be the METERED CR (`-metered` suffix, renamed 2026-08-31 -
+    # captain decision, Alternative B of
+    # data/homeops-claude-code-passthrough-design/report.md). The bare
+    # `claude-sonnet-5` name now belongs to the Claude Code subscription
+    # pass-through, which holds no credential of its own - a fallback pointed
+    # there would 401 every failed-over request instead of serving it.
     for primary in ("chat-ha", "auto"):
         record(
             f"{primary}_availability_target_is_sonnet_not_opus",
-            avail.get(primary) == ["claude-sonnet-5"],
+            avail.get(primary) == ["claude-sonnet-5-metered"],
             f"got={avail.get(primary)!r}",
         )
         record(
             f"{primary}_context_window_target_is_sonnet",
-            ctx.get(primary) == ["claude-sonnet-5"],
+            ctx.get(primary) == ["claude-sonnet-5-metered"],
             f"got={ctx.get(primary)!r}",
         )
     # No reverse cloud->local context chain (1M cannot overflow into 262k).
@@ -361,7 +367,9 @@ def test_virtualkey_entitlement_split() -> None:
     ha_models = set(keys.get("ha-demo", {}).get("models") or [])
     record(
         "ha_demo_does_not_hold_terminal_qwen_or_direct_cloud",
-        ha_models.isdisjoint({"qwen3.6-35b-a3b", "claude-sonnet-5", "claude-opus-5"}),
+        ha_models.isdisjoint(
+            {"qwen3.6-35b-a3b", "claude-sonnet-5-metered", "claude-opus-5-metered"}
+        ),
         f"ha_models={sorted(ha_models)}",
     )
     raw = keys.get("ha-demo", {}).get("maxBudget")
@@ -746,12 +754,17 @@ async def test_router_availability_fallback(cfg: dict, bases: dict[str, str]) ->
             lp["api_key"] = "mock"
             lp["num_retries"] = 0
             lp["timeout"] = 5
-        elif name == "claude-sonnet-5":
+        elif name == "claude-sonnet-5-metered":
+            # Real fallback target since the 2026-08-31 rename. Must be
+            # intercepted here or this deployment keeps its real
+            # `anthropic/claude-sonnet-5` + `os.environ/ANTHROPIC_API_KEY`
+            # params from the rendered CR, and a live failover in this test
+            # would place a real call against the household's metered key.
             lp["model"] = "openai/claude-sonnet-5"
             lp["api_base"] = bases["sonnet"]
             lp["api_key"] = "mock"
             lp["num_retries"] = 0
-        elif name == "claude-opus-5":
+        elif name == "claude-opus-5-metered":
             lp["model"] = "openai/claude-opus-5"
             lp["api_base"] = bases["opus"]
             lp["api_key"] = "mock"

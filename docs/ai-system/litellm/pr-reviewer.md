@@ -225,8 +225,11 @@ objects, verified live" further down.
    this control in this form.
 5. `POST /v1/chat/completions` for `claude-sonnet-5` on the same key -> **HTTP 403**, error type
    `key_model_access_denied`, message
-   `key not allowed to access model. This key can only access models=['chat-local', 'qwen3.6-35b-a3b-classifier']. Tried to access claude-sonnet-5`.
-   This is the proof the reviewer cannot reach a paid model.
+   `key not allowed to access model. This key can only access models=['chat-local', 'qwen3.6-35b-a3b-classifier']. Tried to access claude-sonnet-5`
+   (that name was the metered route at measurement time; since the 2026-08-31
+   rename the paid route this test guards is `claude-sonnet-5-metered`, and the
+   same allow-list denial applies to it unchanged - the check runs before model
+   dispatch). This is the proof the reviewer cannot reach a paid model.
 
 Throwaway key handling: the checks used a temporary `LiteLLMVirtualKey` under the alias
 `ai-pr-review-recheck` - deliberately distinct from **both** the final `ai-pr-review` and the
@@ -265,8 +268,9 @@ than the preflight stand-ins:
   `reasoning_len` 0, `content_len` 301, parsed to keys exactly `["verdict","review_markdown"]`,
   `verdict` `"approved"`. The `enable_thinking: false` configuration works on the real alias, not
   just on the classifier stand-in.
-- The real key requesting `claude-sonnet-5` -> **HTTP 403** `key_model_access_denied`. The reviewer
-  provably cannot reach a paid model.
+- The real key requesting `claude-sonnet-5` (the metered route at the time -
+  `claude-sonnet-5-metered` since the 2026-08-31 rename) -> **HTTP 403**
+  `key_model_access_denied`. The reviewer provably cannot reach a paid model.
 
 ### What is NOT yet proven
 

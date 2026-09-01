@@ -14,6 +14,16 @@ deleted afterwards: the pre-merge design pass on **2026-08-26**, and the
 post-merge runbook execution on **2026-08-27** (§7). Nothing in the real backend
 was degraded in either.
 
+**Naming note (2026-08-31):** the two `routerSettings` fallback chains
+described below now target `claude-sonnet-5-metered` (renamed from the bare
+`claude-sonnet-5` - captain decision, Alternative B of the Claude Code
+pass-through investigation; the natural name now belongs to the credential-less
+Claude Code subscription pass-through - see
+[`claude-code-subscription.md`](claude-code-subscription.md)). Prose and
+current-state tables below use the current name; a handful of verbatim
+wire-captured measurements below predate the rename and are called out inline
+where the literal text they quote used the old name.
+
 ---
 
 ## 1. The governance result that shapes everything else
@@ -29,13 +39,14 @@ A throwaway key `fallback-probe-key` was minted with
 `spec.models: [fallback-probe]` - one model, no cloud entitlement of any kind.
 A throwaway model `fallback-probe` pointed at a dead backend
 (`http://fallback-probe-dead.ai.svc.cluster.local:9/v1`, `num_retries: 0`), and
-`router_settings.fallbacks` declared `fallback-probe -> claude-sonnet-5`.
+`router_settings.fallbacks` declared `fallback-probe -> claude-sonnet-5` (the
+metered name at measurement time - `claude-sonnet-5-metered` today).
 
 | # | Request | Key allow-list | Result |
 |---|---------|----------------|--------|
 | A | `model: fallback-probe` (backend dead) | `[fallback-probe]` | **HTTP 200 from `anthropic/claude-sonnet-5`** |
 | B | `model: fallback-probe` | `[qwen3.6-35b-a3b]` (`demo`) | HTTP 403 `key_model_access_denied` |
-| C | `model: fallback-probe` + body `fallbacks: [claude-opus-5]` | `[fallback-probe]` | HTTP 403 `key_model_access_denied`, *"Tried to access claude-opus-5"* |
+| C | `model: fallback-probe` + body `fallbacks: [claude-opus-5]` | `[fallback-probe]` | HTTP 403 `key_model_access_denied`, *"Tried to access claude-opus-5"* (that name was the metered route at measurement time - `claude-opus-5-metered` since the 2026-08-31 rename) |
 
 Test A response headers, verbatim:
 
@@ -45,6 +56,11 @@ x-litellm-model-name: anthropic/claude-sonnet-5
 x-litellm-response-cost: 2.6e-05
 x-litellm-key-spend: 2.6e-05
 ```
+
+(`x-litellm-model-name` echoes the upstream `litellm_params.model` id, which
+the 2026-08-31 rename did not touch - only the proxy-side alias renamed to
+`claude-sonnet-5-metered`, the upstream `anthropic/claude-sonnet-5` string
+stayed the same.)
 
 A key entitled to exactly one local-shaped model was served by a paid Anthropic
 model and **billed real USD for it**, without ever naming that model.
@@ -87,7 +103,7 @@ exactly one property the others must not. Entitlement is which alias a key holds
 |---|---|---|---|---|
 | `qwen3.6-35b-a3b` | B70 llama.cpp | SYNTHETIC non-zero (demo fixture so the $0.05 cap is exhaustible by one smoke test) | **none** - terminal | `demo` only - never production traffic |
 | `chat-local` | same B70 llama.cpp | none / zero | **none** - terminal | real local-only traffic: auto SIMPLE/MEDIUM, fail-open pin, repo-wiki, and every future local-only key |
-| `chat-ha` | same B70 llama.cpp | none / zero | `-> claude-sonnet-5` (availability + context-window) | cloud-entitled keys that should survive a B70 outage |
+| `chat-ha` | same B70 llama.cpp | none / zero | `-> claude-sonnet-5-metered` (availability + context-window) | cloud-entitled keys that should survive a B70 outage |
 | `qwen3.6-35b-a3b-classifier` | same B70 llama.cpp | none / zero | **none** - terminal; thinking disabled | the auto-router classifier only |
 | `pr-review-local` | same B70 llama.cpp | none / zero | **none** - terminal; thinking disabled | AI PR reviewer only - [`pr-reviewer.md`](pr-reviewer.md) |
 
@@ -113,7 +129,7 @@ port-forward, then reverted:
 |---|---|---|
 | `GET /v1/models` | `ha-demo` | only `chat-ha` listed |
 | `chat-ha` | `demo` | **403** - *"can only access models=['qwen3.6-35b-a3b']"* |
-| `claude-sonnet-5` | `demo` | **403** - same |
+| `claude-sonnet-5-metered` | `demo` | **403** - same |
 | `chat-ha`, B70 healthy | `ha-demo` | 200, served by `openai/qwen3.6-35b-a3b`, **no `x-litellm-response-cost` header at all** |
 | `GET /v1/models`, no key | - | **401** |
 
@@ -135,8 +151,8 @@ Fires on connection errors, 5xx and other retryable provider failures - i.e.
 
 | Primary | Fallback | Rationale |
 |---|---|---|
-| `chat-ha` | `claude-sonnet-5` | The cloud-entitled view of the local B70 model. |
-| `auto` | `claude-sonnet-5` | Without it a B70 outage takes the routed alias down completely - see below. |
+| `chat-ha` | `claude-sonnet-5-metered` | The cloud-entitled view of the local B70 model. |
+| `auto` | `claude-sonnet-5-metered` | Without it a B70 outage takes the routed alias down completely - see below. |
 
 `qwen3.6-35b-a3b`, `chat-local`, and `qwen3.6-35b-a3b-classifier` deliberately
 have **no** fallback and are terminal. Adding one to any of them would breach
@@ -163,7 +179,7 @@ The D3 router fails **open to local** by design: on classifier failure it routes
 to `complexity_router_default_model` (`chat-local`) without scoring. That is
 exactly right when the *classifier* is broken - but when the **B70 itself** is
 down, the classifier call fails *and* the fail-open target is the same dead
-backend, so the whole `auto` alias dies. The `auto -> claude-sonnet-5` entry is
+backend, so the whole `auto` alias dies. The `auto -> claude-sonnet-5-metered` entry is
 what turns that into a degraded-but-serving path. `auto` is cloud-entitled by
 construction (its COMPLEX and REASONING tiers are Anthropic models), so this
 breaches no entitlement. (`chat-local` is the zero-priced production local
@@ -198,8 +214,8 @@ the Anthropic models cap *lower* than our 262k local model. **They do not.**
 | Model | `max_input_tokens` | Source |
 |---|---|---|
 | `qwen3.6-35b-a3b` (local) | **262,144** | llama.cpp `/props` on the live pod: `n_ctx` = 262144 per slot, `total_slots` = 4 with unified KV, so a single request can use the full window. Matches `n_ctx_train`. |
-| `claude-sonnet-5` | **1,000,000** | LiteLLM v1.98.0 built-in cost map, `litellm_provider: anthropic` |
-| `claude-opus-5` | **1,000,000** | same |
+| `claude-sonnet-5-metered` | **1,000,000** | LiteLLM v1.98.0 built-in cost map, `litellm_provider: anthropic` |
+| `claude-opus-5-metered` | **1,000,000** | same |
 
 Cloud is a **~3.8x superset**, so `local -> cloud` is the correct direction and
 covers a real ~738k-token band that the local model can never serve.
@@ -251,7 +267,7 @@ Error doing the fallback: ... Received Model Group=<context fallback target>
 ```
 
 So `context_window_fallbacks` genuinely fires on local overflow, and the
-`chat-ha -> claude-sonnet-5` chain is real: 400,010 tokens exceeds the local
+`chat-ha -> claude-sonnet-5-metered` chain is real: 400,010 tokens exceeds the local
 262,144 window but fits Sonnet's 1,000,000 (§3), which is the whole point of the
 direction chosen here. The proof used a throwaway `ctx-probe` alias with a dead
 fallback target so the oversized prompt was never billed to a cloud model.
@@ -366,7 +382,7 @@ EOF
 ```
 
 **2. Point a fallback at it.** Use the LOCAL model as the target for a free run;
-swap to `claude-sonnet-5` only if the cloud leg specifically needs proving
+swap to `claude-sonnet-5-metered` only if the cloud leg specifically needs proving
 (costs ~$0.00003 for a `max_tokens: 1` call).
 
 ```bash
@@ -481,7 +497,7 @@ kubectl -n ai get cm litellm-config -o jsonpath='{.data.config\.yaml}' | grep -A
 ```
 
 The last command must show the committed chains (`chat-ha`/`auto` ->
-`claude-sonnet-5`), not the probe. `flux resume` triggers one immediate
+`claude-sonnet-5-metered`), not the probe. `flux resume` triggers one immediate
 reconcile, so the revert is not deferred to the next interval.
 
 ---

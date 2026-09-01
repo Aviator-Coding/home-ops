@@ -677,12 +677,17 @@ def test_virtualkey_cr() -> dict[str, Any]:
         models == ["pr-review-local"],
         f"got={models}",
     )
-    # Must not hold auto or any cloud alias.
+    # Must not hold auto or any cloud alias. Names are the METERED CRs
+    # (`-metered` suffix, renamed 2026-08-31 - captain decision, Alternative B
+    # of data/homeops-claude-code-passthrough-design/report.md); the bare
+    # `claude-sonnet-5`/`claude-opus-5` now belong to the credential-less
+    # Claude Code subscription pass-through, which is a separate (non-money)
+    # concern from this allow-list boundary.
     forbidden = {
         "auto",
         "chat-ha",
-        "claude-sonnet-5",
-        "claude-opus-5",
+        "claude-sonnet-5-metered",
+        "claude-opus-5-metered",
         "claude-opus-4-8",
     }
     leak = sorted(set(models) & forbidden)

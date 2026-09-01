@@ -252,9 +252,10 @@ spec:
           annotations:
             description: >-
               The claude-code-subscription virtual key is recording NONZERO
-              spend again. Both models it may call
-              (claude-code-subscription/-opus) are priced at an explicit $0 on
-              every field, including the five prompt-cache fields, specifically
+              spend again. Both models it may call (claude-sonnet-5 and
+              claude-opus-5, renamed from claude-code-subscription/-opus on
+              2026-08-31) are priced at an explicit $0 on every field,
+              including the five prompt-cache fields, specifically
               BECAUSE this key carries no maxBudget and no rate limits - a
               nonzero reading here means the pricing has regressed (a cache
               field un-zeroed, a new unpriced model added to the key's

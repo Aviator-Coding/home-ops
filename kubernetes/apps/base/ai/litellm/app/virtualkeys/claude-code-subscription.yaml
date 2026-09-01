@@ -2,11 +2,27 @@
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
 # One interactive `claude` CLI user against the subscription pass-through
 # models (captain decision 2026-08-27, alongside the model CR itself; Opus
-# added 2026-08-30). Scoped to the two `claude-code-subscription*` CRs and
-# nothing else: this key must not be a second way into the metered Anthropic
-# models, so it names neither `auto` nor `claude-sonnet-5`/`claude-opus-5` -
-# a caller wanting those needs a key that says so, priced against a real
-# budget.
+# added 2026-08-30). Scoped to the two pass-through CRs and nothing else: this
+# key must not be a second way into the metered Anthropic models, so it names
+# neither `auto` nor `claude-sonnet-5-metered`/`claude-opus-5-metered` - a
+# caller wanting those needs a key that says so, priced against a real budget.
+#
+# RENAMED 2026-08-31 (captain decision, Alternative B of
+# data/homeops-claude-code-passthrough-design/report.md): the two pass-through
+# model CRs this key allow-lists moved from `claude-code-subscription` /
+# `claude-code-subscription-opus` to the natural `claude-sonnet-5` /
+# `claude-opus-5` (../models/claude-sonnet-5.yaml, ../models/claude-opus-5.yaml),
+# and the formerly-natural-named METERED CRs moved to `claude-sonnet-5-metered`
+# / `claude-opus-5-metered` to free those names. This key itself keeps its own
+# name, alias and Secret - `claude-code-subscription` still accurately
+# describes what the key is FOR (the Claude Code CLI subscription user), it is
+# only the two models it is allow-listed to that changed names. The client-side
+# `ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` overrides
+# that the runbook's §7 describes are gone: the natural names now resolve
+# directly to these pass-through CRs, so no override is needed. Full rationale
+# and the deliberate 401 an admin gets asking for the bare natural name
+# (without a subscription OAuth token) instead of the `-metered` escape hatch:
+# docs/ai-system/litellm/claude-code-subscription.md.
 #
 # THE ONLY KEY HERE WITH NO `maxBudget`, AND - AS OF 2026-08-31 - NO
 # `rpmLimit`/`tpmLimit` EITHER. THIS KEY HAS NO LOCAL CEILING AT ALL, AND THAT
@@ -71,10 +87,11 @@
 # the two model CRs originally zeroed only `input_cost_per_token`/
 # `output_cost_per_token`; the five prompt-cache pricing fields were left
 # unset and fell back to LiteLLM's built-in metered `claude-sonnet-5` cost map
-# - and Claude Code caches almost every turn, so that gap priced essentially
-# the whole bill (output_cost was exactly $0.00; the total was 100% cache_read
-# + cache_creation). Fix: the five cache fields were zeroed on both
-# `../models/claude-code-subscription{,-opus}.yaml` on 2026-08-31, and the
+# entry - and Claude Code caches almost every turn, so that gap priced
+# essentially the whole bill (output_cost was exactly $0.00; the total was
+# 100% cache_read + cache_creation). Fix: the five cache fields were zeroed on
+# both pass-through model CRs (renamed 2026-08-31 to
+# `../models/claude-sonnet-5.yaml` / `../models/claude-opus-5.yaml`), and the
 # proxy was restarted at 2026-08-31T04:09:50Z to pick it up. Full mechanism
 # and probe evidence: `docs/ai-system/litellm/claude-code-subscription.md`
 # §4a. This $54.31 is deliberately left ON THE KEY, not zeroed: with no
@@ -106,18 +123,21 @@ spec:
   secretKey: key
   models:
     # BOTH entries are subscription pass-through CRs for which the proxy holds
-    # NO credential (../models/claude-code-subscription{,-opus}.yaml). Neither
-    # is the metered `claude-sonnet-5`/`claude-opus-5`, and adding either of
-    # those here is the one change this file exists to prevent - it would make
-    # subscription traffic bill the household's metered ANTHROPIC_API_KEY.
-    # `claude-code-subscription-opus` was added 2026-08-30 after a `claude`
-    # subagent requested Opus by name and was correctly refused; the name
-    # collision with the metered `claude-opus-5` is closed CLIENT-side via
-    # ANTHROPIC_DEFAULT_OPUS_MODEL, because LiteLLM applies a key's `aliases`
-    # only after this allow-list has already rejected the request (measured
-    # 2026-08-30 - see the -opus CR header and the doc's section 7).
-    - claude-code-subscription
-    - claude-code-subscription-opus
+    # NO credential (../models/claude-sonnet-5.yaml, ../models/claude-opus-5.yaml).
+    # Neither is the metered `claude-sonnet-5-metered`/`claude-opus-5-metered`,
+    # and adding either of those here is the one change this file exists to
+    # prevent - it would make subscription traffic bill the household's
+    # metered ANTHROPIC_API_KEY. The Opus entry was added 2026-08-30 after a
+    # `claude` subagent requested Opus by name and was correctly refused; at
+    # the time the collision with the then-natural-named metered `claude-opus-5`
+    # was closed CLIENT-side via ANTHROPIC_DEFAULT_OPUS_MODEL (LiteLLM applies a
+    # key's `aliases` only after this allow-list has already rejected the
+    # request - measured 2026-08-30, see the CR header and the doc's section 7
+    # for why that ordering ruled out a per-key alias). The 2026-08-31 rename
+    # retired that override entirely: these two names are now the pass-through
+    # CRs outright, so no client-side steering is needed anymore.
+    - claude-sonnet-5
+    - claude-opus-5
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item

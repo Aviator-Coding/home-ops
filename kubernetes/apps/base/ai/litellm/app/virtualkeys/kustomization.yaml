@@ -14,9 +14,11 @@ kind: Kustomization
 # so the credential itself is preserved (same property the old script had).
 #
 # Every key here carries a `maxBudget` except `claude-code-subscription.yaml`,
-# whose allow-list names the two subscription pass-through models
-# (`claude-code-subscription` and `claude-code-subscription-opus`). It stays
-# budgetless because those models are zero-priced across every field including
+# whose allow-list names the two subscription pass-through models - the
+# natural `claude-sonnet-5` and `claude-opus-5` since the 2026-08-31 rename
+# (previously `claude-code-subscription`/`claude-code-subscription-opus`; see
+# that file's own header). It stays budgetless because those models are
+# zero-priced across every field including
 # the five prompt-cache ones (runbook §4a - zeroing only input/output left ~$54
 # of fictional recorded spend until 2026-08-31), so recorded spend is $0 and a
 # maxBudget could never trip. As of 2026-08-31 it also carries no rpmLimit/

@@ -6,8 +6,9 @@
 # every tier backend AND still runs the classifier: verified 2026-08-26 - the
 # allow-list is checked against the model the CALLER asked for, not the one the
 # router resolves to. That makes `auto` a real governance boundary - such a key
-# cannot call claude-opus-5 directly, only reach it by being classified into
-# that tier.
+# cannot call claude-opus-5-metered directly (RENAMED from the bare
+# `claude-opus-5` on 2026-08-31 - see ../models/claude-opus-5-metered.yaml),
+# only reach it by being classified into that tier.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:

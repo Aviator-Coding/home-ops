@@ -33,16 +33,21 @@ kind: Kustomization
 #     same reason on 2026-08-27: LiteLLM bills its sub-call to the CALLING
 #     key, so pricing it charged every routed consumer for the router's own
 #     local bookkeeping. See chat-local.yaml for the four-alias split.
-#   - claude-code-subscription and claude-code-subscription-opus, billed to a
-#     caller's own FLAT-RATE Claude subscription, priced at an explicit $0 on
-#     every field including the five prompt-cache ones (runbook §4a - IO-only
-#     zeros left ~$54 of fictional cache spend) so the metered cost map cannot
-#     inflate a D4 budget with dollars nobody is charged. Read
-#     claude-code-subscription.yaml's header before copying their shape - they
-#     are the only entries here for which the proxy holds no credential, and
-#     the -opus one exists as a SECOND CR rather than a per-key alias of the
-#     metered claude-opus-5 because LiteLLM applies key aliases after the
-#     allow-list check (measured; see that file's header).
+#   - claude-sonnet-5 and claude-opus-5 (RENAMED from claude-code-subscription
+#     and claude-code-subscription-opus on 2026-08-31, captain decision -
+#     Alternative B of data/homeops-claude-code-passthrough-design/report.md),
+#     billed to a caller's own FLAT-RATE Claude subscription, priced at an
+#     explicit $0 on every field including the five prompt-cache ones (runbook
+#     §4a - IO-only zeros left ~$54 of fictional cache spend) so the metered
+#     cost map cannot inflate a D4 budget with dollars nobody is charged. Read
+#     claude-sonnet-5.yaml's header before copying their shape - they are the
+#     only entries here for which the proxy holds no credential, and the
+#     claude-opus-5 one exists as a SECOND CR rather than a per-key alias
+#     because LiteLLM applies key aliases after the allow-list check (measured;
+#     see that file's header). The formerly-natural-named METERED routes moved
+#     to claude-sonnet-5-metered / claude-opus-5-metered to free these names -
+#     see those two files' headers and the runbook for the deliberate 401 an
+#     admin gets asking for the bare name without a subscription OAuth token.
 #
 # The 2026-08-27 batch resolved every id against the live provider catalog
 # rather than the sheet's display names; two rows had no real-catalog match and
@@ -52,11 +57,11 @@ resources:
   - ./auto.yaml
   - ./chat-ha.yaml
   - ./chat-local.yaml
-  - ./claude-code-subscription-opus.yaml
-  - ./claude-code-subscription.yaml
   - ./claude-fable-5.yaml
   - ./claude-opus-4-8.yaml
+  - ./claude-opus-5-metered.yaml
   - ./claude-opus-5.yaml
+  - ./claude-sonnet-5-metered.yaml
   - ./claude-sonnet-5.yaml
   - ./deepseek-v4-flash-0731.yaml
   - ./deepseek-v4-flash.yaml

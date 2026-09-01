@@ -1,0 +1,45 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Cloud tier backend for the D3 auto-router (REASONING tier).
+#
+# RENAMED from `claude-opus-5` on 2026-08-31 (captain decision, Alternative B
+# of data/homeops-claude-code-passthrough-design/report.md): the natural name
+# now belongs to the Claude Code Max/Pro SUBSCRIPTION pass-through
+# (./claude-opus-5.yaml, billed to a caller's own flat-rate plan), so this
+# METERED, household-billed route moved to the `-metered` suffix to free it.
+# Every client-side `ANTHROPIC_DEFAULT_OPUS_MODEL` override that used to exist
+# only to steer Claude Code AWAY from this name is gone - the natural name now
+# resolves to the thing most callers actually want. An admin who deliberately
+# wants this metered route reaches it by asking for `claude-opus-5-metered` by
+# name; full rationale and the deliberate 401 an admin gets from asking for the
+# bare `claude-opus-5` name instead: docs/ai-system/litellm/claude-code-subscription.md.
+#
+# Credentials are the ALREADY-EXISTING 1Password `ai-keys` item that every
+# agentgateway backend in this namespace already extracts (see
+# kubernetes/apps/base/ai/agentgateway/app/backends/anthropic.yaml). No new
+# 1Password item is introduced by the router; externalsecret.yaml just adds a
+# second `extract` of that same item so ANTHROPIC_API_KEY reaches this pod,
+# where the proxy's envFrom makes it visible to `os.environ/...`.
+#
+# Reachable directly as well (`model: claude-opus-5-metered`), which is
+# deliberate: the router is one more way in, never the only way in.
+#
+# Prices come from LiteLLM's built-in model-cost map, so routed cloud spend is
+# real USD against the per-consumer D4 budgets - do NOT add `info.extra`
+# prices here or the accounting stops matching the invoice.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: claude-opus-5-metered
+spec:
+  modelName: claude-opus-5-metered
+  proxyRef: litellm
+  params:
+    # Upstream Anthropic API model id, unaffected by the LiteLLM-side rename
+    # above - only the proxy-local `modelName` callers use changed.
+    model: anthropic/claude-opus-5
+    # Literal `os.environ/` reference, not apiKeyRef: the key already reaches
+    # the pod through the proxy's envFrom on litellm-secret. apiKeyRef would
+    # inject a second, differently-named env var (LITELLM_MODELKEY_*) for the
+    # same value.
+    apiKey: os.environ/ANTHROPIC_API_KEY
