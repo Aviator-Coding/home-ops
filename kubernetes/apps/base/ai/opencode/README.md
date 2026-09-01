@@ -24,8 +24,8 @@ internal gateway, never the public one.
   subagent lanes, plus several ChatGPT variants) and a matching
   coordinator/explorer/fixer/oracle/reviewer subagent-role hierarchy built
   around that hardware diversity. This cluster has one local model
-  (`qwen3.6-35b-a3b`, one GPU) and two cloud tiers (`claude-sonnet-5`,
-  `claude-opus-5`) behind the same `auto` router already used elsewhere in
+  (`qwen3.6-35b-a3b`, one GPU) and two cloud tiers (`claude-sonnet-5-metered`,
+  `claude-opus-5-metered`) behind the same `auto` router already used elsewhere in
   this repo - replicating the reference's role hierarchy would either
   reference nonexistent models or serialize every "concurrent" subagent
   onto the one local model, defeating its purpose. Simplified to a single
