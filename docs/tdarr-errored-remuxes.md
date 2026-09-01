@@ -517,6 +517,63 @@ bulk UI requeue (7.02 GB h264 -> 1.41 GB AV1). Lossy and irreversible.
 
 ---
 
+## 4b. The CPU fallback cannot encode 4K at the node's 4Gi limit
+
+**Provenance: one-time live observation** - operator-executed against the live
+cluster on 2026-08-31; not reproducible in CI. Peak-RSS figures, the OOM kills
+and the node restart counts are live-only.
+
+`transcodecpuWorkers: 1` exists so a VA-API regression degrades instead of
+causing a total transcoding outage (`kubernetes/apps/base/media/tdarr/app/helmrelease.yaml`,
+PR #1443). On 4K that fallback is not a degraded path - it is a **node killer**.
+
+Measured on the parked canary copy, same input, same flow-emitted command,
+isolated in a scratch pod with 24Gi so nothing was competing:
+
+| Encoder rung | ffmpeg peak RSS | fps | Fits the node's 4Gi limit? |
+|---|---|---|---|
+| CPU `libsvtav1 -preset 8 -crf 26` | **~7,100 MiB** | 43 | **No** - about 1.8x the entire container limit |
+| GPU `av1_qsv -preset medium -global_quality 26 -look_ahead 1` | **~1,225 MiB** | 54 | Yes, with room to spare |
+
+So a 4K file picked up by the **CPU** transcode worker OOM-kills the whole
+`tdarr-tdarr-node` container (exit 137) about 90 s in, right after the flow
+finishes building the ffmpeg command and execs it. Reproduced four times on
+2026-08-31, including on a completely idle node (108 MiB baseline).
+
+Three consequences worth knowing before touching the transcode path:
+
+- **It is not confined to the file that triggered it.** The OOM kills the
+  container, so it also destroys whatever the *GPU* worker was doing. The first
+  kill in this series kills a GPU job that had reached 100%.
+- **It is a pre-existing hazard, not something the canary introduced.** Both
+  transcode workers poll the same queue, so ANY 4K file that the CPU worker
+  happens to win is enough. Six of the seven parked masters are 4K, and ordinary
+  library imports are too - `Scream (2022)` (4K HDR10+) was auto-queued by the
+  folder watcher during this work and is exactly the same shape.
+- **A node restart re-stages the killed jobs but never resumes them.** The rows
+  sit in `stagedjsondb` with `status: processing` while no worker and no ffmpeg
+  exist, and because every queue query is `LEFT JOIN stagedjsondb` +
+  `stagedjsondb.id IS NULL`, those files are then invisible to the queue until
+  the stale row is removed (`POST /api/v2/cruddb`, `mode: removeOne`,
+  `collection: StagedJSONDB`). A crash therefore silently parks its own victims.
+
+This is why the 2026-08-31 canary run did not complete through Tdarr: the CPU
+worker won the queue race and the node died before ffmpeg produced a frame. The
+GPU rung is the one this file's path (`start23`/`enc23`, `hardwareType: qsv`) is
+designed for, and it fits the current limit comfortably - the problem is purely
+that nothing stops the CPU worker taking a 4K job.
+
+Options, none of them taken here because each changes a deliberately-reasoned
+setting and belongs to the captain:
+
+| # | Change | Cost |
+|---|---|---|
+| A | Raise `tdarr-node` memory to ~10Gi | Keeps the fallback working for 4K; spends ~6Gi more on talos-3, which also hosts the B70 and `vllm` |
+| B | `transcodecpuWorkers: 0` | Removes the hazard and forces 4K to the GPU; reverses PR #1443's anti-outage rationale outright |
+| C | Flow guard: CPU rung refuses 4K | Preserves both intents (1080p keeps a CPU fallback, 4K waits for the GPU); costs a flow change, which is Tdarr DB state |
+
+---
+
 ## 5. What lives only in Tdarr's database
 
 None of the following is GitOps. It does not survive a rebuild of the
