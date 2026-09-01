@@ -38,7 +38,7 @@ MISE_LIST_ALL_VERSIONS = "false"
 "kubectl" = "1.36.4"
 "aqua:mikefarah/yq" = "4.53.4"
 "opentofu" = "1.12.6"
-"aqua:siderolabs/talos" = "1.13.2"
+"aqua:siderolabs/talos" = "1.13.9"
 "aqua:yannh/kubeconform" = "0.8.0"
 "aqua:nektos/act" = "0.2.89"
 # promtool for scripts/ci/grafana-sa-provisioner-test.py PromQL rule evaluation
