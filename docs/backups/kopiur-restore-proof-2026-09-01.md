@@ -19,6 +19,32 @@ Sibling documents:
 - [`restore-drill-2026-08-23.md`](restore-drill-2026-08-23.md) - the VolSync equivalent and
   the house standard both are built to.
 
+## Bottom line for Stage 5
+
+**All 30 claims restored from both `ceph` and `r2`, byte-identical between destinations.**
+
+Two results decide whether that is enough to retire VolSync, and they point in different
+directions:
+
+> ### 1. kopia omits `CACHEDIR.TAG` content and restic does not. On `ai/hermes` that is a 23 467-file gap - and it is **not** a loss.
+>
+> **Adjudicated: nothing irreplaceable sits under a `CACHEDIR.TAG` on `hermes`. kopiur is a
+> faithful replacement for VolSync on that volume, not a lossy one.** The evidence is in
+> [finding 1](#finding-1-kopia-excludes-cachedirtag-directories---adjudicated-no-irreplaceable-data-is-affected);
+> the short form is that all 23 467 files are Python virtualenvs and `uv`/`pytest` caches that
+> those tools tagged as caches themselves, containing only public PyPI packages and no
+> user-authored file anywhere.
+>
+> ### 2. A real offsite restore needs more kopia cache than any of our claims are configured with. Fix this **before** retiring anything.
+>
+> `media/plex` restored from `ceph` on a 2 GiB cache and **failed from `r2` on that same
+> 2 GiB**. `ai/hermes` needed more than the 5 GiB its standing populator carries. A failed
+> `Restore` is terminal and never retries. This is an **operational prerequisite for disaster
+> recovery**, not a footnote: see
+> [finding 2](#finding-2-an-r2-restore-needs-a-materially-larger-kopia-cache-than-the-same-restore-from-ceph---an-operational-prerequisite-for-dr).
+> While VolSync is still in place it is a latent problem; the moment VolSync is retired it
+> becomes the difference between having an offsite backup and having one you cannot read.
+
 ## The gate
 
 Each volume had to clear all four criteria:
@@ -66,6 +92,13 @@ Every object this run created carries `fm.homeops/restore-drill: kopiur-stage5`.
   and never inferred from the pod's `runAsUser` - Stage 3 established that `plex`,
   `tdarr-config` and `calibre-web-automated` run as uid 0 while owning files `2000:2000`, and
   `hermes` pins no `runAsUser` at all while owning 89k entries as `10000`.
+- **Compare manifests under a single collation.** Sorting with `LC_ALL=C sort` and then
+  comparing with a `comm` that inherits a UTF-8 locale produces **silent false differences**:
+  the two tools disagree on ordering, so `comm` reports paths as missing that are present in
+  both inputs. This bit the `hermes` analysis mid-run and manufactured a phantom 10-file gap
+  under `./scripts/` before being caught. Export `LC_ALL=C` for the whole comparison, and
+  sanity-check the result against the arithmetic - the corrected `hermes` exclusion set is
+  exactly 23 467 paths, reconciling with 89 388 - 65 921, which is what confirmed the fix.
 
 ## Safety properties of this run
 
@@ -84,33 +117,77 @@ Every object this run created carries `fm.homeops/restore-drill: kopiur-stage5`.
 Four things this run established that no manifest test, and no snapshot status, would have
 caught. Two of them change how a future reader must read the table.
 
-### Finding 1: kopia excludes `CACHEDIR.TAG` directories, so restored file counts are legitimately lower than live
+### Finding 1: kopia excludes `CACHEDIR.TAG` directories - adjudicated, no irreplaceable data is affected
 
-kopia honours the [Cache Directory Tagging Specification](https://bford.info/cachedir/): any
-directory holding a `CACHEDIR.TAG` file whose first bytes are the standard signature is skipped.
-The **directory itself is restored**, with its mode and ownership intact - only its contents are
-omitted. Three claims are affected fleet-wide:
+kopia honours the [Cache Directory Tagging Specification](https://bford.info/cachedir/): a
+directory holding a `CACHEDIR.TAG` whose first bytes carry the standard signature is skipped.
+The **directory itself is restored**, mode and ownership intact; only its contents are omitted.
+Three claims are affected fleet-wide:
 
-| claim | live files | snapshot `filesNew` | omitted | tagged directories |
-|---|--:|--:|--:|---|
-| `ai/hermes` | 89 388 | 65 921 | 23 467 | `.cache/uv`, `home/.cache/uv` (+2 nested `archive-v0` entries), `home/.local/share/uv/tools/pytest`, `wiki/.venv`, `skills/media/youtube-content/.venv`, `venv-httpx`, `.hw-venv`, `scripts/.pytest_cache` |
-| `home-automation/home-assistant` | 96 | 79 | 17 | `.venv` |
-| `media/calibre-web-automated` | 37 | 23 | 14 | `.cache/fontconfig` |
+| claim | live files | snapshot `filesNew` | omitted |
+|---|--:|--:|--:|
+| `ai/hermes` | 89 388 | 65 921 | 23 467 |
+| `home-automation/home-assistant` | 96 | 79 | 17 |
+| `media/calibre-web-automated` | 37 | 23 | 14 |
 
-The omitted content is a Python virtualenv, a `uv` download cache, a `pytest` cache and a
-fontconfig cache - all regenerable, none of it application state. The fleet-wide sweep for
-`CACHEDIR.TAG` and `.kopiaignore` found no other claim carrying either marker.
+VolSync's restic mover is **not** configured with `--exclude-caches` (restic's opt-in flag for
+the same convention) and nothing in `kubernetes/components/volsync/` sets it, so the restic
+repositories almost certainly *do* hold this content. Retiring VolSync therefore drops it from
+the fleet's backup coverage. The question that decides Stage 5 for `hermes` is not whether the
+gap exists - it does - but whether anything in it matters.
 
-**Why this matters for retirement.** VolSync's restic mover is **not** configured with
-`--exclude-caches` (restic's opt-in flag for the same convention), and nothing in
-`kubernetes/components/volsync/` sets it, so the restic repositories very likely *do* hold this
-content while the kopia ones do not. Retiring VolSync for `hermes` in particular therefore drops
-23 467 files from the fleet's backup coverage. That is almost certainly an acceptable trade -
-they are caches and virtualenvs - but it is a real change in coverage and it should be a
-deliberate decision rather than a surprise. It was **not** verified by a VolSync restore here;
-only the kopiur side was measured.
+#### The adjudication: it does not
 
-### Finding 2: an r2 restore needs a materially larger kopia cache than the same restore from ceph
+**1. Every omitted file is under a tagged root. Zero are outside.** Comparing the live path set
+against the restored path set gives exactly 23 467 omitted paths, reconciling precisely with
+89 388 − 65 921, and filtering that set against the ten tagged roots leaves **0** entries.
+
+**2. All ten tags are genuine.** Every `CACHEDIR.TAG` on the volume carries the standard
+signature `8a477f597d28d172789f06886806bc55`, and each was written by the tool that owns the
+directory (`uv`, `pytest`) - each root also carries the `.gitignore` those tools drop in. These
+are not stray or hand-placed tags shadowing real data.
+
+**3. Every root is tool-generated machinery**, by file count:
+
+| tagged root | omitted files | what it is |
+|---|--:|---|
+| `./home/.cache/uv` | 21 659 | `uv` download/wheel cache (`wheels-v6`, `sdists-v9`, `simple-v21`, …) |
+| `./home/.local/share/uv/tools/pytest` | 596 | `uv`-managed `pytest` tool venv |
+| `./wiki/.venv` | 398 | Python venv |
+| `./.cache/uv` | 227 | `uv` cache |
+| `./skills/media/youtube-content/.venv` | 202 | Python venv |
+| `./.hw-venv` | 191 | Python venv |
+| `./venv-httpx` | 189 | Python venv |
+| `./scripts/.pytest_cache` | 5 | `pytest` cache |
+
+(The two `home/.cache/uv/archive-v0/*` roots are nested inside `home/.cache/uv` and their 14 319
+files are counted once, within its 21 659.) Every venv is stock
+`bin/ lib/ lib64/ pyvenv.cfg`; every cache is `uv`'s or `pytest`'s own layout.
+
+**4. Nothing user-authored is inside any of them.** Searching all four venvs for files outside
+the standard machinery (`site-packages/`, `bin/`, `pyvenv.cfg`, `.gitignore`, `.lock`,
+`CACHEDIR.TAG`) returns nothing.
+
+**5. The contents are public packages, and the largest venv is declaratively reconstructible.**
+`wiki/.venv` has both `wiki/pyproject.toml` and `wiki/uv.lock` beside it, and **both are present
+in the kopiur restore** - so it rebuilds with `uv sync`. The other three venvs
+(`skills/media/youtube-content/.venv`, `venv-httpx`, `.hw-venv`) have no sibling manifest, but
+they hold only public PyPI distributions - `httpx`/`anyio`/`h11`/`certifi`/`idna` (14 entries
+each; `venv-httpx` and `.hw-venv` are the same stack) and `youtube_transcript_api`/`requests`
+(17 entries). Their package sets are readable from `site-packages` and reinstallable in seconds.
+
+**Verdict.** The 23 467-file delta is entirely regenerable, tool-owned cache and virtualenv
+content, self-declared as cache by the tools that created it. Losing it costs a `uv sync` and
+two `uv pip install` lines, not data. **kopiur is a faithful replacement for VolSync on
+`hermes`.** The same reasoning applies, far more cheaply, to `home-assistant` (17 files, one
+`.venv`) and `calibre-web-automated` (14 files, a fontconfig cache).
+
+The one residual, and it is small: three venvs record their dependency set only inside
+themselves. If those environments are ever considered load-bearing, committing a
+`requirements.txt` or `pyproject.toml` beside each would remove the last trace of doubt - and is
+worth doing on its own merits, independent of backups.
+
+### Finding 2: an r2 restore needs a materially larger kopia cache than the same restore from ceph - an operational prerequisite for DR
 
 Both `hermes` and `plex` failed their **r2** restore with
 `no space left on device` on `/var/cache/kopia`, using the 2 GiB ephemeral cache that this
@@ -137,6 +214,27 @@ Neither has ever been exercised against r2. A real offsite disaster recovery is 
 moment this would be discovered, so the cache capacity on the large claims deserves a look
 before VolSync is retired - it is a one-line change per overlay, and it is the difference
 between a DR restore working and failing terminally.
+
+#### Treat this as a Stage 5 blocker, not a footnote
+
+Measured cache behaviour, all with `mode: Ephemeral`:
+
+| claim | live size | ceph restore | r2 restore | standing populator cache |
+|---|--:|---|---|---|
+| `media/plex` | 4.4 GB | **succeeded** at 2 GiB | **failed** at 2 GiB, succeeded at 20 GiB | 10 GiB |
+| `ai/hermes` | 10.2 GB | failed at 2 GiB, succeeded at 30 GiB | failed at 2 GiB, succeeded at 30 GiB | 5 GiB |
+
+`plex` is the decisive row: identical volume, identical snapshot content, identical mover
+identity, and the outcome differs purely by repository. So this is a property of the offsite
+backend, not of volume size alone, and a ceph restore succeeding tells you nothing about whether
+the r2 restore of the same claim will.
+
+Neither standing `*-kopiur-dst` populator has ever been exercised against r2. While VolSync is
+still in place this is latent. **The moment VolSync is retired, it becomes the difference
+between holding an offsite backup and holding one that cannot be read** - and the failure is
+terminal, discovered during an actual disaster. Raising `KOPIUR_CACHE_CAPACITY` on at least
+`hermes` and `plex`, and re-running an r2 restore drill against the new value, belongs *before*
+the first `ReplicationSource` is removed. It is a one-line change per overlay.
 
 ### Finding 3: reading "live" through the app pod can include bytes the claim does not hold
 
@@ -282,18 +380,25 @@ a drill.
 
 It **does** establish, per volume, that the kopiur backup of that volume can be restored and
 that what comes back is what was there - from both the local and the offsite repository
-independently.
+independently. That is the complete Stage 5 evidence base the captain asked for.
 
-It does **not** by itself authorise retirement. Before any `ReplicationSource` is removed, three
-things from the findings above should be settled deliberately:
+Of the two questions that gate retirement:
 
-1. **The `CACHEDIR.TAG` coverage change** (finding 1), most materially the 23 467 files on
-   `ai/hermes` that kopia omits and restic very likely retains.
-2. **Restore cache capacity on the large claims** (finding 2). `hermes` needed more than its
-   standing 5 GiB to restore from r2 at all; `plex`'s r2 restore failed on 2 GiB while its ceph
-   restore succeeded on the same 2 GiB.
-3. **The four near-empty claims** (finding 4), whose proofs are thin by nature and which may
-   deserve a different kind of assurance.
+1. **The `CACHEDIR.TAG` coverage change is settled.** Finding 1 adjudicates it: the omitted
+   content on all three affected claims is regenerable, tool-owned cache and virtualenv
+   material, with nothing user-authored and nothing irreplaceable. kopiur is a faithful
+   replacement for VolSync on `ai/hermes`, not a lossy one. No further work is required here
+   before retirement; the optional cleanup is committing a dependency manifest beside the three
+   unmanifested venvs, which is worth doing for its own sake.
+2. **Restore cache capacity is NOT settled, and should block retirement until it is.**
+   Finding 2: `plex` failed its r2 restore on the 2 GiB that its ceph restore succeeded on, and
+   `hermes` needed more than the 5 GiB its standing populator carries. A failed `Restore` is
+   terminal. Raise `KOPIUR_CACHE_CAPACITY` on the large claims and prove an r2 restore at the
+   new value first. This is the one genuine prerequisite this run uncovered.
+
+Separately, the four near-empty claims (finding 4) carry proofs that are thin by nature -
+`autobrr` holds a single file - and may deserve a different kind of assurance than a restore
+comparison can give.
 
 Nothing in this document should be read as a recommendation to retire, or not to retire, any
 particular volume. That is the captain's call.
