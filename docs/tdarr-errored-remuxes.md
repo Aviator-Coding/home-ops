@@ -2,7 +2,7 @@
 
 Operational record for the `media/tdarr` transcode path: what enforces scope,
 what verifies an encode before it overwrites a master, and the state of the
-seven parked 4K remux masters.
+seven 4K remux masters (six still parked; one canary processed 2026-08-31).
 
 **Almost everything here is Tdarr server state (SQLite under
 `/app/server/Tdarr/DB2/`), not GitOps.** It does not survive a rebuild of the
@@ -284,9 +284,9 @@ Sweep of **all 6514 job reports** for strings only the real code can emit:
 | `hdr_survival` | reject lost HDR side data | always "pass" |
 
 **`Replace Original File` is therefore reached unconditionally after any
-successful encode, with zero verification.** Six of the seven parked masters
-are `DV HDR10`, which is exactly what `dv_check` and `hdr_survival` were
-written to protect.
+successful encode, with zero verification.** Six of the seven masters are
+`DV HDR10`, which is exactly what `dv_check` and `hdr_survival` were written
+to protect.
 
 This contradicts section 4.1 of the scout report, which described the guards as
 live. They are not, and no manifest test or CI gate in this repo can see it -
@@ -518,13 +518,15 @@ retried or processed.
 **Provenance: one-time live observation** - operator-executed against the live
 cluster on 2026-08-31; not reproducible in CI.
 
-Chosen as the smallest of the seven (20.92 GB), which bounds both blast radius
-and time-to-signal. **It was never itself queued.** A byte-identical copy was
-staged inside `/media/Movies/` (so `guard_scope` would admit it), the flow ran
-against the copy, and the master was only replaced after the output had been
-verified. That is what kept the master intact through five node OOM kills that
-happened during the same session - a direct contrast with `Johnny Mnemonic`,
-which a bulk requeue rewrote in place on 2026-08-30 with no verification.
+Chosen as the smallest of the seven (20.92 GB → 7.18 GB), which bounds both
+blast radius and time-to-signal. **It was never itself queued.** A
+byte-identical copy was staged under `/media/Movies/zz-tdarr-canary/` (so
+`guard_scope` would admit it), the flow ran against the copy, and the master
+was only replaced after the output had been verified. The staging tree was
+deleted again once the verified `.mkv` was in place. That is what kept the
+master intact through five node OOM kills that happened during the same
+session - a direct contrast with `Johnny Mnemonic`, which a bulk requeue
+rewrote in place on 2026-08-30 with no verification.
 
 Every stream survived:
 
@@ -549,14 +551,14 @@ seven audio streams with no errors.
 source carries a `DOVI configuration record`; the output does not. HDR10 is
 fully preserved (10-bit `yuv420p10le`, `bt2020` / `smpte2084` / `bt2020nc`, plus
 mastering-display and content-light metadata the source did not carry
-explicitly), but the **Dolby Vision RPU layer is gone**. This is inherent to the
-AV1 re-encode, not to the subtitle work, and it follows directly from the
-`e_dv_bypass` edge that section 3.6 already flagged as an open behaviour choice:
-that edge routes `dv_check`'s "IS DV" output into the encoder anyway. Measured:
-**five of the six remaining masters carry a DV RPU** (all profile 8), and the
-loss is **not** inherent to AV1 - it is specific to `av1_qsv`. Section 4.2 has
-the per-title survey and the encoder comparison; read it before deciding about
-the five.
+explicitly), but the **Dolby Vision RPU layer is gone**. That loss is not a
+subtitle-conform defect: it follows from the `e_dv_bypass` edge (section 3.6)
+routing `dv_check`'s "IS DV" output into the encoder, combined with this canary
+running on `av1_qsv`. Measured: **five of the six remaining masters carry a DV
+RPU** (all profile 8), and the loss is **not** inherent to AV1 - it is specific
+to `av1_qsv` (`libsvtav1 -dolbyvision true` keeps the RPU). Section 4.2 has the
+per-title survey and the encoder comparison; read it before deciding about the
+five.
 
 The original master was **not** deleted. It is retained byte-intact (size and
 mtime preserved) at:
@@ -666,7 +668,7 @@ Three consequences worth knowing before touching the transcode path:
   kill in this series kills a GPU job that had reached 100%.
 - **It is a pre-existing hazard, not something the canary introduced.** Both
   transcode workers poll the same queue, so ANY 4K file that the CPU worker
-  happens to win is enough. Six of the seven parked masters are 4K, and ordinary
+  happens to win is enough. Six of the seven masters are 4K, and ordinary
   library imports are too - `Scream (2022)` (4K HDR10+) was auto-queued by the
   folder watcher during this work and is exactly the same shape.
 - **A node restart re-stages the killed jobs but never resumes them.** The rows
@@ -799,7 +801,8 @@ left on the node untouched; the node config itself was not changed
 **Provenance: one-time live observation** — operator-executed against the live
 cluster on 2026-08-31; not reproducible in CI. Library toggles, flow node/edge
 counts, queue depths, error-table composition, and the final byte-intact check
-of the seven masters are live-only Tdarr/NFS state.
+of the six still-parked masters (plus the canary rollback copy) are live-only
+Tdarr/NFS state.
 
 **Provenance: re-checked by CI (flow half only)** — the after-flow artifact
 still carries 12 `customFunction` nodes all keyed `inputsDB.code` and is the
@@ -813,20 +816,24 @@ flow        movies_av1_nvenc_v1   38 nodes / 62 edges
             12 customFunction nodes, 0 still on the dead "function" key
 node        talos-3  unpaused  workerLimits {gpu 1, cpu 1, hc-cpu 1, hc-gpu 1}
 queues      table1 (transcode) 0     table4 (health check) 0
-error table 45  =  44 Movies + 1 Series
+error table 45  =  44 Movies + 1 Series   # after the two low-value verifications;
+                                         # see §4.1 for the separate canary
 ```
 
 The error table fell from 47 to 45 because the two low-value verification files
 transcoded successfully. It will keep falling as the 40 files that were only
-ever blocked by the CPU-argument bug are retried. The 7 masters remain parked
-and were never queued; all seven verified byte-identical (size, mtime and inode
-unchanged) at the end of this work.
+ever blocked by the CPU-argument bug are retried. **Six of the seven masters
+remain parked** and were never queued; those six verified byte-identical (size,
+mtime and inode unchanged) at the end of this work. The seventh,
+`A House of Dynamite (2025)`, is the §4.1 canary: the live Movies path is the
+verified AV1 output, and the untouched original is retained at
+`/media/.tdarr-canary-rollback/`.
 
 ### Files this work rewrote
 
 Two low-value, non-master files were transcoded as the Phase 2 verification the
 work required. Tdarr rewrites in place, so both are now AV1 and the originals
-are gone. Neither is one of the seven.
+are gone. Neither is one of the seven masters.
 
 | File | Before | After | Path |
 |---|---|---|---|
@@ -836,6 +843,15 @@ are gone. Neither is one of the seven.
 Both kept every stream (SPF-18: 1 video, 1 audio, 5 subrip, unchanged) and both
 passed the now-live size and duration guards before replacement.
 
-A third file, a synthetic 30-second clip, was built in `/temp/flowtest` to prove
-the subtitle conversion and was deleted afterwards along with its temporary
-library. Nothing under `/media` was created or deleted by this work.
+Exactly one master was rewritten, under the §4.1 canary procedure (staged copy
+first, replace only after verification): `A House of Dynamite (2025)`,
+20.92 GB → 7.18 GB (22,462,708,376 B hevc mp4 → 7,710,589,817 B av1 mkv,
+34.3%), all 44 streams retained. Original master **retained** (not deleted) at
+`/media/.tdarr-canary-rollback/` pending a captain decision on the remaining
+six. So `/media` was changed in both directions by this work: a staging copy
+was created under `/media/Movies/zz-tdarr-canary/` and deleted again after
+verification, and the retained original was created and still exists.
+
+A synthetic 30-second clip was also built in `/temp/flowtest` to prove the
+subtitle conversion and was deleted afterwards along with its temporary
+library.
