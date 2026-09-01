@@ -14,23 +14,35 @@ both `selfhosted/changedetection-config` (1000:1000 after fixing the app's
 missing securityContext - no privileged-mover grant) and
 `home-automation/matter-server` (explicit root mover `KOPIUR_PUID/PGID: 0` plus
 namespace-wide `kopiur.home-operations.com/privileged-movers=true`). **Both
-engines run on every volume** - every VolSync source is still live, nothing has
-been retired, and retirement is Stage 5, which needs a per-volume restore proof
-first. **Being onboarded is not the same as being proven.** Stage 2's restore
-gate **passed** on 2026-08-30 -
+engines run on every volume** - every VolSync source is still live and nothing
+has been retired.
+
+**All 30 claims are restore-proven on both destinations** (2026-09-01).
+Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the open
+r2-vs-ceph cache-capacity Stage 5 blocker:
+[`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
+That fleet table is the authority on restore coverage, and it is the Stage 5
+**prerequisite**, not Stage 5 itself - every VolSync source is still live and
+nothing has been retired.
+
+The earlier per-volume drills remain the procedural precedent it is built on,
+and are still accurate. Stage 2's restore gate **passed** on 2026-08-30 -
 [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-2.06 GiB, per-file sha256, modes and ownership included). Restore coverage also
-includes Stage 4 `changedetection-config` and Stage 4 `matter-server` (ceph
-only). Owner of that list, root-mover rules, schedules and rollback:
+2.06 GiB, per-file sha256, modes and ownership included). Stage 4 also drilled
+`changedetection-config` and `matter-server` (ceph only). Those three are spot
+checks superseded in *scope* by the 2026-09-01 fleet table; do not read them as
+the current limit of restore coverage. Owner of the onboarded claim list,
+root-mover rules, schedules and rollback:
 [`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
-Do not treat this directory's presence as fleet-wide backup verification.
+Do not treat this directory's presence alone as fleet-wide backup verification -
+the fleet proof lives in the 2026-09-01 table above.
 `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's files,
 or the backup fails closed on any file lacking a world-read bit (drill finding
 2) - a prerequisite for every onboarding, not a sabnzbd quirk. Continuous fleet
 signal for an empty successful backup is `KopiurBackupEmpty` in
 `app/prometheusrule.yaml` (`kopiur_policy_last_backup_files == 0`). Details,
-schedules, credentials compromise, later restore proofs and rollback:
+schedules, credentials compromise and rollback:
 [`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
 
 **Stage 0 rollback** (operator/repos only): delete the `kopiur` and
