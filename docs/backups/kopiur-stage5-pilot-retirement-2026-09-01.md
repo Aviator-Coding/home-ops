@@ -20,7 +20,7 @@ fleet-wide retirement and must not be read as precedent for one.**
 |---|---|
 | Volumes retired | 4 of 30 (`ai/repo-wiki`, `downloads/recyclarr-config`, `downloads/sabnzbd-config`, `media/seerr`) |
 | Volumes still dual-engine | **26**, all VolSync sources live and syncing within cadence |
-| Post-retirement backups | **8/8 Succeeded** - every retired claim, on both destinations |
+| Post-retirement backups | **8/8 Succeeded** - every retired claim, on both destinations - plus **4/4 cron-fired `ceph` runs** hours later |
 | Post-retirement restores | **8/8 Completed**, through the real populator path, resolving to the post-retirement snapshots |
 | Content fidelity | ceph and r2 byte-identical on all four; 3 of 4 byte-identical to the **entire** live tree |
 | Mode fidelity | **0 differences** on all four (kopiur stages read-only, so no `fsGroup` relaxation) |
@@ -290,7 +290,8 @@ for the already-documented reason - the condition is positive-only and needs a m
 `recyclarr` is a CronJob whose pod exists for ~18 s/day. Its absence is not a failure; the
 `Succeeded` snapshot at full file count is the measurement that matters.
 
-**Scheduled runs, as distinct from these on-demand ones.** See "Scheduled-run confirmation" below.
+**Scheduled runs, as distinct from these on-demand ones.** All four claims also completed a
+genuinely cron-fired `ceph` run afterwards - see "Scheduled-run confirmation" below.
 
 ### 3. A restore works from kopiur alone - through the real populator path
 
@@ -491,12 +492,23 @@ namespaces are `H 11` (downloads), `H 15` (media) and `H 19` (ai) America/New_Yo
 The `ceph` schedule is 4-hourly on the odd slots, so a genuinely **scheduled** post-retirement run
 was also observed for all four claims:
 
-| claim | scheduled `ceph` snapshot | phase | `filesNew` |
-|---|---|---|--:|
-| `ai/repo-wiki` | see below | | |
-| `downloads/recyclarr-config` | see below | | |
-| `downloads/sabnzbd-config` | see below | | |
-| `media/seerr` | see below | | |
+| claim | scheduled `ceph` snapshot | fired (UTC) | phase | `filesNew` | live files |
+|---|---|---|---|--:|--:|
+| `ai/repo-wiki` | `repo-wiki-ceph-20260901130025` | 13:00:25 | Succeeded | 178 | 178 |
+| `downloads/sabnzbd-config` | `sabnzbd-ceph-20260901130309` | 13:03:10 | Succeeded | 2065 | 2065 |
+| `downloads/recyclarr-config` | `recyclarr-ceph-20260901130707` | 13:07:07 | Succeeded | 2913 | 2913 |
+| `media/seerr` | `seerr-ceph-20260901140234` | 14:02:35 | Succeeded | 75 | 75 |
 
-Note the `SnapshotSchedule` objects are ordinary CRs reconciled by the kopiur operator, so
-suspending the Flux Kustomizations does not stop them firing.
+All four carry `status.origin: scheduled` - the operator's own record that the cron fired them,
+as distinct from the `manual` origin on the on-demand snapshots in section 2. So the schedules
+were not merely intact on paper; they ran, unattended, hours after their volume lost its second
+backup engine.
+
+The `SnapshotSchedule` objects are ordinary CRs reconciled by the kopiur operator, which is why
+suspending the four Flux Kustomizations does not stop them firing - a useful property here, and
+worth knowing before assuming a suspended app is also an unbacked-up one.
+
+`sabnzbd-config`'s 13:03 run was the first to use the raised 10Gi mover cache, so that change is
+exercised on the backup path as well as reasoned about on the restore path. `media/seerr` moved
+3 376 977 -> 3 439 576 bytes across the two runs at an unchanged 75 files, which is the same live
+write activity that accounts for its three drifting files in section 3.
