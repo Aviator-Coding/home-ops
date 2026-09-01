@@ -10,6 +10,10 @@
 > "Hard constraint this procedure satisfies" section first; it is binding here too.
 > Rebuilding a live claim rather than proving a repository is a different procedure:
 > [`corrupt-claim-recreation-runbook.md`](corrupt-claim-recreation-runbook.md).
+> Fleet-wide restore coverage (all 30 claims, both destinations, 2026-09-01) lives in
+> [`kopiur-restore-proof-2026-09-01.md`](kopiur-restore-proof-2026-09-01.md) - this Stage 2
+> document remains the durable *procedure* and the sabnzbd-config gate result, not the
+> fleet evidence table.
 
 ## Result
 
@@ -588,9 +592,11 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
 - Retention/pruning behaviour, `Maintenance`, or restore from any snapshot other than the newest
   (`offset: 0` throughout).
 - Anything about the rest of the fleet at drill time. Only two volumes were onboarded to kopiur
-  then; this drill is not fleet coverage. Later onboardings and any additional restore proofs are
-  tracked in [`kubernetes/components/kopiur/Readme.md`](../../kubernetes/components/kopiur/Readme.md)
-  - still not a fleet-wide restore proof.
+  then; this Stage 2 drill is not fleet coverage. The fleet-wide restore proof (all 30 claims on
+  both destinations) landed later in
+  [`kopiur-restore-proof-2026-09-01.md`](kopiur-restore-proof-2026-09-01.md). Onboarded claim list
+  and component contracts remain in
+  [`kubernetes/components/kopiur/Readme.md`](../../kubernetes/components/kopiur/Readme.md).
 
 ## Follow-ups
 
@@ -622,3 +628,9 @@ after confirming `kopiaSnapshotID` was empty, so no backup data was involved.
    reproduce the original modes.
 5. **Re-examine whether `downloads/autobrr` needs volume backup at all** (finding 1).
 6. Measure a large-PVC and a CephFS/RWX restore before Stage 5 retires anything in those classes.
+   **Large-PVC half done** by the 2026-09-01 fleet proof (`ai/hermes` 10.2 GB, `media/plex` 4.4 GB,
+   both destinations) -
+   [`kopiur-restore-proof-2026-09-01.md`](kopiur-restore-proof-2026-09-01.md). **CephFS/RWX remains
+   open**: none of the 30 kopiur-protected claims is that class (shared-downloads / tdarr media /
+   comfyui stay outside the dual-engine set), so a CephFS restore is still unmeasured if those
+   volumes are ever onboarded.

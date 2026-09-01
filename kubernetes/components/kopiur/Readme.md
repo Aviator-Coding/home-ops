@@ -12,8 +12,8 @@ This component only declares what to back up.
 > fleet's 30** VolSync-protected claims - zero deferred. Stage 3 (2026-08-30)
 > onboarded namespace by namespace; Stage 4 (2026-08-31) added both remaining
 > claims. **Both engines run on every volume** - every VolSync source is still
-> live, nothing has been retired, and retirement is Stage 5, which needs a
-> per-volume restore proof first.
+> live, nothing has been retired, and retirement is Stage 5, the remaining
+> deliberately-not-yet-done step.
 >
 > Stage 4 onboardings:
 > * `selfhosted/changedetection-config` did **not** need a root mover. It had
@@ -29,30 +29,32 @@ This component only declares what to back up.
 >   `kopiur.home-operations.com/privileged-movers=true` annotation on the
 >   overlay that actually produces the Namespace (`not-used` patch target).
 >
-> **Being onboarded is not the same as being proven.** Restores demonstrated
-> so far:
+> **All 30 claims are restore-proven on both destinations** (2026-09-01).
+> Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the
+> open r2-vs-ceph cache-capacity Stage 5 blocker:
+> [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
+> That fleet table is the authority on restore coverage, and it is the satisfied
+> Stage 5 **prerequisite**, not Stage 5 itself - every VolSync source is still
+> live and nothing has been retired.
+>
+> The earlier per-volume drills remain the procedural precedent it is built on,
+> and are still accurate:
 > * Stage 2 (2026-08-30) restore gate **passed** - `sabnzbd-config` from **both** ceph and r2,
 >   byte-identical (2062 files, 2.06 GiB, modes and ownership): durable
 >   procedure in
 >   [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
 > * Stage 4 (2026-08-31) - `changedetection-config` (kopia snapshot `c1127a61`,
->   3058 files / 36,993,597 B restored into a scratch PVC, per-file sha256
->   manifest identical to live, modes reproduced exactly - 2292x`600`,
->   565x`644`, 197x`660`, 4x`664` - where the VolSync restore of the same
->   volume returns `660`/`664` because it stages writable).
-> * Stage 4 (2026-08-31) - `home-automation/matter-server` from **ceph only**
->   (161 files / 1,548,374 bytes; live and scratch sha256
->   `6a777d64bacc9f0836ad2d574175821b55d1b1bd90f5e30adeebd17fc8aa2052`). A root
+>   3058 files, per-file sha256 manifest identical to live, modes reproduced
+>   exactly where the VolSync restore of the same volume returns `660`/`664`
+>   because it stages writable).
+> * Stage 4 (2026-08-31) - `home-automation/matter-server` from ceph only. A root
 >   restore preserves modes and content but rewrites mixed live uids to `0:0`
 >   (see "Root movers" below) - functional for this root app, not a
 >   content-fidelity failure.
-> Separately, **readability** (a precondition for a restore-fidelity drill, not a
-> substitute for one) is now proven for the one claim that had no running container to
-> measure it through: `downloads/recyclarr-config` (2026-08-31) - see
-> "SecurityContextCompatible" below. It still needs its own restore-fidelity drill before
-> Stage 5, same as every other claim in this table.
-> Do not read the 30 onboardings as fleet-wide backup verification; Stage 5
-> still needs a per-volume restore proof before retiring VolSync.
+>
+> Those three are spot checks superseded in *scope* by the 2026-09-01 fleet
+> table, which covers all 30 claims on both destinations; do not read them as
+> the current limit of restore coverage.
 > `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's
 > files, or the backup fails outright on any file lacking a world-read bit
 > (kopiur fails closed; its admission webhook warns at apply time) - a
@@ -599,7 +601,8 @@ immediate reconcile.
 * Stage 0 (operator, repositories, credentials): [`kubernetes/apps/base/system/kopiur/README.md`](../../apps/base/system/kopiur/README.md)
 * The system this runs beside: [`../volsync/Readme.md`](../volsync/Readme.md)
 * Restore drill procedure and its hard constraints: [`docs/backups/restore-drill-2026-08-23.md`](../../../docs/backups/restore-drill-2026-08-23.md)
-* Stage 2 restore gate (both destinations, both findings): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
-* `downloads/recyclarr-config` readability probe (CronJob claim; not restore-fidelity): [`docs/backups/recyclarr-config-readable-check-2026-08-31.md`](../../../docs/backups/recyclarr-config-readable-check-2026-08-31.md)
+* Fleet restore-proof authority (all 30 claims, both destinations, 2026-09-01): [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md)
+* Stage 2 restore gate (both destinations, both findings; durable procedure): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
+* `downloads/recyclarr-config` readability probe (CronJob claim; not restore-fidelity - restore proof is the fleet table above): [`docs/backups/recyclarr-config-readable-check-2026-08-31.md`](../../../docs/backups/recyclarr-config-readable-check-2026-08-31.md)
 * Stage 4 root-mover onboarding (`matter-server`): this Readme's "Root movers" section + `scripts/ci/kopiur-stage4-test.py`
 * Upstream docs: <https://kopiur.home-operations.com>
