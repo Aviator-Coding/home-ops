@@ -29,30 +29,16 @@ This component only declares what to back up.
 >   `kopiur.home-operations.com/privileged-movers=true` annotation on the
 >   overlay that actually produces the Namespace (`not-used` patch target).
 >
-> **Being onboarded is not the same as being proven.** Restores demonstrated
-> so far:
-> * Stage 2 (2026-08-30) restore gate **passed** - `sabnzbd-config` from **both** ceph and r2,
->   byte-identical (2062 files, 2.06 GiB, modes and ownership): durable
->   procedure in
->   [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
-> * Stage 4 (2026-08-31) - `changedetection-config` (kopia snapshot `c1127a61`,
->   3058 files / 36,993,597 B restored into a scratch PVC, per-file sha256
->   manifest identical to live, modes reproduced exactly - 2292x`600`,
->   565x`644`, 197x`660`, 4x`664` - where the VolSync restore of the same
->   volume returns `660`/`664` because it stages writable).
-> * Stage 4 (2026-08-31) - `home-automation/matter-server` from **ceph only**
->   (161 files / 1,548,374 bytes; live and scratch sha256
->   `6a777d64bacc9f0836ad2d574175821b55d1b1bd90f5e30adeebd17fc8aa2052`). A root
->   restore preserves modes and content but rewrites mixed live uids to `0:0`
->   (see "Root movers" below) - functional for this root app, not a
->   content-fidelity failure.
-> Separately, **readability** (a precondition for a restore-fidelity drill, not a
-> substitute for one) is now proven for the one claim that had no running container to
-> measure it through: `downloads/recyclarr-config` (2026-08-31) - see
-> "SecurityContextCompatible" below. It still needs its own restore-fidelity drill before
-> Stage 5, same as every other claim in this table.
-> Do not read the 30 onboardings as fleet-wide backup verification; Stage 5
-> still needs a per-volume restore proof before retiring VolSync.
+> **All 30 claims are restore-proven on both destinations** (2026-09-01).
+> Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the
+> open r2-vs-ceph cache-capacity Stage 5 blocker:
+> [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
+> Procedure that proof follows (and the earlier Stage 2 `sabnzbd-config`
+> gate): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md).
+> That proof is the Stage 5 **prerequisite**, not Stage 5 itself - every
+> VolSync source is still live and nothing has been retired. Do not reverse
+> the conclusion from older Stage 2/4 spot checks; those are superseded by the
+> 2026-09-01 fleet table.
 > `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's
 > files, or the backup fails outright on any file lacking a world-read bit
 > (kopiur fails closed; its admission webhook warns at apply time) - a

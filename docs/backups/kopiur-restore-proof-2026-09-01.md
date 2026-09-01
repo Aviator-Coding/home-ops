@@ -21,7 +21,7 @@ Sibling documents:
 
 ## Bottom line for Stage 5
 
-**All 30 claims restored from both `ceph` and `r2`, byte-identical between destinations.**
+**All 30 claims restored from both `ceph` and `r2`.** Destination trees are byte-identical except `downloads/prowlarr-config`, whose re-drill restored two different snapshot points (see the prowlarr note).
 
 Two results decide whether that is enough to retire VolSync, and they point in different
 directions:
@@ -91,7 +91,12 @@ Every object this run created carries `fm.homeops/restore-drill: kopiur-stage5`.
 - **The mover identity is read from the live `SnapshotPolicy`**, never from component defaults
   and never inferred from the pod's `runAsUser` - Stage 3 established that `plex`,
   `tdarr-config` and `calibre-web-automated` run as uid 0 while owning files `2000:2000`, and
-  `hermes` pins no `runAsUser` at all while owning 89k entries as `10000`.
+  `hermes` pins no `runAsUser` at all while owning 89k entries as `10000`. One harness trap
+  bit the original `prowlarr-config` row: the drill derived the mover gid from the uid, which
+  is correct for 29 of 30 claims (their policies use uid==gid) and wrong only for
+  `prowlarr-config`, the single fleet claim where they differ (`3002:3000`). That claim was
+  re-drilled at the true policy identity after the gate opened; see the prowlarr note under
+  the table.
 - **Compare manifests under a single collation.** Sorting with `LC_ALL=C sort` and then
   comparing with a `comm` that inherits a UTF-8 locale produces **silent false differences**:
   the two tools disagree on ordering, so `comm` reports paths as missing that are present in
@@ -258,32 +263,35 @@ four, and this is the only file-level one; the other three (`autobrr` `/config/l
 `home-assistant` `/config/logs` and `/config/tts`) are `emptyDir` **directories**, which `-xdev`
 does prune correctly.
 
-### Finding 4: four claims are too small for a restore to prove much
+### Finding 4: five claims are too small for a restore to prove much
 
 `downloads/autobrr` holds **one** file (2 179 bytes). Its restore matches byte-for-byte from
 both destinations, and that result is close to meaningless as a fidelity proof - it exercises
 the mechanism, not the data path at scale. The Stage 2 drill made the same point about this
 claim's Stage 1 snapshot, which succeeded while moving zero bytes.
 
-Three more are in the same category and are marked in the table rather than counted as ordinary
-passes: `selfhosted/paperless-ngx-media` (1 file), `selfhosted/syncthing-data` (5 files) and
-`selfhosted/obsidian-livesync` (8 files). `database/pgadmin` is a borderline case in the other
-direction - only 3 files, but 979 MiB of them, so its restore does exercise bulk data.
+Four more are in the same category and are marked in the table rather than counted as ordinary
+passes: `selfhosted/ntfy` (2 files), `selfhosted/paperless-ngx-media` (1 file),
+`selfhosted/syncthing-data` (5 files) and `selfhosted/obsidian-livesync` (8 files).
+`database/pgadmin` is a borderline case in the other direction - only 3 files, but 979 MiB of
+them, so its restore does exercise bulk data.
 
 ## Results
 
 **All 30 claims were drilled. All 30 restored successfully from both the `ceph` and the `r2`
-repository, and for every one of them the two destinations produced byte-identical trees.**
+repository.** For 29 of them the two destinations produced byte-identical trees; `prowlarr-config`
+is the deliberate exception after its correct-identity re-drill (different snapshot points, not a
+fidelity defect - see the prowlarr note).
 
 Read the verdict column with its markers - three of them qualify what "pass" means:
 
 - `‡` **cache-excluded**: the restore holds fewer files than live because kopia skips
-  `CACHEDIR.TAG` directories. Explained in [finding 1](#finding-1-kopia-excludes-cachedirtag-directories-so-restored-file-counts-are-legitimately-lower-than-live);
+  `CACHEDIR.TAG` directories. Explained in [finding 1](#finding-1-kopia-excludes-cachedirtag-directories---adjudicated-no-irreplaceable-data-is-affected);
   `snapshot filesNew` matches the restored count exactly in every such row, which is what shows
   the omission is deliberate rather than lossy.
 - `*` **too small to prove much**: the claim holds 1-8 files. The restore is correct but is a
   test of the mechanism, not of the data path. See
-  [finding 4](#finding-4-four-claims-are-too-small-for-a-restore-to-prove-much).
+  [finding 4](#finding-4-five-claims-are-too-small-for-a-restore-to-prove-much).
 - `†` **two volatile files differed** on `ai/hermes`. See the note under the table.
 
 | # | namespace / claim | mover<br>uid:gid | ceph snap | r2 snap | live files | snapshot `filesNew`<br>ceph / r2 | restored<br>ceph / r2 | restore manifest sha256 (12)<br>ceph / r2 | verdict |
@@ -295,7 +303,7 @@ Read the verdict column with its markers - three of them qualify what "pass" mea
 | 5 | `downloads/autobrr` | 2000:2000 | Succeeded | Succeeded | 1 | 1 / 1 | 1 / 1 | `fa14f3e480fb` / `fa14f3e480fb` (identical) | **PASS** \* |
 | 6 | `downloads/bazarr-config` | 2000:2000 | Succeeded | Succeeded | 17 | 17 / 17 | 17 / 17 | `42417889da0c` / `42417889da0c` (identical) | **PASS** |
 | 7 | `downloads/lidarr-config` | 2000:2000 | Succeeded | Succeeded | 478 | 478 / 478 | 478 / 478 | `7b727e6495b0` / `7b727e6495b0` (identical) | **PASS** |
-| 8 | `downloads/prowlarr-config` | 3002:3002 | Succeeded | Succeeded | 710 | 710 / 710 | 710 / 710 | `c8a2b31f6d14` / `c8a2b31f6d14` (identical) | **PASS** |
+| 8 | `downloads/prowlarr-config` | 3002:3000 | Succeeded | Succeeded | 710 | 710 / 710 | 710 / 710 | content-matched stable set (not destination-identical; see note) | **PASS** |
 | 9 | `downloads/radarr-config` | 2000:2000 | Succeeded | Succeeded | 6086 | 6086 / 6086 | 6086 / 6086 | `6fb28da0d1cf` / `6fb28da0d1cf` (identical) | **PASS** |
 | 10 | `downloads/readarr-config` | 2000:2000 | Succeeded | Succeeded | 4197 | 4197 / 4197 | 4197 / 4197 | `30b6a67c5a35` / `30b6a67c5a35` (identical) | **PASS** |
 | 11 | `downloads/recyclarr-config` | 2000:2000 | Succeeded | Succeeded | 2913 | 2913 / 2913 | 2913 / 2913 | `05e8116fc921` / `05e8116fc921` (identical) | **PASS** |
@@ -312,7 +320,7 @@ Read the verdict column with its markers - three of them qualify what "pass" mea
 | 22 | `selfhosted/changedetection-config` | 1000:1000 | Succeeded | Succeeded | 3069 | 3069 / 3069 | 3069 / 3069 | `ab4e633a8227` / `ab4e633a8227` (identical) | **PASS** |
 | 23 | `selfhosted/linkwarden` | 1000:1000 | Succeeded | Succeeded | 67 | 67 / 67 | 67 / 67 | `b42975d15de3` / `b42975d15de3` (identical) | **PASS** |
 | 24 | `selfhosted/n8n` | 1000:1000 | Succeeded | Succeeded | 7725 | 7725 / 7725 | 7725 / 7725 | `cd0fae1c2aff` / `cd0fae1c2aff` (identical) | **PASS** |
-| 25 | `selfhosted/ntfy` | 1000:1000 | Succeeded | Succeeded | 2 | 2 / 2 | 2 / 2 | `027268e78c5f` / `027268e78c5f` (identical) | **PASS** |
+| 25 | `selfhosted/ntfy` | 1000:1000 | Succeeded | Succeeded | 2 | 2 / 2 | 2 / 2 | `027268e78c5f` / `027268e78c5f` (identical) | **PASS** \* |
 | 26 | `selfhosted/obsidian-livesync` | 5984:5984 | Succeeded | Succeeded | 8 | 8 / 8 | 8 / 8 | `88858eb0b4e1` / `88858eb0b4e1` (identical) | **PASS** \* |
 | 27 | `selfhosted/paperless-ngx` | 1000:1000 | Succeeded | Succeeded | 32 | 32 / 32 | 32 / 32 | `b7d4afdbcc1e` / `b7d4afdbcc1e` (identical) | **PASS** |
 | 28 | `selfhosted/paperless-ngx-media` | 1000:1000 | Succeeded | Succeeded | 1 | 1 / 1 | 1 / 1 | `f6a6a1ecf1b4` / `f6a6a1ecf1b4` (identical) | **PASS** \* |
@@ -323,6 +331,36 @@ Read the verdict column with its markers - three of them qualify what "pass" mea
 what kopiur recorded for the on-demand verification snapshot taken for this drill; `restored` is
 the count actually walked in the restored scratch PVC. `restore manifest sha256` is the sha256
 of the sorted per-file `sha256  path` manifest of the whole restored tree.
+
+### The `downloads/prowlarr-config` re-drill
+
+The original table row transcribed the mover as `3002:3002`. That was a documentation / harness
+error, not a policy mismatch: live `SnapshotPolicy` mover `podSecurityContext` on both
+`prowlarr-ceph` and `prowlarr-r2`, the overlay pin (`KOPIUR_PUID`/`KOPIUR_PGID`),
+`EXPECTED_IDENTITY` in `scripts/ci/kopiur-stage3-test.py`, and the live Deployment
+`securityContext` all agree on `3002:3000`. The drill harness derived the mover gid from the
+uid, which is right for the other 29 claims and wrong only here.
+
+`prowlarr-config` was therefore **re-drilled at `3002:3000`** after the gate opened. Fresh
+verification snapshots `prowlarr-ceph-s5db` and `prowlarr-r2-s5db` both reported `filesNew` 710
+and `sizeBytes` 57 529 420; live held 710 files; both restores returned 710 files with **0
+unexplained gaps** against the stable set. The content proof stands at the true policy identity.
+
+Two honest caveats, not papered over:
+
+1. **Different snapshot points between destinations.** The ceph `Restore` used
+   `source.fromPolicy` `offset: 0`, which resolved to a newer **scheduled** snapshot
+   (`393f79bd60c310ce6357ee2f9d48e1d9`) that ran between the verification snapshot and the
+   restore, while r2 resolved to the verification snapshot
+   (`19c7b3199225b95aee6fabdc68fc2c07`). The two restored trees therefore differ by a small
+   number of lines purely because they are different points in time, not because of any
+   fidelity defect. That is why this row no longer claims destination-identical digests.
+2. **Ownership is the mover's, not the original owner's.** A kopiur restore materialises files
+   owned by the mover uid. Live prowlarr files are `1000:3000`; restored copies come back
+   `3002:3000` (526 metadata lines differ). Same class as the already-documented
+   `matter-server` behaviour, where a root restore mover materialises mixed live uids as
+   `0:0`. Functionally harmless here: directories are mode `2775` and files `664` with the
+   shared gid `3000`. The evidence does **not** claim ownership is reproduced exactly.
 
 ### The `ai/hermes` caveat (`†`)
 
@@ -396,7 +434,7 @@ Of the two questions that gate retirement:
    terminal. Raise `KOPIUR_CACHE_CAPACITY` on the large claims and prove an r2 restore at the
    new value first. This is the one genuine prerequisite this run uncovered.
 
-Separately, the four near-empty claims (finding 4) carry proofs that are thin by nature -
+Separately, the five near-empty claims (finding 4) carry proofs that are thin by nature -
 `autobrr` holds a single file - and may deserve a different kind of assurance than a restore
 comparison can give.
 
