@@ -55,9 +55,36 @@ spec:
       # so BOTH destinations would fail closed on the largest volume we have.
       KOPIUR_PUID: "10000"
       KOPIUR_PGID: "10000"
-      # Carried across from VOLSYNC_CACHE_CAPACITY above. Ephemeral, so it
-      # sizes an emptyDir for the run and adds no PVC.
-      KOPIUR_CACHE_CAPACITY: 5Gi
+      # RESTORE-SIZED, not backup-sized, and measured rather than guessed.
+      # The old 5Gi was carried across from VOLSYNC_CACHE_CAPACITY above - a
+      # restic-heritage number ("20-50% of the PVC") that has nothing to do with
+      # how kopia uses a cache - and it could not restore this claim from r2:
+      # docs/backups/kopiur-restore-proof-2026-09-01.md finding 2 recorded a
+      # terminal `no space left on device` on /var/cache/kopia, and a failed
+      # Restore never retries.
+      #
+      # Measured 2026-09-02 (docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md):
+      # during a restore the kopia cache grows ~1:1 with the bytes written into
+      # the target until it reaches kopia's own internal budget, observed here as
+      # a ~6.2 GiB plateau, and only then holds flat. So the cache a restore needs
+      # is min(snapshot size, ~6.2 GiB) - and at 5Gi (4.87 GiB usable) this claim's
+      # 9.7 GiB snapshot ran out of cache at roughly 45% restored, every time.
+      #
+      # 16Gi is sized to survive BOTH regimes, because the plateau is a kopia soft
+      # limit that this repo has never configured (kopiur sends `"cache":{}`, so
+      # kopia's built-in defaults govern eviction) and must not be leaned on:
+      #   - if eviction holds:      15.58 GiB usable vs 6.21 GiB measured peak = 2.5x
+      #   - if eviction never fires: covers the whole 9.70 GiB snapshot + ~60% growth
+      # Proven end-to-end at exactly this value: 65,978 files and 10,419,954,664
+      # bytes restored from r2, byte-for-byte the snapshot's own sizeBytes.
+      #
+      # Note this is a PVC, not an emptyDir (the previous comment here was wrong):
+      # `mode: Ephemeral` renders a generic ephemeral volumeClaimTemplate on the
+      # default StorageClass (ceph-block), thin-provisioned and deleted with the
+      # mover pod, so the raised figure costs only what a run actually writes.
+      # One variable feeds both the backup movers and the restore mover; the
+      # restore is the demanding direction, so it sets the value.
+      KOPIUR_CACHE_CAPACITY: 16Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, which already
       # carries volsync's ceph slot. Hour 19 carries no volsync destination and

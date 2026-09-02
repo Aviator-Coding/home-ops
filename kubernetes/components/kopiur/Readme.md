@@ -434,7 +434,7 @@ added complexity at exactly the wrong moment.
 | `APP` | *(required)* | names every object |
 | `KOPIUR_CLAIM` | `${APP}` | source PVC when it differs from the app name |
 | `KOPIUR_SNAPSHOTCLASS` | `csi-ceph-blockpool` | |
-| `KOPIUR_CACHE_CAPACITY` | `2Gi` | ephemeral, discarded after each run |
+| `KOPIUR_CACHE_CAPACITY` | `2Gi` | a generic ephemeral **PVC** (not an emptyDir) on the default StorageClass, discarded with the mover pod. Feeds the backup movers *and* the standing `Restore`; **size it for the restore**, which is the demanding direction - see "Sizing the mover cache" below |
 | `KOPIUR_PUID` / `KOPIUR_PGID` | `1000` | must match the workload uid/gid or backup fails closed on non-world-readable files (drill finding 2); mirrors `VOLSYNC_PUID`/`PGID` defaults only. Root (`0`) also needs the privileged-mover annotation below |
 | `KOPIUR_SCHEDULE_CEPH` | `H 1-23/4 * * *` | |
 | `KOPIUR_SCHEDULE_R2` | `H 4 * * *` | |
@@ -442,6 +442,52 @@ added complexity at exactly the wrong moment.
 | `KOPIUR_CAPACITY` | `5Gi` | **`./pvc` Component only** - size of the claim. Must match the LIVE claim: under `ssa: IfNotPresent` it is create-time-only and therefore unexercised until someone rebuilds the claim, which is what makes a wrong value dangerous rather than harmless |
 | `KOPIUR_ACCESSMODES` | `ReadWriteOnce` | `./pvc` Component only |
 | `KOPIUR_STORAGECLASS` | `ceph-block` | `./pvc` Component only |
+
+## Sizing the mover cache
+
+`KOPIUR_CACHE_CAPACITY` has to be sized against a **restore**, not a backup. A
+backup streams a read-only staged clone and stays small; a restore fills the
+cache with everything it pulls out of the repository, and **if it runs out the
+`Restore` fails terminally and never retries** - discovered, if you get it wrong,
+during an actual disaster.
+
+Measured on `ai/hermes` from `r2` on 2026-09-02
+(`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`): the cache grows
+**~1:1 with the bytes written into the restore target** until it reaches kopia's
+own internal budget - observed as a **~6.2 GiB plateau** - and only then holds
+flat while the restore runs on to completion.
+
+```
+restored:  0.4   1.9   2.5   3.1   4.2   5.4   6.4   7.2   8.6   9.7  GiB
+cache:     0.4   1.7   2.2   2.9   4.0   5.2   6.2   6.1   6.2   6.0  GiB
+                                              ^ plateau: eviction engages
+```
+
+So the working rule is:
+
+> **required cache ≈ min(snapshot `sizeBytes`, ~6.2 GiB), plus headroom.**
+
+Two consequences worth internalising:
+
+- **It is a cliff, not a slope.** While a claim's snapshot is smaller than its
+  cache, the cache simply never reaches the limit and any value works. The first
+  time a growing claim's snapshot crosses its cache capacity, the requirement
+  jumps straight to the full plateau - so a claim sitting just under its capacity
+  is not "nearly fine", it is one growth spurt from a terminal restore failure.
+- **Do not lean on the plateau.** kopiur sends `"cache":{}` in its work spec, so
+  it passes kopia neither `--content-cache-size-mb` nor `--metadata-cache-size-mb`
+  and kopia's built-in defaults govern eviction. That budget is a *soft* limit
+  this repo has never configured and does not pin, so anything large should be
+  sized to survive the no-eviction case too (i.e. cover the whole snapshot).
+
+The CRD does expose `mover.cache.contentCacheSizeMb` / `metadataCacheSizeMb`,
+which would let a small capacity be made safe by bounding kopia explicitly
+instead of by growing the PVC. Nothing in this repo sets them today; that is the
+structural fix if these capacities ever become expensive.
+
+Cost is not a reason to under-size: `mode: Ephemeral` renders a generic ephemeral
+`volumeClaimTemplate` on `ceph-block`, which is thin-provisioned and deleted with
+the mover pod, so a raised figure only ever consumes what a run actually writes.
 
 ## Root movers (`KOPIUR_PUID`/`PGID: 0`)
 
