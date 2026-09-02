@@ -56,7 +56,10 @@ This component only declares what to back up.
 > closed for `ai/hermes` on 2026-09-02** - authority on cache sizing is now
 > [`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`](../../../docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md)
 > (see "Sizing the mover cache" below); `media/plex` 10Gi is predicted safe but
-> not itself r2-exercised, and `media/tdarr` remains the closest under-provisioned claim.
+> not itself r2-exercised. `media/tdarr` and `downloads/radarr` were raised 2Gi -> 10Gi on
+> 2026-09-02 and `media/tdarr` is r2-proven at that value
+> (`docs/backups/kopiur-populator-drift-2026-09-02.md`), which also records that a raised
+> capacity does not reach the standing `Restore` without a one-time delete.
 >
 > The earlier per-volume drills remain the procedural precedent it is built on,
 > and are still accurate:
@@ -505,6 +508,18 @@ ownerReferences, owns no backup data - Stage 5 did this for `sabnzbd-kopiur-dst`
 Hand-written drill Restores always set capacity in their own spec and are
 unaffected. Full evidence:
 `docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`.
+
+**This applies to every templated field, not just the capacity - including fields
+added to the template *after* an object was created.** The 2026-09-02 fleet audit
+(`docs/backups/kopiur-populator-drift-2026-09-02.md`) compared all 30 populators
+against their resolved Git values and found two frozen: `ai/hermes` at a stale
+`5Gi`, and `downloads/autobrr` - the oldest object, from the Stage 1 pilot -
+carrying identity `1000:1000` where Git says `2000:2000` **and no
+`credentialProjection` at all**, either of which fails its restore closed. Both
+were recreated and all 30 agree with `main`. The same day's tdarr/radarr 2Gi->10Gi
+raises still need post-merge delete+reconcile (documented in that audit). Re-read
+the live object after changing any `KOPIUR_*` value; a green Kustomization proves
+nothing here.
 
 ## Root movers (`KOPIUR_PUID`/`PGID: 0`)
 

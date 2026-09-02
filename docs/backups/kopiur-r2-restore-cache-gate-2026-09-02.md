@@ -18,6 +18,10 @@ Sibling documents:
   proof whose finding 2 this closes, and the evidence standard this run is built to.
 - [`kopiur-stage5-pilot-retirement-2026-09-01.md`](kopiur-stage5-pilot-retirement-2026-09-01.md)
   - the four volumes already retired, and the retirement mechanics.
+- [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md) - the later
+  fleet-wide standing-`Restore` audit that closed this document's post-merge hermes
+  recreate, raised `media/tdarr` and `downloads/radarr` 2Gi -> 10Gi, and r2-proved tdarr
+  at 10Gi. Current authority on populator-vs-Git drift.
 
 ## Verdict
 
@@ -34,7 +38,7 @@ The gate is closed on measurement rather than on a larger round number: the run 
 established *why* the cache has to be that size, which turns the sizing question into
 arithmetic for every other claim in the fleet (see [finding 1](#finding-1)).
 
-Three honest limits on that verdict, none of which reopen the gate:
+Two honest limits on that verdict, neither of which reopens the gate:
 
 - **`media/plex`'s standing 10Gi was not itself exercised.** It is *predicted* safe by the
   measured model - its 4.16 GiB snapshot is well under its 9.74 GiB usable cache, so the
@@ -42,54 +46,31 @@ Three honest limits on that verdict, none of which reopen the gate:
   document gives for `hermes`. See [the fleet audit](#fleet-audit-every-claim-against-the-same-reasoning).
 - **The original ceph/r2 asymmetry is still not mechanistically explained.** See
   [finding 5](#finding-5).
-- **Merging this change does not itself update the standing CEPH populator.** See
-  [Post-merge prerequisite: recreate `hermes-kopiur-dst`](#post-merge-prerequisite-recreate-hermes-kopiur-dst).
 
-### Post-merge prerequisite: recreate `hermes-kopiur-dst`
+### Standing-populator recreate (CLOSED 2026-09-02)
 
-What merge updates, and what it does not:
+At the time this gate merged, raising `KOPIUR_CACHE_CAPACITY` updated both `hermes`
+`SnapshotPolicy` objects on Flux reconcile but **not** the standing CEPH populator
+`ai/hermes-kopiur-dst`, because `components/kopiur/ceph/restore.yaml` carries
+`kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`. Live evidence *before* the follow-up:
 
-- **Updated by Flux on reconcile:** both `hermes` `SnapshotPolicy` objects (`mover.cache.capacity`
-  → 16Gi).
-- **Not updated:** the standing CEPH populator `ai/hermes-kopiur-dst`. Its template carries
-  `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`, so Flux created it once and never reconciles
-  it again. It stays frozen at its create-time capacity forever until delete+recreate.
-
-Live evidence (measured before merge):
-
-| object | cache | ssa | finalizers | ownerReferences | phase |
+| object | cache then | ssa | finalizers | ownerReferences | phase |
 |---|--:|---|---|---|---|
 | `ai/hermes-kopiur-dst` | **5Gi** | `IfNotPresent` | none | none | `Pending` |
 | `media/tdarr-kopiur-dst` | 2Gi | `IfNotPresent` | — | — | — |
 | `media/plex-kopiur-dst` | 10Gi | `IfNotPresent` | — | — | — |
 | `downloads/sabnzbd-kopiur-dst` | 10Gi | `IfNotPresent` | — | — | — |
 
-That 5Gi populator is exactly what a rebuilt claim binds to if `ai/hermes` is ever retired to
-kopiur-only. 5Gi gives 4.87 GiB usable against the measured ~6.2 GiB plateau, so the CEPH
-claim-rebuild path would hit the same terminal cliff this change was written to remove.
-
-The recreate is **safe and has precedent**:
-
-- the component's own `kubernetes/components/kopiur/ceph/restore.yaml` comment already documents
-  delete+recreate as the correct remedy for a stale standing `Restore`;
-- `sabnzbd-kopiur-dst` was recreated this way during the Stage 5 pilot;
-- the object carries no finalizers and no `ownerReferences`, and owns no backup data.
-
-It is an **operational step that must happen AFTER this merges**. Doing it before would just
-have Flux recreate the object at the old 5Gi still declared on `main`. It is a **prerequisite
-for retiring `ai/hermes`**, not tidiness: without it the standing CEPH populator remains at the
-failing size even though Git and both `SnapshotPolicy` objects say 16Gi.
-
-Do **not** add `force: enabled` or remove `ssa: IfNotPresent` - that label is load-bearing
-(a bound PVC's `dataSourceRef` is immutable, and force would resolve the conflict by deleting
-and recreating the data volume). The remedy is the one-time recreate, not a manifest change.
+**Closed the same day** by the fleet-wide standing-populator audit: `hermes-kopiur-dst` was
+recreated at **16Gi**, `downloads/autobrr-kopiur-dst` (a second, independent create-time freeze)
+was recreated with the Git identity and `credentialProjection`, and the tdarr/radarr raises
+this gate recommended were applied in Git with their own post-merge recreate. Current authority
+- including the still-open tdarr/radarr live recreate after *that* merge, and why
+`ssa: IfNotPresent` must stay:
+[`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 
 The **r2 evidence in this document is unaffected**: the hand-written drill `Restore` set
 `mover.cache.capacity: 16Gi` in its own spec, so it never depended on the standing populator.
-
-`media/tdarr-kopiur-dst` is live at 2Gi, which reinforces the existing tdarr recommendation in
-the fleet audit - if tdarr is ever raised, its standing `Restore` needs the same post-raise
-recreate.
 
 ## The gate
 
@@ -373,11 +354,11 @@ is what must set the value.**
 `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`, so Flux creates it once and never reconciles
 it again. Raising `KOPIUR_CACHE_CAPACITY` in Git updates both `SnapshotPolicy` objects on the
 next reconcile, but **does not** move a live standing `Restore` off the capacity it was created
-with. `hermes-kopiur-dst` was created at 5Gi and stays there until it is deleted and recreated
-(safe: no finalizers, no ownerReferences, owns no backup data - the Stage 5 `sabnzbd-kopiur-dst`
-precedent). That recreate is a **post-merge / pre-retirement** operational step for the CEPH
-populator path; it is not required for hand-written r2 drills, which always carry capacity in
-their own spec. This run deliberately left the standing object untouched.
+with. This run deliberately left `hermes-kopiur-dst` at its create-time 5Gi; the later fleet
+audit recreated it at 16Gi and generalised the class (identity and `credentialProjection` can
+freeze the same way). Current authority:
+[`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md). Hand-written r2
+drills always carry capacity in their own spec and do not need the standing object.
 
 ### Finding 4
 
@@ -454,41 +435,35 @@ Applying `required cache ≈ min(snapshot sizeBytes, ~6.2 GiB)` to all 30 r2 pol
 policy's **live** `mover.cache.capacity` and its newest snapshot's `sizeBytes`. Usable capacity
 is the request × 0.974, the ratio measured on this run's 16Gi volume.
 
-| claim | cache | usable | snapshot | snapshot / usable | verdict |
+| claim | cache (as of this gate) | usable | snapshot | snapshot / usable | verdict then |
 |---|--:|--:|--:|--:|---|
 | `ai/hermes` | 5Gi -> **16Gi** | 4.87 -> 15.58 GiB | 9.70 GiB | 199% -> **62%** | **was FAILING - fixed by this change** |
-| `media/tdarr` | 2Gi | 1.95 GiB | 1.70 GiB | **87%** | **under-provisioned - recommend 10Gi** |
-| `downloads/radarr` | 2Gi | 1.95 GiB | 1.36 GiB | **70%** | **watch - recommend 10Gi** |
+| `media/tdarr` | 2Gi | 1.95 GiB | 1.70 GiB | **87%** | under-provisioned - recommend 10Gi |
+| `downloads/radarr` | 2Gi | 1.95 GiB | 1.36 GiB | **70%** | watch - recommend 10Gi |
 | `database/pgadmin` | 2Gi | 1.95 GiB | 0.93 GiB | 48% | ok |
 | `media/plex` | 10Gi | 9.74 GiB | 4.16 GiB | 43% | ok (predicted, not exercised) |
 | `selfhosted/n8n` | 2Gi | 1.95 GiB | 0.47 GiB | 24% | ok |
 | `downloads/sabnzbd` | 10Gi | 9.74 GiB | 2.06 GiB | 21% | ok |
 | remaining 23 claims | 2Gi / 5Gi | 1.95-4.87 GiB | ≤ 0.29 GiB | ≤ 15% | ok |
 
-**Two claims are under-provisioned for an r2 restore and are deliberately left unchanged by
-this task**, because neither is failing today and per-app configuration is a captain decision.
-The recommendation for both is one line each, and the reasoning is the cliff in finding 1:
+**The two under-provisioned rows above are historical for this gate.** Both recommendations
+were applied the same day - `media/tdarr` and `downloads/radarr` raised 2Gi -> **10Gi** in Git,
+with `media/tdarr` then r2-proven at exactly that value (17,281 files / 1,820,653,922 bytes).
+Current authority, including the post-merge live populator recreate those two still need:
+[`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 
-- **`media/tdarr` - the real one.** A 1.70 GiB snapshot against 1.95 GiB usable is **13%
-  margin on a volume that grows**. The moment it crosses 1.95 GiB the requirement does not
-  rise to 2.1 GiB, it jumps to the full ~6.2 GiB plateau, and the restore fails terminally.
-  Suggested change in `kubernetes/apps/main/media/tdarr.yaml`: `KOPIUR_CACHE_CAPACITY: 10Gi`
-  (matching `plex` and `sabnzbd` in the same size class).
-- **`downloads/radarr`** - 70%, the same shape with more runway.
-  `kubernetes/apps/main/downloads/radarr.yaml`: `KOPIUR_CACHE_CAPACITY: 10Gi`.
-
-`media/plex` is **not** on that list: its 4.16 GiB snapshot is well under its 9.74 GiB usable
-cache, so under the measured model the 1:1 regime tops out at ~4.2 GiB and never reaches the
-limit - 2.3x margin. That is a prediction from this run's measurement, not a demonstration;
-the honest statement is that plex's standing value looks comfortably safe and has not itself
-been exercised against r2. Proving it would cost one more ~7-minute drill restore.
+`media/plex` was **not** on that list then and is not now: its 4.16 GiB snapshot is well under
+its 9.74 GiB usable cache, so under the measured model the 1:1 regime tops out at ~4.2 GiB and
+never reaches the limit - 2.3x margin. That is a prediction from this run's measurement, not a
+demonstration; plex's standing value looks comfortably safe and has not itself been exercised
+against r2. Proving it would cost one more ~7-minute drill restore.
 
 A useful simplification falls out of finding 1: because the plateau is a property of kopia's
 budget rather than of the claim, **a single standing value of 10Gi would cover every claim in
 the fleet**, present and foreseeable, including any that later grows past its snapshot size.
 Raising the component default from `2Gi` to something plateau-covering would remove this class
 of problem permanently, at no real storage cost (finding 3). That is a component-wide change
-and is left as a recommendation.
+and remains a recommendation (re-stated, still not implemented, in the drift document).
 
 ## Safety properties of this run
 
@@ -500,10 +475,10 @@ and is left as a recommendation.
   created, deleted, patched or suspended.**
 - **The restore targeted a new scratch PVC.** `Restore.spec.target.pvc` creates its own claim
   and cannot address a live one.
-- **The standing `hermes-kopiur-dst` populator was not touched.** It remains `Pending` /
-  `AwaitingPvcDataSourceRef` by design, and still carries its create-time **5Gi** cache
-  (`ssa: IfNotPresent`). Git now says 16Gi; the live standing object does not until a
-  delete+recreate after merge (see finding 3 caveat).
+- **The standing `hermes-kopiur-dst` populator was not touched by this gate run.** It stayed
+  `Pending` / `AwaitingPvcDataSourceRef` at its create-time **5Gi** through this document's
+  merge. The later same-day fleet audit recreated it at 16Gi - see finding 3 caveat and
+  [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 - **Deletion safety was verified before deleting, not assumed**: the scratch `Restore` carried
   no finalizers and no `ownerReferences`, so its deletion could not cascade anywhere.
 
@@ -539,9 +514,10 @@ Post-run state:
 - That `media/plex` restores from r2 at its standing 10Gi. Predicted safe, not exercised.
 - Why a `plex` ceph restore succeeded at 2Gi when the model says it should not have
   ([finding 5](#finding-5)).
-- That the live `hermes-kopiur-dst` CEPH populator already runs at 16Gi. Git and new scratch
-  Restores do; the standing object is frozen at 5Gi by `ssa: IfNotPresent` until the
-  [post-merge recreate](#post-merge-prerequisite-recreate-hermes-kopiur-dst).
+- That the live `hermes-kopiur-dst` CEPH populator already ran at 16Gi *as of this gate*. It
+  did not; Git and new scratch Restores did, and the standing object stayed at 5Gi until the
+  later recreate recorded in
+  [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 - Anything about retirement. **No volume was retired and no `ReplicationSource` was touched.**
   Whether `ai/hermes` should now lose its second engine is a separate captain decision that
   this evidence informs but does not make.

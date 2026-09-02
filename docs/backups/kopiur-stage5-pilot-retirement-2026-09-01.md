@@ -254,9 +254,10 @@ result, which is exactly what finding 2 says not to do.
 standing populators were still at 5Gi and 10Gi with no r2 restore exercised at those values.
 **Update 2026-09-02:** finding 2 is closed for `ai/hermes` - Git raised to 16Gi and an r2
 scratch restore was proven at that value
-([`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md)).
-The live `hermes-kopiur-dst` object remains create-time 5Gi until delete+recreate
-(`ssa: IfNotPresent`); `media/plex` 10Gi is predicted safe but not r2-exercised.
+([`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md));
+the live `hermes-kopiur-dst` populator was then recreated at 16Gi the same day
+([`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md)).
+`media/plex` 10Gi is predicted safe but not r2-exercised.
 
 ## Execution
 
@@ -467,11 +468,12 @@ Fleet-wide, every other Flux Kustomization is `Ready` and every `HelmRelease` in
   were left for normal retention to prune.
 - **This says nothing about the other 26 volumes.** At pilot time it did not clear
   restore-proof finding 2 for `ai/hermes` or `media/plex`. **Update 2026-09-02:** finding 2 is
-  closed for `ai/hermes` (16Gi in Git, r2 scratch restore proven end-to-end);
-  `media/plex` 10Gi is predicted safe by that measurement but not itself r2-exercised; the live
-  `hermes-kopiur-dst` populator still needs delete+recreate to leave its create-time 5Gi
-  (`ssa: IfNotPresent`). Authority:
-  [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
+  closed for `ai/hermes` (16Gi in Git, r2 scratch restore proven end-to-end, standing populator
+  recreated at 16Gi); `media/plex` 10Gi is predicted safe by that measurement but not itself
+  r2-exercised. Authority:
+  [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md),
+  standing-populator closure
+  [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 - **MinIO coverage genuinely ends for these four.** kopiur has two destinations, not three (Stage
   0 gave it no MinIO `ClusterRepository`, the captain being on the way out of MinIO over its
   licensing change). Retiring VolSync therefore takes these four from 3 destinations to 2. That is
