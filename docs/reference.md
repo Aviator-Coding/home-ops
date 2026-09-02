@@ -137,4 +137,5 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 | [`grafana-operator-removal.md`](grafana-operator-removal.md) | Why the 10 `GrafanaDashboard` CRs and the grafana-operator CRD bootstrap were dead, what replaced them, and outstanding live-cluster cleanup. |
 | [`system-namespace-consolidation-analysis.md`](system-namespace-consolidation-analysis.md) | Why `system-controller` and `system-upgrade` must not merge into `system` (k8tz webhook exclusion + Talos allowlist blockers). Read before re-proposing; do not apply. |
 | [`admission-webhook-create-only-drift.md`](admission-webhook-create-only-drift.md) | CREATE-only mutating admission webhooks never re-fire on existing objects (k8tz CronJob `spec.timeZone` class): mechanism, detection, fix, and live sweep. |
+| [`k8tz-imagevolume-evaluation.md`](k8tz-imagevolume-evaluation.md) | Why k8tz `imageVolume` injection was evaluated and declined (2026-09-01): QoS gate passes, upstream still recommends `initContainer`, `/etc/localtime` drop, 34-pod BestEffort transition. Read before re-proposing; do not apply. |
 | [`reference.md`](reference.md) | This index. |

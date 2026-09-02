@@ -24,10 +24,17 @@ spec:
 
     # Injected bootstrap initContainers get requests==limits so they never
     # disqualify a pod from Guaranteed QoS (Talos runtime.OOMController skips
-    # Guaranteed cgroups — the rook-ceph mons depend on this; a resource-less
+    # Guaranteed cgroups - the rook-ceph mons depend on this; a resource-less
     # k8tz init kept them Burstable despite requests==limits everywhere else).
-    # Revisit when k8tz releases the imageVolume strategy (>0.19.0): it sets TZ
-    # without any init container and K8s 1.36 already supports image volumes.
+    #
+    # The imageVolume strategy this block once said to revisit HAS shipped (it
+    # is chart 0.20.0, already pinned below - there is no bump to make) and was
+    # evaluated on 2026-09-01 and DECLINED. It would drop these init containers
+    # and the mons stay Guaranteed, but upstream's own README says initContainer
+    # "remains the recommended strategy for now, because imageVolume currently
+    # does not support mounting /etc/localtime" - which would silently leave 242
+    # containers resolving /etc/localtime as UTC. Full evidence, and the two
+    # upstream conditions that reopen it: docs/k8tz-imagevolume-evaluation.md
     initContainerResources:
       requests:
         cpu: 100m
