@@ -188,11 +188,12 @@ ones it can prevent by construction; the rest need a human or agent to check for
 
 ## The scaffold
 
-`.claude/skills/add-app/SKILL.md` generates the base + overlay skeleton for whichever shape you
+`scripts/add-app/generate-app.sh` generates the base + overlay skeleton for whichever shape you
 pick, with the schema headers filled in and the substitute/healthCheck/component-depth traps above
-encoded directly into the generated files rather than left as something to remember. See that
-skill for usage; it does not wire up VolSync/kopiur backup blocks itself (those depend on
-per-app measurement, not a template) but points at the two components' own Readmes for that step.
+encoded directly into the generated files rather than left as something to remember. See
+`scripts/add-app/README.md` for usage; it does not wire up VolSync/kopiur backup blocks itself
+(those depend on per-app measurement, not a template) but points at the two components' own
+Readmes for that step.
 
 ## What this deliberately does not include
 
