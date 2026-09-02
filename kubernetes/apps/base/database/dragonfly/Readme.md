@@ -6,7 +6,7 @@ Dragonfly DB operator and per-app cache instances. There is **no centrally-deplo
 
 | Subdir | Purpose |
 | ------ | ------- |
-| `operator/` | Dragonfly operator HelmRelease (chart `v1.6.1`, OCI). Manages the `Dragonfly` CRD, master/replica failover, per-cluster `PodDisruptionBudget` (`maxUnavailable: 1`), and per-cluster `NetworkPolicy` (peer-pods-only on `:9999`). Bundles the operator Grafana dashboard into the "Database" folder. |
+| `app/` | Dragonfly operator HelmRelease (chart `v1.6.1`, OCI). Manages the `Dragonfly` CRD, master/replica failover, per-cluster `PodDisruptionBudget` (`maxUnavailable: 1`), and per-cluster `NetworkPolicy` (peer-pods-only on `:9999`). Bundles the operator Grafana dashboard into the "Database" folder. |
 
 The `cluster/` subdir was deleted as dead code (was commented out in `ks.yaml` for months and duplicated the real per-app component). All actual cluster config now lives in `kubernetes/components/dragonfly/`.
 
