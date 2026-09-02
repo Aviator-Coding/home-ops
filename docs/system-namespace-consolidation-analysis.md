@@ -78,9 +78,10 @@ and collides them with kopiur's **60 `SnapshotSchedule`s**, every one of which p
 `spec.schedule.timezone: America/New_York` and so does *not* move. That destroys the
 deliberate engine stagger established in PR #1509.
 
-Secondary: 2 of the 3 CronJobs in `system` carry a k8tz-injected
-`spec.timeZone: America/New_York`. The webhook fires on CREATE only, so they keep it until
-something recreates them - a namespace migration being exactly that.
+Secondary: CronJob `spec.timeZone` is also k8tz-injected, and the webhook is CREATE-only, so a
+namespace migration that recreates those objects re-stamps them. That is incidental to the
+blocker above (manager-pod `TZ`), not a reason the move is safe. Class and sweep:
+`docs/admission-webhook-create-only-drift.md`.
 
 ### There is no supported compensation
 
