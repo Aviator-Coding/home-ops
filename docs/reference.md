@@ -126,6 +126,7 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 
 | Path | What it covers |
 |---|---|
+| [`app-structure.md`](app-structure.md) | The three app directory shapes (single-component `app/`, multi-component family, CRD-split, parameterized instance), when each applies, and the concrete traps that bite when authoring a new app. Read before adding a new app; see also `.claude/skills/add-app/SKILL.md`. |
 | [`branch-protection.md`](branch-protection.md) | `main`'s GitHub ruleset: what is enforced, why only Labeler is a required check today, and what closes the gap. |
 | [`hardware-incidents.md`](hardware-incidents.md) | Hardware / Talos incident log (root cause, evidence, resolution). Use for node memory, DIMM RMA, and similar failures. |
 | [`talosctl.md`](talosctl.md) | Node IPs (not the VIP) and a short pointer to `just talos` recipes. |
