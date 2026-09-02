@@ -385,7 +385,7 @@ precisely why it is a captain decision and not a side effect of this task.
 |---|---|
 | `Snapshot` census, before -> after | **276 -> 276** |
 | `Snapshot` CRs deleted | 0 |
-| `ReplicationSource` objects touched | 0 |
+| `ReplicationSource` objects touched | 0 - and **78 remain**, which is exactly 26 dual-engine claims x 3 destinations, arithmetic confirmation that nothing was retired |
 | `SnapshotPolicy` / `SnapshotSchedule` / `ClusterRepository` touched | 0 |
 | live `media/tdarr-config` PVC uid | `e6451687-03c8-4bad-9a2c-53ad239101be`, unchanged |
 | live `media/tdarr-config` PV | `pvc-90f58035-898f-4dd6-a9e5-07776f0b21c2`, unchanged, `Bound` |
