@@ -34,6 +34,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 │   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, volsync, kopiur)
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
+├── .claude/skills/     # JIT-loaded subsystem skills (depth relocated from AGENTS.md NOTES)
 ├── .taskfiles/         # task recipes (flux, rook, network, 1password, actions-runner)
 ├── docs/               # runbooks and incident history
 └── .mise.toml          # workstation tool versions

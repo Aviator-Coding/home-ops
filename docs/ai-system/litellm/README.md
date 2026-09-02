@@ -257,9 +257,9 @@ the next reconcile rather than within 15 minutes.
 > **Key-alias collision / no adopt-by-alias.** A pre-existing proxy-DB row under
 > the same `keyAlias` (including keys left by the retired script) blocks minting
 > until deleted via `POST /key/delete` - that is a real credential rotation, not
-> optional cleanup. Authoritative trap, symptoms, and the related
-> controller-runtime backoff gotcha: the LiteLLM virtual-key and controller
-> NOTES entries in `AGENTS.md`.
+> optional cleanup. Authoritative trap and symptoms: skill `litellm-proxy`
+> (tripwire in `AGENTS.md`). Related controller-runtime backoff gotcha: the
+> controller NOTES entry in `AGENTS.md`.
 
 ### Adding or expanding a consumer (one file, not a redesign)
 

@@ -134,7 +134,7 @@ shortening the output matters more than shrinking the prompt.
 ## 5. Why a curated standards file instead of `AGENTS.md`
 
 The action `cat`s the standards file whole and then hard-truncates it to the **first 16000 bytes**
-(`std_cap` in `scripts/sections/corpus.sh`, head truncation). `AGENTS.md` is ~70kB, so it would
+(`std_cap` in `scripts/sections/corpus.sh`, head truncation). `AGENTS.md` is ~75kB, so it would
 arrive cut mid-sentence inside `UNIQUE STYLES`, with three of eight top-level sections missing -
 including all of `NOTES`, where most of this repo's load-bearing review knowledge lives.
 
@@ -186,10 +186,11 @@ healthy.
 1. Cluster side: the operator re-mints and the PushSecret updates 1Password.
 2. **GitHub side: update `LITELLM_PR_REVIEW_KEY` from the new value.**
 
-Note the alias-collision trap in `AGENTS.md`: LiteLLM key aliases are globally unique and the
-operator has no adopt-by-alias path, so if a key named `ai-pr-review` already exists at the proxy
-when the CR is first reconciled, the CR sits `Ready=False`/`GenerateFailed` forever while the proxy
-looks healthy. Delete the colliding key through the admin API first.
+Note the alias-collision trap in skill `litellm-proxy` (tripwire in `AGENTS.md`): LiteLLM key
+aliases are globally unique and the operator has no adopt-by-alias path, so if a key named
+`ai-pr-review` already exists at the proxy when the CR is first reconciled, the CR sits
+`Ready=False`/`GenerateFailed` forever while the proxy looks healthy. Delete the colliding key
+through the admin API first.
 
 ## 7. Verification evidence (2026-08-29)
 

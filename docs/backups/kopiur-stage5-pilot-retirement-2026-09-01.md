@@ -462,8 +462,12 @@ Fleet-wide, every other Flux Kustomization is `Ready` and every `HelmRelease` in
   snapshot through a finalizer, so deleting one deletes backup data. The 8 verification snapshots
   were left for normal retention to prune.
 - **This says nothing about the other 26 volumes.** In particular it does not clear
-  restore-proof finding 2 for `ai/hermes` or `media/plex`; those remain blocked on a larger
-  restore cache and an r2 restore proven at the new value.
+  restore-proof finding 2 for `ai/hermes` or `media/plex`; those remain blocked on an r2 restore
+  proven at their standing populator cache, which has never been exercised against r2. The cache
+  raise itself is only half outstanding: `plex` already stands at 10Gi and `hermes` is still at
+  5Gi, against the 20 GiB and 30 GiB their r2 restores actually needed. See "Restore cache: how
+  finding 2 was handled" above, and finding 2's table in
+  `docs/backups/kopiur-restore-proof-2026-09-01.md`.
 - **MinIO coverage genuinely ends for these four.** kopiur has two destinations, not three (Stage
   0 gave it no MinIO `ClusterRepository`, the captain being on the way out of MinIO over its
   licensing change). Retiring VolSync therefore takes these four from 3 destinations to 2. That is

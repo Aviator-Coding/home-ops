@@ -236,8 +236,8 @@ ffmpegVersion=7
 **`librariesToNotProcess` is a silent no-op on this unlicensed install - never
 use it as a scope boundary.** Mechanism, live proof, and the refuted "server
 push" hypothesis are owned by
-[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §1 (and the durable
-trap in root `AGENTS.md`). What holds here without a licence is the
+[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §1 (depth in skill
+`tdarr-transcoding`; tripwire in root `AGENTS.md`). What holds here without a licence is the
 library-level toggle:
 
 | Library | Id | Transcodes | How enforced |
