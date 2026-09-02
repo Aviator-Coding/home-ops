@@ -177,9 +177,12 @@ hardcode manifest paths fail on a missing file, and `flate` does not warn.
   GitOps change into a 3-node `apply-node` operation plus a `powercycle`-capable CR
   recreation.
 
-If a future k8tz release adds an `objectSelector` (or the `imageVolume` injection strategy
-already noted in the HelmRelease comment removes the pod webhook from the picture), the
-k8tz half becomes worth revisiting. Until then it is a regression.
+If a future k8tz release adds an `objectSelector` (or another way to exclude only the
+controller pods without the by-name release-namespace prepend), the k8tz half becomes
+worth revisiting. Until then it is a regression. The `imageVolume` injection strategy is
+not a path out of this: it still runs through the same mutating webhook and the same
+`ignoredNamespaces` prepend, and it was evaluated and declined on its own merits on
+2026-09-01 (`docs/k8tz-imagevolume-evaluation.md`).
 
 ## 6. What was changed instead
 
