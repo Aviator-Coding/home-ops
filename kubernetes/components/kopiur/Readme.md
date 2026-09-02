@@ -47,14 +47,16 @@ This component only declares what to back up.
 >   overlay that actually produces the Namespace (`not-used` patch target).
 >
 > **All 30 claims are restore-proven on both destinations** (2026-09-01).
-> Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the
-> open r2-vs-ceph cache-capacity Stage 5 blocker:
+> Per-volume evidence table and `CACHEDIR.TAG` adjudication:
 > [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
 > That fleet table is the authority on restore coverage, and it is the satisfied
 > Stage 5 **prerequisite**. It records the state *before* any retirement - every
 > VolSync source was still live when it was written. Four have since been
-> retired (above); the rest of that document stands unamended, including the two
-> findings that gate further retirement.
+> retired (above). Its finding 2 (r2 needs more kopia cache than ceph) **was
+> closed for `ai/hermes` on 2026-09-02** - authority on cache sizing is now
+> [`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`](../../../docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md)
+> (see "Sizing the mover cache" below); `media/plex` 10Gi is predicted safe but
+> not itself r2-exercised, and `media/tdarr` remains the closest under-provisioned claim.
 >
 > The earlier per-volume drills remain the procedural precedent it is built on,
 > and are still accurate:
@@ -343,8 +345,12 @@ including why those four, is
 
 **A per-volume restore proof comes first.** The fleet proof
 (`docs/backups/kopiur-restore-proof-2026-09-01.md`) is that evidence for all 30
-claims. Its finding 2 is still open for the large claims and blocks `ai/hermes`
-and `media/plex` specifically.
+claims. Its finding 2 (r2 cache sizing) is **closed for `ai/hermes`** and the
+large size class is r2-proven
+(`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`); before retiring a
+large claim still confirm its standing `KOPIUR_CACHE_CAPACITY` clears
+`min(snapshot sizeBytes, ~6.2 GiB)` and recreate any create-time
+`*-kopiur-dst` populator left behind by `ssa: IfNotPresent`.
 
 The overlay change is small:
 
@@ -434,7 +440,7 @@ added complexity at exactly the wrong moment.
 | `APP` | *(required)* | names every object |
 | `KOPIUR_CLAIM` | `${APP}` | source PVC when it differs from the app name |
 | `KOPIUR_SNAPSHOTCLASS` | `csi-ceph-blockpool` | |
-| `KOPIUR_CACHE_CAPACITY` | `2Gi` | ephemeral, discarded after each run |
+| `KOPIUR_CACHE_CAPACITY` | `2Gi` | a generic ephemeral **PVC** (not an emptyDir) on the default StorageClass, discarded with the mover pod. Feeds the backup movers *and* the standing `Restore`; **size it for the restore**, which is the demanding direction - see "Sizing the mover cache" below |
 | `KOPIUR_PUID` / `KOPIUR_PGID` | `1000` | must match the workload uid/gid or backup fails closed on non-world-readable files (drill finding 2); mirrors `VOLSYNC_PUID`/`PGID` defaults only. Root (`0`) also needs the privileged-mover annotation below |
 | `KOPIUR_SCHEDULE_CEPH` | `H 1-23/4 * * *` | |
 | `KOPIUR_SCHEDULE_R2` | `H 4 * * *` | |
@@ -442,6 +448,63 @@ added complexity at exactly the wrong moment.
 | `KOPIUR_CAPACITY` | `5Gi` | **`./pvc` Component only** - size of the claim. Must match the LIVE claim: under `ssa: IfNotPresent` it is create-time-only and therefore unexercised until someone rebuilds the claim, which is what makes a wrong value dangerous rather than harmless |
 | `KOPIUR_ACCESSMODES` | `ReadWriteOnce` | `./pvc` Component only |
 | `KOPIUR_STORAGECLASS` | `ceph-block` | `./pvc` Component only |
+
+## Sizing the mover cache
+
+`KOPIUR_CACHE_CAPACITY` has to be sized against a **restore**, not a backup. A
+backup streams a read-only staged clone and stays small; a restore fills the
+cache with everything it pulls out of the repository, and **if it runs out the
+`Restore` fails terminally and never retries** - discovered, if you get it wrong,
+during an actual disaster.
+
+Measured on `ai/hermes` from `r2` on 2026-09-02
+(`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`): the cache grows
+**~1:1 with the bytes written into the restore target** until it reaches kopia's
+own internal budget - observed as a **~6.2 GiB plateau** - and only then holds
+flat while the restore runs on to completion.
+
+```
+restored:  0.4   1.9   2.5   3.1   4.2   5.4   6.4   7.2   8.6   9.7  GiB
+cache:     0.4   1.7   2.2   2.9   4.0   5.2   6.2   6.1   6.2   6.0  GiB
+                                              ^ plateau: eviction engages
+```
+
+So the working rule is:
+
+> **required cache ≈ min(snapshot `sizeBytes`, ~6.2 GiB), plus headroom.**
+
+Two consequences worth internalising:
+
+- **It is a cliff, not a slope.** While a claim's snapshot is smaller than its
+  cache, the cache simply never reaches the limit and any value works. The first
+  time a growing claim's snapshot crosses its cache capacity, the requirement
+  jumps straight to the full plateau - so a claim sitting just under its capacity
+  is not "nearly fine", it is one growth spurt from a terminal restore failure.
+- **Do not lean on the plateau.** kopiur sends `"cache":{}` in its work spec, so
+  it passes kopia neither `--content-cache-size-mb` nor `--metadata-cache-size-mb`
+  and kopia's built-in defaults govern eviction. That budget is a *soft* limit
+  this repo has never configured and does not pin, so anything large should be
+  sized to survive the no-eviction case too (i.e. cover the whole snapshot).
+
+The CRD does expose `mover.cache.contentCacheSizeMb` / `metadataCacheSizeMb`,
+which would let a small capacity be made safe by bounding kopia explicitly
+instead of by growing the PVC. Nothing in this repo sets them today; that is the
+structural fix if these capacities ever become expensive.
+
+Cost is not a reason to under-size: `mode: Ephemeral` renders a generic ephemeral
+`volumeClaimTemplate` on `ceph-block`, which is thin-provisioned and deleted with
+the mover pod, so a raised figure only ever consumes what a run actually writes.
+
+**Raising the substitute does not update a live standing `Restore`.**
+`${APP}-kopiur-dst` carries `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`, so
+Flux applies the new capacity to both `SnapshotPolicy` objects but leaves an
+already-created populator at its create-time value. After raising
+`KOPIUR_CACHE_CAPACITY` on an onboarded claim, **delete and recreate** that
+`Restore` before relying on the CEPH populator path (safe: no finalizers, no
+ownerReferences, owns no backup data - Stage 5 did this for `sabnzbd-kopiur-dst`).
+Hand-written drill Restores always set capacity in their own spec and are
+unaffected. Full evidence:
+`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`.
 
 ## Root movers (`KOPIUR_PUID`/`PGID: 0`)
 

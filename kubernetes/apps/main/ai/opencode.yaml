@@ -54,8 +54,9 @@ spec:
       # MEASURED result rather than an assumption: live measurement 2026-08-30
       # found every entry owned 1000:1000 (pod securityContext 1000:1000:1000)
       # and nothing unreadable at 1000.
-      # Carried across from VOLSYNC_CACHE_CAPACITY above. The cache is
-      # Ephemeral, so this sizes an emptyDir for the run and adds no PVC.
+      # mode: Ephemeral is a generic ephemeral PVC on ceph-block (not an
+      # emptyDir), discarded with the mover pod. Size for the restore path:
+      # docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md
       KOPIUR_CACHE_CAPACITY: 5Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, which already

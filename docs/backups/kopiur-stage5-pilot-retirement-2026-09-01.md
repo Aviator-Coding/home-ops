@@ -116,7 +116,7 @@ byte-identical (`6a95dbce8b79`).
 | `home-automation/zigbee2mqtt-data` | Same class as matter-server - network key plus device pairings. |
 | `selfhosted/paperless-ngx` | Scanned documents. Genuinely irreplaceable. |
 | `downloads/autobrr` (1 file), `selfhosted/ntfy` (2), `paperless-ngx-media` (1), `syncthing-data` (5), `obsidian-livesync` (8) | Restore-proof finding 4 marks these as too small to prove anything. Retiring them would exercise the mechanism and say nothing about the data path - the same mistake as the Stage 1 pilot on an empty volume. |
-| `ai/hermes`, `media/plex` | **Restore-proof finding 2 blocks these specifically.** `plex` restored from ceph on a 2 GiB cache and *failed* from r2 on the same 2 GiB; `hermes` needed more than its standing populator carries. That is an unresolved DR prerequisite on the large claims and it is why no large claim is in this pilot. |
+| `ai/hermes`, `media/plex` | **Restore-proof finding 2 blocked these specifically** at the time of this pilot: `plex` restored from ceph on a 2 GiB cache and *failed* from r2 on the same 2 GiB; `hermes` needed more than its standing populator carries. That was an unresolved DR prerequisite on the large claims and is why no large claim is in this pilot. **Closed for `ai/hermes` on 2026-09-02** - raised to 16Gi and re-proven from r2 at that exact value ([`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md)); `media/plex`'s standing 10Gi is predicted safe by that run's measurement but has not itself been exercised against r2. This row records why they were excluded *here*; it is not a current verdict on retiring either of them. |
 | `ai/hermes`, `home-automation/home-assistant`, `media/calibre-web-automated` | Also carry the `‡` `CACHEDIR.TAG` marker. Adjudicated harmless by finding 1, but a first pilot should not carry a qualified proof. |
 | `downloads/prowlarr-config` | Its proof is sound but not destination-identical (the re-drill hit two different snapshot points). "Clean and unambiguous" ruled it out. |
 
@@ -238,8 +238,8 @@ ever retired.
 
 ### Restore cache: how finding 2 was handled
 
-Restore-proof finding 2 is an unresolved prerequisite for the **large** claims, and this pilot
-avoids them rather than working around them. `sabnzbd-config` is the only pilot volume anywhere
+Restore-proof finding 2 was an unresolved prerequisite for the **large** claims at pilot
+time, and this pilot avoided them rather than working around them. `sabnzbd-config` is the only pilot volume anywhere
 near the measured danger zone (2.06 GiB of data against the 2 GiB component default - the Stage 2
 drill did restore it from r2 at 2 GiB, but with no margin at all, and the volume grows). Its
 `KOPIUR_CACHE_CAPACITY` was raised 2Gi -> **10Gi**, roughly the 4.5x ratio `plex` actually needed,
@@ -250,9 +250,13 @@ The remaining three hold 458 KB, 79 MB and 3.4 MB against a 2 GiB cache - three 
 magnitude of headroom - and each was re-proven from r2 anyway rather than assumed from its ceph
 result, which is exactly what finding 2 says not to do.
 
-**Still open, and NOT addressed here:** `ai/hermes` and `media/plex` standing populators remain at
-5Gi and 10Gi with no r2 restore ever exercised against them. That work belongs before those
-volumes are retired.
+**Left open by this pilot (status as of the pilot date):** `ai/hermes` and `media/plex`
+standing populators were still at 5Gi and 10Gi with no r2 restore exercised at those values.
+**Update 2026-09-02:** finding 2 is closed for `ai/hermes` - Git raised to 16Gi and an r2
+scratch restore was proven at that value
+([`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md)).
+The live `hermes-kopiur-dst` object remains create-time 5Gi until delete+recreate
+(`ssa: IfNotPresent`); `media/plex` 10Gi is predicted safe but not r2-exercised.
 
 ## Execution
 
@@ -461,13 +465,13 @@ Fleet-wide, every other Flux Kustomization is `Ready` and every `HelmRelease` in
 - **No `Snapshot` CR was deleted**, here or during cleanup. A kopiur `Snapshot` owns its kopia
   snapshot through a finalizer, so deleting one deletes backup data. The 8 verification snapshots
   were left for normal retention to prune.
-- **This says nothing about the other 26 volumes.** In particular it does not clear
-  restore-proof finding 2 for `ai/hermes` or `media/plex`; those remain blocked on an r2 restore
-  proven at their standing populator cache, which has never been exercised against r2. The cache
-  raise itself is only half outstanding: `plex` already stands at 10Gi and `hermes` is still at
-  5Gi, against the 20 GiB and 30 GiB their r2 restores actually needed. See "Restore cache: how
-  finding 2 was handled" above, and finding 2's table in
-  `docs/backups/kopiur-restore-proof-2026-09-01.md`.
+- **This says nothing about the other 26 volumes.** At pilot time it did not clear
+  restore-proof finding 2 for `ai/hermes` or `media/plex`. **Update 2026-09-02:** finding 2 is
+  closed for `ai/hermes` (16Gi in Git, r2 scratch restore proven end-to-end);
+  `media/plex` 10Gi is predicted safe by that measurement but not itself r2-exercised; the live
+  `hermes-kopiur-dst` populator still needs delete+recreate to leave its create-time 5Gi
+  (`ssa: IfNotPresent`). Authority:
+  [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
 - **MinIO coverage genuinely ends for these four.** kopiur has two destinations, not three (Stage
   0 gave it no MinIO `ClusterRepository`, the captain being on the way out of MinIO over its
   licensing change). Retiring VolSync therefore takes these four from 3 destinations to 2. That is
