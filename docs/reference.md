@@ -13,6 +13,7 @@ These are not under `docs/`. They are the day-to-day starting points.
 | File | What it covers |
 |---|---|
 | [`AGENTS.md`](../AGENTS.md) (`CLAUDE.md` is a symlink to it) | Day-to-day commands, app layout, secrets, Volsync, networking, agent-facing conventions and anti-patterns |
+| [`.claude/skills/`](../.claude/skills/) | JIT-loaded subsystem depth relocated from `AGENTS.md` NOTES (`kopiur-backups`, `litellm-proxy`, `authentik-terraform`, `tdarr-transcoding`, `intel-gpu`, `cilium-host-policy`, `flux-substitution`). Each skill's `description` is the load trigger; tripwires stay in `AGENTS.md`. |
 | [`talos/AGENTS.md`](../talos/AGENTS.md) | Talos templates, render/apply/upgrade |
 | [`bootstrap/AGENTS.md`](../bootstrap/AGENTS.md) | First-time / disaster-recovery bootstrap |
 | [`README.md`](../README.md) | Cluster overview |

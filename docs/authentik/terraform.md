@@ -670,8 +670,9 @@ move on a live cluster.
 
 ## 7b. Traps this stack has already hit
 
-None of these are visible to `tofu validate`. AGENTS.md summarises four; the
-fourth (`change_flow` is model-level) lives with the write credential in
+None of these are visible to `tofu validate`. The agent-facing tripwire in
+`AGENTS.md` (depth in skill `authentik-terraform`) summarises four apply-time
+traps; `change_flow` is model-level and lives with the write credential in
 section 5.
 
 **`authentik_flow`'s terraform `id` is the SLUG, not the UUID.** A provider's
