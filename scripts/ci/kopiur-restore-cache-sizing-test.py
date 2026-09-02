@@ -63,6 +63,26 @@ PINNED: dict[str, tuple[str, str]] = {
         "value: 65,978 files / 10,419,954,664 bytes, matching the snapshot's own "
         "filesNew and sizeBytes",
     ),
+    "media/tdarr.yaml": (
+        "10Gi",
+        "1.6956 GiB snapshot (1,820,653,922 B). Its previous 2Gi left only 1.95 GiB "
+        "usable = 87%, the tightest margin in the fleet: 2Gi still worked, but the first "
+        "time this growing volume crossed 1.95 GiB the requirement would jump straight to "
+        "the ~6.2 GiB plateau and the restore would fail terminally - discoverable only "
+        "during an actual disaster. Proven end-to-end from r2 at exactly this value on "
+        "2026-09-02: 17,281 files / 1,820,653,922 bytes, matching the snapshot's own "
+        "filesNew and sizeBytes exactly, with 0 mode or ownership differences across "
+        "24,054 entries and 17,278/17,281 files byte-identical to an independent ceph "
+        "restore. See docs/backups/kopiur-populator-drift-2026-09-02.md",
+    ),
+    "downloads/radarr.yaml": (
+        "10Gi",
+        "1.36 GiB snapshot against 1.95 GiB usable at the old 2Gi = 70% - the same cliff "
+        "shape as media/tdarr with more runway. 10Gi clears the ~6.2 GiB plateau outright "
+        "so the claim cannot reach the cliff again. Sized rather than proven: the r2 "
+        "demonstration for this size class was run on media/tdarr, the tighter of the two, "
+        "at this same value. Like media/plex, do not lower it without a drill",
+    ),
     "media/plex.yaml": (
         "10Gi",
         "4.16 GiB snapshot. Raised from the 2Gi default by restore-proof finding 2 after "
