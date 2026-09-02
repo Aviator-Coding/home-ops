@@ -87,7 +87,7 @@ Steps:
 
 ## Operational notes
 
-- All CronJobs in this cluster have their `timeZone` overwritten by the `k8tz` admission webhook to `America/New_York`. Don't bother setting `timeZone` explicitly.
+- CronJob `spec.timeZone` is stamped by the `k8tz` admission webhook (`America/New_York`) on CREATE only — do not set it in git, and do not hand-patch it live. Objects that predate the webhook (or later lose the unowned field) keep running in UTC with every GitOps signal green; class, detection, and fix: `docs/admission-webhook-create-only-drift.md`.
 - `cluster-17/prometheusrule.yaml` defines the 7 alerts that operate on `cnpg_*` metrics; rules are cluster-wide so they cover any future CNPG cluster too.
 - Health gate for the Flux Kustomization is `status.readyInstances >= 1 && ContinuousArchiving == True`, NOT the Ready condition. CNPG can latch the Ready condition False indefinitely while still serving traffic — see the comment in `kubernetes/apps/main/database/cloudnative-pg.yaml`.
 - `cluster-17.yaml` keeps both the original `cluster` and renamed `cnpg_cluster` labels in `monitoring.podMonitorMetricRelabelings`. **Do not re-add `{ regex: cluster, action: labeldrop }`** — the bundled CNPG Grafana dashboard's `Cluster` dropdown extracts the legacy `cluster` label via regex and goes empty (every panel "No data") if it's dropped.

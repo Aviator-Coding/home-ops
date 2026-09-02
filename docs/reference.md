@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **69**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **70**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -105,6 +105,7 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 | [`downloads/sabnzbd-disk-space-runbook.md`](downloads/sabnzbd-disk-space-runbook.md) | SABnzbd "Too little diskspace" / `shared-downloads` CephFS full. Use when the movie pipeline is paused. |
 | [`media-stack.md`](media-stack.md) | Architecture of downloads to *arr to transcode to media servers. Use to see how the pipeline fits together. |
 | [`tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) | Tdarr safe-transcode traps (`librariesToNotProcess` Pro no-op, `customFunction` `code` vs `function`, `forceConform` stream deletion) and recovery path. Authoritative detail; `media-stack.md` points here. |
+| [`tdarr/README.md`](tdarr/README.md) | Tdarr rebuild runbook: PVC-only state (library scope, flow nodes, encoder args) that Flux cannot see, and how to restore it deliberately. |
 
 ## Network
 
@@ -134,4 +135,5 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 | [`flux-migration-validation-report.md`](flux-migration-validation-report.md) | **Historical snapshot** from 2026-03-29 of the pre-base/main Flux layout. Do not treat its FAILs as open work. |
 | [`grafana-operator-removal.md`](grafana-operator-removal.md) | Why the 10 `GrafanaDashboard` CRs and the grafana-operator CRD bootstrap were dead, what replaced them, and outstanding live-cluster cleanup. |
 | [`system-namespace-consolidation-analysis.md`](system-namespace-consolidation-analysis.md) | Why `system-controller` and `system-upgrade` must not merge into `system` (k8tz webhook exclusion + Talos allowlist blockers). Read before re-proposing; do not apply. |
+| [`admission-webhook-create-only-drift.md`](admission-webhook-create-only-drift.md) | CREATE-only mutating admission webhooks never re-fire on existing objects (k8tz CronJob `spec.timeZone` class): mechanism, detection, fix, and live sweep. |
 | [`reference.md`](reference.md) | This index. |

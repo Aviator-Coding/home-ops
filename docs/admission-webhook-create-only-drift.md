@@ -146,7 +146,7 @@ through the webhook — a CronJob's own object, by contrast, is written once and
 | `emqx-mutating-webhook-configuration` | EMQX CRDs | CREATE+UPDATE | No, same reasoning. |
 | `kopiur-mutating` | kopiur CRDs | CREATE+UPDATE | No, same reasoning. |
 | `kube-prometheus-stack-admission` (mutating) | `prometheusrules` | CREATE+UPDATE | No, same reasoning. |
-| All 12 `ValidatingWebhookConfiguration`s | various | mostly CREATE+UPDATE, one CREATE+UPDATE+DELETE | Validating webhooks are a different failure shape — they reject, they don't write silent stale state into an object's spec — and none found here is CREATE-only on a long-lived kind. Not pursued further. |
+| All 11 `ValidatingWebhookConfiguration`s | various | mostly CREATE+UPDATE; External Secrets' `externalsecret-validate` / `secretstore-validate` also include DELETE | Validating webhooks are a different failure shape — they reject, they don't write silent stale state into an object's spec — and none found here is CREATE-only on a long-lived kind. Not pursued further. |
 
 **Conclusion: k8tz is the only admission webhook in this cluster exposed to this class today.**
 No other CREATE-only mutating rule has a matching long-lived object that predates it. The two
