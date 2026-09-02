@@ -29,7 +29,8 @@ Thumbs.db
 .auto-claude/
 
 # Claude Code artifacts
-.claude/
+.claude/*
+!.claude/skills/
 logs/
 specs/
 reports/
