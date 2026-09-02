@@ -238,8 +238,8 @@ ever retired.
 
 ### Restore cache: how finding 2 was handled
 
-Restore-proof finding 2 is an unresolved prerequisite for the **large** claims, and this pilot
-avoids them rather than working around them. `sabnzbd-config` is the only pilot volume anywhere
+Restore-proof finding 2 was an unresolved prerequisite for the **large** claims at pilot
+time, and this pilot avoided them rather than working around them. `sabnzbd-config` is the only pilot volume anywhere
 near the measured danger zone (2.06 GiB of data against the 2 GiB component default - the Stage 2
 drill did restore it from r2 at 2 GiB, but with no margin at all, and the volume grows). Its
 `KOPIUR_CACHE_CAPACITY` was raised 2Gi -> **10Gi**, roughly the 4.5x ratio `plex` actually needed,

@@ -47,14 +47,16 @@ This component only declares what to back up.
 >   overlay that actually produces the Namespace (`not-used` patch target).
 >
 > **All 30 claims are restore-proven on both destinations** (2026-09-01).
-> Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the
-> open r2-vs-ceph cache-capacity Stage 5 blocker:
+> Per-volume evidence table and `CACHEDIR.TAG` adjudication:
 > [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
 > That fleet table is the authority on restore coverage, and it is the satisfied
 > Stage 5 **prerequisite**. It records the state *before* any retirement - every
 > VolSync source was still live when it was written. Four have since been
-> retired (above); the rest of that document stands unamended, including the two
-> findings that gate further retirement.
+> retired (above). Its finding 2 (r2 needs more kopia cache than ceph) **was
+> closed for `ai/hermes` on 2026-09-02** - authority on cache sizing is now
+> [`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`](../../../docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md)
+> (see "Sizing the mover cache" below); `media/plex` 10Gi is predicted safe but
+> not itself r2-exercised, and `media/tdarr` remains the closest under-provisioned claim.
 >
 > The earlier per-volume drills remain the procedural precedent it is built on,
 > and are still accurate:
@@ -343,8 +345,12 @@ including why those four, is
 
 **A per-volume restore proof comes first.** The fleet proof
 (`docs/backups/kopiur-restore-proof-2026-09-01.md`) is that evidence for all 30
-claims. Its finding 2 is still open for the large claims and blocks `ai/hermes`
-and `media/plex` specifically.
+claims. Its finding 2 (r2 cache sizing) is **closed for `ai/hermes`** and the
+large size class is r2-proven
+(`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`); before retiring a
+large claim still confirm its standing `KOPIUR_CACHE_CAPACITY` clears
+`min(snapshot sizeBytes, ~6.2 GiB)` and recreate any create-time
+`*-kopiur-dst` populator left behind by `ssa: IfNotPresent`.
 
 The overlay change is small:
 

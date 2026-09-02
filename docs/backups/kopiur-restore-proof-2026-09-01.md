@@ -29,6 +29,8 @@ Sibling documents:
 
 - [`kopiur-restore-drill-2026-08-30.md`](kopiur-restore-drill-2026-08-30.md) - the procedure
   this run follows, and the Stage 2 `sabnzbd-config` proof.
+- [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md) -
+  closes finding 2 for `ai/hermes`; authority on `KOPIUR_CACHE_CAPACITY` sizing.
 - [`recyclarr-config-readable-check-2026-08-31.md`](recyclarr-config-readable-check-2026-08-31.md)
   - the CSI-clone technique reused here for claims with no readable live mount.
 - [`restore-drill-2026-08-23.md`](restore-drill-2026-08-23.md) - the VolSync equivalent and
@@ -50,15 +52,16 @@ directions:
 > those tools tagged as caches themselves, containing only public PyPI packages and no
 > user-authored file anywhere.
 >
-> ### 2. A real offsite restore needs more kopia cache than any of our claims are configured with. Fix this **before** retiring anything. *(closed for `ai/hermes` on 2026-09-02 - see the note on finding 2 below)*
+> ### 2. A real offsite restore needs more kopia cache than any of our claims are configured with. Fix this **before** retiring anything. *(closed for `ai/hermes` on 2026-09-02)*
 >
 > `media/plex` restored from `ceph` on a 2 GiB cache and **failed from `r2` on that same
-> 2 GiB**. `ai/hermes` needed more than the 5 GiB its standing populator carries. A failed
-> `Restore` is terminal and never retries. This is an **operational prerequisite for disaster
-> recovery**, not a footnote: see
+> 2 GiB**. `ai/hermes` needed more than the 5 GiB its standing populator then carried. A failed
+> `Restore` is terminal and never retries. **Closed for `ai/hermes`** (16Gi, r2-proven) -
+> authority
+> [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md);
+> discovery record:
 > [finding 2](#finding-2-an-r2-restore-needs-a-materially-larger-kopia-cache-than-the-same-restore-from-ceph---an-operational-prerequisite-for-dr).
-> While VolSync is still in place it is a latent problem; the moment VolSync is retired it
-> becomes the difference between having an offsite backup and having one you cannot read.
+> `media/plex` 10Gi is predicted safe but not itself r2-exercised.
 
 ## The gate
 
@@ -252,11 +255,11 @@ moment this would be discovered, so the cache capacity on the large claims deser
 before VolSync is retired - it is a one-line change per overlay, and it is the difference
 between a DR restore working and failing terminally.
 
-#### Treat this as a Stage 5 blocker, not a footnote
+#### Why this was a Stage 5 blocker, not a footnote
 
-Measured cache behaviour, all with `mode: Ephemeral`:
+Measured cache behaviour *as of this 2026-09-01 run*, all with `mode: Ephemeral`:
 
-| claim | live size | ceph restore | r2 restore | standing populator cache |
+| claim | live size | ceph restore | r2 restore | standing populator cache (then) |
 |---|--:|---|---|---|
 | `media/plex` | 4.4 GB | **succeeded** at 2 GiB | **failed** at 2 GiB, succeeded at 20 GiB | 10 GiB |
 | `ai/hermes` | 10.2 GB | failed at 2 GiB, succeeded at 30 GiB | failed at 2 GiB, succeeded at 30 GiB | 5 GiB |
@@ -264,14 +267,17 @@ Measured cache behaviour, all with `mode: Ephemeral`:
 `plex` is the decisive row: identical volume, identical snapshot content, identical mover
 identity, and the outcome differs purely by repository. So this is a property of the offsite
 backend, not of volume size alone, and a ceph restore succeeding tells you nothing about whether
-the r2 restore of the same claim will.
+the r2 restore of the same claim will. That conclusion still holds after the 2026-09-02
+closure - see finding 5 of
+[`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
 
-Neither standing `*-kopiur-dst` populator has ever been exercised against r2. While VolSync is
-still in place this is latent. **The moment VolSync is retired, it becomes the difference
-between holding an offsite backup and holding one that cannot be read** - and the failure is
-terminal, discovered during an actual disaster. Raising `KOPIUR_CACHE_CAPACITY` on at least
-`hermes` and `plex`, and re-running an r2 restore drill against the new value, belongs *before*
-the first `ReplicationSource` is removed. It is a one-line change per overlay.
+At the time of this run neither standing `*-kopiur-dst` populator had been exercised against
+r2, so the risk was latent while VolSync was still in place and would become a terminal DR
+failure the moment VolSync was retired. The work this paragraph called for - raise
+`KOPIUR_CACHE_CAPACITY` on the large claims and re-prove an r2 restore at the new value - is
+**done for `ai/hermes`** (16Gi in Git, r2-proven); `media/plex` 10Gi is predicted safe by that
+measurement but not itself r2-exercised. Current authority:
+[`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
 
 ### Finding 3: reading "live" through the app pod can include bytes the claim does not hold
 
@@ -460,11 +466,14 @@ Of the two questions that gate retirement:
    replacement for VolSync on `ai/hermes`, not a lossy one. No further work is required here
    before retirement; the optional cleanup is committing a dependency manifest beside the three
    unmanifested venvs, which is worth doing for its own sake.
-2. **Restore cache capacity is NOT settled, and should block retirement until it is.**
-   Finding 2: `plex` failed its r2 restore on the 2 GiB that its ceph restore succeeded on, and
-   `hermes` needed more than the 5 GiB its standing populator carries. A failed `Restore` is
-   terminal. Raise `KOPIUR_CACHE_CAPACITY` on the large claims and prove an r2 restore at the
-   new value first. This is the one genuine prerequisite this run uncovered.
+2. **Restore cache capacity was the one genuine prerequisite this run uncovered - and is
+   settled for `ai/hermes`.** Finding 2 recorded that `plex` failed its r2 restore on the 2 GiB
+   that its ceph restore succeeded on, and that `hermes` needed more than the 5 GiB its standing
+   populator then carried. A failed `Restore` is terminal. **Closed for `ai/hermes` on
+   2026-09-02** (raised to 16Gi, r2 restore proven end-to-end at that value); authority on the
+   sizing rule and remaining under-provisioned claims is now
+   [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
+   `media/plex` 10Gi is predicted safe by that measurement but was not itself r2-exercised.
 
 Separately, the five near-empty claims (finding 4) carry proofs that are thin by nature -
 `autobrr` holds a single file - and may deserve a different kind of assurance than a restore

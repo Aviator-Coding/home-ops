@@ -47,9 +47,12 @@ spec:
       # identity here, not the pod's uid.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
-      # Carried across from VOLSYNC_CACHE_CAPACITY above: this is the largest
-      # file count in `media` (20,089 files / 4.06 GiB). The cache is Ephemeral,
-      # so this sizes an emptyDir for the run and adds no PVC.
+      # Raised from the 2Gi default after restore-proof finding 2 (r2 failed at
+      # 2Gi on this claim). mode: Ephemeral is a generic ephemeral PVC on
+      # ceph-block (not an emptyDir), discarded with the mover pod - size for
+      # the restore. 10Gi is predicted safe by the 2026-09-02 measurement
+      # (4.16 GiB snapshot << 9.74 GiB usable) but has not itself been r2-exercised:
+      # docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md
       KOPIUR_CACHE_CAPACITY: 10Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, which already
