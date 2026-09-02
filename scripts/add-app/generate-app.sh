@@ -140,6 +140,7 @@ components_relpath() {
 
 kustomization_yaml_header='# yaml-language-server: $schema=https://json.schemastore.org/kustomization'
 helmrelease_schema='# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json'
+flux_helmrelease_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json'
 externalsecret_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json'
 overlay_ks_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json'
 ocirepository_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json'
@@ -312,7 +313,7 @@ render_crds_helmrelease() {
   local app="$1"
   cat <<EOF
 ---
-$helmrelease_schema
+$flux_helmrelease_schema
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -338,10 +339,16 @@ EOF
 # management here - callers decide whether this is the whole file or one
 # document among several separated by ---).
 render_overlay_doc() {
-  local ks_name="$1" namespace="$2" base_path="$3" secrets="$4" dragonfly="$5" wait_false="$6" depends_on_crds="$7"
+  local ks_name="$1" namespace="$2" base_path="$3" secrets="$4" dragonfly="$5" wait_false="$6" depends_on_crds="$7" workload_name="$8"
+  # workload_name is the rendered Deployment/HelmRelease name. For the default
+  # app shape it matches ks_name; for a family sibling piece it is the piece
+  # name (live precedent: KS rsshub-playwright, Deployment playwright).
+  [[ -z "$workload_name" ]] && workload_name="$ks_name"
   local depends=()
   [[ "$secrets" -eq 1 ]] && depends+=("    - name: onepassword-store
       namespace: security")
+  [[ "$dragonfly" -eq 1 ]] && depends+=("    - name: dragonfly-operator
+      namespace: database")
   [[ "$depends_on_crds" -eq 1 ]] && depends+=("    - name: $ks_name-crds
       namespace: $namespace")
   local depends_on_block=""
@@ -359,6 +366,12 @@ $(printf '%s\n' "${depends[@]}")
   local wait_line=""
   [[ "$wait_false" -eq 1 ]] && wait_line="  wait: false
 "
+  local healthcheck_name_line
+  if [[ "$workload_name" == "$ks_name" ]]; then
+    healthcheck_name_line="      name: *app"
+  else
+    healthcheck_name_line="      name: $workload_name"
+  fi
   cat <<EOF
 ---
 $overlay_ks_schema
@@ -384,13 +397,16 @@ $components_block  commonMetadata:
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
-      name: *app
+$healthcheck_name_line
       namespace: *namespace
 $wait_line$depends_on_block  sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
   postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
     substitute:
       APP: *app
 EOF
@@ -446,7 +462,7 @@ case "$SHAPE" in
     write_file "$base_dir/helmrelease.yaml" "$(render_helmrelease "$APP")"
     [[ "$WITH_SECRETS" -eq 1 ]] && write_file "$base_dir/externalsecret.yaml" "$(render_externalsecret "$APP")"
     overlay_path="$MAIN_NS_DIR/$APP.yaml"
-    doc="$(render_overlay_doc "$APP" "$NAMESPACE" "$base_dir" "$WITH_SECRETS" "$WITH_DRAGONFLY" 1 0)"
+    doc="$(render_overlay_doc "$APP" "$NAMESPACE" "$base_dir" "$WITH_SECRETS" "$WITH_DRAGONFLY" 1 0 "$APP")"
     write_file "$overlay_path" "$doc"
     add_namespace_resource_entry
     ;;
@@ -456,17 +472,23 @@ case "$SHAPE" in
       echo "error: --shape=family requires --piece=<name>" >&2
       exit 1
     fi
-    base_dir="$BASE_NS_DIR/$APP/$PIECE"
-    write_file "$base_dir/kustomization.yaml" "$(render_base_kustomization "$WITH_SECRETS")"
-    write_file "$base_dir/helmrelease.yaml" "$(render_helmrelease "$APP")"
-    [[ "$WITH_SECRETS" -eq 1 ]] && write_file "$base_dir/externalsecret.yaml" "$(render_externalsecret "$APP")"
+    # Live family pieces name the HelmRelease/controller after the piece
+    # (playwright), and the overlay Kustomization after app-piece
+    # (rsshub-playwright). Naming both after the parent app collides with the
+    # main piece and leaves healthChecks looking for the wrong Deployment.
     if [[ "$PIECE" == "app" ]]; then
       ks_name="$APP"
+      hr_name="$APP"
     else
       ks_name="$APP-$PIECE"
+      hr_name="$PIECE"
     fi
+    base_dir="$BASE_NS_DIR/$APP/$PIECE"
+    write_file "$base_dir/kustomization.yaml" "$(render_base_kustomization "$WITH_SECRETS")"
+    write_file "$base_dir/helmrelease.yaml" "$(render_helmrelease "$hr_name")"
+    [[ "$WITH_SECRETS" -eq 1 ]] && write_file "$base_dir/externalsecret.yaml" "$(render_externalsecret "$hr_name")"
     overlay_path="$MAIN_NS_DIR/$APP.yaml"
-    doc="$(render_overlay_doc "$ks_name" "$NAMESPACE" "$base_dir" "$WITH_SECRETS" "$WITH_DRAGONFLY" 1 0)"
+    doc="$(render_overlay_doc "$ks_name" "$NAMESPACE" "$base_dir" "$WITH_SECRETS" "$WITH_DRAGONFLY" 1 0 "$hr_name")"
     write_or_append_overlay "$overlay_path" "$doc"
     add_namespace_resource_entry
     echo "reminder: family members that depend on each other need an explicit" \
@@ -484,7 +506,7 @@ case "$SHAPE" in
     write_file "$crds_dir/helmrelease.yaml" "$(render_crds_helmrelease "$APP")"
 
     overlay_path="$MAIN_NS_DIR/$APP.yaml"
-    app_doc="$(render_overlay_doc "$APP" "$NAMESPACE" "$app_dir" "$WITH_SECRETS" "$WITH_DRAGONFLY" 1 1)"
+    app_doc="$(render_overlay_doc "$APP" "$NAMESPACE" "$app_dir" "$WITH_SECRETS" "$WITH_DRAGONFLY" 1 1 "$APP")"
     crds_doc="$(cat <<EOF
 ---
 $overlay_ks_schema

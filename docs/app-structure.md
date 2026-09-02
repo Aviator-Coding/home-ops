@@ -171,14 +171,16 @@ ones it can prevent by construction; the rest need a human or agent to check for
   Only `KOPIUR_PUID`/`PGID` and `VOLSYNC_PUID`/`PGID` actually drive a mover's security context;
   anything else you add to `substitute:` should be consumed by a manifest in the same
   Kustomization's build output.
-- **A `components/kopiur` include with an implicit `wait: true` can never go `Ready`.** The
-  component ships a standing `Restore` in passive populator mode that reports
+- **A `components/kopiur` include with `wait: true` can never go `Ready`.** The component ships a
+  standing `Restore` in passive populator mode that reports
   `Ready=False`/`AwaitingPvcDataSourceRef` until a rebuilt claim actually claims it - which is
-  correct, but it means the owning Kustomization can't use inline `wait: true` (the Flux default)
-  or Flux blocks forever on that one object. Split kopiur into its own `wait: false` Kustomization
-  pointed at `components/kopiur/backup`, the way `database/cloudnative-pg.yaml` and
-  `media/calibre-web-automated.yaml` do, when an overlay would otherwise wait on the whole
-  inventory. Full mechanism: `kubernetes/components/kopiur/Readme.md`, trap (4).
+  correct, but it means the owning Kustomization must not set `wait: true` or Flux blocks forever
+  on that one object. Flux's default for `spec.wait` is `false` (omitting it is fine); the trap is
+  explicitly enabling it when the inventory includes the standing Restore. Split kopiur into its
+  own `wait: false` Kustomization pointed at `components/kopiur/backup`, the way
+  `database/cloudnative-pg.yaml` and `media/calibre-web-automated.yaml` do, when an overlay would
+  otherwise wait on the whole inventory. Full mechanism: `kubernetes/components/kopiur/Readme.md`,
+  trap (4).
 - **Don't infer a backup mover's identity from the pod's `runAsUser`/`fsGroup` - measure the files
   it must read.** `KOPIUR_PUID`/`PGID` and `VOLSYNC_PUID`/`PGID` default to `1000`; any file
   without a matching read bit makes kopiur fail closed (VolSync survives the same mismatch only
