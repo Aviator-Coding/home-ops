@@ -14,8 +14,11 @@
 > [`kopiur-stage5-pilot-retirement-2026-09-01.md`](kopiur-stage5-pilot-retirement-2026-09-01.md);
 > the machine-readable record of which claims are single-engine is `RETIRED_CLAIMS` in
 > `scripts/ci/kopiur-stage3-test.py`. Nothing in the results below was re-measured or amended by
-> that exercise - the two findings that gate further retirement (below) both still stand, and
-> finding 2 in particular still blocks `ai/hermes` and `media/plex`.
+> that exercise. **Finding 2 has since been closed for `ai/hermes`** (2026-09-02, raised to
+> 16Gi and re-proven from r2 at that value):
+> [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md),
+> which is now the authority on cache sizing. `media/plex`'s standing 10Gi is predicted safe by
+> that run's measurement but has not itself been exercised against r2.
 
 This is the Stage 5 prerequisite: a per-volume restore proof for **every** kopiur-protected
 claim, on **both** the `ceph` and `r2` destinations. The captain chose a demonstrated restore
@@ -47,7 +50,7 @@ directions:
 > those tools tagged as caches themselves, containing only public PyPI packages and no
 > user-authored file anywhere.
 >
-> ### 2. A real offsite restore needs more kopia cache than any of our claims are configured with. Fix this **before** retiring anything.
+> ### 2. A real offsite restore needs more kopia cache than any of our claims are configured with. Fix this **before** retiring anything. *(closed for `ai/hermes` on 2026-09-02 - see the note on finding 2 below)*
 >
 > `media/plex` restored from `ceph` on a 2 GiB cache and **failed from `r2` on that same
 > 2 GiB**. `ai/hermes` needed more than the 5 GiB its standing populator carries. A failed
@@ -206,6 +209,22 @@ themselves. If those environments are ever considered load-bearing, committing a
 worth doing on its own merits, independent of backups.
 
 ### Finding 2: an r2 restore needs a materially larger kopia cache than the same restore from ceph - an operational prerequisite for DR
+
+> **CLOSED for `ai/hermes` on 2026-09-02.** The claim was raised to `KOPIUR_CACHE_CAPACITY:
+> 16Gi` and then restored from **r2** end to end at exactly that value - 65,978 files and
+> 10,419,954,664 bytes, matching the snapshot's own `filesNew` and `sizeBytes`, with zero mode
+> differences. That run also measured *why*: the kopia cache grows ~1:1 with the bytes written
+> into the restore target until it reaches kopia's own (unpinned) internal budget, observed as
+> a ~6.2 GiB plateau, so the requirement is `min(snapshot sizeBytes, ~6.2 GiB)` - and it is a
+> cliff, not a slope. That turns the sizing question below into arithmetic for every claim.
+> Evidence, the fleet audit, and the two claims still under-provisioned (`media/tdarr` at 87%
+> of usable, `downloads/radarr` at 70%):
+> [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
+>
+> **`media/plex` is predicted safe but was not itself exercised** - its 4.16 GiB snapshot is
+> well under its 9.74 GiB usable cache, so the cache never reaches the limit. Read the
+> paragraphs below as the record of how this was discovered; the closure document is the
+> current authority on cache sizing.
 
 Both `hermes` and `plex` failed their **r2** restore with
 `no space left on device` on `/var/cache/kopia`, using the 2 GiB ephemeral cache that this
