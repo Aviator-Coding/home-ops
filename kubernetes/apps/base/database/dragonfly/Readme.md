@@ -12,7 +12,7 @@ The `cluster/` subdir was deleted as dead code (was commented out in `ks.yaml` f
 
 ## Per-app instances
 
-Each consuming app references the component from its `ks.yaml` (`components: - ../../../../components/dragonfly`), which provisions in the app's own namespace:
+Each consuming app references the component from its overlay `Kustomization` CR. From a base path of `kubernetes/apps/base/<ns>/<app>/app/` the include is `components: - ../../../../../components/dragonfly` (depth is relative to that base path - see `docs/app-structure.md`). The component provisions in the app's own namespace:
 
 - `<app>-dragonfly` - the `Dragonfly` CR (2 replicas, `--cluster_mode=emulated`, cache-only).
 - `<app>-dragonfly` - the `PodMonitor` (scrapes admin port `:9999`).
@@ -23,6 +23,7 @@ Current consumers and their endpoints:
 | App | Namespace | Endpoint |
 | --- | --------- | -------- |
 | `authentik` | security | `authentik-dragonfly.security.svc.cluster.local:6379` |
+| `litellm` | ai | `litellm-dragonfly.ai.svc.cluster.local:6379` |
 | `paperless-ngx` | selfhosted | `paperless-ngx-dragonfly.selfhosted.svc.cluster.local:6379` |
 | `rsshub` | selfhosted | `rsshub-dragonfly.selfhosted.svc.cluster.local:6379` |
 | `searxng` | ai | `searxng-dragonfly.ai.svc.cluster.local:6379` |

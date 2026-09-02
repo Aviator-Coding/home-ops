@@ -71,10 +71,18 @@ Do not pass the control-plane VIP `10.10.10.10` as a node target. Node addresses
 
 ## Adding an app
 
-1. Create `kubernetes/apps/base/{namespace}/{app}/` with an `app/` directory, plus overlay `kubernetes/apps/main/{namespace}/{app}.yaml`.
-2. Register `./{app}.yaml` in `kubernetes/apps/main/{namespace}/kustomization.yaml`.
-3. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
-4. Optional backups: most protected claims still run dual-engine VolSync + kopiur - add both `components/volsync` and `components/kopiur`, `dependsOn: volsync` and `kopiur-repository` (namespace `system`), plus `VOLSYNC_*` / measured `KOPIUR_*` keys. Example still dual-engine: `kubernetes/apps/main/downloads/autobrr.yaml`. Four Stage 5 pilot volumes are kopiur-only (`components/kopiur` + `components/kopiur/pvc`); owner: `kubernetes/components/kopiur/Readme.md`.
+Directory shapes and authoring traps: [`docs/app-structure.md`](docs/app-structure.md). Prefer the scaffold over hand-copying a sibling:
+
+```bash
+scripts/add-app/generate-app.sh <namespace> <app> [--shape=app|family|crd-split|parameterized] [--secrets] [--dragonfly] [--dry-run]
+```
+
+Usage and limits: [`scripts/add-app/README.md`](scripts/add-app/README.md). After generating (or if scaffolding by hand):
+
+1. Fill every `TODO` in the generated base manifests and overlay `kubernetes/apps/main/{namespace}/{app}.yaml` (the scaffold also appends the namespace `kustomization.yaml` `resources:` entry).
+2. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
+3. Optional backups are **not** scaffolded - most protected claims still run dual-engine VolSync + kopiur (add both `components/volsync` and `components/kopiur`, `dependsOn: volsync` and `kopiur-repository` in namespace `system`, plus `VOLSYNC_*` / measured `KOPIUR_*` keys; example: `kubernetes/apps/main/downloads/autobrr.yaml`). Four Stage 5 pilot volumes are kopiur-only (`components/kopiur` + `components/kopiur/pvc`); owner: `kubernetes/components/kopiur/Readme.md`.
+4. Validate with `mise exec -- task flux:test:all`.
 
 Flux reconciles from Git. After a merge, `task reconcile` forces a sync.
 

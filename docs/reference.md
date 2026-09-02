@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **65**. Each of those files is listed exactly once below, including this index. Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **69**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -126,7 +126,7 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 
 | Path | What it covers |
 |---|---|
-| [`app-structure.md`](app-structure.md) | The three app directory shapes (single-component `app/`, multi-component family, CRD-split, parameterized instance), when each applies, and the concrete traps that bite when authoring a new app. Read before adding a new app; see also `scripts/add-app/README.md`. |
+| [`app-structure.md`](app-structure.md) | App directory shapes: single-component `app/` default, plus multi-component family, CRD-split, and parameterized instance; when each applies; authoring traps. Read before adding a new app; scaffold: [`scripts/add-app/README.md`](../scripts/add-app/README.md). |
 | [`branch-protection.md`](branch-protection.md) | `main`'s GitHub ruleset: what is enforced, why only Labeler is a required check today, and what closes the gap. |
 | [`hardware-incidents.md`](hardware-incidents.md) | Hardware / Talos incident log (root cause, evidence, resolution). Use for node memory, DIMM RMA, and similar failures. |
 | [`talosctl.md`](talosctl.md) | Node IPs (not the VIP) and a short pointer to `just talos` recipes. |
