@@ -21,6 +21,8 @@ Sibling documents:
   procedure the proof in [part 3](#part-3---the-r2-restore-proof) follows.
 - [`kopiur-restore-proof-2026-09-01.md`](kopiur-restore-proof-2026-09-01.md) - the fleet
   restore proof, and the evidence standard this run is built to.
+- [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md) -
+  discharges the tdarr/radarr post-merge populator recreate this document left open.
 
 ## Verdict
 
@@ -35,14 +37,16 @@ no one was looking for. Both are fixed and verified live.
 | populators audited | **30 of 30** |
 | drifted as found | **2** - `ai/hermes`, `downloads/autobrr` |
 | drifted after this work, vs `main` | **0** |
-| drifted after this work, vs this branch | 2 - `media/tdarr`, `downloads/radarr`, by construction; see [post-merge prerequisite](#post-merge-prerequisite) |
+| drifted after this work, vs this branch | 2 - `media/tdarr`, `downloads/radarr`, by construction at write time; live recreate later **discharged** |
 | claims resized in Git | 2 - `media/tdarr`, `downloads/radarr`, both 2Gi -> 10Gi |
 | r2 restores proven | 1 - `media/tdarr` at 10Gi, content-verified |
 | Snapshot CRs deleted | **0** |
 
-The honest limit on that verdict is stated in full in the
-[post-merge prerequisite](#post-merge-prerequisite): the two claims this PR resizes cannot be
-made live before it merges, because Flux only reconciles `main`.
+At write time the honest limit was the
+[post-merge prerequisite](#post-merge-prerequisite): the two claims this PR resized could not
+be made live before it merged, because Flux only reconciles `main`. That live recreate is now
+**discharged** (both verified at 10Gi):
+[`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md) Part 0.
 
 ## The mechanism, restated
 
@@ -312,7 +316,7 @@ remedy for a stale standing `Restore`.
 Nothing in this exercise deleted, patched or suspended a `Snapshot`, `SnapshotPolicy`,
 `SnapshotSchedule`, `ClusterRepository` or `ReplicationSource`.
 
-## What was changed live, and what merge still owes
+## What was changed live, and what merge owed
 
 Two populators were closed by **pure GitOps convergence** - `main` already declared the
 correct values for both, so deleting the stale object and letting Flux recreate it introduced
@@ -330,12 +334,18 @@ not a fault, and deliberately not "fixed".
 
 ### Post-merge prerequisite
 
-`media/tdarr` and `downloads/radarr` **cannot be made live by this PR**, and this is a
-property of GitOps rather than an omission. Flux reconciles `main`; the 10Gi values exist only
-on this branch. Deleting those two populators now would simply have Flux recreate them at the
-`2Gi` still declared on `main` - the same trap the hermes fix had to sequence around.
+> **Discharged 2026-09-02.** Both populators were deleted + reconciled and verified live at
+> `10Gi` (recreated `16:38:04Z` / `16:38:06Z`, re-read after a second reconcile):
+> [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md) Part 0.
+> The procedure below is retained as the standing recipe for the next `KOPIUR_*` raise.
 
-So, **after this merges**, one command closes it:
+`media/tdarr` and `downloads/radarr` **could not be made live by this PR**, and that is a
+property of GitOps rather than an omission. Flux reconciles `main`; the 10Gi values existed only
+on this branch at write time. Deleting those two populators before merge would simply have Flux
+recreate them at the `2Gi` still declared on `main` - the same trap the hermes fix had to
+sequence around.
+
+So, **after a raise merges**, one command closes it:
 
 ```bash
 kubectl -n media      delete restore.kopiur.home-operations.com tdarr-kopiur-dst
@@ -348,7 +358,7 @@ kubectl -n downloads get restore radarr-kopiur-dst -o jsonpath='{.spec.mover.cac
 ```
 
 This is a **prerequisite for retiring either claim**, not tidiness: until it runs, a rebuilt
-claim would bind a populator sized 2Gi.
+claim would bind a populator sized at the pre-raise value.
 
 ## Part 4 - catching this class automatically
 

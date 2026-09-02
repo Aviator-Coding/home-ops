@@ -517,9 +517,10 @@ against their resolved Git values and found two frozen: `ai/hermes` at a stale
 carrying identity `1000:1000` where Git says `2000:2000` **and no
 `credentialProjection` at all**, either of which fails its restore closed. Both
 were recreated and all 30 agree with `main`. The same day's tdarr/radarr 2Gi->10Gi
-raises still need post-merge delete+reconcile (documented in that audit). Re-read
-the live object after changing any `KOPIUR_*` value; a green Kustomization proves
-nothing here.
+raises then needed post-merge delete+reconcile; that live recreate is **closed**
+(both verified at 10Gi):
+`docs/backups/kopiur-wave-two-reproof-2026-09-02.md` Part 0. Re-read the live object
+after changing any `KOPIUR_*` value; a green Kustomization proves nothing here.
 
 ## Root movers (`KOPIUR_PUID`/`PGID: 0`)
 

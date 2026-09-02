@@ -22,6 +22,8 @@ Sibling documents:
   fleet-wide standing-`Restore` audit that closed this document's post-merge hermes
   recreate, raised `media/tdarr` and `downloads/radarr` 2Gi -> 10Gi, and r2-proved tdarr
   at 10Gi. Current authority on populator-vs-Git drift.
+- [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md) -
+  discharges the tdarr/radarr live populator recreate left open after that raise.
 
 ## Verdict
 
@@ -64,9 +66,10 @@ At the time this gate merged, raising `KOPIUR_CACHE_CAPACITY` updated both `herm
 **Closed the same day** by the fleet-wide standing-populator audit: `hermes-kopiur-dst` was
 recreated at **16Gi**, `downloads/autobrr-kopiur-dst` (a second, independent create-time freeze)
 was recreated with the Git identity and `credentialProjection`, and the tdarr/radarr raises
-this gate recommended were applied in Git with their own post-merge recreate. Current authority
-- including the still-open tdarr/radarr live recreate after *that* merge, and why
-`ssa: IfNotPresent` must stay:
+this gate recommended were applied in Git. The post-merge live recreate those two needed after
+*that* merge is **also closed** (both verified live at 10Gi):
+[`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md) Part 0.
+Mechanism and why `ssa: IfNotPresent` must stay:
 [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 
 The **r2 evidence in this document is unaffected**: the hand-written drill `Restore` set
@@ -449,8 +452,9 @@ is the request × 0.974, the ratio measured on this run's 16Gi volume.
 **The two under-provisioned rows above are historical for this gate.** Both recommendations
 were applied the same day - `media/tdarr` and `downloads/radarr` raised 2Gi -> **10Gi** in Git,
 with `media/tdarr` then r2-proven at exactly that value (17,281 files / 1,820,653,922 bytes).
-Current authority, including the post-merge live populator recreate those two still need:
-[`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
+The post-merge live populator recreate those two needed is **closed** (both verified live at
+10Gi): [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md) Part 0.
+Git raise and r2 proof: [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 
 `media/plex` was **not** on that list then and is not now: its 4.16 GiB snapshot is well under
 its 9.74 GiB usable cache, so under the measured model the 1:1 regime tops out at ~4.2 GiB and
