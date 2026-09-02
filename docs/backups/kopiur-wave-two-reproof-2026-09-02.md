@@ -33,8 +33,10 @@ Sibling documents:
 | claims **not** ready | **2** - `paperless-ngx-media`, `syncthing-data` |
 | `Snapshot` CRs deleted by this task | **0** (2 pruned by the operator's own retention - [finding 1](#finding-1-creating-a-verification-snapshot-deletes-an-older-one)) |
 
-The honest headline: **four of the five near-empty claims cannot be given a stronger proof than
-they already have, because there is nothing else on the volume to prove.** What this task could
+The honest headline: **three of the five near-empty claims** - `downloads/autobrr` (1 file),
+`selfhosted/paperless-ngx-media` (1 file of zero bytes) and `selfhosted/syncthing-data`
+(5 scaffold files) - **cannot be given a stronger proof than they already have, because there
+is nothing else on the volume to prove.** What this task could
 add - and did - is a different assurance: that each backup is *complete* with respect to its
 live claim, and that the restore is destination-identical in metadata as well as content. The
 substantive new risk it surfaced is not fidelity at all, it is
