@@ -31,6 +31,8 @@ Sibling documents:
   this run follows, and the Stage 2 `sabnzbd-config` proof.
 - [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md) -
   closes finding 2 for `ai/hermes`; authority on `KOPIUR_CACHE_CAPACITY` sizing.
+- [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md) - standing-
+  `Restore` drift closure, tdarr/radarr 2Gi->10Gi (tdarr r2-proven at 10Gi).
 - [`recyclarr-config-readable-check-2026-08-31.md`](recyclarr-config-readable-check-2026-08-31.md)
   - the CSI-clone technique reused here for claims with no readable live mount.
 - [`restore-drill-2026-08-23.md`](restore-drill-2026-08-23.md) - the VolSync equivalent and
@@ -220,9 +222,11 @@ worth doing on its own merits, independent of backups.
 > into the restore target until it reaches kopia's own (unpinned) internal budget, observed as
 > a ~6.2 GiB plateau, so the requirement is `min(snapshot sizeBytes, ~6.2 GiB)` - and it is a
 > cliff, not a slope. That turns the sizing question below into arithmetic for every claim.
-> Evidence, the fleet audit, and the two claims still under-provisioned (`media/tdarr` at 87%
-> of usable, `downloads/radarr` at 70%):
+> Evidence and the fleet audit that sized every claim:
 > [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
+> The two claims that audit flagged (`media/tdarr` at 87% of usable, `downloads/radarr` at 70%)
+> were raised 2Gi -> 10Gi the same day, with tdarr r2-proven at 10Gi:
+> [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 >
 > **`media/plex` is predicted safe but was not itself exercised** - its 4.16 GiB snapshot is
 > well under its 9.74 GiB usable cache, so the cache never reaches the limit. Read the
@@ -467,12 +471,15 @@ Of the two questions that gate retirement:
    before retirement; the optional cleanup is committing a dependency manifest beside the three
    unmanifested venvs, which is worth doing for its own sake.
 2. **Restore cache capacity was the one genuine prerequisite this run uncovered - and is
-   settled for `ai/hermes`.** Finding 2 recorded that `plex` failed its r2 restore on the 2 GiB
-   that its ceph restore succeeded on, and that `hermes` needed more than the 5 GiB its standing
-   populator then carried. A failed `Restore` is terminal. **Closed for `ai/hermes` on
-   2026-09-02** (raised to 16Gi, r2 restore proven end-to-end at that value); authority on the
-   sizing rule and remaining under-provisioned claims is now
-   [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
+   settled for the large and near-cliff claims.** Finding 2 recorded that `plex` failed its r2
+   restore on the 2 GiB that its ceph restore succeeded on, and that `hermes` needed more than
+   the 5 GiB its standing populator then carried. A failed `Restore` is terminal. **Closed for
+   `ai/hermes` on 2026-09-02** (raised to 16Gi, r2-proven; standing populator later recreated at
+   16Gi); the same day's follow-up raised `media/tdarr` and `downloads/radarr` 2Gi -> 10Gi and
+   r2-proved tdarr. Sizing model:
+   [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md);
+   populator drift and tdarr/radarr raises:
+   [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
    `media/plex` 10Gi is predicted safe by that measurement but was not itself r2-exercised.
 
 Separately, the five near-empty claims (finding 4) carry proofs that are thin by nature -

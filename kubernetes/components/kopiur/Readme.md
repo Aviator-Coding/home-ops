@@ -516,8 +516,10 @@ against their resolved Git values and found two frozen: `ai/hermes` at a stale
 `5Gi`, and `downloads/autobrr` - the oldest object, from the Stage 1 pilot -
 carrying identity `1000:1000` where Git says `2000:2000` **and no
 `credentialProjection` at all**, either of which fails its restore closed. Both
-were recreated and all 30 now agree. Re-read the live object after changing any
-`KOPIUR_*` value; a green Kustomization proves nothing here.
+were recreated and all 30 agree with `main`. The same day's tdarr/radarr 2Gi->10Gi
+raises still need post-merge delete+reconcile (documented in that audit). Re-read
+the live object after changing any `KOPIUR_*` value; a green Kustomization proves
+nothing here.
 
 ## Root movers (`KOPIUR_PUID`/`PGID: 0`)
 

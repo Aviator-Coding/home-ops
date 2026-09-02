@@ -46,10 +46,11 @@ spec:
   # this field does not reach a Restore that already exists in the cluster. Fix
   # a missing credentialProjection by DELETING and recreating the Restore (safe:
   # no finalizers, no ownerReferences, owns no backup data) - not by repointing
-  # a claim. sabnzbd-kopiur-dst was recreated in the Stage 5 pilot;
-  # downloads/autobrr is the remaining one and must be recreated before it is
-  # ever retired. Bound claims keep their VolSync ${APP}-dst dataSourceRef
-  # forever; only a rebuilt claim from components/kopiur/pvc claims this object.
+  # a claim. Precedent: sabnzbd-kopiur-dst (Stage 5 pilot) and downloads/autobrr
+  # (2026-09-02 fleet audit - frozen at create-time identity and missing this
+  # field entirely; both closed in docs/backups/kopiur-populator-drift-2026-09-02.md).
+  # Bound claims keep their VolSync ${APP}-dst dataSourceRef forever; only a
+  # rebuilt claim from components/kopiur/pvc claims this object.
   credentialProjection:
     enabled: true
   source:
