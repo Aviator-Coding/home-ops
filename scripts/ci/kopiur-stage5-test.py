@@ -1,16 +1,30 @@
 #!/usr/bin/env python3
-"""Semantic regression test for kopiur Stage 5 (the four-volume retirement pilot).
+"""Semantic regression test for kopiur Stage 5 (the VolSync retirements).
 
-Stage 5 is the first IRREVERSIBLE step of the VolSync -> kopiur migration: it
-removes a volume's second backup engine. On 2026-09-01 four volumes went
-through it - `ai/repo-wiki`, `downloads/recyclarr-config`,
-`downloads/sabnzbd-config`, `media/seerr` - chosen for regenerable or
-reconstructible content and clean restore proofs. The other 26 claims stay
-dual-engine pending a separate captain decision.
+Stage 5 is the IRREVERSIBLE step of the VolSync -> kopiur migration: it removes
+a volume's second backup engine. Eight of the fleet's 30 claims have been
+through it, in two waves, and 22 remain dual-engine.
 
-Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md (all 30
-claims restore-proven on both destinations). Record of the pilot itself:
-docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
+  wave one, 2026-09-01 - the pilot: `ai/repo-wiki`,
+  `downloads/recyclarr-config`, `downloads/sabnzbd-config`, `media/seerr`,
+  chosen for regenerable or reconstructible content and clean restore proofs.
+  Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md (all 30
+  claims restore-proven on both destinations). Record:
+  docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
+
+  wave two, 2026-09-02: `downloads/prowlarr-config`, `selfhosted/ntfy`,
+  `downloads/autobrr`, `selfhosted/obsidian-livesync`. These are NOT all
+  regenerable - `ntfy` holds real auth state and `obsidian-livesync` is a
+  genuine Obsidian vault retired on an explicit captain decision after an
+  objection. What authorises them is completeness of proof (100% of claim
+  content, destination-identical in content AND metadata) plus, for the two
+  2Gi `selfhosted` claims, a PVC that cannot outgrow its restore cache.
+  Authorising evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md
+  part 4. Record: docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+
+`selfhosted/paperless-ngx` stays dual-engine permanently by captain carve-out,
+and `selfhosted/syncthing-data` / `selfhosted/paperless-ngx-media` were
+assessed and left dual-engine; any further retirement needs its own decision.
 
 The single most dangerous thing about this change is that the volsync Component
 was the ONLY manifest emitting each app's PVC, and every app overlay runs
@@ -19,7 +33,7 @@ the app's data volume as an ordinary garbage-collect. Most of this file exists
 to make that specific mistake fail CI.
 
 This test does not grep source text as its evidence. It:
-  1. Parses the four retired Flux overlays into structured objects.
+  1. Parses every retired Flux overlay into structured objects.
   2. Renders the real kustomize build of components/kopiur/pvc under each
      overlay's OWN substitute map, with a Flux-shaped envsubst, and asserts on
      the resulting PersistentVolumeClaim.
@@ -60,23 +74,49 @@ KOPIUR_PVC_COMPONENT = "../../../../../components/kopiur/pvc"
 VOLSYNC_COMPONENT = "../../../../../components/volsync"
 
 # app-overlay path -> (namespace, app, claim, live capacity).
-# Capacity is the LIVE claim size, measured 2026-09-01. It matters because the
-# retired PVC carries `ssa: IfNotPresent`, so this value is create-time-only and
-# stays unexercised until someone rebuilds the claim - which is exactly what
-# makes a wrong value dangerous rather than merely untidy.
+# Capacity is the LIVE claim size, measured 2026-09-01 (wave one) and
+# 2026-09-02 (wave two). It matters because the retired PVC carries
+# `ssa: IfNotPresent`, so this value is create-time-only and stays unexercised
+# until someone rebuilds the claim - which is exactly what makes a wrong value
+# dangerous rather than merely untidy.
 RETIRED: dict[str, tuple[str, str, str, str]] = {
+    # wave one - the pilot, 2026-09-01
     "ai/repo-wiki.yaml": ("ai", "repo-wiki", "repo-wiki", "5Gi"),
     "downloads/recyclarr.yaml": ("downloads", "recyclarr", "recyclarr-config", "5Gi"),
     "downloads/sabnzbd.yaml": ("downloads", "sabnzbd", "sabnzbd-config", "5Gi"),
     "media/seerr.yaml": ("media", "seerr", "seerr", "2Gi"),
+    # wave two, 2026-09-02
+    "downloads/autobrr.yaml": ("downloads", "autobrr", "autobrr", "5Gi"),
+    "downloads/prowlarr.yaml": ("downloads", "prowlarr", "prowlarr-config", "5Gi"),
+    "selfhosted/ntfy.yaml": ("selfhosted", "ntfy", "ntfy", "2Gi"),
+    "selfhosted/obsidian-livesync.yaml": (
+        "selfhosted",
+        "obsidian-livesync",
+        "obsidian-livesync",
+        "2Gi",
+    ),
 }
 
-# Restore-proof finding 2: an r2 restore needs materially more kopia cache than
-# the same restore from ceph, and a failed Restore is terminal. sabnzbd-config
-# is the only pilot volume near the measured danger zone (2.06 GiB of data
-# against the 2Gi component default), so it alone is raised.
-SABNZBD_CACHE = "10Gi"
+# Restore-proof finding 2 / the 2026-09-02 cache gate: an r2 restore needs
+# materially more kopia cache than the same restore from ceph, required cache is
+# `min(snapshot sizeBytes, ~6.2 GiB)`, it is a CLIFF rather than a slope, and a
+# failed Restore is terminal and never retries.
+#
+# Overlay path -> the raised value, for every retired volume that needs one.
+# Everything else must sit at the component default, and that is asserted rather
+# than assumed: a volume quietly acquiring a raised cache means someone found a
+# risk that belongs in the retirement record too.
 COMPONENT_DEFAULT_CACHE = "2Gi"
+RAISED_CACHE: dict[str, str] = {
+    # 2.06 GiB of data against the 2Gi default - the only volume in either wave
+    # inside the measured danger zone.
+    "downloads/sabnzbd.yaml": "10Gi",
+}
+
+# Stated separately from len(RETIRED) on purpose: this is the number a human
+# decided, so a row appearing or vanishing from RETIRED has to be a deliberate
+# edit here too rather than something the test silently accommodates.
+EXPECTED_RETIRED_COUNT = 8
 
 
 class Failure(Exception):
@@ -323,28 +363,42 @@ def test_capacity_is_stated_not_defaulted() -> None:
         )
 
 
-def test_sabnzbd_restore_cache_raised() -> None:
-    """Restore-proof finding 2, applied to the one pilot volume it reaches."""
-    sub = substitute(overlay("downloads/sabnzbd.yaml"))
-    require(
-        sub.get("KOPIUR_CACHE_CAPACITY") == SABNZBD_CACHE,
-        f"sabnzbd KOPIUR_CACHE_CAPACITY must be {SABNZBD_CACHE} - it holds 2.06 GiB against a "
-        f"{COMPONENT_DEFAULT_CACHE} default, and an r2 restore needs materially more kopia cache "
-        f"than a ceph one (a failed Restore is terminal). Got {sub.get('KOPIUR_CACHE_CAPACITY')!r}",
-    )
-    # The other three hold 458 KB / 79 MB / 3.4 MB, orders of magnitude under
-    # the default, and were re-proven from r2 at it rather than assumed.
-    for rel in ("ai/repo-wiki.yaml", "downloads/recyclarr.yaml", "media/seerr.yaml"):
+def test_restore_cache_matches_the_measured_gate() -> None:
+    """Every retired volume's restore cache is the one its own measurement asked for.
+
+    Asserted in both directions. A volume in RAISED_CACHE must carry exactly that
+    value - retirement removes the second engine, so an under-sized cache turns a
+    terminal restore failure into something only discoverable during a real
+    disaster. A volume NOT in RAISED_CACHE must sit at the component default,
+    because a cache that quietly grew means someone found an exposure that
+    belongs in the retirement record rather than only in a substitute map.
+
+    The wave-two claims are all far under the default: 54.1 MiB (prowlarr-config),
+    2,179 B (autobrr), 184 KiB (ntfy) and 561 KiB (obsidian-livesync) against
+    ~1.95 GiB of usable cache. The two `selfhosted` ones are additionally
+    structural: a 2Gi PVC cannot hold more than its 2Gi cache covers.
+    """
+    for rel in RETIRED:
         got = substitute(overlay(rel)).get("KOPIUR_CACHE_CAPACITY")
-        require(
-            got in (None, COMPONENT_DEFAULT_CACHE),
-            f"{rel}: expected the {COMPONENT_DEFAULT_CACHE} default cache, got {got!r}. If this "
-            f"volume has grown enough to need more, update the pilot document too.",
-        )
+        if rel in RAISED_CACHE:
+            want = RAISED_CACHE[rel]
+            require(
+                got == want,
+                f"{rel}: KOPIUR_CACHE_CAPACITY must be {want} - measured to need more than the "
+                f"{COMPONENT_DEFAULT_CACHE} default, and an r2 restore needs materially more "
+                f"kopia cache than a ceph one (a failed Restore is terminal). Got {got!r}",
+            )
+        else:
+            require(
+                got in (None, COMPONENT_DEFAULT_CACHE),
+                f"{rel}: expected the {COMPONENT_DEFAULT_CACHE} default cache, got {got!r}. If "
+                f"this volume has grown enough to need more, add it to RAISED_CACHE and update "
+                f"the retirement document too.",
+            )
 
 
 def test_retired_set_matches_stage3() -> None:
-    """This file and kopiur-stage3-test.py must name the same four claims.
+    """This file and kopiur-stage3-test.py must name the same retired claims.
 
     stage3's RETIRED_CLAIMS is the fleet's authoritative single-engine record -
     it is what enforces that every OTHER claim still has two engines. If the two
@@ -360,7 +414,11 @@ def test_retired_set_matches_stage3() -> None:
         f"retired set drifted between the two tests: only in stage3 {sorted(stage3 - here)}, "
         f"only here {sorted(here - stage3)}",
     )
-    require(len(here) == 4, f"the pilot is four volumes; got {len(here)}")
+    require(
+        len(here) == EXPECTED_RETIRED_COUNT,
+        f"expected {EXPECTED_RETIRED_COUNT} retired volumes across both waves "
+        f"(4 pilot + 4 wave two); got {len(here)}",
+    )
 
 
 def test_no_other_overlay_uses_the_pvc_component() -> None:
@@ -503,7 +561,7 @@ def main() -> int:
     run("retired_overlays_keep_the_claim", test_retired_overlays_keep_the_claim)
     run("rendered_claim_is_correct_per_app", test_rendered_claim_is_correct_per_app)
     run("capacity_is_stated_not_defaulted", test_capacity_is_stated_not_defaulted)
-    run("sabnzbd_restore_cache_raised", test_sabnzbd_restore_cache_raised)
+    run("restore_cache_matches_the_measured_gate", test_restore_cache_matches_the_measured_gate)
     run("retired_set_matches_stage3", test_retired_set_matches_stage3)
     run("no_other_overlay_uses_the_pvc_component", test_no_other_overlay_uses_the_pvc_component)
     run("retired_backup_shape_is_complete", test_retired_backup_shape_is_complete)

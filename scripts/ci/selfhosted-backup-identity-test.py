@@ -13,11 +13,20 @@ changedetection which established the precedent (PR #1512):
      has no cross-key templating - so the real mover identity lives only under
      KOPIUR_PUID/PGID and VOLSYNC_PUID/PGID.
 
-  2. Latent defect fix (top-billed): obsidian-livesync's VolSync movers must
-     render as 5984:5984, matching its CouchDB workload and kopiur movers. The
-     prior 1000:1000 component default only "worked" because every file on that
-     claim is mode 644/755 - the same latent-trap shape that broke
-     changedetection when files were mode 0600.
+  2. Latent defect fix (top-billed): obsidian-livesync's movers must render as
+     5984:5984, matching its CouchDB workload. The prior 1000:1000 component
+     default only "worked" because every file on that claim is mode 644/755 -
+     the same latent-trap shape that broke changedetection when files were mode
+     0600.
+
+VolSync was RETIRED from `obsidian-livesync` and `ntfy` on 2026-09-02 (Stage 5
+wave two - docs/backups/kopiur-wave-two-retirement-2026-09-02.md), so those two
+have no VolSync mover left to assert on. Neither pin was dropped: the identity
+check moved to the kopiur mover, where it binds harder (kopiur stages its source
+read-only, gets no kubelet fsGroup fixup and fails CLOSED on the first
+unreadable file, with no second engine left to mask a wrong identity), and the
+VolSync half became an assertion that no VOLSYNC_* key survived retirement. The
+dead APP_UID/APP_GID cleanup in (1) still covers all seven overlays.
 
 Evidence is behavioural, not a source grep:
   - Parse each Flux Kustomization into a structured substitute map.
@@ -45,16 +54,31 @@ KOPIUR_BACKUP = REPO / "kubernetes" / "components" / "kopiur" / "backup"
 # (overlay filename stem, claim, expected uid, expected gid)
 # paperless-ngx and syncthing also protect a second claim via a separate
 # Kustomization; those claims are covered by kopiur-stage3-test.py's fleet pin.
-APPS: list[tuple[str, str, str, str]] = [
+#
+# Still dual-engine: both a VolSync mover and a kopiur mover must render at the
+# measured identity.
+DUAL_ENGINE_APPS: list[tuple[str, str, str, str]] = [
     ("n8n", "n8n", "1000", "1000"),
-    ("obsidian-livesync", "obsidian-livesync", "5984", "5984"),
     ("paperless-ngx", "paperless-ngx", "1000", "1000"),
-    ("ntfy", "ntfy", "1000", "1000"),
     ("syncthing", "syncthing", "1000", "1000"),
     ("linkwarden", "linkwarden", "1000", "1000"),
     # Precedent - must stay without APP_UID/APP_GID and with matching movers.
     ("changedetection", "changedetection-config", "1000", "1000"),
 ]
+
+# VolSync RETIRED 2026-09-02 (Stage 5 wave two, captain decision). There is no
+# VolSync mover left to check on these, so only the kopiur half of the identity
+# assertion applies - and it applies harder, because kopiur stages its source
+# READ-ONLY, gets no kubelet fsGroup fixup, and fails CLOSED on the first
+# unreadable file where VolSync silently survived. The authoritative retired set
+# is RETIRED_CLAIMS in kopiur-stage3-test.py; the retirement record is
+# docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+RETIRED_APPS: list[tuple[str, str, str, str]] = [
+    ("obsidian-livesync", "obsidian-livesync", "5984", "5984"),
+    ("ntfy", "ntfy", "1000", "1000"),
+]
+
+APPS: list[tuple[str, str, str, str]] = DUAL_ENGINE_APPS + RETIRED_APPS
 
 DEAD_KEYS = ("APP_UID", "APP_GID")
 
@@ -77,12 +101,17 @@ def load_flux_ks(path: Path) -> dict[str, Any]:
         and str(d.get("apiVersion", "")).startswith("kustomize.toolkit.fluxcd.io")
     ]
     require(len(flux) >= 1, f"{path.name}: expected a Flux Kustomization")
-    # Primary app Kustomization is the first doc that carries volsync/kopiur
+    # Primary app Kustomization is the first doc that carries the backup
     # components (second-claim docs may share the file for paperless/syncthing).
-    for d in flux:
-        comps = [c for c in ((d.get("spec") or {}).get("components") or []) if isinstance(c, str)]
-        if any(c.rstrip("/").endswith("components/volsync") for c in comps):
-            return d
+    # A retired app has no volsync entry left, so the kopiur PVC Component -
+    # which only a retired overlay may carry - identifies it instead.
+    for suffix in ("components/volsync", "components/kopiur/pvc"):
+        for d in flux:
+            comps = [
+                c for c in ((d.get("spec") or {}).get("components") or []) if isinstance(c, str)
+            ]
+            if any(c.rstrip("/").endswith(suffix) for c in comps):
+                return d
     return flux[0]
 
 
@@ -164,31 +193,54 @@ def test_dead_app_uid_gid_absent() -> None:
 
 def test_volsync_and_kopiur_movers_match_measured_identity() -> None:
     rows: list[str] = []
+    retired_stems = {stem for stem, _c, _u, _g in RETIRED_APPS}
     for stem, claim, uid, gid in APPS:
         path = APPS_MAIN / f"{stem}.yaml"
         d = load_flux_ks(path)
         sub = substitute_of(d)
-        # Claim resolution mirrors the components.
-        vs_claim = sub.get("VOLSYNC_CLAIM", sub.get("APP", claim))
+        retired = stem in retired_stems
+
+        # Claim resolution mirrors the components. A retired overlay carries no
+        # VOLSYNC_CLAIM at all, so the kopiur key (or the app name) is the only
+        # claim name left - and it is what components/kopiur/pvc renders the PVC
+        # from, so getting it wrong there loses the volume rather than a backup.
         kp_claim = sub.get("KOPIUR_CLAIM", sub.get("APP", claim))
-        require(vs_claim == claim, f"{stem}: VOLSYNC claim {vs_claim!r} != {claim!r}")
         require(kp_claim == claim, f"{stem}: KOPIUR claim {kp_claim!r} != {claim!r}")
 
-        vs_docs = render(VOLSYNC_BACKUP, sub)
-        sources = [x for x in vs_docs if x.get("kind") == "ReplicationSource"]
-        require(len(sources) == 3, f"{stem}: expected 3 ReplicationSources, got {len(sources)}")
-        for src in sources:
-            name = (src.get("metadata") or {}).get("name", "?")
-            msc = ((src.get("spec") or {}).get("restic") or {}).get("moverSecurityContext") or {}
-            got = [str(msc.get("runAsUser")), str(msc.get("runAsGroup")), str(msc.get("fsGroup"))]
+        if retired:
+            leftover = sorted(k for k in sub if k.startswith("VOLSYNC_"))
             require(
-                got == [uid, gid, gid],
-                f"{stem} VolSync {name}: mover {got} != [{uid}, {gid}, {gid}]",
+                not leftover,
+                f"{stem}: recorded as VolSync-retired but still carries {leftover} - nothing "
+                f"reads those keys, and on the claim variables they misdescribe a rebuild",
             )
-            require(
-                (src.get("spec") or {}).get("sourcePVC") == claim,
-                f"{stem} {name}: sourcePVC mismatch",
-            )
+            vs_summary = "volsync=retired"
+        else:
+            vs_claim = sub.get("VOLSYNC_CLAIM", sub.get("APP", claim))
+            require(vs_claim == claim, f"{stem}: VOLSYNC claim {vs_claim!r} != {claim!r}")
+
+            vs_docs = render(VOLSYNC_BACKUP, sub)
+            sources = [x for x in vs_docs if x.get("kind") == "ReplicationSource"]
+            require(len(sources) == 3, f"{stem}: expected 3 ReplicationSources, got {len(sources)}")
+            for src in sources:
+                name = (src.get("metadata") or {}).get("name", "?")
+                msc = ((src.get("spec") or {}).get("restic") or {}).get(
+                    "moverSecurityContext"
+                ) or {}
+                got = [
+                    str(msc.get("runAsUser")),
+                    str(msc.get("runAsGroup")),
+                    str(msc.get("fsGroup")),
+                ]
+                require(
+                    got == [uid, gid, gid],
+                    f"{stem} VolSync {name}: mover {got} != [{uid}, {gid}, {gid}]",
+                )
+                require(
+                    (src.get("spec") or {}).get("sourcePVC") == claim,
+                    f"{stem} {name}: sourcePVC mismatch",
+                )
+            vs_summary = f"volsync=3x{uid}:{gid}"
 
         kp_docs = render(KOPIUR_BACKUP, sub)
         policies = [x for x in kp_docs if x.get("kind") == "SnapshotPolicy"]
@@ -204,7 +256,7 @@ def test_volsync_and_kopiur_movers_match_measured_identity() -> None:
 
         rows.append(
             f"{stem}: claim={claim} workload-target={uid}:{gid} "
-            f"volsync=3x{uid}:{gid} kopiur=2x{uid}:{gid} dead_keys=absent"
+            f"{vs_summary} kopiur=2x{uid}:{gid} dead_keys=absent"
         )
 
     # Surface a stable summary line for evidence capture.
@@ -213,35 +265,60 @@ def test_volsync_and_kopiur_movers_match_measured_identity() -> None:
         print(f"  {row}")
 
 
-def test_obsidian_volsync_is_not_the_component_default() -> None:
-    """Explicit guard on the latent defect: 5984 must not collapse to 1000."""
+def test_obsidian_mover_is_not_the_component_default() -> None:
+    """Explicit guard on the latent defect: 5984 must not collapse to 1000.
+
+    HISTORY, because the shape of this pin changed but the defect it guards did
+    not. The 2026-08-31 fix this file was written for was on the VolSync side:
+    obsidian-livesync's VolSync mover had been running at the unmatched 1000:1000
+    component default and only "happened to read this volume" because every file
+    on it is mode 644/755 - the identical latent-trap shape that broke
+    changedetection once its files were mode 0600. VOLSYNC_PUID/PGID were pinned
+    to 5984 to close it.
+
+    VolSync was then RETIRED from this claim on 2026-09-02 (Stage 5 wave two),
+    so those keys are gone and there is no VolSync mover left to check. The
+    defect did not go away with them - it got sharper. kopiur stages its source
+    READ-ONLY, so kubelet applies no fsGroup walk and a mismatched identity fails
+    the backup CLOSED rather than silently succeeding, and there is no second
+    engine left to mask it. The pin therefore moves to the kopiur mover, and the
+    VolSync half becomes an assertion that no VOLSYNC_* key survived.
+    """
     path = APPS_MAIN / "obsidian-livesync.yaml"
     sub = substitute_of(load_flux_ks(path))
-    require(sub.get("VOLSYNC_PUID") == "5984", "obsidian-livesync VOLSYNC_PUID must be 5984")
-    require(sub.get("VOLSYNC_PGID") == "5984", "obsidian-livesync VOLSYNC_PGID must be 5984")
+
+    leftover = sorted(k for k in sub if k.startswith("VOLSYNC_"))
+    require(
+        not leftover,
+        f"obsidian-livesync is VolSync-retired; {leftover} must not survive (see "
+        f"docs/backups/kopiur-wave-two-retirement-2026-09-02.md)",
+    )
     require(sub.get("KOPIUR_PUID") == "5984", "obsidian-livesync KOPIUR_PUID must be 5984")
     require(sub.get("KOPIUR_PGID") == "5984", "obsidian-livesync KOPIUR_PGID must be 5984")
 
-    # Prove the default path would still be wrong if the keys were dropped.
-    bare = {k: v for k, v in sub.items() if k not in ("VOLSYNC_PUID", "VOLSYNC_PGID")}
-    defaulted = render(VOLSYNC_BACKUP, bare)
-    for src in (x for x in defaulted if x.get("kind") == "ReplicationSource"):
-        msc = ((src.get("spec") or {}).get("restic") or {}).get("moverSecurityContext") or {}
+    # Prove the default path would still be wrong if the keys were dropped -
+    # otherwise the pin above asserts nothing.
+    bare = {k: v for k, v in sub.items() if k not in ("KOPIUR_PUID", "KOPIUR_PGID")}
+    defaulted = render(KOPIUR_BACKUP, bare)
+    for pol in (x for x in defaulted if x.get("kind") == "SnapshotPolicy"):
+        psc = ((pol.get("spec") or {}).get("mover") or {}).get("podSecurityContext") or {}
         require(
-            str(msc.get("runAsUser")) == "1000",
-            "sanity: without VOLSYNC_PUID the component default must be 1000 "
+            str(psc.get("runAsUser")) == "1000",
+            "sanity: without KOPIUR_PUID the component default must be 1000 "
             "(otherwise the pin is meaningless)",
         )
 
-    fixed = render(VOLSYNC_BACKUP, sub)
-    for src in (x for x in fixed if x.get("kind") == "ReplicationSource"):
-        name = (src.get("metadata") or {}).get("name", "?")
-        msc = ((src.get("spec") or {}).get("restic") or {}).get("moverSecurityContext") or {}
+    fixed = render(KOPIUR_BACKUP, sub)
+    policies = [x for x in fixed if x.get("kind") == "SnapshotPolicy"]
+    require(len(policies) == 2, f"expected 2 SnapshotPolicies, got {len(policies)}")
+    for pol in policies:
+        name = (pol.get("metadata") or {}).get("name", "?")
+        psc = ((pol.get("spec") or {}).get("mover") or {}).get("podSecurityContext") or {}
         require(
-            str(msc.get("runAsUser")) == "5984" and str(msc.get("runAsGroup")) == "5984",
-            f"obsidian-livesync {name} must render 5984:5984 after the fix, got {msc}",
+            str(psc.get("runAsUser")) == "5984" and str(psc.get("runAsGroup")) == "5984",
+            f"obsidian-livesync {name} must render 5984:5984, got {psc}",
         )
-    print("obsidian-livesync: default-path=1000:1000 fixed-path=5984:5984 (3 ReplicationSources)")
+    print("obsidian-livesync: default-path=1000:1000 pinned-path=5984:5984 (2 SnapshotPolicies)")
 
 
 def main() -> int:
@@ -266,8 +343,8 @@ def main() -> int:
         test_volsync_and_kopiur_movers_match_measured_identity,
     )
     run(
-        "obsidian_volsync_is_not_the_component_default",
-        test_obsidian_volsync_is_not_the_component_default,
+        "obsidian_mover_is_not_the_component_default",
+        test_obsidian_mover_is_not_the_component_default,
     )
 
     passed = len(tests) - len(failures)

@@ -8,6 +8,17 @@ added sabnzbd-config as a second volume (see kopiur-stage2-test.py for the
 two-volume set and the PUID/claim contracts); this file still pins the Stage 1
 component + autobrr contract and only requires that autobrr remain onboarded.
 
+VOLSYNC HAS SINCE BEEN RETIRED FROM autobrr (2026-09-02, Stage 5 wave two,
+captain decision; docs/backups/kopiur-wave-two-retirement-2026-09-02.md), so
+the "alongside" half of Stage 1's safety property no longer holds for this
+claim - kopiur is its only engine. The assertions that covered it inverted
+rather than disappeared: the overlay must now carry NO volsync Component, NO
+volsync/system dependency and NO VOLSYNC_* key, must carry
+components/kopiur/pvc (without which prune: true deletes the data volume), and
+must state KOPIUR_CAPACITY. components/volsync itself must be untouched - 22
+claims still use it - so it is still rendered and asserted here, but under a
+synthetic env rather than the pilot map, which no longer has the keys.
+
 Credentials are NO LONGER per-namespace copies. Captain decision 2026-08-30,
 key `credential-scope`, replaced them with operator-minted per-run projection,
 and this file now pins that shape instead: all three projection legs present,
@@ -39,9 +50,11 @@ This test does not grep source text as its evidence. It:
        - Restore is ${APP}-kopiur-dst (not ${APP}-dst), passive populator,
          onMissingSnapshot Continue, ssa IfNotPresent
        - parent Component resources only ./backup (no pvc.yaml)
-       - downloads/autobrr includes components/kopiur alongside components/volsync
-         (Stage 2 may add further authorised volumes; the exclusive set is
-         owned by kopiur-stage2-test.py)
+       - downloads/autobrr includes components/kopiur plus components/kopiur/pvc,
+         and no volsync Component (retired 2026-09-02); components/volsync
+         itself still renders 3 sources + 1 destination for its 22 remaining
+         users. The exclusive onboarded set is owned by kopiur-stage2-test.py
+         and the authoritative retired set by kopiur-stage3-test.py.
        - credentials: ALL THREE projection legs wired (chart feature flag,
          `allowed` on both ClusterRepositories, `enabled` on every consuming
          SnapshotPolicy/Restore), every repository secretRef carrying an
@@ -90,16 +103,27 @@ STAGE0_README = KOPIUR_STAGE0_BASE / "README.md"
 PILOT_APP = "autobrr"
 PILOT_NS = "downloads"
 
-# Pilot's live VolSync schedules from the overlay (must stay untouched).
-PILOT_VOLSYNC_CEPH = "45 */4 * * *"
-PILOT_VOLSYNC_MINIO = "30 */6 * * *"
-PILOT_VOLSYNC_R2 = "45 3 * * *"
+# The VolSync schedules autobrr carried until VolSync was RETIRED from it on
+# 2026-09-02 (Stage 5 wave two - docs/backups/kopiur-wave-two-retirement-2026-09-02.md).
+# They are kept, as HISTORICAL values rather than a live overlay pin, because
+# they are what kopiur's own slots were designed around: the odd 4-hour ceph
+# offset and the r2 hour-11 assignment below only mean anything against them.
+# That structural property still governs the 22 claims that remain dual-engine,
+# so the non-collision assertion is retained rather than deleted with the
+# schedules it was derived from. Do NOT reintroduce these into any overlay.
+RETIRED_PILOT_VOLSYNC_CEPH = "45 */4 * * *"
+RETIRED_PILOT_VOLSYNC_MINIO = "30 */6 * * *"
+RETIRED_PILOT_VOLSYNC_R2 = "45 3 * * *"
 
 # Production pilot kopiur pins (Stage 3). The live overlay is the source of
 # truth at render time; these are the values that overlay must currently carry.
 PILOT_KOPIUR_PUID = 2000
 PILOT_KOPIUR_PGID = 2000
 PILOT_KOPIUR_R2_CRON = "H 11 * * *"
+# The live claim size, measured 2026-09-02. Load-bearing since retirement:
+# components/kopiur/pvc carries `ssa: IfNotPresent`, so this value is
+# create-time-only and stays unexercised until someone rebuilds the claim.
+PILOT_CAPACITY = "5Gi"
 
 # Component defaults. Production autobrr no longer uses the identity/r2 ones;
 # they are pinned only by the explicit negative-control render below. Ceph
@@ -514,10 +538,13 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
             f"{dest}: Jenkins range H(...) is webhook-rejected, got {cron!r}",
         )
 
-    # Structural hour non-overlap with the pilot's VolSync schedules.
+    # Structural hour non-overlap with the VolSync schedules kopiur's slots were
+    # designed around. autobrr no longer runs VolSync (retired 2026-09-02), so
+    # these are the recorded historical values - but the property they encode is
+    # what still keeps the two engines apart on all 22 dual-engine claims.
     k_ceph_hours = cron_hours(PILOT_KOPIUR_CEPH_CRON)
     # VolSync ceph "45 */4 * * *" -> hours 0,4,8,12,16,20
-    v_ceph_hours = cron_hours(PILOT_VOLSYNC_CEPH)
+    v_ceph_hours = cron_hours(RETIRED_PILOT_VOLSYNC_CEPH)
     require(
         k_ceph_hours.isdisjoint(v_ceph_hours),
         f"kopiur ceph hours {sorted(k_ceph_hours)} overlap volsync {sorted(v_ceph_hours)}",
@@ -528,7 +555,7 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
     )
 
     k_r2_hours = cron_hours(PILOT_KOPIUR_R2_CRON)
-    v_r2_hours = cron_hours(PILOT_VOLSYNC_R2)
+    v_r2_hours = cron_hours(RETIRED_PILOT_VOLSYNC_R2)
     require(
         k_r2_hours.isdisjoint(v_r2_hours),
         f"kopiur r2 hours {sorted(k_r2_hours)} overlap volsync {sorted(v_r2_hours)}",
@@ -537,7 +564,10 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
         k_r2_hours == {11},
         f"production autobrr kopiur r2 hour must be 11 (downloads namespace), got {sorted(k_r2_hours)}",
     )
-    require(v_r2_hours == {3}, f"pilot volsync r2 hour must stay 3, got {sorted(v_r2_hours)}")
+    require(
+        v_r2_hours == {3},
+        f"the retired pilot volsync r2 hour is recorded as 3; got {sorted(v_r2_hours)}",
+    )
 
 
 def test_component_defaults_without_override() -> None:
@@ -615,33 +645,72 @@ def test_restore_passive_contract(docs: list[dict[str, Any]]) -> None:
     require(cache.get("mode") == "Ephemeral", f"Restore cache must be Ephemeral, got {cache}")
 
 
-def test_volsync_pilot_still_triple(vs_docs: list[dict[str, Any]]) -> None:
-    """autobrr's VolSync render still has ceph+minio+r2 sources + one destination."""
+def test_volsync_retired_from_pilot_but_component_intact(vs_docs: list[dict[str, Any]]) -> None:
+    """VolSync is gone from autobrr's overlay - and ONLY from the overlay.
+
+    This test used to assert the opposite: that the pilot still rendered three
+    ReplicationSources and one ReplicationDestination alongside kopiur. That was
+    Stage 1's whole safety property - two independent engines, nothing swapped.
+    VolSync was retired from this claim on 2026-09-02 (Stage 5 wave two, captain
+    decision; docs/backups/kopiur-wave-two-retirement-2026-09-02.md), so the
+    assertion inverts.
+
+    The distinction that matters is USE versus COMPONENT. Retirement removes one
+    app's include; it must not touch components/volsync itself, which 22 other
+    claims still depend on. So this asserts both halves: autobrr carries no
+    VolSync anything, AND the component still renders a complete triple-plus-
+    destination backup for whatever app does include it.
+    """
+    # Half 1: the retired overlay carries no VolSync anything.
+    ks = load_multi(AUTOBRR_OVERLAY)[0]
+    spec = ks["spec"]
+    comps = spec.get("components") or []
+    require(
+        not any(isinstance(c, str) and c.rstrip("/").endswith("components/volsync") for c in comps),
+        f"volsync Component is back on the retired pilot, got {comps}",
+    )
+    deps = {(d.get("name"), d.get("namespace")) for d in (spec.get("dependsOn") or [])}
+    require(
+        ("volsync", "system") not in deps,
+        f"retired pilot still dependsOn volsync/system - a wait on an unrelated "
+        f"app, and the signature of a half-revert; got {sorted(deps)}",
+    )
+    sub = ((spec.get("postBuild") or {}).get("substitute")) or {}
+    leftover = sorted(k for k in sub if str(k).startswith("VOLSYNC_"))
+    require(not leftover, f"VOLSYNC_* keys survived retirement on the pilot: {leftover}")
+
+    # Half 2: components/volsync itself is untouched. Rendered here under a
+    # SYNTHETIC env, because the live pilot map no longer carries VOLSYNC_*
+    # keys and would silently prove nothing about the component.
     sources = by_kind(vs_docs, "ReplicationSource")
     dests = by_kind(vs_docs, "ReplicationDestination")
-    names = sorted(s["metadata"]["name"] for s in sources)
+    names = sorted(x["metadata"]["name"] for x in sources)
     require(
         names == [f"{PILOT_APP}-ceph", f"{PILOT_APP}-minio", f"{PILOT_APP}-r2"],
-        f"volsync must still emit all three sources for the pilot, got {names}",
+        f"components/volsync must still emit all three sources, got {names}",
     )
-    require(len(dests) == 1, f"volsync must still emit one ReplicationDestination, got {len(dests)}")
+    require(
+        len(dests) == 1,
+        f"components/volsync must still emit one ReplicationDestination, got {len(dests)}",
+    )
     require(
         dests[0]["metadata"]["name"] == f"{PILOT_APP}-dst",
-        f"volsync destination must remain {PILOT_APP}-dst, got {dests[0]['metadata']['name']}",
+        f"volsync destination must remain ${{APP}}-dst, got {dests[0]['metadata']['name']}",
     )
-    # Schedules match the overlay's substitute map (untouched).
-    by_name = {s["metadata"]["name"]: s for s in sources}
+    by_name = {x["metadata"]["name"]: x for x in sources}
     require(
-        by_name[f"{PILOT_APP}-ceph"]["spec"]["trigger"]["schedule"] == PILOT_VOLSYNC_CEPH,
-        "pilot volsync ceph schedule drifted",
-    )
-    require(
-        by_name[f"{PILOT_APP}-minio"]["spec"]["trigger"]["schedule"] == PILOT_VOLSYNC_MINIO,
-        "pilot volsync minio schedule drifted",
+        by_name[f"{PILOT_APP}-ceph"]["spec"]["trigger"]["schedule"]
+        == RETIRED_PILOT_VOLSYNC_CEPH,
+        "volsync component no longer honours VOLSYNC_SCHEDULE_CEPH",
     )
     require(
-        by_name[f"{PILOT_APP}-r2"]["spec"]["trigger"]["schedule"] == PILOT_VOLSYNC_R2,
-        "pilot volsync r2 schedule drifted",
+        by_name[f"{PILOT_APP}-minio"]["spec"]["trigger"]["schedule"]
+        == RETIRED_PILOT_VOLSYNC_MINIO,
+        "volsync component no longer honours VOLSYNC_SCHEDULE_MINIO",
+    )
+    require(
+        by_name[f"{PILOT_APP}-r2"]["spec"]["trigger"]["schedule"] == RETIRED_PILOT_VOLSYNC_R2,
+        "volsync component no longer honours VOLSYNC_SCHEDULE_R2",
     )
 
 
@@ -661,16 +730,19 @@ def test_autobrr_overlay_wiring() -> None:
     require(
         components
         == [
-            "../../../../../components/volsync",
             "../../../../../components/kopiur",
+            "../../../../../components/kopiur/pvc",
         ],
-        f"components must be volsync THEN kopiur (both), got {components}",
+        f"components must be kopiur THEN kopiur/pvc after retirement, got {components}. The pvc "
+        f"Component is NOT optional: components/volsync/pvc.yaml was the only manifest emitting "
+        f"this claim and the overlay runs prune: true, so dropping both deletes the data volume.",
     )
 
     deps = {(d.get("name"), d.get("namespace")) for d in (spec.get("dependsOn") or [])}
     require(
-        ("volsync", "system") in deps,
-        f"must still dependOn volsync/system, got {deps}",
+        ("volsync", "system") not in deps,
+        f"volsync/system dependency must go with the Component - nothing here renders a "
+        f"VolSync object any more; got {deps}",
     )
     require(
         ("kopiur-repository", "system") in deps,
@@ -695,17 +767,19 @@ def test_autobrr_overlay_wiring() -> None:
     # YAML anchor resolves on parse for some loaders; accept either the alias
     # string or the resolved name - safe_load resolves anchors.
     require(sub.get("APP") == PILOT_APP, f"APP must resolve to {PILOT_APP}, got {sub.get('APP')!r}")
+    # Every VOLSYNC_* key went with the Component. Nothing reads them once the
+    # component is gone, and on the claim variables they would misdescribe what
+    # a rebuild provisions - the one value that is never exercised until the day
+    # it matters most.
+    leftover = sorted(k for k in sub if str(k).startswith("VOLSYNC_"))
+    require(not leftover, f"VOLSYNC_* keys survived retirement: {leftover}")
+    # KOPIUR_CAPACITY replaces the retired VOLSYNC_CAPACITY default and must
+    # match the live claim, because components/kopiur/pvc is now the only
+    # manifest that would provision a rebuilt one.
     require(
-        sub.get("VOLSYNC_SCHEDULE_CEPH") == PILOT_VOLSYNC_CEPH,
-        f"VOLSYNC_SCHEDULE_CEPH must stay {PILOT_VOLSYNC_CEPH!r}, got {sub.get('VOLSYNC_SCHEDULE_CEPH')!r}",
-    )
-    require(
-        sub.get("VOLSYNC_SCHEDULE_MINIO") == PILOT_VOLSYNC_MINIO,
-        "VOLSYNC_SCHEDULE_MINIO must stay untouched",
-    )
-    require(
-        sub.get("VOLSYNC_SCHEDULE_R2") == PILOT_VOLSYNC_R2,
-        "VOLSYNC_SCHEDULE_R2 must stay untouched",
+        sub.get("KOPIUR_CAPACITY") == PILOT_CAPACITY,
+        f"KOPIUR_CAPACITY must be stated as {PILOT_CAPACITY!r} (the live claim), got "
+        f"{sub.get('KOPIUR_CAPACITY')!r}",
     )
     # Stage 3 corrected mover identity to match measured file ownership.
     require(
@@ -734,7 +808,7 @@ def test_autobrr_overlay_wiring() -> None:
 
 
 def test_autobrr_still_onboarded() -> None:
-    """autobrr remains a kopiur+volsync dual-backup volume after Stage 2."""
+    """autobrr is still a kopiur volume - now its ONLY engine (retired 2026-09-02)."""
     onboarded: list[tuple[str, str, Path]] = []
     for path in sorted(APPS_MAIN.rglob("*.yaml")):
         if path.name == "kustomization.yaml":
@@ -760,16 +834,16 @@ def test_autobrr_still_onboarded() -> None:
         f"Stage 1 pilot {PILOT_NS}/{PILOT_APP} must still include components/kopiur, "
         f"got {sorted(f'{ns}/{name}' for ns, name in keys)}",
     )
-    # autobrr's own components list is still volsync THEN kopiur.
+    # autobrr's own components list is kopiur THEN kopiur/pvc since retirement.
     docs = load_multi(AUTOBRR_OVERLAY)
     components = docs[0]["spec"].get("components") or []
     require(
         components
         == [
-            "../../../../../components/volsync",
             "../../../../../components/kopiur",
+            "../../../../../components/kopiur/pvc",
         ],
-        f"autobrr components must stay volsync+kopiur, got {components}",
+        f"autobrr components must be kopiur+kopiur/pvc, got {components}",
     )
 
     dl = yaml.safe_load(DOWNLOADS_OVERLAY_KUST.read_text())
@@ -990,9 +1064,23 @@ def main() -> int:
         "SECRET_DOMAIN": "example.test",
     }
 
+    # components/volsync is rendered under a SYNTHETIC env, not the pilot map.
+    # VolSync was retired from autobrr on 2026-09-02, so the live overlay no
+    # longer carries a single VOLSYNC_* key - rendering the component under it
+    # would fall back to defaults everywhere and quietly assert nothing about
+    # the component 22 other claims still use. The values are autobrr's own,
+    # recorded as history, so the schedule contract stays exactly as pinned.
+    volsync_env = {
+        "APP": PILOT_APP,
+        "SECRET_DOMAIN": "example.test",
+        "VOLSYNC_SCHEDULE_CEPH": RETIRED_PILOT_VOLSYNC_CEPH,
+        "VOLSYNC_SCHEDULE_MINIO": RETIRED_PILOT_VOLSYNC_MINIO,
+        "VOLSYNC_SCHEDULE_R2": RETIRED_PILOT_VOLSYNC_R2,
+    }
+
     try:
         kopiur_docs = render_with_substitute(KOPIUR_BACKUP, pilot_env)
-        volsync_docs = render_with_substitute(VOLSYNC_BACKUP, pilot_env)
+        volsync_docs = render_with_substitute(VOLSYNC_BACKUP, volsync_env)
     except Failure as e:
         print(f"[FAIL] render: {e}")
         print("Summary: 0 passed, 1 failed")
@@ -1004,7 +1092,10 @@ def main() -> int:
     run("schedules_non_collision", lambda: test_schedules_non_collision(kopiur_docs))
     run("component_defaults_without_override", test_component_defaults_without_override)
     run("restore_passive", lambda: test_restore_passive_contract(kopiur_docs))
-    run("volsync_pilot_still_triple", lambda: test_volsync_pilot_still_triple(volsync_docs))
+    run(
+        "volsync_retired_from_pilot_but_component_intact",
+        lambda: test_volsync_retired_from_pilot_but_component_intact(volsync_docs),
+    )
     run("autobrr_overlay_wiring", test_autobrr_overlay_wiring)
     run("autobrr_still_onboarded", test_autobrr_still_onboarded)
     run(
