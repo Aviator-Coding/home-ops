@@ -1,6 +1,6 @@
 ---
 name: cilium-host-policy
-description: Read before adding or editing any CiliumClusterwideNetworkPolicy, host firewall policy, or nodeSelector-scoped Cilium policy, and before changing hostFirewall settings in the cilium HelmRelease. The default-deny and label-filter traps here can lock all three Talos nodes out at once, needing physical-console recovery.
+description: "Read before adding or editing any CiliumClusterwideNetworkPolicy, host firewall policy, or nodeSelector-scoped Cilium policy, and before changing hostFirewall settings in the cilium HelmRelease. The default-deny and label-filter traps here can lock all three Talos nodes out at once, needing physical-console recovery."
 ---
 
 # Cilium host firewall and CiliumClusterwideNetworkPolicy

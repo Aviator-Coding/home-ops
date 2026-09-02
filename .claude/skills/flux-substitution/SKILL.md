@@ -1,6 +1,6 @@
 ---
 name: flux-substitution
-description: Read before adding or editing any Flux-reconciled file that can carry a literal ${...} token that is NOT a Flux substitution variable - Grafana dashboard JSON, Helm values, ConfigMaps, container env - and when a Flux Kustomization is stuck with an envsubst error. Covers the three fixes and why neither flate nor task flux:test:all catches this.
+description: "Read before adding or editing any Flux-reconciled file that can carry a literal ${...} token that is NOT a Flux substitution variable - Grafana dashboard JSON, Helm values, ConfigMaps, container env - and when a Flux Kustomization is stuck with an envsubst error. Covers the three fixes and why neither flate nor task flux:test:all catches this."
 ---
 
 # Flux postBuild.substitute and literal ${...} tokens

@@ -1,6 +1,6 @@
 ---
 name: intel-gpu
-description: Read before any change touching the cluster's Intel GPUs: generic-device-plugin groups or mountPaths, the devic.es/b70 and devic.es/b70-vaapi resources, gpu.intel.com/xe, any workload that transcodes or runs inference on a GPU, or a Grafana panel/alert over GPU metrics. Covers the DRM device-node rename that silently kills VA-API and what GPU telemetry Prometheus does and does not have.
+description: "Read before any change touching the cluster's Intel GPUs: generic-device-plugin groups or mountPaths, the devic.es/b70 and devic.es/b70-vaapi resources, gpu.intel.com/xe, any workload that transcodes or runs inference on a GPU, or a Grafana panel/alert over GPU metrics. Covers the DRM device-node rename that silently kills VA-API and what GPU telemetry Prometheus does and does not have."
 ---
 
 # Intel GPUs: device plugins, VA-API and telemetry

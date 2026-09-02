@@ -1,6 +1,6 @@
 ---
 name: tdarr-transcoding
-description: Read before changing anything in the Tdarr transcoding stack: library toggles or schedules, node scheduling and librariesToNotProcess, flow definitions, customFunction nodes, the Set Container node, or encoder-specific output arguments. Also read when investigating errored remuxes or missing subtitle tracks.
+description: "Read before changing anything in the Tdarr transcoding stack: library toggles or schedules, node scheduling and librariesToNotProcess, flow definitions, customFunction nodes, the Set Container node, or encoder-specific output arguments. Also read when investigating errored remuxes or missing subtitle tracks."
 ---
 
 # Tdarr libraries, flows and flow nodes

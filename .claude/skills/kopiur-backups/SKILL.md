@@ -1,6 +1,6 @@
 ---
 name: kopiur-backups
-description: Read before ANY kopiur change or investigation: onboarding or retiring a claim, editing kubernetes/components/kopiur/** or kubernetes/apps/base/system/kopiur/**, setting KOPIUR_* variables in a Flux overlay, creating/reading/deleting a Snapshot, SnapshotPolicy, Restore or ClusterRepository, running a restore drill, or diagnosing a failed backup. Covers the ten onboarding traps, mover identity, credentialProjection, schedules and timezone, the PVC-ownership swap that retirement requires, and the fleet restore proof.
+description: "Read before ANY kopiur change or investigation: onboarding or retiring a claim, editing kubernetes/components/kopiur/** or kubernetes/apps/base/system/kopiur/**, setting KOPIUR_* variables in a Flux overlay, creating/reading/deleting a Snapshot, SnapshotPolicy, Restore or ClusterRepository, running a restore drill, or diagnosing a failed backup. Covers the ten onboarding traps, mover identity, credentialProjection, schedules and timezone, the PVC-ownership swap that retirement requires, and the fleet restore proof."
 ---
 
 # kopiur backups (and the VolSync dual-engine overlap)

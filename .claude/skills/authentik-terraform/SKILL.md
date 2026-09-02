@@ -1,6 +1,6 @@
 ---
 name: authentik-terraform
-description: Read before touching terraform/** or Authentik SSO: running tofu plan/apply, adding or importing an Authentik application, provider, flow or property mapping, changing the S3 state backend or its credentials, wiring a new SSO-gated route, or diagnosing a terraform-diff CI failure. Covers why tofu apply is never a follow-on to a green PR, and the four traps tofu validate cannot catch.
+description: "Read before touching terraform/** or Authentik SSO: running tofu plan/apply, adding or importing an Authentik application, provider, flow or property mapping, changing the S3 state backend or its credentials, wiring a new SSO-gated route, or diagnosing a terraform-diff CI failure. Covers why tofu apply is never a follow-on to a green PR, and the four traps tofu validate cannot catch."
 ---
 
 # Authentik SSO and the terraform/authentik OpenTofu stack

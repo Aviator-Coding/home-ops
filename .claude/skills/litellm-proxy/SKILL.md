@@ -1,6 +1,6 @@
 ---
 name: litellm-proxy
-description: Read before touching ai/litellm or ai/litellm-operator: adding or editing a LiteLLMModel, LiteLLMVirtualKey or LiteLLMProxy CR, changing the model catalog or a key's model allow-list, budgets, rate limits, fallbacks, spend logging, the complexity-tier auto-router, or the Claude Code subscription pass-through models. Also read when a LiteLLM CR is stuck non-Ready or the proxy is billing unexpectedly.
+description: "Read before touching ai/litellm or ai/litellm-operator: adding or editing a LiteLLMModel, LiteLLMVirtualKey or LiteLLMProxy CR, changing the model catalog or a key's model allow-list, budgets, rate limits, fallbacks, spend logging, the complexity-tier auto-router, or the Claude Code subscription pass-through models. Also read when a LiteLLM CR is stuck non-Ready or the proxy is billing unexpectedly."
 ---
 
 # LiteLLM proxy, operator CRs and the auto-router
