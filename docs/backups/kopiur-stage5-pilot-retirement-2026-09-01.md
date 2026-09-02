@@ -250,9 +250,13 @@ The remaining three hold 458 KB, 79 MB and 3.4 MB against a 2 GiB cache - three 
 magnitude of headroom - and each was re-proven from r2 anyway rather than assumed from its ceph
 result, which is exactly what finding 2 says not to do.
 
-**Still open, and NOT addressed here:** `ai/hermes` and `media/plex` standing populators remain at
-5Gi and 10Gi with no r2 restore ever exercised against them. That work belongs before those
-volumes are retired.
+**Left open by this pilot (status as of the pilot date):** `ai/hermes` and `media/plex`
+standing populators were still at 5Gi and 10Gi with no r2 restore exercised at those values.
+**Update 2026-09-02:** finding 2 is closed for `ai/hermes` - Git raised to 16Gi and an r2
+scratch restore was proven at that value
+([`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md)).
+The live `hermes-kopiur-dst` object remains create-time 5Gi until delete+recreate
+(`ssa: IfNotPresent`); `media/plex` 10Gi is predicted safe but not r2-exercised.
 
 ## Execution
 
@@ -461,13 +465,13 @@ Fleet-wide, every other Flux Kustomization is `Ready` and every `HelmRelease` in
 - **No `Snapshot` CR was deleted**, here or during cleanup. A kopiur `Snapshot` owns its kopia
   snapshot through a finalizer, so deleting one deletes backup data. The 8 verification snapshots
   were left for normal retention to prune.
-- **This says nothing about the other 26 volumes.** In particular it does not clear
-  restore-proof finding 2 for `ai/hermes` or `media/plex`; those remain blocked on an r2 restore
-  proven at their standing populator cache, which has never been exercised against r2. The cache
-  raise itself is only half outstanding: `plex` already stands at 10Gi and `hermes` is still at
-  5Gi, against the 20 GiB and 30 GiB their r2 restores actually needed. See "Restore cache: how
-  finding 2 was handled" above, and finding 2's table in
-  `docs/backups/kopiur-restore-proof-2026-09-01.md`.
+- **This says nothing about the other 26 volumes.** At pilot time it did not clear
+  restore-proof finding 2 for `ai/hermes` or `media/plex`. **Update 2026-09-02:** finding 2 is
+  closed for `ai/hermes` (16Gi in Git, r2 scratch restore proven end-to-end);
+  `media/plex` 10Gi is predicted safe by that measurement but not itself r2-exercised; the live
+  `hermes-kopiur-dst` populator still needs delete+recreate to leave its create-time 5Gi
+  (`ssa: IfNotPresent`). Authority:
+  [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
 - **MinIO coverage genuinely ends for these four.** kopiur has two destinations, not three (Stage
   0 gave it no MinIO `ClusterRepository`, the captain being on the way out of MinIO over its
   licensing change). Retiring VolSync therefore takes these four from 3 destinations to 2. That is

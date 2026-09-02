@@ -489,6 +489,17 @@ Cost is not a reason to under-size: `mode: Ephemeral` renders a generic ephemera
 `volumeClaimTemplate` on `ceph-block`, which is thin-provisioned and deleted with
 the mover pod, so a raised figure only ever consumes what a run actually writes.
 
+**Raising the substitute does not update a live standing `Restore`.**
+`${APP}-kopiur-dst` carries `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`, so
+Flux applies the new capacity to both `SnapshotPolicy` objects but leaves an
+already-created populator at its create-time value. After raising
+`KOPIUR_CACHE_CAPACITY` on an onboarded claim, **delete and recreate** that
+`Restore` before relying on the CEPH populator path (safe: no finalizers, no
+ownerReferences, owns no backup data - Stage 5 did this for `sabnzbd-kopiur-dst`).
+Hand-written drill Restores always set capacity in their own spec and are
+unaffected. Full evidence:
+`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`.
+
 ## Root movers (`KOPIUR_PUID`/`PGID: 0`)
 
 The component already substitutes `mover.podSecurityContext.runAsUser` /

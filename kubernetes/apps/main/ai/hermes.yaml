@@ -82,8 +82,16 @@ spec:
       # `mode: Ephemeral` renders a generic ephemeral volumeClaimTemplate on the
       # default StorageClass (ceph-block), thin-provisioned and deleted with the
       # mover pod, so the raised figure costs only what a run actually writes.
-      # One variable feeds both the backup movers and the restore mover; the
-      # restore is the demanding direction, so it sets the value.
+      # One variable feeds both SnapshotPolicies and the standing Restore
+      # *template*; the restore is the demanding direction, so it sets the value.
+      #
+      # Raising this value reaches the two SnapshotPolicies on the next Flux
+      # reconcile, but NOT the standing ceph populator hermes-kopiur-dst
+      # (ssa: IfNotPresent, create-once), which stays frozen at its create-time
+      # value. Closing that gap needs a one-time post-merge delete of that
+      # Restore so Flux recreates it at 16Gi (safe: no finalizers - Stage 5
+      # sabnzbd-kopiur-dst precedent). Scratch r2 Restores set capacity in their
+      # own spec and are unaffected. See the proof doc's post-merge subsection.
       KOPIUR_CACHE_CAPACITY: 16Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, which already

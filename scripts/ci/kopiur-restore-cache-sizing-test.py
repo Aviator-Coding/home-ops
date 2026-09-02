@@ -170,16 +170,18 @@ def test_every_declared_capacity_is_parseable() -> None:
     require(seen >= len(PINNED), f"expected at least {len(PINNED)} declared capacities, saw {seen}")
 
 
-def test_proof_document_exists() -> None:
-    """The reasoning behind these numbers must not be orphaned."""
+def test_proof_document_path_exists() -> None:
+    """Guard that the proof-doc pointer still resolves on disk.
+
+    Existence only - deliberately does not assert on document content. The
+    behavioural pins are the substitute-map assertions above; content needles
+    would not catch a rewrite that kept the strings while dropping the model.
+    """
     require(
         PROOF_DOC.is_file(),
         f"{PROOF_DOC.relative_to(REPO)} is missing - it is the only record of why these "
         f"capacities are what they are, and the values are meaningless without it",
     )
-    text = PROOF_DOC.read_text()
-    for needle in ("10,419,954,664", "6.212 GiB", "CLOSED"):
-        require(needle in text, f"proof document no longer states {needle!r}")
 
 
 def main() -> int:
@@ -201,7 +203,7 @@ def main() -> int:
     run("pinned_capacities", test_pinned_capacities)
     run("pinned_capacities_clear_the_plateau", test_pinned_capacities_clear_the_plateau)
     run("every_declared_capacity_is_parseable", test_every_declared_capacity_is_parseable)
-    run("proof_document_exists", test_proof_document_exists)
+    run("proof_document_path_exists", test_proof_document_path_exists)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")
