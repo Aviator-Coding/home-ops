@@ -22,55 +22,88 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component below -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-02 - migration Stage 5, wave two, volume 4 of 4.
+    # kopiur is now the ONLY backup engine on this claim.
+    #
+    # THIS ONE WAS ESCALATED AND DECIDED DELIBERATELY, not swept in with the
+    # rest. The claim is a real Obsidian vault - genuinely irreplaceable user
+    # data, the same CLASS of content as `selfhosted/paperless-ngx`, which the
+    # captain has carved out to stay dual-engine PERMANENTLY. The wave-two
+    # report flagged it as "ready on the evidence, but worth a deliberate
+    # decision rather than an automatic one", and the recommendation put to the
+    # captain was to keep it dual-engine on the paperless reasoning: one extra
+    # backup run buys a second independent restore path on something that
+    # cannot be rebuilt. The captain said retire, and said it again after the
+    # objection. That is recorded as a decision, not inferred from the evidence
+    # - and it does not weaken the paperless-ngx carve-out, which is unchanged.
+    #
+    # Evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md part 1 -
+    # 8 files / 561 KiB, 100% of what the claim holds, restored identically
+    # from BOTH destinations in content and in mode/uid/gid, and metadata
+    # identical to live. Complete rather than thin: the 8 files are a real
+    # CouchDB database, not a scaffold. Retirement record:
+    # docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+    #
+    # It is also structurally safe against the restore-cache cliff that keeps
+    # `syncthing-data` and `paperless-ngx-media` dual-engine: the 2Gi claim
+    # cannot hold more than the ~1.95 GiB of usable cache the 2Gi component
+    # default covers, so the cliff is unreachable without also resizing the
+    # claim. Do not raise KOPIUR_CAPACITY here without also raising
+    # KOPIUR_CACHE_CAPACITY - that pairing is the whole safety argument.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: obsidian-livesync
-      VOLSYNC_CAPACITY: 2Gi
-      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "15 4 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
+      # default. The live claim is 2Gi (holding 561 KiB), and under the pvc
+      # Component's `ssa: IfNotPresent` this value is create-time-only for the
+      # existing claim but is exactly what a REBUILD would provision. Dropping
+      # it would silently make a rebuilt vault claim 2.5x the size of the one
+      # it replaced - and would break the cache-safety argument above.
+      KOPIUR_CAPACITY: 2Gi
       # APP_UID/APP_GID deliberately absent - see changedetection.yaml for the
       # precedent. No manifest in this repo reads either variable.
       #
       # LOAD-BEARING. CouchDB runs as 5984:5984 (pod securityContext
       # 5984:5984:5984, reconfirmed live 2026-08-31) and owns all 8 files on
-      # this volume as 5984:5984. Both movers are now pinned to 5984:5984,
-      # matching KOPIUR_PUID/PGID below. VOLSYNC_PUID/PGID were added
-      # 2026-08-31: the 2026-08-30 audit had already found and documented that
-      # the VolSync mover ran at the unmatched 1000:1000 component default and
-      # only "happens to read this volume" - every file is mode 644/755, so a
-      # uid-1000 mover can read them despite not owning them, purely by luck of
-      # permissive modes. That is the identical shape of latent trap that
-      # caused the changedetection defect (a declared/enforced split nobody
-      # closed), so it is fixed here rather than left as documented-but-live
-      # drift. Verified safe before applying: 5984:5984 already owns 100% of
-      # the volume's files (VolSync's own backup log independently confirms
-      # "processed 8 files" against the live claim), so this mover identity
-      # change can only gain read access, never lose it.
-      VOLSYNC_PUID: "5984"
-      VOLSYNC_PGID: "5984"
+      # this volume as 5984:5984, so the mover is matched to the workload.
+      #
+      # VOLSYNC_PUID/PGID went with the volsync Component above. They were
+      # added 2026-08-31 to close a latent trap - the VolSync mover had been
+      # running at the unmatched 1000:1000 component default and only "happened
+      # to read this volume" because every file is mode 644/755, the identical
+      # shape of defect that broke changedetection when files were mode 0600.
+      # That history is why KOPIUR_PUID/PGID below must never be dropped back
+      # to the default: kopiur stages its source READ-ONLY, so it gets no
+      # kubelet fsGroup fixup and fails CLOSED on the first unreadable file,
+      # where VolSync silently survived. With VolSync retired there is no
+      # second engine to mask a wrong identity here.
       KOPIUR_PUID: "5984"
       KOPIUR_PGID: "5984"
       # Namespace r2 hour. The component default (`H 4 * * *`) is especially
-      # wrong for `selfhosted`: EVERY claim in this namespace already runs its
-      # volsync r2 job in the 04:00 hour, so the default would stack both
-      # systems into one hour for every one of them. Hour 14 carries no volsync
-      # destination and no kopiur ceph slot (01/05/09/13/17/21). Ceph stays on
-      # the component default, which is already structurally offset.
+      # wrong for `selfhosted`: every claim in this namespace that still runs
+      # volsync does its r2 job in the 04:00 hour, so the default would stack
+      # both systems into one hour for every one of them. Hour 14 carries no
+      # volsync destination and no kopiur ceph slot (01/05/09/13/17/21). Ceph
+      # stays on the component default, which is already structurally offset.
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
