@@ -52,6 +52,27 @@ spec:
       # owned 2000:2000.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
+      # RESTORE-SIZED, not backup-sized. Same reasoning as media/tdarr.yaml,
+      # measured 2026-09-02 (docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md
+      # finding 1): a restore's kopia cache grows ~1:1 with the bytes written
+      # into the target until it hits kopia's own budget - a ~6.2 GiB plateau -
+      # so required cache = min(snapshot sizeBytes, ~6.2 GiB).
+      #
+      # This claim's r2 snapshot is 1.36 GiB against 1.95 GiB usable at 2Gi =
+      # 70%. That is the same cliff shape as tdarr with more runway, not a
+      # different situation: crossing 1.95 GiB jumps the requirement straight to
+      # the ~6.2 GiB plateau and the restore then fails TERMINALLY, discoverable
+      # only during an actual disaster. 10Gi (9.74 GiB usable) clears the
+      # plateau outright, so this claim can never reach the cliff again.
+      #
+      # Sized rather than proven: the r2 restore demonstration for this size
+      # class was run on media/tdarr, the tighter of the two, at this same 10Gi.
+      # See docs/backups/kopiur-populator-drift-2026-09-02.md.
+      #
+      # Reaches both SnapshotPolicies on the next Flux reconcile but NOT the
+      # standing populator radarr-kopiur-dst (ssa: IfNotPresent, create-once),
+      # which needs a one-time delete so Flux recreates it at the new value.
+      KOPIUR_CACHE_CAPACITY: 10Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, already the
       # busiest. Hour 11 carries no volsync destination and no kopiur ceph slot

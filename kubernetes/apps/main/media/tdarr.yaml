@@ -45,6 +45,38 @@ spec:
       # not worth taking - that is exactly how sabnzbd-config failed.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
+      # RESTORE-SIZED, not backup-sized. Measured 2026-09-02
+      # (docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md finding 1):
+      # during a restore the kopia cache grows ~1:1 with the bytes written into
+      # the target until it reaches kopia's own internal budget - observed as a
+      # ~6.2 GiB plateau - so the cache a restore needs is
+      # min(snapshot sizeBytes, ~6.2 GiB).
+      #
+      # This is a CLIFF, not a slope, and that is why 2Gi had to go. This claim's
+      # r2 snapshot is 1.70 GiB against 1.95 GiB usable at 2Gi = 87%, the tightest
+      # margin in the fleet. While the snapshot stays under the cache the limit is
+      # never reached and any value works; the first time this growing volume
+      # crosses 1.95 GiB the requirement does not rise to 2.1 GiB, it jumps
+      # straight to the full ~6.2 GiB plateau and the restore fails TERMINALLY -
+      # a failed kopiur Restore never retries, recovery means creating a new one.
+      # So the failure would only ever be discovered during an actual disaster.
+      #
+      # 10Gi (9.74 GiB usable) covers the plateau with ~57% headroom and matches
+      # plex and sabnzbd in the same size class. Cost is not a reason to
+      # under-size: `mode: Ephemeral` renders a generic ephemeral PVC on
+      # ceph-block, thin-provisioned and deleted with the mover pod, so it costs
+      # only what a run actually writes.
+      #
+      # Proven end-to-end from r2 at exactly this value on 2026-09-02, with the
+      # restored tree verified by file count and per-tree sha256 rather than by
+      # a success status. Evidence:
+      # docs/backups/kopiur-populator-drift-2026-09-02.md.
+      #
+      # One variable feeds both SnapshotPolicies and the standing Restore.
+      # Raising it reaches the policies on the next Flux reconcile but NOT the
+      # standing populator tdarr-kopiur-dst (ssa: IfNotPresent, create-once) -
+      # that needs a one-time delete so Flux recreates it at the new value.
+      KOPIUR_CACHE_CAPACITY: 10Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, which already
       # carries volsync's ceph slot. Hour 15 carries no volsync destination and
