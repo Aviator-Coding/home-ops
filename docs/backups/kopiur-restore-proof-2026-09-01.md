@@ -19,6 +19,11 @@
 > [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md),
 > which is now the authority on cache sizing. `media/plex`'s standing 10Gi is predicted safe by
 > that run's measurement but has not itself been exercised against r2.
+> **Finding 4 (near-empty claims) and the prowlarr destination-identity caveat were closed on
+> 2026-09-02** by
+> [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md)
+> (three claims remain genuinely un-deepenable; `prowlarr-config` is now destination-identical;
+> tdarr/radarr standing populators verified live at 10Gi).
 
 This is the Stage 5 prerequisite: a per-volume restore proof for **every** kopiur-protected
 claim, on **both** the `ceph` and `r2` destinations. The captain chose a demonstrated restore
@@ -33,6 +38,9 @@ Sibling documents:
   closes finding 2 for `ai/hermes`; authority on `KOPIUR_CACHE_CAPACITY` sizing.
 - [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md) - standing-
   `Restore` drift closure, tdarr/radarr 2Gi->10Gi (tdarr r2-proven at 10Gi).
+- [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md) - closes
+  finding 4 and the prowlarr destination-identity caveat; discharges the tdarr/radarr
+  post-merge populator recreate.
 - [`recyclarr-config-readable-check-2026-08-31.md`](recyclarr-config-readable-check-2026-08-31.md)
   - the CSI-clone technique reused here for claims with no readable live mount.
 - [`restore-drill-2026-08-23.md`](restore-drill-2026-08-23.md) - the VolSync equivalent and
@@ -40,7 +48,7 @@ Sibling documents:
 
 ## Bottom line for Stage 5
 
-**All 30 claims restored from both `ceph` and `r2`.** Destination trees are byte-identical except `downloads/prowlarr-config`, whose re-drill restored two different snapshot points (see the prowlarr note).
+**All 30 claims restored from both `ceph` and `r2`.** Destination trees are byte-identical except `downloads/prowlarr-config`, whose re-drill restored two different snapshot points (see the prowlarr note). **That caveat is closed** - a 2026-09-02 destination-identical re-drill is in [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md).
 
 Two results decide whether that is enough to retire VolSync, and they point in different
 directions:
@@ -307,6 +315,12 @@ does prune correctly.
 
 ### Finding 4: five claims are too small for a restore to prove much
 
+> **Refined 2026-09-02.** Re-measurement and the honest split (three genuinely un-deepenable;
+> `ntfy` and `obsidian-livesync` complete rather than thin; restore-cache capacity as the real
+> forward risk) live in
+> [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md). The text
+> below is the 2026-09-01 finding as written.
+
 `downloads/autobrr` holds **one** file (2 179 bytes). Its restore matches byte-for-byte from
 both destinations, and that result is close to meaningless as a fidelity proof - it exercises
 the mechanism, not the data path at scale. The Stage 2 drill made the same point about this
@@ -482,9 +496,9 @@ Of the two questions that gate retirement:
    [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
    `media/plex` 10Gi is predicted safe by that measurement but was not itself r2-exercised.
 
-Separately, the five near-empty claims (finding 4) carry proofs that are thin by nature -
-`autobrr` holds a single file - and may deserve a different kind of assurance than a restore
-comparison can give.
+Separately, the five near-empty claims (finding 4) carried proofs that are thin by nature -
+`autobrr` holds a single file - and that question is answered in
+[`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md).
 
 Nothing in this document should be read as a recommendation to retire, or not to retire, any
 particular volume. That is the captain's call.
