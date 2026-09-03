@@ -331,7 +331,7 @@ drift trap in `AGENTS.md`).
 
 ## Daily Timeline Example
 
-With per-app schedules (24 Flux Kustomizations include this component; 2 more protect a
+With per-app schedules (20 Flux Kustomizations include this component; 2 more protect a
 second claim through `path: ./kubernetes/components/volsync/backup`).
 Times are America/New_York local (see [Timezone: VolSync vs kopiur](#timezone-volsync-vs-kopiur)):
 
@@ -468,14 +468,14 @@ schedule: "0 2 * * *"
 
 ## Application Schedule Distribution
 
-**26** Flux Kustomizations protect a claim with this component - **24** listing it under
+**22** Flux Kustomizations protect a claim with this component - **20** listing it under
 `components:` (the table below) plus `selfhosted/paperless-ngx-media` and
 `selfhosted/syncthing-data` via `path: ./kubernetes/components/volsync/backup`, which is why the
-table has 24 rows and not 26. That is **78** `ReplicationSource`s, down from 30/90 on 2026-09-01
-when Stage 5 retired VolSync from `ai/repo-wiki`, `downloads/recyclarr`, `downloads/sabnzbd` and
-`media/seerr` (2026-09-01), then from `downloads/prowlarr`, `selfhosted/ntfy`, `downloads/autobrr`
-and `selfhosted/obsidian-livesync` (2026-09-02); all eight rows were removed here and the rest
-renumbered. They are kopiur-only now, and their old restic repositories were **not** deleted.
+table has 20 rows and not 22. That is **66** `ReplicationSource`s, down from 30/90 before Stage 5,
+26/78 after the 2026-09-01 pilot (`ai/repo-wiki`, `downloads/recyclarr`, `downloads/sabnzbd` and
+`media/seerr`), then 22/66 after the 2026-09-02 wave two (`downloads/prowlarr`, `selfhosted/ntfy`,
+`downloads/autobrr` and `selfhosted/obsidian-livesync`); all eight rows were removed here and the
+rest renumbered. They are kopiur-only now, and their old restic repositories were **not** deleted.
 Schedules are staggered but **not unique** (several apps share the same minute).
 Do not assume a 2-3 app cap on simultaneous Ceph backups. Regenerated from
 `rg 'components/volsync' kubernetes/apps` plus each overlay yaml's `VOLSYNC_SCHEDULE_*`
