@@ -110,6 +110,22 @@ spec:
         # prowlarr, readarr, recyclarr, sonarr, sabnzbd, tdarr, esphome,
         # zigbee2mqtt, changedetection) are individually confirmed MATCHED
         # by this cache-PVC join for the -ceph destination.
+        #
+        # THOSE NUMBERS ARE AS-MEASURED ON 2026-08-31 AND HAVE SINCE MOVED,
+        # deliberately: Stage 5 retired VolSync from 8 claims (4 on
+        # 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config, seerr;
+        # 4 on 2026-09-02 - prowlarr-config, ntfy, autobrr,
+        # obsidian-livesync), so recyclarr, sabnzbd and prowlarr are no
+        # longer in the VOLSYNC_CLAIM-override list above, and the per-
+        # destination count is 22, not 31. The measurement is left intact
+        # rather than rewritten because it is evidence of a specific live
+        # check on a specific date. NONE OF IT IS LOAD-BEARING FOR THE
+        # ALERT: the join key is derived from obj_name, not from any claim
+        # name, so a retired app's ReplicationSource and its cache PVC
+        # disappear together and the series simply stops matching - the
+        # same path the 4 retired apps named above already exercise.
+        # Retirement records: docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md,
+        # docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
         - alert: VolSyncSyncStalledCeph
           expr: |-
             label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ceph$"}[6h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
