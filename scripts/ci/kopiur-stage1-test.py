@@ -162,9 +162,10 @@ PILOT_SUBSTITUTE = {
     "KOPIUR_SCHEDULE_R2": PILOT_KOPIUR_R2_CRON,
 }
 
-# Component defaults. Production autobrr no longer uses the identity/r2 ones;
-# they are pinned only by the explicit negative-control render below. Ceph
-# stays on the component default in production too (structurally offset).
+# Component defaults. The recorded pilot map no longer drives a live volume;
+# the identity/r2 defaults are pinned only by the explicit negative-control
+# render below. Ceph stays on the component default in the pilot map too
+# (structurally offset).
 COMPONENT_DEFAULT_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
 COMPONENT_DEFAULT_KOPIUR_R2_CRON = "H 4 * * *"
 COMPONENT_DEFAULT_PUID = 1000
@@ -492,7 +493,7 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
             psc.get("runAsUser") == PILOT_KOPIUR_PUID
             and psc.get("runAsGroup") == PILOT_KOPIUR_PGID
             and psc.get("fsGroup") == PILOT_KOPIUR_PGID,
-            f"{dest}: production autobrr mover must be "
+            f"{dest}: recorded pilot mover must be "
             f"{PILOT_KOPIUR_PUID}:{PILOT_KOPIUR_PGID} from PILOT_SUBSTITUTE, got {psc}",
         )
         deletion = spec.get("deletion") or {}
@@ -532,7 +533,7 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
 
 
 def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
-    """Production autobrr schedules from the recorded PILOT_SUBSTITUTE map."""
+    """Recorded pilot schedules from the historical PILOT_SUBSTITUTE map."""
     schedules = {s["metadata"]["name"]: s for s in by_kind(docs, "SnapshotSchedule")}
     for dest, expected_cron in (
         ("ceph", PILOT_KOPIUR_CEPH_CRON),
@@ -588,7 +589,7 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
     )
     require(
         k_r2_hours == {11},
-        f"production autobrr kopiur r2 hour must be 11 (downloads namespace), got {sorted(k_r2_hours)}",
+        f"recorded pilot kopiur r2 hour must be 11 (downloads namespace), got {sorted(k_r2_hours)}",
     )
     require(
         v_r2_hours == {3},
@@ -597,9 +598,9 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
 
 
 def test_component_defaults_without_override() -> None:
-    """Negative control: component defaults with a synthetic env (NOT production autobrr).
+    """Negative control: component defaults with a synthetic env (NOT the recorded pilot map).
 
-    Production autobrr carries KOPIUR_PUID/PGID=2000 and KOPIUR_SCHEDULE_R2='H 11 * * *'
+    The recorded pilot map carries KOPIUR_PUID/PGID=2000 and KOPIUR_SCHEDULE_R2='H 11 * * *'
     from Stage 3. This render deliberately omits those overrides so the component's
     own defaults stay pinned: mover 1000:1000, ceph 'H 1-23/4 * * *', r2 'H 4 * * *'.
     """
