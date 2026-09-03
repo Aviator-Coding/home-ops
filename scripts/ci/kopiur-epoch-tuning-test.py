@@ -132,8 +132,9 @@ def test_ceph_min_duration_is_inside_the_derived_band() -> None:
     """The value must advance at every quick run and never at the full run.
 
     This is the assertion that catches "helpfully" changing 5h to the 6h the
-    condition message suggests: 6h is above the upper bound, so the epoch is
-    ~9 minutes short at the next quick run and stretches to 11.85h.
+    condition message suggests: 6h is above the upper bound AND is a multiple of
+    the cron period, so whether the epoch clears the gate at the next quick run
+    depends on how jitter happened to fall - it averages ~12h and flaps.
     """
     ceph = repositories()["ceph"]
     got = ceph["spec"].get("parameters", {}).get("epoch", {}).get("minDuration")

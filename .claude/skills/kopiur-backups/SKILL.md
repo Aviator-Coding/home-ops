@@ -73,14 +73,27 @@ condition had been `False` continuously since 2026-09-01: maintenance was runnin
 its lease was healthy (`LeaseOwned=True`/`LeaseClaimed`), and its *quick* runs really do
 compact. The cause was `parameters.epoch.minDuration` at kopia's `24h` default.
 
-**The rounding trap - this is the load-bearing part.** kopiur advances epochs **only during a
-maintenance run**, and writes the epoch marker **~9 minutes into** that run. So an epoch is ~9
-minutes short of maturity at the run exactly one period later and waits a whole further period.
-Measured epochs ran 26.7h / 30.0h / 27.0h against a 24h gate, each 23.8h old at the run that
-should have closed it. **Never size `minDuration` as a multiple of the maintenance period** -
-it will just-miss every time. Size it strictly *below* the shortest inter-run gap minus the
-marker lag. `ceph` now runs `5h` against a 6h quick cron, inside the derived `(3.0h, 5.85h]`
-band that advances at every quick run and never at the full run.
+**The jitter coin flip - this is the load-bearing part.** kopiur advances epochs **only during
+a maintenance run**, and a schedule's `jitter` is **redrawn per slot**. Measured on ceph's quick
+cron 2026-09-03: the 00:00 slot fired at 00:00:06 (+6s) and the 06:00 slot at 06:25:41
+(+25m41s). So the gap between consecutive runs of one cron is not the period `P` but
+`P + J_next - J_prev`, anywhere in `[P - jitter, P + jitter]`.
+
+**Never set `minDuration` to a multiple of the maintenance period.** At a multiple, an epoch
+clears the gate at the next slot only when `J_next >= J_prev` - about half the time - so the
+epoch length flaps and averages `2P`. Measured at the 24h default against a 6h cron: epochs ran
+26.7h / 30.0h / 27.0h, never 24h. Worked example - epoch 2 opened 00:10:23 (jitter +10m23s) and
+matured at 00:10:23 the next day, but that day's 00:00 slot fired at 00:00:06, ten minutes
+*before* eligibility, so it waited for the 03:00 full run.
+
+`ceph` now runs `5h` against a 6h quick cron, inside the `(4h, 5.5h]` band - bounds taken
+worst-case over the **declared jitter windows**, not over one day's offsets: `> 4h` so the 03:00
+full run (up to `3h + 60m` after the 00:00 quick) never advances the epoch too, and `<= 5.5h` so
+the next quick run (as little as `6h - 30m` later) always does. Inside that band the cadence is
+**deterministic** - exactly one advance per quick slot - which is the real reason to prefer it
+over a value that merely clears the threshold on average. The condition message's suggested
+`6h` is the multiple-of-the-period case: it averages ~12h epochs, flaps, and would breach the
+threshold intermittently.
 
 **The live count model, verified rather than inferred:** exactly **two** epochs are live at
 once - one closed-but-not-yet-compacted plus the open one - so live blobs oscillate between
