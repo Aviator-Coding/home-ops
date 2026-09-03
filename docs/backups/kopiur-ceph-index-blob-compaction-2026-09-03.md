@@ -54,7 +54,7 @@ consolidated when their epoch closes, and the pipeline for one epoch `N` is:
 | 4 | epoch `N` compacted into one `xs<N>_...` blob | one epoch per maintenance run |
 | 5 | the superseded `xn<N>_...` blobs are deleted | **`cleanupSafetyMargin`** (4h), then the next run |
 
-Two mechanics decide the real epoch length. Both were measured, and the second was established
+Two mechanics decide the real epoch length. Both were measured, and the first was established
 by an experiment that **falsified this investigation's first fix**:
 
 ### 1. Epoch age starts at the first index blob, not at the epoch marker

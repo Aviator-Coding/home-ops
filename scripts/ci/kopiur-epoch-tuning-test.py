@@ -4,9 +4,9 @@
 `parameters.epoch.minDuration` on the `ceph` ClusterRepository looks like a
 cosmetic knob and is actually what keeps `IndexBlobHealth` inside its threshold.
 Both mechanics below were MEASURED on 2026-09-03
-(docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md), and the second
-one was established by an experiment that falsified the first attempt at this
-fix - so neither is a guess:
+(docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md). The first was
+established by an experiment that falsified the first attempt at this fix - so
+neither is a guess:
 
 1. An epoch's age is counted from the FIRST INDEX BLOB written into it, not from
    the epoch-marker blob that opens it. Epoch 3's marker was written 03:08:17 and
