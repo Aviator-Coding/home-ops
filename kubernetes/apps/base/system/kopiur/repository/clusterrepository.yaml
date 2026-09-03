@@ -86,6 +86,33 @@ spec:
   # `pruned-by` and are never held.
   deletionProtection:
     threshold: 10
+  # --- epoch tuning: why this repository does NOT run kopia's 24h default ---
+  # Index blobs are only compacted once their EPOCH closes, and `minDuration` is
+  # the advance GATE: no blob count closes an epoch younger than it. kopiur
+  # advances epochs only during a maintenance run, so the effective epoch length
+  # is `minDuration` rounded UP to the next run - and the epoch marker is written
+  # ~9 minutes INTO that run, so an epoch is still ~9 minutes short of maturity at
+  # the run exactly one period later and has to wait a whole further period.
+  #
+  # Measured here 2026-09-03 at the 24h default: epochs ran 26.7h, 30.0h and 27.0h
+  # (never 24h), each 23.8h old - eight to ten minutes short - at the run that
+  # should have closed it. At a measured 32.5 index blobs/hour that is ~900 blobs
+  # per epoch, and exactly TWO epochs are live at once (one closed-but-not-yet-
+  # compacted, plus the open one), so the count oscillates ~900-1810 against a
+  # threshold of 1000. A stable equilibrium, not a leak, and not a stuck lease.
+  #
+  # 5h is derived from ceph's OWN maintenance offsets (quick 00/06/12/18, full
+  # ~03:07), inside the (3.0h, 5.85h] band that advances the epoch at every quick
+  # run and never at the full run: 5.85h epochs, ~190 blobs each, ~380 peak - 62%
+  # headroom. The condition message's suggested 6h is not wrong, but it is a worse
+  # buy: it loses to the same just-misses-by-9-minutes effect against a 6h quick
+  # cron and silently delivers 11.85h epochs rather than the 6h asked for, leaving
+  # ~770 peak and only 23% headroom - which this fleet would spend by growing from
+  # 29 claims to ~38. Re-derive the band if the maintenance schedule changes.
+  # Evidence: docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md
+  parameters:
+    epoch:
+      minDuration: 5h
   # Deleting a consuming namespace orphans its snapshots rather than deleting
   # them (the ADR-0005 axis).
   onNamespaceDelete: Orphan
@@ -128,4 +155,17 @@ spec:
     allowed: true
   deletionProtection:
     threshold: 10
+  # No `parameters.epoch` override here, DELIBERATELY - and not because this
+  # repository is healthier than `ceph`. Measured 2026-09-03: r2 has the IDENTICAL
+  # epoch structure (same three epoch markers within ~15 min of ceph's, one
+  # single-epoch compaction, zero range checkpoints) and the identical stalled
+  # compaction. It is under the 1000 threshold only because it takes the DAILY
+  # backup slot while ceph takes the 4-hourly one, so it accumulates ~4.4x slower:
+  # 422 index blobs against ceph's 1851, converging on ~420 rather than ~1850.
+  # `IndexBlobHealth=True` here means "quieter", not "correct". If r2's backup
+  # cadence is ever raised, or its claim count grows several-fold, this repository
+  # will reproduce ceph's warning and needs the same `minDuration` treatment -
+  # re-derived against r2's OWN maintenance offsets (quick ~00:16, full ~03:35),
+  # not copied from ceph's. Left untuned to keep the change to what the evidence
+  # required. See docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md.
   onNamespaceDelete: Orphan
