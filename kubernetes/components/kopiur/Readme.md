@@ -2,15 +2,17 @@
 
 Reusable Flux component that backs up one PVC to the cluster's two kopiur
 repositories. It is the deliberate sibling of [`../volsync`](../volsync/Readme.md)
-and runs **alongside** it on 22 of 30 claims; on the eight Stage 5 retired
-volumes it has replaced it outright.
+and runs **alongside** it on 22 of 29 claims; on the seven still-present Stage 5
+retired volumes it has replaced it outright (eight were retired; autobrr left
+the fleet with its app on 2026-09-02).
 
 Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stage 5 IN PROGRESS - 8 of 30 volumes retired, in two
-> waves (2026-09-01 pilot, 2026-09-02 wave two).**
+> **Migration status: Stage 5 IN PROGRESS - 7 of 29 volumes still kopiur-only
+> after eight retirements in two waves (2026-09-01 pilot, 2026-09-02 wave two);
+> autobrr left the fleet when its app was removed.**
 > kopiur is live on **all 29 of the fleet's 29** VolSync-protected claims - zero
 > deferred (Stage 3 onboarded namespace by namespace on 2026-08-30; Stage 4
 > added both remaining claims on 2026-08-31). It was 30 until the

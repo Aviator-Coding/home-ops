@@ -5,8 +5,8 @@ Stage 1 is the first LIVE use of kopiur: a reusable backup component that
 mirrors components/volsync, onboarded first on downloads/autobrr ALONGSIDE its
 existing VolSync backups. MinIO is not a kopiur destination. Stage 2 later
 added sabnzbd-config as a second volume (see kopiur-stage2-test.py for the
-two-volume set and the PUID/claim contracts); this file still pins the Stage 1
-component + autobrr contract and only requires that autobrr remain onboarded.
+two-volume set and the PUID/claim contracts). This file still pins the Stage 1
+component + historical autobrr contract via recorded substitute maps.
 
 THE PILOT APP IS GONE. VolSync was first retired from autobrr (2026-09-02,
 Stage 5 wave two), and later the same day the autobrr APP ITSELF was removed on
@@ -51,7 +51,7 @@ This test does not grep source text as its evidence. It:
        - both policies use ClusterRepository ceph/r2, claim name autobrr
          (default ${KOPIUR_CLAIM:-${APP}}), copyMethod Snapshot, Ephemeral
          cache, retention matching VolSync for that destination, mover
-         identity 2000:2000 from the live overlay, and pinned
+         identity 2000:2000 from the recorded PILOT_SUBSTITUTE map, and pinned
          deletion.onPolicyDelete: Retain
        - both schedules pin deletion.onScheduleDelete: Retain, jitter 5m,
          native bare H minute, and HOUR slots that cannot collide with the
@@ -141,8 +141,8 @@ RETIRED_PILOT_VOLSYNC_CEPH = "45 */4 * * *"
 RETIRED_PILOT_VOLSYNC_MINIO = "30 */6 * * *"
 RETIRED_PILOT_VOLSYNC_R2 = "45 3 * * *"
 
-# Production pilot kopiur pins (Stage 3). The live overlay is the source of
-# truth at render time; these are the values that overlay must currently carry.
+# Production pilot kopiur pins (Stage 3). Historical values from the removed
+# autobrr overlay; the component contract they pin stays asserted as recorded.
 PILOT_KOPIUR_PUID = 2000
 PILOT_KOPIUR_PGID = 2000
 PILOT_KOPIUR_R2_CRON = "H 11 * * *"
@@ -493,7 +493,7 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
             and psc.get("runAsGroup") == PILOT_KOPIUR_PGID
             and psc.get("fsGroup") == PILOT_KOPIUR_PGID,
             f"{dest}: production autobrr mover must be "
-            f"{PILOT_KOPIUR_PUID}:{PILOT_KOPIUR_PGID} from the live overlay, got {psc}",
+            f"{PILOT_KOPIUR_PUID}:{PILOT_KOPIUR_PGID} from PILOT_SUBSTITUTE, got {psc}",
         )
         deletion = spec.get("deletion") or {}
         require(
@@ -532,7 +532,7 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
 
 
 def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
-    """Production autobrr schedules from the live overlay substitute map."""
+    """Production autobrr schedules from the recorded PILOT_SUBSTITUTE map."""
     schedules = {s["metadata"]["name"]: s for s in by_kind(docs, "SnapshotSchedule")}
     for dest, expected_cron in (
         ("ceph", PILOT_KOPIUR_CEPH_CRON),

@@ -185,12 +185,15 @@ for existing was torrent-side automation, and it had gone unused since the stack
 was committed usenet-only on 2026-08-30 (`data/decisions-2026-08-30/downloads-usenet-only.md`).
 The captain removed it outright on 2026-09-02.
 
-Removed with it: its manifests and Flux overlay, its `postgres-17` database
-(which held its real state - the claim carried a single 2,179-byte config file),
-and the CI gates that pinned its paths. **Its kopiur backup history was
-deliberately KEPT** and is retained in both the `ceph` and `r2` repositories.
-Removal record, including the retained-snapshot proof and the post-merge
-operational steps: `docs/backups/autobrr-removal-2026-09-02.md`.
+Removed with it NOW: its manifests and Flux overlay. The `scripts/ci` gates that
+pinned its paths were UPDATED (not deleted) so a half-revert cannot reintroduce
+the app. Still present until post-merge ops: the `postgres-17` database (which
+held its real state - the claim carried a single 2,179-byte config file; not in
+Git, created imperatively by `postgres-init`, and still held open by the live
+pod until Flux prunes the app) and the 1Password `autobrr` item. **Its kopiur
+backup history was deliberately KEPT** and is retained in both the `ceph` and
+`r2` repositories. Removal record, including the retained-snapshot proof and the
+post-merge operational steps: `docs/backups/autobrr-removal-2026-09-02.md`.
 
 Re-adding torrent automation later means redeploying autobrr from scratch
 alongside a torrent client; nothing here half-works in the meantime.

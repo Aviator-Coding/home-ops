@@ -13,7 +13,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 - **Secrets:** 1Password + External Secrets Operator. Bootstrap and Talos secrets are injected by `vals` from vault `Home-Lab`
 - **Ingress:** Gateway API (`envoy-internal` / `envoy-external` in `network`) plus Cloudflare Tunnel
 - **DNS:** External-DNS to Cloudflare (public) and the Unifi webhook (`network/unifi-dns`, internal)
-- **Backup:** kopiur on all 30 protected claims (ceph + r2); VolSync still dual-engine on 26 of them (ceph + MinIO + r2) and retired from 4 Stage 5 pilot volumes
+- **Backup:** kopiur on all 29 protected claims (ceph + r2); VolSync still dual-engine on 22 of them (ceph + MinIO + r2) and retired from 7 still-present Stage 5 volumes (eight were retired; `downloads/autobrr` left the fleet when its app was removed on 2026-09-02)
 
 ## Operator docs
 

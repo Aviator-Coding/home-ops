@@ -14,8 +14,10 @@ This document explains the backup and restore strategy implemented using Volsync
 >   `obsidian-livesync` is a genuine Obsidian vault, retired on an explicit captain decision after
 >   an objection. `selfhosted/paperless-ngx` remains a permanent carve-out and stays dual-engine.
 >
-> Those eight are now **kopiur-only**; the remaining 22 still run both engines, and retiring any of
-> them is a separate captain decision.
+> Eight volumes were retired; seven of them are still present as **kopiur-only**
+> (`downloads/autobrr` left the fleet when its app was removed the same day). The
+> remaining 22 still run both engines, and retiring any of them is a separate
+> captain decision.
 >
 > Two things a reader of this file needs to know:
 >
