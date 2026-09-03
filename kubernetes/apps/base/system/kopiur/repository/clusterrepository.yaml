@@ -88,37 +88,46 @@ spec:
     threshold: 10
   # --- epoch tuning: why this repository does NOT run kopia's 24h default ---
   # Index blobs are only compacted once their EPOCH closes, and `minDuration` is
-  # the advance GATE: no blob count closes an epoch younger than it. kopiur
-  # advances epochs ONLY during a maintenance run, and the schedule's `jitter` is
-  # redrawn PER SLOT (measured on this cron: 0m06s at the 00:00 slot, 25m41s at
-  # the 06:00 slot). So the gap between consecutive runs is not the cron period P
-  # but `P + J_next - J_prev`, anywhere in [P - jitter, P + jitter].
+  # the advance GATE. Two mechanics decide the real epoch length, and BOTH were
+  # measured here on 2026-09-03 rather than assumed:
   #
-  # That makes any `minDuration` at a MULTIPLE of P a coin flip: the epoch clears
-  # the gate at the next slot only when `J_next >= J_prev`, about half the time,
-  # so the epoch length flaps and averages 2P. Measured here 2026-09-03 at the 24h
-  # default against a 6h cron: epochs ran 26.7h, 30.0h and 27.0h - never 24h. At a
-  # measured 32.5 index blobs/hour that is ~900 blobs per epoch, and exactly TWO
-  # epochs are live at once (one closed-but-not-yet-compacted, plus the open one),
-  # so the count oscillated ~900-1810 against a threshold of 1000. A stable
-  # equilibrium, not a leak, and not a stuck maintenance lease.
+  #  1. An epoch's age is counted from the FIRST INDEX BLOB written into it, not
+  #     from the epoch-marker blob that opens it. Proven by experiment: epoch 3's
+  #     marker was written 03:08:17 and its first blob 04:38:34; a maintenance run
+  #     at 08:10:43 - 5.03h after the marker but only 3.53h after the first blob -
+  #     did NOT advance it under a 5h gate. Because writes arrive in the 4-hourly
+  #     backup bursts, that offset is 0-4h of dead time before the clock starts.
+  #  2. kopiur advances epochs ONLY during a maintenance run, so maturity is then
+  #     rounded up to the next run (quick 00/06/12/18 +<=30m, full 03 +<=1h).
   #
-  # 5h is chosen to sit inside the (4h, 5.5h] band, whose bounds are worst-case
-  # over the DECLARED jitter windows rather than over one day's observed offsets:
-  #   > 4h   so the 03:00 full run (up to 3h+60m after the 00:00 quick) never
-  #          advances the epoch, which would add a fifth epoch on some days while
-  #          compaction stays at one epoch per maintenance run.
-  #   <= 5.5h so the next quick run (as little as 6h-30m later) always does.
-  # Inside that band the cadence is DETERMINISTIC - exactly one advance per quick
-  # slot - giving 6h epochs, ~195 blobs each, ~390 live peak and ~61% headroom.
-  # The condition message's suggested `6h` is the multiple-of-the-period case
-  # above: it averages ~12h epochs, flaps, and would intermittently breach the
-  # threshold. Determinism is the reason to prefer 5h, not just the margin.
-  # Re-derive the band if the maintenance schedule or its jitter changes.
+  # So epoch length = (wait for first write) + minDuration + (wait for next run),
+  # which is very non-linear in minDuration. Measured at the 24h default: epochs
+  # ran 26.7h, 30.0h and 27.0h. At a measured 32.5 index blobs/hour that is ~900
+  # blobs per epoch, and exactly TWO epochs are live at once (one closed-but-not-
+  # yet-compacted plus the open one - verified live: 1006 = 879 + 127), so the
+  # count oscillated ~900-1810 against a threshold of 1000. A stable equilibrium,
+  # not a leak, and not a stuck maintenance lease.
+  #
+  # 4h is picked by simulating those two mechanics against the real schedules over
+  # 2,400 epoch-days (the model reproduces the observed 24h epochs: mean 28.8h,
+  # range 26.4-30.5h). Headroom is NOT monotonic in minDuration - it steps:
+  #
+  #     1.5-2.75h -> 4 epochs/day, worst epoch  8.7-9.5h, peak 564-616  (38-44%)
+  #     3.0-3.25h -> worst epoch 12.5h,         peak ~810               (19%)
+  #     3.5-4.75h -> 3 epochs/day, worst epoch 10.0h, peak 649          (35%)  <-- here
+  #     5.0-6.0h  -> worst epoch 12.5h,         peak ~812               (19%)
+  #     12h/24h   -> peak 1201 / 1980                                   (over)
+  #
+  # 4h sits mid-plateau, >=0.5h from either cliff, and its 3 epochs/day leaves the
+  # most compaction margin (compaction advances one epoch per maintenance run and
+  # there are 5 runs/day). The 2.75h peak is slightly better but is 0.25h from a
+  # cliff down to 19%. NOTE the condition message's suggested `6h` lands in the
+  # 19% band - and so did this repository's own first attempt at `5h`.
+  # Re-derive if the maintenance OR the backup schedule changes; both feed it.
   # Evidence: docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md
   parameters:
     epoch:
-      minDuration: 5h
+      minDuration: 4h
   # Deleting a consuming namespace orphans its snapshots rather than deleting
   # them (the ADR-0005 axis).
   onNamespaceDelete: Orphan

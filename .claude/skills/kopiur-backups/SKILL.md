@@ -73,27 +73,28 @@ condition had been `False` continuously since 2026-09-01: maintenance was runnin
 its lease was healthy (`LeaseOwned=True`/`LeaseClaimed`), and its *quick* runs really do
 compact. The cause was `parameters.epoch.minDuration` at kopia's `24h` default.
 
-**The jitter coin flip - this is the load-bearing part.** kopiur advances epochs **only during
-a maintenance run**, and a schedule's `jitter` is **redrawn per slot**. Measured on ceph's quick
-cron 2026-09-03: the 00:00 slot fired at 00:00:06 (+6s) and the 06:00 slot at 06:25:41
-(+25m41s). So the gap between consecutive runs of one cron is not the period `P` but
-`P + J_next - J_prev`, anywhere in `[P - jitter, P + jitter]`.
+**Two mechanics set the real epoch length, and the first one is the trap.**
 
-**Never set `minDuration` to a multiple of the maintenance period.** At a multiple, an epoch
-clears the gate at the next slot only when `J_next >= J_prev` - about half the time - so the
-epoch length flaps and averages `2P`. Measured at the 24h default against a 6h cron: epochs ran
-26.7h / 30.0h / 27.0h, never 24h. Worked example - epoch 2 opened 00:10:23 (jitter +10m23s) and
-matured at 00:10:23 the next day, but that day's 00:00 slot fired at 00:00:06, ten minutes
-*before* eligibility, so it waited for the 03:00 full run.
+*(a) An epoch's age is counted from the FIRST INDEX BLOB written into it, not from the `xe<N>`
+marker that opens it.* Writes arrive in the 4-hourly backup bursts, so 0-4h of dead time passes
+before the clock even starts (measured: 2.92h, 0.91h, 1.50h on epochs 1-3). This was established
+by an experiment that **falsified an earlier fix**: with `minDuration: 5h` live, a manual quick
+run at 08:10:43 found epoch 3 5.03h old *by marker* but only 3.53h old *by first blob*, and it
+did not advance. Epochs 1 and 2 fit both models and could not tell them apart. **Always measure
+epoch age from the oldest `xn<N>` blob.**
 
-`ceph` now runs `5h` against a 6h quick cron, inside the `(4h, 5.5h]` band - bounds taken
-worst-case over the **declared jitter windows**, not over one day's offsets: `> 4h` so the 03:00
-full run (up to `3h + 60m` after the 00:00 quick) never advances the epoch too, and `<= 5.5h` so
-the next quick run (as little as `6h - 30m` later) always does. Inside that band the cadence is
-**deterministic** - exactly one advance per quick slot - which is the real reason to prefer it
-over a value that merely clears the threshold on average. The condition message's suggested
-`6h` is the multiple-of-the-period case: it averages ~12h epochs, flaps, and would breach the
-threshold intermittently.
+*(b) Epochs advance only during a maintenance run*, so maturity rounds up to the next run (quick
+00/06/12/18 with <=30m jitter, redrawn per slot; full 03 with <=1h). So
+`epoch length = (wait for first write) + minDuration + (wait for next run)`.
+
+**Therefore headroom STEPS rather than slopes, and `minDuration` must not be interpolated or
+rounded to a tidy number.** Simulated against the real maintenance *and backup* schedules over
+2,400 epoch-days (the model reproduces the observed 24h epochs), the peak live-blob count on
+ceph is: 24h -> 1980; 12h -> 1201; **5.0-6.0h -> ~812 (19%)**; **3.5-4.75h -> 649 (35%)**;
+3.0-3.25h -> ~810 (19%); 1.5-2.75h -> 564-616 (38-44%). `ceph` runs **`4h`**, mid-plateau and
+>=0.5h from either cliff, with 3 epochs/day leaving the most compaction margin (compaction
+advances one epoch per maintenance run; there are 5 runs/day). Note the condition message's
+suggested `6h` lands in the 19% band - and so did this repository's own first attempt at `5h`.
 
 **The live count model, verified rather than inferred:** exactly **two** epochs are live at
 once - one closed-but-not-yet-compacted plus the open one - so live blobs oscillate between

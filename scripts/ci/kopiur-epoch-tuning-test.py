@@ -3,32 +3,31 @@
 
 `parameters.epoch.minDuration` on the `ceph` ClusterRepository looks like a
 cosmetic knob and is actually what keeps `IndexBlobHealth` inside its threshold.
-Measured 2026-09-03 (docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md):
+Both mechanics below were MEASURED on 2026-09-03
+(docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md), and the second
+one was established by an experiment that falsified the first attempt at this
+fix - so neither is a guess:
 
-kopiur advances epochs ONLY during a maintenance run, and the schedule's `jitter`
-is redrawn PER SLOT (measured on ceph's quick cron: 0m06s at the 00:00 slot, 25m41s
-at the 06:00 slot). So the gap between consecutive runs of one cron is not the cron
-period P but `P + J_next - J_prev`, spanning `[P - jitter, P + jitter]`.
+1. An epoch's age is counted from the FIRST INDEX BLOB written into it, not from
+   the epoch-marker blob that opens it. Epoch 3's marker was written 03:08:17 and
+   its first blob 04:38:34; a maintenance run at 08:10:43 - 5.03h after the
+   marker but only 3.53h after the first blob - did NOT advance it under a 5h
+   gate. Writes arrive in the 4-hourly backup bursts, so there is 0-4h of dead
+   time before the clock even starts.
+2. kopiur advances epochs ONLY during a maintenance run, so maturity is rounded
+   up to the next run (quick 00/06/12/18 +<=30m, full 03 +<=1h).
 
-A `minDuration` equal to a multiple of P is therefore a COIN FLIP: an epoch opened at
-one slot clears the gate at the next only when `J_next >= J_prev`, roughly half the
-time, so the expected epoch length is 2P and the actual length flaps. At the 24h
-default the epochs measured 26.7h / 30.0h / 27.0h - never 24h. Exactly two epochs are
-live at once (one closed-but-not-yet-compacted plus the open one), so at ceph's
-measured 32.5 index blobs/hour the count oscillated between ~900 and ~1810 against a
-threshold of 1000.
+Epoch length is therefore `(wait for first write) + minDuration + (wait for next
+run)`, which is strongly NON-MONOTONIC in minDuration - headroom steps rather
+than sloping. That is the whole reason this value is pinned: 5h and the `6h` the
+condition message recommends both land in a 19%-headroom band, while 3.5-4.75h
+sits at 35% and 1.5-2.75h at 38-44%. A "tidier" round number is very likely to
+be worse, and nothing else in CI would notice - flate validates that the
+manifest builds, not what the value means, and there is no Prometheus metric for
+the index-blob count at all.
 
-This test exists because the alert message itself recommends the wrong values. It
-suggests `6h` - which is exactly the multiple-of-the-period case above against a 6h
-quick cron, so it inherits the same coin flip and delivers ~12h epochs on average
-while flapping between 6h and 18h+ - and `spec.health.indexBlobWarnThreshold`, which
-hides the inefficiency rather than fixing it. Someone reading only the alert would
-naturally "correct" 5h to 6h, or drop the block as clutter, and nothing else in CI
-would notice: `flate` validates the manifest builds, not what the value means, and
-there is no Prometheus metric for the index-blob count at all.
-
-Assertions are on the parsed manifest, not on source text, so a reformat or a move
-within the file still passes and a real value change still fails.
+Assertions are on the parsed manifest, not on source text, so a reformat or a
+move within the file still passes and a real value change still fails.
 """
 
 from __future__ import annotations
@@ -53,27 +52,27 @@ MANIFEST = (
 )
 PROOF_DOC = REPO / "docs" / "backups" / "kopiur-ceph-index-blob-compaction-2026-09-03.md"
 
-# The band derived from ceph's OWN maintenance crons and their DECLARED jitter
-# windows (quick `0 */6 * * *` jitter 30m; full `0 3 * * *` jitter 1h). Because
-# jitter is redrawn per slot, both bounds are worst-case over the windows, not
-# over the offsets observed on any one day:
+# The plateau chosen, from simulating both mechanics against the real maintenance
+# AND backup schedules over 2,400 epoch-days (the model reproduces the observed
+# 24h epochs: mean 28.8h, range 26.4-30.5h vs measured 26.96h/30.03h).
 #
-#   upper bound - the SHORTEST possible quick-to-quick gap, 6h - 30m = 5.5h
-#     (previous slot drew maximum jitter, next slot drew zero). Above this the
-#     epoch can miss the next slot and stretch - the whole bug, applied to its
-#     own fix.
-#   lower bound - the LONGEST possible gap from the 00:00 quick to the 03:00
-#     full, (3h + 60m) - 0m = 4h. At or below this the full run can also advance
-#     the epoch, making a fifth epoch on some days while compaction stays at one
-#     epoch per run, eating the headroom.
+# Headroom STEPS rather than slopes, so these are plateau edges, not a smooth
+# tolerance. Measured peaks (2 x worst-case epoch x 32.5 blobs/h):
 #
-# Inside (4h, 5.5h] the cadence is DETERMINISTIC - exactly one advance per quick
-# slot, every day - which is the real reason to prefer it over a value that
-# merely clears the threshold on average.
-BAND_EXCLUSIVE_LOW_H = 4.0
-BAND_INCLUSIVE_HIGH_H = 5.5
+#     1.5-2.75h  peak 564-616   (38-44%)  4 epochs/day
+#     3.0-3.25h  peak ~810      (19%)     <- cliff between the two good regions
+#     3.5-4.75h  peak 649       (35%)     3 epochs/day   <- the chosen plateau
+#     5.0-6.0h   peak ~812      (19%)     <- where 5h AND the suggested 6h land
+#     12h / 24h  peak 1201 / 1980         over threshold
+#
+# The 3.5-4.75h plateau is preferred over the slightly-better 1.5-2.75h one
+# because it is wider (so robust to schedule drift) and its 3 epochs/day leaves
+# the most compaction margin: compaction advances one epoch per maintenance run
+# and there are 5 runs/day. 2.75h peaks marginally better but sits 0.25h from a
+# cliff down to 19%.
+BAND_INCLUSIVE_LOW_H = 3.5
+BAND_INCLUSIVE_HIGH_H = 4.75
 
-# Measured on the live repository, 2026-09-03.
 BLOBS_PER_HOUR = 32.5
 # `spec.health.indexBlobWarnThreshold` is unset on both repositories, so the CRD
 # default applies (verified against the live CRD 2026-09-03: `default: 1000`).
@@ -81,12 +80,12 @@ THRESHOLD = 1000
 # Live index blobs = one closed-but-not-yet-compacted epoch + the open one.
 # Read directly off the cluster: indexBlobCount 882 = 879 (xn2) + 1 (xn3) + 2 (xs).
 LIVE_EPOCH_MULTIPLE = 2
-# Inside the band the epoch advances at every quick run, so the epoch length is
-# the quick cron period. Jitter shifts individual boundaries but cannot
-# accumulate, because each advance re-bases on the run that performed it.
-EFFECTIVE_EPOCH_H = 6.0
+# WORST-CASE epoch length on the chosen plateau, from the simulation above. The
+# threshold is breached by the worst epoch, not the average one (mean is 8.0h),
+# so the headroom check below deliberately uses the worst case.
+EFFECTIVE_EPOCH_H = 9.99
 # Refuse to ship a value with less headroom than this. 6h would land at 23%.
-MIN_HEADROOM_FRACTION = 0.40
+MIN_HEADROOM_FRACTION = 0.30
 
 
 class Failure(Exception):
@@ -131,10 +130,9 @@ def test_ceph_min_duration_is_set() -> None:
 def test_ceph_min_duration_is_inside_the_derived_band() -> None:
     """The value must advance at every quick run and never at the full run.
 
-    This is the assertion that catches "helpfully" changing 5h to the 6h the
-    condition message suggests: 6h is above the upper bound AND is a multiple of
-    the cron period, so whether the epoch clears the gate at the next quick run
-    depends on how jitter happened to fall - it averages ~12h and flaps.
+    This is the assertion that catches "helpfully" rounding the value to a nearby
+    number. Because headroom steps, 5h and the 6h the condition message suggests
+    both fall off this plateau into the same ~19% band.
     """
     ceph = repositories()["ceph"]
     got = ceph["spec"].get("parameters", {}).get("epoch", {}).get("minDuration")
@@ -142,20 +140,14 @@ def test_ceph_min_duration_is_inside_the_derived_band() -> None:
     require(got is not None, "ceph: spec.parameters.epoch.minDuration is missing")
     hours = parse_hours(got)
     require(
-        hours > BAND_EXCLUSIVE_LOW_H,
-        f"ceph: minDuration {got!r} ({hours}h) is at or below {BAND_EXCLUSIVE_LOW_H}h, the "
-        f"longest possible 00:00-quick-to-03:00-full gap once the full cron's 1h jitter is "
-        f"drawn at maximum. The full run could then also advance the epoch - a fifth epoch "
-        f"on some days while compaction stays at one epoch per run",
-    )
-    require(
-        hours <= BAND_INCLUSIVE_HIGH_H,
-        f"ceph: minDuration {got!r} ({hours}h) exceeds {BAND_INCLUSIVE_HIGH_H}h, the shortest "
-        f"possible quick-to-quick gap (6h cron minus its 30m jitter window). Jitter is redrawn "
-        f"per slot, so above this the epoch MAY miss the next slot and stretch to the one "
-        f"after - non-deterministically. That is the exact effect this value exists to avoid, "
-        f"and it is why the condition message's suggested 6h is the wrong buy: see "
-        f"{PROOF_DOC.relative_to(REPO)}",
+        BAND_INCLUSIVE_LOW_H <= hours <= BAND_INCLUSIVE_HIGH_H,
+        f"ceph: minDuration {got!r} ({hours}h) is outside the measured "
+        f"[{BAND_INCLUSIVE_LOW_H}h, {BAND_INCLUSIVE_HIGH_H}h] plateau. Headroom against the "
+        f"index-blob threshold STEPS rather than slopes, so a nearby round number is very "
+        f"likely to be worse, not slightly different: 3.0-3.25h and 5.0-6.0h both collapse to "
+        f"~19% headroom, and 5h - this repository's own first attempt - was one of them, as "
+        f"is the 6h the condition message recommends. Re-derive from the maintenance AND "
+        f"backup schedules before moving it: see {PROOF_DOC.relative_to(REPO)}",
     )
 
 
@@ -163,9 +155,9 @@ def test_headroom_against_the_threshold() -> None:
     """Self-consistency check on the constants above.
 
     test_ceph_min_duration_is_inside_the_derived_band compares the manifest against
-    the band; this one compares the band against the measurement, so widening the
-    band itself is caught too. Without it, raising BAND_INCLUSIVE_HIGH_H to 12h
-    would make both the band and the manifest agree on a value that puts the
+    the plateau; this one compares the plateau against the measurement, so widening
+    the plateau itself is caught too. Without it, raising BAND_INCLUSIVE_HIGH_H to
+    12h would make both the plateau and the manifest agree on a value that puts the
     repository back over its threshold.
     """
     peak = LIVE_EPOCH_MULTIPLE * EFFECTIVE_EPOCH_H * BLOBS_PER_HOUR
