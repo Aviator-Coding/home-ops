@@ -61,7 +61,8 @@ BAND_INCLUSIVE_HIGH_H = 5.85
 
 # Measured on the live repository, 2026-09-03.
 BLOBS_PER_HOUR = 32.5
-# `spec.health.indexBlobWarnThreshold` is unset, so the operator default applies.
+# `spec.health.indexBlobWarnThreshold` is unset on both repositories, so the CRD
+# default applies (verified against the live CRD 2026-09-03: `default: 1000`).
 THRESHOLD = 1000
 # Live index blobs = one closed-but-not-yet-compacted epoch + the open one.
 # Read directly off the cluster: indexBlobCount 882 = 879 (xn2) + 1 (xn3) + 2 (xs).
@@ -194,6 +195,30 @@ def test_r2_is_deliberately_untuned_and_says_so() -> None:
     )
 
 
+def test_threshold_is_not_silenced() -> None:
+    """Neither repository may raise or disable the index-blob warning threshold.
+
+    `spec.health.indexBlobWarnThreshold` (CRD default 1000, `0` disables) is the
+    third fix the condition message suggests, and it is the wrong one: it makes
+    the symptom go away while the repository keeps carrying two oversized epochs.
+    Raising it would also silently invalidate the headroom arithmetic above,
+    which assumes the default.
+
+    If a future measurement genuinely shows the threshold is mis-set for this
+    repository's size, that is a finding to argue in the proof document with
+    numbers - and this test should be updated in the same change, not deleted.
+    """
+    for name, repo in repositories().items():
+        got = repo["spec"].get("health", {}).get("indexBlobWarnThreshold")
+        require(
+            got is None,
+            f"{name}: spec.health.indexBlobWarnThreshold is set to {got!r} "
+            f"({'disabling' if got == 0 else 'raising'} the warning). That silences the "
+            f"symptom without compacting anything - fix the epoch length instead. See "
+            f"{PROOF_DOC.relative_to(REPO)}",
+        )
+
+
 def test_proof_document_path_exists() -> None:
     """Guard that the proof-doc pointer still resolves on disk.
 
@@ -227,6 +252,7 @@ def main() -> int:
     run("ceph_min_duration_is_inside_the_derived_band", test_ceph_min_duration_is_inside_the_derived_band)
     run("headroom_against_the_threshold", test_headroom_against_the_threshold)
     run("r2_is_deliberately_untuned_and_says_so", test_r2_is_deliberately_untuned_and_says_so)
+    run("threshold_is_not_silenced", test_threshold_is_not_silenced)
     run("proof_document_path_exists", test_proof_document_path_exists)
 
     passed = len(tests) - len(failures)
