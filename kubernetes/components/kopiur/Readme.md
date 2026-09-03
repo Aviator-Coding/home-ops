@@ -640,9 +640,11 @@ hour, and that stagger is arithmetic, not just "different numbers":
   DST-shifted `0,4,8,12,16,20` (EDT). Because `4 mod 4 == 0`, that held by
   coincidence all summer. At the 2026-11-01 DST transition (EST, UTC-5),
   VolSync's UTC hours shift to `1,5,9,13,17,21` - landing on **every one** of
-  kopiur's hours, on **all 29 claims running both engines on the 4-hourly
-  cadence**. Verified with a live collision check across every namespace: 0
-  collisions pre-fix in summer, 29 claims colliding pre-fix in winter, 0
+  kopiur's hours, on **all 29 claims that were dual-engine when this was
+  measured on 2026-08-31 (22 today, after Stage 5 retired eight across two
+  waves)** on the 4-hourly cadence. Verified with a live collision check across
+  every namespace: 0 collisions pre-fix in summer, 29 claims colliding
+  pre-fix in winter (same 2026-08-31 measurement), 0
   collisions in **either** season once `spec.schedule.timezone` is set to the
   same zone VolSync already runs in (the fix keeps the hour *values* the same
   and lets them shift together with DST, instead of only one engine
@@ -674,7 +676,7 @@ local time and shifts together with DST - the UTC instant moves, but the
 | r2 | `45 3 * * *` -> local 03:45 | `H 4 * * *` -> local **04:xx** | daily 30, weekly 12, monthly 12 |
 
 Resulting UTC hours for the ceph cadence, both seasons (identical across every
-namespace - `database/pgadmin` shown; the 26 dual-engine claims match, and the
+namespace - `database/pgadmin` shown; the 22 dual-engine claims match, and the
 eight Stage 5 kopiur-only claims keep the same kopiur hours with no VolSync peer):
 
 | Season | VolSync ceph (UTC) | kopiur ceph (UTC) | Collision? |
