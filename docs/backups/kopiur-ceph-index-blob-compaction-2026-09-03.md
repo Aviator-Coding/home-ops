@@ -165,50 +165,95 @@ the takeover, and remove it in a follow-up.
 
 ## Snapshot safety
 
-PROOF_PLACEHOLDER
+The meaningful invariant on this cluster is **not** "the Snapshot census is unchanged" - schedules
+and GFS retention move it continuously - but **every snapshot that disappeared is attributed**.
 
-## How to recognise this next time
+| | |
+|---|---|
+| Snapshot CRs before (04:37Z) | **322** (234 ceph / 88 r2) |
+| Snapshot CRs after (08:44Z) | **336** |
+| disappeared | 29 - **all attributed** |
+| appeared | 43 (29 scheduled + 14 discovered) |
 
-- **`IndexBlobHealth=False` alone does not mean maintenance is broken.** Check
-  `Maintenance/<repo>.status`: `LeaseOwned=True` plus a recent `quick.lastRunAt` means it is
-  running, and the epoch gate is the cause. `lastContentReclaimedBytes: 0` is normal for a
-  repository with nothing to reclaim and is *not* evidence of a stalled run.
-- **Read the bucket, not just the status.** `xn<N>` counts per epoch, plus the `xe`/`xs`/`xr`
-  blobs, show the pipeline directly: many `xn`, few `xs`, no `xr` is the stalled-compaction
-  signature. There is **no Prometheus metric** for the index-blob count - 48 `kopiur_*` series
-  exist and none covers it, so `ClusterRepository.status.storageStats.indexBlobCount` and the
-  bucket are the only instruments.
-- **Measure epoch age from the first `xn<N>` blob, never from the `xe<N>` marker.** They can
-  differ by hours, and the difference is what makes a plausible-looking `minDuration` fail.
-- **Do not interpolate `minDuration`.** Headroom steps; simulate against both the maintenance
-  and backup schedules rather than picking a round number.
-- **A healthy sibling repository is not a control.** Compare *structure* (`xe`/`xs`/`xn` shape),
-  not the condition - `r2` looked healthy while carrying the same defect.
-- **Expect a transient re-fire while the old epochs drain.** The warning cleared at 04:44:51Z,
-  returned at 06:05:50Z as the open epoch refilled, and only settles once the oversized
-  pre-existing epochs have compacted. A single green reading is not the fix landing.
-- Triggering an out-of-band run is supported and cheap:
-  `kubectl -n system annotate maintenance <repo> kopiur.home-operations.com/run-requested="$(date -u +%Y-%m-%dT%H:%M:%SZ)" kopiur.home-operations.com/run-mode=quick --overwrite`.
-  A *quick* run is index/log work only and cannot reclaim content, completes in ~25s, and
-  `status.manualRun.phase` tracks it. It is not free of consequence: it **advances the epoch
-  pipeline**, so take the baseline first.
+**The 29 disappearances are ordinary GFS retention, not this work.** All 29 are dated
+`20260902`; all 29 new scheduled snapshots are dated `20260903`; every claim that lost one
+gained one, one-for-one. The operator log names them individually - `pruned backup (GFS
+retention) config=<claim>-ceph backup=<claim>-ceph-20260902...` - driven by the scheduled
+05:00 backup burst creating each claim's next snapshot. **No `Snapshot` CR was created during
+this work**, which matters because creating one *is* destructive under GFS retention (it can
+push an older snapshot out of the tier). The only non-retention deletion anywhere in the
+operator log is `hermes-r2-verify-20260902`, a hand-made verification snapshot removed at
+2026-09-02T23:26Z by the previous day's wave-two re-proof - before this investigation began.
 
-## Corrections made during this investigation
+**The 14 appearances are a bonus finding.** They are `origin: discovered` /
+`phase: Discovered` CRs the catalog rediscovered when the maintenance run refreshed it (the
+catalog had been stale since 2026-08-31T05:09Z; `discoveredBackupCount` went 0 -> 14, and
+`storageStats` corrected from a stale 18 snapshots / 3.86 GB to 247 / 24.3 GB). They are the
+retained kopia snapshots of two deliberately removed apps - **9 from `downloads/autobrr`**
+(`/pvc/autobrr`, `deletionPolicy: Retain`) and **5 from `ai/agentmemory`** (retired in #1527).
+That is independent confirmation that both removals preserved their data exactly as
+[`autobrr-removal-2026-09-02.md`](autobrr-removal-2026-09-02.md) predicted, and it is the first
+time those snapshots have been visible in the catalog.
 
-Recorded because the reasoning is reusable and the wrong turns are instructive:
+Only three object kinds were touched at all: the `ceph` `ClusterRepository` (patched live under
+a Flux suspend, then reverted), the `ceph` `Maintenance` CR (annotated to request out-of-band
+runs), and short-lived read-only diagnostic pods. `r2` was not modified.
 
-1. **"Jitter is a stable per-object offset"** - wrong; it is redrawn per slot (`00:00:06` vs
-   `06:25:41` on the same cron).
-2. **"A fixed ~9-minute epoch-marker write lag causes the just-miss"** - wrong; the real marker
-   lag is 20-60s. What looked like a lag was jitter, and then the actual cause turned out to be
-   mechanic 1 above.
-3. **Band `(3.0h, 5.85h]`, then `(4h, 5.5h]`** - both derived from the marker-based model and
-   both wrong. The real answer is a plateau at `[3.5h, 4.75h]` with a cliff on either side.
-4. **`5h`, and the claim that `6h` "would not work"** - `5h` was shipped first and the manual
-   run at 08:10:43Z falsified it. Under the corrected model `5h` and `6h` are *equivalent*, both
-   at 19% headroom. The value is now `4h`.
+## Live proof
 
-The general lesson: epochs 1 and 2 were consistent with two different models, and picking the
-wrong one produced a fix that looked well-argued and would have delivered a fraction of the
-intended headroom. The only thing that separated them was an experiment whose outcome the two
-models disagreed about.
+`kopiur-repository` was suspended (`flux suspend ks kopiur-repository -n system`) for the
+window, `ceph` patched live, and the Kustomization resumed afterwards - the repo's sanctioned
+pre-merge validation flow. Out-of-band maintenance runs were requested with the operator's own
+`run-requested`/`run-mode` annotations. Times are UTC on 2026-09-03.
+
+| time | event | epoch 3 age (marker / **first blob**) | result |
+|---|---|---|---|
+| 04:38:35 | manual quick run | - | compacted epoch 1 -> `xs1`; **count 1851 -> 882** |
+| 04:44:47 | `minDuration` patched to `5h` | - | **`kopia.repository` blob rewritten** - the parameter reached the repository, not just the CR status |
+| 06:05:50 | - | - | condition returned to `False` as the open epoch refilled (expected transient) |
+| 06:25:41 | scheduled quick run | 3.29h / **1.79h** | **negative control**: no advance, correctly under the gate on either model |
+| 08:10:43 | manual quick run | 5.03h / **3.53h** | **the falsification**: no advance. Marker model predicted one; first-blob model did not |
+| 08:17 | `minDuration` re-patched to `4h` | - | live `status.parameters` confirms `4h` |
+| 08:40:13 | manual quick run | 5.53h / **4.02h** | **positive control**: `xe4` written - epoch 3 advanced |
+| 08:41:33 | manual quick run | - | epoch 2 now settled -> compacted to `xs2` |
+| 09:07:53 | health probe | - | **`indexBlobCount` = 144**, `IndexBlobHealth=True Healthy` |
+
+**The headline number: 1851 -> 144.** Independently cross-checked against the bucket, which held
+`xs0`+`xs1`+`xs2` (3) + `xn3` (128) + `xn4` (1) = 132 live blobs at 08:44, plus ~12 accumulated
+by the 09:07 probe. The status field and the object listing were reconciled rather than either
+being taken on trust.
+
+**Why the positive control is decisive.** Epoch 3 advanced at **4.02h measured from its first
+blob** (04:38:34). Under the `24h` default it could not have closed until 2026-09-04T04:38:34Z
+at the earliest - twenty hours later. And it advanced at 4.02h from the *first blob*, not 4h
+from the *marker* (which would have been 07:08:17), re-confirming mechanic 1 on a second epoch.
+
+**What is NOT proven here.** The 1851 -> 882 drop at 04:38 was caused by the manual run
+compacting epoch 1, not by any parameter change - the same compaction would have happened at the
+next scheduled run regardless. Only the 08:40 advance and everything after it is attributable to
+`minDuration`. The long-run steady state (~649 peak) is a projection from the simulation, not a
+measurement; confirming it needs a few days of normal operation post-merge.
+
+**Post-merge state, and a trap found on the way out.** Resuming the Kustomization reverted the
+CR's `spec.parameters` to what `main` declares (absent) - but **the repository kept `4h`**.
+Verified fully reconciled: `spec.parameters` empty, `generation` = `observedGeneration` = 7, and
+`status.parameters.epoch.minDuration` still `4h`.
+
+**Removing `spec.parameters` does not restore the default.** The CRD describes the block as
+*"re-applied on bootstrap whenever they drift"*, and its `blobRetention` sibling spells the
+semantics out: *"Absent means 'don't touch it'"*. So the field is effectively write-only from
+Git's side - the operator asserts a declared value and leaves an undeclared one alone. Practical
+consequences:
+
+- The cluster is currently running `4h` while `main` declares nothing. That is drift, in the
+  intended direction, and merging this change makes it declarative (a no-op against the live
+  repository).
+- **A `git revert` of this change would NOT restore `24h`.** It would only stop asserting `4h`,
+  leaving the repository on `4h` silently. Backing this out for real means declaring
+  `minDuration: 24h` explicitly and letting it apply, then removing the block in a follow-up.
+- This is the same shape as the `LiteLLMVirtualKey` `rpmLimit` trap already recorded in
+  `AGENTS.md`: dropping an optional field stops the operator asserting it but does not clear
+  what is already set.
+
+The apply path itself is proven twice over - the 04:44:47 and 08:17 patches both reached the
+repository within 30s, the first rewriting the `kopia.repository` blob.

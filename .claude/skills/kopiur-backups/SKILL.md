@@ -125,6 +125,17 @@ accumulate -> close (gated by `minDuration`, only at a run) -> settle (write epo
 `N+2`) -> compact (**one epoch per maintenance run**) -> delete superseded (after
 `cleanupSafetyMargin`, 4h, then the next run).
 
+**`ClusterRepository.spec.parameters` is effectively WRITE-ONLY from Git's side.** The CRD calls
+it *"re-applied on bootstrap whenever they drift"*, and its `blobRetention` sibling states
+*"Absent means don't touch it"*. Measured 2026-09-03: resuming Flux reverted `spec.parameters`
+to absent (fully reconciled, `generation` == `observedGeneration`) while
+`status.parameters.epoch.minDuration` stayed at the patched `4h` - the repository kept it. So
+**a `git revert` of a parameters change does not undo it**; it only stops asserting it. To back
+one out for real, declare the old value explicitly, let it apply, then remove the block. Same
+shape as the `LiteLLMVirtualKey` `rpmLimit` trap in `AGENTS.md`. The corollary for live
+validation: a suspend/patch/resume cycle on this field leaves the patched value behind, so say
+so rather than assuming resume restored the cluster.
+
 **A healthy sibling repository is not a control.** `r2` read `IndexBlobHealth=True` throughout
 while carrying the **identical** defect - same three epoch markers within ~15 min of ceph's,
 same single `xs0`, same zero range checkpoints. It is under the threshold only because it takes

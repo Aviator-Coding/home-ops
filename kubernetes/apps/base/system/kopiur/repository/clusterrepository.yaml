@@ -124,6 +124,15 @@ spec:
   # cliff down to 19%. NOTE the condition message's suggested `6h` lands in the
   # 19% band - and so did this repository's own first attempt at `5h`.
   # Re-derive if the maintenance OR the backup schedule changes; both feed it.
+  #
+  # NOTE this block is effectively WRITE-ONLY from Git's side: the CRD documents
+  # `parameters` as "re-applied on bootstrap whenever they drift", and its
+  # `blobRetention` sibling as "Absent means don't touch it". Deleting these
+  # lines therefore does NOT restore kopia's 24h default - it just stops
+  # asserting 4h, and the repository silently keeps whatever it last received
+  # (measured 2026-09-03). Backing this out for real means declaring
+  # `minDuration: 24h` explicitly, letting it apply, then removing the block.
+  # Same shape as the LiteLLMVirtualKey rpmLimit trap in AGENTS.md.
   # Evidence: docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md
   parameters:
     epoch:
