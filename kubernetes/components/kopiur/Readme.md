@@ -695,7 +695,7 @@ local time and shifts together with DST - the UTC instant moves, but the
 
 Resulting UTC hours for the ceph cadence, both seasons (identical across every
 namespace - `database/pgadmin` shown; the 22 dual-engine claims match, and the
-eight Stage 5 kopiur-only claims keep the same kopiur hours with no VolSync peer):
+seven still-present Stage 5 kopiur-only claims keep the same kopiur hours with no VolSync peer):
 
 | Season | VolSync ceph (UTC) | kopiur ceph (UTC) | Collision? |
 |---|---|---|---|
@@ -760,8 +760,8 @@ It is **passive until a rebuilt claim claims it**: `target.populator` means
 repoint - `spec.dataSourceRef` is immutable - so a live claim keeps its VolSync
 `${APP}-dst` ref (inert once VolSync is retired) and the standing Restore stays
 `Pending` / `AwaitingPvcDataSourceRef` indefinitely. It is claimed only by a
-**rebuilt** claim created fresh from `components/kopiur/pvc`; on the eight Stage 5
-retired volumes that is already the contract today.
+**rebuilt** claim created fresh from `components/kopiur/pvc`; on the seven
+still-present Stage 5 retired volumes that is already the contract today.
 
 It carries `policy.onMissingSnapshot: Continue`, a deliberate departure from the
 CRD's `Fail` default: `Continue` provisions an empty volume when no snapshot

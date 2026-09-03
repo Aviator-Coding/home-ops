@@ -29,7 +29,7 @@ Gatus is an app under `kubernetes/apps/base/monitoring/gatus`, not a component. 
 |------|----------|-------|
 | Add new app | `kubernetes/apps/base/{namespace}/{app}/` + overlay `kubernetes/apps/main/{namespace}/{app}.yaml` | Overlay is a Flux `Kustomization` CR (one yaml per former `ks.yaml`). All 19 namespaces are on this layout. See NOTES. |
 | Add app to namespace | `kubernetes/apps/main/{namespace}/kustomization.yaml` | Add `- ./{app}.yaml` |
-| Enable backups | overlay `kubernetes/apps/main/{ns}/{app}.yaml` | Dual-engine (22 claims): `components/volsync` + `dependsOn: volsync` (namespace `system`) + `VOLSYNC_*` keys, plus `components/kopiur` + measured `KOPIUR_*` keys (example: `downloads/sonarr.yaml`). Kopiur-only (8 Stage 5 claims): drop volsync and add `components/kopiur/pvc` - owner: `kubernetes/components/kopiur/Readme.md` "Retiring a volume" |
+| Enable backups | overlay `kubernetes/apps/main/{ns}/{app}.yaml` | Dual-engine (22 claims): `components/volsync` + `dependsOn: volsync` (namespace `system`) + `VOLSYNC_*` keys, plus `components/kopiur` + measured `KOPIUR_*` keys (example: `downloads/sonarr.yaml`). Kopiur-only (7 Stage 5 claims still present; 8 retired, autobrr app later removed): drop volsync and add `components/kopiur/pvc` - owner: `kubernetes/components/kopiur/Readme.md` "Retiring a volume" |
 | App secrets | `kubernetes/apps/base/{ns}/{app}/app/externalsecret.yaml` | OnePassword via ClusterSecretStore `onepassword` |
 | Bootstrap secrets | `bootstrap/kustomize/apps/security/` | `vals` injects `ref+op://Home-Lab/1password/*` |
 | Flux entry point | `kubernetes/clusters/main/{meta,apps}.yaml` | `cluster-meta` -> `cluster-apps` dependency chain |
