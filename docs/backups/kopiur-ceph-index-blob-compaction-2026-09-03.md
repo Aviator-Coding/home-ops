@@ -171,15 +171,21 @@ and GFS retention move it continuously - but **every snapshot that disappeared i
 | | |
 |---|---|
 | Snapshot CRs before (04:37Z) | **322** (234 ceph / 88 r2) |
-| Snapshot CRs after (08:44Z) | **336** |
-| disappeared | 29 - **all attributed** |
-| appeared | 43 (29 scheduled + 14 discovered) |
+| Snapshot CRs at 09:15Z | **337** |
+| disappeared | 36 - **all attributed** |
+| appeared | 51 (36 scheduled + 14 discovered + 1 in-flight) |
 
-**The 29 disappearances are ordinary GFS retention, not this work.** All 29 are dated
-`20260902`; all 29 new scheduled snapshots are dated `20260903`; every claim that lost one
-gained one, one-for-one. The operator log names them individually - `pruned backup (GFS
-retention) config=<claim>-ceph backup=<claim>-ceph-20260902...` - driven by the scheduled
-05:00 backup burst creating each claim's next snapshot. **No `Snapshot` CR was created during
+The count keeps moving between any two readings, which is exactly why "census unchanged" is the
+wrong invariant here - an intermediate reading at 08:44Z showed 336 with 29 disappeared, and the
+09:00 backup burst rotated seven more while this was being written.
+
+**Every disappearance is ordinary GFS retention, not this work.** All 36 are dated `20260902`;
+all 36 new scheduled snapshots are dated `20260903`; every claim that lost one gained one,
+one-for-one. The operator log names them individually - `pruned backup (GFS retention)
+config=<claim>-ceph backup=<claim>-ceph-20260902...` - driven by the scheduled backup bursts
+creating each claim's next snapshot. (The one snapshot with no `origin` yet is
+`selfhosted/syncthing-ceph-20260903091417`, `Pending`/`SourceStaged=False` - an in-flight backup
+from the 09:00 burst.) **No `Snapshot` CR was created during
 this work**, which matters because creating one *is* destructive under GFS retention (it can
 push an older snapshot out of the tier). The only non-retention deletion anywhere in the
 operator log is `hermes-r2-verify-20260902`, a hand-made verification snapshot removed at
