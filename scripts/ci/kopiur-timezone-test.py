@@ -64,16 +64,26 @@ VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 # Was 29 (30 claims, all dual-engine). Stage 5 has retired VolSync from eight of
 # them in two waves: 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config,
 # seerr; 2026-09-02 - prowlarr-config, ntfy, autobrr, obsidian-livesync. That
-# leaves 22. Lower this ONLY alongside a real retirement; the authoritative
-# retired set is RETIRED_CLAIMS in kopiur-stage3-test.py. Note the timezone
-# contract itself is checked over ALL kopiur claims (see kopiur_claims), not
-# just these.
+# left 22, and it stays 22: `autobrr` was one of the eight already-retired
+# claims, so removing that app (2026-09-02) took a kopiur-only claim out of the
+# fleet and did not change the dual-engine population at all. Lower this ONLY
+# alongside a real retirement; the authoritative retired set is RETIRED_CLAIMS
+# in kopiur-stage3-test.py. Note the timezone contract itself is checked over
+# ALL kopiur claims (see kopiur_claims), not just these.
 MIN_DUAL_ENGINE_CLAIMS = 22
 
-# The whole kopiur fleet, dual-engine or retired. Unlike the floor above this
-# does NOT drop when a volume retires - retiring VolSync does not remove the
-# claim from kopiur, and lowering this would be the bug, not the fix.
-MIN_KOPIUR_CLAIMS = 30
+# The whole kopiur fleet, dual-engine or retired.
+#
+# Retiring a volume NEVER lowers this: retiring VolSync does not remove the
+# claim from kopiur, so a drop after a Stage 5 wave is the bug, not the fix.
+#
+# Removing an APP is the one thing that legitimately does lower it, because the
+# claim itself leaves the fleet along with the overlay that declared it. Was 30;
+# `downloads/autobrr` was removed on 2026-09-02 (captain decision - the app was
+# unused), which is why this is 29. Its kopia snapshots were deliberately KEPT,
+# but a retained snapshot is not a kopiur-onboarded claim and nothing in this
+# repo declares it any more. Distinguish the two cases before touching this.
+MIN_KOPIUR_CLAIMS = 29
 
 DEFAULT_TZ = "America/New_York"
 DEFAULT_KOPIUR_CEPH = "H 1-23/4 * * *"

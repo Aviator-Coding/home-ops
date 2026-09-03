@@ -2,27 +2,34 @@
 
 Reusable Flux component that backs up one PVC to the cluster's two kopiur
 repositories. It is the deliberate sibling of [`../volsync`](../volsync/Readme.md)
-and runs **alongside** it on 22 of 30 claims; on the eight Stage 5 retired
-volumes it has replaced it outright.
+and runs **alongside** it on 22 of 29 claims; on the seven still-present Stage 5
+retired volumes it has replaced it outright (eight were retired; autobrr left
+the fleet with its app on 2026-09-02).
 
 Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stage 5 IN PROGRESS - 8 of 30 volumes retired, in two
-> waves (2026-09-01 pilot, 2026-09-02 wave two).**
-> kopiur is live on **all 30 of the fleet's 30** VolSync-protected claims - zero
+> **Migration status: Stage 5 IN PROGRESS - 7 of 29 volumes still kopiur-only
+> after eight retirements in two waves (2026-09-01 pilot, 2026-09-02 wave two);
+> autobrr left the fleet when its app was removed.**
+> kopiur is live on **all 29 of the fleet's 29** VolSync-protected claims - zero
 > deferred (Stage 3 onboarded namespace by namespace on 2026-08-30; Stage 4
-> added both remaining claims on 2026-08-31).
+> added both remaining claims on 2026-08-31). It was 30 until the
+> `downloads/autobrr` APP was removed on 2026-09-02 (captain decision - unused),
+> which took its claim out of the fleet; its kopia snapshots were deliberately
+> KEPT - [`docs/backups/autobrr-removal-2026-09-02.md`](../../../docs/backups/autobrr-removal-2026-09-02.md).
 >
-> **VolSync has now been RETIRED from eight of them**, in two waves, so those
-> eight have kopiur as their ONLY backup engine:
+> **VolSync has been RETIRED from eight of them**, in two waves, so those eight
+> had kopiur as their ONLY backup engine (seven still do; autobrr left with its
+> app):
 >
 > * wave one, 2026-09-01 - `ai/repo-wiki`, `downloads/recyclarr-config`,
 >   `downloads/sabnzbd-config`, `media/seerr`: chosen for regenerable or
 >   reconstructible content and clean restore proofs.
 > * wave two, 2026-09-02 - `downloads/prowlarr-config`, `selfhosted/ntfy`,
->   `downloads/autobrr`, `selfhosted/obsidian-livesync`: **not all regenerable.**
+>   `downloads/autobrr` (app since removed), `selfhosted/obsidian-livesync`:
+>   **not all regenerable.**
 >   `ntfy` holds real auth state and `obsidian-livesync` is a genuine Obsidian
 >   vault, retired on an explicit captain decision after an objection. What
 >   authorises them is completeness of proof (100% of claim content,
@@ -277,9 +284,11 @@ never reconciles it again**. Adding the field does not reach a `Restore` that
 already exists in the cluster. A missing `credentialProjection` is fixed by
 **deleting and recreating** that Restore (safe: it has no finalizers and no
 ownerReferences, and owns no backup data, unlike a Snapshot) - not by repointing
-anything. `sabnzbd-kopiur-dst` was recreated during the Stage 5 pilot;
-`downloads/autobrr` is the one still missing the field and must be recreated
-before it is ever retired. Bound claims never repoint: `spec.dataSourceRef` is
+anything. `sabnzbd-kopiur-dst` was recreated during the Stage 5 pilot, and
+`autobrr-kopiur-dst` - the last object still missing the field - in the
+2026-09-02 fleet audit, after which all 30 populators agreed with `main`. (That
+app was itself removed later the same day, so its populator is gone with it; the
+audit result stands for the 29 that remain.) Bound claims never repoint: `spec.dataSourceRef` is
 immutable, so a live claim keeps its (now often inert) VolSync `${APP}-dst` ref
 forever and the standing Restore stays Pending until a **rebuilt** claim from
 `components/kopiur/pvc` claims it. A scratch drill `Restore` written today needs
@@ -363,7 +372,10 @@ Removing VolSync from a volume that kopiur already protects. Eight volumes have
 been through this, in two waves - `ai/repo-wiki`, `downloads/recyclarr-config`,
 `downloads/sabnzbd-config`, `media/seerr` (2026-09-01), then
 `downloads/prowlarr-config`, `selfhosted/ntfy`, `downloads/autobrr`,
-`selfhosted/obsidian-livesync` (2026-09-02). The full records, including why
+`selfhosted/obsidian-livesync` (2026-09-02). Seven are still in the fleet: the
+autobrr app was removed outright later on 2026-09-02, which is a different
+operation from retiring an engine and is recorded separately in
+[`docs/backups/autobrr-removal-2026-09-02.md`](../../../docs/backups/autobrr-removal-2026-09-02.md). The full records, including why
 those volumes, are
 [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
 and
@@ -438,8 +450,11 @@ in [`pvc/pvc.yaml`](pvc/pvc.yaml).
 `${APP}-kopiur-dst` once and never reconciles it again. Objects created before
 `credentialProjection` was added still lack it, and a `Restore` without it fails
 at mover time while every CR reads clean. `downloads/sabnzbd` was recreated for
-exactly this on retirement; **`downloads/autobrr` is still in that state** and
-must be recreated before it is ever retired. Deleting a `Restore` is safe - it
+exactly this on retirement, and `downloads/autobrr` in the 2026-09-02 fleet
+audit - the last one in that state. **No populator is known to be missing the
+field today**, but `ssa: IfNotPresent` means a newly added template field will
+put the next one there silently, so check rather than assume. Deleting a
+`Restore` is safe - it
 has no finalizers and owns no data, unlike a `Snapshot` - but verify that on the
 object first.
 
@@ -549,7 +564,10 @@ against their resolved Git values and found two frozen: `ai/hermes` at a stale
 `5Gi`, and `downloads/autobrr` - the oldest object, from the Stage 1 pilot -
 carrying identity `1000:1000` where Git says `2000:2000` **and no
 `credentialProjection` at all**, either of which fails its restore closed. Both
-were recreated and all 30 agree with `main`. The same day's tdarr/radarr 2Gi->10Gi
+were recreated and all 30 agreed with `main`. (The autobrr app was removed later
+that day, taking its populator with it - the fleet is 29 now. The finding is
+kept because it is the clearest example of the drift class: that object was the
+oldest in the fleet, and age is what makes a populator diverge.) The same day's tdarr/radarr 2Gi->10Gi
 raises then needed post-merge delete+reconcile; that live recreate is **closed**
 (both verified at 10Gi):
 `docs/backups/kopiur-wave-two-reproof-2026-09-02.md` Part 0. Re-read the live object
@@ -669,7 +687,7 @@ hours in `America/New_York` (see above), so the table below is written in
 local time and shifts together with DST - the UTC instant moves, but the
 1-hour kopiur/VolSync stagger does not:
 
-| Destination | VolSync (autobrr) | kopiur | Retention |
+| Destination | VolSync (per-app example) | kopiur | Retention |
 |---|---|---|---|
 | ceph | `45 */4 * * *` -> local 00,04,08,12,16,20 at :45 | `H 1-23/4 * * *` -> local **01,05,09,13,17,21** at a hashed minute | hourly 6, daily 14, weekly 10, monthly 6 |
 | minio | `30 */6 * * *` -> local 00,06,12,18 at :30 | *(no kopiur destination)* | - |
@@ -677,7 +695,7 @@ local time and shifts together with DST - the UTC instant moves, but the
 
 Resulting UTC hours for the ceph cadence, both seasons (identical across every
 namespace - `database/pgadmin` shown; the 22 dual-engine claims match, and the
-eight Stage 5 kopiur-only claims keep the same kopiur hours with no VolSync peer):
+seven still-present Stage 5 kopiur-only claims keep the same kopiur hours with no VolSync peer):
 
 | Season | VolSync ceph (UTC) | kopiur ceph (UTC) | Collision? |
 |---|---|---|---|
@@ -742,8 +760,8 @@ It is **passive until a rebuilt claim claims it**: `target.populator` means
 repoint - `spec.dataSourceRef` is immutable - so a live claim keeps its VolSync
 `${APP}-dst` ref (inert once VolSync is retired) and the standing Restore stays
 `Pending` / `AwaitingPvcDataSourceRef` indefinitely. It is claimed only by a
-**rebuilt** claim created fresh from `components/kopiur/pvc`; on the eight Stage 5
-retired volumes that is already the contract today.
+**rebuilt** claim created fresh from `components/kopiur/pvc`; on the seven
+still-present Stage 5 retired volumes that is already the contract today.
 
 It carries `policy.onMissingSnapshot: Continue`, a deliberate departure from the
 CRD's `Fail` default: `Continue` provisions an empty volume when no snapshot
@@ -760,7 +778,7 @@ its own PVC and is fail-closed:
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:
-  name: autobrr-drill-20260830
+  name: sabnzbd-drill-20260830
   namespace: downloads
 spec:
   repository: {kind: ClusterRepository, name: ceph}
@@ -768,9 +786,9 @@ spec:
   # standing repository credentials in any app namespace, so a mover with no
   # projection opt-in has nothing to authenticate with. See "Credentials".
   credentialProjection: {enabled: true}
-  source: {fromPolicy: {name: autobrr-ceph, offset: 0}}
+  source: {fromPolicy: {name: sabnzbd-config-ceph, offset: 0}}
   target:
-    pvc: {name: autobrr-drill-restored, accessModes: [ReadWriteOnce], capacity: 5Gi}
+    pvc: {name: sabnzbd-drill-restored, accessModes: [ReadWriteOnce], capacity: 5Gi}
 ```
 
 The standing Restore also carries `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`,
@@ -782,7 +800,7 @@ way since October 2025.
 
 On a **dual-engine** volume either of these leaves VolSync completely untouched
 and loses nothing, because VolSync is still backing that claim up. On a **Stage 5
-kopiur-only** volume (the eight in `RETIRED_CLAIMS`) there is no VolSync peer left
+kopiur-only** volume (the seven in `RETIRED_CLAIMS`) there is no VolSync peer left
 - suspending or removing this component is a real protection gap until VolSync is
 restored or another engine is added. Do not treat the dual-engine rollback as
 safe on a retired claim:
@@ -791,18 +809,41 @@ safe on a retired claim:
    `spec.schedule.suspend: true` on the `SnapshotSchedule`). Stops new
    snapshots, keeps existing ones.
    ```sh
-   kubectl -n downloads patch snapshotpolicy autobrr-ceph --type=merge -p '{"spec":{"suspend":true}}'
+   kubectl -n downloads patch snapshotpolicy sabnzbd-config-ceph --type=merge -p '{"spec":{"suspend":true}}'
    ```
 2. **Remove** - drop `../../../../../components/kopiur` from the app's Flux
    Kustomization. Because `deletion.onPolicyDelete`/`onScheduleDelete` are
-   pinned to `Retain`, the Flux prune that follows deletes the policy and
-   schedule but **not** the `Snapshot` CRs or their kopia data.
+   pinned to `Retain`, the Flux prune that follows keeps **the backup data**.
+
+   Be precise about what survives, because this used to be written as "not the
+   `Snapshot` CRs or their kopia data" and only the second half is true. Every
+   `Snapshot` carries a `controller: true` ownerReference to its
+   `SnapshotSchedule`, so **the CRs are removed by Kubernetes GC cascade** and
+   nothing prevents that. What `Retain` changes is what the `snapshot-cleanup`
+   finalizer does on the way out. Quoting the CRD's own description of
+   `Snapshot.spec.onScheduleDelete`, which the operator stamps onto every
+   produced Snapshot:
+
+   > What the deletion of a `SnapshotSchedule` does to the `Snapshot` CRs it
+   > produced (which Kubernetes GC cascade-deletes via their ownerReference).
+   > Default `Retain`: the CRs are removed but their kopia snapshots survive and
+   > the catalog rediscovers them as `origin: discovered`.
+
+   `SnapshotPolicy.spec.deletion.onPolicyDelete` covers the other path - it is
+   "consulted by the Snapshot finalizer when the deletion is external and the
+   owning `SnapshotPolicy` is gone".
+
+   So: **expect the CR count for that claim to drop to zero**, and do not read
+   that as data loss. GFS retention is driven by the policy, so with the policy
+   gone nothing prunes the retained snapshots either. Verified against the live
+   CRDs before removing `downloads/autobrr` on 2026-09-02
+   (`docs/backups/autobrr-removal-2026-09-02.md`).
 
 ## Troubleshooting
 
 ```sh
 # Status of both destinations for one app
-kubectl -n downloads get snapshotpolicy,snapshotschedule,snapshot -l app.kubernetes.io/name=autobrr
+kubectl -n downloads get snapshotpolicy,snapshotschedule,snapshot -l app.kubernetes.io/name=sabnzbd
 
 # Did it actually run, and did it succeed?
 kubectl -n downloads get snapshot -o wide

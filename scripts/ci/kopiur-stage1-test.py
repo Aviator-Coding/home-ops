@@ -5,19 +5,29 @@ Stage 1 is the first LIVE use of kopiur: a reusable backup component that
 mirrors components/volsync, onboarded first on downloads/autobrr ALONGSIDE its
 existing VolSync backups. MinIO is not a kopiur destination. Stage 2 later
 added sabnzbd-config as a second volume (see kopiur-stage2-test.py for the
-two-volume set and the PUID/claim contracts); this file still pins the Stage 1
-component + autobrr contract and only requires that autobrr remain onboarded.
+two-volume set and the PUID/claim contracts). This file still pins the Stage 1
+component + historical autobrr contract via recorded substitute maps.
 
-VOLSYNC HAS SINCE BEEN RETIRED FROM autobrr (2026-09-02, Stage 5 wave two,
-captain decision; docs/backups/kopiur-wave-two-retirement-2026-09-02.md), so
-the "alongside" half of Stage 1's safety property no longer holds for this
-claim - kopiur is its only engine. The assertions that covered it inverted
-rather than disappeared: the overlay must now carry NO volsync Component, NO
-volsync/system dependency and NO VOLSYNC_* key, must carry
-components/kopiur/pvc (without which prune: true deletes the data volume), and
-must state KOPIUR_CAPACITY. components/volsync itself must be untouched - 22
-claims still use it - so it is still rendered and asserted here, but under a
-synthetic env rather than the pilot map, which no longer has the keys.
+THE PILOT APP IS GONE. VolSync was first retired from autobrr (2026-09-02,
+Stage 5 wave two), and later the same day the autobrr APP ITSELF was removed on
+a captain decision because it was unused. So Stage 1 no longer has a live
+volume to point at, and this file is now the kopiur COMPONENT contract plus the
+Stage 0 and credential invariants - which was always the bulk of it.
+
+Both renders are therefore driven by recorded substitute maps (PILOT_SUBSTITUTE
+and volsync_env in main) rather than by parsing a live overlay. Those maps hold
+autobrr's own values, kept as history, so every component assertion below is
+unchanged in meaning. What that costs is the guarantee that the map still
+matches something live; that guarantee now belongs to kopiur-stage3-test.py,
+which checks all 29 remaining claims against the real overlays.
+
+The pilot assertions inverted rather than disappeared - the same move made when
+VolSync was retired from it. `test_pilot_app_is_fully_gone` requires the
+overlay, the app directory and the namespace-kustomization entry to STAY gone,
+so a half-revert cannot quietly reintroduce an app whose database, 1Password
+item and CI pins were all removed with it. autobrr's kopia snapshots were
+deliberately KEPT (deletion.onPolicyDelete / onScheduleDelete: Retain), but
+retained backup data is not a live claim.
 
 Credentials are NO LONGER per-namespace copies. Captain decision 2026-08-30,
 key `credential-scope`, replaced them with operator-minted per-run projection,
@@ -28,21 +38,20 @@ This test does not grep source text as its evidence. It:
   1. Renders the real kustomize builds Flux would apply for the kopiur backup
      component and the volsync backup sibling, then runs a Flux-shaped
      envsubst (including ${VAR:-default} and nested ${A:-${B}}) with the
-     PRODUCTION pilot substitute map parsed from downloads/autobrr.yaml
-     (Stage 3 values: KOPIUR_PUID/PGID=2000, KOPIUR_SCHEDULE_R2='H 11 * * *',
+     recorded pilot substitute map PILOT_SUBSTITUTE (the removed overlay's
+     Stage 3 values: KOPIUR_PUID/PGID=2000, KOPIUR_SCHEDULE_R2='H 11 * * *',
      ceph schedule deliberately absent so the component default applies).
      A separate negative-control render uses an empty/synthetic env to pin
      the component defaults themselves (uid/gid 1000, r2 'H 4 * * *').
-  2. Parses the pilot Flux Kustomization, the downloads credentials overlay,
-     the security store overlay, and every apps/main/*/app overlay into
-     structured objects.
+  2. Parses the downloads namespace kustomization, the security store overlay,
+     and every apps/main/*/app overlay into structured objects.
   3. Asserts the Stage 1 safety contract on those objects:
        - rendered kinds are exactly 2 SnapshotPolicy + 2 SnapshotSchedule +
          1 Restore; NO MinIO policy/schedule, NO PVC, NO ReplicationSource
        - both policies use ClusterRepository ceph/r2, claim name autobrr
          (default ${KOPIUR_CLAIM:-${APP}}), copyMethod Snapshot, Ephemeral
          cache, retention matching VolSync for that destination, mover
-         identity 2000:2000 from the live overlay, and pinned
+         identity 2000:2000 from the recorded PILOT_SUBSTITUTE map, and pinned
          deletion.onPolicyDelete: Retain
        - both schedules pin deletion.onScheduleDelete: Retain, jitter 5m,
          native bare H minute, and HOUR slots that cannot collide with the
@@ -50,11 +59,12 @@ This test does not grep source text as its evidence. It:
        - Restore is ${APP}-kopiur-dst (not ${APP}-dst), passive populator,
          onMissingSnapshot Continue, ssa IfNotPresent
        - parent Component resources only ./backup (no pvc.yaml)
-       - downloads/autobrr includes components/kopiur plus components/kopiur/pvc,
-         and no volsync Component (retired 2026-09-02); components/volsync
-         itself still renders 3 sources + 1 destination for its 22 remaining
-         users. The exclusive onboarded set is owned by kopiur-stage2-test.py
-         and the authoritative retired set by kopiur-stage3-test.py.
+       - downloads/autobrr is fully absent (overlay, app directory and
+         namespace-kustomization entry), and no other overlay picked up its
+         claim; components/volsync itself still renders 3 sources + 1
+         destination for its 22 remaining users. The onboarded set is owned by
+         kopiur-stage2-test.py and the authoritative retired set by
+         kopiur-stage3-test.py.
        - credentials: ALL THREE projection legs wired (chart feature flag,
          `allowed` on both ClusterRepositories, `enabled` on every consuming
          SnapshotPolicy/Restore), every repository secretRef carrying an
@@ -83,7 +93,6 @@ KOPIUR_BACKUP = KOPIUR_COMPONENT / "backup"
 KOPIUR_COMPONENT_KUST = KOPIUR_COMPONENT / "kustomization.yaml"
 VOLSYNC_BACKUP = ROOT / "kubernetes/components/volsync/backup"
 VOLSYNC_COMPONENT_KUST = ROOT / "kubernetes/components/volsync/kustomization.yaml"
-AUTOBRR_OVERLAY = ROOT / "kubernetes/apps/main/downloads/autobrr.yaml"
 DOWNLOADS_OVERLAY_KUST = ROOT / "kubernetes/apps/main/downloads/kustomization.yaml"
 # Retired by captain decision `credential-scope` (2026-08-30). Kept as paths so
 # the test can assert they are ABSENT - reintroducing standing credentials is
@@ -103,6 +112,23 @@ STAGE0_README = KOPIUR_STAGE0_BASE / "README.md"
 PILOT_APP = "autobrr"
 PILOT_NS = "downloads"
 
+# THE PILOT APP NO LONGER EXISTS. `downloads/autobrr` was removed on 2026-09-02
+# (captain decision - unused; its kopia snapshots were deliberately KEPT), so
+# there is no overlay left to parse and the production render below is driven by
+# this recorded map instead of a live file.
+#
+# That is the same treatment this file already gives the VolSync half, and for
+# the same reason: these are autobrr's own values, kept as HISTORY so the
+# component contract they pin stays exactly as asserted. What is lost is only
+# the guarantee that the map still matches a live overlay - and that guarantee
+# now belongs to the 29 claims kopiur-stage3-test.py checks, not to this file.
+#
+# Do NOT "fix" a future component change by editing these numbers. They describe
+# a volume that existed; if the component stops rendering them, the component
+# changed.
+# Built below from the PILOT_* constants, which are declared further down.
+PILOT_SUBSTITUTE: dict[str, str]
+
 # The VolSync schedules autobrr carried until VolSync was RETIRED from it on
 # 2026-09-02 (Stage 5 wave two - docs/backups/kopiur-wave-two-retirement-2026-09-02.md).
 # They are kept, as HISTORICAL values rather than a live overlay pin, because
@@ -115,8 +141,8 @@ RETIRED_PILOT_VOLSYNC_CEPH = "45 */4 * * *"
 RETIRED_PILOT_VOLSYNC_MINIO = "30 */6 * * *"
 RETIRED_PILOT_VOLSYNC_R2 = "45 3 * * *"
 
-# Production pilot kopiur pins (Stage 3). The live overlay is the source of
-# truth at render time; these are the values that overlay must currently carry.
+# Production pilot kopiur pins (Stage 3). Historical values from the removed
+# autobrr overlay; the component contract they pin stays asserted as recorded.
 PILOT_KOPIUR_PUID = 2000
 PILOT_KOPIUR_PGID = 2000
 PILOT_KOPIUR_R2_CRON = "H 11 * * *"
@@ -125,9 +151,21 @@ PILOT_KOPIUR_R2_CRON = "H 11 * * *"
 # create-time-only and stays unexercised until someone rebuilds the claim.
 PILOT_CAPACITY = "5Gi"
 
-# Component defaults. Production autobrr no longer uses the identity/r2 ones;
-# they are pinned only by the explicit negative-control render below. Ceph
-# stays on the component default in production too (structurally offset).
+PILOT_SUBSTITUTE = {
+    "APP": PILOT_APP,
+    "KOPIUR_CAPACITY": PILOT_CAPACITY,
+    "KOPIUR_PUID": str(PILOT_KOPIUR_PUID),
+    "KOPIUR_PGID": str(PILOT_KOPIUR_PGID),
+    # KOPIUR_SCHEDULE_CEPH deliberately absent - the component default's odd
+    # 4-hour offset is what kept the two engines apart, so it was never
+    # overridden per app.
+    "KOPIUR_SCHEDULE_R2": PILOT_KOPIUR_R2_CRON,
+}
+
+# Component defaults. The recorded pilot map no longer drives a live volume;
+# the identity/r2 defaults are pinned only by the explicit negative-control
+# render below. Ceph stays on the component default in the pilot map too
+# (structurally offset).
 COMPONENT_DEFAULT_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
 COMPONENT_DEFAULT_KOPIUR_R2_CRON = "H 4 * * *"
 COMPONENT_DEFAULT_PUID = 1000
@@ -252,17 +290,6 @@ def flux_envsubst(text: str, env: dict[str, str]) -> str:
         return "".join(out)
 
     return expand(text)
-
-
-def overlay_substitute(path: Path) -> dict[str, str]:
-    """Parse postBuild.substitute from a live Flux Kustomization overlay."""
-    docs = load_multi(path)
-    require(len(docs) == 1, f"{path.name} must be one document, got {len(docs)}")
-    ks = docs[0]
-    require(ks.get("kind") == "Kustomization", f"{path.name} must be a Flux Kustomization")
-    sub = (((ks.get("spec") or {}).get("postBuild") or {}).get("substitute")) or {}
-    require(isinstance(sub, dict) and sub, f"{path.name} missing postBuild.substitute")
-    return {str(k): str(v) for k, v in sub.items()}
 
 
 def render_with_substitute(path: Path, env: dict[str, str]) -> list[dict[str, Any]]:
@@ -466,8 +493,8 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
             psc.get("runAsUser") == PILOT_KOPIUR_PUID
             and psc.get("runAsGroup") == PILOT_KOPIUR_PGID
             and psc.get("fsGroup") == PILOT_KOPIUR_PGID,
-            f"{dest}: production autobrr mover must be "
-            f"{PILOT_KOPIUR_PUID}:{PILOT_KOPIUR_PGID} from the live overlay, got {psc}",
+            f"{dest}: recorded pilot mover must be "
+            f"{PILOT_KOPIUR_PUID}:{PILOT_KOPIUR_PGID} from PILOT_SUBSTITUTE, got {psc}",
         )
         deletion = spec.get("deletion") or {}
         require(
@@ -506,7 +533,7 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
 
 
 def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
-    """Production autobrr schedules from the live overlay substitute map."""
+    """Recorded pilot schedules from the historical PILOT_SUBSTITUTE map."""
     schedules = {s["metadata"]["name"]: s for s in by_kind(docs, "SnapshotSchedule")}
     for dest, expected_cron in (
         ("ceph", PILOT_KOPIUR_CEPH_CRON),
@@ -562,7 +589,7 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
     )
     require(
         k_r2_hours == {11},
-        f"production autobrr kopiur r2 hour must be 11 (downloads namespace), got {sorted(k_r2_hours)}",
+        f"recorded pilot kopiur r2 hour must be 11 (downloads namespace), got {sorted(k_r2_hours)}",
     )
     require(
         v_r2_hours == {3},
@@ -571,9 +598,9 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
 
 
 def test_component_defaults_without_override() -> None:
-    """Negative control: component defaults with a synthetic env (NOT production autobrr).
+    """Negative control: component defaults with a synthetic env (NOT the recorded pilot map).
 
-    Production autobrr carries KOPIUR_PUID/PGID=2000 and KOPIUR_SCHEDULE_R2='H 11 * * *'
+    The recorded pilot map carries KOPIUR_PUID/PGID=2000 and KOPIUR_SCHEDULE_R2='H 11 * * *'
     from Stage 3. This render deliberately omits those overrides so the component's
     own defaults stay pinned: mover 1000:1000, ceph 'H 1-23/4 * * *', r2 'H 4 * * *'.
     """
@@ -645,43 +672,23 @@ def test_restore_passive_contract(docs: list[dict[str, Any]]) -> None:
     require(cache.get("mode") == "Ephemeral", f"Restore cache must be Ephemeral, got {cache}")
 
 
-def test_volsync_retired_from_pilot_but_component_intact(vs_docs: list[dict[str, Any]]) -> None:
-    """VolSync is gone from autobrr's overlay - and ONLY from the overlay.
+def test_volsync_component_intact(vs_docs: list[dict[str, Any]]) -> None:
+    """components/volsync still renders a complete backup set for its 22 users.
 
-    This test used to assert the opposite: that the pilot still rendered three
-    ReplicationSources and one ReplicationDestination alongside kopiur. That was
-    Stage 1's whole safety property - two independent engines, nothing swapped.
-    VolSync was retired from this claim on 2026-09-02 (Stage 5 wave two, captain
-    decision; docs/backups/kopiur-wave-two-retirement-2026-09-02.md), so the
-    assertion inverts.
+    This test has inverted twice. It first asserted that the Stage 1 pilot ran
+    three ReplicationSources and one ReplicationDestination ALONGSIDE kopiur -
+    Stage 1's whole safety property, two independent engines with nothing
+    swapped. When VolSync was retired from that claim (2026-09-02, Stage 5 wave
+    two) it asserted the pilot carried no VolSync anything. The pilot app was
+    then removed outright the same day, so that half has nothing to read and is
+    gone; the pilot-absence assertions live in test_pilot_app_is_fully_gone.
 
-    The distinction that matters is USE versus COMPONENT. Retirement removes one
-    app's include; it must not touch components/volsync itself, which 22 other
-    claims still depend on. So this asserts both halves: autobrr carries no
-    VolSync anything, AND the component still renders a complete triple-plus-
-    destination backup for whatever app does include it.
+    What survives is the half that always mattered most: the distinction between
+    USE and COMPONENT. Retiring or removing one app must never touch
+    components/volsync itself, which 22 other claims still depend on. Rendered
+    under a SYNTHETIC env carrying the pilot's own historical VOLSYNC_* values,
+    so the schedule contract stays exactly as pinned.
     """
-    # Half 1: the retired overlay carries no VolSync anything.
-    ks = load_multi(AUTOBRR_OVERLAY)[0]
-    spec = ks["spec"]
-    comps = spec.get("components") or []
-    require(
-        not any(isinstance(c, str) and c.rstrip("/").endswith("components/volsync") for c in comps),
-        f"volsync Component is back on the retired pilot, got {comps}",
-    )
-    deps = {(d.get("name"), d.get("namespace")) for d in (spec.get("dependsOn") or [])}
-    require(
-        ("volsync", "system") not in deps,
-        f"retired pilot still dependsOn volsync/system - a wait on an unrelated "
-        f"app, and the signature of a half-revert; got {sorted(deps)}",
-    )
-    sub = ((spec.get("postBuild") or {}).get("substitute")) or {}
-    leftover = sorted(k for k in sub if str(k).startswith("VOLSYNC_"))
-    require(not leftover, f"VOLSYNC_* keys survived retirement on the pilot: {leftover}")
-
-    # Half 2: components/volsync itself is untouched. Rendered here under a
-    # SYNTHETIC env, because the live pilot map no longer carries VOLSYNC_*
-    # keys and would silently prove nothing about the component.
     sources = by_kind(vs_docs, "ReplicationSource")
     dests = by_kind(vs_docs, "ReplicationDestination")
     names = sorted(x["metadata"]["name"] for x in sources)
@@ -714,102 +721,39 @@ def test_volsync_retired_from_pilot_but_component_intact(vs_docs: list[dict[str,
     )
 
 
-def test_autobrr_overlay_wiring() -> None:
-    docs = load_multi(AUTOBRR_OVERLAY)
-    require(len(docs) == 1, f"autobrr overlay must be one Kustomization, got {len(docs)}")
-    ks = docs[0]
-    require(ks.get("kind") == "Kustomization", "autobrr overlay kind")
-    require(ks["metadata"]["name"] == PILOT_APP, "autobrr metadata.name")
-    require(ks["metadata"]["namespace"] == PILOT_NS, "autobrr metadata.namespace")
-    spec = ks["spec"]
-    require(spec.get("targetNamespace") == PILOT_NS, "targetNamespace")
-    require(spec.get("prune") is True, "prune must stay true")
-    require(spec.get("wait") is False, "wait must be false")
+def test_pilot_app_is_fully_gone() -> None:
+    """The autobrr app is removed - assert its ABSENCE, not its wiring.
 
-    components = spec.get("components") or []
-    require(
-        components
-        == [
-            "../../../../../components/kopiur",
-            "../../../../../components/kopiur/pvc",
-        ],
-        f"components must be kopiur THEN kopiur/pvc after retirement, got {components}. The pvc "
-        f"Component is NOT optional: components/volsync/pvc.yaml was the only manifest emitting "
-        f"this claim and the overlay runs prune: true, so dropping both deletes the data volume.",
-    )
+    This file used to assert that the Stage 1 pilot was wired correctly and
+    still onboarded to kopiur. The app was removed on 2026-09-02 (captain
+    decision - unused), so, exactly as when VolSync was retired from it, the
+    assertion inverts rather than disappears: a half-revert that puts the
+    overlay, the manifests or the namespace kustomization entry back - without
+    also restoring the database, the 1Password item and the CI pins - would
+    otherwise be invisible to every gate in this repo.
 
-    deps = {(d.get("name"), d.get("namespace")) for d in (spec.get("dependsOn") or [])}
+    Its kopia snapshots were deliberately kept (deletion.onPolicyDelete and
+    onScheduleDelete: Retain on both policies and both schedules). Retained
+    backup data is not a live claim and nothing here should resurrect one.
+    """
+    overlay = APPS_MAIN / PILOT_NS / f"{PILOT_APP}.yaml"
+    require(not overlay.exists(), f"{overlay} is back - the pilot app was removed 2026-09-02")
+    app_dir = ROOT / "kubernetes/apps/base" / PILOT_NS / PILOT_APP
+    require(not app_dir.exists(), f"{app_dir} is back - the pilot app was removed 2026-09-02")
+
+    dl = yaml.safe_load(DOWNLOADS_OVERLAY_KUST.read_text())
+    resources = dl.get("resources") or []
     require(
-        ("volsync", "system") not in deps,
-        f"volsync/system dependency must go with the Component - nothing here renders a "
-        f"VolSync object any more; got {deps}",
+        f"./{PILOT_APP}.yaml" not in resources,
+        f"downloads overlay still lists ./{PILOT_APP}.yaml, whose file is gone - "
+        f"Flux would fail the whole downloads Kustomization",
     )
     require(
-        ("kopiur-repository", "system") in deps,
-        f"must dependOn kopiur-repository/system (webhook Fail), got {deps}",
-    )
-    # Credentials are projected per run, so there is deliberately NO credential
-    # dependency. A reappearing one means the standing-copy shape is back.
-    require(
-        not any(n == "kopiur-credentials" for n, _ in deps),
-        f"must NOT dependOn kopiur-credentials (projection replaced it), got {deps}",
-    )
-    # Must NOT dependOn the bare 'kopiur' operator Kustomization name alone as
-    # a substitute for repository - repository already chains to the operator.
-    # (Depending on both is fine; depending on neither is not.)
-    require(
-        ("kopiur-repository", "system") in deps,
-        "kopiur-repository dependency required",
+        "./kopiur-credentials.yaml" not in resources,
+        "downloads overlay must NOT list kopiur-credentials (projection replaced it)",
     )
 
-    sub = ((spec.get("postBuild") or {}).get("substitute")) or {}
-    require(sub.get("APP") == PILOT_APP or sub.get("APP") == "*app", "APP substitute")
-    # YAML anchor resolves on parse for some loaders; accept either the alias
-    # string or the resolved name - safe_load resolves anchors.
-    require(sub.get("APP") == PILOT_APP, f"APP must resolve to {PILOT_APP}, got {sub.get('APP')!r}")
-    # Every VOLSYNC_* key went with the Component. Nothing reads them once the
-    # component is gone, and on the claim variables they would misdescribe what
-    # a rebuild provisions - the one value that is never exercised until the day
-    # it matters most.
-    leftover = sorted(k for k in sub if str(k).startswith("VOLSYNC_"))
-    require(not leftover, f"VOLSYNC_* keys survived retirement: {leftover}")
-    # KOPIUR_CAPACITY replaces the retired VOLSYNC_CAPACITY default and must
-    # match the live claim, because components/kopiur/pvc is now the only
-    # manifest that would provision a rebuilt one.
-    require(
-        sub.get("KOPIUR_CAPACITY") == PILOT_CAPACITY,
-        f"KOPIUR_CAPACITY must be stated as {PILOT_CAPACITY!r} (the live claim), got "
-        f"{sub.get('KOPIUR_CAPACITY')!r}",
-    )
-    # Stage 3 corrected mover identity to match measured file ownership.
-    require(
-        str(sub.get("KOPIUR_PUID")) == str(PILOT_KOPIUR_PUID),
-        f"KOPIUR_PUID must be {PILOT_KOPIUR_PUID} (production), got {sub.get('KOPIUR_PUID')!r}",
-    )
-    require(
-        str(sub.get("KOPIUR_PGID")) == str(PILOT_KOPIUR_PGID),
-        f"KOPIUR_PGID must be {PILOT_KOPIUR_PGID} (production), got {sub.get('KOPIUR_PGID')!r}",
-    )
-    # KOPIUR_SCHEDULE_CEPH must stay absent: its structural offset onto the ODD
-    # 4-hour slots (01/05/09/13/17/21) against volsync's even ones is what keeps
-    # the two engines off each other, and it needs no per-app tuning.
-    require(
-        "KOPIUR_SCHEDULE_CEPH" not in sub,
-        f"ceph schedule must stay at the component default; got {sorted(sub)}",
-    )
-    # KOPIUR_SCHEDULE_R2 is set since Stage 3 (downloads free hour 11). The
-    # component default `H 4 * * *` would put every kopiur r2 policy into the
-    # fleet's busiest hour. Minute must stay bare H - never hand-assigned.
-    r2 = sub.get("KOPIUR_SCHEDULE_R2")
-    require(
-        r2 == PILOT_KOPIUR_R2_CRON,
-        f"KOPIUR_SCHEDULE_R2 must be {PILOT_KOPIUR_R2_CRON!r}, got {r2!r}",
-    )
-
-
-def test_autobrr_still_onboarded() -> None:
-    """autobrr is still a kopiur volume - now its ONLY engine (retired 2026-09-02)."""
-    onboarded: list[tuple[str, str, Path]] = []
+    # And no other overlay quietly inherited the pilot's claim.
     for path in sorted(APPS_MAIN.rglob("*.yaml")):
         if path.name == "kustomization.yaml":
             continue
@@ -822,37 +766,12 @@ def test_autobrr_still_onboarded() -> None:
                 continue
             if d.get("apiVersion", "").startswith("kustomize.config.k8s.io"):
                 continue
-            components = d.get("spec", {}).get("components") or []
-            for c in components:
-                if isinstance(c, str) and c.rstrip("/").endswith("components/kopiur"):
-                    name = d.get("metadata", {}).get("name", path.name)
-                    ns = d.get("metadata", {}).get("namespace", "?")
-                    onboarded.append((ns, name, path))
-    keys = {(ns, name) for ns, name, _ in onboarded}
-    require(
-        (PILOT_NS, PILOT_APP) in keys,
-        f"Stage 1 pilot {PILOT_NS}/{PILOT_APP} must still include components/kopiur, "
-        f"got {sorted(f'{ns}/{name}' for ns, name in keys)}",
-    )
-    # autobrr's own components list is kopiur THEN kopiur/pvc since retirement.
-    docs = load_multi(AUTOBRR_OVERLAY)
-    components = docs[0]["spec"].get("components") or []
-    require(
-        components
-        == [
-            "../../../../../components/kopiur",
-            "../../../../../components/kopiur/pvc",
-        ],
-        f"autobrr components must be kopiur+kopiur/pvc, got {components}",
-    )
-
-    dl = yaml.safe_load(DOWNLOADS_OVERLAY_KUST.read_text())
-    resources = dl.get("resources") or []
-    require("./autobrr.yaml" in resources, "downloads overlay must list autobrr")
-    require(
-        "./kopiur-credentials.yaml" not in resources,
-        "downloads overlay must NOT list kopiur-credentials (projection replaced it)",
-    )
+            sub = ((d.get("spec") or {}).get("postBuild") or {}).get("substitute") or {}
+            claim = sub.get("KOPIUR_CLAIM") or sub.get("APP")
+            require(
+                not (d.get("metadata", {}).get("namespace") == PILOT_NS and claim == PILOT_APP),
+                f"{path} still declares the removed {PILOT_NS}/{PILOT_APP} claim",
+            )
 
 
 def test_credential_projection_wired_and_nothing_standing() -> None:
@@ -1044,32 +963,25 @@ def main() -> int:
             print(f"[FAIL] {name}: unexpected {type(e).__name__}: {e}")
             failures.append(f"{name}: {e}")
 
-    # Production pilot render: parse the LIVE overlay substitute map so the
-    # pin stays honest as downloads/autobrr.yaml evolves. Stage 3 carries
-    # KOPIUR_PUID/PGID=2000 and KOPIUR_SCHEDULE_R2='H 11 * * *'; ceph stays
-    # absent (component default) because that odd-slot offset is what keeps
-    # kopiur and VolSync apart.
-    try:
-        pilot_sub = overlay_substitute(AUTOBRR_OVERLAY)
-    except Failure as e:
-        print(f"[FAIL] parse autobrr overlay: {e}")
-        print("Summary: 0 passed, 1 failed")
-        return 1
-
+    # Pilot render. This used to parse the LIVE downloads/autobrr.yaml so the
+    # pin stayed honest as that overlay evolved; the app was removed on
+    # 2026-09-02, so it now renders from PILOT_SUBSTITUTE - the same values,
+    # recorded as history. See that constant for why they must not be edited to
+    # accommodate a component change.
     pilot_env = {
-        **pilot_sub,
+        **PILOT_SUBSTITUTE,
         # cluster-secrets keys the volsync ExternalSecrets reference. Value is
         # a non-secret placeholder - we only need the render to complete so the
         # ReplicationSource contracts can be asserted.
         "SECRET_DOMAIN": "example.test",
     }
 
-    # components/volsync is rendered under a SYNTHETIC env, not the pilot map.
-    # VolSync was retired from autobrr on 2026-09-02, so the live overlay no
-    # longer carries a single VOLSYNC_* key - rendering the component under it
-    # would fall back to defaults everywhere and quietly assert nothing about
-    # the component 22 other claims still use. The values are autobrr's own,
-    # recorded as history, so the schedule contract stays exactly as pinned.
+    # components/volsync is rendered under a SYNTHETIC env for the same reason
+    # the kopiur half now is: VolSync was retired from autobrr on 2026-09-02 and
+    # the app removed, so no live overlay carries these keys. Rendering the
+    # component under a map that lacks them would fall back to defaults
+    # everywhere and quietly assert nothing about the component 22 other claims
+    # still use. The values are autobrr's own, recorded as history.
     volsync_env = {
         "APP": PILOT_APP,
         "SECRET_DOMAIN": "example.test",
@@ -1092,12 +1004,8 @@ def main() -> int:
     run("schedules_non_collision", lambda: test_schedules_non_collision(kopiur_docs))
     run("component_defaults_without_override", test_component_defaults_without_override)
     run("restore_passive", lambda: test_restore_passive_contract(kopiur_docs))
-    run(
-        "volsync_retired_from_pilot_but_component_intact",
-        lambda: test_volsync_retired_from_pilot_but_component_intact(volsync_docs),
-    )
-    run("autobrr_overlay_wiring", test_autobrr_overlay_wiring)
-    run("autobrr_still_onboarded", test_autobrr_still_onboarded)
+    run("volsync_component_intact", lambda: test_volsync_component_intact(volsync_docs))
+    run("pilot_app_is_fully_gone", test_pilot_app_is_fully_gone)
     run(
         "credential_projection_wired",
         test_credential_projection_wired_and_nothing_standing,

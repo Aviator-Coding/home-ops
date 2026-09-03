@@ -9,13 +9,15 @@ This document explains the backup and restore strategy implemented using Volsync
 > * 2026-09-01 - `ai/repo-wiki`, `downloads/recyclarr-config`, `downloads/sabnzbd-config`,
 >   `media/seerr`: a deliberate low-stakes pilot after every claim was restore-proven on both
 >   kopiur destinations.
-> * 2026-09-02 - `downloads/prowlarr-config`, `selfhosted/ntfy`, `downloads/autobrr`,
+> * 2026-09-02 - `downloads/prowlarr-config`, `selfhosted/ntfy`, `downloads/autobrr` (app since removed entirely, same day),
 >   `selfhosted/obsidian-livesync`: **not all regenerable.** `ntfy` holds real auth state and
 >   `obsidian-livesync` is a genuine Obsidian vault, retired on an explicit captain decision after
 >   an objection. `selfhosted/paperless-ngx` remains a permanent carve-out and stays dual-engine.
 >
-> Those eight are now **kopiur-only**; the remaining 22 still run both engines, and retiring any of
-> them is a separate captain decision.
+> Eight volumes were retired; seven of them are still present as **kopiur-only**
+> (`downloads/autobrr` left the fleet when its app was removed the same day). The
+> remaining 22 still run both engines, and retiring any of them is a separate
+> captain decision.
 >
 > Two things a reader of this file needs to know:
 >

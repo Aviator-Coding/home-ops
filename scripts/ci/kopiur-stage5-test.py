@@ -2,8 +2,15 @@
 """Semantic regression test for kopiur Stage 5 (the VolSync retirements).
 
 Stage 5 is the IRREVERSIBLE step of the VolSync -> kopiur migration: it removes
-a volume's second backup engine. Eight of the fleet's 30 claims have been
-through it, in two waves, and 22 remain dual-engine.
+a volume's second backup engine. Eight of the fleet's 30 claims went through it,
+in two waves, and 22 remain dual-engine.
+
+One of those eight, `downloads/autobrr`, is no longer in the fleet at all: the
+APP was removed on 2026-09-02 (captain decision - unused), so its overlay, its
+claim and its kopiur onboarding all went with it and there is nothing left for
+this file to assert. Its kopia snapshots were deliberately KEPT. That leaves
+seven retired-and-still-present volumes below against a 29-claim fleet; the
+wave-two record still documents autobrr's retirement, because it happened.
 
   wave one, 2026-09-01 - the pilot: `ai/repo-wiki`,
   `downloads/recyclarr-config`, `downloads/sabnzbd-config`, `media/seerr`,
@@ -13,7 +20,8 @@ through it, in two waves, and 22 remain dual-engine.
   docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
 
   wave two, 2026-09-02: `downloads/prowlarr-config`, `selfhosted/ntfy`,
-  `downloads/autobrr`, `selfhosted/obsidian-livesync`. These are NOT all
+  `downloads/autobrr` (app since removed, see above),
+  `selfhosted/obsidian-livesync`. These are NOT all
   regenerable - `ntfy` holds real auth state and `obsidian-livesync` is a
   genuine Obsidian vault retired on an explicit captain decision after an
   objection. What authorises them is completeness of proof (100% of claim
@@ -86,7 +94,12 @@ RETIRED: dict[str, tuple[str, str, str, str]] = {
     "downloads/sabnzbd.yaml": ("downloads", "sabnzbd", "sabnzbd-config", "5Gi"),
     "media/seerr.yaml": ("media", "seerr", "seerr", "2Gi"),
     # wave two, 2026-09-02
-    "downloads/autobrr.yaml": ("downloads", "autobrr", "autobrr", "5Gi"),
+    # "downloads/autobrr.yaml" was here. The app was REMOVED on 2026-09-02, so
+    # the overlay this row reads no longer exists and every assertion below
+    # would fail on a missing file - the retired-app/CI-gate trap this repo
+    # documents in AGENTS.md. Removed rather than retained because this map is
+    # keyed by live overlay path, not by history; the retirement itself stays
+    # recorded in docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
     "downloads/prowlarr.yaml": ("downloads", "prowlarr", "prowlarr-config", "5Gi"),
     "selfhosted/ntfy.yaml": ("selfhosted", "ntfy", "ntfy", "2Gi"),
     "selfhosted/obsidian-livesync.yaml": (
@@ -116,7 +129,12 @@ RAISED_CACHE: dict[str, str] = {
 # Stated separately from len(RETIRED) on purpose: this is the number a human
 # decided, so a row appearing or vanishing from RETIRED has to be a deliberate
 # edit here too rather than something the test silently accommodates.
-EXPECTED_RETIRED_COUNT = 8
+#
+# Was 8 (4 pilot + 4 wave two). Now 7: `downloads/autobrr` was retired in wave
+# two and then the APP ITSELF was removed on 2026-09-02, so there is no overlay
+# left to hold a retirement contract against. Eight volumes were retired; seven
+# are still in the fleet, and this counts the latter.
+EXPECTED_RETIRED_COUNT = 7
 
 
 class Failure(Exception):
@@ -374,8 +392,8 @@ def test_restore_cache_matches_the_measured_gate() -> None:
     belongs in the retirement record rather than only in a substitute map.
 
     The wave-two claims are all far under the default: 54.1 MiB (prowlarr-config),
-    2,179 B (autobrr), 184 KiB (ntfy) and 561 KiB (obsidian-livesync) against
-    ~1.95 GiB of usable cache. The two `selfhosted` ones are additionally
+    184 KiB (ntfy) and 561 KiB (obsidian-livesync) against ~1.95 GiB of usable
+    cache - as was autobrr's 2,179 B before that app was removed. The two `selfhosted` ones are additionally
     structural: a 2Gi PVC cannot hold more than its 2Gi cache covers.
     """
     for rel in RETIRED:
@@ -416,8 +434,9 @@ def test_retired_set_matches_stage3() -> None:
     )
     require(
         len(here) == EXPECTED_RETIRED_COUNT,
-        f"expected {EXPECTED_RETIRED_COUNT} retired volumes across both waves "
-        f"(4 pilot + 4 wave two); got {len(here)}",
+        f"expected {EXPECTED_RETIRED_COUNT} retired volumes still in the fleet "
+        f"(4 pilot + 4 wave two, less autobrr whose app was removed); "
+        f"got {len(here)}",
     )
 
 

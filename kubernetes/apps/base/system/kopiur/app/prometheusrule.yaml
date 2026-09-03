@@ -220,8 +220,8 @@ spec:
         #
         # Verified live 2026-08-31 against kube-prometheus-stack-prometheus
         # (port-forwarded): all policies with a completed backup currently
-        # report > 0 files (autobrr-ceph itself is now 1, since its
-        # write-access fix), so this rule is silent on the current fleet -
+        # report > 0 files (autobrr-ceph was 1 after its write-access fix; that
+        # app was removed on 2026-09-02), so this rule is silent on the fleet -
         # no live/historical case exists where a completed backup lacks a
         # files count (success metric set == files metric set, 27==27).
         - alert: KopiurBackupEmpty

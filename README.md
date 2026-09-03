@@ -13,7 +13,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 - **Secrets:** 1Password + External Secrets Operator. Bootstrap and Talos secrets are injected by `vals` from vault `Home-Lab`
 - **Ingress:** Gateway API (`envoy-internal` / `envoy-external` in `network`) plus Cloudflare Tunnel
 - **DNS:** External-DNS to Cloudflare (public) and the Unifi webhook (`network/unifi-dns`, internal)
-- **Backup:** kopiur on all 30 protected claims (ceph + r2); VolSync still dual-engine on 26 of them (ceph + MinIO + r2) and retired from 4 Stage 5 pilot volumes
+- **Backup:** kopiur on all 29 protected claims (ceph + r2); VolSync still dual-engine on 22 of them (ceph + MinIO + r2) and retired from 7 still-present Stage 5 volumes (eight were retired; `downloads/autobrr` left the fleet when its app was removed on 2026-09-02)
 
 ## Operator docs
 
@@ -82,7 +82,7 @@ Usage and limits: [`scripts/add-app/README.md`](scripts/add-app/README.md). Afte
 
 1. Fill every `TODO` in the generated base manifests and overlay `kubernetes/apps/main/{namespace}/{app}.yaml` (the scaffold also appends the namespace `kustomization.yaml` `resources:` entry).
 2. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
-3. Optional backups are **not** scaffolded - most protected claims still run dual-engine VolSync + kopiur (add both `components/volsync` and `components/kopiur`, `dependsOn: volsync` and `kopiur-repository` in namespace `system`, plus `VOLSYNC_*` / measured `KOPIUR_*` keys; example: `kubernetes/apps/main/downloads/autobrr.yaml`). Four Stage 5 pilot volumes are kopiur-only (`components/kopiur` + `components/kopiur/pvc`); owner: `kubernetes/components/kopiur/Readme.md`.
+3. Optional backups are **not** scaffolded - most protected claims still run dual-engine VolSync + kopiur (add both `components/volsync` and `components/kopiur`, `dependsOn: volsync` and `kopiur-repository` in namespace `system`, plus `VOLSYNC_*` / measured `KOPIUR_*` keys; example: `kubernetes/apps/main/downloads/sonarr.yaml`). Seven Stage 5 volumes are kopiur-only (`components/kopiur` + `components/kopiur/pvc`); owner: `kubernetes/components/kopiur/Readme.md`.
 4. Validate with `mise exec -- task flux:test:all`.
 
 Flux reconciles from Git. After a merge, `task reconcile` forces a sync.

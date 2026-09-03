@@ -10,7 +10,7 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 
 | Namespace | Purpose | Key Apps |
 |-----------|---------|----------|
-| `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, Autobrr, reading-glasses |
+| `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, reading-glasses |
 | `media` | Media servers + post-processing | Plex, Seerr, Tdarr, Calibre-Web-Automated, Calibre-Downloader |
 
 `default/kustomization.yaml` has `resources: []`. CWA + Calibre-Downloader live under `media/calibre/` and Flux-target `media`.
@@ -27,7 +27,7 @@ free, and it was the third `gpu.intel.com/xe` consumer alongside plex and rsshub
 
 FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubernetes/apps/base/network/flaresolverr/`), not `downloads`/`media` - consumed by Prowlarr (IndexerProxy, UI-configured, not GitOps) and Calibre-Downloader (`EXT_BYPASSER_URL`).
 
-In `downloads`, **autobrr is live**. `cross-seed` and `qbittorrent` were removed (dead, unreferenced directories) and are no longer present in `kubernetes/apps/main/downloads/kustomization.yaml`. That app-directory removal missed a leftover wiring: sabnzbd's `helmrelease.yaml` still set `XSEED_HOST`/`XSEED_PORT`, shipped a `xseed.sh` post-processing script, and pulled a `cross-seed` 1Password item into its `ExternalSecret`. Confirmed dead on 2026-08-31 (`script_dir` was unset in the live `sabnzbd.ini` and no category named the script, so it never ran - zero matches for `xseed`/`cross-seed` across 5+ months of rotated sabnzbd logs) and removed for good.
+In `downloads`, **autobrr was removed on 2026-09-02** (captain decision - unused; record: `docs/backups/autobrr-removal-2026-09-02.md`), joining `cross-seed` and `qbittorrent`, which were removed (dead, unreferenced directories) and are no longer present in `kubernetes/apps/main/downloads/kustomization.yaml`. That app-directory removal missed a leftover wiring: sabnzbd's `helmrelease.yaml` still set `XSEED_HOST`/`XSEED_PORT`, shipped a `xseed.sh` post-processing script, and pulled a `cross-seed` 1Password item into its `ExternalSecret`. Confirmed dead on 2026-08-31 (`script_dir` was unset in the live `sabnzbd.ini` and no category named the script, so it never ran - zero matches for `xseed`/`cross-seed` across 5+ months of rotated sabnzbd logs) and removed for good.
 
 **The stack is usenet-only by deliberate captain decision (2026-08-30), not by accident.** No torrent client is deployed, and Radarr's `qBittorrent` download client entry (pointed at a nonexistent `qbittorrent.downloads.svc.cluster.local`, always `enable: false`) plus Prowlarr's four definition-less torrent indexers (`BitSearch`, `TorrentGalaxyClone`, `Isohunt2`, `iDope` - flagged by Prowlarr's own `IndexerNoDefinitionCheck` health check as broken and unusable) were deleted as leftover state implying a torrent path that did not exist. **Both deletions were live API calls against Radarr's and Prowlarr's own databases, not GitOps** - qBittorrent's download-client config and Prowlarr's indexer list live in each app's Postgres backend, not in a committed manifest, so there is nothing in Git to change beyond this note. Re-adding torrent support later (a qBittorrent deployment plus indexer definitions) remains straightforward; this just removes the illusion that it already half-works. Full record: `data/decisions-2026-08-30/downloads-usenet-only.md`.
 
@@ -178,9 +178,25 @@ kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date
 
 Connects to Sonarr and Radarr for series/movie metadata. Provider priority: OpenSubtitles.com > Podnapisi > Supersubtitles > Addic7ed.
 
-### Autobrr
+### Autobrr - REMOVED 2026-09-02
 
-Autobrr is deployed (`kubernetes/apps/main/downloads/kustomization.yaml`). Cross-Seed and qBittorrent were removed with the stack committed usenet-only; Autobrr's torrent-side integrations stay unused unless torrent support is deliberately re-added (Overview above; full record `data/decisions-2026-08-30/downloads-usenet-only.md`).
+Autobrr is **no longer deployed**. It was the last app in the stack whose reason
+for existing was torrent-side automation, and it had gone unused since the stack
+was committed usenet-only on 2026-08-30 (`data/decisions-2026-08-30/downloads-usenet-only.md`).
+The captain removed it outright on 2026-09-02.
+
+Removed with it NOW: its manifests and Flux overlay. The `scripts/ci` gates that
+pinned its paths were UPDATED (not deleted) so a half-revert cannot reintroduce
+the app. Still present until post-merge ops: the `postgres-17` database (which
+held its real state - the claim carried a single 2,179-byte config file; not in
+Git, created imperatively by `postgres-init`, and still held open by the live
+pod until Flux prunes the app) and the 1Password `autobrr` item. **Its kopiur
+backup history was deliberately KEPT** and is retained in both the `ceph` and
+`r2` repositories. Removal record, including the retained-snapshot proof and the
+post-merge operational steps: `docs/backups/autobrr-removal-2026-09-02.md`.
+
+Re-adding torrent automation later means redeploying autobrr from scratch
+alongside a torrent client; nothing here half-works in the meantime.
 
 ---
 
