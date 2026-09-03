@@ -61,3 +61,106 @@ Ten traps (Stages 1-4 plus the 2026-08-31 timezone and alert-cadence fixes), non
 (f) **Three of the five "too small to prove much" claims** - `downloads/autobrr` (1 file / 2,179 B; app since removed 2026-09-02), `selfhosted/paperless-ngx-media` (1 file / **0 B**) and `selfhosted/syncthing-data` (5 / 531) - **cannot be given a deeper proof, and the real risk they carry is restore-cache capacity rather than fidelity.** Re-measured 2026-09-02: none of those three, nor `selfhosted/ntfy` (2 / 188,416) or `selfhosted/obsidian-livesync` (8 / 574,930), has grown since the fleet proof, and each restored **identically from both destinations in content *and* mode/uid/gid**, with live content matching the snapshot exactly (so the backups are complete, not silently short). `ntfy`'s 2 files are its whole state including `auth.db` and `obsidian-livesync`'s 8 are a real CouchDB vault - complete rather than thin - while `syncthing-data` is a bare scaffold (4 `.stfolder` markers) and `paperless-ngx-media` is empty because paperless holds **zero documents**. The forward-looking gap is that retiring a claim makes kopiur the only engine, so its restore must work at the volume's *plausible* size: `paperless-ngx-media` (50Gi claim, 5Gi cache) and `syncthing-data` (15Gi claim, 5Gi cache) both cross the ~6.2 GiB plateau the first time they hold real data, while `ntfy` and `obsidian-livesync` (2Gi claim, 2Gi cache) are structurally safe because the cache already exceeds the maximum the claim can hold. Per-claim retirement verdicts and the exposure table: `docs/backups/kopiur-wave-two-reproof-2026-09-02.md`.
 
 (g) **`downloads/prowlarr-config` is now destination-identical** - the last ambiguous row of the fleet proof is closed. Re-drilled 2026-09-02 from a matched verification-snapshot pair (`prowlarr-{ceph,r2}-w2ver`, both `713` files / `56,777,475` bytes), both restores returned 713 files / 56,777,475 bytes with **identical content digest `576321fa…3578` and identical mode+uid+gid digest `31d7ffd5…9530`**, zero stable-set gaps and zero ceph-vs-r2 differences. The trick that made it possible on a continuously-written volume: a churn probe first (two live manifests 75 s apart were byte-identical across all 713 files), then take both verification snapshots back-to-back inside the gap between cluster-wide scheduled `ceph` bursts (~13:2xZ and ~17:2xZ), then confirm each restore's `.status.resolved.kopiaSnapshotID` really is the verification snapshot rather than a scheduled one that slipped in - which is exactly what went wrong in the 2026-09-01 attempt.
+
+## Repository maintenance and the index-blob (`IndexBlobHealth`) warning
+
+Added 2026-09-03 from the `ceph` `TooManyIndexBlobs` investigation. Owning document:
+`docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md`.
+
+**`IndexBlobHealth=False` almost never means maintenance is broken, and the condition's own
+suggested fixes are the wrong place to start.** Measured on `ceph` 2026-09-03, where the
+condition had been `False` continuously since 2026-09-01: maintenance was running on schedule,
+its lease was healthy (`LeaseOwned=True`/`LeaseClaimed`), and its *quick* runs really do
+compact. The cause was `parameters.epoch.minDuration` at kopia's `24h` default.
+
+**Two mechanics set the real epoch length, and the first one is the trap.**
+
+*(a) An epoch's age is counted from the FIRST INDEX BLOB written into it, not from the `xe<N>`
+marker that opens it.* Writes arrive in the 4-hourly backup bursts, so 0-4h of dead time passes
+before the clock even starts (measured: 2.92h, 0.91h, 1.50h on epochs 1-3). This was established
+by an experiment that **falsified an earlier fix**: with `minDuration: 5h` live, a manual quick
+run at 08:10:43 found epoch 3 5.03h old *by marker* but only 3.53h old *by first blob*, and it
+did not advance. Epochs 1 and 2 fit both models and could not tell them apart. **Always measure
+epoch age from the oldest `xn<N>` blob.**
+
+*(b) Epochs advance only during a maintenance run*, so maturity rounds up to the next run (quick
+00/06/12/18 with <=30m jitter, redrawn per slot; full 03 with <=1h). So
+`epoch length = (wait for first write) + minDuration + (wait for next run)`.
+
+**Therefore headroom STEPS rather than slopes, and `minDuration` must not be interpolated or
+rounded to a tidy number.** Simulated against the real maintenance *and backup* schedules over
+2,400 epoch-days (the model reproduces the observed 24h epochs), the peak live-blob count on
+ceph is: 24h -> 1980; 12h -> 1201; **5.0-6.0h -> ~812 (19%)**; **3.5-4.75h -> 649 (35%)**;
+3.0-3.25h -> ~810 (19%); 1.5-2.75h -> 564-616 (38-44%). `ceph` runs **`4h`**, mid-plateau and
+>=0.5h from either cliff, with 3 epochs/day leaving the most compaction margin (compaction
+advances one epoch per maintenance run; there are 5 runs/day). Note the condition message's
+suggested `6h` lands in the 19% band - and so did this repository's own first attempt at `5h`.
+
+**The live count model, verified rather than inferred:** exactly **two** epochs are live at
+once - one closed-but-not-yet-compacted plus the open one - so live blobs oscillate between
+1x and 2x blobs-per-epoch. Read directly off the cluster: immediately after epoch 1 was
+compacted, `indexBlobCount` was `882 = 879 (xn2) + 1 (xn3) + 2 (xs0, xs1)`. At ceph's measured
+32.5 blobs/hour the 24h default predicted a 1809 peak against 1851 observed.
+
+**`indexBlobCount` counts LIVE index blobs, not bucket objects.** Compaction supersedes an
+epoch's `xn` blobs immediately - the status field drops the moment `xs<N>` is written - while
+the superseded objects physically remain until `cleanupSafetyMargin` (4h) expires and a later
+run deletes them. A bucket listing and the status field legitimately disagree during that
+window; do not read the difference as an error.
+
+**Reading the epoch pipeline directly.** There is **no Prometheus metric** for the index-blob
+count (48 `kopiur_*` series exist; none covers it), so the bucket is the instrument. Kopia's
+epoch-manager blob prefixes:
+
+| prefix | meaning |
+|---|---|
+| `xe<N>` | epoch marker - epoch `N` opened. Its timestamp is the epoch boundary. |
+| `xn<N>_...` | uncompacted index blob in epoch `N`. The thing being counted. |
+| `xs<N>_...` | single-epoch compaction of epoch `N`. One per compacted epoch. |
+| `xr...` | range checkpoint, folding several `xs` together every `checkpointFrequency` (7) epochs. |
+| `xw...` | deletion watermark. |
+
+Many `xn`, few `xs`, no `xr` is the stalled-compaction signature. The pipeline per epoch is:
+accumulate -> close (gated by `minDuration`, only at a run) -> settle (write epoch reaches
+`N+2`) -> compact (**one epoch per maintenance run**) -> delete superseded (after
+`cleanupSafetyMargin`, 4h, then the next run).
+
+**`ClusterRepository.spec.parameters` is effectively WRITE-ONLY from Git's side.** The CRD calls
+it *"re-applied on bootstrap whenever they drift"*, and its `blobRetention` sibling states
+*"Absent means don't touch it"*. Measured 2026-09-03: resuming Flux reverted `spec.parameters`
+to absent (fully reconciled, `generation` == `observedGeneration`) while
+`status.parameters.epoch.minDuration` stayed at the patched `4h` - the repository kept it. So
+**a `git revert` of a parameters change does not undo it**; it only stops asserting it. To back
+one out for real, declare the old value explicitly, let it apply, then remove the block. Same
+shape as the `LiteLLMVirtualKey` `rpmLimit` trap in `AGENTS.md`. The corollary for live
+validation: a suspend/patch/resume cycle on this field leaves the patched value behind, so say
+so rather than assuming resume restored the cluster.
+
+**A healthy sibling repository is not a control.** `r2` read `IndexBlobHealth=True` throughout
+while carrying the **identical** defect - same three epoch markers within ~15 min of ceph's,
+same single `xs0`, same zero range checkpoints. It is under the threshold only because it takes
+the daily backup slot while ceph takes the 4-hourly one, so it accumulates ~4.4x slower (422 vs
+1851) and converges on ~420. Compare *structure*, never the condition. It was left untuned
+deliberately; raising r2's cadence or its claim count several-fold will reproduce the warning,
+and the band must then be re-derived against **r2's own** offsets (quick ~00:16, full ~03:35).
+
+**`takeoverPolicy: Force` is a GitOps trap.** The condition message recommends it for a stale
+lease. It is documented as a **one-shot** action, but a declarative manifest re-applies its
+content forever - so committing it does not encode "take over once", it encodes "take over on
+every reconcile", turning a deliberate recovery into a standing policy that silently steamrolls
+any future owner conflict instead of surfacing it. If a lease genuinely is stale, force it as a
+live `kubectl patch` and revert, or commit it, confirm, and remove it in a follow-up.
+
+**Triggering an out-of-band run** (supported, and how to test any of this without waiting for a
+schedule):
+
+```sh
+kubectl -n system annotate maintenance <repo> \
+  kopiur.home-operations.com/run-requested="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  kopiur.home-operations.com/run-mode=quick --overwrite
+```
+
+A **quick** run is index/log work only and cannot reclaim content; it completes in ~25s and
+`status.manualRun.phase` tracks it. Prefer it to `full` for diagnosis. Note it is not free of
+consequence in one direction: it *advances the epoch pipeline*, so it changes what a later
+observation would have shown - take the baseline first.
