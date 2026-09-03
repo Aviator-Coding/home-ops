@@ -146,7 +146,8 @@ spec:
 # `wait: true`, and with `wait: true` Flux assesses EVERY object in the
 # inventory. The kopiur component ships a standing `Restore` in passive
 # populator mode, which reports `Ready=False` for the whole parallel run BY
-# DESIGN - measured on the two live Stage 1/2 objects:
+# DESIGN - measured on the two live Stage 1/2 objects (the autobrr one below;
+# that app was removed 2026-09-02, so use any live `*-kopiur-dst` to see it):
 #
 #   $ kubectl -n downloads get restore autobrr-kopiur-dst -o json | jq .status
 #   Ready=False  reason=AwaitingPvcDataSourceRef
