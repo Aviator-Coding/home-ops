@@ -73,6 +73,20 @@ PROOF_DOC = REPO / "docs" / "backups" / "kopiur-ceph-index-blob-compaction-2026-
 BAND_INCLUSIVE_LOW_H = 3.5
 BAND_INCLUSIVE_HIGH_H = 4.75
 
+# Measured minDuration plateaus -> worst-case epoch length (hours). Headroom is a
+# step function of these lengths, so the headroom check below reads THIS table
+# (and the band / manifest values that select rows from it) rather than a free-
+# standing EFFECTIVE_EPOCH_H. Widening the band across a worse plateau must fail.
+# Each row is (low_inclusive_h, high_inclusive_h, worst_case_epoch_h).
+MEASURED_EPOCH_PLATEAUS: tuple[tuple[float, float, float], ...] = (
+    (1.5, 2.75, 9.5),    # peak 564-616; use the high end of 8.7-9.5h
+    (3.0, 3.25, 12.5),   # ~19% headroom cliff
+    (3.5, 4.75, 9.99),   # chosen plateau, peak 649 / 35%
+    (5.0, 6.0, 12.5),    # 5h and suggested 6h, ~19%
+    (12.0, 12.0, 1201.0 / (2 * 32.5)),
+    (24.0, 24.0, 1980.0 / (2 * 32.5)),
+)
+
 BLOBS_PER_HOUR = 32.5
 # `spec.health.indexBlobWarnThreshold` is unset on both repositories, so the CRD
 # default applies (verified against the live CRD 2026-09-03: `default: 1000`).
@@ -80,11 +94,7 @@ THRESHOLD = 1000
 # Live index blobs = one closed-but-not-yet-compacted epoch + the open one.
 # Read directly off the cluster: indexBlobCount 882 = 879 (xn2) + 1 (xn3) + 2 (xs).
 LIVE_EPOCH_MULTIPLE = 2
-# WORST-CASE epoch length on the chosen plateau, from the simulation above. The
-# threshold is breached by the worst epoch, not the average one (mean is 8.0h),
-# so the headroom check below deliberately uses the worst case.
-EFFECTIVE_EPOCH_H = 9.99
-# Refuse to ship a value with less headroom than this. 6h would land at 23%.
+# Refuse to ship a value with less headroom than this. 6h would land at ~19%.
 MIN_HEADROOM_FRACTION = 0.30
 
 
@@ -114,25 +124,76 @@ def parse_hours(value: str) -> float:
     return n if m.group(2) == "h" else n / 60
 
 
+def worst_case_epoch_h(min_duration_h: float) -> float:
+    """Map a minDuration setting to its measured worst-case epoch length."""
+    for low, high, worst in MEASURED_EPOCH_PLATEAUS:
+        if low <= min_duration_h <= high:
+            return worst
+    raise Failure(
+        f"minDuration {min_duration_h}h is not on a measured epoch plateau "
+        f"{tuple((low, high) for low, high, _ in MEASURED_EPOCH_PLATEAUS)}. "
+        f"Re-derive worst-case epoch length against the maintenance AND backup "
+        f"schedules before moving the band: see {PROOF_DOC.relative_to(REPO)}"
+    )
+
+
+def band_worst_case_epoch_h(low_h: float, high_h: float) -> float:
+    """Worst-case epoch length anywhere on an inclusive minDuration band.
+
+    Takes the max over every measured plateau that intersects the band. Endpoint
+    values must themselves sit on a measured plateau so a band that drifts into
+    an unmeasured gap cannot silently keep the previous plateau's headroom.
+    """
+    require(low_h <= high_h, f"band low {low_h}h is above high {high_h}h")
+    # Fail closed if either edge left the measured map.
+    worst_case_epoch_h(low_h)
+    worst_case_epoch_h(high_h)
+    intersecting = [
+        worst
+        for plow, phigh, worst in MEASURED_EPOCH_PLATEAUS
+        if max(low_h, plow) <= min(high_h, phigh)
+    ]
+    require(
+        bool(intersecting),
+        f"band [{low_h}h, {high_h}h] intersects no measured epoch plateau; "
+        f"re-derive before widening: see {PROOF_DOC.relative_to(REPO)}",
+    )
+    return max(intersecting)
+
+
 def test_ceph_min_duration_is_set() -> None:
-    """The parameter must exist. Its absence silently reverts to kopia's 24h."""
+    """The parameter must be declared explicitly in Git.
+
+    Absence does NOT restore kopia's 24h default. ClusterRepository.spec.parameters
+    is effectively write-only: clearing the field stops the operator asserting a
+    value and the repository silently keeps whatever it last received (measured
+    2026-09-03 - Flux resumed, spec emptied, generation == observedGeneration,
+    repository still 4h). Requiring the field keeps desired state declarative and
+    correct on a fresh bootstrap; backing the value out for real means declaring
+    the previous duration explicitly. See the write-only trap in the proof doc.
+    """
     ceph = repositories().get("ceph")
     require(ceph is not None, "no `ceph` ClusterRepository in the manifest")
     got = ceph["spec"].get("parameters", {}).get("epoch", {}).get("minDuration")
     require(
         got is not None,
-        "ceph: spec.parameters.epoch.minDuration is missing. Without it kopia's 24h "
-        f"default applies, which measured 27-30h epochs and ~1810 live index blobs "
-        f"against a threshold of {THRESHOLD}. See {PROOF_DOC.relative_to(REPO)}",
+        "ceph: spec.parameters.epoch.minDuration is missing. Absence does not restore "
+        "kopia's 24h default - the field is write-only, so the repository keeps its last "
+        "applied value (measured 2026-09-03: Flux resumed, spec emptied, generation == "
+        "observedGeneration, repository still 4h). Declare the duration explicitly so "
+        "desired state is declarative and a fresh bootstrap is correct; see the "
+        f"write-only trap in {PROOF_DOC.relative_to(REPO)}",
     )
 
 
 def test_ceph_min_duration_is_inside_the_derived_band() -> None:
-    """The value must advance at every quick run and never at the full run.
+    """The value must sit on the measured first-blob / 4h headroom plateau.
 
-    This is the assertion that catches "helpfully" rounding the value to a nearby
-    number. Because headroom steps, 5h and the 6h the condition message suggests
-    both fall off this plateau into the same ~19% band.
+    Age starts at the first index blob (not the epoch marker) and maturity rounds
+    up to the next maintenance run, so headroom steps. 5h and the 6h the condition
+    message suggests both fall off this plateau into the same ~19% band - and 5h
+    was this repository's own first attempt, falsified live when a run at 5.03h
+    from the marker / 3.53h from the first blob did not advance.
     """
     ceph = repositories()["ceph"]
     got = ceph["spec"].get("parameters", {}).get("epoch", {}).get("minDuration")
@@ -152,39 +213,51 @@ def test_ceph_min_duration_is_inside_the_derived_band() -> None:
 
 
 def test_headroom_against_the_threshold() -> None:
-    """Self-consistency check on the constants above.
+    """Self-consistency check coupling the band (and manifest value) to headroom.
 
     test_ceph_min_duration_is_inside_the_derived_band compares the manifest against
-    the plateau; this one compares the plateau against the measurement, so widening
-    the plateau itself is caught too. Without it, raising BAND_INCLUSIVE_HIGH_H to
-    12h would make both the plateau and the manifest agree on a value that puts the
-    repository back over its threshold.
+    the plateau; this one derives worst-case epoch length from BAND_INCLUSIVE_* and
+    the manifest minDuration via the measured plateau table, so widening the plateau
+    across a worse step (e.g. HIGH to 6.0h with minDuration 6h) fails the headroom
+    floor. Peak = 2 x worst-case epoch x BLOBS_PER_HOUR against THRESHOLD.
     """
-    peak = LIVE_EPOCH_MULTIPLE * EFFECTIVE_EPOCH_H * BLOBS_PER_HOUR
+    ceph = repositories()["ceph"]
+    got = ceph["spec"].get("parameters", {}).get("epoch", {}).get("minDuration")
+    require(got is not None, "ceph: spec.parameters.epoch.minDuration is missing")
+    manifest_h = parse_hours(got)
+
+    band_worst = band_worst_case_epoch_h(BAND_INCLUSIVE_LOW_H, BAND_INCLUSIVE_HIGH_H)
+    manifest_worst = worst_case_epoch_h(manifest_h)
+    effective_epoch_h = max(band_worst, manifest_worst)
+
+    peak = LIVE_EPOCH_MULTIPLE * effective_epoch_h * BLOBS_PER_HOUR
     headroom = (THRESHOLD - peak) / THRESHOLD
     require(
         peak < THRESHOLD,
-        f"the band's effective {EFFECTIVE_EPOCH_H}h epoch yields a live peak of {peak:.0f} "
+        f"band [{BAND_INCLUSIVE_LOW_H}h, {BAND_INCLUSIVE_HIGH_H}h] (manifest {got!r}) "
+        f"yields worst-case epoch {effective_epoch_h:.2f}h and a live peak of {peak:.0f} "
         f"index blobs at the measured {BLOBS_PER_HOUR}/hour, at or over the {THRESHOLD} "
         f"threshold",
     )
     require(
         headroom >= MIN_HEADROOM_FRACTION,
-        f"live peak {peak:.0f} leaves only {headroom:.0%} headroom against {THRESHOLD}, "
-        f"below the {MIN_HEADROOM_FRACTION:.0%} floor. The fleet grows; a value that only "
-        f"just clears today re-trips on the next few claims",
+        f"live peak {peak:.0f} from worst-case epoch {effective_epoch_h:.2f}h leaves only "
+        f"{headroom:.0%} headroom against {THRESHOLD}, below the {MIN_HEADROOM_FRACTION:.0%} "
+        f"floor. The fleet grows; a value that only just clears today re-trips on the next "
+        f"few claims. Measured steps: [3.5h,4.75h]->9.99h/35%, [5.0h,6.0h] and "
+        f"[3.0h,3.25h]->12.5h/19%",
     )
 
 
-def test_r2_is_deliberately_untuned_and_says_so() -> None:
-    """r2 must stay untuned, and the manifest must explain why.
+def test_r2_is_deliberately_untuned() -> None:
+    """r2 must stay untuned - no parameters.epoch.minDuration override.
 
-    r2 carries the IDENTICAL stalled-compaction structure and is under the
+    r2 carries the identical stalled-compaction structure and is under the
     threshold only because it takes the daily backup slot rather than the
-    4-hourly one (422 index blobs vs ceph's 1851). Copying ceph's 5h here would
-    be wrong - the band has to be re-derived against r2's own maintenance
-    offsets (quick ~00:16, full ~03:35) - and silently dropping the comment
-    would leave the next reader believing r2 is structurally healthy.
+    4-hourly one (~4.4x quieter, not healthier). That finding lives in the proof
+    doc and the kopiur-backups skill; this test only pins the GitOps decision not
+    to copy ceph's 4h. If r2 is ever tuned, re-derive the band against its own
+    maintenance offsets (quick ~00:16, full ~03:35) rather than copying ceph's.
     """
     r2 = repositories().get("r2")
     require(r2 is not None, "no `r2` ClusterRepository in the manifest")
@@ -194,14 +267,6 @@ def test_r2_is_deliberately_untuned_and_says_so() -> None:
         f"r2: minDuration is set to {got!r}. r2 was left untuned deliberately; if that "
         f"changed, re-derive the band against r2's OWN maintenance offsets rather than "
         f"copying ceph's, and update {PROOF_DOC.relative_to(REPO)} and this test together",
-    )
-    text = MANIFEST.read_text()
-    marker = "No `parameters.epoch` override here, DELIBERATELY"
-    require(
-        marker in text,
-        f"r2: the comment explaining why it is untuned is gone. Without it the next reader "
-        f"sees IndexBlobHealth=True and concludes r2 is healthy, when it holds the same "
-        f"defect at a quarter the write rate",
     )
 
 
@@ -261,7 +326,7 @@ def main() -> int:
     run("ceph_min_duration_is_set", test_ceph_min_duration_is_set)
     run("ceph_min_duration_is_inside_the_derived_band", test_ceph_min_duration_is_inside_the_derived_band)
     run("headroom_against_the_threshold", test_headroom_against_the_threshold)
-    run("r2_is_deliberately_untuned_and_says_so", test_r2_is_deliberately_untuned_and_says_so)
+    run("r2_is_deliberately_untuned", test_r2_is_deliberately_untuned)
     run("threshold_is_not_silenced", test_threshold_is_not_silenced)
     run("proof_document_path_exists", test_proof_document_path_exists)
 

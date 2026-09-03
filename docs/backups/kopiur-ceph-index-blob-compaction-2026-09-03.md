@@ -4,8 +4,9 @@
 > Nothing deleted, expired or pruned a kopia snapshot. No `Snapshot`, `SnapshotPolicy` or
 > `SnapshotSchedule` object was created, deleted or patched. `deletionProtection` thresholds
 > and the `Retain` deletion policies are unchanged. Epoch compaction rewrites **indexes**;
-> it does not touch snapshot content. Census: **322 Snapshot CRs before and after, zero
-> disappeared** - see [snapshot safety](#snapshot-safety).
+> it does not touch snapshot content. Snapshot census: every disappearance attributed to
+> ordinary GFS retention, none unexplained, and zero Snapshot CRs created by this work -
+> see [snapshot safety](#snapshot-safety).
 
 The `ceph` `ClusterRepository` reported `IndexBlobHealth=False` / `TooManyIndexBlobs`
 continuously from **2026-09-01T09:52:57Z**:
