@@ -2,31 +2,50 @@
 
 Reusable Flux component that backs up one PVC to the cluster's two kopiur
 repositories. It is the deliberate sibling of [`../volsync`](../volsync/Readme.md)
-and runs **alongside** it on 26 of 30 claims; on the four Stage 5 pilot volumes
-it has replaced it outright.
+and runs **alongside** it on 22 of 30 claims; on the eight Stage 5 retired
+volumes it has replaced it outright.
 
 Operator, repositories and credentials are **not** here - they are Stage 0, in
 [`kubernetes/apps/base/system/kopiur/`](../../apps/base/system/kopiur/README.md).
 This component only declares what to back up.
 
-> **Migration status: Stage 5 STARTED - a four-volume pilot, 2026-09-01.**
+> **Migration status: Stage 5 IN PROGRESS - 8 of 30 volumes retired, in two
+> waves (2026-09-01 pilot, 2026-09-02 wave two).**
 > kopiur is live on **all 30 of the fleet's 30** VolSync-protected claims - zero
 > deferred (Stage 3 onboarded namespace by namespace on 2026-08-30; Stage 4
 > added both remaining claims on 2026-08-31).
 >
-> **VolSync has now been RETIRED from four of them**, so those four have kopiur
-> as their ONLY backup engine:
-> `ai/repo-wiki`, `downloads/recyclarr-config`, `downloads/sabnzbd-config`,
-> `media/seerr`. **The other 26 remain dual-engine** with every VolSync source
-> live. The four were chosen for regenerable or reconstructible content and
-> clean restore proofs; retiring the rest is a separate captain decision.
+> **VolSync has now been RETIRED from eight of them**, in two waves, so those
+> eight have kopiur as their ONLY backup engine:
+>
+> * wave one, 2026-09-01 - `ai/repo-wiki`, `downloads/recyclarr-config`,
+>   `downloads/sabnzbd-config`, `media/seerr`: chosen for regenerable or
+>   reconstructible content and clean restore proofs.
+> * wave two, 2026-09-02 - `downloads/prowlarr-config`, `selfhosted/ntfy`,
+>   `downloads/autobrr`, `selfhosted/obsidian-livesync`: **not all regenerable.**
+>   `ntfy` holds real auth state and `obsidian-livesync` is a genuine Obsidian
+>   vault, retired on an explicit captain decision after an objection. What
+>   authorises them is completeness of proof (100% of claim content,
+>   destination-identical in content *and* metadata) plus, for the two 2Gi
+>   `selfhosted` claims, a PVC that cannot outgrow its restore cache.
+>
+> **The other 22 remain dual-engine** with every VolSync source live. Retiring
+> any of them is a separate captain decision. `selfhosted/paperless-ngx` is a
+> permanent carve-out and stays dual-engine indefinitely;
+> `selfhosted/syncthing-data` and `selfhosted/paperless-ngx-media` were assessed
+> in wave two and found NOT ready - their proofs cover nothing meaningful and
+> both sit behind a restore cache they would cross the first time they hold real
+> data.
 >
 > Authoritative machine-readable record of which claims are single-engine:
 > `RETIRED_CLAIMS` in
 > [`scripts/ci/kopiur-stage3-test.py`](../../../scripts/ci/kopiur-stage3-test.py),
 > asserted exactly in both directions. Selection rationale, mechanics and the
 > post-retirement re-proof:
-> [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
+> [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
+> (wave one) and
+> [`docs/backups/kopiur-wave-two-retirement-2026-09-02.md`](../../../docs/backups/kopiur-wave-two-retirement-2026-09-02.md)
+> (wave two).
 >
 > **Retiring a volume swaps which component owns its PVC - it does not delete
 > the claim, and getting that wrong would.** See "Retiring a volume" below
@@ -340,11 +359,25 @@ namespace needs nothing created in it.
 
 ## Retiring a volume (Stage 5)
 
-Removing VolSync from a volume that kopiur already protects. Four volumes have
-been through this - `ai/repo-wiki`, `downloads/recyclarr-config`,
-`downloads/sabnzbd-config`, `media/seerr` (2026-09-01) - and the full record,
-including why those four, is
-[`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
+Removing VolSync from a volume that kopiur already protects. Eight volumes have
+been through this, in two waves - `ai/repo-wiki`, `downloads/recyclarr-config`,
+`downloads/sabnzbd-config`, `media/seerr` (2026-09-01), then
+`downloads/prowlarr-config`, `selfhosted/ntfy`, `downloads/autobrr`,
+`selfhosted/obsidian-livesync` (2026-09-02). The full records, including why
+those volumes, are
+[`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
+and
+[`docs/backups/kopiur-wave-two-retirement-2026-09-02.md`](../../../docs/backups/kopiur-wave-two-retirement-2026-09-02.md).
+
+**One trap the wave-two retirement found, which the next one will hit too.** Four
+`selfhosted` HelmReleases still read `existingClaim: ${VOLSYNC_CLAIM:-*app}`
+(`linkwarden`, `n8n`, `paperless-ngx`, `syncthing`). That default is a **dangling
+YAML alias**, not an anchor reference - kustomize emits the token verbatim, so
+the moment the overlay stops defining `VOLSYNC_CLAIM` the render becomes
+`existingClaim: *app` and `flate` fails the whole Kustomization with
+`unknown anchor 'app' referenced`. Rename it to `${KOPIUR_CLAIM:-<claim>}` with
+the default corrected to the literal claim name, as `ntfy`, `obsidian-livesync`
+and `ai/repo-wiki` now do.
 
 **A per-volume restore proof comes first.** The fleet proof
 (`docs/backups/kopiur-restore-proof-2026-09-01.md`) is that evidence for all 30
@@ -642,7 +675,7 @@ local time and shifts together with DST - the UTC instant moves, but the
 
 Resulting UTC hours for the ceph cadence, both seasons (identical across every
 namespace - `database/pgadmin` shown; the 26 dual-engine claims match, and the
-four Stage 5 kopiur-only claims keep the same kopiur hours with no VolSync peer):
+eight Stage 5 kopiur-only claims keep the same kopiur hours with no VolSync peer):
 
 | Season | VolSync ceph (UTC) | kopiur ceph (UTC) | Collision? |
 |---|---|---|---|
@@ -707,8 +740,8 @@ It is **passive until a rebuilt claim claims it**: `target.populator` means
 repoint - `spec.dataSourceRef` is immutable - so a live claim keeps its VolSync
 `${APP}-dst` ref (inert once VolSync is retired) and the standing Restore stays
 `Pending` / `AwaitingPvcDataSourceRef` indefinitely. It is claimed only by a
-**rebuilt** claim created fresh from `components/kopiur/pvc`; on the four Stage 5
-pilot volumes that is already the contract today.
+**rebuilt** claim created fresh from `components/kopiur/pvc`; on the eight Stage 5
+retired volumes that is already the contract today.
 
 It carries `policy.onMissingSnapshot: Continue`, a deliberate departure from the
 CRD's `Fail` default: `Continue` provisions an empty volume when no snapshot
@@ -747,7 +780,7 @@ way since October 2025.
 
 On a **dual-engine** volume either of these leaves VolSync completely untouched
 and loses nothing, because VolSync is still backing that claim up. On a **Stage 5
-kopiur-only** volume (the four in `RETIRED_CLAIMS`) there is no VolSync peer left
+kopiur-only** volume (the eight in `RETIRED_CLAIMS`) there is no VolSync peer left
 - suspending or removing this component is a real protection gap until VolSync is
 restored or another engine is added. Do not treat the dual-engine rollback as
 safe on a retired claim:
@@ -805,6 +838,7 @@ immediate reconcile.
 * Restore drill procedure and its hard constraints: [`docs/backups/restore-drill-2026-08-23.md`](../../../docs/backups/restore-drill-2026-08-23.md)
 * Fleet restore-proof authority (all 30 claims, both destinations, 2026-09-01): [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../docs/backups/kopiur-restore-proof-2026-09-01.md)
 * Stage 5 pilot retirement (four kopiur-only volumes, 2026-09-01): [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
+* Stage 5 wave two retirement (four more, 2026-09-02 - eight kopiur-only in total): [`docs/backups/kopiur-wave-two-retirement-2026-09-02.md`](../../../docs/backups/kopiur-wave-two-retirement-2026-09-02.md)
 * Stage 2 restore gate (both destinations, both findings; durable procedure): [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 * `downloads/recyclarr-config` readability probe (CronJob claim; not restore-fidelity - restore proof is the fleet table above): [`docs/backups/recyclarr-config-readable-check-2026-08-31.md`](../../../docs/backups/recyclarr-config-readable-check-2026-08-31.md)
 * Stage 4 root-mover onboarding (`matter-server`): this Readme's "Root movers" section + `scripts/ci/kopiur-stage4-test.py`

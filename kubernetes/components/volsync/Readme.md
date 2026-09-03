@@ -2,11 +2,19 @@
 
 This document explains the backup and restore strategy implemented using Volsync in the home-ops Kubernetes cluster.
 
-> **VolSync is being replaced by kopiur, and retirement has started.** As of 2026-09-01 this
-> component protects **26** claims, not 30. VolSync was retired from four volumes -
-> `ai/repo-wiki`, `downloads/recyclarr-config`, `downloads/sabnzbd-config`, `media/seerr` - as a
-> deliberate low-stakes pilot after every claim was restore-proven on both kopiur destinations.
-> Those four are now **kopiur-only**; the remaining 26 still run both engines, and retiring any of
+> **VolSync is being replaced by kopiur, and retirement is under way.** As of 2026-09-02 this
+> component protects **22** claims, not 30. VolSync has been retired from eight volumes, in two
+> waves:
+>
+> * 2026-09-01 - `ai/repo-wiki`, `downloads/recyclarr-config`, `downloads/sabnzbd-config`,
+>   `media/seerr`: a deliberate low-stakes pilot after every claim was restore-proven on both
+>   kopiur destinations.
+> * 2026-09-02 - `downloads/prowlarr-config`, `selfhosted/ntfy`, `downloads/autobrr`,
+>   `selfhosted/obsidian-livesync`: **not all regenerable.** `ntfy` holds real auth state and
+>   `obsidian-livesync` is a genuine Obsidian vault, retired on an explicit captain decision after
+>   an objection. `selfhosted/paperless-ngx` remains a permanent carve-out and stays dual-engine.
+>
+> Those eight are now **kopiur-only**; the remaining 22 still run both engines, and retiring any of
 > them is a separate captain decision.
 >
 > Two things a reader of this file needs to know:
@@ -19,12 +27,15 @@ This document explains the backup and restore strategy implemented using Volsync
 >   populator cannot simply be repointed.
 > * **Their restic repositories still exist and were not emptied.** Retiring a
 >   `ReplicationSource` never touches restic data - that asymmetry against kopiur's `Snapshot`
->   (which owns its kopia snapshot through a finalizer) is load-bearing. The four repositories
+>   (which owns its kopia snapshot through a finalizer) is load-bearing. All eight repositories
 >   stay readable as a fallback via a hand-written `ReplicationDestination`; the credentials are
 >   unchanged in 1Password (`volsync-template`).
 >
 > Record and evidence:
-> [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
+> [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
+> (wave one) and
+> [`docs/backups/kopiur-wave-two-retirement-2026-09-02.md`](../../../docs/backups/kopiur-wave-two-retirement-2026-09-02.md)
+> (wave two).
 > Which claims are single-engine is asserted exactly by `RETIRED_CLAIMS` in
 > [`scripts/ci/kopiur-stage3-test.py`](../../../scripts/ci/kopiur-stage3-test.py).
 
@@ -130,7 +141,7 @@ The ceph and r2 hour offsets in this component (and in kopiur's own
 never fire on the same claim in the same UTC hour. With kopiur on literal UTC,
 that stagger held only because `4 mod 4 == 0` in EDT - it would have collided
 on all 29 claims that were dual-engine when this was measured on 2026-08-31
-(26 today, after the Stage 5 pilot retired four). kopiur's
+(22 today, after Stage 5 retired eight across two waves). kopiur's
 `SnapshotSchedule`s now set `spec.schedule.timezone` (via
 `KOPIUR_SCHEDULE_TIMEZONE`, defaulting to `America/New_York`) to match
 VolSync, so both engines shift together across DST and the stagger holds in
@@ -461,9 +472,10 @@ schedule: "0 2 * * *"
 `components:` (the table below) plus `selfhosted/paperless-ngx-media` and
 `selfhosted/syncthing-data` via `path: ./kubernetes/components/volsync/backup`, which is why the
 table has 24 rows and not 26. That is **78** `ReplicationSource`s, down from 30/90 on 2026-09-01
-when the Stage 5 pilot retired VolSync from `ai/repo-wiki`, `downloads/recyclarr`,
-`downloads/sabnzbd` and `media/seerr`; those four rows were removed here and the rest renumbered.
-They are kopiur-only now, and their old restic repositories were **not** deleted.
+when Stage 5 retired VolSync from `ai/repo-wiki`, `downloads/recyclarr`, `downloads/sabnzbd` and
+`media/seerr` (2026-09-01), then from `downloads/prowlarr`, `selfhosted/ntfy`, `downloads/autobrr`
+and `selfhosted/obsidian-livesync` (2026-09-02); all eight rows were removed here and the rest
+renumbered. They are kopiur-only now, and their old restic repositories were **not** deleted.
 Schedules are staggered but **not unique** (several apps share the same minute).
 Do not assume a 2-3 app cap on simultaneous Ceph backups. Regenerated from
 `rg 'components/volsync' kubernetes/apps` plus each overlay yaml's `VOLSYNC_SCHEDULE_*`
@@ -497,18 +509,14 @@ mount became an `emptyDir` (stateless browserless; captain decision 2026-08-30).
 | 10 | downloads | lidarr | `10 */4 * * *` | `45 */6 * * *` | `10 3 * * *` | Medium |
 | 11 | downloads | readarr | `15 */4 * * *` | `0 */6 * * *` | `15 3 * * *` | Medium |
 | 12 | downloads | bazarr | `20 */4 * * *` | `0 */6 * * *` | `20 3 * * *` | Medium |
-| 13 | downloads | prowlarr | `25 */4 * * *` | `0 */6 * * *` | `25 3 * * *` | Medium |
-| 14 | downloads | autobrr | `45 */4 * * *` | `30 */6 * * *` | `45 3 * * *` | Low |
-| 15 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
-| 16 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
-| 17 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
-| 18 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
-| 19 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 20 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 21 | selfhosted | obsidian-livesync | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 22 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 23 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
-| 24 | selfhosted | ntfy | `20 */4 * * *` | `50 */6 * * *` | `25 4 * * *` | Medium |
+| 13 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
+| 14 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
+| 15 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
+| 16 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
+| 17 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 18 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 19 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
+| 20 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
 
 ### Distribution Strategy
 
