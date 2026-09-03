@@ -126,22 +126,45 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 
 # --- Stage 5: claims VolSync has been RETIRED from (kopiur is their only engine) ---
 #
-# The pilot four, retired 2026-09-01. Each was restore-proven on BOTH
-# destinations first (docs/backups/kopiur-restore-proof-2026-09-01.md) and
+# Eight claims across two waves. 22 of the fleet's 30 stay dual-engine.
+#
+# Wave one - the pilot four, retired 2026-09-01. Each was restore-proven on
+# BOTH destinations first (docs/backups/kopiur-restore-proof-2026-09-01.md) and
 # re-proven after retirement
 # (docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md). They were chosen
-# for regenerable/reconstructible content and clean, unambiguous proofs; the
-# remaining 26 claims stay dual-engine pending a separate captain decision.
+# for regenerable/reconstructible content and clean, unambiguous proofs.
+#
+# Wave two - four more, retired 2026-09-02 on the deeper proofs in
+# docs/backups/kopiur-wave-two-reproof-2026-09-02.md part 4, recorded in
+# docs/backups/kopiur-wave-two-retirement-2026-09-02.md. Unlike wave one these
+# are NOT all regenerable: `ntfy` holds real auth state and
+# `obsidian-livesync` is a genuine Obsidian vault, escalated to the captain and
+# retired on an explicit decision after an objection. What authorises them is
+# the completeness of the proof (100% of claim content, destination-identical
+# in content AND metadata) plus, for the two `selfhosted` claims, a 2Gi PVC
+# that cannot outgrow its 2Gi restore cache.
+#
+# Deliberately NOT here: `selfhosted/paperless-ngx` (captain carve-out, stays
+# dual-engine permanently), `selfhosted/syncthing-data` and
+# `selfhosted/paperless-ngx-media` (wave two found their proofs cover nothing
+# meaningful, and both sit behind a restore cache they would cross the first
+# time they hold real data).
 #
 # This set is the fleet's legibility record: anything in it has ONE backup
 # engine, and anything not in it must still have two. Adding a row here is an
 # assertion that a restore proof exists for that volume - do not add one to
 # quiet a failing test.
 RETIRED_CLAIMS: set[tuple[str, str]] = {
+    # wave one, 2026-09-01
     ("ai", "repo-wiki"),
     ("downloads", "recyclarr-config"),
     ("downloads", "sabnzbd-config"),
     ("media", "seerr"),
+    # wave two, 2026-09-02
+    ("downloads", "autobrr"),
+    ("downloads", "prowlarr-config"),
+    ("selfhosted", "ntfy"),
+    ("selfhosted", "obsidian-livesync"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of

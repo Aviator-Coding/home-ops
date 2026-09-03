@@ -527,12 +527,14 @@ repositories were never touched, so VolSync simply picks up where it left off.
 
 ## Fleet state after this change
 
-**26 of 30 claims are dual-engine. 4 are kopiur-only.** The authoritative machine-readable record
-is `RETIRED_CLAIMS` in [`scripts/ci/kopiur-stage3-test.py`](../../scripts/ci/kopiur-stage3-test.py),
-which asserts the set exactly in both directions - a claim that goes single-engine without being
-listed fails, and a listed claim that still renders VolSync fails as a half-reverted retirement.
-It also refuses an entry that kopiur does not protect at all, which would be a volume with no
-backup whatsoever.
+**As of this pilot: 26 of 30 claims dual-engine, 4 kopiur-only.** A later wave on 2026-09-02 took
+the live fleet to **22 dual-engine / 8 kopiur-only** - current inventory owner:
+[`kopiur-wave-two-retirement-2026-09-02.md`](kopiur-wave-two-retirement-2026-09-02.md). The
+authoritative machine-readable record is `RETIRED_CLAIMS` in
+[`scripts/ci/kopiur-stage3-test.py`](../../scripts/ci/kopiur-stage3-test.py), which asserts the set
+exactly in both directions - a claim that goes single-engine without being listed fails, and a
+listed claim that still renders VolSync fails as a half-reverted retirement. It also refuses an
+entry that kopiur does not protect at all, which would be a volume with no backup whatsoever.
 
 Do not add a row to that set to quiet a failing test. A row there is an assertion that a restore
 proof exists for that volume.

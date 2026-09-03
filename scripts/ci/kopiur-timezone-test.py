@@ -28,10 +28,11 @@ This test does NOT grep source text. It:
        - pre-fix EST collides on every dual-engine ceph claim (the bug)
        - post-fix collides on zero claims in either season for ceph and r2
   3. Separately asserts the timezone pin over the WHOLE kopiur fleet, not just
-     the dual-engine intersection. Stage 5 (2026-09-01) retired VolSync from
-     four claims, which drops them out of that intersection - and a claim with
-     one engine left has nothing to collide with, so losing its timezone pin
-     would be invisible to every assertion in (2).
+     the dual-engine intersection. Stage 5 has retired VolSync from eight claims
+     (2026-09-01 and 2026-09-02), which drops them out of that intersection -
+     and a claim with one engine left has nothing to collide with, so losing its
+     timezone pin would be invisible to every assertion in (2). That gap widens
+     with every retirement, which is why (3) exists separately.
 
 Live status.nextSchedule.timezone against the running cluster is a separate
 post-merge / operator gate this sandbox cannot reach; the rendered CR field
@@ -60,12 +61,14 @@ VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 # Floor on the dual-engine population, so a discovery bug that finds nothing
 # fails loudly instead of vacuously passing every collision assertion.
 #
-# Was 29 (30 claims, all dual-engine). Stage 5 retired VolSync from four of them
-# on 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config, seerr - leaving
-# 26. Lower this ONLY alongside a real retirement; the authoritative retired set
-# is RETIRED_CLAIMS in kopiur-stage3-test.py. Note the timezone contract itself
-# is checked over ALL kopiur claims (see kopiur_claims), not just these.
-MIN_DUAL_ENGINE_CLAIMS = 26
+# Was 29 (30 claims, all dual-engine). Stage 5 has retired VolSync from eight of
+# them in two waves: 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config,
+# seerr; 2026-09-02 - prowlarr-config, ntfy, autobrr, obsidian-livesync. That
+# leaves 22. Lower this ONLY alongside a real retirement; the authoritative
+# retired set is RETIRED_CLAIMS in kopiur-stage3-test.py. Note the timezone
+# contract itself is checked over ALL kopiur claims (see kopiur_claims), not
+# just these.
+MIN_DUAL_ENGINE_CLAIMS = 22
 
 # The whole kopiur fleet, dual-engine or retired. Unlike the floor above this
 # does NOT drop when a volume retires - retiring VolSync does not remove the

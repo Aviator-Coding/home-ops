@@ -22,9 +22,11 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim (migration Stage 1 pilot).
+    # The `volsync` (system) dependency went with the volsync Component below -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
+    #
     # kopiur-repository, not kopiur: it is the Kustomization that applies the
     # `ceph` and `r2` ClusterRepository objects the policies below reference,
     # and it already dependsOn the operator itself. The admission webhook is
@@ -32,26 +34,62 @@ spec:
     # these CRs outright rather than leaving them unreconciled.
     - name: kopiur-repository
       namespace: system
+    # The system of record for autobrr is postgres-17, NOT this claim - see the
+    # components block. That dependency is unaffected by the retirement and is
+    # why retiring this volume is low-stakes.
     - name: postgres-cluster-17
       namespace: database
   components:
-    # BOTH backup systems, deliberately and simultaneously. This is the whole
-    # safety property of migration Stage 1: autobrr is the pilot volume and it
-    # has two independent, working backups, not one being swapped for another.
-    # volsync's entry is unchanged and must stay that way until a restore has
-    # been demonstrated from kopiur for this volume (Stage 2).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-02 - migration Stage 5, wave two, volume 3 of 4.
+    # kopiur is now the ONLY backup engine on this claim.
+    #
+    # This is where the migration started: autobrr was the Stage 1 pilot, the
+    # first volume ever onboarded to kopiur alongside volsync (2026-08-30). It
+    # is also the volume that taught the fleet its first lesson - it held ZERO
+    # files at the time, so a `Succeeded` snapshot proved nothing, and the
+    # fidelity subject had to be moved to sabnzbd-config for Stage 2. A later
+    # write-access fix let autobrr create its config.toml, so the claim now
+    # holds exactly 1 file.
+    #
+    # Authorising evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md
+    # part 1 - 1 file / 2,179 B, restored identically from BOTH destinations in
+    # content and in mode/uid/gid, and matching live exactly, so the backup is
+    # complete rather than silently short. Thin by design, not by failure:
+    # autobrr's real application state lives in the `postgres-17` CNPG cluster
+    # (see the dependsOn above), which is backed up independently and is
+    # untouched by this change. Captain decision 2026-09-02; retirement record:
+    # docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_SCHEDULE_CEPH: "45 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "30 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "45 3 * * *"
       # The claim name matches the app name, so KOPIUR_CLAIM is not needed.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY default and matched to the
+      # live claim (5Gi, holding 2,179 B). Under the pvc Component's
+      # `ssa: IfNotPresent` this is create-time-only for the claim that already
+      # exists, but it is exactly what a REBUILD would provision - so it is
+      # stated rather than left to the component default.
+      KOPIUR_CAPACITY: 5Gi
+      # KOPIUR_CACHE_CAPACITY deliberately left at the 2Gi component default.
+      # The wave-two exposure table rates the residual risk implausible: a
+      # restore only fails once the claim crosses ~1.95 GiB of usable cache,
+      # and this claim holds a single TOML config file. Contrast sabnzbd, which
+      # was raised to 10Gi on retirement because it held 2.06 GiB against the
+      # same 2Gi. The standing fleet-wide answer (a 10Gi component default
+      # covering all 30 claims) is an open captain decision, recorded in
+      # docs/backups/kopiur-populator-drift-2026-09-02.md.
       #
       # Identity CORRECTED in Stage 3. This was left at the component default
       # of 1000 during Stage 1, on the reasoning that autobrr's only file is
@@ -62,7 +100,9 @@ spec:
       # the first 0600 file autobrr ever writes would fail the backup closed.
       # Live measurement 2026-08-30 confirms the pod securityContext and the
       # file ownership; this aligns the mover with the workload, which is the
-      # rule every other volume in Stage 3 follows.
+      # rule every other volume in Stage 3 follows. It matters more now that
+      # kopiur is the only engine: volsync survived the mismatch only because
+      # it staged its clone writable, and that safety net is gone.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
       # Namespace r2 hour, moved off the component default in Stage 3. The

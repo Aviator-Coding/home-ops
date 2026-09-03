@@ -22,28 +22,60 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component below -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3, the same shape as downloads/sabnzbd
-    # which see for the full rationale. volsync's entry is unchanged.
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-02 - migration Stage 5, wave two, volume 1 of 4.
+    # kopiur is now the ONLY backup engine on this claim.
+    #
+    # Authorising evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md
+    # part 2 - the destination-identical re-drill that closed the last
+    # ambiguous row of the fleet proof. A matched verification-snapshot pair
+    # (`prowlarr-{ceph,r2}-w2ver`, both 713 files / 56,777,475 bytes) restored
+    # to 713 files / 56,777,475 bytes from BOTH destinations with identical
+    # content digest (576321fa..3578) AND identical mode+uid+gid digest
+    # (31d7ffd5..9530), zero stable-set gaps, zero ceph-vs-r2 differences.
+    # That is the strongest proof in the wave-two set and is why this volume
+    # leads it. Captain decision 2026-09-02; retirement record:
+    # docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: prowlarr-config
-      VOLSYNC_SCHEDULE_CEPH: "25 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "25 3 * * *"
+      # The claim is `prowlarr-config` while the app is `prowlarr`. This drove
+      # the retired VOLSYNC_CLAIM and now also drives the pvc Component's PVC
+      # name, so it is load-bearing in a second place after retirement.
       KOPIUR_CLAIM: prowlarr-config
+      # Inherited from the retired VOLSYNC_CAPACITY default and matched to the
+      # live claim (5Gi, holding 54.1 MiB). Under the pvc Component's
+      # `ssa: IfNotPresent` this is create-time-only for the claim that already
+      # exists, but it is exactly what a REBUILD would provision - so it is
+      # stated rather than left to the component default.
+      KOPIUR_CAPACITY: 5Gi
+      # KOPIUR_CACHE_CAPACITY deliberately left at the 2Gi component default.
+      # The wave-two exposure table sized this claim at 54.1 MiB against 1.95
+      # GiB of usable cache (2.7%), which the restore-cache gate model rates
+      # low risk - unlike sabnzbd, which was raised to 10Gi on retirement
+      # because it held 2.06 GiB against the same 2Gi. The residual exposure
+      # is real but unreached: a restore only fails once the claim crosses
+      # ~1.95 GiB, a 36x growth. The standing fleet-wide answer (a 10Gi
+      # component default covering all 30 claims) is an open captain decision,
+      # recorded in docs/backups/kopiur-populator-drift-2026-09-02.md.
       # LOAD-BEARING and the only 3002:3000 pair in the fleet. The pod runs
       # 3002:3000:3000; the volume mixes 1000:3000 (526 entries) with
       # 3002:3000 (188). Measured 2026-08-30 the default of 1000 reads it

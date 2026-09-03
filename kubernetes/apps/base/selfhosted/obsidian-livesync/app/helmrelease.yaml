@@ -70,7 +70,18 @@ spec:
     persistence:
       data:
         enabled: true
-        existingClaim: ${VOLSYNC_CLAIM:-*app}
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
+        # on 2026-09-02 (Stage 5 wave two) and the overlay no longer defines any
+        # VOLSYNC_* key. Renamed rather than left to rot - see repo-wiki's
+        # helmrelease for the same rename in the 2026-09-01 pilot.
+        #
+        # The default is now the literal claim name. The old `:-*app` was a
+        # DANGLING YAML ALIAS, not an anchor reference: kustomize emits the
+        # token verbatim, so the day VOLSYNC_CLAIM stopped being defined Flux's
+        # envsubst produced `existingClaim: *app` and the whole Kustomization
+        # failed to parse with `unknown anchor 'app' referenced`. It had simply
+        # never been exercised, because the overlay always set VOLSYNC_CLAIM.
+        existingClaim: ${KOPIUR_CLAIM:-obsidian-livesync}
         globalMounts:
           - path: /opt/couchdb/data
       config:

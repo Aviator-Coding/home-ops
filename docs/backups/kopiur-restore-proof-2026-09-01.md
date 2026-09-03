@@ -5,16 +5,17 @@
 > anywhere. Every VolSync source remains live and untouched. This document is the evidence
 > that a later, separate, irreversible retirement step is entitled to rely on.
 
-> **That step has since happened, for four volumes.** On 2026-09-01, after this document merged,
-> VolSync was retired from `ai/repo-wiki`, `downloads/recyclarr-config`,
-> `downloads/sabnzbd-config` and `media/seerr` - a deliberate pilot on low-stakes targets, not a
-> fleet-wide retirement. **Those four claims now have kopiur as their only backup engine; the
-> other 26 remain dual-engine.** Selection rationale, the retirement mechanics, and the
-> post-retirement re-proof are in
-> [`kopiur-stage5-pilot-retirement-2026-09-01.md`](kopiur-stage5-pilot-retirement-2026-09-01.md);
-> the machine-readable record of which claims are single-engine is `RETIRED_CLAIMS` in
-> `scripts/ci/kopiur-stage3-test.py`. Nothing in the results below was re-measured or amended by
-> that exercise. **Finding 2 has since been closed for `ai/hermes`** (2026-09-02, raised to
+> **That step has since happened, for eight volumes across two waves.** On 2026-09-01, after this
+> document merged, VolSync was retired from `ai/repo-wiki`, `downloads/recyclarr-config`,
+> `downloads/sabnzbd-config` and `media/seerr` - a deliberate pilot on low-stakes targets
+> ([`kopiur-stage5-pilot-retirement-2026-09-01.md`](kopiur-stage5-pilot-retirement-2026-09-01.md)).
+> On 2026-09-02 a second wave retired `downloads/prowlarr-config`, `selfhosted/ntfy`,
+> `downloads/autobrr` and `selfhosted/obsidian-livesync`
+> ([`kopiur-wave-two-retirement-2026-09-02.md`](kopiur-wave-two-retirement-2026-09-02.md)).
+> **Those eight claims now have kopiur as their only backup engine; the other 22 remain
+> dual-engine.** The machine-readable record of which claims are single-engine is
+> `RETIRED_CLAIMS` in `scripts/ci/kopiur-stage3-test.py`. Nothing in the results below was
+> re-measured or amended by those retirements. **Finding 2 has since been closed for `ai/hermes`** (2026-09-02, raised to
 > 16Gi and re-proven from r2 at that value):
 > [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md),
 > which is now the authority on cache sizing. `media/plex`'s standing 10Gi is predicted safe by
