@@ -1,12 +1,28 @@
 # kopiur Stage 5 wave two - VolSync retired from four more volumes - 2026-09-02
 
-> **Status: GitOps change, live execution deferred to merge.** Unlike the
+> ## ⚠️ LIVE VERIFICATION IS OUTSTANDING. NOTHING HERE HAS BEEN APPLIED TO THE CLUSTER.
+>
+> **Status: pure GitOps change; live execution and verification formally deferred to post-merge by
+> captain decision (2026-09-02).** Unlike the
 > [2026-09-01 pilot](kopiur-stage5-pilot-retirement-2026-09-01.md) - which suspended four
-> Kustomizations and executed the removal by hand so it could be proven before merge - this change
-> is committed and left for Flux to apply. Nothing is suspended, and there is **no manual step
-> waiting after merge**. The post-merge verification this document specifies has therefore not
-> been run yet; [Verification](#verification-what-must-be-checked-after-flux-reconciles) is the
-> gate, not a record.
+> Kustomizations and executed the removal by hand so it could be proven *before* merge - this
+> change touches nothing on the cluster and is left for Flux to apply on merge.
+>
+> **Nothing is suspended and no manual step is needed to complete the retirement.** What is owed is
+> the check, not an action: the numbers below have not been observed yet, only predicted from a
+> baseline measured live at 2026-09-02T23:39Z.
+>
+> | after Flux reconciles | expected |
+> |---|---|
+> | all 4 PVCs `Bound`, data intact, **same `metadata.uid`** | `prowlarr-config`, `autobrr`, `ntfy`, `obsidian-livesync` |
+> | VolSync `ReplicationSource` fleet-wide | **78 → 66** (4 claims × 3 destinations) |
+> | VolSync `ReplicationDestination` fleet-wide | **30 → 26** |
+> | kopiur `SnapshotPolicy` | **unchanged at 60** |
+> | kopiur `SnapshotSchedule` / `Restore` | **unchanged at 60 / 30** |
+>
+> Full procedure, per-claim uids and per-app file counts:
+> [Verification](#verification-what-must-be-checked-after-flux-reconciles). That section is the
+> **gate, not a record**. A deviation on the first row means stop, not repair.
 
 Eight of the fleet's 30 claims now have exactly ONE backup engine. This is the second wave, and
 the first that includes content nobody can regenerate.
@@ -311,7 +327,8 @@ The same reasoning applies to autobrr's `2000:2000`.
 ## Verification: what must be checked after Flux reconciles
 
 Manifests rendering is not evidence that a retirement is safe. This is the gate, and it has
-**not** been run - the change is committed for Flux to apply.
+**not** been run - the change is committed for Flux to apply on merge, and live verification was
+formally deferred to post-merge by captain decision on 2026-09-02, with firstmate owning the run.
 
 Pre-change baseline, captured live 2026-09-02T23:39Z:
 
