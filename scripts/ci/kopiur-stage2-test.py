@@ -4,10 +4,16 @@
 Stage 2 is the migration acceptance gate: prove a restore from BOTH kopiur
 destinations (ceph and r2) on a volume that actually holds data, and record the
 drill. Captain decision `kopiur-stage2-empty-pilot` authorised ONE additional
-volume - downloads/sabnzbd-config - because the Stage 1 pilot (autobrr) holds
+volume - downloads/sabnzbd-config - because the Stage 1 pilot (autobrr) held
 zero files. Stage 3 (2026-08-30) has since onboarded the rest of the fleet;
 this file still pins the Stage 2 fidelity contract, and the fleet-wide
 coverage set now lives in kopiur-stage3-test.py.
+
+UPDATED 2026-09-02: the autobrr APP was removed (captain decision - unused), so
+every assertion here that read its live overlay or HelmRelease is gone. The
+drill-document assertions that name autobrr STAY: the 2026-08-30 drill is
+evidence of what was measured that day and does not become false because the
+app was later removed.
 
 UPDATED 2026-09-01 for Stage 5. `downloads/sabnzbd-config` was one of the four
 pilot volumes VolSync was RETIRED from, so the assertions that used to demand a
@@ -27,7 +33,7 @@ This test does not grep source text as its evidence. It:
      list, the sabnzbd workload securityContext, and the Stage 2 drill
      document into structured objects / measured fields.
   3. Asserts the Stage 2 safety contract on those objects:
-       - both Stage 2 volumes stay onboarded (autobrr + sabnzbd); the exact
+       - the Stage 2 fidelity volume stays onboarded (sabnzbd); the exact
          fleet set is pinned by kopiur-stage3-test.py
        - sabnzbd components are kopiur THEN kopiur/pvc, no volsync, no
          VOLSYNC_* substitute key, and no volsync/system dependency
@@ -38,8 +44,7 @@ This test does not grep source text as its evidence. It:
        - rendered SnapshotPolicy PVC name is sabnzbd-config (claim override)
        - rendered mover podSecurityContext is uid/gid/fsGroup 2000 (finding 2)
        - sabnzbd workload securityContext is 2000 (the reason the override
-         is load-bearing); production autobrr also renders at 2000 from its
-         live overlay (Stage 3 identity correction)
+         is load-bearing)
        - ceph schedule stays at the component default; production r2 is the
          downloads free hour 'H 11 * * *' (no hand-assigned minute)
        - KOPIUR_CACHE_CAPACITY is raised to 10Gi (restore-proof finding 2: an
@@ -73,9 +78,7 @@ ROOT = Path(__file__).resolve().parents[2]
 KOPIUR_BACKUP = ROOT / "kubernetes/components/kopiur/backup"
 KOPIUR_PVC = ROOT / "kubernetes/components/kopiur/pvc"
 SABNZBD_OVERLAY = ROOT / "kubernetes/apps/main/downloads/sabnzbd.yaml"
-AUTOBRR_OVERLAY = ROOT / "kubernetes/apps/main/downloads/autobrr.yaml"
 SABNZBD_HR = ROOT / "kubernetes/apps/base/downloads/sabnzbd/app/helmrelease.yaml"
-AUTOBRR_HR = ROOT / "kubernetes/apps/base/downloads/autobrr/app/helmrelease.yaml"
 APPS_MAIN = ROOT / "kubernetes/apps/main"
 DRILL_DOC = ROOT / "docs/backups/kopiur-restore-drill-2026-08-30.md"
 VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
@@ -93,8 +96,13 @@ STAGE2_CLAIM = "sabnzbd-config"
 STAGE2_PUID = 2000
 STAGE2_PGID = 2000
 
-STAGE1_APP = "autobrr"
-STAGE1_NS = "downloads"
+# The Stage 1 pilot was `downloads/autobrr`. That APP WAS REMOVED on 2026-09-02
+# (captain decision - unused), so it has no overlay, no HelmRelease and no claim
+# to assert against any more, and every live-overlay pin that named it is gone
+# from this file. What is NOT gone: the drill-document assertions below still
+# require the 2026-08-30 drill to record autobrr's measured lastSync and kopiur
+# snapshot times. That document is evidence of what happened on that date and
+# stays true regardless of whether the app still exists.
 
 # Live claim size, now carried by KOPIUR_CAPACITY (the kopiur pvc Component
 # emits the PVC since VolSync was retired from this volume on 2026-09-01).
@@ -120,10 +128,6 @@ COMPONENT_DEFAULT_KOPIUR_R2_CRON = "H 4 * * *"
 COMPONENT_DEFAULT_PUID = 1000
 COMPONENT_DEFAULT_PGID = 1000
 
-# Production autobrr identity (Stage 3 correction; matches measured ownership).
-STAGE1_PUID = 2000
-STAGE1_PGID = 2000
-
 # Measured Stage 2 fidelity digest from the live drill (public result contract).
 STAGE2_MANIFEST_DIGEST = (
     "5f748bb724937dabd5c5030135c772d50a6056b38221fcc3dd04356fdb5b4e6f"
@@ -137,12 +141,8 @@ OBSERVED_AUTOBRR_CEPH_LASTSYNC = "2026-08-30T20:46:07Z"
 KOPIUR_SAB_CEPH_SNAPSHOT = "2026-08-30T19:45:46Z"
 KOPIUR_AUTOBRR_CEPH_SNAPSHOT = "2026-08-30T18:53:22Z"
 
-STAGE2_ONBOARDED = frozenset(
-    {
-        (STAGE1_NS, STAGE1_APP),
-        (STAGE2_NS, STAGE2_APP),
-    }
-)
+# Was both Stage 2 pilots; `autobrr` left the fleet with its app on 2026-09-02.
+STAGE2_ONBOARDED = frozenset({(STAGE2_NS, STAGE2_APP)})
 
 
 class Failure(Exception):
@@ -352,11 +352,11 @@ def test_stage2_volumes_still_onboarded() -> None:
 
     This asserted an EXACT two-volume set until Stage 3 (2026-08-30), which
     deliberately onboarded the rest of the fleet. Freezing the fleet at two is
-    no longer the invariant; what Stage 2 still owns is that its own two
-    volumes - the restore-proof subject `sabnzbd-config` and the original pilot
-    `autobrr` - are never quietly dropped. The exact Stage 3 coverage set,
-    including the two volumes deliberately left off, is pinned by
-    kopiur-stage3-test.py.
+    no longer the invariant; what Stage 2 still owns is that its own volume -
+    the restore-proof subject `sabnzbd-config` - is never quietly dropped. The
+    other Stage 2 volume was the original pilot `autobrr`, whose app was
+    removed on 2026-09-02, so only one is left to hold. The exact Stage 3
+    coverage set is pinned by kopiur-stage3-test.py.
     """
     onboarded = flux_overlays_with_kopiur()
     keys = {(ns, name) for ns, name, _ in onboarded}
@@ -366,11 +366,10 @@ def test_stage2_volumes_still_onboarded() -> None:
         f"Stage 2 volumes must stay onboarded; missing {sorted(f'{n}/{a}' for n, a in missing)}",
     )
     paths = {p.resolve() for _, _, p in onboarded}
-    for required in (AUTOBRR_OVERLAY.resolve(), SABNZBD_OVERLAY.resolve()):
-        require(
-            required in paths,
-            f"{required.name} must still be a kopiur-onboarded overlay",
-        )
+    require(
+        SABNZBD_OVERLAY.resolve() in paths,
+        f"{SABNZBD_OVERLAY.name} must still be a kopiur-onboarded overlay",
+    )
 
 
 def test_sabnzbd_overlay_wiring() -> None:
@@ -616,8 +615,10 @@ def test_volsync_retired_and_claim_survives(pvc_docs: list[dict[str, Any]]) -> N
 def test_workload_identity_matches_override() -> None:
     """sabnzbd runs as 2000; that is why KOPIUR_PUID/PGID=2000 is required.
 
-    Production autobrr is also 2000 since Stage 3 (measured file ownership).
-    Both are rendered from their LIVE overlay substitute maps.
+    Rendered from the LIVE overlay substitute map. This also covered production
+    autobrr (2000 since the Stage 3 identity correction) until that app was
+    removed on 2026-09-02; the surviving fleet's per-claim identities are pinned
+    by EXPECTED_IDENTITY in kopiur-stage3-test.py.
     """
     sab = workload_security_context(SABNZBD_HR)
     # Prefer pod-level fsGroup/runAsUser; fall back to container.
@@ -636,37 +637,6 @@ def test_workload_identity_matches_override() -> None:
         sab_gid == STAGE2_PGID,
         f"sabnzbd workload fsGroup/runAsGroup must be {STAGE2_PGID}, got pod={sab['pod']} "
         f"container={sab['container']}",
-    )
-
-    # Production autobrr: render with the REAL overlay substitute map.
-    auto_env = {
-        **overlay_substitute(AUTOBRR_OVERLAY),
-        "SECRET_DOMAIN": "example.test",
-    }
-    auto_docs = render_with_substitute(KOPIUR_BACKUP, auto_env)
-    for p in by_kind(auto_docs, "SnapshotPolicy"):
-        psc = ((p["spec"].get("mover") or {}).get("podSecurityContext")) or {}
-        require(
-            psc.get("runAsUser") == STAGE1_PUID
-            and psc.get("runAsGroup") == STAGE1_PGID
-            and psc.get("fsGroup") == STAGE1_PGID,
-            f"production autobrr mover must be {STAGE1_PUID}:{STAGE1_PGID} "
-            f"from the live overlay, got {psc}",
-        )
-        claim = ((p["spec"].get("sources") or [{}])[0].get("pvc") or {}).get("name")
-        require(
-            claim == STAGE1_APP,
-            f"autobrr claim must default to app name, got {claim!r}",
-        )
-    auto_schedules = {
-        s["metadata"]["name"]: s for s in by_kind(auto_docs, "SnapshotSchedule")
-    }
-    auto_r2 = ((auto_schedules[f"{STAGE1_APP}-r2"]["spec"].get("schedule")) or {}).get(
-        "cron"
-    )
-    require(
-        auto_r2 == PRODUCTION_KOPIUR_R2_CRON,
-        f"production autobrr r2 cron must be {PRODUCTION_KOPIUR_R2_CRON!r}, got {auto_r2!r}",
     )
 
 

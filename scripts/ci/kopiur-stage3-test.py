@@ -14,8 +14,13 @@ that goes single-engine without being listed there still fails, and so does a
 listed claim that still renders VolSync.
 
 No remaining deferred claims: Stage 4 onboarded both previously deferred
-volumes, so kopiur is live on 30 of 30 VolSync-protected claims (alongside
-untouched VolSync). This test pins the fleet coverage set and measured mover
+volumes, so kopiur went live on 30 of 30 VolSync-protected claims (alongside
+untouched VolSync). The fleet is now 29: the `downloads/autobrr` APP was
+removed on 2026-09-02 (captain decision - unused), taking its claim, its
+overlay and therefore its kopiur onboarding with it. That is a different event
+from a Stage 5 retirement, which only removes an ENGINE and always leaves the
+claim in this set - see RETIRED_CLAIMS below. autobrr's kopia snapshots were
+deliberately kept. This test pins the fleet coverage set and measured mover
 identities; Stage 4 root-mover / GitOps annotation specifics for
 `home-automation/matter-server` live in `kopiur-stage4-test.py`.
 
@@ -89,7 +94,6 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("ai", "opencode"): ("1000", "1000"),
     ("ai", "repo-wiki"): ("1000", "1000"),
     ("database", "pgadmin"): ("5050", "5050"),
-    ("downloads", "autobrr"): ("2000", "2000"),
     ("downloads", "bazarr-config"): ("2000", "2000"),
     ("downloads", "lidarr-config"): ("2000", "2000"),
     ("downloads", "prowlarr-config"): ("3002", "3000"),
@@ -161,7 +165,19 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     ("downloads", "sabnzbd-config"),
     ("media", "seerr"),
     # wave two, 2026-09-02
-    ("downloads", "autobrr"),
+    #
+    # ("downloads", "autobrr") was here until the autobrr APP was removed on
+    # 2026-09-02 (captain decision - unused). It is gone rather than moved to
+    # some "formerly retired" list because this set is asserted BOTH ways
+    # against the live overlays: in-set means kopiur-only, not-in-set means
+    # dual-engine, and a claim with no overlay at all is neither. Leaving the
+    # row behind fails `volsync_still_on_every_unretired_claim`, which reads a
+    # retired-but-unonboarded claim as a volume with NO backup - the exact
+    # dangerous state this assertion exists to catch.
+    #
+    # Its kopia snapshots were deliberately KEPT (deletion.onPolicyDelete /
+    # onScheduleDelete: Retain), but retained backup data is not a protected
+    # claim, and nothing in this repo declares it any more.
     ("downloads", "prowlarr-config"),
     ("selfhosted", "ntfy"),
     ("selfhosted", "obsidian-livesync"),
