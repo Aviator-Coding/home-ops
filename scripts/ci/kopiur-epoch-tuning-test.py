@@ -5,17 +5,23 @@
 cosmetic knob and is actually what keeps `IndexBlobHealth` inside its threshold.
 Measured 2026-09-03 (docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md):
 
-kopiur advances epochs ONLY during a maintenance run, and writes the epoch marker
-~9 minutes INTO that run. So an epoch is ~9 minutes short of maturity at the run
-exactly one period later and waits a whole further period. At the 24h default the
-epochs measured 26.7h / 30.0h / 27.0h - never 24h - each 23.8h old at the run that
-should have closed it. Exactly two epochs are live at once (one closed-but-not-yet-
-compacted plus the open one), so at ceph's measured 32.5 index blobs/hour the count
-oscillated between ~900 and ~1810 against a threshold of 1000.
+kopiur advances epochs ONLY during a maintenance run, and the schedule's `jitter`
+is redrawn PER SLOT (measured on ceph's quick cron: 0m06s at the 00:00 slot, 25m41s
+at the 06:00 slot). So the gap between consecutive runs of one cron is not the cron
+period P but `P + J_next - J_prev`, spanning `[P - jitter, P + jitter]`.
+
+A `minDuration` equal to a multiple of P is therefore a COIN FLIP: an epoch opened at
+one slot clears the gate at the next only when `J_next >= J_prev`, roughly half the
+time, so the expected epoch length is 2P and the actual length flaps. At the 24h
+default the epochs measured 26.7h / 30.0h / 27.0h - never 24h. Exactly two epochs are
+live at once (one closed-but-not-yet-compacted plus the open one), so at ceph's
+measured 32.5 index blobs/hour the count oscillated between ~900 and ~1810 against a
+threshold of 1000.
 
 This test exists because the alert message itself recommends the wrong values. It
-suggests `6h` - which loses to the SAME rounding effect against a 6h quick cron and
-silently delivers 11.85h epochs - and `spec.health.indexBlobWarnThreshold`, which
+suggests `6h` - which is exactly the multiple-of-the-period case above against a 6h
+quick cron, so it inherits the same coin flip and delivers ~12h epochs on average
+while flapping between 6h and 18h+ - and `spec.health.indexBlobWarnThreshold`, which
 hides the inefficiency rather than fixing it. Someone reading only the alert would
 naturally "correct" 5h to 6h, or drop the block as clutter, and nothing else in CI
 would notice: `flate` validates the manifest builds, not what the value means, and
@@ -47,17 +53,25 @@ MANIFEST = (
 )
 PROOF_DOC = REPO / "docs" / "backups" / "kopiur-ceph-index-blob-compaction-2026-09-03.md"
 
-# The band derived from ceph's OWN maintenance offsets (quick 0 */6 * * * at
-# ~00/06/12/18, full 0 3 * * * at ~03:07), with the ~9 min marker lag:
+# The band derived from ceph's OWN maintenance crons and their DECLARED jitter
+# windows (quick `0 */6 * * *` jitter 30m; full `0 3 * * *` jitter 1h). Because
+# jitter is redrawn per slot, both bounds are worst-case over the windows, not
+# over the offsets observed on any one day:
 #
-#   upper bound - must be BELOW the shortest quick-to-quick gap minus the marker
-#     lag, or the epoch just-misses and stretches to the next slot. That is the
-#     whole bug, applied to its own fix.
-#   lower bound - must be ABOVE the quick-to-full gap, or the full run also
-#     advances the epoch. That would create a fifth epoch per day while
-#     compaction stays at one epoch per run, eating the headroom.
-BAND_EXCLUSIVE_LOW_H = 3.0
-BAND_INCLUSIVE_HIGH_H = 5.85
+#   upper bound - the SHORTEST possible quick-to-quick gap, 6h - 30m = 5.5h
+#     (previous slot drew maximum jitter, next slot drew zero). Above this the
+#     epoch can miss the next slot and stretch - the whole bug, applied to its
+#     own fix.
+#   lower bound - the LONGEST possible gap from the 00:00 quick to the 03:00
+#     full, (3h + 60m) - 0m = 4h. At or below this the full run can also advance
+#     the epoch, making a fifth epoch on some days while compaction stays at one
+#     epoch per run, eating the headroom.
+#
+# Inside (4h, 5.5h] the cadence is DETERMINISTIC - exactly one advance per quick
+# slot, every day - which is the real reason to prefer it over a value that
+# merely clears the threshold on average.
+BAND_EXCLUSIVE_LOW_H = 4.0
+BAND_INCLUSIVE_HIGH_H = 5.5
 
 # Measured on the live repository, 2026-09-03.
 BLOBS_PER_HOUR = 32.5
@@ -67,9 +81,10 @@ THRESHOLD = 1000
 # Live index blobs = one closed-but-not-yet-compacted epoch + the open one.
 # Read directly off the cluster: indexBlobCount 882 = 879 (xn2) + 1 (xn3) + 2 (xs).
 LIVE_EPOCH_MULTIPLE = 2
-# Epoch length is minDuration rounded UP to the next maintenance run. Inside the
-# band above that is always the next quick run: 6h minus the ~9 min marker lag.
-EFFECTIVE_EPOCH_H = 5.85
+# Inside the band the epoch advances at every quick run, so the epoch length is
+# the quick cron period. Jitter shifts individual boundaries but cannot
+# accumulate, because each advance re-bases on the run that performed it.
+EFFECTIVE_EPOCH_H = 6.0
 # Refuse to ship a value with less headroom than this. 6h would land at 23%.
 MIN_HEADROOM_FRACTION = 0.40
 
@@ -127,17 +142,19 @@ def test_ceph_min_duration_is_inside_the_derived_band() -> None:
     hours = parse_hours(got)
     require(
         hours > BAND_EXCLUSIVE_LOW_H,
-        f"ceph: minDuration {got!r} ({hours}h) is at or below {BAND_EXCLUSIVE_LOW_H}h, so the "
-        f"~03:07 full run would also advance the epoch - a fifth epoch per day while "
-        f"compaction stays at one epoch per run",
+        f"ceph: minDuration {got!r} ({hours}h) is at or below {BAND_EXCLUSIVE_LOW_H}h, the "
+        f"longest possible 00:00-quick-to-03:00-full gap once the full cron's 1h jitter is "
+        f"drawn at maximum. The full run could then also advance the epoch - a fifth epoch "
+        f"on some days while compaction stays at one epoch per run",
     )
     require(
         hours <= BAND_INCLUSIVE_HIGH_H,
         f"ceph: minDuration {got!r} ({hours}h) exceeds {BAND_INCLUSIVE_HIGH_H}h, the shortest "
-        f"quick-to-quick gap minus the ~9 min epoch-marker lag. The epoch will be just short "
-        f"of maturity at the next quick run and stretch to the one after - the exact rounding "
-        f"effect this value exists to avoid. This is why the condition message's suggested 6h "
-        f"is not the fix: see {PROOF_DOC.relative_to(REPO)}",
+        f"possible quick-to-quick gap (6h cron minus its 30m jitter window). Jitter is redrawn "
+        f"per slot, so above this the epoch MAY miss the next slot and stretch to the one "
+        f"after - non-deterministically. That is the exact effect this value exists to avoid, "
+        f"and it is why the condition message's suggested 6h is the wrong buy: see "
+        f"{PROOF_DOC.relative_to(REPO)}",
     )
 
 

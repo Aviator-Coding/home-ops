@@ -20,8 +20,8 @@ continuously from **2026-09-01T09:52:57Z**:
 **Maintenance was never stuck, and the lease was never stale.** Maintenance runs on schedule,
 owns its lease, and its *quick* runs really do compact. The cause is
 `parameters.epoch.minDuration` sitting at kopia's `24h` default, which - against a maintenance
-schedule whose runs are 6h apart - produces **27-30h epochs holding ~900 index blobs each**,
-of which exactly two are live at any moment. That is a **stable oscillation between ~900 and
+cron whose period divides 24h - produces **27-30h epochs holding ~900 index blobs each**, of
+which exactly two are live at any moment. That is a **stable oscillation between ~900 and
 ~1810 blobs**, not a leak and not a failure.
 
 Two things in the condition message are actively misleading, and both are recorded here
@@ -29,16 +29,15 @@ because the next person will read the same message:
 
 1. **`takeoverPolicy: Force` was never applicable.** The lease is healthy
    (`LeaseOwned=True`, `LeaseClaimed`). Applying it would have changed nothing.
-2. **The suggested `6h` does not do what it says.** It loses to the same rounding effect that
-   causes the bug and silently delivers **11.85h** epochs, not 6h. It would clear the warning,
-   but at ~770 peak against a 1000 threshold - 23% headroom, which this fleet would spend by
-   growing from 29 claims to ~38. The fix uses **`5h`**, derived from this repository's own
-   maintenance offsets, which delivers the epoch length it asks for and 62% headroom. See
-   [why 5h and not 6h](#why-5h-and-not-6h).
+2. **The suggested `6h` reproduces the bug it is meant to fix.** It is a multiple of the quick
+   cron period, which is precisely the failing case: the epoch length becomes a coin flip on
+   jitter ordering, averaging ~12h and flapping. It would clear the warning most of the time
+   and breach it intermittently. The fix uses **`5h`**, which is *not* a multiple of the
+   period and makes the cadence deterministic. See [why 5h and not 6h](#why-5h-and-not-6h).
 
 The third suggestion - raising `indexBlobWarnThreshold` - was explicitly not taken. The
 threshold is **correctly calibrated**: at the fixed epoch length the repository peaks at
-~380 blobs, comfortably inside it, so the warning was reporting a real inefficiency rather
+~390 blobs, comfortably inside it, so the warning was reporting a real inefficiency rather
 than being mis-set.
 
 ## The mechanism
@@ -60,29 +59,46 @@ younger than this"*, and `advanceOnCount` (20) / `advanceOnSizeMiB` (10) are exp
 exceeded within minutes of every epoch opening, so **`minDuration` is the only binding
 constraint** and the count thresholds never get a say.
 
-### The rounding effect that makes 24h behave like 27-30h
+### The jitter coin flip that makes 24h behave like 27-30h
 
-kopiur advances epochs **only during a maintenance run**, and it writes the epoch marker
-*~9 minutes into* that run. So an epoch opened by a run is, at the run exactly one period
-later, ~9 minutes **short** of maturity - and has to wait a whole further period.
+kopiur advances epochs **only during a maintenance run**, and the schedule's `jitter` is
+**redrawn per slot**. Measured on this cluster 2026-09-03:
 
-Measured on `ceph` (maintenance quick `0 */6 * * *` at ~00:00/06:00/12:00/18:00, full
-`0 3 * * *` at ~03:07):
-
-| epoch | opened | closed | length | age at the run that "should" have closed it |
+| repository | cron | declared jitter | 00:00 slot fired | 06:00 slot fired |
 |---|---|---|---|---|
-| 0 | 2026-08-30T15:29:17Z | 2026-08-31T18:08:22Z | 26.65h | - |
-| 1 | 2026-08-31T18:08:22Z | 2026-09-02T00:10:23Z | **30.03h** | 23.86h at the 2026-09-01 18:00 run |
-| 2 | 2026-09-02T00:10:23Z | 2026-09-03T03:08:17Z | **26.96h** | 23.83h at the 2026-09-03 00:00 run |
+| `ceph` | `0 */6 * * *` | 30m | 00:00:06 (**+6s**) | 06:25:41 (**+25m41s**) |
+| `r2` | `0 */6 * * *` | 30m | 00:16:09 (+16m09s) | 06:02:56 (+2m56s) |
 
-Both epochs missed the 24h mark by **eight to ten minutes** and stretched to the next slot.
-A simulation of the maintenance schedule with a 9-minute marker lag reproduces both observed
-epoch boundaries exactly.
+So the gap between consecutive runs of one cron is not the period `P` but
+`P + J_next - J_prev`, anywhere in `[P - jitter, P + jitter]`.
+
+**That makes any `minDuration` at a multiple of `P` a coin flip.** An epoch opened at one slot
+clears the gate at the next only when `J_next >= J_prev` - about half the time - so it waits a
+further period roughly every other time. The expected epoch length is `2P`, and the actual
+length *flaps*. With `P = 6h` and `minDuration = 24h` (a multiple of P), that is exactly the
+observed 26.7h / 30.0h / 27.0h - never 24h:
+
+| epoch | opened | closed | length |
+|---|---|---|---|
+| 0 | 2026-08-30T15:29:17Z | 2026-08-31T18:08:22Z | 26.65h |
+| 1 | 2026-08-31T18:08:22Z | 2026-09-02T00:10:23Z | **30.03h** |
+| 2 | 2026-09-02T00:10:23Z | 2026-09-03T03:08:17Z | **26.96h** |
+
+Worked example for epoch 2: it opened at `00:10:23` (the 00:00 slot, jitter +10m23s) and
+matured 24h later at `2026-09-03T00:10:23`. The 2026-09-03 00:00 slot fired at **00:00:06** -
+jitter of only 6s, so the run happened **10 minutes before** the epoch was eligible - and the
+epoch had to wait for the 03:00 full run, closing at 26.96h instead of 24h.
+
+> An earlier draft of this document attributed the effect to a fixed *"~9 minute epoch-marker
+> write lag"*. That was wrong: the real marker lag is 20-60s (measured: full run spawned
+> 03:07:27, marker `xe3` written 03:08:17; a manual quick run spawned 04:38:14, wrote its
+> compaction blob at 04:38:35). What looked like a lag was per-slot jitter. The corrected
+> mechanism is more general, and it changes both band bounds - see below.
 
 ### Why that lands at ~1850
 
 - ceph writes a **measured 32.5 index blobs/hour** (971 blobs over 30.03h; 879 over 26.96h).
-- A 27.85h average epoch therefore holds **~900 blobs**.
+- A ~28h average epoch therefore holds **~900 blobs**.
 - **Exactly two epochs are live at once**: one closed-but-not-yet-compacted, plus the open one.
   A closed epoch waits one full epoch period to settle (write epoch must reach `N+2`) and is
   compacted at that run, so the closed-uncompacted set is never deeper than one.
@@ -136,35 +152,43 @@ several-fold, it will reproduce this warning and needs the same treatment - re-d
 
 ## Why 5h and not 6h
 
-The condition message suggests `6h`. **It does not work**, for the same reason `24h` does not:
-the ~9-minute marker lag means an epoch is 5.85h old at the quick run 6h later, just short of a
-6h gate, so it waits a further 6h.
+The condition message suggests `6h`. **`6h` is a multiple of the quick cron period, which is
+precisely the failing case above** - it inherits the same jitter coin flip, so the epoch length
+averages ~12h and flaps between 6h and 18h+. It would clear the warning on a typical day and
+breach it intermittently.
 
-Simulating ceph's actual run offsets (quick 00/06/12/18, full ~03:07) with a 9-minute marker
-lag, against the measured 32.5 blobs/hour and the verified two-epoch live model:
+`5h` is chosen because it is *not* a multiple of the period, and because it sits inside a band
+whose bounds are worst-case over the **declared jitter windows** rather than over any single
+day's observed offsets:
 
-| `minDuration` | epochs/day | actual epoch | blobs/epoch | live peak | headroom vs 1000 |
+| bound | value | why |
+|---|---|---|
+| lower (exclusive) | **4h** | The longest possible gap from the 00:00 quick to the 03:00 full run, once the full cron's `1h` jitter is drawn at maximum and the quick's at zero: `(3h + 60m) - 0m`. At or below this the **full** run can also advance the epoch, adding a fifth epoch on some days while compaction stays at one epoch per run. |
+| upper (inclusive) | **5.5h** | The shortest possible quick-to-quick gap: `6h - 30m`, when the previous slot drew maximum jitter and the next drew zero. Above this the epoch **may** miss the next slot and stretch - non-deterministically. |
+
+Inside `(4h, 5.5h]` the cadence is **deterministic**: exactly one advance per quick slot, every
+day, regardless of how jitter falls.
+
+| `minDuration` | epoch length | blobs/epoch | live peak | headroom vs 1000 | deterministic? |
 |---|---|---|---|---|---|
-| 24h (default) | 0.75 | 27.85h | 904 | **1809** | **-81%** |
-| 12h | 1.25 | 16.65h | 541 | **1081** | **-8%** |
-| 8h | 1.75 | 11.85h | 385 | 770 | 23% |
-| **6h (as suggested)** | **1.75** | **11.85h** | **385** | **770** | **23%** |
-| **5h (chosen)** | **3.75** | **5.85h** | **190** | **380** | **62%** |
-| 4h | 3.75 | 5.85h | 190 | 380 | 62% |
+| 24h (default) | ~28h (flaps) | ~904 | **~1809** | **-81%** | no |
+| 12h | ~24h (flaps) | ~780 | **~1560** | **-56%** | no |
+| **6h (as suggested)** | **~12h (flaps 6-18h+)** | **~390** | **~780** | **~22%** | **no** |
+| **5h (chosen)** | **6h** | **195** | **390** | **61%** | **yes** |
+| 4h or below | 6h, sometimes 4-5 epochs/day | ~195 | ~390 | ~61% | no - full run may also advance |
 
-`6h` would clear the warning - the earlier claim in this document that it would not was wrong,
-and is corrected here. It is still the worse buy: it delivers **11.85h** epochs rather than the
-6h it asks for, and 23% headroom is about nine more claims on a 29-claim fleet. `5h` delivers
-the epoch length it names and 62% headroom.
-
-The usable band is **(3.0h, 5.85h]** - low enough to advance at every quick run, high enough
-never to advance at the full run (which sits only ~3.1h after the 00:00 quick and would
-otherwise create a fifth epoch per day and eat the compaction headroom). `5h` sits inside it
-with ~2h of margin below and ~0.85h above. Going below 4h buys nothing, because run spacing
-quantises the result.
+**Determinism is the reason to prefer 5h, not the margin alone.** A value that clears the
+threshold only on average is a value that pages intermittently.
 
 Compaction capacity is the other half of the check: compaction is **one epoch per maintenance
-run** and ceph has **5 runs/day**, so 4 epochs/day is sustainable with one run of headroom.
+run** and ceph has **5 runs/day** (4 quick + 1 full), so 4 epochs/day is sustainable with one
+run of headroom.
+
+> An earlier draft of this document gave the band as `(3.0h, 5.85h]`, derived from a single
+> day's observed offsets plus a supposed fixed marker lag. Both bounds were wrong - too low at
+> the bottom (the full run's 1h jitter can reach 4h) and too high at the top (the quick cron's
+> 30m jitter can shorten a gap to 5.5h). `5h` is inside both the old and the corrected band, so
+> the shipped value is unchanged; the CI gate now pins the corrected bounds.
 
 ## The fix
 

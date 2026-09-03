@@ -89,26 +89,32 @@ spec:
   # --- epoch tuning: why this repository does NOT run kopia's 24h default ---
   # Index blobs are only compacted once their EPOCH closes, and `minDuration` is
   # the advance GATE: no blob count closes an epoch younger than it. kopiur
-  # advances epochs only during a maintenance run, so the effective epoch length
-  # is `minDuration` rounded UP to the next run - and the epoch marker is written
-  # ~9 minutes INTO that run, so an epoch is still ~9 minutes short of maturity at
-  # the run exactly one period later and has to wait a whole further period.
+  # advances epochs ONLY during a maintenance run, and the schedule's `jitter` is
+  # redrawn PER SLOT (measured on this cron: 0m06s at the 00:00 slot, 25m41s at
+  # the 06:00 slot). So the gap between consecutive runs is not the cron period P
+  # but `P + J_next - J_prev`, anywhere in [P - jitter, P + jitter].
   #
-  # Measured here 2026-09-03 at the 24h default: epochs ran 26.7h, 30.0h and 27.0h
-  # (never 24h), each 23.8h old - eight to ten minutes short - at the run that
-  # should have closed it. At a measured 32.5 index blobs/hour that is ~900 blobs
-  # per epoch, and exactly TWO epochs are live at once (one closed-but-not-yet-
-  # compacted, plus the open one), so the count oscillates ~900-1810 against a
-  # threshold of 1000. A stable equilibrium, not a leak, and not a stuck lease.
+  # That makes any `minDuration` at a MULTIPLE of P a coin flip: the epoch clears
+  # the gate at the next slot only when `J_next >= J_prev`, about half the time,
+  # so the epoch length flaps and averages 2P. Measured here 2026-09-03 at the 24h
+  # default against a 6h cron: epochs ran 26.7h, 30.0h and 27.0h - never 24h. At a
+  # measured 32.5 index blobs/hour that is ~900 blobs per epoch, and exactly TWO
+  # epochs are live at once (one closed-but-not-yet-compacted, plus the open one),
+  # so the count oscillated ~900-1810 against a threshold of 1000. A stable
+  # equilibrium, not a leak, and not a stuck maintenance lease.
   #
-  # 5h is derived from ceph's OWN maintenance offsets (quick 00/06/12/18, full
-  # ~03:07), inside the (3.0h, 5.85h] band that advances the epoch at every quick
-  # run and never at the full run: 5.85h epochs, ~190 blobs each, ~380 peak - 62%
-  # headroom. The condition message's suggested 6h is not wrong, but it is a worse
-  # buy: it loses to the same just-misses-by-9-minutes effect against a 6h quick
-  # cron and silently delivers 11.85h epochs rather than the 6h asked for, leaving
-  # ~770 peak and only 23% headroom - which this fleet would spend by growing from
-  # 29 claims to ~38. Re-derive the band if the maintenance schedule changes.
+  # 5h is chosen to sit inside the (4h, 5.5h] band, whose bounds are worst-case
+  # over the DECLARED jitter windows rather than over one day's observed offsets:
+  #   > 4h   so the 03:00 full run (up to 3h+60m after the 00:00 quick) never
+  #          advances the epoch, which would add a fifth epoch on some days while
+  #          compaction stays at one epoch per maintenance run.
+  #   <= 5.5h so the next quick run (as little as 6h-30m later) always does.
+  # Inside that band the cadence is DETERMINISTIC - exactly one advance per quick
+  # slot - giving 6h epochs, ~195 blobs each, ~390 live peak and ~61% headroom.
+  # The condition message's suggested `6h` is the multiple-of-the-period case
+  # above: it averages ~12h epochs, flaps, and would intermittently breach the
+  # threshold. Determinism is the reason to prefer 5h, not just the margin.
+  # Re-derive the band if the maintenance schedule or its jitter changes.
   # Evidence: docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md
   parameters:
     epoch:
