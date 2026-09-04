@@ -16,9 +16,10 @@ spec:
     cleanupOnFail: true
     remediation:
       retries: 3
-  dependsOn:
-    - name: rook-ceph-cluster
-      namespace: rook-ceph
+  # Ordering lives on the Flux Kustomization in
+  # kubernetes/apps/main/database/falkordb.yaml (rook-ceph-cluster for the
+  # ceph-block StorageClass, kopiur-repository for the backup CRs' webhook), so
+  # there is no HelmRelease-level dependsOn duplicating half of it here.
   values:
     controllers:
       falkordb:
