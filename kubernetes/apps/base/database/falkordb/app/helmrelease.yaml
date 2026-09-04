@@ -1,0 +1,194 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app falkordb
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  dependsOn:
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+  values:
+    controllers:
+      falkordb:
+        replicas: 1
+        # Recreate, NOT RollingUpdate. The claim below is RWO on ceph-block, so
+        # a rolling update deadlocks: the new pod cannot attach the volume
+        # while the outgoing pod still holds it, and Kubernetes will not evict
+        # the old pod until the new one is Ready. This is also the correct
+        # semantics for a single-writer database - two FalkorDB processes must
+        # never open the same AOF/RDB set.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+
+        containers:
+          app:
+            image:
+              repository: docker.io/falkordb/falkordb
+              tag: v4.20.4@sha256:adbddd418916c25618564ff8597a919b08bc76452ebeb74eb985c38d7281df62
+
+            env:
+              # --- persistence, and it is LOAD-BEARING for the backups below ---
+              #
+              # The image entrypoint (/var/lib/falkordb/bin/run.sh) splices
+              # ${REDIS_ARGS} verbatim into its `exec redis-server` line, ahead
+              # of its own `--dir ${FALKORDB_DATA_PATH}` and the module load, so
+              # this is the supported way to configure the server. Verified
+              # against the image's own run.sh at v4.20.4.
+              #
+              # WHY AOF IS ON. kopiur backs this claim up with
+              # `copyMethod: Snapshot` - a CSI block-level VolumeSnapshot with
+              # no application hook, i.e. CRASH-CONSISTENT, exactly like pulling
+              # the power cord. Redis is designed to survive that, but only
+              # through what it has already fsynced. On RDB alone the newest
+              # durable state is the last completed `save` point, so a snapshot
+              # could restore a graph up to 15 minutes stale while reporting
+              # complete success. `appendonly yes` + `appendfsync everysec`
+              # bounds that to ~1s of writes; a torn AOF tail is expected and
+              # handled by Redis's own `aof-load-truncated yes` default.
+              #
+              # The `save` points are kept as a second line of defence: they
+              # bound how much AOF has to be replayed at start, and leave a
+              # self-contained dump.rdb in the snapshot.
+              REDIS_ARGS: >-
+                --appendonly yes
+                --appendfsync everysec
+                --save 900 1
+                --save 300 10
+                --save 60 1000
+              # The image ships a Node web UI on :3000 and starts it by default
+              # (BROWSER defaults to 1 in run.sh). This deployment is the
+              # database only - no consumer, no UI, no second listener, and one
+              # less process that wants to write outside the data volume under
+              # readOnlyRootFilesystem.
+              BROWSER: "0"
+
+            probes:
+              # TCP for liveness: cheap, and a FalkorDB that has stopped
+              # accepting connections is dead regardless of why.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: &port 6379
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              # Readiness runs a real command through the graph module, so a
+              # server that is listening but has not loaded falkordb.so does
+              # not read as Ready.
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/bin/sh", "-c", "redis-cli GRAPH.LIST"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              # Startup probe guards a long AOF replay after a restore or an
+              # unclean stop: up to 5 minutes before liveness starts counting.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: *port
+                  periodSeconds: 10
+                  failureThreshold: 30
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
+
+    # Pod-level security, spelled exactly "defaultPodOptions" and a sibling of
+    # controllers:/service:/persistence:. A wrong key or wrong nesting here is
+    # silently DISCARDED by Helm - no flate warning, no Flux error, just a pod
+    # that runs with defaults (docs/app-structure.md, and the live
+    # selfhosted/rsshub-playwright empty-volume outage).
+    #
+    # The image declares no USER and therefore runs as root out of the box;
+    # 1000:1000 is imposed here. fsGroup is what makes the claim writable: the
+    # ceph-block CSI driver is fsGroupPolicy: File, so the kubelet applies the
+    # ownership walk, and OnRootMismatch keeps it to the one time the root
+    # already matches. Measured live before merge - see the overlay's
+    # KOPIUR_PUID/PGID comment for the file-level evidence.
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        controller: falkordb
+        ports:
+          redis:
+            port: *port
+
+    # No `route:` block. FalkorDB speaks the Redis wire protocol on 6379, not
+    # HTTP, so there is nothing for an envoy-internal HTTPRoute to front and no
+    # Gatus endpoint annotation to hang off one. Consumers reach it in-cluster
+    # at falkordb.database.svc.cluster.local:6379.
+
+    persistence:
+      data:
+        # Chart-owned claim rather than one emitted by a backup component.
+        # components/volsync is not used for new claims (the fleet has moved to
+        # kopiur), and components/kopiur/pvc is specifically the
+        # retired-from-volsync claim - it carries a dataSourceRef onto the
+        # standing kopiur populator and is contractually reserved for volumes
+        # recorded as retired in scripts/ci/kopiur-stage5-test.py. This claim
+        # was never VolSync-protected, so it is neither.
+        #
+        # `retain: true` stamps helm.sh/resource-policy: keep, so a HelmRelease
+        # uninstall - including the one an `install.remediation` retry performs
+        # after a failed first install - cannot take the data volume with it.
+        # A component-owned claim gets that property from living in Flux's
+        # inventory instead; a chart-owned one has to ask for it.
+        enabled: true
+        type: persistentVolumeClaim
+        # Pin the claim name. app-template derives it from the release name and
+        # appends the persistence key only when the chart renders MORE THAN ONE
+        # PVC (lib/common/_determineResourceNameFromValues.tpl, `itemCount`), so
+        # with one claim it is `falkordb` and the day someone adds a second
+        # persistence entry every claim silently gains its key as a suffix. That
+        # would rename this one to `falkordb-data`: a brand-new empty volume for
+        # the app, while the kopiur SnapshotPolicy below kept pointing at a
+        # `falkordb` PVC that no longer exists - backups failing on a missing
+        # source, with the app looking perfectly healthy. forceRename makes the
+        # name independent of how many volumes the chart happens to render.
+        forceRename: falkordb
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        storageClass: ceph-block
+        retain: true
+        globalMounts:
+          - path: /var/lib/falkordb/data

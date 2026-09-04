@@ -1,0 +1,97 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app falkordb
+  namespace: &namespace database
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  targetNamespace: *namespace
+  interval: 1h
+  retryInterval: 2m
+  timeout: 5m
+  path: ./kubernetes/apps/base/database/falkordb/app
+  prune: true
+  # healthChecks target the rendered workload, not the HelmRelease - a
+  # HelmRelease-kind check reads Ready straight through a live crashloop
+  # (AGENTS.md, docs/app-structure.md). wait: false so Flux assesses exactly
+  # this list rather than the whole inventory, which matters here for a second
+  # reason: the kopiur component below ships a standing Restore in passive
+  # populator mode that is Ready=False BY DESIGN until a rebuilt claim
+  # dataSourceRefs it. Under wait: true Flux would block on that object
+  # forever (kubernetes/components/kopiur/Readme.md, trap 4).
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
+  wait: false
+  dependsOn:
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+    # kopiur-repository, not kopiur: it applies the `ceph` and `r2`
+    # ClusterRepository objects the policies below reference, and the kopiur
+    # admission webhook is failurePolicy: Fail - with the operator down the API
+    # server rejects these CRs outright.
+    - name: kopiur-repository
+      namespace: system
+  components:
+    # kopiur ONLY. components/volsync is not added: the fleet migrated to
+    # kopiur and VolSync is not wired onto new claims. Note this makes falkordb
+    # single-engine from birth, which is a different thing from a Stage 5
+    # RETIREMENT - nothing was removed here and no restore proof is implied.
+    # scripts/ci/kopiur-stage3-test.py records it as such (NEVER_VOLSYNC).
+    #
+    # The component is inline rather than a split Kustomization because this
+    # overlay runs wait: false with explicit healthChecks above; only a
+    # wait: true overlay needs the split (pgadmin, calibre-web-automated).
+    - ../../../../../components/kopiur
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      # KOPIUR_CLAIM deliberately absent: it defaults to ${APP}, and the chart
+      # renders the claim as exactly `falkordb` (pinned with forceRename in the
+      # HelmRelease so it stays that way).
+      #
+      # KOPIUR_PUID/KOPIUR_PGID deliberately absent, and that is a MEASURED
+      # result rather than an assumption - the component default is 1000:1000
+      # and the files really are 1000:1000. Measured 2026-09-04 by running this
+      # exact image, securityContext and a 20Gi ceph-block claim, then writing
+      # a graph and reading the volume back: every entry FalkorDB creates
+      # (dump.rdb, appendonlydir/ and its three members) is owned 1000:1000
+      # mode 0644/0755, and a mount as uid 1000 found 0 unreadable entries.
+      # Redis writes with a 0022 umask and never drops privileges, so the
+      # ownership follows runAsUser/fsGroup rather than anything internal.
+      # Declaring a redundant override would be a second, unenforced identity
+      # declaration - the liability pattern AGENTS.md records for APP_UID/GID.
+      #
+      # Sized for a RESTORE, not for a backup. Required cache is
+      # `min(snapshot sizeBytes, ~6.2 GiB)` plus headroom and it is a CLIFF, not
+      # a slope: below its capacity any value works, and the first time a
+      # growing claim crosses it the requirement jumps straight to the ~6.2 GiB
+      # plateau and the Restore fails TERMINALLY, with no retry - discoverable
+      # only during a real disaster. A 20Gi claim can obviously exceed 6.2 GiB,
+      # so the component's 2Gi default is not an option and interpolating from
+      # today's near-empty volume would be sizing for the wrong regime. 10Gi
+      # (9.74 GiB usable) clears the plateau outright, so this claim cannot
+      # reach the cliff at any size it can hold. Same value, same reasoning and
+      # the same 20Gi claim size as media/plex; the r2 demonstration for this
+      # size class was run on media/tdarr at exactly this value.
+      # docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md
+      KOPIUR_CACHE_CAPACITY: 10Gi
+      # The `database` namespace's assigned r2 hour. The component default
+      # `H 4 * * *` would put this policy into the hour that already carries
+      # VolSync's entire ceph slot plus 13 VolSync r2 runs. One free hour per
+      # namespace; KOPIUR_SCHEDULE_CEPH stays at the component default, which is
+      # already structurally offset onto the odd 4-hour slots.
+      KOPIUR_SCHEDULE_R2: "H 7 * * *"
