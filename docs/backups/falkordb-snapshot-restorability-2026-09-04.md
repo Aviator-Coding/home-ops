@@ -111,3 +111,43 @@ fail exactly the way autobrr did.
   the deployment is `strategy: Recreate` for that reason.
 - kopiur growing an application hook (a `BGSAVE`/`FLUSHALL`-style pre-snapshot step). It has none
   today, which is the whole premise above.
+
+## Authentication (measured in the same run)
+
+FalkorDB ships with no authentication and the entrypoint sets `--protected-mode no`, so an
+unconfigured deployment is a cluster-wide read/write graph database for any pod that can resolve
+its Service. The `database` namespace has **no** default-deny NetworkPolicy - the only policy in it
+is emqx's additive allow-monitoring rule - so placement provides nothing. `database/dragonfly` is
+also unauthenticated, but it is per-namespace and sits behind the operator's NetworkPolicy limiting
+`:6379` to same-namespace pods, which its Readme names as the mitigation; a *shared* datastore
+cannot use that, because its consumers are in other namespaces by definition.
+
+So this follows the other persistent datastores in the namespace (`cloudnative-pg`, `emqx`,
+`surrealdb`), all of which authenticate from 1Password, and takes surrealdb's ExternalSecret shape.
+
+Verified live on the shipping configuration:
+
+- `/proc/1/cmdline` is `redis-server *:6379` - Redis rewrites its own process title, so the
+  password does **not** appear in the process table even though `run.sh` splices it into argv.
+- unauthenticated `GRAPH.LIST` -> `NOAUTH Authentication required.`
+- authenticated (via `REDISCLI_AUTH`, the way the readiness probe runs) -> `PONG`, probe passes,
+  pod Ready in 17s
+- `appendonly yes` and all three `save` points survive the command override
+- the volume is still written `1000:1000`, `0` entries unreadable at that identity
+
+**Required 1Password item, which is a captain prerequisite and is deliberately NOT created here:**
+item `falkordb` in the ESO-visible vault (`Homelab`), field `FALKORDB_PASSWORD`. Until it exists
+the ExternalSecret does not sync and the pod stays unstarted - the app fails **closed** rather than
+coming up unauthenticated, which is the intended trade.
+
+### One trap this app hit on the way in
+
+The container command composes `REDIS_ARGS` in shell so the password is expanded at start rather
+than baked into a manifest. Written the obvious way (`$FALKORDB_PASSWORD`) that is a
+`postBuild.substitute` collision: Flux's envsubst runs over the whole built Kustomization and this
+cluster runs `StrictPostBuildSubstitutions=true`, so an undefined-looking variable fails the
+**entire** Kustomization, not just the resource. `flate` does not catch it - it substitutes
+leniently and reported `304 passed`, exit 0, with the broken form in place. The shipped manifest
+escapes it as `$${FALKORDB_PASSWORD}`, which renders to `${FALKORDB_PASSWORD}` for the shell.
+Verified by running a strict envsubst over the real build (0 undefined variables) and then
+deploying the post-envsubst form. Skill `flux-substitution`.

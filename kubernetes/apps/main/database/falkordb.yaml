@@ -32,6 +32,10 @@ spec:
   dependsOn:
     - name: rook-ceph-cluster
       namespace: rook-ceph
+    # The app is password-protected and takes that password from 1Password via
+    # the ExternalSecret in the base directory.
+    - name: onepassword-store
+      namespace: security
     # kopiur-repository, not kopiur: it applies the `ceph` and `r2`
     # ClusterRepository objects the policies below reference, and the kopiur
     # admission webhook is failurePolicy: Fail - with the operator down the API

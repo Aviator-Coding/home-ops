@@ -40,39 +40,69 @@ spec:
               repository: docker.io/falkordb/falkordb
               tag: v4.20.4@sha256:adbddd418916c25618564ff8597a919b08bc76452ebeb74eb985c38d7281df62
 
+            # --- durability, and it is LOAD-BEARING for the backups ---
+            #
+            # kopiur backs this claim up with `copyMethod: Snapshot` - a CSI
+            # block-level VolumeSnapshot with no application hook, i.e.
+            # CRASH-CONSISTENT, exactly like pulling the power cord. Redis
+            # survives that, but only through what it has already fsynced. On
+            # RDB alone the newest durable state is the last completed `save`
+            # point, so a snapshot restores a stale graph while reporting
+            # complete success. MEASURED on this exact image and claim: one
+            # snapshot taken mid-write restored 2174 of 2199 nodes with
+            # `appendonly yes`, and 200 of 2199 with the image's stock
+            # RDB-only durability - a 91% silent loss, with an identical clean
+            # startup log either way. `appendfsync everysec` bounds the loss to
+            # ~1s of writes; a torn AOF tail is handled by Redis's own
+            # `aof-load-truncated yes` default (confirmed live).
+            # docs/backups/falkordb-snapshot-restorability-2026-09-04.md
+            #
+            # The `save` points stay as a second line of defence: they bound AOF
+            # replay time at start and leave a self-contained dump.rdb in the
+            # snapshot.
+            #
+            # The image entrypoint (/var/lib/falkordb/bin/run.sh) splices
+            # ${REDIS_ARGS} verbatim into its `exec redis-server` line, which is
+            # the supported way to configure the server - but it does NOT
+            # re-expand variables inside that value, so a `--requirepass
+            # $FALKORDB_PASSWORD` written as plain env would set the literal
+            # string as the password. Composing REDIS_ARGS in a shell here and
+            # then handing off to the vendor entrypoint keeps every setting
+            # visible in Git while the secret stays out of the manifest.
+            # `exec` so redis-server stays PID 1 and receives SIGTERM directly.
+            #
+            # run.sh does splice the password into redis-server's argv, but
+            # Redis rewrites its own process title before anything can read it -
+            # verified live: /proc/1/cmdline is `redis-server *:6379`, with no
+            # --requirepass and no password.
+            #
+            # $${FALKORDB_PASSWORD} IS ESCAPED ON PURPOSE - do not "fix" it to a
+            # single $. Flux's postBuild envsubst runs over the entire built
+            # Kustomization output, and this cluster runs
+            # StrictPostBuildSubstitutions=true, so an unescaped shell variable
+            # here reads as an undefined Flux variable and fails the WHOLE
+            # Kustomization - not just this resource. `flate` does NOT catch it:
+            # it substitutes leniently, renders the token as empty and still
+            # exits 0 (measured on this app: 304 passed with the unescaped form
+            # in place). `$${...}` renders to `${...}`, which is what the shell
+            # then expands at start. AGENTS.md UNIQUE STYLES, skill
+            # `flux-substitution`.
+            command:
+              - /bin/sh
+              - -c
+              - |
+                export REDIS_ARGS="--appendonly yes --appendfsync everysec --save 900 1 --save 300 10 --save 60 1000 --requirepass $${FALKORDB_PASSWORD}"
+                exec /var/lib/falkordb/bin/run.sh
+
+            envFrom:
+              - secretRef:
+                  name: falkordb-secret
+
             env:
-              # --- persistence, and it is LOAD-BEARING for the backups below ---
-              #
-              # The image entrypoint (/var/lib/falkordb/bin/run.sh) splices
-              # ${REDIS_ARGS} verbatim into its `exec redis-server` line, ahead
-              # of its own `--dir ${FALKORDB_DATA_PATH}` and the module load, so
-              # this is the supported way to configure the server. Verified
-              # against the image's own run.sh at v4.20.4.
-              #
-              # WHY AOF IS ON. kopiur backs this claim up with
-              # `copyMethod: Snapshot` - a CSI block-level VolumeSnapshot with
-              # no application hook, i.e. CRASH-CONSISTENT, exactly like pulling
-              # the power cord. Redis is designed to survive that, but only
-              # through what it has already fsynced. On RDB alone the newest
-              # durable state is the last completed `save` point, so a snapshot
-              # could restore a graph up to 15 minutes stale while reporting
-              # complete success. `appendonly yes` + `appendfsync everysec`
-              # bounds that to ~1s of writes; a torn AOF tail is expected and
-              # handled by Redis's own `aof-load-truncated yes` default.
-              #
-              # The `save` points are kept as a second line of defence: they
-              # bound how much AOF has to be replayed at start, and leave a
-              # self-contained dump.rdb in the snapshot.
-              REDIS_ARGS: >-
-                --appendonly yes
-                --appendfsync everysec
-                --save 900 1
-                --save 300 10
-                --save 60 1000
               # The image ships a Node web UI on :3000 and starts it by default
               # (BROWSER defaults to 1 in run.sh). This deployment is the
               # database only - no consumer, no UI, no second listener, and one
-              # less process that wants to write outside the data volume under
+              # less process wanting to write outside the data volume under
               # readOnlyRootFilesystem.
               BROWSER: "0"
 
