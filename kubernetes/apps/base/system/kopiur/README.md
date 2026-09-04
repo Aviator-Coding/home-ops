@@ -21,11 +21,16 @@ Wave records:
 [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md),
 [`docs/backups/kopiur-wave-two-retirement-2026-09-02.md`](../../../../../docs/backups/kopiur-wave-two-retirement-2026-09-02.md),
 [`docs/backups/kopiur-wave-three-retirement-2026-09-04.md`](../../../../../docs/backups/kopiur-wave-three-retirement-2026-09-04.md).
-Do not treat this directory's presence alone as fleet-wide backup verification.
+The earlier per-volume drills remain the procedural precedent that table is
+built on. Stage 2's restore gate **passed** on 2026-08-30 -
+[`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
+- sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
+2.06 GiB, per-file sha256, modes and ownership included). Do not treat this
+directory's presence alone as fleet-wide backup verification.
 `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's files,
 or the backup fails closed on any file lacking a world-read bit - a prerequisite
-for every onboarding. Continuous fleet signal for an empty successful backup is
-`KopiurBackupEmpty` in `app/prometheusrule.yaml`
+for every onboarding, not a sabnzbd quirk. Continuous fleet signal for an empty
+successful backup is `KopiurBackupEmpty` in `app/prometheusrule.yaml`
 (`kopiur_policy_last_backup_files == 0`).
 
 **Stage 0 rollback** (operator/repos only): delete the `kopiur` and
