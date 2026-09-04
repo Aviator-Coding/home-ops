@@ -100,8 +100,7 @@ spec:
   components:
     # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier A
     # (ordinary config volumes). kopiur is now the ONLY backup engine on this
-    # claim; its backup half lives in the `pgadmin-kopiur` Kustomization below,
-    # which is unchanged by this retirement.
+    # claim; its backup half lives in the `pgadmin-kopiur` Kustomization below.
     #
     # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
     # row 4 - 3/3 files restored from BOTH destinations into a scratch PVC with
@@ -119,11 +118,12 @@ spec:
     # explains why that file must carry `ssa: IfNotPresent`.
     #
     # Note the SHAPE here differs from the fleet's other retired overlays,
-    # which carry `[components/kopiur, components/kopiur/pvc]` together: this
-    # Kustomization sets `wait: true`, so the kopiur BACKUP half (whose
-    # standing Restore is Ready=False by design) has to stay in its own
-    # `wait: false` Kustomization. Only the claim moves here. media/calibre.yaml
-    # carries the same split for the same reason.
+    # which carry `[components/kopiur, components/kopiur/pvc]` together: only
+    # the claim moves here, and the kopiur BACKUP half stays on `pgadmin-kopiur`
+    # below. That split is retained deliberately to keep this change minimal;
+    # it is no longer required by a claim-side wait:true (dropped below), and
+    # collapsing the kopiur half back inline is a possible follow-up rather than
+    # something this change does. media/calibre.yaml carries the same split.
     - ../../../../../components/kopiur/pvc
   interval: 30m
   dependsOn:
@@ -134,18 +134,25 @@ spec:
     # The `volsync` (system) dependency went with the volsync Component above.
     # `kopiur-repository` (system) replaces it: this Kustomization now renders a
     # claim whose dataSourceRef names a kopiur `Restore`, so the kopiur CRDs and
-    # repositories have to exist before it is applied. The backup objects
-    # themselves are still ordered by the `pgadmin-kopiur` Kustomization below,
-    # which depends on this one.
+    # repositories have to exist before it is applied. The backup objects live
+    # on `pgadmin-kopiur` below and do NOT dependsOn this claim Kustomization -
+    # that reverse edge was the greenfield deadlock (Restore needed for PVC
+    # bind, claim wait needed for backup KS eligibility).
     - name: kopiur-repository
       namespace: system
     - name: external-secrets
       namespace: security
-    # Add health check to wait for PVC to be bound
-  healthCheckExprs:
-    - apiVersion: v1
-      kind: PersistentVolumeClaim
-      current: status.phase == 'Bound'
+  # Workload health signal only. wait:false is required for Flux to honour
+  # healthChecks at all (wait:true assesses the whole inventory instead). The
+  # PVC must NOT appear here: putting it back in the assessment set would re-
+  # arm the Pending-PVC block on greenfield. The Deployment mounts the claim,
+  # so it is still transitively gated by PVC bind - that is a health signal,
+  # not the deadlock fix (see pgadmin-kopiur header).
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: pgadmin
+      namespace: *namespace
   path: ./kubernetes/apps/base/database/cloudnative-pg/pgadmin
   postBuild:
     substituteFrom:
@@ -177,34 +184,34 @@ spec:
     name: flux-system
     namespace: flux-system
   targetNamespace: *namespace
-  wait: true
+  wait: false
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 #
-# kopiur backup for `pgadmin`, running ALONGSIDE the volsync component on the
-# Kustomization above (migration Stage 3). Nothing about volsync changes; this
-# claim simply gains a second, independent set of backups. Retiring either one
-# is Stage 5 and needs a per-volume restore proof first.
+# kopiur-only backup for `pgadmin` (Stage 5 complete 2026-09-04). VolSync is
+# retired from this claim; this Kustomization is the sole backup engine.
 #
 # WHY THIS IS A SEPARATE KUSTOMIZATION rather than a `components:` entry on the
-# pgadmin Kustomization above, which is the normal shape (see
-# kubernetes/apps/main/downloads/sabnzbd.yaml): that Kustomization sets
-# `wait: true`, and with `wait: true` Flux assesses EVERY object in the
-# inventory. The kopiur component ships a standing `Restore` in passive
-# populator mode, which reports `Ready=False` for the whole parallel run BY
-# DESIGN - measured on the two live Stage 1/2 objects (the autobrr one below;
-# that app was removed 2026-09-02, so use any live `*-kopiur-dst` to see it):
+# pgadmin Kustomization above (the fleet's normal shape - see
+# kubernetes/apps/main/downloads/sabnzbd.yaml): the split was introduced when that
+# Kustomization still set wait:true, because the kopiur standing Restore is
+# Ready=False by design (AwaitingPvcDataSourceRef) and wait:true would have
+# assessed it forever. That wait:true is gone now (workload healthChecks
+# instead), so the split is no longer REQUIRED - it is retained deliberately to
+# keep this change minimal. Collapsing the kopiur half back inline is a
+# possible follow-up, not something this change does. media/calibre.yaml has
+# the same retained split.
 #
-#   $ kubectl -n downloads get restore autobrr-kopiur-dst -o json | jq .status
-#   Ready=False  reason=AwaitingPvcDataSourceRef
-#   "passive populator: awaiting a PVC dataSourceRef to claim this Restore"
-#
-# Bound claims never repoint (`dataSourceRef` is immutable), so it stays that
-# way until a rebuilt claim from `components/kopiur/pvc` claims it. Adding the
-# component inline here would make Flux wait on an object that can never become
-# Ready and time this Kustomization out. Splitting it off keeps `wait: false`
-# where the kopiur objects live and leaves pgadmin's existing `wait: true`
-# behaviour untouched. media/calibre.yaml has the same shape for the same reason.
+# GREENFIELD ORDERING (review fix): this Kustomization deliberately does NOT
+# dependsOn pgadmin. The cycle edge is that dependsOn, not wait:true - both the
+# Deployment and a wait:true inventory gate are transitively blocked by the
+# same Pending PVC until ${APP}-kopiur-dst exists, and that Restore is created
+# here. Removing the reverse edge lets the Restore apply independently so the
+# PVC can bind. Inverting the dependency (claim dependsOn this KS) was
+# considered and declined: a claim should not depend on its own backup config.
+# Risk of applying this first: policies name a PVC that is not there yet and
+# have nothing to snapshot until it appears. dependsOn kopiur-repository stays
+# - the admission webhook is failurePolicy: Fail.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -229,10 +236,9 @@ spec:
     # ClusterRepository objects these policies reference, and it already
     # dependsOn the operator. The admission webhook is failurePolicy: Fail, so
     # with the operator down the API server REJECTS these CRs outright.
+    # Deliberately no dependsOn pgadmin - see header GREENFIELD ORDERING.
     - name: kopiur-repository
       namespace: system
-    - name: pgadmin
-      namespace: *namespace
   postBuild:
     substituteFrom:
       - name: cluster-secrets

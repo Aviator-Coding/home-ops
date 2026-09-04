@@ -11,9 +11,10 @@ spec:
     # The `volsync` (system) dependency went with the volsync Component below.
     # `kopiur-repository` (system) replaces it: this Kustomization now renders a
     # claim whose dataSourceRef names a kopiur `Restore`, so the kopiur CRDs and
-    # repositories have to exist before it is applied. The backup objects
-    # themselves are still ordered by the `calibre-web-automated-kopiur`
-    # Kustomization below, which depends on this one.
+    # repositories have to exist before it is applied. The backup objects live
+    # on `calibre-web-automated-kopiur` below and do NOT dependsOn this claim
+    # Kustomization - that reverse edge was the greenfield deadlock (Restore
+    # needed for PVC bind, claim wait needed for backup KS eligibility).
     - name: kopiur-repository
       namespace: system
   commonMetadata:
@@ -24,7 +25,7 @@ spec:
     # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier B (the
     # large claims). kopiur is now the ONLY backup engine on this claim; its
     # backup half lives in the `calibre-web-automated-kopiur` Kustomization
-    # below, which is unchanged by this retirement.
+    # below.
     #
     # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
     # row 18 - 23/23 files restored from BOTH destinations into a scratch PVC
@@ -48,19 +49,32 @@ spec:
     # meant to remove a backup engine. components/kopiur/pvc/pvc.yaml also
     # explains why that file must carry `ssa: IfNotPresent`.
     #
-    # Only the CLAIM moves here. This Kustomization sets `wait: true`, so the
-    # kopiur BACKUP half - whose standing Restore is Ready=False by design -
-    # has to stay in its own `wait: false` Kustomization below.
-    # database/cloudnative-pg.yaml carries the same split for the same reason.
+    # Only the CLAIM moves here; the kopiur BACKUP half stays on
+    # `calibre-web-automated-kopiur` below. That split is retained deliberately
+    # to keep this change minimal; it is no longer required by a claim-side
+    # wait:true (dropped below), and collapsing the kopiur half back inline is
+    # a possible follow-up rather than something this change does.
+    # database/cloudnative-pg.yaml carries the same retained split.
     - ../../../../../components/kopiur/pvc
   prune: true
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  wait: true
+  wait: false
   interval: 30m
   timeout: 3m
+  # Workload health signal only. wait:false is required for Flux to honour
+  # healthChecks at all (wait:true assesses the whole inventory instead). The
+  # PVC must NOT appear here: putting it back in the assessment set would re-
+  # arm the Pending-PVC block on greenfield. The Deployment mounts the claim,
+  # so it is still transitively gated by PVC bind - that is a health signal,
+  # not the deadlock fix (see calibre-web-automated-kopiur header).
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: calibre-web-automated
+      namespace: *namespace
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -112,21 +126,30 @@ spec:
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 #
-# kopiur backup for `calibre-web-automated`, running ALONGSIDE the volsync
-# component on the first Kustomization in this file (migration Stage 3).
-# volsync is untouched and keeps protecting this claim.
+# kopiur-only backup for `calibre-web-automated` (Stage 5 complete 2026-09-04).
+# VolSync is retired from this claim; this Kustomization is the sole backup
+# engine.
 #
 # WHY THIS IS A SEPARATE KUSTOMIZATION rather than a `components:` entry on the
-# calibre-web-automated Kustomization above, which is the normal shape: that
-# Kustomization sets `wait: true`, and with `wait: true` Flux assesses EVERY
-# object in the inventory. The kopiur component ships a standing `Restore` in
-# passive populator mode which reports `Ready=False` for the whole parallel run
-# BY DESIGN (`AwaitingPvcDataSourceRef` - verified on the two live Stage 1/2
-# objects in `downloads`). Bound claims never repoint (`dataSourceRef` is
-# immutable), so the Restore stays Pending until a rebuilt claim from
-# `components/kopiur/pvc` claims it. Inline, Flux would wait on an object that
-# can never become Ready and time this Kustomization out.
-# database/cloudnative-pg.yaml carries the same split for the same reason.
+# calibre-web-automated Kustomization above (the fleet's normal shape): the
+# split was introduced when that Kustomization still set wait:true, because the
+# kopiur standing Restore is Ready=False by design (AwaitingPvcDataSourceRef)
+# and wait:true would have assessed it forever. That wait:true is gone now
+# (workload healthChecks instead), so the split is no longer REQUIRED - it is
+# retained deliberately to keep this change minimal. Collapsing the kopiur half
+# back inline is a possible follow-up, not something this change does.
+# database/cloudnative-pg.yaml carries the same retained split.
+#
+# GREENFIELD ORDERING (review fix): this Kustomization deliberately does NOT
+# dependsOn calibre-web-automated. The cycle edge is that dependsOn, not
+# wait:true - both the Deployment and a wait:true inventory gate are
+# transitively blocked by the same Pending PVC until ${APP}-kopiur-dst exists,
+# and that Restore is created here. Removing the reverse edge lets the Restore
+# apply independently so the PVC can bind. Inverting the dependency (claim
+# dependsOn this KS) was considered and declined: a claim should not depend on
+# its own backup config. Risk of applying this first: policies name a PVC that
+# is not there yet and have nothing to snapshot until it appears. dependsOn
+# kopiur-repository stays - the admission webhook is failurePolicy: Fail.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -147,10 +170,10 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
+    # Deliberately no dependsOn calibre-web-automated - see header GREENFIELD
+    # ORDERING. kopiur-repository is the dependency that actually matters.
     - name: kopiur-repository
       namespace: system
-    - name: calibre-web-automated
-      namespace: *namespace
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -160,12 +183,10 @@ spec:
       # Matched to the file ownership, measured live 2026-08-30: all 50 entries
       # on this volume are owned 2000:2000 (the pod's own runAsUser is 0 with
       # fsGroup 2000, so it is the measured file ownership that decides here,
-      # not the pod uid). This also matches VOLSYNC_PUID/PGID above, so both
-      # engines read the claim as the same identity.
+      # not the pod uid). This is now the sole mover identity on this claim.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
-      # Namespace r2 hour. Note this app's volsync r2 job already runs at
-      # 04:05, so the component default of `H 4 * * *` would have stacked both
-      # engines into the same hour for this very claim. Hour 15 carries no
-      # volsync destination and no kopiur ceph slot (01/05/09/13/17/21).
+      # Namespace r2 hour. Hour 15 carries no remaining dual-engine volsync
+      # destination collision for this claim and no kopiur ceph slot
+      # (01/05/09/13/17/21).
       KOPIUR_SCHEDULE_R2: "H 15 * * *"

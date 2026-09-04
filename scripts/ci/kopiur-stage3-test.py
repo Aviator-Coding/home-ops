@@ -41,8 +41,8 @@ This test does not grep source text as its evidence. It:
   1. Parses every Flux Kustomization under kubernetes/apps/main into structured
      objects, recognising BOTH onboarding shapes - a `components:` entry, and a
      dedicated Kustomization whose `path` is components/kopiur/backup (used for
-     an app's second claim, and for an app whose own Kustomization sets
-     `wait: true`).
+     an app's second claim, and for the retained pgadmin/calibre-web-automated
+     split shape).
   2. Renders the real kustomize build of components/kopiur/backup and runs a
      Flux-shaped envsubst (including ${VAR:-default} and nested ${A:-${B}})
      under each onboarded claim's own substitute map.
@@ -231,11 +231,11 @@ EXPECTED_R2_HOUR = {
     "ai": 19,
 }
 
-# Apps whose own Kustomization sets wait: true, so the kopiur half MUST ship as
-# a separate wait: false Kustomization - the component's passive Restore is
-# Ready=False for the whole parallel run by design, and Flux with wait: true
-# assesses every object in the inventory.
-WAIT_TRUE_SPLIT = {("database", "pgadmin"), ("media", "calibre-web-automated")}
+# Apps that keep the kopiur BACKUP half on a dedicated components/kopiur/backup
+# Kustomization rather than inlining components/kopiur on the claim KS. The
+# split was introduced under a former claim-side wait:true; that wait is gone,
+# and the split is retained deliberately (see wave-three retirement doc).
+SPLIT_BACKUP_APPS = {("database", "pgadmin"), ("media", "calibre-web-automated")}
 
 
 class Failure(Exception):
@@ -341,12 +341,13 @@ def test_schedules() -> None:
         )
 
 
-def test_wait_true_apps_use_a_split_kustomization() -> None:
-    """An app with wait: true must not carry the component inline.
+def test_no_inline_kopiur_is_wait_true() -> None:
+    """No Kustomization may carry components/kopiur inline with wait: true.
 
     The component's standing Restore is a passive populator that reports
     Ready=False for the whole parallel run by design, and wait: true makes Flux
     assess every object in the inventory - so inline it would block forever.
+    The two retained split apps must also keep a dedicated backup Kustomization.
     """
     for d, path in flux_kustomizations():
         spec = d.get("spec") or {}
@@ -359,12 +360,11 @@ def test_wait_true_apps_use_a_split_kustomization() -> None:
             f"wait: true - the passive Restore never becomes Ready, so Flux would block. "
             f"Ship the kopiur half as its own wait: false Kustomization instead.",
         )
-    # and the two known split apps really are split
     split_names = {
         (d["metadata"].get("namespace"), str((d.get("spec") or {}).get("path") or ""))
         for d, _ in flux_kustomizations()
     }
-    for ns, app in WAIT_TRUE_SPLIT:
+    for ns, app in SPLIT_BACKUP_APPS:
         require(
             any(n == ns and KOPIUR_BACKUP_PATH in p for n, p in split_names),
             f"{ns}/{app} must keep a dedicated components/kopiur/backup Kustomization",
@@ -605,7 +605,7 @@ def main() -> int:
     run("deferred_claims_absent", test_deferred_claims_absent)
     run("identity_matches_measurement", test_identity_matches_measurement)
     run("schedules", test_schedules)
-    run("wait_true_apps_use_a_split_kustomization", test_wait_true_apps_use_a_split_kustomization)
+    run("no_inline_kopiur_is_wait_true", test_no_inline_kopiur_is_wait_true)
     run("depends_on_repository", test_every_onboarded_kustomization_depends_on_repository)
     run("rendered_objects_hold_the_contract", test_rendered_objects_hold_the_contract)
     run("volsync_still_on_every_unretired_claim", test_volsync_still_on_every_unretired_claim)

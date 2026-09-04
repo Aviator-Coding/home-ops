@@ -47,14 +47,15 @@ assessed and left dual-engine; any further retirement needs its own decision.
 Those three are now the entire dual-engine fleet.
 
 TWO OVERLAY SHAPES. Most retired volumes put both `components/kopiur` and
-`components/kopiur/pvc` on the app's own Flux Kustomization. Two cannot:
-`database/pgadmin` and `media/calibre-web-automated` set `wait: true`, which
-makes Flux assess every object in the inventory including the kopiur component's
-standing `Restore` - permanently `Ready=False` by design. Those two keep the
-kopiur BACKUP half in its own `wait: false` Kustomization and move only the
-CLAIM onto the app's, so their `components:` list is `[kopiur/pvc]` alone. The
-table below records that split explicitly rather than special-casing it in the
-assertions.
+`components/kopiur/pvc` on the app's own Flux Kustomization. Two keep a split:
+`database/pgadmin` and `media/calibre-web-automated` put only the CLAIM on the
+app Kustomization (`components: [kopiur/pvc]`) and keep the kopiur BACKUP half
+in its own `wait: false` Kustomization. That split was introduced under a former
+claim-side `wait: true` (the standing Restore is Ready=False by design); the
+claim side is now `wait: false` with workload healthChecks, so the split is
+retained deliberately rather than still required. The table below records it
+explicitly rather than special-casing it in the assertions. The backup KS must
+NOT dependsOn the claim KS - that reverse edge was a greenfield deadlock.
 
 The single most dangerous thing about this change is that the volsync Component
 was the ONLY manifest emitting each app's PVC, and every app overlay runs
@@ -116,7 +117,7 @@ VOLSYNC_COMPONENT = "../../../../../components/volsync"
 #             rather than merely untidy.
 #   backup_ks the Flux Kustomization that owns the kopiur BACKUP objects.
 #             None means "the same one" - the fleet's normal shape. A name
-#             means the `wait: true` split described in the module docstring,
+#             means the retained split described in the module docstring,
 #             and the assertions below read the two halves from their own
 #             Kustomizations rather than assuming one substitute map.
 class Retired(NamedTuple):
@@ -148,8 +149,8 @@ RETIRED: dict[str, Retired] = {
     # wave three, 2026-09-04 - tier A, ordinary config volumes (11)
     #
     # pgadmin is the split shape: its claim rides the `pgadmin` Kustomization
-    # inside database/cloudnative-pg.yaml (`wait: true`), its kopiur backup
-    # objects ride `pgadmin-kopiur` in the same file.
+    # inside database/cloudnative-pg.yaml, its kopiur backup objects ride
+    # `pgadmin-kopiur` in the same file.
     "database/pgadmin": Retired(
         "database/cloudnative-pg.yaml", "pgadmin", "pgadmin", "2Gi", "pgadmin-kopiur"
     ),
@@ -173,8 +174,8 @@ RETIRED: dict[str, Retired] = {
     ),
     # wave three, 2026-09-04 - tier B, the large claims (4)
     #
-    # calibre-web-automated is the second split shape, for the same `wait: true`
-    # reason as pgadmin above.
+    # calibre-web-automated is the second split shape, same retained split as
+    # pgadmin above.
     "ai/hermes": Retired("ai/hermes.yaml", "hermes", "hermes", "25Gi"),
     "ai/opencode": Retired("ai/opencode.yaml", "opencode", "opencode", "20Gi"),
     "media/calibre-web-automated": Retired(
@@ -285,8 +286,8 @@ def overlay(rel: str, name: str) -> dict[str, Any]:
     """The one Flux Kustomization named `name` in overlay file `rel`.
 
     Selected by name rather than by "the only document in the file" because two
-    retired volumes live in multi-Kustomization overlays (the `wait: true`
-    split), and a third - `selfhosted/syncthing` - shares its file with the
+    retired volumes live in multi-Kustomization overlays (the retained split
+    shape), and a third - `selfhosted/syncthing` - shares its file with the
     separate, deliberately NOT-retired `syncthing-data` claim.
     """
     by_name = kustomizations(rel)
@@ -468,7 +469,7 @@ def test_retired_overlays_keep_the_claim() -> None:
         spec = claim_ks(v)["spec"]
         comps = spec.get("components") or []
         # Normal shape carries both Components on one Kustomization. The
-        # `wait: true` split shape carries only the pvc one here and the kopiur
+        # retained split shape carries only the pvc one here and the kopiur
         # backup half in its own Kustomization, asserted just below.
         want = [KOPIUR_PVC_COMPONENT] if v.backup_ks else [KOPIUR_COMPONENT, KOPIUR_PVC_COMPONENT]
         require(
@@ -482,6 +483,28 @@ def test_retired_overlays_keep_the_claim() -> None:
             f"{key}: prune must stay true (this test's premise, and the fleet convention)",
         )
         if v.backup_ks:
+            # Claim side: wait:false + workload healthChecks (not HelmRelease,
+            # not PVC). PVC in the assessment set would re-arm the Pending-PVC
+            # greenfield block; wait:true would ignore healthChecks entirely.
+            require(
+                spec.get("wait") is not True,
+                f"{key}: split-shape claim Kustomization must be wait: false so Flux "
+                f"honours workload healthChecks instead of assessing the whole inventory",
+            )
+            checks = spec.get("healthChecks") or []
+            require(
+                checks,
+                f"{key}: split-shape claim Kustomization must carry a non-empty healthChecks list",
+            )
+            allowed_kinds = {"Deployment", "StatefulSet", "DaemonSet"}
+            for hc in checks:
+                kind = hc.get("kind")
+                require(
+                    kind in allowed_kinds,
+                    f"{key}: split-shape healthChecks must target a workload kind "
+                    f"({sorted(allowed_kinds)}), not {kind!r} (HelmRelease/PVC re-open the "
+                    f"blind spot or the Pending-PVC block)",
+                )
             bspec = backup_ks(v)["spec"]
             require(
                 str(bspec.get("path") or "").rstrip("/").endswith("components/kopiur/backup"),
@@ -490,12 +513,26 @@ def test_retired_overlays_keep_the_claim() -> None:
             )
             require(
                 bspec.get("wait") is not True,
-                f"{key}: the split exists precisely so the kopiur half runs wait: false - the "
-                f"standing Restore is Ready=False by design and would time the Kustomization out",
+                f"{key}: the kopiur half must run wait: false - the standing Restore is "
+                f"Ready=False by design and would time the Kustomization out",
             )
             require(
                 bspec.get("prune") is True,
                 f"{key}: prune must stay true on the split-shape backup Kustomization too",
+            )
+            # Deadlock regression pin: backup KS must not wait on the claim KS.
+            # Cycle was: *-kopiur dependsOn claim -> claim health/wait needs
+            # Deployment Available -> needs PVC Bound -> needs Restore from *-kopiur.
+            bdep_names = {
+                dep.get("name")
+                for dep in (bspec.get("dependsOn") or [])
+                if isinstance(dep, dict)
+            }
+            require(
+                v.ks not in bdep_names,
+                f"{key}: split-shape backup Kustomization must NOT dependsOn the claim "
+                f"Kustomization {v.ks!r} - that reverse edge is the greenfield Restore/PVC "
+                f"bootstrap deadlock",
             )
 
 

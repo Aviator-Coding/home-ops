@@ -203,15 +203,59 @@ and never again for a bound claim. Do not clean it up.
 
 ### Two overlays carry a different shape, and that is deliberate
 
-`database/pgadmin` and `media/calibre-web-automated` set `wait: true`, which makes Flux assess
-every object in the Kustomization's inventory - including the kopiur component's standing
-`Restore`, which is `Ready=False` for its whole life by design (`AwaitingPvcDataSourceRef`). Those
-two therefore keep the kopiur **backup** half in its own `wait: false` Kustomization and move only
-the **claim** onto the app's, so their `components:` list is `[kopiur/pvc]` alone.
+`database/pgadmin` and `media/calibre-web-automated` keep the kopiur **backup** half in its own
+`wait: false` Kustomization and move only the **claim** onto the app's, so their `components:` list
+is `[kopiur/pvc]` alone. That split was introduced when those claim Kustomizations still set
+`wait: true` (Flux would have assessed the standing `Restore`, which is `Ready=False` for its whole
+life by design - `AwaitingPvcDataSourceRef`). The claim side is now `wait: false` with explicit
+workload `healthChecks` on the Deployment, so the split is **no longer required by wait:true** - it
+is retained deliberately to keep this change minimal. Collapsing the kopiur half back inline is a
+possible follow-up, not something this change does.
 
 `kopiur-stage5-test.py` records that split explicitly in its `RETIRED` table (`backup_ks`) and
 reads each half's substitute map from its own Kustomization, rather than special-casing it inside
-the assertions.
+the assertions. It also pins the greenfield contract below: claim `wait: false` + workload
+`healthChecks`, and the backup Kustomization must **not** `dependsOn` the claim Kustomization.
+
+### Greenfield split-shape deadlock (found in review)
+
+On the live retirement path the Bound PVC is `IfNotPresent`-skipped and already Ready, so ordering
+did not matter. On a greenfield apply or namespace rebuild the original shape was a hard deadlock:
+
+```
+*-kopiur dependsOn <app>
+  -> <app> waits for Deployment Available
+    -> Deployment mounts the populator-backed PVC
+      -> PVC Bound waits for Restore / <app>-kopiur-dst
+        -> Restore is created by *-kopiur
+```
+
+The cycle edge is the **dependsOn**, not `wait: true`. Both Deployments mount the claim
+(`database/pgadmin` mounts PVC `pgadmin`; `media/calibre-web-automated` mounts PVC
+`calibre-web-automated`), so a healthCheck on the Deployment is still transitively blocked by the
+same Pending PVC. Moving the gate from `wait: true` to healthChecks-on-Deployment changes *which*
+object blocks, not that it blocks - **part 1 alone would not have fixed the deadlock**.
+
+What breaks the cycle is removing the reverse edge: `pgadmin-kopiur` no longer dependsOn `pgadmin`,
+and `calibre-web-automated-kopiur` no longer dependsOn `calibre-web-automated`. Both keep
+`dependsOn kopiur-repository` (the admission webhook is `failurePolicy: Fail`). The Restore can
+then apply independently, the PVC binds, the Deployment starts, and the claim Kustomization goes
+Ready.
+
+Part 1 is kept on its own merits as a health-signal improvement, not as the deadlock fix:
+`wait: true` makes Flux ignore `spec.healthChecks` entirely and assess the whole inventory instead
+(AGENTS.md: healthChecks must target the workload, and wait must stay false). These two apps were
+the fleet's exception to a rule this repo already documents.
+
+Inverting the dependency (claim dependsOn its `*-kopiur` Kustomization) was **considered and
+declined**: it would make a claim depend on its own backup configuration. Removing an edge adds no
+dependency and preserves that property. Risk of applying the backup KS first: it renders only
+SnapshotPolicy/SnapshotSchedule/Restore, so a policy may name a PVC that is not there yet and has
+nothing to snapshot until the claim appears.
+
+**The greenfield / DR apply path remains untested by this task** - see open follow-up 5. The fix is
+reasoned from the dependency graph and the mount evidence, not demonstrated against a namespace
+rebuild.
 
 ### `${VOLSYNC_CLAIM:-*app}` - the dangling-alias trap, defused
 
@@ -352,6 +396,11 @@ Checks, in order of importance:
    `check-shebang-scripts-are-executable` only sees changed files, so the mismatch is invisible
    until someone touches one - which is how it surfaced here. Only the one file this change touched
    was fixed; the rest are left for a dedicated cleanup rather than dragged into a backup PR.
+5. **The greenfield / DR apply path for the two split-shape apps remains untested by this task.**
+   Review found and fixed the Restore/PVC dependsOn cycle on `database/pgadmin` and
+   `media/calibre-web-automated` (see "Greenfield split-shape deadlock" above), but nothing here
+   exercised a namespace rebuild. The fix is reasoned from the dependency graph and the mount
+   evidence, not demonstrated. A deliberate greenfield apply of those two overlays is still owed.
 
 ## Rollback
 
