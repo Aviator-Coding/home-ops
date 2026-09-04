@@ -112,20 +112,30 @@ spec:
         # by this cache-PVC join for the -ceph destination.
         #
         # THOSE NUMBERS ARE AS-MEASURED ON 2026-08-31 AND HAVE SINCE MOVED,
-        # deliberately: Stage 5 retired VolSync from 8 claims (4 on
+        # deliberately: Stage 5 retired VolSync from 27 claims (4 on
         # 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config, seerr;
         # 4 on 2026-09-02 - prowlarr-config, ntfy, autobrr,
-        # obsidian-livesync), so recyclarr, sabnzbd and prowlarr are no
-        # longer in the VOLSYNC_CLAIM-override list above, and the per-
-        # destination count is 22, not 31. The measurement is left intact
-        # rather than rewritten because it is evidence of a specific live
-        # check on a specific date. NONE OF IT IS LOAD-BEARING FOR THE
-        # ALERT: the join key is derived from obj_name, not from any claim
-        # name, so a retired app's ReplicationSource and its cache PVC
-        # disappear together and the series simply stops matching - the
-        # same path the 4 retired apps named above already exercise.
+        # obsidian-livesync; 19 on 2026-09-04 - every remaining eligible
+        # claim). The per-destination count is now 3, not 31, and NONE of
+        # the VOLSYNC_CLAIM-overriding claims listed above still runs
+        # VolSync. The measurement is left intact rather than rewritten
+        # because it is evidence of a specific live check on a specific
+        # date. NONE OF IT IS LOAD-BEARING FOR THE ALERT: the join key is
+        # derived from obj_name, not from any claim name, so a retired
+        # app's ReplicationSource and its cache PVC disappear together and
+        # the series simply stops matching - the same path all 27 retired
+        # claims exercise.
+        #
+        # These three rules now watch exactly three claims:
+        # selfhosted/paperless-ngx, paperless-ngx-media and syncthing-data.
+        # They are deliberately KEPT rather than removed with the rest of
+        # the fleet - those three are the ones VolSync still protects, and
+        # a stalled sync on paperless-ngx in particular is the failure this
+        # rule exists for. kopiur's own coverage is a separate rule set in
+        # kubernetes/apps/base/system/kopiur/app/prometheusrule.yaml.
         # Retirement records: docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md,
-        # docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+        # docs/backups/kopiur-wave-two-retirement-2026-09-02.md,
+        # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
         - alert: VolSyncSyncStalledCeph
           expr: |-
             label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ceph$"}[6h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0

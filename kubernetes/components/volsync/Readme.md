@@ -2,9 +2,8 @@
 
 This document explains the backup and restore strategy implemented using Volsync in the home-ops Kubernetes cluster.
 
-> **VolSync is being replaced by kopiur, and retirement is under way.** As of 2026-09-02 this
-> component protects **22** claims, not 30. VolSync has been retired from eight volumes, in two
-> waves:
+> **VolSync has been replaced by kopiur on every eligible claim.** As of 2026-09-04 this
+> component protects **3** claims, not 30. VolSync was retired from 27 volumes, in three waves:
 >
 > * 2026-09-01 - `ai/repo-wiki`, `downloads/recyclarr-config`, `downloads/sabnzbd-config`,
 >   `media/seerr`: a deliberate low-stakes pilot after every claim was restore-proven on both
@@ -12,12 +11,19 @@ This document explains the backup and restore strategy implemented using Volsync
 > * 2026-09-02 - `downloads/prowlarr-config`, `selfhosted/ntfy`, `downloads/autobrr` (app since removed entirely, same day),
 >   `selfhosted/obsidian-livesync`: **not all regenerable.** `ntfy` holds real auth state and
 >   `obsidian-livesync` is a genuine Obsidian vault, retired on an explicit captain decision after
->   an objection. `selfhosted/paperless-ngx` remains a permanent carve-out and stays dual-engine.
+>   an objection.
+> * 2026-09-04 - the remaining **19** eligible claims, in three risk-tiered commits. Every one of
+>   them is a destination-identical PASS row in the 2026-09-01 fleet restore proof.
 >
-> Eight volumes were retired; seven of them are still present as **kopiur-only**
-> (`downloads/autobrr` left the fleet when its app was removed the same day). The
-> remaining 22 still run both engines, and retiring any of them is a separate
-> captain decision.
+> **The three survivors are the end state, not a backlog.** `selfhosted/paperless-ngx` is a
+> permanent captain carve-out (irreplaceable scanned documents).
+> `selfhosted/paperless-ngx-media` (1 file / 0 B) and `selfhosted/syncthing-data` (5 files /
+> 531 B) hold nothing meaningful yet, so their kopiur proofs prove nothing yet, and both sit
+> behind a restore cache they would cross the first time they hold real data. Retiring either
+> needs new evidence against real content.
+>
+> **This component is therefore in maintenance, not development.** Do not add it to a new app -
+> use [`../kopiur`](../kopiur/Readme.md). The three remaining consumers are why it still exists.
 >
 > Two things a reader of this file needs to know:
 >
@@ -29,15 +35,18 @@ This document explains the backup and restore strategy implemented using Volsync
 >   populator cannot simply be repointed.
 > * **Their restic repositories still exist and were not emptied.** Retiring a
 >   `ReplicationSource` never touches restic data - that asymmetry against kopiur's `Snapshot`
->   (which owns its kopia snapshot through a finalizer) is load-bearing. All eight repositories
+>   (which owns its kopia snapshot through a finalizer) is load-bearing. All 27 repositories
 >   stay readable as a fallback via a hand-written `ReplicationDestination`; the credentials are
->   unchanged in 1Password (`volsync-template`).
+>   unchanged in 1Password (`volsync-template`). That fallback is the reason retiring an engine
+>   is reversible in practice even though it is irreversible in intent.
 >
 > Record and evidence:
 > [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
-> (wave one) and
+> (wave one),
 > [`docs/backups/kopiur-wave-two-retirement-2026-09-02.md`](../../../docs/backups/kopiur-wave-two-retirement-2026-09-02.md)
-> (wave two).
+> (wave two) and
+> [`docs/backups/kopiur-wave-three-retirement-2026-09-04.md`](../../../docs/backups/kopiur-wave-three-retirement-2026-09-04.md)
+> (wave three).
 > Which claims are single-engine is asserted exactly by `RETIRED_CLAIMS` in
 > [`scripts/ci/kopiur-stage3-test.py`](../../../scripts/ci/kopiur-stage3-test.py).
 
@@ -143,7 +152,7 @@ The ceph and r2 hour offsets in this component (and in kopiur's own
 never fire on the same claim in the same UTC hour. With kopiur on literal UTC,
 that stagger held only because `4 mod 4 == 0` in EDT - it would have collided
 on all 29 claims that were dual-engine when this was measured on 2026-08-31
-(22 today, after Stage 5 retired eight across two waves). kopiur's
+(3 today, after Stage 5 retired 27 across three waves). kopiur's
 `SnapshotSchedule`s now set `spec.schedule.timezone` (via
 `KOPIUR_SCHEDULE_TIMEZONE`, defaulting to `America/New_York`) to match
 VolSync, so both engines shift together across DST and the stagger holds in
@@ -470,16 +479,22 @@ schedule: "0 2 * * *"
 
 ## Application Schedule Distribution
 
-**22** Flux Kustomizations protect a claim with this component - **20** listing it under
+**3** Flux Kustomizations protect a claim with this component - **1** listing it under
 `components:` (the table below) plus `selfhosted/paperless-ngx-media` and
 `selfhosted/syncthing-data` via `path: ./kubernetes/components/volsync/backup`, which is why the
-table has 20 rows and not 22. That is **66** `ReplicationSource`s, down from 30/90 before Stage 5,
-26/78 after the 2026-09-01 pilot (`ai/repo-wiki`, `downloads/recyclarr`, `downloads/sabnzbd` and
-`media/seerr`), then 22/66 after the 2026-09-02 wave two (`downloads/prowlarr`, `selfhosted/ntfy`,
-`downloads/autobrr` and `selfhosted/obsidian-livesync`); all eight rows were removed here and the
-rest renumbered. They are kopiur-only now, and their old restic repositories were **not** deleted.
-Schedules are staggered but **not unique** (several apps share the same minute).
-Do not assume a 2-3 app cap on simultaneous Ceph backups. Regenerated from
+table has 1 row and not 3. That is **9** `ReplicationSource`s, down from 30/90 before Stage 5:
+26/78 after the 2026-09-01 pilot (`ai/repo-wiki`, `downloads/recyclarr`, `downloads/sabnzbd`,
+`media/seerr`), 22/66 after the 2026-09-02 wave two (`downloads/prowlarr`, `selfhosted/ntfy`,
+`downloads/autobrr`, `selfhosted/obsidian-livesync`), and 3/9 after the 2026-09-04 wave three
+(the remaining 19). Every retired row was removed here rather than annotated - the authoritative
+single-engine record is `RETIRED_CLAIMS` in `scripts/ci/kopiur-stage3-test.py`, and keeping a
+second, hand-maintained copy of it in this table is how the two drift apart. Their old restic
+repositories were **not** deleted.
+
+**The stagger this section documents no longer does much work.** It existed to keep 20+ apps'
+mover jobs off each other; with one row left, the distribution strategy below is history rather
+than a constraint. What still matters is the ENGINE stagger - see the DST note further up - and
+that lives in kopiur's schedules now. Regenerated from
 `rg 'components/volsync' kubernetes/apps` plus each overlay yaml's `VOLSYNC_SCHEDULE_*`
 (paperless-ngx uses component defaults). `litellm` is not a VolSync client
 (Postgres-backed governance layer, no app PVC - `docs/ai-system/litellm/README.md`).
@@ -499,34 +514,26 @@ mount became an `emptyDir` (stateless browserless; captain decision 2026-08-30).
 
 | # | Namespace | Application | Ceph Schedule | MinIO Schedule | R2 Schedule | Priority |
 |---|-----------|-------------|---------------|----------------|-------------|----------|
-| 1 | database | pgadmin | `0 */4 * * *` | `0 */6 * * *` | `0 1 * * *` | Critical |
-| 2 | home-automation | home-assistant | `5 */4 * * *` | `0 */6 * * *` | `5 1 * * *` | Critical |
-| 3 | home-automation | zigbee2mqtt | `10 */4 * * *` | `15 */6 * * *` | `10 1 * * *` | Critical |
-| 4 | home-automation | esphome | `15 */4 * * *` | `15 */6 * * *` | `15 1 * * *` | High |
-| 5 | home-automation | matter-server | `20 */4 * * *` | `15 */6 * * *` | `20 1 * * *` | High |
-| 6 | ai | hermes | `35 */4 * * *` | `35 */6 * * *` | `10 2 * * *` | Medium |
-| 7 | ai | opencode | `45 */4 * * *` | `45 */6 * * *` | `30 2 * * *` | Medium |
-| 8 | downloads | sonarr | `0 */4 * * *` | `45 */6 * * *` | `0 3 * * *` | Medium |
-| 9 | downloads | radarr | `5 */4 * * *` | `45 */6 * * *` | `5 3 * * *` | Medium |
-| 10 | downloads | lidarr | `10 */4 * * *` | `45 */6 * * *` | `10 3 * * *` | Medium |
-| 11 | downloads | readarr | `15 */4 * * *` | `0 */6 * * *` | `15 3 * * *` | Medium |
-| 12 | downloads | bazarr | `20 */4 * * *` | `0 */6 * * *` | `20 3 * * *` | Medium |
-| 13 | media | calibre | `0 */4 * * *` | `45 */6 * * *` | `5 4 * * *` | Low |
-| 14 | media | plex | `35 */4 * * *` | `50 */6 * * *` | `35 3 * * *` | High |
-| 15 | media | tdarr | `50 */4 * * *` | `20 */6 * * *` | `50 3 * * *` | Medium |
-| 16 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
-| 17 | selfhosted | n8n | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 18 | selfhosted | syncthing | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 19 | selfhosted | linkwarden | `10 */4 * * *` | `45 */6 * * *` | `15 4 * * *` | Medium |
-| 20 | selfhosted | changedetection | `15 */4 * * *` | `0 */6 * * *` | `20 4 * * *` | Low |
+| 1 | selfhosted | paperless-ngx | `0 */4 * * *` | `30 */6 * * *` | `0 2 * * *` | High |
+
+Plus the two second-claim Kustomizations, which use `path: ./kubernetes/components/volsync/backup`
+rather than a `components:` entry and so never appeared in this table:
+
+| Namespace | Claim | Ceph Schedule | MinIO Schedule | R2 Schedule |
+|-----------|-------|---------------|----------------|-------------|
+| selfhosted | paperless-ngx-media | `50 */4 * * *` | `25 */6 * * *` | `50 4 * * *` |
+| selfhosted | syncthing-data | `40 */4 * * *` | `15 */6 * * *` | `45 4 * * *` |
 
 ### Distribution Strategy
 
-- **Ceph (every 4 hours)**: 5-minute slots from :00 to :55, but several apps share a slot (e.g. `:00` and `:10`)
-- **MinIO (every 6 hours)**: mostly :00/:15/:30/:45, with extra :20/:35/:50/:55 offsets
-- **R2 (daily)**: spread from 01:00 to 04:50, not a hard 5-hour unique grid
+Historical, and kept because it explains the minute values the three survivors still carry. When
+this component protected 20 apps the slots were: **Ceph (every 4 hours)** 5-minute slots from :00
+to :55, several apps sharing a slot; **MinIO (every 6 hours)** mostly :00/:15/:30/:45 with extra
+:20/:35/:50/:55 offsets; **R2 (daily)** spread from 01:00 to 04:50, never a hard unique grid - so
+"max N simultaneous" was never safe to infer from it even then.
 
-Regenerate this table from git before trusting a "max N simultaneous" claim.
+With three claims left there is no meaningful contention here. Regenerate this table from git
+before trusting any claim about it.
 
 ## Troubleshooting
 
