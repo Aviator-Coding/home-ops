@@ -61,16 +61,27 @@ VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 # Floor on the dual-engine population, so a discovery bug that finds nothing
 # fails loudly instead of vacuously passing every collision assertion.
 #
-# Was 29 (30 claims, all dual-engine). Stage 5 has retired VolSync from eight of
-# them in two waves: 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config,
-# seerr; 2026-09-02 - prowlarr-config, ntfy, autobrr, obsidian-livesync. That
-# left 22, and it stays 22: `autobrr` was one of the eight already-retired
-# claims, so removing that app (2026-09-02) took a kopiur-only claim out of the
-# fleet and did not change the dual-engine population at all. Lower this ONLY
-# alongside a real retirement; the authoritative retired set is RETIRED_CLAIMS
-# in kopiur-stage3-test.py. Note the timezone contract itself is checked over
-# ALL kopiur claims (see kopiur_claims), not just these.
-MIN_DUAL_ENGINE_CLAIMS = 22
+# Was 29 (30 claims, all dual-engine). Stage 5 has retired VolSync in waves:
+# 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config, seerr; 2026-09-02 -
+# prowlarr-config, ntfy, autobrr, obsidian-livesync, leaving 22. (`autobrr` was
+# one of those eight, so removing that app on 2026-09-02 took a kopiur-only
+# claim out of the fleet and did not change the dual-engine population.)
+#
+# Wave three (2026-09-04) retires the remaining 19 eligible claims in three
+# risk-tiered commits, so this number steps down with each: 22 -> 11 (tier A)
+# -> 7 (tier B) -> 3 (tier C). Three is the floor the migration ends on, and
+# they are the deliberate carve-outs: `selfhosted/paperless-ngx`,
+# `selfhosted/paperless-ngx-media` and `selfhosted/syncthing-data`.
+#
+# Lower this ONLY alongside a real retirement; the authoritative retired set is
+# RETIRED_CLAIMS in kopiur-stage3-test.py. Note the timezone contract itself is
+# checked over ALL kopiur claims (see kopiur_claims), not just these - so wave
+# three shrinks this floor's sample without weakening that contract. What DOES
+# narrow is the cross-engine collision assertions below, which only have
+# meaning where both engines run: after wave three they cover 3 claims rather
+# than 22, and the reason that is acceptable is that a collision is only
+# possible at all on a dual-engine claim.
+MIN_DUAL_ENGINE_CLAIMS = 3
 
 # The whole kopiur fleet, dual-engine or retired.
 #

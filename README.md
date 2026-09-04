@@ -13,7 +13,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 - **Secrets:** 1Password + External Secrets Operator. Bootstrap and Talos secrets are injected by `vals` from vault `Home-Lab`
 - **Ingress:** Gateway API (`envoy-internal` / `envoy-external` in `network`) plus Cloudflare Tunnel
 - **DNS:** External-DNS to Cloudflare (public) and the Unifi webhook (`network/unifi-dns`, internal)
-- **Backup:** kopiur on all 29 protected claims (ceph + r2); VolSync still dual-engine on 22 of them (ceph + MinIO + r2) and retired from 7 still-present Stage 5 volumes (eight were retired; `downloads/autobrr` left the fleet when its app was removed on 2026-09-02)
+- **Backup:** kopiur on all 29 protected claims (ceph + r2); kopiur-only is the norm (26 of 29 since Stage 5 completed 2026-09-04). VolSync remains dual-engine on 3 deliberate carve-outs only (`selfhosted/paperless-ngx{,-media}`, `syncthing-data`)
 
 ## Operator docs
 
@@ -31,7 +31,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 ├── kubernetes/
 │   ├── apps/           # Flux apps at apps/base/<ns> + overlay apps/main/<ns>
 │   ├── clusters/main/  # Flux entry point (cluster-meta + cluster-apps)
-│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, volsync, kopiur)
+│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, kopiur (+ pvc), volsync (3 claims left))
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
 ├── .claude/skills/     # JIT-loaded subsystem skills (depth relocated from AGENTS.md NOTES)
@@ -82,7 +82,7 @@ Usage and limits: [`scripts/add-app/README.md`](scripts/add-app/README.md). Afte
 
 1. Fill every `TODO` in the generated base manifests and overlay `kubernetes/apps/main/{namespace}/{app}.yaml` (the scaffold also appends the namespace `kustomization.yaml` `resources:` entry).
 2. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
-3. Optional backups are **not** scaffolded - most protected claims still run dual-engine VolSync + kopiur (add both `components/volsync` and `components/kopiur`, `dependsOn: volsync` and `kopiur-repository` in namespace `system`, plus `VOLSYNC_*` / measured `KOPIUR_*` keys; example: `kubernetes/apps/main/downloads/sonarr.yaml`). Seven Stage 5 volumes are kopiur-only (`components/kopiur` + `components/kopiur/pvc`); owner: `kubernetes/components/kopiur/Readme.md`.
+3. Optional backups are **not** scaffolded - the normal path is kopiur-only (`components/kopiur` + `components/kopiur/pvc`, `dependsOn: kopiur-repository` in namespace `system`, plus measured `KOPIUR_*` keys; example: `kubernetes/apps/main/downloads/sonarr.yaml`). Do not add `components/volsync` to a new app; dual-engine survives only on three deliberate carve-outs. Owner: `kubernetes/components/kopiur/Readme.md`.
 4. Validate with `mise exec -- task flux:test:all`.
 
 Flux reconciles from Git. After a merge, `task reconcile` forces a sync.

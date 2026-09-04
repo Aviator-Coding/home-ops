@@ -14,6 +14,18 @@ first ceph Snapshot, restore sha256) is a post-merge gate recorded in the PR.
 
 `selfhosted/changedetection-config` was onboarded separately (#1512) at
 1000:1000; this test does not require it to stay off kopiur.
+
+VolSync was RETIRED from this claim on 2026-09-04 (Stage 5 wave three, tier A),
+so the "keeps components/volsync" half of the onboarding assertion inverted to
+"must NOT carry it" - the same shape the wave-two retirements imposed on
+kopiur-stage2-test.py. The Stage 4 subject of this file is the ROOT MOVER, and
+that is unchanged and still fully asserted: retirement removes an engine, not
+an identity, and `KOPIUR_PUID/PGID: 0` plus the namespace-wide privileged-mover
+annotation are exactly as load-bearing on one engine as on two - more so, since
+there is no longer a second engine to notice if the mover stops being able to
+read the fabric credentials. Retirement record:
+docs/backups/kopiur-wave-three-retirement-2026-09-04.md; the authoritative
+single-engine set is RETIRED_CLAIMS in kopiur-stage3-test.py.
 """
 
 from __future__ import annotations
@@ -81,11 +93,24 @@ def test_matter_server_is_onboarded() -> None:
     comps = [c for c in (spec.get("components") or []) if isinstance(c, str)]
     require(
         any(c.rstrip("/").endswith("components/kopiur") for c in comps),
-        "matter-server must include components/kopiur alongside volsync",
+        "matter-server must include components/kopiur",
+    )
+    # Inverted on 2026-09-04 (Stage 5 wave three): this claim is now
+    # kopiur-only, so the presence of components/volsync would be a
+    # half-revert. The claim itself must survive that removal, which is what
+    # components/kopiur/pvc is for - kopiur-stage5-test.py owns the full
+    # contract; this is the Stage 4 file's local guard against the two
+    # Components being swapped back the wrong way round.
+    require(
+        not any(c.rstrip("/").endswith("components/volsync") for c in comps),
+        "matter-server must NOT carry components/volsync - VolSync was retired from this claim "
+        "on 2026-09-04 and kopiur is its only engine",
     )
     require(
-        any(c.rstrip("/").endswith("components/volsync") for c in comps),
-        "matter-server must keep components/volsync - Stage 5 retires it, not Stage 4",
+        any(c.rstrip("/").endswith("components/kopiur/pvc") for c in comps),
+        "matter-server must carry components/kopiur/pvc: the volsync Component was the only "
+        "manifest emitting this claim and the overlay runs prune: true, so dropping both would "
+        "make Flux DELETE the data volume",
     )
     deps = {(x.get("name"), x.get("namespace")) for x in (spec.get("dependsOn") or [])}
     require(

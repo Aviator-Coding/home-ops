@@ -10,12 +10,36 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier B (the
+    # large claims). kopiur is now the ONLY backup engine on this claim.
+    #
+    # This is the largest object in the fleet - 104,223 live entries, 10.05 GiB
+    # - and it is the ONE volume whose single-engine restore path has been
+    # demonstrated end to end at its exact standing configuration:
+    # 65,978 files / 10,419,954,664 bytes restored from R2 at exactly the 16Gi
+    # KOPIUR_CACHE_CAPACITY below, matching the snapshot's own filesNew and
+    # sizeBytes, with ZERO mode differences across 77,776 entries
+    # (docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md). That run is
+    # what closed restore-proof finding 2, the last prerequisite standing
+    # between this claim and retirement, and it is why hermes leads tier B.
+    #
+    # Also proof-row 1 of docs/backups/kopiur-restore-proof-2026-09-01.md:
+    # 65921/65921 from BOTH destinations, identical digest (`f37eb3217b51`).
+    # Its `CACHEDIR.TAG` caveat is ADJUDICATED, not outstanding: the 23,467
+    # omitted files are all under validly-signed tags - uv caches, four stock
+    # venvs and a pytest cache - no user-authored file sits inside any of them,
+    # and the largest venv rebuilds from `wiki/{pyproject.toml,uv.lock}` which
+    # ARE in the backup. Captain decision 2026-09-04; retirement record:
+    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
@@ -27,7 +51,9 @@ spec:
     # Hermes routes all LLM traffic through the internal agentgateway.
     - name: agentgateway
       namespace: *namespace
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # This Kustomization never carried a `volsync` (system) dependency - the
+    # volsync Component it used to include is gone, and nothing here renders a
+    # VolSync object any more. kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   interval: 1h
@@ -39,11 +65,16 @@ spec:
     substitute:
       APP: *app
       CONFIG_TIMEZONE: America/New_York
-      VOLSYNC_CAPACITY: 25Gi
-      VOLSYNC_CACHE_CAPACITY: 5Gi
-      VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "35 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "10 2 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
+      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
+      # default, which would provision a rebuilt claim at a fifth of the live
+      # one and could not hold this volume at all. Matched to the LIVE claim
+      # (25Gi, holding 10.05 GiB - measured 2026-09-04). Under the pvc
+      # Component's `ssa: IfNotPresent` this is create-time-only for the claim
+      # that already exists, but it is exactly what a REBUILD would provision.
+      KOPIUR_CAPACITY: 25Gi
       # LOAD-BEARING, and the single most consequential identity in Stage 3.
       # hermes is the largest object in the fleet - 104,062 entries, 10.05 GiB,
       # including one 7 GB file - and its pod pins NO runAsUser at all, only

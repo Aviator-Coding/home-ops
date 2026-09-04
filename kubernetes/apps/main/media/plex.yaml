@@ -10,12 +10,34 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier B (the
+    # large claims). kopiur is now the ONLY backup engine on this claim.
+    #
+    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # row 19 - 21251/21251 files restored from BOTH destinations into a scratch
+    # PVC with an identical per-file manifest digest (`9b8b4a197241`), no
+    # markers and no caveats.
+    #
+    # HONEST NOTE ON THE RESTORE CACHE. This claim is the reason finding 2 of
+    # that proof exists at all: it restored from ceph at the old 2Gi and FAILED
+    # from r2 at the same size. The 10Gi below is sized from the 2026-09-02
+    # measurement (4.27 GiB snapshot against 9.74 GiB usable = 44%, and the
+    # 1:1 regime tops out below the limit), which is a PREDICTION rather than a
+    # demonstration - the r2 proof for this size class was run on ai/hermes at
+    # 16Gi and on media/tdarr at this same 10Gi, not on plex itself. Proving it
+    # costs one ~7-minute drill restore and is the single strongest follow-up
+    # this wave leaves open; it is recorded as such in the retirement document
+    # rather than left implicit. Captain decision 2026-09-04; retirement
+    # record: docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   dependsOn:
     - name: onepassword-store
       namespace: security
@@ -23,7 +45,9 @@ spec:
       namespace: system
     - name: rook-ceph-cluster
       namespace: rook-ceph
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # This Kustomization never carried a `volsync` (system) dependency - the
+    # volsync Component it used to include is gone, and nothing here renders a
+    # VolSync object any more. kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   interval: 30m
@@ -34,11 +58,16 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 20Gi
-      VOLSYNC_CACHE_CAPACITY: 10Gi
-      VOLSYNC_SCHEDULE_CEPH: "35 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "50 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "35 3 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
+      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
+      # default, which would provision a rebuilt claim too small to hold this
+      # volume's 4.27 GiB plus its headroom. Matched to the LIVE claim (20Gi -
+      # measured 2026-09-04). Under the pvc Component's `ssa: IfNotPresent`
+      # this is create-time-only for the claim that already exists, but it is
+      # exactly what a REBUILD would provision.
+      KOPIUR_CAPACITY: 20Gi
       # LOAD-BEARING, measured live 2026-08-30: 8 files are unreadable at the
       # component default of 1000, and kopia treats an unreadable file as
       # fatal, so BOTH destinations would fail closed. 32863 of 32865 entries

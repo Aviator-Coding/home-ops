@@ -18,18 +18,45 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component below -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier A
+    # (ordinary config volumes). kopiur is now the ONLY backup engine on this
+    # claim.
+    #
+    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # row 22 - 3069/3069 files restored from BOTH destinations into a scratch
+    # PVC with an identical per-file manifest digest (`ab4e633a8227`), no
+    # markers and no caveats.
+    #
+    # HONEST NOTE ON CONTENT CLASS. The watch definitions in
+    # `changedetection.json` are user-authored and NOT reconstructible, so by
+    # content this claim reads closer to tier C than to the config volumes it
+    # ships with. It is retired in tier A anyway because the risk is
+    # immaterial: 1Gi claim, 38 MiB of data, a byte-identical both-destination
+    # proof, and a restore cache that structurally cannot be outgrown (a 1Gi
+    # claim against ~1.95 GiB of usable cache). See the retirement record's
+    # tiering-review section:
+    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # This claim is also the one whose VolSync backups were separately proven
+    # complete-despite-mismatch on 2026-08-31 (2292 root-owned 0600 files
+    # against a 1000:1000 mover), which is what drove the app-side identity
+    # alignment that both engines now share. Captain decision 2026-09-04.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -42,12 +69,20 @@ spec:
       # also consumed by nothing - no manifest in this repo reads either
       # variable - so the app's real identity now lives where it is actually
       # enforced, in the HelmRelease securityContext.
-      VOLSYNC_CLAIM: changedetection-config
-      VOLSYNC_CAPACITY: 1Gi
-      VOLSYNC_SCHEDULE_CEPH: "15 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "20 4 * * *"
+      # The claim is `changedetection-config` while the app is
+      # `changedetection`. This drove the retired VOLSYNC_CLAIM and now also
+      # drives the pvc Component's PVC name AND the HelmRelease's own
+      # `existingClaim`, which was renamed to ${KOPIUR_CLAIM} in this change -
+      # it had no default, so leaving it reading VOLSYNC_CLAIM would have
+      # rendered an EMPTY claim name the moment that key went away.
       KOPIUR_CLAIM: changedetection-config
+      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
+      # default, which would provision a rebuilt claim at 5x the live one.
+      # Matched to the LIVE claim (1Gi, holding 36 MiB - measured 2026-09-04).
+      KOPIUR_CAPACITY: 1Gi
+      # KOPIUR_CACHE_CAPACITY deliberately left at the 2Gi component default,
+      # and here that is STRUCTURAL: a 1Gi claim cannot hold more than the 2Gi
+      # cache covers, so this volume can never reach the restore-cache cliff.
       # Identity left at the component default of 1000:1000, and that is a
       # MEASURED result: on 2026-08-31 every one of the 3063 entries under
       # /datastore was group 1000, all 5 directories were setgid, and the two

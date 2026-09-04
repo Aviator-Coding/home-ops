@@ -129,7 +129,14 @@ spec:
     persistence:
       config:
         enabled: true
-        existingClaim: "${VOLSYNC_CLAIM}"
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
+        # on 2026-09-04 (Stage 5 wave three), and that overlay now defines no
+        # VOLSYNC_* key. Unlike its siblings this token carries NO `:-default`,
+        # so leaving it reading VOLSYNC_CLAIM would have rendered an EMPTY
+        # existingClaim the moment the key went away - a silently different
+        # failure from the dangling-alias trap the wave-two record describes,
+        # and one flate would not have caught either.
+        existingClaim: "${KOPIUR_CLAIM}"
         advancedMounts:
           main:
             main:

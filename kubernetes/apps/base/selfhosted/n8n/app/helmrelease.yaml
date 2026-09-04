@@ -106,7 +106,17 @@ spec:
     persistence:
       config:
         enabled: true
-        existingClaim: ${VOLSYNC_CLAIM:-*app}
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
+        # on 2026-09-04 (Stage 5 wave three), and that overlay now defines no
+        # VOLSYNC_* key. The default is corrected to the literal claim name at
+        # the same time, because the old `:-*app` was a DANGLING YAML ALIAS,
+        # not an anchor reference - kustomize emits the token verbatim, so the
+        # moment VOLSYNC_CLAIM stopped being defined the render became
+        # `existingClaim: *app` and flate failed the whole Kustomization with
+        # `unknown anchor 'app' referenced`. The trap was recorded in
+        # docs/backups/kopiur-wave-two-retirement-2026-09-02.md and never
+        # fired, because the overlay always set VOLSYNC_CLAIM until now.
+        existingClaim: ${KOPIUR_CLAIM:-n8n}
 
     route:
       app:

@@ -1,49 +1,37 @@
 # kopiur - Stage 0
 
-kopiur is being introduced as the eventual replacement for VolSync, in a staged
-migration whose governing constraint is **no window in which any PVC is
-unprotected**. This directory is **Stage 0 only** - operator, repositories and
-credentials. What to back up lives in
+kopiur is the primary PVC backup engine (Stage 5 complete 2026-09-04; VolSync
+remains only on three dual-engine carve-outs). This directory is **Stage 0
+only** - operator, repositories and credentials. What to back up lives in
 [`kubernetes/components/kopiur/`](../../../../components/kopiur/Readme.md).
 
 Stage 0 installs the operator and declares *where* backups could go. It creates
-no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status
-lives on the component, not here** -
-[`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md):
-30 of 30 claims onboarded (Stage 4, zero deferred), and VolSync **RETIRED from
-four of them** as the 2026-09-01 Stage 5 pilot (`ai/repo-wiki`,
-`downloads/recyclarr-config`, `downloads/sabnzbd-config`, `media/seerr`). The
-other 26 remain dual-engine. This directory is still Stage 0 only - operator,
-repos, credentials - and does not own the onboarding or retirement overlays.
+no `SnapshotPolicy` and no `SnapshotSchedule` of its own. **Migration status,
+onboarded claim list, schedules, retirement procedure and rollback live on the
+component, not here** -
+[`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md)
+(Stage 5 COMPLETE: 26 of 29 claims kopiur-only; 3 dual-engine carve-outs). This
+directory is still Stage 0 only - operator, repos, credentials - and does not
+own the onboarding or retirement overlays.
 
-**All 30 claims are restore-proven on both destinations** (2026-09-01).
-Per-volume evidence table, adjudication of the `CACHEDIR.TAG` gap, and the open
-r2-vs-ceph cache-capacity blocker that still gates further large-claim
-retirement:
+**All 30 claims are restore-proven on both destinations** (2026-09-01, the
+Stage 5 prerequisite - it records the state *before* any retirement):
 [`docs/backups/kopiur-restore-proof-2026-09-01.md`](../../../../../docs/backups/kopiur-restore-proof-2026-09-01.md).
-That fleet table is the Stage 5 **prerequisite** (it records the state *before*
-any retirement). The pilot it authorised, and the post-retirement re-proof:
-[`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
-
-The earlier per-volume drills remain the procedural precedent it is built on,
-and are still accurate. Stage 2's restore gate **passed** on 2026-08-30 -
+Wave records:
+[`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md),
+[`docs/backups/kopiur-wave-two-retirement-2026-09-02.md`](../../../../../docs/backups/kopiur-wave-two-retirement-2026-09-02.md),
+[`docs/backups/kopiur-wave-three-retirement-2026-09-04.md`](../../../../../docs/backups/kopiur-wave-three-retirement-2026-09-04.md).
+The earlier per-volume drills remain the procedural precedent that table is
+built on. Stage 2's restore gate **passed** on 2026-08-30 -
 [`docs/backups/kopiur-restore-drill-2026-08-30.md`](../../../../../docs/backups/kopiur-restore-drill-2026-08-30.md)
 - sabnzbd-config restored byte-identically from both ceph and r2 (2062 files,
-2.06 GiB, per-file sha256, modes and ownership included). Stage 4 also drilled
-`changedetection-config` and `matter-server` (ceph only). Those three are spot
-checks superseded in *scope* by the 2026-09-01 fleet table; do not read them as
-the current limit of restore coverage. Owner of the onboarded claim list,
-root-mover rules, schedules and rollback:
-[`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
-Do not treat this directory's presence alone as fleet-wide backup verification -
-the fleet proof lives in the 2026-09-01 table above.
+2.06 GiB, per-file sha256, modes and ownership included). Do not treat this
+directory's presence alone as fleet-wide backup verification.
 `KOPIUR_PUID`/`KOPIUR_PGID` must match the workload that owns the claim's files,
-or the backup fails closed on any file lacking a world-read bit (drill finding
-2) - a prerequisite for every onboarding, not a sabnzbd quirk. Continuous fleet
-signal for an empty successful backup is `KopiurBackupEmpty` in
-`app/prometheusrule.yaml` (`kopiur_policy_last_backup_files == 0`). Details,
-schedules, credentials compromise and rollback:
-[`kubernetes/components/kopiur/Readme.md`](../../../../components/kopiur/Readme.md).
+or the backup fails closed on any file lacking a world-read bit - a prerequisite
+for every onboarding, not a sabnzbd quirk. Continuous fleet signal for an empty
+successful backup is `KopiurBackupEmpty` in `app/prometheusrule.yaml`
+(`kopiur_policy_last_backup_files == 0`).
 
 **Stage 0 rollback** (operator/repos only): delete the `kopiur` and
 `kopiur-repository` Flux Kustomizations. That removes the control plane; it does

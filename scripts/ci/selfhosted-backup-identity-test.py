@@ -20,8 +20,10 @@ changedetection which established the precedent (PR #1512):
      0600.
 
 VolSync was RETIRED from `obsidian-livesync` and `ntfy` on 2026-09-02 (Stage 5
-wave two - docs/backups/kopiur-wave-two-retirement-2026-09-02.md), so those two
-have no VolSync mover left to assert on. Neither pin was dropped: the identity
+wave two - docs/backups/kopiur-wave-two-retirement-2026-09-02.md) and from
+`changedetection` on 2026-09-04 (wave three, tier A -
+docs/backups/kopiur-wave-three-retirement-2026-09-04.md), so those have no
+VolSync mover left to assert on. Neither pin was dropped: the identity
 check moved to the kopiur mover, where it binds harder (kopiur stages its source
 read-only, gets no kubelet fsGroup fixup and fails CLOSED on the first
 unreadable file, with no second engine left to mask a wrong identity), and the
@@ -58,24 +60,39 @@ KOPIUR_BACKUP = REPO / "kubernetes" / "components" / "kopiur" / "backup"
 # Still dual-engine: both a VolSync mover and a kopiur mover must render at the
 # measured identity.
 DUAL_ENGINE_APPS: list[tuple[str, str, str, str]] = [
-    ("n8n", "n8n", "1000", "1000"),
+    # The permanent captain carve-out, and after wave three the only app in
+    # this namespace still running both engines. Its second claim
+    # (paperless-ngx-media) and selfhosted/syncthing-data are also still
+    # dual-engine but ride their own Kustomizations, covered by
+    # kopiur-stage3-test.py's fleet pin rather than by this file.
     ("paperless-ngx", "paperless-ngx", "1000", "1000"),
-    ("syncthing", "syncthing", "1000", "1000"),
-    ("linkwarden", "linkwarden", "1000", "1000"),
-    # Precedent - must stay without APP_UID/APP_GID and with matching movers.
-    ("changedetection", "changedetection-config", "1000", "1000"),
 ]
 
-# VolSync RETIRED 2026-09-02 (Stage 5 wave two, captain decision). There is no
-# VolSync mover left to check on these, so only the kopiur half of the identity
-# assertion applies - and it applies harder, because kopiur stages its source
-# READ-ONLY, gets no kubelet fsGroup fixup, and fails CLOSED on the first
-# unreadable file where VolSync silently survived. The authoritative retired set
-# is RETIRED_CLAIMS in kopiur-stage3-test.py; the retirement record is
-# docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+# VolSync RETIRED (Stage 5, captain decision). There is no VolSync mover left to
+# check on these, so only the kopiur half of the identity assertion applies -
+# and it applies harder, because kopiur stages its source READ-ONLY, gets no
+# kubelet fsGroup fixup, and fails CLOSED on the first unreadable file where
+# VolSync silently survived. The authoritative retired set is RETIRED_CLAIMS in
+# kopiur-stage3-test.py; the retirement records are
+# docs/backups/kopiur-wave-two-retirement-2026-09-02.md and
+# docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
 RETIRED_APPS: list[tuple[str, str, str, str]] = [
+    # wave two, 2026-09-02
     ("obsidian-livesync", "obsidian-livesync", "5984", "5984"),
     ("ntfy", "ntfy", "1000", "1000"),
+    # wave three, 2026-09-04. changedetection is the app that established this
+    # file's precedent (PR #1512) and it keeps its full pin - the dead
+    # APP_UID/APP_GID must stay out, and the identity assertion simply moves to
+    # the kopiur mover. Its VolSync half now asserts that no VOLSYNC_* key
+    # survived retirement, which is the stronger check on this particular
+    # claim: its `existingClaim` token carried no `:-default`, so a leftover
+    # VOLSYNC_CLAIM reference would have rendered an EMPTY claim name.
+    ("changedetection", "changedetection-config", "1000", "1000"),
+    # wave three tier C, 2026-09-04. `syncthing` here is the 1Gi CONFIG claim;
+    # `syncthing-data` is a different claim and is still dual-engine.
+    ("n8n", "n8n", "1000", "1000"),
+    ("linkwarden", "linkwarden", "1000", "1000"),
+    ("syncthing", "syncthing", "1000", "1000"),
 ]
 
 APPS: list[tuple[str, str, str, str]] = DUAL_ENGINE_APPS + RETIRED_APPS

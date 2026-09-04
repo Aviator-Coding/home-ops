@@ -41,8 +41,8 @@ This test does not grep source text as its evidence. It:
   1. Parses every Flux Kustomization under kubernetes/apps/main into structured
      objects, recognising BOTH onboarding shapes - a `components:` entry, and a
      dedicated Kustomization whose `path` is components/kopiur/backup (used for
-     an app's second claim, and for an app whose own Kustomization sets
-     `wait: true`).
+     an app's second claim, and for the retained pgadmin/calibre-web-automated
+     split shape).
   2. Renders the real kustomize build of components/kopiur/backup and runs a
      Flux-shaped envsubst (including ${VAR:-default} and nested ${A:-${B}})
      under each onboarded claim's own substitute map.
@@ -130,7 +130,7 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 
 # --- Stage 5: claims VolSync has been RETIRED from (kopiur is their only engine) ---
 #
-# Eight claims across two waves. 22 of the fleet's 30 stay dual-engine.
+# 27 claims across three waves. Three of the fleet's 29 stay dual-engine.
 #
 # Wave one - the pilot four, retired 2026-09-01. Each was restore-proven on
 # BOTH destinations first (docs/backups/kopiur-restore-proof-2026-09-01.md) and
@@ -148,11 +148,21 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 # in content AND metadata) plus, for the two `selfhosted` claims, a 2Gi PVC
 # that cannot outgrow its 2Gi restore cache.
 #
-# Deliberately NOT here: `selfhosted/paperless-ngx` (captain carve-out, stays
-# dual-engine permanently), `selfhosted/syncthing-data` and
+# Wave three - the remaining 19 eligible claims, retired 2026-09-04, on the
+# same fleet restore proof plus a re-measured restore-cache audit. Recorded in
+# docs/backups/kopiur-wave-three-retirement-2026-09-04.md. Shipped in three
+# risk-tiered commits (11 ordinary config volumes, 4 large claims, 4 carrying
+# real user-authored state) so a revert stays surgical; the tiering is a
+# sequencing device, not three different evidence standards - every row cleared
+# the same gate.
+#
+# Deliberately NOT here, and this is now the WHOLE of the dual-engine fleet:
+# `selfhosted/paperless-ngx` (captain carve-out, stays dual-engine
+# permanently), `selfhosted/syncthing-data` and
 # `selfhosted/paperless-ngx-media` (wave two found their proofs cover nothing
-# meaningful, and both sit behind a restore cache they would cross the first
-# time they hold real data).
+# meaningful - 5 files / 531 B and 1 file / 0 B respectively - and both sit
+# behind a restore cache they would cross the first time they hold real data;
+# re-measured 2026-09-04 and both still empty, so both verdicts stand).
 #
 # This set is the fleet's legibility record: anything in it has ONE backup
 # engine, and anything not in it must still have two. Adding a row here is an
@@ -181,6 +191,31 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     ("downloads", "prowlarr-config"),
     ("selfhosted", "ntfy"),
     ("selfhosted", "obsidian-livesync"),
+    # wave three, 2026-09-04 - tier A, ordinary config volumes (11)
+    ("database", "pgadmin"),
+    ("downloads", "bazarr-config"),
+    ("downloads", "lidarr-config"),
+    ("downloads", "radarr-config"),
+    ("downloads", "readarr-config"),
+    ("downloads", "sonarr-config"),
+    ("home-automation", "esphome-config"),
+    ("home-automation", "matter-server"),
+    ("home-automation", "zigbee2mqtt-data"),
+    ("media", "tdarr-config"),
+    ("selfhosted", "changedetection-config"),
+    # wave three, 2026-09-04 - tier B, the large claims (4)
+    ("ai", "hermes"),
+    ("ai", "opencode"),
+    ("media", "calibre-web-automated"),
+    ("media", "plex"),
+    # wave three, 2026-09-04 - tier C, real user-authored state (4)
+    ("home-automation", "home-assistant"),
+    ("selfhosted", "linkwarden"),
+    ("selfhosted", "n8n"),
+    # The 1Gi CONFIG claim. `selfhosted/syncthing-data` (15Gi, the synced
+    # files) is a DIFFERENT claim and is deliberately absent - it stays
+    # dual-engine.
+    ("selfhosted", "syncthing"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of
@@ -196,11 +231,11 @@ EXPECTED_R2_HOUR = {
     "ai": 19,
 }
 
-# Apps whose own Kustomization sets wait: true, so the kopiur half MUST ship as
-# a separate wait: false Kustomization - the component's passive Restore is
-# Ready=False for the whole parallel run by design, and Flux with wait: true
-# assesses every object in the inventory.
-WAIT_TRUE_SPLIT = {("database", "pgadmin"), ("media", "calibre-web-automated")}
+# Apps that keep the kopiur BACKUP half on a dedicated components/kopiur/backup
+# Kustomization rather than inlining components/kopiur on the claim KS. The
+# split was introduced under a former claim-side wait:true; that wait is gone,
+# and the split is retained deliberately (see wave-three retirement doc).
+SPLIT_BACKUP_APPS = {("database", "pgadmin"), ("media", "calibre-web-automated")}
 
 
 class Failure(Exception):
@@ -306,12 +341,13 @@ def test_schedules() -> None:
         )
 
 
-def test_wait_true_apps_use_a_split_kustomization() -> None:
-    """An app with wait: true must not carry the component inline.
+def test_no_inline_kopiur_is_wait_true() -> None:
+    """No Kustomization may carry components/kopiur inline with wait: true.
 
     The component's standing Restore is a passive populator that reports
     Ready=False for the whole parallel run by design, and wait: true makes Flux
     assess every object in the inventory - so inline it would block forever.
+    The two retained split apps must also keep a dedicated backup Kustomization.
     """
     for d, path in flux_kustomizations():
         spec = d.get("spec") or {}
@@ -324,12 +360,11 @@ def test_wait_true_apps_use_a_split_kustomization() -> None:
             f"wait: true - the passive Restore never becomes Ready, so Flux would block. "
             f"Ship the kopiur half as its own wait: false Kustomization instead.",
         )
-    # and the two known split apps really are split
     split_names = {
         (d["metadata"].get("namespace"), str((d.get("spec") or {}).get("path") or ""))
         for d, _ in flux_kustomizations()
     }
-    for ns, app in WAIT_TRUE_SPLIT:
+    for ns, app in SPLIT_BACKUP_APPS:
         require(
             any(n == ns and KOPIUR_BACKUP_PATH in p for n, p in split_names),
             f"{ns}/{app} must keep a dedicated components/kopiur/backup Kustomization",
@@ -570,7 +605,7 @@ def main() -> int:
     run("deferred_claims_absent", test_deferred_claims_absent)
     run("identity_matches_measurement", test_identity_matches_measurement)
     run("schedules", test_schedules)
-    run("wait_true_apps_use_a_split_kustomization", test_wait_true_apps_use_a_split_kustomization)
+    run("no_inline_kopiur_is_wait_true", test_no_inline_kopiur_is_wait_true)
     run("depends_on_repository", test_every_onboarded_kustomization_depends_on_repository)
     run("rendered_objects_hold_the_contract", test_rendered_objects_hold_the_contract)
     run("volsync_still_on_every_unretired_claim", test_volsync_still_on_every_unretired_claim)
