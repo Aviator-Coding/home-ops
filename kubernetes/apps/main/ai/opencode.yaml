@@ -10,12 +10,36 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier B (the
+    # large claims). kopiur is now the ONLY backup engine on this claim.
+    #
+    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # row 2 - 4749/4749 files restored from BOTH destinations into a scratch
+    # PVC with an identical per-file manifest digest (`d9954a835a98`), no
+    # markers and no caveats.
+    #
+    # "Large" here is the CLAIM (20Gi), not its contents: this volume holds
+    # 0.15 GiB in 4,749 files, so it sits at ~3% of its 5Gi restore cache and
+    # is nowhere near the ~6.2 GiB cliff. It is tiered with the large claims
+    # because a 20Gi claim can grow into one.
+    #
+    # This is also the claim whose volume was recreated on 2026-08-31 after the
+    # frozen-`latestImage` trap (docs/backups/opencode-volume-recreation-2026-08-31.md).
+    # Retirement REMOVES that trap rather than inheriting it: the VolSync
+    # ReplicationDestination whose stale latestImage was the hazard goes with
+    # this change, and a rebuilt claim is populated from the kopiur Restore,
+    # which resolves a snapshot at restore time instead of pinning one at first
+    # deploy. Captain decision 2026-09-04; retirement record:
+    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
@@ -26,7 +50,9 @@ spec:
       namespace: security
     - name: litellm
       namespace: *namespace
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # This Kustomization never carried a `volsync` (system) dependency - the
+    # volsync Component it used to include is gone, and nothing here renders a
+    # VolSync object any more. kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   interval: 1h
@@ -45,11 +71,19 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 20Gi
-      VOLSYNC_CACHE_CAPACITY: 5Gi
-      VOLSYNC_SCHEDULE_CEPH: "45 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "30 2 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
+      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}. The HelmRelease's
+      # own `existingClaim` was renamed VOLSYNC_CLAIM -> KOPIUR_CLAIM in this
+      # change for the same reason.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
+      # default, which would provision a rebuilt claim at a quarter of the live
+      # one. Matched to the LIVE claim (20Gi, holding 0.15 GiB - measured
+      # 2026-09-04). Under the pvc Component's `ssa: IfNotPresent` this is
+      # create-time-only for the claim that already exists, but it is exactly
+      # what a REBUILD would provision - and this is the one claim in the fleet
+      # that has actually BEEN rebuilt, so the value is not hypothetical.
+      KOPIUR_CAPACITY: 20Gi
       # Identity left at the component default of 1000:1000, and that is a
       # MEASURED result rather than an assumption: live measurement 2026-08-30
       # found every entry owned 1000:1000 (pod securityContext 1000:1000:1000)

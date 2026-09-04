@@ -171,6 +171,20 @@ RETIRED: dict[str, Retired] = {
     "selfhosted/changedetection": Retired(
         "selfhosted/changedetection.yaml", "changedetection", "changedetection-config", "1Gi"
     ),
+    # wave three, 2026-09-04 - tier B, the large claims (4)
+    #
+    # calibre-web-automated is the second split shape, for the same `wait: true`
+    # reason as pgadmin above.
+    "ai/hermes": Retired("ai/hermes.yaml", "hermes", "hermes", "25Gi"),
+    "ai/opencode": Retired("ai/opencode.yaml", "opencode", "opencode", "20Gi"),
+    "media/calibre-web-automated": Retired(
+        "media/calibre.yaml",
+        "calibre-web-automated",
+        "calibre-web-automated",
+        "20Gi",
+        "calibre-web-automated-kopiur",
+    ),
+    "media/plex": Retired("media/plex.yaml", "plex", "plex", "20Gi"),
 }
 
 # Restore-proof finding 2 / the 2026-09-02 cache gate: an r2 restore needs
@@ -195,6 +209,25 @@ RAISED_CACHE: dict[str, str] = {
     # additionally r2-PROVEN at exactly this value.
     "media/tdarr": "10Gi",
     "downloads/radarr": "10Gi",
+    # wave three tier B. Two of these three are the only claims in the fleet
+    # whose snapshot is large enough for the cache to matter at all.
+    #
+    # hermes: 16Gi, and the ONLY value in this table proven end to end - an r2
+    # restore of 65,978 files / 10,419,954,664 bytes completed at exactly this
+    # capacity (kopiur-r2-restore-cache-gate-2026-09-02.md). Sized to survive
+    # both regimes: 2.5x the measured ~6.2 GiB plateau if kopia's eviction
+    # holds, and the whole 10.05 GiB snapshot plus ~55% growth if it never
+    # fires. Do not lower it toward the plateau - the plateau is an unpinned
+    # kopia default this repo has never configured.
+    "ai/hermes": "16Gi",
+    # plex: 10Gi, predicted safe (4.27 GiB against 9.74 GiB usable) but NOT
+    # itself r2-exercised. Recorded as the wave's strongest open follow-up.
+    "media/plex": "10Gi",
+    # opencode: 5Gi against a 0.15 GiB snapshot - far more than the model asks
+    # for. Kept because the claim is 20Gi and can grow, and because lowering a
+    # cache is the kind of tidy-up that only shows up as a terminal restore
+    # failure during an actual disaster.
+    "ai/opencode": "5Gi",
 }
 
 # Stated separately from len(RETIRED) on purpose: this is the number a human
@@ -203,8 +236,8 @@ RAISED_CACHE: dict[str, str] = {
 #
 # Was 8 (4 pilot + 4 wave two), then 7 once `downloads/autobrr` was retired in
 # wave two and the APP ITSELF removed on 2026-09-02, leaving no overlay to hold
-# a retirement contract against. Wave three adds 11 in tier A.
-EXPECTED_RETIRED_COUNT = 18
+# a retirement contract against. Wave three adds 11 in tier A and 4 in tier B.
+EXPECTED_RETIRED_COUNT = 22
 
 
 class Failure(Exception):

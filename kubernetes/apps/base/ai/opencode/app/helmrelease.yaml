@@ -79,7 +79,13 @@ spec:
 
     persistence:
       home:
-        existingClaim: ${VOLSYNC_CLAIM:-opencode}
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
+        # on 2026-09-04 (Stage 5 wave three), and that overlay now defines no
+        # VOLSYNC_* key. The `:-opencode` default meant this kept rendering
+        # correctly either way, which is exactly why it is renamed rather than
+        # left to rot - a token naming a variable nothing defines is a silent
+        # trap for whoever edits it next. See ai/repo-wiki's precedent.
+        existingClaim: ${KOPIUR_CLAIM:-opencode}
         globalMounts:
           - path: *homepath
       config:

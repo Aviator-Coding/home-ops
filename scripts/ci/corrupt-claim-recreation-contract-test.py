@@ -15,11 +15,31 @@ On a newly-onboarded app that one run can leave latestImage as a snapshot
 of an EMPTY volume forever. The fix is to delete the ReplicationDestination
 TOGETHER WITH the PVC so restore-once fires against the populated repo.
 
+VolSync was RETIRED from ai/opencode on 2026-09-04 (Stage 5 wave three, tier B
+- docs/backups/kopiur-wave-three-retirement-2026-09-04.md), so that overlay is
+no longer a live example of the trap. NOTHING here was dropped, and the trap is
+NOT obsolete: it is a property of `components/volsync`, which still protects
+three claims (selfhosted/paperless-ngx, paperless-ngx-media, syncthing-data),
+and the runbook still applies to every one of them. Two things changed:
+
+  - The component render moved onto `selfhosted/paperless-ngx`, the permanent
+    dual-engine carve-out, so the shape is asserted against a claim that is
+    actually still exposed to it rather than against a historical one.
+  - The opencode overlay pin INVERTED: it now asserts the retirement, and that
+    the capacity the 2026-08-31 recreation provisioned survived the engine swap
+    into KOPIUR_CAPACITY. Retirement is what finally removes this trap from
+    opencode - a rebuilt claim is now populated from a kopiur `Restore`, which
+    resolves a snapshot at restore time, instead of from a
+    ReplicationDestination whose `latestImage` was pinned at first deploy.
+
+The measured evidence (documentary contract, below) is historical fact and is
+asserted unchanged.
+
 This test does NOT grep implementation source as its evidence. It:
 
   1. Renders the real volsync Component kustomize build Flux would apply for
-     ai/opencode (postBuild.substitute taken from the live overlay), then
-     parses the resulting objects into a typed structure.
+     selfhosted/paperless-ngx (postBuild.substitute taken from the live
+     overlay), then parses the resulting objects into a typed structure.
   2. Asserts the load-bearing component shape that makes the empty-
      latestImage trap real: PVC dataSourceRef -> ReplicationDestination
      ${APP}-dst (not restic), RD trigger restore-once + ssa IfNotPresent,
@@ -64,15 +84,28 @@ AGENTS = ROOT / "AGENTS.md"
 VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
 KOPIUR_DRILL = ROOT / "docs/backups/kopiur-restore-drill-2026-08-30.md"
 
-# Live opencode overlay pins (source of truth at render time).
+# Live opencode overlay pins (source of truth at render time). VolSync retired
+# 2026-09-04, so the VOLSYNC_* schedule pins went with the Component that read
+# them; the capacity the 2026-08-31 recreation actually provisioned lives on
+# KOPIUR_CAPACITY now and is still pinned, because that is the number a future
+# rebuild would use.
 OPENCODE_APP = "opencode"
 OPENCODE_NS = "ai"
 OPENCODE_CAPACITY = "20Gi"
 OPENCODE_CACHE = "5Gi"
-OPENCODE_VOLSYNC_CEPH = "45 */4 * * *"
-OPENCODE_VOLSYNC_MINIO = "45 */6 * * *"
-OPENCODE_VOLSYNC_R2 = "30 2 * * *"
 OPENCODE_KOPIUR_R2 = "H 19 * * *"
+
+# The claim the volsync-Component shape is rendered against. It must be one
+# that STILL runs VolSync, or this test would be asserting the trap on a claim
+# that can no longer hit it. selfhosted/paperless-ngx is the deliberate
+# permanent dual-engine carve-out (irreplaceable scanned documents), so it is
+# the most stable choice in the fleet; the other two survivors
+# (paperless-ngx-media, syncthing-data) are "not ready yet" rather than "never",
+# and could be retired by a later decision.
+TRAP_APP = "paperless-ngx"
+TRAP_NS = "selfhosted"
+TRAP_OVERLAY = ROOT / "kubernetes/apps/main/selfhosted/paperless-ngx.yaml"
+TRAP_CAPACITY = "10Gi"
 
 # Measured evidence numbers from the 2026-08-31 run (public result contract).
 LIVE_FILE_COUNT = 4749
@@ -171,11 +204,29 @@ def flux_envsubst(text: str, env: dict[str, str]) -> str:
     return expand(text)
 
 
-def overlay_substitute(path: Path) -> dict[str, str]:
+def overlay_substitute(path: Path, name: str | None = None) -> dict[str, str]:
+    """postBuild.substitute of one Flux Kustomization in an overlay file.
+
+    `name` selects it when the file carries several - which paperless-ngx does,
+    because its second claim (`paperless-ngx-media`) and that claim's kopiur
+    half each need their own substitute map. Omitting `name` keeps the original
+    single-document requirement, so a file that unexpectedly grows a second
+    Kustomization still fails loudly instead of silently picking the first.
+    """
     docs = load_multi(path)
-    require(len(docs) == 1, f"{path.name} must be one document, got {len(docs)}")
-    ks = docs[0]
-    require(ks.get("kind") == "Kustomization", f"{path.name} must be a Flux Kustomization")
+    flux = [d for d in docs if d.get("kind") == "Kustomization"]
+    require(flux, f"{path.name} has no Flux Kustomization")
+    if name is None:
+        require(len(docs) == 1, f"{path.name} must be one document, got {len(docs)}")
+        ks = docs[0]
+        require(ks.get("kind") == "Kustomization", f"{path.name} must be a Flux Kustomization")
+    else:
+        matches = [d for d in flux if (d.get("metadata") or {}).get("name") == name]
+        require(
+            len(matches) == 1,
+            f"{path.name}: expected exactly 1 Kustomization named {name!r}, got {len(matches)}",
+        )
+        ks = matches[0]
     sub = (((ks.get("spec") or {}).get("postBuild") or {}).get("substitute")) or {}
     require(isinstance(sub, dict) and sub, f"{path.name} missing postBuild.substitute")
     return {str(k): str(v) for k, v in sub.items()}
@@ -265,43 +316,87 @@ def by_kind(docs: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
     return [d for d in docs if d.get("kind") == kind]
 
 
-def test_opencode_overlay_pins() -> dict[str, str]:
-    """ai/opencode still includes volsync + the capacity that was recreated."""
+def test_opencode_overlay_pins() -> None:
+    """ai/opencode is now kopiur-only, and kept the capacity it was recreated at.
+
+    Inverted 2026-09-04 (Stage 5 wave three). The original assertion was "still
+    includes components/volsync (claim is component-owned)" - the claim IS still
+    component-owned, just by the other component now, and getting that swap
+    wrong is the one mistake that deletes this volume outright. So the pin is
+    strengthened rather than dropped: both halves of the swap are required.
+    """
     docs = load_multi(OPENCODE_OVERLAY)
     ks = docs[0]
     require(ks.get("metadata", {}).get("name") == OPENCODE_APP, "overlay name is opencode")
     require(ks.get("metadata", {}).get("namespace") == OPENCODE_NS, "overlay ns is ai")
-    components = ks.get("spec", {}).get("components") or []
+    components = [str(c).rstrip("/") for c in (ks.get("spec", {}).get("components") or [])]
     require(
-        any(str(c).rstrip("/").endswith("components/volsync") for c in components),
-        "opencode must still include components/volsync (claim is component-owned)",
+        not any(c.endswith("components/volsync") for c in components),
+        "opencode must NOT include components/volsync - VolSync was retired from this claim "
+        "on 2026-09-04 and kopiur is its only engine",
     )
     require(
-        any(str(c).rstrip("/").endswith("components/kopiur") for c in components),
-        "opencode must still include components/kopiur (dual-engine)",
+        any(c.endswith("components/kopiur") for c in components),
+        "opencode must include components/kopiur",
+    )
+    require(
+        any(c.endswith("components/kopiur/pvc") for c in components),
+        "opencode must include components/kopiur/pvc: components/volsync/pvc.yaml was the only "
+        "manifest emitting this claim and the overlay runs prune: true, so dropping it without "
+        "this replacement makes Flux DELETE the volume that the 2026-08-31 runbook recreated",
     )
     sub = overlay_substitute(OPENCODE_OVERLAY)
     require(sub.get("APP") == OPENCODE_APP, f"APP must be opencode, got {sub.get('APP')!r}")
+    leftover = sorted(k for k in sub if k.startswith("VOLSYNC_"))
+    require(not leftover, f"VOLSYNC_* keys survived opencode's retirement: {leftover}")
+    # The capacity the recreation actually provisioned. It moved from
+    # VOLSYNC_CAPACITY to KOPIUR_CAPACITY with the engine, and it is still the
+    # number a future rebuild would use - under ssa: IfNotPresent it is
+    # create-time-only, which is exactly what makes a wrong value dangerous
+    # rather than merely untidy.
     require(
-        sub.get("VOLSYNC_CAPACITY") == OPENCODE_CAPACITY,
-        f"VOLSYNC_CAPACITY must be {OPENCODE_CAPACITY}, got {sub.get('VOLSYNC_CAPACITY')!r}",
+        sub.get("KOPIUR_CAPACITY") == OPENCODE_CAPACITY,
+        f"KOPIUR_CAPACITY must be {OPENCODE_CAPACITY} (the recreated claim), got "
+        f"{sub.get('KOPIUR_CAPACITY')!r}",
     )
     require(
-        sub.get("VOLSYNC_CACHE_CAPACITY") == OPENCODE_CACHE,
-        f"VOLSYNC_CACHE_CAPACITY must be {OPENCODE_CACHE}",
+        sub.get("KOPIUR_CACHE_CAPACITY") == OPENCODE_CACHE,
+        f"KOPIUR_CACHE_CAPACITY must be {OPENCODE_CACHE}, got "
+        f"{sub.get('KOPIUR_CACHE_CAPACITY')!r}",
     )
-    require(sub.get("VOLSYNC_SCHEDULE_CEPH") == OPENCODE_VOLSYNC_CEPH, "ceph schedule pin")
-    require(sub.get("VOLSYNC_SCHEDULE_MINIO") == OPENCODE_VOLSYNC_MINIO, "minio schedule pin")
-    require(sub.get("VOLSYNC_SCHEDULE_R2") == OPENCODE_VOLSYNC_R2, "r2 schedule pin")
     require(sub.get("KOPIUR_SCHEDULE_R2") == OPENCODE_KOPIUR_R2, "kopiur r2 hour 19 pin")
     # No identity override - measured 1000:1000, component default.
     require(
         "KOPIUR_PUID" not in sub and "VOLSYNC_PUID" not in sub,
         "opencode must keep the default 1000:1000 mover identity (measured)",
     )
+
+
+def trap_subject_substitute() -> dict[str, str]:
+    """The still-dual-engine claim the volsync-Component shape is asserted on."""
+    docs = load_multi(TRAP_OVERLAY)
+    ks = next(
+        d
+        for d in docs
+        if d.get("kind") == "Kustomization" and d.get("metadata", {}).get("name") == TRAP_APP
+    )
+    require(ks.get("metadata", {}).get("namespace") == TRAP_NS, f"{TRAP_APP} ns is {TRAP_NS}")
+    components = [str(c).rstrip("/") for c in (ks.get("spec", {}).get("components") or [])]
+    require(
+        any(c.endswith("components/volsync") for c in components),
+        f"{TRAP_NS}/{TRAP_APP} must still include components/volsync - this test renders the "
+        f"empty-latestImage trap against it, and a subject that has been retired cannot hit it. "
+        f"If this claim is ever retired, repoint TRAP_APP at another live dual-engine claim "
+        f"(RETIRED_CLAIMS in kopiur-stage3-test.py names the ones that are not).",
+    )
+    sub = dict(overlay_substitute(TRAP_OVERLAY, TRAP_APP))
+    require(sub.get("APP") == TRAP_APP, f"APP must be {TRAP_APP}, got {sub.get('APP')!r}")
+    require(
+        sub.get("VOLSYNC_CAPACITY") == TRAP_CAPACITY,
+        f"VOLSYNC_CAPACITY must be {TRAP_CAPACITY}, got {sub.get('VOLSYNC_CAPACITY')!r}",
+    )
     # cluster-secrets keys are substituteFrom, not inline. Provide a stand-in so
     # the ExternalSecret RESTIC_REPOSITORY template can resolve for the render.
-    sub = dict(sub)
     sub.setdefault("SECRET_DOMAIN", "example.test")
     return sub
 
@@ -317,15 +412,15 @@ def test_rendered_empty_latestimage_trap(sub: dict[str, str]) -> list[dict[str, 
       - RD named ${APP}-dst carries trigger.manual == restore-once AND label
         kustomize.toolkit.fluxcd.io/ssa == IfNotPresent. Together: runs once
         at first deploy, Flux never re-runs it.
-      - Three ReplicationSources (ceph/minio/r2) still exist - dual-engine
-        recreation must not retire VolSync.
+      - Three ReplicationSources (ceph/minio/r2) still exist - the subject is
+        a dual-engine claim and recreation must not retire VolSync from it.
     """
     docs = render_with_substitute(VOLSYNC_COMPONENT, sub)
 
     pvcs = by_kind(docs, "PersistentVolumeClaim")
     require(len(pvcs) == 1, f"expected exactly 1 PVC from component, got {len(pvcs)}")
     pvc = pvcs[0]
-    require(pvc.get("metadata", {}).get("name") == OPENCODE_APP, "PVC named opencode")
+    require(pvc.get("metadata", {}).get("name") == TRAP_APP, f"PVC named {TRAP_APP}")
     dsr = (pvc.get("spec") or {}).get("dataSourceRef") or {}
     require(
         dsr.get("kind") == "ReplicationDestination",
@@ -336,8 +431,8 @@ def test_rendered_empty_latestimage_trap(sub: dict[str, str]) -> list[dict[str, 
         f"PVC dataSourceRef.apiGroup must be volsync.backube, got {dsr.get('apiGroup')!r}",
     )
     require(
-        dsr.get("name") == f"{OPENCODE_APP}-dst",
-        f"PVC dataSourceRef.name must be {OPENCODE_APP}-dst, got {dsr.get('name')!r}",
+        dsr.get("name") == f"{TRAP_APP}-dst",
+        f"PVC dataSourceRef.name must be {TRAP_APP}-dst, got {dsr.get('name')!r}",
     )
     # The PVC itself has no restic configuration - restore path is only via RD.
     require(
@@ -346,8 +441,8 @@ def test_rendered_empty_latestimage_trap(sub: dict[str, str]) -> list[dict[str, 
     )
     storage = ((pvc.get("spec") or {}).get("resources") or {}).get("requests") or {}
     require(
-        storage.get("storage") == OPENCODE_CAPACITY,
-        f"PVC capacity must be {OPENCODE_CAPACITY}, got {storage.get('storage')!r}",
+        storage.get("storage") == TRAP_CAPACITY,
+        f"PVC capacity must be {TRAP_CAPACITY}, got {storage.get('storage')!r}",
     )
     require(
         (pvc.get("spec") or {}).get("storageClassName") == "ceph-block",
@@ -357,7 +452,7 @@ def test_rendered_empty_latestimage_trap(sub: dict[str, str]) -> list[dict[str, 
     rds = by_kind(docs, "ReplicationDestination")
     require(len(rds) == 1, f"expected exactly 1 ReplicationDestination, got {len(rds)}")
     rd = rds[0]
-    require(rd.get("metadata", {}).get("name") == f"{OPENCODE_APP}-dst", "RD name")
+    require(rd.get("metadata", {}).get("name") == f"{TRAP_APP}-dst", "RD name")
     labels = (rd.get("metadata") or {}).get("labels") or {}
     require(
         labels.get("kustomize.toolkit.fluxcd.io/ssa") == "IfNotPresent",
@@ -375,7 +470,7 @@ def test_rendered_empty_latestimage_trap(sub: dict[str, str]) -> list[dict[str, 
     )
     restic = (rd.get("spec") or {}).get("restic") or {}
     require(
-        restic.get("repository") == f"{OPENCODE_APP}-volsync-ceph-secret",
+        restic.get("repository") == f"{TRAP_APP}-volsync-ceph-secret",
         f"RD restic.repository must be the ceph secret, got {restic.get('repository')!r}",
     )
     require(
@@ -394,8 +489,8 @@ def test_rendered_empty_latestimage_trap(sub: dict[str, str]) -> list[dict[str, 
         f"RD mover identity must be 1000:1000, got {msc}",
     )
     require(
-        restic.get("capacity") == OPENCODE_CAPACITY,
-        f"RD capacity must match claim {OPENCODE_CAPACITY}",
+        restic.get("capacity") == TRAP_CAPACITY,
+        f"RD capacity must match claim {TRAP_CAPACITY}",
     )
 
     sources = by_kind(docs, "ReplicationSource")
@@ -403,9 +498,9 @@ def test_rendered_empty_latestimage_trap(sub: dict[str, str]) -> list[dict[str, 
     require(
         src_names
         == [
-            f"{OPENCODE_APP}-ceph",
-            f"{OPENCODE_APP}-minio",
-            f"{OPENCODE_APP}-r2",
+            f"{TRAP_APP}-ceph",
+            f"{TRAP_APP}-minio",
+            f"{TRAP_APP}-r2",
         ],
         f"expected triple-dest ReplicationSources, got {src_names}",
     )
@@ -926,7 +1021,7 @@ def test_no_credential_contents_in_diff_paths() -> None:
 def main() -> int:
     tests = [
         ("opencode_overlay_pins", test_opencode_overlay_pins),
-        ("rendered_empty_latestimage_trap", None),  # filled below with sub
+        ("rendered_empty_latestimage_trap", None),  # filled below with the trap subject
         ("ceph_block_reclaim_delete", test_ceph_block_reclaim_delete),
         ("runbook_procedure_contract", test_runbook_procedure_contract),
         ("evidence_result_contract", test_evidence_result_contract),
@@ -938,12 +1033,8 @@ def main() -> int:
     sub: dict[str, str] | None = None
     for name, fn in tests:
         try:
-            if name == "opencode_overlay_pins":
-                sub = fn()  # type: ignore[misc]
-                print(f"[PASS] {name}")
-                passed += 1
-            elif name == "rendered_empty_latestimage_trap":
-                require(sub is not None, "overlay pins must run first")
+            if name == "rendered_empty_latestimage_trap":
+                sub = trap_subject_substitute()
                 test_rendered_empty_latestimage_trap(sub)
                 print(f"[PASS] {name}")
                 passed += 1

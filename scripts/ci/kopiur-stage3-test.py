@@ -203,6 +203,11 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     ("home-automation", "zigbee2mqtt-data"),
     ("media", "tdarr-config"),
     ("selfhosted", "changedetection-config"),
+    # wave three, 2026-09-04 - tier B, the large claims (4)
+    ("ai", "hermes"),
+    ("ai", "opencode"),
+    ("media", "calibre-web-automated"),
+    ("media", "plex"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of
