@@ -81,7 +81,7 @@ VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 # meaning where both engines run: after wave three they cover 3 claims rather
 # than 22, and the reason that is acceptable is that a collision is only
 # possible at all on a dual-engine claim.
-MIN_DUAL_ENGINE_CLAIMS = 7
+MIN_DUAL_ENGINE_CLAIMS = 3
 
 # The whole kopiur fleet, dual-engine or retired.
 #

@@ -13,9 +13,15 @@ the config PVC - not GitOps - so this test pins only the GitOps half:
      ReplicationDestination whose restic.capacity is 15Gi - proving the value
      sizes the restore destination volume, not the live app claim (the backup
      path deliberately does not create a PVC).
-  4. The config volume (`syncthing`, 1Gi) stays untouched: its primary
-     Kustomization still substitutes VOLSYNC_CAPACITY=1Gi, and the HelmRelease
-     still mounts the existing config claim separately from syncthing-data.
+  4. The config volume (`syncthing`, 1Gi) stays a SEPARATE claim of its own
+     size, and the HelmRelease still mounts it separately from syncthing-data.
+     VolSync was retired from the config claim on 2026-09-04 (Stage 5 wave
+     three, tier C), so that size now lives on KOPIUR_CAPACITY - the point this
+     assertion has always been making is that the two claims do not get
+     conflated, and 1Gi vs 15Gi is exactly as load-bearing under one engine as
+     under two. `syncthing-data` itself is NOT retired: wave two measured it at
+     5 files / 531 B with 15Gi of intended capacity behind a 5Gi cache, and
+     re-measurement on 2026-09-04 found it unchanged, so it stays dual-engine.
   5. Cache stays 5Gi (33% of 15Gi).
 
 Live folder shares, Mac pairing, and backup Success phases are cluster state
@@ -169,13 +175,29 @@ def test_overlay_capacity_substitutions() -> None:
     require("syncthing-data-kopiur" in by_name, "missing syncthing-data-kopiur Kustomization")
 
     primary = substitute_map(by_name["syncthing"])
+    # The config claim is kopiur-only since 2026-09-04, so its declared size
+    # moved from VOLSYNC_CAPACITY to KOPIUR_CAPACITY. Asserted in both
+    # directions: the size must be stated at 1Gi, and no VOLSYNC_* key may
+    # survive - a leftover one would be the signature of a half-revert and
+    # would also misdescribe what a rebuild provisions.
     require(
-        primary.get("VOLSYNC_CAPACITY") == CONFIG_CAPACITY,
-        f"config vol VOLSYNC_CAPACITY must stay {CONFIG_CAPACITY}, got {primary.get('VOLSYNC_CAPACITY')!r}",
+        primary.get("KOPIUR_CAPACITY") == CONFIG_CAPACITY,
+        f"config vol KOPIUR_CAPACITY must stay {CONFIG_CAPACITY}, got "
+        f"{primary.get('KOPIUR_CAPACITY')!r}",
     )
+    leftover = sorted(k for k in primary if k.startswith("VOLSYNC_"))
     require(
-        primary.get("VOLSYNC_CLAIM") == "syncthing",
-        "primary Kustomization must keep protecting the config claim named syncthing",
+        not leftover,
+        f"config vol still declares {leftover} after its 2026-09-04 retirement",
+    )
+    # The claim name matches the app name, so KOPIUR_CLAIM is legitimately
+    # absent and components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}. What
+    # must hold is that the primary Kustomization protects `syncthing` and not
+    # the data claim.
+    require(
+        primary.get("KOPIUR_CLAIM", primary.get("APP")) == "syncthing",
+        "primary Kustomization must keep protecting the config claim named syncthing, got "
+        f"{primary.get('KOPIUR_CLAIM', primary.get('APP'))!r}",
     )
 
     data = by_name["syncthing-data"]

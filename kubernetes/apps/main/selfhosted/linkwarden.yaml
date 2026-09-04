@@ -22,31 +22,60 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component below -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
     - name: cloudnative-pg
       namespace: database
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier C (real
+    # user-authored state). kopiur is now the ONLY backup engine on this claim.
+    #
+    # The claim holds Linkwarden's archived page snapshots - the PDF/screenshot
+    # renderings of saved links, which cannot be re-fetched once a source page
+    # changes or disappears. (Its relational state is in postgres-17, see the
+    # dependsOn above, with its own continuous archiving.)
+    #
+    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # row 23 - 67/67 files restored from BOTH destinations into a scratch PVC
+    # with an IDENTICAL per-file manifest digest (`b42975d15de3`), no markers
+    # and no caveats. Restore cache stays at the 2Gi component default: 0.18
+    # GiB against ~1.95 GiB usable is 9%. Captain decision 2026-09-04;
+    # retirement record:
+    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: linkwarden
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "15 4 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
+      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}. The HelmRelease's
+      # own `existingClaim` was renamed to ${KOPIUR_CLAIM:-linkwarden} in this
+      # change, which also DEFUSES the dangling-alias trap the wave-two record
+      # describes: it read `${VOLSYNC_CLAIM:-*app}`, and `*app` there is a bare
+      # token rather than a YAML anchor reference, so the moment VOLSYNC_CLAIM
+      # stopped being defined the render would have become `existingClaim: *app`
+      # and flate would have failed the whole Kustomization with
+      # `unknown anchor 'app' referenced`.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY and matched to the LIVE
+      # claim (5Gi, holding 0.18 GiB - measured 2026-09-04). Under the pvc
+      # Component's `ssa: IfNotPresent` this is create-time-only for the claim
+      # that already exists, but it is exactly what a REBUILD would provision.
+      KOPIUR_CAPACITY: 5Gi
       # APP_UID/APP_GID deliberately absent - see changedetection.yaml for the
       # precedent. No manifest in this repo reads either variable, so a second,
       # unenforced identity declaration is a liability, not documentation.

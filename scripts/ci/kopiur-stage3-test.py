@@ -208,6 +208,14 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     ("ai", "opencode"),
     ("media", "calibre-web-automated"),
     ("media", "plex"),
+    # wave three, 2026-09-04 - tier C, real user-authored state (4)
+    ("home-automation", "home-assistant"),
+    ("selfhosted", "linkwarden"),
+    ("selfhosted", "n8n"),
+    # The 1Gi CONFIG claim. `selfhosted/syncthing-data` (15Gi, the synced
+    # files) is a DIFFERENT claim and is deliberately absent - it stays
+    # dual-engine.
+    ("selfhosted", "syncthing"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of

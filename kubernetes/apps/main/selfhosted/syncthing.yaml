@@ -20,29 +20,74 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component below -
+    # nothing in THIS Kustomization renders a VolSync object any more. Note the
+    # `syncthing-data` Kustomization further down still needs it and keeps it:
+    # that second claim was assessed in wave two and found NOT ready, so it
+    # stays dual-engine.
     - name: kopiur-repository
       namespace: system
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier C (real
+    # user-authored state). kopiur is now the ONLY backup engine on the
+    # `syncthing` CONFIG claim.
+    #
+    # READ THE CLAIM NAME CAREFULLY. This retires `syncthing` (1Gi, the config
+    # volume holding the device ID, the folder definitions and the trust
+    # relationships with every paired peer). It does NOT retire
+    # `syncthing-data` (15Gi, the synced files), which has its own
+    # Kustomizations below and stays dual-engine: wave two measured it at 5
+    # files / 531 B - a bare scaffold of `.stfolder` markers with no synced
+    # content - so its restore proof covers nothing meaningful, and 15Gi of
+    # intended capacity sits behind a 5Gi cache it would cross the first time
+    # it holds real data. Re-measured 2026-09-04: still 5 files / 531 B. That
+    # verdict stands and this change does not touch it.
+    #
+    # Authorising evidence for the config claim:
+    # docs/backups/kopiur-restore-proof-2026-09-01.md row 29 - 21/21 files
+    # restored from BOTH destinations into a scratch PVC with an IDENTICAL
+    # per-file manifest digest (`05d36861232d`), no markers and no caveats.
+    # Losing this volume would not lose file content (the peers still have it)
+    # but would lose the node identity, forcing a re-pair with every device.
+    #
+    # Restore cache stays at the 2Gi component default, and here that is
+    # STRUCTURAL rather than a judgement call: a 1Gi claim cannot hold more
+    # than the 2Gi cache covers, so this volume can never reach the
+    # restore-cache cliff - the same argument that authorised selfhosted/ntfy
+    # and obsidian-livesync in wave two, and the exact argument that
+    # `syncthing-data` fails. Captain decision 2026-09-04; retirement record:
+    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   postBuild:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: syncthing
-      VOLSYNC_CAPACITY: 1Gi
-      VOLSYNC_SCHEDULE_CEPH: "10 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "45 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "15 4 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
+      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}. The HelmRelease's
+      # own `existingClaim` was renamed to ${KOPIUR_CLAIM:-syncthing}, which
+      # also defuses the `${VOLSYNC_CLAIM:-*app}` dangling-alias trap - see
+      # linkwarden.yaml for the full mechanism.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
+      # default, which would provision a rebuilt claim at 5x the live one.
+      # Matched to the LIVE claim (1Gi, holding 2 MiB - measured 2026-09-04).
+      # Under the pvc Component's `ssa: IfNotPresent` this is create-time-only
+      # for the claim that already exists, but it is exactly what a REBUILD
+      # would provision.
+      #
+      # This is the CONFIG claim. `syncthing-data`'s own VOLSYNC_CAPACITY of
+      # 15Gi lives on its separate Kustomization below and is untouched.
+      KOPIUR_CAPACITY: 1Gi
       # APP_UID/APP_GID deliberately absent - see changedetection.yaml for the
       # precedent. No manifest in this repo reads either variable, so a second,
       # unenforced identity declaration is a liability, not documentation.

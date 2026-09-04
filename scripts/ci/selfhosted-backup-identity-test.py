@@ -60,10 +60,12 @@ KOPIUR_BACKUP = REPO / "kubernetes" / "components" / "kopiur" / "backup"
 # Still dual-engine: both a VolSync mover and a kopiur mover must render at the
 # measured identity.
 DUAL_ENGINE_APPS: list[tuple[str, str, str, str]] = [
-    ("n8n", "n8n", "1000", "1000"),
+    # The permanent captain carve-out, and after wave three the only app in
+    # this namespace still running both engines. Its second claim
+    # (paperless-ngx-media) and selfhosted/syncthing-data are also still
+    # dual-engine but ride their own Kustomizations, covered by
+    # kopiur-stage3-test.py's fleet pin rather than by this file.
     ("paperless-ngx", "paperless-ngx", "1000", "1000"),
-    ("syncthing", "syncthing", "1000", "1000"),
-    ("linkwarden", "linkwarden", "1000", "1000"),
 ]
 
 # VolSync RETIRED (Stage 5, captain decision). There is no VolSync mover left to
@@ -86,6 +88,11 @@ RETIRED_APPS: list[tuple[str, str, str, str]] = [
     # claim: its `existingClaim` token carried no `:-default`, so a leftover
     # VOLSYNC_CLAIM reference would have rendered an EMPTY claim name.
     ("changedetection", "changedetection-config", "1000", "1000"),
+    # wave three tier C, 2026-09-04. `syncthing` here is the 1Gi CONFIG claim;
+    # `syncthing-data` is a different claim and is still dual-engine.
+    ("n8n", "n8n", "1000", "1000"),
+    ("linkwarden", "linkwarden", "1000", "1000"),
+    ("syncthing", "syncthing", "1000", "1000"),
 ]
 
 APPS: list[tuple[str, str, str, str]] = DUAL_ENGINE_APPS + RETIRED_APPS

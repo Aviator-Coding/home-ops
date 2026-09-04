@@ -185,6 +185,21 @@ RETIRED: dict[str, Retired] = {
         "calibre-web-automated-kopiur",
     ),
     "media/plex": Retired("media/plex.yaml", "plex", "plex", "20Gi"),
+    # wave three, 2026-09-04 - tier C, real user-authored state (4)
+    #
+    # `selfhosted/syncthing` is the 1Gi CONFIG claim, and it shares its overlay
+    # file with `syncthing-data` (15Gi, the synced files) which is NOT retired.
+    # That is why overlay() selects a Kustomization by name.
+    "home-automation/home-assistant": Retired(
+        "home-automation/home-assistant.yaml", "home-assistant", "home-assistant", "5Gi"
+    ),
+    "selfhosted/linkwarden": Retired(
+        "selfhosted/linkwarden.yaml", "linkwarden", "linkwarden", "5Gi"
+    ),
+    "selfhosted/n8n": Retired("selfhosted/n8n.yaml", "n8n", "n8n", "8Gi"),
+    "selfhosted/syncthing": Retired(
+        "selfhosted/syncthing.yaml", "syncthing", "syncthing", "1Gi"
+    ),
 }
 
 # Restore-proof finding 2 / the 2026-09-02 cache gate: an r2 restore needs
@@ -236,8 +251,9 @@ RAISED_CACHE: dict[str, str] = {
 #
 # Was 8 (4 pilot + 4 wave two), then 7 once `downloads/autobrr` was retired in
 # wave two and the APP ITSELF removed on 2026-09-02, leaving no overlay to hold
-# a retirement contract against. Wave three adds 11 in tier A and 4 in tier B.
-EXPECTED_RETIRED_COUNT = 22
+# a retirement contract against. Wave three adds 11 (tier A) + 4 (tier B) + 4
+# (tier C) = 19, which is every remaining eligible claim in the fleet.
+EXPECTED_RETIRED_COUNT = 26
 
 
 class Failure(Exception):

@@ -8,21 +8,46 @@ metadata:
 spec:
   targetNamespace: *namespace
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier C (real
+    # user-authored state). kopiur is now the ONLY backup engine on this claim.
+    #
+    # Tier C exists because these four volumes hold things nobody can
+    # regenerate. This one is the whole Home Assistant configuration -
+    # automations, dashboards, integration credentials, the recorder database -
+    # authored by hand over years. What authorises retiring it anyway is the
+    # completeness of the proof, not the replaceability of the content:
+    # docs/backups/kopiur-restore-proof-2026-09-01.md row 15 restored 79/79
+    # files from BOTH destinations into a scratch PVC with an IDENTICAL
+    # per-file manifest digest (`46c7155751e6`) - content and metadata.
+    #
+    # Its `CACHEDIR.TAG` marker is ADJUDICATED, not outstanding: the 17 omitted
+    # files are the contents of `.venv`, a Python virtualenv, and snapshot
+    # `filesNew` equals the restored count exactly - the signal that the
+    # omission is deliberate rather than lossy.
+    #
+    # Restore cache stays at the 2Gi component default: 12 MiB against ~1.95
+    # GiB usable is 0.6%, and the claim is 5Gi. Captain decision 2026-09-04;
+    # retirement record:
+    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component above -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
     - name: multus-networks
@@ -42,11 +67,16 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_CLAIM: home-assistant
-      VOLSYNC_SCHEDULE_CEPH: "5 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "5 1 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
+      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}. The HelmRelease's
+      # own `existingClaim` was renamed VOLSYNC_CLAIM -> KOPIUR_CLAIM in this
+      # change for the same reason.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY and matched to the LIVE
+      # claim (5Gi, holding 12 MiB - measured 2026-09-04). Under the pvc
+      # Component's `ssa: IfNotPresent` this is create-time-only for the claim
+      # that already exists, but it is exactly what a REBUILD would provision.
+      KOPIUR_CAPACITY: 5Gi
       # Identity left at the component default of 1000:1000, and that is a
       # MEASURED result rather than an assumption: live measurement 2026-08-30
       # found all 142 entries owned 1000:1000 (pod securityContext
