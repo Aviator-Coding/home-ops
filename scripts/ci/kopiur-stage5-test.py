@@ -2,8 +2,9 @@
 """Semantic regression test for kopiur Stage 5 (the VolSync retirements).
 
 Stage 5 is the IRREVERSIBLE step of the VolSync -> kopiur migration: it removes
-a volume's second backup engine. Eight of the fleet's 30 claims went through it,
-in two waves, and 22 remain dual-engine.
+a volume's second backup engine. 27 of the fleet's 30 claims have now gone
+through it, in three waves, and 3 remain dual-engine - which is the whole of
+what VolSync still protects.
 
 One of those eight, `downloads/autobrr`, is no longer in the fleet at all: the
 APP was removed on 2026-09-02 (captain decision - unused), so its overlay, its
@@ -30,9 +31,30 @@ wave-two record still documents autobrr's retirement, because it happened.
   Authorising evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md
   part 4. Record: docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
 
+  wave three, 2026-09-04: the remaining 19 eligible claims, on the same fleet
+  restore proof (every one of them a destination-identical PASS row) plus a
+  re-measured restore-cache audit. Shipped as three risk-tiered commits so a
+  revert stays surgical - tier A `database/pgadmin`, `downloads/{bazarr,lidarr,
+  radarr,readarr,sonarr}`, `home-automation/{esphome,matter-server,
+  zigbee2mqtt}`, `media/tdarr`, `selfhosted/changedetection`; tier B
+  `ai/{hermes,opencode}`, `media/{plex,calibre-web-automated}`; tier C
+  `home-automation/home-assistant`, `selfhosted/{n8n,linkwarden,syncthing}`.
+  Record: docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+
 `selfhosted/paperless-ngx` stays dual-engine permanently by captain carve-out,
 and `selfhosted/syncthing-data` / `selfhosted/paperless-ngx-media` were
 assessed and left dual-engine; any further retirement needs its own decision.
+Those three are now the entire dual-engine fleet.
+
+TWO OVERLAY SHAPES. Most retired volumes put both `components/kopiur` and
+`components/kopiur/pvc` on the app's own Flux Kustomization. Two cannot:
+`database/pgadmin` and `media/calibre-web-automated` set `wait: true`, which
+makes Flux assess every object in the inventory including the kopiur component's
+standing `Restore` - permanently `Ready=False` by design. Those two keep the
+kopiur BACKUP half in its own `wait: false` Kustomization and move only the
+CLAIM onto the app's, so their `components:` list is `[kopiur/pvc]` alone. The
+table below records that split explicitly rather than special-casing it in the
+assertions.
 
 The single most dangerous thing about this change is that the volsync Component
 was the ONLY manifest emitting each app's PVC, and every app overlay runs
@@ -67,7 +89,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
@@ -81,32 +103,73 @@ KOPIUR_COMPONENT = "../../../../../components/kopiur"
 KOPIUR_PVC_COMPONENT = "../../../../../components/kopiur/pvc"
 VOLSYNC_COMPONENT = "../../../../../components/volsync"
 
-# app-overlay path -> (namespace, app, claim, live capacity).
-# Capacity is the LIVE claim size, measured 2026-09-01 (wave one) and
-# 2026-09-02 (wave two). It matters because the retired PVC carries
-# `ssa: IfNotPresent`, so this value is create-time-only and stays unexercised
-# until someone rebuilds the claim - which is exactly what makes a wrong value
-# dangerous rather than merely untidy.
-RETIRED: dict[str, tuple[str, str, str, str]] = {
+# The retired volumes, keyed "<namespace>/<app>".
+#
+#   rel       overlay file, relative to kubernetes/apps/main
+#   ks        the Flux Kustomization in that file that OWNS THE CLAIM
+#   claim     the PersistentVolumeClaim name
+#   capacity  the LIVE claim size, measured 2026-09-01 (wave one), 2026-09-02
+#             (wave two) and 2026-09-04 (wave three). It matters because the
+#             retired PVC carries `ssa: IfNotPresent`, so this value is
+#             create-time-only and stays unexercised until someone rebuilds the
+#             claim - which is exactly what makes a wrong value dangerous
+#             rather than merely untidy.
+#   backup_ks the Flux Kustomization that owns the kopiur BACKUP objects.
+#             None means "the same one" - the fleet's normal shape. A name
+#             means the `wait: true` split described in the module docstring,
+#             and the assertions below read the two halves from their own
+#             Kustomizations rather than assuming one substitute map.
+class Retired(NamedTuple):
+    rel: str
+    ks: str
+    claim: str
+    capacity: str
+    backup_ks: str | None = None
+
+
+RETIRED: dict[str, Retired] = {
     # wave one - the pilot, 2026-09-01
-    "ai/repo-wiki.yaml": ("ai", "repo-wiki", "repo-wiki", "5Gi"),
-    "downloads/recyclarr.yaml": ("downloads", "recyclarr", "recyclarr-config", "5Gi"),
-    "downloads/sabnzbd.yaml": ("downloads", "sabnzbd", "sabnzbd-config", "5Gi"),
-    "media/seerr.yaml": ("media", "seerr", "seerr", "2Gi"),
+    "ai/repo-wiki": Retired("ai/repo-wiki.yaml", "repo-wiki", "repo-wiki", "5Gi"),
+    "downloads/recyclarr": Retired("downloads/recyclarr.yaml", "recyclarr", "recyclarr-config", "5Gi"),
+    "downloads/sabnzbd": Retired("downloads/sabnzbd.yaml", "sabnzbd", "sabnzbd-config", "5Gi"),
+    "media/seerr": Retired("media/seerr.yaml", "seerr", "seerr", "2Gi"),
     # wave two, 2026-09-02
-    # "downloads/autobrr.yaml" was here. The app was REMOVED on 2026-09-02, so
-    # the overlay this row reads no longer exists and every assertion below
-    # would fail on a missing file - the retired-app/CI-gate trap this repo
-    # documents in AGENTS.md. Removed rather than retained because this map is
-    # keyed by live overlay path, not by history; the retirement itself stays
-    # recorded in docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
-    "downloads/prowlarr.yaml": ("downloads", "prowlarr", "prowlarr-config", "5Gi"),
-    "selfhosted/ntfy.yaml": ("selfhosted", "ntfy", "ntfy", "2Gi"),
-    "selfhosted/obsidian-livesync.yaml": (
-        "selfhosted",
-        "obsidian-livesync",
-        "obsidian-livesync",
-        "2Gi",
+    # "downloads/autobrr" was here. The app was REMOVED on 2026-09-02, so the
+    # overlay this row read no longer exists and every assertion below would
+    # fail on a missing file - the retired-app/CI-gate trap this repo documents
+    # in AGENTS.md. Removed rather than retained because this map is keyed by
+    # live overlay, not by history; the retirement itself stays recorded in
+    # docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+    "downloads/prowlarr": Retired("downloads/prowlarr.yaml", "prowlarr", "prowlarr-config", "5Gi"),
+    "selfhosted/ntfy": Retired("selfhosted/ntfy.yaml", "ntfy", "ntfy", "2Gi"),
+    "selfhosted/obsidian-livesync": Retired(
+        "selfhosted/obsidian-livesync.yaml", "obsidian-livesync", "obsidian-livesync", "2Gi"
+    ),
+    # wave three, 2026-09-04 - tier A, ordinary config volumes (11)
+    #
+    # pgadmin is the split shape: its claim rides the `pgadmin` Kustomization
+    # inside database/cloudnative-pg.yaml (`wait: true`), its kopiur backup
+    # objects ride `pgadmin-kopiur` in the same file.
+    "database/pgadmin": Retired(
+        "database/cloudnative-pg.yaml", "pgadmin", "pgadmin", "2Gi", "pgadmin-kopiur"
+    ),
+    "downloads/bazarr": Retired("downloads/bazarr.yaml", "bazarr", "bazarr-config", "5Gi"),
+    "downloads/lidarr": Retired("downloads/lidarr.yaml", "lidarr", "lidarr-config", "8Gi"),
+    "downloads/radarr": Retired("downloads/radarr.yaml", "radarr", "radarr-config", "5Gi"),
+    "downloads/readarr": Retired("downloads/readarr.yaml", "readarr", "readarr-config", "5Gi"),
+    "downloads/sonarr": Retired("downloads/sonarr.yaml", "sonarr", "sonarr-config", "5Gi"),
+    "home-automation/esphome": Retired(
+        "home-automation/esphome.yaml", "esphome", "esphome-config", "5Gi"
+    ),
+    "home-automation/matter-server": Retired(
+        "home-automation/matter-server.yaml", "matter-server", "matter-server", "1Gi"
+    ),
+    "home-automation/zigbee2mqtt": Retired(
+        "home-automation/zigbee2mqtt.yaml", "zigbee2mqtt", "zigbee2mqtt-data", "5Gi"
+    ),
+    "media/tdarr": Retired("media/tdarr.yaml", "tdarr", "tdarr-config", "5Gi"),
+    "selfhosted/changedetection": Retired(
+        "selfhosted/changedetection.yaml", "changedetection", "changedetection-config", "1Gi"
     ),
 }
 
@@ -121,20 +184,27 @@ RETIRED: dict[str, tuple[str, str, str, str]] = {
 # risk that belongs in the retirement record too.
 COMPONENT_DEFAULT_CACHE = "2Gi"
 RAISED_CACHE: dict[str, str] = {
-    # 2.06 GiB of data against the 2Gi default - the only volume in either wave
-    # inside the measured danger zone.
-    "downloads/sabnzbd.yaml": "10Gi",
+    # 2.06 GiB of data against the 2Gi default - the only volume in the first
+    # two waves inside the measured danger zone.
+    "downloads/sabnzbd": "10Gi",
+    # Raised 2Gi -> 10Gi on 2026-09-02, before this retirement, by the fleet
+    # audit in docs/backups/kopiur-populator-drift-2026-09-02.md: tdarr sat at
+    # 87% of usable cache and radarr at 70%, and the requirement does not rise
+    # smoothly past the cache - it jumps to the ~6.2 GiB plateau. 10Gi clears
+    # the plateau outright, so neither can reach the cliff again. tdarr is
+    # additionally r2-PROVEN at exactly this value.
+    "media/tdarr": "10Gi",
+    "downloads/radarr": "10Gi",
 }
 
 # Stated separately from len(RETIRED) on purpose: this is the number a human
 # decided, so a row appearing or vanishing from RETIRED has to be a deliberate
 # edit here too rather than something the test silently accommodates.
 #
-# Was 8 (4 pilot + 4 wave two). Now 7: `downloads/autobrr` was retired in wave
-# two and then the APP ITSELF was removed on 2026-09-02, so there is no overlay
-# left to hold a retirement contract against. Eight volumes were retired; seven
-# are still in the fleet, and this counts the latter.
-EXPECTED_RETIRED_COUNT = 7
+# Was 8 (4 pilot + 4 wave two), then 7 once `downloads/autobrr` was retired in
+# wave two and the APP ITSELF removed on 2026-09-02, leaving no overlay to hold
+# a retirement contract against. Wave three adds 11 in tier A.
+EXPECTED_RETIRED_COUNT = 18
 
 
 class Failure(Exception):
@@ -150,10 +220,39 @@ def load_multi(path: Path) -> list[dict[str, Any]]:
     return [d for d in yaml.safe_load_all(path.read_text()) if d]
 
 
-def overlay(rel: str) -> dict[str, Any]:
+def kustomizations(rel: str) -> dict[str, dict[str, Any]]:
+    """Every Flux Kustomization in an overlay file, keyed by metadata.name."""
     docs = [d for d in load_multi(APPS_MAIN / rel) if d.get("kind") == "Kustomization"]
-    require(len(docs) == 1, f"expected exactly 1 Flux Kustomization in {rel}, got {len(docs)}")
-    return docs[0]
+    require(docs, f"no Flux Kustomization in {rel}")
+    by_name = {d["metadata"]["name"]: d for d in docs}
+    require(
+        len(by_name) == len(docs),
+        f"duplicate Kustomization names in {rel}: {[d['metadata']['name'] for d in docs]}",
+    )
+    return by_name
+
+
+def overlay(rel: str, name: str) -> dict[str, Any]:
+    """The one Flux Kustomization named `name` in overlay file `rel`.
+
+    Selected by name rather than by "the only document in the file" because two
+    retired volumes live in multi-Kustomization overlays (the `wait: true`
+    split), and a third - `selfhosted/syncthing` - shares its file with the
+    separate, deliberately NOT-retired `syncthing-data` claim.
+    """
+    by_name = kustomizations(rel)
+    require(name in by_name, f"{rel}: no Flux Kustomization named {name!r} (have {sorted(by_name)})")
+    return by_name[name]
+
+
+def claim_ks(v: Retired) -> dict[str, Any]:
+    """The Kustomization that owns the PVC."""
+    return overlay(v.rel, v.ks)
+
+
+def backup_ks(v: Retired) -> dict[str, Any]:
+    """The Kustomization that owns the kopiur SnapshotPolicy/Schedule/Restore."""
+    return overlay(v.rel, v.backup_ks or v.ks)
 
 
 def substitute(d: dict[str, Any]) -> dict[str, str]:
@@ -272,53 +371,91 @@ def mover_identity(doc: dict[str, Any]) -> tuple[Any, Any, Any]:
 
 def test_retired_overlays_dropped_volsync() -> None:
     """No volsync Component, no volsync dependency, no VOLSYNC_* key survives."""
-    for rel, (ns, app, _claim, _cap) in RETIRED.items():
-        d = overlay(rel)
-        spec = d["spec"]
+    for key, v in RETIRED.items():
+        ns, app = key.split("/", 1)
+        # Both halves are checked, because a half-revert that put volsync back
+        # on only the backup Kustomization would otherwise pass.
+        for role, d in (("claim", claim_ks(v)), ("backup", backup_ks(v))):
+            spec = d["spec"]
+            require(
+                d["metadata"]["namespace"] == ns,
+                f"{v.rel}[{d['metadata']['name']}]: expected namespace {ns}, got "
+                f"{d['metadata'].get('namespace')}",
+            )
+            comps = spec.get("components") or []
+            require(
+                VOLSYNC_COMPONENT not in comps,
+                f"{v.rel}[{d['metadata']['name']}] ({role}): volsync Component is back - "
+                f"{key} is recorded as retired",
+            )
+            require(
+                not str(spec.get("path") or "").rstrip("/").endswith("components/volsync/backup"),
+                f"{v.rel}[{d['metadata']['name']}] ({role}): path points at the volsync backup "
+                f"bundle, but {key} is recorded as retired",
+            )
+            deps = {(x.get("name"), x.get("namespace")) for x in (spec.get("dependsOn") or [])}
+            require(
+                ("volsync", "system") not in deps,
+                f"{v.rel}[{d['metadata']['name']}] ({role}): still dependsOn volsync/system, but "
+                f"renders no VolSync object - that is a wait on an unrelated app, and the "
+                f"signature of a half-revert",
+            )
+            leftover = sorted(k for k in substitute(d) if k.startswith("VOLSYNC_"))
+            require(
+                not leftover,
+                f"{v.rel}[{d['metadata']['name']}] ({role}): VOLSYNC_* substitute keys survived "
+                f"retirement: {leftover}. Nothing reads them, and on the claim variables they "
+                f"misdescribe what a rebuild would provision.",
+            )
         require(
-            d["metadata"]["namespace"] == ns and d["metadata"]["name"] == app,
-            f"{rel}: expected {ns}/{app}, got "
-            f"{d['metadata'].get('namespace')}/{d['metadata'].get('name')}",
-        )
-        comps = spec.get("components") or []
-        require(
-            VOLSYNC_COMPONENT not in comps,
-            f"{rel}: volsync Component is back - this volume is recorded as retired",
-        )
-        deps = {(x.get("name"), x.get("namespace")) for x in (spec.get("dependsOn") or [])}
-        require(
-            ("volsync", "system") not in deps,
-            f"{rel}: still dependsOn volsync/system, but renders no VolSync object - "
-            f"that is a wait on an unrelated app, and the signature of a half-revert",
-        )
-        leftover = sorted(k for k in substitute(d) if k.startswith("VOLSYNC_"))
-        require(
-            not leftover,
-            f"{rel}: VOLSYNC_* substitute keys survived retirement: {leftover}. Nothing reads "
-            f"them, and on the claim variables they misdescribe what a rebuild would provision.",
+            app == v.ks,
+            f"{key}: table says the claim Kustomization is {v.ks!r}; the key says {app!r}",
         )
 
 
 def test_retired_overlays_keep_the_claim() -> None:
     """The kopiur pvc Component is present - without it, prune deletes the volume."""
-    for rel, (_ns, _app, _claim, _cap) in RETIRED.items():
-        comps = overlay(rel)["spec"].get("components") or []
+    for key, v in RETIRED.items():
+        spec = claim_ks(v)["spec"]
+        comps = spec.get("components") or []
+        # Normal shape carries both Components on one Kustomization. The
+        # `wait: true` split shape carries only the pvc one here and the kopiur
+        # backup half in its own Kustomization, asserted just below.
+        want = [KOPIUR_PVC_COMPONENT] if v.backup_ks else [KOPIUR_COMPONENT, KOPIUR_PVC_COMPONENT]
         require(
-            comps == [KOPIUR_COMPONENT, KOPIUR_PVC_COMPONENT],
-            f"{rel}: components must be exactly [kopiur, kopiur/pvc], got {comps}. The pvc "
-            f"Component is NOT optional: volsync's pvc.yaml was the only manifest emitting this "
-            f"claim and the overlay runs prune: true, so dropping both deletes the data volume.",
+            comps == want,
+            f"{key}: components must be exactly {want}, got {comps}. The pvc Component is NOT "
+            f"optional: volsync's pvc.yaml was the only manifest emitting this claim and the "
+            f"overlay runs prune: true, so dropping both deletes the data volume.",
         )
         require(
-            overlay(rel)["spec"].get("prune") is True,
-            f"{rel}: prune must stay true (this test's premise, and the fleet convention)",
+            spec.get("prune") is True,
+            f"{key}: prune must stay true (this test's premise, and the fleet convention)",
         )
+        if v.backup_ks:
+            bspec = backup_ks(v)["spec"]
+            require(
+                str(bspec.get("path") or "").rstrip("/").endswith("components/kopiur/backup"),
+                f"{key}: split-shape backup Kustomization {v.backup_ks!r} must point at "
+                f"components/kopiur/backup, got {bspec.get('path')!r}",
+            )
+            require(
+                bspec.get("wait") is not True,
+                f"{key}: the split exists precisely so the kopiur half runs wait: false - the "
+                f"standing Restore is Ready=False by design and would time the Kustomization out",
+            )
+            require(
+                bspec.get("prune") is True,
+                f"{key}: prune must stay true on the split-shape backup Kustomization too",
+            )
 
 
 def test_rendered_claim_is_correct_per_app() -> None:
     """Render components/kopiur/pvc under each retired overlay's own substitute map."""
-    for rel, (_ns, app, claim, cap) in RETIRED.items():
-        env = {**substitute(overlay(rel)), "SECRET_DOMAIN": "example.test"}
+    for key, v in RETIRED.items():
+        app = v.ks
+        claim, cap, rel = v.claim, v.capacity, v.rel
+        env = {**substitute(claim_ks(v)), "SECRET_DOMAIN": "example.test"}
         pvc = render_pvc(env)
 
         require(
@@ -372,11 +509,11 @@ def test_capacity_is_stated_not_defaulted() -> None:
     the one it replaced. Requiring it everywhere means nobody has to remember
     which apps are the exceptions.
     """
-    for rel, (_ns, _app, _claim, cap) in RETIRED.items():
-        sub = substitute(overlay(rel))
+    for key, v in RETIRED.items():
+        sub = substitute(claim_ks(v))
         require(
-            sub.get("KOPIUR_CAPACITY") == cap,
-            f"{rel}: KOPIUR_CAPACITY must be stated as {cap!r} (the live claim), got "
+            sub.get("KOPIUR_CAPACITY") == v.capacity,
+            f"{key}: KOPIUR_CAPACITY must be stated as {v.capacity!r} (the live claim), got "
             f"{sub.get('KOPIUR_CAPACITY')!r}",
         )
 
@@ -396,20 +533,23 @@ def test_restore_cache_matches_the_measured_gate() -> None:
     cache - as was autobrr's 2,179 B before that app was removed. The two `selfhosted` ones are additionally
     structural: a 2Gi PVC cannot hold more than its 2Gi cache covers.
     """
-    for rel in RETIRED:
-        got = substitute(overlay(rel)).get("KOPIUR_CACHE_CAPACITY")
-        if rel in RAISED_CACHE:
-            want = RAISED_CACHE[rel]
+    for key, v in RETIRED.items():
+        # The cache variable drives the backup movers AND the standing Restore,
+        # so it is read from whichever Kustomization renders those - which is
+        # not the claim's one under the split shape.
+        got = substitute(backup_ks(v)).get("KOPIUR_CACHE_CAPACITY")
+        if key in RAISED_CACHE:
+            want = RAISED_CACHE[key]
             require(
                 got == want,
-                f"{rel}: KOPIUR_CACHE_CAPACITY must be {want} - measured to need more than the "
+                f"{key}: KOPIUR_CACHE_CAPACITY must be {want} - measured to need more than the "
                 f"{COMPONENT_DEFAULT_CACHE} default, and an r2 restore needs materially more "
                 f"kopia cache than a ceph one (a failed Restore is terminal). Got {got!r}",
             )
         else:
             require(
                 got in (None, COMPONENT_DEFAULT_CACHE),
-                f"{rel}: expected the {COMPONENT_DEFAULT_CACHE} default cache, got {got!r}. If "
+                f"{key}: expected the {COMPONENT_DEFAULT_CACHE} default cache, got {got!r}. If "
                 f"this volume has grown enough to need more, add it to RAISED_CACHE and update "
                 f"the retirement document too.",
             )
@@ -426,7 +566,7 @@ def test_retired_set_matches_stage3() -> None:
     source text.
     """
     stage3 = load_stage3_retired_claims()
-    here = {(ns, claim) for (ns, _app, claim, _cap) in RETIRED.values()}
+    here = {(key.split("/", 1)[0], v.claim) for key, v in RETIRED.items()}
     require(
         stage3 == here,
         f"retired set drifted between the two tests: only in stage3 {sorted(stage3 - here)}, "
@@ -435,7 +575,7 @@ def test_retired_set_matches_stage3() -> None:
     require(
         len(here) == EXPECTED_RETIRED_COUNT,
         f"expected {EXPECTED_RETIRED_COUNT} retired volumes still in the fleet "
-        f"(4 pilot + 4 wave two, less autobrr whose app was removed); "
+        f"(4 pilot + 4 wave two, less autobrr whose app was removed, + wave three); "
         f"got {len(here)}",
     )
 
@@ -447,19 +587,24 @@ def test_no_other_overlay_uses_the_pvc_component() -> None:
     kustomize resource collision that is the reason this is a separate
     Component in the first place.
     """
+    # (overlay file, Kustomization name) pairs entitled to carry the Component.
+    entitled = {(v.rel, v.ks) for v in RETIRED.values()}
     offenders: list[str] = []
     for f in sorted(APPS_MAIN.rglob("*.yaml")):
         rel = f"{f.parent.name}/{f.name}"
         for d in load_multi(f):
             if d.get("kind") != "Kustomization":
                 continue
+            name = (d.get("metadata") or {}).get("name")
             comps = (d.get("spec") or {}).get("components") or []
             has_pvc = KOPIUR_PVC_COMPONENT in comps
             has_volsync = VOLSYNC_COMPONENT in comps
             if has_pvc and has_volsync:
-                offenders.append(f"{rel}: both volsync and kopiur/pvc (PVC name collision)")
-            if has_pvc and rel not in RETIRED:
-                offenders.append(f"{rel}: uses kopiur/pvc but is not a recorded retired volume")
+                offenders.append(f"{rel}[{name}]: both volsync and kopiur/pvc (PVC name collision)")
+            if has_pvc and (rel, name) not in entitled:
+                offenders.append(
+                    f"{rel}[{name}]: uses kopiur/pvc but is not a recorded retired volume"
+                )
     require(not offenders, "kopiur/pvc Component misuse: " + "; ".join(offenders))
 
 
@@ -472,8 +617,9 @@ def test_retired_backup_shape_is_complete() -> None:
     Restore, credentialProjection on each of those, and a Restore mover identity
     equal to the SnapshotPolicy's so the populator can read back what was written.
     """
-    for rel, (_ns, app, claim, _cap) in RETIRED.items():
-        env = {**substitute(overlay(rel)), "SECRET_DOMAIN": "example.test"}
+    for key, v in RETIRED.items():
+        app, claim, rel = v.ks, v.claim, v.rel
+        env = {**substitute(backup_ks(v)), "SECRET_DOMAIN": "example.test"}
         docs = render_backup(env)
         by_kind: dict[str, list[dict[str, Any]]] = {}
         for d in docs:

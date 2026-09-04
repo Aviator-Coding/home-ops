@@ -130,7 +130,7 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 
 # --- Stage 5: claims VolSync has been RETIRED from (kopiur is their only engine) ---
 #
-# Eight claims across two waves. 22 of the fleet's 30 stay dual-engine.
+# 27 claims across three waves. Three of the fleet's 29 stay dual-engine.
 #
 # Wave one - the pilot four, retired 2026-09-01. Each was restore-proven on
 # BOTH destinations first (docs/backups/kopiur-restore-proof-2026-09-01.md) and
@@ -148,11 +148,21 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 # in content AND metadata) plus, for the two `selfhosted` claims, a 2Gi PVC
 # that cannot outgrow its 2Gi restore cache.
 #
-# Deliberately NOT here: `selfhosted/paperless-ngx` (captain carve-out, stays
-# dual-engine permanently), `selfhosted/syncthing-data` and
+# Wave three - the remaining 19 eligible claims, retired 2026-09-04, on the
+# same fleet restore proof plus a re-measured restore-cache audit. Recorded in
+# docs/backups/kopiur-wave-three-retirement-2026-09-04.md. Shipped in three
+# risk-tiered commits (11 ordinary config volumes, 4 large claims, 4 carrying
+# real user-authored state) so a revert stays surgical; the tiering is a
+# sequencing device, not three different evidence standards - every row cleared
+# the same gate.
+#
+# Deliberately NOT here, and this is now the WHOLE of the dual-engine fleet:
+# `selfhosted/paperless-ngx` (captain carve-out, stays dual-engine
+# permanently), `selfhosted/syncthing-data` and
 # `selfhosted/paperless-ngx-media` (wave two found their proofs cover nothing
-# meaningful, and both sit behind a restore cache they would cross the first
-# time they hold real data).
+# meaningful - 5 files / 531 B and 1 file / 0 B respectively - and both sit
+# behind a restore cache they would cross the first time they hold real data;
+# re-measured 2026-09-04 and both still empty, so both verdicts stand).
 #
 # This set is the fleet's legibility record: anything in it has ONE backup
 # engine, and anything not in it must still have two. Adding a row here is an
@@ -181,6 +191,18 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     ("downloads", "prowlarr-config"),
     ("selfhosted", "ntfy"),
     ("selfhosted", "obsidian-livesync"),
+    # wave three, 2026-09-04 - tier A, ordinary config volumes (11)
+    ("database", "pgadmin"),
+    ("downloads", "bazarr-config"),
+    ("downloads", "lidarr-config"),
+    ("downloads", "radarr-config"),
+    ("downloads", "readarr-config"),
+    ("downloads", "sonarr-config"),
+    ("home-automation", "esphome-config"),
+    ("home-automation", "matter-server"),
+    ("home-automation", "zigbee2mqtt-data"),
+    ("media", "tdarr-config"),
+    ("selfhosted", "changedetection-config"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of

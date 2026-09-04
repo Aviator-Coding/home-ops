@@ -10,18 +10,41 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier A
+    # (ordinary config volumes). kopiur is now the ONLY backup engine on this
+    # claim.
+    #
+    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # row 21 - 17278/17278 files restored from BOTH destinations into a scratch
+    # PVC with an identical per-file manifest digest (`b29eb20847d8`), the
+    # largest file count of any tier-A claim. This is ALSO the one claim in the
+    # wave whose restore cache has been r2-proven end to end at its standing
+    # value: 17,281 files / 1,820,653,922 bytes restored from r2 at exactly the
+    # 10Gi below, matching the snapshot's filesNew/sizeBytes, 0 mode or
+    # ownership differences across 24,054 entries
+    # (docs/backups/kopiur-populator-drift-2026-09-02.md).
+    #
+    # The hand-authored transcode flows are versioned in docs/tdarr/flow-nodes/
+    # and are therefore reconstructible, which is what puts this claim in tier
+    # A despite its size. Captain decision 2026-09-04; retirement record:
+    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   dependsOn:
     - name: intel-device-plugin-gpu
       namespace: system
     - name: rook-ceph-cluster
       namespace: rook-ceph
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # This Kustomization never carried a `volsync` (system) dependency, unlike
+    # its siblings - retirement therefore removes nothing here. kopiur is the
+    # sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   interval: 30m
@@ -32,12 +55,18 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 5Gi
-      VOLSYNC_CLAIM: tdarr-config
-      VOLSYNC_SCHEDULE_CEPH: "50 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "20 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "50 3 * * *"
+      # The claim is `tdarr-config` while the app is `tdarr` (and `tdarr-temp`,
+      # the 200Gi RWX transcode scratch in the base app, is deliberately backed
+      # up by neither engine). This drove the retired VOLSYNC_CLAIM and now
+      # also drives the pvc Component's PVC name, so it is load-bearing in a
+      # second place after retirement.
       KOPIUR_CLAIM: tdarr-config
+      # Inherited from the retired VOLSYNC_CAPACITY and matched to the LIVE
+      # claim (5Gi, holding 1.72 GiB - measured 2026-09-04). Under the pvc
+      # Component's `ssa: IfNotPresent` this is create-time-only for the claim
+      # that already exists, but it is exactly what a REBUILD would provision -
+      # so it is stated rather than left to the component default.
+      KOPIUR_CAPACITY: 5Gi
       # Matched to the file ownership, measured 2026-08-30: 23992 of 23993
       # entries are owned 2000:2000 (the pod's own runAsUser is 0 with fsGroup
       # 2000). The default of 1000 reads this volume today, but with 17,233

@@ -98,14 +98,46 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier A
+    # (ordinary config volumes). kopiur is now the ONLY backup engine on this
+    # claim; its backup half lives in the `pgadmin-kopiur` Kustomization below,
+    # which is unchanged by this retirement.
+    #
+    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # row 4 - 3/3 files restored from BOTH destinations into a scratch PVC with
+    # an identical per-file manifest digest (`81937622ac41`). Content class:
+    # pgAdmin's own UI state (server list, preferences); every database it
+    # administers is CNPG-managed with its own continuous archiving, so nothing
+    # unique to a cluster lives here. Captain decision 2026-09-04; retirement
+    # record: docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # THIS ENTRY IS THE ONE THAT KEEPS THE PVC ALIVE, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # Kustomization runs prune: true - so removing it without a replacement
+    # makes Flux DELETE the app's data volume for a change that was only ever
+    # meant to remove a backup engine. components/kopiur/pvc/pvc.yaml also
+    # explains why that file must carry `ssa: IfNotPresent`.
+    #
+    # Note the SHAPE here differs from the fleet's other retired overlays,
+    # which carry `[components/kopiur, components/kopiur/pvc]` together: this
+    # Kustomization sets `wait: true`, so the kopiur BACKUP half (whose
+    # standing Restore is Ready=False by design) has to stay in its own
+    # `wait: false` Kustomization. Only the claim moves here. media/calibre.yaml
+    # carries the same split for the same reason.
+    - ../../../../../components/kopiur/pvc
   interval: 30m
   dependsOn:
     - name: cloudnative-pg
       namespace: database
     - name: rook-ceph
       namespace: rook-ceph
-    - name: volsync
+    # The `volsync` (system) dependency went with the volsync Component above.
+    # `kopiur-repository` (system) replaces it: this Kustomization now renders a
+    # claim whose dataSourceRef names a kopiur `Restore`, so the kopiur CRDs and
+    # repositories have to exist before it is applied. The backup objects
+    # themselves are still ordered by the `pgadmin-kopiur` Kustomization below,
+    # which depends on this one.
+    - name: kopiur-repository
       namespace: system
     - name: external-secrets
       namespace: security
@@ -121,10 +153,24 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 2Gi
-      VOLSYNC_SCHEDULE_CEPH: "0 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "0 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "0 1 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
+      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
+      # default, which would provision a rebuilt claim at 2.5x the live one.
+      # Matched to the LIVE claim (2Gi, holding 0.93 GiB - measured
+      # 2026-09-04). Under the pvc Component's `ssa: IfNotPresent` this is
+      # create-time-only for the claim that already exists, but it is exactly
+      # what a REBUILD would provision.
+      KOPIUR_CAPACITY: 2Gi
+      # KOPIUR_CACHE_CAPACITY belongs on the `pgadmin-kopiur` Kustomization
+      # below, not here - this Kustomization renders only the claim. It is
+      # deliberately left at the 2Gi component default there. That is the
+      # highest utilisation of any 2Gi-default claim in the fleet (0.93 GiB
+      # against ~1.95 GiB usable = 48%), adjudicated "ok" by the fleet audit in
+      # docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md and re-measured
+      # unchanged on 2026-09-04. It is also bounded: a 2Gi claim cannot grow
+      # far past the cache. Watch it if the claim is ever expanded.
   prune: true
   sourceRef:
     kind: GitRepository

@@ -11,21 +11,37 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 4. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
-    - ../../../../../components/volsync
+    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier A
+    # (ordinary config volumes). kopiur is now the ONLY backup engine on this
+    # claim.
+    #
+    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # row 16 - 161/161 files restored from BOTH destinations into a scratch PVC
+    # with an identical per-file manifest digest (`364f08cdd3bb`), including
+    # the five 0600 fabric-credential files that a uid-1000 mover cannot open.
+    # That is exactly what the root mover below exists for, and it is the whole
+    # reason this claim can be single-engine at all. Captain decision
+    # 2026-09-04; retirement record:
+    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+    #
+    # The second include is what keeps the PVC alive, and it is not optional.
+    # The volsync Component was the only manifest emitting this claim, and this
+    # overlay runs prune: true - so removing it without a replacement makes
+    # Flux DELETE the app's data volume for a change that was only ever meant
+    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
+    # why that file must carry `ssa: IfNotPresent`.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
   interval: 10m
   path: "./kubernetes/apps/base/home-automation/matter-server/app"
   prune: true
   dependsOn:
-    - name: volsync
-      namespace: system
     - name: multus-networks
       namespace: kube-system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
+    # The `volsync` (system) dependency went with the volsync Component above -
+    # nothing in this Kustomization renders a VolSync object any more, so
+    # waiting on the VolSync operator would be a dependency on an unrelated app.
+    # kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   sourceRef:
@@ -39,11 +55,21 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CAPACITY: 1Gi
-      VOLSYNC_CLAIM: matter-server
-      VOLSYNC_SCHEDULE_CEPH: "20 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "20 1 * * *"
+      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
+      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}.
+      #
+      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
+      # default, which would provision a rebuilt claim at 5x the live one.
+      # Matched to the LIVE claim (1Gi, holding 1.5 MiB - measured 2026-09-04).
+      # Under the pvc Component's `ssa: IfNotPresent` this is create-time-only
+      # for the claim that already exists, but it is exactly what a REBUILD
+      # would provision.
+      KOPIUR_CAPACITY: 1Gi
+      # KOPIUR_CACHE_CAPACITY deliberately left at the 2Gi component default,
+      # and here that is STRUCTURAL rather than a judgement call: a 1Gi claim
+      # cannot hold more than the 2Gi cache covers, so this volume can never
+      # reach the restore-cache cliff - the same argument that authorised
+      # selfhosted/ntfy and obsidian-livesync in wave two.
       # LOAD-BEARING, measured live 2026-08-31: 163 entries / 161 files /
       # 1,548,374 bytes on the claim. 12 entries are 0:0 (including five 0600
       # fabric-credential files that a uid-1000 mover cannot open) and 151 are
