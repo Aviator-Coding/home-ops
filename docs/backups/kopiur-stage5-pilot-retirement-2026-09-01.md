@@ -527,9 +527,10 @@ repositories were never touched, so VolSync simply picks up where it left off.
 
 ## Fleet state after this change
 
-**As of this pilot: 26 of 30 claims dual-engine, 4 kopiur-only.** A later wave on 2026-09-02 took
-the live fleet to **22 dual-engine / 8 kopiur-only** - current inventory owner:
-[`kopiur-wave-two-retirement-2026-09-02.md`](kopiur-wave-two-retirement-2026-09-02.md). The
+**As of this pilot: 26 of 30 claims dual-engine, 4 kopiur-only.** Wave two (2026-09-02) took the
+fleet to 22 dual-engine / 8 kopiur-only; wave three (2026-09-04) finished eligible retirement at
+**3 dual-engine / 26 kopiur-only** - current inventory owner:
+[`kopiur-wave-three-retirement-2026-09-04.md`](kopiur-wave-three-retirement-2026-09-04.md). The
 authoritative machine-readable record is `RETIRED_CLAIMS` in
 [`scripts/ci/kopiur-stage3-test.py`](../../scripts/ci/kopiur-stage3-test.py), which asserts the set
 exactly in both directions - a claim that goes single-engine without being listed fails, and a

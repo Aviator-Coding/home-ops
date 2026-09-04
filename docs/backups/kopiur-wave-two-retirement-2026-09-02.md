@@ -24,8 +24,10 @@
 > [Verification](#verification-what-must-be-checked-after-flux-reconciles). That section is the
 > **gate, not a record**. A deviation on the first row means stop, not repair.
 
-Eight of the fleet's 30 claims now have exactly ONE backup engine. This is the second wave, and
-the first that includes content nobody can regenerate.
+Eight of the fleet's 30 claims had exactly ONE backup engine after this wave. This is the second
+wave, and the first that includes content nobody can regenerate. **Current inventory after wave
+three (2026-09-04): 26 kopiur-only / 3 dual-engine** -
+[`kopiur-wave-three-retirement-2026-09-04.md`](kopiur-wave-three-retirement-2026-09-04.md).
 
 Authorising evidence: [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md)
 (merged as `ebc185e9`, PR #1546), whose part 4 gives a per-claim retirement verdict for six thin

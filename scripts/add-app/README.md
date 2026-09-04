@@ -20,10 +20,11 @@ This is a plain script, not an interactive generator - it produces a skeleton wi
 placeholders (image/tag, ports, uid/gid, 1Password keys), not a finished app. After running it:
 
 1. Fill in every `TODO` in the generated files.
-2. Decide whether the app needs a `components/volsync` and/or `components/kopiur` backup
-   include. This is deliberately **not** auto-generated - it requires measuring the app's live
-   file ownership after first deploy (see `kubernetes/components/volsync/Readme.md` and
-   `kubernetes/components/kopiur/Readme.md`), which a template can't know in advance.
+2. Decide whether the app needs backups. The normal path is kopiur-only
+   (`components/kopiur` + `components/kopiur/pvc`); do **not** add `components/volsync` to a new
+   app. This is deliberately **not** auto-generated - it requires measuring the app's live file
+   ownership after first deploy (see `kubernetes/components/kopiur/Readme.md`), which a template
+   can't know in advance.
 3. Validate: `mise exec -- task flux:test:all`.
 
 ## What it does not do
@@ -31,6 +32,6 @@ placeholders (image/tag, ports, uid/gid, 1Password keys), not a finished app. Af
 - Does not generate the `parameterized instance` shape's parent-directory wiring (one live
   precedent in this repo, its own `resources:` list is hand-maintained - the script writes the
   instance's own files and tells you the one line to add by hand).
-- Does not wire VolSync/kopiur, ingress auth, Gatus endpoints, or Homepage annotations - these are
-  per-app judgment calls, not structural boilerplate.
+- Does not wire kopiur (or the three VolSync carve-outs), ingress auth, Gatus endpoints, or
+  Homepage annotations - these are per-app judgment calls, not structural boilerplate.
 - Does not touch any existing app. It refuses to overwrite a file that already exists.

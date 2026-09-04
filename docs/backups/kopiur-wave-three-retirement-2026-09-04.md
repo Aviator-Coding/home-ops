@@ -26,8 +26,9 @@
 >
 > That section is the **gate, not a record**. A deviation on the first row means stop, not repair.
 
-This finishes the VolSync → kopiur migration. 27 of the fleet's 30 claims now have exactly one
-backup engine; the three that do not are deliberate carve-outs, not leftovers.
+This finishes the VolSync → kopiur migration. **26 of the fleet's 29 claims** are kopiur-only
+(27 retirements across three waves; `autobrr` left the fleet with its app on 2026-09-02). The three
+that remain dual-engine are deliberate carve-outs, not leftovers.
 
 Authorising evidence, all already on `main` before this was written - evidence that authorises an
 irreversible step has to be committed, not pending:
@@ -49,7 +50,7 @@ that a surprise stops one tier rather than the fleet.
 | | |
 |---|---|
 | Volumes retired here | **19**, in three tiers, as three commits |
-| Volumes retired in total | **27 of 30** (4 pilot + 4 wave two + 19 here; `autobrr` left the fleet with its app) |
+| Volumes retired in total | **27** across the historical 30 (4 pilot + 4 wave two + 19 here); **26 of 29** live claims are kopiur-only (`autobrr` left the fleet with its app) |
 | Volumes still dual-engine | **3** - `selfhosted/paperless-ngx`, `paperless-ngx-media`, `syncthing-data` |
 | VolSync objects removed | 57 `ReplicationSource`, 19 `ReplicationDestination`, 57 `ExternalSecret` (+57 `Secret` and 57 cache PVCs by cascade) |
 | kopiur objects changed | **none** - 0 added, 0 changed, 0 removed across the whole rendered tree |

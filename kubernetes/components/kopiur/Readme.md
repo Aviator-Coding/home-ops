@@ -355,28 +355,33 @@ kubectl -n <ns> exec <probe> -- sh -c 'find /datastore -type f ! -readable | wc 
 
 ## Per-Application Usage
 
-In the app's Flux Kustomization (`apps/main/<ns>/<app>.yaml`), **alongside**
-volsync while both engines run. Retiring volsync from a volume is a separate,
-evidence-gated step - see "Retiring a volume" below; do not drop the volsync
-entry as part of onboarding.
+**kopiur-only is the default** for any new claim (Stage 5 complete 2026-09-04).
+Do not add `components/volsync` to a new app. The three dual-engine carve-outs
+are deliberate end state, not a template - see "Retiring a volume" and
+[`../volsync/Readme.md`](../volsync/Readme.md).
+
+In the app's Flux Kustomization (`apps/main/<ns>/<app>.yaml`):
 
 ```yaml
   dependsOn:
-    - name: volsync
-      namespace: system
     - name: kopiur-repository        # applies the ceph/r2 ClusterRepositories
       namespace: system              # and itself dependsOn the operator
   components:
-    - ../../../../../components/volsync
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc   # owns the claim; ssa: IfNotPresent
   postBuild:
     substitute:
       APP: *app
+      KOPIUR_CAPACITY: 5Gi                   # must match the LIVE claim size
+      # measured KOPIUR_PUID/PGID when non-default; KOPIUR_SCHEDULE_R2 per ns
 ```
 
 `dependsOn: kopiur-repository` is not optional. The kopiur admission webhook is
 `failurePolicy: Fail`, so with the operator down the API server **rejects** these
-CRs outright rather than leaving them unreconciled.
+CRs outright rather than leaving them unreconciled. `components/kopiur/pvc` is
+required on kopiur-only claims: without it, nothing emits the PVC. Full PVC
+hazard notes are under "Retiring a volume" below (same `ssa: IfNotPresent`
+contract applies on first create of a bound claim).
 
 There is deliberately **no credential dependency here**. Credentials are minted
 per run by the operator and reaped afterwards - see "Credentials" above. A new
@@ -456,7 +461,8 @@ puts the claim back in the inventory, owned by kopiur instead.
 It is a separate Component rather than part of this one because retirement is
 per-volume: a claim moves engines one app at a time, and folding the PVC into
 `../kustomization.yaml` would make it collide with `../volsync/pvc.yaml` for
-every app still running both. When the last volume retires, it collapses in.
+every app still running both. Only three dual-engine claims remain; folding `./pvc` into the parent is still
+deferred while those three keep `../volsync/pvc.yaml`.
 
 ### `dataSourceRef` is immutable, hence `ssa: IfNotPresent`
 

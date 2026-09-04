@@ -176,11 +176,11 @@ ones it can prevent by construction; the rest need a human or agent to check for
   `Ready=False`/`AwaitingPvcDataSourceRef` until a rebuilt claim actually claims it - which is
   correct, but it means the owning Kustomization must not set `wait: true` or Flux blocks forever
   on that one object. Flux's default for `spec.wait` is `false` (omitting it is fine); the trap is
-  explicitly enabling it when the inventory includes the standing Restore. Split kopiur into its
-  own `wait: false` Kustomization pointed at `components/kopiur/backup`, the way
-  `database/cloudnative-pg.yaml` and `media/calibre-web-automated.yaml` do, when an overlay would
-  otherwise wait on the whole inventory. Full mechanism: `kubernetes/components/kopiur/Readme.md`,
-  trap (4).
+  explicitly enabling it when the inventory includes the standing Restore. Prefer `wait: false`
+  plus workload `healthChecks`. `database/pgadmin` and `media/calibre-web-automated` still keep a
+  retained split (`components/kopiur/pvc` on the claim KS, backup half on a sibling `wait: false`
+  KS) and the backup KS must **not** `dependsOn` the claim KS (greenfield Restore/PVC deadlock).
+  Full mechanism: skill `kopiur-backups` trap (4), `docs/backups/kopiur-wave-three-retirement-2026-09-04.md`.
 - **Don't infer a backup mover's identity from the pod's `runAsUser`/`fsGroup` - measure the files
   it must read.** `KOPIUR_PUID`/`PGID` and `VOLSYNC_PUID`/`PGID` default to `1000`; any file
   without a matching read bit makes kopiur fail closed (VolSync survives the same mismatch only
