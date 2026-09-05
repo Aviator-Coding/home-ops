@@ -291,6 +291,23 @@ spec:
               - path: /opt/data
             codeserver:
               - path: /opt/data
+      # Shared XML corpus (RWX, ns-level claim `shared-xml`), the same volume the
+      # `samba` app serves on the LAN at smb://10.50.0.55/xml. READ-WRITE on
+      # purpose - the captain asked for a two-way share.
+      #
+      # Only the `app` container gets it: the init containers seed /opt/data and
+      # have no business here, and code-server does not need it.
+      #
+      # Ownership is safe in both directions because smbd does all of its I/O as
+      # uid/gid 10000 (`force user`/`force group` in the samba app's smb.conf),
+      # which is the identity this agent already runs as (HERMES_UID/HERMES_GID
+      # above, pod fsGroup below).
+      xml:
+        existingClaim: shared-xml
+        advancedMounts:
+          hermes:
+            app:
+              - path: /opt/xml
       # Single private-repo git token, rendered as `.git-credentials` by the
       # hermes-git ExternalSecret and read by the git `store` helper (see
       # GIT_CONFIG_* env above). reloader restarts the pod on token rotation.

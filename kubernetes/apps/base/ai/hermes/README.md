@@ -5,7 +5,7 @@ self-improving conversational AI agent (learning loop, persistent memory, skills
 deployed here as a homelab operator. Self-contained Python image; no upstream Helm
 chart, so this is a hand-authored `app-template` deploy.
 
-The pod runs two containers (one controller, one PVC):
+The pod runs two containers:
 
 | Container | Purpose | URL |
 | --------- | ------- | --- |
@@ -13,6 +13,13 @@ The pod runs two containers (one controller, one PVC):
 | `codeserver` | Browser VS Code over `/opt/data` (skills/config/sessions) | `https://hermes-code.${SECRET_DOMAIN}` (LAN) |
 
 Plus an OpenAI-compatible API on `:8642`.
+
+### Volumes
+
+| Mount | Claim | Scope | Notes |
+| ----- | ----- | ----- | ----- |
+| `/opt/data` | chart-owned `hermes` (RWO `ceph-block`) | `app` + `codeserver` | sessions/memories/skills; single-writer; kopiur-backed |
+| `/opt/xml` | ns-level `shared-xml` (RWX `ceph-filesystem-rwx`) | `app` only | ~300k-file XML corpus shared with the captain's Mac over LAN SMB (`samba` at `smb://10.50.0.55/xml`). Read-write on purpose. **Not backed up** (Mac is authoritative) - see the comment on `kubernetes/apps/base/ai/pvc/app/shared-xml.yaml`. Ownership is forced to uid/gid 10000 at the Samba layer (`force user`/`force group` in `kubernetes/apps/base/ai/samba/app/resources/smb.conf`). Flux `dependsOn: ai-pvc` is required so the claim exists before hermes mounts it. |
 
 > The `app` container exposes a terminal + cluster RBAC + git, so the dashboard is
 > gated by basic auth. `codeserver` has **no auth of its own** — it is only on the
@@ -176,10 +183,11 @@ PAT or account SSH key would expose every repo; don't use those.)
 
 ## Notes
 
-- **Single-writer state.** `/opt/data` (sessions/memories/skills, incl. SQLite) is not
+- **Single-writer state on `/opt/data`.** sessions/memories/skills (incl. SQLite) are not
   concurrency-safe → `replicas: 1` + `strategy: Recreate` + RWO `ceph-block` PVC. The
-  `codeserver` sidecar shares the PVC **in the same pod** (no multi-attach). Do not
-  scale up.
+  `codeserver` sidecar shares that claim **in the same pod** (no multi-attach). Do not
+  scale up. The separate RWX `shared-xml` mount at `/opt/xml` is multi-writer by design
+  (hermes + Mac via Samba) and does not change this rule.
 - **Gateway runs via the profile service, not the CMD.** The image auto-starts a
   `gateway-default` s6 service (the gateway: cron + messaging). The container CMD is
   idled (`args: ["sleep","infinity"]`) — passing `gateway run` started a *second*

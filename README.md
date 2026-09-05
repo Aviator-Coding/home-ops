@@ -9,7 +9,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 - **OS:** Talos Linux (3 control-plane nodes, all schedulable)
 - **GitOps:** Flux v2
 - **CNI:** Cilium (native routing, kube-proxy replacement, BGP advertising LoadBalancer IPs; L2 announcements disabled)
-- **Storage:** Rook-Ceph (`ceph-block` RWO, `ceph-filesystem` RWX) plus `openebs-hostpath` for local volumes
+- **Storage:** Rook-Ceph (`ceph-block` RWO, `ceph-filesystem-rwx` RWX; default `ceph-filesystem` still broken - do not use for new claims) plus `openebs-hostpath` for local volumes
 - **Secrets:** 1Password + External Secrets Operator. Bootstrap and Talos secrets are injected by `vals` from vault `Home-Lab`
 - **Ingress:** Gateway API (`envoy-internal` / `envoy-external` in `network`) plus Cloudflare Tunnel
 - **DNS:** External-DNS to Cloudflare (public) and the Unifi webhook (`network/unifi-dns`, internal)
