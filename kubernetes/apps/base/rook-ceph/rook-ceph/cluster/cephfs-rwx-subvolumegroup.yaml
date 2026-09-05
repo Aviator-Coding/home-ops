@@ -16,7 +16,8 @@
 # v20.2.3 did not fix it (live create/getpath still EINVAL; see
 # docs/ceph-cluster-changelog.md 2026-08-21). Do not delete this CR because
 # the image tag is past v20.2.2. Re-test create/getpath against group `csi`
-# before anyone migrates the 3 RWX PVCs back to `ceph-filesystem`.
+# before anyone migrates the 4 RWX PVCs back to `ceph-filesystem`
+# (shared-downloads, tdarr-temp, comfyui-output, shared-xml).
 apiVersion: ceph.rook.io/v1
 kind: CephFilesystemSubVolumeGroup
 metadata:
