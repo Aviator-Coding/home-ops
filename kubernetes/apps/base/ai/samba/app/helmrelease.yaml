@@ -1,0 +1,149 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app samba
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      samba:
+        # One writer identity, one shared RWX volume, and smbd holds per-file
+        # locks in its own process - a second replica would not share that state.
+        replicas: 1
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          # Pin the share root to the identity both sides use, so the very first
+          # SMB connection and the first hermes write land on a directory they
+          # can both traverse and write.
+          #
+          # NON-RECURSIVE on purpose. The share is sized for ~300,000 files; a
+          # `chown -R` would cost minutes on every pod start and buy nothing,
+          # because smbd forces 10000:10000 on everything written through it
+          # (see resources/smb.conf) and the hermes agent already runs as 10000.
+          # For the same reason the pod's fsGroup below uses OnRootMismatch:
+          # once the root is gid 10000 with g+rwx, the kubelet skips its own
+          # recursive walk on every subsequent mount.
+          chown-share:
+            image:
+              repository: docker.io/library/alpine
+              tag: "3.24"
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                chown 10000:10000 /shared
+                chmod 0770 /shared
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+        containers:
+          app:
+            image:
+              repository: ghcr.io/dockur/samba
+              tag: "4.23.10"
+            env:
+              # The entrypoint creates this container-local account and its `smb`
+              # group at exactly these ids, which is what `force user`/`force
+              # group` in smb.conf then resolve to. Both must stay 10000: that is
+              # the uid/gid the hermes agent process runs as.
+              USER: hermes
+              UID: "10000"
+              GID: "10000"
+              TZ: ${CONFIG_TIMEZONE}
+              # Password arrives as a file at /run/secrets/pass (see persistence
+              # below), which the entrypoint prefers over the PASS env.
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: &smb 445
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              readiness: *probes
+              startup:
+                enabled: false
+            securityContext:
+              # smbd must start as root: it creates the uid-10000 account at boot
+              # and then setuids per session to honour `force user`. Neither is
+              # possible from an unprivileged container, so this app is a
+              # deliberate exception to the repo's non-root convention rather
+              # than an oversight. It is reachable only from the LAN (no
+              # HTTPRoute, no envoy listener) and serves exactly one share.
+              runAsUser: 0
+              runAsGroup: 0
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      securityContext:
+        # Matches the hermes pod, so the share root converges to gid 10000
+        # whichever pod happens to mount the fresh volume first.
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+    service:
+      app:
+        controller: samba
+        # LAN-only, on a free address in the Cilium BGP pool (10.50.0.0/24).
+        # Deliberately NOT behind envoy-internal/-external: SMB is not HTTP and
+        # this share must never be publicly reachable.
+        type: LoadBalancer
+        annotations:
+          lbipam.cilium.io/ips: 10.50.0.55
+        ports:
+          smb:
+            port: *smb
+            protocol: TCP
+    persistence:
+      # The shared corpus. Same claim hermes mounts at /opt/xml.
+      shared-xml:
+        existingClaim: shared-xml
+        advancedMounts:
+          samba:
+            chown-share:
+              - path: /shared
+            app:
+              - path: /shared
+      # smb.conf is the whole app - the entrypoint uses it verbatim instead of
+      # generating one from env. Mounted read-only; reloader restarts the pod
+      # when the ConfigMap content changes.
+      smb-config:
+        type: configMap
+        name: samba-configmap
+        advancedMounts:
+          samba:
+            app:
+              - path: /etc/samba/smb.conf
+                subPath: smb.conf
+                readOnly: true
+      # SMB account password, read by the entrypoint and handed to smbpasswd.
+      smb-password:
+        type: secret
+        name: *app
+        advancedMounts:
+          samba:
+            app:
+              - path: /run/secrets/pass
+                subPath: pass
+                readOnly: true

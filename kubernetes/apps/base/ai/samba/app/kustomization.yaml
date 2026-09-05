@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ai
+resources:
+  - ./externalsecret.yaml
+  - ./helmrelease.yaml
+configMapGenerator:
+  # smb.conf, mounted verbatim at /etc/samba/smb.conf. The name is kept stable
+  # (no suffix hash) so reloader's controller annotation drives the restart;
+  # substitution is disabled so Flux's envsubst never touches the file.
+  - name: samba-configmap
+    files:
+      - smb.conf=./resources/smb.conf
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

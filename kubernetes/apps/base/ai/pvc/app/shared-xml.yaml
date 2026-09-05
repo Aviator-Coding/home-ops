@@ -1,0 +1,28 @@
+---
+# Shared XML corpus (RWX): written from the captain's Mac over SMB (ns `ai`,
+# app `samba`) and read/written by the hermes agent at /opt/xml. Standalone
+# rather than embedded in either HelmRelease, because two apps mount it -
+# same reasoning as kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml.
+#
+# `ceph-filesystem-rwx` (subvolumegroup `csi-rwx`), NOT `ceph-filesystem`: the
+# default `csi` group hit the Ceph Tentacle v20.2.1 subvolume corruption and
+# `csi-rwx` is the migrated-to path.
+#
+# DELIBERATELY NOT BACKED UP. No `components/kopiur` on the owning
+# Kustomization and no ReplicationSource: the captain's Mac holds the
+# authoritative copy of this ~32 GB / ~300,000-file corpus, so a nightly run to
+# both Ceph and R2 would be real recurring cost for data that is already safe
+# elsewhere. This omission is a decision, not an oversight; adding
+# `components/kopiur` to kubernetes/apps/main/ai/pvc.yaml later is all it takes
+# to reverse it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-xml
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: ceph-filesystem-rwx
