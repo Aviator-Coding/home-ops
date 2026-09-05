@@ -1,0 +1,233 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app falkordb
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  # Ordering lives on the Flux Kustomization in
+  # kubernetes/apps/main/database/falkordb.yaml (rook-ceph-cluster for the
+  # ceph-block StorageClass, kopiur-repository for the backup CRs' webhook), so
+  # there is no HelmRelease-level dependsOn duplicating half of it here.
+  values:
+    controllers:
+      falkordb:
+        replicas: 1
+        # Recreate, NOT RollingUpdate. The claim below is RWO on ceph-block, so
+        # a rolling update deadlocks: the new pod cannot attach the volume
+        # while the outgoing pod still holds it, and Kubernetes will not evict
+        # the old pod until the new one is Ready. This is also the correct
+        # semantics for a single-writer database - two FalkorDB processes must
+        # never open the same AOF/RDB set.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+
+        containers:
+          app:
+            image:
+              repository: docker.io/falkordb/falkordb
+              tag: v4.20.4@sha256:adbddd418916c25618564ff8597a919b08bc76452ebeb74eb985c38d7281df62
+
+            # --- durability, and it is LOAD-BEARING for the backups ---
+            #
+            # kopiur backs this claim up with `copyMethod: Snapshot` - a CSI
+            # block-level VolumeSnapshot with no application hook, i.e.
+            # CRASH-CONSISTENT, exactly like pulling the power cord. Redis
+            # survives that, but only through what it has already fsynced. On
+            # RDB alone the newest durable state is the last completed `save`
+            # point, so a snapshot restores a stale graph while reporting
+            # complete success. MEASURED on this exact image and claim: one
+            # snapshot taken mid-write restored 2174 of 2199 nodes with
+            # `appendonly yes`, and 200 of 2199 with the image's stock
+            # RDB-only durability - a 91% silent loss, with an identical clean
+            # startup log either way. `appendfsync everysec` bounds the loss to
+            # ~1s of writes; a torn AOF tail is handled by Redis's own
+            # `aof-load-truncated yes` default (confirmed live).
+            # docs/backups/falkordb-snapshot-restorability-2026-09-04.md
+            #
+            # The `save` points stay as a second line of defence: they bound AOF
+            # replay time at start and leave a self-contained dump.rdb in the
+            # snapshot.
+            #
+            # Bypass run.sh and exec redis-server directly. run.sh's only other
+            # action with BROWSER=0 is mkdir of the data dir, which already
+            # exists because the PVC is mounted there. The hazard being avoided:
+            # run.sh does `exec redis-server ${REDIS_ARGS}` UNQUOTED, so a
+            # password put through REDIS_ARGS undergoes field splitting and
+            # pathname expansion. A password with spaces/tabs becomes multiple
+            # argv entries (wrong/empty requirepass while REDISCLI_AUTH from
+            # envFrom keeps the full literal - readiness gets NOAUTH forever),
+            # and one containing * or ? can glob-expand. 1Password-generated
+            # secrets commonly include those characters. --requirepass is
+            # double-quoted so the password is one argv entry regardless of
+            # content; $${FALKORDB_ARGS} stays unquoted on purpose because the
+            # image ships it as multiple separate args (MAX_QUEUED_QUERIES 25
+            # TIMEOUT 1000 RESULTSET_SIZE 10000). `exec` so redis-server stays
+            # PID 1 and receives SIGTERM directly. Redis rewrites its process
+            # title before anything can read argv - verified live: /proc/1/cmdline
+            # is `redis-server *:6379`, with no --requirepass and no password.
+            #
+            # Every $${VAR} IS ESCAPED ON PURPOSE - do not "fix" it to a single
+            # $. Flux's postBuild envsubst runs over the entire built
+            # Kustomization output, and this cluster runs
+            # StrictPostBuildSubstitutions=true, so an unescaped shell variable
+            # here reads as an undefined Flux variable and fails the WHOLE
+            # Kustomization - not just this resource. `flate` does NOT catch it:
+            # it substitutes leniently, renders the token as empty and still
+            # exits 0 (measured on this app: 304 passed with the unescaped form
+            # in place). `$${...}` renders to `${...}`, which is what the shell
+            # then expands at start. AGENTS.md UNIQUE STYLES, skill
+            # `flux-substitution`.
+            command:
+              - /bin/sh
+              - -c
+              - >-
+                exec redis-server --protected-mode no
+                --dir "$${FALKORDB_DATA_PATH}"
+                --loadmodule "$${FALKORDB_BIN_PATH}/falkordb.so"
+                $${FALKORDB_ARGS}
+                --appendonly yes --appendfsync everysec
+                --save 900 1 --save 300 10 --save 60 1000
+                --requirepass "$${FALKORDB_PASSWORD}"
+
+            envFrom:
+              - secretRef:
+                  name: falkordb-secret
+
+            env:
+              # The image ships a Node web UI on :3000 and starts it by default
+              # (BROWSER defaults to 1 in run.sh). This deployment is the
+              # database only - no consumer, no UI, no second listener, and one
+              # less process wanting to write outside the data volume under
+              # readOnlyRootFilesystem.
+              BROWSER: "0"
+
+            probes:
+              # TCP for liveness: cheap, and a FalkorDB that has stopped
+              # accepting connections is dead regardless of why.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: &port 6379
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              # Readiness runs a real command through the graph module, so a
+              # server that is listening but has not loaded falkordb.so does
+              # not read as Ready.
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/bin/sh", "-c", "redis-cli GRAPH.LIST"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              # Startup probe guards a long AOF replay after a restore or an
+              # unclean stop: up to 5 minutes before liveness starts counting.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: *port
+                  periodSeconds: 10
+                  failureThreshold: 30
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
+
+    # Pod-level security, spelled exactly "defaultPodOptions" and a sibling of
+    # controllers:/service:/persistence:. A wrong key or wrong nesting here is
+    # silently DISCARDED by Helm - no flate warning, no Flux error, just a pod
+    # that runs with defaults (docs/app-structure.md, and the live
+    # selfhosted/rsshub-playwright empty-volume outage).
+    #
+    # The image declares no USER and therefore runs as root out of the box;
+    # 1000:1000 is imposed here. fsGroup is what makes the claim writable: the
+    # ceph-block CSI driver is fsGroupPolicy: File, so the kubelet applies the
+    # ownership walk, and OnRootMismatch keeps it to the one time the root
+    # already matches. Measured live before merge - see the overlay's
+    # KOPIUR_PUID/PGID comment for the file-level evidence.
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        controller: falkordb
+        ports:
+          redis:
+            port: *port
+
+    # No `route:` block. FalkorDB speaks the Redis wire protocol on 6379, not
+    # HTTP, so there is nothing for an envoy-internal HTTPRoute to front and no
+    # Gatus endpoint annotation to hang off one. Consumers reach it in-cluster
+    # at falkordb.database.svc.cluster.local:6379.
+
+    persistence:
+      data:
+        # Chart-owned claim rather than one emitted by a backup component.
+        # components/volsync is not used for new claims (the fleet has moved to
+        # kopiur), and components/kopiur/pvc is specifically the
+        # retired-from-volsync claim - it carries a dataSourceRef onto the
+        # standing kopiur populator and is contractually reserved for volumes
+        # recorded as retired in scripts/ci/kopiur-stage5-test.py. This claim
+        # was never VolSync-protected, so it is neither.
+        #
+        # `retain: true` stamps helm.sh/resource-policy: keep, so a HelmRelease
+        # uninstall - including the one an `install.remediation` retry performs
+        # after a failed first install - cannot take the data volume with it.
+        # A component-owned claim gets that property from living in Flux's
+        # inventory instead; a chart-owned one has to ask for it.
+        enabled: true
+        type: persistentVolumeClaim
+        # Pin the claim name. app-template derives it from the release name and
+        # appends the persistence key only when the chart renders MORE THAN ONE
+        # PVC (lib/common/_determineResourceNameFromValues.tpl, `itemCount`), so
+        # with one claim it is `falkordb` and the day someone adds a second
+        # persistence entry every claim silently gains its key as a suffix. That
+        # would rename this one to `falkordb-data`: a brand-new empty volume for
+        # the app, while the kopiur SnapshotPolicy below kept pointing at a
+        # `falkordb` PVC that no longer exists - backups failing on a missing
+        # source, with the app looking perfectly healthy. forceRename makes the
+        # name independent of how many volumes the chart happens to render.
+        forceRename: falkordb
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        storageClass: ceph-block
+        retain: true
+        globalMounts:
+          - path: /var/lib/falkordb/data

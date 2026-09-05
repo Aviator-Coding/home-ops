@@ -93,6 +93,7 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("ai", "hermes"): ("10000", "10000"),
     ("ai", "opencode"): ("1000", "1000"),
     ("ai", "repo-wiki"): ("1000", "1000"),
+    ("database", "falkordb"): ("1000", "1000"),
     ("database", "pgadmin"): ("5050", "5050"),
     ("downloads", "bazarr-config"): ("2000", "2000"),
     ("downloads", "lidarr-config"): ("2000", "2000"),
@@ -216,6 +217,36 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     # files) is a DIFFERENT claim and is deliberately absent - it stays
     # dual-engine.
     ("selfhosted", "syncthing"),
+}
+
+# --- claims that were NEVER VolSync-protected (single-engine from birth) ---
+#
+# A THIRD category, and it is deliberately not folded into RETIRED_CLAIMS above.
+# Both sets describe a claim kopiur is the only engine for, but they assert
+# completely different things:
+#
+#   RETIRED_CLAIMS - VolSync ran here and was REMOVED. Membership is a claim
+#                    that a restore proof exists for that volume, and it is
+#                    cross-checked against scripts/ci/kopiur-stage5-test.py's
+#                    own RETIRED map, its live-measured capacities and its
+#                    retirement records.
+#   NEVER_VOLSYNC  - the claim was created after the migration, so VolSync was
+#                    never wired onto it and nothing was removed. No restore
+#                    proof is implied, and none of the Stage 5 retirement
+#                    paperwork applies.
+#
+# Putting a new app in RETIRED_CLAIMS to quiet the dual-engine assertion would
+# make both files claim a retirement that never happened and a proof that does
+# not exist - so the distinction is kept in the types rather than in a comment.
+#
+# These claims also do NOT use components/kopiur/pvc: that Component exists to
+# take over PVC ownership from volsync at retirement, and stage5's
+# test_no_other_overlay_uses_the_pvc_component holds it to exactly the recorded
+# retired volumes. A born-kopiur app's claim comes from its own chart.
+NEVER_VOLSYNC: set[tuple[str, str]] = {
+    # database/falkordb, added 2026-09-04. New app; kopiur is its only engine
+    # because volsync is no longer wired onto new claims.
+    ("database", "falkordb"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of
@@ -530,7 +561,14 @@ def volsync_covered() -> set[tuple[str, str]]:
 
 
 def test_volsync_still_on_every_unretired_claim() -> None:
-    """VolSync still covers every onboarded claim EXCEPT the Stage 5 pilot four.
+    """VolSync still covers every onboarded claim except the two single-engine sets.
+
+    Single-engine is allowed for exactly two reasons, and they are tracked
+    separately because they assert different things: RETIRED_CLAIMS (VolSync ran
+    and was removed, which asserts a restore proof) and NEVER_VOLSYNC (the claim
+    was created after the migration and never had VolSync at all). See the
+    comment on NEVER_VOLSYNC for why a new app must not be filed as a retirement.
+
 
     Stage 3's original invariant was absolute - both engines on every volume,
     nothing retired. Stage 5 (2026-09-01) began retiring VolSync per volume, so
@@ -559,6 +597,20 @@ def test_volsync_still_on_every_unretired_claim() -> None:
         f"Retiring VolSync from a claim kopiur does not protect leaves it with NO backup.",
     )
 
+    stale_new = sorted(NEVER_VOLSYNC - onboarded_claims)
+    require(
+        not stale_new,
+        f"NEVER_VOLSYNC names claims that are not kopiur-onboarded at all: {stale_new}. "
+        f"A claim that never had VolSync and is not onboarded to kopiur has NO backup.",
+    )
+    overlap = sorted(RETIRED_CLAIMS & NEVER_VOLSYNC)
+    require(
+        not overlap,
+        f"a claim cannot be both retired-from-VolSync and never-VolSync: {overlap}",
+    )
+
+    single_engine_expected = RETIRED_CLAIMS | NEVER_VOLSYNC
+
     for ns, claim, _sub, _d, path in onboarded():
         if (ns, claim) in RETIRED_CLAIMS:
             require(
@@ -568,20 +620,32 @@ def test_volsync_still_on_every_unretired_claim() -> None:
                 f"the claim should come off RETIRED_CLAIMS.",
             )
             continue
+        if (ns, claim) in NEVER_VOLSYNC:
+            require(
+                (ns, claim) not in covered,
+                f"{ns}/{claim} ({path.name}): listed in NEVER_VOLSYNC but a VolSync "
+                f"sibling covers it - volsync is not wired onto new claims, so either "
+                f"the include is a mistake or this claim is not what NEVER_VOLSYNC "
+                f"describes.",
+            )
+            continue
         require(
             (ns, claim) in covered,
             f"{ns}/{claim} ({path.name}): no VolSync sibling covering this claim, and it "
-            f"is not in RETIRED_CLAIMS - both engines must run on every volume that has "
-            f"not been through a Stage 5 retirement with its own restore proof "
-            f"(docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).",
+            f"is in neither RETIRED_CLAIMS nor NEVER_VOLSYNC - a pre-existing volume must "
+            f"keep both engines until it has been through a Stage 5 retirement with its "
+            f"own restore proof "
+            f"(docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md). If this is a "
+            f"brand-new app that never had VolSync, add it to NEVER_VOLSYNC - NOT to "
+            f"RETIRED_CLAIMS, which asserts a retirement and a restore proof.",
         )
 
     retired_now = onboarded_claims - covered
     require(
-        retired_now == RETIRED_CLAIMS,
-        f"single-engine set drifted from RETIRED_CLAIMS: "
-        f"unexpected {sorted(retired_now - RETIRED_CLAIMS)}, "
-        f"missing {sorted(RETIRED_CLAIMS - retired_now)}",
+        retired_now == single_engine_expected,
+        f"single-engine set drifted from RETIRED_CLAIMS | NEVER_VOLSYNC: "
+        f"unexpected {sorted(retired_now - single_engine_expected)}, "
+        f"missing {sorted(single_engine_expected - retired_now)}",
     )
 
 

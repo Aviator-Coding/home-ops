@@ -20,8 +20,10 @@ This is a plain script, not an interactive generator - it produces a skeleton wi
 placeholders (image/tag, ports, uid/gid, 1Password keys), not a finished app. After running it:
 
 1. Fill in every `TODO` in the generated files.
-2. Decide whether the app needs backups. The normal path is kopiur-only
-   (`components/kopiur` + `components/kopiur/pvc`); do **not** add `components/volsync` to a new
+2. Decide whether the app needs backups. The normal path for a **new** never-VolSync app is
+   kopiur-only with `components/kopiur` alone and a chart-owned PVC (example:
+   `database/falkordb`); `components/kopiur/pvc` is the VolSync-retirement takeover shape only.
+   Do **not** add `components/volsync` to a new
    app. This is deliberately **not** auto-generated - it requires measuring the app's live file
    ownership after first deploy (see `kubernetes/components/kopiur/Readme.md`), which a template
    can't know in advance.

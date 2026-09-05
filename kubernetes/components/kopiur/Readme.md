@@ -58,9 +58,11 @@ This component only declares what to back up.
 > Kustomizations by name so the two cannot be confused.
 >
 > Authoritative machine-readable record of which claims are single-engine:
-> `RETIRED_CLAIMS` in
+> `RETIRED_CLAIMS | NEVER_VOLSYNC` in
 > [`scripts/ci/kopiur-stage3-test.py`](../../../scripts/ci/kopiur-stage3-test.py),
-> asserted exactly in both directions. Selection rationale, mechanics and the
+> asserted exactly in both directions (`RETIRED_CLAIMS` = VolSync removed after a
+> restore proof; `NEVER_VOLSYNC` = born-kopiur, never VolSync-protected - e.g.
+> `database/falkordb`). Selection rationale, mechanics and the
 > post-retirement re-proof:
 > [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
 > (wave one),
@@ -360,6 +362,24 @@ Do not add `components/volsync` to a new app. The three dual-engine carve-outs
 are deliberate end state, not a template - see "Retiring a volume" and
 [`../volsync/Readme.md`](../volsync/Readme.md).
 
+There are **two kopiur-only shapes**, and they are not interchangeable:
+
+1. **New never-VolSync app** (born-kopiur). Include `components/kopiur` only.
+   The claim stays **chart-owned** (or otherwise non-populator) - do **not** add
+   `components/kopiur/pvc`. That Component carries a `dataSourceRef` onto the
+   standing kopiur populator and is contractually reserved for volumes in
+   `RETIRED_CLAIMS` (`scripts/ci/kopiur-stage5-test.py`). Record the claim in
+   `NEVER_VOLSYNC` in `scripts/ci/kopiur-stage3-test.py` instead of
+   `RETIRED_CLAIMS` (filing it as a retirement asserts a restore proof and a
+   VolSync removal that never happened). Example:
+   `kubernetes/apps/main/database/falkordb.yaml`.
+2. **VolSync-retirement takeover**. Include both `components/kopiur` and
+   `components/kopiur/pvc` so Flux keeps the existing claim inventoried after
+   volsync is dropped. See "Retiring a volume" below. Example:
+   `kubernetes/apps/main/downloads/sonarr.yaml`.
+
+### New never-VolSync app (born-kopiur)
+
 In the app's Flux Kustomization (`apps/main/<ns>/<app>.yaml`):
 
 ```yaml
@@ -368,20 +388,18 @@ In the app's Flux Kustomization (`apps/main/<ns>/<app>.yaml`):
       namespace: system              # and itself dependsOn the operator
   components:
     - ../../../../../components/kopiur
-    - ../../../../../components/kopiur/pvc   # owns the claim; ssa: IfNotPresent
+    # NO components/kopiur/pvc - the chart (or app base) owns the PVC
   postBuild:
     substitute:
       APP: *app
-      KOPIUR_CAPACITY: 5Gi                   # must match the LIVE claim size
+      # KOPIUR_CAPACITY is only read by components/kopiur/pvc - omit here
       # measured KOPIUR_PUID/PGID when non-default; KOPIUR_SCHEDULE_R2 per ns
+      # KOPIUR_CACHE_CAPACITY sized for a restore of this claim
 ```
 
 `dependsOn: kopiur-repository` is not optional. The kopiur admission webhook is
 `failurePolicy: Fail`, so with the operator down the API server **rejects** these
-CRs outright rather than leaving them unreconciled. `components/kopiur/pvc` is
-required on kopiur-only claims: without it, nothing emits the PVC. Full PVC
-hazard notes are under "Retiring a volume" below (same `ssa: IfNotPresent`
-contract applies on first create of a bound claim).
+CRs outright rather than leaving them unreconciled.
 
 There is deliberately **no credential dependency here**. Credentials are minted
 per run by the operator and reaped afterwards - see "Credentials" above. A new
