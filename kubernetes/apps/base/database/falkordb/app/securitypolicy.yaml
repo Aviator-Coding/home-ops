@@ -1,0 +1,49 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+#
+# House auth pattern, copied from ai/opencode (and matching
+# home-automation/home-assistant, network/kromgo and network/echo): Envoy
+# ext_authz forward-auth against the Authentik embedded outpost. The mechanism
+# is gateway-agnostic, so it applies unchanged to an envoy-internal-only route.
+#
+# This gate is load-bearing rather than defence in depth. The FalkorDB Browser
+# is an interactive query console onto a graph database: anyone who reaches it
+# and holds the database password gets arbitrary read/write Cypher. The
+# browser's own NextAuth login is a CONNECTION dialog (host/port/user/password),
+# not an authorization boundary for the page itself, so without this policy the
+# UI would be served to anything that can resolve the internal name.
+#
+# Cross-namespace backendRef: the outpost Service lives in `security`, so this
+# needs `database` listed in the ReferenceGrant at
+# kubernetes/apps/base/security/authentik/app/referencegrant.yaml. Without that
+# entry the policy is accepted but the ext_authz backend resolves to nothing.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: falkordb-browser-auth
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: falkordb-browser
+  extAuth:
+    headersToExtAuth:
+      - cookie
+      - authorization
+      - x-forwarded-for
+      - x-forwarded-host
+      - x-forwarded-proto
+      - x-forwarded-uri
+    http:
+      backendRefs:
+        - name: ak-outpost-authentik-embedded-outpost
+          namespace: security
+          port: 9000
+      path: /outpost.goauthentik.io/auth/envoy
+      headersToBackend:
+        - set-cookie
+        - authorization
+        - x-authentik-username
+        - x-authentik-email
+        - x-authentik-name
+        - x-authentik-uid
