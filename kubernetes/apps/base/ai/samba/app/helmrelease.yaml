@@ -43,11 +43,15 @@ spec:
           # every hermes pod start. Measured here on 2026-09-04: with the root
           # at 0770 the walk ran and left it at 2770; at 2770 it is skipped.
           #
-          # The image's own entrypoint resets the root to 0770, but only while
-          # the share is still EMPTY (`if [ -z "$(ls -A /shared)" ]`), which is
-          # exactly when a walk costs nothing - and the kubelet's own walk puts
-          # setgid back. On a loaded share this initContainer is what holds the
-          # invariant across a samba restart.
+          # The image's own entrypoint resets the root to 0770 while the share
+          # is still EMPTY (`if [ -z "$(ls -A /shared)" ]`), AFTER this
+          # initContainer runs. That reset is real and is NOT reliably repaired
+          # by the kubelet: OnRootMismatch only restores setgid if hermes
+          # happens to mount in the empty window, and a samba restart while the
+          # share is still empty re-strips it. This initContainer covers the
+          # pre-smbd window (hermes mounting the fresh volume first); the app
+          # container's postStart hook is what holds the setgid invariant after
+          # the entrypoint has finished both its chmod and chown branches.
           chown-share:
             image:
               repository: docker.io/library/alpine
@@ -78,6 +82,30 @@ spec:
               TZ: ${CONFIG_TIMEZONE}
               # Password arrives as a file at /run/secrets/pass (see persistence
               # below), which the entrypoint prefers over the PASS env.
+            # Re-assert share-root 2770 after the entrypoint is past both of its
+            # chmod/chown branches. Waiting on `pgrep -x smbd` is a hard
+            # happens-after edge: the entrypoint only reaches `exec smbd` after
+            # the empty-share `chmod 0770` and the `chown $USER:$group` paths,
+            # so the re-assert cannot land too early. postStart otherwise races
+            # the entrypoint (k8s guarantees no ordering). Bounded loop, always
+            # `exit 0`, and `chmod 2770` is idempotent - a no-op when already
+            # correct. Same wait-then-act shape as hermes' gateway-default
+            # postStart. Pair with chown-share above for the pre-smbd window.
+            lifecycle:
+              postStart:
+                exec:
+                  command:
+                    - sh
+                    - -c
+                    - |
+                      for i in $(seq 1 60); do
+                        if pgrep -x smbd >/dev/null 2>&1; then
+                          chmod 2770 /shared || true
+                          break
+                        fi
+                        sleep 1
+                      done
+                      exit 0
             probes:
               liveness: &probes
                 enabled: true
