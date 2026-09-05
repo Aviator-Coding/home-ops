@@ -192,7 +192,7 @@ jobs:
       # minijinja-cli and talosctl come from .mise.toml so CI renders with the same
       # versions `just talos render-config` uses locally.
       - name: Setup Tools
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install_args: aqua:mitsuhiko/minijinja aqua:siderolabs/talos aqua:mikefarah/yq
 
@@ -214,7 +214,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install_args: aqua:mikefarah/yq
 
@@ -235,7 +235,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install_args: aqua:kubernetes-sigs/kustomize aqua:yannh/kubeconform
 
@@ -287,7 +287,7 @@ jobs:
       # opentofu comes from .mise.toml so CI validates with the same version the
       # runbook tells an operator to plan with.
       - name: Setup Tools
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install_args: opentofu
 
@@ -346,7 +346,7 @@ jobs:
       # minijinja-cli renders talos/schematic.yaml.j2 for schematic-pcie-port-pm-test.py the
       # same way the talos job / just recipes do (extraKernelArgs are Image Factory input).
       - name: Setup Tools
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus@3.2.1 aqua:mitsuhiko/minijinja
 
