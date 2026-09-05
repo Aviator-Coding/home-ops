@@ -34,9 +34,20 @@ spec:
           # `chown -R` would cost minutes on every pod start and buy nothing,
           # because smbd forces 10000:10000 on everything written through it
           # (see resources/smb.conf) and the hermes agent already runs as 10000.
-          # For the same reason the pod's fsGroup below uses OnRootMismatch:
-          # once the root is gid 10000 with g+rwx, the kubelet skips its own
-          # recursive walk on every subsequent mount.
+          #
+          # The SETGID BIT IN 2770 IS LOAD-BEARING, and it is not obvious.
+          # `fsGroupChangePolicy: OnRootMismatch` (here and on the hermes pod)
+          # skips the kubelet's recursive chown only when the volume root
+          # already has the right gid AND CARRIES SETGID - a plain 0770 root
+          # fails that test, so the kubelet would walk all ~300,000 entries on
+          # every hermes pod start. Measured here on 2026-09-04: with the root
+          # at 0770 the walk ran and left it at 2770; at 2770 it is skipped.
+          #
+          # The image's own entrypoint resets the root to 0770, but only while
+          # the share is still EMPTY (`if [ -z "$(ls -A /shared)" ]`), which is
+          # exactly when a walk costs nothing - and the kubelet's own walk puts
+          # setgid back. On a loaded share this initContainer is what holds the
+          # invariant across a samba restart.
           chown-share:
             image:
               repository: docker.io/library/alpine
@@ -47,7 +58,7 @@ spec:
               - |
                 set -eu
                 chown 10000:10000 /shared
-                chmod 0770 /shared
+                chmod 2770 /shared
             securityContext:
               runAsUser: 0
               runAsGroup: 0
