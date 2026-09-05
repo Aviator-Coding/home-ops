@@ -328,6 +328,7 @@ only one of them is a real defect:
 |---|---|---|
 | `downloads/recyclarr-config` | no pod exists at snapshot time (CronJob, ~18 s/day) | no - readability independently proven 2026-08-31 via a snapshot-and-restore probe against a scratch copy (2913/2913 files, 607/607 dirs readable by mover identity 2000:2000, 0 walk errors): [`docs/backups/recyclarr-config-readable-check-2026-08-31.md`](../../../docs/backups/recyclarr-config-readable-check-2026-08-31.md) |
 | `database/pgadmin` | `fix-permissions` **initContainer** runs as uid 0 vs mover 5050 | no |
+| `database/falkordb` | `fix-permissions` **initContainer** runs as uid 0 vs mover 1000 (chowns the browser sidecar's emptyDirs; the PVC writer is still 1000:1000) | no - same benign shape as pgadmin; backup identity unchanged |
 | `selfhosted/changedetection-config` | `browser` sidecar runs as uid 999 vs mover 1000, and mounts nothing | no |
 | `media/tdarr-config`, `media/calibre-web-automated` | pod really does run `runAsUser: 0` vs mover 2000 | the known measured mismatch |
 
