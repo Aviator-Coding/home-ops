@@ -61,23 +61,26 @@ spec:
             # replay time at start and leave a self-contained dump.rdb in the
             # snapshot.
             #
-            # The image entrypoint (/var/lib/falkordb/bin/run.sh) splices
-            # ${REDIS_ARGS} verbatim into its `exec redis-server` line, which is
-            # the supported way to configure the server - but it does NOT
-            # re-expand variables inside that value, so a `--requirepass
-            # $FALKORDB_PASSWORD` written as plain env would set the literal
-            # string as the password. Composing REDIS_ARGS in a shell here and
-            # then handing off to the vendor entrypoint keeps every setting
-            # visible in Git while the secret stays out of the manifest.
-            # `exec` so redis-server stays PID 1 and receives SIGTERM directly.
+            # Bypass run.sh and exec redis-server directly. run.sh's only other
+            # action with BROWSER=0 is mkdir of the data dir, which already
+            # exists because the PVC is mounted there. The hazard being avoided:
+            # run.sh does `exec redis-server ${REDIS_ARGS}` UNQUOTED, so a
+            # password put through REDIS_ARGS undergoes field splitting and
+            # pathname expansion. A password with spaces/tabs becomes multiple
+            # argv entries (wrong/empty requirepass while REDISCLI_AUTH from
+            # envFrom keeps the full literal - readiness gets NOAUTH forever),
+            # and one containing * or ? can glob-expand. 1Password-generated
+            # secrets commonly include those characters. --requirepass is
+            # double-quoted so the password is one argv entry regardless of
+            # content; $${FALKORDB_ARGS} stays unquoted on purpose because the
+            # image ships it as multiple separate args (MAX_QUEUED_QUERIES 25
+            # TIMEOUT 1000 RESULTSET_SIZE 10000). `exec` so redis-server stays
+            # PID 1 and receives SIGTERM directly. Redis rewrites its process
+            # title before anything can read argv - verified live: /proc/1/cmdline
+            # is `redis-server *:6379`, with no --requirepass and no password.
             #
-            # run.sh does splice the password into redis-server's argv, but
-            # Redis rewrites its own process title before anything can read it -
-            # verified live: /proc/1/cmdline is `redis-server *:6379`, with no
-            # --requirepass and no password.
-            #
-            # $${FALKORDB_PASSWORD} IS ESCAPED ON PURPOSE - do not "fix" it to a
-            # single $. Flux's postBuild envsubst runs over the entire built
+            # Every $${VAR} IS ESCAPED ON PURPOSE - do not "fix" it to a single
+            # $. Flux's postBuild envsubst runs over the entire built
             # Kustomization output, and this cluster runs
             # StrictPostBuildSubstitutions=true, so an unescaped shell variable
             # here reads as an undefined Flux variable and fails the WHOLE
@@ -90,9 +93,14 @@ spec:
             command:
               - /bin/sh
               - -c
-              - |
-                export REDIS_ARGS="--appendonly yes --appendfsync everysec --save 900 1 --save 300 10 --save 60 1000 --requirepass $${FALKORDB_PASSWORD}"
-                exec /var/lib/falkordb/bin/run.sh
+              - >-
+                exec redis-server --protected-mode no
+                --dir "$${FALKORDB_DATA_PATH}"
+                --loadmodule "$${FALKORDB_BIN_PATH}/falkordb.so"
+                $${FALKORDB_ARGS}
+                --appendonly yes --appendfsync everysec
+                --save 900 1 --save 300 10 --save 60 1000
+                --requirepass "$${FALKORDB_PASSWORD}"
 
             envFrom:
               - secretRef:
