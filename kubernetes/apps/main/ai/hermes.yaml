@@ -46,6 +46,9 @@ spec:
       name: *app
       namespace: *namespace
   dependsOn:
+    # hermes mounts the shared-xml claim at /opt/xml; ai-pvc is what creates it.
+    - name: ai-pvc
+      namespace: *namespace
     - name: onepassword-store
       namespace: security
     # Hermes routes all LLM traffic through the internal agentgateway.
