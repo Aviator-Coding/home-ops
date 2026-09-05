@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/v1/service.json
+#
+# LAN access to the Redis wire protocol, following the shape of the existing
+# `postgres-17-lb` (kubernetes/apps/base/database/cloudnative-pg/cluster-17/service.yaml).
+# This is a SECOND, additive Service - the chart-owned ClusterIP `falkordb`
+# keeps its name, its 6379 port and its ClusterIP, so every in-cluster consumer
+# on falkordb.database.svc.cluster.local:6379 is untouched.
+#
+# LAN-ONLY, and that is structural rather than a matter of annotation
+# discipline: `network/cloudflare-dns` (the public publisher) runs
+# `sources: [crd, gateway-httproute]` with `--gateway-name=envoy-external`, so
+# it never reads a Service at all and cannot publish this record. Only
+# `network/unifi-dns` carries `service` in its source list, and it writes to
+# the internal UniFi resolver. There is deliberately no envoy-external path
+# here: the Redis protocol is not HTTP and must not be fronted by a Gateway.
+#
+# The address is PINNED rather than left to LB-IPAM's allocator. That is the
+# majority pattern in this repo (envoy-internal/-external, plex, syncthing,
+# emqx, samba, the agentgateway Gateways, kube-api) and it is what keeps the
+# published DNS record stable across a Service recreation. 10.50.0.24 was
+# verified free live against `CiliumLoadBalancerIPPool/pool` (10.50.0.0/24) on
+# 2026-09-05: the pool then held .21 .22 .23 .26 .27 .28 .29 .30 .51 .52 .54
+# .55 .121 and nothing else. It sits directly beside postgres-17-lb's .23,
+# keeping the `database` namespace's addresses together.
+apiVersion: v1
+kind: Service
+metadata:
+  name: falkordb-lb
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "falkordb.${SECRET_DOMAIN}"
+    lbipam.cilium.io/ips: 10.50.0.24
+spec:
+  type: LoadBalancer
+  ports:
+    - name: redis
+      port: 6379
+      protocol: TCP
+      targetPort: 6379
+  # The chart's own pod selector, copied from the rendered ClusterIP Service.
+  # `app.kubernetes.io/controller` is what distinguishes the controller's pods
+  # and must stay in step with the `falkordb` controller key in the
+  # HelmRelease - app-template stamps all three labels on the pod template.
+  selector:
+    app.kubernetes.io/controller: falkordb
+    app.kubernetes.io/instance: falkordb
+    app.kubernetes.io/name: falkordb

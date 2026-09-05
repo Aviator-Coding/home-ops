@@ -118,10 +118,12 @@ fail exactly the way autobrr did.
 ## Authentication (measured in the same run)
 
 FalkorDB ships with no authentication and the image entrypoint sets `--protected-mode no`, so an
-unconfigured deployment is a cluster-wide read/write graph database for any pod that can resolve
-its Service. The `database` namespace has **no** default-deny NetworkPolicy - the only policy in it
-is emqx's additive allow-monitoring rule - so placement provides nothing. `database/dragonfly` is
-also unauthenticated, but it is per-namespace and sits behind the operator's NetworkPolicy limiting
+unconfigured deployment is a read/write graph database for any client that can reach it - any pod
+that resolves the ClusterIP Service, and (via the LAN LoadBalancer in
+`kubernetes/apps/base/database/falkordb/app/service-lb.yaml`) any host on the captain's LAN. The
+`database` namespace has **no** default-deny NetworkPolicy - the only policy in it is emqx's
+additive allow-monitoring rule - so placement provides nothing. `database/dragonfly` is also
+unauthenticated, but it is per-namespace and sits behind the operator's NetworkPolicy limiting
 `:6379` to same-namespace pods, which its Readme names as the mitigation; a *shared* datastore
 cannot use that, because its consumers are in other namespaces by definition.
 
@@ -153,9 +155,10 @@ coming up unauthenticated, which is the intended trade.
    include those characters. The shipping command therefore **bypasses `run.sh`** and execs
    `redis-server` directly with `--requirepass "$${FALKORDB_PASSWORD}"` double-quoted so the
    password is one argv entry regardless of content. `$${FALKORDB_ARGS}` stays unquoted on
-   purpose (the image ships it as multiple separate args). `BROWSER=0` stays as documentation of
-   intent; with that set, `run.sh`'s only other action is mkdir of the data dir, which already
-   exists because the PVC is mounted there.
+   purpose (the image ships it as multiple separate args). `BROWSER=0` stays on the database
+   container as a reversion guard (the explorer UI is a separate sidecar - owner:
+   `kubernetes/apps/base/database/falkordb/app/helmrelease.yaml`); with that set, `run.sh`'s only
+   other action is mkdir of the data dir, which already exists because the PVC is mounted there.
 
 2. **Flux `postBuild.substitute` collision.** Every shell variable in the manifest must keep the
    double-dollar form (`$${FALKORDB_PASSWORD}`, `$${FALKORDB_DATA_PATH}`, ...). Written the

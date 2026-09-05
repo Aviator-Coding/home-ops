@@ -1,0 +1,58 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+#
+# The FalkorDB Browser (the explorer UI), internal only. `envoy-internal` is the
+# sole parentRef and external-dns only publishes the internal record. Nothing
+# public - see securitypolicy.yaml for the auth gate, which is not optional
+# here: this is an interactive UI onto a database.
+#
+# LAN-only is structural, not just annotation discipline: `network/cloudflare-dns`
+# passes `--gateway-name=envoy-external`, so an HTTPRoute parented to
+# envoy-internal is invisible to the public publisher regardless of what
+# annotations it carries.
+#
+# --- why `falkordb-browser` and not `falkordb` ---
+#
+# The database LoadBalancer in service-lb.yaml already claims
+# `falkordb.${SECRET_DOMAIN}` -> 10.50.0.24. `network/unifi-dns` runs
+# `sources: ["gateway-httproute", "service"]` with `policy: sync`, so it is the
+# single writer for BOTH that Service annotation and this HTTPRoute hostname.
+# Pointing both at `falkordb.${SECRET_DOMAIN}` would hand one owner two
+# conflicting desired targets for one record - the LoadBalancer address and the
+# envoy-internal address - which under `policy: sync` is a record that flaps
+# between the two rather than a clean failure. Two names, one writer, no
+# contention. `falkordb-browser` also matches what upstream calls the component
+# (FalkorDB Browser), so the name says which of the two endpoints it is.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: &app falkordb-browser
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Database
+    gethomepage.dev/name: FalkorDB Browser
+    gethomepage.dev/description: "Graph database explorer"
+    gethomepage.dev/icon: falkordb.svg
+    gethomepage.dev/pod-selector: app.kubernetes.io/name=falkordb
+    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    # Unauthenticated probes are answered by the Authentik outpost, not the
+    # app, so the accepted set covers the redirect-to-login and the outright
+    # refusal as well as a 200. Same shape as ai/opencode, the other
+    # internal-only extAuth-gated route.
+    gatus.home-operations.com/endpoint: |-
+      conditions: ["[STATUS] == any(200, 302, 401)"]
+spec:
+  hostnames:
+    - "falkordb-browser.${SECRET_DOMAIN}"
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        # The chart-owned ClusterIP Service, on the `http` port added alongside
+        # the existing `redis` one. Not the LoadBalancer: this route is HTTP to
+        # the browser sidecar and has nothing to do with the wire protocol.
+        - name: falkordb
+          namespace: database
+          port: 3000

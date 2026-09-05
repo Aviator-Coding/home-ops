@@ -19,6 +19,12 @@ spec:
     - group: gateway.envoyproxy.io
       kind: SecurityPolicy
       namespace: ai
+    # database/falkordb-browser (and any future database-namespace extAuth
+    # SecurityPolicy). Without this entry the SecurityPolicy is still accepted,
+    # but its cross-namespace ext_authz backendRef resolves to nothing.
+    - group: gateway.envoyproxy.io
+      kind: SecurityPolicy
+      namespace: database
   to:
     - group: ""
       kind: Service

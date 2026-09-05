@@ -34,6 +34,36 @@ spec:
         annotations:
           reloader.stakater.com/auto: "true"
 
+        initContainers:
+          # emptyDir volumes are created root-owned; the kubelet's fsGroup walk
+          # sets the GROUP to 1000 and adds group-write, but leaves the OWNER as
+          # root. That is enough to write a file and NOT enough for the browser,
+          # whose token store calls chmod() on the directory itself - and chmod
+          # requires ownership, not write permission. Measured: with the two
+          # emptyDirs mounted but not chowned, login fails with
+          # `EPERM: operation not permitted, chmod '.data'`. Same fix, same
+          # reason as database/cloudnative-pg/pgadmin and downloads/bazarr.
+          #
+          # This is the one container in the pod that is not 1000:1000, which
+          # means kopiur's `SecurityContextCompatible` status condition will no
+          # longer be emitted for this claim. That condition is positive-only
+          # and its absence is NOT a failure signal (AGENTS.md; pgadmin lacks it
+          # for exactly this reason). The real proof that the mover identity
+          # works is a Succeeded snapshot whose stats cover the volume - the
+          # backup identity itself is unchanged by this PR.
+          fix-permissions:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.38"
+            command:
+              - sh
+              - -c
+              - chown -R 1000:1000 /app/.data /var/lib/falkordb/browser/.data
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+
         containers:
           app:
             image:
@@ -107,11 +137,24 @@ spec:
                   name: falkordb-secret
 
             env:
-              # The image ships a Node web UI on :3000 and starts it by default
-              # (BROWSER defaults to 1 in run.sh). This deployment is the
-              # database only - no consumer, no UI, no second listener, and one
-              # less process wanting to write outside the data volume under
-              # readOnlyRootFilesystem.
+              # The browser IS now deployed - as the `browser` container below,
+              # not from inside this one. Keeping this at "0" is not a leftover
+              # and does not contradict that: `run.sh` is what reads BROWSER,
+              # and the command above deliberately bypasses run.sh entirely, so
+              # the value is inert TODAY. It stays as a guard for tomorrow. If
+              # the custom command were ever reverted to the image default,
+              # run.sh would background a second browser inside this container
+              # that would race the sidecar for :3000, and the loser's error is
+              # a bind failure in a process nothing is probing. "0" makes that
+              # reversion fail safe.
+              #
+              # Running the browser as its own container rather than as
+              # run.sh's background job is the deliberate choice: it keeps
+              # redis-server as PID 1 receiving SIGTERM directly (the whole
+              # point of `exec` above), it stops a browser crash from being
+              # invisible behind a healthy database, and it scopes the browser's
+              # writable mounts and resource limits to the browser alone.
+              # run.sh's `&` form has none of those properties.
               BROWSER: "0"
 
             probes:
@@ -165,6 +208,130 @@ spec:
               limits:
                 memory: 2Gi
 
+          # --- FalkorDB Browser (the explorer UI) ---
+          #
+          # Same image as the database, second container. The browser ships
+          # INSIDE docker.io/falkordb/falkordb (Next.js 16 standalone on the
+          # image's Node 24), so there is nothing extra to pull - the image is
+          # already on the node and both containers share it.
+          #
+          # It is a container rather than run.sh's background job for the
+          # reasons on the `BROWSER` env above. It does NOT mount the data
+          # volume: the browser reaches the database over the Redis protocol on
+          # the pod's own loopback, so the only writer to the PVC is still the
+          # single redis-server process.
+          browser:
+            image:
+              repository: docker.io/falkordb/falkordb
+              tag: v4.20.4@sha256:adbddd418916c25618564ff8597a919b08bc76452ebeb74eb985c38d7281df62
+
+            # cwd matters and is not cosmetic: the image's own run.sh does
+            # `cd "${FALKORDB_BROWSER_PATH}"` before starting the server, and
+            # the app resolves API_TOKEN_STORAGE_PATH (`.data/api_tokens.json`)
+            # RELATIVE TO IT. Start it from anywhere else and the token store
+            # lands somewhere unmounted and read-only.
+            workingDir: /var/lib/falkordb/browser
+            # The image's browser entrypoint, not `node server.js` directly: it
+            # is what generates a fallback ENCRYPTION_KEY and verifies the data
+            # directory before handing off. `exec` keeps the node process as the
+            # container's PID 1 so it gets SIGTERM directly.
+            command:
+              - /bin/sh
+              - -c
+              - exec ./docker-entrypoint.sh node server.js
+
+            env:
+              # Bind all interfaces. run.sh sets this for the same reason; the
+              # Next.js server defaults to localhost only, which a kubelet
+              # probe and the Service both fail to reach.
+              HOSTNAME: "0.0.0.0"
+              PORT: &browserPort 3000
+              # --- overriding the image's .env.local, which is NOT harmless ---
+              #
+              # The image ships `.env.local` with AUTH_URL, ALLOWED_ORIGINS and
+              # AUTH_SECRET all hardwired to a localhost:3000 development setup.
+              # Next.js's loadEnvConfig lets a real environment variable win
+              # over that file, which is the only reason these work.
+              #
+              # AUTH_URL is the one that is VISIBLY broken without an override:
+              # Auth.js builds its post-login redirect from it, so a user who
+              # signs in successfully is bounced to http://localhost:3000 and
+              # lands nowhere. Measured both ways before this was written.
+              # Setting it to the real https:// origin also switches Auth.js to
+              # its `__Secure-`/`__Host-` cookie prefixes.
+              AUTH_URL: &browserUrl "https://falkordb-browser.${SECRET_DOMAIN}"
+              ALLOWED_ORIGINS: *browserUrl
+              # Auth.js otherwise refuses to trust the Host/X-Forwarded-* headers
+              # that envoy-internal sets, which is exactly how it is reached.
+              AUTH_TRUST_HOST: "true"
+              # Not envFrom: the browser has no business holding
+              # FALKORDB_PASSWORD/REDISCLI_AUTH. Users supply the database
+              # credential in the UI's connection dialog, so only these two
+              # browser-specific keys are injected. See externalsecret.yaml for
+              # why they are derived rather than stored.
+              AUTH_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: falkordb-secret
+                    key: AUTH_SECRET
+              ENCRYPTION_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: falkordb-secret
+                    key: ENCRYPTION_KEY
+
+            # 3000 is MEASURED, not the Next.js default taken on trust: the
+            # running process's own LISTEN socket in /proc/net/tcp reads
+            # `00000000:0BB8` (0x0BB8 = 3000) on 0.0.0.0. PORT above pins it so
+            # a future image cannot move it silently.
+            ports:
+              - name: http
+                containerPort: *browserPort
+
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: *browserPort
+                  initialDelaySeconds: 15
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              # GET / is served by the app itself (its own login page) and
+              # returns 200 without any session, so it reads the Next.js server
+              # rather than just the open socket.
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: *browserPort
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+
+            # Unchanged from the database container's hardening, including
+            # readOnlyRootFilesystem. The browser needs exactly two writable
+            # paths and gets them as emptyDirs under persistence: below - the
+            # rootfs stays read-only.
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+
+            resources:
+              requests:
+                cpu: 25m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
+
     # Pod-level security, spelled exactly "defaultPodOptions" and a sibling of
     # controllers:/service:/persistence:. A wrong key or wrong nesting here is
     # silently DISCARDED by Helm - no flate warning, no Flux error, just a pod
@@ -190,12 +357,27 @@ spec:
         controller: falkordb
         ports:
           redis:
+            # Explicitly primary now that this Service carries two ports. The
+            # wire protocol is what this app IS; the UI is an accessory.
+            primary: true
             port: *port
+          # The browser, fronted by httproute.yaml. Added to the EXISTING
+          # ClusterIP Service rather than a new one: the two ports belong to the
+          # same pod, and every in-cluster consumer of :6379 is unaffected by a
+          # second port appearing beside it.
+          http:
+            port: *browserPort
 
-    # No `route:` block. FalkorDB speaks the Redis wire protocol on 6379, not
-    # HTTP, so there is nothing for an envoy-internal HTTPRoute to front and no
-    # Gatus endpoint annotation to hang off one. Consumers reach it in-cluster
-    # at falkordb.database.svc.cluster.local:6379.
+    # No `route:` block, deliberately, even though there IS now an HTTP
+    # listener. The chart's route helper would attach to this release's primary
+    # service port, and the route belongs to the browser, not the database. It
+    # is kept as a standalone HTTPRoute in httproute.yaml so that it can sit
+    # next to the SecurityPolicy that gates it and so the Authentik gate is
+    # never one nested-key edit away from being silently dropped.
+    #
+    # The database itself is still not HTTP and is still not routable: consumers
+    # reach it in-cluster at falkordb.database.svc.cluster.local:6379, and from
+    # the LAN at the LoadBalancer in service-lb.yaml.
 
     persistence:
       data:
@@ -229,5 +411,50 @@ spec:
         size: 20Gi
         storageClass: ceph-block
         retain: true
-        globalMounts:
-          - path: /var/lib/falkordb/data
+        # advancedMounts, not globalMounts: this claim belongs to the database
+        # container alone. The browser must not mount it (it reaches the data
+        # over the Redis protocol), and neither must the root initContainer.
+        advancedMounts:
+          falkordb:
+            app:
+              - path: /var/lib/falkordb/data
+
+      # --- the browser's two writable paths, and ONLY these two ---
+      #
+      # Both are MEASURED by running the browser under this exact
+      # securityContext and reading the failures, not inferred from what a
+      # Next.js app usually wants. `/tmp` and `.next/cache` were checked and are
+      # NOT needed - the app never touched them across login, page renders and
+      # API calls - so they are deliberately absent.
+      #
+      # These are emptyDir, so API tokens do not survive a pod restart and users
+      # re-enter the connection credential. That is the right trade for an
+      # explorer UI: it adds no second PVC, nothing here is a source of truth,
+      # and AUTH_SECRET/ENCRYPTION_KEY are stable across restarts anyway.
+      browser-app-data:
+        # The entrypoint hard-gates on this one: it checks `/app/.data` is
+        # writable and `exit 1`s otherwise, so without this the container never
+        # reaches node at all. Note the path is HARDCODED to /app/.data in the
+        # entrypoint even though the app itself lives elsewhere.
+        type: emptyDir
+        advancedMounts:
+          falkordb:
+            fix-permissions:
+              - path: /app/.data
+            browser:
+              - path: /app/.data
+      browser-data:
+        # The one that actually matters, and the one that is easy to miss. The
+        # app resolves API_TOKEN_STORAGE_PATH relative to its working directory,
+        # so the token store is HERE, not in /app/.data. Mount only the
+        # entrypoint's path and the server starts perfectly, reports Ready, and
+        # then fails EVERY login with `EROFS: chmod '.data'` - a healthy-looking
+        # UI that cannot connect to anything. Measured, and the reason this is
+        # two volumes and not one.
+        type: emptyDir
+        advancedMounts:
+          falkordb:
+            fix-permissions:
+              - path: /var/lib/falkordb/browser/.data
+            browser:
+              - path: /var/lib/falkordb/browser/.data
