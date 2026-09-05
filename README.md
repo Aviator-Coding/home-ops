@@ -82,7 +82,7 @@ Usage and limits: [`scripts/add-app/README.md`](scripts/add-app/README.md). Afte
 
 1. Fill every `TODO` in the generated base manifests and overlay `kubernetes/apps/main/{namespace}/{app}.yaml` (the scaffold also appends the namespace `kustomization.yaml` `resources:` entry).
 2. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
-3. Optional backups are **not** scaffolded - the normal path is kopiur-only (`components/kopiur` + `components/kopiur/pvc`, `dependsOn: kopiur-repository` in namespace `system`, plus measured `KOPIUR_*` keys; example: `kubernetes/apps/main/downloads/sonarr.yaml`). Do not add `components/volsync` to a new app; dual-engine survives only on three deliberate carve-outs. Owner: `kubernetes/components/kopiur/Readme.md`.
+3. Optional backups are **not** scaffolded. New never-VolSync apps take kopiur-only with `components/kopiur` alone plus a chart-owned PVC (example: `database/falkordb.yaml`); `components/kopiur/pvc` is the VolSync-retirement takeover shape only (example: `downloads/sonarr.yaml`). Always `dependsOn: kopiur-repository` in namespace `system`, plus measured `KOPIUR_*` keys. Do not add `components/volsync` to a new app; dual-engine survives only on three deliberate carve-outs. Owner: `kubernetes/components/kopiur/Readme.md`.
 4. Validate with `mise exec -- task flux:test:all`.
 
 Flux reconciles from Git. After a merge, `task reconcile` forces a sync.

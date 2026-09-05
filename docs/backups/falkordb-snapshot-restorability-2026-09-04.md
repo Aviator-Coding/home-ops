@@ -22,8 +22,11 @@ Redis log distinguishes the second row from the first - which is exactly why thi
 
 ## Why the two rows differ
 
-`REDIS_ARGS` is spliced verbatim into the image entrypoint's `exec redis-server` line
-(`/var/lib/falkordb/bin/run.sh`, v4.20.4), which is the supported way to configure the server.
+Durability flags ship on the container `command` as a direct `exec redis-server ...`
+line (the HelmRelease bypasses the image's `run.sh` so `--requirepass` can be
+double-quoted - see Authentication below). The measurement used the same flags the
+deployment still carries: `appendonly yes`, `appendfsync everysec`, and the three
+`save` points.
 
 - **RDB only.** The newest durable state is the last completed `save` point. At restore time the
   standalone `dump.rdb` was **158 seconds old** and held the graph as it stood at 200 nodes. A
@@ -105,8 +108,8 @@ fail exactly the way autobrr did.
 
 ## What would change this answer
 
-- Removing `appendonly yes` from `REDIS_ARGS`, or moving `appendfsync` to `no`. Either turns the
-  91% row back on, silently.
+- Removing `appendonly yes` from the container `command`, or moving `appendfsync` to `no`. Either
+  turns the 91% row back on, silently.
 - Adding a FalkorDB replica or any second writer. This is a single-writer `ReadWriteOnce` claim and
   the deployment is `strategy: Recreate` for that reason.
 - kopiur growing an application hook (a `BGSAVE`/`FLUSHALL`-style pre-snapshot step). It has none
@@ -114,7 +117,7 @@ fail exactly the way autobrr did.
 
 ## Authentication (measured in the same run)
 
-FalkorDB ships with no authentication and the entrypoint sets `--protected-mode no`, so an
+FalkorDB ships with no authentication and the image entrypoint sets `--protected-mode no`, so an
 unconfigured deployment is a cluster-wide read/write graph database for any pod that can resolve
 its Service. The `database` namespace has **no** default-deny NetworkPolicy - the only policy in it
 is emqx's additive allow-monitoring rule - so placement provides nothing. `database/dragonfly` is
@@ -128,7 +131,7 @@ So this follows the other persistent datastores in the namespace (`cloudnative-p
 Verified live on the shipping configuration:
 
 - `/proc/1/cmdline` is `redis-server *:6379` - Redis rewrites its own process title, so the
-  password does **not** appear in the process table even though `run.sh` splices it into argv.
+  password does **not** appear in the process table even though `--requirepass` is on argv.
 - unauthenticated `GRAPH.LIST` -> `NOAUTH Authentication required.`
 - authenticated (via `REDISCLI_AUTH`, the way the readiness probe runs) -> `PONG`, probe passes,
   pod Ready in 17s
@@ -140,14 +143,26 @@ item `falkordb` in the ESO-visible vault (`Homelab`), field `FALKORDB_PASSWORD`.
 the ExternalSecret does not sync and the pod stays unstarted - the app fails **closed** rather than
 coming up unauthenticated, which is the intended trade.
 
-### One trap this app hit on the way in
+### Two traps this app hit on the way in
 
-The container command composes `REDIS_ARGS` in shell so the password is expanded at start rather
-than baked into a manifest. Written the obvious way (`$FALKORDB_PASSWORD`) that is a
-`postBuild.substitute` collision: Flux's envsubst runs over the whole built Kustomization and this
-cluster runs `StrictPostBuildSubstitutions=true`, so an undefined-looking variable fails the
-**entire** Kustomization, not just the resource. `flate` does not catch it - it substitutes
-leniently and reported `304 passed`, exit 0, with the broken form in place. The shipped manifest
-escapes it as `$${FALKORDB_PASSWORD}`, which renders to `${FALKORDB_PASSWORD}` for the shell.
-Verified by running a strict envsubst over the real build (0 undefined variables) and then
-deploying the post-envsubst form. Skill `flux-substitution`.
+1. **Field splitting on an unquoted password.** The image's `run.sh` does
+   `exec redis-server ${REDIS_ARGS}` unquoted, so a password put through `REDIS_ARGS` undergoes
+   field splitting and pathname expansion. Spaces/tabs split `requirepass` into multiple argv
+   entries (wrong/empty password while `REDISCLI_AUTH` from envFrom keeps the full literal -
+   readiness gets `NOAUTH` forever); `*`/`?` can glob-expand. 1Password-generated secrets commonly
+   include those characters. The shipping command therefore **bypasses `run.sh`** and execs
+   `redis-server` directly with `--requirepass "$${FALKORDB_PASSWORD}"` double-quoted so the
+   password is one argv entry regardless of content. `$${FALKORDB_ARGS}` stays unquoted on
+   purpose (the image ships it as multiple separate args). `BROWSER=0` stays as documentation of
+   intent; with that set, `run.sh`'s only other action is mkdir of the data dir, which already
+   exists because the PVC is mounted there.
+
+2. **Flux `postBuild.substitute` collision.** Every shell variable in the manifest must keep the
+   double-dollar form (`$${FALKORDB_PASSWORD}`, `$${FALKORDB_DATA_PATH}`, ...). Written the
+   obvious way (`$FALKORDB_PASSWORD`) that is a substitute collision: Flux's envsubst runs over
+   the whole built Kustomization and this cluster runs `StrictPostBuildSubstitutions=true`, so an
+   undefined-looking variable fails the **entire** Kustomization, not just the resource. `flate`
+   does not catch it - it substitutes leniently and reported `304 passed`, exit 0, with the broken
+   form in place. `$${...}` renders to `${...}` for the shell. Verified by running a strict
+   envsubst over the real build (0 undefined variables) and then deploying the post-envsubst form.
+   Skill `flux-substitution`.
