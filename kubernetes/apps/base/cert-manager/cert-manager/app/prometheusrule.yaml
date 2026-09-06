@@ -28,10 +28,20 @@ spec:
           labels:
             severity: warning
 
+        # container_spec_memory_limit_bytes does not exist in this Prometheus
+        # (cAdvisor is scraped but the container_spec_* families are absent),
+        # so this alert could never fire. kube-state-metrics'
+        # kube_pod_container_resource_limits is the live substitute and needs
+        # an explicit on(...) join - the two metrics carry different labels.
+        # Worth knowing: with the metric restored, both cainjector replicas
+        # measure 0.63-0.71 of their 256Mi limit, so this alert was blind
+        # while sitting just under its own threshold.
         - alert: CertManagerCainjectorHighMemory
           expr: |-
-            (container_memory_working_set_bytes{namespace="cert-manager", container="cert-manager-cainjector"} /
-             container_spec_memory_limit_bytes{namespace="cert-manager", container="cert-manager-cainjector"}) > 0.8
+            container_memory_working_set_bytes{namespace="cert-manager", container="cert-manager-cainjector"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="cert-manager", container="cert-manager-cainjector", resource="memory"}
+              > 0.8
           for: 5m
           annotations:
             summary: >-
@@ -71,12 +81,38 @@ spec:
           labels:
             severity: critical
 
-        - alert: CertManagerHittingRateLimits
+        # Replaces CertManagerHittingRateLimits, which matched
+        # certmanager_http_acme_client_request_count{status="429"}. That metric
+        # does not exist: no ACME or HTTP-client counter is emitted by the
+        # deployed cert-manager at all, verified both by enumerating all 5,750
+        # metric names in Prometheus (zero acme matches) and by reading
+        # /metrics off each cert-manager pod directly. The rule was a critical
+        # alert that could never fire, so there was no rate-limit coverage.
+        #
+        # Renamed rather than patched because the available signal is broader
+        # and it would be wrong to keep claiming this detects 429s specifically.
+        # A blocked renewal is what rate limiting actually looks like from the
+        # metrics that DO exist: cert-manager recomputes the renewal timestamp
+        # only after a successful renewal, so when issuance is being refused
+        # the timestamp stays in the past and keeps receding, while the
+        # existing certificate is still valid and still reports Ready. That
+        # makes this fire well before CertManagerCertNotReady (which needs the
+        # cert to actually go bad) and long before CertManagerCertExpirySoon.
+        # It also covers the other causes of a stuck renewal - a DNS-01
+        # failure, an ACME outage, a broken issuer.
+        #
+        # 6h of overdue plus for: 1h leaves cert-manager's own retry backoff
+        # room to succeed normally; renewal is scheduled at two-thirds of the
+        # certificate lifetime, so a healthy cert is never briefly overdue.
+        - alert: CertManagerRenewalOverdue
           expr: |-
-            sum by (host) (rate(certmanager_http_acme_client_request_count{status="429"}[5m])) > 0
-          for: 5m
+            (time() - certmanager_certificate_renewal_timestamp_seconds) > 6 * 3600
+          for: 1h
           annotations:
             summary: >-
-              Cert manager hitting LetsEncrypt rate limits
+              Certificate {{ $labels.name }} ({{ $labels.exported_namespace }})
+              is {{ $value | humanizeDuration }} past its scheduled renewal and
+              has not been reissued - renewal is blocked. Check for LetsEncrypt
+              rate limiting, a DNS-01 solver failure, or an unhealthy issuer.
           labels:
             severity: critical

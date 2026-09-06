@@ -11,44 +11,82 @@ spec:
   groups:
     - name: surrealdb.rules
       rules:
+        # The denominator was container_spec_memory_limit_bytes, which this
+        # Prometheus does not have at all - cAdvisor is scraped (780 series of
+        # container_cpu_usage_seconds_total) but the container_spec_* families
+        # are absent, so this alert could never fire. kube-state-metrics'
+        # kube_pod_container_resource_limits is the live substitute, and needs
+        # an explicit on(...) join because the two metrics carry different
+        # label sets.
         - alert: SurrealDBHighMemoryUsage
           annotations:
-            description: SurrealDB pod {{ $labels.pod }} is using over 80% memory
+            description: SurrealDB pod {{ $labels.pod }} is using over 80% of its memory limit
             summary: High memory usage detected
           expr: |
-            (container_memory_working_set_bytes{pod=~"surrealdb-.*"} /
-             container_spec_memory_limit_bytes{pod=~"surrealdb-.*"}) > 0.8
+            container_memory_working_set_bytes{pod=~"surrealdb-.*", container="surrealdb"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{pod=~"surrealdb-.*", container="surrealdb", resource="memory"}
+              > 0.8
           for: 5m
           labels:
             severity: warning
 
+        # Was up{job="surrealdb"} == 0, but no such job exists: SurrealDB
+        # serves no /metrics endpoint (verified - its only port, 8000, returns
+        # 404 for /metrics), so there is nothing to point a ServiceMonitor at
+        # and the series could never exist. kube_pod_status_ready is already
+        # collected and is the readiness signal that actually works here.
+        # Deliberately paired with the replica alert below: if the pod object
+        # disappears entirely this series goes absent rather than to 0, and
+        # the Deployment-level alert is what catches that case.
         - alert: SurrealDBPodDown
           annotations:
-            description: SurrealDB pod {{ $labels.pod }} is down
+            description: SurrealDB pod {{ $labels.pod }} is not ready
             summary: SurrealDB pod unavailable
           expr: |
-            up{job="surrealdb"} == 0
+            kube_pod_status_ready{pod=~"surrealdb-.*", condition="true"} == 0
           for: 2m
           labels:
             severity: critical
 
+        # Threshold was < 2 against a deployment that is pinned to exactly one
+        # replica, so it fired continuously and could never clear: it had been
+        # firing since at least 2026-09-05 on a completely healthy deployment.
+        # replicaCount: 1 is deliberate and load-bearing - the RocksDB backend
+        # allows only one writer to hold the data-dir lock, and Ceph RBD
+        # provides the HA that TiKV's Raft replication used to. See the comment
+        # on replicaCount in this app's helmrelease.yaml. Do not "fix" this
+        # back to < 2 without changing the storage backend first.
         - alert: SurrealDBReplicasUnavailable
           annotations:
-            description: Less than 2 SurrealDB replicas are running
-            summary: SurrealDB has insufficient replicas
+            description: No SurrealDB replica is available
+            summary: SurrealDB has no available replica
           expr: |
-            kube_deployment_status_replicas_available{deployment="surrealdb"} < 2
+            kube_deployment_status_replicas_available{deployment="surrealdb"} < 1
           for: 5m
           labels:
             severity: warning
 
+        # Same dead container_spec_* denominator as the memory alert, plus a
+        # units bug: container_spec_cpu_quota is microseconds per period
+        # (100000 for one core), so rate(...) / quota * 100 landed near 0.1 for
+        # a fully busy container and could not reach 80 even if the metric had
+        # existed. Now a plain core-for-core ratio.
+        #
+        # The denominator is the REQUEST, not the limit, because this container
+        # declares no CPU limit at all - only requests.cpu: 500m - so
+        # kube_pod_container_resource_limits{resource="cpu"} is empty for it and
+        # a limit-based rule would be just as unfireable as the one it replaces.
+        # If a CPU limit is ever added, switch this to resource_limits.
         - alert: SurrealDBHighCPU
           annotations:
-            description: SurrealDB pod {{ $labels.pod }} is using over 80% CPU
+            description: SurrealDB pod {{ $labels.pod }} is using over 80% of its CPU request
             summary: High CPU usage detected
           expr: |
-            (rate(container_cpu_usage_seconds_total{pod=~"surrealdb-.*"}[5m]) /
-             container_spec_cpu_quota{pod=~"surrealdb-.*"} * 100) > 80
+            rate(container_cpu_usage_seconds_total{pod=~"surrealdb-.*", container="surrealdb"}[5m])
+              / on (namespace, pod, container)
+            kube_pod_container_resource_requests{pod=~"surrealdb-.*", container="surrealdb", resource="cpu"}
+              > 0.8
           for: 10m
           labels:
             severity: warning

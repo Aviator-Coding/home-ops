@@ -8,10 +8,18 @@ spec:
   groups:
     - name: ceph-reliability
       rules:
+        # container_spec_memory_limit_bytes does not exist in this Prometheus
+        # (cAdvisor is scraped but the container_spec_* families are absent),
+        # so this alert could never fire. Swapped to kube-state-metrics'
+        # kube_pod_container_resource_limits, which needs an explicit on(...)
+        # join because the two metrics carry different label sets. Live check
+        # after the swap: all three mons read ~0.18 of their 2Gi limit.
         - alert: CephMonitorMemoryHigh
           expr: |
-            container_memory_working_set_bytes{namespace="rook-ceph",container="mon"}
-            / container_spec_memory_limit_bytes{namespace="rook-ceph",container="mon"} > 0.8
+            container_memory_working_set_bytes{namespace="rook-ceph", container="mon"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="rook-ceph", container="mon", resource="memory"}
+              > 0.8
           for: 5m
           labels:
             severity: warning
@@ -152,26 +160,40 @@ spec:
             summary: "Ceph recovery blocked - cluster full"
             description: "Placement group recovery is blocked because the cluster is too full."
 
-    - name: ceph-disk-health
-      rules:
-        # Disk Health Prediction Alerts
-        - alert: CephDiskPredictedFailure
-          expr: ceph_device_life_expectancy_min < 7
-          for: 5m
-          labels:
-            severity: warning
-          annotations:
-            summary: "Disk failure predicted for {{ $labels.device }}"
-            description: "Device {{ $labels.device }} on {{ $labels.host }} is predicted to fail within {{ $value }} days. Plan replacement."
-
-        - alert: CephDiskPredictedFailureImminent
-          expr: ceph_device_life_expectancy_min < 1 and ceph_device_life_expectancy_min >= 0
-          for: 1m
-          labels:
-            severity: critical
-          annotations:
-            summary: "Disk failure imminent for {{ $labels.device }}"
-            description: "Device {{ $labels.device }} on {{ $labels.host }} is predicted to fail within 24 hours. Replace immediately."
+    # REMOVED 2026-09-06: the ceph-disk-health group held CephDiskPredictedFailure
+    # and CephDiskPredictedFailureImminent, both matching
+    # ceph_device_life_expectancy_min. That metric has never existed on this
+    # cluster and cannot be made to exist on this hardware, so both were
+    # critical/warning alerts that could not fire.
+    #
+    # This is NOT the usual "module is switched off" case, and enabling
+    # something is not the fix - it is already enabled. Measured on Ceph
+    # v20.2.4 (tentacle): devicehealth is an always-on mgr module,
+    # diskprediction_local is in enabled_modules, device_failure_prediction_mode
+    # is already "local", mgr/devicehealth/enable_monitoring is true, and SMART
+    # collection genuinely works - `ceph device ls` lists all 6 OSD devices with
+    # live WEAR values and `ceph device get-health-metrics` holds 176 daily
+    # samples going back to 2026-03-10.
+    #
+    # What fails is the prediction step: `ceph device predict-life-expectancy`
+    # returns "unknown" for every device, because diskprediction_local's bundled
+    # model does not cover NVMe, and all 6 OSDs are NVMe. With no life
+    # expectancy the mgr never raises the DEVICE_HEALTH check either, which is
+    # why ceph_health_detail{name="DEVICE_HEALTH"} is absent from the 45
+    # ceph_health_detail names this cluster emits - so the chart-shipped
+    # CephDeviceFailurePredicted in rook-ceph/prometheus-ceph-rules is dead for
+    # the same root cause. Do not treat it as the surviving coverage.
+    #
+    # GAP, deliberately left open: there is currently no predictive disk-failure
+    # alerting. The wear data is real and useful (one 980 PRO went 14% -> 18%
+    # percentage_used between 2026-03 and 2026-09) but lives only in Ceph's
+    # device-health DB; nothing exports it - no ceph_device* metric is emitted
+    # by the mgr, and node-exporter's node_nvme_info carries model/serial/
+    # firmware only, no wear. Closing this needs a SMART exporter
+    # (e.g. smartctl_exporter) plus a wear/available_spare rule, which is new
+    # machinery and deliberately out of scope for an alert-correctness change.
+    # Re-adding a life-expectancy rule only makes sense if Ceph ships an
+    # NVMe-capable predictor.
 
     - name: ceph-crash-detection
       rules:
