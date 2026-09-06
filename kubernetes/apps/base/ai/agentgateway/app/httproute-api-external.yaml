@@ -9,7 +9,16 @@ kind: HTTPRoute
 metadata:
   name: agentgateway-api
   annotations:
-    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN},external.${SECRET_DOMAIN}"
+    # ONE target only. The unifi webhook provider keeps just the first target
+    # of a CNAME and logs "Ignoring additional CNAME targets" once a minute,
+    # forever - with both listed it dropped `internal.${SECRET_DOMAIN}` on
+    # every sync (measured 2026-09-06: 10 warnings in 10 minutes) and the LAN
+    # record settled on `external.${SECRET_DOMAIN}` anyway. This states what
+    # actually happens and stops the warning stream from masking a real
+    # external-dns problem. The public record is unaffected: cloudflare-dns
+    # runs with --gateway-name=envoy-external and already resolved this name
+    # to the external target.
+    external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
       conditions: ["[STATUS] == 401"]
       url: "https://llm-api.${SECRET_DOMAIN}/v1/models"

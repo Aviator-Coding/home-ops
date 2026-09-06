@@ -25,6 +25,16 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: llm-unified
+  annotations:
+    # No `spec.hostnames` here, so external-dns's gateway-httproute source
+    # would fall back to the parent listener hostname - the
+    # `*.${SECRET_DOMAIN}` wildcard - and publish it against the Gateway LB IP,
+    # making the AI gateway the LAN's default answer for every unclaimed name.
+    # This route's real hostnames are served by the envoy-fronted routes
+    # (httproute.yaml / httproute-internal.yaml / httproute-api-external.yaml),
+    # so it must not publish DNS of its own. Same opt-out as
+    # kubernetes/apps/base/network/envoy-gateway/app/envoy.yaml `https-redirect`.
+    external-dns.alpha.kubernetes.io/controller: none
 spec:
   parentRefs:
     - name: internal-noauth

@@ -2,10 +2,20 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: tls-redirect
+  annotations:
+    # This route declares no `spec.hostnames`, so external-dns's
+    # gateway-httproute source falls back to the parent listener hostname -
+    # the `*.${SECRET_DOMAIN}` wildcard - and published it against the
+    # Gateway's LB IP. That made the AI gateway the LAN's default landing site
+    # for every unclaimed name (measured 2026-09-06: `*.sklab.dev` and every
+    # probe name answered 10.50.0.27 on the LAN resolver, NXDOMAIN publicly).
+    # Same opt-out the equivalent envoy catch-all uses:
+    # kubernetes/apps/base/network/envoy-gateway/app/envoy.yaml `https-redirect`.
+    external-dns.alpha.kubernetes.io/controller: none
 spec:
+  # `internal` has no http listener any more (see internal.yaml) - a parentRef
+  # to it would sit permanently unresolved.
   parentRefs:
-    - name: internal
-      sectionName: http
     - name: internal-noauth
       sectionName: http
     - name: public

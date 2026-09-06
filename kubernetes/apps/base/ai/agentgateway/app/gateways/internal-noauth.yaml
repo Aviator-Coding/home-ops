@@ -3,11 +3,23 @@ kind: Gateway
 metadata:
   name: internal-noauth
 spec:
-  # Pin the LB IP Cilium originally auto-allocated, so the Service keeps it
-  # across recreation (e.g. the planned ai-system -> ai namespace move).
+  # ClusterIP, NOT LoadBalancer. This Gateway is deliberately keyless, and its
+  # documented client set is in-cluster only
+  # (http://internal-noauth.ai.svc.cluster.local/v1 - see README.md). While it
+  # carried `lbipam.cilium.io/ips: 10.50.0.28` the agentgateway controller
+  # generated a LoadBalancer Service, so the whole LAN could reach the paid
+  # provider backends with no credential (measured 2026-09-06 from an
+  # off-segment host, 10.0.0.150). The controller derives the Service from this
+  # Gateway, and AgentgatewayParameters.spec.service.spec is a strategic-merge
+  # ServiceSpec overlay, so pinning the type there is the supported way to say
+  # it. 34h of this gateway's own access log showed 3628 requests from pod IPs
+  # via the cluster DNS name and zero from a LAN client, so nothing legitimate
+  # loses reach.
   infrastructure:
-    annotations:
-      lbipam.cilium.io/ips: 10.50.0.28
+    parametersRef:
+      group: agentgateway.dev
+      kind: AgentgatewayParameters
+      name: internal-noauth-params
   gatewayClassName: agentgateway
   listeners:
     - name: http
@@ -26,3 +38,19 @@ spec:
           - kind: Secret
             group: ""
             name: sklab-dev-production-tls
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/agentgateway.dev/agentgatewayparameters_v1alpha1.json
+# Gateway-level overlay for `internal-noauth` only, referenced from that
+# Gateway's spec.infrastructure.parametersRef above. Gateway-level parameters
+# MERGE with the GatewayClass-level ones (../agentgatewayparameters.yaml,
+# which supplies ADMIN_ADDR) rather than replacing them - the chart applies
+# GatewayClass typed fields, then Gateway typed fields, then the overlays in
+# the same order.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayParameters
+metadata:
+  name: internal-noauth-params
+spec:
+  service:
+    spec:
+      type: ClusterIP
