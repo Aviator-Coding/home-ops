@@ -21,6 +21,7 @@ spec:
           # The first pass has ~951 GiB of never-discarded blocks to work through
           # on downloads/sabnzbd-incomplete alone, so a run can outlast its window.
           concurrencyPolicy: Forbid
+          backoffLimit: 0
 
         pod:
           hostNetwork: true
@@ -83,7 +84,8 @@ spec:
                     }
                   }
                   END { for (dev in keep) print keep[dev] }
-                ' /proc/self/mountinfo | sort > /tmp/fstrim-targets
+                ' /proc/self/mountinfo > /tmp/fstrim-targets.raw
+                sort /tmp/fstrim-targets.raw > /tmp/fstrim-targets
 
                 echo "$(hostname): trimming $(wc -l < /tmp/fstrim-targets) device(s)"
 
