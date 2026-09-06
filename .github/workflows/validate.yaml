@@ -79,6 +79,17 @@ on:
       # scripts/ci/validate-contention-test.py::test_trigger_paths_cover_job_filters.
       - docs/tdarr-errored-remuxes.md
       - docs/tdarr/**
+      # kubernetes/apps/{base,main}/ai/** are here for the same two-level reason
+      # as docs/tdarr/** above: grafana-mcp-deploy-test.py renders
+      # kubernetes/apps/base/ai/toolhive/mcp-servers and kubernetes/apps/main/ai,
+      # and samba-shared-xml-test.py renders kubernetes/apps/base/ai/{pvc,samba}/app
+      # plus the same overlays - so a change to those manifests is exactly the
+      # change class that can break those gates. Until 2026-09-06 neither level
+      # listed them: #1598 moved the grafana-mcp image pin, started no Validate
+      # run at all, and left grafana-mcp-deploy-test.py red on `main` where only
+      # an unrelated scripts/ci/** PR could ever surface it.
+      - kubernetes/apps/base/ai/**
+      - kubernetes/apps/main/ai/**
       - kubernetes/apps/base/system-upgrade/**
       - kubernetes/apps/main/system-upgrade/**
       - scripts/ci/**
@@ -171,6 +182,8 @@ jobs:
             scripts/ci/**
             docs/tdarr/**
             docs/tdarr-errored-remuxes.md
+            kubernetes/apps/base/ai/**
+            kubernetes/apps/main/ai/**
             .github/workflows/validate.yaml
             .mise.toml
 
