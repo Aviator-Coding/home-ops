@@ -19,6 +19,34 @@
       overrideDepName: "{{packageName}}",
     },
     {
+      // mise's short name `1password-cli` extracts as github-tags on
+      // `1password/cli`, and that GitHub repository does not exist (404), so
+      // every run logged `Failed to look up github-tags package
+      // 1password/cli: no-result` and the pin sat at 2.30.3 while upstream
+      // reached 2.39.0. Switching .mise.toml to the explicit `aqua:` backend
+      // does NOT fix it: mise/backends.ts createAquaToolConfig maps aqua to
+      // GithubTagsDatasource too, and aqua's own pkgs/1password/cli is an
+      // `http` package pulling cache.agilebits.com - there is no GitHub repo
+      // behind this tool at all.
+      //
+      // docker.io/1password/op is 1Password's official CLI image and its tags
+      // are the CLI versions (2.39.0, 2.38.1, ... - 166 tags), so the docker
+      // datasource resolves where github-tags cannot.
+      //
+      // `versioning: semver` is load-bearing, not decoration: the image also
+      // publishes `-beta` tags, and docker versioning's isStable() keeps only
+      // the part before the first `-`, so it would rank 2.39.1-beta.01 as a
+      // STABLE release and propose it. That is the same trap AGENTS.md records
+      // for the Talos installer pin. Under semver the betas are prereleases and
+      // ignoreUnstable (default true) filters them.
+      description: "1Password CLI has no GitHub repo; resolve via the official docker image",
+      matchManagers: ["mise"],
+      matchDepNames: ["1password-cli"],
+      overrideDatasource: "docker",
+      overridePackageName: "1password/op",
+      versioning: "semver",
+    },
+    {
       description: "Override Talos Installer Package Name",
       matchDatasources: ["docker"],
       matchPackageNames: ["/factory\\.talos\\.dev/"],
