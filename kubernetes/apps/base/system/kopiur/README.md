@@ -43,7 +43,7 @@ policies/schedules, use the component Readme's Rollback section instead.
 
 | Path | What |
 |---|---|
-| `app/` | operator: `OCIRepository`, `HelmRelease`, supplement `PrometheusRule` (operator/webhook absent, projected-credential leak, empty-backup; chart ships the rest of `kopiur.rules`), and the substitution `ExternalSecret` |
+| `app/` | operator: `OCIRepository`, `HelmRelease`, supplement `PrometheusRule` (operator/webhook absent, projected-credential leak, empty-backup, dest-split `KopiurBackupStale{Ceph,R2}`; chart still ships single-threshold `KopiurBackupStale` plus the rest of `kopiur.rules`), and the substitution `ExternalSecret` |
 | `backend/` | the Ceph bucket: `ObjectBucketClaim`, `CephObjectStoreUser`, and the `PushSecret` that records its generated keys in 1Password (included from `app/`) |
 | `repository/` | the two `ClusterRepository` objects (`ceph`, `r2`) and their credential `ExternalSecret`s, one 1Password item each |
 
