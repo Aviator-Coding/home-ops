@@ -34,14 +34,21 @@ spec:
           annotations:
             summary: "OSD {{ $labels.pod }} has restarted more than 3 times in 1 hour"
 
+        # ceph_osd_slow_ops does not exist; ceph_trackedop_slow_ops_count is the
+        # live per-daemon equivalent and keeps the ceph_daemon label this
+        # annotation depends on. Note it is a COUNTER ("Number of operations
+        # taking over ten seconds"), not a gauge, so a bare > 5 would latch on
+        # permanently after the fifth slow op the cluster ever saw - increase()
+        # over a window is what makes "sustained" mean sustained.
         - alert: CephOSDSlowOps
-          expr: ceph_osd_slow_ops > 5
+          expr: |
+            increase(ceph_trackedop_slow_ops_count{ceph_daemon=~"osd.*"}[10m]) > 5
           for: 10m
           labels:
             severity: warning
           annotations:
             summary: "OSD {{ $labels.ceph_daemon }} experiencing sustained slow operations"
-            description: "OSD {{ $labels.ceph_daemon }} has {{ $value }} slow operations for more than 10 minutes."
+            description: "OSD {{ $labels.ceph_daemon }} recorded {{ $value }} operations over ten seconds in the last 10 minutes, sustained for 10 minutes."
 
         - alert: CephMonitorQuorumAtRisk
           expr: sum(ceph_mon_quorum_status) < 3
@@ -133,8 +140,11 @@ spec:
             summary: "Ceph placement groups are degraded"
             description: "{{ $value }} placement groups are in degraded state. Data is still accessible but not fully replicated."
 
+        # ceph_pg_inactive does not exist. Ceph exports per-state PG gauges, so
+        # inactive is derived: everything not counted as active.
         - alert: CephPGInactive
-          expr: ceph_pg_inactive > 0
+          expr: |
+            (ceph_pg_total - ceph_pg_active) > 0
           for: 5m
           labels:
             severity: critical
@@ -151,8 +161,12 @@ spec:
             summary: "Ceph placement groups are inconsistent"
             description: "{{ $value }} placement groups have inconsistent data. Run 'ceph pg repair' after investigation."
 
+        # ceph_pg_recovery_full does not exist; the live gauge is
+        # ceph_pg_recovery_toofull. backfill_toofull is included because a full
+        # cluster blocks backfill the same way it blocks recovery.
         - alert: CephPGRecoveryFull
-          expr: ceph_pg_recovery_full > 0
+          expr: |
+            (ceph_pg_recovery_toofull + ceph_pg_backfill_toofull) > 0
           for: 5m
           labels:
             severity: critical
