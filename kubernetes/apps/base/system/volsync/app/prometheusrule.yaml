@@ -136,9 +136,33 @@ spec:
         # Retirement records: docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md,
         # docs/backups/kopiur-wave-two-retirement-2026-09-02.md,
         # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+        #
+        # POD DIMENSION (2026-09-06): increase() without aggregating away
+        # pod/instance false-fires on frozen counters from departed replicas.
+        # Six critical VolSyncSyncStalledR2 alerts were firing for the three
+        # live r2 sources off pods n879r/xblf6, which no longer existed, while
+        # the live leader 8bpzp had completions inside the 36h window. It
+        # recurs on every VolSync restart for the length of the lookback and
+        # trains the operator to ignore the class. Fix: max by
+        # (obj_namespace, obj_name) before the comparison. max not sum: a
+        # genuine stall still fires (every replica reads 0); one healthy
+        # leader silences it. Proven live 2026-09-06 against
+        # kube-prometheus-stack-prometheus: the unaggregated expr returned
+        # 6 series, this expr returned 0; the same expr restricted to the
+        # departed pods returned the 3 live sources (the stall path).
+        #
+        # NOT SHIPPED: a source's counter series only exists once that
+        # source has completed a sync on the current leader. A stall
+        # immediately after a leader change exports no series, the `and`
+        # join yields nothing, and the alert stays silent. Inventory-first
+        # coverage (live cache PVC `unless` max-by increase > 0) would
+        # close it. Validated live that all 3 r2 cache PVCs currently have
+        # a leader series (the absent-gap query returned 0) - no live
+        # fire-path proof, so this stays a recommendation rather than a
+        # shipped rule.
         - alert: VolSyncSyncStalledCeph
           expr: |-
-            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ceph$"}[6h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
+            label_replace(max by (obj_namespace, obj_name) (increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ceph$"}[6h])), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
             and on (obj_namespace, cachepvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "cachepvc", "$1", "persistentvolumeclaim", "(.+)")
           for: 5m
           annotations:
@@ -154,7 +178,7 @@ spec:
 
         - alert: VolSyncSyncStalledMinio
           expr: |-
-            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-minio$"}[9h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
+            label_replace(max by (obj_namespace, obj_name) (increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-minio$"}[9h])), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
             and on (obj_namespace, cachepvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "cachepvc", "$1", "persistentvolumeclaim", "(.+)")
           for: 5m
           annotations:
@@ -168,7 +192,7 @@ spec:
 
         - alert: VolSyncSyncStalledR2
           expr: |-
-            label_replace(increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-r2$"}[36h]), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
+            label_replace(max by (obj_namespace, obj_name) (increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-r2$"}[36h])), "cachepvc", "volsync-src-$1-cache", "obj_name", "(.+)") == 0
             and on (obj_namespace, cachepvc) label_replace(label_replace(kube_persistentvolumeclaim_info, "obj_namespace", "$1", "namespace", "(.+)"), "cachepvc", "$1", "persistentvolumeclaim", "(.+)")
           for: 5m
           annotations:
