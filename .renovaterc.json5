@@ -12,7 +12,17 @@
     "github>Aviator-Coding/home-ops//.renovate/labels.json5",
     "github>Aviator-Coding/home-ops//.renovate/overrides.json5",
     "github>Aviator-Coding/home-ops//.renovate/talos.json5",
-    ":automergeBranch",
+    // No :automergeBranch here on purpose. Branch automerge requires the
+    // branch to reach a green commit status, and no workflow in this repo
+    // triggers on a push to renovate/** - every `push:` trigger is scoped to
+    // branches: [main] - so such a branch sits permanently `pending` with zero
+    // checks and `ignoreTests: false` correctly refuses to merge it. Measured:
+    // `git log --format=%s -200 origin/main | grep -cv "(#[0-9]*)$"` returns 0,
+    // i.e. every update that has ever landed did so through a PR. Leaving the
+    // preset in place made the config read as an active fast path that has
+    // produced zero merges, and it is the same mechanism that stranded four
+    // renovate/* branches for 15 days. Do NOT re-add it without also giving
+    // renovate/** branches a real status check.
   ],
   ignorePaths: [
     "**/*.sops.*",
