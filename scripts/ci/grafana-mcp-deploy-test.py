@@ -18,7 +18,11 @@ This test does not grep source text as a proxy for behavior. It:
   5. Asserts healthChecks cover both the proxy Deployment and backend
      StatefulSet named after the MCPServer, matching every active server.
   6. Optionally verifies the pinned digest against the Docker Hub registry
-     API for grafana/mcp-grafana:1.2.0 (skipped cleanly if offline).
+     API for the tag the manifest itself pins (skipped cleanly if offline).
+
+The image pin is asserted by shape - correct repository, tag present, sha256
+digest present - never by hardcoded version, so a Renovate bump cannot turn
+this gate red.
 
 Live read-only query proof against the federated gateway remains a post-merge
 gate (needs cluster access and the item `grafana-mcp` / field
@@ -29,6 +33,7 @@ the same item/field the original grafana-mcp deployment used, not a new one).
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import urllib.error
@@ -43,11 +48,17 @@ MCP_SERVERS_PATH = ROOT / "kubernetes/apps/base/ai/toolhive/mcp-servers"
 MAIN_AI_PATH = ROOT / "kubernetes/apps/main/ai"
 
 EXPECTED_IMAGE_REPO = "docker.io/grafana/mcp-grafana"
-EXPECTED_IMAGE_TAG = "1.2.0"
-EXPECTED_DIGEST = (
-    "sha256:cfae68f893dbe40cb6df69579f78beb226f973ded4436d47c844f91d2f00dc53"
+# The pin is asserted by SHAPE, not by value: the repository must be exactly
+# EXPECTED_IMAGE_REPO and the reference must carry both a tag and a sha256
+# digest. A routine Renovate bump moves the tag and the digest together and
+# must not turn this gate red - that is exactly what happened on 2026-09-06,
+# when #1598 moved the manifest to 1.3.0 and left this test failing on `main`
+# with no CI path able to run it for the change that broke it. What the gate
+# is actually protecting is that the image stays digest-pinned to the expected
+# upstream repository; the specific version is Renovate's business.
+PINNED_IMAGE_RE = re.compile(
+    r"^(?P<repo>[^:@\s]+):(?P<tag>[^:@\s]+)@(?P<digest>sha256:[0-9a-f]{64})$"
 )
-EXPECTED_IMAGE = f"{EXPECTED_IMAGE_REPO}:{EXPECTED_IMAGE_TAG}@{EXPECTED_DIGEST}"
 EXPECTED_GRAFANA_URL = "http://grafana.monitoring.svc.cluster.local"
 EXPECTED_GROUP = "mcp-tools"
 EXPECTED_SECRET_NAME = "toolhive-grafana"
@@ -117,6 +128,22 @@ def mcp_container(server: dict[str, Any]) -> dict[str, Any]:
     raise Failure("grafana-mcp MCPServer missing podTemplateSpec container name=mcp")
 
 
+def parse_pinned_image(image: str) -> tuple[str, str, str]:
+    """Split a digest-pinned reference, asserting its shape (not its version)."""
+    m = PINNED_IMAGE_RE.match(image or "")
+    require(
+        m is not None,
+        f"image must be pinned as <repo>:<tag>@sha256:<64 hex>, got {image!r}",
+    )
+    assert m is not None  # for type checkers; require() raises otherwise
+    repo, tag, digest = m.group("repo"), m.group("tag"), m.group("digest")
+    require(
+        repo == EXPECTED_IMAGE_REPO,
+        f"image repository must be {EXPECTED_IMAGE_REPO}, got {repo!r}",
+    )
+    return repo, tag, digest
+
+
 def assert_grafana_mcpserver(docs: list[dict[str, Any]]) -> dict[str, Any]:
     servers = [
         d
@@ -141,7 +168,7 @@ def assert_grafana_mcpserver(docs: list[dict[str, Any]]) -> dict[str, Any]:
 
     g = next(s for s in servers if s["metadata"]["name"] == "grafana-mcp")
     spec = g["spec"]
-    require(spec.get("image") == EXPECTED_IMAGE, f"image pin wrong: {spec.get('image')}")
+    parse_pinned_image(spec.get("image") or "")
     require(spec.get("transport") == "streamable-http", "transport must be streamable-http")
     require(spec.get("proxyMode") == "streamable-http", "proxyMode must be streamable-http")
     require(spec.get("proxyPort") == 8080, "proxyPort must be 8080")
@@ -239,20 +266,26 @@ def assert_flux_healthchecks(docs: list[dict[str, Any]]) -> None:
     )
 
 
-def verify_image_digest() -> str:
-    """Return 'verified' or 'skipped:<reason>' after checking Docker Hub."""
+def verify_image_digest(tag: str, digest: str) -> str:
+    """Return 'verified' or 'skipped:<reason>' after checking Docker Hub.
+
+    Both arguments come from the manifest, so this follows a Renovate bump
+    instead of pinning a version of its own. It still catches the case that
+    matters: a tag and a digest that do not belong together.
+    """
     # Hub tag API returns the index digest for multi-arch tags.
-    url = "https://hub.docker.com/v2/repositories/grafana/mcp-grafana/tags/1.2.0"
+    path = EXPECTED_IMAGE_REPO.removeprefix("docker.io/")
+    url = f"https://hub.docker.com/v2/repositories/{path}/tags/{tag}"
     try:
         with urllib.request.urlopen(url, timeout=15) as resp:
             body = json.load(resp)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         return f"skipped:{exc}"
-    digest = body.get("digest")
-    if digest != EXPECTED_DIGEST:
+    hub_digest = body.get("digest")
+    if hub_digest != digest:
         raise Failure(
-            f"Docker Hub digest for grafana/mcp-grafana:1.2.0 is {digest!r}, "
-            f"manifest pins {EXPECTED_DIGEST!r}"
+            f"Docker Hub digest for {path}:{tag} is {hub_digest!r}, "
+            f"manifest pins {digest!r}"
         )
     return "verified"
 
@@ -263,8 +296,9 @@ def main() -> int:
     print(f"    documents: {len(mcp_docs)}")
 
     print("==> assert grafana-mcp MCPServer contract")
-    assert_grafana_mcpserver(mcp_docs)
-    print("    MCPServer OK")
+    grafana = assert_grafana_mcpserver(mcp_docs)
+    _, image_tag, image_digest = parse_pinned_image(grafana["spec"]["image"])
+    print(f"    MCPServer OK (pin: {image_tag}@{image_digest[:19]}...)")
 
     print("==> assert ExternalSecret contract")
     assert_externalsecret(mcp_docs)
@@ -279,7 +313,7 @@ def main() -> int:
     print("    healthChecks OK")
 
     print("==> verify image digest via Docker Hub")
-    digest_status = verify_image_digest()
+    digest_status = verify_image_digest(image_tag, image_digest)
     print(f"    digest: {digest_status}")
 
     print("PASS: grafana-mcp in-cluster deploy manifests satisfy D5/A6 contracts")

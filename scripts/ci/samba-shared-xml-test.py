@@ -66,7 +66,12 @@ CLAIM = "shared-xml"
 STORAGE_CLASS = "ceph-filesystem-rwx"
 CAPACITY = "100Gi"
 SAMBA_IMAGE = "ghcr.io/dockur/samba"
-SAMBA_TAG = "4.23.10"
+# Asserted by SHAPE, not by value: the repository must be exactly SAMBA_IMAGE
+# and a non-empty tag must be present. Hardcoding the version here would make a
+# routine Renovate bump turn this gate red for a reason that has nothing to do
+# with what the gate protects - the same defect that took
+# grafana-mcp-deploy-test.py down on `main` on 2026-09-06 (#1598).
+SAMBA_IMAGE_RE = re.compile(rf"^{re.escape(SAMBA_IMAGE)}:(?P<tag>[^:@\s]+)$")
 
 # IPs the captain named as taken (must not be the samba pick).
 TAKEN_IPS = {
@@ -450,7 +455,10 @@ def test_samba_rendered_workload_and_service() -> None:
 
     app = container_by_name(pod, "app")
     image = app.get("image") or ""
-    require(image == f"{SAMBA_IMAGE}:{SAMBA_TAG}", f"image must be {SAMBA_IMAGE}:{SAMBA_TAG}, got {image}")
+    require(
+        SAMBA_IMAGE_RE.match(image) is not None,
+        f"image must be {SAMBA_IMAGE}:<tag>, got {image}",
+    )
     env = {e["name"]: e.get("value") for e in app.get("env") or [] if "name" in e}
     require(env.get("USER") == "hermes", "USER=hermes")
     require(env.get("UID") == EXPECTED_UID and env.get("GID") == EXPECTED_GID, "UID/GID 10000")
