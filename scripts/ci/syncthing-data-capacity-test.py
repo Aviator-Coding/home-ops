@@ -12,7 +12,11 @@ the config PVC - not GitOps - so this test pins only the GitOps half:
   3. Rendering `components/volsync/backup` under that substitute map produces a
      ReplicationDestination whose restic.capacity is 15Gi - proving the value
      sizes the restore destination volume, not the live app claim (the backup
-     path deliberately does not create a PVC).
+     path deliberately does not create a PVC). This assertion covers the
+     rendered manifest only. The live ReplicationDestination carries
+     `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`, so Git and cluster can
+     legitimately differ (measured 2026-09-06: live syncthing-data-dst was
+     100Gi against Git 15Gi). This test cannot see that drift.
   4. The config volume (`syncthing`, 1Gi) stays a SEPARATE claim of its own
      size, and the HelmRelease still mounts it separately from syncthing-data.
      VolSync was retired from the config claim on 2026-09-04 (Stage 5 wave

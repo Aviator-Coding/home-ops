@@ -613,6 +613,14 @@ def test_runbook_procedure_contract() -> None:
         or re.search(r"no data will be restored", lowered),
         "runbook must quote the empty-repo mover log shape",
     )
+    require(
+        "paperless-ngx" in lowered,
+        "runbook must name paperless-ngx as a live empty-latestImage claim",
+    )
+    require(
+        "2026-09-06" in text,
+        "runbook must record the 2026-09-06 measurement of all three surviving destinations",
+    )
 
     # The fix: delete RD together with PVC; never patch trigger.manual.
     require(
