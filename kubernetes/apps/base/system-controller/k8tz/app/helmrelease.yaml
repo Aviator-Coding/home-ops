@@ -43,6 +43,21 @@ spec:
         cpu: 100m
         memory: 128Mi
 
+    # The controller itself was the cluster's only BestEffort pod, so Talos
+    # runtime.OOMController SIGKILLed it on every PSI spike (9 times in 33h
+    # on talos-1, 2026-09-06). requests==limits on every container makes the
+    # pod Guaranteed, which that controller skips. Working set 2026-09-06:
+    # k8tz 12-14Mi / 2-3m, cert-watcher 7-8Mi / <1m. The chart's `resources`
+    # only cover the webhook container; the cert-watcher sidecar is patched
+    # to the same values below so the pod is not left Burstable.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
+
     webhook:
       certManager:
         enabled: true
@@ -60,6 +75,20 @@ spec:
                   app.kubernetes.io/name: k8tz
               topologyKey: kubernetes.io/hostname
 
+    # Preferred anti-affinity above can still co-locate both replicas. With
+    # webhook failurePolicy: Fail that would fail every pod CREATE in 21
+    # namespaces for the duration of a node event. DoNotSchedule plus the
+    # PDB in pdb.yaml keep them on distinct nodes.
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: k8tz
+        matchLabelKeys:
+          - pod-template-hash
+
   postRenderers:
     - kustomize:
         patches:
@@ -72,3 +101,27 @@ spec:
               kind: Namespace
               metadata:
                 name: not-used
+          # Chart 0.20.0 applies .Values.resources only to the webhook
+          # container. The cert-watcher sidecar ships with resources: {}
+          # and would keep the pod Burstable (and OOM-eligible) otherwise.
+          - target:
+              version: v1
+              kind: Deployment
+              name: k8tz
+            patch: |-
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: k8tz
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: k8tz-cert-watcher
+                        resources:
+                          requests:
+                            cpu: 50m
+                            memory: 64Mi
+                          limits:
+                            cpu: 50m
+                            memory: 64Mi
