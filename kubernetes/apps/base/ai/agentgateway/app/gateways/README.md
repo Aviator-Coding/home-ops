@@ -12,7 +12,11 @@ Three `gatewayClassName: agentgateway` Gateways in namespace `ai`. Cilium `lbipa
 
 Keyless access is `internal-noauth`, and it is `ClusterIP` on purpose - the keyless surface should not be reachable from the LAN. Its Service type is set by the Gateway-level `AgentgatewayParameters` in [`internal-noauth.yaml`](./internal-noauth.yaml) (`spec.service.spec` is a strategic-merge `ServiceSpec` overlay); Gateway-level parameters merge with the GatewayClass-level [`../agentgatewayparameters.yaml`](../agentgatewayparameters.yaml) rather than replacing them.
 
-None of the three `ai` Gateways may publish DNS. Their https listeners use the `*.${SECRET_DOMAIN}` wildcard hostname, and `tls-redirect`, `llm-unified` and `llm-models` declare no `spec.hostnames` - so external-dns's `gateway-httproute` source falls back to that wildcard and publishes it against the Gateway LB IP, making the AI gateway the LAN's default answer for every unclaimed name. All three carry `external-dns.alpha.kubernetes.io/controller: none` (the same opt-out `network/https-redirect` uses). Real hostnames are published by the envoy-fronted routes instead.
+None of the three `ai` Gateways may publish DNS. Their https listeners use the `*.${SECRET_DOMAIN}` wildcard hostname and `tls-redirect`, `llm-unified` and `llm-models` declare no `spec.hostnames`, so external-dns's `gateway-httproute` source would fall back to that wildcard and publish it against the Gateway LB IP. All three carry `external-dns.alpha.kubernetes.io/controller: none` (the same opt-out `network/https-redirect` uses). Real hostnames are published by the envoy-fronted routes instead.
+
+**The live LAN wildcard `*.${SECRET_DOMAIN} -> 10.50.0.27` is not external-dns's and the annotations above will not remove it.** Every record external-dns manages has a `k8s.main.<type>-<name>.${SECRET_DOMAIN}` registry TXT twin; measured 2026-09-06 against the unifi webhook provider's own `/records`, there are 71 such twins and none for the wildcard, so it is a hand-made UniFi record that `--policy=sync` will never touch. Deleting it is a UniFi-controller change. Until then every unclaimed name on the LAN still answers `10.50.0.27` - which is now an https-only, Authentik-gated listener rather than an open `/v1`, so the exposure is closed even though the record remains.
+
+To check ownership of any record: `kubectl -n network port-forward deploy/unifi-dns 18888:8888`, then `curl -H 'Accept: application/external.dns.webhook+json;version=1' localhost:18888/records`.
 
 Policies:
 

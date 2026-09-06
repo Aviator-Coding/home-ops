@@ -9,15 +9,29 @@ kind: HTTPRoute
 metadata:
   name: agentgateway-api
   annotations:
-    # ONE target only. The unifi webhook provider keeps just the first target
-    # of a CNAME and logs "Ignoring additional CNAME targets" once a minute,
-    # forever - with both listed it dropped `internal.${SECRET_DOMAIN}` on
-    # every sync (measured 2026-09-06: 10 warnings in 10 minutes) and the LAN
-    # record settled on `external.${SECRET_DOMAIN}` anyway. This states what
-    # actually happens and stops the warning stream from masking a real
-    # external-dns problem. The public record is unaffected: cloudflare-dns
-    # runs with --gateway-name=envoy-external and already resolved this name
-    # to the external target.
+    # States the ONE target this name actually resolves to. Declaring
+    # `internal.${SECRET_DOMAIN}` here as well was misleading: the unifi
+    # webhook provider keeps only the first target of a CNAME, and the LAN
+    # record has always settled on `external.${SECRET_DOMAIN}`.
+    #
+    # It does NOT stop the once-a-minute "Ignoring additional CNAME targets"
+    # warning, and nothing in this file can: measured 2026-09-06 by setting
+    # this annotation to `internal.${SECRET_DOMAIN}` alone on the live route -
+    # the record stayed `external.${SECRET_DOMAIN}` and the warning still
+    # reported the same two targets. For the `gateway-httproute` source the
+    # targets come from the PARENT GATEWAYS' own
+    # `external-dns.alpha.kubernetes.io/target` annotations
+    # (`network/envoy-internal` -> internal, `network/envoy-external` ->
+    # external, see network/envoy-gateway/app/envoy.yaml), so a route attached
+    # to both gateways always yields two. Only this record warns because it is
+    # the only one of the dual-attached routes external-dns actually OWNS
+    # (registry TXT `k8s.main.cname-llm-api.${SECRET_DOMAIN}`); `coder/coder`
+    # and `security/authentik` carry the same two-target annotation but their
+    # records are unmanaged, so external-dns never writes them. Silencing the
+    # warning would mean dropping one parentRef, which changes routing.
+    #
+    # The public record is unaffected: cloudflare-dns runs with
+    # --gateway-name=envoy-external and already resolves this name externally.
     external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
       conditions: ["[STATUS] == 401"]
