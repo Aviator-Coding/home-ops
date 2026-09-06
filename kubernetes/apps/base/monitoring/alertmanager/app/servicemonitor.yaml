@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/servicemonitor_v1.json
+# Alertmanager is deployed standalone (app-template), not by the Prometheus
+# Operator - kube-prometheus-stack sets alertmanager.enabled: false - so the
+# chart never creates a ServiceMonitor for it and nothing scraped it at all.
+# Every alertmanager_* series was absent, which left all seven chart-shipped
+# alertmanager.rules permanently unable to fire: the alerting pipeline had no
+# self-check.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alertmanager
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+      app.kubernetes.io/instance: alertmanager
+  endpoints:
+    - port: http
+      interval: 1m
+      scrapeTimeout: 10s
+      relabelings:
+        # Load-bearing, not cosmetic. All seven chart rules match on
+        # job="kube-prometheus-stack-alertmanager" (plus container and
+        # namespace, which the operator fills in from the pod automatically).
+        # Without this the job label would default to the Service name,
+        # "alertmanager", and the rules would stay exactly as inert as they
+        # were with no ServiceMonitor at all - the scrape would work and the
+        # alerts still would not. The operator appends user relabelings after
+        # its own job assignment, so this override wins.
+        - action: replace
+          targetLabel: job
+          replacement: kube-prometheus-stack-alertmanager
