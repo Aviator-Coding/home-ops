@@ -66,6 +66,7 @@ spec:
         type: cronjob
         cronjob:
           schedule: "0 */12 * * *"
+          startingDeadlineSeconds: 600
           timeZone: America/New_York
           concurrencyPolicy: Forbid
           successfulJobsHistory: 1

@@ -16,6 +16,7 @@ spec:
 
         cronjob:
           schedule: "0 0 * * 1"
+          startingDeadlineSeconds: 600
           parallelism: 3 # Set this to your number of nodes
 
         pod:

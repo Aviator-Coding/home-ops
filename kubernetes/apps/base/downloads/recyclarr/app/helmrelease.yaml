@@ -20,6 +20,7 @@ spec:
 
         cronjob:
           schedule: "@daily"
+          startingDeadlineSeconds: 600
           backoffLimit: 0
           concurrencyPolicy: Forbid
           failedJobsHistory: 1
