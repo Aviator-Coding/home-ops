@@ -83,6 +83,55 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-09-06] Working discard path: fstrim reaches PVCs; `nfs` mgr module off  (branch `fm/homeops-ceph-space-reclaim`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | (1) `kubernetes/apps/base/system/fstrim/app/helmrelease.yaml` - replaced the inherited `grep -v kubelet` mount filter with a per-block-device selection, added `concurrencyPolicy: Forbid`, and made the job fail when a device cannot be trimmed. (2) `cephClusterSpec.mgr.modules` - `nfs` set to `enabled: false`. (3) Live-only: `ceph crash prune 1`. |
+| **Why** | The cluster had **no working discard path at all**. Every Ceph PV mounts under `/var/lib/kubelet`, so `grep -v kubelet` excluded 100% of them; the CronJob had also never run (created 2026-09-02, `schedule: 0 0 * * 1`, `lastScheduleTime: null`). `downloads/sabnzbd-incomplete` had grown to 949 GiB of freed-but-never-discarded blocks behind a directory holding 36 KB. The `nfs` mgr module dispatches into `orchestrator`, which is deliberately off, and had filed 2,447 crash reports. |
+| **Risk** | `fstrim` is online and non-destructive - it discards already-free blocks only. The first pass has ~949 GiB to work through, hence `Forbid`. Disabling `nfs` is inert: `ceph nfs cluster ls` returns `[]` and no `CephNFS` CR exists. |
+| **Rollback** | Revert both HelmRelease hunks. The crash prune is not reversible; all 2,447 reports were the same `mgr_module: nfs` / `ImportError` signature from 2026-08-22/23. |
+| **Verify** | Filter traced against real kubelet-namespace mountinfo on all 3 nodes: 49 RBD devices + 1 node xfs, **each exactly once**, vs **0** PVCs under the old filter. Scoped live run on `monitoring/storage-loki-0` reclaimed **21.5 GiB** (`rbd du --exact` 32.049 -> 10.564 GiB). `ceph health` stayed `HEALTH_OK` throughout. |
+
+**`rbd du` is the wrong instrument for verifying a trim - use `rbd du --exact`.** Plain `rbd du`
+uses the object map (fast-diff) and counts every object still marked EXISTS at *full* object size.
+krbd maps discards at `discard_granularity=65536`, so a discard that does not cover a whole 4 MiB
+object punches a hole *inside* it: the extent is freed in BlueStore but the object still exists, so
+`rbd du` does not move while `rbd du --exact` does. Measured on the same volumes:
+
+| Claim | `rbd du` after trim | `rbd du --exact` after trim | Reclaim visible in plain `rbd du`? |
+|-------|--------------------|-----------------------------|------------------------------------|
+| `monitoring/storage-loki-0` | 38 -> 14 GiB | 32.049 -> 10.564 GiB | yes (whole objects freed) |
+| `monitoring/storage-tempo-0` | 7.7 -> 7.7 GiB | 5.5 GiB | **no** (sub-object holes) |
+| `downloads/radarr-config` | 3.1 -> 3.1 GiB | 2.5 GiB | **no** (sub-object holes) |
+
+An operator checking Monday's run with plain `rbd du` alone can therefore conclude, wrongly, that
+it did nothing. Note the fast-diff/exact gap is *also* present on never-trimmed images (`loki-0`
+38 vs 32 GiB, `database/falkordb` 128 vs 27 MiB), so the gap on its own proves nothing either -
+only a before/after with the **same** instrument does.
+
+**The 949 GiB is real, not a fast-diff artifact:** `rbd du --exact` on
+`csi-vol-45461037-7f1a-4917-862a-c6e47dac9cd6` reports 949 GiB against a filesystem holding 36 KB
+in 0 entries. The image is standalone (no `parent:`), so full-object discards can actually remove
+objects. 26 of the 49 mounted `ceph-block` images *are* CoW clones - unmeasured whether that limits
+their reclaim.
+
+**What `fstrim` structurally cannot reach:** 20 of 69 bound `ceph-block` PVs are not mounted on any
+node (idle VolSync cache claims, scaled-down apps). A node-local `fstrim` only sees mounted
+filesystems, so those keep their unreclaimed blocks until something mounts them.
+
+**`mountOptions: [discard]` on `ceph-block` - evaluated, deliberately NOT applied.** The premise
+that this needs the StorageClass replaced is **wrong**: `mountOptions` is *mutable*. Verified by
+server-side dry-run against the live SC - adding `mountOptions: [discard]` returns `configured`,
+while the same dry-run changing `reclaimPolicy` returns `field is immutable`. The chart supports it
+(`templates/cephblockpool.yaml:40`, rook-ceph-cluster v1.20.7), so it is a one-line values change
+whenever it is wanted. It was left out because: it only takes effect on newly-staged mounts and so
+recovers none of the existing 949 GiB; continuous discard is the *non*-recommended option on a
+cluster already tuned hard for write latency on consumer NVMe without PLP (`osd_mclock_profile:
+high_client_ops`, compression off, narrow scrub window); and applying it in the same change as the
+first-ever working `fstrim` pass would make neither result attributable. **Revisit only if, after
+several weekly passes, re-accumulation between runs proves material.**
+
 ### [2026-09-04] Fourth `ceph-filesystem-rwx` consumer: `ai/shared-xml`  (branch `fm/homeops-hermes-smb-share`)
 
 | Field | Value |
