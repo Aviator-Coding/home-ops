@@ -24,7 +24,7 @@ spec:
     # discrete Arc Pro B70 at talos-3 PCI 0000:03:00.0), not hostname affinity.
     # plex/playwright stay on gpu.intel.com/xe; the 35B chat server
     # (20.1GiB weights + 2.66GiB KV @262k q8_0 + 0.25GiB recurrent state +
-    # 1.27GiB compute buffer @ -ub 2048 = ~24.3GiB of 31.9GiB) must not consume
+    # 1.73GiB compute buffer @ -ub 2048 = ~24.7GiB of 31.9GiB) must not consume
     # that pool. KV is far smaller than the "~5.2GiB" once assumed here: only
     # 10 of 40 layers are full-attention (the rest are linear/recurrent), so
     # 262144 cells cost 2720 MiB, not ~5.2GiB. Measured 2026-09-07 from the
@@ -73,8 +73,9 @@ spec:
               - "8000"
               - --ctx-size
               # Native window is 262144 (no yarn) — set to the model's max. Hybrid
-              # arch (10/40 full-attn layers, 2 KV heads) → ~20 KiB/token → ~5.2 GiB
-              # KV @262k (q8_0/q8_0). The server auto-selects n_parallel=4 +
+              # arch (only 10/40 layers full-attention) → KV is 2720 MiB @262k
+              # q8_0/q8_0, not the ~5.2 GiB earlier comments assumed (measured
+              # 2026-09-07). The server auto-selects n_parallel=4 +
               # kv_unified=true: the pool is shared across up to 4 slots and a
               # single request can address all of it (verified 2026-07-08: loads
               # clean, 0 restarts, 68 t/s decode — see

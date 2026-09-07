@@ -112,7 +112,7 @@ def props():
 
 def run(args):
     rng = random.Random(args.seed)
-    res = {"props": props(), "phases": {}}
+    res = {"props": props(), "phases": {}, "ambient": {}}
     print(f"# server: {res['props']}", flush=True)
 
     if args.warmup_req:
@@ -121,6 +121,7 @@ def run(args):
 
     def note(tag):
         a = ambient()
+        res["ambient"][tag] = a
         print(f"#   ambient@{tag}: {a}", flush=True)
         return a
 

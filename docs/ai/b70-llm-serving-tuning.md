@@ -2,7 +2,7 @@
 
 > **Hardware:** single Intel Arc Pro B70 (Xe2 / Battlemage G31, 32 GB) on `talos-3`.
 > **App:** `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml` (chat = llama.cpp SYCL named
-> `vllm`; embeddings = vLLM named `vllm-embed`, **default-off**). **Updated:** 2026-07-08
+> `vllm`; embeddings = vLLM named `vllm-embed`, **default-off**). **Updated:** 2026-09-07
 > (ctx 262144, embed/ComfyUI `replicas: 0`). The A/B matrix below is still the 2026-06-26
 > measurement set.
 >
