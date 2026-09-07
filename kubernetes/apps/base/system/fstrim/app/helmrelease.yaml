@@ -16,7 +16,12 @@ spec:
 
         cronjob:
           schedule: "0 0 * * 1"
+          startingDeadlineSeconds: 600
           parallelism: 3 # Set this to your number of nodes
+          # The first pass has ~951 GiB of never-discarded blocks to work through
+          # on downloads/sabnzbd-incomplete alone, so a run can outlast its window.
+          concurrencyPolicy: Forbid
+          backoffLimit: 0
 
         pod:
           hostNetwork: true
@@ -39,8 +44,58 @@ spec:
               - "-c"
             args:
               - |
-                nsenter --mount=/host/proc/$(pidof /usr/local/bin/kubelet)/ns/mnt --net=/host/proc/$(pidof /usr/local/bin/kubelet)/ns/net -- sh -c "cat /proc/self/mountinfo | grep -v kubelet | grep -v tmpfs | grep -v overlay > /tmp/fs.txt"
-                nsenter --mount=/host/proc/$(pidof /usr/local/bin/kubelet)/ns/mnt --net=/host/proc/$(pidof /usr/local/bin/kubelet)/ns/net -- sh -c "fstrim -v --quiet-unsupported -I /tmp/fs.txt"
+                set -eu
+                KUBELET_PID="$(pidof /usr/local/bin/kubelet)"
+                NS="--mount=/host/proc/${KUBELET_PID}/ns/mnt --net=/host/proc/${KUBELET_PID}/ns/net"
+
+                # Select exactly one mount per block device from the kubelet's mount
+                # namespace.
+                #
+                # This job started life as the common upstream node-fstrim recipe,
+                # whose "cat /proc/self/mountinfo | grep -v kubelet" filter is aimed
+                # at node filesystems. On this cluster every Ceph PV is mounted under
+                # /var/lib/kubelet, so that filter excluded 100% of PersistentVolumes
+                # and left no working discard path anywhere (it also selected the
+                # read-only /var/mnt and the regular file /etc/nfsmount.conf, both of
+                # which FITRIM rejects, and trimmed the one node partition 6x).
+                #
+                # Rank each candidate mount, lowest wins:
+                #   0  a CSI .../globalmount/... path - the staging mount, exactly one
+                #      per PV and always rw
+                #   1  any other whole-filesystem mount (mountinfo root "/")
+                #   2  a bind mount of a subtree - how the Talos EPHEMERAL xfs
+                #      partition appears here; its own "/var" mount exists only in the
+                #      host namespace, not in the kubelet one
+                # Ties break toward the mount closest to the filesystem root. Read-only
+                # mounts are skipped because FITRIM fails on them. De-duplication is on
+                # major:minor, so each device is trimmed once, not once per bind mount.
+                nsenter $NS -- awk '
+                  { sep = 0
+                    for (i = 7; i <= NF; i++) if ($i == "-") { sep = i; break }
+                    if (!sep)                       next
+                    if ($(sep + 2) !~ /^\/dev\//)   next
+                    if ($6 ~ /(^|,)ro(,|$)/)        next
+                    if ($5 ~ /\/globalmount(\/|$)/) rank = 0
+                    else if ($4 == "/")             rank = 1
+                    else                            rank = 2
+                    if (!($3 in keep) || rank < rk[$3] ||
+                        (rank == rk[$3] && length($4) < length(rt[$3]))) {
+                      keep[$3] = $5; rk[$3] = rank; rt[$3] = $4
+                    }
+                  }
+                  END { for (dev in keep) print keep[dev] }
+                ' /proc/self/mountinfo > /tmp/fstrim-targets.raw
+                sort /tmp/fstrim-targets.raw > /tmp/fstrim-targets
+
+                echo "$(hostname): trimming $(wc -l < /tmp/fstrim-targets) device(s)"
+
+                # Report per-device and fail the run if any device could not be
+                # trimmed. The previous version could only ever report success.
+                rc=0
+                while read -r target; do
+                  nsenter $NS -- fstrim -v "$target" || rc=1
+                done < /tmp/fstrim-targets
+                exit "$rc"
             probes:
               liveness:
                 enabled: false

@@ -516,9 +516,10 @@ untouched and still forbidden.
 external-dns applies it to every attached route. Verified live - `searxng` (and formerly `jellyfin`, retired 2026-08-30)
 carries no route-level target annotation and resolves
 `CNAME -> internal.${SECRET_DOMAIN} -> 10.50.0.26`. (Before this change,
-`litellm.${SECRET_DOMAIN}` resolved to `10.50.0.27` only via the `*.${SECRET_DOMAIN}`
-wildcard that the agentgateway `internal` Gateway publishes; a specific record
-now wins over it.)
+`litellm.${SECRET_DOMAIN}` resolved to `10.50.0.27` only via the hand-made
+UniFi LAN wildcard `*.${SECRET_DOMAIN}` (not an external-dns / agentgateway
+publication - see `app/gateways/README.md`); a specific record now wins over
+it.)
 
 It is an **annotations** decision. The operator's route schema is exactly
 `{hostnames, parentRefs, filters}` - there is no annotations field - so an

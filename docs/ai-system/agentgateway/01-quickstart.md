@@ -11,7 +11,7 @@ kubectl -n ai get agentgatewaybackend
 kubectl -n ai get helmrelease agentgateway
 ```
 
-Expect three Gateways (`10.50.0.27/28/29`), HTTPRoute `llm-unified`, and `AgentgatewayBackend` objects (not `kind: Backend`).
+Expect three Gateways (`internal` LB `10.50.0.27`, `internal-noauth` ClusterIP, `public` LB `10.50.0.29`), HTTPRoute `llm-unified`, and `AgentgatewayBackend` objects (not `kind: Backend`). Do not curl `10.50.0.28` - keyless access is the in-cluster Service DNS below.
 
 ## 2. Call unified `/v1` from inside the cluster
 

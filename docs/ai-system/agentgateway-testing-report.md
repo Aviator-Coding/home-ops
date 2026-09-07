@@ -4,7 +4,7 @@
 >
 > This lab notebook was accurate for 2026-03-31 on chart `ghcr.io/kgateway-dev/charts/agentgateway` tag `v2.3.0-main` in namespace `ai-system`, with per-provider URL prefixes (`/openai`, `/groq`, ...).
 >
-> Live GitOps (2026-08) is standalone AgentGateway `v1.4.1` from `cr.agentgateway.dev` in namespace `ai`, with a unified OpenAI-style `/v1` router. Gateway IPs `10.50.0.27/28/29` still match. Several YAML lessons from the "Issues Found and Fixed" section are still true (custom-host `policies.tls: {}`, Groq `/openai` and OpenRouter `/api` rewrites, Perplexity non-standard path, provider secret key must be `Authorization`). Routing, chart, namespace, and backend inventory are not.
+> Live GitOps is standalone AgentGateway `v1.4.1` from `cr.agentgateway.dev` in namespace `ai`, with a unified OpenAI-style `/v1` router. Do not reuse the lab's `10.50.0.28` address for `internal-noauth` - that Gateway is now ClusterIP and only reachable as `http://internal-noauth.ai.svc.cluster.local`. Live listeners/Service types: [agentgateway/app/gateways/README.md](../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md). Several YAML lessons from the "Issues Found and Fixed" section are still true (custom-host `policies.tls: {}`, Groq `/openai` and OpenRouter `/api` rewrites, Perplexity non-standard path, provider secret key must be `Authorization`). Routing, chart, namespace, IPs, and backend inventory are not.
 >
 > Current docs: [agentgateway/](./agentgateway/README.md).
 

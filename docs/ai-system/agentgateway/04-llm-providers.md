@@ -9,7 +9,7 @@ Read these two files before adding or changing a provider:
 
 ## How a request is routed
 
-1. Client POSTs `/v1/chat/completions` with `{"model":"<id>", ...}` to `internal-noauth`, `internal`, or `public`.
+1. Client POSTs `/v1/chat/completions` with `{"model":"<id>", ...}` to a Gateway that exposes the matching listener: keyless in-cluster via `internal-noauth` http, browser/SSO via `internal` https, external API via `public` http (API key) or https (Authentik). `internal` has no http listener.
 2. `AgentgatewayPolicy/model-routing` (phase PreRouting, only for `/v1/chat/completions` and `/v1/embeddings`) sets header `x-model`.
 3. `HTTPRoute/llm-unified` matches `x-model` and `backendRefs` an `AgentgatewayBackend`.
 4. Model ids pass through **unchanged** (cost metering keys on the same string).

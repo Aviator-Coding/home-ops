@@ -185,8 +185,15 @@ spec:
           # Revert once a tentacle point release ships both fixes.
           - name: rook
             enabled: false
+          # Disabled: the nfs module dispatches into `orchestrator`, and the rook
+          # orchestrator backend is off (above), so every `nfs cluster_ls` call
+          # raises ImportError and files a crash report. That produced 2,447
+          # archived crash reports at ~15s intervals over 2026-08-22/23. Nothing
+          # uses it - `ceph nfs cluster ls` returns [] and there are no CephNFS
+          # CRs - and a fresh burst would raise RECENT_CRASH and mask a real
+          # crash. Re-enable only alongside the rook orchestrator backend.
           - name: nfs
-            enabled: true
+            enabled: false
           - name: rgw
             enabled: true
           - name: insights

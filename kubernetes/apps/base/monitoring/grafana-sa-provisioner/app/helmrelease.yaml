@@ -28,10 +28,19 @@ spec:
           # steady-state path is one GET /api/org), and this is the ceiling
           # on how quickly a fresh Grafana restart gets a working token back.
           schedule: "*/5 * * * *"
+          startingDeadlineSeconds: 600
           backoffLimit: 0
           concurrencyPolicy: Forbid
           failedJobsHistory: 3
           successfulJobsHistory: 1
+          # Backstop against a single stale failure latching KubeJobFailed
+          # forever. With failedJobsHistory: 3 on a CronJob that is otherwise
+          # healthy, a one-off failed Job is only evicted by three MORE
+          # failures, which never arrive - one failure from 2026-08-28 kept the
+          # alert firing for nine days while every run since succeeded. A TTL
+          # ages the artefact out on its own; a genuinely recurring failure
+          # still re-fires the alert. Same reasoning as recyclarr's HelmRelease.
+          ttlSecondsAfterFinished: 86400
 
         pod:
           restartPolicy: Never

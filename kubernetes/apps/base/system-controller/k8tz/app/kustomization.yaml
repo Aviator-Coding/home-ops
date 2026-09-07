@@ -6,3 +6,4 @@ resources:
   - ./helmrepository.yaml
   - ./pki.yaml
   - ./helmrelease.yaml
+  - ./pdb.yaml

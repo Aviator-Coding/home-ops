@@ -7,11 +7,18 @@ Pins the 2026-08-31 monitoring blind-spot close:
      indistinguishable from a healthy mid-sync. Alert on "no completed sync in
      1.5x the destination schedule" via increase(volsync_sync_duration_seconds
      _count) == 0, joined to a live cache PVC so deleted-RS metric leaks
-     (media/jellyfin-ceph) do not page forever.
+     (media/jellyfin-ceph) do not page forever. increase() is aggregated
+     `max by (obj_namespace, obj_name)` before the comparison so a frozen
+     counter from a departed replica cannot false-fire (six critical
+     VolSyncSyncStalledR2 alerts, 2026-09-06).
   2. Kopiur SecurityContextCompatible is not exported to Prometheus; the chart's
      own Failed-phase alerts already cover uid-mismatch fallout. The remaining
      gap is a Succeeded snapshot that moved zero files (autobrr Stage 1 shape),
      covered by KopiurBackupEmpty on kopiur_policy_last_backup_files == 0.
+  3. KopiurBackupStaleCeph / KopiurBackupStaleR2 split the chart's single 48h
+     warning (12 missed ceph runs) the way the VolSync stall rules split
+     theirs: 6h critical for policy=~".+-ceph$", 48h warning for
+     policy=~".+-r2$". The live metric has no `repository` label.
 
 This test does NOT grep source text as evidence. It:
 
@@ -88,6 +95,21 @@ STALL_WINDOWS = {
     "VolSyncSyncStalledCeph": ("6h", "ceph", "4h"),
     "VolSyncSyncStalledMinio": ("9h", "minio", "6h"),
     "VolSyncSyncStalledR2": ("36h", "r2", "24h"),
+}
+
+# Kopiur dest-split staleness. Seconds in the expr, cadence for the comment.
+# Selector is the policy suffix: the live metric has no `repository` label.
+KOPIUR_STALE = {
+    "KopiurBackupStaleCeph": {
+        "seconds": "21600",
+        "suffix": "ceph",
+        "severity": "critical",
+    },
+    "KopiurBackupStaleR2": {
+        "seconds": "172800",
+        "suffix": "r2",
+        "severity": "warning",
+    },
 }
 
 
@@ -258,6 +280,8 @@ def assert_routing_parity() -> dict[str, Any]:
         **{k: kopiur[k] for k in (
             "KopiurComponentAbsent",
             "KopiurBackupEmpty",
+            "KopiurBackupStaleCeph",
+            "KopiurBackupStaleR2",
         )},
         **pvc,
     }.items():
@@ -279,6 +303,14 @@ def assert_routing_parity() -> dict[str, Any]:
     require(
         kopiur["KopiurBackupEmpty"]["labels"]["severity"] == "warning",
         "empty kopiur backup is warning (succeeded but contentless)",
+    )
+    require(
+        kopiur["KopiurBackupStaleCeph"]["labels"]["severity"] == "critical",
+        "stale kopiur ceph backups are critical (sole engine, 4h cadence)",
+    )
+    require(
+        kopiur["KopiurBackupStaleR2"]["labels"]["severity"] == "warning",
+        "stale kopiur r2 backups stay warning (daily cadence, 48h = 2 missed)",
     )
 
     # Summary must not insert a space inside namespace/name from folded YAML.
@@ -334,6 +366,52 @@ def assert_window_contract(volsync_alerts: dict[str, dict[str, Any]]) -> None:
             volsync_alerts[alert_name].get("for") == "5m",
             f"{alert_name}: for: must be 5m to match sibling VolSync alerts",
         )
+        require(
+            "max by (obj_namespace, obj_name)" in expr,
+            f"{alert_name}: must aggregate away pod via max by "
+            "(obj_namespace, obj_name) before comparing increase==0 "
+            "(departed-replica frozen counters false-fire otherwise)",
+        )
+
+
+def assert_kopiur_stale_contract(kopiur_alerts: dict[str, dict[str, Any]]) -> None:
+    """Ceph 6h critical / r2 48h warning, selected by policy suffix."""
+    for alert_name, spec in KOPIUR_STALE.items():
+        require(alert_name in kopiur_alerts, f"missing alert {alert_name}")
+        expr = kopiur_alerts[alert_name].get("expr") or ""
+        require(
+            f"> {spec['seconds']}" in expr,
+            f"{alert_name}: expected threshold > {spec['seconds']} in expr, got {expr!r}",
+        )
+        require(
+            f'policy=~".+-{spec["suffix"]}$"' in expr,
+            f"{alert_name}: expected policy suffix filter for -{spec['suffix']}",
+        )
+        require(
+            "kopiur_policy_last_backup_success_timestamp_seconds" in expr,
+            f"{alert_name}: must read last-success timestamp",
+        )
+        require(
+            'repository="' not in expr,
+            f"{alert_name}: live metric has no repository label; "
+            "select on policy suffix, not repository=",
+        )
+        require(
+            kopiur_alerts[alert_name].get("for") == "5m",
+            f"{alert_name}: for: must be 5m to match sibling backup alerts",
+        )
+        require(
+            kopiur_alerts[alert_name]["labels"]["severity"] == spec["severity"],
+            f"{alert_name}: severity must be {spec['severity']}",
+        )
+        summary = (kopiur_alerts[alert_name].get("annotations") or {}).get(
+            "summary", ""
+        )
+        require(
+            "{{ $labels.namespace }}/{{ $labels.policy }}" in summary,
+            f"{alert_name} summary must keep namespace/policy adjacent "
+            f"(no folded-scalar space); got {summary!r}",
+        )
 
 
 def assert_promtool_semantics() -> dict[str, Any]:
@@ -347,8 +425,11 @@ def assert_promtool_semantics() -> dict[str, Any]:
     require(
         "KopiurBackupEmpty" in kopiur_alerts, "missing alert KopiurBackupEmpty"
     )
+    for name in KOPIUR_STALE:
+        require(name in kopiur_alerts, f"missing alert {name}")
 
     assert_window_contract(volsync_alerts)
+    assert_kopiur_stale_contract(kopiur_alerts)
 
     ceph_expr = volsync_alerts["VolSyncSyncStalledCeph"]["expr"]
     minio_expr = volsync_alerts["VolSyncSyncStalledMinio"]["expr"]
@@ -357,11 +438,25 @@ def assert_promtool_semantics() -> dict[str, Any]:
     empty_summary = (kopiur_alerts["KopiurBackupEmpty"].get("annotations") or {}).get(
         "summary", ""
     )
+    stale_ceph_expr = kopiur_alerts["KopiurBackupStaleCeph"]["expr"]
+    stale_r2_expr = kopiur_alerts["KopiurBackupStaleR2"]["expr"]
+    stale_ceph_summary = (
+        kopiur_alerts["KopiurBackupStaleCeph"].get("annotations") or {}
+    ).get("summary", "")
+    stale_r2_summary = (
+        kopiur_alerts["KopiurBackupStaleR2"].get("annotations") or {}
+    ).get("summary", "")
 
     # Expanded annotation text promtool will produce for the empty-backup case.
     expanded_empty_summary = empty_summary.replace(
         "{{ $labels.namespace }}", "downloads"
     ).replace("{{ $labels.policy }}", "autobrr-ceph")
+    expanded_stale_ceph_summary = stale_ceph_summary.replace(
+        "{{ $labels.namespace }}", "downloads"
+    ).replace("{{ $labels.policy }}", "sabnzbd-ceph")
+    expanded_stale_r2_summary = stale_r2_summary.replace(
+        "{{ $labels.namespace }}", "downloads"
+    ).replace("{{ $labels.policy }}", "sabnzbd-r2")
 
     hours = 48
 
@@ -518,6 +613,57 @@ def assert_promtool_semantics() -> dict[str, Any]:
                             ),
                             "values": _const_values(9, hours),
                         },
+                        # 2026-09-06 false-positive shape: departed replica
+                        # frozen at 0 increase, live leader still completing.
+                        # max-by must keep this silent.
+                        {
+                            "series": (
+                                'volsync_sync_duration_seconds_count{role="source",'
+                                'obj_name="paperless-ngx-r2",obj_namespace="selfhosted",'
+                                'job="volsync-metrics",pod="volsync-dead"}'
+                            ),
+                            "values": _const_values(2, hours),
+                        },
+                        {
+                            "series": (
+                                'volsync_sync_duration_seconds_count{role="source",'
+                                'obj_name="paperless-ngx-r2",obj_namespace="selfhosted",'
+                                'job="volsync-metrics",pod="volsync-leader"}'
+                            ),
+                            "values": _step_every(24, hours, start=1),
+                        },
+                        {
+                            "series": (
+                                'kube_persistentvolumeclaim_info{namespace="selfhosted",'
+                                'persistentvolumeclaim="volsync-src-paperless-ngx-r2-cache"}'
+                            ),
+                            "values": _const_values(1, hours),
+                        },
+                        # Genuine stall after aggregation: every replica reads
+                        # zero. Must fire once (pod dimension gone).
+                        {
+                            "series": (
+                                'volsync_sync_duration_seconds_count{role="source",'
+                                'obj_name="syncthing-data-r2",obj_namespace="selfhosted",'
+                                'job="volsync-metrics",pod="volsync-dead-a"}'
+                            ),
+                            "values": _const_values(3, hours),
+                        },
+                        {
+                            "series": (
+                                'volsync_sync_duration_seconds_count{role="source",'
+                                'obj_name="syncthing-data-r2",obj_namespace="selfhosted",'
+                                'job="volsync-metrics",pod="volsync-dead-b"}'
+                            ),
+                            "values": _const_values(3, hours),
+                        },
+                        {
+                            "series": (
+                                'kube_persistentvolumeclaim_info{namespace="selfhosted",'
+                                'persistentvolumeclaim="volsync-src-syncthing-data-r2-cache"}'
+                            ),
+                            "values": _const_values(1, hours),
+                        },
                     ],
                     "promql_expr_test": [
                         {
@@ -527,9 +673,8 @@ def assert_promtool_semantics() -> dict[str, Any]:
                                 {
                                     "labels": (
                                         '{cachepvc="volsync-src-opencode-ceph-cache", '
-                                        'job="volsync-metrics", '
                                         'obj_name="opencode-ceph", '
-                                        'obj_namespace="ai", role="source"}'
+                                        'obj_namespace="ai"}'
                                     ),
                                     "value": 0,
                                 }
@@ -542,9 +687,8 @@ def assert_promtool_semantics() -> dict[str, Any]:
                                 {
                                     "labels": (
                                         '{cachepvc="volsync-src-opencode-minio-cache", '
-                                        'job="volsync-metrics", '
                                         'obj_name="opencode-minio", '
-                                        'obj_namespace="ai", role="source"}'
+                                        'obj_namespace="ai"}'
                                     ),
                                     "value": 0,
                                 }
@@ -553,7 +697,16 @@ def assert_promtool_semantics() -> dict[str, Any]:
                         {
                             "expr": r2_expr,
                             "eval_time": "40h",
-                            "exp_samples": [],
+                            "exp_samples": [
+                                {
+                                    "labels": (
+                                        '{cachepvc="volsync-src-syncthing-data-r2-cache", '
+                                        'obj_name="syncthing-data-r2", '
+                                        'obj_namespace="selfhosted"}'
+                                    ),
+                                    "value": 0,
+                                }
+                            ],
                         },
                     ],
                     "alert_rule_test": [
@@ -566,10 +719,8 @@ def assert_promtool_semantics() -> dict[str, Any]:
                                         "alertname": "VolSyncSyncStalledCeph",
                                         "severity": "critical",
                                         "cachepvc": "volsync-src-opencode-ceph-cache",
-                                        "job": "volsync-metrics",
                                         "obj_name": "opencode-ceph",
                                         "obj_namespace": "ai",
-                                        "role": "source",
                                     },
                                     "exp_annotations": {
                                         "summary": (
@@ -594,10 +745,8 @@ def assert_promtool_semantics() -> dict[str, Any]:
                                         "alertname": "VolSyncSyncStalledMinio",
                                         "severity": "critical",
                                         "cachepvc": "volsync-src-opencode-minio-cache",
-                                        "job": "volsync-metrics",
                                         "obj_name": "opencode-minio",
                                         "obj_namespace": "ai",
-                                        "role": "source",
                                     },
                                     "exp_annotations": {
                                         "summary": (
@@ -613,7 +762,26 @@ def assert_promtool_semantics() -> dict[str, Any]:
                         {
                             "eval_time": "40h",
                             "alertname": "VolSyncSyncStalledR2",
-                            "exp_alerts": [],
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": "VolSyncSyncStalledR2",
+                                        "severity": "critical",
+                                        "cachepvc": "volsync-src-syncthing-data-r2-cache",
+                                        "obj_name": "syncthing-data-r2",
+                                        "obj_namespace": "selfhosted",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": (
+                                            "selfhosted/syncthing-data-r2 has had no "
+                                            "completed VolSync sync in over 36h (1.5x "
+                                            "its daily r2 schedule). Check `kubectl -n "
+                                            "selfhosted describe replicationsource "
+                                            "syncthing-data-r2` for a wedged mover pod."
+                                        ),
+                                    },
+                                }
+                            ],
                         },
                     ],
                 }
@@ -693,15 +861,152 @@ def assert_promtool_semantics() -> dict[str, Any]:
             ],
         }
 
+        stale_hours = 60
+        stale_test = {
+            "rule_files": ["kopiur_rules.yml"],
+            "evaluation_interval": "1h",
+            "tests": [
+                {
+                    "name": "kopiur_stale_ceph_and_r2_split",
+                    "interval": "1h",
+                    "input_series": [
+                        # Stale ceph: timestamp frozen at 0. Age == eval time.
+                        {
+                            "series": (
+                                'kopiur_policy_last_backup_success_timestamp_seconds{'
+                                'namespace="downloads",policy="sabnzbd-ceph"}'
+                            ),
+                            "values": _const_values(0, stale_hours),
+                        },
+                        # Fresh ceph: timestamp tracks wall time, age ~0.
+                        {
+                            "series": (
+                                'kopiur_policy_last_backup_success_timestamp_seconds{'
+                                'namespace="media",policy="plex-ceph"}'
+                            ),
+                            "values": " ".join(
+                                str(i * 3600) for i in range(stale_hours)
+                            ),
+                        },
+                        # Stale r2: same frozen timestamp. Must NOT fire at
+                        # 8h (ceph window) and MUST fire after 48h.
+                        {
+                            "series": (
+                                'kopiur_policy_last_backup_success_timestamp_seconds{'
+                                'namespace="downloads",policy="sabnzbd-r2"}'
+                            ),
+                            "values": _const_values(0, stale_hours),
+                        },
+                        # Fresh r2: must stay silent past 48h.
+                        {
+                            "series": (
+                                'kopiur_policy_last_backup_success_timestamp_seconds{'
+                                'namespace="media",policy="plex-r2"}'
+                            ),
+                            "values": " ".join(
+                                str(i * 3600) for i in range(stale_hours)
+                            ),
+                        },
+                    ],
+                    "promql_expr_test": [
+                        {
+                            "expr": stale_ceph_expr,
+                            "eval_time": "8h",
+                            "exp_samples": [
+                                {
+                                    "labels": (
+                                        '{namespace="downloads", policy="sabnzbd-ceph"}'
+                                    ),
+                                    "value": 28800,
+                                }
+                            ],
+                        },
+                        {
+                            "expr": stale_r2_expr,
+                            "eval_time": "8h",
+                            "exp_samples": [],
+                        },
+                        {
+                            "expr": stale_r2_expr,
+                            "eval_time": "50h",
+                            "exp_samples": [
+                                {
+                                    "labels": (
+                                        '{namespace="downloads", policy="sabnzbd-r2"}'
+                                    ),
+                                    "value": 180000,
+                                }
+                            ],
+                        },
+                    ],
+                    "alert_rule_test": [
+                        {
+                            "eval_time": "5h",
+                            "alertname": "KopiurBackupStaleCeph",
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": "8h",
+                            "alertname": "KopiurBackupStaleCeph",
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": "KopiurBackupStaleCeph",
+                                        "severity": "critical",
+                                        "namespace": "downloads",
+                                        "policy": "sabnzbd-ceph",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": expanded_stale_ceph_summary,
+                                    },
+                                }
+                            ],
+                        },
+                        {
+                            "eval_time": "8h",
+                            "alertname": "KopiurBackupStaleR2",
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": "40h",
+                            "alertname": "KopiurBackupStaleR2",
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": "50h",
+                            "alertname": "KopiurBackupStaleR2",
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": "KopiurBackupStaleR2",
+                                        "severity": "warning",
+                                        "namespace": "downloads",
+                                        "policy": "sabnzbd-r2",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": expanded_stale_r2_summary,
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+
         _quote_values(volsync_test)
         _quote_values(kopiur_test)
+        _quote_values(stale_test)
 
         vs_path = work / "volsync_alerts_test.yml"
         kp_path = work / "kopiur_alerts_test.yml"
+        stale_path = work / "kopiur_stale_test.yml"
         vs_path.write_text(yaml.dump(volsync_test, sort_keys=False, width=1000))
         kp_path.write_text(yaml.dump(kopiur_test, sort_keys=False, width=1000))
+        stale_path.write_text(yaml.dump(stale_test, sort_keys=False, width=1000))
         vs_out = _run_promtool(["test", "rules", vs_path.name], work)
         kp_out = _run_promtool(["test", "rules", kp_path.name], work)
+        stale_out = _run_promtool(["test", "rules", stale_path.name], work)
 
     return {
         "check_volsync": check_vs.splitlines()[-1] if check_vs else "SUCCESS",
@@ -709,6 +1014,7 @@ def assert_promtool_semantics() -> dict[str, Any]:
         "test_rules": "PASS",
         "volsync_test_out_tail": vs_out[-200:],
         "kopiur_test_out_tail": kp_out[-200:],
+        "stale_test_out_tail": stale_out[-200:],
     }
 
 
@@ -729,10 +1035,13 @@ def main() -> int:
     print("covered:")
     print("  - VolSyncSyncStalledCeph fires only for stuck ai/opencode-ceph")
     print("  - VolSyncSyncStalledMinio fires only for stuck ai/opencode-minio")
-    print("  - VolSyncSyncStalledR2 silent for healthy daily completions")
+    print("  - VolSyncSyncStalledR2 fires for all-replica stall, silent for")
+    print("    departed-pod + healthy-leader (2026-09-06 false-positive shape)")
     print("  - leaked media/jellyfin-ceph series excluded by cache-PVC join")
     print("  - downloads/recyclarr healthy series does not fire")
     print("  - KopiurBackupEmpty fires only for zero-file policy after for:15m")
+    print("  - KopiurBackupStaleCeph fires at 6h critical; r2 stays silent")
+    print("  - KopiurBackupStaleR2 fires at 48h warning; fresh policies silent")
     print("  - severity-only labels match pvc-writable-check / existing rules")
     return 0
 

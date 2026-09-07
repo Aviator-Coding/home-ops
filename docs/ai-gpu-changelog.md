@@ -60,6 +60,22 @@ Change · Why · Evidence · Risk/rollback · Verify
 
 ---
 
+## [2026-09-06] intel-gpu-plugin panics `send on closed channel` on every kubelet restart
+
+**Change.** None in this repo. Upstream bug in `intel/intel-device-plugins-for-kubernetes`, recorded so the next Kubernetes/Talos upgrade's GPU blip is recognised rather than investigated from scratch. Do not work around it here.
+
+**Why / mechanism.** `pkg/deviceplugin/server.go` `Update()` (v0.34.1 line 244, still present on `main`) does a bare `srv.updatesCh <- devices`. `Stop()` closes that channel. On kubelet restart kubelet deletes `/var/lib/kubelet/device-plugins/*.sock`; `watchFile` returns; `setupAndServe` calls `grpcServer.Stop()`; `ListAndWatch`'s failed `stream.Send` then calls `Stop()` which closes `updatesCh`; a concurrent `Manager.handleUpdate` (`manager.go:154`) still `Update()`s and panics. The DaemonSet restarts and capacity returns within seconds.
+
+**Evidence.** All three `intel-gpu-plugin-xe` pods restarted at 2026-09-06T20:11:49-51Z (exit 2) with that stack, coinciding with tuppr completing Kubernetes v1.36.3 -> v1.36.4 (`completedAt: 2026-09-06T20:11:58Z`) and kubelet LAST CHANGE ~20:11:41-45Z on every node. Capacity after recovery: talos-1/2 `gpu.intel.com/xe=99`; talos-3 also `devic.es/b70=99` and `devic.es/b70-vaapi=99`.
+
+**Upstream.** No existing issue in `intel/intel-device-plugins-for-kubernetes` as of 2026-09-06 (search for the panic string and for `server.go` / `Update` races returned only unrelated gRPC bumps). The same unguarded send is still on `main`. Chart pin in this cluster: `intel-device-plugins-gpu` `0.34.1`.
+
+**Risk / rollback.** n/a - documentation only.
+
+**Verify.** After the next kubelet restart (tuppr Kubernetes upgrade or node reboot), expect a few seconds of `gpu.intel.com/xe=0` on every node and a panic in `--previous` logs, then a self-heal. That is this bug, not a cluster config regression.
+
+---
+
 ## [2026-08-31] Reconcile the undeclared `devic.es/b70` on `tdarr-tdarr-node`
 
 **Change.** Removed `devic.es/b70` from the LIVE `tdarr-tdarr-node` Deployment with a

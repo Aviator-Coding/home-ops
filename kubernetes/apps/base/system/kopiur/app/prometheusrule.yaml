@@ -237,3 +237,45 @@ spec:
               downloads/autobrr's Stage 1 gate pass on an empty volume.
           labels:
             severity: warning
+
+        # DESTINATION-SPLIT STALENESS (2026-09-06). The chart's KopiurBackupStale
+        # (PrometheusRule/kopiur-controller) fires at
+        # backupStaleAfterSeconds=172800 (48h) / warning for every policy.
+        # kopiur ceph is 4-hourly (`H 1-23/4 * * *`), so that is 12 missed
+        # runs before a warning, while kopiur is the sole engine on 26 of
+        # 30 claims. The chart exposes one threshold
+        # (`monitoring.prometheusRule.backupStaleAfterSeconds`) and cannot
+        # split ceph from r2. The live metric also has no `repository`
+        # label on this fleet - policies are named <claim>-ceph / <claim>-r2
+        # (verified 2026-09-06: kopiur_policy_last_backup_success_timestamp_seconds
+        # labels are namespace/policy/pod/job, not repository). Split like
+        # the VolSync stall rules, selecting on the policy suffix:
+        #   ceph: 6h (1.5x of 4h) critical
+        #   r2:   48h (2x of daily) warning
+        # The chart rule stays enabled: it still covers the never-succeeded /
+        # all-Succeeded-CRs-pruned branch (the `or` on consecutive_failures)
+        # which these two rules do not duplicate, and it remains a 48h
+        # backstop for both destinations.
+        - alert: KopiurBackupStaleCeph
+          expr: |
+            time() - kopiur_policy_last_backup_success_timestamp_seconds{policy=~".+-ceph$"} > 21600
+          for: 5m
+          annotations:
+            summary: >-
+              No successful kopiur ceph backup for
+              {{ $labels.namespace }}/{{ $labels.policy }} in over 6h
+              (1.5x its 4h schedule)
+          labels:
+            severity: critical
+
+        - alert: KopiurBackupStaleR2
+          expr: |
+            time() - kopiur_policy_last_backup_success_timestamp_seconds{policy=~".+-r2$"} > 172800
+          for: 5m
+          annotations:
+            summary: >-
+              No successful kopiur r2 backup for
+              {{ $labels.namespace }}/{{ $labels.policy }} in over 48h
+              (2x its daily schedule)
+          labels:
+            severity: warning

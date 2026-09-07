@@ -24,7 +24,7 @@ kubectl -n ai logs -l app.kubernetes.io/name=agentgateway --tail=100
 kubectl -n ai get pods -l gateway.networking.k8s.io/gateway-class-name=agentgateway -o wide
 ```
 
-Dataplane Services follow Gateway names (`internal`, `internal-noauth`, `public`). Admin UI is Service `agentgateway-admin-ui:15000`. Metrics are scraped from pod port **15020** (`PodMonitor/agentgateway-data-plane`).
+Dataplane Services follow Gateway names (`internal`, `internal-noauth`, `public`). `internal-noauth` is ClusterIP (in-cluster DNS only); do not expect LAN IP `10.50.0.28`. Admin UI is Service `agentgateway-admin-ui:15000`. Metrics are scraped from pod port **15020** (`PodMonitor/agentgateway-data-plane`).
 
 ## Routing misses
 

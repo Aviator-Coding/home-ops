@@ -36,6 +36,25 @@ naive path destroys the data. **`ai/opencode` read exactly that on 2026-08-31, f
 after onboarding** - the task that produced this runbook was briefed on the assumption
 that the populator restores from the last good backup, and that assumption was wrong.
 
+Named claims measured with an empty `latestImage` (same mover log):
+
+- `ai/opencode` on 2026-08-31 (the run that produced this runbook; VolSync has
+  since been retired from this claim).
+- `selfhosted/paperless-ngx`, `selfhosted/paperless-ngx-media`, and
+  `selfhosted/syncthing-data` on 2026-09-06. All three surviving VolSync
+  `ReplicationDestination`s were measured empty that day. The same day,
+  `syncthing-data-dst` was deleted and Flux-recreated; `restore-once`
+  succeeded from populated snapshot `9dd34c26`, so its `latestImage` is no
+  longer empty. Afterward only `paperless-ngx` and `paperless-ngx-media`
+  remain empty. Only `selfhosted/paperless-ngx` still has a live PVC
+  `dataSourceRef` pointing at `paperless-ngx-dst`; a claim rebuild of that
+  volume would restore nothing unless the ReplicationDestination is deleted
+  **together with** the PVC so Flux recreates it as a new object and
+  `restore-once` fires against the now-populated repository. Do **not**
+  patch `spec.trigger.manual` - `ssa: IfNotPresent` makes that permanent
+  drift. `paperless-ngx-media` currently has no `dataSourceRef` consumer;
+  its empty image is still a trap if a future overlay re-adds one.
+
 The fix is [below](#the-trap-that-decides-the-whole-procedure): delete the
 `ReplicationDestination` **together with** the PVC.
 

@@ -16,7 +16,7 @@ Standalone Rust AI gateway. Chart `oci://ghcr.io/agentgateway/charts/agentgatewa
 
 ## AgentgatewayParameters
 
-`agentgateway.dev/v1alpha1` CR referenced from Helm `gatewayClassParametersRefs`. Live object only sets `ADMIN_ADDR=0.0.0.0:15000`. Not the old `GatewayParameters` / `spec.kube.agentgateway` shape.
+`agentgateway.dev/v1alpha1` CR. GatewayClass-level object (`agentgateway-params`, from Helm `gatewayClassParametersRefs`) only sets `ADMIN_ADDR=0.0.0.0:15000`. Gateway-level `internal-noauth-params` overlays `spec.service.spec.type: ClusterIP` and merges with the class-level object. Not the old `GatewayParameters` / `spec.kube.agentgateway` shape.
 
 ## Gateway / HTTPRoute
 
@@ -44,7 +44,7 @@ Former unified LLM proxy, removed 2026-06-07 (#941) - AgentGateway's own `/v1` r
 
 ## `internal` / `internal-noauth` / `public`
 
-The three data-plane Gateways (IPs `10.50.0.27` / `.28` / `.29`). See [gateways/README.md](../../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md).
+The three data-plane Gateways. Service types, listeners, and auth: [gateways/README.md](../../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md) (do not hard-code the old `10.50.0.28` LB for `internal-noauth` - it is ClusterIP).
 
 ## `ai-keys` / `ai-gateway-keys`
 

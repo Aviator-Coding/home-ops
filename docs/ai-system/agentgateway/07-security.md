@@ -19,13 +19,13 @@ The 1.2.1 dataplane did not honor the CRD default location ("no API Key found" d
 
 Keys are not in Git. [`externalsecret-apikeys.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/externalsecret-apikeys.yaml) reads 1Password item `ai-gateway-keys` (`GATEWAY_KEY_SASCHA`, `GATEWAY_KEY_AUTOMATION`) into secret `agentgateway-api-keys`. Add a consumer = add a 1Password field + a template entry.
 
-`internal-noauth` stays keyless for trusted in-cluster workloads.
+`internal-noauth` stays keyless for trusted in-cluster workloads and is **ClusterIP** on purpose so the LAN cannot reach it. Call it only as `http://internal-noauth.ai.svc.cluster.local/v1`. Gateway listener/Service inventory: [`app/gateways/README.md`](../../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md).
 
 ## Provider secrets
 
 Per-backend ExternalSecrets from 1Password item `ai-keys`. Template key **must** be `Authorization`. Renaming Anthropic to `x-api-key` fails translation (`secret missing Authorization value`). See the historical testing report, item 6.
 
-TLS cert for Gateway HTTPS listeners: [`externalsecret-tls.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/externalsecret-tls.yaml) -> `sklab-dev-production-tls`.
+TLS cert for Gateway HTTPS listeners: [`externalsecret-tls.yaml`](../../../kubernetes/apps/base/ai/agentgateway/app/externalsecret-tls.yaml) -> `sklab-dev-production-tls`. That ExternalSecret must **not** use `refreshPolicy: CreatedOnce` (a permanent pin that kept serving an expired cert while Ready=True); it refreshes on `refreshInterval: 1h`. The bootstrap seed under `network/certificates/import/` is the one place `CreatedOnce` is correct.
 
 ## What is not deployed
 

@@ -856,34 +856,78 @@ PROMTOOL_IMAGE = os.environ.get(
 )
 
 
-def _promtool_available() -> bool:
-    return shutil.which("promtool") is not None
+def _resolve_promtool() -> str | None:
+    """Return a runnable promtool binary path, or None.
+
+    CI puts the aqua/mise install on PATH via mise-action. The bare `promtool`
+    name is often only a mise shim that re-execs mise and fails with
+    "No version is set for shim: promtool" unless the tool is activated for the
+    current directory. Prefer a real binary under the mise installs tree (same
+    pattern as backup-silent-failure-alerting-test.py / kopiur-projected-secrets-
+    leak-alert-test.py) over podman: `podman --version` can succeed while
+    `podman run` cannot talk to a machine.
+    """
+    on_path = shutil.which("promtool")
+    candidates: list[Path] = []
+    if on_path:
+        candidates.append(Path(on_path))
+
+    mise_root = Path.home() / ".local/share/mise/installs/aqua-prometheus-prometheus"
+    if mise_root.is_dir():
+        candidates.extend(
+            sorted(mise_root.glob("*/prometheus-*/promtool"), reverse=True)
+        )
+
+    for cand in candidates:
+        if not cand.is_file():
+            continue
+        # Skip bare mise shims that re-exec mise (need trusted config / PATH).
+        try:
+            if cand.is_symlink() and "mise" in os.path.basename(os.readlink(cand)):
+                continue
+        except OSError:
+            pass
+        probe = subprocess.run(
+            [str(cand), "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if probe.returncode == 0 and "promtool" in (probe.stdout + probe.stderr).lower():
+            return str(cand)
+    return None
 
 
-def _podman_available() -> bool:
-    return (
-        shutil.which("podman") is not None
-        and subprocess.run(
-            ["podman", "--version"], capture_output=True
-        ).returncode
-        == 0
+def _podman_runnable() -> bool:
+    """True only if podman can actually run a container, not just --version."""
+    if shutil.which("podman") is None:
+        return False
+    probe = subprocess.run(
+        ["podman", "info", "--format", "{{.Host.RemoteSocket.Exists}}"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
+    if probe.returncode != 0:
+        return False
+    return True
 
 
 def _run_promtool_test(work: Path, test_name: str, test_doc: dict[str, Any]) -> str:
     """Write a promtool unit-test file and execute it via native promtool or podman.
 
-    Prefer a native `promtool` on PATH (CI installs it via mise/aqua). Fall back
-    to `podman run` only when no native binary exists. Uses Prometheus' own rule
-    unit-test engine (promtool test rules) so the assertions exercise real PromQL
-    evaluation, not string matching on expr.
+    Prefer a resolved native `promtool` binary (CI installs via mise/aqua).
+    Fall back to `podman run` only when no native binary works. Uses Prometheus'
+    own rule unit-test engine (promtool test rules) so the assertions exercise
+    real PromQL evaluation, not string matching on expr.
     """
     test_path = work / f"{test_name}.yml"
     test_path.write_text(yaml.safe_dump(test_doc, sort_keys=False))
-    if _promtool_available():
-        cmd = ["promtool", "test", "rules", test_path.name]
+    promtool = _resolve_promtool()
+    if promtool is not None:
+        cmd = [promtool, "test", "rules", test_path.name]
         cwd: str | None = str(work)
-    elif _podman_available():
+    elif _podman_runnable():
         cmd = [
             "podman",
             "run",
@@ -903,7 +947,8 @@ def _run_promtool_test(work: Path, test_name: str, test_doc: dict[str, Any]) -> 
     else:
         raise Failure(
             "promtool is required to evaluate PrometheusRule expr "
-            "(install native promtool, or provide podman for image fallback)"
+            "(install native promtool via mise aqua:prometheus/prometheus, "
+            "or provide a working podman for image fallback)"
         )
     proc = subprocess.run(
         cmd,
@@ -938,12 +983,13 @@ def assert_alert_promql_semantics(
          empty-label series when the metric is healthy - documenting why it was
          replaced - while the shipped expr yields no samples in that case.
     """
-    # Require native promtool or podman fallback; this is the executable
-    # consumer for PromQL alerts.
-    if not _promtool_available() and not _podman_available():
+    # Require a real promtool binary or a working podman fallback; this is the
+    # executable consumer for PromQL alerts.
+    if _resolve_promtool() is None and not _podman_runnable():
         raise Failure(
             "promtool is required to evaluate PrometheusRule expr "
-            "(install native promtool, or provide podman for image fallback)"
+            "(install native promtool via mise aqua:prometheus/prometheus, "
+            "or provide a working podman for image fallback)"
         )
 
     ann = alert.get("annotations") or {}

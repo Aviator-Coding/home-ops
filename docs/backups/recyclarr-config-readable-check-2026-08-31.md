@@ -38,10 +38,13 @@ roughly 18 seconds a day. The fleet audit's live-pod-exec method (used for all 2
 mountable claims) has no running container to exec into between runs.
 
 A prior read of this CronJob's history mistakenly read it as failing for seven days. That is
-wrong and must not be re-derived from Job objects: `successfulJobsHistoryLimit: 0` deletes
-every successful Job immediately, so the only Job ever visible is a stale historical failure.
-The CronJob is healthy - `kubectl -n downloads get cronjob recyclarr -o jsonpath='{.status.lastSuccessfulTime}'`
-is the correct signal, not Job history.
+wrong and must not be re-derived from Job objects: at measurement time
+`successfulJobsHistoryLimit: 0` deleted every successful Job immediately, so the only Job
+ever visible was a stale historical failure. As of 2026-09-06 the HelmRelease keeps
+`successfulJobsHistory: 1` plus `ttlSecondsAfterFinished: 86400` so a single stale failure
+can no longer latch `KubeJobFailed` forever, but
+`kubectl -n downloads get cronjob recyclarr -o jsonpath='{.status.lastSuccessfulTime}'`
+remains the correct health signal - not Job objects.
 
 ## Measurement approach chosen, and why the alternatives were rejected
 
