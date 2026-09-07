@@ -114,6 +114,13 @@ spec:
         # 12 shipped alerts. None of them covers "the operator vanished" - they
         # all depend on the operator emitting metrics - so ./prometheusrule.yaml
         # carries our own absent() rule alongside them.
+        #
+        # Do not override backupStaleAfterSeconds to close the 48h-vs-4h
+        # cadence gap: the chart exposes one threshold, not a per-destination
+        # split. KopiurBackupStaleCeph (6h critical) and KopiurBackupStaleR2
+        # (48h warning) live in ./prometheusrule.yaml. Leave this chart rule
+        # enabled - it still owns the never-succeeded / all-Succeeded-CRs-pruned
+        # branch those two do not duplicate.
         enabled: true
       dashboards:
         enabled: true

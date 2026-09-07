@@ -9,7 +9,7 @@ CNPG operator + the canonical `postgres-17` cluster, plus pgAdmin and the upstre
 | `operator/` | CNPG operator HelmRelease (chart `0.29.0`, app `1.30.0`). 2 replicas, PodMonitor enabled. Secret `cloudnative-pg-secret` (postgres superuser + MinIO S3 keys for Barman). |
 | `cluster-17/` | The `postgres-17` Cluster CR (Postgres 17 + pgvecto.rs), its `ScheduledBackup` (`@daily`), `LoadBalancer` Service, Gatus probe, PrometheusRule (7 alerts), and Barman config (serverName `postgres17-v5`, MinIO bucket `s3://home-ops-postgres-cluster/`). |
 | `dashboard/` | OCI Helm chart `ghcr.io/cloudnative-pg/grafana-dashboards/cluster:0.0.5`. Sidecar-loaded into Grafana under the "Database" folder (alongside the Dragonfly operator dashboard). |
-| `pgadmin/` | pgAdmin 4 web UI behind Authentik OAuth at `pgadmin.${SECRET_DOMAIN}` and `pg.${SECRET_DOMAIN}`. Triple-redundant volsync backup (Ceph 4h / MinIO 6h / R2 daily). |
+| `pgadmin/` | pgAdmin 4 web UI behind Authentik OAuth at `pgadmin.${SECRET_DOMAIN}` and `pg.${SECRET_DOMAIN}`. Kopiur-only backup (ceph 4-hourly / r2 daily at hour 07). VolSync retired 2026-09-04. |
 
 ## Cluster overview
 
@@ -82,7 +82,7 @@ Steps:
 ## Maintenance
 
 - **Daily Barman backup** to MinIO via `cluster-17/scheduledbackup.yaml`. Retention 30 days.
-- **pgAdmin volsync** triple-target backup at `0 */4 * * *` (Ceph), `0 */6 * * *` (MinIO), `0 1 * * *` (R2).
+- **pgAdmin kopiur** is the only backup engine (VolSync retired 2026-09-04): ceph `H 1-23/4 * * *` (component default), r2 `H 7 * * *`. Identity 5050:5050.
 - **`reading-glasses` cache prune** runs daily at 03:00 (cluster's k8tz default tz). Manifest lives with the application: `apps/base/downloads/reading-glasses/app/cronjob.yaml`. Keeps `rreading-glasses.public.cache` from growing unbounded; uses the application's own role for least privilege.
 
 ## Operational notes
