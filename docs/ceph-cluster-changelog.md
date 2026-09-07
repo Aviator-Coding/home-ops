@@ -87,7 +87,7 @@ Notes / evidence / sources.
 
 | Field | Value |
 |-------|-------|
-| **Change** | (1) `kubernetes/apps/base/system/fstrim/app/helmrelease.yaml` - replaced the inherited `grep -v kubelet` mount filter with a per-block-device selection, added `concurrencyPolicy: Forbid`, and made the job fail when a device cannot be trimmed. (2) `cephClusterSpec.mgr.modules` - `nfs` set to `enabled: false`. (3) Live-only: `ceph crash prune 1`. |
+| **Change** | (1) `kubernetes/apps/base/system/fstrim/app/helmrelease.yaml` - replaced the inherited `grep -v kubelet` mount filter with a per-block-device selection, added `concurrencyPolicy: Forbid` and `backoffLimit: 0`, and made the job fail when a device cannot be trimmed. (2) `cephClusterSpec.mgr.modules` - `nfs` set to `enabled: false`. (3) Live-only: `ceph crash prune 1`. |
 | **Why** | The cluster had **no working discard path at all**. Every Ceph PV mounts under `/var/lib/kubelet`, so `grep -v kubelet` excluded 100% of them; the CronJob had also never run (created 2026-09-02, `schedule: 0 0 * * 1`, `lastScheduleTime: null`). `downloads/sabnzbd-incomplete` had grown to 949 GiB of freed-but-never-discarded blocks behind a directory holding 36 KB. The `nfs` mgr module dispatches into `orchestrator`, which is deliberately off, and had filed 2,447 crash reports. |
 | **Risk** | `fstrim` is online and non-destructive - it discards already-free blocks only. The first pass has ~949 GiB to work through, hence `Forbid`. Disabling `nfs` is inert: `ceph nfs cluster ls` returns `[]` and no `CephNFS` CR exists. |
 | **Rollback** | Revert both HelmRelease hunks. The crash prune is not reversible; all 2,447 reports were the same `mgr_module: nfs` / `ImportError` signature from 2026-08-22/23. |
