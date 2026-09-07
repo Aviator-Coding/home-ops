@@ -2,18 +2,21 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
+      // automergeType is deliberately left at Renovate's default ("pr"): see
+      // the :automergeBranch note in .renovaterc.json5. Branch automerge is a
+      // dead end in this repo because renovate/** branches never get a status.
       description: "Auto merge all container digest updates",
       matchDatasources: ["docker"],
       automerge: true,
-      automergeType: "branch",
       matchUpdateTypes: ["digest"],
       ignoreTests: false,
     },
     {
+      // automergeType deliberately left at Renovate's default ("pr") - same
+      // reasoning as the digest rule above.
       description: "Auto merge all container and helm patch updates",
       matchDatasources: ["docker", "helm", "github-releases", "github-tags"],
       automerge: true,
-      automergeType: "branch",
       matchUpdateTypes: ["patch"],
       ignoreTests: false,
     },
