@@ -97,11 +97,17 @@ spec:
         # which on Talos is the OOMController. Joined with a restart increase
         # so it reports the event and then clears, mirroring the OOMKilled
         # rule's shape rather than latching on a terminal-state gauge.
+        #
+        # The exitcode leg must stay instantaneous: last_terminated_exitcode
+        # is a VALUE gauge (the exit code itself), not a 0/1 flag. min_over_time
+        # on it would require every sample in the window to be 137, which a
+        # preceding non-137 exit defeats. reason is a genuine 0/1 flag so its
+        # min_over_time leg stays, matching the sibling OOMKilled rule.
         - alert: NodeOOMControllerKill
           expr: |-
             (kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 10m >= 1)
               and on (namespace, pod, container)
-            (min_over_time(kube_pod_container_status_last_terminated_exitcode[10m]) == 137)
+            (kube_pod_container_status_last_terminated_exitcode == 137)
               and on (namespace, pod, container)
             (min_over_time(kube_pod_container_status_last_terminated_reason{reason="Error"}[10m]) == 1)
           annotations:
