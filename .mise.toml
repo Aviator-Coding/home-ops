@@ -41,8 +41,9 @@ MISE_LIST_ALL_VERSIONS = "false"
 "aqua:siderolabs/talos" = "1.13.9"
 "aqua:yannh/kubeconform" = "0.8.0"
 "aqua:nektos/act" = "0.2.89"
-# promtool for scripts/ci/grafana-sa-provisioner-test.py PromQL rule evaluation
-# (matches PROMTOOL_IMAGE tag used as podman fallback in that harness).
+# promtool for scripts/ci/grafana-sa-provisioner-test.py PromQL rule evaluation.
+# CI python-tests installs this via unversioned mise-action install_args so this
+# pin is the single source of truth (scripts/ci/mise-install-args-test.py).
 "aqua:prometheus/prometheus" = "3.14.0"
 uv = "0.12.9"
 1password-cli = "2.30.3"
