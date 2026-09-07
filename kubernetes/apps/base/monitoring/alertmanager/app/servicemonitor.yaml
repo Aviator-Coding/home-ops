@@ -3,7 +3,7 @@
 # Alertmanager is deployed standalone (app-template), not by the Prometheus
 # Operator - kube-prometheus-stack sets alertmanager.enabled: false - so the
 # chart never creates a ServiceMonitor for it and nothing scraped it at all.
-# Every alertmanager_* series was absent, which left all seven chart-shipped
+# Every alertmanager_* series was absent, which left all eight chart-shipped
 # alertmanager.rules permanently unable to fire: the alerting pipeline had no
 # self-check.
 apiVersion: monitoring.coreos.com/v1
@@ -20,7 +20,7 @@ spec:
       interval: 1m
       scrapeTimeout: 10s
       relabelings:
-        # Load-bearing, not cosmetic. All seven chart rules match on
+        # Load-bearing, not cosmetic. All eight chart rules match on
         # job="kube-prometheus-stack-alertmanager" (plus container and
         # namespace, which the operator fills in from the pod automatically).
         # Without this the job label would default to the Service name,
