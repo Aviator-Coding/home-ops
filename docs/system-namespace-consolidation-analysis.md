@@ -17,6 +17,7 @@ The proposal assumed both namespaces are stateless. Neither is, though neither h
 | Object | Note |
 |---|---|
 | `Deployment/k8tz` (2 replicas), `Service`, `ServiceAccount` | the webhook backend |
+| `PodDisruptionBudget/k8tz` (`minAvailable: 1`) | keeps one webhook replica through voluntary disruption (`app/pdb.yaml`, added 2026-09-06 with Guaranteed QoS + hostname `topologySpreadConstraints`) |
 | `Secret/k8tz-tls`, `Secret/k8tz-webhook-ca` | cert-manager-issued, recreatable |
 | `Issuer/k8tz-webhook-selfsign`, `Issuer/k8tz-webhook-ca`, 2 `Certificate`s | `app/pki.yaml` |
 | 5 × `sh.helm.release.v1.k8tz.*` | Helm release history - **namespace-bound, not portable** |
