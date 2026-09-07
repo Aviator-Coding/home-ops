@@ -1,6 +1,6 @@
 # AgentGateway data-plane Gateways
 
-Three `gatewayClassName: agentgateway` Gateways in namespace `ai`. Cilium `lbipam.cilium.io/ips` pins keep the Service IPs across recreation (the `ai-system` -> `ai` namespace move already ran). HTTPS listeners terminate with `sklab-dev-production-tls` for `*.${SECRET_DOMAIN}`.
+Three `gatewayClassName: agentgateway` Gateways in namespace `ai`. `internal` and `public` pin their LoadBalancer IPs with Cilium `lbipam.cilium.io/ips` so recreation keeps them; `internal-noauth` is deliberately `ClusterIP` (no LAN IP). HTTPS listeners terminate with `sklab-dev-production-tls` for `*.${SECRET_DOMAIN}`.
 
 | Gateway | Service | Listeners | Auth | Typical clients |
 |---------|---------|-----------|------|-----------------|
