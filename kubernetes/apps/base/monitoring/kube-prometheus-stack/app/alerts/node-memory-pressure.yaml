@@ -12,37 +12,114 @@ spec:
   groups:
     - name: node-memory-pressure.rules
       rules:
-        # <15% available for 10m on any node means workloads have drifted
-        # onto it under sustained pressure — shed load before the Talos
-        # OOMController does it for you (docs/hardware-incidents.md). All
-        # three nodes are identical (96GB, ~94GiB usable), so this fires
-        # per-instance with no node-specific pin or threshold.
+        # Sustained-pressure (warning) tier of the PSI ladder below.
+        #
+        # This used to read MemAvailable/MemTotal < 0.15 and was a monitor
+        # that could not go red for the thing it names: during BOTH real
+        # OOMController bursts on 2026-09-06 the node still had 63-74% of
+        # memory available (measured), because Talos triggers on memory PSI,
+        # not on MemAvailable - PSI spikes from reclaim churn while
+        # MemAvailable is still high. It had never fired, ever.
+        #
+        # Re-based on the same PSI counter the Talos trigger evaluates, at a
+        # low threshold over a long window, so it catches a node drifting
+        # into trouble before the acute tier does. Thresholds are measured,
+        # not guessed: over 24h the healthy p90 is ~0 on all three nodes
+        # (talos-2 max 0.00115, talos-3 max 0.0208), while talos-1 reached
+        # 0.234 during the bursts - 0.05 sits above every node's noise floor
+        # and below both real events.
+        #
+        # for: 10m is also measured. The two real bursts sustained this
+        # expression for 960s and 720s; a for: 15m would have BLOCKED the
+        # second one, which is exactly the defect being fixed here. Do not
+        # raise it without re-measuring the contiguous run length.
         - alert: NodeMemoryPressure
-          expr: |-
-            node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.15
+          expr: rate(node_pressure_memory_stalled_seconds_total[15m]) > 0.05
           for: 10m
           annotations:
             summary: >-
-              {{ $labels.instance }} has had <15% memory available for 10m
-              ({{ $value | humanizePercentage }} available) — move heavy
-              burstables off before the Talos OOMController starts killing.
+              {{ $labels.instance }} has sustained full memory-PSI stall of
+              {{ $value | humanizePercentage }} of wall time over 15m - the
+              node is spending real time in reclaim. Move heavy burstables
+              off before the Talos OOMController starts killing
+              (docs/hardware-incidents.md).
           labels:
             severity: warning
-        # Tripwire for the Talos runtime.OOMController: it SIGKILLs the
-        # largest burstable cgroup when full-memory-PSI avg10 exceeds 50%
-        # (raised from the 12% default in talos/machineconfig.yaml.j2 after
-        # 2026-06-30). Sustained >25% full-stall is already pathological —
-        # act before the controller does. node_pressure_memory_stalled =
-        # PSI "full" (all tasks stalled), the metric the trigger evaluates.
+        # Acute (critical) tier. Tripwire for the Talos runtime.OOMController:
+        # it SIGKILLs the largest burstable cgroup when full-memory-PSI avg10
+        # exceeds 50% (raised from the 12% default in
+        # talos/machineconfig.yaml.j2 after 2026-06-30). Sustained >25%
+        # full-stall is already pathological - act before the controller does.
+        # node_pressure_memory_stalled = PSI "full" (all tasks stalled), the
+        # metric the trigger evaluates.
+        #
+        # The 5m/5m pair this replaces could not resolve a 60-second event:
+        # of the two real bursts on 2026-09-06 it caught the first (345s run)
+        # and was BLOCKED on the second, whose contiguous run was only 165s.
+        #
+        # [3m] is a measured floor, not a preference. Prometheus scrapes at a
+        # 1m global scrapeInterval, so rate(...[1m]) has too few samples and
+        # returns NO SERIES AT ALL - the obvious "just shorten the window" fix
+        # is itself unfireable. [2m] works but leaves exactly two samples, so
+        # one missed scrape silently empties it; [3m] tolerates that and still
+        # resolves both bursts (330s and 150s runs, vs the 60s for: needs).
+        # Re-measure before narrowing this window or raising scrapeInterval.
         - alert: NodeMemoryPSIHigh
-          expr: rate(node_pressure_memory_stalled_seconds_total[5m]) > 0.25
-          for: 5m
+          expr: rate(node_pressure_memory_stalled_seconds_total[3m]) > 0.25
+          for: 1m
           annotations:
             summary: >-
               {{ $labels.instance }} full memory-PSI stall is
-              {{ $value | humanizePercentage }} of wall time for 5m — node is
+              {{ $value | humanizePercentage }} of wall time - node is
               thrashing in reclaim and approaching the Talos OOMController
               kill threshold (50% avg10). Shed memory load NOW.
+          labels:
+            severity: critical
+        # The event itself, not a precondition. The 2026-06-30 cascade and the
+        # nine OOMController kills on 2026-09-06 both ran with zero alerts
+        # because every rule above watches a precondition that the controller
+        # can fire without ever crossing.
+        #
+        # Talos DOES record each intervention - v1.13 exposes
+        # OOMActions.talos.dev (owner runtime.OOMController) carrying the PSI
+        # trigger context and the victim's process list - but it is a COSI
+        # resource reachable only over the Talos API, NOT a scrapable counter,
+        # and nothing bridges Talos resources into Prometheus here (no talos_*
+        # metric exists). So this rule uses the kube-state-metrics proxy;
+        # revisit if a Talos metrics exporter is ever deployed.
+        #
+        # The fingerprint is exit 137 AND reason="Error" together, and both
+        # halves are load-bearing. Exit 137 alone also matches a genuine
+        # cgroup-limit OOM (readarr's exporter, reason="OOMKilled"), which the
+        # separate OOMKilled rule already owns. reason="Error" alone also
+        # matches ordinary non-zero exits (intel-gpu-plugin's exit-2 panic).
+        # Only the pair means "SIGKILLed from outside its own cgroup limit",
+        # which on Talos is the OOMController. Joined with a restart increase
+        # so it reports the event and then clears, mirroring the OOMKilled
+        # rule's shape rather than latching on a terminal-state gauge.
+        #
+        # The exitcode leg must stay instantaneous: last_terminated_exitcode
+        # is a VALUE gauge (the exit code itself), not a 0/1 flag. min_over_time
+        # on it would require every sample in the window to be 137, which a
+        # preceding non-137 exit defeats. reason is a genuine 0/1 flag so its
+        # min_over_time leg stays, matching the sibling OOMKilled rule.
+        - alert: NodeOOMControllerKill
+          expr: |-
+            (kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 10m >= 1)
+              and on (namespace, pod, container)
+            (kube_pod_container_status_last_terminated_exitcode == 137)
+              and on (namespace, pod, container)
+            (min_over_time(kube_pod_container_status_last_terminated_reason{reason="Error"}[10m]) == 1)
+          annotations:
+            summary: >-
+              Container {{ $labels.container }} in pod
+              {{ $labels.namespace }}/{{ $labels.pod }} was SIGKILLed (exit
+              137) without hitting its own cgroup memory limit - the
+              signature of the Talos runtime.OOMController shedding load
+              under memory-PSI pressure. Check
+              `talosctl -n <node> get oomactions -o yaml` for the trigger
+              context and victim list, and `talosctl -n <node> dmesg | grep
+              "OOM controller triggered"`.
           labels:
             severity: critical
     - name: rook-ceph-pod-health.rules

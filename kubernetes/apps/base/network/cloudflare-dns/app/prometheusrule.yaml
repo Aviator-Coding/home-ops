@@ -8,12 +8,32 @@ spec:
   groups:
     - name: external-dns.rules
       rules:
+        # Deliberately unselectored: both external-dns deployments live in
+        # this namespace and export this metric, so this single rule covers
+        # cloudflare-dns and unifi-dns alike. unifi-dns has no rule file of
+        # its own on purpose - do not add a second copy.
+        #
+        # The threshold was 60s, which is exactly the --interval=1m both
+        # deployments run on, so it could not be satisfied from below: with a
+        # 1m sync and a 1m scrape, observed staleness sawtooths well past 60s
+        # on a completely healthy system. Measured over 24h, cloudflare-dns
+        # ran p50=82s / max=111s and sat above the old threshold for 82.7% of
+        # the day, making a critical, Pushover-routed alert true most of the
+        # time and a real DNS stall indistinguishable from background.
+        #
+        # 180s is 3x the sync interval and 62% above the highest staleness
+        # observed anywhere in that 24h window (111s); no sample from either
+        # deployment exceeded 120s. A genuine stall grows without bound, so
+        # it still crosses this within three minutes. Re-measure before
+        # lowering it, and raise it if --interval is ever increased.
         - alert: ExternalDNSStale
           expr: |-
-            time() - external_dns_controller_last_sync_timestamp_seconds > 60
+            time() - external_dns_controller_last_sync_timestamp_seconds > 180
           for: 5m
           annotations:
             summary: >-
-              ExternalDNS ({{ $labels.job }}) has not synced successfully in the last five minutes
+              ExternalDNS ({{ $labels.job }}) has not completed a sync in over
+              three minutes, sustained for five minutes
+              ({{ $value | humanizeDuration }} since last sync)
           labels:
             severity: critical

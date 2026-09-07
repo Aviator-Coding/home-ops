@@ -24,11 +24,15 @@ spec:
           annotations:
             description: LiteLLM has returned failed requests at a sustained rate for 10 minutes - check the /v1 backend (vllm-app) and proxy logs.
             summary: LiteLLM is failing a sustained share of requests.
-          # Verify this metric name against a live /metrics scrape after first
-          # deploy (litellm_settings.callbacks: prometheus); LiteLLM's exact
-          # metric names have shifted across versions upstream.
+          # Verified against live Prometheus 2026-09-06: the name needs the
+          # OpenMetrics _total suffix. Without it the series does not exist and
+          # this alert could never fire. The sibling
+          # litellm_proxy_total_requests_metric_total carries 48 live series,
+          # which is what confirms the convention; the failed counter has no
+          # series only because there have been no failures, and it will appear
+          # the moment there are.
           expr: |-
-            rate(litellm_proxy_failed_requests_metric[15m]) > 0.1
+            rate(litellm_proxy_failed_requests_metric_total[15m]) > 0.1
           for: 10m
           labels:
             severity: warning
