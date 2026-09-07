@@ -19,7 +19,7 @@ recently, and why?" without spelunking git.
 
 ---
 
-## Current baseline (2026-08-29)
+## Current baseline (2026-09-07)
 
 | Layer | Value |
 |-------|-------|
@@ -28,23 +28,23 @@ recently, and why?" without spelunking git.
 | **B70 resources** | `devic.es/b70: 99` (Level Zero / renamed `card0`/`renderD128`) and `devic.es/b70-vaapi: 99` (VA-API / kernel names `card1`/`renderD129`) via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
 | **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin, `allowIDs: "0xa7a0"` - light QSV/browser (plex/playwright; jellyfin retired 2026-08-30). iGPU-only; the B70 no longer contributes to this pool |
 | **On the B70** | chat (`vllm` on `devic.es/b70`) + optional `tdarr-node` (on `devic.es/b70-vaapi`). `vllm-embed` and `comfyui` are pinned `replicas: 0` |
-| **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` (pin is load-bearing; do not float to `server-intel`) |
-| **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` |
+| **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b10820` (exact pin is still load-bearing; do not float to `server-intel` - only the pinned value moved off b9592) |
+| **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` (both re-verified on b10820), plus `-b 2048 -ub 2048` |
 | **Chat KV / FA** | `--flash-attn on`, `--cache-type-k/-v q8_0` (accepted on this pin; see 2026-08-21) |
 
 ### Workloads on the B70
 
 | Pod | Resource | Image | Role | VRAM |
 |-----|----------|-------|------|------|
-| `vllm` | `devic.es/b70` | `ghcr.io/ggml-org/llama.cpp:server-intel-b9592` | Chat - **llama.cpp SYCL**, `Qwen3.6-35B-A3B UD-Q4_K_M`. Keeps the `vllm` name so the service + gateway backend stay stable; real vLLM OOMs the MoE warmup (intel/llm-scaler#382). | ~21.4 GiB weights + ~5.2 GiB KV @262k q8_0 |
+| `vllm` | `devic.es/b70` | `ghcr.io/ggml-org/llama.cpp:server-intel-b10820` | Chat - **llama.cpp SYCL**, `Qwen3.6-35B-A3B UD-Q4_K_M`. Keeps the `vllm` name so the service + gateway backend stay stable; real vLLM OOMs the MoE warmup (intel/llm-scaler#382). | 20,583 MiB weights + 2,720 MiB KV @262k q8_0 + 251 MiB recurrent state + 1,776 MiB compute buffer @ `-ub 2048` = 25,330 MiB of 32,656 (~7.2 GiB free). KV is far smaller than the earlier ~5.2 GiB figure because only 10 of 40 layers are full-attention. |
 | `vllm-embed` | `devic.es/b70` | `intel/llm-scaler-vllm` | Embeddings - `Qwen3-VL-Embedding-2B`. **Default off** (`replicas: 0`); agentmemory moved to OpenRouter 2026-06-28. | (not resident) |
 | `comfyui` | `devic.es/b70` | `intel/llm-scaler-omni` | Image generation. **Default off** (`replicas: 0`). | (not resident) |
 | `tdarr-node` | `devic.es/b70-vaapi` | tdarr (media ns) | QSV AV1 worker; codec needs the discrete card under kernel DRM names | light |
 
 ### SYCL / Battlemage constraints
 
-- ✅ **`--flash-attn on` + `--cache-type-k/-v q8_0`** are the live, measured baseline on `server-intel-b9592` (enabled 2026-06-17, verified 2026-08-21). The 2026-06-14 prohibition citing ggml-org/llama.cpp#19276 does **not** apply to this official SYCL build on the B70.
-- ⚠️ **Do not bump the llama.cpp tag without re-measuring.** Later SYCL FA/XMX and Q4_K MoE-reorder work landed after b9592; quality and hang reports on newer builds are a different stack (see 2026-08-21).
+- ✅ **`--flash-attn on` + `--cache-type-k/-v q8_0`** are the live, measured baseline on `server-intel-b10820` (enabled 2026-06-17 on b9592, re-verified on b10820 2026-09-07). The 2026-06-14 prohibition citing ggml-org/llama.cpp#19276 does **not** apply to this official SYCL build on the B70.
+- ⚠️ **Do not bump the llama.cpp tag without re-measuring.** That condition still stands for every future bump. The 2026-09-07 move b9592 → b10820 **discharged** it with evidence rather than bypassing it: five-config production-shaped matrix (wall 129.3s → 52.5s / 2.46x), settings read back at `-lv 6`, quality 5/6 greedy byte-identical plus tool-call and multi-turn checks. The original concern (later SYCL FA/XMX and Q4_K MoE work, quality/hang reports on newer builds) was addressed by those checks, not assumed away. Full matrix and method live in [`ai/b70-llm-serving-tuning.md` section 6](./ai/b70-llm-serving-tuning.md#6-mixed-batch-prefill-fragmentation-2026-09-07); see also the 2026-09-07 entry below and 2026-08-21.
 - ✅ For heavy ComfyUI work, scale `vllm`→0 first - the card is shared with no memory fencing. `comfyui`'s HelmRelease is suspended (`spec.suspend: true`), so scale it back to `replicas: 0` manually when done - Flux will not revert it.
 
 ---
@@ -57,6 +57,52 @@ When you merge an AI / GPU config change, prepend an entry (newest first):
 ## [YYYY-MM-DD] Short title  (PR #NNN)
 Change · Why · Evidence · Risk/rollback · Verify
 ```
+
+---
+
+## [2026-09-07] Chat serving: `-ub 2048` + image `server-intel-b10820` (2.46x loaded)
+
+**Change.** In `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`: pin
+`ghcr.io/ggml-org/llama.cpp` `server-intel-b9592` → `server-intel-b10820`, and set
+`-b 2048 -ub 2048` (batch / ubatch). Model, quant, `--ctx-size 262144`, auto
+`n_parallel` / `kv_unified`, FA, and KV q8_0 are unchanged. Companion matrix and
+method: [`ai/b70-llm-serving-tuning.md` section 6](./ai/b70-llm-serving-tuning.md#6-mixed-batch-prefill-fragmentation-2026-09-07).
+Harness: `scripts/bench/b70-serving-harness.py`.
+
+**Why.** Production load was ~5.7 t/s decode against ~61-68 idle. Root cause on this
+hybrid model (10/40 full-attention layers): `-ub` defaults to 512 while `-b` defaults
+to 2048, so each 2048-token prefill chunk ran as four GPU passes, and
+`llama_memory_hybrid` → `split_equal` ends a ubatch when the shortest sequence runs
+out - one decode token joining a long prefill fragments the whole chunk. A larger
+`-ub` gives those fragments room. The image bump is independent and compounds with it.
+
+**Evidence (measured on this card, 2026-09-07).** Five-configuration matrix on a
+production-shaped concurrent load (4 clients × 16k prompt + 256 completion),
+b9592/b10820 × `-ub` 512/2048/4096:
+
+- Shipped pair wall 129.3s → 52.5s (**2.46x**); aggregate prefill 506 → 1246 t/s,
+  aggregate decode 7.9 → 19.5 t/s; idle decode flat ~70 t/s (no decode/prefill trade).
+- Either lever alone is only ~12%; together 59%. `-ub 4096` rejected (best idle
+  prefill, worst loaded wall 207.6s).
+- Settings read back off the running server at `-lv 6` (`n_ubatch=2048`,
+  `kv_unified=true`, `n_rs_seq=0`), not assumed from the args list. `/props` does not
+  expose batch sizes.
+- Quality: 5/6 greedy prompts (temperature 0, top_k 1, fixed seed) byte-identical to
+  b9592; the 6th is open-ended summarisation where both builds fabricate different
+  card specs. Tool calling and multi-turn recall verified on b10820.
+- VRAM banner: 20,583 MiB weights + 2,720 MiB KV @262k q8_0 + 251 MiB recurrent +
+  1,776 MiB compute @ `-ub 2048` = 25,330 MiB of 32,656 (~7.2 GiB free). Earlier
+  ~5.2 GiB KV figure was wrong for this hybrid arch.
+- The long-standing "do not bump without re-measuring" gate was **satisfied** here
+  (matrix + read-back + quality), not overridden. Future bumps still need the same.
+
+**Risk / rollback.** One helmrelease: restore tag `server-intel-b9592` and drop the
+`-b` / `-ub` args. Context and model stay put either way. Restarts are absorbed by
+hermes' agentgateway failover chain.
+
+**Verify.** After Flux reconciles: image tag is `server-intel-b10820`; startup at
+`-lv 6` shows `n_ubatch=2048`; optional re-run of
+`scripts/bench/b70-serving-harness.py` P4 should land near the shipped row in section 6.
 
 ---
 
