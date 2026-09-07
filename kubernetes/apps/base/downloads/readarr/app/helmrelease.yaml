@@ -71,6 +71,27 @@ spec:
               - secretRef:
                   name: *secret
 
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            resources:
+              requests:
+                cpu: 20m
+                # Working set 2026-09-06 while HTTP-hung: 653Mi. Sibling *arr
+                # requests of 384Mi would under-size this process.
+                memory: 768Mi
+              limits:
+                memory: 2Gi
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
@@ -102,7 +123,9 @@ spec:
                 cpu: 10m
                 memory: 32Mi
               limits:
-                memory: 64Mi
+                # 64Mi was a real cgroup OOM (anon-rss 56.6Mi twice on
+                # 2026-09-06). Working set after those restarts: 44Mi.
+                memory: 128Mi
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true

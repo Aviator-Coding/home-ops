@@ -28,6 +28,7 @@ spec:
           # steady-state path is one GET /api/org), and this is the ceiling
           # on how quickly a fresh Grafana restart gets a working token back.
           schedule: "*/5 * * * *"
+          startingDeadlineSeconds: 600
           backoffLimit: 0
           concurrencyPolicy: Forbid
           failedJobsHistory: 3
