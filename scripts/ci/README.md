@@ -41,6 +41,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `terraform-ci-workflows-test.py` | terraform-diff / terraform-publish CI contract |
 | `tofu-authentik-stack-test.py` | the Authentik OpenTofu adoption stack |
 | `validate-contention-test.py` | validate.yaml runner-pool contention timeouts + python-tests ordering; every per-job filter pattern must also be reachable from `on.pull_request.paths` (dead-filter regression that left `docs/tdarr/**` untested until 2026-09-01) |
+| `mise-install-args-test.py` | jdx/mise-action `install_args` must not re-pin a tool `.mise.toml` already declares (PR #1601: `aqua:prometheus/prometheus@3.2.1` vs 3.14.0 left python-tests without promtool). Proves the checker by restoring the measured pin on a copy of validate.yaml and requiring a refusal |
 | `workflow-hardening-test.py` | GitHub Actions workflow permissions/concurrency hardening |
 | `recyclarr-quality-profile-test.py` | Radarr SQP-1 recyclarr fix (guide min_format_score, trash_id matching, 1080p profile) |
 | `renovate-binding-conditions-test.py` | 2026-08-22 keep-in-cluster Renovate conditions vs shipped chart+CronJob: autoMerge last-match-wins exclusion for `kubernetes/apps/base/renovate/**`, silence alerts present, no hostRules/RENOVATE_HOST_RULES (condition 3 retired) |
@@ -112,7 +113,8 @@ jobs share the `scripts/ci/**` / workflow / `.mise.toml` subset only).
 `validate-contention-test.py::test_trigger_paths_cover_job_filters` fails if any
 per-job pattern becomes unreachable from the trigger again. It installs `python-hcl2` and `litellm[proxy]==1.98.0` (matching
 the pinned cluster proxy image), installs native `promtool` via
-`aqua:prometheus/prometheus@3.2.1` for PromQL rule evaluation (this runner has no podman),
+`aqua:prometheus/prometheus` (version from `.mise.toml`; do not add `@version`
+in `install_args`) for PromQL rule evaluation (this runner has no podman),
 `aqua:mitsuhiko/minijinja` so `schematic-pcie-port-pm-test.py` can render
 `talos/schematic.yaml.j2` the same way the talos job does, and Node 24 + pinned
 `renovate@44.52.1` (via the same `actions/setup-node` pin as `renovate-config`, with

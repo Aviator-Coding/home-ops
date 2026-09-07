@@ -358,10 +358,15 @@ jobs:
       # grafana-sa-provisioner-test.py - this runner has no podman/container runtime.
       # minijinja-cli renders talos/schematic.yaml.j2 for schematic-pcie-port-pm-test.py the
       # same way the talos job / just recipes do (extraKernelArgs are Image Factory input).
+      # Versions come from .mise.toml, same pattern as the talos/terraform jobs.
+      # Do not add @version here: mise-action then installs a different copy than
+      # the shim looks up (Renovate PR #1601: prometheus 3.14.0 vs leftover @3.2.1,
+      # which failed python-tests on every PR with "No version is set for shim:
+      # promtool"). Pinned by scripts/ci/mise-install-args-test.py.
       - name: Setup Tools
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus@3.2.1 aqua:mitsuhiko/minijinja
+          install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
 
       # Node is required by talos-renovate-pin-test.py, which drives renovate@44.52.1's own
       # getRegexPredicate/filterVersions/isStable/applyPackageRules (not a source grep).
