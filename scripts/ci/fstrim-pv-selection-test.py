@@ -8,23 +8,23 @@ grew to ~949 GiB of freed-but-never-discarded blocks behind a 36 KB directory.
 
 This test does not treat source greps as proof. It:
 
-  1. Extracts the real awk selector and the two-step discovery shell from the
-     shipped HelmRelease and runs them against fixture mountinfo shaped like the
-     live kubelet-namespace captures (CSI globalmount + pod bind of the same
-     major:minor, Talos EPHEMERAL as a non-root bind, read-only /var/mnt, a
-     non-/dev/ source, and a regular-file-shaped entry).
+  1. Extracts the real awk selector from the shipped HelmRelease and runs it
+     against fixture mountinfo shaped like the live kubelet-namespace captures
+     (CSI globalmount + pod bind of the same major:minor, Talos EPHEMERAL as a
+     non-root bind, read-only /var/mnt, a non-/dev/ source, and a regular-file-
+     shaped entry).
   2. Asserts observable selection: each block device appears exactly once, PVC
      globalmounts win over pod binds, the node xfs bind is kept, RO and non-dev
      sources are dropped.
   3. Runs the pre-fix filter (`grep -v kubelet`) on the same fixture and
      asserts it yields zero PVC targets - the motivating failure mode must fail
      before the fix and pass after.
-  4. Exercises the discovery pipeline split under `set -eu`: a failing awk must
-     abort before `sort` can invent an empty success list (the pipefail-class
-     defect fixed by writing /tmp/fstrim-targets.raw then sorting).
-  5. Parses the HelmRelease object model for schedule / Forbid / backoffLimit 0
-     / fail-closed trim loop, and the rook-ceph cluster HelmRelease for the nfs
-     mgr module being off and mountOptions:[discard] deliberately absent.
+  4. Executes the shipped Job script verbatim under /bin/sh with pidof/nsenter/
+     fstrim stubs on PATH so discovery-split and trim fail-closed are observable
+     exit-code and output properties (not reconstructed shell snippets).
+  5. Parses the HelmRelease object model for schedule / Forbid / backoffLimit 0,
+     and the rook-ceph cluster HelmRelease for the nfs mgr module being off and
+     mountOptions:[discard] deliberately absent.
 
 Live cluster proof (one-off Jobs on talos-1/2/3 selecting 49 RBD + 1 xfs each
 once, scoped trims on radarr-config/tempo-0/loki-0, sabnzbd left for Monday
@@ -34,8 +34,9 @@ out of scope for this offline gate.
 
 from __future__ import annotations
 
+import os
 import re
-import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -158,6 +159,132 @@ EXPECTED_TARGETS = {
 }
 
 
+def _write_executable(path: Path, body: str) -> None:
+    path.write_text(body)
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def run_shipped_script(
+    script: str,
+    *,
+    mountinfo: str,
+    fail_mountinfo: bool = False,
+    fail_fstrim_target: str | None = None,
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """Run the HelmRelease args[0] script with pidof/nsenter/fstrim stubs.
+
+    nsenter strips --mount/--net/-- and rewrites /proc/self/mountinfo to the
+    fixture (or a missing path when fail_mountinfo is set). fstrim records every
+    target it is asked to trim and can fail one of them on demand.
+    """
+    with tempfile.TemporaryDirectory(prefix="fstrim-shipped-") as td:
+        td_path = Path(td)
+        bin_dir = td_path / "bin"
+        bin_dir.mkdir()
+        mi_path = td_path / "mountinfo"
+        mi_path.write_text(mountinfo)
+        fstrim_log = td_path / "fstrim-targets.log"
+        fstrim_log.write_text("")
+
+        _write_executable(
+            bin_dir / "pidof",
+            textwrap.dedent(
+                """\
+                #!/bin/sh
+                echo 4242
+                """
+            ),
+        )
+
+        # Local exec after stripping namespace flags; mountinfo rewrite is how
+        # the fixture is injected without editing the shipped script.
+        _write_executable(
+            bin_dir / "nsenter",
+            textwrap.dedent(
+                """\
+                #!/usr/bin/env python3
+                import os
+                import subprocess
+                import sys
+
+                args = sys.argv[1:]
+                filtered: list[str] = []
+                i = 0
+                while i < len(args):
+                    a = args[i]
+                    if a.startswith("--mount=") or a.startswith("--net="):
+                        i += 1
+                        continue
+                    if a in ("--mount", "--net") and i + 1 < len(args):
+                        i += 2
+                        continue
+                    if a == "--":
+                        filtered.extend(args[i + 1 :])
+                        break
+                    filtered.extend(args[i:])
+                    break
+                mountinfo = os.environ.get(
+                    "FSTRIM_TEST_MOUNTINFO", "/proc/self/mountinfo"
+                )
+                filtered = [
+                    mountinfo if a == "/proc/self/mountinfo" else a
+                    for a in filtered
+                ]
+                if not filtered:
+                    sys.exit(0)
+                sys.exit(subprocess.call(filtered))
+                """
+            ),
+        )
+
+        _write_executable(
+            bin_dir / "fstrim",
+            textwrap.dedent(
+                """\
+                #!/usr/bin/env python3
+                import os
+                import sys
+
+                target = sys.argv[-1] if len(sys.argv) > 1 else ""
+                log_path = os.environ["FSTRIM_TEST_LOG"]
+                with open(log_path, "a", encoding="utf-8") as fh:
+                    fh.write(target + "\\n")
+                fail_for = os.environ.get("FSTRIM_TEST_FAIL_TARGET", "")
+                if fail_for and target == fail_for:
+                    print(f"fstrim: {target}: FITRIM ioctl failed", file=sys.stderr)
+                    sys.exit(1)
+                print(f"{target}: {0} bytes trimmed")
+                sys.exit(0)
+                """
+            ),
+        )
+
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+        env["FSTRIM_TEST_LOG"] = str(fstrim_log)
+        if fail_mountinfo:
+            env["FSTRIM_TEST_MOUNTINFO"] = str(td_path / "missing-mountinfo")
+        else:
+            env["FSTRIM_TEST_MOUNTINFO"] = str(mi_path)
+        if fail_fstrim_target is not None:
+            env["FSTRIM_TEST_FAIL_TARGET"] = fail_fstrim_target
+        else:
+            env.pop("FSTRIM_TEST_FAIL_TARGET", None)
+
+        result = subprocess.run(
+            ["/bin/sh", "-c", script],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        attempted = [
+            ln.strip()
+            for ln in fstrim_log.read_text(encoding="utf-8").splitlines()
+            if ln.strip()
+        ]
+        return result, attempted
+
+
 def run_awk_selector(program: str, mountinfo: str) -> list[str]:
     """Execute the shipped awk program against fixture mountinfo; return paths."""
     with tempfile.TemporaryDirectory(prefix="fstrim-awk-") as td:
@@ -199,33 +326,6 @@ def run_old_kubelet_filter(mountinfo: str) -> list[str]:
             continue
         survivors.append(parts[4])
     return sorted(set(survivors))
-
-
-def run_discovery_pipeline(program: str, mountinfo_path: Path, *, fail_awk: bool = False) -> subprocess.CompletedProcess[str]:
-    """Run the two-step discovery under set -eu the way the Job does.
-
-    When fail_awk is True, point awk at a missing file so the first step must
-    abort and never leave sort free to invent an empty success list.
-    """
-    with tempfile.TemporaryDirectory(prefix="fstrim-pipe-") as td:
-        td_path = Path(td)
-        targets_raw = td_path / "fstrim-targets.raw"
-        targets = td_path / "fstrim-targets"
-        awk_input = "/no/such/mountinfo" if fail_awk else str(mountinfo_path)
-        script = textwrap.dedent(
-            f"""\
-            set -eu
-            awk '{program}' {awk_input} > {targets_raw}
-            sort {targets_raw} > {targets}
-            echo "trimming $(wc -l < {targets}) device(s)"
-            cat {targets}
-            """
-        )
-        return subprocess.run(
-            ["/bin/sh", "-c", script],
-            capture_output=True,
-            text=True,
-        )
 
 
 def test_awk_selects_each_block_device_once() -> None:
@@ -276,50 +376,85 @@ def test_old_filter_selects_zero_pvcs() -> None:
 
 
 def test_discovery_pipeline_split_fails_closed() -> None:
+    """Shipped script: happy path lists 6 devices; awk failure aborts closed.
+
+    A reintroduced `awk … | sort` under busybox ash (no pipefail) would turn an
+    awk failure into `trimming 0 device(s)` and exit 0 - this asserts that does
+    not happen on the real script text from the HelmRelease.
+    """
     hr = load_yaml(FSTRIM_HR)
     script = extract_script(hr)
-    program = extract_awk_program(script)
+
+    ok, attempted = run_shipped_script(script, mountinfo=FIXTURE_MOUNTINFO)
     require(
-        "fstrim-targets.raw" in script,
-        "discovery must write an intermediate .raw file (pipeline split)",
-    )
-    # The sort step must be a separate command, not `awk … | sort`.
-    require(
-        re.search(r"sort\s+/tmp/fstrim-targets\.raw\s*>\s*/tmp/fstrim-targets", script),
-        "sort must read the .raw file, not an awk|sort pipeline",
+        ok.returncode == 0,
+        f"happy-path shipped script failed rc={ok.returncode}: "
+        f"stdout={ok.stdout!r} stderr={ok.stderr!r}",
     )
     require(
-        "| sort" not in script,
-        "discovery must not use an awk|sort pipeline (busybox ash has no pipefail)",
+        re.search(r"trimming\s+6\s+device", ok.stdout),
+        f"expected 'trimming 6 device(s)', got: {ok.stdout!r}",
+    )
+    require(
+        sorted(attempted) == sorted(EXPECTED_TARGETS),
+        f"fstrim targets mismatch:\n  got:      {sorted(attempted)}\n"
+        f"  expected: {sorted(EXPECTED_TARGETS)}",
     )
 
-    with tempfile.TemporaryDirectory(prefix="fstrim-mi-") as td:
-        mi = Path(td) / "mountinfo"
-        mi.write_text(FIXTURE_MOUNTINFO)
+    bad, attempted_bad = run_shipped_script(
+        script,
+        mountinfo=FIXTURE_MOUNTINFO,
+        fail_mountinfo=True,
+    )
+    require(
+        bad.returncode != 0,
+        "awk/mountinfo failure must fail the shipped script under set -e "
+        f"(got rc=0, stdout={bad.stdout!r}, stderr={bad.stderr!r})",
+    )
+    require(
+        "trimming 0 device" not in bad.stdout,
+        "discovery failure must not report a successful empty target list "
+        f"(stdout={bad.stdout!r})",
+    )
+    require(
+        attempted_bad == [],
+        f"discovery failure must not reach fstrim, attempted={attempted_bad}",
+    )
+    print("[PASS] shipped script discovery split fails closed; happy path trims 6")
 
-        ok = run_discovery_pipeline(program, mi, fail_awk=False)
-        require(ok.returncode == 0, f"happy-path discovery failed: {ok.stderr}")
-        lines = [ln for ln in ok.stdout.splitlines() if ln.startswith("/")]
-        require(
-            sorted(lines) == sorted(EXPECTED_TARGETS),
-            f"pipeline output mismatch: {lines}",
-        )
-        require(
-            re.search(r"trimming\s+6\s+device", ok.stdout),
-            f"expected 'trimming 6 device(s)', got: {ok.stdout!r}",
-        )
 
-        bad = run_discovery_pipeline(program, mi, fail_awk=True)
-        require(
-            bad.returncode != 0,
-            "awk failure must fail the discovery script under set -e "
-            f"(got rc=0, stdout={bad.stdout!r})",
-        )
-        require(
-            "trimming 0 device" not in bad.stdout,
-            "awk failure must not report a successful empty target list",
-        )
-    print("[PASS] discovery pipeline split fails closed on awk error; happy path lists 6")
+def test_trim_loop_fails_closed() -> None:
+    """One fstrim failure still walks every target and exits non-zero."""
+    hr = load_yaml(FSTRIM_HR)
+    script = extract_script(hr)
+
+    fail_target = sorted(EXPECTED_TARGETS)[0]
+    bad, attempted = run_shipped_script(
+        script,
+        mountinfo=FIXTURE_MOUNTINFO,
+        fail_fstrim_target=fail_target,
+    )
+    require(
+        bad.returncode != 0,
+        f"a single fstrim failure must exit non-zero (got rc=0, stdout={bad.stdout!r})",
+    )
+    require(
+        sorted(attempted) == sorted(EXPECTED_TARGETS),
+        f"trim loop must still attempt every target after a failure:\n"
+        f"  got:      {sorted(attempted)}\n"
+        f"  expected: {sorted(EXPECTED_TARGETS)}",
+    )
+
+    ok, attempted_ok = run_shipped_script(script, mountinfo=FIXTURE_MOUNTINFO)
+    require(
+        ok.returncode == 0,
+        f"all-success trim loop must exit 0 (got rc={ok.returncode}, stderr={ok.stderr!r})",
+    )
+    require(
+        sorted(attempted_ok) == sorted(EXPECTED_TARGETS),
+        f"all-success targets mismatch: {sorted(attempted_ok)}",
+    )
+    print("[PASS] trim loop attempts every target and fails closed on fstrim error")
 
 
 def test_cronjob_safety_knobs() -> None:
@@ -338,12 +473,6 @@ def test_cronjob_safety_knobs() -> None:
     )
     require(cron.get("parallelism") == 3, "parallelism must match the 3-node fleet")
 
-    script = extract_script(hr)
-    require("rc=0" in script and 'exit "$rc"' in script, "trim loop must fail closed")
-    require(
-        "|| rc=1" in script or "|| rc=1" in script.replace(" ", ""),
-        "each fstrim failure must flip rc",
-    )
     # Privileged hostPID nsenter shape the live probe depended on.
     pod = values.get("controllers", {}).get("fstrim", {}).get("pod", {})
     require(pod.get("hostPID") is True, "hostPID required to nsenter kubelet mount ns")
@@ -352,7 +481,7 @@ def test_cronjob_safety_knobs() -> None:
         (container.get("securityContext") or {}).get("privileged") is True,
         "privileged required for nsenter/fstrim against host mounts",
     )
-    print("[PASS] cronjob safety knobs: Monday schedule, Forbid, backoffLimit 0, fail-closed")
+    print("[PASS] cronjob safety knobs: Monday schedule, Forbid, backoffLimit 0")
 
 
 def test_nfs_module_disabled_and_discard_left_out() -> None:
@@ -412,6 +541,7 @@ def main() -> int:
         test_awk_selects_each_block_device_once,
         test_old_filter_selects_zero_pvcs,
         test_discovery_pipeline_split_fails_closed,
+        test_trim_loop_fails_closed,
         test_cronjob_safety_knobs,
         test_nfs_module_disabled_and_discard_left_out,
         test_overlay_wired,
