@@ -43,7 +43,25 @@ spec:
           app:
             image:
               repository: ghcr.io/ggml-org/llama.cpp
-              tag: server-intel-b9592
+              # b9592 (2026-06-10) -> b10820 (2026-09-06). Not a routine bump:
+              # measured 2026-09-07 as the single largest serving win available
+              # on this card, and it COMPOUNDS with -ub 2048 below rather than
+              # overlapping it. On the production-shaped concurrent benchmark
+              # (4 clients x 16k prompt + 256 completion) wall time went
+              # 129.3s (b9592, -ub default) -> 113.6s (b10820 alone)
+              #         -> 113.9s (b9592 + -ub 2048) -> 52.5s (BOTH).
+              # Either lever alone buys ~12%; together they buy 59%. Aggregate
+              # prefill 506 -> 1246 t/s, aggregate decode 7.9 -> 19.5 t/s.
+              # Re-verified on b10820 before shipping (all read back off the
+              # running server, not assumed): auto n_parallel=4 + kv_unified=true
+              # still selected, n_ctx 262144 honoured, flash_attn enabled, KV
+              # 2720 MiB, compute buffer 1776 MiB, ~7.2GiB VRAM still free;
+              # multimodal mmproj loads; tool calls and multi-turn both correct;
+              # 5/6 greedy prompts byte-identical to b9592 (the 6th is an
+              # open-ended summarisation where both builds hallucinate different
+              # specs - a near-tie broken differently, not a regression).
+              # b10830 exists upstream but has no server-intel build yet.
+              tag: server-intel-b10820
             args:
               - -hf
               - unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M
