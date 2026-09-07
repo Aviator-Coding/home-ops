@@ -3,8 +3,9 @@
 > **Hardware:** single Intel Arc Pro B70 (Xe2 / Battlemage G31, 32 GB) on `talos-3`.
 > **App:** `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml` (chat = llama.cpp SYCL named
 > `vllm`; embeddings = vLLM named `vllm-embed`, **default-off**). **Updated:** 2026-09-07
-> (ctx 262144, embed/ComfyUI `replicas: 0`). The A/B matrix below is still the 2026-06-26
-> measurement set.
+> (image `server-intel-b10820`, `-b 2048 -ub 2048`, ctx 262144, embed/ComfyUI `replicas: 0`).
+> Sections 1-4 keep the 2026-06-26 SYCL/Vulkan and isolation evidence; the live serving
+> matrix and VRAM correction are [section 6](#6-mixed-batch-prefill-fragmentation-2026-09-07).
 >
 > This runbook records the measured baseline, the SYCL-vs-Vulkan backend decision, the
 > tuning A/B matrix, and the single-card workload-isolation design. It is the evidence
@@ -12,21 +13,24 @@
 
 ## TL;DR
 
-- **Backend stays SYCL.** Measured on our `b9592` build: SYCL decode **~61 t/s** vs Vulkan
-  **~36 t/s** on the exact MoE chat model - SYCL wins **1.68×**. The Reddit "Vulkan 2.5-3×
-  faster on MoE" finding was from broken build `8739`; the SYCL MoE expert-dispatch penalty
-  is **fixed** in `b9592` (PRs #21527/#21638 merged). **No image/backend change.**
+- **Backend stays SYCL.** Measured on `b9592` (still true on `b10820`): SYCL decode **~61 t/s**
+  vs Vulkan **~36 t/s** on the exact MoE chat model - SYCL wins **1.68×**. The Reddit
+  "Vulkan 2.5-3× faster on MoE" finding was from broken build `8739`; the SYCL MoE
+  expert-dispatch penalty is **fixed** as of `b9592` (PRs #21527/#21638 merged).
+  **No backend change** (image pin did move; see next bullet).
 - **Two levers ship 2026-09-07 and they COMPOUND: image `b9592` -> `b10820` and
   `-ub 512` (default) -> `2048`.** Either alone buys ~12% on the loaded benchmark;
   together they cut concurrent wall time **129.3s -> 52.5s (2.46x)** and take
   aggregate prefill 506 -> 1246 t/s. Prefill is 88% of this workload, so this is
   the throughput fix. Full matrix, mechanism and method: [section 6](#6-mixed-batch-prefill-fragmentation-2026-09-07).
 - **Current live args:** `--ctx-size 262144` (native max, 2026-07-08), 4 auto slots with
-  unified KV, `-b 2048 -ub 2048`, image `server-intel-b10820`. That window **fits only because `vllm-embed` and
-  `comfyui` are both pinned `replicas: 0`**. Re-enabling either needs a re-test (step back
-  toward 131072 on VRAM OOM). `kv_unified=true` with 4 auto slots still gives a single
-  request the full window *and* fleet concurrency. Do **not** pin `--parallel` /
-  `--kv-unified` (#1093).
+  unified KV, `-b 2048 -ub 2048`, image `server-intel-b10820`. VRAM at that window is
+  **~7.2 GiB free** (KV is 2720 MiB, not the ~5.2 GiB sections 1-4 assumed - only 10/40
+  layers are full-attention), so context was **not** shortened. `vllm-embed` and `comfyui`
+  stay `replicas: 0` for **compute isolation** (section 4's 38× collapse), not because the
+  window cannot fit; re-enabling either still needs a re-test. `kv_unified=true` with 4 auto
+  slots still gives a single request the full window *and* fleet concurrency. Do **not** pin
+  `--parallel` / `--kv-unified` (#1093).
 - **The real bottleneck is single-card compute contention, not config.** Chat decode
   collapsed **38×** (61 → 1.6 t/s) when embeddings ran flat-out on the same card. Embeddings
   left the card on 2026-06-28 (#1098; agentmemory uses OpenRouter). Remaining contention is
@@ -152,15 +156,18 @@ Method: `flux suspend hr vllm` → patch deployment image to `ghcr.io/ggml-org/l
 
 ### `--cache-reuse` 256, `UD-Q4_K_XL`, `--threads`
 
-- `--cache-reuse 256`: no evidence to change; multi-turn agents already benefit. **Keep.**
-- `UD-Q4_K_XL`: VRAM is tight; a larger quant erodes the q8_0-KV headroom and risks the fit.
-  **Skip** — current `UD-Q4_K_M` validated against the reference.
-- `--threads`: **excluded** per plan (confirmed no-op at `-ngl 99`).
+- `--cache-reuse 256`: flag kept only as documentation; every boot logs it disabled because
+  the mmproj is loaded (ordinary prefix caching still works). See [section 6](#6-mixed-batch-prefill-fragmentation-2026-09-07).
+- `UD-Q4_K_XL`: still skipped - current `UD-Q4_K_M` is the validated quant; model changes are
+  out of scope for serving-tuning work.
+- `--threads`: still untested under load; banner picks `n_threads = 6` against a `cpu: 2`
+  request (flagged in section 6, not changed).
 
-**Matrix conclusion:** keep the current image and all llama.cpp args **as auto** — no arg
-changes ship for the chat server (the one tried, pinning `--parallel/--kv-unified`, was
-reverted for VRAM thrash). The real win is workload isolation (§4) and, structurally, the
-second card.
+**Matrix conclusion (2026-06-26):** keep backend/FA/KV/auto-slots; do not pin
+`--parallel/--kv-unified` (tried, reverted for VRAM thrash). Workload isolation (§4)
+remained the then-largest win. **Superseded in part on 2026-09-07:** image `b10820` and
+`-b`/`-ub 2048` now ship for loaded prefill - see [section 6](#6-mixed-batch-prefill-fragmentation-2026-09-07).
+`--cache-reuse 256` is also a documented no-op here (mmproj disables it).
 
 ## 4. Single-card workload isolation (B70 time-slice contention)
 
@@ -260,7 +267,7 @@ is a **second B70** (one model per card, no time-slicing) — currently **deferr
 | Date | Change | Result |
 | --- | --- | --- |
 | 2026-06-26 | Baseline + SYCL-vs-Vulkan A/B + tuning matrix | SYCL kept (61 vs 36 t/s); config validated; isolation identified as the win |
-| 2026-07-08 | `--ctx-size` 131072 → 262144 (native max, no yarn) | Live-tested with `vllm-embed`/`comfyui` both at `replicas: 0`: loads clean (0 restarts), decode 68.4 t/s (no regression). KV grows ~2.6→~5.2 GiB. Motivated by 115 "failed to find free space in the KV cache" warnings observed in prod at 131072 — 4 concurrent slots were oversubscribing the shared unified pool, not one long chat. Only fits because the card is otherwise empty; re-enabling embeddings or ComfyUI needs re-validation and possibly stepping back down. |
+| 2026-07-08 | `--ctx-size` 131072 → 262144 (native max, no yarn) | Live-tested with `vllm-embed`/`comfyui` both at `replicas: 0`: loads clean (0 restarts), decode 68.4 t/s (no regression). Motivated by 115 "failed to find free space in the KV cache" warnings at 131072 - 4 concurrent slots oversubscribing the shared unified pool, not one long chat. The then-recorded "KV ~2.6→~5.2 GiB" figure was wrong for this hybrid arch; measured 2026-09-07 as 2720 MiB @262k (see [section 6](#6-mixed-batch-prefill-fragmentation-2026-09-07)). Re-enabling embeddings or ComfyUI still needs re-validation for compute contention. |
 | 2026-08-21 | Evaluated Qwen3.6 → 3.8 upgrade | **No change - staying on Qwen3.6-35B-A3B.** No Qwen3.8 MoE (35B-A3B class) release exists; Alibaba has only shipped dense `Qwen3.8-27B` and `Qwen3.8-2.4T-A95B` (too large for one B70). `Qwen3.8-27B` GGUF quants exist (unsloth, bartowski) but the architecture is 48/64 Gated DeltaNet + 16/64 full-attention layers, requiring SSM kernels `ggml-sycl` doesn't implement (see §2) - would crash on load regardless of image tag. Revisit when either a comparable MoE 3.8 ships or SYCL SSM support lands upstream. |
 | 2026-09-07 | `-ub` 512 → 2048 **and** image `b9592` → `b10820` | **Loaded throughput 2.46x.** Production-shaped concurrent benchmark wall 129.3s → 52.5s; aggregate prefill 506 → 1246 t/s, decode 7.9 → 19.5 t/s; idle decode flat ~70 t/s. The two levers compound (either alone is only ~12%). Root cause was ubatch fragmentation from `split_equal` on this hybrid arch, measured on production traffic (shared-batch prefill 200 → 401 t/s). `-ub 4096` tested and rejected (best idle, worst loaded). Context, KV precision, backend and auto slot config all unchanged; VRAM ~7.2 GiB free. See [section 6](#6-mixed-batch-prefill-fragmentation-2026-09-07). |
 

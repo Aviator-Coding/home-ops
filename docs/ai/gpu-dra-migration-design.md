@@ -120,7 +120,7 @@ mechanisms all fail here:
 |-----------|----------------------|---------------------|
 | Shared `ResourceClaim` (many pods → one claim) | No | `ResourceClaim` is **namespaced**. Our B70 consumers span `ai` + `media`; our iGPU consumers span `media` + `selfhosted`. No single claim can cover either group. |
 | `allowMultipleAllocation` / consumable capacity | **Yes** | Not implemented by the driver (issue #79, zero code hits). Our cluster side is ready - `DRAConsumableCapacity` is enabled (BETA). |
-| Partitionable devices / SR-IOV | **Yes** | Splits VRAM. The chat server alone needs ~21.4 GiB weights + ~5.2 GiB KV of the card's 32 GiB; partitioning starves it. |
+| Partitionable devices / SR-IOV | **Yes** | Splits VRAM. Chat alone already holds ~24.7 GiB of 31.9 GiB (20,583 MiB weights + 2,720 MiB KV @262k q8_0 + recurrent + compute buffer; measured 2026-09-07 - see [`b70-llm-serving-tuning.md` §6](./b70-llm-serving-tuning.md#6-mixed-batch-prefill-fragmentation-2026-09-07)); partitioning starves it. |
 
 That leaves exactly one workaround, and it is the one the reference repo
 (`joryirving/home-ops`) uses: `adminAccess: true` with `allocationMode: All`. Rejected here,

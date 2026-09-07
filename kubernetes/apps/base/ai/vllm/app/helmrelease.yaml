@@ -82,10 +82,13 @@ spec:
               # docs/ai/b70-llm-serving-tuning.md). DO NOT pin --parallel/--kv-unified
               # explicitly: on b9592 that overcommits the KV allocation and thrashes
               # VRAM, collapsing decode to ~0.5 t/s (verified 2026-06-27). The auto
-              # path sizes the shared cache correctly — leave it auto.
-              # Fits only because vllm-embed and comfyui are both pinned replicas: 0
-              # (freeing the whole 32G B70 to chat alone). Re-enabling either means
-              # re-testing this value — step back down toward 131072 on VRAM OOM.
+              # path sizes the shared cache correctly - leave it auto.
+              # VRAM is not the binding constraint at 262144 (~7.2 GiB free on
+              # b10820/-ub 2048; see header). vllm-embed and comfyui stay
+              # replicas: 0 for compute isolation (38x decode collapse under
+              # embeddings flood), not because the window cannot fit. Re-enabling
+              # either still needs a live re-test; do not assume a context shrink
+              # is required up front.
               - "262144"
               - -ngl
               - "99"
