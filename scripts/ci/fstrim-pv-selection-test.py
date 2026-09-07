@@ -411,8 +411,10 @@ def test_discovery_pipeline_split_fails_closed() -> None:
         "awk/mountinfo failure must fail the shipped script under set -e "
         f"(got rc=0, stdout={bad.stdout!r}, stderr={bad.stderr!r})",
     )
+    # wc -l pads the count (e.g. "trimming        0 device(s)"), so match on
+    # whitespace rather than the literal "trimming 0 device" substring.
     require(
-        "trimming 0 device" not in bad.stdout,
+        re.search(r"trimming\s+0\s+device", bad.stdout) is None,
         "discovery failure must not report a successful empty target list "
         f"(stdout={bad.stdout!r})",
     )
