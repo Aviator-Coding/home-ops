@@ -39,7 +39,7 @@ spec:
           app:
             image:
               repository: ghcr.io/joryirving/opencode
-              tag: 1.18.23@sha256:9bed50b2ceccf51ad85e717c7fbea1165944f1fcd7e13d9d37f16fe7e1a063d9
+              tag: 1.18.29@sha256:e78402bdaa80a6eae6de53865e6bfae55cb32244336abb1332757051cf6caa78
             command: ["/etc/opencode/entrypoint.sh"]
             env:
               HOME: &homepath /home/opencode
