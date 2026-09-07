@@ -23,7 +23,12 @@ spec:
     # Placement is enforced by devic.es/b70 (generic-device-plugin on the
     # discrete Arc Pro B70 at talos-3 PCI 0000:03:00.0), not hostname affinity.
     # plex/playwright stay on gpu.intel.com/xe; the 35B chat server
-    # (~21.4GiB weights + ~5.2GiB KV @262k q8_0) must not consume that pool.
+    # (20.1GiB weights + 2.66GiB KV @262k q8_0 + 0.25GiB recurrent state +
+    # 1.27GiB compute buffer @ -ub 2048 = ~24.3GiB of 31.9GiB) must not consume
+    # that pool. KV is far smaller than the "~5.2GiB" once assumed here: only
+    # 10 of 40 layers are full-attention (the rest are linear/recurrent), so
+    # 262144 cells cost 2720 MiB, not ~5.2GiB. Measured 2026-09-07 from the
+    # startup banner at `-lv 6` - see docs/ai/b70-llm-serving-tuning.md section 6.
     controllers:
       # Main chat model runs on llama.cpp SYCL, not vLLM: Qwen3.6-35B-A3B GPTQ
       # cannot complete vLLM warmup on a single 32GB B70 (21.4GiB weights +
@@ -74,8 +79,36 @@ spec:
               - --cache-type-v
               - q8_0
               - --cache-reuse
+              # NO-OP on this deployment, kept only to document that: the server
+              # logs `cache_reuse is not supported by multimodal, it will be
+              # disabled` at every boot because the mmproj is loaded. Ordinary
+              # prefix prompt-caching + context checkpoints still work and are
+              # what production actually benefits from. Do not "fix" this by
+              # dropping the mmproj without a decision - that removes vision.
               - "256"
               - --no-mmap
+              # Physical batch. -ub defaults to 512 while -b defaults to 2048, so
+              # a 2048-token prefill chunk ran as FOUR GPU passes. That matters
+              # far more than it looks on this model: Qwen3.6-35B-A3B is hybrid
+              # (only 10/40 layers are full-attention), so llama.cpp takes the
+              # `llama_memory_hybrid` path, which splits ubatches with
+              # `split_equal` - every sequence in a ubatch must contribute an
+              # EQUAL token count, and the ubatch ends as soon as the shortest
+              # sequence runs out. One decode token joining a 2047-token prefill
+              # therefore fragments the whole chunk. Measured on live production
+              # traffic 2026-09-07: prefill chunks sharing a batch with any decode
+              # token ran 200 t/s vs 543 t/s unshared (n=702, a 2.71x penalty),
+              # and 85% of production chunks are shared. At -ub 2048 the same
+              # comparison is 401 vs 649 t/s - penalty 1.62x, shared-chunk prefill
+              # 2.0x faster. Prefill is 88% of this workload's tokens (7.5:1
+              # prompt:completion lifetime), so this is the dominant lever.
+              # -ub 4096 was tested and REJECTED: best idle prefill (1334 t/s) but
+              # worst under concurrency (P4 wall 207.6s vs 113.9s at 2048).
+              # Full matrix + method: docs/ai/b70-llm-serving-tuning.md section 6.
+              - -b
+              - "2048"
+              - -ub
+              - "2048"
             env:
               LLAMA_CACHE: /models/llama
               ONEAPI_DEVICE_SELECTOR: level_zero:0
