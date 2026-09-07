@@ -31,13 +31,7 @@ Manifests live under `kubernetes/apps/base/ai/agentgateway/`. Prefer those YAML 
 
 ### Data-plane Gateways
 
-| Gateway | LB IP | Auth |
-|---------|-------|------|
-| `internal` | `10.50.0.27` | Authentik on https |
-| `internal-noauth` | `10.50.0.28` | keyless (in-cluster) |
-| `public` | `10.50.0.29` | API-key Strict on http; Authentik on https |
-
-Details: [`app/gateways/README.md`](../../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md).
+Three Gateways: `internal` (LB, https-only, Authentik), `internal-noauth` (ClusterIP, keyless, in-cluster only), `public` (LB, API-key on http / Authentik on https). Listeners, Service types, and the http-listener exposure rule: [`app/gateways/README.md`](../../../kubernetes/apps/base/ai/agentgateway/app/gateways/README.md).
 
 ### How clients reach it
 
@@ -61,7 +55,7 @@ External Secrets Operator + ClusterSecretStore `onepassword`. Provider keys come
 |----------|-------------|
 | [01-quickstart.md](./01-quickstart.md) | Call the live `/v1` endpoint |
 | [02-installation.md](./02-installation.md) | Flux chart, CRDs, Helm values |
-| [03-gateway-setup.md](./03-gateway-setup.md) | Three Gateways and listeners |
+| [03-gateway-setup.md](./03-gateway-setup.md) | Parameters + admin UI notes; listeners live in `app/gateways/README.md` |
 | [11-cluster-deployment.md](./11-cluster-deployment.md) | Live tree map (pointers, not a copy of manifests) |
 
 ### Traffic
@@ -101,4 +95,4 @@ External Secrets Operator + ClusterSecretStore `onepassword`. Provider keys come
 
 The catalog comment in `httproute-models.yaml` is the checklist: a routing rule in `httproute-unified.yaml` (if the family is new), a price row in `rules/cost.yaml`, and a catalog entry. Re-enabling a dormant backend (zai / togetherai / opencodeai) is one new unified-route rule.
 
-*Last updated: 2026-08-21 against chart `v1.4.1`.*
+*Last updated: 2026-09-06 against chart `v1.4.1` (https-only `internal`, ClusterIP `internal-noauth`).*

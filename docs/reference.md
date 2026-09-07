@@ -40,7 +40,7 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 | [`ai-system/agentgateway/README.md`](ai-system/agentgateway/README.md) | Cluster-specific AgentGateway install (standalone v1.4.1 in `ai`). Start here; do not follow kgateway docs. |
 | [`ai-system/agentgateway/01-quickstart.md`](ai-system/agentgateway/01-quickstart.md) | Live-cluster smoke commands for the three Gateways and the unified `/v1` route. |
 | [`ai-system/agentgateway/02-installation.md`](ai-system/agentgateway/02-installation.md) | Flux install tree (CRDs + chart). Use this instead of `helm upgrade -i kgateway`. |
-| [`ai-system/agentgateway/03-gateway-setup.md`](ai-system/agentgateway/03-gateway-setup.md) | The three data planes (`internal`, `internal-noauth`, `public`) and their IPs/listeners. |
+| [`ai-system/agentgateway/03-gateway-setup.md`](ai-system/agentgateway/03-gateway-setup.md) | Three data planes; defers listener/Service inventory to `app/gateways/README.md`. |
 | [`ai-system/agentgateway/04-llm-providers.md`](ai-system/agentgateway/04-llm-providers.md) | Model-name routing on unified `/v1` and how to add an `AgentgatewayBackend`. |
 | [`ai-system/agentgateway/05-mcp-connectivity.md`](ai-system/agentgateway/05-mcp-connectivity.md) | MCP is not federated through AgentGateway here; ToolHive owns it. |
 | [`ai-system/agentgateway/06-agent-connectivity.md`](ai-system/agentgateway/06-agent-connectivity.md) | In-cluster clients: kagent is gone; keyless OpenAI endpoint to use instead. |

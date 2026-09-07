@@ -25,6 +25,19 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: llm-unified
+  annotations:
+    # Guard, not a cure. This route declares no `spec.hostnames`, so
+    # external-dns's gateway-httproute source would fall back to the parent
+    # listener hostname - the `*.${SECRET_DOMAIN}` wildcard - and publish it
+    # against the Gateway LB IP. Same opt-out the equivalent envoy catch-all
+    # uses (network/envoy-gateway/app/envoy.yaml `https-redirect`).
+    # NOTE the live LAN record `*.${SECRET_DOMAIN} -> 10.50.0.27` is NOT
+    # external-dns's: every record it manages has a `k8s.main.<type>-<name>`
+    # registry TXT twin and the wildcard has none (measured 2026-09-06 against
+    # the unifi webhook's own /records: 71 TXT twins, zero for the wildcard).
+    # It is a hand-made UniFi record, so external-dns will never delete it and
+    # removing it is a UniFi-side change, not a repo change.
+    external-dns.alpha.kubernetes.io/controller: none
 spec:
   parentRefs:
     - name: internal-noauth

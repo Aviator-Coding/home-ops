@@ -9,10 +9,23 @@ spec:
     annotations:
       lbipam.cilium.io/ips: 10.50.0.27
   gatewayClassName: agentgateway
+  # NO `http` listener. `llm-unified` and `llm-models` attach with no
+  # sectionName, so they bind to EVERY listener of this Gateway, and their
+  # `/v1/...` path matches are more specific than `tls-redirect`'s catch-all
+  # `/`. Gateway API path matching is most-specific-wins regardless of rule
+  # order, so an http listener here served the paid provider backends - with
+  # the cluster's own credentials attached - to any LAN device and any pod,
+  # with no credential of their own (measured 2026-09-06: OpenAI answered
+  # `model_not_found`, its AUTHENTICATED reply, on http://10.50.0.27/v1/...).
+  # `apikey-policy` binds only to `public/http` and `authentik-policy` only to
+  # the two `https` listeners, so nothing guarded this one.
+  # Do NOT "fix" this by making tls-redirect outrank the /v1 routes:
+  # specificity is fixed by the spec, and `public` deliberately relies on that
+  # same behaviour to let Envoy forward llm-api.* to `public:80`.
+  # Keyless clients belong on `internal-noauth`
+  # (http://internal-noauth.ai.svc.cluster.local/v1), which is what the README
+  # already documents them to use.
   listeners:
-    - name: http
-      port: 80
-      protocol: HTTP
     - name: https
       protocol: HTTPS
       port: 443
