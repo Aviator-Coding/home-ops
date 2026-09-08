@@ -202,11 +202,33 @@ spec:
                   - ALL
 
             resources:
+              # Raised 2026-09-08: 13 OOMKills in 3d8h against the old 2Gi
+              # limit, with resting usage already at 2019Mi (98.6% of cap)
+              # and one kill 12s after container start - too fast to be
+              # query-driven. Root cause per the captain: the
+              # plc_code_graph graph grew from file ingestion
+              # (8,195,288 edges loaded into memory from AOF at startup).
+              #
+              # Request raised from 256Mi to 2Gi to match measured resting
+              # usage - talos-3 (this pod's node) had ~17Gi of unrequested
+              # allocatable memory at the time of this change, so the
+              # increase is affordable; a request left at 256Mi beside an
+              # 8Gi limit would keep the scheduler blind to what this pod
+              # actually holds.
+              #
+              # FalkorDB/Redis has no ceiling of its own here - `maxmemory`
+              # is 0 (unbounded) and `maxmemory-policy` is `noeviction`
+              # (measured live via CONFIG GET) - so this limit is a
+              # cgroup-only backstop. Continued unbounded ingestion will
+              # fill 8Gi exactly as it filled 2Gi; setting `maxmemory` +
+              # an eviction/refusal policy is a deliberate follow-up this
+              # PR intentionally does not make (data-loss risk on a
+              # decision that belongs to the captain, not this change).
               requests:
                 cpu: 50m
-                memory: 256Mi
-              limits:
                 memory: 2Gi
+              limits:
+                memory: 8Gi
 
           # --- FalkorDB Browser (the explorer UI) ---
           #
