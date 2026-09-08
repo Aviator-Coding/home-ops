@@ -578,13 +578,62 @@ def test_helmrelease_browser_sidecar_and_hardening() -> None:
         f"cmd={fix_script!r} sc={fix_sc}",
     )
 
-    # Resource limits / PVC size must remain untouched per scope boundary.
+    # Resources are pinned, but to the MEASURED values rather than to the
+    # pre-existing ones. This assertion used to read 256Mi/2Gi as a scope
+    # boundary for the LAN+browser PR ("this change must not touch sizing").
+    # That boundary expired on 2026-09-08: the 2Gi limit OOMKilled the pod 13
+    # times in 95 minutes, was patched live to 8Gi, and fm/homeops-falkordb-
+    # ceiling committed that live state together with a --maxmemory ceiling.
+    # The pin is kept - deliberately re-pointed, not relaxed - so sizing still
+    # cannot drift silently.
     app_res = app.get("resources") or {}
     record(
-        "database_resource_limits_unchanged",
+        "database_resources_pinned_to_measured_values",
         (app_res.get("requests") or {}) == {"cpu": "50m", "memory": "2Gi"}
         and (app_res.get("limits") or {}) == {"memory": "8Gi"},
         f"resources={app_res}",
+    )
+
+    # The invariant that actually matters, and the one a bare value pin above
+    # cannot express: --maxmemory must sit strictly BELOW the cgroup limit.
+    # A maxmemory at or above the limit is silently inert - the kernel reaches
+    # the cgroup ceiling first and OOMKills the process, which is precisely the
+    # unbounded arrangement the flag exists to replace. Raising maxmemory or
+    # lowering the limit without checking the other therefore fails closed here.
+    def _bytes(v: str) -> int:
+        v = v.strip().lower()
+        units = {
+            "k": 1000, "kb": 1024, "m": 1000**2, "mb": 1024**2,
+            "g": 1000**3, "gb": 1024**3, "ki": 1024, "mi": 1024**2,
+            "gi": 1024**3,
+        }
+        for suffix in sorted(units, key=len, reverse=True):
+            if v.endswith(suffix):
+                return int(float(v[: -len(suffix)]) * units[suffix])
+        return int(float(v))
+
+    app_cmd = " ".join(str(c) for c in (app.get("command") or []))
+    mm = re.search(r"--maxmemory\s+(\S+)", app_cmd)
+    limit_str = (app_res.get("limits") or {}).get("memory", "0")
+    record(
+        "maxmemory_is_set_and_below_the_cgroup_limit",
+        mm is not None and _bytes(mm.group(1)) < _bytes(limit_str),
+        f"maxmemory={mm.group(1) if mm else None} limit={limit_str}"
+        + (
+            f" ({_bytes(mm.group(1))} < {_bytes(limit_str)})"
+            if mm
+            else " (no --maxmemory found: the process is unbounded)"
+        ),
+    )
+
+    # noeviction must survive. Eviction on a graph database does not shed cache
+    # - it deletes the keys holding the graph. The image default is noeviction,
+    # so this guards against someone "fixing" an OOM refusal by adding a policy.
+    record(
+        "no_eviction_policy_is_introduced",
+        "--maxmemory-policy" not in app_cmd
+        or "noeviction" in app_cmd.split("--maxmemory-policy", 1)[1][:40],
+        f"maxmemory_policy_in_cmd={'--maxmemory-policy' in app_cmd}",
     )
     record(
         "data_pvc_size_and_storageclass_unchanged",

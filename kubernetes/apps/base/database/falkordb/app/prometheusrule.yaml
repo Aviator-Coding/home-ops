@@ -1,0 +1,125 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+#
+# There was NO memory alert covering falkordb before this file: the `database`
+# namespace carried rules for surrealdb and tikv only, which is why the
+# 2026-09-08 OOMKill loop (13 kills in 95 minutes) was learned about from a
+# crash rather than from a warning.
+#
+# Every rule below was evaluated against LIVE Prometheus both ways before
+# merge, per AGENTS.md: it returns nothing today (quiet), AND it returns a real
+# series when replayed over the 2026-09-08 21:20-23:30Z incident window. The
+# measured evidence for each threshold and `for:` is on the rule itself.
+# Design and full evidence: docs/database/falkordb-memory-ceiling.md
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: falkordb-rules
+  labels:
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: falkordb.rules
+      rules:
+        # --- approaching the write ceiling ---
+        #
+        # The denominator is kube_pod_container_resource_limits, NOT
+        # container_spec_memory_limit_bytes: that family does not exist in this
+        # Prometheus at all (measured - it returns an empty vector for these
+        # pods), so a rule built on it is structurally incapable of firing. The
+        # same trap is recorded in AGENTS.md and is what left
+        # database/tikv-rules' TiKVMemoryHighUsage dead. The explicit
+        # `on (namespace, pod, container)` join is required because cAdvisor and
+        # kube-state-metrics carry different label sets.
+        #
+        # THRESHOLD 0.60 is chosen against the maxmemory ceiling, not against
+        # the cgroup limit. redis-server runs `--maxmemory 6gb` = 6 GiB = 0.75
+        # of the 8Gi limit, so writes start being REFUSED at ratio 0.75. An
+        # 0.8-style threshold copied from the surrealdb rules would therefore
+        # fire only AFTER the ceiling had already bitten, which is useless here.
+        # 0.60 = 4.8 GiB leaves ~1.2 GiB of write headroom at the moment it
+        # fires. Resting today is 0.225, so there is no false positive.
+        #
+        # `for: 10m` is MEASURED, not guessed (AGENTS.md: a `for:` longer than
+        # the event cannot fire). Replayed over the real incident, the ratio was
+        # above 0.60 in 6 runs, the longest 50m contiguous and 89m in total, so
+        # 10m is satisfiable with 5x margin. It fired continuously from 21:20Z -
+        # over an hour before the crash the captain actually noticed.
+        - alert: FalkorDBMemoryApproachingCeiling
+          annotations:
+            summary: FalkorDB is approaching its write ceiling
+            description: >-
+              FalkorDB pod {{ $labels.pod }} is at {{ $value | humanizePercentage }}
+              of its memory limit. Writes are refused at 75% (--maxmemory 6gb);
+              reads keep serving. Plan capacity or trim the graph before then.
+          expr: |
+            container_memory_working_set_bytes{namespace="database", pod=~"falkordb-.*", container="app"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="database", pod=~"falkordb-.*", container="app", resource="memory"}
+              > 0.6
+          for: 10m
+          labels:
+            severity: warning
+
+        # --- writes are about to be refused ---
+        #
+        # 0.70 = 5.6 GiB, i.e. ~0.4 GiB below the 6 GiB refusal point. This is
+        # the last actionable moment before ingestion starts getting
+        # `OOM command not allowed`.
+        #
+        # `for: 2m` is deliberately much shorter than the warning's, and again
+        # measured: above 0.70 the incident's longest contiguous run was only
+        # 10m (17m total), so the 5m/10m that would look prudent here are
+        # marginal-to-unfireable against a real fast climb. 2m gives 5x margin.
+        - alert: FalkorDBMemoryAtWriteCeiling
+          annotations:
+            summary: FalkorDB is about to refuse writes
+            description: >-
+              FalkorDB pod {{ $labels.pod }} is at {{ $value | humanizePercentage }}
+              of its memory limit, just below the 75% --maxmemory ceiling.
+              Ingestion will start receiving OOM errors. Reads are unaffected.
+          expr: |
+            container_memory_working_set_bytes{namespace="database", pod=~"falkordb-.*", container="app"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="database", pod=~"falkordb-.*", container="app", resource="memory"}
+              > 0.7
+          for: 2m
+          labels:
+            severity: critical
+
+        # --- the ceiling did not hold ---
+        #
+        # --maxmemory bounds CUMULATIVE growth, because `denyoom` is checked
+        # before a command runs. It cannot bound how much one already-admitted
+        # query then allocates (QUERY_MEM_CAPACITY is 0), nor an AOF-rewrite
+        # fork. So an OOMKill remains possible and is exactly the event nobody
+        # should learn about from a crash. This is the backstop for that.
+        #
+        # The `and on (...) increase(...)` half is a RECENCY GUARD, not
+        # decoration: kube_pod_container_status_last_terminated_reason stays at
+        # 1 for the life of the container after a kill, so the left side alone
+        # latches and would keep firing long after recovery. Requiring a restart
+        # inside the last 15m makes it clear on its own.
+        #
+        # [15m] respects the 1m global scrapeInterval (AGENTS.md: [1m] returns
+        # no series at all and [3m] is the practical floor).
+        #
+        # Fireability is PROVEN against real data rather than asserted: replayed
+        # over the incident window this exact expression returns 63 points,
+        # first firing 21:42Z - one minute after the first OOMKill. The
+        # `reason="OOMKilled"` label value is live in this cluster today.
+        - alert: FalkorDBOOMKilled
+          annotations:
+            summary: FalkorDB was OOMKilled
+            description: >-
+              FalkorDB pod {{ $labels.pod }} was OOMKilled and has restarted.
+              The --maxmemory ceiling did not contain this, so suspect a single
+              runaway query or an AOF rewrite rather than cumulative growth.
+          expr: |
+            kube_pod_container_status_last_terminated_reason{namespace="database", pod=~"falkordb-.*", container="app", reason="OOMKilled"} == 1
+              and on (namespace, pod, container)
+            increase(kube_pod_container_status_restarts_total{namespace="database", pod=~"falkordb-.*", container="app"}[15m]) > 0
+          for: 0m
+          labels:
+            severity: critical

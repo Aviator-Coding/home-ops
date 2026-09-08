@@ -120,6 +120,49 @@ spec:
             # in place). `$${...}` renders to `${...}`, which is what the shell
             # then expands at start. AGENTS.md UNIQUE STYLES, skill
             # `flux-substitution`.
+            # --- the memory ceiling, and it is the whole point of --maxmemory ---
+            #
+            # Without it FalkorDB has NO bound of its own: `maxmemory 0` and
+            # `QUERY_MEM_CAPACITY 0` are both defaults, so nothing stands
+            # between the process and the cgroup limit and it grows until the
+            # kernel OOM-kills it. That is what happened on 2026-09-08: 13
+            # OOMKills in 95 minutes against the then-2Gi limit, after 3d7h with
+            # zero restarts. Raising the limit alone only moves the cliff -
+            # `--maxmemory` is what turns headroom into a bound.
+            #
+            # 6gb against the 8Gi limit. Redis parses `gb` as 1024^3, so this is
+            # exactly 6 GiB = 75% of the cgroup limit, leaving 2 GiB of
+            # transient headroom - comfortably above the >=0.5-0.75 GiB
+            # ingestion transient measured across the crash episodes (that is a
+            # FLOOR: every observation was truncated by the kill, so the true
+            # peak is unknown and the margin is deliberately generous).
+            #
+            # Two things had to be true for this to bound anything, and BOTH
+            # were verified live on this image rather than assumed:
+            #   1. Redis's own accounting can see the graph. GraphBLAS matrices
+            #      could have been allocated outside zmalloc, which would make
+            #      maxmemory a blind ceiling. Measured: `used_memory`
+            #      1,892,950,984 B vs cgroup `anon` 1,929,535,488 B - a 1.93%
+            #      gap, so used_memory tracks the real footprint.
+            #   2. The write path honours OOM refusal. `COMMAND INFO`:
+            #      GRAPH.QUERY -> `write denyoom` (refused above maxmemory),
+            #      GRAPH.RO_QUERY -> `readonly` (NOT denyoom).
+            # So the failure mode changes from "process killed, AOF reload,
+            # restart loop" to "writes refused, database stays up and READABLE".
+            #
+            # maxmemory-policy stays at its `noeviction` default and MUST NOT
+            # become an eviction policy. Eviction on a graph database does not
+            # shed cache - it silently deletes the graph keys holding millions
+            # of the captain's edges. `noeviction` is what makes the refusal a
+            # clean error instead of data loss.
+            #
+            # What this deliberately does NOT bound: a single already-admitted
+            # query. `denyoom` is checked BEFORE a command runs, against current
+            # used_memory, so it bounds CUMULATIVE growth (the ingestion case)
+            # but not how much one admitted query then allocates.
+            # QUERY_MEM_CAPACITY is the knob for that and is deliberately left
+            # at 0 - see docs/database/falkordb-memory-ceiling.md for why no
+            # defensible value could be derived from the available measurements.
             command:
               - /bin/sh
               - -c
@@ -130,6 +173,7 @@ spec:
                 $${FALKORDB_ARGS}
                 --appendonly yes --appendfsync everysec
                 --save 900 1 --save 300 10 --save 60 1000
+                --maxmemory 6gb
                 --requirepass "$${FALKORDB_PASSWORD}"
 
             envFrom:
@@ -201,6 +245,33 @@ spec:
                 drop:
                   - ALL
 
+            # --- these two numbers were LIVE BEFORE THEY WERE COMMITTED ---
+            #
+            # They are not a new raise. On 2026-09-08 the 2Gi limit was patched
+            # live to 8Gi (and requests 256Mi -> 2Gi) with `kubectl patch` to
+            # stop the OOMKill loop; `kubectl-patch` is still a field manager on
+            # the Deployment. Git and Helm's own stored release manifest both
+            # still said 2Gi, so this repo did not describe the running cluster.
+            #
+            # Committing them is a PREREQUISITE for the --maxmemory line above,
+            # not tidy-up. Helm's 3-way merge reverts a live value it owns back
+            # to its manifest, and `resources` IS chart-rendered - so the very
+            # next helm upgrade (which ANY edit to this HelmRelease triggers)
+            # would have restored the 2Gi limit while installing maxmemory 6gb.
+            # That combination is strictly worse than doing nothing: loading the
+            # AOF alone peaks at 1.89 GiB, so a 2 GiB cap crashloops on startup,
+            # and a 6 GiB maxmemory above a 2 GiB cgroup limit never engages at
+            # all. Verified before this change: `helm get manifest falkordb`
+            # showed `limits.memory: 2Gi` while the live Deployment showed 8Gi.
+            #
+            # The limit is the maxmemory ceiling's headroom (see above). The
+            # REQUEST is the part with a real cluster cost - 2Gi is a hard,
+            # unshareable reservation on whichever node this lands on, and the
+            # three nodes already sit at 72-81% of memory requests. It is set to
+            # the measured resting set (1.81 GiB) rather than left at 256Mi so
+            # the scheduler reserves what this pod actually uses; a 256Mi
+            # request for a 1.8 GiB working set is what lets the kubelet place
+            # it somewhere it cannot fit.
             resources:
               # Raised 2026-09-08: 13 OOMKills in 3d8h against the old 2Gi
               # limit, with resting usage already at 2019Mi (98.6% of cap)
