@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **79**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **80**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -105,6 +105,12 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 | [`ceph/osd-store-corruption-recovery.md`](ceph/osd-store-corruption-recovery.md) | Runbook when an OSD crash-loops in `load_pgs` (BlueStore OMAP corruption), distinct from device-path drift. |
 | [`ceph/pg.md`](ceph/pg.md) | Placement-group autoscaler / `bulk` background. Changelog owns current counts; this is generic PG context. |
 | [`ceph/toolbox.md`](ceph/toolbox.md) | How to enable and use the Rook Ceph toolbox for `ceph` CLI operations. |
+
+## Database
+
+| Path | What it covers |
+|---|---|
+| [`database/falkordb-memory-ceiling.md`](database/falkordb-memory-ceiling.md) | Why the 2026-09-09 `database/falkordb` OOMKill loop happened (the 8Gi limit was outgrown, not misconfigured) and how the three memory numbers (request / `--maxmemory` / limit) are derived and must move together. |
 
 ## Downloads and media
 
