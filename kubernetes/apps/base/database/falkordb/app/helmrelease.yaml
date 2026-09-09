@@ -120,6 +120,41 @@ spec:
             # in place). `$${...}` renders to `${...}`, which is what the shell
             # then expands at start. AGENTS.md UNIQUE STYLES, skill
             # `flux-substitution`.
+            #
+            # --- --maxmemory: the bound, and why the NUMBER is load-bearing ---
+            #
+            # Without it FalkorDB has no ceiling of its own (`maxmemory 0`,
+            # `QUERY_MEM_CAPACITY 0` are both stock), so nothing stands between
+            # the process and the cgroup limit and it grows until the kernel
+            # kills it. That is the 2026-09-08 (2Gi) and 2026-09-09 (8Gi) shape
+            # of the same failure: raising the limit alone only moves the cliff.
+            # With it, exceeding the ceiling refuses WRITES and keeps serving
+            # READS - re-measured on this image via `COMMAND INFO`:
+            # GRAPH.QUERY carries `write denyoom` (refused above maxmemory),
+            # GRAPH.RO_QUERY carries `readonly` and does not.
+            #
+            # 12gb = 0.75 of the 16Gi limit (Redis parses `gb` as 1024^3), the
+            # same ratio the alerts in prometheusrule.yaml are thresholded
+            # against - move one and you must move both.
+            #
+            # THE CEILING MUST STAY ABOVE THE LIVE DATASET. `maxmemory` is
+            # compared against `used_memory`, which INCLUDES the loaded graph -
+            # re-measured here at used_memory 7,275,413,312 B versus cgroup
+            # anon 7,474,188,288 B - a 2.66% gap - so Redis's accounting really
+            # does see the GraphBLAS matrices. Set it below that and `noeviction` refuses every write
+            # from the moment the AOF finishes loading: the database comes up
+            # looking perfectly healthy and silently rejects all ingestion, with
+            # no way to shed memory to recover. A 6gb value was drafted on
+            # 2026-09-08 when this graph was 1.7 GiB; against today's 6.78 GiB
+            # it would do exactly that. 12gb leaves ~5 GiB of ingestion headroom
+            # above the current dataset and ~4 GiB below the cgroup cap for the
+            # AOF-rewrite fork.
+            #
+            # maxmemory-policy stays `noeviction` and MUST NOT become an
+            # eviction policy. Eviction here does not shed cache - the graph is
+            # a single Redis key, so evicting it deletes millions of the
+            # captain's edges. `noeviction` is what makes hitting the ceiling a
+            # clean error instead of data loss.
             command:
               - /bin/sh
               - -c
@@ -130,6 +165,7 @@ spec:
                 $${FALKORDB_ARGS}
                 --appendonly yes --appendfsync everysec
                 --save 900 1 --save 300 10 --save 60 1000
+                --maxmemory 12gb
                 --requirepass "$${FALKORDB_PASSWORD}"
 
             envFrom:
@@ -202,33 +238,71 @@ spec:
                   - ALL
 
             resources:
-              # Raised 2026-09-08: 13 OOMKills in 3d8h against the old 2Gi
-              # limit, with resting usage already at 2019Mi (98.6% of cap)
-              # and one kill 12s after container start - too fast to be
-              # query-driven. Root cause per the captain: the
-              # plc_code_graph graph grew from file ingestion
-              # (8,195,288 edges loaded into memory from AOF at startup).
+              # --- sized against the MEASURED dataset, 2026-09-09 ---
               #
-              # Request raised from 256Mi to 2Gi to match measured resting
-              # usage - talos-3 (this pod's node) had ~17Gi of unrequested
-              # allocatable memory at the time of this change, so the
-              # increase is affordable; a request left at 256Mi beside an
-              # 8Gi limit would keep the scheduler blind to what this pod
-              # actually holds.
+              # These three numbers are one design and must move together:
+              # request = measured resting set, --maxmemory (above) = 0.75 of
+              # the limit, limit = ceiling + fork headroom. Changing the limit
+              # alone silently moves where writes are refused.
               #
-              # FalkorDB/Redis has no ceiling of its own here - `maxmemory`
-              # is 0 (unbounded) and `maxmemory-policy` is `noeviction`
-              # (measured live via CONFIG GET) - so this limit is a
-              # cgroup-only backstop. Continued unbounded ingestion will
-              # fill 8Gi exactly as it filled 2Gi; setting `maxmemory` +
-              # an eviction/refusal policy is a deliberate follow-up this
-              # PR intentionally does not make (data-loss risk on a
-              # decision that belongs to the captain, not this change).
+              # The 8Gi limit that preceded this was not misconfigured, it was
+              # OUTGROWN. On 2026-09-09 00:44-00:45Z an ingestion roughly
+              # quadrupled plc_code_graph - 8,195,288 -> 35,997,296 edges - in
+              # about two minutes (working set 1.80 -> 5.53 GiB across two
+              # scrapes, having been flat at 1.80 GiB for the preceding 80
+              # minutes). Measured on the restored pod once it was serving
+              # again: `GRAPH.MEMORY USAGE` total_graph_sz_mb 6743,
+              # `INFO memory` used_memory 6.78 GiB / rss 6.99 GiB. So the graph
+              # ALONE now needs ~6.6 GiB and the process ~7.0 GiB.
+              #
+              # Why 8Gi could not survive that, and why the crash loop was
+              # self-perpetuating rather than transient: every boot reloaded the
+              # graph, then ~15s later Redis auto-triggered an AOF rewrite
+              # (`Starting automatic rewriting of AOF on 102% growth` - the
+              # stock auto-aof-rewrite-percentage 100, guaranteed to be met
+              # after an ingestion that large), forked, and the transient on top
+              # of a ~7 GiB resident set crossed 8 GiB. Because the rewrite
+              # never completed, the AOF base was never refreshed, so the very
+              # same trigger was armed again on the next boot. Measured cgroup
+              # peaks over that loop: 7.45-7.76 GiB against an 8.0 GiB cap.
+              # It could not have recovered on its own.
+              #
+              # 16Gi limit. Resting 7.0 GiB plus a worst-case fork - Redis
+              # documents CoW as bounded above by a full duplication of the
+              # resident set - is ~14 GiB, and 16Gi covers that with slack. The
+              # observed cost is far smaller (`Fork CoW for AOF rewrite: peak
+              # 82 MB` for the rewrite that completed once this limit was live,
+              # 547 MB for an earlier one taken under active ingestion), so this
+              # is deliberately generous against the documented bound rather
+              # than tuned to the happy path.
+              #
+              # Affordable, checked before the raise rather than assumed:
+              # talos-2 holds 93,604Mi allocatable against 69,096Mi of requests
+              # (73%) and 25.8 GiB of ACTUAL use (28%), i.e. ~65 GiB genuinely
+              # free. All three nodes have >=17 GiB of unrequested memory, so
+              # the 7Gi request below is schedulable anywhere this RWO claim can
+              # follow it, not just on talos-2.
+              #
+              # Request 7Gi = the measured resting RSS. It is a hard,
+              # unshareable reservation and takes talos-2 to ~79% of memory
+              # requests, which is the top of this cluster's normal band - but a
+              # 2Gi request beside a 7 GiB working set is exactly what lets the
+              # scheduler place this pod somewhere it does not fit, and that
+              # understatement is what the previous entry here already warned
+              # about at 256Mi. Reserve what it actually holds.
+              #
+              # NOT changed, deliberately: auto-aof-rewrite-percentage. Making
+              # rewrites rarer treats the fork as the fault, but the fork was
+              # only ever the trigger - with adequate headroom the same rewrite
+              # completed in 10s for 82 MB of CoW. Raising it would also grow
+              # the AOF and lengthen an already 22s replay, for no gain against
+              # the real constraint, which is dataset size. Disk is not the
+              # pressure either: 1.23 GiB used of 19.52 GiB.
               requests:
                 cpu: 50m
-                memory: 2Gi
+                memory: 7Gi
               limits:
-                memory: 8Gi
+                memory: 16Gi
 
           # --- FalkorDB Browser (the explorer UI) ---
           #

@@ -123,6 +123,45 @@ def kustomize_build(path: Path) -> list[dict[str, Any]] | None:
     return [d for d in yaml.safe_load_all(built.stdout) if d]
 
 
+_K8S_MEM_SUFFIX = {
+    "Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, "Ti": 1024**4,
+    "K": 10**3, "M": 10**6, "G": 10**9, "T": 10**12,
+}
+# Redis's own size grammar, which is NOT the Kubernetes one: bare `gb` is
+# 1024^3 while bare `g` is 10^9 (redis util.c memtoull). Parsing `12gb` as
+# 12*10^9 would silently under-read the ceiling by 7%.
+_REDIS_MEM_SUFFIX = {
+    "b": 1, "k": 10**3, "kb": 1024, "m": 10**6, "mb": 1024**2,
+    "g": 10**9, "gb": 1024**3,
+}
+
+
+def parse_k8s_mem(v: object) -> int | None:
+    """Bytes for a Kubernetes memory quantity, or None if unparseable."""
+    if not isinstance(v, str):
+        return None
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)([A-Za-z]*)", v.strip())
+    if not m:
+        return None
+    num, suf = m.group(1), m.group(2)
+    if suf and suf not in _K8S_MEM_SUFFIX:
+        return None
+    return int(float(num) * (_K8S_MEM_SUFFIX[suf] if suf else 1))
+
+
+def parse_redis_mem(v: object) -> int | None:
+    """Bytes for a redis-server --maxmemory argument, or None if unparseable."""
+    if not isinstance(v, str):
+        return None
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)([A-Za-z]*)", v.strip())
+    if not m:
+        return None
+    num, suf = m.group(1), m.group(2).lower()
+    if suf and suf not in _REDIS_MEM_SUFFIX:
+        return None
+    return int(float(num) * (_REDIS_MEM_SUFFIX[suf] if suf else 1))
+
+
 def test_loadbalancer_service_semantics() -> None:
     """PART 1: additive LAN LB following postgres-17-lb shape."""
     lb = load_one(APP_DIR / "service-lb.yaml")
@@ -578,13 +617,59 @@ def test_helmrelease_browser_sidecar_and_hardening() -> None:
         f"cmd={fix_script!r} sc={fix_sc}",
     )
 
-    # Resource limits / PVC size must remain untouched per scope boundary.
+    # --- the memory ceiling, asserted by SHAPE rather than by frozen value ---
+    #
+    # This was `== {"cpu": "50m", "memory": "2Gi"}` / `== {"memory": "8Gi"}`,
+    # a snapshot frozen to hold a past PR's scope boundary. That is the trap
+    # AGENTS.md records for grafana-mcp-deploy-test.py and
+    # samba-shared-xml-test.py: a gate pinned to a literal goes red on a
+    # legitimate change and blocks it, teaching people to delete the gate. It
+    # fired for real on 2026-09-09, when the graph outgrew 8Gi (8.2M -> 36M
+    # edges, ~6.6 GiB resident) and the limit had to move.
+    #
+    # What is actually invariant here is the RELATIONSHIP, not the numbers:
+    # there must be a --maxmemory ceiling, it must sit strictly below the
+    # cgroup limit so it engages before the kernel does, no eviction policy may
+    # be introduced, and the request must not understate what the pod holds.
     app_res = app.get("resources") or {}
+    app_cmd = " ".join(str(c) for c in (app.get("command") or []))
+    limit_s = (app_res.get("limits") or {}).get("memory")
+    req_s = (app_res.get("requests") or {}).get("memory")
+    maxmem_m = re.search(r"--maxmemory\s+(\S+)", app_cmd)
+    limit_b = parse_k8s_mem(limit_s)
+    req_b = parse_k8s_mem(req_s)
+    maxmem_b = parse_redis_mem(maxmem_m.group(1)) if maxmem_m else None
+
     record(
-        "database_resource_limits_unchanged",
-        (app_res.get("requests") or {}) == {"cpu": "50m", "memory": "2Gi"}
-        and (app_res.get("limits") or {}) == {"memory": "8Gi"},
-        f"resources={app_res}",
+        "database_declares_maxmemory_ceiling",
+        maxmem_b is not None and maxmem_b > 0,
+        f"maxmemory={maxmem_m.group(1) if maxmem_m else None!r}",
+    )
+    # Strictly below the limit: a maxmemory at or above the cgroup cap never
+    # engages, because the kernel OOM-kills first - which is the failure this
+    # whole arrangement exists to convert into a clean write refusal.
+    record(
+        "maxmemory_is_strictly_below_cgroup_limit",
+        None not in (maxmem_b, limit_b) and maxmem_b < limit_b,
+        f"maxmemory={maxmem_b} limit={limit_s}({limit_b})",
+    )
+    # Eviction on this app does not shed cache - the graph is a single Redis
+    # key, so evicting it deletes the captain's edges. noeviction is the
+    # default and must not be overridden here.
+    record(
+        "no_eviction_policy_introduced",
+        "--maxmemory-policy" not in app_cmd
+        or "--maxmemory-policy noeviction" in app_cmd,
+        f"has_policy_flag={'--maxmemory-policy' in app_cmd}",
+    )
+    # A request far below the working set is what lets the scheduler place this
+    # pod somewhere it does not fit; 256Mi beside an 8Gi limit is the shape that
+    # already bit here. Pinned as a floor, not a value, so future resizes are
+    # free to move it.
+    record(
+        "request_does_not_understate_working_set",
+        None not in (req_b, limit_b) and req_b >= 1024**3 and req_b <= limit_b,
+        f"request={req_s}({req_b}) limit={limit_s}({limit_b})",
     )
     record(
         "data_pvc_size_and_storageclass_unchanged",
