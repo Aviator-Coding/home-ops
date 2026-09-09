@@ -582,8 +582,8 @@ def test_helmrelease_browser_sidecar_and_hardening() -> None:
     app_res = app.get("resources") or {}
     record(
         "database_resource_limits_unchanged",
-        (app_res.get("requests") or {}) == {"cpu": "50m", "memory": "256Mi"}
-        and (app_res.get("limits") or {}) == {"memory": "2Gi"},
+        (app_res.get("requests") or {}) == {"cpu": "50m", "memory": "2Gi"}
+        and (app_res.get("limits") or {}) == {"memory": "8Gi"},
         f"resources={app_res}",
     )
     record(
