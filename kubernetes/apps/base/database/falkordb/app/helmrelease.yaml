@@ -287,14 +287,14 @@ spec:
               # 8Gi limit would keep the scheduler blind to what this pod
               # actually holds.
               #
-              # FalkorDB/Redis has no ceiling of its own here - `maxmemory`
-              # is 0 (unbounded) and `maxmemory-policy` is `noeviction`
-              # (measured live via CONFIG GET) - so this limit is a
-              # cgroup-only backstop. Continued unbounded ingestion will
-              # fill 8Gi exactly as it filled 2Gi; setting `maxmemory` +
-              # an eviction/refusal policy is a deliberate follow-up this
-              # PR intentionally does not make (data-loss risk on a
-              # decision that belongs to the captain, not this change).
+              # FalkorDB/Redis had no ceiling of its own at the time this
+              # limit was raised - `maxmemory` was 0 (unbounded) and
+              # `maxmemory-policy` was `noeviction` (measured live via
+              # CONFIG GET) - so the limit was, at that point, a cgroup-only
+              # backstop that would have filled 8Gi exactly as it filled 2Gi.
+              # That gap is now closed: see the `--maxmemory 6gb` comment
+              # above the `command:` block for the ceiling itself, and
+              # docs/database/falkordb-memory-ceiling.md for the full design.
               requests:
                 cpu: 50m
                 memory: 2Gi
