@@ -239,3 +239,44 @@ Two consequences:
 - `database/tikv-rules`' `TiKVMemoryHighUsage` still divides by the dead
   `container_spec_memory_limit_bytes` and remains structurally unfireable.
   Out of scope, still true, flagged again here.
+
+## 7. Independent live re-verification (2026-09-09)
+
+Re-checked read-only against the live pod (`falkordb-54949ff5b4-f994s`) and live
+Prometheus from a separate session, with cluster credentials, after this branch
+was already open. Nothing contradicted the doc; small deltas below are just
+time passing (rising `used_memory`, a slightly higher resting ratio).
+
+- Premises unchanged: `maxmemory` = `0`, `maxmemory-policy` = `noeviction`,
+  `QUERY_MEM_CAPACITY` = `0` - this branch is not yet merged, so live still
+  matches the pre-change state described above.
+- `COMMAND INFO` re-confirmed `GRAPH.QUERY` -> `write denyoom`,
+  `GRAPH.RO_QUERY` -> `readonly`.
+- `used_memory` 1,893,172,368 B vs cgroup `anon` 1,931,198,464 B - 1.97% gap
+  (doc: 1.93%).
+- `GRAPH.MEMORY USAGE plc_code_graph` -> `total_graph_sz_mb` 1735, matching
+  exactly; `GRAPH.RO_QUERY "MATCH (n) RETURN count(n)"` served in 0.25ms
+  (195,192 nodes) - reads serve fine.
+- Live ratio expression today: 0.2259 (doc: "resting today is 0.225") -
+  quiet, no false positive.
+- `container_spec_memory_limit_bytes{namespace="database",pod=~"falkordb-.*"}`
+  is an empty vector; `kube_pod_container_resource_limits{...,container="app",
+  resource="memory"}` returns `8589934592` - confirms the chosen denominator
+  and that the rule's `container="app"` filter is required (the `browser`
+  sidecar reports a separate 1Gi limit under the same pod).
+- Replayed the ratio expression over the documented 2026-09-08 21:20-23:30Z
+  incident window: 116 points, max **0.9027** (doc: "peaks ~0.90"). Replayed
+  `FalkorDBOOMKilled`'s expression unchanged over the same window: 63 points on
+  pod `falkordb-656fcb9f6c-25gdc`, first at **21:42Z** - matches exactly.
+- `reason="OOMKilled"` is a live label value in this cluster today.
+- The `falkordb-rules` `PrometheusRule` does not exist live yet (expected -
+  unmerged). `Prometheus.spec.ruleSelector` / `ruleNamespaceSelector` are both
+  `{}` (select-all), and the sibling `surrealdb-rules` object - same
+  `prometheus: k8s` / `role: alert-rules` labels - is already loaded into
+  Prometheus's active rule groups, so the selector path this rule depends on is
+  proven, not assumed.
+
+**Still outstanding, as this doc already says:** the post-change pod read-back
+(`maxmemory` actually `6442450944` on a running pod, graph reload, reads
+serving under the new ceiling) is genuinely post-merge and was not performed
+here - the live pod above still runs the pre-change command line.
