@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **79**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **80**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -89,6 +89,12 @@ Fleet PVC backup is kopiur on **all 29** VolSync-derived claims; **26 are kopiur
 | [`backups/recyclarr-config-readable-check-2026-08-31.md`](backups/recyclarr-config-readable-check-2026-08-31.md) | CSI snapshot-restore readability probe for `downloads/recyclarr-config` (CronJob claim, no standing pod). Proves mover 2000:2000 can read the claim (2913/2913 files, 607/607 dirs) - readability only, not Stage 5 restore-fidelity (that landed in the fleet proof row above). |
 | [`backups/restore-drill-2026-08-23.md`](backups/restore-drill-2026-08-23.md) | Verified VolSync restore procedure (Ceph + MinIO destinations, scratch-PVC method). Timings are a **historical snapshot** from 2026-08-23; the procedure is durable. |
 | [`backups/volsync-coverage-2026-08-22.md`](backups/volsync-coverage-2026-08-22.md) | **Historical snapshot** of a full PVC-vs-VolSync coverage audit from 2026-08-22. Re-measure before trusting any figure. Current pattern: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md). |
+
+## Database
+
+| Path | What it covers |
+|---|---|
+| [`database/falkordb-memory-ceiling.md`](database/falkordb-memory-ceiling.md) | `database/falkordb` `--maxmemory 6gb` ceiling and alert design: why `QUERY_MEM_CAPACITY` stays 0, the measured OOM-refusal behaviour change, and the ingestion-path silent-partial-write finding. |
 
 ## Ceph
 
