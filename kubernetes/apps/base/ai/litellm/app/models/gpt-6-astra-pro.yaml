@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Tier S - SOTA (frontier ceiling). Released 2026-09-04.
+#
+# OpenRouter is the only credential this repo holds that reaches this
+# vendor, so it is the route by necessity, not preference.
+# Model id verified against the live provider catalog:
+# GET https://openrouter.ai/api/v1/models (2026-09-09): same 1,050,000
+# context and $10/M input, $50/M output pricing as gpt-6-astra.yaml. A
+# `:batch` version also exists and is not registered.
+#
+# COST WARNING: this is a $50-per-million-output model, roughly 50x the
+# output price of the local/cheap cloud tiers already on this proxy. Do not
+# add it to any auto-router tier or fallback chain.
+#
+# REGISTRATION ONLY - see ./kustomization.yaml for what that does and does
+# not grant, and for why no `info.extra` prices appear here.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: gpt-6-astra-pro
+spec:
+  modelName: gpt-6-astra-pro
+  proxyRef: litellm
+  params:
+    model: openrouter/openai/gpt-6-astra-pro
+    apiKey: os.environ/OPENROUTER_API_KEY

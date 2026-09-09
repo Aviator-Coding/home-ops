@@ -77,6 +77,8 @@ resources:
   - ./gpt-5.6-luna.yaml
   - ./gpt-5.6-sol.yaml
   - ./gpt-5.6-terra.yaml
+  - ./gpt-6-astra-pro.yaml
+  - ./gpt-6-astra.yaml
   - ./gpt-oss-20b.yaml
   - ./grok-4.5.yaml
   - ./grok-4.6.yaml
