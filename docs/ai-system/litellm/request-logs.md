@@ -102,6 +102,15 @@ Trap: `GET /spend/logs` **without** `request_id` does not return a request list
 at all - it returns a per-day, per-key spend aggregate. Use `/spend/logs/ui` for
 the list, `/spend/logs?request_id=` for one row.
 
+**This bare, unfiltered form is also what OOM-killed the proxy twice on
+2026-09-10** (22:18:39Z, 22:23:09Z): with no `request_id`/date bounds it walks
+the whole `LiteLLM_SpendLogs` table in-process, and pushed memory from a flat
+~1Gi steady state to the then-2Gi limit in under 39s. Always pass `request_id`,
+an `api_key`, or a narrow date range - never call it bare, especially not to
+"just check current spend". The proxy's `resources.limits.memory` was raised to
+4Gi (`app/litellmproxy.yaml`) as a backstop, but that only widens the ceiling,
+it does not make the query cheap.
+
 ## 4. Pull up one request - SQL
 
 Use this when you want to grep across many requests. Note on cost fields:
