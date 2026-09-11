@@ -386,23 +386,33 @@ spec:
               # to the scheduler). The topologySpreadConstraint below only bounds the
               # skew across all 4 pods (maxSkew 1 = up to 2 per node), which is why
               # rank0 (a) and rank1 (b) - the two primaries, active by default with no
-              # failover - both landed on talos-3 (evidence: docs/ceph-cluster-changelog.md
-              # 2026-09-11 entry). The podAntiAffinity below hard-separates the two
-              # primary/default-active daemons (a, b) from each other by name - the
-              # closest thing Rook supports to "the two active ranks must differ".
-              # It does not follow an active rank across a failover to its
+              # failover - both landed on talos-3 (evidence: live `ceph fs status`
+              # output confirming ceph-filesystem-a/-b as the two ACTIVE daemons).
+              # The podAntiAffinity below is intentionally PREFERRED, not required:
+              # a required rule would apply identically to c and d (the shared
+              # placement block above), so during a single-node drain/maintenance
+              # window - including the talos-3 upgrade this is a prerequisite for -
+              # both standby-replay pods would be unable to schedule onto either
+              # remaining node once a and b occupy them, leaving the filesystem with
+              # zero standby-replay coverage for the whole window. A high-weight
+              # preferred term keeps a and b apart under normal scheduling (the
+              # actual observed problem) while still letting them - and c/d - land
+              # on an already-occupied node under pressure, e.g. a 2-node window.
+              # It also does not follow an active rank across a failover to its
               # standby-replay (e.g. b colocating with c after a fails over to c),
               # since that pairing is Ceph state, not a Kubernetes label.
               podAntiAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  - topologyKey: kubernetes.io/hostname
-                    labelSelector:
-                      matchExpressions:
-                        - key: mds
-                          operator: In
-                          values:
-                            - ceph-filesystem-a
-                            - ceph-filesystem-b
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      topologyKey: kubernetes.io/hostname
+                      labelSelector:
+                        matchExpressions:
+                          - key: mds
+                            operator: In
+                            values:
+                              - ceph-filesystem-a
+                              - ceph-filesystem-b
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname
