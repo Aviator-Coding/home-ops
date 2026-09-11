@@ -377,6 +377,32 @@ spec:
             activeStandby: true
             priorityClassName: system-cluster-critical
             placement:
+              # Rook applies this one placement block identically to all 4 mds pods
+              # (a,b = rank0/rank1 primaries, c,d = their dedicated standby-replay) -
+              # there is no per-rank or active/standby-aware placement key in the CRD,
+              # and pods carry no label grouping them by rank pair, so a generic
+              # podAntiAffinity/topologySpreadConstraint can't target "whichever two
+              # are ACTIVE right now" (that's Ceph-internal runtime state, invisible
+              # to the scheduler). The topologySpreadConstraint below only bounds the
+              # skew across all 4 pods (maxSkew 1 = up to 2 per node), which is why
+              # rank0 (a) and rank1 (b) - the two primaries, active by default with no
+              # failover - both landed on talos-3 (evidence: docs/ceph-cluster-changelog.md
+              # 2026-09-11 entry). The podAntiAffinity below hard-separates the two
+              # primary/default-active daemons (a, b) from each other by name - the
+              # closest thing Rook supports to "the two active ranks must differ".
+              # It does not follow an active rank across a failover to its
+              # standby-replay (e.g. b colocating with c after a fails over to c),
+              # since that pairing is Ceph state, not a Kubernetes label.
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - topologyKey: kubernetes.io/hostname
+                    labelSelector:
+                      matchExpressions:
+                        - key: mds
+                          operator: In
+                          values:
+                            - ceph-filesystem-a
+                            - ceph-filesystem-b
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname
