@@ -83,6 +83,18 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-09-11] MDS podAntiAffinity: separate active ranks a/b across nodes  (branch `fm/homeops-ceph-mds-antiaffinity`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | Added `podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution` (weight 100, `topologyKey: kubernetes.io/hostname`, `labelSelector` `mds In [ceph-filesystem-a, ceph-filesystem-b]`) to `cephFileSystems[0].spec.metadataServer.placement` in `cluster/helmrelease.yaml`. No other Ceph tuning, pool, or CRUSH change; no node action taken. |
+| **Why** | `ceph fs status` showed both ACTIVE ranks - rank0 `ceph-filesystem-a` and rank1 `ceph-filesystem-b` - on talos-3; the existing `topologySpreadConstraint` only bounds skew across all 4 mds pods (maxSkew 1 → up to 2/node), not which 2. talos-3 is the exact node the captain-gated `homeops-talos3-attended-upgrade` will powercycle, so this is a **prerequisite** for that task, not parallel work - losing talos-3 today would fail over both active ranks at once on a 3-node cluster. Kept `preferred`, not `required`: Rook applies one shared `placement` block to all 4 mds pods (a,b = rank0/rank1 primaries; c,d = their dedicated standby-replay), so a required rule would also block c/d from the node a and b occupy, stranding standby-replay coverage for the whole window of any single-node drain (including the talos-3 upgrade itself). A high-weight preferred term keeps a/b apart under normal 3-node scheduling while still letting a, b, c, or d land on an occupied node under pressure. Side benefit, not the primary motivation: also fixes an MDS Prometheus exporter label collision that was dropping ~90 series while both active ranks reported under one talos-3 daemon name. |
+| **Risk** | Soft rule: under scheduling pressure (e.g. a 2-node window) a and b can still colocate, reopening the original bug transiently. Does not follow an active rank across a failover to its own standby-replay (e.g. b colocating with c after a fails over to c) - that pairing is Ceph runtime state, invisible to a Kubernetes label. |
+| **Rollback** | Remove the added `podAntiAffinity` block from `metadataServer.placement`. |
+| **Verify** | Render-only in this PR (`task flux:test:all`). Live pod redistribution, `ceph fs status`/`ceph mds stat` showing `ceph-filesystem-a`/`-b` on separate nodes, return to a `HEALTH_OK`-prefixed state, and a clean rank failover during rescheduling are post-merge/post-reconcile checks, out of this PR's CI. |
+
+Full reasoning, the CRD's lack of a per-rank placement key, and the required-vs-preferred trade-off are documented at the `podAntiAffinity` block itself in `cluster/helmrelease.yaml`.
+
 ### [2026-09-06] Working discard path: fstrim reaches PVCs; `nfs` mgr module off  (branch `fm/homeops-ceph-space-reclaim`)
 
 | Field | Value |
