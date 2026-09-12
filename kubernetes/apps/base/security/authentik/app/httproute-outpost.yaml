@@ -6,6 +6,18 @@ metadata:
   name: authentik-outpost
   annotations:
     external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+    # Unannotated auto-discovery defaults to `[STATUS] == 200` against the
+    # bare PathPrefix match (/outpost.goauthentik.io), which the outpost
+    # correctly 404s (no handler at the prefix root) - sitting permanently
+    # red. /outpost.goauthentik.io/ping is the outpost's purpose-built
+    # liveness endpoint (204, unauthenticated). Verified live 2026-09-12.
+    # This route backs the SecurityPolicy extAuth gate on every ext_authz-
+    # protected app (echo, kromgo, home-assistant, opencode,
+    # falkordb-browser) - if the outpost itself is down, all of those fail
+    # closed, so this check matters beyond its own hostname.
+    gatus.home-operations.com/endpoint: |-
+      url: https://auth.${SECRET_DOMAIN}/outpost.goauthentik.io/ping
+      conditions: ["[STATUS] == 204"]
 spec:
   hostnames: ["auth.${SECRET_DOMAIN}"]
   parentRefs:

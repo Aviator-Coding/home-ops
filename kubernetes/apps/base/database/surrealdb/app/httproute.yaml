@@ -12,7 +12,18 @@ metadata:
     gethomepage.dev/name: *app
     gethomepage.dev/app: *app
     external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    # Bare `/` 307-redirects unauthenticated browsers to SurrealDB's own
+    # https://surrealdb.com/surrealist marketing/cloud UI - Gatus follows
+    # redirects by default, so this check depends on a third-party site's own
+    # redirect chain resolving cleanly, not on anything in this cluster. Not
+    # currently red (verified live 2026-09-12: surrealdb.com's chain lands on
+    # 200 right now), but it was caught 404ing at that same external hop
+    # during initial investigation - purely a change on surrealdb.com's end,
+    # invisible to and unfixable from this repo. Pointed at the real /health
+    # liveness path instead (200, unauthenticated, in-cluster only) so this
+    # check no longer depends on a host this repo does not control.
     gatus.home-operations.com/endpoint: |-
+      url: https://surrealdb.${SECRET_DOMAIN}/health
       conditions: ["[STATUS] == 200"]
 spec:
   hostnames:

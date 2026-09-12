@@ -527,7 +527,9 @@ operator-owned route cannot carry `gatus.home-operations.com/endpoint` or
 `gethomepage.dev/*`. That is not cosmetic here: Gatus *does* auto-discover
 un-annotated routes (the Gateway carries `group: internal`), but then applies a
 default `[STATUS] == 200` check against `/`, which is exactly why `agentmemory`
-(404) and `mcp-gateway` (406) sit permanently red in Gatus today. Owning the
+(404, before its 2026-08-31 retirement) and `mcp-gateway` (406) sat permanently
+red in Gatus - `mcp-gateway` fixed 2026-09-12 by giving it its own `/health`
+annotation (`kubernetes/apps/base/ai/toolhive/config/httproute.yaml`). Owning the
 annotation lets this app check `/health/readiness` - which returns
 `{"status":"healthy","db":"connected"}` and so also covers the Postgres
 dependency - and land in the `ai` group. It also finally consumes the

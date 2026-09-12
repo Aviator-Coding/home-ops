@@ -9,6 +9,17 @@ metadata:
     gethomepage.dev/group: AI
     gethomepage.dev/name: ToolHive MCP
     gethomepage.dev/description: "Aggregated MCP tool gateway"
+    # / is the MCP JSON-RPC endpoint (streamable HTTP transport) and correctly
+    # 406s a plain GET missing `Accept: text/event-stream` - proof the vmcp
+    # protocol layer is enforced, not a fault. Verified live 2026-09-12:
+    # unannotated auto-discovery defaulted to `[STATUS] == 200` against `/`,
+    # sitting permanently red. /health is vmcp's real liveness path
+    # ({"status":"ok"}, 200 unauthenticated), same pattern as every other
+    # app-template route in this repo (readarr/ping, litellm/health/readiness).
+    gatus.home-operations.com/endpoint: |-
+      url: https://mcp.${SECRET_DOMAIN}/health
+      conditions: ["[STATUS] == 200"]
+      group: ai
 spec:
   hostnames:
     - "mcp.${SECRET_DOMAIN}"
