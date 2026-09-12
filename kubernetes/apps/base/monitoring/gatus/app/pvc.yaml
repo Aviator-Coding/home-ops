@@ -7,5 +7,10 @@ spec:
   accessModes: ["ReadWriteOnce"]
   resources:
     requests:
-      storage: 5Gi
+      # Sqlite history for ~60 endpoints (default 100 results + 50 events each,
+      # small condition-result rows) totals well under 50Mi even pessimistically;
+      # 512Mi keeps a comfortable multiple of margin without picking a bare round
+      # number. Kubernetes cannot shrink a PVC in place, so this is a delete +
+      # recreate of the never-written 5Gi claim, not a resize.
+      storage: 512Mi
   storageClassName: ceph-block
