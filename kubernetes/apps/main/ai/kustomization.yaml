@@ -32,3 +32,28 @@ resources:
   - ./searxng.yaml
   - ./toolhive.yaml
   - ./vllm.yaml
+
+# The live Namespace object is produced by components/common (metadata.name:
+# not-used, then this overlay's `namespace:` field renames it), NOT by a
+# namespace.yaml (there isn't one in this directory). The patch target is
+# therefore `not-used`, the name kustomize still has when patches run.
+# cluster-apps SSA-applies the result; kustomize.toolkit.fluxcd.io/prune:
+# disabled only prevents DELETE of the Namespace, it does not freeze
+# annotations. Same pattern as kubernetes/apps/main/home-automation/kustomization.yaml.
+#
+# BLAST RADIUS: this annotation is namespace-wide. It permits a root/privileged
+# kopiur mover for every claim in `ai`, not just the three comfyui volumes
+# added 2026-09-12 - every other `ai` claim keeps its existing non-root
+# KOPIUR_PUID/PGID (the annotation is an admission gate, not an identity
+# change). Without it kopiur admits a SnapshotPolicy with runAsUser: 0 but then
+# refuses the Snapshot at MoverPermitted=False / PrivilegedMoverNotPermitted
+# (measured behaviour recorded against home-automation/matter-server,
+# kubernetes/components/kopiur/Readme.md "Root movers").
+patches:
+  - target:
+      kind: Namespace
+      name: not-used
+    patch: |-
+      - op: add
+        path: /metadata/annotations/kopiur.home-operations.com~1privileged-movers
+        value: "true"

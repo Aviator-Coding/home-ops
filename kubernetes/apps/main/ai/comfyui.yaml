@@ -32,3 +32,152 @@ spec:
   # boot; must exceed the HelmRelease timeout (20m).
   timeout: 30m
   wait: false
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# kopiur backup for the SECOND (of five) comfyui volume, `comfyui-user`
+# (captain-authored workflows/settings). Needs its own Kustomization for the
+# same reason every multi-claim app does: every kopiur object is named from
+# ${APP} and Flux allows one postBuild.substitute map per Kustomization
+# (kubernetes/components/kopiur/Readme.md "Apps with more than one volume").
+# `comfyui-models` (100Gi, re-downloadable checkpoints) and `comfyui-output`
+# (RWX, re-generatable renders) are deliberately NOT onboarded here - captain
+# decision 2026-09-12 scoped coverage to the three volumes holding
+# non-regenerable state. comfyui-models is redownloadable from wherever the
+# checkpoints originally came from, and comfyui-output is regenerated the
+# next time its owning workflow runs - both reproducible from an external
+# source, unlike comfyui-user's captain-authored settings.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: comfyui-user-kopiur
+  namespace: &namespace ai
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: comfyui
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/kopiur/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: kopiur-repository
+      namespace: system
+    - name: comfyui
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: comfyui-user
+      KOPIUR_CLAIM: comfyui-user
+      # comfyui's HelmRelease sets no runAsUser/runAsGroup/fsGroup anywhere
+      # (see kubernetes/apps/base/ai/comfyui/app/helmrelease.yaml - "Image runs
+      # as root and the device plugin injects /dev/dri without privileged" is
+      # the only identity-related comment there), so the container runs as the
+      # image's own root default and its files are root-owned. Deployment has
+      # been scaled to 0 replicas for 85 days, so this could not be re-measured
+      # against a live process under the read-only constraint this change was
+      # made under; it rests on the deployment's own declared/documented
+      # identity rather than a from-scratch guess. Root also needs the
+      # namespace-wide privileged-mover annotation - see
+      # kubernetes/apps/main/ai/kustomization.yaml.
+      KOPIUR_PUID: "0"
+      KOPIUR_PGID: "0"
+      # Namespace r2 hour (kubernetes/components/kopiur/Readme.md schedule
+      # table) - every other `ai` claim uses this same hour.
+      KOPIUR_SCHEDULE_R2: "H 19 * * *"
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# kopiur backup for the THIRD comfyui volume, `comfyui-custom-nodes`. Holds
+# installed ComfyUI custom node/extension packages, which are mostly
+# reinstallable from each node's own upstream source - but the captain's
+# 2026-09-12 decision included it anyway (a from-scratch reinstall would still
+# mean re-tracking down and reconfiguring every node that was ever added).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: comfyui-custom-nodes-kopiur
+  namespace: &namespace ai
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: comfyui
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/kopiur/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: kopiur-repository
+      namespace: system
+    - name: comfyui
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: comfyui-custom-nodes
+      KOPIUR_CLAIM: comfyui-custom-nodes
+      # Same root identity as comfyui-user-kopiur - see that Kustomization's
+      # comment for the full reasoning and the unmeasured-live caveat.
+      KOPIUR_PUID: "0"
+      KOPIUR_PGID: "0"
+      KOPIUR_SCHEDULE_R2: "H 19 * * *"
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# kopiur backup for the FOURTH comfyui volume, `comfyui-input`. Holds source
+# images fed into workflows, mostly re-suppliable from wherever each image
+# originally came from, but the captain's 2026-09-12 decision included it
+# anyway rather than leave a gap in an otherwise fully-covered app.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: comfyui-input-kopiur
+  namespace: &namespace ai
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: comfyui
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/kopiur/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: kopiur-repository
+      namespace: system
+    - name: comfyui
+      namespace: *namespace
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: comfyui-input
+      KOPIUR_CLAIM: comfyui-input
+      # Same root identity as comfyui-user-kopiur - see that Kustomization's
+      # comment for the full reasoning and the unmeasured-live caveat.
+      KOPIUR_PUID: "0"
+      KOPIUR_PGID: "0"
+      KOPIUR_SCHEDULE_R2: "H 19 * * *"

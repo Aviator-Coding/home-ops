@@ -30,3 +30,168 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# kopiur-only backup for `surrealdb`. Split into its own Kustomization for the
+# same reason as database/pgadmin and media/calibre-web-automated (the pattern
+# this file otherwise matches exactly): the parent surrealdb Kustomization
+# above runs wait: true so its healthCheckExprs get evaluated, and the kopiur
+# component ships a standing ceph/restore.yaml Restore that is Ready=False by
+# design (AwaitingPvcDataSourceRef) until a rebuilt claim's dataSourceRef
+# claims it - under wait: true Flux would block on that object forever
+# (kubernetes/components/kopiur/Readme.md, "wait: true is incompatible with
+# this component").
+#
+# HOOKS - why this claim differs from every other kopiur onboarding:
+# SurrealDB (RocksDB backend, single replica by design - see this app's own
+# helmrelease.yaml comment - no HA) had NO backup anywhere before this change.
+# A bare copyMethod: Snapshot is only crash-consistent, and this repo's own
+# falkordb finding (a crash-consistent snapshot of a live database restored
+# 200 of 2199 nodes under that engine's default durability - see the
+# databases-are-crash-consistent-only entry in this repo's top-level AGENTS.md)
+# is why a live database here gets a hook, not a bare snapshot.
+#
+# `../../../../../components/kopiur/ceph/snapshotpolicy.yaml` carries a
+# comment dated 2026-08-30 saying fan-out "cannot be combined with `hooks`,
+# which we will want for database/surrealdb later" - read at face value that
+# looks like hooks were unavailable. CHECKED LIVE 2026-09-12 against this
+# cluster's actual kopiur (chart 0.10.7, confirmed via `kubectl get crd
+# snapshotpolicies.kopiur.home-operations.com -o json`): `spec.hooks`
+# (beforeSnapshot/afterSnapshot, three hook forms) is a fully documented field
+# in the CRD schema, and kopiur's own GitHub release notes show hook support
+# (httpRequest hook headers, 0.8.1, 2026-07-24) predates that comment by over a
+# month - it was never true that hooks were missing. What the comment actually
+# says, correctly, is that `spec.repositories` FAN-OUT (one policy covering
+# both ceph and r2) cannot combine with hooks - and this component was never
+# going to use fan-out anyway (see that file's header: rejected for retention
+# reasons independent of hooks). So the per-repository shape every claim
+# already uses was never blocked; nothing needed to change upstream for this.
+#
+# THE HOOK ITSELF: `beforeSnapshot.workloadExec` runs `/surreal export`
+# in-container against the running server (http://localhost:8000, using the
+# SURREAL_USER/SURREAL_PASS env vars already on the pod) for every known
+# (namespace, database) pair, writing a transactionally-consistent SurrealQL
+# dump to the SAME PVC just before the CSI snapshot captures it - so the
+# backup is a real point-in-time export, not a bet on RocksDB's crash
+# recovery. Applied via `spec.patches` below (not a substitution in the shared
+# template) because hooks is a complex nested structure the shared
+# ceph/r2 templates do not parameterize, and doing so would affect all 29+
+# other kopiur claims for a need only this one has today.
+#
+# LIMITATION, stated plainly: the two (namespace, database) pairs below
+# (`open_notebook`/`production`, `test`/`test`) were read live via `INFO FOR
+# ROOT`/`INFO FOR NS` on 2026-09-12 and are hardcoded - a namespace or database
+# created later is NOT covered until this patch is updated to match. There is
+# no shell in the surrealdb/surrealdb image (Chainguard/distroless - verified
+# live: no sh, no ls, no coreutils, only /surreal itself exists), so a dynamic
+# enumerate-and-loop hook is not possible without a materially bigger change
+# (shareProcessNamespace + a debug sidecar, or a runJob hook with its own
+# RBAC) that would be disproportionate to a 484 MiB database.
+#
+# UNVERIFIED PRE-MERGE, stated plainly: this change was made under a
+# read-only-cluster constraint (no kubectl apply/patch/exec-write), so the
+# `/surreal export` command below is derived from `/surreal export --help`
+# and `/surreal sql` output read live from the running pod, but the hook
+# itself has not been exercised end-to-end. First reconcile after merge,
+# check both:
+#   kubectl -n database get snapshot -l app.kubernetes.io/name=surrealdb -o wide
+#   kubectl -n database logs -l app.kubernetes.io/managed-by=kopiur --tail=200
+# for a Succeeded snapshot with non-zero .status.stats and a clean hook exit,
+# per kubernetes/components/kopiur/Readme.md's own "nothing here proves a
+# backup has run" standard for every kopiur onboarding.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: surrealdb-kopiur
+  namespace: &namespace database
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: surrealdb
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/components/kopiur/backup"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: kopiur-repository
+      namespace: system
+    - name: surrealdb
+      namespace: *namespace
+  # No `name:` on either patch target: both SnapshotPolicy objects this
+  # Kustomization renders (surrealdb-ceph, surrealdb-r2) need the identical
+  # hook, and an unqualified kind selector applies the same patch to both
+  # rather than duplicating the block twice.
+  patches:
+    - target:
+        kind: SnapshotPolicy
+      patch: |
+        - op: add
+          path: /spec/hooks
+          value:
+            beforeSnapshot:
+              # The real data. No continueOnFailure: if this export fails, the
+              # whole snapshot should fail rather than silently falling back to
+              # a bare crash-consistent one - that fallback is exactly what
+              # this change exists to avoid.
+              - workloadExec:
+                  podSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: surrealdb
+                  command:
+                    - /surreal
+                    - export
+                    - --endpoint
+                    - http://localhost:8000
+                    - --namespace
+                    - open_notebook
+                    - --database
+                    - production
+                    - /data/kopiur-hook-open_notebook-production.surql
+                  timeout: 2m
+              # The throw-away namespace. continueOnFailure: true so a deleted
+              # or renamed `test` database can never abort the production
+              # export above.
+              - workloadExec:
+                  podSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: surrealdb
+                  command:
+                    - /surreal
+                    - export
+                    - --endpoint
+                    - http://localhost:8000
+                    - --namespace
+                    - test
+                    - --database
+                    - test
+                    - /data/kopiur-hook-test-test.surql
+                  timeout: 2m
+                  continueOnFailure: true
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: surrealdb
+      # Chainguard/distroless nonroot image. Read live from the running pod
+      # 2026-09-12 (read-only): spec.securityContext: {fsGroup: 65532},
+      # containers[0].securityContext: {} - the image's own USER directive
+      # supplies the runAsUser, and this app's helmrelease.yaml independently
+      # comments "SurrealDB image runs as UID 65532". Not a from-scratch guess,
+      # but also not a full live measurement of file ownership the way other
+      # onboardings in this repo used `stat`/`find` - this image ships no
+      # shell and no coreutils to run that check with (see LIMITATION above),
+      # so the corroborating evidence is the declared identity plus the
+      # matching fsGroup, not a byte-level audit.
+      KOPIUR_PUID: "65532"
+      KOPIUR_PGID: "65532"
+      # Namespace r2 hour (kubernetes/components/kopiur/Readme.md schedule
+      # table) - same hour database/falkordb already uses.
+      KOPIUR_SCHEDULE_R2: "H 7 * * *"

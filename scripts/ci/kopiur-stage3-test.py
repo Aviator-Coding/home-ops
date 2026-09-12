@@ -93,8 +93,23 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("ai", "hermes"): ("10000", "10000"),
     ("ai", "opencode"): ("1000", "1000"),
     ("ai", "repo-wiki"): ("1000", "1000"),
+    # comfyui's helmrelease.yaml sets no runAsUser/runAsGroup/fsGroup at all
+    # ("Image runs as root" is its own comment there) - declared identity, not
+    # a live-measured one: the deployment has been scaled to 0 replicas for 85
+    # days and this onboarding was done under a read-only-cluster constraint
+    # that ruled out scaling it up to check. Added 2026-09-12.
+    ("ai", "comfyui-user"): ("0", "0"),
+    ("ai", "comfyui-custom-nodes"): ("0", "0"),
+    ("ai", "comfyui-input"): ("0", "0"),
     ("database", "falkordb"): ("1000", "1000"),
     ("database", "pgadmin"): ("5050", "5050"),
+    # Chainguard/distroless nonroot image (surrealdb/surrealdb). Read live
+    # 2026-09-12 from the running pod's rendered securityContext
+    # (spec.securityContext: {fsGroup: 65532}, container securityContext: {}),
+    # corroborated by the app's own helmrelease.yaml comment "SurrealDB image
+    # runs as UID 65532" - not a full byte-level file-ownership audit, because
+    # the image ships no shell/coreutils to run one with.
+    ("database", "surrealdb"): ("65532", "65532"),
     ("downloads", "bazarr-config"): ("2000", "2000"),
     ("downloads", "lidarr-config"): ("2000", "2000"),
     ("downloads", "prowlarr-config"): ("3002", "3000"),
@@ -247,6 +262,13 @@ NEVER_VOLSYNC: set[tuple[str, str]] = {
     # database/falkordb, added 2026-09-04. New app; kopiur is its only engine
     # because volsync is no longer wired onto new claims.
     ("database", "falkordb"),
+    # Unprotected-volume-coverage onboarding, 2026-09-12 (captain decision).
+    # None of these four ever had VolSync wired onto them - they simply had NO
+    # backup engine at all until this change.
+    ("database", "surrealdb"),
+    ("ai", "comfyui-user"),
+    ("ai", "comfyui-custom-nodes"),
+    ("ai", "comfyui-input"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of
@@ -266,7 +288,14 @@ EXPECTED_R2_HOUR = {
 # Kustomization rather than inlining components/kopiur on the claim KS. The
 # split was introduced under a former claim-side wait:true; that wait is gone,
 # and the split is retained deliberately (see wave-three retirement doc).
-SPLIT_BACKUP_APPS = {("database", "pgadmin"), ("media", "calibre-web-automated")}
+SPLIT_BACKUP_APPS = {
+    ("database", "pgadmin"),
+    ("media", "calibre-web-automated"),
+    # surrealdb.yaml's parent Kustomization runs wait: true for its
+    # healthCheckExprs, same reason as pgadmin/calibre-web-automated above -
+    # added 2026-09-12.
+    ("database", "surrealdb"),
+}
 
 
 class Failure(Exception):

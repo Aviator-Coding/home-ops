@@ -10,8 +10,16 @@
 # single block on the policy and one SnapshotSchedule fires the whole fan-out,
 # so ceph and r2 could not keep the differing schedules and retention they have
 # today (ceph 4-hourly with an hourly tier, r2 daily with a year of monthlies).
-# Fan-out also cannot be combined with `hooks`, which we will want for
-# database/surrealdb later.
+# Fan-out also cannot be combined with `hooks` - NOT a reason this shape was
+# ever a blocker for hooks, since it was never going to use fan-out anyway.
+# This comment used to say hooks were unavailable and "wanted for
+# database/surrealdb later" (written 2026-08-30 against kopiur 0.10.5); that
+# was already wrong when written - hooks existed by 0.8.1 (2026-07-24) - and
+# database/surrealdb now uses them via this exact per-repository shape, layered
+# on with spec.patches rather than a substitution here (hooks is not something
+# every claim needs, so it is not templated in this shared file). See
+# kubernetes/apps/main/database/surrealdb.yaml's `surrealdb-kopiur`
+# Kustomization for the worked example and the full evidence trail.
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: SnapshotPolicy
 metadata:
