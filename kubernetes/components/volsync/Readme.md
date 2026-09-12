@@ -38,7 +38,9 @@ This document explains the backup and restore strategy implemented using Volsync
 >   (which owns its kopia snapshot through a finalizer) is load-bearing. All 27 repositories
 >   stay readable as a fallback via a hand-written `ReplicationDestination`; the credentials are
 >   unchanged in 1Password (`volsync-template`). That fallback is the reason retiring an engine
->   is reversible in practice even though it is irreversible in intent.
+>   is reversible in practice even though it is irreversible in intent - **bounded by a captain-set
+>   expiry date, not indefinite**: see
+>   [`docs/backups/volsync-retired-repository-expiry.md`](../../../docs/backups/volsync-retired-repository-expiry.md).
 >
 > Record and evidence:
 > [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md)
