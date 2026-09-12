@@ -116,7 +116,7 @@ byte-identical (`6a95dbce8b79`).
 | `home-automation/zigbee2mqtt-data` | Same class as matter-server - network key plus device pairings. |
 | `selfhosted/paperless-ngx` | Scanned documents. Genuinely irreplaceable. |
 | `downloads/autobrr` (1 file), `selfhosted/ntfy` (2), `paperless-ngx-media` (1), `syncthing-data` (5), `obsidian-livesync` (8) | Restore-proof finding 4 marked these as too small to prove anything at pilot time. **Refined 2026-09-02** ([`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md)): three remain un-deepenable; `ntfy` and `obsidian-livesync` are complete rather than thin. This row records why they were excluded *here*. |
-| `ai/hermes`, `media/plex` | **Restore-proof finding 2 blocked these specifically** at the time of this pilot: `plex` restored from ceph on a 2 GiB cache and *failed* from r2 on the same 2 GiB; `hermes` needed more than its standing populator carries. That was an unresolved DR prerequisite on the large claims and is why no large claim is in this pilot. **Closed for `ai/hermes` on 2026-09-02** - raised to 16Gi and re-proven from r2 at that exact value ([`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md)); `media/plex`'s standing 10Gi is predicted safe by that run's measurement but has not itself been exercised against r2. This row records why they were excluded *here*; it is not a current verdict on retiring either of them. |
+| `ai/hermes`, `media/plex` | **Restore-proof finding 2 blocked these specifically** at the time of this pilot: `plex` restored from ceph on a 2 GiB cache and *failed* from r2 on the same 2 GiB; `hermes` needed more than its standing populator carries. That was an unresolved DR prerequisite on the large claims and is why no large claim is in this pilot. **Closed for `ai/hermes` on 2026-09-02** - raised to 16Gi and re-proven from r2 at that exact value ([`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md)); `media/plex`'s standing 10Gi *was* predicted safe by that run's measurement but not itself exercised against r2 - **closed 2026-09-12**, r2-proven at exactly that value ([`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md)). This row records why they were excluded *here*; it is not a current verdict on retiring either of them. |
 | `ai/hermes`, `home-automation/home-assistant`, `media/calibre-web-automated` | Also carry the `‡` `CACHEDIR.TAG` marker. Adjudicated harmless by finding 1, but a first pilot should not carry a qualified proof. |
 | `downloads/prowlarr-config` | Its proof was sound but not destination-identical (the re-drill hit two different snapshot points). "Clean and unambiguous" ruled it out. **Closed 2026-09-02** - destination-identical re-drill in [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md). |
 
@@ -257,7 +257,9 @@ scratch restore was proven at that value
 ([`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md));
 the live `hermes-kopiur-dst` populator was then recreated at 16Gi the same day
 ([`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md)).
-`media/plex` 10Gi is predicted safe but not r2-exercised.
+~~`media/plex` 10Gi is predicted safe but not r2-exercised.~~ **Update 2026-09-12:** closed -
+r2-proven at exactly 10Gi
+([`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md)).
 
 ## Execution
 
@@ -469,8 +471,10 @@ Fleet-wide, every other Flux Kustomization is `Ready` and every `HelmRelease` in
 - **This says nothing about the other 26 volumes.** At pilot time it did not clear
   restore-proof finding 2 for `ai/hermes` or `media/plex`. **Update 2026-09-02:** finding 2 is
   closed for `ai/hermes` (16Gi in Git, r2 scratch restore proven end-to-end, standing populator
-  recreated at 16Gi); `media/plex` 10Gi is predicted safe by that measurement but not itself
-  r2-exercised. Authority:
+  recreated at 16Gi); `media/plex` 10Gi *was* predicted safe by that measurement but not itself
+  r2-exercised - **closed 2026-09-12**, r2-proven at exactly that value
+  ([`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md)).
+  Authority:
   [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md),
   standing-populator closure
   [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
