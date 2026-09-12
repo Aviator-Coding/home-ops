@@ -43,7 +43,10 @@ spec:
 # `comfyui-models` (100Gi, re-downloadable checkpoints) and `comfyui-output`
 # (RWX, re-generatable renders) are deliberately NOT onboarded here - captain
 # decision 2026-09-12 scoped coverage to the three volumes holding
-# non-regenerable state (data/decisions-2026-09-12/unprotected-volume-coverage.md).
+# non-regenerable state. comfyui-models is redownloadable from wherever the
+# checkpoints originally came from, and comfyui-output is regenerated the
+# next time its owning workflow runs - both reproducible from an external
+# source, unlike comfyui-user's captain-authored settings.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -94,9 +97,11 @@ spec:
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 #
-# kopiur backup for the THIRD comfyui volume, `comfyui-custom-nodes`. Same
-# reasoning as comfyui-user-kopiur above (mostly re-fetchable content, but the
-# captain took it anyway - data/decisions-2026-09-12/unprotected-volume-coverage.md).
+# kopiur backup for the THIRD comfyui volume, `comfyui-custom-nodes`. Holds
+# installed ComfyUI custom node/extension packages, which are mostly
+# reinstallable from each node's own upstream source - but the captain's
+# 2026-09-12 decision included it anyway (a from-scratch reinstall would still
+# mean re-tracking down and reconfiguring every node that was ever added).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -136,9 +141,10 @@ spec:
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 #
-# kopiur backup for the FOURTH comfyui volume, `comfyui-input`. Same reasoning
-# as comfyui-user-kopiur above (mostly re-fetchable content, but the captain
-# took it anyway - data/decisions-2026-09-12/unprotected-volume-coverage.md).
+# kopiur backup for the FOURTH comfyui volume, `comfyui-input`. Holds source
+# images fed into workflows, mostly re-suppliable from wherever each image
+# originally came from, but the captain's 2026-09-12 decision included it
+# anyway rather than leave a gap in an otherwise fully-covered app.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

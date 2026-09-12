@@ -262,10 +262,9 @@ NEVER_VOLSYNC: set[tuple[str, str]] = {
     # database/falkordb, added 2026-09-04. New app; kopiur is its only engine
     # because volsync is no longer wired onto new claims.
     ("database", "falkordb"),
-    # Unprotected-volume-coverage onboarding, 2026-09-12 (captain decision,
-    # data/decisions-2026-09-12/unprotected-volume-coverage.md). None of these
-    # four ever had VolSync wired onto them - they simply had NO backup engine
-    # at all until this change.
+    # Unprotected-volume-coverage onboarding, 2026-09-12 (captain decision).
+    # None of these four ever had VolSync wired onto them - they simply had NO
+    # backup engine at all until this change.
     ("database", "surrealdb"),
     ("ai", "comfyui-user"),
     ("ai", "comfyui-custom-nodes"),
