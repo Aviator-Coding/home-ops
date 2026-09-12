@@ -1,0 +1,58 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# Captain-owned key for agent-swarm paid runs, minted directly through the
+# proxy's admin API on 2026-09-09 alongside agent-swarm-captain.yaml - read
+# that file's header for the full "forced rotation, not adoption" mechanism;
+# it applies identically here.
+#
+# Entitlements below are carried over UNCHANGED from what was measured live
+# against the running proxy on 2026-09-12, immediately before rotation.
+# `models: []` is deliberate, not an oversight - the CRD's own field comment
+# says "an empty list permits all models", matching this key's live scope of
+# every model on the proxy. Do not narrow it without a captain decision: this
+# key's whole purpose is unrestricted paid access under a hard dollar cap.
+#
+# Rotating this key resets LiteLLM's spend counter to $0 - the captain
+# accepted that explicitly on 2026-09-12 (effectively a fresh $25 window
+# ahead of the natural ~2026-10-09 rollover) rather than have it happen
+# silently. Do not read a $0 starting spend after this merges as evidence of
+# low usage; the pre-rotation counter had already reached $5.75 of the
+# $25 cap.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: agent-swarm-paid
+spec:
+  proxyRef: litellm
+  keyAlias: agent-swarm-paid
+  secretName: litellm-key-agent-swarm-paid
+  secretKey: key
+  # Empty = all models (CRD field doc), matching the live key's scope exactly.
+  models: []
+  maxBudget: "25.00"
+  budgetDuration: 30d
+  metadata:
+    purpose: agent-swarm paid runs, captain-owned, hard cap
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item
+# `litellm-consumer-agent-swarm-paid` (auto-created - not a captain
+# prerequisite).
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-agent-swarm-paid
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-agent-swarm-paid
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-agent-swarm-paid
+          property: key

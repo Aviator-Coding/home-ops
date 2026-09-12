@@ -1,0 +1,62 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# Captain-owned key for agent-swarm local runs, minted directly through the
+# proxy's admin API on 2026-09-09 to unblock the captain - no CR existed for
+# it and git did not describe it.
+#
+# THIS CR PERFORMS A FORCED ROTATION, NOT A LIVE ADOPTION. The operator has no
+# adopt-by-alias path: LiteLLMVirtualKeyReconciler only reaches its
+# diff-and-PATCH path (the one that preserves a credential) when its own
+# output Secret already exists and is owned by this CR. A key minted directly
+# through the admin API has no such Secret, so on first reconcile the operator
+# always calls POST /key/generate - which 400s on the already-taken
+# `keyAlias` (same trap as the O1 cutover migration; see this directory's own
+# kustomization.yaml header and docs/ai-system/litellm/README.md's "no
+# adopt-by-alias" note). The only way forward without leaving this CR stuck
+# GenerateFailed forever is to delete the live key first and let the operator
+# mint a fresh one - a real one-time rotation, captain-approved on 2026-09-12.
+# No in-cluster workload consumes this key, so the blast radius is whoever
+# launches agent-swarm runs locally - they must re-copy the new value from
+# 1Password (`litellm-consumer-agent-swarm-captain`) once this converges.
+#
+# Entitlements below are carried over UNCHANGED from what was measured live
+# against the running proxy on 2026-09-12, immediately before rotation - this
+# is adoption of the existing grant, not a new one, and budgets/entitlements
+# were not re-decided here.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: agent-swarm-captain
+spec:
+  proxyRef: litellm
+  keyAlias: agent-swarm-captain
+  secretName: litellm-key-agent-swarm-captain
+  secretKey: key
+  # Measured live 2026-09-12: single local model, no budget, no rate limits.
+  models:
+    - chat-local
+  metadata:
+    purpose: agent-swarm local runs, captain-owned
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item
+# `litellm-consumer-agent-swarm-captain` (auto-created - not a captain
+# prerequisite).
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-agent-swarm-captain
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-agent-swarm-captain
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-agent-swarm-captain
+          property: key

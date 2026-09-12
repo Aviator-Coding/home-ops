@@ -483,16 +483,24 @@ def test_virtual_key_semantics() -> None:
         "rpmLimit" not in spec and "tpmLimit" not in spec,
         f"rpm={spec.get('rpmLimit')!r} tpm={spec.get('tpmLimit')!r}",
     )
-    # Uniqueness: this is the only key without maxBudget.
-    no_budget = [
+    # Uniqueness: this key is budgetless because its models are VERIFIED
+    # zero-priced (see the runtime_* checks below) - the cap is inert by
+    # construction, not by choice. `agent-swarm-captain` is budgetless for a
+    # different, captain-owned reason (minted 2026-09-09 with no cap, adopted
+    # as a forced rotation 2026-09-12 - see that CR's own header): assert the
+    # known set explicitly rather than a bare count, so the NEXT unexplained
+    # budgetless key still fails this gate instead of silently joining an
+    # ever-growing allowlist.
+    OTHER_BUDGETLESS_KEYS_APPROVED = {"agent-swarm-captain"}
+    no_budget = {
         name
         for name, cr in keys.items()
         if "maxBudget" not in cr["spec"] and "max_budget" not in cr["spec"]
-    ]
+    }
     record(
         "only_subscription_key_lacks_maxBudget",
-        no_budget == [KEY_NAME],
-        f"no_budget_keys={no_budget}",
+        no_budget == {KEY_NAME} | OTHER_BUDGETLESS_KEYS_APPROVED,
+        f"no_budget_keys={sorted(no_budget)}",
     )
     # No other key should hold either subscription model (entitlement is
     # dedicated). A second holder would break the per-consumer attribution the

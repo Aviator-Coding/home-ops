@@ -389,11 +389,13 @@ spend the household's money, and `scripts/ci/litellm-claude-code-subscription-te
 asserts it directly (every allow-listed name must carry the placeholder
 `apiKey`, and none may be a metered route).
 
-It is also **the only key in that directory with no `maxBudget`**, deliberately:
-its models are priced at an explicit $0 across every field including the cache
-ones (§4a), so recorded spend is $0 and any budget could never trip - a cap that
-cannot fire reads as protection that does not exist. Note this only became true
-on 2026-08-31: before the cache fields were zeroed, a budget here would have
+It also carries no `maxBudget`, deliberately: its models are priced at an
+explicit $0 across every field including the cache ones (§4a), so recorded
+spend is $0 and any budget could never trip - a cap that cannot fire reads as
+protection that does not exist. (`agent-swarm-captain` is the only other
+budgetless key in that directory, for a captain-owned reason unrelated to
+pricing - see `app/virtualkeys/kustomization.yaml`.) Note this only became
+true on 2026-08-31: before the cache fields were zeroed, a budget here would have
 tripped on ~$54 of fictional spend and locked the key out. As of 2026-08-31
 (§4b) it also carries no `rpmLimit`/`tpmLimit` - the captain's call, after
 measured headroom showed neither was functioning as a real guardrail anymore.

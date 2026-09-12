@@ -107,6 +107,11 @@ exactly one property the others must not. Entitlement is which alias a key holds
 | `qwen3.6-35b-a3b-classifier` | same B70 llama.cpp | none / zero | **none** - terminal; thinking disabled | the auto-router classifier only |
 | `pr-review-local` | same B70 llama.cpp | none / zero | **none** - terminal; thinking disabled | AI PR reviewer only - [`pr-reviewer.md`](pr-reviewer.md) |
 
+> The "Who holds it" column states intended per-purpose entitlement, not an
+> enforced boundary. Any key with unrestricted model access (currently
+> `agent-swarm-paid`, `models: []`) also technically reaches every alias
+> listed here, including the ones built to stay local-only or reviewer-only.
+
 Same weights, same GPU. A key that must never reach Anthropic holds
 `chat-local` (or `qwen3.6-35b-a3b` if and only if it is the demo budget test)
 and is structurally incapable of failing over; a key that is *supposed* to
