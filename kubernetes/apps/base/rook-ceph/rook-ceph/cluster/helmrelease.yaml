@@ -81,6 +81,45 @@ spec:
           # Prioritise client I/O over background work on latency-sensitive drives.
           osd_mclock_profile: high_client_ops
 
+          # bluestore_slow_ops_warn_threshold: raised from the Ceph default of 1.
+          # THIS ALONE DOES NOT FIX THE INCIDENT IT CITES: on 2026-09-11, osd.4 on
+          # the no-PLP consumer NVMe logged 51 individual "slow operation observed"
+          # log lines within under a second (one root-cause stall, not a sustained
+          # problem, and the only such event across any OSD in the trailing 7
+          # days). 51 >= 5, so threshold=5 still trips BLUESTORE_SLOW_OP_ALERT and
+          # still latches it. What actually held HEALTH_WARN for a full day and
+          # blocked every `task rook:check-osd-device-paths`-gated reboot
+          # (docs/ceph/osd-device-path-recovery.md) is
+          # bluestore_slow_ops_warn_lifetime below, not this threshold. Ceph's own
+          # help text for that option: "the time period during which a BlueStore
+          # slow ops warning will be raised when the
+          # bluestore_slow_ops_warn_threshold is exceeded." Live evidence of the
+          # pure latch: checked 2026-09-12T12:20Z, ~19h after the last event
+          # (2026-09-11T17:25:34Z) - zero new slow-op events on osd.4 in that
+          # window, and Ceph was still HEALTH_WARN with no current fault behind it.
+          #
+          # 5 is not an arbitrary round number: it's Ceph's own illustrative
+          # non-default in doc/rados/operations/health-checks.rst's
+          # BLUESTORE_SLOW_OP_ALERT section (`ceph config set global
+          # bluestore_slow_ops_warn_threshold 5`). It clears literal one-off
+          # single-op noise (threshold=1's failure mode) while a genuine stall
+          # storm - like the 51-event burst above - still trips it with wide
+          # margin. This deliberately loosens a real tripwire: a lone
+          # 2nd-4th slow op that would have warned before now won't. It does
+          # not address the likely root cause (osd.4 runs measurably hotter
+          # than every peer NVMe) - that's a hands-in-the-case hardware fix,
+          # tracked separately, not a config change.
+          bluestore_slow_ops_warn_threshold: "5"
+          # bluestore_slow_ops_warn_lifetime: cut from the Ceph default of
+          # 86400s/24h to 3600s/1h. This is the change that actually addresses
+          # the day-long reboot block, since threshold=5 alone (above) does not
+          # stop a >=5-event burst from latching. Accepted trade: a sustained
+          # problem now warns in 1-hour windows instead of one 24-hour block, and
+          # re-trips on every fresh burst, so a genuinely sick drive keeps
+          # warning. What stops is one transient stall (like 2026-09-11's)
+          # blocking every node reboot for a full day.
+          bluestore_slow_ops_warn_lifetime: "3600"
+
         # --- P2: pin realistic per-OSD mClock IOPS (override inflated auto-bench).
         # The startup auto-bench reported 49k-61k IOPS for EVERY OSD (config source
         # "basic" = auto-written): ~3-4x too high for the no-PLP Samsungs and ~8-12x

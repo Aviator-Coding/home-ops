@@ -36,6 +36,14 @@ fallback **works under normal load** — but it returns empty when the cluster i
 loaded/wedged, which is exactly when the 2026-06-14 incident restarted an OSD. See also
 [rook/rook discussion #7796](https://github.com/rook/rook/discussions/7796).
 
+**Re-verified 2026-09-12: still no upstream fix, on any released Rook version.** A
+community fix (rook/rook#17226, resolving kernel names to `/dev/disk/by-id/wwn-*` or
+`nvme-eui.*` at the point `ROOK_BLOCK_PATH` is set) existed but was closed unmerged
+2026-05-20; #17224 itself was then auto-closed `stale`/`NOT_PLANNED` 2026-06-23 with no
+maintainer review of that PR, not a considered rejection of the approach. Rook v1.20.7
+(this cluster's version) predates any fix. The audit/gate script above plus the Case A/B
+recovery below remain the correct and only mechanism until upstream reopens this.
+
 > Why we don't "just fix the config": the CephCluster CR **already** uses by-id device
 > names, and **raw mode is the recommended Rook default** — this layout *is* best practice.
 > Rook simply doesn't use the by-id path for `ROOK_BLOCK_PATH`; no config toggle changes
