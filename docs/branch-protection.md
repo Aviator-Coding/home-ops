@@ -43,6 +43,22 @@ on top of that self-restraint. Requiring a PR (`pull_request` rule) may also cha
 `automergeType: "branch"` updates (currently digest/patch) from a direct branch merge into a
 PR that auto-merges once green — same outcome, more visible in the PR list.
 
+**`ignoreTests: false` does not prevent premature merges — that gate is GitHub's platform
+auto-merge, not Renovate's own check.** `ignoreTests: false` governs whether *Renovate itself*
+proposes merging; once it enables GitHub's native auto-merge (`platformAutomerge`), it's GitHub
+that decides when to merge, and GitHub merges the instant its *required* checks go green — here,
+just `Labeler - Labeler` — with no regard for `flate`, `Image Pull`, or `validate`, which are
+never required (see below) and are frequently still queued. Measured across 10 merged PRs
+(2026-09-12): merges landed 3-23s after Labeler passed while those workflows were still running,
+and two of the ten recorded a RED versions check only *after* the merge, because branch deletion
+cancelled the in-flight run instead of letting it fail visibly first. Closed by setting
+`platformAutomerge: false` in `.renovaterc.json5` — Renovate now merges its own PRs on its
+own four-hourly pass instead of via GitHub's instant required-check trigger, so every workflow a
+PR touches has a full cycle to post before Renovate re-evaluates it. This doesn't change what's
+actually required — the gap in the next section is unaffected — it only removes the mechanism
+that let a merge outrun the non-required checks. The full required-checks restructure below was
+evaluated and declined in favor of this smaller, reversible change.
+
 ## Why only `Labeler - Labeler` is required — and why that's deliberate, not incomplete
 
 Required status checks and path-filtered workflows interact badly: if a required check's
