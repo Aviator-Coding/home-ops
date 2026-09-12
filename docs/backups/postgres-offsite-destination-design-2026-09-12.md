@@ -2,9 +2,13 @@
 
 **Date:** 2026-09-12
 **Status:** implemented in
-`kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/`. The job cannot run until
-the 1Password item named under "What is blocked" exists, which is by design - the
-`ExternalSecret` fails closed rather than running without credentials.
+`kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/`, and **shipped suspended -
+installed but not running.** The job cannot run until the 1Password item named under "What
+is blocked" exists, which is by design: the `ExternalSecret` fails closed rather than
+running without credentials, and the CronJob carries `suspend: true` so it does not spend
+the interim failing hourly. Un-suspending is a deliberate one-line follow-up, not something
+that happens by itself when the credential appears. **Until then postgres-17 still has only
+one backup copy.**
 
 **Goal.** The shared CloudNativePG cluster `postgres-17` keeps its only backup copy on a
 single LAN target. Every one of the fleet's 30 file volumes already has both a Ceph copy

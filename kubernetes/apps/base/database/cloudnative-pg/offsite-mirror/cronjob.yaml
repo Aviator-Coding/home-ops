@@ -38,6 +38,24 @@ metadata:
   labels:
     app.kubernetes.io/name: postgres-offsite-mirror
 spec:
+  # SHIPS SUSPENDED, AND UN-SUSPENDING IS THE DELIBERATE ACT THAT TURNS THE
+  # MIRROR ON.
+  #
+  # The mirror cannot run until 1Password item `cloudnative-pg-r2` exists in a
+  # Connect-visible vault (see externalsecret.yaml for the exact fields). Until
+  # then the `cloudnative-pg-r2-secret` Secret does not exist, so every
+  # scheduled run would sit in CreateContainerConfigError - an hourly failing
+  # job that reads as a broken deployment.
+  #
+  # Deliberately NOT left to start itself the moment the Secret appears.
+  # Turning the mirror on is a one-line follow-up change to this field, so that
+  # "the off-site copy is live" is something a human asserted in git and can
+  # point at, rather than a side effect of a credential showing up. A change
+  # that reads as running when it is not is the failure pattern this fleet
+  # keeps hitting.
+  #
+  # Merging this installs the mirror. It does NOT start it.
+  suspend: true
   # Hourly, offset from :00. The off-site WAL stream therefore lags the LAN
   # copy by up to ~1h - this is a second copy, not a second primary; the LAN
   # target remains the continuous one fed by archive_command. :25 avoids the
