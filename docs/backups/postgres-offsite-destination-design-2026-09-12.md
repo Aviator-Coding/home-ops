@@ -1,8 +1,10 @@
 # postgres-17 off-site backup destination - design and blocking findings
 
 **Date:** 2026-09-12
-**Status:** design only. Nothing is implemented; work is parked on a missing credential
-(see "What is blocked").
+**Status:** implemented in
+`kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/`. The job cannot run until
+the 1Password item named under "What is blocked" exists, which is by design - the
+`ExternalSecret` fails closed rather than running without credentials.
 
 **Goal.** The shared CloudNativePG cluster `postgres-17` keeps its only backup copy on a
 single LAN target. Every one of the fleet's 30 file volumes already has both a Ceph copy
@@ -170,12 +172,19 @@ A scheduled in-cluster job copies the whole `postgres17-v5` prefix (`base/` **an
   contiguous WAL**.
 
 **Retention.** The LAN target runs WAL + daily base at `30d`, set by CNPG's own
-`spec.backup.retentionPolicy`. The recommendation is to **not** mirror deletions, and to
-expire on R2 at **35d** via a bucket lifecycle rule. Longer than the LAN's 30d,
-deliberately: the five-day margin means a LAN-side prune can never race the mirror into
-dropping an object the off-site copy still needs, and an accidental or malicious deletion
-on the LAN does not reach the off-site copy the same day. The effective off-site recovery
-window remains the intended 30d.
+`spec.backup.retentionPolicy`. Deletions are **not** mirrored; R2 expires at **35d**
+instead. Longer than the LAN's 30d, deliberately: the five-day margin means a LAN-side
+prune can never race the mirror into dropping an object the off-site copy still needs, and
+an accidental or malicious deletion on the LAN does not reach the off-site copy the same
+day. The effective off-site recovery window remains the intended 30d.
+
+That expiry is implemented **in the job** (an age-based `rclone delete` guarded by a
+candidate ceiling) rather than as a Cloudflare-side R2 bucket lifecycle rule. Both are
+valid; the job-side version was chosen because it keeps the retention rule in git where it
+is reviewable and changes with the manifest, instead of living as invisible console state.
+An R2 lifecycle rule remains a reasonable substitute if the account ever prefers it - the
+correctness requirement is only that the expiry is *independent of the LAN*, not where it
+is expressed.
 
 **RPO caveat.** The off-site WAL stream lags by the sync interval rather than being
 continuous. At an hourly sync the off-site copy is up to ~1h behind. The LAN copy remains
@@ -258,17 +267,20 @@ If the sync propagated deletions - `rclone sync`, `mc mirror --remove`, or
    is the whole point of this task.
 
 So the sync must be additive: `rclone copy`, `mc mirror` without `--remove`, or
-`aws s3 sync` without `--delete`. Expiry on R2 is then enforced independently by an R2
-bucket lifecycle rule. That independence is what makes the two retentions genuinely
-separate rather than one being a shadow of the other.
+`aws s3 sync` without `--delete`. The shipped job uses `rclone copy`, which the rclone
+documentation states never deletes on the destination. Expiry on R2 is then enforced
+independently - here by an age-based prune inside the same job, which runs only after a
+successful copy and refuses to act when the candidate count exceeds a ceiling. That
+independence is what makes the two retentions genuinely separate rather than one being a
+shadow of the other.
 
 **Consequence to expect, not a defect.** Copy-only means the R2 catalogue deliberately
 diverges from the LAN one, retaining base backups CNPG has already pruned. That is
 intended. The ages stay coherent because a base backup and the WAL it depends on are
 created at roughly the same time and so expire together under a single lifecycle rule; the
 limiting factor on any off-site restore is the age of the base backup, which is what a 35d
-window is meant to express. The lifecycle rule should also abort incomplete multipart
-uploads, so orphaned parts do not accrue storage.
+window is meant to express. If an R2 lifecycle rule is used instead of the in-job prune,
+it should also abort incomplete multipart uploads so orphaned parts do not accrue storage.
 
 ## What is blocked
 
@@ -277,19 +289,30 @@ One thing, and it is the only thing: **the R2 bucket and its credential.**
 No bucket exists for the Postgres archive, and neither live R2 token can reach one
 (Finding 4). The credential must arrive through the existing 1Password + External Secrets
 path - no hand-made Secret, no credential value in git - so the 1Password item has to be
-minted before any manifest can resolve. Until it exists there is nothing useful to build:
-a mirror job pointed at a bucket that does not exist, reading an `ExternalSecret` whose
-properties are absent, would fail loudly at reconcile and would prove nothing.
+minted before the `ExternalSecret` can resolve. The manifests are written and merged
+regardless: the missing item is a **declared dependency that fails closed**, which is how
+this repo expresses a secret that must exist, and the job's pods simply stay unschedulable
+until it appears.
 
-What is needed, concretely:
+What is needed, concretely - these are the exact strings the manifests declare:
 
-1. An R2 bucket to hold the Postgres archive.
-2. An R2 API token that can read and write it, following the per-purpose item convention
-   the fleet already uses (`kopiur-r2` is the model: one purpose-built 1Password item per
-   destination rather than a shared grab-bag).
-3. A 1Password item holding that token's endpoint, access key and secret key, in a vault
-   1Password Connect can see - **`Homelab`, `Automation` or `Services`, never `Home-Lab`**,
-   which Connect cannot read at all (`AGENTS.md`, 1Password vaults).
+| | |
+|---|---|
+| R2 bucket | `home-ops-postgres-cluster` |
+| 1Password item | `cloudnative-pg-r2` |
+| Vault | `Homelab` (any Connect-visible vault works - `Homelab`, `Automation`, `Services` - but **never** the hyphenated `Home-Lab`, which Connect cannot read at all) |
+| Fields | `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
+
+The bucket deliberately carries the **same name as the LAN bucket**: that keeps
+`destinationPath` identical on both sides, so a future restore pointed at the off-site copy
+differs from the live configuration only by `endpointURL` and credentials.
+
+The token needs object read/write on that bucket alone. The job passes
+`--s3-no-check-bucket`, so no `HeadBucket` or `CreateBucket` call is made and the token
+does not need bucket-level permissions. The item is purpose-built for this destination
+rather than added to a shared grab-bag, following the `kopiur-ceph` / `kopiur-r2`
+convention; the endpoint lives in the item rather than in git because it embeds the
+Cloudflare account id.
 
 Live confirmation that the new destination actually receives data is performed post-merge,
 once Flux has reconciled the change, and is not a blocker on designing or implementing it.
@@ -300,6 +323,14 @@ once Flux has reconciled the change, and is not a blocker on designing or implem
   exercised here; all 16 restore documents in `docs/backups/` are VolSync or kopiur. The
   drill was deliberately deferred by the captain on 2026-09-11 and is out of scope for
   this work.
+- Implementation and operator notes:
+  `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/README.md`.
+- **No `PrometheusRule` ships with this change.** A failed or silently-stopped mirror does
+  not yet alert. That is deliberate: `AGENTS.md` records that a PrometheusRule can be
+  structurally incapable of firing while nothing in CI catches it, so the rule must be
+  written and validated against live Prometheus both ways - quiet now, and returning a
+  series when the comparison is inverted - which can only be done once the job has actually
+  run. It is the first follow-up after the credential lands.
 - File-volume off-site precedent and the R2 credential conventions:
   `kubernetes/apps/base/system/kopiur/README.md`.
 - Cluster manifests: `kubernetes/apps/base/database/cloudnative-pg/cluster-17/`.
