@@ -1,17 +1,34 @@
 # Expiring retired VolSync restic repositories
 
+> ## THE RETENTION DESCRIBED HERE IS NOT IN FORCE
+>
+> **Nothing in this repository applies these rules, and merging does not apply them.** No object
+> store has been configured. No object has been deleted, and none is scheduled to be.
+>
+> This is not a caveat - it is the single most important fact on the page. The declarative path
+> that *would* normally carry a change like this **silently ignores it**: Rook's OBC controller
+> has no update path, so a `bucketLifecycle` on the 341-day-old `volsync` OBC is accepted into
+> Git, renders clean, passes review, and never reaches the bucket. A reader concluding from this
+> document that retired backups are expiring would be wrong in the most dangerous direction.
+>
+> The rules become real only when an operator runs
+> [`volsync-retired-expiry-apply-plan.md`](volsync-retired-expiry-apply-plan.md) against each of
+> the three object stores. Until then this is a decision on paper.
+>
+> When it *is* applied, the earliest deletion is **2027-03-31** - about 6.6 months after the
+> decision - and the sole-copy tier is **2027-09-30**, about 12.6 months.
+
 **Captain's decision, 2026-09-12: an expiry date. Not deletion now, not keeping it
 indefinitely.** A recovery window is preserved, and unbounded growth stops for every future
-app retirement.
+app retirement. Scope decided the same day, on the corrected measurement below: **all 48
+retired repositories across all three destinations**, not the 30 on ceph alone.
 
-This document is the decision record and the apply runbook. The machine-readable policy is
+This document is the decision record. The apply runbook is
+[`volsync-retired-expiry-apply-plan.md`](volsync-retired-expiry-apply-plan.md). The
+machine-readable policy is
 [`scripts/volsync-retired-expiry/ledger.yaml`](../../scripts/volsync-retired-expiry/ledger.yaml);
 [`render_lifecycle.py`](../../scripts/volsync-retired-expiry/render_lifecycle.py) turns it into
 S3 lifecycle rules; `scripts/ci/volsync-retired-expiry-test.py` is the gate.
-
-**Nothing has been applied. This change deletes nothing, schedules nothing, and reconciles
-nothing.** See "Why nothing in this repo applies it" below - that is a measured finding, not
-an omission.
 
 ## The decision
 
@@ -57,12 +74,40 @@ top-level prefix is one whole repository.
 | r2 (Cloudflare) | 31 | 28 | 3 | **34.25 GiB** / 5,390 obj | 1.649 GiB |
 | minio (NAS) | 49 | 46 | 3 | **59.30 GiB** / 10,975 obj | 0.009 GiB |
 
-The ceph row is the 32.48 GiB / 30-prefix figure the task was scoped on, confirmed exactly.
-**The other two destinations were not in that scope and hold considerably more**: minio carries
-18 prefixes that ceph no longer has at all - apps removed long before the kopiur migration
-(`my-claw` 16.3 GiB, `merge-wallet` 6.5 GiB, `openclaw` 3.5 GiB, `qbittorrent`, `mongodb`,
-`jellyfin`, `immich`, `open-webui`, and ten more). They are the same class of data and are
-covered by the same ledger.
+### The scope was established here, not inherited
+
+This work was commissioned as **30 retired prefixes / 32.48 GiB**. That figure is correct and was
+confirmed to the byte - but it describes **one of three destinations**. The real quantity is
+**48 retired repositories / 126.03 GiB**, and the captain was shown the corrected number and
+chose it deliberately on 2026-09-12. Narrowing back to the original scope would have left
+~93 GiB unmanaged and growing.
+
+How it was measured, so a future reader can redo it rather than trust it:
+
+1. Every VolSync restic repository is `<bucket>/<APP>`, from the `RESTIC_REPOSITORY` template in
+   `kubernetes/components/volsync/{ceph,minio,r2}/externalsecret.yaml`. So the set of
+   repositories on a destination is the set of top-level prefixes in its bucket.
+2. **All three destinations were listed, not just ceph** - that is the whole correction. ceph via
+   `radosgw-admin bucket list --bucket=volsync` in the `rook-ceph-tools` pod; r2 and minio via
+   `ListObjectsV2` with the credentials already in the live `*-volsync-<dest>-secret` Secrets.
+   All read-only.
+3. Objects were aggregated by first path segment, giving per-repository object count, byte total
+   and last-write date on each destination.
+4. The live set was fixed independently, two ways that agree: 9 `ReplicationSource`s in the
+   cluster (3 claims x 3 destinations), and the 3 overlays in Git still wiring up
+   `components/volsync`. Everything else is retired by definition.
+
+The gap is almost entirely minio, which carries **18 prefixes ceph no longer has at all** - apps
+removed long before the kopiur migration, whose copies there are the only ones left: `my-claw`
+16.3 GiB, `merge-wallet` 6.5 GiB, `openclaw` 3.5 GiB, `qbittorrent` 1.3 GiB, `mongodb` 1.0 GiB,
+plus `jellyfin`, `immich`, `open-webui`, `qdrant`, `homeops-claw`, `cross-seed`, `open-notebook`,
+`paperless-ai`, `stirling-pdf`, `calibre-web`, `perplexica`, `perplexica-dbstore` and `litellm`.
+r2 also holds more than ceph for the repositories they share, because its retention tier is
+deeper (`monthly: 12` against ceph's `monthly: 6`).
+
+A second reason the ceph-only figure understated the problem: ceph's shorter retention has
+already forgotten history the others still hold. `paperless-ngx` is 11.3 MiB on ceph and
+**1,688 MiB on r2** - the same repository, 150x apart.
 
 Only three repositories are live, confirmed two ways: 9 `ReplicationSource`s in the cluster
 (3 claims x 3 destinations), and 3 overlays in Git still wiring up `components/volsync`
@@ -172,39 +217,22 @@ the reason the change ships as policy plus a runbook rather than as a manifest.
   reviewed one-line change instead of a forgotten one. Add this to the retirement procedure in
   `kubernetes/components/kopiur/Readme.md` when a claim's VolSync engine is removed.
 
-## Apply runbook
+## Applying it
 
-**This is a live mutation of three object stores and needs an explicit go-ahead. It is not a
-follow-on to a merged PR.**
+The full runbook - exact commands per destination, what each changes, mandatory read-back
+verification, and undo - is [`volsync-retired-expiry-apply-plan.md`](volsync-retired-expiry-apply-plan.md).
 
-Render (pure, no credentials, no network):
+Two things from it that belong in the decision record:
 
-```sh
-python3 scripts/volsync-retired-expiry/render_lifecycle.py > /tmp/volsync-lifecycle.json
-jq '.Rules | length' /tmp/volsync-lifecycle.json   # expect 48
-```
-
-The same rule set applies identically to all three buckets. A rule whose prefix holds no objects
-on a given destination is an inert no-op, and identical configuration everywhere means the three
-buckets can be verified by comparing them to each other.
-
-Apply per destination with credentials from the live `*-volsync-<dest>-secret` Secrets, using
-`PutBucketLifecycleConfiguration` against bucket `volsync`. Before applying, re-run the match
-proof against a fresh listing - the ledger is a point-in-time measurement and the live set can
-change.
-
-Verify afterwards:
-
-```sh
-# ceph
-kubectl -n rook-ceph exec deploy/rook-ceph-tools -- radosgw-admin lc list
-# any destination: read the config back and confirm every prefix ends in "/"
-#   and that none of paperless-ngx/, paperless-ngx-media/, syncthing-data/ appears
-```
-
-The invariant to check on the way out is not "48 rules exist" but **"no rule's prefix is in
-range of a live repository"** - that is what `render_lifecycle.py` asserts and what the CI gate
-pins.
+- **The three destinations do not have equal prerequisites.** ceph's credential is the OBC bucket
+  owner and minio's is permitted, both measured. **r2's in-cluster token cannot manage lifecycle
+  at all** (`AccessDenied` on `GetBucketLifecycleConfiguration`): R2 requires the
+  `Workers R2 Storage Write` permission group, and the cluster's token is object-scoped by
+  design. Applying the r2 third needs a scoped Cloudflare token minted for that one call and
+  revoked afterwards - it must not be stored in the cluster or 1Password.
+- **The write path is unexecuted.** Credential authority and the read path are measured; no
+  `PutBucketLifecycleConfiguration` has been issued. That is why the read-back comparison is
+  built into `apply_lifecycle.py` rather than being a runbook step someone could skip.
 
 ## Reopening / maintenance
 

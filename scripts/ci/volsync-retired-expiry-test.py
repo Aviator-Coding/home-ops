@@ -51,6 +51,8 @@ REPO = Path(__file__).resolve().parents[2]
 TOOL_DIR = REPO / "scripts" / "volsync-retired-expiry"
 LEDGER = TOOL_DIR / "ledger.yaml"
 DOC = REPO / "docs" / "backups" / "volsync-retired-repository-expiry.md"
+APPLY_PLAN = REPO / "docs" / "backups" / "volsync-retired-expiry-apply-plan.md"
+APPLIER = TOOL_DIR / "apply_lifecycle.py"
 APPS_MAIN = REPO / "kubernetes" / "apps" / "main"
 
 sys.path.insert(0, str(TOOL_DIR))
@@ -266,6 +268,72 @@ def test_owning_document_exists() -> None:
             raise Failure(f"owning document does not mention {needle!r}")
 
 
+def test_decision_record_says_up_front_that_nothing_is_applied() -> None:
+    """The captain's explicit requirement, and the highest-stakes line in the docs.
+
+    Nothing in this repo applies these rules, and one of the three stores silently
+    ignores the declarative write that would look like it had. A reader who
+    concludes the retention is in force is wrong in the direction that loses data
+    later - so the disclaimer must stay at the TOP, not drift into a footnote.
+    """
+    head = DOC.read_text().split("\n")[:24]
+    banner = "\n".join(head)
+    if "NOT IN FORCE" not in banner:
+        raise Failure(
+            "the decision record no longer states in its first 24 lines that the "
+            "retention is NOT in force - that disclaimer is load-bearing"
+        )
+    for needle in ("merging does not apply them", "apply-plan"):
+        if needle not in banner:
+            raise Failure(f"decision-record banner no longer contains {needle!r}")
+
+
+def test_apply_plan_exists_and_covers_every_destination() -> None:
+    if not APPLY_PLAN.is_file():
+        raise Failure(f"apply plan missing: {APPLY_PLAN.relative_to(REPO)}")
+    text = APPLY_PLAN.read_text()
+    if "has been executed" not in text and "not been executed" not in text:
+        raise Failure("apply plan does not state that it has not been executed")
+    for dest in ("ceph", "r2", "minio"):
+        if f"--destination {dest}" not in text:
+            raise Failure(f"apply plan gives no command for destination {dest!r}")
+    for needle in ("--undo", "--save-previous", "Workers R2 Storage Write"):
+        if needle not in text:
+            raise Failure(
+                f"apply plan no longer covers {needle!r} - undo, exact-undo material "
+                "and the r2 permission prerequisite are all required"
+            )
+
+
+def test_applier_is_dry_run_by_default_and_covers_all_destinations() -> None:
+    src = APPLIER.read_text()
+    if not APPLIER.is_file():
+        raise Failure("apply_lifecycle.py missing")
+    # Writing must be gated behind an explicit flag, never the default.
+    if '"--confirm", action="store_true"' not in src:
+        raise Failure(
+            "apply_lifecycle.py's --confirm is no longer a default-false store_true "
+            "flag; writing must never be the default"
+        )
+    # And the write itself must be unreachable without it.
+    if "if not args.confirm:" not in src:
+        raise Failure("apply_lifecycle.py no longer short-circuits before writing")
+    sys.path.insert(0, str(TOOL_DIR))
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("apply_lifecycle", APPLIER)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if set(mod.DESTINATIONS) != {"ceph", "r2", "minio"}:
+        raise Failure(
+            f"applier destinations {sorted(mod.DESTINATIONS)} != the three volsync "
+            "buckets; the captain's scope is all three"
+        )
+    if mod.BUCKET != "volsync":
+        raise Failure(f"applier targets bucket {mod.BUCKET!r}, expected 'volsync'")
+
+
 def main() -> int:
     tests: list[str] = []
     failures: list[str] = []
@@ -297,6 +365,9 @@ def main() -> int:
     run("renderer_refuses_a_ledger_that_endangers_a_live_repository", test_renderer_refuses_a_ledger_that_endangers_a_live_repository)
     run("expiry_is_absolute_midnight_utc_and_never_day_based", test_expiry_is_absolute_midnight_utc_and_never_day_based)
     run("owning_document_exists", test_owning_document_exists)
+    run("decision_record_says_up_front_that_nothing_is_applied", test_decision_record_says_up_front_that_nothing_is_applied)
+    run("apply_plan_exists_and_covers_every_destination", test_apply_plan_exists_and_covers_every_destination)
+    run("applier_is_dry_run_by_default_and_covers_all_destinations", test_applier_is_dry_run_by_default_and_covers_all_destinations)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")
