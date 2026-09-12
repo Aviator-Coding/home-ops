@@ -231,8 +231,9 @@ spec:
                   # Counted first and compared against a ceiling rather than
                   # relying on `--max-delete`, whose applicability to `rclone
                   # delete` (as opposed to `sync`) is not documented.
-                  CANDIDATES="$$(rclone lsf --files-only --recursive \
-                    --min-age "$${OFFSITE_RETENTION}" "$${DST}" | wc -l | tr -d ' ')"
+                  rclone lsf --files-only --recursive \
+                    --min-age "$${OFFSITE_RETENTION}" "$${DST}" >/tmp/offsite-candidates.list
+                  CANDIDATES="$$(wc -l </tmp/offsite-candidates.list | tr -d ' ')"
                   echo "postgres-offsite-mirror: $${CANDIDATES} object(s) older than $${OFFSITE_RETENTION}"
 
                   if [ "$${CANDIDATES}" -gt "$${PRUNE_CEILING}" ]; then
