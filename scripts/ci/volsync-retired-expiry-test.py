@@ -278,6 +278,13 @@ def main() -> int:
         except Failure as e:
             failures.append(name)
             print(f"[FAIL] {name}: {e}")
+        except render_lifecycle.UnsafeLedger as e:
+            # The renderer's own fail-closed guard fired. That is the correct
+            # behaviour for an unsafe ledger, but it still means this branch
+            # cannot be rendered, so it is a failure - reported as a refusal
+            # rather than as a test bug so the reason is obvious.
+            failures.append(name)
+            print(f"[FAIL] {name}: renderer refused to render: {e}")
         except Exception as e:  # noqa: BLE001
             failures.append(name)
             print(f"[FAIL] {name}: unexpected {type(e).__name__}: {e}")
