@@ -1,6 +1,15 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   dependencyDashboard: true,
+  // Platform automerge lets GitHub merge the moment its own required checks
+  // (Labeler only, see docs/branch-protection.md) go green, which can be
+  // 3-23s after Labeler passes - while flate, Image Pull and validate are
+  // still queued and then cancelled by the branch deletion. Measured on 10
+  // merged PRs 2026-09-12, including two where a RED versions check was
+  // recorded AFTER the merge. The full required-checks restructure
+  // docs/branch-protection.md specifies was evaluated and declined in favor
+  // of this single reversible setting.
+  platformAutomerge: false,
   extends: [
     "github>Aviator-Coding/mortyops//ci/renovate/default.json5",
     "github>Aviator-Coding/mortyops//ci/renovate/automerge-github-actions.json5",
