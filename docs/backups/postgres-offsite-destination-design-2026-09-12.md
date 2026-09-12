@@ -1,19 +1,41 @@
 # postgres-17 off-site backup destination - design and blocking findings
 
 **Date:** 2026-09-12
-**Task:** add a second, off-site barman destination to the shared CNPG cluster `postgres-17`.
-**Captain's decision this implements:** off-site copy only; the restore drill is
-deliberately deferred and is explicitly NOT part of this work.
+**Status:** design only. Nothing is implemented; work is parked on a missing credential
+(see "What is blocked").
+
+**Goal.** The shared CloudNativePG cluster `postgres-17` keeps its only backup copy on a
+single LAN target. Every one of the fleet's 30 file volumes already has both a Ceph copy
+and an off-site copy; Postgres is the outlier. This document works out how to give it a
+second copy that is genuinely off the LAN.
+
+**Captain's decision this serves (2026-09-11).** Off-site copy only. The captain was
+explicitly shown that no CNPG restore has ever been exercised here and chose to close the
+single-point-of-failure first and carry that risk knowingly. **A restore drill is out of
+scope** and is deliberately not designed, scripted or scheduled anywhere in this document.
 
 ## Summary
 
-The task as framed - "a second `ScheduledBackup` plus an `ObjectStore`/plugin resource" -
+The obvious shape - "a second `ScheduledBackup` plus an `ObjectStore`/plugin resource" -
 **cannot be built on this cluster in a form that produces a restorable off-site copy.**
 CloudNativePG has exactly one live barman destination per `Cluster`, and the one mechanism
-that looks like it lifts that limit is silently broken upstream.
+that looks like it lifts that limit is accepted by the schema, runs, reports success, and
+writes to the wrong bucket.
 
-This document records the measurement so the next agent does not re-derive it, and states
-the three options that remain.
+What remains is to copy the barman archive itself off the LAN. That design, its two
+consistency requirements, and the single credential it is blocked on are below.
+
+## Background: how this archive is laid out
+
+`barman-cloud` stores an archive under `<destinationPath>/<serverName>/` in two parts:
+
+- `base/<backup-id>/` - the base backup tarballs, plus a `backup.info` metadata file
+  written **last**, which is what makes the backup appear in barman's catalogue.
+- `wals/<prefix>/<segment>` - the continuous WAL stream, written by a separate command.
+
+Both are required to restore: `barman-cloud-restore` replays the base backup and
+`barman-cloud-wal-restore` supplies the WAL needed to reach consistency and to perform
+point-in-time recovery. This split is the reason several of the findings below matter.
 
 ## What is live today (read-only verified 2026-09-12)
 
@@ -21,12 +43,14 @@ the three options that remain.
 |---|---|
 | CNPG operator | `ghcr.io/cloudnative-pg/cloudnative-pg:1.30.0` (`database` ns, 2 replicas) |
 | barman-cloud plugin | **not installed** - no `objectstores.barmancloud.cnpg.io` CRD |
-| `postgres-17` destinations | exactly one: `s3://home-ops-postgres-cluster/`, `https://nas.${SECRET_DOMAIN}:9000` (LAN TrueNAS MinIO) |
+| `postgres-17` destinations | exactly one: `s3://home-ops-postgres-cluster/` at `https://nas.${SECRET_DOMAIN}:9000` (the LAN TrueNAS MinIO) |
 | serverName | `postgres17-v5` |
 | Retention | `30d`, WAL + `@daily` base backup, `target: prefer-standby` |
 | Cluster health | `Ready=True`, `ContinuousArchiving=True`, `LastBackupSucceeded=True` |
 | Backup history | unbroken daily `completed` run, method `barmanObjectStore` |
 | `spec.plugins` | empty |
+
+Manifests: `kubernetes/apps/base/database/cloudnative-pg/cluster-17/`.
 
 ## Finding 1 - in-tree barman is single-destination, structurally
 
@@ -37,8 +61,8 @@ sources**, never write targets.
 
 ## Finding 2 - the plugin cannot be a second destination either
 
-The barman-cloud CNPG-I plugin is the documented path forward (in-tree barman is
-deprecated from 1.26). It does not help here, for two independent reasons.
+The barman-cloud CNPG-I plugin is the documented path forward, since in-tree barman is
+deprecated from CNPG 1.26. It does not help here, for two independent reasons.
 
 **2a. Only one object store is ever written.** Quoting the live CRD on this cluster
 (`clusters.postgresql.cnpg.io`, `.spec.plugins[].isWALArchiver`):
@@ -48,12 +72,12 @@ deprecated from 1.26). It does not help here, for two independent reasons.
 > is present.
 
 Upstream concepts documentation agrees: one `ObjectStore` per `Cluster`, serving WAL
-archiving and base backups, plus separate stores only for *recovery source* and *replica
+archiving and base backups, with separate stores only for *recovery source* and *replica
 source*. No second live backup destination is described.
 
-**2b. A per-backup `barmanObjectName` is accepted and then silently ignored.** This is
-the trap. The obvious design - keep the LAN store in-tree, add an R2 `ObjectStore`, and
-point a second `ScheduledBackup` at it via
+**2b. A per-backup `barmanObjectName` is accepted and then silently ignored.** This is the
+trap, and it is the reason this document exists. The obvious design - keep the LAN store
+in-tree, add an R2 `ObjectStore`, and point a second `ScheduledBackup` at it via
 `pluginConfiguration.parameters.barmanObjectName` - **passes schema validation, runs, and
 reports `completed`, while writing to the LAN store.**
 
@@ -80,11 +104,11 @@ configuration, err := config.NewFromClusterJSON(request.ClusterDefinition)
 if err := b.Client.Get(ctx, configuration.GetBarmanObjectKey(), &objectStore); err != nil {
 ```
 
-and `config.NewFromCluster` reads `BarmanObjectName` from the *Cluster's* `spec.plugins`
-entry via `NewPlugin(cluster, metadata.PluginName)`. `request.BackupDefinition` and
+`config.NewFromCluster` reads `BarmanObjectName` from the *Cluster's* `spec.plugins` entry
+via `NewPlugin(cluster, metadata.PluginName)`. `request.BackupDefinition` and
 `request.Parameters` are never consulted. `NewPlugin` also keeps only the **last**
-`spec.plugins` entry matching the plugin name, so two barman-cloud entries collapse to
-one rather than giving two destinations.
+`spec.plugins` entry matching the plugin name, so two barman-cloud entries collapse to one
+rather than yielding two destinations.
 
 This is upstream issue [cloudnative-pg#7778](https://github.com/cloudnative-pg/cloudnative-pg/issues/7778),
 "ScheduledBackup ignores `barmanObjectName`, sending base backups to the WAL object
@@ -92,107 +116,190 @@ store". It was **closed as not planned** after going stale, and was reconfirmed 
 CNPG 1.26.1 by another user five months later. It is not fixed on `main` today.
 
 **Read this as a false-green risk, not merely a missing feature.** The `Backup` resource
-reaches `completed` against the wrong bucket. Acceptance criterion 3 of this task - prove
-the new destination actually receives data - is precisely the check that catches it.
+reaches `completed` against the wrong bucket, so neither the resource status nor a green
+CI run distinguishes a working second destination from a broken one. Only listing objects
+at the new target does.
 
 ## Finding 3 - a base backup without its WAL is not restorable
 
-Even if 2b were fixed, base-backups-only to a second store would not give a usable copy.
-`barman-cloud-backup` uploads PGDATA to `base/` and nothing else; the WAL range generated
-between `pg_backup_start()` and `pg_backup_stop()` is written separately to `wals/` by
-`barman-cloud-wal-archive`. The plugin builds its argument list in
+Even if 2b were fixed upstream, base-backups-only to a second store would not give a
+usable copy. `barman-cloud-backup` uploads PGDATA to `base/` and nothing else; the WAL
+range generated between `pg_backup_start()` and `pg_backup_stop()` is written separately
+to `wals/` by `barman-cloud-wal-archive`. The plugin builds its argument list in
 `barman-cloud/pkg/backup`'s `GetBarmanCloudBackupOptions` - `--user`, `--name`,
 compression, encryption, `--immediate-checkpoint`, `--jobs`, tags, `--endpoint-url`,
 destination, serverName. There is no WAL-bundling flag.
 
-A restore therefore needs `barman-cloud-restore` *and* `barman-cloud-wal-restore` against
-the same store. Since WAL archiving is single-destination (2a), a second store would hold
-base backups whose WAL range lives only on the LAN - PostgreSQL would refuse to reach
-consistency with `WAL ends before end of online backup`.
+Since WAL archiving is single-destination (2a), a second store would hold base backups
+whose WAL range lives only on the LAN, and PostgreSQL would refuse to reach consistency
+with `WAL ends before end of online backup`.
 
-So the off-site copy must contain **both** `base/` and `wals/` or it is decorative.
+**So the off-site copy must contain both `base/` and `wals/`, or it is decorative.**
 
 ## Finding 4 - neither existing R2 credential can host this
 
 The fleet's off-site precedent is **Cloudflare R2**, and it is a good one: 30 of 30 file
-volumes already have an off-site copy there. But both live R2 tokens are bucket-scoped.
+volumes already have an off-site copy there, so the provider is already funded, wired and
+proven. But both live R2 tokens are bucket-scoped.
 
 | 1Password item | Consumer | Scope |
 |---|---|---|
 | `kopiur-r2` | `system/kopiur` `ClusterRepository` `r2` | bucket `kopiur` **only** - `volsync` returns 403 and `ListBuckets` is denied (verified 2026-08-30, `kubernetes/apps/base/system/kopiur/README.md`) |
 | `volsync-template` (`R2_HOME_OPS_*`) | the 3 surviving VolSync `*-r2` sources | bucket `volsync`; broader scope **unverified** |
 
-Neither reaches a Postgres bucket. Creating the bucket and minting or widening a token is
-a Cloudflare-account action, and under this task's read-only contract it is the captain's
-to make - see "What is blocked" below.
+Neither reaches a Postgres bucket. R2 itself is perfectly capable of hosting a barman
+archive - it is S3-compatible and barman addresses it with a plain `--endpoint-url` - so
+this is a credential gap, not a provider limitation.
 
 ## Options
 
 ### Option 1 (recommended) - mirror the barman archive LAN -> R2
 
-A scheduled in-cluster job copies the whole `postgres17-v5` prefix (`base/` + `wals/`)
-from the LAN MinIO bucket to an R2 bucket.
+A scheduled in-cluster job copies the whole `postgres17-v5` prefix (`base/` **and**
+`wals/`) from the LAN MinIO bucket to an R2 bucket.
 
-- Produces a **complete, independently restorable, PITR-capable** off-site archive.
+- Produces a **complete, independently restorable, PITR-capable** off-site archive, which
+  is the only one of these options that clears Finding 3.
 - **Touches nothing on the live `Cluster`** - no plugin, no `spec.plugins`, no rolling
-  restart of the three Postgres instances. This is the whole reason to prefer it.
-- Restore path is the shape already in `cluster-17.yaml`: an `externalClusters[]` entry
-  whose `barmanObjectStore` points at R2 with the same `serverName`.
+  restart of the three healthy Postgres instances. This is the main reason to prefer it.
+- Restore path is the shape already present in `cluster-17.yaml`: an `externalClusters[]`
+  entry whose `barmanObjectStore` points at R2 with the same `serverName`.
 - Cost: one small CronJob, one `ExternalSecret`, one R2 bucket.
-- Weakness, stated plainly: a mirror is not air-gapped. If the sync deletes what the
-  source deleted, a LAN-side accident propagates. Mitigated by copying **additively**
-  (never propagate deletes) and giving R2 its own lifecycle expiry.
+- Two hard requirements before it ships, worked through in "Mirror consistency" below:
+  the sync must be **copy-only**, and the off-site recovery point must be read as **last
+  contiguous WAL**.
 
 **Retention.** The LAN target runs WAL + daily base at `30d`, set by CNPG's own
-`spec.backup.retentionPolicy`. Recommendation is to **not** mirror deletions and instead
-expire on R2 at **35d** via a bucket lifecycle rule. Slightly longer than the LAN's 30d,
-deliberately: it keeps a five-day margin so a LAN-side prune can never race the mirror
-into deleting an object the off-site copy still needs, and it means an accidental or
-malicious deletion on the LAN does not reach the off-site copy within the same day. The
-effective off-site recovery window stays the intended 30d.
+`spec.backup.retentionPolicy`. The recommendation is to **not** mirror deletions, and to
+expire on R2 at **35d** via a bucket lifecycle rule. Longer than the LAN's 30d,
+deliberately: the five-day margin means a LAN-side prune can never race the mirror into
+dropping an object the off-site copy still needs, and an accidental or malicious deletion
+on the LAN does not reach the off-site copy the same day. The effective off-site recovery
+window remains the intended 30d.
 
 **RPO caveat.** The off-site WAL stream lags by the sync interval rather than being
-continuous. At an hourly sync the off-site copy is up to ~1h behind the LAN copy. The LAN
-copy remains the primary, continuous one; this is a second copy, not a second primary.
+continuous. At an hourly sync the off-site copy is up to ~1h behind. The LAN copy remains
+the primary, continuous one; this is a second copy, not a second primary.
 
 ### Option 2 - make R2 authoritative via the plugin, mirror back to the LAN
 
 Install the plugin, move the archive to an R2 `ObjectStore` with `isWALArchiver: true`,
-drop `spec.backup.barmanObjectStore`, mirror R2 -> LAN. Off-site becomes continuous
+drop `spec.backup.barmanObjectStore`, and mirror R2 -> LAN. Off-site becomes continuous
 rather than lagging. Costs a plugin install, a cert-manager dependency, a `Cluster` spec
-change and a rolling restart of all three instances, plus a migration of the live archive.
+change, a rolling restart of all three instances, and a migration of the live archive.
 Same mirroring machinery as Option 1 with materially more risk to a healthy database, for
-a benefit (continuous off-site WAL) that Option 1 approximates at an hourly RPO.
+a benefit Option 1 approximates at an hourly RPO.
 
 ### Option 3 - a second CNPG `Cluster` as a replica cluster archiving to R2
 
-Genuinely CNPG-native and fully independent. Costs another ~100Gi `ceph-block` claim and
-a standing Postgres instance, and introduces a distributed topology to maintain. Heaviest
+Genuinely CNPG-native and fully independent. Costs another ~100Gi `ceph-block` claim and a
+standing Postgres instance, and introduces a distributed topology to maintain. Heaviest
 option by a wide margin for the stated goal of "a second copy".
 
 ### Rejected - second `ScheduledBackup` + R2 `ObjectStore`
 
-The literal shape the task suggested. Rejected on Findings 2b and 3: it writes to the LAN
-store while reporting success, and even once fixed upstream it would produce a WAL-less,
-unrestorable archive.
+The shape this task originally suggested. Rejected on Findings 2b and 3: it writes to the
+LAN store while reporting success, and even once fixed upstream it would produce a
+WAL-less, unrestorable archive.
+
+## Mirror consistency
+
+Two questions have to be settled before any mirror ships, because both change the design
+rather than merely tune it.
+
+### Can the mirror copy a half-written WAL object?
+
+**No - and the reason is S3 object semantics, not timing luck.**
+
+`barman-cloud-wal-archive` writes each WAL segment as a single object under
+`<destinationPath>/<serverName>/wals/`. In S3 an object becomes visible to
+`ListObjectsV2` and `GetObject` only once the write completes: a `PutObject` in flight is
+neither listable nor gettable, and a multipart upload materialises as an object only at
+`CompleteMultipartUpload` - until then its parts are reachable only through
+`ListMultipartUploads`, which a mirror does not read. MinIO implements those semantics. So
+a sync either sees the finished object or does not see it at all.
+
+This is precisely the property that makes mirroring an S3 archive safe where mirroring a
+POSIX directory would not be: there is no torn read available to copy.
+
+The real failure mode is therefore not a corrupt object but an **incomplete set**, in two
+shapes, neither of which damages what is already off-site:
+
+- **A base backup caught mid-upload.** Objects under `base/<id>/` appear as they are
+  written, while `backup.info` is written last. A sync landing in that window copies a
+  directory barman does not yet consider a backup at all, because the catalogue keys off
+  `backup.info`. It is inert rather than corrupt, and the next run completes it.
+- **A WAL gap from an interrupted run.** If a run dies partway, the off-site copy can hold
+  a non-contiguous stretch of segments. PITR needs an unbroken WAL chain, so the honest
+  statement of the off-site recovery point is **the last contiguous segment**, not the
+  newest object present.
+
+Carry that second point forward: the off-site copy's usable recovery horizon must be
+judged by WAL contiguity, never by "the newest object is recent". Proving an actual
+recovery from it is restore-drill work, deliberately deferred by the captain on
+2026-09-11 and not attempted here.
+
+### Must the sync be copy-only?
+
+**Yes. This is a correctness requirement, not a preference.**
+
+CNPG enforces `retentionPolicy: 30d` by running `barman-cloud-backup-delete` against the
+LAN store, which removes aged base backups and the WAL segments no remaining backup needs.
+If the sync propagated deletions - `rclone sync`, `mc mirror --remove`, or
+`aws s3 sync --delete` - two things would follow:
+
+1. **The 35d off-site window would be fiction.** Objects would be deleted by the sync at
+   30d, before the R2 lifecycle rule could ever apply, so R2 retention would silently
+   equal LAN retention and the stated margin would not exist.
+2. **Every LAN-side destructive event would propagate.** An operator error, a mistaken
+   retention change, a bucket wipe or ransomware on the LAN target would reach the
+   off-site copy on the next run. A copy that faithfully reproduces the loss it exists to
+   survive is a replica, not a backup - and removing exactly that single point of failure
+   is the whole point of this task.
+
+So the sync must be additive: `rclone copy`, `mc mirror` without `--remove`, or
+`aws s3 sync` without `--delete`. Expiry on R2 is then enforced independently by an R2
+bucket lifecycle rule. That independence is what makes the two retentions genuinely
+separate rather than one being a shadow of the other.
+
+**Consequence to expect, not a defect.** Copy-only means the R2 catalogue deliberately
+diverges from the LAN one, retaining base backups CNPG has already pruned. That is
+intended. The ages stay coherent because a base backup and the WAL it depends on are
+created at roughly the same time and so expire together under a single lifecycle rule; the
+limiting factor on any off-site restore is the age of the base backup, which is what a 35d
+window is meant to express. The lifecycle rule should also abort incomplete multipart
+uploads, so orphaned parts do not accrue storage.
 
 ## What is blocked
 
-Two things are not the implementing agent's to do.
+One thing, and it is the only thing: **the R2 bucket and its credential.**
 
-1. **R2 bucket and credential.** A bucket for the Postgres archive does not exist, and
-   neither live R2 token can reach one (Finding 4). Acceptance criterion 2 requires the
-   credential to arrive through the existing 1Password + External Secrets path with no
-   hand-made secret, so the item must be minted by the captain before any manifest can
-   resolve.
-2. **Live proof that the new destination receives data** (acceptance criterion 3). Under
-   this task's read-only cluster contract, the change can only take effect by merging and
-   letting Flux reconcile it. It cannot be demonstrated from a branch, and a green CI run
-   is explicitly not evidence for this criterion.
+No bucket exists for the Postgres archive, and neither live R2 token can reach one
+(Finding 4). The credential must arrive through the existing 1Password + External Secrets
+path - no hand-made Secret, no credential value in git - so the 1Password item has to be
+minted before any manifest can resolve. Until it exists there is nothing useful to build:
+a mirror job pointed at a bucket that does not exist, reading an `ExternalSecret` whose
+properties are absent, would fail loudly at reconcile and would prove nothing.
+
+What is needed, concretely:
+
+1. An R2 bucket to hold the Postgres archive.
+2. An R2 API token that can read and write it, following the per-purpose item convention
+   the fleet already uses (`kopiur-r2` is the model: one purpose-built 1Password item per
+   destination rather than a shared grab-bag).
+3. A 1Password item holding that token's endpoint, access key and secret key, in a vault
+   1Password Connect can see - **`Homelab`, `Automation` or `Services`, never `Home-Lab`**,
+   which Connect cannot read at all (`AGENTS.md`, 1Password vaults).
+
+Live confirmation that the new destination actually receives data is performed post-merge,
+once Flux has reconciled the change, and is not a blocker on designing or implementing it.
 
 ## Related
 
-- Restore path for `postgres-17` remains **unproven** - no CNPG restore has ever been
+- The restore path for `postgres-17` remains **unproven**. No CNPG restore has ever been
   exercised here; all 16 restore documents in `docs/backups/` are VolSync or kopiur. The
-  drill was deliberately deferred by the captain on 2026-09-11 and is out of scope here.
-- File-volume off-site precedent: `kubernetes/apps/base/system/kopiur/README.md`.
+  drill was deliberately deferred by the captain on 2026-09-11 and is out of scope for
+  this work.
+- File-volume off-site precedent and the R2 credential conventions:
+  `kubernetes/apps/base/system/kopiur/README.md`.
+- Cluster manifests: `kubernetes/apps/base/database/cloudnative-pg/cluster-17/`.
