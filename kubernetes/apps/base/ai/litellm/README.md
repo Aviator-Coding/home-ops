@@ -111,17 +111,18 @@ namespace's stateless-by-preference apps. Cross-worker enforcement of those
 same budgets also needs `litellm-dragonfly` - see
 `docs/ai-system/litellm/README.md#why-dragonfly-redis`.
 
-Three consumers are not in-cluster. `ai-pr-review` is the GitHub Actions AI PR
+Four consumers are not in-cluster. `ai-pr-review` is the GitHub Actions AI PR
 reviewer (`.github/workflows/ai-pr-review.yaml`), which runs on the in-cluster
-ARC runner and reaches this proxy over cluster DNS. `agent-swarm-captain` and
-`agent-swarm-paid` are consumed by agent-swarm runs launched locally, not by
-any in-cluster workload - whoever launches a run re-copies the current value
-from 1Password after each rotation (see those CRs' own headers). Of the
-three, `ai-pr-review` is the only key that is ALSO copied by hand into a
-GitHub Actions secret, because that runner has no
-Kubernetes API access and cannot read the minted Secret - so rotating it has a
-second, easy-to-miss step. It is also the reason `models/pr-review-local.yaml`
-exists: the reviewer parses `choices[0].message.content`, which a thinking model
+ARC runner and reaches this proxy over cluster DNS. `agent-swarm-captain`,
+`agent-swarm-paid` and `agent-swarm-network-broker` are consumed by
+agent-swarm runs launched locally, not by any in-cluster workload - whoever
+launches a run re-copies the current value from 1Password after each rotation
+(see those CRs' own headers). Of the four, `ai-pr-review` is the only key that
+is ALSO copied by hand into a GitHub Actions secret, because that runner has
+no Kubernetes API access and cannot read the minted Secret - so rotating it
+has a second, easy-to-miss step. It is also the reason
+`models/pr-review-local.yaml` exists: the reviewer parses
+`choices[0].message.content`, which a thinking model
 leaves empty. Both traps, the fork-PR posture and the verification evidence:
 `docs/ai-system/litellm/pr-reviewer.md`.
 
