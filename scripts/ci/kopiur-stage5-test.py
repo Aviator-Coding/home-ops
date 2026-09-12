@@ -236,8 +236,19 @@ RAISED_CACHE: dict[str, str] = {
     # fires. Do not lower it toward the plateau - the plateau is an unpinned
     # kopia default this repo has never configured.
     "ai/hermes": "16Gi",
-    # plex: 10Gi, predicted safe (4.27 GiB against 9.74 GiB usable) but NOT
-    # itself r2-exercised. Recorded as the wave's strongest open follow-up.
+    # plex: 10Gi, r2-PROVEN at exactly this value on 2026-09-12 - an r2 restore
+    # of 24,726 files / 4,948,787,362 bytes completed in 7m36s, byte-exact against
+    # the snapshot's own filesNew/sizeBytes, with 0 mode and 0 file-type differences
+    # across 37,201 entries and the restored Plex database opening and returning
+    # real library content (kopiur-plex-r2-restore-proof-2026-09-12.md). The wave's
+    # strongest open follow-up is now CLOSED.
+    #
+    # Do not lower this toward the 4.6 GiB measured peak. That peak is a property
+    # of today's snapshot; the property that must be cleared is the ~6.2 GiB
+    # eviction plateau, which 10Gi (9.745 GiB usable) clears by 57%. The claim is
+    # growing (4.27 -> 4.61 GiB in 8 days), but growth is not what would break
+    # this value - a 20Gi claim can never need more than the plateau. A kopia
+    # version bump moving that unpinned plateau is the real risk.
     "media/plex": "10Gi",
     # opencode: 5Gi against a 0.15 GiB snapshot - far more than the model asks
     # for. Kept because the claim is 20Gi and can grow, and because lowering a

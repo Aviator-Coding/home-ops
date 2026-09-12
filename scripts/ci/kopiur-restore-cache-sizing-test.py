@@ -43,6 +43,11 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 APPS_MAIN = REPO / "kubernetes" / "apps" / "main"
 PROOF_DOC = REPO / "docs" / "backups" / "kopiur-r2-restore-cache-gate-2026-09-02.md"
+# The second end-to-end r2 demonstration: media/plex at its standing 10Gi. Kept
+# beside PROOF_DOC because the two together are what make every value in PINNED
+# a measurement rather than a judgement call - the model comes from the first,
+# and the second is the only evidence that it transfers to another claim.
+PLEX_PROOF_DOC = REPO / "docs" / "backups" / "kopiur-plex-r2-restore-proof-2026-09-12.md"
 
 # The observed plateau: the ceiling the cache reaches on a large restore before
 # kopia's own eviction engages. Any claim whose snapshot exceeds its cache must
@@ -81,15 +86,17 @@ PINNED: dict[str, tuple[str, str]] = {
         "shape as media/tdarr with more runway. 10Gi clears the ~6.2 GiB plateau outright "
         "so the claim cannot reach the cliff again. Sized rather than proven: the r2 "
         "demonstration for this size class was run on media/tdarr, the tighter of the two, "
-        "at this same value. Like media/plex, do not lower it without a drill",
+        "at this same value - as media/plex now is too (2026-09-12). Do not lower it without a drill",
     ),
     "media/plex.yaml": (
         "10Gi",
-        "4.16 GiB snapshot. Raised from the 2Gi default by restore-proof finding 2 after "
-        "a documented terminal r2 failure at 2Gi. Predicted safe by the 2026-09-02 "
-        "measurement (snapshot well under the 9.74 GiB usable cache, so the limit is "
-        "never reached) but NOT itself exercised against r2 - do not lower it without a "
-        "drill",
+        "4.61 GiB snapshot (2026-09-12; was 4.16 GiB when this was first sized). Raised "
+        "from the 2Gi default by restore-proof finding 2 after a documented terminal r2 "
+        "failure at 2Gi, and R2-PROVEN AT EXACTLY THIS VALUE on 2026-09-12: 24,726 files "
+        "/ 4,948,787,362 bytes restored in 7m36s, byte-exact against the snapshot, peak "
+        "cache ~4.62 GiB = 47% of the 9.745 GiB usable. Do not lower it toward that peak "
+        "- the peak tracks today's snapshot, while the value that must be cleared is the "
+        "~6.2 GiB plateau (the ceiling for any snapshot size), and this claim is growing",
     ),
 }
 
@@ -197,11 +204,12 @@ def test_proof_document_path_exists() -> None:
     behavioural pins are the substitute-map assertions above; content needles
     would not catch a rewrite that kept the strings while dropping the model.
     """
-    require(
-        PROOF_DOC.is_file(),
-        f"{PROOF_DOC.relative_to(REPO)} is missing - it is the only record of why these "
-        f"capacities are what they are, and the values are meaningless without it",
-    )
+    for doc in (PROOF_DOC, PLEX_PROOF_DOC):
+        require(
+            doc.is_file(),
+            f"{doc.relative_to(REPO)} is missing - these documents are the record of why "
+            f"these capacities are what they are, and the values are meaningless without them",
+        )
 
 
 def main() -> int:

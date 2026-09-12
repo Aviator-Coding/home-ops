@@ -42,10 +42,13 @@ arithmetic for every other claim in the fleet (see [finding 1](#finding-1)).
 
 Two honest limits on that verdict, neither of which reopens the gate:
 
-- **`media/plex`'s standing 10Gi was not itself exercised.** It is *predicted* safe by the
-  measured model - its 4.16 GiB snapshot is well under its 9.74 GiB usable cache, so the
-  cache cannot reach the limit at all - but prediction is not the demonstration this
-  document gives for `hermes`. See [the fleet audit](#fleet-audit-every-claim-against-the-same-reasoning).
+- ~~**`media/plex`'s standing 10Gi was not itself exercised.**~~ **CLOSED 2026-09-12** -
+  `media/plex` was drilled from r2 at exactly 10Gi and passed byte-exactly, and the cache
+  tracked the restore target at a remarkably tight **100.2% on every sample**, reproducing
+  this document's [finding 1](#finding-1) 1:1 regime on a second claim and a second
+  destination: [`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md).
+  Note its snapshot had grown 4.16 -> 4.61 GiB in the interim, so the figure quoted here is
+  no longer current; the model, however, held.
 - **The original ceph/r2 asymmetry is still not mechanistically explained.** See
   [finding 5](#finding-5).
 

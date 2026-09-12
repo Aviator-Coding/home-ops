@@ -374,32 +374,129 @@ This is worth recording independently of the pass, because the pass alone hides 
 | 2026-09-12 | 24,726 | 4,948,787,362 | **4.609** |
 
 The 10Gi was sized on 2026-09-04 against a **4.27 GiB** snapshot at 44% of usable. Eight
-days later it is **4.609 GiB** at 47% - roughly **8% growth in the sizing window**, about
-**0.019 GiB/day** over the measured five days.
+days later it is **4.609 GiB** at 47% - about **8% growth inside the sizing window**.
 
-Extrapolated naively, plex reaches the ~6.2 GiB plateau in roughly **80 days**. **That is
-not a deadline**, and the arithmetic is the point: once the snapshot crosses the plateau the
-requirement *stops* tracking the snapshot and pins at ~6.2 GiB, which 9.745 GiB usable
-already clears. So growth moves this claim toward a **ceiling it has headroom for**, not
-toward a cliff - the opposite of the `hermes` case, where the cache sat below the plateau
-and every GiB of growth was real exposure.
+### The growth window, and why no single rate is defensible
 
-What deserves attention is not the number but that **no part of this system would have told
-anyone.** `KOPIUR_CACHE_CAPACITY` is asserted by CI as a literal string; nothing compares it
-against the live snapshot size, Flux reports `Ready` either way, and the failure mode
-appears only during a restore. The generic detector - alert when any claim's newest snapshot
-`sizeBytes` exceeds some fraction of its configured cache - remains unbuilt, and is now the
-strongest follow-up this area carries. It is cheap: both numbers are already in the cluster,
-one on the `Snapshot` status and one on the `SnapshotPolicy` spec.
+**What the growth was measured over: four days.** The only samples taken are the five daily
+r2 snapshots 2026-09-08 to 2026-09-12. Everything else is a comparison against a figure
+recorded on a different occasion.
+
+| window | from | to | span | implied rate |
+|---|---|---|--:|--:|
+| **A** - measured here, 4 days | 4.5350 GiB (09-08) | 4.6089 GiB (09-12) | 0.0739 GiB | **0.0185 GiB/day** |
+| **B** - against the 2026-09-04 retirement figure, 8 days | 4.27 GiB | 4.6089 GiB | 0.3389 GiB | **0.0424 GiB/day** |
+
+**These disagree by 2.3x, so this data does not support a growth rate, and I am not going to
+invent one.** Two independent reasons:
+
+1. **Window A is too noisy to average.** Its four day-over-day deltas are
+   `+0.0110, +0.0163, -0.0001, +0.0467` GiB - a 4x spread with one *negative* day. That is a
+   volume whose size moves with whatever Plex happened to scan, not a trend line.
+2. **Window B is not a clean comparison.** The 4.27 GiB / 21,669-file figure was recorded on
+   a different occasion during the retirement audit; this run's 4.609 GiB / 24,726 files is a
+   specific r2 snapshot. Differencing two numbers produced by different measurements and
+   dividing by elapsed days produces a rate-shaped number, not a rate.
+
+Applied anyway, purely to show the spread, the two rates put the ~6.2 GiB plateau **38 to 86
+days out** and the 9.745 GiB usable cache **121 to 278 days** out. The width of those ranges
+is the finding; the midpoints are not meaningful.
+
+### When 10Gi actually stops being enough - and it is not growth
+
+This is the part the rate question is not needed for. Required cache is
+`min(snapshot sizeBytes, ~6.2 GiB)`. So as the snapshot grows there are two regimes, and
+**the requirement stops rising at the boundary**:
+
+| snapshot size | required cache | as % of 9.745 GiB usable |
+|---|---|--:|
+| 4.609 GiB (today) | 4.609 GiB | 47% |
+| 6.2 GiB (plateau) | 6.2 GiB | 64% |
+| 20 GiB (a full claim) | still ~6.2 GiB | **still 64%** |
+
+**Crossing the plateau is a non-event, not a deadline.** Past it, the cache requirement is
+capped by kopia's own eviction budget regardless of how large the volume gets - and the
+claim is a 20Gi PVC, so `min(sizeBytes, 6.2)` can never exceed 6.2 GiB for it under any
+amount of growth. That is why 10Gi is **structurally** right rather than narrowly right, and
+why the correct answer to "when does 10Gi stop being enough" is **not a date**.
+
+What *would* invalidate it is the **plateau moving**, which is a property of kopia rather
+than of this volume. kopiur sends `"cache":{}` in its work spec and neither `ClusterRepository`
+sets `cacheDefaults`, so the ~6.2 GiB budget is an **unpinned upstream default** that a kopia
+version bump could raise with no change in this repo and no signal anywhere. 10Gi absorbs a
+plateau up to ~9.7 GiB, i.e. a **57% increase**, before this claim is at risk. So the thing
+to watch is the kopia/kopiur version, not the calendar. The structural fix, still unused, is
+`mover.cache.contentCacheSizeMb`/`metadataCacheSizeMb`, which the CRD exposes and nothing in
+this repo sets.
+
+### The gap worth closing
+
+Neither the growth nor a plateau change would be reported by anything today.
+`KOPIUR_CACHE_CAPACITY` is asserted by CI as a literal string; nothing compares it against
+the live snapshot size, Flux reports `Ready` either way, and the failure appears only during
+a restore. The detector is cheap and both numbers are already in the cluster - newest
+`Snapshot.status.stats.sizeBytes` per claim against that claim's configured cache - and it
+would have flagged `ai/hermes` before its terminal failure. It remains unbuilt, and is now
+the strongest follow-up this area carries.
+
+## What was verified, and what was not
+
+Stated as a boundary rather than a summary, because "restore-proven" is the kind of phrase
+that widens quietly once it is in a table.
+
+### Verified, with evidence in this document
+
+| | |
+|---|---|
+| A restore from **r2** completes at **exactly the standing 10Gi** | the gate this task existed to close |
+| The restore read the intended snapshot | `kopiaSnapshotID` matched `plex-r2-20260912190639` |
+| **Byte-exact completeness** | 24,726 regular files and 4,948,787,362 bytes, both identical to the snapshot's own `filesNew`/`sizeBytes` |
+| Path-set identity against live | 24,726/24,726, zero paths on either side alone |
+| Content fidelity | 0 stable-set digest mismatches; all 4 differing files are the app's live-write set, each explained |
+| Modes / types / ownership | 0 mode diffs, 0 type diffs across 37,201 entries; 3 ownership diffs, both known non-defects |
+| **Database usability** | both DBs open, replay their WAL, 73/73 real tables full-scanned (364,217 rows), 0 FK violations, real library content returned |
+| The live claim was untouched | uid, PV, phase, capacity, pod `startTime`, `restartCount`, `Ready` all unchanged; mover mounted only its own scratch volumes |
+
+### NOT verified - and none of these is implied by the above
+
+1. **Plex itself was never started against the restored volume.** The database was exercised
+   with SQLite, not with Plex Media Server. "The library database is structurally sound and
+   contains 770 movies" is a strong statement about the data; it is *not* the statement "Plex
+   boots and serves that library". Nothing here required starting a second Plex against a
+   restored config, and that was deliberate - but it is the gap between this proof and a true
+   DR rehearsal.
+2. **The 7 FTS virtual tables are unverified.** `PRAGMA integrity_check` aborts on Plex's
+   custom `collating` tokenizer, so the structural check covers the 73 real tables only. These
+   are derived search indexes Plex rebuilds, so the practical exposure is low - but unverified
+   is unverified.
+3. **The real DR path was not exercised.** This drill restored into a fresh scratch PVC via
+   `target.pvc`. The path an actual disaster uses is the standing populator
+   `plex-kopiur-dst` + a rebuilt claim's `dataSourceRef` - and that object **points at `ceph`,
+   not r2** (restoring from r2 is a deliberate, hand-written act by design). So what is proven
+   is that *the r2 repository can restore this claim at this capacity*, not that the standing
+   populator object works. Exercising that would require deleting and rebuilding the live
+   claim, which is out of scope for a non-destructive drill.
+4. **Only one snapshot was exercised** - the newest (`offset: 0`). Nothing here says an older
+   snapshot in the r2 daily/weekly/monthly tiers restores.
+5. **Only r2 was run.** No ceph restore was performed in this exercise; it was not needed
+   because r2 - the harder and unproven direction - passed. ceph remains proven from the
+   2026-09-01 fleet proof.
+6. **The cache peak is an extrapolation, not a direct reading.** 3.541 GiB was directly
+   measured; 4.618 GiB (47%) is that trajectory carried to completion on a 100.2% ratio that
+   held across every sample. Sampling is bounded by kubelet's ~90 s aggregation, so a brief
+   spike between samples would not appear. The conclusion does not depend on the precise
+   figure - 10Gi clears the plateau regardless - but the number itself should not be quoted as
+   measured.
+7. **Media content was not involved at all.** This claim is Plex's `/config` only; the media
+   library lives on a separate `nas-media` mount that neither kopiur nor this drill touches.
 
 ## What this does and does not settle
 
-**Settles.** `media/plex` restores from r2 at the standing 10Gi, completely and usably. The
-1:1 cache regime is confirmed on a second claim and second destination. Single-engine
-retirement of this claim now rests on a demonstration rather than an inference.
+**Settles.** `media/plex` restores from r2 at the standing 10Gi, completely and usably, and
+is no longer the fleet's one cache figure resting on inference. The 1:1 cache regime is
+confirmed on a second claim and a second destination, and holds tighter here (100.2%) than on
+`hermes` (89-99%) because plex never reaches the eviction plateau.
 
-**Does not settle.** The 7 FTS virtual tables are unverified (above). The measured cache
-peak is a lower bound between 90-second samples, so the 47% figure is an extrapolation from
-a very tight ratio rather than a direct reading. And the ceph-vs-r2 asymmetry that started
-all of this is still not mechanistically explained - this run reproduces the *sizing model*,
-not the underlying cause.
+**Does not settle.** Everything in the list above. Plus the ceph-vs-r2 asymmetry that started
+all of this, which remains mechanistically unexplained - this run reproduces the *sizing
+model*, not the underlying cause of why r2 needs more cache than ceph for the same volume.
