@@ -380,11 +380,23 @@ Checks, in order of importance:
 
 ## Open follow-ups this wave leaves
 
-1. **`media/plex`'s 10Gi restore cache has never been r2-exercised.** It is predicted safe by the
-   2026-09-02 measurement (4.27 GiB against 9.74 GiB usable, so the 1:1 regime tops out well below
-   the limit), and the size class is proven at 16Gi on `ai/hermes` and at this exact 10Gi on
-   `media/tdarr` - but plex itself has not been run. This is the strongest open item in the wave:
-   it costs one ~7-minute drill restore, and plex is now single-engine.
+1. ~~**`media/plex`'s 10Gi restore cache has never been r2-exercised.**~~ **CLOSED 2026-09-12**
+   by [`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md).
+   The drill ran at exactly the standing 10Gi and passed: 24,726 files / 4,948,787,362 bytes
+   restored in 7m36s, byte-exact against the snapshot's own `filesNew`/`sizeBytes`, 0 mode and
+   0 file-type differences across 37,201 entries, and the restored Plex database opened, replayed
+   its WAL and returned real library content. The live claim was never touched.
+
+   Two things the pass surfaced that the prediction did not. **The claim had grown 8% since this
+   value was chosen** - 4.27 -> 4.61 GiB over 8 days - so the figure this wave recorded was
+   already stale, and nothing in CI or Flux would have said so. (No growth *rate* is quoted
+   here on purpose: a 4-day and an 8-day window disagree by 2.3x and one measured day is
+   negative, so the data does not support one - see the proof document.) And **the safety margin is
+   structural rather than numerical**: what makes 10Gi right is not that 4.61 GiB fits, it is that
+   9.745 GiB usable clears the ~6.2 GiB eviction plateau by 57%, which is the ceiling for any
+   snapshot size. That reframes follow-up 2 below - see the new document's closing section for the
+   detector this suggests (compare each claim's newest snapshot `sizeBytes` against its configured
+   cache; both numbers are already in the cluster).
 2. **The standing fleet-wide 10Gi cache default remains an open captain decision.** Because the
    plateau is a property of kopia's budget rather than of the claim, a single 10Gi component
    default would cover every claim present and foreseeable, and would remove this class of problem

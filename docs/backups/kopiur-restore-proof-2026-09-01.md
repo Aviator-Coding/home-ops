@@ -18,8 +18,10 @@
 > re-measured or amended by those retirements. **Finding 2 has since been closed for `ai/hermes`** (2026-09-02, raised to
 > 16Gi and re-proven from r2 at that value):
 > [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md),
-> which is now the authority on cache sizing. `media/plex`'s standing 10Gi is predicted safe by
-> that run's measurement but has not itself been exercised against r2.
+> which is now the authority on cache sizing. `media/plex`'s standing 10Gi *was* predicted safe
+> by that run's measurement but not itself exercised against r2 - **closed 2026-09-12**,
+> r2-proven at exactly that value:
+> [`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md).
 > **Finding 4 (near-empty claims) and the prowlarr destination-identity caveat were closed on
 > 2026-09-02** by
 > [`kopiur-wave-two-reproof-2026-09-02.md`](kopiur-wave-two-reproof-2026-09-02.md)
@@ -72,7 +74,9 @@ directions:
 > [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md);
 > discovery record:
 > [finding 2](#finding-2-an-r2-restore-needs-a-materially-larger-kopia-cache-than-the-same-restore-from-ceph---an-operational-prerequisite-for-dr).
-> `media/plex` 10Gi is predicted safe but not itself r2-exercised.
+> ~~`media/plex` 10Gi is predicted safe but not itself r2-exercised.~~ **Closed 2026-09-12** -
+> r2-proven at exactly 10Gi:
+> [`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md).
 
 ## The gate
 
@@ -237,10 +241,13 @@ worth doing on its own merits, independent of backups.
 > were raised 2Gi -> 10Gi the same day, with tdarr r2-proven at 10Gi:
 > [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
 >
-> **`media/plex` is predicted safe but was not itself exercised** - its 4.16 GiB snapshot is
+> **`media/plex` was predicted safe but was not itself exercised** - its 4.16 GiB snapshot is
 > well under its 9.74 GiB usable cache, so the cache never reaches the limit. Read the
 > paragraphs below as the record of how this was discovered; the closure document is the
-> current authority on cache sizing.
+> current authority on cache sizing. **Closed 2026-09-12**: r2-proven at exactly 10Gi,
+> byte-exact (24,726 files / 4,948,787,362 bytes), snapshot grown to 4.61 GiB by then and still
+> well under usable cache:
+> [`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md).
 
 Both `hermes` and `plex` failed their **r2** restore with
 `no space left on device` on `/var/cache/kopia`, using the 2 GiB ephemeral cache that this
@@ -288,8 +295,10 @@ At the time of this run neither standing `*-kopiur-dst` populator had been exerc
 r2, so the risk was latent while VolSync was still in place and would become a terminal DR
 failure the moment VolSync was retired. The work this paragraph called for - raise
 `KOPIUR_CACHE_CAPACITY` on the large claims and re-prove an r2 restore at the new value - is
-**done for `ai/hermes`** (16Gi in Git, r2-proven); `media/plex` 10Gi is predicted safe by that
-measurement but not itself r2-exercised. Current authority:
+**done for `ai/hermes`** (16Gi in Git, r2-proven); `media/plex` 10Gi *was* predicted safe by
+that measurement but not itself r2-exercised - **closed 2026-09-12**:
+[`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md).
+Current authority:
 [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md).
 
 ### Finding 3: reading "live" through the app pod can include bytes the claim does not hold
@@ -495,7 +504,9 @@ Of the two questions that gate retirement:
    [`kopiur-r2-restore-cache-gate-2026-09-02.md`](kopiur-r2-restore-cache-gate-2026-09-02.md);
    populator drift and tdarr/radarr raises:
    [`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md).
-   `media/plex` 10Gi is predicted safe by that measurement but was not itself r2-exercised.
+   ~~`media/plex` 10Gi is predicted safe by that measurement but was not itself r2-exercised.~~
+   **Closed 2026-09-12**: r2-proven at exactly 10Gi
+   ([`kopiur-plex-r2-restore-proof-2026-09-12.md`](kopiur-plex-r2-restore-proof-2026-09-12.md)).
 
 Separately, the five near-empty claims (finding 4) carried proofs that are thin by nature -
 `autobrr` holds a single file - and that question is answered in

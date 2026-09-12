@@ -99,8 +99,9 @@ This component only declares what to back up.
 > retired (above). Its finding 2 (r2 needs more kopia cache than ceph) **was
 > closed for `ai/hermes` on 2026-09-02** - authority on cache sizing is now
 > [`docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md`](../../../docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md)
-> (see "Sizing the mover cache" below); `media/plex` 10Gi is predicted safe but
-> not itself r2-exercised. `media/tdarr` and `downloads/radarr` were raised 2Gi -> 10Gi on
+> (see "Sizing the mover cache" below); `media/plex` 10Gi is **r2-PROVEN at that exact value**
+> (2026-09-12: 24,726 files / 4,948,787,362 B restored byte-exactly in 7m36s, peak cache
+> ~47% of usable - `docs/backups/kopiur-plex-r2-restore-proof-2026-09-12.md`). `media/tdarr` and `downloads/radarr` were raised 2Gi -> 10Gi on
 > 2026-09-02 and `media/tdarr` is r2-proven at that value
 > (`docs/backups/kopiur-populator-drift-2026-09-02.md`), which also records that a raised
 > capacity does not reach the standing `Restore` without a one-time delete.
@@ -592,6 +593,29 @@ Two consequences worth internalising:
   and kopia's built-in defaults govern eviction. That budget is a *soft* limit
   this repo has never configured and does not pin, so anything large should be
   sized to survive the no-eviction case too (i.e. cover the whole snapshot).
+
+### Which cache values are PROVEN, and which are only sized
+
+A value in this table is "r2-proven" only if a `Restore` from **r2** completed at **exactly
+that capacity** and the restored tree was verified. A ceph restore does not count: the whole
+reason this section exists is that `media/plex` restored from ceph at 2Gi and failed from r2
+at the same 2Gi. Everything else is sized from the model above, which is sound but is not a
+demonstration - keep the distinction visible rather than letting "sized" drift into "proven".
+
+| claim | cache | snapshot | r2-proven? | evidence |
+|---|--:|--:|---|---|
+| `ai/hermes` | 16Gi | 9.70 GiB | **yes** - 2026-09-02, 65,978 files / 10,419,954,664 B, peak cache 40% of usable; the only run that reaches the eviction plateau | `kopiur-r2-restore-cache-gate-2026-09-02.md` |
+| `media/tdarr` | 10Gi | 1.70 GiB | **yes** - 2026-09-02, 17,281 files / 1,820,653,922 B | `kopiur-populator-drift-2026-09-02.md` |
+| `media/plex` | 10Gi | 4.61 GiB | **yes** - 2026-09-12, 24,726 files / 4,948,787,362 B, peak cache ~47% of usable | `kopiur-plex-r2-restore-proof-2026-09-12.md` |
+| `downloads/sabnzbd` | 10Gi | 2.06 GiB | ceph **and** r2 byte-identical at Stage 2, but at the drill's own capacity | `kopiur-restore-drill-2026-08-30.md` |
+| `downloads/radarr` | 10Gi | 1.36 GiB | **no** - sized only; the r2 demonstration for this size class is `media/tdarr` | - |
+| `ai/opencode` | 5Gi | 0.15 GiB | **no** - sized only; far above what the model asks | - |
+| everything else | 2Gi (default) | < 2 GiB | n/a - the cache is larger than the claim can hold, so the limit is unreachable | |
+
+The three proven rows bracket the model rather than repeating one measurement: `tdarr` and
+`plex` sit inside the 1:1 regime at 1.70 and 4.61 GiB, and `hermes` is the only one that
+crosses the ~6.2 GiB plateau and shows eviction engaging. `plex` matters most of the three
+because it is the claim whose r2 path actually failed once.
 
 The CRD does expose `mover.cache.contentCacheSizeMb` / `metadataCacheSizeMb`,
 which would let a small capacity be made safe by bounding kopia explicitly
