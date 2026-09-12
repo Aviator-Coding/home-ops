@@ -306,18 +306,16 @@ def test_apply_plan_exists_and_covers_every_destination() -> None:
 
 
 def test_applier_is_dry_run_by_default_and_covers_all_destinations() -> None:
-    src = APPLIER.read_text()
+    """Execute apply_lifecycle.py's real main() and prove the safety gate behaviourally.
+
+    boto3 is imported unconditionally by apply_lifecycle.py's main(); it is not a
+    hypothetical here, it is a transitive dependency of `litellm[proxy]`, which
+    `validate.yaml`'s python-tests job already installs for every other test in
+    this file's own suite. No network call is made - the S3 client is faked.
+    """
     if not APPLIER.is_file():
         raise Failure("apply_lifecycle.py missing")
-    # Writing must be gated behind an explicit flag, never the default.
-    if '"--confirm", action="store_true"' not in src:
-        raise Failure(
-            "apply_lifecycle.py's --confirm is no longer a default-false store_true "
-            "flag; writing must never be the default"
-        )
-    # And the write itself must be unreachable without it.
-    if "if not args.confirm:" not in src:
-        raise Failure("apply_lifecycle.py no longer short-circuits before writing")
+
     sys.path.insert(0, str(TOOL_DIR))
     import importlib.util
 
@@ -332,6 +330,74 @@ def test_applier_is_dry_run_by_default_and_covers_all_destinations() -> None:
         )
     if mod.BUCKET != "volsync":
         raise Failure(f"applier targets bucket {mod.BUCKET!r}, expected 'volsync'")
+
+    try:
+        import boto3
+    except ModuleNotFoundError as exc:
+        raise Failure(
+            "boto3 is not importable in this environment; it is required to "
+            "behaviourally exercise apply_lifecycle.py's main()"
+        ) from exc
+
+    def refuse_kubectl(*_a: Any, **_k: Any) -> str:
+        raise Failure(
+            "apply_lifecycle.py reached kubectl/credentials before refusing "
+            "--confirm without --save-previous - the refusal must come first"
+        )
+
+    mod._kubectl_secret = refuse_kubectl
+    rc = mod.main(["--destination", "ceph", "--confirm"])
+    if rc != 2:
+        raise Failure(
+            f"--confirm without --save-previous returned {rc}, expected 2 - "
+            "writing must stay unreachable without explicit undo material"
+        )
+
+    write_calls: list[str] = []
+
+    class _FakePaginator:
+        def paginate(self, **_kw: Any) -> Any:
+            yield {"Contents": []}
+
+    class _FakeS3:
+        def get_paginator(self, _name: str) -> Any:
+            return _FakePaginator()
+
+        def get_bucket_lifecycle_configuration(self, **_kw: Any) -> Any:
+            from botocore.exceptions import ClientError
+
+            raise ClientError(
+                {"Error": {"Code": "NoSuchLifecycleConfiguration", "Message": "none"}},
+                "GetBucketLifecycleConfiguration",
+            )
+
+        def put_bucket_lifecycle_configuration(self, **_kw: Any) -> None:
+            write_calls.append("put_bucket_lifecycle_configuration")
+
+        def delete_bucket_lifecycle(self, **_kw: Any) -> None:
+            write_calls.append("delete_bucket_lifecycle")
+
+    def fake_kubectl_secret(_ns: str, _name: str, key: str, _kubeconfig: str | None) -> str:
+        if key == "RESTIC_REPOSITORY":
+            return "s3:https://minio.example.invalid/volsync"
+        return "fake"
+
+    mod._kubectl_secret = fake_kubectl_secret
+    real_client = boto3.client
+    boto3.client = lambda *_a, **_k: _FakeS3()
+    try:
+        # No --confirm anywhere on this call - proves confirm defaults to False
+        # via the module's own argparse parser, not by reading its text: if it
+        # defaulted to True, main() would take the --save-previous-required
+        # branch above and return 2, not run the full dry-run path to rc 0.
+        rc = mod.main(["--destination", "minio"])
+    finally:
+        boto3.client = real_client
+
+    if rc != 0:
+        raise Failure(f"dry run (no --confirm) exited {rc}, expected 0")
+    if write_calls:
+        raise Failure(f"dry run (no --confirm) called write method(s): {write_calls}")
 
 
 def main() -> int:
