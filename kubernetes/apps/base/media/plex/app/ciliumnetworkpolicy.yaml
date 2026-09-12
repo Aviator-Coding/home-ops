@@ -1,0 +1,45 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex
+  namespace: media
+spec:
+  # Plex's own ALLOWED_NETWORKS (helmrelease.yaml) trusts 10.0.0.0/8, which the
+  # cluster pod CIDR 10.42.0.0/16 sits inside - so any pod could read
+  # /library/sections, /status/sessions, /:/prefs etc with no credential.
+  # Plex has no way to subtract a CIDR from ALLOWED_NETWORKS, so the exclusion
+  # has to happen at the network layer instead: default-deny ingress on the
+  # plex pod, then allow back only non-pod-network sources plus the specific
+  # in-cluster consumers that hold their own Plex auth token (so this is not
+  # an auth change, just closing the unauthenticated L3 path).
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: plex
+  ingress:
+    # LoadBalancer service runs in Cilium DSR mode (helmrelease.yaml in
+    # kube-system/cilium: loadBalancer.mode: dsr), so household/LAN and any
+    # other non-cluster client keeps its real source IP all the way to this
+    # pod - it is never seen as pod-network traffic. This covers every
+    # ALLOWED_NETWORKS range unchanged, with no narrowing.
+    - fromEntities:
+        - world
+        - remote-node
+        - host
+    # envoy-external is the only Gateway this app's HTTPRoute attaches to
+    # (helmrelease.yaml route.app.parentRefs). It proxies as a new
+    # connection sourced from its own pod IP, so it would otherwise be
+    # blocked by the pod-network default-deny above - allow it explicitly
+    # rather than touching the route.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-external
+    # plex-exporter (deployment.yaml, same namespace) authenticates with its
+    # own PLEX_TOKEN - it is not relying on the ALLOWED_NETWORKS bypass this
+    # policy is closing, so it stays allowed.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: media
+            app.kubernetes.io/name: plex-exporter
