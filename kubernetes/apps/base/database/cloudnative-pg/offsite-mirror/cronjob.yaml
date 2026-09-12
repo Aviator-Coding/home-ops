@@ -1,0 +1,273 @@
+---
+# Second, OFF-SITE copy of the postgres-17 barman archive.
+#
+# Why this exists rather than a second CNPG backup destination: CloudNativePG
+# has exactly ONE live barman destination per Cluster, and the mechanism that
+# appears to lift that limit is silently broken upstream. A second
+# ScheduledBackup carrying its own `barmanObjectName` passes schema validation,
+# runs, and reports `completed` WHILE WRITING TO THE LAN STORE - the plugin
+# resolves the destination only from the Cluster's `spec.plugins`
+# (cloudnative-pg#7778, closed not-planned). And `barman-cloud-backup` bundles
+# no WAL, so a base backup in a store that receives no WAL cannot reach
+# consistency on restore anyway. Full evidence:
+# docs/backups/postgres-offsite-destination-design-2026-09-12.md
+#
+# So the archive itself is copied - `base/` AND `wals/` together, which is what
+# makes the off-site copy independently restorable. Nothing on the live Cluster
+# changes: no plugin, no `spec.plugins`, no rolling restart of the three
+# Postgres instances.
+#
+# TWO PROPERTIES BELOW ARE CORRECTNESS REQUIREMENTS, NOT TUNING. Both are
+# argued in full in the design document; the short form is in the comments at
+# each site. (1) The transfer is COPY-ONLY. (2) Expiry on R2 is an INDEPENDENT
+# age-based prune, never a mirror of LAN deletions.
+#
+# A half-written WAL object cannot be copied, and that is a property of S3
+# rather than of scheduling luck: an in-flight PutObject is neither listable
+# nor gettable, and a multipart upload materializes as an object only at
+# CompleteMultipartUpload. So a run sees a finished object or no object. The
+# residual risk is an incomplete SET - a base backup whose trailing
+# `backup.info` has not landed (inert, since barman's catalogue keys off that
+# file), or a WAL gap from an interrupted run. Read the off-site recovery point
+# as the LAST CONTIGUOUS WAL segment, never as the newest object present.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-offsite-mirror
+  namespace: database
+  labels:
+    app.kubernetes.io/name: postgres-offsite-mirror
+spec:
+  # SHIPS SUSPENDED, AND UN-SUSPENDING IS THE DELIBERATE ACT THAT TURNS THE
+  # MIRROR ON.
+  #
+  # The mirror cannot run until 1Password item `cloudnative-pg-r2` exists in a
+  # Connect-visible vault (see externalsecret.yaml for the exact fields). Until
+  # then the `cloudnative-pg-r2-secret` Secret does not exist, so every
+  # scheduled run would sit in CreateContainerConfigError - an hourly failing
+  # job that reads as a broken deployment.
+  #
+  # Deliberately NOT left to start itself the moment the Secret appears.
+  # Turning the mirror on is a one-line follow-up change to this field, so that
+  # "the off-site copy is live" is something a human asserted in git and can
+  # point at, rather than a side effect of a credential showing up. A change
+  # that reads as running when it is not is the failure pattern this fleet
+  # keeps hitting.
+  #
+  # Merging this installs the mirror. It does NOT start it.
+  suspend: true
+  # Hourly, offset from :00. The off-site WAL stream therefore lags the LAN
+  # copy by up to ~1h - this is a second copy, not a second primary; the LAN
+  # target remains the continuous one fed by archive_command. :25 avoids the
+  # CNPG `@daily` base backup at :00, pvc-writable-check at :17 and
+  # pvc-mover-readable-check at :47.
+  schedule: "25 * * * *"
+  # A run must never overlap itself: two rclone passes over the same
+  # destination prefix would duplicate work and could interleave the prune with
+  # an in-flight copy. The initial seed copies the whole archive and can exceed
+  # an hour; Forbid makes the following runs skip until it finishes, which is
+  # the correct behaviour rather than something to tune around.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 172800 # 48h
+      # Generous, sized for the FIRST run: seeding a 100Gi cluster's archive
+      # (bzip2 base backups plus WAL) is far slower than the steady-state
+      # hourly delta. Steady-state runs finish in a small fraction of this.
+      activeDeadlineSeconds: 21600 # 6h
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: postgres-offsite-mirror
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: mirror
+              # renovate: datasource=docker depName=rclone/rclone
+              image: rclone/rclone:1.75.1
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              env:
+                # Same bucket name and serverName on both sides, deliberately:
+                # it keeps `destinationPath` identical for a future restore, so
+                # an `externalClusters[]` entry pointed at the off-site copy
+                # differs from the live one only by `endpointURL` and
+                # credentials.
+                - name: ARCHIVE_BUCKET
+                  value: home-ops-postgres-cluster
+                - name: SERVER_NAME
+                  value: postgres17-v5
+                # 35d against the LAN's 30d (CNPG `spec.backup.retentionPolicy`
+                # on cluster-17.yaml). Longer on purpose: the five-day margin
+                # means a LAN-side prune can never race this job into dropping
+                # an object the off-site copy still needs, and a deletion on
+                # the LAN - accidental, mistaken retention change, or hostile -
+                # does not reach the off-site copy the same day. The effective
+                # off-site recovery window stays the intended 30d.
+                - name: OFFSITE_RETENTION
+                  value: 35d
+                # Runaway guard on the prune below. Steady state expires well
+                # under this in an hour; a breach means something is wrong
+                # (a bad OFFSITE_RETENTION, a clock problem, a re-seeded
+                # archive) and the job must fail loudly rather than delete. If
+                # a breach is ever legitimate, investigate first and raise this
+                # deliberately - do not remove it.
+                - name: PRUNE_CEILING
+                  value: "2000"
+                - name: HOME
+                  value: /tmp
+                - name: RCLONE_CONFIG
+                  value: /tmp/rclone.conf
+                # --- source: the LAN TrueNAS MinIO (read) ---
+                - name: RCLONE_CONFIG_LAN_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_LAN_PROVIDER
+                  value: Minio
+                # Real Flux substitution variable - NOT escaped, unlike every
+                # shell token in the script below.
+                - name: RCLONE_CONFIG_LAN_ENDPOINT
+                  value: https://nas.${SECRET_DOMAIN}:9000
+                - name: RCLONE_CONFIG_LAN_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudnative-pg-secret
+                      key: aws-access-key-id
+                - name: RCLONE_CONFIG_LAN_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudnative-pg-secret
+                      key: aws-secret-access-key
+                # --- destination: Cloudflare R2 (write) ---
+                - name: RCLONE_CONFIG_R2_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_R2_PROVIDER
+                  value: Cloudflare
+                - name: RCLONE_CONFIG_R2_REGION
+                  value: auto
+                - name: RCLONE_CONFIG_R2_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudnative-pg-r2-secret
+                      key: R2_ENDPOINT_URL
+                - name: RCLONE_CONFIG_R2_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudnative-pg-r2-secret
+                      key: R2_ACCESS_KEY_ID
+                - name: RCLONE_CONFIG_R2_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudnative-pg-r2-secret
+                      key: R2_SECRET_ACCESS_KEY
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              command:
+                - /bin/sh
+                - -c
+                # EVERY shell token below is written `$${...}` / `$$(...)`.
+                # Flux runs strict-mode envsubst over the entire built
+                # Kustomization, so an unescaped `${VAR}` here would be read as
+                # a missing Flux variable and fail the WHOLE Kustomization -
+                # the collision that froze four apps for 44 days (#1371).
+                # `${SECRET_DOMAIN}` above is a real Flux variable and is
+                # correctly left unescaped; this resource legitimately mixes
+                # the two, which is why it escapes rather than carrying
+                # `kustomize.toolkit.fluxcd.io/substitute: disabled`.
+                # Neither `flate` nor `task flux:test:all` catches this.
+                - |
+                  set -eu
+
+                  SRC="LAN:$${ARCHIVE_BUCKET}/$${SERVER_NAME}"
+                  DST="R2:$${ARCHIVE_BUCKET}/$${SERVER_NAME}"
+
+                  echo "postgres-offsite-mirror: start $$(date -u +%FT%TZ)"
+                  echo "postgres-offsite-mirror: $${SRC} -> $${DST}"
+
+                  # COPY-ONLY, and this is the single most important line here.
+                  # `rclone copy` never deletes on the destination. It must
+                  # NEVER become `rclone sync`, and no --delete-* flag may be
+                  # added. CNPG enforces its 30d window by running
+                  # barman-cloud-backup-delete against the LAN store; if those
+                  # deletions propagated, two things would follow: the 35d
+                  # off-site window would be fiction (objects would go at 30d,
+                  # before the prune below could ever apply), and any LAN-side
+                  # wipe would reach the off-site copy on the next run. A copy
+                  # that faithfully reproduces the loss it exists to survive is
+                  # a replica, not a backup - and that single point of failure
+                  # is the whole reason this job exists.
+                  #
+                  # --s3-no-check-bucket keeps the R2 token least-privilege: no
+                  # HeadBucket/CreateBucket call, so it needs object access
+                  # only.
+                  rclone copy "$${SRC}" "$${DST}" \
+                    --fast-list \
+                    --transfers 4 \
+                    --checkers 8 \
+                    --retries 3 \
+                    --low-level-retries 10 \
+                    --s3-no-check-bucket \
+                    --stats 1m \
+                    --stats-one-line
+
+                  echo "postgres-offsite-mirror: copy complete $$(date -u +%FT%TZ)"
+
+                  # INDEPENDENT age-based expiry - the off-site retention rule,
+                  # not a mirror of LAN deletions. `set -eu` above means a
+                  # failed copy aborts before reaching this, so the off-site
+                  # copy is never eroded by a run that did not first refresh
+                  # it.
+                  #
+                  # Ages read from the source mtime rclone preserves in object
+                  # metadata, so an object expires 35d after it was ORIGINALLY
+                  # written, not 35d after it was copied. Where that metadata
+                  # is ever unavailable rclone falls back to the R2 upload
+                  # time, which only ever makes an object look YOUNGER - it
+                  # errs toward keeping data, which is the safe direction.
+                  #
+                  # Counted first and compared against a ceiling rather than
+                  # relying on `--max-delete`, whose applicability to `rclone
+                  # delete` (as opposed to `sync`) is not documented.
+                  rclone lsf --files-only --recursive \
+                    --min-age "$${OFFSITE_RETENTION}" "$${DST}" >/tmp/offsite-candidates.list
+                  CANDIDATES="$$(wc -l </tmp/offsite-candidates.list | tr -d ' ')"
+                  echo "postgres-offsite-mirror: $${CANDIDATES} object(s) older than $${OFFSITE_RETENTION}"
+
+                  if [ "$${CANDIDATES}" -gt "$${PRUNE_CEILING}" ]; then
+                    echo "postgres-offsite-mirror: REFUSING to prune - $${CANDIDATES} exceeds ceiling $${PRUNE_CEILING}" >&2
+                    exit 1
+                  fi
+
+                  if [ "$${CANDIDATES}" -gt 0 ]; then
+                    rclone delete "$${DST}" \
+                      --min-age "$${OFFSITE_RETENTION}" \
+                      --s3-no-check-bucket
+                  fi
+
+                  echo "postgres-offsite-mirror: done $$(date -u +%FT%TZ)"
+          volumes:
+            # readOnlyRootFilesystem: rclone needs a writable HOME for its
+            # config and transfer scratch.
+            - name: tmp
+              emptyDir: {}
