@@ -1,0 +1,197 @@
+---
+# VolSync retired-repository expiry ledger
+#
+# NOT a Kubernetes manifest and NOT reconciled by Flux. Nothing in this repo can
+# apply it - see docs/backups/volsync-retired-repository-expiry.md for why the
+# usual declarative paths are all structurally unavailable here, and for the
+# apply runbook. This file is the single source of truth for WHAT expires and
+# WHEN; scripts/volsync-retired-expiry/render_lifecycle.py turns it into the S3
+# lifecycle configuration that each object store then enforces on its own.
+#
+# Every entry below is a TOP-LEVEL PREFIX in the `volsync` bucket. A VolSync
+# restic repository lives at <bucket>/<APP> (see the RESTIC_REPOSITORY template
+# in kubernetes/components/volsync/*/externalsecret.yaml), so one prefix is one
+# whole repository.
+#
+# MATCHING RULE - the entire safety argument of this file:
+#   Entries here are bare prefix names with NO trailing slash. The renderer is
+#   the ONLY place a slash is appended, and it always appends one, producing an
+#   S3 Filter.Prefix of "<name>/". Because every object key in these buckets
+#   contains a "/" (measured: 0 of 6123 ceph keys lack one), "<name>/" selects
+#   exactly that repository's objects and can never select a longer sibling
+#   segment: "syncthing-data/config" does not begin with "syncthing/", since
+#   byte 9 is "-" and not "/". That is a property of string comparison, not a
+#   convention this repo maintains.
+#
+#   `syncthing` (retired, below) and `syncthing-data` (LIVE, protected) are the
+#   live proof of this, and scripts/ci/volsync-retired-expiry-test.py refuses
+#   the merge if that pair ever stops being safe.
+#
+# Measured 2026-09-12 by listing all three buckets read-only (ListObjectsV2 /
+# `radosgw-admin bucket list`). Sizes are evidence for the decision, not inputs
+# to it - the renderer ignores them.
+measured_at: "2026-09-12"
+
+buckets:
+  # All three destinations use bucket `volsync` with one prefix per app.
+  ceph:
+    endpoint: http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80
+    bucket: volsync
+  r2:
+    endpoint: https://604128bd389364580b3208006c949072.r2.cloudflarestorage.com
+    bucket: volsync
+  minio:
+    endpoint: https://nas.${SECRET_DOMAIN}:9000
+    bucket: volsync
+
+# LIVE repositories. These still have ReplicationSources writing to them
+# (`kubectl get replicationsource -A` - 9 sources, 3 claims x 3 destinations).
+# The renderer fails closed if any rule it is about to emit could touch one.
+# Never move an entry from here into a tier without first deleting its
+# ReplicationSources.
+protected:
+  # ceph: 11900345 B / 232 obj, r2: 1770492224 B / 220 obj, minio: 9913836 B / 154 obj; last write 2026-09-12
+  - paperless-ngx
+  # ceph: 63827 B / 106 obj, r2: 31211 B / 68 obj, minio: 45347 B / 74 obj; last write 2026-09-12
+  - paperless-ngx-media
+  # ceph: 203822 B / 107 obj, r2: 64795 B / 70 obj, minio: 136195 B / 75 obj; last write 2026-09-12
+  - syncthing-data
+
+# Retired repositories, split by whether anything else still backs the data up.
+# The tier decides the date; nothing else does. A single date per tier is
+# deliberate: 48 individually-chosen dates would be 48 chances to fat-finger one,
+# and the review value of "every sole-copy repo expires on this one day" is
+# higher than any per-app precision we could actually justify.
+#
+# Both dates are ABSOLUTE and in the future. That is forced, not stylistic: S3
+# `Expiration.Days` is measured from each object's own creation time, and these
+# repositories stopped being written to between 2025-05 and 2026-09, so ANY
+# Days-based rule would delete most of this the moment it was installed.
+tiers:
+
+  redundant:
+    # Retired from VolSync during the kopiur Stage 5 migration. The claim still
+    # exists and kopiur backs it up today on BOTH destinations (verified against
+    # live SnapshotSchedules 2026-09-12: all 26 appear as <app>-ceph and
+    # <app>-r2), and the whole fleet is restore-proven on both
+    # (docs/backups/kopiur-restore-proof-2026-09-01.md). So this is a THIRD
+    # copy of data that already has two, and its only remaining value is
+    # pre-migration history.
+    expires: "2027-03-31"
+    # ~6.5 months out. The last retirement wave landed 2026-09-04; a defect
+    # introduced by the migration surfaces in weeks, not quarters, and two
+    # quarterly review cycles fit inside this window. Shorter than the sole-copy
+    # tier because losing this loses nothing that is not already backed up.
+    reason: kopiur holds a current, restore-proven backup of this claim on ceph and r2
+    prefixes:
+    # ceph: 383408339 B / 129 obj, r2: 284397829 B / 160 obj, minio: 461986180 B / 104 obj; last write 2026-09-04
+    - bazarr
+    # ceph: 285594622 B / 104 obj, r2: 273079563 B / 125 obj, minio: 290345132 B / 70 obj; last write 2026-09-04
+    - calibre-web-automated
+    # ceph: 34064794 B / 93 obj, r2: 39630302 B / 128 obj, minio: 31111768 B / 69 obj; last write 2026-09-04
+    - changedetection
+    # ceph: 2119904 B / 192 obj, r2: 1667079 B / 84 obj, minio: 1351588 B / 55 obj; last write 2026-09-04
+    - esphome
+    # ceph: 20013243440 B / 1300 obj, r2: 20992867104 B / 1379 obj, minio: 17615718923 B / 1128 obj; last write 2026-09-04
+    - hermes
+    # ceph: 73092417 B / 75 obj, r2: 124075909 B / 159 obj, minio: 73494171 B / 65 obj; last write 2026-09-04
+    - home-assistant
+    # ceph: 102071376 B / 116 obj, r2: 110376780 B / 158 obj, minio: 99707531 B / 86 obj; last write 2026-09-04
+    - lidarr
+    # ceph: 116108275 B / 88 obj, r2: 111667227 B / 63 obj, minio: 125533003 B / 63 obj; last write 2026-09-04
+    - linkwarden
+    # ceph: 937568 B / 44 obj, r2: 1669999 B / 91 obj, minio: 790027 B / 30 obj; last write 2026-09-04
+    - matter-server
+    # ceph: 169458987 B / 91 obj, r2: 182075167 B / 112 obj, minio: 183910261 B / 147 obj; last write 2026-09-04
+    - n8n
+    # ceph: 77634 B / 59 obj, r2: 84473 B / 54 obj, minio: 49782 B / 34 obj; last write 2026-09-03
+    - ntfy
+    # ceph: 236419 B / 53 obj, r2: 297619 B / 53 obj, minio: 212272 B / 38 obj; last write 2026-09-03
+    - obsidian-livesync
+    # ceph: 87893520 B / 166 obj, r2: 45996777 B / 39 obj, minio: 71989971 B / 115 obj; last write 2026-09-04
+    - opencode
+    # ceph: 129040801 B / 114 obj, r2: 127232347 B / 94 obj, minio: 126844539 B / 88 obj; last write 2026-09-04
+    - pgadmin
+    # ceph: 5628782881 B / 498 obj, r2: 5731648609 B / 525 obj, minio: 5462559292 B / 458 obj; last write 2026-09-04
+    - plex
+    # ceph: 9531458 B / 65 obj, r2: 13659649 B / 125 obj, minio: 8650288 B / 43 obj; last write 2026-09-03
+    - prowlarr
+    # ceph: 3012946842 B / 478 obj, r2: 3218545287 B / 463 obj, minio: 2946414848 B / 378 obj; last write 2026-09-04
+    - radarr
+    # ceph: 465974285 B / 153 obj, r2: 612010167 B / 200 obj, minio: 438561595 B / 115 obj; last write 2026-09-04
+    - readarr
+    # ceph: 121245350 B / 190 obj, r2: 142989722 B / 96 obj, minio: 104994988 B / 135 obj; last write 2026-09-01
+    - recyclarr
+    # ceph: 1602664 B / 88 obj, r2: 694854 B / 22 obj, minio: 1268297 B / 66 obj; last write 2026-09-01
+    - repo-wiki
+    # ceph: 2520152072 B / 259 obj, r2: 2954738610 B / 348 obj, minio: 2540584650 B / 368 obj; last write 2026-09-01
+    - sabnzbd
+    # ceph: 5604242 B / 223 obj, r2: 4111134 B / 104 obj, minio: 4791600 B / 181 obj; last write 2026-09-01
+    - seerr
+    # ceph: 12051031 B / 156 obj, r2: 11787483 B / 130 obj, minio: 11358368 B / 78 obj; last write 2026-09-04
+    - sonarr
+    # ceph: 3308871 B / 103 obj, r2: 2775236 B / 65 obj, minio: 2501451 B / 65 obj; last write 2026-09-04
+    - syncthing
+    # ceph: 1436033617 B / 279 obj, r2: 1547858304 B / 268 obj, minio: 1359737709 B / 230 obj; last write 2026-09-04
+    - tdarr
+    # ceph: 1495538 B / 208 obj, r2: 887816 B / 93 obj, minio: 556263 B / 57 obj; last write 2026-09-04
+    - zigbee2mqtt
+
+  sole_copy:
+    # The app or volume is gone from the cluster entirely - no PVC, no
+    # ReplicationSource, no kopiur SnapshotSchedule. This restic repository is
+    # the ONLY remaining copy of that data anywhere.
+    expires: "2027-09-30"
+    # ~12.5 months out: deliberately double the redundant tier. 12 months is not
+    # an arbitrary round number - it is the retention this repo already chose for
+    # data it cares about, in `retain.monthly: 12` on the r2 ReplicationSource
+    # (kubernetes/components/volsync/r2/replicationsource.yaml). Applying the
+    # captain's own existing answer to "how far back is worth keeping" is the
+    # defensible floor for data with no second copy, and a full year covers a
+    # complete seasonal cycle of "actually, bring that app back".
+    reason: no other copy exists anywhere - app and volume are both gone
+    prefixes:
+    # ceph: 259673311 B / 297 obj, r2: 240224703 B / 154 obj, minio: 232857904 B / 208 obj; last write 2026-08-31
+    - agentmemory
+    # ceph: 30858 B / 53 obj, r2: 49193 B / 98 obj, minio: 20936 B / 32 obj; last write 2026-09-03
+    - autobrr
+    # minio: 98385 B / 176 obj; last write 2025-10-05
+    - calibre-web
+    # minio: 4679287 B / 44 obj; last write 2026-01-18
+    - cross-seed
+    # minio: 384692344 B / 70 obj; last write 2026-04-13
+    - homeops-claw
+    # minio: 259128809 B / 204 obj; last write 2026-08-30
+    - immich
+    # minio: 349931645 B / 208 obj; last write 2026-08-30
+    - jellyfin
+    # minio: 622 B / 2 obj; last write 2025-10-06
+    - litellm
+    # minio: 6776002517 B / 674 obj; last write 2025-05-27
+    - merge-wallet
+    # minio: 1042840860 B / 701 obj; last write 2025-05-30
+    - mongodb
+    # minio: 17093909706 B / 2309 obj; last write 2026-04-13
+    - my-claw
+    # minio: 4011510 B / 121 obj; last write 2026-06-07
+    - open-notebook
+    # minio: 519514331 B / 167 obj; last write 2026-08-22
+    - open-webui
+    # minio: 3650926894 B / 277 obj; last write 2026-03-18
+    - openclaw
+    # minio: 513800 B / 465 obj; last write 2025-05-30
+    - paperless-ai
+    # minio: 625 B / 2 obj; last write 2025-10-06
+    - perplexica
+    # minio: 4114 B / 9 obj; last write 2026-08-22
+    - perplexica-dbstore
+    # minio: 1367373248 B / 481 obj; last write 2025-10-18
+    - qbittorrent
+    # minio: 22251031 B / 63 obj; last write 2026-08-22
+    - qdrant
+    # ceph: 621 B / 2 obj; last write 2026-01-20
+    - rsshub
+    # ceph: 632 B / 2 obj; last write 2026-01-20
+    - rsshub-playwright
+    # minio: 480084 B / 496 obj; last write 2025-05-30
+    - stirling-pdf

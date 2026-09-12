@@ -18,8 +18,10 @@ The media stack is split across two Kubernetes namespaces (`default` is empty):
 `media/calibre-web/` was removed; CWA is the only Calibre app under `media/calibre/`.
 
 `media/immich/` was retired 2026-08-30 - it was never initialized (0 users, 0 assets in 152 days)
-and its 100 Gi `immich-library` claim held only nightly dumps of an empty database. Its Ceph,
-MinIO and R2 restic repositories are now orphaned and are deleted by a separate task.
+and its 100 Gi `immich-library` claim held only nightly dumps of an empty database. Its orphaned
+restic repository (minio only) sits in the `sole_copy` tier of the 2026-09-12 retired-repository
+expiry decision, expiring 2027-09-30 - not deleted immediately, and not yet applied to any
+bucket: [`docs/backups/volsync-retired-repository-expiry.md`](backups/volsync-retired-repository-expiry.md).
 
 `media/jellyfin/` was retired the same day: the captain watches on Plex, and Jellyfin logged zero
 playback, session or authentication activity in 24 h. Its `10.50.0.50` LoadBalancer IP is now

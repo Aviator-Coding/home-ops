@@ -520,7 +520,10 @@ Secrets are **cascades** - the `ReplicationSource` is its cache PVC's
 Secret - so no manual cleanup is needed. Nothing touches the restic repository:
 deleting a `ReplicationSource` never does, which is the load-bearing asymmetry
 against kopiur's `Snapshot`. The old restic repositories stay readable as a
-fallback.
+fallback until their ledgered expiry date - add the retired prefix to
+[`scripts/volsync-retired-expiry/ledger.yaml`](../../../scripts/volsync-retired-expiry/ledger.yaml)
+as part of this retirement; see
+[`docs/backups/volsync-retired-repository-expiry.md`](../../../docs/backups/volsync-retired-repository-expiry.md).
 
 ### Apps with more than one volume
 
