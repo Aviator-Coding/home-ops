@@ -143,7 +143,10 @@ spec:
       gatus: {}
     persistence:
       config:
-        type: emptyDir
+        type: persistentVolumeClaim
+        existingClaim: storage-gatus
+        globalMounts:
+          - path: /config
       config-file:
         type: configMap
         name: gatus-configmap
