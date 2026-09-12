@@ -42,6 +42,7 @@ rather than hardware failures. The goal is that when something breaks we can ans
 | `bulk: true` (block + cephfs-data0) | — | let the PG autoscaler provision a full PG complement and grow gradually |
 | **CephFS mounter** | **kernel client** | ceph-csi-operator `Driver` CR `cephFsClientType: autodetect` → kernel on Talos 6.x (OperatorConfig default is `kernel`); verified live (`/proc/mounts` shows `type ceph`, msgr2/3300). The legacy chart `forceCephFSKernelClient` value is **inert** under Rook v1.20 csi-operator mode (dead line removed 2026-06-14) |
 | `kernelMountOptions` | `ms_mode=prefer-crc` | set via `cephClusterSpec.csi.cephfs.kernelMountOptions` (CephCluster CR); makes the kernel client negotiate msgr2 (cluster has `requireMsgr2: true`) — **in effect now** (visible in `/proc/mounts`) |
+| `bluestore_slow_ops_warn_threshold` / `_warn_lifetime` | `5` / `3600` (Ceph defaults `1` / `86400`) | bounds how long one transient slow-op stall can latch HEALTH_WARN and block the `task rook:check-osd-device-paths` reboot gate — see [P3 resolution](#p3--tighten-bluestore_slow_op_alert-as-an-early-warning-tripwire) and the 2026-09-12 entry |
 
 ### OSD / drive inventory
 
@@ -82,6 +83,16 @@ Notes / evidence / sources.
 ---
 
 ## Change log
+
+### [2026-09-12] Loosen BLUESTORE_SLOW_OP_ALERT latch; re-verify OSD device-path bug still wontfix  (branch `fm/homeops-osd4-followups`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | (1) `cephClusterSpec.cephConfig.osd` in `cluster/helmrelease.yaml` — added `bluestore_slow_ops_warn_threshold: "5"` (Ceph default `1`) and `bluestore_slow_ops_warn_lifetime: "3600"` (Ceph default `86400`/24h). (2) `docs/ceph/osd-device-path-recovery.md` — added a dated re-verification note. No config/code change for item 2; see Risk below. |
+| **Why** | 2026-09-11: a single osd.4 stall (51 "slow operation observed" log lines in under a second — the only such event fleet-wide in 7 days) latched `BLUESTORE_SLOW_OP_ALERT`/HEALTH_WARN under the Ceph-default threshold of 1, and stayed latched a full day (the default 24h `_warn_lifetime`), blocking every `task rook:check-osd-device-paths`-gated reboot. threshold=5 alone does not clear a 51-event burst — `_warn_lifetime` cut to 3600s is what actually bounds the latch. Also used the incident (talos-3, the node due to reboot, carries the two device-path-unstable OSDs osd.2/osd.4) to re-check whether rook/rook#17224 has an upstream fix: it does not — the one candidate PR (#17226) was closed unmerged 2026-05-20, and #17224 was auto-closed `stale`/`wontfix` 2026-06-23 with no maintainer review of that PR; installed Rook (v1.20.7) predates any fix. |
+| **Risk** | Deliberately loosens a real tripwire: a lone 2nd–4th slow op that used to warn (threshold 1–4) no longer does, and a genuinely sick drive now re-warns hourly instead of once for 24h — see [P3 resolution](#p3--tighten-bluestore_slow_op_alert-as-an-early-warning-tripwire). Does not address the likely root cause (osd.4 runs measurably hotter than every peer NVMe) — out of scope, tracked separately. **Item 2 is a verification only: the stale-OSD-device-path risk on talos-3 (osd.2, osd.4) is NOT fixed and remains unresolved** going into any reboot; mitigation is unchanged — `task rook:check-osd-device-paths` plus the Case A/B recovery in `docs/ceph/osd-device-path-recovery.md`. |
+| **Rollback** | Revert both `bluestore_slow_ops_warn_*` lines (Ceph reapplies its `1` / `86400` defaults on removal). The docs note is additive. |
+| **Verify** | Render-only in this PR (`task flux:test:all`). Live: `ceph config get osd.4 bluestore_slow_ops_warn_threshold`/`_lifetime`; a future single-stall event should clear HEALTH_WARN within ~1h instead of persisting 24h. |
 
 ### [2026-09-11] MDS podAntiAffinity: separate active ranks a/b across nodes  (branch `fm/homeops-ceph-mds-antiaffinity`)
 
@@ -617,7 +628,20 @@ Sources are from the 2026-06-14 deep-research pass (Ceph Squid/Tentacle-era docs
 
 ### P3 — Tighten `BLUESTORE_SLOW_OP_ALERT` as an early-warning tripwire
 
-- **What:** lower `bluestore_slow_ops_warn_lifetime` (default 86400s) and keep
+> **Resolution (2026-09-12, partial, different rationale)** — actioned from a live incident, not
+> from this item's original "surface faster" goal; see the
+> [2026-09-12 change-log entry](#2026-09-12-loosen-bluestore_slow_op_alert-latch-re-verify-osd-device-path-bug-still-wontfix--branch-fmhomeops-osd4-followups).
+> `bluestore_slow_ops_warn_threshold` was raised to **5**, matching this item's own illustrative
+> value — but `bluestore_slow_ops_warn_lifetime` was cut to **3600s (1h)**, not the 300s
+> suggested below, and the goal was the opposite of "surface fast": one transient stall (osd.4,
+> 2026-09-11, 51 events in under a second) had latched HEALTH_WARN for a full day and blocked the
+> reboot-safety gate, so the change bounds the *latch duration* rather than tightening earliest
+> detection. A sustained problem now re-warns hourly instead of once for 24h. Whether 300s (or
+> something between 300s and 3600s) is worth revisiting is open, and depends on addressing the
+> osd.4 hot-bay/thermal root cause first (out of scope for that change). The original analysis
+> below is retained as the still-relevant rationale for *why* this tripwire matters.
+
+- **What (original):** lower `bluestore_slow_ops_warn_lifetime` (default 86400s) and keep
   `bluestore_slow_ops_warn_threshold` low so a struggling drive surfaces *fast* (e.g.
   lifetime 300, threshold 5 — tune to taste), giving time to `ceph osd out`/replace before a
   laggy cascade. `osd_op_complaint_time` default is 30s.
