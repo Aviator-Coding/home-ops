@@ -8,3 +8,4 @@ resources:
   - ./pushsecret.yaml
   - ./rbac.yaml
   - ./route.yaml
+  - ./securitypolicy.yaml
