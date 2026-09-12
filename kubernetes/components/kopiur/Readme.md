@@ -658,6 +658,34 @@ mixed live uids as `0:0` (matter-server: 151 files were `1000:0` live and
 `0:0` restored; the five `0600` fabric files stayed `0:0`). That is expected
 for a root-owned workload and is not a content-fidelity failure.
 
+## Hooks (first use: `database/surrealdb`, 2026-09-12)
+
+`SnapshotPolicy.spec.hooks` (`beforeSnapshot`/`afterSnapshot`, three forms -
+`workloadExec`, `runJob`, `httpRequest`) has been in the kopiur CRD since at
+least 0.8.1 (2026-07-24, upstream release notes) and is present in this
+cluster's running chart (0.10.7). It is **not** parameterized in
+`./ceph/snapshotpolicy.yaml` / `./r2/snapshotpolicy.yaml` - hooks are per-app,
+not a fleet-wide default - so an app that needs one applies it with the owning
+Flux Kustomization's `spec.patches` (JSON6902, `target: {kind: SnapshotPolicy}`
+with no `name:` to hit both destinations in one patch block), not a
+substitute variable. Worked example, including the reasoning for why a bare
+`copyMethod: Snapshot` was rejected for this specific app:
+`kubernetes/apps/main/database/surrealdb.yaml`, `surrealdb-kopiur`
+Kustomization.
+
+`./ceph/snapshotpolicy.yaml` used to carry a comment claiming hooks were
+unavailable and "wanted for database/surrealdb later" - that was already
+false when written (2026-08-30, against kopiur 0.10.5; hooks shipped in
+0.8.1). What was actually true, and remains true, is narrower:
+`spec.repositories` fan-out (one policy covering both destinations) cannot
+combine with hooks - irrelevant here since every claim in this fleet already
+uses the per-repository shape fan-out was rejected in favour of. Before
+trusting any claim that a kopiur feature is "missing", check the CRD schema
+actually installed (`kubectl get crd
+snapshotpolicies.kopiur.home-operations.com -o json`) against the chart
+version in `../../apps/base/system/kopiur/app/ocirepository.yaml` - comments
+age, the running cluster does not.
+
 ## `wait: true` is incompatible with this component
 
 `ceph/restore.yaml` is a standing `Restore` in passive populator mode, and it
