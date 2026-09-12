@@ -1,0 +1,67 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# Captain-owned key for proving the gateway path through the network broker,
+# minted directly through the proxy's admin API (no CR existed for it, same
+# drift shape as agent-swarm-captain.yaml/agent-swarm-paid.yaml - read that
+# pair's headers and this directory's kustomization.yaml for the full
+# mechanism; it applies identically here).
+#
+# THIS CR PERFORMS A FORCED ROTATION, NOT A LIVE ADOPTION. The operator has no
+# adopt-by-alias path: LiteLLMVirtualKeyReconciler only reaches its
+# diff-and-PATCH path (the one that preserves a credential) when its own
+# output Secret already exists and is owned by this CR. A key minted directly
+# through the admin API has no such Secret, so on first reconcile the operator
+# always calls POST /key/generate - which 400s on the already-taken
+# `keyAlias`. The only way forward without leaving this CR stuck
+# GenerateFailed forever is to delete the live key first and let the operator
+# mint a fresh one - a real one-time rotation. The rotation itself is nil-cost
+# here: live spend is $0.00 against a $1 cap, so rotating resets nothing of
+# value.
+#
+# Entitlements below are carried over UNCHANGED from what was measured live
+# against the running proxy on 2026-09-12, immediately before rotation:
+#   models: ['chat-local'], maxBudget: 1.0, budgetDuration: (none set),
+#   rpmLimit/tpmLimit: (none set), spend: 0.0,
+#   metadata.purpose: "prove the gateway path through the broker, task-scoped"
+# This is adoption of the existing grant, not a new one - budgets and
+# entitlements were not re-decided here. No budgetDuration is declared because
+# none is set live (unlike agent-swarm-paid's 30d).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: agent-swarm-network-broker
+spec:
+  proxyRef: litellm
+  keyAlias: agent-swarm-network-broker
+  secretName: litellm-key-agent-swarm-network-broker
+  secretKey: key
+  # Measured live 2026-09-12: single local model, $1 cap, no budget duration,
+  # no rate limits.
+  models:
+    - chat-local
+  maxBudget: "1.00"
+  metadata:
+    purpose: prove the gateway path through the broker, task-scoped
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item
+# `litellm-consumer-agent-swarm-network-broker` (auto-created - not a captain
+# prerequisite).
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-agent-swarm-network-broker
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-agent-swarm-network-broker
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-agent-swarm-network-broker
+          property: key
