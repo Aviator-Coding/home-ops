@@ -45,6 +45,12 @@ spec:
         #     `[STATUS] == any(200, 503)` fix (503 is the expected parked
         #     response) - it just isn't live because the release is
         #     suspended, not because the check is wrong.
+        #   - Radarr Import Queue: this synthetic endpoint (group=downloads)
+        #     already has its own dedicated RadarrImportQueueBlocked alert
+        #     below for the same signal (a stuck import, not a down
+        #     service). Without this exclusion, a stuck import would also
+        #     trip this generic alert 20m earlier with a misleading
+        #     "endpoint is down" summary when Radarr answered 200.
         # Remove an entry once its underlying issue is actually resolved
         # live, not before - re-check with the live Gatus API, not git.
         #
@@ -54,7 +60,7 @@ spec:
         # are worth trusting.
         - alert: GatusServiceDown
           expr: |
-            gatus_results_endpoint_success{group!~"external|connectivity", name!~"rook-ceph-dashboard|comfyui"} == 0
+            gatus_results_endpoint_success{group!~"external|connectivity", name!~"rook-ceph-dashboard|comfyui|Radarr Import Queue"} == 0
           for: 10m
           annotations:
             summary: >-
