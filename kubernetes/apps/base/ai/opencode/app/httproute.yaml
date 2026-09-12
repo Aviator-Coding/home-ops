@@ -14,8 +14,20 @@ metadata:
     gethomepage.dev/description: "Interactive coding workspace"
     gethomepage.dev/pod-selector: app.kubernetes.io/name=opencode
     external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    # `[STATUS] == any(200, 302, 401)` alone is a false-green trap: Authentik's
+    # own "Application not found" error page (served when the outpost has no
+    # Proxy Provider + Application bound to this hostname) has been observed
+    # returning HTTP 200 through this route, which the status-only condition
+    # accepts as healthy even though the app is completely unreachable.
+    # Verified live 2026-09-12. The error page is the only response on this
+    # route missing `<ak-flow-executor` (present on every real login flow
+    # page) and carrying the literal string "Not Found" as its card title, so
+    # the body condition below closes that gap without touching the accepted
+    # status set.
     gatus.home-operations.com/endpoint: |-
-      conditions: ["[STATUS] == any(200, 302, 401)"]
+      conditions:
+        - "[STATUS] == any(200, 302, 401)"
+        - "[BODY] != pat(*Not Found*)"
 spec:
   hostnames:
     - "opencode.${SECRET_DOMAIN}"
