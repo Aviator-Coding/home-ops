@@ -230,10 +230,16 @@ deployed via `kubectl create job --from=cronjob/pvc-writable-check`):
 - The 6-hour schedule and 10-minute `for:` window are reasoned choices, not
   empirically tuned.
 - This sweep covers PVC-mounting **containers**; it does not check
-  `initContainers`. Every PVC-mounting initContainer found live in this
-  cluster runs as `runAsUser: 0` specifically to do that write, making the
-  check moot for every current case - worth adding if a future app's
-  initContainer needs write access without running as root.
+  `initContainers`, including a native sidecar (`restartPolicy: Always`
+  initContainer, which still lives under `pod.spec.initContainers`, not
+  `pod.spec.containers`). This stopped being hypothetical on 2026-09-12:
+  `monitoring/gatus`'s `gatus-sidecar` is exactly this shape - a
+  PVC-mounting native sidecar running as non-root (UID 65532, not
+  `runAsUser: 0`) - and it failed every write to `/config` silently for as
+  long as the pod ran, with no alert from this check. Fixed by giving the
+  pod a matching `fsGroup`:
+  `kubernetes/apps/base/monitoring/gatus/app/helmrelease.yaml`. Still worth
+  adding coverage for `initContainers` generally.
 - A brand-new namespace still needs a one-time RoleBinding addition in
   `rbac.yaml` (the residual hand-maintained surface after dropping
   cluster-wide exec).

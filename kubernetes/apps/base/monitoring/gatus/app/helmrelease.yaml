@@ -77,6 +77,27 @@ spec:
       # app-template v5 defaults automountServiceAccountToken to false; the gatus-sidecar
       # init container (--auto-httproute/--enable-service) watches the K8s API and needs the token.
       automountServiceAccountToken: true
+      # `app` (ghcr.io/twin/gatus, built FROM scratch, no USER - runs as root)
+      # and `gatus-sidecar` (ghcr.io/home-operations/gatus-sidecar, built FROM
+      # gcr.io/distroless/static:nonroot - UID 65532) share the `config` PVC.
+      # Ceph RBD mounts new volumes root:root 0755; without a shared fsGroup
+      # only root (the app container) can create files there. Introduced when
+      # persistence.config moved off emptyDir onto this ceph-block claim
+      # (#1658): the sidecar's every write ("initial flush failed" at startup,
+      # then continuous "reconcile failed, giving up" on every resource event)
+      # has failed permission-denied since, so auto-discovery of every
+      # HTTPRoute/Service-derived endpoint silently stopped writing - Gatus
+      # fell back to the 4 endpoints in the static config.yaml file only (60 ->
+      # 4, verified live 2026-09-12, zero Ready-condition or CI signal). fsGroup
+      # 65532 matches the sidecar's own nonroot UID/GID - same
+      # distroless-nonroot convention and identical fix as
+      # kubernetes/apps/base/database/surrealdb/app/helmrelease.yaml lines
+      # 45-49 - and is injected as a supplementary group for every container
+      # regardless of its own runAsUser, so root's existing access is
+      # unaffected.
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
     service:
       app:
         controller: gatus
