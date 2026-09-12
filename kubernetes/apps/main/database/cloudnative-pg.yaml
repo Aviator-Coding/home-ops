@@ -261,3 +261,49 @@ spec:
       # (01/05/09/13/17/21). One hour per namespace; ceph stays on the
       # component default, which is already structurally offset.
       KOPIUR_SCHEDULE_R2: "H 7 * * *"
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+#
+# Second, OFF-SITE copy of the postgres-17 barman archive (LAN MinIO -> R2).
+# CNPG has exactly one live barman destination per Cluster and the plugin path
+# that appears to lift that limit silently writes to the wrong store, so the
+# archive itself is mirrored instead. Nothing on the live Cluster changes.
+# Evidence: docs/backups/postgres-offsite-destination-design-2026-09-12.md
+# Operator notes: kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/README.md
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app postgres-offsite-mirror
+  namespace: &namespace database
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    # Supplies `cloudnative-pg-secret`, whose aws-access-key-id /
+    # aws-secret-access-key are the mirror's SOURCE (LAN MinIO) credentials.
+    - name: cloudnative-pg
+      namespace: database
+    # The R2 half is an ExternalSecret, so ESO must be up for it to resolve.
+    - name: external-secrets
+      namespace: security
+  interval: 30m
+  path: ./kubernetes/apps/base/database/cloudnative-pg/offsite-mirror
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  # No healthChecks and wait:false, matching the fleet's other CronJob-only
+  # overlays (kubernetes/apps/main/system/pvc-writable-check.yaml): a CronJob
+  # has no meaningful Ready condition, and the job's real health signal is a
+  # successful run, which belongs to the PrometheusRule follow-up recorded in
+  # the app README rather than to a Flux gate.
+  wait: false
