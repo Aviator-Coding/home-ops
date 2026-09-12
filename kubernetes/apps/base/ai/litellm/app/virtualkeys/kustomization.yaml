@@ -13,18 +13,26 @@ kind: Kustomization
 # operator diffs the live key against the spec and PATCHes only what changed,
 # so the credential itself is preserved (same property the old script had).
 #
-# Every key here carries a `maxBudget` except `claude-code-subscription.yaml`,
-# whose allow-list names the two subscription pass-through models - the
-# natural `claude-sonnet-5` and `claude-opus-5` since the 2026-08-31 rename
-# (previously `claude-code-subscription`/`claude-code-subscription-opus`; see
-# that file's own header). It stays budgetless because those models are
-# zero-priced across every field including
-# the five prompt-cache ones (runbook §4a - zeroing only input/output left ~$54
-# of fictional recorded spend until 2026-08-31), so recorded spend is $0 and a
-# maxBudget could never trip. As of 2026-08-31 it also carries no rpmLimit/
-# tpmLimit - enforcement is entirely upstream on Anthropic's subscription
-# ceiling; LiteLLMClaudeCodeSubscriptionSpendRegression watches for renewed
-# phantom spend. Read that file's header before copying its shape.
+# Two keys here carry no `maxBudget`, for unrelated reasons -
+# `scripts/ci/litellm-claude-code-subscription-test.py` asserts this exact
+# allow-list rather than a bare count, so any THIRD budgetless key must be
+# added there explicitly or the gate fails:
+#   - `claude-code-subscription.yaml`'s allow-list names the two subscription
+#     pass-through models - the natural `claude-sonnet-5` and `claude-opus-5`
+#     since the 2026-08-31 rename (previously
+#     `claude-code-subscription`/`claude-code-subscription-opus`; see that
+#     file's own header). It stays budgetless because those models are
+#     zero-priced across every field including the five prompt-cache ones
+#     (runbook §4a - zeroing only input/output left ~$54 of fictional recorded
+#     spend until 2026-08-31), so recorded spend is $0 and a maxBudget could
+#     never trip. As of 2026-08-31 it also carries no rpmLimit/tpmLimit -
+#     enforcement is entirely upstream on Anthropic's subscription ceiling;
+#     LiteLLMClaudeCodeSubscriptionSpendRegression watches for renewed phantom
+#     spend. Read that file's header before copying its shape.
+#   - `agent-swarm-captain.yaml` is budgetless by original captain decision,
+#     unrelated to pricing - adopted (forced rotation, not a live-preserving
+#     adoption) on 2026-09-12 with entitlements carried over exactly as
+#     minted on 2026-09-09. See that file's own header.
 resources:
   - ./claude-code-subscription.yaml
   - ./demo.yaml
