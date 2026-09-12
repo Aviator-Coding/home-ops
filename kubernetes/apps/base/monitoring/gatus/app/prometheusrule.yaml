@@ -18,6 +18,50 @@ spec:
           labels:
             severity: critical
 
+        # Broadens paging beyond group=external (captain decision, 2026-09-12):
+        # 60 endpoints were watched and only the 3 group=external ones above
+        # could page anyone - group=internal (32 endpoints) and every other
+        # app group had no alert path at all. downloads/readarr was fully down
+        # over 10h and only noticed via a manual scan.
+        #
+        # `connectivity` (Cloudflare/Google/Quad9 ICMP reachability) is
+        # excluded on purpose: those measure the household's own WAN, not an
+        # application, and are not what this alert is for.
+        #
+        # `name!~` excludes two endpoints confirmed red live (2026-09-12,
+        # after the fsGroup fix restored real monitoring - not a number
+        # carried over from the outage) for reasons that are not a Gatus
+        # check problem, so excluded rather than paged on from day one:
+        #   - rook-ceph-dashboard: orphaned live HTTPRoute pointing at a
+        #     Service that was deliberately removed with the dashboard
+        #     feature itself (dashboard.enabled: false, PR #1394,
+        #     2026-08-23); nothing in git references this route any more, so
+        #     there is nothing left for a manifest change to fix - the live
+        #     object needs a one-time out-of-band delete.
+        #   - comfyui: its HelmRelease is deliberately spec.suspend: true (0
+        #     replicas, parked - PR #1380), so Flux never reconciles it and
+        #     the live HTTPRoute is frozen on an older annotation that checks
+        #     `[STATUS] == 200` only. Git already carries the correct
+        #     `[STATUS] == any(200, 503)` fix (503 is the expected parked
+        #     response) - it just isn't live because the release is
+        #     suspended, not because the check is wrong.
+        # Remove an entry once its underlying issue is actually resolved
+        # live, not before - re-check with the live Gatus API, not git.
+        #
+        # `for: 10m` (vs. 5m above) because these ~50-plus endpoints have
+        # never paged before: give a newly-onboarded, possibly-flaky check
+        # more room before waking anyone, so the very first pages people see
+        # are worth trusting.
+        - alert: GatusServiceDown
+          expr: |
+            gatus_results_endpoint_success{group!~"external|connectivity", name!~"rook-ceph-dashboard|comfyui"} == 0
+          for: 10m
+          annotations:
+            summary: >-
+              The {{ $labels.name }} endpoint ({{ $labels.group }}) is down
+          labels:
+            severity: warning
+
         - alert: RadarrImportQueueBlocked
           expr: |
             gatus_results_endpoint_success{name="Radarr Import Queue"} == 0
