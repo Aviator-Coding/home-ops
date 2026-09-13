@@ -6,7 +6,7 @@ Upstream CRD docs: <https://agentgateway.dev/>. This page lists **what GitOps ac
 
 | Kind | Live names | Where |
 |------|------------|-------|
-| `AgentgatewayBackend` | openai, anthropic, gemini, groq, mistral, deepseek, xai, togetherai, openrouter, perplexity, opencodeai, opencodego, vllm, vllm-embed, llm-chat-failover, zai | `app/backends/` |
+| `AgentgatewayBackend` | openai, anthropic, gemini, groq, mistral, deepseek, xai, togetherai, openrouter, perplexity, opencodeai, opencodego, vllm, embedding-local, llm-chat-failover, zai | `app/backends/` |
 | `AgentgatewayPolicy` | authentik-policy, apikey-policy, model-routing, tracing-policy, models-catalog, llm-chat-failover-health | `app/policies/` + backends/vllm.yaml + httproute-models.yaml |
 | `AgentgatewayParameters` | agentgateway-params (GatewayClass), internal-noauth-params (Gateway-level ClusterIP overlay) | `app/agentgatewayparameters.yaml`, `app/gateways/internal-noauth.yaml` |
 
