@@ -13,7 +13,7 @@ terraform {
       # Track the running Authentik server's release line. The server is pinned
       # in kubernetes/apps/base/security/authentik/app/helmrelease.yaml; keep the
       # major.minor here aligned with it before raising this.
-      version = "~> 2026.5.1"
+      version = "~> 2026.8.0"
     }
 
     # Generates the LiteLLM OAuth2 client id and secret (litellm.tofu). Both end
