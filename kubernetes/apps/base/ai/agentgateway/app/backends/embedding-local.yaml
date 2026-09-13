@@ -12,6 +12,19 @@
 # backends/vllm.yaml's header) - a route whose backend has no endpoints fails
 # at request time, not deploy time, so it was removed rather than left dead.
 # This backend does not touch the B70 in any way.
+#
+# Worked examples for an external caller (any model id that is not a
+# vendor slug or bare `text-embedding-*` lands on this backend - see
+# ../httproute-unified.yaml's default /v1/embeddings rule):
+#   # Bearer-keyed public listener (key from 1Password `ai-gateway-keys`,
+#   # see ../policies/apikey-policy.yaml):
+#   curl -s https://llm-api.${SECRET_DOMAIN}/v1/embeddings \
+#     -H "Authorization: Bearer $GATEWAY_API_KEY" -H 'Content-Type: application/json' \
+#     -d '{"model":"embedding-local-cpu","input":"hello world"}'
+#   # In-cluster keyless (trusted workloads only):
+#   curl -s http://internal-noauth.ai.svc.cluster.local/v1/embeddings \
+#     -H 'Content-Type: application/json' \
+#     -d '{"model":"embedding-local-cpu","input":"hello world"}'
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
