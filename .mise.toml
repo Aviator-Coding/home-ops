@@ -45,7 +45,7 @@ MISE_LIST_ALL_VERSIONS = "false"
 # CI python-tests installs this via unversioned mise-action install_args so this
 # pin is the single source of truth (scripts/ci/mise-install-args-test.py).
 "aqua:prometheus/prometheus" = "3.14.0"
-uv = "0.12.9"
+uv = "0.12.12"
 1password-cli = "2.30.3"
 krew = "0.5.0"
 k9s = "0.51.0"
