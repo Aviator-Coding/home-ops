@@ -1,0 +1,44 @@
+---
+# The cluster's local embedding service, reached directly (not through
+# LiteLLM - see ../httproute-unified.yaml's default /v1/embeddings rule for
+# why). Text-Embeddings-Inference on CPU, sentence-transformers/
+# all-MiniLM-L6-v2 (384-dim), declared at
+# ../../../toolhive/config/embeddingserver.yaml. OpenAI-compatible at its
+# native /v1/embeddings. In-cluster service: no TLS, no auth secret.
+#
+# NOT vllm-embed. That AgentgatewayBackend used to be this route's default
+# target and pointed at a Service with zero endpoints (the B70's llm-scaler
+# embedding deployment, deliberately scaled to 0 for compute isolation - see
+# backends/vllm.yaml's header) - a route whose backend has no endpoints fails
+# at request time, not deploy time, so it was removed rather than left dead.
+# This backend does not touch the B70 in any way.
+#
+# Worked examples for an external caller (any model id that is not a
+# vendor slug or bare `text-embedding-*` lands on this backend - see
+# ../httproute-unified.yaml's default /v1/embeddings rule):
+#   # Bearer-keyed public listener (key from 1Password `ai-gateway-keys`,
+#   # see ../policies/apikey-policy.yaml):
+#   curl -s https://llm-api.${SECRET_DOMAIN}/v1/embeddings \
+#     -H "Authorization: Bearer $GATEWAY_API_KEY" -H 'Content-Type: application/json' \
+#     -d '{"model":"embedding-local-cpu","input":"hello world"}'
+#   # In-cluster keyless (trusted workloads only):
+#   curl -s http://internal-noauth.ai.svc.cluster.local/v1/embeddings \
+#     -H 'Content-Type: application/json' \
+#     -d '{"model":"embedding-local-cpu","input":"hello world"}'
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: embedding-local
+spec:
+  ai:
+    provider:
+      openai: {}
+      host: mcp-tools-embedding.ai.svc.cluster.local
+      port: 8080
+
+  policies:
+    ai:
+      routes:
+        "/v1/embeddings": Passthrough
+        "/v1/models": Passthrough
+        "*": Passthrough

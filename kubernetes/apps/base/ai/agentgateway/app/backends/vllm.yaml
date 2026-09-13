@@ -1,7 +1,9 @@
 ---
 # Local llama.cpp SYCL chat on the Arc Pro B70 (talos-3). Service keeps the
 # vllm name so this backend host (`vllm-app`) stays stable. OpenAI-compatible.
-# Real llm-scaler image is only vllm-embed, which is scaled to 0.
+# The B70's llm-scaler embedding deployment, `vllm-embed`, stays scaled to 0
+# (compute isolation - see backends/embedding-local.yaml, which is what
+# ../httproute-unified.yaml's default /v1/embeddings rule targets instead).
 # In-cluster service: no TLS, no auth secret.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
@@ -18,24 +20,6 @@ spec:
     ai:
       routes:
         "/v1/chat/completions": Completions
-        "/v1/embeddings": Passthrough
-        "/v1/models": Passthrough
-        "*": Passthrough
----
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayBackend
-metadata:
-  name: vllm-embed
-spec:
-  ai:
-    provider:
-      openai: {}
-      host: vllm-embed.ai.svc.cluster.local
-      port: 8000
-
-  policies:
-    ai:
-      routes:
         "/v1/embeddings": Passthrough
         "/v1/models": Passthrough
         "*": Passthrough

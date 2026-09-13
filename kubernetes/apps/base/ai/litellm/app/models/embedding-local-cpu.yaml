@@ -1,0 +1,43 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# LiteLLM's front door to the cluster's local embedding service (captain
+# request 2026-09-13: "how can an external service consume the embedding?").
+# Not one of the five B70 chat aliases - this is a SEPARATE CPU-only backend,
+# HuggingFace Text Embeddings Inference serving sentence-transformers/
+# all-MiniLM-L6-v2 (384-dim), declared at
+# ../../toolhive/config/embeddingserver.yaml and already OpenAI-API compatible
+# at its native /v1/embeddings. `info.mode: embedding` tells LiteLLM to treat
+# this alias as an embedding model rather than chat.
+#
+# NAMED "-local-cpu", deliberately, so no consumer can mistake this for a GPU
+# path: it is pure CPU inference on the toolhive-operator-managed pod, never
+# the Arc Pro B70. This registration does not touch the B70 or the vllm-embed
+# deployment on it (kubernetes/apps/base/ai/vllm/app/helmrelease.yaml, pinned
+# replicas: 0 - compute isolation, sharing the B70 with chat decode measured a
+# 38x collapse). See ../virtualkeys/embedding-external.yaml for the
+# consumer-side entitlement and a worked curl example.
+#
+# NO `info.extra` PRICES, deliberately, same rule as chat-local/pr-review-local
+# (see ./kustomization.yaml): the pod runs on CPU, sunk hardware cost, so real
+# spend through this alias is always $0 and a consumer's maxBudget keeps
+# measuring exactly one thing - real USD.
+#
+# NO CLOUD FALLBACK, deliberately, and for a different reason than the chat
+# aliases: a fallback embedder at different dimensions would silently corrupt
+# any vector index built against this model's 384-dim output (the same reason
+# ../../agentgateway/app/backends/vllm.yaml's `llm-chat-failover` explicitly
+# excludes embeddings). This alias appears in neither `fallbacks` nor
+# `context_window_fallbacks` in ../litellmproxy.yaml.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: embedding-local-cpu
+spec:
+  modelName: embedding-local-cpu
+  proxyRef: litellm
+  params:
+    model: openai/sentence-transformers/all-MiniLM-L6-v2
+    apiBase: http://mcp-tools-embedding.ai.svc.cluster.local:8080/v1
+    apiKey: "not-needed" # TEI server has no --api-key set
+  info:
+    mode: embedding

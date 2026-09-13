@@ -9,3 +9,28 @@ spec:
   env:
     - name: HOSTNAME
       value: "::"
+  # Measured live 2026-09-13 against the running pod (`kubectl top` +
+  # a 40s sustained-load probe over a read-only port-forward to the plain
+  # ClusterIP Service, 30 requests in flight throughout):
+  #   idle:                ~10-13m CPU,  439Mi memory
+  #   sustained 30-concurrent embedding calls: peaked ~17.3 CPU cores, 530Mi
+  #     memory (this TEI CPU build has no built-in worker/thread cap, so an
+  #     unconstrained container scales its thread pool to every core the node
+  #     offers - 3 Talos nodes at 19950m allocatable each, so a single burst
+  #     came close to saturating one node's CPU entirely).
+  # requests are sized just above the idle baseline so the scheduler places
+  # this pod correctly instead of blind (the previous `resources: {}`).
+  # limits deliberately cap CPU well below the measured unconstrained peak:
+  # now that this service is reachable from outside the cluster (this PR),
+  # an external caller's concurrent-request burst must not be able to starve
+  # a whole Talos node the way the uncapped container did in this measurement.
+  # 4 cores comfortably clears realistic embedding traffic (single requests
+  # complete in ~47ms) while bounding the worst case. Memory limit keeps ~2x
+  # headroom over the measured 530Mi peak.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "4"
+      memory: 1Gi

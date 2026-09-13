@@ -1,0 +1,72 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# The consumer-side half of making the local embedder reachable through
+# LiteLLM (captain request 2026-09-13: "how can an external service consume
+# the embedding?"). Registering ../models/embedding-local-cpu.yaml alone
+# grants nothing - per ../models/kustomization.yaml, "REGISTRATION IS NOT
+# ENTITLEMENT" - so without a key scoped to it, no caller outside the cluster
+# could actually reach the model. This key is that entitlement, deliberately
+# scoped to exactly one model.
+#
+# Worked example for an external caller:
+#   EMBED_KEY=$(kubectl -n ai get secret litellm-key-embedding-external -o jsonpath='{.data.key}' | base64 -d)
+#   curl -s https://litellm.${SECRET_DOMAIN}/v1/embeddings \
+#     -H "Authorization: Bearer $EMBED_KEY" -H 'Content-Type: application/json' \
+#     -d '{"model":"embedding-local-cpu","input":"hello world"}'
+#
+# maxBudget IS SET, deliberately, even though it is INERT today - same
+# reasoning as repo-wiki.yaml and ai-pr-review.yaml (read either file's own
+# comment for the full version): embedding-local-cpu carries no `info.extra`
+# prices (CPU, sunk hardware cost), so recorded spend on this key stays
+# $0.00 forever and this cap can never trip on its own. It stays because it
+# is the guard that matters the moment anyone widens `models` above to
+# something priced - a cloud-capable alias added to a budgetless key is an
+# uncapped external-facing spender. `scripts/ci/litellm-claude-code-subscription-test.py`
+# asserts the EXACT set of keys that may omit maxBudget entirely
+# (`claude-code-subscription`, `agent-swarm-captain`); this key is
+# deliberately not a third one. rpmLimit/tpmLimit are the real backstop
+# against a runaway or misbehaving external caller.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: embedding-external
+spec:
+  proxyRef: litellm
+  keyAlias: embedding-external
+  secretName: litellm-key-embedding-external
+  secretKey: key
+  models:
+    - embedding-local-cpu
+  maxBudget: "1.00"
+  budgetDuration: 30d
+  # Generous relative to the interactive-consumer keys above (demo: 2/2000)
+  # because a real embedding workload batches many short calls - this just
+  # keeps one misbehaving caller from hammering the CPU-only pod, not a
+  # capacity ceiling. Tune with real traffic once one exists.
+  rpmLimit: 60
+  tpmLimit: 100000
+  metadata:
+    purpose: external service access to the local CPU embedder via LiteLLM
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item
+# `litellm-consumer-embedding-external` (auto-created - not a captain
+# prerequisite), same pattern as every other consumer in this directory.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-embedding-external
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-embedding-external
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-embedding-external
+          property: key
