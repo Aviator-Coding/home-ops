@@ -1,0 +1,31 @@
+---
+# The cluster's local embedding service, reached directly (not through
+# LiteLLM - see ../httproute-unified.yaml's default /v1/embeddings rule for
+# why). Text-Embeddings-Inference on CPU, sentence-transformers/
+# all-MiniLM-L6-v2 (384-dim), declared at
+# ../../../toolhive/config/embeddingserver.yaml. OpenAI-compatible at its
+# native /v1/embeddings. In-cluster service: no TLS, no auth secret.
+#
+# NOT vllm-embed. That AgentgatewayBackend used to be this route's default
+# target and pointed at a Service with zero endpoints (the B70's llm-scaler
+# embedding deployment, deliberately scaled to 0 for compute isolation - see
+# backends/vllm.yaml's header) - a route whose backend has no endpoints fails
+# at request time, not deploy time, so it was removed rather than left dead.
+# This backend does not touch the B70 in any way.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: embedding-local
+spec:
+  ai:
+    provider:
+      openai: {}
+      host: mcp-tools-embedding.ai.svc.cluster.local
+      port: 8080
+
+  policies:
+    ai:
+      routes:
+        "/v1/embeddings": Passthrough
+        "/v1/models": Passthrough
+        "*": Passthrough

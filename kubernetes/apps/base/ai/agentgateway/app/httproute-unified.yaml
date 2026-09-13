@@ -79,16 +79,22 @@ spec:
         - name: openai
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # Default embeddings -> local vllm-embed. NOTE: vllm-embed is scaled to 0
-    # (agentmemory moved to OpenRouter embeddings), so bare non-OpenAI
-    # embedding ids get a 503 until it is scaled back up. No consumer sends
-    # these today.
+    # Default embeddings -> the local CPU embedder (mcp-tools-embedding,
+    # backends/embedding-local.yaml). Until 2026-09-13 this fell through to
+    # `vllm-embed`, the B70's llm-scaler embedding deployment - scaled to 0
+    # for compute isolation (agentmemory moved to OpenRouter embeddings) and
+    # 0/0 with no endpoints for 94 days, so every request landing here 503'd.
+    # A route whose default backend has no endpoints fails at request time,
+    # not deploy time; the local TEI pod is a real backend that actually
+    # answers, and does not touch the B70. Send `model: embedding-local-cpu`
+    # (or any id that isn't a vendor slug or bare `text-embedding-*`) to land
+    # here.
     - matches:
         - path:
             type: Exact
             value: /v1/embeddings
       backendRefs:
-        - name: vllm-embed
+        - name: embedding-local
           group: agentgateway.dev
           kind: AgentgatewayBackend
     # ================= chat completions, most-specific first =================

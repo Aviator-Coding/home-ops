@@ -17,4 +17,5 @@ resources:
   - ./opencodeai.yaml
   - ./opencodego.yaml
   - ./vllm.yaml
+  - ./embedding-local.yaml
   - ./zai.yaml

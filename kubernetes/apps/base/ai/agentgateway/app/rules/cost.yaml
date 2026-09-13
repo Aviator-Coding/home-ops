@@ -398,6 +398,15 @@ spec:
         - record: *price
           labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: input_cache_write }
           expr: *free
+        # embedding-local-cpu (../httproute-unified.yaml default /v1/embeddings
+        # rule, backends/embedding-local.yaml) - CPU inference, sunk hardware
+        # cost, same "priced at 0 rather than left unpriced" rule as the local
+        # chat aliases above. Embedding calls only ever report `input` tokens
+        # (no completion, no prompt cache), so that is the only token type
+        # priced here.
+        - record: *price
+          labels: { gen_ai_request_model: embedding-local-cpu, gen_ai_token_type: input }
+          expr: *free
         - record: *price
           labels: { gen_ai_request_model: qwen3.5-plus, gen_ai_token_type: input }
           expr: *free
