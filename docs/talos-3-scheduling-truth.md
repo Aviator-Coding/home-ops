@@ -130,29 +130,80 @@ is what actually separates them.
 
 ### Where that leaves the node
 
+That first wave was not enough. It left 40294 Mi of room against a 39342 Mi
+peak, so the only request that cleared the peak (39Gi) put the node at 99.6%
+with 358 Mi of margin. A truthful request and a usable margin were mutually
+exclusive, because the node's non-negotiable floor - 2 OSDs at 29184 Mi, a mon,
+a CNPG instance, a NATS instance, DaemonSets, the control plane - is 57794 Mi,
+**62% of the node before the LLM is placed at all**.
+
+So a second wave moved two Ceph daemons that are neither OSDs nor mons off
+talos-3. **These two are not equivalent to each other, and the order matters.**
+
+| step | what | frees | class of action |
+|---|---|---:|---|
+| 1 | `rgw` (objectstore gateway) | 1280 Mi | One of **two** replicas (talos-2 + talos-3), both serving behind one service. The other serves throughout. No failover, no client impact. |
+| 2 | `mds` (CephFS metadata) | 1280 Mi | `ceph-filesystem-b` held **ACTIVE rank 1**, not a standby. Draining it forces a **rank failover** to standby-replay `-d`. Routine and designed-for - every node roll does it - but client-visible in a way step 1 is not. |
+| 3 | `ai/vllm` request 16Gi -> 40Gi | - | Only possible once 1 and 2 have created the room. Raising it first makes the LLM unschedulable. |
+
+Verify step 2 by `ceph health` returning to **HEALTH_OK** (it was HEALTH_OK,
+muted `AUTH_*` only, before the change) before treating step 3 as done. That is
+the same gate this repo uses for node rolls.
+
+Step 2 also confines all 4 mds pods to talos-1/talos-2, because Rook applies one
+placement block to every mds pod. It stays schedulable during a single-node
+drain - one eligible domain means skew 0, so the `maxSkew: 1` `DoNotSchedule`
+spread is satisfied and all four land on the survivor - but for the length of a
+talos-1 or talos-2 maintenance window the filesystem has no node-level MDS
+redundancy, where before it still had two nodes. A talos-3 window is now
+strictly better: no MDS churn at all.
+
+### What could not be moved
+
+`rook-ceph.rbd.csi.ceph.com-ctrlplugin` (1024 Mi, the third daemon originally
+considered) **cannot be relocated from this repo**. Rook v1.20 migrated CSI to
+ceph-csi-operator: the Deployment is owned by a `Driver` CR
+(`csi.ceph.io/v1`), which carries a usable `spec.controllerPlugin.affinity`
+field but is created by an internal Helm release (`ceph-csi-drivers`) that is
+not Flux-managed. Neither the `rook-ceph` operator chart v1.20.7 (whose only
+`nodeAffinity` value targets the `discover` DaemonSet) nor
+`CephCluster.spec.csi` (`cephfs`, `readAffinity`, `skipUserCreation` only)
+exposes controllerPlugin placement. Reaching it would mean fighting the internal
+release or adding a conflicting `Driver` CR; neither is worth 1024 Mi.
+
+### Final arithmetic
+
 ```
-allocatable                              93604 Mi
-committed, excluding ai/vllm entirely    53310 Mi
-room available for ai/vllm               40294 Mi
-ai/vllm 30-day peak working set          39342 Mi
+allocatable                                  93604 Mi
+shed, wave 1 (right-sizing + 7 relocations)   5960 Mi
+shed, wave 2 (rgw 1280 + mds 1280)            2560 Mi
+                                             --------
+total shed                                    8520 Mi
+committed, excluding ai/vllm                 50750 Mi
+room available for ai/vllm                   42854 Mi
+ai/vllm 30-day peak working set              39342 Mi
+ai/vllm request, as shipped                  40960 Mi  (40Gi)
+                                             --------
+talos-3 committed after the change           91710 Mi  = 98.0%
+margin                                        1894 Mi
 ```
 
-| vllm request | node total | commit | margin | overage at 30-day peak |
-|---|---:|---:|---:|---:|
-| 34Gi | 88126 Mi | 94.1% | 5478 Mi | 4526 Mi |
-| 36Gi | 90174 Mi | 96.3% | 3430 Mi | 2478 Mi |
-| 38Gi | 92222 Mi | 98.5% | 1382 Mi | 430 Mi |
-| 39Gi | 93246 Mi | 99.6% | 358 Mi | **0** |
-| 40Gi | 94270 Mi | 100.7% | - | does not fit |
+`ai/vllm` uses `strategy: Recreate`, so on rollout the old pod is terminated
+before the new one is created; the new pod needs 40960 Mi free and has 42854 Mi,
+so it schedules. Its overage at peak goes from **+21230 Mi to zero** - it leaves
+the kubelet's exceeds-set entirely and joins the last-evicted group.
 
-**This is the finding that matters.** Full eviction protection needs a request
-at or above 39342 Mi, and the first value that clears it (39Gi) leaves the node
-at 99.6%. A fully honest declaration and a usable node margin are mutually
-exclusive on talos-3 as currently loaded - not because the shed was too timid,
-but because the node's non-negotiable floor (2 OSDs at 29184 Mi, a mon, a CNPG
-instance, a NATS instance, DaemonSets, the control plane) is **57794 Mi, 62% of
-the node, before the LLM is placed at all**. Adding a 38.4 GiB LLM to that
-leaves roughly 2 GiB of slack in a 91.4 GiB node.
+The margin is 1894 Mi rather than the 2918 Mi projected when the CSI plugin was
+still believed movable. If more reservation headroom is wanted, dropping the
+request to 39Gi restores exactly 96.9% and 2918 Mi and **still clears the peak**
+(39936 > 39342), at the cost of shrinking growth headroom above the peak from
+1618 Mi to 594 Mi. That is a one-line change either way.
+
+A high commitment here is the correct end state, not a symptom: talos-3 exists
+to host a GPU-pinned 38.4 GiB LLM, two OSDs and a mon. The reservation is nearly
+spoken for by design, while actual RAM use sits near 75% - roughly 21 GiB free.
+What the margin protects is the ability to admit a future DaemonSet, not the
+node's ability to run what is on it.
 
 ## 5. The 29 unrequested containers
 

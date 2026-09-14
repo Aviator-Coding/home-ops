@@ -143,9 +143,35 @@ spec:
             resources:
               requests:
                 cpu: "2"
-                memory: 16Gi
+                # 40Gi, raised from 16Gi 2026-09-14. This is an eviction-safety
+                # fix, not a capacity request. The kubelet ranks node-pressure
+                # eviction first by whether a pod's usage EXCEEDS its requests,
+                # then by priority, then by how far it exceeds. At 16Gi this
+                # server sat 21230Mi over its request - 117x the next pod the
+                # kubelet would actually evict (everything here is priority 0,
+                # and kube-apiserver's +2085Mi is a system-node-critical static
+                # pod). So any memory spike on talos-3 killed the LLM first, and
+                # killed it far below the 48Gi limit below, which was never the
+                # binding risk. A request that covers real usage removes the pod
+                # from the exceeds-set entirely and puts it in the last-evicted
+                # group - that is the whole point of the change.
+                #
+                # 40Gi clears the measured 30-day PEAK working set of 39342Mi
+                # (not the average - steady state is ~37.6GiB) with 1618Mi of
+                # headroom. The peak is the right target because the footprint
+                # is anonymous and irreclaimable: container_memory_rss 37536Mi
+                # against container_memory_cache of 4Mi, because the server runs
+                # --no-mmap. The kernel cannot reclaim any of it under pressure.
+                #
+                # This value only fits because room was made for it first, in
+                # the two rook-ceph relocations and the right-sizing that
+                # precede it. Do not raise it further without redoing that
+                # arithmetic: docs/talos-3-scheduling-truth.md.
+                memory: 40Gi
                 devic.es/b70: 1
               limits:
+                # Unchanged. Bounding this server's growth is a separate open
+                # decision; this change only makes the reservation honest.
                 memory: 48Gi
                 devic.es/b70: 1
             probes:
