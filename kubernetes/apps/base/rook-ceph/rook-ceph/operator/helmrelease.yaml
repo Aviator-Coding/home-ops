@@ -21,6 +21,21 @@ spec:
     crds:
       enabled: true
     csi:
+      # NOTE: there is no way to place the CSI controller plugin from this repo,
+      # and it is not an oversight - do not go looking for the value again.
+      # rook v1.20 moved CSI to ceph-csi-operator, so
+      # `rook-ceph.{rbd,cephfs}.csi.ceph.com-ctrlplugin` is owned by a
+      # `Driver` CR (csi.ceph.io/v1). That CR *does* carry a usable
+      # `spec.controllerPlugin.affinity`, but it is created by an internal Helm
+      # release (`ceph-csi-drivers`) that Flux does not manage, and nothing
+      # surfaces it: this chart's only `nodeAffinity` value targets the
+      # `discover` DaemonSet, and `CephCluster.spec.csi` exposes just
+      # `cephfs` / `readAffinity` / `skipUserCreation`. Reaching it would mean
+      # fighting that internal release or applying a competing `Driver` CR.
+      # Checked 2026-09-14 while freeing memory on talos-3, where the rbd
+      # ctrlplugin's 1024Mi was wanted and proved structurally unavailable -
+      # docs/talos-3-scheduling-truth.md "What could not be moved".
+      #
       # NOTE: cephFSKernelMountOptions was removed from the v1.20 operator chart
       # (ceph-csi-operator migration). The effective kernel mount option now lives on
       # the CephCluster CR (cephClusterSpec.csi.cephfs.kernelMountOptions in the cluster HR).
