@@ -1,10 +1,12 @@
 ---
 # The cluster's local embedding service, reached directly (not through
 # LiteLLM - see ../httproute-unified.yaml's default /v1/embeddings rule for
-# why). Text-Embeddings-Inference on CPU, sentence-transformers/
-# all-MiniLM-L6-v2 (384-dim), declared at
-# ../../../toolhive/config/embeddingserver.yaml. OpenAI-compatible at its
-# native /v1/embeddings. In-cluster service: no TLS, no auth secret.
+# why). Text-Embeddings-Inference on CPU, Qwen/Qwen3-Embedding-0.6B (up to
+# 1024-dim, swapped 2026-09-13 from sentence-transformers/all-MiniLM-L6-v2 -
+# see ../../../toolhive/config/embeddingserver.yaml for the full reasoning),
+# declared at ../../../toolhive/config/embeddingserver.yaml.
+# OpenAI-compatible at its native /v1/embeddings. In-cluster service: no
+# TLS, no auth secret.
 #
 # NOT vllm-embed. That AgentgatewayBackend used to be this route's default
 # target and pointed at a Service with zero endpoints (the B70's llm-scaler

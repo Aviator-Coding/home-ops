@@ -4,33 +4,68 @@ kind: EmbeddingServer
 metadata:
   name: mcp-tools-embedding
 spec:
-  model: sentence-transformers/all-MiniLM-L6-v2
+  model: Qwen/Qwen3-Embedding-0.6B
   image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest@sha256:e0918e6fc9020c7fcef8733f4191f6bffe2f5be44c1e409658be3244dfaf1231
   env:
     - name: HOSTNAME
       value: "::"
-  # Measured live 2026-09-13 against the running pod (`kubectl top` +
-  # a 40s sustained-load probe over a read-only port-forward to the plain
-  # ClusterIP Service, 30 requests in flight throughout):
-  #   idle:                ~10-13m CPU,  439Mi memory
-  #   sustained 30-concurrent embedding calls: peaked ~17.3 CPU cores, 530Mi
-  #     memory (this TEI CPU build has no built-in worker/thread cap, so an
-  #     unconstrained container scales its thread pool to every core the node
-  #     offers - 3 Talos nodes at 19950m allocatable each, so a single burst
-  #     came close to saturating one node's CPU entirely).
-  # requests are sized just above the idle baseline so the scheduler places
-  # this pod correctly instead of blind (the previous `resources: {}`).
-  # limits deliberately cap CPU well below the measured unconstrained peak:
-  # now that this service is reachable from outside the cluster (this PR),
-  # an external caller's concurrent-request burst must not be able to starve
-  # a whole Talos node the way the uncapped container did in this measurement.
-  # 4 cores comfortably clears realistic embedding traffic (single requests
-  # complete in ~47ms) while bounding the worst case. Memory limit keeps ~2x
-  # headroom over the measured 530Mi peak.
+  # Swapped 2026-09-13 from sentence-transformers/all-MiniLM-L6-v2 (384-dim,
+  # 256-token max_input_length with auto_truncate silently discarding
+  # anything past that, English-only) to Qwen/Qwen3-Embedding-0.6B (up to
+  # 1024-dim, 32768-token context, 100+ languages, instruction-aware).
+  # Ungated on HuggingFace, no hfTokenSecretRef needed. See
+  # ../../litellm/app/models/embedding-local-cpu.yaml for the LiteLLM-side
+  # half of this change and the PR description for what re-indexing this
+  # vector-space change requires.
+  #
+  # This pinned cpu-latest digest was built 2026-09-11 (confirmed via the
+  # GHCR manifest, `org.opencontainers.image.created`), a year after
+  # huggingface/text-embeddings-inference#715 fixed the intel-mkl-src
+  # linking bug that previously broke CPU inference for Qwen3 embedding
+  # models (huggingface/text-embeddings-inference#667) - no image bump
+  # needed. Qwen3-Embedding-0.6B ships its own sentence-transformers pooling
+  # config (last-token) and its own max-sequence-length config (32768), the
+  # same auto-detection path MiniLM already relied on with no explicit
+  # `args:` - so none are added here either.
+  #
+  # Original MiniLM sizing (measured live 2026-09-13 against the running
+  # pod, `kubectl top` + a 40s sustained 30-concurrent-request probe):
+  #   idle: ~10-13m CPU, 439Mi memory
+  #   sustained 30-concurrent: peaked ~17.3 CPU cores, 530Mi memory (this TEI
+  #     CPU build has no built-in worker/thread cap, so an unconstrained
+  #     container scales its thread pool to every core the node offers - 3
+  #     Talos nodes at 19950m allocatable each, so a single burst came close
+  #     to saturating one node's CPU entirely).
+  #
+  # Qwen3-Embedding-0.6B is ~26x MiniLM's 22.7M parameters (~596M) and ~1.2GB
+  # on disk (bf16 safetensors) vs MiniLM's ~90MB, which invalidates the old
+  # 1Gi memory limit outright - the model alone would not fit loaded. This
+  # task's cluster access is read-only, so the same live sustained-load probe
+  # used above cannot be repeated pre-merge; sizing below is a documented
+  # estimate instead, and a live post-merge check is called out as a
+  # follow-up in the PR:
+  #   - an independent third-party CPU benchmark of this exact model
+  #     (sentence-transformers, not TEI, so likely somewhat heavier than TEI's
+  #     Rust/candle runtime) measured 529Mi RSS right after model load,
+  #     rising to ~1.4-1.7Gi RSS after live inference and a 100-item batch.
+  #   - scaling MiniLM's own ~350Mi non-model TEI/framework overhead (439Mi
+  #     idle minus its ~90MB weights) onto Qwen3's ~1.2GB weights gives a
+  #     comparable ~1.5-1.7Gi loaded-and-warm floor.
+  # requests.memory is set just above that loaded-idle floor, same rule as
+  # before. limits.memory keeps generous headroom above the ~1.7Gi observed
+  # single-request peak for concurrent requests against the new 32768-token
+  # ceiling (128x MiniLM's old 256-token cap, so worst-case per-request
+  # activation memory is no longer bounded the way it was) - still a small
+  # fraction (~4%) of a Talos node's ~91GiB allocatable memory, so it is sized
+  # for this pod's own OOM safety, not node protection.
+  # limits.cpu stays capped at 4 cores, unchanged reasoning: now that this
+  # service is reachable from outside the cluster, an external caller's
+  # concurrent-request burst must not be able to starve a whole Talos node
+  # the way the uncapped container did in the original measurement.
   resources:
     requests:
       cpu: 250m
-      memory: 512Mi
+      memory: 1Gi
     limits:
       cpu: "4"
-      memory: 1Gi
+      memory: 4Gi
