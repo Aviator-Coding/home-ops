@@ -29,4 +29,5 @@ patches:
 resources:
 - ./externalsecret.yaml
 - ./helmrelease.yaml
+- ./prometheusrule.yaml
 - ./servicemonitor.yaml
