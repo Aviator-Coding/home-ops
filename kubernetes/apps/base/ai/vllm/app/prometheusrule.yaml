@@ -1,0 +1,115 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+#
+# There was NO memory alert covering ai/vllm before this file. The pod's RSS
+# climbed from 1.8Gi at the 2026-09-07 12:40 UTC boot to 37.7Gi by
+# 2026-09-14, 100% anonymous with zero page cache, against a 48Gi limit -
+# and nothing warned. The cluster-wide `OOMKilled` rule
+# (monitoring/kube-prometheus-stack, alerts/oomkilled.yaml) only fires on
+# kube_pod_container_status_restarts_total increasing - i.e. strictly AFTER
+# the kill. That is a useful backstop, not advance warning: the LLM goes
+# down first and the alert explains why afterwards. The two rules below fire
+# on the approach instead.
+#
+# Denominator is kube_pod_container_resource_limits, NOT
+# container_spec_memory_limit_bytes - that family does not exist in this
+# Prometheus (AGENTS.md; re-confirmed here, empty vector for this pod), the
+# same trap that already left cert-manager's and surrealdb's original memory
+# rules dead, and formerly database/tikv-rules' TiKVMemoryHighUsage before
+# that whole subsystem (tidb-operator + tikv-cluster) was removed in
+# ca24364d (2026-04-26) - so there is nothing left to fix there. The
+# `on (namespace, pod, container)` join is required because cAdvisor and
+# kube-state-metrics carry different label sets.
+#
+# Pod selector needs the explicit `pod!~"vllm-vllm-embed-.*"` exclusion:
+# the sibling `vllm-embed` controller (CPU embedder, kubernetes/apps/main/ai/
+# vllm.yaml) shares the "vllm-" pod-name prefix and the same "app" container
+# name, but has its own 16Gi limit - without the exclusion its series would
+# corrupt this join whenever it is scaled up (it is deliberately pinned to
+# replicas: 0 today, mutually exclusive with the main controller on the
+# single GPU, but is not health-checked and can be scaled up independently).
+#
+# Verified live against Prometheus 2026-09-14 02:5x UTC:
+#   container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
+#     / on (namespace, pod, container)
+#   kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
+#   -> single series, value 0.7599... (75.99%) for pod vllm-7cfbc95d5-9cqm7.
+#
+# Threshold/for: choice, from the pod's full lifetime (boot to now, 5m-step
+# range query over the whole 159h uptime, 1898 samples):
+#   - All-time min so far: 1.81% (cold start). Min over the last 48h: 65.31%.
+#     The ratio has not been below 65% even once since it first climbed past
+#     that point around 2026-09-11 - zero threshold crossings at 65% across
+#     the full lifetime once the initial ramp finished, despite hour-to-hour
+#     drawdowns of up to 8.5 percentage points (this workload's memory is not
+#     monotonic - it visibly fluctuates downward, which is exactly the shape
+#     AGENTS.md warns will teach an operator to ignore a badly-tuned alert).
+#     70-78%, right where the pod actually spends most of its time, crossed
+#     back and forth 25-39 times in the same 48h window - a threshold placed
+#     there would flap on ordinary variation. 65% is comfortably under the
+#     demonstrated noise floor, so it will not flap, and it is already true
+#     today - correctly surfacing the existing risk immediately on merge
+#     rather than waiting for growth that may never resume at its initial
+#     pace.
+#   - All-time max so far: 78.99% (never reached 80%). 85% sits a full 6+
+#     points above every sample ever recorded for this pod, so it will not
+#     flap on today's noise either, while still giving real advance warning
+#     if growth resumes. Growth is decelerating (~12Gi/day at boot, ~0.05-
+#     0.13Gi/h over the last 24-72h); even at the faster 72h-average rate,
+#     covering the ~7.2Gi from 85% to the 48Gi limit takes on the order of
+#     two days, and at the fastest rate ever observed (boot-day, ~0.5Gi/h)
+#     it is still >14h - ample time for a person to act on a Pushover page
+#     either way.
+#   - `for: 15m` on both: far longer than a single missed 1m scrape (so a
+#     scrape gap cannot reset the clock unnecessarily) and far shorter than
+#     the multi-hour timescale this metric actually moves on, so it adds
+#     safety margin without meaningfully delaying detection.
+#
+# Alertmanager routes both severities to the Pushover receiver (warning and
+# critical both page; only critical also inhibits an equal-namespace warning)
+# - see kubernetes/apps/base/monitoring/alertmanager/app/config/alertmanager.yml
+# - so both thresholds above were chosen to be flap-proof, not just the
+# critical one.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vllm-rules
+  labels:
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: vllm.rules
+      rules:
+        - alert: VLLMMemoryApproachingLimit
+          annotations:
+            summary: vllm is approaching its memory limit
+            description: >-
+              vllm pod {{ $labels.pod }} is at {{ $value | humanizePercentage }}
+              of its memory limit. This is the captain's LLM - plan capacity
+              or investigate the growth before it reaches the critical
+              threshold.
+          expr: |
+            container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
+              > 0.65
+          for: 15m
+          labels:
+            severity: warning
+
+        - alert: VLLMMemoryCriticalLimit
+          annotations:
+            summary: vllm is close to being OOMKilled
+            description: >-
+              vllm pod {{ $labels.pod }} is at {{ $value | humanizePercentage }}
+              of its memory limit and is close to an OOMKill. This is the
+              captain's LLM - act now, not after the crash.
+          expr: |
+            container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
+              > 0.85
+          for: 15m
+          labels:
+            severity: critical
