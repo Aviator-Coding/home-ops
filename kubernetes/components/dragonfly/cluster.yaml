@@ -30,6 +30,23 @@ spec:
     limits:
       cpu: 250m
       memory: 640Mi
+  # A Dragonfly's own master and replica must never share a node - otherwise
+  # the replica buys nothing when that node is lost. The spread constraint
+  # below does NOT guarantee this: topologySpreadConstraints.labelSelector is
+  # evaluated only against pods in the SAME namespace, so it balances all of a
+  # namespace's dragonfly pods collectively rather than each instance's two
+  # replicas. Measured 2026-09-14: selfhosted/rsshub-dragonfly-0 AND -1 were
+  # both on talos-3 while every per-namespace skew was still a legal 1.
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app: ${APP}-dragonfly
+  # Best-effort balance of a namespace's dragonfly pods across nodes. Kept for
+  # that broader spread; the anti-affinity above is what actually separates an
+  # instance's own two replicas.
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: "kubernetes.io/hostname"
