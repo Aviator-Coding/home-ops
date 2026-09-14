@@ -19,6 +19,13 @@ spec:
           resources:
             requests:
               cpu: 100m
+              # Explicit memory request. Without one Kubernetes defaults
+              # requests.memory to limits.memory, so every envoy pod (2 per
+              # gateway x 2 gateways = 4) reserved a full 1Gi. Measured
+              # 2026-09-14: 30-day peak working set is 200Mi on the busiest
+              # (envoy-external) and 105Mi on envoy-internal. The 1Gi limit is
+              # unchanged and still absorbs traffic spikes.
+              memory: 256Mi
             limits:
               memory: 1Gi
         # The gateway-helm v1.7.1 CRD does not expose

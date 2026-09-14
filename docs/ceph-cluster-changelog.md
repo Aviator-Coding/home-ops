@@ -84,6 +84,16 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-09-14] Exclude RGW and MDS from talos-3 to make room for an honest ai/vllm request  (branch `fm/homeops-talos3-scheduling-truth`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | Added `nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution` (`kubernetes.io/hostname NotIn [talos-3]`) to both `cephObjectStores[0].spec.gateway.placement` and `cephFileSystems[0].spec.metadataServer.placement` in `cluster/helmrelease.yaml`. No OSD, mon, pool, or CRUSH change; no image or tuning change. |
+| **Why** | Not a Ceph-driven change: talos-3's memory was 80.8% committed while `ai/vllm` requested 16Gi against a measured 39342Mi peak, so the kubelet's node-pressure eviction (ranked first by whether usage exceeds requests) would kill the LLM before anything else on the node. Freeing RGW (1280Mi) and MDS (1280Mi) from talos-3 was part of the load shed that made room to raise that request to 40Gi truthfully. Full arithmetic, the eviction-ranking mechanism, and why OSD/mon memory is not slack: [`talos-3-scheduling-truth.md`](./talos-3-scheduling-truth.md). |
+| **Risk** | RGW: one of two replicas (talos-2 + talos-3), both actively serving behind one service - no failover, no client impact. MDS: `ceph-filesystem-b` held **ACTIVE rank 1** on talos-3, so this forces a rank failover to standby-replay `-d` (routine, the same as any node roll) and, because Rook applies one placement block to all 4 mds pods, confines all of them to talos-1/talos-2 - a talos-1 or talos-2 maintenance window now runs with no node-level MDS redundancy, where before it still had two nodes. This removes the scenario that motivated the 2026-09-11 `podAntiAffinity` entry above (both active ranks landing on talos-3 together): that can no longer happen since MDS never schedules there at all. The `podAntiAffinity` term from that entry is unchanged and still governs the a/b split across talos-1 and talos-2. |
+| **Rollback** | Remove the added `nodeAffinity` blocks from `gateway.placement` and `metadataServer.placement`. |
+| **Verify** | `ceph health` returned to `HEALTH_OK` (muted `AUTH_*` only, as before the change) after the MDS step and before the `ai/vllm` request was raised. `task flux:test:all` / `flate` pass. |
+
 ### [2026-09-12] Loosen BLUESTORE_SLOW_OP_ALERT latch; re-verify OSD device-path bug still wontfix  (branch `fm/homeops-osd4-followups`)
 
 | Field | Value |

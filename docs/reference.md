@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **84**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **85**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -152,4 +152,5 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 | [`system-namespace-consolidation-analysis.md`](system-namespace-consolidation-analysis.md) | Why `system-controller` and `system-upgrade` must not merge into `system` (k8tz webhook exclusion + Talos allowlist blockers). Read before re-proposing; do not apply. |
 | [`admission-webhook-create-only-drift.md`](admission-webhook-create-only-drift.md) | CREATE-only mutating admission webhooks never re-fire on existing objects (k8tz CronJob `spec.timeZone` class): mechanism, detection, fix, and live sweep. |
 | [`k8tz-imagevolume-evaluation.md`](k8tz-imagevolume-evaluation.md) | Why k8tz `imageVolume` injection was evaluated and declined (2026-09-01): QoS gate passes, upstream still recommends `initContainer`, `/etc/localtime` drop, 34-pod BestEffort transition. Read before re-proposing; do not apply. |
+| [`talos-3-scheduling-truth.md`](talos-3-scheduling-truth.md) | talos-3's memory arithmetic: why an undersized `ai/vllm` request was the real eviction risk, what is genuinely immovable (GPU pin, CNPG/NATS anti-affinity, OSDs), what was shed to fit an honest 40Gi request, and the resulting committed percentage and margin. Redo this arithmetic before adding a workload to talos-3 or raising a request there. |
 | [`reference.md`](reference.md) | This index. |

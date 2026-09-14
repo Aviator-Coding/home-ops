@@ -64,6 +64,28 @@ spec:
                 memory: 512Mi
               limits:
                 memory: 1Gi
+    defaultPodOptions:
+      # Kept off talos-3. That node is the GPU/storage node: the Arc Pro B70
+      # pins ai/vllm there (devic.es/b70 is advertised only by talos-3), and it
+      # also carries 2 of the 6 Ceph OSDs, a mon, and the postgres-17 replica
+      # that CNPG's required anti-affinity fixes to one instance per node. Once
+      # vllm's memory request reflects its real 38.4GiB working set, talos-3 has
+      # no room left for discretionary workloads. Measured evidence and the full
+      # arithmetic: docs/talos-3-scheduling-truth.md (2026-09-14).
+      #
+      # Confining this app to talos-1/talos-2 costs no real availability: the
+      # 3 Ceph mons are one per node, so losing both other nodes already means
+      # no mon quorum and no ceph-block storage, and this app could not run on
+      # talos-3 alone regardless.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - talos-3
     service:
       app:
         type: ClusterIP
