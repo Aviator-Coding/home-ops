@@ -15,9 +15,17 @@
 # container_spec_memory_limit_bytes - that family does not exist in this
 # Prometheus (AGENTS.md; re-confirmed here, empty vector for this pod), the
 # same trap that already left cert-manager's and surrealdb's original memory
-# rules dead, and formerly database/tikv-rules' TiKVMemoryHighUsage before
-# that whole subsystem (tidb-operator + tikv-cluster) was removed in
-# ca24364d (2026-04-26) - so there is nothing left to fix there. The
+# rules dead. database/tikv-rules' TiKVMemoryHighUsage hits this identical
+# trap and is orphaned rather than fixable here: verified live against the
+# cluster (kubectl -n database get prometheusrule tikv-rules), it is a
+# PrometheusRule that still exists on the cluster today (256+ days old,
+# labeled kustomize.toolkit.fluxcd.io/name: tikv-cluster), but the
+# declaring file and the whole tidb-operator/tikv-cluster subsystem were
+# removed from git in ca24364d (2026-04-26) without Flux ever pruning the
+# live object, so it is undeclared anywhere in git and structurally
+# incapable of firing. Removing a live, undeclared cluster object is a
+# destructive action reserved for the captain and is out of scope for this
+# change - nothing here touches or deletes it. The
 # `on (namespace, pod, container)` join is required because cAdvisor and
 # kube-state-metrics carry different label sets.
 #
@@ -37,17 +45,20 @@
 #
 # Threshold/for: choice, from the pod's full lifetime (boot to now, 5m-step
 # range query over the whole 159h uptime, 1898 samples):
-#   - All-time min so far: 1.81% (cold start). Min over the last 48h: 65.31%.
-#     The ratio has not been below 65% even once since it first climbed past
-#     that point around 2026-09-11 - zero threshold crossings at 65% across
-#     the full lifetime once the initial ramp finished, despite hour-to-hour
-#     drawdowns of up to 8.5 percentage points (this workload's memory is not
-#     monotonic - it visibly fluctuates downward, which is exactly the shape
-#     AGENTS.md warns will teach an operator to ignore a badly-tuned alert).
-#     70-78%, right where the pod actually spends most of its time, crossed
-#     back and forth 25-39 times in the same 48h window - a threshold placed
-#     there would flap on ordinary variation. 65% is comfortably under the
-#     demonstrated noise floor, so it will not flap, and it is already true
+#   - All-time min so far: 1.81% (cold start). Min over the last 48h: 65.31%,
+#     despite hour-to-hour drawdowns of up to 8.5 percentage points (this
+#     workload's memory is not monotonic - it visibly fluctuates downward,
+#     which is exactly the shape AGENTS.md warns will teach an operator to
+#     ignore a badly-tuned alert). A threshold picked just above that 65.31%
+#     floor would leave only a 0.3-point margin against an 8.5-point swing -
+#     itself at real risk of the flap this design is trying to avoid. 60% is
+#     set by the noise floor instead, with real margin below both the 65.31%
+#     48h minimum and the documented 8.5-point drawdowns, mirroring
+#     falkordb's tier-1 pattern of resting comfortably below observed noise
+#     rather than just barely above the historical minimum. 70-78%, right
+#     where the pod actually spends most of its time, crossed back and forth
+#     25-39 times in the same 48h window - a threshold placed there would
+#     flap on ordinary variation. 60% will not flap, and it is already true
 #     today - correctly surfacing the existing risk immediately on merge
 #     rather than waiting for growth that may never resume at its initial
 #     pace.
@@ -93,7 +104,7 @@ spec:
             container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
               / on (namespace, pod, container)
             kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
-              > 0.65
+              > 0.60
           for: 15m
           labels:
             severity: warning
