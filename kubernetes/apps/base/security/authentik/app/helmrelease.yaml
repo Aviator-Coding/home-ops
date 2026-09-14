@@ -102,7 +102,8 @@ spec:
         # meaning (PendingMigrations, FailedSystemTasks). They are kept anyway,
         # because every way of fixing them costs more than the signal is worth.
         #
-        # WHY THEY ARE INERT (measured against live Prometheus 2026-09-14):
+        # WHY THEY ARE INERT: 19 distinct METRIC faults across those 25 rules
+        # (measured against live Prometheus 2026-09-14):
         #   8  are pure OpenMetrics `_total`-suffix drift, e.g. the rules read
         #      django_http_requests_total_by_method while the live series is
         #      django_http_requests_total_by_method_total;
