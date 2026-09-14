@@ -2,7 +2,9 @@
 """Behavioral regression for the ai/vllm memory-approach PrometheusRule.
 
 Pins the 2026-09-14 fix that replaced a static-threshold
-`VLLMMemoryApproachingLimit` warning rule with a growth-aware one:
+`VLLMMemoryApproachingLimit` warning rule with a growth-aware one, and the
+same-day follow-up that stopped that growth-aware rule from false-positiving
+on every pod restart:
 
   Measured live over the pod's full ~159h uptime, the working-set/limit
   ratio sat in a persistent 65.31-78.99% band for the last 48h and had not
@@ -13,8 +15,18 @@ Pins the 2026-09-14 fix that replaced a static-threshold
   static threshold anywhere in the observed band would flap. The fixed rule
   instead keys on trajectory via `predict_linear` (window 6h, horizon 24h,
   for: 1h) - see kubernetes/apps/base/ai/vllm/app/prometheusrule.yaml for the
-  full derivation. `VLLMMemoryCriticalLimit` (static ratio > 0.85, for: 15m)
-  is unchanged and still a legitimate fast-spike backstop.
+  full derivation.
+
+  `predict_linear` alone was then found to false-positive on a fresh pod
+  restart: verified live, a 2026-09-14 restart projected a 1.19x crossing
+  from its steep post-boot ramp while the pod sat at a harmless 0.20 of its
+  limit. The rule now requires BOTH the predicted crossing AND an
+  already-elevated current ratio (`and on (namespace, pod, container)` a
+  `> 0.6` floor) - above the measured post-restart ramp, below the
+  pre-restart 48h steady-state noise band.
+
+  `VLLMMemoryCriticalLimit` (static ratio > 0.85, for: 15m) is unchanged and
+  still a legitimate fast-spike backstop.
 
 This test does NOT grep source text as evidence. It:
 
@@ -26,9 +38,15 @@ This test does NOT grep source text as evidence. It:
      firing/silence:
        - A 48h noisy-but-non-climbing series shaped like the documented
          65-78% band never fires either alert.
-       - A series that climbs steadily toward the limit fires the warning
-         alert once predict_linear's projection has held above the limit
-         for the full for:1h window - and not a moment before.
+       - A fresh-restart-shaped ramp (steep early climb from a low base,
+         modeled on the real 2026-09-14 false positive) never fires the
+         warning alert, even though its raw predict_linear projection
+         crosses the limit almost immediately - the current-ratio floor
+         holds it quiet because the ratio never reaches 0.6.
+       - A series that climbs steadily toward the limit from an
+         already-elevated base fires the warning alert once predict_linear's
+         projection has held above the limit for the full for:1h window -
+         and not a moment before.
        - The unchanged critical backstop still fires after 15m sustained
          above 0.85 and resolves immediately (not gated by for:) once the
          ratio drops back below 0.85.
@@ -45,6 +63,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -66,6 +85,7 @@ EMBED_POD = "vllm-vllm-embed-abc1234"
 MAIN_POD = "vllm-7cfbc95d5-9cqm7"
 CLIMB_POD = "vllm-climb"
 NOISY_POD = "vllm-noisy"
+RAMP_POD = "vllm-ramp"
 
 
 class Failure(Exception):
@@ -75,6 +95,12 @@ class Failure(Exception):
 def require(cond: bool, msg: str) -> None:
     if not cond:
         raise Failure(msg)
+
+
+def _strip_tail(s: str) -> str:
+    """Strip trailing whitespace and closing parens, so a substring check on
+    a PromQL clause is not sensitive to how many `)` follow it."""
+    return re.sub(r"[\s)]+$", "", s)
 
 
 def load_docs(path: Path) -> list[dict[str, Any]]:
@@ -240,8 +266,32 @@ def assert_structural_contract(alerts: dict[str, dict[str, Any]]) -> None:
         "VLLMMemoryApproachingLimit for: must be 1h",
     )
     require(
-        warn_expr.strip().endswith("> 1"),
-        "VLLMMemoryApproachingLimit must compare the projected ratio against 1 (100% of limit)",
+        warn_expr.count("predict_linear(") == 1,
+        "VLLMMemoryApproachingLimit's current-ratio floor clause must use the "
+        "raw container_memory_working_set_bytes ratio, not another "
+        "predict_linear projection",
+    )
+    require(
+        "and on (namespace, pod, container)" in warn_expr,
+        "VLLMMemoryApproachingLimit must AND the predicted-crossing clause "
+        "with an already-elevated current-ratio floor - predict_linear alone "
+        "fires on a fresh pod restart's steep early ramp before there is any "
+        "real danger (measured live 2026-09-14: fires at ratio=0.20, 6h "
+        "post-restart, projecting 1.19x)",
+    )
+    proj_clause, _, floor_clause = warn_expr.partition(
+        "and on (namespace, pod, container)"
+    )
+    require(
+        _strip_tail(proj_clause).endswith("> 1"),
+        "VLLMMemoryApproachingLimit's predict_linear clause must compare the "
+        "projected ratio against 1 (100% of limit)",
+    )
+    require(
+        _strip_tail(floor_clause).endswith("> 0.6"),
+        "VLLMMemoryApproachingLimit's current-ratio floor must be 0.6 - above "
+        "the measured post-restart ramp (0.20 at 6h post-restart) and below "
+        "the pre-restart 48h steady-state noise band (0.6764-0.7761)",
     )
 
     require(
@@ -287,6 +337,20 @@ def _noisy_band_series(hours: int = 48, step_min: int = 5) -> list[float]:
     return [mean + amp * math.sin(2 * math.pi * i / period_samples) for i in range(n)]
 
 
+def _post_restart_ramp_series(hours: int = 10, step_min: int = 5) -> list[float]:
+    """A fresh pod restart's steep early ramp: linear from ratio 0.05 at
+    boot (t=0) at 0.045/hour, reaching 0.50 by t=10h - modeled on the real
+    2026-09-14 false positive (predict_linear projected 1.19x while the
+    pod sat at a harmless 0.20 of its limit, 6h post-restart) and on the
+    measured 2026-09-07 boot curve's early steepness (+7 GiB in day one).
+    Stays strictly below the 0.6 floor for the whole window, so any
+    firing here is a regression of the false positive the floor exists to
+    prevent."""
+    n = hours * 60 // step_min
+    rate_per_step = 0.045 / (60 // step_min)
+    return [0.05 + rate_per_step * i for i in range(n)]
+
+
 def _sustained_climb_series(lead_hours: int = 6, climb_hours: int = 30, step_min: int = 5) -> list[float]:
     """6h flat at 0.70, then a sustained climb at 0.0104/hour (~0.5 GiB/h
     against a 48Gi limit, the fastest rate ever observed for this pod)."""
@@ -324,6 +388,11 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
         embed_backstop = [0.95] * n_backstop
         limit_backstop = [1.0] * n_backstop
 
+        ramp = _post_restart_ramp_series()
+        n_ramp = len(ramp)
+        embed_ramp = [0.95] * n_ramp
+        limit_ramp = [1.0] * n_ramp
+
         test_doc = {
             "rule_files": ["vllm_rules.yml"],
             "evaluation_interval": "5m",
@@ -352,6 +421,42 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                     "alert_rule_test": [
                         {"eval_time": t, "alertname": alertname, "exp_alerts": []}
                         for t in ["12h", "24h", "36h", "48h"]
+                        for alertname in ("VLLMMemoryApproachingLimit", "VLLMMemoryCriticalLimit")
+                    ],
+                },
+                {
+                    "name": "quiet_during_post_restart_ramp",
+                    "interval": "5m",
+                    "input_series": [
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{RAMP_POD}", container="app"}}',
+                            "values": _series(ramp),
+                        },
+                        {
+                            "series": f'kube_pod_container_resource_limits{{namespace="ai", pod="{RAMP_POD}", container="app", resource="memory"}}',
+                            "values": _series(limit_ramp),
+                        },
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{EMBED_POD}", container="app"}}',
+                            "values": _series(embed_ramp),
+                        },
+                        {
+                            "series": f'kube_pod_container_resource_limits{{namespace="ai", pod="{EMBED_POD}", container="app", resource="memory"}}',
+                            "values": _series(limit_ramp),
+                        },
+                    ],
+                    "alert_rule_test": [
+                        # This is the regression case for the 2026-09-14
+                        # false positive: the raw predict_linear clause
+                        # crosses 1 almost immediately (projected ~1.13 at
+                        # t=0, climbing from there), so for:1h alone would
+                        # already have been satisfied by t=1h under the
+                        # pre-fix rule. The current-ratio floor must keep
+                        # the alert quiet regardless, because the ratio
+                        # never reaches 0.6 anywhere in this series (it
+                        # tops out at ~0.496 at t=9h55m).
+                        {"eval_time": t, "alertname": alertname, "exp_alerts": []}
+                        for t in ["1h", "3h", "6h", "8h", "9h45m"]
                         for alertname in ("VLLMMemoryApproachingLimit", "VLLMMemoryCriticalLimit")
                     ],
                 },
@@ -501,7 +606,9 @@ def main() -> int:
     print("PASS: ai/vllm memory alerting contracts hold")
     print("covered:")
     print("  - VLLMMemoryApproachingLimit uses predict_linear (6h window, 24h horizon, for:1h)")
+    print("    AND on (namespace, pod, container) an already-elevated current-ratio floor (> 0.6)")
     print("  - quiet against a 48h noisy-but-non-climbing series shaped like the live 65-78% band")
+    print("  - quiet during a fresh-restart-shaped ramp despite predict_linear projecting a crossing")
     print("  - fires once a sustained climb's projection has held above the limit for for:1h")
     print("  - VLLMMemoryCriticalLimit stays a static 0.85/for:15m backstop, resolves immediately on drop")
     print("  - the sibling vllm-embed controller never contaminates either alert")

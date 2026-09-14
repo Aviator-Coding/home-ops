@@ -53,17 +53,47 @@
 # crossed back and forth 25-39 times in the same 48h window, so a static
 # threshold anywhere in the observed band would flap. The rule instead keys
 # on trajectory - "still climbing toward the limit" - not absolute height,
-# which has been elevated for days and is already known:
+# which has been elevated for days and is already known.
 #
-#   predict_linear(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[6h], 86400)
-#     / on (namespace, pod, container)
-#   kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
-#     > 1
+# predict_linear ALONE is not sufficient evidence, and shipping it alone was
+# a real mistake caught before merge: a pod restart (2026-09-14, the 39Gi
+# request bump) put the pod through a steep post-boot ramp - RSS grows fast
+# in the hours after every boot, then decays over days (measured on the
+# 2026-09-07 boot: +7 GiB day one, decaying to +0.13 GiB by day six). Fed
+# only that early steep slope, predict_linear(6h, 24h) projected a crossing
+# (1.19x) while the pod sat at a harmless 20% of its limit, 6h post-restart -
+# verified live against Prometheus. A rule gated on predict_linear alone
+# would page the captain on every single restart. So the rule requires BOTH
+# a predicted crossing AND an already-elevated current ratio - growth alone
+# is necessary but not sufficient:
 #
-# Verified live against Prometheus 2026-09-14: this expression returns a
-# single series at 0.827 for the current pod - quiet, correctly, since
-# nothing is currently on track to breach the limit.
+#   (
+#     predict_linear(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[6h], 86400)
+#       / on (namespace, pod, container)
+#     kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
+#       > 1
+#   )
+#   and on (namespace, pod, container)
+#   (
+#     container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
+#       / on (namespace, pod, container)
+#     kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
+#       > 0.6
+#   )
 #
+# Verified live against Prometheus 2026-09-14 (pod ~6h post-restart): the
+# predict_linear clause alone returns 1.19 (would fire), the current ratio
+# is 0.2009 (well under the 0.6 floor), and the full AND expression above
+# returns an EMPTY vector - correctly quiet.
+#
+#   - Floor = 0.6: chosen to sit strictly between the two measured bands -
+#     above every ratio observed during the post-restart ramp (0.20 at 6h
+#     post-boot) and below the pre-restart 48h steady-state noise floor
+#     (0.6764-0.7761). A floor here does not blind the rule to a genuine
+#     approach: by the time real sustained growth is actually dangerous
+#     this pod's history shows it is already well above 0.6 (see the
+#     steady-state band above), so gating on "elevated AND still climbing"
+#     loses no real lead time versus "still climbing" alone.
 #   - Window = 6h: this pod's memory swings up to ~8.5 percentage points
 #     (roughly 4 GiB against the 48Gi limit) hour to hour, so a shorter
 #     window's regression slope is dominated by noise (replay showed a 3h
@@ -92,7 +122,9 @@
 #     for:1h (i.e. only counting a firing if the crossing held contiguously
 #     for >=60 minutes) - zero qualifying firings. The only raw crossings
 #     were the <=30-minute spurious runs above, which for:1h suppresses
-#     entirely.
+#     entirely. Every one of those 577 samples sat above the 0.6 floor
+#     (the measured 48h minimum was 0.6764), so the floor changes nothing
+#     about this proof.
 #   - Proof it WOULD fire on genuine sustained growth: replayed the same
 #     expression against the real 48h tail with a synthetic sustained climb
 #     of 0.5 GiB/h (the fastest rate ever observed for this pod) appended
@@ -101,7 +133,16 @@
 #     345 minutes, comfortably clearing the 1h `for:` window at +315
 #     minutes, i.e. roughly 5.25 hours into a sustained dangerous climb,
 #     with about 17 hours of runway still left before the pod would exhaust
-#     its 48Gi limit at that rate.
+#     its 48Gi limit at that rate. The 48h tail this climb is appended to
+#     never drops below the 0.6 floor, so this proof is unaffected by it.
+#   - Proof it does NOT fire on the post-restart ramp: replayed against a
+#     synthetic post-boot ramp shaped like the measured 2026-09-07 curve
+#     (steep early climb, low absolute ratio) - the predict_linear clause
+#     alone crosses 1 within the first few hours, but the combined
+#     expression stays quiet for the entire ramp because the current ratio
+#     never reaches the 0.6 floor in that window. See
+#     scripts/ci/vllm-memory-alert-test.py's
+#     quiet_during_post_restart_ramp case.
 #
 # VLLMMemoryCriticalLimit stays a static ratio > 0.85, for: 15m backstop -
 # it is NOT currently true (all-time max so far: 78.99%, never reached 80%,
@@ -140,10 +181,19 @@ spec:
               investigate the growth before it reaches the critical
               threshold.
           expr: |
-            predict_linear(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[6h], 86400)
-              / on (namespace, pod, container)
-            kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
-              > 1
+            (
+              predict_linear(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[6h], 86400)
+                / on (namespace, pod, container)
+              kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
+                > 1
+            )
+            and on (namespace, pod, container)
+            (
+              container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
+                / on (namespace, pod, container)
+              kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
+                > 0.6
+            )
           for: 1h
           labels:
             severity: warning
