@@ -25,8 +25,31 @@ spec:
   # models (huggingface/text-embeddings-inference#667) - no image bump
   # needed. Qwen3-Embedding-0.6B ships its own sentence-transformers pooling
   # config (last-token) and its own max-sequence-length config (32768), the
-  # same auto-detection path MiniLM already relied on with no explicit
-  # `args:` - so none are added here either.
+  # same auto-detection path MiniLM already relied on.
+  #
+  # `--max-batch-tokens 384` IS required, unlike MiniLM. TEI's mandatory
+  # startup warmup allocates one self-attention score-matrix buffer sized
+  # min(model max_input_length, --max-batch-tokens)^2 * num_attention_heads *
+  # 4 bytes (fp32). Left at TEI's un-overridden default (16384), that is
+  # min(32768, 16384)^2 * 16 heads * 4 bytes = 16 GiB - live-reproduced
+  # (podman, exact pinned image + model string, no args): the container
+  # aborts warmup with "memory allocation of 17179869184 bytes failed"
+  # before ever reaching /health, on every single pod start. This is a real
+  # architectural ceiling of TEI's candle CPU backend for this model
+  # (huggingface/text-embeddings-inference#758), not an emulation artifact -
+  # the same allocation would recur on the real Talos amd64 nodes, ~4x this
+  # pod's limits.memory. --max-batch-tokens also becomes the router's
+  # effective per-request max_input_length (auto_truncate silently
+  # truncates anything longer), so a genuine unbounded-up-to-32768-token
+  # request is not reachable within any sane CPU memory budget regardless.
+  # 384 is live-verified (podman, same image/model) to warm up and serve a
+  # real /v1/embeddings request; it comfortably covers this endpoint's only
+  # live consumer (ToolHive's MCP tool-selection index - tool name/
+  # description strings, far under 384 tokens each) while still raising the
+  # ceiling 1.5x above MiniLM's old 256-token silent-truncation cap.
+  args:
+    - --max-batch-tokens
+    - "384"
   #
   # Original MiniLM sizing (measured live 2026-09-13 against the running
   # pod, `kubectl top` + a 40s sustained 30-concurrent-request probe):

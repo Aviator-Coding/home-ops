@@ -4,8 +4,10 @@
 # request 2026-09-13: "how can an external service consume the embedding?").
 # Not one of the five B70 chat aliases - this is a SEPARATE CPU-only backend,
 # HuggingFace Text Embeddings Inference serving Qwen/Qwen3-Embedding-0.6B
-# (up to 1024-dim, 32768-token context), declared at
-# ../../toolhive/config/embeddingserver.yaml and already OpenAI-API compatible
+# (up to 1024-dim; capped to a 384-token effective context by
+# embeddingserver.yaml's `--max-batch-tokens 384` - see that file for why
+# the model's own 32768-token max_input_length is not reachable on CPU),
+# declared at ../../toolhive/config/embeddingserver.yaml and already OpenAI-API compatible
 # at its native /v1/embeddings. `info.mode: embedding` tells LiteLLM to treat
 # this alias as an embedding model rather than chat.
 #
