@@ -19,11 +19,16 @@
 # trap and is orphaned rather than fixable here: verified live against the
 # cluster (kubectl -n database get prometheusrule tikv-rules), it is a
 # PrometheusRule that still exists on the cluster today (256+ days old,
-# labeled kustomize.toolkit.fluxcd.io/name: tikv-cluster), but the
-# declaring file and the whole tidb-operator/tikv-cluster subsystem were
-# removed from git in ca24364d (2026-04-26) without Flux ever pruning the
-# live object, so it is undeclared anywhere in git and structurally
-# incapable of firing. Removing a live, undeclared cluster object is a
+# labeled kustomize.toolkit.fluxcd.io/name: tikv-cluster - a retired
+# Kustomization). Its declaring file
+# (tidb-operator/tikv-cluster/prometheusrule.yaml) was deleted from git in
+# d2f3dd81 (2025-12-31) - the same day this live object's own creation
+# timestamp records, corroborating that as the orphaning commit - and the
+# surrounding tidb-operator/tikv-cluster subsystem was fully retired four
+# months later, unrelated, in ca24364d (2026-04-26). Neither commit, nor
+# Flux, ever pruned the live object: it is undeclared anywhere in git today,
+# still evaluating on the cluster, and structurally incapable of firing.
+# Removing a live, undeclared cluster object is a
 # destructive action reserved for the captain and is out of scope for this
 # change - nothing here touches or deletes it. The
 # `on (namespace, pod, container)` join is required because cAdvisor and
