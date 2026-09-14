@@ -143,7 +143,9 @@ spec:
             resources:
               requests:
                 cpu: "2"
-                # 40Gi, raised from 16Gi 2026-09-14. This is an eviction-safety
+                # 39Gi, raised from 16Gi 2026-09-14. Shipped that day at 40Gi
+                # first; see CORRECTION below for why that was wrong and 39Gi
+                # is the value that actually fits. This is an eviction-safety
                 # fix, not a capacity request. The kubelet ranks node-pressure
                 # eviction first by whether a pod's usage EXCEEDS its requests,
                 # then by priority, then by how far it exceeds. At 16Gi this
