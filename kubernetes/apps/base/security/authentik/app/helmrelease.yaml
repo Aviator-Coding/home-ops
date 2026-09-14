@@ -96,6 +96,55 @@ spec:
         concurrency: 4
     prometheus:
       rules:
+        # DECIDED 2026-09-14: LEFT ENABLED AND DELIBERATELY NOT REPAIRED.
+        # 25 of the 41 rules this chart ships are inert against authentik
+        # 2026.5.6 - 23 recording rules plus both of the alerts that carry real
+        # meaning (PendingMigrations, FailedSystemTasks). They are kept anyway,
+        # because every way of fixing them costs more than the signal is worth.
+        #
+        # WHY THEY ARE INERT: 19 distinct METRIC faults across those 25 rules
+        # (measured against live Prometheus 2026-09-14):
+        #   8  are pure OpenMetrics `_total`-suffix drift, e.g. the rules read
+        #      django_http_requests_total_by_method while the live series is
+        #      django_http_requests_total_by_method_total;
+        #   3  were renamed upstream - django_http_responses_total_by_status_
+        #      name_method -> ..._by_status_view_method_total,
+        #      django_http_requests_latency_seconds_bucket -> ..._by_view_
+        #      method_bucket, django_db_errors_total -> no direct equivalent;
+        #   2  changed TYPE, not name - django_http_{requests,responses}_body_
+        #      total_bytes are now histograms (_bucket/_count/_sum), so the
+        #      rules' rate()-over-a-counter is a type error a rename cannot fix;
+        #   6  are gone outright - django_model_{inserts,updates,deletes}_total,
+        #      django_migrations_{applied,unapplied}_total and
+        #      authentik_tasks_errors_total have no live counterpart at all.
+        #
+        # WHY NOT REPAIR THEM. Nothing consumes them: all 40 grafana_dashboard
+        # ConfigMaps in the cluster were scanned and NONE references `django_`
+        # in any form, and no other PrometheusRule consumes a `job:django_*`
+        # recording rule. They are a vendor dashboard bundle for a Grafana
+        # dashboard this cluster does not run. Repairing 23 recording rules with
+        # no reader is busywork by definition.
+        #
+        # WHY NOT DISABLE THE BUNDLE. `rules.enabled` is all-or-nothing, and the
+        # PrometheusRule is Helm-owned, so nothing here can patch individual
+        # rules. Turning it off to drop 25 inert rules would also drop the 12
+        # recording rules that DO resolve and both alerts that DO work
+        # (NoWorkersConnected, DisconnectedOutposts), and would replace an
+        # upstream-maintained bundle with 41 hand-maintained rules that must be
+        # re-reconciled on every authentik bump. Inert rules cost evaluation
+        # time and nothing else - they cannot fire falsely.
+        #
+        # THE TWO REAL ALERTS ARE NOT EXPRESSIBLE HERE AT ANY PRICE, which is
+        # why they are not reimplemented in a repo-owned PrometheusRule
+        # alongside. PendingMigrations needs django_migrations_unapplied_total,
+        # which django-prometheus only exports under PROMETHEUS_EXPORT_MIGRATIONS
+        # and authentik does not enable - no alert rule can conjure it.
+        # FailedSystemTasks needs authentik_tasks_errors_total, retired with the
+        # old task engine; the live authentik_tasks_* surface is only `queued`
+        # and `workers`, with no error or failure counter anywhere in the 35
+        # authentik_* series. Restoring either is an authentik-side
+        # configuration or upstream change, not a rules change. Revisit on the
+        # next authentik major if a task-failure metric reappears.
         enabled: true
     server:
       podAnnotations:

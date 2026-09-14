@@ -54,6 +54,32 @@ spec:
         #    api_key_alias, hashed_api_key, model_id, team, team_alias}
         # `requested_model` is the alias the CALLER asked for (the primary) and
         # `fallback_model` is the target the chain moved to.
+        #
+        # BOTH FALLBACK COUNTERS ARE ABSENT FROM PROMETHEUS RIGHT NOW, AND THAT
+        # IS CORRECT - do not "repair" these three alerts. Re-confirmed
+        # 2026-09-14 after an inventory-based audit flagged them as unfireable
+        # for naming a metric that "does not exist". The names are exactly
+        # right: litellm v1.98.0 declares both via _counter_factory as
+        # `litellm_deployment_successful_fallbacks` and
+        # `litellm_deployment_failed_fallbacks`
+        # (litellm/integrations/prometheus.py), and prometheus_client appends
+        # the `_total` suffix used here. A prometheus_client Counter WITH
+        # labels emits no series at all until .labels() is first called, so the
+        # family only appears once a fallback has actually happened - which is
+        # precisely why the 2026-08-26 verification above had to DRIVE real
+        # fallback events to observe it.
+        #
+        # The proof that this is sparseness and not a rename is the siblings:
+        # over the same 30d retention in which both fallback counters have 0
+        # series, litellm_deployment_cooled_down_total has 3 and
+        # litellm_llm_api_failed_requests_metric_total has 27 - same registry,
+        # same factory, same `_total` convention, materialising exactly when
+        # their event occurred. A naming error would have broken those too.
+        #
+        # So these three alerts are silent because this proxy has served no
+        # fallback in 30d, not because they are broken. The same reasoning is
+        # already recorded for litellm_llm_api_failed_requests_metric_total on
+        # LiteLLMHighFailureRate above.
         - alert: LiteLLMFallbackChainExhausted
           annotations:
             description: >-

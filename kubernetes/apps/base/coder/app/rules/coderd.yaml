@@ -80,6 +80,50 @@ spec:
             runbook_url: https://github.com/Aviator-Coding/home-ops/blob/main/kubernetes/apps/base/coder/app/runbooks/coderd.md#coderdreplicas
     - name: Coderd Workspace Build Failures
       rules:
+        # DELIBERATELY UNCHANGED 2026-09-14. An initial pass proposed rewiring
+        # this onto `coderd_workspace_latest_build_status` on the theory that
+        # `coderd_workspace_builds_total` does not exist on the deployed coderd
+        # (v2.36.5) - that theory was wrong and the rewrite was reverted.
+        #
+        # `coderd_workspace_builds_total` IS declared at v2.36.5: not in
+        # coderd/prometheusmetrics/prometheusmetrics.go (where the first look
+        # was), but in provisionerd/provisionerd.go's NewMetrics() - Namespace
+        # "coderd", Subsystem "" ("Explicitly empty to make this a top-level
+        # metric" per its own source comment), Name "workspace_builds_total", a
+        # CounterVec labeled workspace_owner/workspace_name/template_name/
+        # template_version/workspace_transition/status, incremented in
+        # provisionerd/runner/runner.go on every build completion. It is
+        # registered onto coderd's own scraped Prometheus registry
+        # UNCONDITIONALLY at cli/server.go:1258
+        # (`provisionerd.NewMetrics(options.PrometheusRegistry)`), which runs
+        # before the daemon loop - registration does not depend on any
+        # provisioner daemon being configured, and this cluster runs built-in
+        # provisioners anyway (`coderd_provisionerd_num_daemons` reads 3 live).
+        #
+        # So this is the sparse-labeled-counter case (see the litellm fallback
+        # counters and the chart's kopiur breaker alerts), not genuine absence:
+        # a labeled CounterVec emits nothing until its first child exists, which
+        # needs a completed build. Zero samples over 30d is consistent with this
+        # single-workspace instance's last build predating the retention window.
+        #
+        # The sibling tell proves it: of the five metrics created by that one
+        # NewMetrics() call, the only one with live data is the single
+        # UNLABELED Gauge, `coderd_provisionerd_num_daemons` (= 3). All four
+        # Vecs - `coderd_provisionerd_jobs_current` (GaugeVec),
+        # `coderd_provisionerd_job_timings_seconds` (HistogramVec),
+        # `coderd_workspace_builds_total` (CounterVec) and
+        # `coderd_provisionerd_workspace_build_timings_seconds`
+        # (HistogramVec) - have NO DATA. The split falls exactly on
+        # labeled-vs-unlabeled, never registered-vs-unregistered, which proves
+        # the function ran against the scraped registry and the Vecs merely
+        # have no children yet. The exporter is alive, not a corpse: job=coder
+        # publishes 167 distinct metric families live. The rule's own label
+        # matchers are valid too, verified against the live sibling, which
+        # carries namespace="coder" and pod="coder-69b4f85859-s8r92" - matching
+        # `pod=~"coder.*"` and correctly not matching `pod!~".*provisioner.*"`.
+        #
+        # The rule below is therefore CORRECT and merely quiet, left exactly as
+        # it was. Do not rewire it again on an absence-from-inventory reading.
         - alert: CoderdWorkspaceBuildFailures
           expr: sum(increase(coderd_workspace_builds_total{pod=~`coder.*`, pod!~`.*provisioner.*`, namespace=`coder`, status="failed" }[10m])) > 10
           for: 10m

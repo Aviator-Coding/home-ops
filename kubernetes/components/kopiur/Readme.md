@@ -260,7 +260,7 @@ Two properties make the cost tolerable rather than merely accepted:
   is the single authoritative source for the alert expression and its sampling
   rationale: it watches the gauge level (not `deriv`) so a permanent left-behind
   copy keeps firing for its whole life, while a single frozen census of a healthy
-  short-lived run does not. None of the chart's 12 shipped alerts watch the
+  short-lived run does not. None of the chart's 13 shipped alerts watch the
   series, so without this rule the decision's "observable" mitigation would be a
   claim rather than a fact.
 

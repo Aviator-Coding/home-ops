@@ -111,9 +111,41 @@ spec:
       serviceMonitor:
         enabled: true
       prometheusRule:
-        # 12 shipped alerts. None of them covers "the operator vanished" - they
+        # 13 shipped alerts. None of them covers "the operator vanished" - they
         # all depend on the operator emitting metrics - so ./prometheusrule.yaml
         # carries our own absent() rule alongside them.
+        #
+        # FOUR OF THE 13 LOOK DEAD AND ARE NOT. KopiurRepositoryBreakerOpen,
+        # KopiurRepositoryConnectSlow, KopiurSnapshotsGated and
+        # KopiurSnapshotWaitingForSlot select on kopiur_repository_breaker_open,
+        # kopiur_snapshot_gated and kopiur_snapshot_waiting_for_slot, and none of
+        # those three metric names is present in Prometheus - which makes an
+        # inventory-based audit ("does the name appear in
+        # /api/v1/label/__name__/values?") flag all four as unfireable. They are
+        # correct. All three are i64_observable_gauges whose callback observes
+        # NOTHING while the condition is absent, so the series exists only while
+        # the fault does. Their own source descriptions say so in terms
+        # (crates/controller/src/metrics.rs, upstream home-operations/kopiur):
+        # the breaker gauge "disappears when the breaker closes", the gated
+        # gauge "drains to absence as the parked Snapshots launch", and
+        # waiting_for_slot "exists only while the run is queued".
+        #
+        # Measured 2026-09-14 against live Prometheus, all consistent with
+        # healthy rather than broken: both ClusterRepositories (ceph, r2) are
+        # phase=Ready with kopiur_repository_consecutive_backend_failures=0, so
+        # the breaker is closed on both and emitting nothing is correct; no
+        # Snapshot is Pending (1020 Succeeded / 19 Discovered / 1 Failed), so
+        # nothing is gated or queued for a slot; and none of the three metrics
+        # has produced a single series across the full 30d retention. The
+        # reason= label values the two repository rules partition
+        # (unreachable|vanished|other and timed_out) are exactly the four
+        # breaker_open_reason() can return, so the split is complete.
+        #
+        # Do not "repair" these onto
+        # kopiur_repository_consecutive_backend_failures or a similar
+        # always-present series: that gauge is 0 while healthy, which is a
+        # different signal (a probe streak, not an open breaker) and would
+        # change what the alert means. Absence here is the healthy state.
         #
         # Do not override backupStaleAfterSeconds to close the 48h-vs-4h
         # cadence gap: the chart exposes one threshold, not a per-destination
