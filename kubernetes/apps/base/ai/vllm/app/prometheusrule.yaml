@@ -37,50 +37,82 @@
 # replicas: 0 today, mutually exclusive with the main controller on the
 # single GPU, but is not health-checked and can be scaled up independently).
 #
-# Verified live against Prometheus 2026-09-14 02:5x UTC:
-#   container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
+# VLLMMemoryApproachingLimit is growth-aware (predict_linear), not a static
+# threshold. Measured over the pod's full lifetime (boot to now, 5m-step
+# range query over the whole 159h uptime, 1898 samples) the working-set/limit
+# ratio has sat in a persistent 65.31-78.99% band for the last 48h and has
+# not dipped below ~65% in two days. ANY static threshold at or below ~79%
+# is therefore either already permanently true (teaches the operator to
+# ignore it - the exact failure this task exists to avoid) or gives no
+# advance warning; 70-78%, where the pod actually spends most of its time,
+# crossed back and forth 25-39 times in the same 48h window, so a static
+# threshold anywhere in the observed band would flap. The rule instead keys
+# on trajectory - "still climbing toward the limit" - not absolute height,
+# which has been elevated for days and is already known:
+#
+#   predict_linear(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[6h], 86400)
 #     / on (namespace, pod, container)
 #   kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
-#   -> single series, value 0.7599... (75.99%) for pod vllm-7cfbc95d5-9cqm7.
+#     > 1
 #
-# Threshold/for: choice, from the pod's full lifetime (boot to now, 5m-step
-# range query over the whole 159h uptime, 1898 samples):
-#   - All-time min so far: 1.81% (cold start). Min over the last 48h: 65.31%,
-#     despite hour-to-hour drawdowns of up to 8.5 percentage points (this
-#     workload's memory is not monotonic - it visibly fluctuates downward,
-#     which is exactly the shape AGENTS.md warns will teach an operator to
-#     ignore a badly-tuned alert). A threshold picked just above that 65.31%
-#     floor would leave only a 0.3-point margin against an 8.5-point swing -
-#     itself at real risk of the flap this design is trying to avoid. 60% is
-#     set by the noise floor instead, with real margin below both the 65.31%
-#     48h minimum and the documented 8.5-point drawdowns, mirroring
-#     falkordb's tier-1 pattern of resting comfortably below observed noise
-#     rather than just barely above the historical minimum. 70-78%, right
-#     where the pod actually spends most of its time, crossed back and forth
-#     25-39 times in the same 48h window - a threshold placed there would
-#     flap on ordinary variation. 60% will not flap, and it is already true
-#     today - correctly surfacing the existing risk immediately on merge
-#     rather than waiting for growth that may never resume at its initial
-#     pace.
-#   - All-time max so far: 78.99% (never reached 80%). 85% sits a full 6+
-#     points above every sample ever recorded for this pod, so it will not
-#     flap on today's noise either, while still giving real advance warning
-#     if growth resumes. Growth is decelerating (~12Gi/day at boot, ~0.05-
-#     0.13Gi/h over the last 24-72h); even at the faster 72h-average rate,
-#     covering the ~7.2Gi from 85% to the 48Gi limit takes on the order of
-#     two days, and at the fastest rate ever observed (boot-day, ~0.5Gi/h)
-#     it is still >14h - ample time for a person to act on a Pushover page
-#     either way.
-#   - `for: 15m` on both: far longer than a single missed 1m scrape (so a
-#     scrape gap cannot reset the clock unnecessarily) and far shorter than
-#     the multi-hour timescale this metric actually moves on, so it adds
-#     safety margin without meaningfully delaying detection.
+# Verified live against Prometheus 2026-09-14: this expression returns a
+# single series at 0.827 for the current pod - quiet, correctly, since
+# nothing is currently on track to breach the limit.
+#
+#   - Window = 6h: this pod's memory swings up to ~8.5 percentage points
+#     (roughly 4 GiB against the 48Gi limit) hour to hour, so a shorter
+#     window's regression slope is dominated by noise (replay showed a 3h
+#     window firing 16-42 times spuriously across the 48h even with a
+#     12-24h horizon). 6h and 12h windows gave materially the same, much
+#     lower false-fire count; 6h was chosen as the shorter of the two
+#     equally-safe options so the slope reacts faster once real growth
+#     resumes.
+#   - Horizon = 24h (86400s): sized so a Pushover page - the only receiver
+#     here, and the captain may be asleep - lands with real hours to act
+#     rather than minutes. At the fastest sustained growth rate ever
+#     observed for this pod (~0.5 GiB/h, the 2026-09-07 boot-day rate), 24h
+#     of projected growth is enough headroom to fire well before the pod is
+#     within a few hours of OOM; slower resumed growth fires later in
+#     absolute time (once the trend, if continued, would cross the limit
+#     within roughly a day), which is intentional, not a flaw.
+#   - `for: 1h`: replaying this exact window/horizon combination over the
+#     full 577-sample/48h history found isolated spurious crossings, but
+#     every contiguous run was <=30 minutes (measured: 30m, 25m, and one
+#     single 5m sample); a 1h `for:` fully absorbs all of them while still
+#     being far shorter than the multi-hour-to-multi-day timescale real
+#     growth moves on here.
+#   - Proof it would NOT have fired over the real 48h history: replayed
+#     this exact predict_linear(window=6h, horizon=24h) expression at every
+#     one of the 577 real 5-minute samples in the last 48h and required
+#     for:1h (i.e. only counting a firing if the crossing held contiguously
+#     for >=60 minutes) - zero qualifying firings. The only raw crossings
+#     were the <=30-minute spurious runs above, which for:1h suppresses
+#     entirely.
+#   - Proof it WOULD fire on genuine sustained growth: replayed the same
+#     expression against the real 48h tail with a synthetic sustained climb
+#     of 0.5 GiB/h (the fastest rate ever observed for this pod) appended
+#     for 10 hours - the rule starts satisfying the raw (pre-for:) condition
+#     at +255 minutes into the climb, and stays satisfied contiguously for
+#     345 minutes, comfortably clearing the 1h `for:` window at +315
+#     minutes, i.e. roughly 5.25 hours into a sustained dangerous climb,
+#     with about 17 hours of runway still left before the pod would exhaust
+#     its 48Gi limit at that rate.
+#
+# VLLMMemoryCriticalLimit stays a static ratio > 0.85, for: 15m backstop -
+# it is NOT currently true (all-time max so far: 78.99%, never reached 80%,
+# so 85% sits a full 6+ points above every sample ever recorded for this
+# pod) and remains a legitimate fast-spike backstop: a sudden large single
+# allocation would be dampened/delayed by the warning rule's 6h regression
+# window, but would still trip this static ceiling quickly. `for: 15m` is
+# far longer than a single missed 1m scrape (so a scrape gap cannot reset
+# the clock unnecessarily) and far shorter than the multi-hour timescale
+# this metric actually moves on.
 #
 # Alertmanager routes both severities to the Pushover receiver (warning and
 # critical both page; only critical also inhibits an equal-namespace warning)
 # - see kubernetes/apps/base/monitoring/alertmanager/app/config/alertmanager.yml
-# - so both thresholds above were chosen to be flap-proof, not just the
-# critical one.
+# - so both rules above were chosen to be flap-proof, not just the critical
+# one.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -94,18 +126,20 @@ spec:
       rules:
         - alert: VLLMMemoryApproachingLimit
           annotations:
-            summary: vllm is approaching its memory limit
+            summary: vllm is on track to exceed its memory limit
             description: >-
-              vllm pod {{ $labels.pod }} is at {{ $value | humanizePercentage }}
-              of its memory limit. This is the captain's LLM - plan capacity
-              or investigate the growth before it reaches the critical
+              vllm pod {{ $labels.pod }} is projected to exceed its memory
+              limit within the next ~24h based on its recent growth rate
+              (currently {{ $value | humanizePercentage }} of limit
+              projected). This is the captain's LLM - plan capacity or
+              investigate the growth before it reaches the critical
               threshold.
           expr: |
-            container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
+            predict_linear(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[6h], 86400)
               / on (namespace, pod, container)
             kube_pod_container_resource_limits{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
-              > 0.60
-          for: 15m
+              > 1
+          for: 1h
           labels:
             severity: warning
 
