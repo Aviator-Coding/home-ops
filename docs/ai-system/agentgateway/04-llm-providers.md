@@ -33,7 +33,7 @@ Native Anthropic SDK clients use `/v1/messages` (no `x-model` match); that rule 
 | `openrouter` | OpenAI-compat `openrouter.ai` | vendor slugs `vendor/model` | unified rule prepends `/api` |
 | `opencodego` | OpenAI-compat `opencode.ai` | kimi-, glm-, minimax-, mimo-, hy3-, deepseek-v4-, qwen3.x-max/plus | rewrite to `/zen/go` |
 | `vllm` | in-cluster `vllm-app.ai:8000` | (models catalog fallback) | no TLS, no auth |
-| `embedding-local` | in-cluster `mcp-tools-embedding.ai:8080`, OpenAI-compat | default `/v1/embeddings` | CPU TEI, `all-MiniLM-L6-v2`; not `vllm-embed` (still scaled to 0, no route targets it) |
+| `embedding-local` | in-cluster `mcp-tools-embedding.ai:8080`, OpenAI-compat | default `/v1/embeddings` | CPU TEI, `Qwen3-Embedding-0.6B` (swapped 2026-09-13 from `all-MiniLM-L6-v2`); not `vllm-embed` (still scaled to 0, no route targets it) |
 | `llm-chat-failover` | groups: local qwen then OpenCode Go kimi-k2.6 | exact `qwen3.6-35b-a3b` | see `09-advanced-features.md` |
 
 Dormant (backend + secret present, **no** unified-route rule): `zai`, `togetherai`, `opencodeai`. Re-enable with one rule in `httproute-unified.yaml`.
