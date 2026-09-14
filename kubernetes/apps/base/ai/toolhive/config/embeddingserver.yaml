@@ -27,26 +27,88 @@ spec:
   # config (last-token) and its own max-sequence-length config (32768), the
   # same auto-detection path MiniLM already relied on.
   #
-  # `--max-batch-tokens 384` IS required, unlike MiniLM. TEI's mandatory
-  # startup warmup allocates one self-attention score-matrix buffer sized
+  # `--max-batch-tokens` IS required, unlike MiniLM. TEI's mandatory startup
+  # warmup allocates one self-attention score-matrix buffer sized
   # min(model max_input_length, --max-batch-tokens)^2 * num_attention_heads *
-  # 4 bytes (fp32). Left at TEI's un-overridden default (16384), that is
-  # min(32768, 16384)^2 * 16 heads * 4 bytes = 16 GiB - live-reproduced
-  # (podman, exact pinned image + model string, no args): the container
-  # aborts warmup with "memory allocation of 17179869184 bytes failed"
-  # before ever reaching /health, on every single pod start. This is a real
-  # architectural ceiling of TEI's candle CPU backend for this model
-  # (huggingface/text-embeddings-inference#758), not an emulation artifact -
-  # the same allocation would recur on the real Talos amd64 nodes, ~4x this
-  # pod's limits.memory. --max-batch-tokens also becomes the router's
-  # effective per-request max_input_length (auto_truncate silently
-  # truncates anything longer), so a genuine unbounded-up-to-32768-token
-  # request is not reachable within any sane CPU memory budget regardless.
-  # 384 is live-verified (podman, same image/model) to warm up and serve a
-  # real /v1/embeddings request; it comfortably covers this endpoint's only
-  # live consumer (ToolHive's MCP tool-selection index - tool name/
-  # description strings, far under 384 tokens each) while still raising the
-  # ceiling 1.5x above MiniLM's old 256-token silent-truncation cap.
+  # 4 bytes (fp32, 16 attention heads for this model). Left at TEI's
+  # un-overridden default (16384), that is min(32768, 16384)^2 * 16 * 4 =
+  # 16 GiB - live-reproduced (podman, exact pinned image + model string, no
+  # args): the container aborts warmup with "memory allocation of
+  # 17179869184 bytes failed" before ever reaching /health, on every single
+  # pod start. This is a real architectural ceiling of TEI's candle CPU
+  # backend for this model (huggingface/text-embeddings-inference#758), not
+  # an emulation artifact - the same allocation would recur on the real
+  # Talos amd64 nodes.
+  #
+  # 2026-09-14 FOLLOW-UP (kept at 384, unchanged from 2026-09-13): the model
+  # swap alone did not fix truncation - it moved silently with the model,
+  # caught post-merge against the live server (`GET /info`:
+  # `max_input_length: 384`, `auto_truncate: true`; a 600-token `POST
+  # /embed` still returned `200 OK` with a silently-truncated vector). Full
+  # investigation and why the ceiling itself turned out not to be the fix:
+  # docs/ai-system/embedding-truncation-followup-2026-09-14.md. Summary:
+  #
+  # 1. Silent truncation cannot be turned into a loud error for this
+  #    endpoint's real traffic. TEI v1.9.3 has TWO embedding routes with
+  #    different truncate handling (source-verified,
+  #    router/src/http/server.rs): the native `/embed` resolves
+  #    `req.truncate.unwrap_or(info.auto_truncate)` - a per-request
+  #    `truncate: false` gets a clean `422` naming the limit and the actual
+  #    size (`inputs must have less than N tokens. Given: M`), live-tested.
+  #    But the OpenAI-compatible `/v1/embeddings` - what LiteLLM's
+  #    `embedding-local-cpu` model and every external caller actually use,
+  #    ../../litellm/app/models/embedding-local-cpu.yaml - hardcodes
+  #    `let truncate = info.auto_truncate;` with NO `truncate` field in its
+  #    request schema (`OpenAICompatRequest`) at all: no per-request
+  #    override reaches this path, ever, regardless of what a caller sends.
+  #    And this repo's other consumer, ToolHive's vmcp tool-selection index,
+  #    calls `/embed` but hardcodes `Truncate: true` in its own Go client
+  #    (github.com/stacklok/toolhive
+  #    pkg/vmcp/optimizer/internal/similarity/tei_client.go) - a deliberate
+  #    upstream choice ("we prefer embedding a truncated description over a
+  #    request failure"), not configurable from this repo or this CRD.
+  # 2. Flipping the SERVER-WIDE default (`--auto-truncate false`, which
+  #    would at least make unspecified-truncate requests on `/embed` fail
+  #    loud) is a separate lever from the ceiling but is blocked by TEI
+  #    itself: it refuses to start unless --max-batch-tokens >= the model's
+  #    own max_input_length (32768, intrinsic to the model, not reducible
+  #    from this repo) - live-reproduced: "Error: The maximum input length
+  #    is `32768` which exceeds `--max-batch-tokens=384`. Either increase
+  #    `--max-batch-tokens` to at least `32768`, or set `--auto-truncate
+  #    true` ...". That requirement does not shrink for a low-concurrency
+  #    workload (checked: `--max-batch-requests 1` and
+  #    `--max-client-batch-size 1` both reproduce the exact same "memory
+  #    allocation of 17179869184 bytes failed" (16 GiB) at
+  #    --max-batch-tokens=16384 as the unconstrained case, so the warmup
+  #    buffer - min(model max_input_length, --max-batch-tokens)^2 * 16
+  #    attention heads * 4 bytes fp32 - is sized for one worst-case single
+  #    sequence regardless of batch width; there is no per-sequence
+  #    max-length knob independent of --max-batch-tokens). At 32768 that
+  #    formula is 64 GiB for the buffer alone - not affordable on a Talos
+  #    node with ~91GiB allocatable shared by every other workload.
+  # 3. Given (1) and (2), NEITHER lever makes truncation loud for the
+  #    traffic that matters, so raising --max-batch-tokens would only
+  #    shrink how OFTEN a silent truncation happens, not fix the defect -
+  #    and that capacity has a real, measured, steeply-scaling cost on
+  #    every restart of a service ToolHive's vmcp actually depends on
+  #    today: warmup runs one full forward pass at --max-batch-tokens
+  #    before the server is Ready. Measured: the live pod at 384 goes
+  #    started -> Ready in 54s. The same pinned image in local podman
+  #    (VM-confounded - do not read these as cluster-equivalent times, only
+  #    as a same-environment curve shape) took ~11 min at 512 and >60 min
+  #    at 2048 before being torn down. Given neither live consumer needs
+  #    more than 384 today (vmcp's tool name/description strings are far
+  #    under it; the `embedding-external` key has "no live external
+  #    consumer yet" per ../../litellm/app/virtualkeys/embedding-external.yaml's
+  #    own comment) and the silence cannot be closed by raising it, 384
+  #    stays: a real, current, fast-restarting dependency beats speculative
+  #    headroom for a consumer that does not exist. auto_truncate stays at
+  #    its TEI default (true) for the same reason - disabling it is not
+  #    reachable from this repo at any affordable ceiling, per (2).
+  #
+  # If a real document-retrieval consumer shows up needing more, revisit
+  # deliberately then (this repo can raise --max-batch-tokens and re-pay
+  # the warmup cost) rather than provisioning for it speculatively now.
   args:
     - --max-batch-tokens
     - "384"
@@ -62,33 +124,48 @@ spec:
   #
   # Qwen3-Embedding-0.6B is ~26x MiniLM's 22.7M parameters (~596M) and ~1.2GB
   # on disk (bf16 safetensors) vs MiniLM's ~90MB, which invalidates the old
-  # 1Gi memory limit outright - the model alone would not fit loaded. This
-  # task's cluster access is read-only, so the same live sustained-load probe
-  # used above cannot be repeated pre-merge; sizing below is a documented
-  # estimate instead, and a live post-merge check is called out as a
-  # follow-up in the PR:
-  #   - an independent third-party CPU benchmark of this exact model
-  #     (sentence-transformers, not TEI, so likely somewhat heavier than TEI's
-  #     Rust/candle runtime) measured 529Mi RSS right after model load,
-  #     rising to ~1.4-1.7Gi RSS after live inference and a 100-item batch.
-  #   - scaling MiniLM's own ~350Mi non-model TEI/framework overhead (439Mi
-  #     idle minus its ~90MB weights) onto Qwen3's ~1.2GB weights gives a
-  #     comparable ~1.5-1.7Gi loaded-and-warm floor.
-  # requests.memory is set just above that loaded-idle floor, same rule as
-  # before. limits.memory keeps generous headroom above the ~1.7Gi observed
-  # single-request peak for concurrent requests against the new 32768-token
-  # ceiling (128x MiniLM's old 256-token cap, so worst-case per-request
-  # activation memory is no longer bounded the way it was) - still a small
-  # fraction (~4%) of a Talos node's ~91GiB allocatable memory, so it is sized
-  # for this pod's own OOM safety, not node protection.
+  # 1Gi memory limit outright - the model alone would not fit loaded. The
+  # 2026-09-13 sizing below this point was a documented ESTIMATE (cluster
+  # access is read-only, so the live sustained-load probe used for MiniLM
+  # above could not be repeated pre-merge) built by scaling a third-party
+  # sentence-transformers benchmark's ~1.4-1.7Gi post-inference RSS - and it
+  # undercounted: that estimate implicitly assumed disk footprint (bf16)
+  # tracks RAM footprint, but `GET /info` on the live server reports
+  # `model_dtype: float32` - TEI's candle CPU backend upcasts to fp32, so
+  # actual resident weights are ~0.6B params * 4 bytes = ~2.2GiB, not the
+  # ~1.2GiB the disk size implied.
+  #
+  # 2026-09-14 re-measurement: live podman container (same pinned
+  # image/model, `--max-batch-tokens 2048` at measurement time - tried
+  # while raising the ceiling was still being considered, before landing
+  # back on 384 above), process RSS read from `/proc/<pid>/status` `VmRSS`
+  # inside the container while warmed up and actively serving an in-flight
+  # `/v1/embeddings` request (this platform's amd64-under-qemu emulation
+  # makes single-request latency 10s of minutes, unrepresentative of the
+  # real Talos amd64 nodes, but RSS is not an emulation-speed artifact):
+  # steady-state 2.69-2.95GiB, consistent with ~2.2GiB fp32 weights +
+  # ~350-500Mi TEI/framework overhead (matching MiniLM's own measured
+  # overhead) + 2048's 256Mi warmup buffer. At 384 that buffer shrinks to
+  # ~9Mi (formula above), so the real floor here is ~150-250Mi lower than
+  # measured - the sizing below is not re-tightened for that small a
+  # margin, since the float32-weights discovery is what actually mattered
+  # and dominates either way.
+  # requests.memory is set just above the measured floor, same rule as
+  # before (2Gi -> 3Gi: the previous estimate-based 2Gi request was already
+  # ~700Mi below the real floor - the model's fp32 weights alone are
+  # ~2.2GiB, more than the old request). limits.memory keeps generous
+  # headroom above the observed floor for concurrent-request activation
+  # memory (4Gi -> 5Gi) - still a small fraction (~5.5%) of a Talos node's
+  # ~91GiB allocatable memory, so it is sized for this pod's own OOM
+  # safety, not node protection.
   # limits.cpu stays capped at 4 cores, unchanged reasoning: now that this
   # service is reachable from outside the cluster, an external caller's
   # concurrent-request burst must not be able to starve a whole Talos node
-  # the way the uncapped container did in the original measurement.
+  # the way the uncapped container did in the original MiniLM measurement.
   resources:
     requests:
       cpu: 250m
-      memory: 2Gi
+      memory: 3Gi
     limits:
       cpu: "4"
-      memory: 4Gi
+      memory: 5Gi
