@@ -520,6 +520,22 @@ spec:
             instances: 2
             priorityClassName: system-cluster-critical
             placement:
+              # Kept off talos-3 so the node's memory reservation can tell the
+              # truth about ai/vllm (docs/talos-3-scheduling-truth.md). This is
+              # the low-risk half of that relocation: RGW runs `instances: 2`,
+              # one on talos-2 and one on talos-3, both actively serving behind
+              # the same service. Moving the talos-3 replica leaves the other
+              # one serving throughout - no failover, no rank promotion, and no
+              # client-visible interruption. Contrast metadataServer below,
+              # which is NOT equivalent.
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/hostname
+                          operator: NotIn
+                          values:
+                            - talos-3
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname
