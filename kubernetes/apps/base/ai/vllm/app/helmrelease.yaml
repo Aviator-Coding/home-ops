@@ -143,7 +143,9 @@ spec:
             resources:
               requests:
                 cpu: "2"
-                # 40Gi, raised from 16Gi 2026-09-14. This is an eviction-safety
+                # 39Gi, raised from 16Gi 2026-09-14. Shipped that day at 40Gi
+                # first; see CORRECTION below for why that was wrong and 39Gi
+                # is the value that actually fits. This is an eviction-safety
                 # fix, not a capacity request. The kubelet ranks node-pressure
                 # eviction first by whether a pod's usage EXCEEDS its requests,
                 # then by priority, then by how far it exceeds. At 16Gi this
@@ -156,18 +158,37 @@ spec:
                 # from the exceeds-set entirely and puts it in the last-evicted
                 # group - that is the whole point of the change.
                 #
-                # 40Gi clears the measured 30-day PEAK working set of 39342Mi
-                # (not the average - steady state is ~37.6GiB) with 1618Mi of
-                # headroom. The peak is the right target because the footprint
-                # is anonymous and irreclaimable: container_memory_rss 37536Mi
-                # against container_memory_cache of 4Mi, because the server runs
+                # 39Gi clears the measured 30-day PEAK working set of 39342Mi
+                # (not the average - steady state is ~37.6GiB) by 594Mi. The peak
+                # is the right target because the footprint is anonymous and
+                # irreclaimable: container_memory_rss 37536Mi against
+                # container_memory_cache of 4Mi, because the server runs
                 # --no-mmap. The kernel cannot reclaim any of it under pressure.
+                #
+                # CORRECTION 2026-09-14: this shipped as 40Gi and the pod went
+                # Pending - `0/3 nodes are available: 2 Insufficient
+                # devic.es/b70, 3 Insufficient memory`, an LLM outage. The shed
+                # was projected to leave 50750Mi of non-vllm requests on talos-3;
+                # once the relocations actually settled the figure was 52990Mi,
+                # about 2.2GiB higher, so 40Gi was ~346Mi short of schedulable.
+                # Measured at the time of this fix:
+                #
+                #   allocatable                  93604 Mi
+                #   talos-3 others, settled      52990 Mi
+                #   room for vllm                40614 Mi
+                #   39Gi = 39936Mi -> 92926 Mi = 99.3%, margin 678 Mi   FITS
+                #   40Gi = 40960Mi -> 93950 Mi = 100.4%                 OVER
+                #
+                # 99.3% is a genuinely tight node and is not a target to defend;
+                # it is the only value that both fits and covers the peak. The
+                # honest next lever is the two Ceph OSDs at 14Gi each - 28GiB of
+                # this node's 91 - which is a much larger conversation than this.
                 #
                 # This value only fits because room was made for it first, in
                 # the two rook-ceph relocations and the right-sizing that
-                # precede it. Do not raise it further without redoing that
-                # arithmetic: docs/talos-3-scheduling-truth.md.
-                memory: 40Gi
+                # precede it. Do not raise it at all, and do not lower the shed,
+                # without re-measuring live: docs/talos-3-scheduling-truth.md.
+                memory: 39Gi
                 devic.es/b70: 1
               limits:
                 # Unchanged. Bounding this server's growth is a separate open

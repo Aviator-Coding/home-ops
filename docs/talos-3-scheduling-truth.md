@@ -144,7 +144,7 @@ talos-3. **These two are not equivalent to each other, and the order matters.**
 |---|---|---:|---|
 | 1 | `rgw` (objectstore gateway) | 1280 Mi | One of **two** replicas (talos-2 + talos-3), both serving behind one service. The other serves throughout. No failover, no client impact. |
 | 2 | `mds` (CephFS metadata) | 1280 Mi | `ceph-filesystem-b` held **ACTIVE rank 1**, not a standby. Draining it forces a **rank failover** to standby-replay `-d`. Routine and designed-for - every node roll does it - but client-visible in a way step 1 is not. |
-| 3 | `ai/vllm` request 16Gi -> 40Gi | - | Only possible once 1 and 2 have created the room. Raising it first makes the LLM unschedulable. |
+| 3 | `ai/vllm` request 16Gi -> 39Gi | - | Only possible once 1 and 2 have created the room. Raising it first makes the LLM unschedulable. Shipped at 40Gi first and corrected to 39Gi the same day - see the Final arithmetic correction below. |
 
 Verify step 2 by `ceph health` returning to **HEALTH_OK** (it was HEALTH_OK,
 muted `AUTH_*` only, before the change) before treating step 3 as done. That is
@@ -179,25 +179,75 @@ shed, wave 1 (right-sizing + 7 relocations)   5960 Mi
 shed, wave 2 (rgw 1280 + mds 1280)            2560 Mi
                                              --------
 total shed                                    8520 Mi
-committed, excluding ai/vllm                 50750 Mi
-room available for ai/vllm                   42854 Mi
-ai/vllm 30-day peak working set              39342 Mi
-ai/vllm request, as shipped                  40960 Mi  (40Gi)
-                                             --------
-talos-3 committed after the change           91710 Mi  = 98.0%
-margin                                        1894 Mi
 ```
 
-`ai/vllm` uses `strategy: Recreate`, so on rollout the old pod is terminated
-before the new one is created; the new pod needs 40960 Mi free and has 42854 Mi,
-so it schedules. Its overage at peak goes from **+21230 Mi to zero** - it leaves
-the kubelet's exceeds-set entirely and joins the last-evicted group.
+The **8520 Mi shed** figure is fixed - it is what the two waves actually
+removed from talos-3. What is *not* fixed is what talos-3's non-vllm workloads
+commit once the dust settles: it oscillates with ephemeral GitHub Actions
+runner pods landing on this node, so "committed, excluding ai/vllm" is a
+range, not a point. Both readings below are measured live, same day
+(2026-09-14):
 
-The margin is 1894 Mi rather than the 2918 Mi projected when the CSI plugin was
-still believed movable. If more reservation headroom is wanted, dropping the
-request to 39Gi restores exactly 96.9% and 2918 Mi and **still clears the peak**
-(39936 > 39342), at the cost of shrinking growth headroom above the peak from
-1618 Mi to 594 Mi. That is a one-line change either way.
+```
+committed, excluding ai/vllm (CI busy, settled)   52990 Mi
+committed, excluding ai/vllm (CI quiet)           51806 Mi
+swing between the two                              1184 Mi  (2 ARC runner pods, 640 Mi)
+room available for ai/vllm (CI busy)              40614 Mi
+room available for ai/vllm (CI quiet)             41798 Mi
+ai/vllm 30-day peak working set                   39342 Mi
+ai/vllm request, as shipped                       39936 Mi  (39Gi)
+                                                  --------
+talos-3 committed after the change (CI busy)      92926 Mi  = 99.3%, margin  678 Mi  <- binding case
+talos-3 committed after the change (CI quiet)     91742 Mi  = 98.0%, margin 1862 Mi
+```
+
+The **busy case is the binding one**: it is the state that must schedule the
+pod, and it is what actually happened - see the correction below. The quiet
+case is shown so the range is visible; do not treat 98.0%/1862 Mi as the
+steady state, it is the more favorable end of a swing driven entirely by
+unrelated CI activity.
+
+`ai/vllm` uses `strategy: Recreate`, so on rollout the old pod is terminated
+before the new one is created; at 39Gi the new pod needs 39936 Mi free and has
+at least 40614 Mi even in the busy case, so it schedules. Its overage at peak
+goes from **+21230 Mi to zero** - it leaves the kubelet's exceeds-set entirely
+and joins the last-evicted group.
+
+**CORRECTION 2026-09-14: this shipped as 40Gi first, and it failed.** The
+request above was projected before wave 2's relocations had actually settled;
+the 50750 Mi originally projected for "committed, excluding ai/vllm" turned
+out to be 52990 Mi once measured live, about 2.2 GiB higher. 40Gi (40960 Mi)
+sits inside the busy/quiet churn band above: at the busy reading it is 346 Mi
+short of schedulable and the pod went `Pending` - `0/3 nodes are available: 2
+Insufficient devic.es/b70, 3 Insufficient memory`, an LLM outage. At the quiet
+reading it fits with 838 Mi to spare, and the pod is in fact `Running` at
+40Gi right now, because Flux retried once CI activity dropped. So 40Gi does
+not fail *always* - it fails only when CI is busy, which is why it was
+rejected: a workload whose schedulability depends on unrelated CI load fails
+unpredictably. The fix is 39Gi (39936 Mi), which fits even in the busy case,
+with 678 Mi to spare.
+
+A **38Gi** request was also considered and rejected: it leaves roughly
+1702 Mi of margin in the busy case, but 38912 Mi falls 430 Mi short of the
+39342 Mi peak, so the pod would stay inside the kubelet's exceeds-set -
+better than the original +21230 Mi, but it does not achieve the goal of
+leaving that set entirely.
+
+678 Mi is a thin margin, accepted deliberately rather than defended as
+comfortable. The residual risk is that talos-3's other requests grow by
+roughly 700 Mi and the next reconcile cannot schedule vllm - and that has now
+been watched happening and self-healing, not merely reasoned about: Helm
+declared `UpgradeFailed` at 04:17:37Z (`timeout waiting for:
+[Deployment/ai/vllm status: InProgress]`), Flux's `Remediated=True
+RollbackSucceeded` at 04:19:13Z automatically restored the previous 16Gi
+release, and Flux retried the upgrade at 04:19:24Z - service was restored
+with no human action in under two minutes. That is a **loud**, self-healing
+failure with a clear `HelmRelease` condition naming the cause. The exposure
+this change removes is the opposite: **silent**. At the 16Gi request the pod
+sat 21230 Mi over, first in the kubelet's eviction ranking, and would have
+been killed with no failed release, no condition, and nothing to read
+afterward. Accepting a thin margin guarded by a loud failure, in order to
+close a silent one, is the trade being made deliberately.
 
 A high commitment here is the correct end state, not a symptom: talos-3 exists
 to host a GPU-pinned 38.4 GiB LLM, two OSDs and a mon. The reservation is nearly
