@@ -50,6 +50,9 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # Explicit memory request; limit-only would reserve all 256Mi.
+                # 30-day peak working set is 62Mi (measured 2026-09-14).
+                memory: 128Mi
               limits:
                 memory: 256Mi
     defaultPodOptions:

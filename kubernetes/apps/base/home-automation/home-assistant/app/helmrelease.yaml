@@ -54,6 +54,13 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # Explicit memory request. Without one, Kubernetes defaults
+                # requests.memory to limits.memory, so this container reserved
+                # the full 2Gi on its node while its 30-day peak working set
+                # was 393Mi (measured 2026-09-14). The limit is unchanged - it
+                # still bounds growth; only the scheduler reservation becomes
+                # honest. 768Mi is ~2x the measured peak.
+                memory: 768Mi
               limits:
                 memory: 2Gi
           code-server:
@@ -75,6 +82,9 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # See the app container above: limit-only declarations reserve
+                # the whole limit. 30-day peak working set here is 148Mi.
+                memory: 192Mi
               limits:
                 memory: 512Mi
     defaultPodOptions:

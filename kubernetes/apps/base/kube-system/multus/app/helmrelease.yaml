@@ -17,5 +17,9 @@ spec:
       resources:
         requests:
           cpu: 10m
+          # Explicit memory request: a limit-only declaration makes Kubernetes
+          # reserve the whole limit, so this DaemonSet held 512Mi on every node
+          # against a 30-day peak working set of 7Mi (measured 2026-09-14).
+          memory: 64Mi
         limits:
           memory: 512Mi
