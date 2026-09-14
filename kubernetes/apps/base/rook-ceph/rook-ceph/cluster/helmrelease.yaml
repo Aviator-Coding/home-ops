@@ -440,6 +440,36 @@ spec:
               # It also does not follow an active rank across a failover to its
               # standby-replay (e.g. b colocating with c after a fails over to c),
               # since that pairing is Ceph state, not a Kubernetes label.
+              # Kept off talos-3 so the node's memory reservation can tell the
+              # truth about ai/vllm (docs/talos-3-scheduling-truth.md). Unlike
+              # the RGW relocation above, this one is NOT moving a redundant
+              # replica: ceph-filesystem-b held ACTIVE rank 1 on talos-3
+              # (measured 2026-09-14 - `ceph fs status`: rank 0 active on -a,
+              # rank 1 active on -b, -c and -d standby-replay, 7 clients, 4468
+              # DNS / 469 caps). Draining it forces a rank failover to the
+              # standby-replay -d. That is a routine, designed Ceph operation -
+              # standby-replay exists for exactly this and every node roll
+              # triggers it - but it is a different class of action, so it ships
+              # as its own change and should be verified by `ceph health`
+              # returning HEALTH_OK before anything downstream is called done.
+              #
+              # Consequence to know: Rook applies this one placement block to
+              # all 4 mds pods (see above), so excluding talos-3 confines them
+              # to talos-1/talos-2, 2 each under the maxSkew 1 spread below.
+              # That stays schedulable even during a single-node drain - with
+              # one eligible domain left the skew is 0, so DoNotSchedule is
+              # satisfied and all 4 land on the survivor - but for the length of
+              # a talos-1 or talos-2 maintenance window the filesystem has no
+              # node-level MDS redundancy, where before it still had two nodes.
+              # A talos-3 window is now strictly better: no MDS churn at all.
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/hostname
+                          operator: NotIn
+                          values:
+                            - talos-3
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
