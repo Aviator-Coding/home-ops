@@ -80,27 +80,63 @@ spec:
             runbook_url: https://github.com/Aviator-Coding/home-ops/blob/main/kubernetes/apps/base/coder/app/runbooks/coderd.md#coderdreplicas
     - name: Coderd Workspace Build Failures
       rules:
+        # REWRITTEN 2026-09-14. The previous three severity variants all read
+        # `increase(coderd_workspace_builds_total{status="failed"}[10m])`, and
+        # that metric DOES NOT EXIST on the deployed coderd (v2.36.5) - so all
+        # three had never fired once. This is not the sparse-series case that
+        # makes several other rules in this repo look dead while being correct
+        # (see the litellm fallback counters and the chart's kopiur breaker
+        # alerts): coderd's metric registry at v2.36.5 declares no
+        # workspace_builds metric AT ALL. Verified in
+        # coderd/prometheusmetrics/prometheusmetrics.go at tag v2.36.5, whose
+        # only workspace series are `workspace_latest_build` (GaugeVec, label
+        # status), `workspace_latest_build_status` (GaugeVec, labels status/
+        # template_name/template_version/workspace_owner/workspace_transition)
+        # and `workspace_creation_total` (CounterVec, no status label).
+        #
+        # INTENT CHANGED, deliberately, because the original is not expressible.
+        # The old rule counted build FAILURE EVENTS in a window; v2.36.5 exports
+        # no build-event counter, only a population gauge that is Reset() and
+        # recomputed from the database each refresh. So this now alerts on
+        # "a workspace is SITTING in a failed latest build" rather than "N builds
+        # failed recently". A workspace that failed and was successfully rebuilt
+        # inside the window is no longer caught - that is the honest cost of the
+        # metric that actually exists, and it is preferred over a contrived
+        # substitute. `workspace_creation_total` was rejected as the carrier: it
+        # has no status label, so it cannot express failure at all.
+        #
+        # `max by (template_name) (sum by (template_name, pod) (...))` and not a
+        # bare `sum(...)`: every coderd replica derives this gauge from the SAME
+        # database query, so each one exports the full population independently.
+        # Measured over 30d on this cluster - rolling restarts put 2 coderd pods
+        # up at once, where a naive `sum()` reported 2 for a single workspace
+        # (100% inflation) while this expression reported the true 1. The inner
+        # sum collapses template_version/workspace_owner/workspace_transition
+        # into one count per template; the outer max de-duplicates replicas.
+        # Grouping by template_name keeps the original diagnostic ("which
+        # template is broken") in the alert itself.
+        #
+        # THRESHOLD. `> 0`, not the old > 10 / > 5 / > 2 tiers. This instance has
+        # exactly ONE workspace (`coderd_api_workspace_latest_build` = 1, sole
+        # status `succeeded`), so all three old tiers were unreachable by
+        # construction - a count tier above the fleet size is just a second way
+        # to write a rule that can never fire, which is the defect this change
+        # exists to remove. The three variants collapse to one for the same
+        # reason. Observed range backing `> 0`: `status="failed"` has produced
+        # ZERO series across the full 30d retention, so this is silent on merge
+        # and is not permanently true; the only value it can take is the genuine
+        # one. It cannot flap either, because the gauge only moves when a
+        # workspace's latest build status actually changes.
+        #
+        # `for: 15m` (was 10m) so an ordinary failed-then-retried build does not
+        # page. A workspace still failed 15m later is a real unresolved
+        # condition, and this alert staying on until it is rebuilt or deleted is
+        # correct behaviour rather than a stuck alert.
         - alert: CoderdWorkspaceBuildFailures
-          expr: sum(increase(coderd_workspace_builds_total{pod=~`coder.*`, pod!~`.*provisioner.*`, namespace=`coder`, status="failed" }[10m])) > 10
-          for: 10m
+          expr: max by (template_name) (sum by (template_name, pod) (coderd_workspace_latest_build_status{pod=~`coder.*`, pod!~`.*provisioner.*`, namespace=`coder`, status="failed"})) > 0
+          for: 15m
           annotations:
-            summary: Workspace builds have failed multiple times in the last 10m, which may indicate a broken Coder template.
-          labels:
-            severity: critical
-            runbook_url: https://github.com/Aviator-Coding/home-ops/blob/main/kubernetes/apps/base/coder/app/runbooks/coderd.md#coderdworkspacebuildfailures
-        - alert: CoderdWorkspaceBuildFailures
-          expr: sum(increase(coderd_workspace_builds_total{pod=~`coder.*`, pod!~`.*provisioner.*`, namespace=`coder`, status="failed" }[10m])) > 2
-          for: 10m
-          annotations:
-            summary: Workspace builds have failed multiple times in the last 10m, which may indicate a broken Coder template.
-          labels:
-            severity: notify
-            runbook_url: https://github.com/Aviator-Coding/home-ops/blob/main/kubernetes/apps/base/coder/app/runbooks/coderd.md#coderdworkspacebuildfailures
-        - alert: CoderdWorkspaceBuildFailures
-          expr: sum(increase(coderd_workspace_builds_total{pod=~`coder.*`, pod!~`.*provisioner.*`, namespace=`coder`, status="failed" }[10m])) > 5
-          for: 10m
-          annotations:
-            summary: Workspace builds have failed multiple times in the last 10m, which may indicate a broken Coder template.
+            summary: '{{ $value }} workspace(s) on Coder template {{ $labels.template_name }} have been sitting in a failed build for 15m, which may indicate a broken template.'
           labels:
             severity: warning
             runbook_url: https://github.com/Aviator-Coding/home-ops/blob/main/kubernetes/apps/base/coder/app/runbooks/coderd.md#coderdworkspacebuildfailures
