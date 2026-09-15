@@ -531,7 +531,7 @@ kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.a
 ```
 
 `devic.es/b70` and `devic.es/b70-vaapi` are `99` only on talos-3. Both are the
-same physical card: `b70` for Level Zero consumers (vllm, comfyui),
+same physical card: `b70` for Level Zero consumers (vllm),
 `b70-vaapi` for VA-API consumers (tdarr-node).
 `gpu.intel.com/xe` is the Intel plugin pool for plex/playwright,
 scoped to the iGPU (`allowIDs: "0xa7a0"`) and present as `99` on all three
@@ -570,7 +570,7 @@ from ffmpeg.
 trust the path you hand it: it `fstat()`s the fd, reads
 `/sys/dev/char/<major>:<minor>/uevent`, and re-derives the canonical `DEVNAME`.
 If the container does not also have the device at that canonical name,
-`vaGetDisplayDRM()` fails before any driver loads. Level Zero (vllm, comfyui)
+`vaGetDisplayDRM()` fails before any driver loads. Level Zero (vllm)
 opens whatever `/dev/dri/render*` it finds and is unaffected, so **the AI stack
 stays green while transcoding is completely dead**. That is exactly what happened
 on 2026-08-26: PR #1443 renamed the B70 to `card0`/`renderD128`, and because

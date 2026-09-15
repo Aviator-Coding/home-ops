@@ -84,11 +84,12 @@ spec:
               # VRAM, collapsing decode to ~0.5 t/s (verified 2026-06-27). The auto
               # path sizes the shared cache correctly - leave it auto.
               # VRAM is not the binding constraint at 262144 (~7.2 GiB free on
-              # b10820/-ub 2048; see header). vllm-embed and comfyui stay
-              # replicas: 0 for compute isolation (38x decode collapse under
-              # embeddings flood), not because the window cannot fit. Re-enabling
-              # either still needs a live re-test; do not assume a context shrink
-              # is required up front.
+              # b10820/-ub 2048; see header). vllm-embed stays replicas: 0 for
+              # compute isolation (38x decode collapse under embeddings flood),
+              # not because the window cannot fit. Re-enabling it still needs a
+              # live re-test; do not assume a context shrink is required up
+              # front. (comfyui was the other B70 co-tenant this applied to
+              # until it was removed 2026-09-15.)
               - "262144"
               - -ngl
               - "99"

@@ -71,7 +71,6 @@ TOOLHIVE_API = "toolhive.stacklok.dev/v1alpha1"
 ACTIVE_SERVERS = frozenset(
     {
         "arr",
-        "comfyui-mcp",
         "flux",
         "github",
         "grafana-mcp",

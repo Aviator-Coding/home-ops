@@ -2,8 +2,9 @@
 
 > **Hardware:** single Intel Arc Pro B70 (Xe2 / Battlemage G31, 32 GB) on `talos-3`.
 > **App:** `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml` (chat = llama.cpp SYCL named
-> `vllm`; embeddings = vLLM named `vllm-embed`, **default-off**). **Updated:** 2026-09-07
-> (image `server-intel-b10820`, `-b 2048 -ub 2048`, ctx 262144, embed/ComfyUI `replicas: 0`).
+> `vllm`; embeddings = vLLM named `vllm-embed`, **default-off**). **Updated:** 2026-09-15
+> (image `server-intel-b10820`, `-b 2048 -ub 2048`, ctx 262144, `vllm-embed` `replicas: 0`;
+> `comfyui` removed entirely - [`comfyui-retirement-2026-09-15.md`](../ai-system/comfyui-retirement-2026-09-15.md)).
 > Sections 1-4 keep the 2026-06-26 SYCL/Vulkan and isolation evidence; the live serving
 > matrix and VRAM correction are [section 6](#6-mixed-batch-prefill-fragmentation-2026-09-07).
 >
@@ -26,16 +27,18 @@
 - **Current live args:** `--ctx-size 262144` (native max, 2026-07-08), 4 auto slots with
   unified KV, `-b 2048 -ub 2048`, image `server-intel-b10820`. VRAM at that window is
   **~7.2 GiB free** (KV is 2720 MiB, not the ~5.2 GiB sections 1-4 assumed - only 10/40
-  layers are full-attention), so context was **not** shortened. `vllm-embed` and `comfyui`
-  stay `replicas: 0` for **compute isolation** (section 4's 38× collapse), not because the
-  window cannot fit; re-enabling either still needs a re-test. `kv_unified=true` with 4 auto
+  layers are full-attention), so context was **not** shortened. `vllm-embed`
+  stays `replicas: 0` for **compute isolation** (section 4's 38× collapse), not because the
+  window cannot fit; re-enabling it still needs a re-test. `kv_unified=true` with 4 auto
   slots still gives a single request the full window *and* fleet concurrency. Do **not** pin
   `--parallel` / `--kv-unified` (#1093).
 - **The real bottleneck is single-card compute contention, not config.** Chat decode
   collapsed **38×** (61 → 1.6 t/s) when embeddings ran flat-out on the same card. Embeddings
-  left the card on 2026-06-28 (#1098; agentmemory uses OpenRouter). Remaining contention is
-  **chat vs ComfyUI**. Isolation procedure below; structurally, a second card is still
-  deferred ([`b70-second-card-decision.md`](./b70-second-card-decision.md)).
+  left the card on 2026-06-28 (#1098; agentmemory uses OpenRouter). The other historical
+  contention source, `comfyui`, was removed entirely 2026-09-15
+  ([`comfyui-retirement-2026-09-15.md`](../ai-system/comfyui-retirement-2026-09-15.md)), so
+  the isolation procedure in section 4 is currently inactive. Structurally, a second card is
+  still deferred ([`b70-second-card-decision.md`](./b70-second-card-decision.md)).
 
 ## 1. Baseline (measured 2026-06-26, build `server-intel-b9592`)
 
@@ -171,25 +174,26 @@ remained the then-largest win. **Superseded in part on 2026-09-07:** image `b108
 
 ## 4. Single-card workload isolation (B70 time-slice contention)
 
-`talos-3` has **one** B70. Level Zero discrete consumers (`vllm`, `vllm-embed`, `comfyui`)
+`talos-3` has **one** B70. Level Zero discrete consumers (`vllm`, `vllm-embed`)
 request `devic.es/b70` from generic-device-plugin (DRM by-path at `0000:03:00.0`);
 `tdarr-node` requests `devic.es/b70-vaapi` for the same card under kernel DRM names
 (VA-API cannot use the renamed `b70` nodes - see [`../media-stack.md`](../media-stack.md#verifying-va-api-after-a-gpu-change)).
-Placement is that extended resource, not hostname affinity. **As of 2026-06-28 / 2026-07-08, only chat
-is on the card by default** among AI workloads. `vllm-embed` is `replicas: 0` (agentmemory
-moved to OpenRouter). `comfyui` stays `replicas: 0` except during a deliberate image session.
+Placement is that extended resource, not hostname affinity. **As of 2026-09-15, only chat
+is on the card** among AI workloads. `vllm-embed` is `replicas: 0` (agentmemory
+moved to OpenRouter). `comfyui`, the card's other historical consumer, was removed entirely
+2026-09-15 ([`comfyui-retirement-2026-09-15.md`](../ai-system/comfyui-retirement-2026-09-15.md)).
 `tdarr-node` may still co-schedule for light QSV. The B70 has **no hardware compute
 partition** (no MIG, no SR-IOV compute slicing), so any second consumer **time-slices** the
-GPU and starves chat.
+GPU and starves chat - the mechanism below remains relevant to any future heavy GPU consumer,
+even though ComfyUI is no longer the concrete example.
 
 The 2026-06-26 measurements below were taken while embeddings could still be co-resident.
 They remain valid as the contention mechanism; they are not today's default inventory.
 
 > ⚠️ `--gpu-memory-utilization`, Intel `sharedDevNum: 99`, and generic-device-plugin
 > `count: 99` only divide **VRAM / device-count** - none isolate **compute**. `devic.es/b70`
-> is a scheduling identity (share-count token), not VRAM fencing. Chat vs ComfyUI is the
-> remaining heavy pair; do not start ComfyUI while `vllm` is up. Re-enabling `vllm-embed`
-> would restore the three-consumer problem. Light media (plex/playwright) stays on
+> is a scheduling identity (share-count token), not VRAM fencing. Re-enabling `vllm-embed`
+> would restore the multi-consumer problem. Light media (plex/playwright) stays on
 > `gpu.intel.com/xe` - see [`../ai-gpu-changelog.md`](../ai-gpu-changelog.md).
 
 ### Symptom & measured penalty
@@ -208,11 +212,17 @@ They remain valid as the contention mechanism; they are not today's default inve
   arbitration, and would fight Flux — **not used.**
 - The only real lever is **admission control**: mutual exclusion of the heavy pair (ComfyUI ↔ chat).
 
-### Mutual-exclusion procedure (chat ↔ ComfyUI)
+### Mutual-exclusion procedure (chat ↔ ComfyUI) - INACTIVE since 2026-09-15
 
-ComfyUI is pinned `replicas: 0` in git (`kubernetes/apps/base/ai/comfyui/app/helmrelease.yaml`)
-and its HelmRelease is suspended (`spec.suspend: true`) - Flux is not reconciling it, so
-there is no automatic revert. Run a ComfyUI session **only** after freeing the card from
+`comfyui` was removed entirely 2026-09-15
+([`comfyui-retirement-2026-09-15.md`](../ai-system/comfyui-retirement-2026-09-15.md)); its
+manifests and Deployment no longer exist, so the commands below do not currently apply.
+Kept as the worked procedure to restore if comfyui is re-added later - see that doc's
+"Revival" section.
+
+ComfyUI was pinned `replicas: 0` in git (`kubernetes/apps/base/ai/comfyui/app/helmrelease.yaml`)
+and its HelmRelease was suspended (`spec.suspend: true`) - Flux was not reconciling it, so
+there was no automatic revert. Run a ComfyUI session **only** after freeing the card from
 chat, and manually scale it back to 0 when done (see "End the session" below), then
 restore chat.
 
@@ -393,7 +403,7 @@ recall both verified on b10820.
 | `--parallel` / `--kv-unified` | **Still auto.** Re-read on b10820: `n_parallel=4`, `kv_unified=true`. Section 3's pinning warning carries forward untested. |
 | KV `q4_0` | Not tested. VRAM is not the binding constraint, so there is nothing to buy with the quality loss. |
 | `--threads` | Not tested, but worth a look: the banner picks `n_threads = 6` while the pod requests `cpu: 2`. |
-| Embeddings contention | Not reproducible today. `vllm-embed` and `comfyui` are both `replicas: 0`; the sole consumer is `hermes`. The 38x figure in section 4 remains historical. |
+| Embeddings contention | Not reproducible today. `vllm-embed` is `replicas: 0` and `comfyui` was removed entirely 2026-09-15; the sole consumer is `hermes`. The 38x figure in section 4 remains historical. |
 
 ### Reproduce
 

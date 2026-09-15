@@ -93,14 +93,6 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("ai", "hermes"): ("10000", "10000"),
     ("ai", "opencode"): ("1000", "1000"),
     ("ai", "repo-wiki"): ("1000", "1000"),
-    # comfyui's helmrelease.yaml sets no runAsUser/runAsGroup/fsGroup at all
-    # ("Image runs as root" is its own comment there) - declared identity, not
-    # a live-measured one: the deployment has been scaled to 0 replicas for 85
-    # days and this onboarding was done under a read-only-cluster constraint
-    # that ruled out scaling it up to check. Added 2026-09-12.
-    ("ai", "comfyui-user"): ("0", "0"),
-    ("ai", "comfyui-custom-nodes"): ("0", "0"),
-    ("ai", "comfyui-input"): ("0", "0"),
     ("database", "falkordb"): ("1000", "1000"),
     ("database", "pgadmin"): ("5050", "5050"),
     # Chainguard/distroless nonroot image (surrealdb/surrealdb). Read live
@@ -263,12 +255,10 @@ NEVER_VOLSYNC: set[tuple[str, str]] = {
     # because volsync is no longer wired onto new claims.
     ("database", "falkordb"),
     # Unprotected-volume-coverage onboarding, 2026-09-12 (captain decision).
-    # None of these four ever had VolSync wired onto them - they simply had NO
-    # backup engine at all until this change.
+    # Never had VolSync wired onto it - it simply had NO backup engine at all
+    # until that change. The three comfyui claims onboarded alongside it were
+    # removed with the app on 2026-09-15 (captain decision).
     ("database", "surrealdb"),
-    ("ai", "comfyui-user"),
-    ("ai", "comfyui-custom-nodes"),
-    ("ai", "comfyui-input"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of

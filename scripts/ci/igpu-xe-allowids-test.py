@@ -10,8 +10,9 @@ iGPUs advertised xe. With that precondition closed, the HelmRelease must:
   3. Keep media/browser consumers (plex/playwright) on
      gpu.intel.com/xe only, never devic.es/b70 or devic.es/b70-vaapi.
      (jellyfin was a third xe consumer until it was retired 2026-08-30.)
-  4. Keep Level Zero B70 consumers (vllm/vllm-embed/comfyui) on
-     devic.es/b70 only, never gpu.intel.com/xe or devic.es/b70-vaapi.
+  4. Keep Level Zero B70 consumers (vllm/vllm-embed) on devic.es/b70 only,
+     never gpu.intel.com/xe or devic.es/b70-vaapi.
+     (comfyui was a third B70 consumer until it was retired 2026-09-15.)
   5. Keep the VA-API B70 consumer (tdarr-node) on devic.es/b70-vaapi only,
      never gpu.intel.com/xe or the renamed devic.es/b70 group.
 
@@ -58,7 +59,6 @@ XE_CONSUMERS: dict[str, Path] = {
 # Controllers that must stay on the renamed Level Zero B70 identity.
 B70_CONSUMERS: dict[str, Path] = {
     "vllm": ROOT / "kubernetes/apps/base/ai/vllm/app/helmrelease.yaml",
-    "comfyui": ROOT / "kubernetes/apps/base/ai/comfyui/app/helmrelease.yaml",
 }
 
 # Controllers that must stay on the name-faithful VA-API B70 identity.

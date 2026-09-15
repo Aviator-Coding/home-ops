@@ -35,7 +35,7 @@ spec:
     nodeFeatureRule: false
     sharedDevNum: 99
     # Discrete B70 consumers request generic-device-plugin resources, not this
-    # pool: Level Zero (vllm/vllm-embed/comfyui) uses devic.es/b70; VA-API
+    # pool: Level Zero (vllm/vllm-embed) uses devic.es/b70; VA-API
     # (tdarr-node) uses devic.es/b70-vaapi. allowIDs scopes this pool to the
     # Raptor Lake iGPU (0xa7a0) only, now that xe.force_probe is applied on all
     # three nodes and the iGPUs confirm advertising xe (talos-1/2 xe=99,

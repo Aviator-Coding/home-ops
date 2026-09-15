@@ -19,7 +19,7 @@ recently, and why?" without spelunking git.
 
 ---
 
-## Current baseline (2026-09-07)
+## Current baseline (2026-09-15)
 
 | Layer | Value |
 |-------|-------|
@@ -27,7 +27,7 @@ recently, and why?" without spelunking git.
 | **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic: `siderolabs/xe` + `siderolabs/i915` (i915/ firmware for xe; `i915.ko` kept off a7a0), `xe.force_probe=a7a0` + `i915.force_probe=!a7a0`, plus `pcie_port_pm=off` for the B70 root-port race (captain activates schematic changes via `just talos upgrade-node`, not `apply-node`; not Flux) |
 | **B70 resources** | `devic.es/b70: 99` (Level Zero / renamed `card0`/`renderD128`) and `devic.es/b70-vaapi: 99` (VA-API / kernel names `card1`/`renderD129`) via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
 | **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin, `allowIDs: "0xa7a0"` - light QSV/browser (plex/playwright; jellyfin retired 2026-08-30). iGPU-only; the B70 no longer contributes to this pool |
-| **On the B70** | chat (`vllm` on `devic.es/b70`) + optional `tdarr-node` (on `devic.es/b70-vaapi`). `vllm-embed` and `comfyui` are pinned `replicas: 0` |
+| **On the B70** | chat (`vllm` on `devic.es/b70`) + optional `tdarr-node` (on `devic.es/b70-vaapi`). `vllm-embed` is pinned `replicas: 0`; `comfyui` was removed entirely 2026-09-15 ([`ai-system/comfyui-retirement-2026-09-15.md`](./ai-system/comfyui-retirement-2026-09-15.md)) |
 | **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b10820` (exact pin is still load-bearing; do not float to `server-intel` - only the pinned value moved off b9592) |
 | **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` (both re-verified on b10820), plus `-b 2048 -ub 2048` |
 | **Chat KV / FA** | `--flash-attn on`, `--cache-type-k/-v q8_0` (accepted on this pin; see 2026-08-21) |
@@ -38,14 +38,15 @@ recently, and why?" without spelunking git.
 |-----|----------|-------|------|------|
 | `vllm` | `devic.es/b70` | `ghcr.io/ggml-org/llama.cpp:server-intel-b10820` | Chat - **llama.cpp SYCL**, `Qwen3.6-35B-A3B UD-Q4_K_M`. Keeps the `vllm` name so the service + gateway backend stay stable; real vLLM OOMs the MoE warmup (intel/llm-scaler#382). | 20,583 MiB weights + 2,720 MiB KV @262k q8_0 + 251 MiB recurrent state + 1,776 MiB compute buffer @ `-ub 2048` = 25,330 MiB of 32,656 (~7.2 GiB free). KV is far smaller than the earlier ~5.2 GiB figure because only 10 of 40 layers are full-attention. |
 | `vllm-embed` | `devic.es/b70` | `intel/llm-scaler-vllm` | Embeddings - `Qwen3-VL-Embedding-2B`. **Default off** (`replicas: 0`); agentmemory moved to OpenRouter 2026-06-28. | (not resident) |
-| `comfyui` | `devic.es/b70` | `intel/llm-scaler-omni` | Image generation. **Default off** (`replicas: 0`). | (not resident) |
 | `tdarr-node` | `devic.es/b70-vaapi` | tdarr (media ns) | QSV AV1 worker; codec needs the discrete card under kernel DRM names | light |
+
+`comfyui` (image generation, `devic.es/b70`) was removed entirely 2026-09-15 - see [`ai-system/comfyui-retirement-2026-09-15.md`](./ai-system/comfyui-retirement-2026-09-15.md).
 
 ### SYCL / Battlemage constraints
 
 - ✅ **`--flash-attn on` + `--cache-type-k/-v q8_0`** are the live, measured baseline on `server-intel-b10820` (enabled 2026-06-17 on b9592, re-verified on b10820 2026-09-07). The 2026-06-14 prohibition citing ggml-org/llama.cpp#19276 does **not** apply to this official SYCL build on the B70.
 - ⚠️ **Do not bump the llama.cpp tag without re-measuring.** That condition still stands for every future bump. The 2026-09-07 move b9592 → b10820 **discharged** it with evidence rather than bypassing it: five-config production-shaped matrix (wall 129.3s → 52.5s / 2.46x), settings read back at `-lv 6`, quality 5/6 greedy byte-identical plus tool-call and multi-turn checks. The original concern (later SYCL FA/XMX and Q4_K MoE work, quality/hang reports on newer builds) was addressed by those checks, not assumed away. Full matrix and method live in [`ai/b70-llm-serving-tuning.md` section 6](./ai/b70-llm-serving-tuning.md#6-mixed-batch-prefill-fragmentation-2026-09-07); see also the 2026-09-07 entry below and 2026-08-21.
-- ✅ For heavy ComfyUI work, scale `vllm`→0 first - the card is shared with no memory fencing. `comfyui`'s HelmRelease is suspended (`spec.suspend: true`), so scale it back to `replicas: 0` manually when done - Flux will not revert it.
+- `comfyui` was removed entirely 2026-09-15; the mutual-exclusion procedure it needed (scale `vllm`→0 first, the card has no memory fencing) is no longer applicable and is kept as a worked example for revival in [`ai/b70-llm-serving-tuning.md` §4](./ai/b70-llm-serving-tuning.md#4-single-card-workload-isolation-b70-time-slice-contention).
 
 ---
 
