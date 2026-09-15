@@ -29,8 +29,23 @@ spec:
           #   raw failed-pod counter, not a boolean terminal-failure signal.
           # reason!="" matches every real terminal-failure series observed and
           # by construction excludes bare-gauge / empty-reason pod-count series.
+          # Recency bound added 2026-09-15. Without it this latches: a failed
+          # Job object lives on under the CronJob's failedJobsHistoryLimit, so
+          # the alert kept firing long after the run it describes - live, the
+          # pvc-mover-readable-check failure had been paging for 43.8h and its
+          # pod had already been garbage-collected, so the log the summary below
+          # tells you to read no longer existed. 12h is longer than the 6h cron
+          # period, so a genuinely persistent failure never gaps: each new
+          # failed run brings its own fresh start_time. Written as
+          # `unless ... >= 43200` rather than `and ... < 43200` so it fails
+          # OPEN - if kube_job_status_start_time were ever missing, `unless`
+          # removes nothing and the alert still fires. Same shape and same
+          # reasoning as KubeJobFailed in
+          # kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/kubernetes-apps-recency.yaml.
           expr: |-
             kube_job_status_failed{namespace="system", job_name=~"^pvc-writable-check-.+", reason!=""} > 0
+              unless on (namespace, job_name)
+            (time() - kube_job_status_start_time{job="kube-state-metrics", namespace="system"} >= 43200)
           for: 10m
           annotations:
             summary: >-

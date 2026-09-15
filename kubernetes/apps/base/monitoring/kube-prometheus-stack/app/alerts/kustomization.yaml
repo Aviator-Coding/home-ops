@@ -3,6 +3,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - ./apiserver-aggregation.yaml
   - ./gpu-loss.yaml
+  - ./kubernetes-apps-recency.yaml
   - ./node-memory-pressure.yaml
+  - ./node-network.yaml
   - ./oomkilled.yaml
