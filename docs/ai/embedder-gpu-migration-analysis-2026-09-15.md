@@ -1,276 +1,292 @@
-# Moving the embedder onto the Arc Pro B70 - analysis
+# Moving the embedder onto the Arc Pro B70
 
-> **Status:** analysis only. No manifest change ships with this document.
-> **Date:** 2026-09-15. **Card:** single Intel Arc Pro B70 (32656 MiB) on `talos-3`.
-> **Companion evidence:** [`b70-llm-serving-tuning.md`](./b70-llm-serving-tuning.md) (sections 4 and 6),
-> [`b70-second-card-decision.md`](./b70-second-card-decision.md),
-> [`../talos-3-scheduling-truth.md`](../talos-3-scheduling-truth.md).
+> **Date:** 2026-09-15. **Card:** single Intel Arc Pro B70, 32656 MiB, `talos-3`, PCI
+> `0000:03:00.0`, device `0xe223`, driver `xe`.
+> **Outcome:** shipped. `ai/embedding-gpu` serves `Qwen/Qwen3-Embedding-0.6B` from the B70.
+> **Companion evidence:** [`b70-llm-serving-tuning.md`](./b70-llm-serving-tuning.md) sections 4 and 6,
+> [`../talos-3-scheduling-truth.md`](../talos-3-scheduling-truth.md),
+> [`../ai-system/embedding-truncation-followup-2026-09-14.md`](../ai-system/embedding-truncation-followup-2026-09-14.md).
 
-The proposal was to move `ai/mcp-tools-embedding` off CPU and onto the B70, so that a
-154,715-node backfill stops taking ~8 hours. This document records what was measured, three
-premises that turned out to be wrong, the serving-path comparison, and the one question that
-is genuinely the operator's to answer.
+Everything below was measured against the live cluster on 2026-09-15 unless it says otherwise.
+The live LLM (`ai/vllm`) was never touched: `restarts=0` and an unchanged `startTime` of
+`2026-09-15T00:47:01Z` across the whole exercise.
 
-## 1. Three premises that do not survive checking
+## The three questions, answered in order
 
-### 1a. The card is not 80% free. It is ~77% used.
+**Does it work?** Yes, and the vectors are provably the same ones the CPU server produces
+(mean cosine **0.9999992**). It also fixes a defect: over-length input now fails loud instead
+of being silently truncated.
 
-The proposal read `--gpu-memory-utilization=0.20` and "~5GB VRAM" off
-`kubernetes/apps/base/ai/vllm/app/helmrelease.yaml` and concluded the LLM leaves ~80% of the
-card unused. Those two strings belong to the **`vllm-embed` controller**, which is
-`replicas: 0` and has no pod. The live chat server is the `vllm` controller, and it is
-**llama.cpp, not vLLM** - it has no `--gpu-memory-utilization` flag at all.
+**How much faster?** At batch 32, **190.9 embeddings/sec against the CPU path's 2.1** - about
+**91x**. The 154,715-node backfill goes from ~8 hours to **under 10 minutes** unthrottled, or
+**~2.6 hours throttled to a rate that leaves chat at 99% of its idle speed**.
 
-What the live server actually holds (measured 2026-09-07 at `-lv 6` against the exact image
-`server-intel-b10820` and args `-b/-ub 2048`, `--ctx-size 262144` that are still live today -
-see `helmrelease.yaml`'s own header and section 6 of the tuning runbook):
+**Can we trust the output?** Yes, on the evidence in section 4 - which was collected
+specifically because a fast embedder returning plausible garbage is the worst available
+outcome, and because there is a documented SYCL regression on sibling Arc silicon that
+produces exactly that.
 
-| item | VRAM |
-| --- | ---: |
-| weights (`Qwen3.6-35B-A3B` UD-Q4_K_M + mmproj) | 20.10 GiB |
-| KV cache @ 262144, `q8_0/q8_0` (only 10/40 layers full-attention) | 2.66 GiB |
-| recurrent state | 0.25 GiB |
-| compute buffer @ `-ub 2048` | 1.73 GiB |
-| **resident total** | **~24.7 GiB** |
-| **free of 31.89 GiB** | **~7.2 GiB** |
+## 1. Corrected VRAM figures
 
-So the headroom is ~23%, not ~80%. It is still enough (section 3), but the arithmetic has to
-start from the right number.
+**These replace an earlier reading that was wrong.** The `--gpu-memory-utilization=0.20` and
+"~5GB VRAM" strings in `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml` belong to the
+**`vllm-embed` controller, which is `replicas: 0` and has no pod**. The live chat server is the
+`vllm` controller and it is **llama.cpp, which has no such flag at all**. The card is not
+mostly free.
 
-Live cross-checks run for this analysis, read-only, without touching the server process:
-`kubectl logs` on the running pod confirms `n_slots = 4, n_ctx_slot = 262144,
-kv_unified = 'true'`, matching the configuration those measurements were taken against.
-Per-layer VRAM lines are only emitted at `-lv 6`; the live pod runs `verbosity = 3`, so
-re-reading them would require a restart, which is out of scope here. The 2026-09-07 figures
-are used instead and are labelled as such.
-
-### 1b. The model swap is already done, and it landed two days ago.
-
-`Qwen/Qwen3-Embedding-0.6B` is **already live on the CPU embedder**. It shipped in PR #1681
-(`fe57a764`, 2026-09-13) with the LiteLLM half in the same change. Confirmed live from the
-running server's own `GET /info`:
+Read directly off the Level Zero device at the moment a second workload attached to the card:
 
 ```
-model_id: Qwen/Qwen3-Embedding-0.6B      model_dtype: float32
-pooling: last_token                      max_input_length: 384
-max_batch_tokens: 384                    max_batch_requests: 4
-auto_truncate: true                      version: 1.9.4
+SYCL0 : Intel(R) Arc(TM) Pro B70 Graphics (32656 MiB, 5747 MiB free)
 ```
 
-This matters for the re-index question. The 384 -> 1024 dimension break **already happened on
-2026-09-13**; it is not a consequence of moving to the GPU. Moving the same model to the GPU
-changes no dimension. What *does* carry over is the underlying rule, in a sharper form:
+| | MiB | share |
+|---|---:|---:|
+| card total | 32656 | 100% |
+| held by the live LLM | **26909** | **82.4%** |
+| free | **5747** | 17.6% |
 
-> Vectors are only comparable if they come from the same model **and the same tokenization and
-> pooling**. A GPU path that tokenizes differently from TEI produces a different vector space
-> while reporting the same model name and the same 1024 dimensions - a silent corruption, not
-> an error. See section 4.
+That is the number to use. For comparison, the figure derived from the 2026-09-07 documented
+breakdown (20.10 weights + 2.66 KV + 0.25 recurrent + 1.73 compute = ~24.7 GiB) implied ~7.2 GiB
+free; the live reading is ~1.6 GiB tighter, so even the careful doc-derived estimate was
+optimistic.
 
-There are 0 embeddings stored today, so nothing is at risk right now. Any future swap of
-serving path, not just of model, has to be treated as a re-index event.
+### What the embedder adds, and why `-ub 512`
 
-### 1c. "The slowness is simply that it is the CPU build" is only part of it.
+llama.cpp reports its own projection before allocating. Both configurations were deployed and
+measured on the live card:
 
-Three separate throttles are in play, and two are configuration:
+| config | model buf (SYCL0) | compute buf | **total** | **leaves free** |
+|---|---:|---:|---:|---:|
+| `-ub 2048` | 1136.48 MiB | 1224.96 MiB | **3257 MiB** | 2490 MiB |
+| **`-ub 512` (shipped)** | 1136.48 MiB | 300.74 MiB | **1493 MiB** | **4254 MiB** |
 
-1. It is the CPU build (`text-embeddings-inference:cpu-latest`).
-2. TEI's candle CPU backend **upcasts to float32** (`model_dtype: float32` above), so every
-   forward pass streams ~2.2 GiB of weights instead of ~1.1 GiB.
-3. `--max-batch-tokens 384` and the resulting `max_batch_requests: 4` cap how much work a
-   single forward pass can carry. That value was chosen deliberately, and for good reasons
-   recorded at length in `toolhive/config/embeddingserver.yaml`: raising it re-pays a steeply
-   scaling warmup cost on every pod start (54s at 384; minutes at 512+), and it does **not**
-   fix the silent-truncation gap it might appear to.
+The KV buffer is **0.00 MiB** in both: embedding has no KV cache. A further 296.23 MiB of the
+model sits in host RAM, not on the card.
 
-Point 3 means there is a CPU-side lever that has not been priced, and it is discussed as
-option B in section 6.
+`-ub 512` was chosen because it costs nothing measurable. At the real input length (~31 tokens,
+the live TEI server's lifetime mean) throughput is the same within noise - 190.9 vs 176.4 emb/s
+at batch 32, 269.2 vs 280.7 at 4 concurrent - so the 1764 MiB is bought back for free.
 
-## 2. The finding that actually decides this: compute, not VRAM
+**Why that margin matters, concretely:** if `ai/vllm` ever restarts while the embedder is
+resident, it must still fit. It needs 26909 MiB. At 1493 MiB resident it restarts with
+**4254 MiB to spare**; at 3257 MiB that margin is 2490 MiB. Both work, so this is margin, not
+a rescue - but on a card already at 82.4% the wider one is worth having for free.
 
-**This exact thing was already built, measured, and switched off.**
-
-`vllm-embed` is a GPU embedding server on this card, fully configured, in this repo today. It
-is pinned `replicas: 0`, and the reason is recorded in four places
-(`helmrelease.yaml:88`, `backends/embedding-local.yaml`, `models/embedding-local-cpu.yaml`,
-tuning runbook section 4):
-
-> Isolated chat decode ~61 t/s. Under a synthetic embeddings flood (1183 req in 70 s,
-> ~17 req/s) chat collapsed to ~1.6 t/s - **a 38x degradation**.
-
-The mechanism is hardware, and no knob in this cluster addresses it:
-
-- The B70 has **no compute partitioning** - no MIG, no SR-IOV compute slicing. Any second
-  consumer time-slices the whole card.
-- `devic.es/b70` `count: 99` is a **scheduling identity token**, not a fence. The plugin mounts
-  the same `/dev/dri/card0` and `renderD128` up to 99 times. "98 free slots" is 98 free
-  *tokens*, not 98 free *shares of the GPU*.
-- `--gpu-memory-utilization` caps VRAM only, with zero effect on compute scheduling.
-- The runbook's own conclusion: *"The only real lever is admission control."*
-
-So the proposal's framing - free VRAM implies room for a second tenant - is measuring the
-wrong resource. VRAM is not the binding constraint here and never was.
-
-**But the contention is bounded, and that is the part worth being precise about.** The 38x was
-measured against a *sustained flood*. An embedding endpoint that exists and is idle costs
-essentially no GPU compute; the steady-state consumers are ToolHive's vmcp tool-selection index
-(~959 vectors, rebuilt in-memory on pod restart) and nothing else -
-`embedding-external` still has no live consumer. The contention event is the **backfill job**,
-and its duration is the honest unit of the cost (section 5).
-
-## 3. VRAM coexistence, with numbers
-
-Official Qwen GGUF artefact sizes (read from the HuggingFace API, `Qwen/Qwen3-Embedding-0.6B-GGUF`);
-the model is 595,776,512 parameters, `qwen3` architecture, 32768 context:
-
-| build | file size | as GiB |
-| --- | ---: | ---: |
-| `Qwen3-Embedding-0.6B-Q8_0.gguf` | 639,150,592 B | 0.60 GiB |
-| `Qwen3-Embedding-0.6B-f16.gguf` | 1,197,629,632 B | 1.12 GiB |
-
-Adding a compute buffer sized the same way the LLM's is (attention score matrix at `-ub 2048`:
-2048^2 x 16 heads x 2 B = 128 MiB, plus activations; budget <= 0.5 GiB):
-
-| | weights | buffers | total | free after |
-| --- | ---: | ---: | ---: | ---: |
-| f16 | 1.12 GiB | <= 0.5 GiB | **~1.6 GiB** | **~5.6 GiB** |
-| Q8_0 | 0.60 GiB | <= 0.5 GiB | ~1.1 GiB | ~6.1 GiB |
-
-**VRAM coexistence is not in doubt** - roughly a 4.5x margin on the f16 build. This is
-arithmetic from published artefact sizes plus the LLM's measured footprint, not a live
-co-residency test; a live test would mean running a second workload on the card, which is
-exactly the thing under review.
-
-Note this is also a reason to reject vLLM specifically: vLLM pre-allocates
-`--gpu-memory-utilization` as a fraction of the card's **total** memory. Even the existing
-`0.20` would claim 6.4 GiB of the 7.2 GiB free, leaving under a gigabyte. llama.cpp allocates
-what the model actually needs.
-
-## 4. Serving path
+## 2. Serving path: one candidate was eliminated by deploying it
 
 | path | verdict |
-| --- | --- |
-| **TEI `xpu-ipex-latest`** | **Rejected.** TEI publishes an XPU image and even uses this exact model in its docs, but the IPEX build inside it predates B-series silicon and does not recognise device ID `0xE223` - which is this card's ID, read live from `/sys/bus/pci/devices/0000:03:00.0/device`. Building TEI from source against a current IPEX is possible (Intel validates PyTorch 2.10.0+xpu on Arc Pro B-series) but makes the fleet the owner of a bespoke image. |
-| **vLLM (`intel/llm-scaler-vllm`)** | **Rejected.** It is the `vllm-embed` shape already here and it does run on this card, but it needs a wrapper to present a TEI-shaped endpoint, and its VRAM pre-allocation model is a poor fit for a card that is 77% committed (section 3). |
-| **llama.cpp SYCL** | **Recommended, with one unverified risk.** Lowest-risk stack: it is what already runs on this card. Qwen ships an official GGUF and an official command line: `llama-server -m model.gguf --embedding --pooling last -ub 8192 --verbose-prompt`. |
+|---|---|
+| **TEI `xpu-ipex-latest`** | **Deployed on this card and FAILED.** It is not a config error: the router starts, downloads the weights in 40s, then `Starting Python backend` -> `ERROR Could not start Python backend: Python backend failed to start` -> `Error: Could not create backend`. The IPEX build inside the image predates B-series silicon; our card reports `0xe223`. |
+| **vLLM (`intel/llm-scaler-vllm`)** | **Rejected without deploying.** It pre-allocates `--gpu-memory-utilization` as a fraction of the card's **total** memory, so even the existing `0.20` would claim 6.4 GiB of the 5747 MiB actually free. It also needs a wrapper to present a TEI-shaped endpoint. |
+| **llama.cpp SYCL** | **Shipped.** Already the proven stack on this exact card, so it reuses a known-good image tag (`server-intel-b10820`, the same one `ai/vllm` runs). Qwen publishes an official GGUF and an official command line. |
 
-### The unverified risk on the llama.cpp path
+## 3. Throughput
 
-Qwen3-Embedding uses **last-token pooling**, so the embedding is read off the final token. The
-reference implementation tokenizes with the HuggingFace tokenizer, which appends
-`<|endoftext|>`. llama.cpp issue [#14234](https://github.com/ggml-org/llama.cpp/issues/14234)
-("Bad output from Qwen3-Embedding-0.6B", ~20% worse retrieval) was **closed as completed** with
-exactly that answer from the maintainer: *"Looks like you have to add the EOS token manually."*
+Method: batch `POST /v1/embeddings`, median of 3 runs per cell, after warmup (the first
+request of a cold server is several times slower and was discarded - it is a real effect worth
+knowing, not noise to hide). `MED` is ~31 tokens, matching the live TEI server's lifetime mean
+input length (836,596 tokens / 26,588 requests = 31.5), so it represents the actual corpus
+rather than a flattering short string.
 
-Whether current llama.cpp appends it automatically for this GGUF depends on
-`tokenizer.ggml.add_eos_token` in the file, which the HuggingFace API does not expose and which
-**cannot be settled without running the model**. If it does not, every vector is pooled off the
-wrong token, ~20% of retrieval quality disappears, and **nothing reports an error** - the server
-returns 200 with a correctly-shaped 1024-dimension vector.
+### Like-for-like against the CPU path
 
-This repo has a standing allergy to exactly this failure shape. So the llama.cpp path carries a
-mandatory acceptance gate: before any backfill, embed a fixed probe set through both the live
-TEI server and the new GPU server and compare cosine similarity per item. Near-1.0 means the
-spaces agree; anything lower means the GPU path is not a drop-in and the corpus must never mix
-the two. That gate needs the GPU server to be running, so it belongs after the go-ahead, not
-before it.
+| | CPU (prior measurement) | **GPU (this change)** | speed-up |
+|---|---:|---:|---:|
+| batch 8, s/request | 1.5 s | **0.053 s** | **28x** |
+| batch 8, embeddings/sec | 5.3 | **107.1** | **20x** |
+| batch 32, s/request | 15.4 s | **0.171 s** | **90x** |
+| batch 32, embeddings/sec | 2.1 | **190.9** | **91x** |
+| parallel requests | **no benefit** | **+41%** (190.9 -> 269.2 at 4 concurrent) | - |
 
-## 5. Throughput: what was measured, and what is estimated
+The parallelism row is the one that changes how the backfill should be written: on CPU the
+server was effectively single-threaded so concurrency bought nothing, and on the GPU it is worth
+about 41%. Past 4 concurrent it flattens (263.2 at 8), so **4 concurrent batch-32 requests is
+the efficient shape**.
 
-### Measured, live, 2026-09-15 (CPU baseline)
+### Throughput varies with input length - quote the right row
 
-Method: `kubectl port-forward` to `mcp-tools-embedding`, then batch-of-32 `POST /v1/embeddings`
-at client concurrency 3 for 100s, with the server's own `/metrics` counters sampled before and
-after so the numbers are server-side and exclude port-forward overhead. TEI's counters were
-static before and after the run, confirming no other traffic was competing.
+| input | tokens | batch 32, embeddings/sec |
+|---|---:|---:|
+| SHORT | 13 | 246.5 |
+| **MED (representative)** | **31** | **190.9** |
+| LONG | ~190 | 53.9 |
 
-| | |
-| --- | ---: |
-| sustained throughput | **2.23 embeddings/sec** |
-| token throughput | **51 tokens/sec** |
-| tokens per forward pass | 87.3 |
-| items per forward pass | 3.80 |
-| attributed inference per embedding | 1.78 s |
-| single 13-token request, isolated | **17.2 s** |
+Larger client batches do not help much beyond 32 at this input length: 64 -> 197.2,
+128 -> 201.8, 256 -> 234.8 embeddings/sec.
 
-Corpus size: 154,715 nodes. The server's lifetime mean input length is 31.5 tokens
-(`te_request_input_length_sum / te_request_input_length_count` = 836,596 / 26,588), so the
-corpus is **~4.87 M tokens**.
+### Extrapolation to 154,715 nodes
 
-- At the measured 51 tok/s: **~26.5 hours**.
-- At the ~170 tok/s implied by the previously reported 8-hour figure: **~8.0 hours**.
+Sample size is 3 runs per cell over a ~100s window per configuration, on a server whose
+counters confirmed no other traffic. The extrapolation assumes the corpus resembles MED; if the
+real graph nodes are closer to LONG, divide by ~3.5.
 
-Both are reported because they disagree by 2.4x and the difference is almost certainly client
-concurrency and batch shape, not the server. The 8-hour figure is used as the optimistic CPU
-baseline below, so the comparison is not flattered.
+| how it is run | embeddings/sec | **154,715 nodes** |
+|---|---:|---:|
+| unthrottled, chat idle | ~269 | **~9.6 minutes** |
+| throttled 4 req/s | 127.6 | ~20 minutes |
+| throttled 2 req/s | 65.0 | ~40 minutes |
+| throttled 1 req/s | 32.6 | ~1.3 hours |
+| throttled 0.5 req/s | 16.8 | ~2.6 hours |
+| **CPU, for reference** | 2.1-5.3 | **~8 hours** |
 
-### Estimated (GPU), and the limits of the estimate
+## 4. Correctness
 
-This **was not measured**, and measuring it means running a workload on the card, which is the
-decision being escalated. The estimate is anchored on this same card's own measured prefill
-rate rather than on vendor numbers:
+A fixed 12-text probe set: 4 known-similar pairs (paraphrase / same referent) and 4
+known-dissimilar pairs built from the **same** left-hand sentences, so a degenerate embedder
+that scores everything alike is caught by the contrast rather than by an absolute threshold.
 
-- The B70 sustains **1246 tok/s aggregate prefill** on `Qwen3.6-35B-A3B` at `-ub 2048`
-  (measured 2026-09-07, tuning runbook section 6). That model activates ~3B parameters per
-  token; `Qwen3-Embedding-0.6B` is 0.596B dense, so ~5x less arithmetic per token, and
-  embedding is prefill-only with no decode phase.
-- **Conservative bound:** discard the 5x model-size advantage entirely as small-model kernel
-  inefficiency and assume the embedder merely matches the 35B's prefill rate, 1246 tok/s ->
-  **~65 minutes**.
-- **Optimistic bound:** claim half the model-size advantage, ~3100 tok/s -> **~26 minutes**.
+**Not degenerate:**
 
-So: **roughly 0.5 to 1 hour, against 8 hours on CPU - an 8x to 16x improvement.** The bound is
-deliberately pessimistic at the conservative end; the real figure is unlikely to be worse than
-65 minutes and could be considerably better.
+| check | result |
+|---|---|
+| dimension | **1024** (as Qwen3-Embedding-0.6B should give) |
+| NaN / Inf | none |
+| all-zero vectors | 0 of 12 |
+| distinct vectors | **12 of 12** |
+| L2 norms | all exactly 1.0000 |
 
-## 6. Node capacity on `talos-3`
+**Semantically sane** - similar pairs must rank above dissimilar ones, and they do, with a
+clear gap and no overlap:
 
-The GPU embedder can only run on `talos-3` - `devic.es/b70` is capacity 99 there and 0
-elsewhere - and `talos-3` is the node `../talos-3-scheduling-truth.md` exists to protect.
+| | similar pairs | dissimilar pairs |
+|---|---|---|
+| values | 0.7256, 0.7941, 0.7552, 0.8077 | 0.2156, 0.3562, 0.2177, 0.1652 |
+| mean | **0.7706** | **0.2387** |
+| worst case | min similar **0.7256** | max dissimilar **0.3562** |
 
-Measured live 2026-09-15:
+`min(similar) > max(dissimilar)`, so the two classes are **fully separated**.
 
-| | |
-| --- | ---: |
-| allocatable | 93,604 Mi |
-| requested (36 pods) | 88,002 Mi |
-| **margin** | **5,602 Mi** |
-| `devic.es/b70` allocated | **1 of 99** (`ai/vllm` alone) |
+**Consistent with the CPU path - and this is the strongest result here.** Both servers run the
+same weights, so a correct GPU implementation should not merely rank the probes the same way,
+it should land on nearly the same vectors. It does:
 
-A llama.cpp embedder with `-ngl 99` keeps weights in VRAM, so its host-RAM request is runtime
-plus load buffers - budget ~2 Gi, which fits inside the margin with room left.
+```
+cos(GPU vector, CPU TEI vector) = 0.9999992 mean over 12 probes   (min 0.9999992)
+L2 distance on unit vectors     = 0.00124
+```
 
-Two cautions. The margin was **678 Mi** when that document was written on 2026-09-14 and is
-5,602 Mi today; the figure oscillates with ephemeral CI runner pods (one 512 Mi runner was
-resident during this measurement), so it must be re-read immediately before shipping rather
-than inherited from here. And the new workload belongs in **its own HelmRelease**, not as a
-third controller inside `ai/vllm`: adding to that release means a Helm upgrade of the release
-that owns the live LLM, and `ai/vllm` uses `strategy: Recreate` with a ~21 GB model load, so
-any pod-template churn is a multi-minute outage.
+The residual is fully explained by f16 on the GPU against TEI's `model_dtype: float32`. The two
+were verified to be genuinely different servers (llama.cpp reporting the GGUF path and TEI
+reporting `version 1.9.4`), and the vectors are not bit-identical - so this is agreement, not an
+accident of pointing both probes at one endpoint.
 
-## 7. The question for the operator
+**Consequence: this is not a re-index event.** The GPU and CPU endpoints share one vector space,
+so a caller can move between them freely. The 384 -> 1024 dimension break people may remember is
+the **2026-09-13 model swap** (PR #1681), which had already landed before this work started.
 
-VRAM fits, the node fits, and the serving path is available. The single open question is not
-technical:
+### Two traps checked and closed
 
-> The backfill takes ~8 hours on CPU with **zero** effect on the LLM, or ~0.5-1 hour on the
-> GPU during which chat decode degrades - historically by up to 38x. Which is preferred?
+**The EOS trap is stale - do NOT append `<|endoftext|>` by hand.** Qwen3-Embedding uses
+last-token pooling, and upstream advice (`ggml-org/llama.cpp#14234`, closed) was to append the
+EOS token manually. Current llama.cpp already does it: appending it by hand measured **worse**
+agreement with TEI (0.9910, min 0.9777) than sending raw text (0.9999992). Manual EOS
+double-appends.
 
-Three shapes, all buildable:
+**Over-length input now fails loud, which is a genuine defect fix.** The CPU TEI server has
+`auto_truncate: true` and its OpenAI-compatible route hardcodes it with no per-request override,
+so an over-length input returns `200 OK` with a silently truncated vector - the defect
+[`embedding-truncation-followup-2026-09-14.md`](../ai-system/embedding-truncation-followup-2026-09-14.md)
+concluded could not be closed on TEI at any affordable setting. llama.cpp returns:
 
-- **A. GPU endpoint, scheduled contention.** Idle cost is ~1.6 GiB VRAM and one `b70` token;
-  the LLM is untouched until the backfill runs, and degraded for the ~0.5-1 hour it runs.
-  Best if re-embedding recurs or the graph keeps growing.
-- **B. Stay on CPU, buy back throughput there.** Section 1c shows the 8 hours is not purely
-  "the CPU build". Zero GPU risk, and the card is never shared - but it re-pays the warmup
-  cost that `embeddingserver.yaml` documents at length, and it is strictly slower.
-- **C. Mutual exclusion.** Scale chat to 0, run the backfill on the whole card, scale chat back.
-  Fastest and contention-free, but the LLM is **down** for the window. This is the shape the
-  ComfyUI procedure in tuning runbook section 4 already documents.
+```
+HTTP 400  {"error":{"code":400,"message":"request (1952 tokens) exceeds the available
+context size (512 tokens), try increasing it","type":"exceed_context_size_error",
+"n_prompt_tokens":1952,"n_ctx":512}}
+```
 
-**Recommendation: A**, on the grounds that the cost is bounded, one-time per backfill, and
-schedulable, while the idle endpoint is genuinely close to free - provided the operator accepts
-that window. If the backfill is a genuine one-off and nothing else will need re-embedding, **B
-overnight is the lower-risk answer** and the GPU move can wait for a second card
-(`b70-second-card-decision.md`).
+The input ceiling also rises from **384 to 512** tokens, so this is not a capability regression.
 
-Whichever is chosen, the section 4 cosine-parity gate applies before any vector is stored.
+## 5. The sustainable-rate curve
+
+The previously known figure was a **38x** chat collapse under a sustained flood at ~17 req/s.
+That is one point. Here is the rest of the curve, measured by driving the embedder at a
+controlled rate while sampling chat decode with a bounded fixed probe (`n_predict=48`,
+`temperature=0`, `cache_prompt=false`, reading the server's own
+`timings.predicted_per_second` - the method [`b70-llm-serving-tuning.md`](./b70-llm-serving-tuning.md)
+specifies). Requests are batch-32. All embedding load stopped between points so no row inherits
+the previous row's contention.
+
+| offered rate | achieved | embedding | **chat decode** | chat vs idle | 154,715 nodes |
+|---|---:|---:|---:|---:|---:|
+| **idle** | 0 | 0 | **83.65 t/s** | 100% | - |
+| **0.5 req/s** | 0.53 | 16.8 e/s | **82.91 t/s** | **99%** | ~2.6 h |
+| 1 req/s | 1.02 | 32.6 e/s | 58.62 t/s | 70% | ~1.3 h |
+| 2 req/s | 2.03 | 65.0 e/s | 44.90 t/s | 54% | ~40 min |
+| 4 req/s | 3.99 | 127.6 e/s | 13.41 t/s | 16% | ~20 min |
+| 8 req/s | 4.02 | 128.7 e/s | **1.83 t/s** | 2% (**aborted**) | - |
+| saturated | 4.12 | 131.8 e/s | 13.40 t/s | 16% | - |
+| **idle again** | 0 | 0 | **83.43 t/s** | **100%** | - |
+
+**The answer to "does he need a special window": no, if he throttles.** At **0.5 req/s the
+backfill takes ~2.6 hours and chat is at 99% of idle** - still three times faster than the CPU
+path, at no cost to chat. At 1 req/s it is ~1.3 hours for a 30% chat slowdown. The knee is
+between 2 and 4 req/s; past that chat is unusable.
+
+Three things worth knowing about this table:
+
+- **The degradation is fully reversible.** The last row is the same idle probe after the worst
+  point, and chat returned to 83.43 t/s. Nothing is left degraded.
+- **Duty cycle matters, not just throughput.** The 4 req/s and 8 req/s rows achieved the *same*
+  embedding throughput (127.6 vs 128.7 e/s) but chat differed 7x (13.41 vs 1.83 t/s). At 8 req/s
+  the queue is never empty, so chat gets no gaps to slot into. **Throttle the backfill by rate,
+  and do not simply hand it unlimited concurrency.**
+- **The 83 t/s idle figure is this instrument's reference, not a contradiction of the
+  documented ~61 t/s.** The probe is a 4-token prompt with a 48-token completion, the cheapest
+  possible decode. Every row uses the same probe, so the ratios are what matter.
+
+## 6. Idle safety
+
+The endpoint ships **idle-safe**, and "idle" is the normal state: the only steady consumers are
+ToolHive's tool-selection index (which stays on CPU, see section 7) and the `embedding-external`
+key, which still has no live consumer. What idle actually costs:
+
+- **GPU compute: none measurable.** The `idle` and `idle again` rows above bracket the entire
+  benchmark, and chat sat at 83.65 and 83.43 t/s - unchanged.
+- **VRAM: 1493 MiB**, leaving 4254 MiB free and leaving room for `ai/vllm` to restart.
+- **Host memory: 839 MiB**, measured identical at idle and under a 4-concurrent flood (which
+  drew 460m CPU). The work happens on the card, so host memory does not track load.
+- **`talos-3` capacity:** allocatable 93,604 Mi, currently requested 88,002 Mi. The new pod's
+  1,536 Mi request takes it to 89,538 Mi (**95.7%**), leaving **4,066 Mi**. That figure
+  oscillates with ephemeral CI runner pods, so re-read it before any further addition
+  ([`../talos-3-scheduling-truth.md`](../talos-3-scheduling-truth.md)).
+- **The LLM's Helm release is never touched.** This ships as its own HelmRelease rather than a
+  third controller inside `ai/vllm`, because that release owns the live chat server and uses
+  `strategy: Recreate` with a ~21 GB model load - any pod-template churn there is a
+  multi-minute outage.
+
+## 7. What ships, and what deliberately does not
+
+**Ships:** `ai/embedding-gpu`, and the LiteLLM alias plus the agentgateway `embedding-local`
+backend repointed at it. The alias is **renamed `embedding-local-cpu` -> `embedding-local`**,
+since it is no longer on a CPU and a neutral name survives the next move. The gateway routes
+embeddings on "not a vendor slug", not on an exact id, so a caller still sending the old name
+reaches the same backend.
+
+**Does not ship: the CPU TEI server is kept**, narrowed to ToolHive's tool-selection index. This
+is not a shortcut - it cannot follow:
+
+1. `VirtualMCPServer` binds it by `embeddingServerRef.name`, a **CR reference, not a URL**.
+2. ToolHive's vmcp client is a **TEI** client: it calls TEI's native `/embed` and hardcodes
+   `Truncate: true`. llama.cpp implements neither that endpoint nor that schema.
+3. The `EmbeddingServer` CRD's `resources` block accepts **only `cpu` and `memory`** - there is
+   no field for an extended resource, so `devic.es/b70` cannot be requested through it at all
+   (checked against the live CRD).
+
+That workload is ~959 vectors rebuilt in memory on vmcp restart, so CPU is right for it anyway,
+and since both servers produce the same vectors nothing downstream has to know which answered.
+
+**The backfill did not run.** Producing the 154,715 embeddings is a separate operation.
+
+## 8. A trap found on the way
+
+**Inside a `devic.es/b70` container, `/dev/dri/card0` is the B70 but `/sys/class/drm/card0` is
+the iGPU.** The device plugin re-exposes the card's *device node* at `card0`/`renderD128`;
+sysfs is not renamed, so `/sys/class/drm/card0/device/device` reads `0xa7a0` (Raptor Lake-P
+iGPU), not the B70's `0xe223`. Anything deriving a sysfs path from the device-node name reads
+the wrong card. Use `/sys/bus/pci/devices/0000:03:00.0`. This is a third instance of the same
+device-node-rename hazard already documented for VA-API.
+
+Separately, the `xe` driver exposes **no** VRAM counters in sysfs at all, and this cluster has
+no Level Zero GPU exporter, so the only way to read GPU memory is from a process that attaches
+to the card - which is why the figures in section 1 come from llama.cpp's own device banner.

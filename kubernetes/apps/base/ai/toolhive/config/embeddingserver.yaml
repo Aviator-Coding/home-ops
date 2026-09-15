@@ -1,4 +1,31 @@
 # yaml-language-server: $schema=https://k8s-schemas.home-operations.com/toolhive.stacklok.dev/embeddingserver_v1alpha1.json
+#
+# SCOPE NARROWED 2026-09-15: this server is now ToolHive's tool-selection index
+# ONLY. The LiteLLM alias and the agentgateway `embedding-local` backend moved to
+# ../../embedding-gpu/app/helmrelease.yaml (Qwen3-Embedding-0.6B on the B70,
+# ~85x faster at batch 32). This pod stays, and it stays on CPU, for two reasons
+# that are both structural rather than preference:
+#
+#  1. `../virtualmcpserver.yaml` binds to it by `embeddingServerRef.name` - a CR
+#     reference, not a URL - so it cannot be pointed at an arbitrary Service.
+#  2. ToolHive's vmcp client is a TEI client: it calls TEI's native `/embed` and
+#     hardcodes `Truncate: true` (github.com/stacklok/toolhive
+#     pkg/vmcp/optimizer/internal/similarity/tei_client.go). llama.cpp does not
+#     implement that endpoint or that schema, so even a repointed vmcp could not
+#     talk to the GPU server.
+#
+# And this CR could not have carried the GPU even if vmcp were flexible: the
+# EmbeddingServer CRD's `resources` block accepts only `cpu` and `memory`, with
+# no field for an extended resource, so `devic.es/b70` cannot be requested
+# through it at all (checked against the live CRD 2026-09-15).
+#
+# The workload is tiny - ~959 vectors over the MCP tool catalog, held in memory
+# and rebuilt on vmcp restart - so CPU is the right place for it. The two servers
+# run the SAME model and were measured to produce the SAME vectors (mean cosine
+# 0.9999992 over a 12-probe set, 2026-09-15), so nothing downstream has to care
+# which one answered.
+#
+# Everything below this line is unchanged and still applies to THIS pod.
 apiVersion: toolhive.stacklok.dev/v1alpha1
 kind: EmbeddingServer
 metadata:
@@ -14,7 +41,7 @@ spec:
   # anything past that, English-only) to Qwen/Qwen3-Embedding-0.6B (up to
   # 1024-dim, 32768-token context, 100+ languages, instruction-aware).
   # Ungated on HuggingFace, no hfTokenSecretRef needed. See
-  # ../../litellm/app/models/embedding-local-cpu.yaml for the LiteLLM-side
+  # ../../litellm/app/models/embedding-local.yaml for the LiteLLM-side
   # half of this change and the PR description for what re-indexing this
   # vector-space change requires.
   #
@@ -56,8 +83,8 @@ spec:
   #    `truncate: false` gets a clean `422` naming the limit and the actual
   #    size (`inputs must have less than N tokens. Given: M`), live-tested.
   #    But the OpenAI-compatible `/v1/embeddings` - what LiteLLM's
-  #    `embedding-local-cpu` model and every external caller actually use,
-  #    ../../litellm/app/models/embedding-local-cpu.yaml - hardcodes
+  #    `embedding-local` model and every external caller used to use,
+  #    ../../litellm/app/models/embedding-local.yaml - hardcodes
   #    `let truncate = info.auto_truncate;` with NO `truncate` field in its
   #    request schema (`OpenAICompatRequest`) at all: no per-request
   #    override reaches this path, ever, regardless of what a caller sends.

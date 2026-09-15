@@ -398,12 +398,20 @@ spec:
         - record: *price
           labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: input_cache_write }
           expr: *free
-        # embedding-local-cpu (../httproute-unified.yaml default /v1/embeddings
-        # rule, backends/embedding-local.yaml) - CPU inference, sunk hardware
+        # embedding-local (../httproute-unified.yaml default /v1/embeddings
+        # rule, backends/embedding-local.yaml) - local inference, sunk hardware
         # cost, same "priced at 0 rather than left unpriced" rule as the local
         # chat aliases above. Embedding calls only ever report `input` tokens
         # (no completion, no prompt cache), so that is the only token type
         # priced here.
+        - record: *price
+          labels: { gen_ai_request_model: embedding-local, gen_ai_token_type: input }
+          expr: *free
+        # The pre-2026-09-15 alias, kept deliberately. The gateway routes
+        # embeddings on "not a vendor slug", not on an exact id, so a caller
+        # still sending the old name reaches the same backend and would emit an
+        # UNPRICED series if this row were deleted - and these rows are constant
+        # expressions, so an extra one costs one flat series, not a lookup.
         - record: *price
           labels: { gen_ai_request_model: embedding-local-cpu, gen_ai_token_type: input }
           expr: *free

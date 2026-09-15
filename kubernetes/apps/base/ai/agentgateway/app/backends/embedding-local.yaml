@@ -1,19 +1,26 @@
 ---
 # The cluster's local embedding service, reached directly (not through
 # LiteLLM - see ../httproute-unified.yaml's default /v1/embeddings rule for
-# why). Text-Embeddings-Inference on CPU, Qwen/Qwen3-Embedding-0.6B (up to
-# 1024-dim, swapped 2026-09-13 from sentence-transformers/all-MiniLM-L6-v2 -
-# see ../../../toolhive/config/embeddingserver.yaml for the full reasoning),
-# declared at ../../../toolhive/config/embeddingserver.yaml.
-# OpenAI-compatible at its native /v1/embeddings. In-cluster service: no
-# TLS, no auth secret.
+# why). Qwen/Qwen3-Embedding-0.6B (1024-dim, last-token pooling), declared at
+# ../../../embedding-gpu/app/helmrelease.yaml. OpenAI-compatible at its native
+# /v1/embeddings. In-cluster service: no TLS, no auth secret.
 #
-# NOT vllm-embed. That AgentgatewayBackend used to be this route's default
-# target and pointed at a Service with zero endpoints (the B70's llm-scaler
-# embedding deployment, deliberately scaled to 0 for compute isolation - see
-# backends/vllm.yaml's header) - a route whose backend has no endpoints fails
-# at request time, not deploy time, so it was removed rather than left dead.
-# This backend does not touch the B70 in any way.
+# MOVED TO THE B70 2026-09-15. This used to point at the CPU
+# Text-Embeddings-Inference pod (../../../toolhive/config/embeddingserver.yaml),
+# which still exists and still serves ToolHive's own tool-selection index - see
+# that file's header for why it cannot follow this move. Same model, same
+# vectors (measured mean cosine 0.9999992 between the two servers), so this was
+# not a re-index event; it is ~85x faster at batch 32 and it fails loud on
+# over-length input instead of silently truncating.
+#
+# STILL NOT vllm-embed. That AgentgatewayBackend pointed at the llm-scaler
+# deployment that is pinned replicas: 0 (see backends/vllm.yaml's header) and
+# served a DIFFERENT model (Qwen3-VL-Embedding-2B), so it was never a drop-in
+# for this route and remains removed.
+#
+# THIS BACKEND NOW SHARES THE B70 WITH CHAT, which has no compute partition.
+# Sustained heavy use degrades ai/vllm; the measured rate-vs-impact table is in
+# docs/ai/embedder-gpu-migration-analysis-2026-09-15.md.
 #
 # Worked examples for an external caller (any model id that is not a
 # vendor slug or bare `text-embedding-*` lands on this backend - see
@@ -22,11 +29,11 @@
 #   # see ../policies/apikey-policy.yaml):
 #   curl -s https://llm-api.${SECRET_DOMAIN}/v1/embeddings \
 #     -H "Authorization: Bearer $GATEWAY_API_KEY" -H 'Content-Type: application/json' \
-#     -d '{"model":"embedding-local-cpu","input":"hello world"}'
+#     -d '{"model":"embedding-local","input":"hello world"}'
 #   # In-cluster keyless (trusted workloads only):
 #   curl -s http://internal-noauth.ai.svc.cluster.local/v1/embeddings \
 #     -H 'Content-Type: application/json' \
-#     -d '{"model":"embedding-local-cpu","input":"hello world"}'
+#     -d '{"model":"embedding-local","input":"hello world"}'
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -35,7 +42,7 @@ spec:
   ai:
     provider:
       openai: {}
-      host: mcp-tools-embedding.ai.svc.cluster.local
+      host: embedding-gpu.ai.svc.cluster.local
       port: 8080
 
   policies:

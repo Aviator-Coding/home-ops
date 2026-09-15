@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
 # The consumer-side half of making the local embedder reachable through
 # LiteLLM (captain request 2026-09-13: "how can an external service consume
-# the embedding?"). Registering ../models/embedding-local-cpu.yaml alone
+# the embedding?"). Registering ../models/embedding-local.yaml alone
 # grants nothing - per ../models/kustomization.yaml, "REGISTRATION IS NOT
 # ENTITLEMENT" - so without a key scoped to it, no caller outside the cluster
 # could actually reach the model. This key is that entitlement, deliberately
@@ -12,12 +12,12 @@
 #   EMBED_KEY=$(kubectl -n ai get secret litellm-key-embedding-external -o jsonpath='{.data.key}' | base64 -d)
 #   curl -s https://litellm.${SECRET_DOMAIN}/v1/embeddings \
 #     -H "Authorization: Bearer $EMBED_KEY" -H 'Content-Type: application/json' \
-#     -d '{"model":"embedding-local-cpu","input":"hello world"}'
+#     -d '{"model":"embedding-local","input":"hello world"}'
 #
 # maxBudget IS SET, deliberately, even though it is INERT today - same
 # reasoning as repo-wiki.yaml and ai-pr-review.yaml (read either file's own
-# comment for the full version): embedding-local-cpu carries no `info.extra`
-# prices (CPU, sunk hardware cost), so recorded spend on this key stays
+# comment for the full version): embedding-local carries no `info.extra`
+# prices (sunk hardware cost), so recorded spend on this key stays
 # $0.00 forever and this cap can never trip on its own. It stays because it
 # is the guard that matters the moment anyone widens `models` above to
 # something priced - a cloud-capable alias added to a budgetless key is an
@@ -36,13 +36,19 @@ spec:
   secretName: litellm-key-embedding-external
   secretKey: key
   models:
-    - embedding-local-cpu
+    - embedding-local
   maxBudget: "1.00"
   budgetDuration: 30d
   # Generous relative to the interactive-consumer keys above (demo: 2/2000)
-  # because a real embedding workload batches many short calls - this just
-  # keeps one misbehaving caller from hammering the CPU-only pod, not a
-  # capacity ceiling. Tune with real traffic once one exists.
+  # because a real embedding workload batches many short calls. Since
+  # 2026-09-15 this is no longer only about the embedder itself: the backend
+  # is the B70, shared with chat, and the card has no compute partition, so a
+  # caller hammering this key degrades ai/vllm. Measured on the live card, at
+  # batch 32 roughly 1 req/s costs chat ~30% of its decode rate and 4 req/s
+  # costs it ~84%; the full table is in
+  # docs/ai/embedder-gpu-migration-analysis-2026-09-15.md. rpmLimit below is
+  # therefore a chat-protection control as much as an abuse control. Tune with
+  # real traffic once a consumer exists.
   rpmLimit: 60
   tpmLimit: 100000
   metadata:

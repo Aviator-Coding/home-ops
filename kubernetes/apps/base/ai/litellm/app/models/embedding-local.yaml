@@ -1,0 +1,63 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# LiteLLM's front door to the cluster's local embedding service.
+#
+# RENAMED 2026-09-15 from `embedding-local-cpu` to `embedding-local`, because
+# this alias now points at the Arc Pro B70, not a CPU pod - a name asserting
+# "cpu" for a GPU service is exactly the kind of drift this repo removes rather
+# than documents. The neutral name also survives the next backend move without
+# another rename. Safe to rename: `../virtualkeys/embedding-external.yaml` is
+# the only key that allow-lists it and that key still has no live external
+# consumer, and agentgateway's default /v1/embeddings rule routes on "not a
+# vendor slug", not on this exact string, so a caller still sending the old id
+# through the gateway keeps working (it just is not a LiteLLM alias any more).
+#
+# BACKEND: ../../embedding-gpu/app/helmrelease.yaml - Qwen3-Embedding-0.6B
+# (1024-dim, last-token pooling) served by llama.cpp's SYCL backend on the B70.
+# OpenAI-compatible at its native /v1/embeddings.
+#
+# `params.model` MUST keep naming the same upstream model the backend serves;
+# LiteLLM never verifies this against the live server, so a mismatch here would
+# describe a model that is not what answers requests.
+#
+# NOT A VECTOR-SPACE CHANGE. The CPU TEI server and this GPU server were measured
+# against each other on the same probe set 2026-09-15: mean cosine 0.9999992
+# (L2 0.0012 on unit vectors, explained by f16 vs TEI's float32). Same weights,
+# same pooling, same tokenization - so this move needs NO re-index, and the
+# 384->1024 dimension break people may remember is the 2026-09-13 MODEL swap
+# (#1681), already landed and unrelated to this change.
+#
+# TWO REAL BEHAVIOUR CHANGES a caller can see, both improvements:
+#  1. Over-length input now FAILS LOUD. TEI has auto_truncate: true and its
+#     OpenAI-compatible route hardcodes it with no per-request override, so a
+#     600-token input returned 200 OK with a silently truncated vector - the
+#     defect docs/ai-system/embedding-truncation-followup-2026-09-14.md concluded
+#     could not be closed on TEI at any affordable setting. llama.cpp returns
+#     HTTP 400 `exceed_context_size_error` naming both token counts instead.
+#  2. The input ceiling rises 384 -> 512 tokens.
+#
+# NO `info.extra` PRICES, deliberately, same rule as chat-local/pr-review-local
+# (see ./kustomization.yaml): sunk hardware, so real spend through this alias is
+# always $0 and a consumer's maxBudget keeps measuring exactly one thing.
+#
+# NO CLOUD FALLBACK, deliberately: a fallback embedder at different dimensions
+# would silently corrupt any index built against this model's output. This alias
+# appears in neither `fallbacks` nor `context_window_fallbacks` in
+# ../litellmproxy.yaml.
+#
+# THE B70 IS SHARED WITH CHAT AND HAS NO COMPUTE PARTITION. Heavy sustained use
+# of this alias degrades ai/vllm. Measured rate-vs-impact table and the safe
+# operating point: docs/ai/embedder-gpu-migration-analysis-2026-09-15.md.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: embedding-local
+spec:
+  modelName: embedding-local
+  proxyRef: litellm
+  params:
+    model: openai/Qwen/Qwen3-Embedding-0.6B
+    apiBase: http://embedding-gpu.ai.svc.cluster.local:8080/v1
+    apiKey: "not-needed" # llama-server runs with no --api-key
+  info:
+    mode: embedding

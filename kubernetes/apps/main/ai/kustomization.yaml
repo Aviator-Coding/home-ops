@@ -33,6 +33,7 @@ components:
 resources:
   - ./agentgateway.yaml
   - ./agentgateway-dashboards.yaml
+  - ./embedding-gpu.yaml
   - ./gpu-node-dashboard.yaml
   - ./hermes.yaml
   - ./litellm-operator.yaml

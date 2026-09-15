@@ -1,0 +1,192 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+#
+# GPU embedding endpoint: Qwen/Qwen3-Embedding-0.6B served from the Arc Pro B70
+# on talos-3 by llama.cpp's SYCL backend.
+#
+# WHY A SEPARATE HELMRELEASE AND NOT A THIRD CONTROLLER IN ai/vllm:
+# ai/vllm owns the captain's live chat server. Adding a controller there means a
+# Helm upgrade of THAT release, and `vllm` uses `strategy: Recreate` with a
+# ~21GB model load, so any pod-template churn is a multi-minute LLM outage. This
+# app never touches that release.
+#
+# WHY llama.cpp AND NOT TEI-XPU OR vLLM (all three were tried or priced):
+#  - TEI `xpu-ipex-latest` was DEPLOYED ON THIS CARD 2026-09-15 and FAILED:
+#    "Could not start Python backend" -> "Could not create backend". The card is
+#    device 0xe223 (Battlemage), read live from
+#    /sys/bus/pci/devices/0000:03:00.0/device; the IPEX build inside that image
+#    predates B-series silicon. Not a config error - the router starts, downloads
+#    weights, then cannot bring up its backend at all.
+#  - vLLM (intel/llm-scaler-vllm, the `vllm-embed` shape) pre-allocates
+#    `--gpu-memory-utilization` as a fraction of the card's TOTAL memory. With
+#    only 5747 MiB actually free (measured, see below) even the existing 0.20
+#    would claim 6.4GiB and fail or starve the LLM. It also needs a wrapper to
+#    present a TEI-shaped endpoint.
+#  - llama.cpp SYCL is already the proven stack on this exact card (it is what
+#    `ai/vllm` runs), so this reuses a known-good image tag.
+#
+# CORRECTNESS IS PROVEN, NOT ASSUMED. There is a documented SYCL regression on
+# sibling Arc silicon that returns numerically-shaped garbage, so this was
+# measured against the live CPU TEI server on the same probe set (2026-09-15):
+#   cos(GPU vector, CPU TEI vector) = 0.9999992 mean over 12 probes
+#   (L2 distance 0.0012 on unit vectors; f16 vs TEI's float32 accounts for it)
+# 1024 dimensions, no NaN, no all-zero, 12/12 distinct, all L2-normalised.
+# Known-similar pairs mean 0.771 vs known-dissimilar mean 0.239, fully separated
+# (min similar 0.726 > max dissimilar 0.356).
+# CONSEQUENCE: this endpoint and the CPU TEI endpoint share one vector space, so
+# moving a caller between them needs NO re-index.
+#
+# DO NOT add `<|endoftext|>` to inputs. llama.cpp already applies this model's
+# EOS for last-token pooling; appending it by hand measured WORSE agreement with
+# TEI (0.9910 vs 0.9999992). The upstream advice to add it manually
+# (ggml-org/llama.cpp#14234, closed) is stale for this build and GGUF.
+#
+# Reasoning, the full benchmark and the LLM-contention curve:
+# docs/ai/embedder-gpu-migration-analysis-2026-09-15.md
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app embedding-gpu
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      embedding-gpu:
+        replicas: 1
+        # Recreate, matching ai/vllm: the old pod must release the GPU before
+        # the new one claims it. `devic.es/b70` is a share-token, not a fence,
+        # so two copies would both load weights and double the VRAM held.
+        strategy: Recreate
+        pod:
+          terminationGracePeriodSeconds: 30
+        containers:
+          app:
+            image:
+              repository: ghcr.io/ggml-org/llama.cpp
+              # Same tag ai/vllm runs. Deliberate: it is the only llama.cpp
+              # build proven on this card, and pinning both to one tag means a
+              # future bump is evaluated once against both workloads.
+              tag: server-intel-b10820
+            args:
+              - -hf
+              - Qwen/Qwen3-Embedding-0.6B-GGUF:f16
+              - --embedding
+              # Qwen3-Embedding is a last-token-pooling model - this is not
+              # optional. `pooling type = 3` is echoed in the startup banner and
+              # was verified live. Mean pooling silently produces a different
+              # (wrong) vector space.
+              - --pooling
+              - last
+              - --host
+              - "0.0.0.0"
+              - --port
+              - "8080"
+              - -ngl
+              - "99"
+              # ctx/-b/-ub are one decision: llama.cpp forces n_batch = n_ubatch
+              # in embedding mode, and a sequence must fit inside one ubatch, so
+              # this triple sets BOTH the VRAM footprint and the maximum input
+              # length. Measured on the live card 2026-09-15, same probe set:
+              #   -ub 2048 -> compute buffer 1224.96 MiB, total 3257 MiB
+              #   -ub  512 -> compute buffer  300.74 MiB, total 1493 MiB
+              # and throughput at the REAL input length (~31 tokens, the live
+              # TEI server's lifetime mean) is the same within noise:
+              # 176.4 vs 190.9 emb/s at batch 32, 280.7 vs 269.2 at 4 concurrent.
+              # So 512 buys back 1764 MiB for nothing measurable.
+              #
+              # That VRAM matters for one specific reason: if `ai/vllm` ever
+              # restarts while this pod is resident, it must still fit. The card
+              # is 32656 MiB and the LLM occupies 26909 MiB (measured), so at
+              # 1493 MiB the LLM restarts with 4254 MiB to spare; at 3257 MiB
+              # that margin shrinks to 2490 MiB. Both work - 512 is chosen for
+              # the margin, not because 2048 fails.
+              #
+              # 512 is also ABOVE the 384-token ceiling the CPU TEI server is
+              # pinned at, so this is not a capability regression. Raising it is
+              # a one-line change with the cost table above; do not raise it
+              # speculatively (same rule as --max-batch-tokens in
+              # ../../toolhive/config/embeddingserver.yaml).
+              - --ctx-size
+              - "512"
+              - -b
+              - "512"
+              - -ub
+              - "512"
+            env:
+              LLAMA_CACHE: /models
+              # Same Level Zero selector ai/vllm uses. The generic-device-plugin
+              # `b70` group re-exposes the card at /dev/dri/card0+renderD128;
+              # note that /sys/class/drm/card0 inside the container is still the
+              # HOST's card0, which is the iGPU (0xa7a0) - sysfs is not renamed,
+              # only the device node. Anything deriving sysfs from the device
+              # name reads the wrong card. Use /sys/bus/pci/devices/0000:03:00.0.
+              ONEAPI_DEVICE_SELECTOR: level_zero:0
+              ZES_ENABLE_SYSMAN: "1"
+              UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS: "1"
+            resources:
+              requests:
+                cpu: 250m
+                # Measured live: 839Mi resident, identical idle and under a
+                # 4-concurrent batch-32 flood (460m CPU) - the GPU holds the
+                # work, so host memory does not track load. Request covers that
+                # with headroom so the pod is never in the kubelet's
+                # usage-exceeds-request eviction set on an already tight node
+                # (docs/talos-3-scheduling-truth.md).
+                memory: 1536Mi
+                devic.es/b70: 1
+              limits:
+                cpu: "2"
+                memory: 2Gi
+                devic.es/b70: 1
+            probes:
+              # First boot pulls the ~1.2GB GGUF; allow 10 min.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: { path: /health, port: 8080 }
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 40
+              readiness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: { path: /health, port: 8080 }
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              liveness: *probe
+
+    service:
+      app:
+        controller: embedding-gpu
+        ports:
+          http:
+            port: 8080
+
+    persistence:
+      # Model cache only. Deliberately NOT backed up: the contents are a
+      # re-downloadable GGUF, same reasoning as ai/vllm's own `models` claim,
+      # which carries no kopiur component either. Without it every pod start
+      # re-fetches 1.2GB from HuggingFace and the endpoint's availability
+      # depends on HuggingFace being reachable.
+      models:
+        type: persistentVolumeClaim
+        accessMode: ReadWriteOnce
+        storageClass: ceph-block
+        size: 5Gi
+        advancedMounts:
+          embedding-gpu:
+            app:
+              - path: /models
