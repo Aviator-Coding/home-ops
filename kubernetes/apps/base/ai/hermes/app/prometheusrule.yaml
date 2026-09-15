@@ -57,7 +57,7 @@ spec:
             description: >-
               The hermes PVC (state.db, sessions, memories) is projected to
               reach capacity within ~14 days at its current growth rate
-              (currently {{ $value | humanizePercentage }} of the 25Gi
+              (projected to {{ $value | humanize1024 }}B of the 25Gi
               claim). Investigate state.db growth/retention or grow the
               claim before it actually fills - a full RWO volume stops
               Hermes' single writer cold.
@@ -74,8 +74,8 @@ spec:
             summary: hermes's /opt/data volume will fill up within days
             description: >-
               The hermes PVC is projected to reach capacity within ~3 days
-              at its current growth rate (currently {{ $value |
-              humanizePercentage }} of the 25Gi claim). Act now - grow the
+              at its current growth rate (projected to {{ $value |
+              humanize1024 }}B of the 25Gi claim). Act now - grow the
               claim or clear space - not after Hermes' single writer starts
               failing.
           expr: |
