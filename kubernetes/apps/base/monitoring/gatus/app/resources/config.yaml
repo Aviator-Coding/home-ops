@@ -49,6 +49,34 @@ endpoints:
       - "[BODY].warnings == false"
       - "[BODY].errors == false"
 
+  # Hermes runs its gateway (Telegram/Discord/cron + the OpenAI-compatible API
+  # on :8642) as a SEPARATE s6 service from the dashboard on :9119, in the
+  # same container. The auto-discovered `hermes-app` HTTPRoute check above
+  # only ever probed :9119, so a wedged/dead gateway with a perfectly healthy
+  # dashboard was invisible to every existing signal - measured live
+  # 2026-09-14/15: the gateway process sat in state D with :8642 refusing
+  # connections (absent from /proc/net/tcp) for the entire outage, while
+  # :9119 kept answering 200 the whole time.
+  #
+  # This hits the gateway's OWN unauthenticated health path directly, not the
+  # dashboard's SPA catch-all (verified live: dashboard :9119 `/health` 200s
+  # the login-page HTML for literally any unknown path - the exact
+  # auth-gated-redirect trap this cluster has been burned by before, which
+  # would make a status-code condition prove nothing). `/health` on :8642 is
+  # a dedicated, unauthenticated JSON endpoint
+  # (`{"status":"ok","platform":"hermes-agent",...}`) confirmed live both
+  # ways on this same pod: connection refused while the gateway was wedged,
+  # 200 with that body once it recovered.
+  - name: Hermes Gateway
+    group: ai
+    url: http://hermes.ai.svc.cluster.local:8642/health
+    interval: 1m
+    ui:
+      hide-url: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].status == ok"
+
 metrics: true
 
 ui:
