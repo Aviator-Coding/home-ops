@@ -1,0 +1,74 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+#
+# Packet-drop alerting for the node interfaces.
+#
+# The rook-ceph chart ships CephNodeNetworkPacketDrops and
+# CephNodeNetworkPacketErrors, and both are structurally incapable of firing:
+# they use rate(...[1m]) while this Prometheus scrapes at 1m, so the window can
+# never hold the two samples a rate needs. Measured 2026-09-15:
+#
+#   rate(node_network_receive_drop_total{device!="lo"}[1m]) ... >= 0  ->   0 series
+#   rate(node_network_receive_drop_total{device!="lo"}[5m]) ... >= 0  -> 177 series
+#
+# rook-ceph-cluster has no per-rule `disabled` knob - monitoring.createPrometheusRules
+# is all-or-nothing - so the two dead twins stay where they are, exactly as
+# CephDeviceFailurePredicted does in
+# kubernetes/apps/base/rook-ceph/rook-ceph/cluster/prometheusrules.yaml: an
+# inert vendor rule is documented, never edited in place.
+#
+# Only the DROPS half is replaced here. Errors are already covered by a pair of
+# live kube-prometheus-stack rules - NodeNetworkReceiveErrs and
+# NodeNetworkTransmitErrs, rate(...[2m]) / packets > 0.01 for 1h - whose [2m]
+# window clears the 1m scrape interval and which return 158 series today, so
+# reinstating the Ceph errors twin under a new name would be a third rule
+# paging for a condition that is already watched. Drops have no such cover:
+# CephNodeNetworkPacketDrops is the only packet-drop ALERT in the cluster, and
+# the only other drop rules are node-exporter's four
+# instance:node_network_*_drop_*:rate5m recording rules, which alert on nothing
+# and aggregate the device label away.
+#
+# Thresholds are upstream's and were checked against real traffic before
+# merging - the nodes run bonded 802.3ad interfaces at MTU 9000, so a nonzero
+# baseline was the thing to rule out. Over the 7 days to 2026-09-15 the highest
+# drop rate on any interface was 1.58 packets/s against a 10/s clause, and
+# replaying the full expression at [5m] over that week returns zero firing
+# series at every step: widening the window adds no notification volume.
+#
+# The absolute-rate conjunction is what makes the ratio safe. An idle interface
+# can divide a nonzero drop count by zero packets and yield +Inf, which would
+# satisfy any ratio threshold; requiring >= 10 packets/s discards it. There is
+# deliberately no `for:`, matching upstream - a drop burst can be shorter than
+# any debounce window worth setting.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-network-drops
+spec:
+  groups:
+    - name: node-network-drops
+      rules:
+        - alert: NodeNetworkPacketDrops
+          annotations:
+            description: >-
+              Node {{ $labels.instance }} interface {{ $labels.device }} is
+              dropping more than 0.5% of its packets, and more than 10
+              packets/s.
+            summary: Network packets are being dropped.
+          expr: |-
+            (
+              rate(node_network_receive_drop_total{device!="lo"}[5m])
+                + rate(node_network_transmit_drop_total{device!="lo"}[5m])
+            )
+            /
+            (
+              rate(node_network_receive_packets_total{device!="lo"}[5m])
+                + rate(node_network_transmit_packets_total{device!="lo"}[5m])
+            ) >= 0.005
+            and
+            (
+              rate(node_network_receive_drop_total{device!="lo"}[5m])
+                + rate(node_network_transmit_drop_total{device!="lo"}[5m])
+            ) >= 10
+          labels:
+            severity: warning

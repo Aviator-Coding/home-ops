@@ -1,0 +1,89 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+#
+# Recency-bounded replacements for two kube-prometheus-stack rules, switched
+# off via `defaultRules.disabled` in ../helmrelease.yaml. Alert name, severity,
+# `for` and the upstream runbook_url are kept deliberately: only the latch is
+# removed, so the captain's muscle memory for these names still works.
+#
+# Both upstream expressions compare a kube-state-metrics gauge against a
+# threshold with no recency clause, so they keep firing for exactly as long as
+# the dead object behind them is retained by the API server. Measured live on
+# 2026-09-15, these two were the largest non-null-routed contributors to a
+# Pushover channel doing 84 notifications a day:
+#
+#   KubeJobFailed         4 Jobs, ages 13.3h / 13.3h / 32.6h / 43.8h
+#                         system/fstrim-29822640 had 2 successes and 1 failed
+#                         pod - the work completed - and had been paging 32h.
+#   KubeContainerWaiting  2 pods, both phase=Failed / UnexpectedAdmissionError,
+#                         10 days old, replaced long ago by healthy pods.
+#
+# Neither of these is a silence: the failed Job objects and terminal pods stay
+# exactly where they are and stay queryable. What changes is that a page means
+# "this happened recently", which is the only version of the statement a human
+# can act on.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kubernetes-apps-recency
+spec:
+  groups:
+    - name: kubernetes-apps-recency
+      rules:
+        # Upstream: kube_job_failed{...} > 0, with for: 15m and nothing else.
+        #
+        # The bound is written as `unless ... >= 43200` rather than
+        # `and ... < 43200` so it FAILS OPEN: if kube_job_status_start_time were
+        # ever missing for a failed Job, `unless` removes nothing and the alert
+        # still fires, whereas `and` would silently drop it. (Measured: over 30d
+        # no failed Job on this cluster ever lacked that series, but the whole
+        # point of this file is not to trade one silent failure for another.)
+        #
+        # 12h is chosen from observed data, not taste: the longest Job runtime
+        # seen in 30d is 6936s (1.9h), so the window is ~6x any real job, and it
+        # is long enough that a 03:00 failure is still firing at breakfast.
+        - alert: KubeJobFailed
+          annotations:
+            description: >-
+              Job {{ $labels.namespace }}/{{ $labels.job_name }} failed to
+              complete within the last 12 hours. The failed Job object is
+              retained by its CronJob's failedJobsHistoryLimit and this alert
+              deliberately stops firing after 12 hours even though the object
+              remains - `kubectl get jobs -A` still shows it.
+            summary: Job failed to complete.
+            runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobfailed
+          expr: |-
+            kube_job_failed{job="kube-state-metrics"} > 0
+              unless on (namespace, job_name)
+            (time() - kube_job_status_start_time{job="kube-state-metrics"} >= 43200)
+          for: 15m
+          labels:
+            severity: warning
+
+        # Upstream: kube_pod_container_status_waiting_reason{reason!="CrashLoopBackOff"} > 0
+        # with for: 1h. A pod in a terminal phase is not waiting for anything -
+        # kube-state-metrics keeps publishing its last waiting reason
+        # (PodInitializing) for the life of the object - so this is a
+        # correctness fix rather than a time bound, and a container genuinely
+        # stuck in ImagePullBackOff on a live pod still fires indefinitely,
+        # which is correct.
+        #
+        # What this deliberately does NOT cover: terminal Failed pods piling up
+        # (e.g. UnexpectedAdmissionError) are a real condition that nothing in
+        # this cluster alerts on. That is a gap to close with its own rule, not
+        # by leaving a wrong statement in this one.
+        - alert: KubeContainerWaiting
+          annotations:
+            description: >-
+              pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on
+              container {{ $labels.container }} has been in waiting state for
+              longer than 1 hour. (reason: "{{ $labels.reason }}")
+            summary: Pod container waiting longer than 1 hour
+            runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontainerwaiting
+          expr: |-
+            kube_pod_container_status_waiting_reason{job="kube-state-metrics", reason!="CrashLoopBackOff"} > 0
+              unless on (namespace, pod)
+            (kube_pod_status_phase{job="kube-state-metrics", phase=~"Failed|Succeeded"} == 1)
+          for: 1h
+          labels:
+            severity: warning

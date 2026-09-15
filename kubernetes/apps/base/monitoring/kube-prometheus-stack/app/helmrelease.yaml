@@ -23,6 +23,53 @@ spec:
     cleanPrometheusOperatorObjectNames: true
 
     ###
+    ### Default rule overrides
+    ###
+    # A chart-shipped rule cannot be edited from Git, but `defaultRules.disabled`
+    # (a per-alert-name map, present in this chart version's rule templates) can
+    # switch one off so a home-ops replacement under ./alerts/ owns the name
+    # instead. Each replacement keeps upstream's alert name, severity, `for` and
+    # runbook_url, and changes exactly one thing; the rationale and the live
+    # before/after measurement live in the replacement file itself.
+    defaultRules:
+      disabled:
+        # Latched with no recency bound: fires for as long as the failed Job
+        # object is retained, which was 13-44h on four dead Jobs. Replaced by
+        # ./alerts/kubernetes-apps-recency.yaml.
+        KubeJobFailed: true
+        # Fires on containers of terminal (phase=Failed) pods, which are not
+        # waiting for anything. Two 10-day-old UnexpectedAdmissionError zombies
+        # were paging. Replaced by ./alerts/kubernetes-apps-recency.yaml.
+        KubeContainerWaiting: true
+        # rate()/increase() over [1m] with a 1m scrape interval returns no
+        # series at all. Replaced by ./alerts/apiserver-aggregation.yaml.
+        KubeAggregatedAPIErrors: true
+
+      # PrometheusDuplicateTimestamps is the alert that correctly reported
+      # ~5,000,000 silently discarded samples over 8 days (two episodes in 30
+      # days) and was never acted on, because at the time every alert arrived at
+      # the same urgency. Discarded samples degrade every alert computed over the
+      # affected target, so this is a failure of the monitoring system itself,
+      # not of one workload - critical, and now Pushover priority 2.
+      additionalRuleAnnotations:
+        PrometheusDuplicateTimestamps:
+          # The counter is global and unlabelled, so the offending target can
+          # only be named from Prometheus's own log - which is lost when the pod
+          # is replaced. Promtail ships it to Loki, so read it there first.
+          attribution: >-
+            The dropped samples are attributable ONLY from Prometheus's own log,
+            not from any metric label. Capture it before the pod is replaced:
+            LogQL `{namespace="monitoring", pod=~"prometheus-.*"} |= "different
+            value but same timestamp"` names the scrape_pool, the target URL and
+            num_dropped per scrape. Last occurrence: rook-ceph-exporter on
+            talos-2 (http://10.10.10.12:9926/metrics), 90 samples per 10s scrape
+            = 540/min, from 2026-09-06 until it cleared at 2026-09-14T21:29Z.
+
+    customRules:
+      PrometheusDuplicateTimestamps:
+        severity: critical
+
+    ###
     ### Component values
     ###
     alertmanager:
