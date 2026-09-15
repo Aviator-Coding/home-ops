@@ -175,7 +175,7 @@ several weekly passes, re-accumulation between runs proves material.**
 | **Rollback** | Delete the `ai-pvc` / `samba` overlays and the hermes `xml` persistence entry; reclaim the PVC/PV. |
 | **Verify** | PVC Bound on `ceph-filesystem-rwx`; live mount_smbfs drill proved 10000:10000 ownership both directions (see branch intent). GitOps pin: `scripts/ci/samba-shared-xml-test.py` when present. |
 
-**Still using `ceph-filesystem-rwx` (4):** `downloads/pvc` (`shared-downloads` 2Ti), `media/tdarr` (`tdarr-temp` 200Gi), `ai/comfyui` (`comfyui-output` 25Gi), `ai/pvc` (`shared-xml` 100Gi). Supersedes the 3-PVC inventory in the 2026-08-21 entry for current ops; that entry remains the probe evidence that group `csi` is still broken. Retirement rule unchanged: only migrate back to `ceph-filesystem` after a clean `create`/`getpath`/`rm` against group `csi` on a future Ceph release - now for all **4** claims.
+**Still using `ceph-filesystem-rwx` (3):** `downloads/pvc` (`shared-downloads` 2Ti), `media/tdarr` (`tdarr-temp` 200Gi), `ai/pvc` (`shared-xml` 100Gi). Supersedes the 3-PVC inventory in the 2026-08-21 entry for current ops; that entry remains the probe evidence that group `csi` is still broken. `ai/comfyui` (`comfyui-output` 25Gi) was a fourth consumer until comfyui was removed 2026-09-15. Retirement rule unchanged: only migrate back to `ceph-filesystem` after a clean `create`/`getpath`/`rm` against group `csi` on a future Ceph release - now for all **3** claims.
 
 ### [2026-08-23] Fix CephMonitorQuorumAtRisk gauge-vs-count alert bug  (commits `649869b0`, `c1431311`)
 
