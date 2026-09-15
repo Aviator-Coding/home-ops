@@ -28,6 +28,7 @@ components:
 # the policies gone nothing prunes them either. Revival means re-adding the
 # manifests and re-downloading the checkpoints; the captain-authored
 # comfyui-user settings are recoverable only from those retained snapshots.
+# Full record: docs/ai-system/comfyui-retirement-2026-09-15.md.
 
 resources:
   - ./agentgateway.yaml
