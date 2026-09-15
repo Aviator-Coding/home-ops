@@ -47,6 +47,44 @@ spec:
             envFrom:
               - secretRef:
                   name: home-assistant
+            # This app had zero probes before this change (audited
+            # 2026-09-15): the container could run indefinitely while HA
+            # itself was wedged, still read Ready, and nothing would notice
+            # until the lights stopped working. /manifest.json is served
+            # without authentication (verified live, read-only, via
+            # in-cluster Service port-forward - status 200 with no session)
+            # so the probe measures HA's own HTTP server, not the ext_authz
+            # chain in front of the public route. Once this is live,
+            # kube_pod_status_ready reflects real responsiveness, which is
+            # enough on its own to activate the existing upstream
+            # KubePodNotReady rule (kubernetes-apps group, for: 15m,
+            # severity: warning) for this pod - no new PrometheusRule
+            # needed, and existing cluster-wide KubePodCrashLooping/OOMKilled
+            # rules already cover this namespace regardless of probes.
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /manifest.json
+                    port: 8123
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              readiness: *probes
+              # HA can take a while to load its integrations on first boot;
+              # this delays liveness/readiness evaluation up to 300s so a
+              # slow-but-healthy startup is never mistaken for a wedge.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /manifest.json
+                    port: 8123
+                  periodSeconds: 10
+                  failureThreshold: 30
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
@@ -128,11 +166,6 @@ spec:
           gethomepage.dev/group: "Home Automation"
           gethomepage.dev/name: home-assistant
           gethomepage.dev/icon: home-assistant.svg
-          gatus.home-operations.com/endpoint: |-
-            url: https://hass.${SECRET_DOMAIN}/manifest.json
-            conditions:
-              - "[STATUS] == any(200, 302)"
-            group: home-automation
         hostnames:
           - "hass.${SECRET_DOMAIN}"
         parentRefs:
