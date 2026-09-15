@@ -91,6 +91,36 @@ provider directly; the model id alone picks the upstream (see
 > If Hermes ever won't boot without an OpenAI key, re-add a dummy `OPENAI_API_KEY`
 > **only** (never `OPENAI_BASE_URL`).
 
+## `state.db` retention (why the volume stopped filling)
+
+`/opt/data/state.db` is the agent's session store and it dominates this claim: **9.31 GiB of a 25Gi
+PVC that was 76% full**, growing ~175-235 MB/day, against Hermes' own 1 GiB `doctor` warning
+threshold. ~98% of it is `cron` automation transcripts, and ~79% of the file is FTS5 storage and
+index (the message text is stored **three times**: `messages`, plus an inline content copy for each
+of the two FTS indexes).
+
+Upstream's `sessions.auto_prune` was **already on and already running**. It reclaimed nothing
+because `retention_days: 90` is wider than this install is old, so only 3.3% of sessions had ever
+aged out (`PRAGMA freelist_count` was 292 of 2,440,957 pages). The `sessions:` block in
+[`app/resources/config.yaml`](app/resources/config.yaml) narrows that to **30 days**, which is ~99%
+`cron` data and keeps every Telegram, TUI and subagent session.
+
+Two things worth knowing before touching it:
+
+- **`vacuum_after_prune: false` is deliberate and load-bearing.** VACUUM rewrites every page through
+  the WAL, so it needs ~9.3 GiB against 6.0 GiB free. Because `last_vacuum` is absent from
+  `state_meta` its 30-day throttle never engages, so at upstream's `true` default it would be
+  attempted on **every** pass that deletes rows, write until ENOSPC and roll back, risking a
+  100%-full volume. The file therefore does **not** shrink; pruning frees pages onto the freelist and
+  SQLite reuses them, which is what stops the growth.
+- **The sweep is startup-only**, throttled to once per 24h, so the bound is enforced at pod-restart
+  cadence rather than continuously.
+
+Reclaiming the existing 9.31 GiB needs free space first and then an offline
+`hermes sessions optimize-storage` (this DB is still on legacy FTS layout 0). That is an operator
+decision, not automated. Full measurements, the read-only method, the verification commands and the
+CUDA-wheel/snapshot finding: [`docs/ai-system/hermes-state-db-growth.md`](../../../../../docs/ai-system/hermes-state-db-growth.md).
+
 ## Cluster RBAC (operator access)
 
 Hermes runs under its own `hermes` ServiceAccount (`automountServiceAccountToken: true`

@@ -23,6 +23,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `gpu-node-dashboard-test.py` | Intel GPU node Grafana dashboard (hwmon/device-plugin PromQL contract) |
 | `grafana-mcp-deploy-test.py` | in-cluster grafana-mcp ToolHive `MCPServer` deployment |
 | `grafana-sa-provisioner-test.py` | grafana-sa-provisioner (captain option C) |
+| `hermes-state-db-retention-test.py` | `ai/hermes` state.db retention contract (`auto_prune` pinned on, `vacuum_after_prune` pinned **off** because a VACUUM cannot fit the claim and would retry to ENOSPC, `retention_days` asserted as a *shape* - narrower than upstream's 90 - so a further narrowing needs no CI edit) |
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
 | `kopiur-stage0-test.py` | kopiur Stage 0: operator pin/CRDs/monitoring, ceph+r2 ClusterRepositories + deletion protection, no SnapshotPolicy/Schedule, Renovate automerge exclusion, VolSync untouched |
 | `kopiur-stage1-test.py` | kopiur Stage 1: reusable backup component (ceph+r2 only, Ephemeral cache, pinned Retain deletion), and the credential contract - all three `credentialProjection` legs wired plus zero standing per-namespace credential objects (fleet coverage is owned by stage3). The Stage 1 pilot app `downloads/autobrr` was removed 2026-09-02, so both renders run from recorded substitute maps and the pilot assertions inverted to require its absence |
