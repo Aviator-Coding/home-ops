@@ -1,18 +1,51 @@
 ---
+# Severity-aware Pushover delivery.
+#
+# Before 2026-09-15 there was exactly one receiver and every firing alert was
+# sent at Pushover priority 1, so an `info` CPU-throttle notice and a Ceph
+# outage were indistinguishable on the phone. Measured over the 7 days to
+# 2026-09-15: 591 Pushover notifications, 84/day, one every 17 minutes, with
+# zero delivery failures and zero silences - i.e. the channel was saturated,
+# not broken.
+#
+# Priority is a Pushover concept, not an Alertmanager one:
+#   -2  no notification at all; the message only appears in the app's history
+#   -1  notification shown, no sound or vibration
+#    0  normal; respects the user's Pushover quiet hours
+#    1  high; bypasses quiet hours, highlighted red
+#    2  emergency; repeats every `retry` until acknowledged, or until `expire`
+# `retry`/`expire` are always sent by the Alertmanager notifier and ignored by
+# Pushover below priority 2. `ttl` auto-deletes a delivered message and is
+# ignored for priority 2. All of priority/sound/retry/expire/ttl/html are
+# supported by the pinned Alertmanager v0.34.0 (see the pushover notifier and
+# config.PushoverConfig in that release); Alertmanager's own built-in default
+# for `priority` is this same `2 when firing, 0 otherwise` template, so the
+# critical receiver below is upstream's default applied selectively rather
+# than a novel escalation.
+#
+# Resolved notifications are deliberately quieter than the firing ones: a
+# resolution should be visible, never audible.
 receivers:
   - name: "null"
-  - name: "pushover"
+
+  # severity: critical -> emergency. Repeats every 5 minutes for up to an hour
+  # until the captain acknowledges it in the Pushover app. This is the only
+  # class that may wake someone.
+  - name: "pushover-critical"
     pushover_configs:
       - html: true
         token_file: /etc/secrets/pushover_api_token
         user_key_file: /etc/secrets/pushover_api_userkey
         send_resolved: true
         priority: |-
-          {{ if eq .Status "firing" }}1{{ else }}0{{ end }}
+          {{ if eq .Status "firing" }}2{{ else }}-1{{ end }}
+        retry: 5m
+        expire: 1h
+        sound: siren
         url_title: View in Alert Manager
-        title: |-
-          [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
-        message: |-
+        title: &alert_title |-
+          [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}{{ with .CommonLabels.namespace }} ({{ . }}){{ end }}
+        message: &alert_message |-
           {{- range .Alerts }}
             {{- if ne .Labels.severity "" }}
               <b>Severity:</b> <i>{{ .Labels.severity }}</i>
@@ -36,24 +69,113 @@ receivers:
             {{- end }}
           {{- end }}
 
+  # severity: warning (and anything with no severity label, via the root
+  # route) -> normal priority. Audible, but honours Pushover quiet hours.
+  - name: "pushover-warning"
+    pushover_configs:
+      - html: true
+        token_file: /etc/secrets/pushover_api_token
+        user_key_file: /etc/secrets/pushover_api_userkey
+        send_resolved: true
+        priority: |-
+          {{ if eq .Status "firing" }}0{{ else }}-1{{ end }}
+        url_title: View in Alert Manager
+        title: *alert_title
+        message: *alert_message
+
+  # severity: info | notify -> delivered silently. The alert still exists, is
+  # still firing in Prometheus, and is still readable in the Alertmanager and
+  # Pushover histories; it just never interrupts. `ttl` clears these from the
+  # device after a day so they cannot pile up.
+  - name: "pushover-low"
+    pushover_configs:
+      - html: true
+        token_file: /etc/secrets/pushover_api_token
+        user_key_file: /etc/secrets/pushover_api_userkey
+        send_resolved: true
+        priority: "-2"
+        ttl: 24h
+        url_title: View in Alert Manager
+        title: *alert_title
+        message: *alert_message
+
 route:
-  group_by: ["alertname", "job"]
+  # `namespace` replaces `job` so each notification is about one namespace,
+  # which is what the reader needs first on a phone. Severity does not need to
+  # be in the key: every alert matches exactly one severity route below, and
+  # aggregation groups never span routes.
+  group_by: ["alertname", "namespace"]
   group_wait: 30s
   group_interval: 5m
-  repeat_interval: 6h
-  receiver: "pushover"
+  # Was 6h. Re-notification of a still-true alert is a large share of the
+  # volume; warning-class repetition every 12h is enough to keep something
+  # unresolved visible without retraining the captain to ignore the channel.
+  repeat_interval: 12h
+  # Fail loud: an alert carrying no severity label at all still pages.
+  receiver: "pushover-warning"
   routes:
+    # Both are structural, neither is a real condition. Watchdog is the
+    # dead-man's-switch heartbeat; InfoInhibitor exists only to be the source
+    # of the inhibit rule below. Matched by name rather than by
+    # `severity: none` so that a future rule which forgets its severity falls
+    # through to the root receiver instead of being silently dropped.
     - receiver: "null"
       matchers:
         - alertname =~ "InfoInhibitor|Watchdog"
-    - receiver: "pushover"
+
+    - receiver: "pushover-critical"
       matchers:
         - severity = critical
-      continue: true
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
 
+    - receiver: "pushover-warning"
+      matchers:
+        - severity = warning
+      group_wait: 1m
+      group_interval: 10m
+      repeat_interval: 12h
+
+    # `notify` is a home-ops-local severity (coder's three rules) meaning
+    # "an event worth recording", not "a problem".
+    - receiver: "pushover-low"
+      matchers:
+        - severity =~ "info|notify"
+      group_wait: 5m
+      group_interval: 30m
+      repeat_interval: 24h
+
+# The first two are the upstream kube-prometheus-stack defaults and were only
+# half-present here: the `critical -> warning` rule existed but `equal` on
+# both alertname AND namespace means it only triggers when the same alert name
+# fires at two severities, which essentially never happens. They are kept
+# because they are harmless and correct, not because they do much.
+#
+# The third is the one that matters. kube-prometheus-stack ships the
+# `InfoInhibitor` alert *specifically* to be this rule's source - it fires for
+# any namespace that has an `info` alert and no warning/critical - and without
+# the rule that consumes it, every `info` alert paged. Measured over the 7 days
+# to 2026-09-15: 11,639 of 11,677 info namespace-minutes (99.7%) had a
+# co-firing InfoInhibitor and would have been inhibited here.
+#
+# This is inhibition, not silencing: nothing is muted at the source. An `info`
+# alert accompanied by a real warning/critical in the same namespace is NOT
+# inhibited (InfoInhibitor stops firing for that namespace), so context still
+# reaches the phone when there is something to give context to.
 inhibit_rules:
   - source_matchers:
       - severity = "critical"
     target_matchers:
-      - severity = "warning"
+      - severity =~ "warning|info"
     equal: ["alertname", "namespace"]
+  - source_matchers:
+      - severity = "warning"
+    target_matchers:
+      - severity = "info"
+    equal: ["alertname", "namespace"]
+  - source_matchers:
+      - alertname = "InfoInhibitor"
+    target_matchers:
+      - severity = "info"
+    equal: ["namespace"]
