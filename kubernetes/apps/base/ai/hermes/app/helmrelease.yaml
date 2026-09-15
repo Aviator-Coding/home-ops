@@ -127,6 +127,45 @@ spec:
               # as root, chowns /opt/data, then drops to UID 10000. ---
               HERMES_UID: "10000"
               HERMES_GID: "10000"
+              # --- Startup-watchdog budget: the ONLY thing standing between an
+              # unclean exit and an unbounded outage. ---
+              #
+              # After ANY unclean exit, gateway/lifecycle_ledger.py's
+              # `check_state_db_integrity` runs `PRAGMA quick_check(1)` over the
+              # WHOLE of /opt/data/state.db (9.39 GiB). It has no size ceiling,
+              # no timeout and no progress lease - unlike hermes_cli/backup.py,
+              # which caps the same PRAGMA at DEFAULT_INTEGRITY_CHECK_MAX_BYTES
+              # (2 GiB). There is NO env/config lever to bound or skip it; the
+              # watchdog budget below is the only lever that exists.
+              #
+              # hermes_startup_watchdog.resolve_startup_watchdog_timeout() reads
+              # this var; all three arm sites (cli.py:4308, gateway/run.py:5377,
+              # hermes_cli/gateway.py:4533) call arm_startup_watchdog() with no
+              # explicit timeout, so this value governs. It reaches the gateway
+              # because /run/service/gateway-default/run is a
+              # `#!/command/with-contenv sh` script and `s6-setuidgid` preserves
+              # the environment.
+              #
+              # Runway = timeout + _MAX_CPU_EXTENSIONS(3) x timeout = 4x, since
+              # the check burns far more than _CPU_PROGRESS_MIN_S (1s) of CPU per
+              # window. At the 300s default that is ~1502s - measured exactly, 9
+              # consecutive times, in /opt/data/logs/gateway-startup-watchdog.log
+              # on 2026-09-14/15 ("elapsed_s": 1502.5-1503.6, "extensions": 3).
+              # The check itself needed 1510.92s on 2026-09-11 and is growing, so
+              # it now LOSES that race, and because the sentinel is only rewritten
+              # AFTER the check returns, every respawn re-ran it: a ~25min loop
+              # that never converged, twice, for 5.5h and then again on a routine
+              # rollout. 900s gives a 3600s runway = 2.4x the measured 1510.92s
+              # requirement, absorbing both the observed +-17% run-to-run variance
+              # and roughly a doubling of state.db.
+              #
+              # Cost: a genuinely PARKED startup deadlock (OOF-298, the class this
+              # watchdog exists for) burns no CPU, so it earns no extensions and
+              # fires at exactly this value - detection degrades 300s -> 900s.
+              # That is the whole price, and 900s is what upstream already treats
+              # as a sane single-phase worst case on multi-GB state.db files
+              # (_MAX_LEASE_S).
+              HERMES_STARTUP_WATCHDOG_TIMEOUT_S: "900"
               # --- Git access (single private repo). Inject a global git config
               # via env (no writable $HOME needed): the `store` helper reads the
               # token from the mounted `.git-credentials` file (see persistence
@@ -167,12 +206,38 @@ spec:
                   timeoutSeconds: 5
                   # Generous: first boot initialises config/skills under /opt/data.
                   failureThreshold: 30
+            # The 2Gi limit was starving the page cache this process lives on.
+            # Measured in-container 2026-09-15 (/sys/fs/cgroup): memory.current
+            # 2101694464 of a 2147483648 limit (97.9%), of which anon is only
+            # 524689408 (500Mi) - the rest is page cache for a 9.39 GiB
+            # state.db. memory.events `max` = 78102 (reclaim forced by the limit
+            # 78k times) and workingset_refault_file = 1245651 (1.25M file pages
+            # evicted and re-read from Ceph RBD), with oom_kill = 0. So the
+            # container never OOMs, it just thrashes - which is what inflates the
+            # unclean-exit integrity check above, and also slows ordinary session
+            # I/O. 6Gi gives ~5.5Gi of cache (~3.9x today's ~1.4Gi), holding
+            # ~59% of state.db resident instead of ~15%.
+            #
+            # TRADEOFF, deliberate: the request stays 512Mi, so scheduling and
+            # the talos-3 reservation arithmetic in docs/talos-3-scheduling-truth.md
+            # are UNCHANGED (raising a request there is what that doc gates; a
+            # limit is not). The cost is the kubelet's node-pressure eviction
+            # ranking, whose first key is "usage exceeds requests": hermes is
+            # already over (working set ~1169Mi vs 512Mi) and a full 6Gi burst
+            # would make it the largest overage among evictable pods on talos-3.
+            # Accepted because the burst is transient (only during a post-unclean-
+            # exit check), it is still ~3.8x smaller than the +21230Mi vllm
+            # overage that doc was written about, talos-3 is at 26% actual memory
+            # use (25261Mi of 91.4GiB) so node pressure is nowhere near, and the
+            # consequence of an eviction is now bounded by the watchdog budget
+            # above rather than an open-ended outage. Revisit alongside that doc
+            # if talos-3's real usage climbs.
             resources:
               requests:
                 cpu: 100m
                 memory: 512Mi
               limits:
-                memory: 2Gi
+                memory: 6Gi
             # The gateway profile persists "stopped" in /opt/data/gateway_state.json
             # on graceful shutdown, and the image's boot reconcile won't auto-start a
             # "stopped" profile -> the cron scheduler + messaging platforms stay DOWN
