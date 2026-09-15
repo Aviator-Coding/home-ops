@@ -163,3 +163,63 @@ platform_toolsets:
     - hermes-telegram
 telegram:
   require_mention: false
+
+# ── state.db retention (bounds /opt/data/state.db growth) ──────────────────────
+# Measured 2026-09-15: state.db was 9.31 GiB (2,440,957 x 4 KiB pages) on a 25Gi
+# claim already 76% full, growing ~175-235 MB/day. Full evidence, every query and
+# the read-only proof: docs/ai-system/hermes-state-db-growth.md.
+#
+# These are upstream's own supported settings (hermes_cli/config_defaults.py
+# `sessions:`), NOT a bespoke mechanism. `hermes_cli/config.py::load_config`
+# deep-merges DEFAULT_CONFIG, so every key not listed here already has upstream's
+# default - the three below are the ones where upstream's default is wrong for
+# this claim.
+sessions:
+  # Upstream default is ALREADY true, so this line changes no behaviour - it is
+  # here because both call sites read `_sess_cfg.get("auto_prune", False)`
+  # (gateway/run.py, cli.py `_run_state_db_auto_maintenance`): the DEFAULT is the
+  # only thing making it true, and a future upstream flip would silently disable
+  # pruning on this install. Pinning it makes the intent reviewable in Git.
+  auto_prune: true
+
+  # THE ACTUAL FIX. Upstream default is 90. At 90 days this install cannot fit
+  # its own claim: measured recent volume is ~3,100 message_count/day at ~56 KiB
+  # all-in per message_count, so the 90-day steady state is ~15.6 GiB of state.db
+  # on top of ~9.7 GB of other /opt/data content = ~25.3 GB against a 25Gi claim.
+  # The 90-day window is also why pruning has been a no-op so far: the install is
+  # only 98.9 days old, so just 218 sessions (3.3% of message_count) had ever
+  # aged out, and `PRAGMA freelist_count` was 292 of 2,440,957 pages (0.012%).
+  #
+  # 30 days -> ~5.2 GiB steady state, and on the first pass it makes 4,027 ended
+  # sessions / 56,629 message_count (32.7%) eligible. 99.3% of that delete set is
+  # `cron` automation; ALL 5 telegram, all 21 tui and all 13 subagent sessions
+  # survive (only human loss: 43 ended `cli` sessions last active >=64 days ago).
+  #
+  # Dial it further with this one number if the volume climbs again: 21 -> ~3.6 GiB,
+  # 14 -> ~2.4 GiB. Per-source retention (cron kept shorter than human chat) does
+  # NOT exist upstream - NousResearch/hermes-agent#110589 is open and there is no
+  # `source_retention` / `cron.session_retention_days` key anywhere in this image.
+  # A single session can be exempted permanently by PINNING it (`pinned` sessions
+  # are never pruned at any age); none are pinned today.
+  retention_days: 30
+
+  # LOAD-BEARING, and deliberately the OPPOSITE of upstream's `true` default.
+  # VACUUM is the only thing that returns freed pages to the filesystem, and it
+  # CANNOT SUCCEED here: it rewrites every page through the WAL (see
+  # hermes_state_maintenance.py::vacuum, which TRUNCATEs the WAL afterwards for
+  # exactly this reason), so a ~9.3 GiB database needs comparable free space and
+  # the claim has 6.0 GiB. Left at `true` it would be ATTEMPTED on every pass
+  # that deletes rows - `last_vacuum` is absent from state_meta, so the
+  # min_vacuum_interval_days throttle never engages - and the freelist ratio
+  # after a 30-day prune (~33%) clears the 25% gate, so it would fire, write
+  # until ENOSPC and roll back. On a volume already at 76% that risks filling it
+  # to 100%, which stops Hermes writing anything at all. Not reclaiming is
+  # strictly safer than that.
+  #
+  # Consequence, stated plainly: the file does NOT shrink. Pruning frees pages
+  # into the freelist and SQLite REUSES them for subsequent inserts (upstream's
+  # own words in config_defaults.py), so growth stops and the file plateaus near
+  # its current 9.31 GiB. Reclaiming the existing space is an offline, operator-
+  # driven job (`hermes sessions optimize-storage`, which also migrates this DB
+  # off legacy FTS layout 0) and needs free space first - see the doc.
+  vacuum_after_prune: false

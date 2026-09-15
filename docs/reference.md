@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **85**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **88**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -61,6 +61,7 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 | [`ai-system/kmcp/README.md`](ai-system/kmcp/README.md) | Tombstone: kmcp was removed 2026-06-07. MCP is ToolHive (`toolhive.stacklok.dev/v1alpha1`). |
 | [`ai-system/retired-2026-08-22.md`](ai-system/retired-2026-08-22.md) | What the 2026-08-22 `ai` retirements kept (Postgres, 1Password, restic repos) and how to revive each app. |
 | [`ai-system/agentmemory-retirement-2026-08-31.md`](ai-system/agentmemory-retirement-2026-08-31.md) | agentmemory retirement (2026-08-31): RBD destruction on merge, kopiur/VolSync revival identifiers, Hermes holographic memory switch. |
+| [`ai-system/hermes-state-db-growth.md`](ai-system/hermes-state-db-growth.md) | `ai/hermes` `state.db` growth measurement (9.31 GiB, ~79% FTS duplication) and the `sessions.retention_days: 30` / `vacuum_after_prune: false` fix. Read-only measurement method, why VACUUM cannot fit the claim, and the not-fixed items (existing size, boot-path `quick_check`, per-source retention). |
 
 ## Authentik
 
