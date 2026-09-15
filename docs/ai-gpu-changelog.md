@@ -229,15 +229,17 @@ proof that transcoding works.
 
 ---
 
-## [2026-08-29] `pcie_port_pm=off` closes B70 root-port runtime-PM race
+## [2026-08-29] `pcie_port_pm=off` closes B70 root-port runtime-PM race — **activated 2026-09-15**
 
 **Change:** `talos/schematic.yaml.j2` adds `pcie_port_pm=off`. Factory id `a46161e7a33fbde0589543ccc42a80403294ffd09868d4a09c10df0b64732021` (was `7f25ace820d39f0048bfd5fc6cdf882c6af2410f229d495ed2ff384c4c6807b8`).
 
 **Why / evidence / limits / attended reboot runbook:** owned by [`hardware-incidents.md` [2026-08-24]](./hardware-incidents.md) - do not restate here. `pcie_aspm=off` does not cover port runtime D3hot; activation is `just talos upgrade-node` (not `apply-node`).
 
-**Risk / rollback:** Schematic is cluster-wide (idle-power cost on all nodes). talos-3 activation is the attended maintenance in that runbook (also picks up #1479 thunderbolt drop). Revert the arg and `upgrade-node` to undo.
+**Activated 2026-09-15 ~00:38-00:46Z**, firstmate-executed with the captain present: `just talos upgrade-node talos-3` moved the node `b1a6b2ff…` → `a46161e7…` in one reboot (also drops `#1479`'s thunderbolt extension, as planned). Full verification table and the important caveat (this and an earlier same-night unattended power cut both survived a talos-3 power cycle - two survivals, not proof the D3hot race is closed) live in the "Activated and confirmed working (2026-09-15)" entry under [`hardware-incidents.md` [2026-08-24]](./hardware-incidents.md) - do not restate here either.
 
-**Verify:** Runbook verify steps in the incident entry (`pcie_port_pm=off` on cmdline, `8086:e2ff`/`e223` present, `00:01.0` in D0, `devic.es/b70=99`).
+**Risk / rollback:** Schematic is cluster-wide (idle-power cost on all nodes). Revert the arg and `upgrade-node` to undo.
+
+**Verify:** Runbook verify steps in the incident entry (`pcie_port_pm=off` on cmdline, `8086:e2ff`/`e223` present, `00:01.0` in D0, `devic.es/b70=99`) - all confirmed live 2026-09-15.
 
 ---
 
