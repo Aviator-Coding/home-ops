@@ -32,6 +32,14 @@ spec:
     # ARE in the backup. Captain decision 2026-09-04; retirement record:
     # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
     #
+    # That adjudication predates `plc_code_graph/.venv` (mtime 2026-09-09), a
+    # fifth venv on this claim with NO CACHEDIR.TAG - it hardlinks the same uv
+    # cache wheels and is not excluded, so it alone added ~6 GB to every
+    # snapshot since. Restore completeness above is unaffected; this is a
+    # separate, not-yet-closed snapshot-size finding. Fix proposal
+    # (SnapshotPolicy ignoreRules) deliberately left to its own PR:
+    # docs/ai-system/hermes-state-db-growth.md section 7.
+    #
     # The second include is what keeps the PVC alive, and it is not optional.
     # The volsync Component was the only manifest emitting this claim, and this
     # overlay runs prune: true - so removing it without a replacement makes
