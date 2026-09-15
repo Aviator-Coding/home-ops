@@ -43,8 +43,20 @@ spec:
       enableCephfsDriver: true
       enableCephfsSnapshotter: true
       enableLiveness: true
+      # DISABLED 2026-09-15: this chart value creates ServiceMonitor
+      # `csi-metrics` selecting `app: csi-metrics`, a label from the pre-1.20
+      # architecture where rook itself ran the CSI plugin pods and stamped
+      # that label on them. Since v1.20 (see the NOTE above), the ctrlplugin/
+      # nodeplugin pods are owned by ceph-csi-operator's `Driver` CR via its
+      # own internal `ceph-csi-drivers` Helm release, which this repo does not
+      # manage. Live-verified: no pod anywhere carries `app=csi-metrics`, no
+      # CSI container declares a metrics port or `--metricsport` arg, and the
+      # `Driver` CRD (csi.ceph.io/v1) exposes no metrics field at all - so the
+      # ServiceMonitor has selected zero targets for the life of the cluster
+      # and there is no way to feed it from this repo. Toggling this back on
+      # would require ceph-csi-operator to gain a metrics option upstream.
       serviceMonitor:
-        enabled: true
+        enabled: false
     enableDiscoveryDaemon: true
     image:
       repository: ghcr.io/rook/ceph
