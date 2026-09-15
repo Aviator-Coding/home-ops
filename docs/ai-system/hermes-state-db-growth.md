@@ -260,13 +260,29 @@ Every large file in the venv has **link count 2**: they are hardlinks into the u
 - Deleting the venv alone reclaims **~104 MB**.
 - Reclaiming the ~5.6 GiB needs **both** the venv and the uv cache.
 
-**For backups the finding is different and actionable.** `ignoreCacheDirs` is honoured and the uv
-cache **is** `CACHEDIR.TAG`-tagged, as are `wiki/.venv`, `venv-httpx`,
-`skills/media/youtube-content/.venv` and `.hw-venv`. `plc_code_graph/.venv` (created 2026-09-09) is
-the **only** venv on this volume with **no** `CACHEDIR.TAG`, and because it hardlinks the same
-content, excluding the cache currently saves nothing: the wheels reach every snapshot through the
-untagged venv path. That matches the numbers, latest snapshot `sizeBytes` 19.09 GB against 19.48 GB
-used, i.e. almost nothing excluded.
+**For backups the finding is different, actionable, and measured.** `ignoreCacheDirs` is honoured and
+the uv cache **is** `CACHEDIR.TAG`-tagged, as are `wiki/.venv`, `venv-httpx`,
+`skills/media/youtube-content/.venv` and `.hw-venv`. `plc_code_graph/.venv` is the **only** venv on
+this volume with **no** `CACHEDIR.TAG`, and because it hardlinks the same content, excluding the
+cache currently saves nothing: the wheels reach every snapshot through the untagged venv path.
+
+The kopiur `Snapshot` series dates this to the day, and it is not an inference:
+
+```
+hermes-r2-20260907232856   11,578,076,360
+hermes-r2-20260908232553   11,888,210,983
+hermes-r2-20260909232733   17,894,927,710   <-- +6.01 GB in one day
+hermes-r2-20260910232525   18,145,582,182
+...
+hermes-r2-20260914232408   19,086,156,974
+```
+
+`/opt/data/plc_code_graph/.venv` has mtime **2026-09-09 08:30**. Snapshots jumped **+6.01 GB** on
+exactly that date and have carried it every day since, which is the uv cache content (5,978 MB)
+arriving through the untagged path. Everything before 2026-09-09 sat at ~11.9 GB. So tagging that
+one directory would return every snapshot to roughly its pre-09-09 size, and it is also why the
+current snapshot (19.09 GB) is barely smaller than the volume (19.49 GB) despite a tagged 5,978 MB
+cache: both copies have to be excluded for either to count.
 
 The clean GitOps fix is `spec.files.ignoreRules` on the SnapshotPolicy, layered per-app with
 `spec.patches` on the Flux Kustomization exactly as `database/surrealdb` layers `hooks` onto the
