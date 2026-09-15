@@ -27,7 +27,7 @@ recently, and why?" without spelunking git.
 | **GPU (iGPU)** | Raptor Lake `8086:a7a0` on all three nodes. Schematic: `siderolabs/xe` + `siderolabs/i915` (i915/ firmware for xe; `i915.ko` kept off a7a0), `xe.force_probe=a7a0` + `i915.force_probe=!a7a0`, plus `pcie_port_pm=off` for the B70 root-port race (captain activates schematic changes via `just talos upgrade-node`, not `apply-node`; not Flux) |
 | **B70 resources** | `devic.es/b70: 99` (Level Zero / renamed `card0`/`renderD128`) and `devic.es/b70-vaapi: 99` (VA-API / kernel names `card1`/`renderD129`) via generic-device-plugin (`--domain=devic.es`, DRM by-path at `0000:03:00.0`) - **scheduling identity only, no VRAM fencing** |
 | **xe pool** | `gpu.intel.com/xe: 99` via Intel GpuDevicePlugin, `allowIDs: "0xa7a0"` - light QSV/browser (plex/playwright; jellyfin retired 2026-08-30). iGPU-only; the B70 no longer contributes to this pool |
-| **On the B70** | chat (`vllm` on `devic.es/b70`) + optional `tdarr-node` (on `devic.es/b70-vaapi`). `vllm-embed` is pinned `replicas: 0`; `comfyui` was removed entirely 2026-09-15 ([`ai-system/comfyui-retirement-2026-09-15.md`](./ai-system/comfyui-retirement-2026-09-15.md)) |
+| **On the B70** | chat (`vllm` on `devic.es/b70`) + **`embedding-gpu` since 2026-09-15** (also `devic.es/b70`) + optional `tdarr-node` (on `devic.es/b70-vaapi`). `vllm-embed` is still pinned `replicas: 0`; `comfyui` was removed entirely 2026-09-15 ([`ai-system/comfyui-retirement-2026-09-15.md`](./ai-system/comfyui-retirement-2026-09-15.md)). **Chat is no longer the card's only AI tenant**, so the section 4 contention mechanism is live again - rate guidance: [`ai/embedder-gpu-migration-analysis-2026-09-15.md`](./ai/embedder-gpu-migration-analysis-2026-09-15.md) |
 | **Chat image** | `ghcr.io/ggml-org/llama.cpp:server-intel-b10820` (exact pin is still load-bearing; do not float to `server-intel` - only the pinned value moved off b9592) |
 | **Chat window** | `--ctx-size 262144` (native max, no yarn), auto `n_parallel=4` + `kv_unified=true` (both re-verified on b10820), plus `-b 2048 -ub 2048` |
 | **Chat KV / FA** | `--flash-attn on`, `--cache-type-k/-v q8_0` (accepted on this pin; see 2026-08-21) |
@@ -36,8 +36,9 @@ recently, and why?" without spelunking git.
 
 | Pod | Resource | Image | Role | VRAM |
 |-----|----------|-------|------|------|
-| `vllm` | `devic.es/b70` | `ghcr.io/ggml-org/llama.cpp:server-intel-b10820` | Chat - **llama.cpp SYCL**, `Qwen3.6-35B-A3B UD-Q4_K_M`. Keeps the `vllm` name so the service + gateway backend stay stable; real vLLM OOMs the MoE warmup (intel/llm-scaler#382). | 20,583 MiB weights + 2,720 MiB KV @262k q8_0 + 251 MiB recurrent state + 1,776 MiB compute buffer @ `-ub 2048` = 25,330 MiB of 32,656 (~7.2 GiB free). KV is far smaller than the earlier ~5.2 GiB figure because only 10 of 40 layers are full-attention. |
-| `vllm-embed` | `devic.es/b70` | `intel/llm-scaler-vllm` | Embeddings - `Qwen3-VL-Embedding-2B`. **Default off** (`replicas: 0`); agentmemory moved to OpenRouter 2026-06-28. | (not resident) |
+| `vllm` | `devic.es/b70` | `ghcr.io/ggml-org/llama.cpp:server-intel-b10820` | Chat - **llama.cpp SYCL**, `Qwen3.6-35B-A3B UD-Q4_K_M`. Keeps the `vllm` name so the service + gateway backend stay stable; real vLLM OOMs the MoE warmup (intel/llm-scaler#382). | 20,583 MiB weights + 2,720 MiB KV @262k q8_0 + 251 MiB recurrent state + 1,776 MiB compute buffer @ `-ub 2048` = 25,330 MiB of 32,656. **Measured live 2026-09-15 the card reported only 5,747 MiB actually free** (so ~26,909 MiB resident, 82.4%), ~1.6 GiB tighter than this component sum implies - use the measured figure when sizing a second tenant. KV is far smaller than the earlier ~5.2 GiB figure because only 10 of 40 layers are full-attention. |
+| `embedding-gpu` | `devic.es/b70` | `ghcr.io/ggml-org/llama.cpp:server-intel-b10820` | Embeddings - `Qwen3-Embedding-0.6B` f16 GGUF, `--embedding --pooling last`, `--ctx-size/-b/-ub 512`. Added 2026-09-15. Produces vectors identical to the CPU TEI server (mean cosine 0.9999992), so moving callers between them needs no re-index. | 1,136 MiB model + 301 MiB compute buffer = **1,493 MiB**; KV is 0 (embeddings have no KV cache). Leaves 4,254 MiB free. |
+| `vllm-embed` | `devic.es/b70` | `intel/llm-scaler-vllm` | Embeddings - `Qwen3-VL-Embedding-2B`. **Default off** (`replicas: 0`) and superseded by `embedding-gpu` above, which serves a different (and this cluster's actual) model. | (not resident) |
 | `tdarr-node` | `devic.es/b70-vaapi` | tdarr (media ns) | QSV AV1 worker; codec needs the discrete card under kernel DRM names | light |
 
 `comfyui` (image generation, `devic.es/b70`) was removed entirely 2026-09-15 - see [`ai-system/comfyui-retirement-2026-09-15.md`](./ai-system/comfyui-retirement-2026-09-15.md).
@@ -60,6 +61,39 @@ Change · Why · Evidence · Risk/rollback · Verify
 ```
 
 ---
+
+## [2026-09-15] Embeddings move to the B70: `ai/embedding-gpu` (llama.cpp SYCL)
+
+**Change:** new app `ai/embedding-gpu` serving `Qwen/Qwen3-Embedding-0.6B` (f16 GGUF,
+`--embedding --pooling last`, `--ctx-size/-b/-ub 512`) on `devic.es/b70`, image
+`server-intel-b10820` - the same pin chat runs. LiteLLM alias renamed
+`embedding-local-cpu` -> `embedding-local` and repointed, along with agentgateway's
+`embedding-local` backend. The CPU TEI server stays, narrowed to ToolHive's tool-selection
+index. Chat's HelmRelease was not touched.
+
+**Why:** a 154,715-node backfill took ~8 hours on the CPU embedder. On the B70 it is
+**190.9 embeddings/sec at batch 32 against 2.1 (~91x)**, i.e. under 10 minutes unthrottled.
+
+**Evidence:** deployed and measured live. Correctness first, because a documented SYCL
+regression on sibling Arc silicon returns shaped garbage: against the live CPU TEI server on
+a fixed 12-probe set, **mean cosine 0.9999992**, 1024 dims, no NaN, no all-zero, 12/12
+distinct, known-similar fully separated from known-dissimilar (min 0.726 > max 0.356). Same
+vector space, so **not a re-index event**. Over-length input now returns HTTP 400 instead of
+TEI's silently truncated 200, closing a defect previously judged unfixable. TEI's
+`xpu-ipex-latest` was deployed on the card and **failed** ("Could not start Python backend");
+its IPEX predates `0xe223`.
+
+**Risk/rollback:** the card has no compute partition, so this is a rate decision - 0.5 req/s
+leaves chat at 99% of idle, 4 req/s costs 84%, an always-full queue ~45x, and degradation is
+fully reversible. Idle costs nothing measurable. VRAM 1,493 MiB of the 5,747 MiB actually
+free, leaving room for `ai/vllm` to restart while this is resident. Rollback is reverting the
+PR: the CPU TEI server never went away, so the LiteLLM/agentgateway pointers simply move back.
+
+**Verify:** `GET /v1/models` on the pod reports the GGUF; the startup banner must show
+`pooling type = 3` and `n_embd = 1024`. Do NOT append `<|endoftext|>` to inputs - llama.cpp
+already applies EOS and manual appending measured worse (0.9910 vs 0.9999992).
+
+Full record: [`ai/embedder-gpu-migration-analysis-2026-09-15.md`](./ai/embedder-gpu-migration-analysis-2026-09-15.md)
 
 ## [2026-09-07] Chat serving: `-ub 2048` + image `server-intel-b10820` (2.46x loaded)
 
@@ -92,7 +126,7 @@ b9592/b10820 × `-ub` 512/2048/4096:
   b9592; the 6th is open-ended summarisation where both builds fabricate different
   card specs. Tool calling and multi-turn recall verified on b10820.
 - VRAM banner: 20,583 MiB weights + 2,720 MiB KV @262k q8_0 + 251 MiB recurrent +
-  1,776 MiB compute @ `-ub 2048` = 25,330 MiB of 32,656 (~7.2 GiB free). Earlier
+  1,776 MiB compute @ `-ub 2048` = 25,330 MiB of 32,656. **Measured live 2026-09-15 the card reported only 5,747 MiB actually free** (so ~26,909 MiB resident, 82.4%), ~1.6 GiB tighter than this component sum implies - use the measured figure when sizing a second tenant. Earlier
   ~5.2 GiB KV figure was wrong for this hybrid arch.
 - The long-standing "do not bump without re-measuring" gate was **satisfied** here
   (matrix + read-back + quality), not overridden. Future bumps still need the same.

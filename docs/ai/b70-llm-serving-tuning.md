@@ -178,9 +178,13 @@ remained the then-largest win. **Superseded in part on 2026-09-07:** image `b108
 request `devic.es/b70` from generic-device-plugin (DRM by-path at `0000:03:00.0`);
 `tdarr-node` requests `devic.es/b70-vaapi` for the same card under kernel DRM names
 (VA-API cannot use the renamed `b70` nodes - see [`../media-stack.md`](../media-stack.md#verifying-va-api-after-a-gpu-change)).
-Placement is that extended resource, not hostname affinity. **As of 2026-09-15, only chat
-is on the card** among AI workloads. `vllm-embed` is `replicas: 0` (agentmemory
-moved to OpenRouter). `comfyui`, the card's other historical consumer, was removed entirely
+Placement is that extended resource, not hostname affinity. **As of 2026-09-15 chat is no
+longer alone on the card**: `ai/embedding-gpu` (llama.cpp SYCL, `Qwen3-Embedding-0.6B`) is a
+second Level Zero tenant, so the contention mechanism below is LIVE, not historical. It is
+idle almost all the time and idle costs nothing measurable; a measured rate-vs-chat-impact
+curve and the safe operating point are in
+[`embedder-gpu-migration-analysis-2026-09-15.md`](./embedder-gpu-migration-analysis-2026-09-15.md).
+`vllm-embed` remains `replicas: 0` (agentmemory moved to OpenRouter). `comfyui`, the card's other historical consumer, was removed entirely
 2026-09-15 ([`comfyui-retirement-2026-09-15.md`](../ai-system/comfyui-retirement-2026-09-15.md)).
 `tdarr-node` may still co-schedule for light QSV. The B70 has **no hardware compute
 partition** (no MIG, no SR-IOV compute slicing), so any second consumer **time-slices** the
@@ -403,7 +407,7 @@ recall both verified on b10820.
 | `--parallel` / `--kv-unified` | **Still auto.** Re-read on b10820: `n_parallel=4`, `kv_unified=true`. Section 3's pinning warning carries forward untested. |
 | KV `q4_0` | Not tested. VRAM is not the binding constraint, so there is nothing to buy with the quality loss. |
 | `--threads` | Not tested, but worth a look: the banner picks `n_threads = 6` while the pod requests `cpu: 2`. |
-| Embeddings contention | Not reproducible today. `vllm-embed` is `replicas: 0` and `comfyui` was removed entirely 2026-09-15; the sole consumer is `hermes`. The 38x figure in section 4 remains historical. |
+| Embeddings contention | **Reproducible again since 2026-09-15**: `ai/embedding-gpu` is a live second tenant. Re-measured on that date with a rate sweep - 0.5 req/s leaves chat at 99% of idle, 4 req/s costs 84%, an always-full queue ~45x. The section 4 38x figure is consistent with the top of that curve. Full table: [`embedder-gpu-migration-analysis-2026-09-15.md`](./embedder-gpu-migration-analysis-2026-09-15.md). |
 
 ### Reproduce
 
