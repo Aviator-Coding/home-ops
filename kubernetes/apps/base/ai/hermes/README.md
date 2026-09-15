@@ -121,6 +121,57 @@ Reclaiming the existing 9.31 GiB needs free space first and then an offline
 decision, not automated. Full measurements, the read-only method, the verification commands and the
 CUDA-wheel/snapshot finding: [`docs/ai-system/hermes-state-db-growth.md`](../../../../../docs/ai-system/hermes-state-db-growth.md).
 
+## Restarting Hermes is never clean, and that used to be unrecoverable
+
+**Assume any restart of this pod is an unclean exit.** `container-boot.log` records `prior_exit` on
+each container start: the last **9 consecutive boots** (2026-09-04T23:15 EDT → 2026-09-15T07:01 EDT)
+all read `unclean`, and every one of the 6 `SIGTERM`s in `gateway-shutdown-diag.log` produced one.
+That is arithmetic, not bad luck:
+
+- The gateway's own shutdown path awaits the cron ticker for up to **65s**
+  (`_CRON_SHUTDOWN_DRAIN_TIMEOUT`) then housekeeping for **35s**
+  (`_HOUSEKEEPING_SHUTDOWN_DRAIN_TIMEOUT`) *before* it can reach `mark_exited`.
+- It never gets that long. `gateway-default` is registered directly in `/run/service`, so it is
+  neither an s6-rc service nor a legacy `/etc/services.d` one (`/run/s6/legacy-services` is empty).
+  On container `SIGTERM`, PID 1's `.s6-svscan/SIGTERM` handler runs `s6-linux-init-shutdown`, and
+  `s6-linux-init-shutdownd` is started **`-g 3000`** - a 3-second gap before `SIGKILL`.
+- So **raising `terminationGracePeriodSeconds` does nothing here**, and neither would
+  `S6_SERVICES_GRACETIME` (that only covers the empty legacy-services path). The `-g` value is baked
+  into the image's s6 basedir. Don't reach for either lever; it is inert.
+
+An unclean exit leaves `state/gateway.lifecycle.json` at `phase=running`, which makes the next boot
+run `lifecycle_ledger.check_state_db_integrity` - `PRAGMA quick_check(1)` over the **whole** of
+`state.db`. Unlike `hermes_cli/backup.py` (`DEFAULT_INTEGRITY_CHECK_MAX_BYTES = 2 GiB`), that call
+site has **no size ceiling, no timeout and no progress lease**, and no env or config lever bounds it.
+
+The trap is the ordering: `record_startup` only rewrites the sentinel **after** the check returns,
+and the watchdog's `mark_exited` refuses to touch a sentinel owned by another pid. So if the check
+is killed mid-flight, nothing changes on disk and the next boot does exactly the same thing. That is
+a loop with no exit - measured twice on 2026-09-14/15 at a **~1506s period**, once for 5.5h, ending
+only when a human deleted the sentinel by hand.
+
+Duration vs. budget, both measured on this claim:
+
+| | |
+|---|---|
+| check duration | 665s (2026-09-06) → 1295s / 1383s / **1510.92s** (2026-09-11) → never finished |
+| watchdog runway at the 300s default | **~1502.6s** (9 fires, `extensions: 3`, `lease_count: 2`) |
+
+The fix is `HERMES_STARTUP_WATCHDOG_TIMEOUT_S` in
+[`app/helmrelease.yaml`](app/helmrelease.yaml) (runway is `4 x timeout`, so 900 → 3600s) plus the
+6Gi memory limit that stops the check re-reading most of `state.db` off Ceph. Both are commented at
+the point of use with the source paths and the measurements.
+
+**Two things that will mislead you while this is happening.** The pod stays `2/2 Running` with
+`RESTARTS 0` and Gatus stays green, because all three probes are a TCP check on the dashboard port
+`9119` and the `dashboard` s6 service is independent of `gateway-default` - **no probe in this
+manifest can observe the gateway at all**. And the restarts are s6 respawning a service inside a
+container that never restarts, so `kubectl get pods` shows nothing. Read
+`/opt/data/logs/gateway-startup-watchdog.log` and the `gateway.start` cadence in
+`gateway-exit-diag.log` instead. Do **not** add a liveness probe on the gateway to close that gap:
+a legitimate post-unclean-exit boot is minutes long, and a probe would recreate the same loop one
+level up, at the container.
+
 ## Cluster RBAC (operator access)
 
 Hermes runs under its own `hermes` ServiceAccount (`automountServiceAccountToken: true`

@@ -306,9 +306,10 @@ signal. It needs its own PR plus a post-merge check that `filesNew`/`sizeBytes` 
    whole file with **no size ceiling**, unlike its sibling `hermes_cli/backup.py`, which carries
    `DEFAULT_INTEGRITY_CHECK_MAX_BYTES = 2 << 30` and states that databases "in the tens of GB are
    normal for heavy users". Runtime scales with page count, so holding the file flat stops this
-   getting worse but does not make it better. The durable mitigations
-   (`HERMES_STARTUP_WATCHDOG_TIMEOUT_S`, the memory limit that amplifies the read storm) are
-   **not** in this change.
+   getting worse but does not make it better, and was **not** addressed by this change. The
+   watchdog-budget and memory-limit mitigation has since shipped separately: see
+   ["Restarting Hermes is never clean"](../../kubernetes/apps/base/ai/hermes/README.md#restarting-hermes-is-never-clean-and-that-used-to-be-unrecoverable)
+   in the app README.
 3. **Applying the change requires a pod restart** (reloader on the ConfigMap, `strategy: Recreate`).
    A *clean* shutdown sets the lifecycle sentinel to `exited` and the next boot skips the integrity
    check entirely. A shutdown that overruns the grace period does not, and the next boot runs the
