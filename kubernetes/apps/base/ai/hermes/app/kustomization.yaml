@@ -29,6 +29,7 @@ patches:
 resources:
 - ./externalsecret.yaml
 - ./helmrelease.yaml
+- ./prometheusrule.yaml
 configMapGenerator:
   # Hermes runtime config, copied to /opt/data/config.yaml on every start by the
   # `copy-config` initContainer. disableNameSuffixHash keeps the name stable so

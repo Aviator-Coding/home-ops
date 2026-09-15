@@ -51,9 +51,14 @@ spec:
         # never paged before: give a newly-onboarded, possibly-flaky check
         # more room before waking anyone, so the very first pages people see
         # are worth trusting.
+        # `name!~` also excludes "Hermes Gateway": it has its own dedicated,
+        # faster, critical HermesGatewayDown alert below (same reasoning as
+        # the Radarr exclusion just below - a second, slower, lower-severity
+        # "endpoint is down" page for the identical condition is noise, not
+        # signal).
         - alert: GatusServiceDown
           expr: |
-            gatus_results_endpoint_success{group!~"external|connectivity", name!~"rook-ceph-dashboard|Radarr Import Queue"} == 0
+            gatus_results_endpoint_success{group!~"external|connectivity", name!~"rook-ceph-dashboard|Radarr Import Queue|Hermes Gateway"} == 0
           for: 10m
           annotations:
             summary: >-
@@ -71,3 +76,44 @@ spec:
               open Activity > Queue in Radarr and Manual Import it
           labels:
             severity: warning
+
+        # Catches a dead/wedged Hermes gateway (Telegram, Discord, cron +
+        # the OpenAI-compatible API on :8642) independently of the
+        # dashboard on :9119, which stays healthy through this exact
+        # failure - see the "Hermes Gateway" endpoint definition in
+        # monitoring/gatus's config.yaml for the live-measured proof this
+        # check is not the auth-gated-redirect trap.
+        #
+        # `for: 10m`, not the 5m used for the group=external checks above:
+        # this is a single-replica, `strategy: Recreate` deployment
+        # (kubernetes/apps/base/ai/hermes/app/helmrelease.yaml) that goes
+        # through a real, expected outage window on every restart (config
+        # change via reloader, node reschedule, upgrade) while the gateway
+        # re-initialises - the dashboard's own startupProbe alone already
+        # tolerates up to 5 minutes (failureThreshold: 30 * periodSeconds:
+        # 10s) before it is even considered started, and the gateway's own
+        # boot has been observed taking meaningfully longer than that.
+        # 10m gives that normal-restart headroom while still detecting the
+        # real failure mode (a 5.5-hour outage) roughly 33x faster than it
+        # was actually caught.
+        #
+        # kube_pod_container_status_restarts_total cannot substitute for
+        # this: measured live against the 2026-09-14 outage, the CONTAINER
+        # never restarted while the gateway was down - the counter sat
+        # flat at 0 from before the gateway died (21:29:58Z) through at
+        # least 21:30Z, and only incremented to 1 later (23:18:08Z, an
+        # unrelated container exit) after the gateway had already been
+        # dead for over 90 minutes. A restart-count-based rule would have
+        # stayed silent for the entire outage.
+        - alert: HermesGatewayDown
+          expr: |
+            gatus_results_endpoint_success{name="Hermes Gateway"} == 0
+          for: 10m
+          annotations:
+            summary: >-
+              Hermes' gateway (Telegram/Discord/cron + the :8642 API) is down -
+              the dashboard can stay green through this failure, so check the
+              gateway specifically (kubectl -n ai exec deploy/hermes -c app --
+              hermes gateway status)
+          labels:
+            severity: critical
