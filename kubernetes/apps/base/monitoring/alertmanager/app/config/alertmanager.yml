@@ -28,9 +28,20 @@
 receivers:
   - name: "null"
 
-  # severity: critical -> emergency. Repeats every 5 minutes for up to an hour
-  # until the captain acknowledges it in the Pushover app. This is the only
-  # class that may wake someone.
+  # severity: critical -> emergency. Sirens every 5 minutes for up to 30
+  # minutes, or until the captain acknowledges it in the Pushover app. This is
+  # the only class that may wake someone.
+  #
+  # `expire` is deliberately 30m rather than Alertmanager's 1h default, and the
+  # critical route below repeats at 6h rather than 4h, because a critical CAN
+  # sit true for days on this cluster: over the 30 days to 2026-09-15,
+  # VolSyncSyncStalledR2 fired for 21,437 minutes (14.9 days),
+  # KubeClientCertificateExpiration for 11,957 and ExternalDNSStale for 9,372.
+  # None is firing now, and each is a real condition rather than a latch of the
+  # KubeJobFailed kind, but at priority 2 a sustained critical costs 4
+  # acknowledgement-required pages a day (6 siren repeats each) - so the
+  # exposure is bounded here on purpose. If that still proves too much, the
+  # single dial is `repeat_interval` on the critical route.
   - name: "pushover-critical"
     pushover_configs:
       - html: true
@@ -40,7 +51,7 @@ receivers:
         priority: |-
           {{ if eq .Status "firing" }}2{{ else }}-1{{ end }}
         retry: 5m
-        expire: 1h
+        expire: 30m
         sound: siren
         url_title: View in Alert Manager
         title: &alert_title |-
@@ -128,7 +139,7 @@ route:
         - severity = critical
       group_wait: 30s
       group_interval: 5m
-      repeat_interval: 4h
+      repeat_interval: 6h
 
     - receiver: "pushover-warning"
       matchers:
