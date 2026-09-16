@@ -61,7 +61,12 @@ measured on the live card:
 | `-ub 2048` | 1136.48 MiB | 1224.96 MiB | **3257 MiB** | 2490 MiB |
 | **`-ub 512` (shipped)** | 1136.48 MiB | 300.74 MiB | **1493 MiB** | **4254 MiB** |
 
-The KV buffer is **0.00 MiB** in both: embedding has no KV cache. A further 296.23 MiB of the
+The KV buffer reads **0.00 MiB** in both. **RETRACTED 2026-09-16 - see section 10.**
+That line is the *reserve* pass of a two-pass KV init; the same banner goes on to print
+`llama_kv_cache: size = 56.00 MiB ( 512 cells, 28 layers, 2/1 seqs)` and then
+`CPU KV buffer size = 56.00 MiB`. There **is** a KV cache, 112 KiB per token, and it is the
+unit the host prompt cache serialises - i.e. the mechanism behind the second OOM.
+A further 296.23 MiB of the
 model sits in host RAM, not on the card.
 
 `-ub 512` was chosen because it costs nothing measurable. At the real input length (~31 tokens,
@@ -305,6 +310,12 @@ to the card - which is why the figures in section 1 come from llama.cpp's own de
 
 ## 9. 2026-09-16: the shipped memory limit was undersized, and the fix is pinned slots + a wider limit
 
+> **This section's fix DID NOT HOLD, and parts of its reasoning are retracted.** The pod went
+> straight back to CrashLoopBackOff against the raised 4Gi limit. The real cause was never
+> slot-buffer high-water marks - it is llama.cpp's host prompt cache, whose default ceiling
+> (8192 MiB) is larger than any limit that fits on talos-3. **Read section 10 before acting on
+> anything here.** Section 9 is kept as the record of a wrong diagnosis, not as guidance.
+
 **The 839Mi RSS figure in section 1 and the shipped `helmrelease.yaml` was measured wrong, not
 just conservatively.** Under real sustained backfill traffic the pod was OOMKilled **18 times**
 against the shipped `limits.memory: 2Gi` (`requests.memory` stayed `1024Mi` throughout - only
@@ -346,8 +357,10 @@ Three changes, in `kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml`:
    - llama.cpp does not print this unless the server logs it at startup, so it cannot be read off
    the args list alone). Fewer concurrent slots directly bounds how many simultaneous per-slot
    host-side batch/tokenisation buffers can be resident at once, which is the actual OOM driver -
-   VRAM is not: the KV buffer is 0.00 MiB for this embedding model (no KV cache at all), so the
-   card-side footprint is unaffected by slot count (see section 1). This is deliberately
+   VRAM is not. (**The parenthetical that stood here - "the KV buffer is 0.00 MiB, no KV cache
+   at all" - is RETRACTED; see section 10.** There is a 56 MiB / 512-cell pool. `--parallel 2`
+   remains correct, but on measured grounds: the banner reports `n_slots = 2,
+   n_ctx_slot = 512, kv_unified = 'true'`.) This is deliberately
    **different** from `ai/vllm`'s "do NOT pin `--parallel`/`--kv-unified`" rule
    (`docs/ai/b70-llm-serving-tuning.md` section 3): that rule exists because pinning mis-sizes the
    shared `kv_unified` KV-cache pool on `b9592`, collapsing chat decode to ~0.5 t/s. There is no
@@ -361,7 +374,8 @@ Three changes, in `kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml`:
    endpoint is supposed to match, which would have been a real capability regression despite the
    unchanged `--ctx-size 512`. Adding `--kv-unified` restored `n_ctx_slot = 512` with `n_slots`
    still pinned at 2. Safe for the same reason (1) is safe: no shared KV pool exists here to
-   mis-size (KV buffer is 0.00 MiB), so `ai/vllm`'s pinning warning does not transfer.
+   mis-size (**retracted - see section 10**; the pool exists and is correctly sized here, which
+   the banner shows directly), so `ai/vllm`'s pinning warning does not transfer.
 3. **`limits.memory: 2Gi -> 4Gi`**. Sized to sit well above the highest confirmed real peak
    (1.57 GiB), not merely above it: 4Gi leaves **2.43 GiB (61%) of headroom** over that peak, i.e.
    the peak is only 39% of the new limit. This is deliberately generous rather than a tight
@@ -396,3 +410,211 @@ config is the actual test**: watch `kubectl get pod -n ai -l app.kubernetes.io/n
 /sys/fs/cgroup/memory.peak`) during and after it. If it OOMs again at 4Gi, the next move is
 `--parallel 1` before raising the limit further - the limit was already widened well past the
 highest confirmed peak once.
+
+## 10. 2026-09-16 (second pass): the real cause is llama.cpp's host prompt cache
+
+Section 9's fix did not hold. Within hours of shipping `--parallel 2` + `--kv-unified` +
+`limits.memory: 4Gi`, `ai/embedding-gpu` was back in **CrashLoopBackOff, 5 restarts in 30
+minutes, still `reason: OOMKilled, exitCode: 137`** - now against the raised 4Gi limit. One
+incarnation lived **106 seconds** (`startedAt` 19:52:15Z, `finishedAt` 19:54:01Z).
+
+### The shape of the growth rules out everything section 9 proposed
+
+`container_memory_working_set_bytes` for the container, 30s step, across the load window:
+
+```
+19:09-19:39   0.397 GiB   idle, flat for 30 minutes
+19:39:58      0.683 GiB   \
+19:41:28      0.683 GiB   / flat for 90s while idle
+19:42:28      1.317 GiB
+19:42:58      2.747 GiB   -> OOMKilled
+```
+
+and the same curve on every subsequent incarnation (`0.39 -> 1.75 -> 3.32`, `0.41 -> 1.66 ->
+2.92`, `0.38 -> 1.54 -> 3.39`). Three things follow immediately:
+
+- **It is not a high-water mark that fails to return to the OS** (section 9's hypothesis). A
+  ratchet does not reset; this resets to 0.397 GiB on every restart and climbs only while
+  requests arrive, flat otherwise.
+- **It is not request size.** The last slot releases before the kill logged `n_tokens = 25` and
+  `n_tokens = 92`, at task ids around 3,567.
+- **It is request volume.** ~3,569 tasks in 106 seconds. A bigger ceiling buys proportionally
+  more requests and nothing else - which is exactly what 2Gi -> 4Gi bought.
+
+### The cause
+
+llama.cpp keeps a **host-RAM prompt cache**, and its default ceiling is **8192 MiB** - twice the
+container's 4Gi limit. Read straight off the pinned image's own `--help`
+(`ghcr.io/ggml-org/llama.cpp@sha256:3503755...`, tag `server-intel-b10820`):
+
+```
+-cram, --cache-ram N   set the maximum cache size in MiB
+                       (default: 8192, -1 - no limit, 0 - disable)
+--cache-idle-slots, --no-cache-idle-slots
+                       save idle slots to the prompt cache on new task, and clear
+                       them when using unified KV (default: enabled, requires cache-ram)
+```
+
+Because that ceiling exceeds the cgroup limit, **`server_prompt_cache::update()` can never prune
+before the kernel kills the process**. Nothing else bounds it either:
+
+- The token-based cap is not a second line of defence: `update()` *recomputes* it from the byte
+  limit (`limit_tokens_cur = limit_size / size_per_token`), which a local run showed resolving to
+  **74,873 tokens** against a nominal `limit_tokens` of 512.
+- The only adaptive guard is a `std::bad_alloc` handler in `server_prompt_cache::alloc` that cuts
+  `limit_size` to 40% on allocation failure. Under a **cgroup** memory limit that handler is
+  **structurally unreachable**: the kernel SIGKILLs at page-fault time and `malloc` never fails.
+  That is why the pod dies at exit 137 rather than logging `failed to allocate memory for prompt
+  cache state`.
+
+**So no value of `limits.memory` can fix this.** It is not a ceiling that was too low; it is a
+workload whose only self-limiting mechanism is keyed to a signal cgroups never deliver.
+
+### On an embedding server that cache is write-only
+
+This is the part that makes the fix free rather than a tradeoff. In
+`tools/server/server-context.cpp` at this build:
+
+- **Reads** happen at exactly one call site - `prompt_load`, line 1649 - inside a block gated on
+  `update_cache = update_cache && task.type == SERVER_TASK_TYPE_COMPLETION` (line 1639).
+- **Writes** happen via the `--cache-idle-slots` path at line 2420, which carries **no task-type
+  guard at all** and so fires on every task launch.
+
+Embedding requests are `SERVER_TASK_TYPE_EMBEDDING`. They can therefore never hit the read path,
+while hitting the write path on every request. Every entry the backfill paid for was one nothing
+could ever read. `alloc()` dedups only on prefix-containment, so a stream of distinct documents
+never dedups either.
+
+### What each entry costs
+
+Measured locally on the pinned digest with the exact production arg set:
+
+```
+srv prompt_save:  - saving prompt with length 28, total state size = 3.063 MiB
+srv      update:  - cache state: 1 prompts, 3.063 MiB (limits: 8192.000 MiB, 512 tokens, 74874 est)
+srv prompt_save:  - saving prompt with length 23, total state size = 2.517 MiB
+srv      update:  - cache state: 2 prompts, 5.580 MiB (limits: 8192.000 MiB, 512 tokens, 74872 est)
+srv prompt_save:  - saving prompt with length 28, total state size = 3.063 MiB
+srv      update:  - cache state: 3 prompts, 8.644 MiB (limits: 8192.000 MiB, 512 tokens, 74873 est)
+```
+
+An entry is the document's **full KV state**: 28 tokens x 112 KiB = 3.0625 MiB, matching the
+logged 3.063 MiB exactly. The 112 KiB/token comes straight off the banner -
+`llama_kv_cache: size = 56.00 MiB ( 512 cells, ...)`, i.e. 56 MiB / 512 cells. At the live
+workload's ~31-token mean that is **~3.4 MiB of host RAM per document**, so **~1,200 documents
+fill 4Gi** - seconds of backfill, monotonic, never pruned.
+
+**This also retracts section 1's "the KV buffer is 0.00 MiB, embedding has no KV cache".** That
+read the reserve pass of a two-pass init. The full local banner:
+
+```
+llama_kv_cache:        CPU KV buffer size =     0.00 MiB     <- reserve pass
+llama_kv_cache: size =   56.00 MiB (   512 cells,  28 layers,  2/1 seqs), K (f16): 28.00 MiB, V (f16): 28.00 MiB
+llama_kv_cache:        CPU KV buffer size =    56.00 MiB     <- actual
+```
+
+The false premise mattered: it was the stated justification for pinning `--parallel`/`--kv-unified`
+in section 9 ("there is no KV pool to mis-size"). Those flags are still correct, but on **measured**
+grounds - the banner reports `n_slots = 2, n_ctx_slot = 512, kv_unified = 'true'` - not on that
+argument.
+
+### The fix
+
+One line in `kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml`: **`--cache-ram 0`**.
+
+`0` rather than a small non-zero value, for three reasons:
+
+1. It is the only setting that also force-disables the writer. Confirmed in the local banner:
+   `srv init: --cache-idle-slots requires --cache-ram, disabling`.
+2. It never constructs the cache at all, so there is no continuous allocate/free churn leaving a
+   retained allocator arena behind - the failure mode a small cap would still risk.
+3. The cache is write-only here, so a non-zero cap would buy exactly nothing.
+
+Verified locally against the pinned digest, request-matched, 2 concurrent:
+
+| | requests | cache entries | cached bytes | container RSS |
+|---|---|---|---|---|
+| default (8192 MiB) | 6 | 3 | 8.644 MiB, growing | 1.422 -> 1.495 GB |
+| `--cache-ram 0` | 6 | **0** | **none - cache never constructed** | 1.386 -> 1.458 GB |
+
+**Read that RSS column honestly: at 6 requests it does not discriminate** (+73 MB vs +72 MB - the
+8.6 MiB of cache is lost in qemu-emulation noise at that sample size). The discriminating local
+evidence is the cache accounting itself, which is exact; the *magnitude* comes from the live
+cluster curve above and the per-token arithmetic. A local run cannot reproduce the 34 req/s that
+makes this fatal in minutes.
+
+### The whole banner on the final arg set
+
+Per the lesson from section 9 - where pinning `--parallel` silently halved `n_ctx_slot` and
+nothing errored - the pinned image was run locally with the **exact** final argument set and the
+entire startup banner re-read, not just the value being set:
+
+```
+print_info: pooling type          = 3
+llama_context: n_seq_max             = 2
+llama_context: n_ctx                 = 512
+llama_context: n_ctx_seq             = 512
+llama_context: n_batch               = 512
+llama_context: n_ubatch              = 512
+llama_context: kv_unified            = true
+llama_kv_cache: size =   56.00 MiB (   512 cells,  28 layers,  2/1 seqs), K (f16): 28.00 MiB, V (f16): 28.00 MiB
+srv    load_model: initializing, n_slots = 2, n_ctx_slot = 512, kv_unified = 'true'
+srv    load_model: prompt cache is disabled - use `--cache-ram N` to enable it
+srv          init: --cache-idle-slots requires --cache-ram, disabling
+srv  llama_server: model loaded
+```
+
+`n_slots`, `n_ctx_slot`, `kv_unified`, `pooling type`, and the batch triple are all unchanged from
+the intended values - `--cache-ram` re-derives nothing. (The local run is CPU-backend: the image's
+SYCL backend aborts with `can not find preferred GPU platform` on a machine with no Arc card, so
+it was suppressed by bind-mounting an empty file over `/app/libggml-sycl.so`. Slot, context and
+cache accounting are backend-independent; only the buffer *placement* lines differ from
+production.)
+
+### What did not change, and why
+
+- **`limits.memory` stays 4Gi.** With the cache off the expected steady state is near the
+  0.397 GiB idle baseline, so 4Gi is now pure headroom - retained deliberately, so that if some
+  *other* growth path exists it surfaces as an alert rather than a third crashloop. Lowering it
+  buys the node nothing anyway, because limits do not enter talos-3's scheduling arithmetic
+  (`../talos-3-scheduling-truth.md` section 7); requests do.
+- **`requests.memory`, `priorityClassName`, `preemptionPolicy` are untouched.** This is the
+  property that has made 23 embedder deaths cost the captain's language model nothing: `ai/vllm`
+  and `ai/hermes` both sat at `restarts=0` throughout.
+- **`--parallel 2` / `--kv-unified` / the `--ctx-size`/`-b`/`-ub` triple are untouched.** They are
+  correct; only section 9's *justification* for the first two was wrong.
+
+### `ai/vllm` has the same default and must NOT get the same fix
+
+`ai/vllm` runs the **same pinned image and tag**, so it also carries the 8192 MiB default against
+`limits.memory: 48Gi` with `requests.memory: 39Gi` - a much wider margin, but not an unlimited
+one. It is deliberately **not** changed here, and `--cache-ram 0` would be the wrong answer for it:
+it is a chat server, where the read path *is* `SERVER_TASK_TYPE_COMPLETION` and prefix reuse across
+multi-turn conversation is genuinely valuable. Its answer is a bounded non-zero value, which is
+tracked as its own decision.
+
+### What the next sustained backfill proves
+
+This fix removes a mechanism that was **proven** to grow without bound, by an instrument that
+counts it exactly. What it does **not** prove is that no other growth path exists - the local
+reproduction runs at a fraction of production's request rate, and no sustained load test was run
+against the live card (a flood degrades the captain's chat decode up to 38x,
+`docs/ai/b70-llm-serving-tuning.md` section 4).
+
+**Section 9 made a prediction of this same shape and it was wrong**, so calibrate accordingly. The
+difference in kind, not just in confidence: section 9 widened a ceiling against an unquantified
+mechanism, while this removes a quantified one and CI now refuses to let it come back
+(`scripts/ci/embedding-gpu-prompt-cache-test.py`).
+
+The next real backfill is the test. Watch:
+
+```
+kubectl -n ai get pod -l app.kubernetes.io/name=embedding-gpu -o wide     # restarts must stay 0
+kubectl -n ai exec deploy/embedding-gpu -- cat /sys/fs/cgroup/memory.peak # expect ~0.4-0.6 GiB
+```
+
+Expected: working set stays near the 0.397 GiB idle baseline and does **not** track request count.
+If it OOMs again, the curve shape is the discriminator - a flat-then-climb that tracks volume means
+another per-request retention path (capture `memory.peak` and the slot logs before restarting it);
+a slow climb that plateaus is the arena high-water mark section 9 hypothesised, and *that* one is
+legitimately a limit-sizing question.
