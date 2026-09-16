@@ -59,6 +59,15 @@ XE_CONSUMERS: dict[str, Path] = {
 # Controllers that must stay on the renamed Level Zero B70 identity.
 B70_CONSUMERS: dict[str, Path] = {
     "vllm": ROOT / "kubernetes/apps/base/ai/vllm/app/helmrelease.yaml",
+    # Added 2026-09-15 with the GPU embedder. It is a Level Zero compute
+    # consumer sharing the card with chat, so it belongs on `b70` and must
+    # never drift onto `b70-vaapi`: that group renames the DRM nodes to
+    # card1/renderD129 for libdrm's benefit, and Level Zero wants the b70
+    # group's card0/renderD128. Registering it here is what makes that
+    # invariant enforced rather than merely intended - the loops below only
+    # check consumers named in these maps, so a new consumer left out is
+    # silently uncovered rather than caught.
+    "embedding-gpu": ROOT / "kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml",
 }
 
 # Controllers that must stay on the name-faithful VA-API B70 identity.

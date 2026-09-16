@@ -19,7 +19,7 @@ Unified `/v1/embeddings` rules (see `httproute-unified.yaml`):
 
 - vendor-slug ids -> OpenRouter (`/api/v1/embeddings`)
 - `text-embedding-*` -> OpenAI
-- default -> `embedding-local` (`mcp-tools-embedding`, CPU TEI, `Qwen3-Embedding-0.6B` - live, swapped 2026-09-13 from `all-MiniLM-L6-v2`). Not `vllm-embed`, which stays scaled to 0 and has no route.
+- default -> `embedding-local` (`embedding-gpu`, B70 llama.cpp SYCL, `Qwen3-Embedding-0.6B` - live, moved off CPU TEI 2026-09-15; model swapped 2026-09-13 from `all-MiniLM-L6-v2`). Not `vllm-embed`, which stays scaled to 0 and has no route.
 
 ## Dormant backends
 

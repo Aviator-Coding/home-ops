@@ -305,3 +305,64 @@ The rest are chart-owned sidecars (`nats` prom-exporter/reloader, grafana's
   Do not expect it to relieve talos-3. Its
   `RemovePodsViolatingNodeAffinity` plugin *is* effective and will enforce the
   `NotIn talos-3` rules added here.
+
+## 7. 2026-09-15: `ai/embedding-gpu` added, and why the "committed" figure is a band, not a point
+
+Full context for this change (why the workload exists, VRAM arithmetic, throughput):
+[`docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`](ai/embedder-gpu-migration-analysis-2026-09-15.md).
+This section only redoes the talos-3 memory-scheduling arithmetic the anti-pattern
+rule in `AGENTS.md` requires before adding a workload here.
+
+**The section 4 busy-case figure above (92,926 Mi) was never stale.** Measured
+again live on 2026-09-15, talos-3's total committed memory oscillates in a band:
+
+```
+permanent (non-CI-runner) requests        87,115 Mi   <- the real floor
+live total, quiet (1 CI runner)           88,002 Mi
+live total, busy (9-10 CI runners)        92,610 Mi   <- within 316 Mi of the
+                                                          92,926 Mi figure above
+allocatable                               93,604 Mi
+```
+
+Both ends of that band are real: the busy end is the same state section 4 already
+measured (permanent load plus roughly ten ephemeral `gha-runner-scale-set` pods at
+512 Mi each, up to `maxRunners: 15` per scale set); the quiet end is the same node
+caught with only one runner present. Neither reading is wrong and neither
+superseded the other - they are the two ends of one oscillation, not evidence of
+drift.
+
+**The permanent headroom, not either instantaneous reading, is what a new
+talos-3 workload must be sized against:**
+
+```
+allocatable                               93,604 Mi
+permanent (non-CI-runner) requests        87,115 Mi
+                                          ---------
+permanent headroom                         6,489 Mi   ~= 12 CI runner slots (512 Mi each)
+```
+
+`ai/embedding-gpu` (`kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml`)
+requests **1,024 Mi**, permanently - it is not a CI-runner pod, so it comes out of
+the permanent side of the ledger:
+
+```
+permanent headroom after ai/embedding-gpu  5,465 Mi   ~= 10 CI runner slots
+```
+
+That does not put the node over its allocatable ceiling in either the busy or
+quiet case - it narrows the number of CI runner pods that can land on talos-3
+concurrently before the scheduler starts queuing them `Pending`, which is a
+capacity trade against the runner scale set, not a risk to any pinned workload.
+`ai/vllm`'s eviction-ranking argument in section 1 is unaffected: its request
+still exceeds its usage, so it still sits in the kubelet's last-evicted group
+regardless of what else lands on the node. `ai/embedding-gpu` additionally ships
+at `priorityClassName: embedding-gpu-low` (`value: -10`,
+`preemptionPolicy: Never`) - the lowest priority of anything on the node - so
+under genuine memory pressure it is the first pod evicted and can never itself
+preempt anything.
+
+**The rule for the next reader:** re-reading `kubectl describe node talos-3` (or
+equivalent) at a single moment can return anywhere in this band depending on how
+many CI runners happen to be scheduled that instant. Compare a new workload's
+request against the **permanent headroom** above (which excludes runner churn),
+not against whatever one live reading happens to show.
