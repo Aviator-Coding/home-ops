@@ -94,12 +94,15 @@ endpoints:
   # pattern as Hermes Gateway above), bypassing Envoy/ext_authz entirely,
   # and matches on a body field unique to Home Assistant's own
   # manifest.json rather than just the status code. That second part is
-  # load-bearing, not defensive styling: this Service also fronts a
-  # code-server sidecar on port 12321, and verified live (read-only,
-  # 2026-09-15) that sidecar serves its OWN /manifest.json at status 200
-  # too (`{"name":"code-server",...}`) - so a bare `[STATUS] == 200`
-  # condition would pass identically whether it hit Home Assistant, the
-  # sidecar, or (per the Authentik case above) neither. The
+  # load-bearing, not defensive styling: the code-server container on this
+  # same Pod (split onto its own `home-assistant-code-server` Service,
+  # port 12321, so its readiness stays independent of Home Assistant's
+  # probe - see the HelmRelease's `service`/`route` blocks) serves its OWN
+  # /manifest.json at status 200 too (`{"name":"code-server",...}`),
+  # verified live (read-only, 2026-09-15) while both containers still
+  # answered behind a single Service - a bare `[STATUS] == 200` condition
+  # could not have told them apart, nor (per the Authentik case above)
+  # distinguished either from an ext_authz interception. The
   # `related_applications[0].id` field is a literal HA ships in its own
   # frontend source, present only on HA's manifest, confirmed live
   # (`io.homeassistant.companion.android`, absent from the code-server
