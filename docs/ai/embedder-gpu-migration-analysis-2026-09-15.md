@@ -298,3 +298,87 @@ device-node-rename hazard already documented for VA-API.
 Separately, the `xe` driver exposes **no** VRAM counters in sysfs at all, and this cluster has
 no Level Zero GPU exporter, so the only way to read GPU memory is from a process that attaches
 to the card - which is why the figures in section 1 come from llama.cpp's own device banner.
+
+## 9. 2026-09-16: the shipped memory limit was undersized, and the fix is pinned slots + a wider limit
+
+**The 839Mi RSS figure in section 1 and the shipped `helmrelease.yaml` was measured wrong, not
+just conservatively.** Under real sustained backfill traffic the pod was OOMKilled **18 times**
+against the shipped `limits.memory: 2Gi` (`requests.memory` stayed `1024Mi` throughout - only
+the limit was wrong). `lastState` on one kill: `reason: OOMKilled, exitCode: 137`, the incarnation
+having lived only 94 seconds (`startedAt` 06:35:16Z, `finishedAt` 06:36:50Z, 2026-09-16). Read
+straight off the cgroup on the next (healthy, still-running) incarnation, with the captain's
+backfill agent already stopped - i.e. under **less** than full load:
+
+```
+memory.peak    1,680,678,912 B   = 1.57 GiB = 78.3% of the old 2Gi limit
+memory.current 1,558,724,608 B   = 1.45 GiB = 72.6% of the old 2Gi limit
+memory.max     2,147,483,648 B   = 2Gi (confirms the shipped limit)
+```
+
+### Why the original benchmark missed it
+
+Section 1's throughput benchmark measured RSS at **839Mi, "identical idle and under a
+4-concurrent batch-32 flood"** and concluded host memory does not track load - the GPU holds the
+work, so why would it. That conclusion does not survive the live evidence: RSS observed in
+production on an otherwise near-idle incarnation (one logged request in 5h51m of uptime) sat at
+1.45-1.57 GiB, roughly **double** the benchmark figure. The likely mechanism, not fully isolated
+because isolating it needs exactly the sustained instrumented load this fix is not allowed to
+run: llama.cpp/SYCL host-side memory is a **high-water mark that is not returned to the OS**
+between bursts (ordinary glibc-arena behaviour under concurrent allocation/free from multiple
+slot threads). The original benchmark's "idle" and "under load" readings were taken back-to-back
+in the same process lifetime without a restart between them, so both readings were already
+sitting on whatever the arena had ratcheted up to from earlier warmup requests in that same
+session - "identical" is exactly what a retained high-water mark looks like, not evidence that
+load doesn't matter. Real production traffic is longer-running and more varied (up to the full
+512-token ceiling, not just the ~31-token MED probe) than a ~100s synthetic window, so it had far
+more opportunity to ratchet the mark upward before the limit was reached.
+
+### The fix
+
+Two changes, in `kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml`:
+
+1. **`--parallel 2`**, pinned down from the auto-selected `n_slots = 4` (confirmed live from the
+   startup banner: `load_model: initializing, n_slots = 4, n_ctx_slot = 512, kv_unified = 'true'`
+   - llama.cpp does not print this unless the server logs it at startup, so it cannot be read off
+   the args list alone). Fewer concurrent slots directly bounds how many simultaneous per-slot
+   host-side batch/tokenisation buffers can be resident at once, which is the actual OOM driver -
+   VRAM is not: the KV buffer is 0.00 MiB for this embedding model (no KV cache at all), so the
+   card-side footprint is unaffected by slot count (see section 1). This is deliberately
+   **different** from `ai/vllm`'s "do NOT pin `--parallel`/`--kv-unified`" rule
+   (`docs/ai/b70-llm-serving-tuning.md` section 3): that rule exists because pinning mis-sizes the
+   shared `kv_unified` KV-cache pool on `b9592`, collapsing chat decode to ~0.5 t/s. There is no
+   KV pool here to mis-size, so that failure mode cannot apply.
+2. **`limits.memory: 2Gi -> 4Gi`**. Sized to sit well above the highest confirmed real peak
+   (1.57 GiB), not merely above it: 4Gi leaves **2.43 GiB (61%) of headroom** over that peak, i.e.
+   the peak is only 39% of the new limit. This is deliberately generous rather than a tight
+   recompute, because the peak that was measured came from **partial** load at the **old**
+   4-slot concurrency - a defensible tighter number for 2-slot full saturation is not available
+   without running the load test this fix is forbidden from running (see below).
+
+**What did NOT change, and why:**
+
+- **`requests.memory` stays `1024Mi`.** Requests drive talos-3's scheduling arithmetic
+  (`../talos-3-scheduling-truth.md` section 7); raising only the limit does not touch it. Real
+  usage now provably exceeds this request under load, which puts the pod in the kubelet's
+  usage-exceeds-request eviction set - that is this pod's **intended** failure mode:
+  `priorityClassName: embedding-gpu-low` (`value: -10`, `preemptionPolicy: Never`) makes it the
+  lowest-priority pod on the node, and priority is the kubelet's tiebreaker among exceeds-set pods
+  (`../talos-3-scheduling-truth.md` section 1) - so it is always evicted before `ai/vllm` or
+  anything else regardless of how far over its request it sits. Moving the request would need the
+  section 7 arithmetic redone; nothing measured here shows that is warranted.
+- **`priorityClassName`/`preemptionPolicy` are untouched.** This is the property that made 18
+  embedder OOMKills cost `ai/vllm` nothing (`restarts=0` across the same 35-hour window).
+- **`--ctx-size`/`-b`/`-ub` stay `512`.** Unrelated to this failure - that triple governs the
+  VRAM-side compute buffer and the input-length ceiling (section 1), not host RSS.
+
+**What this does NOT prove, and what would:** this was fixed from configuration and the cgroup
+peak, not from a new load test - the brief this fix shipped under forbids driving sustained load
+at the embedder, because a sustained flood measurably degrades the captain's live chat model
+(`docs/ai/b70-llm-serving-tuning.md` section 4). So neither "`--parallel 2` is sufficient
+concurrency" nor "4Gi is enough under full sustained saturation" is validated - only that the
+previous configuration provably was not. **The first real sustained backfill run under this
+config is the actual test**: watch `kubectl get pod -n ai -l app.kubernetes.io/name=embedding-gpu
+-o wide` for restarts, and read `memory.peak` off the cgroup (`kubectl exec ... -- cat
+/sys/fs/cgroup/memory.peak`) during and after it. If it OOMs again at 4Gi, the next move is
+`--parallel 1` before raising the limit further - the limit was already widened well past the
+highest confirmed peak once.

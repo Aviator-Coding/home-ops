@@ -99,6 +99,26 @@ spec:
               - "8080"
               - -ngl
               - "99"
+              # Pinned to 2, down from the auto-selected 4 (`n_slots = 4`, read
+              # live off the startup banner - llama.cpp does not print this
+              # unless asked, so do not assume it from the args list). This is
+              # the 2026-09-16 OOM fix: shipped at auto/4 slots with a 2Gi
+              # limit, the pod was OOMKilled 18 times under real backfill
+              # traffic (cgroup memory.peak 1.57 GiB / 78% of the 2Gi limit on
+              # a single partially-loaded incarnation, exit 137). Unlike
+              # ai/vllm's "do NOT pin --parallel" rule two files over, pinning
+              # is safe HERE: that rule exists because explicit --parallel
+              # mis-sizes the shared kv_unified KV-cache pool, and this model's
+              # KV buffer is 0.00 MiB (embedding has no KV cache at all - see
+              # docs/ai/embedder-gpu-migration-analysis-2026-09-15.md section
+              # 1), so there is no KV pool for pinning to mis-size. Fewer
+              # concurrent slots directly bounds the number of simultaneous
+              # per-slot host-side batch/tokenisation buffers, which is the
+              # actual OOM driver (see the memory comment below and the dated
+              # addendum in that doc for the full arithmetic and what this
+              # deliberately does not change).
+              - --parallel
+              - "2"
               # ctx/-b/-ub are one decision: llama.cpp forces n_batch = n_ubatch
               # in embedding mode, and a sequence must fit inside one ubatch, so
               # this triple sets BOTH the VRAM footprint and the maximum input
@@ -142,18 +162,51 @@ spec:
             resources:
               requests:
                 cpu: 250m
-                # Measured live: 839Mi resident, identical idle and under a
-                # 4-concurrent batch-32 flood (460m CPU) - the GPU holds the
-                # work, so host memory does not track load. 1024Mi covers that
-                # with ~22% headroom, which is the floor: going lower would
-                # understate measured usage and put the pod in the kubelet's
-                # usage-exceeds-request eviction set on an already tight node
-                # (docs/talos-3-scheduling-truth.md).
+                # NOT raised in the 2026-09-16 OOM fix despite real usage now
+                # provably exceeding it under load (see the memory comment
+                # below) - deliberately. Requests drive talos-3's tight
+                # scheduling arithmetic (docs/talos-3-scheduling-truth.md
+                # section 7), and raising a limit does not touch that
+                # arithmetic. Sitting in the kubelet's usage-exceeds-request
+                # eviction set is this pod's intended failure mode: it ships
+                # at the lowest priority on the node with `preemptionPolicy:
+                # Never` (see priorityclass.yaml) specifically so it is always
+                # the first thing evicted under real memory pressure and can
+                # never preempt anything ahead of it - see
+                # docs/talos-3-scheduling-truth.md section 1 for why priority
+                # (not overage size) is the kubelet's tiebreaker among
+                # exceeds-set pods, which is what keeps this change from
+                # putting ai/vllm or anything else at risk. The original
+                # 839Mi-resident measurement this request was sized from was
+                # itself part of the flawed benchmark below and should not be
+                # trusted as a usage figure either - it is left alone only
+                # because moving it needs the node arithmetic redone, and
+                # nothing here has shown that redo is warranted yet.
                 memory: 1024Mi
                 devic.es/b70: 1
               limits:
                 cpu: "2"
-                memory: 2Gi
+                # Raised 2Gi -> 4Gi in the 2026-09-16 OOM fix. The 2Gi figure
+                # was derived from a benchmark that measured RSS over a single
+                # ~100s window (839Mi, "identical idle and under a
+                # 4-concurrent batch-32 flood") and wrongly concluded host
+                # memory does not track load - real sustained backfill traffic
+                # proved otherwise: 18 OOMKills, and the cgroup memory.peak on
+                # one partially-loaded incarnation alone hit 1,680,678,912 B
+                # (1.57 GiB, 78% of the old 2Gi limit), with the captain's
+                # backfill agent already stopped, i.e. under LESS than full
+                # load. 4Gi leaves 2.43 GiB (61%) of headroom above that
+                # highest confirmed real peak - deliberately wide, because a
+                # sustained full-concurrency measurement is exactly the load
+                # test this fix is not allowed to run (would hammer the GPU
+                # the captain's chat model shares - see
+                # docs/ai/b70-llm-serving-tuning.md section 4). Paired with
+                # --parallel 2 above to bound how many concurrent per-slot
+                # buffers can stack before the next real backfill run proves
+                # or disproves this number. Full arithmetic and what remains
+                # unvalidated: docs/ai/embedder-gpu-migration-analysis-2026-09-15.md,
+                # 2026-09-16 addendum.
+                memory: 4Gi
                 devic.es/b70: 1
             probes:
               # First boot pulls the ~1.2GB GGUF; allow 10 min.
