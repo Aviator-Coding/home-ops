@@ -62,10 +62,18 @@ measured on the live card:
 | **`-ub 512` (shipped)** | 1136.48 MiB | 300.74 MiB | **1493 MiB** | **4254 MiB** |
 
 The KV buffer reads **0.00 MiB** in both. **RETRACTED 2026-09-16 - see section 10.**
-That line is the *reserve* pass of a two-pass KV init; the same banner goes on to print
-`llama_kv_cache: size = 56.00 MiB ( 512 cells, 28 layers, 2/1 seqs)` and then
-`CPU KV buffer size = 56.00 MiB`. There **is** a KV cache, 112 KiB per token, and it is the
-unit the host prompt cache serialises - i.e. the mechanism behind the second OOM.
+That line is the *reserve* pass of a two-pass KV init. The three-line banner below is quoted
+from the local CPU-backend reproduction of the pinned image (section 10's setup: the SYCL
+backend is suppressed to run this without an Arc card), not the live card - production with
+`-ngl 99` prints a `SYCL0` buffer label instead, because the KV cache allocates alongside the
+offloaded layers (the table above already shows those layers landing in `model buf (SYCL0)`).
+Only the buffer *placement* label differs between the two backends; the sizes - cells, layers,
+seqs, and the 112 KiB-per-token cost - are backend-independent, which is why the local banner is
+still valid evidence for the retraction: `CPU KV buffer size = 0.00 MiB` (the reserve pass), then
+`llama_kv_cache: size = 56.00 MiB ( 512 cells, 28 layers, 2/1 seqs)`, then `CPU KV buffer size =
+56.00 MiB` (the actual allocation). There **is** a KV cache, 112 KiB per token, allocated on the
+device in production; the separate structure that lives in host RAM is the prompt cache section
+10 identifies as the actual cause of the OOM.
 A further 296.23 MiB of the
 model sits in host RAM, not on the card.
 
