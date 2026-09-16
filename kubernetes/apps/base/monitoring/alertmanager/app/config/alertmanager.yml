@@ -128,11 +128,21 @@ receivers:
   # match this route's repeat_interval. `url_file` is read fresh on every
   # notification attempt (unlike `url`, which is fixed at config parse time),
   # so populating that 1Password property is a live-effect change with no
-  # Alertmanager restart needed - confirmed against the pinned v0.34.0
-  # webhook notifier source, which calls plain os.ReadFile(URLFile) inside
-  # Notify() with no existence check at config load, so a not-yet-populated
-  # secret makes only THIS receiver's sends fail (logged, retried on the next
-  # cycle) rather than breaking config parsing or any other receiver.
+  # Alertmanager restart needed.
+  #
+  # Proven, not assumed, at the level that matters (the rendered config, not
+  # just the notifier source): with the secret key entirely absent - not
+  # empty, genuinely missing, as ExternalSecret's default deletionPolicy
+  # produces when the 1Password item does not exist yet (see
+  # externalsecret.yaml) - `amtool check-config` against this exact file
+  # still succeeds, and a live pinned-v0.34.0 Alertmanager started fresh
+  # against it (no prior good config to fall back on) comes up healthy.
+  # Firing a synthetic Watchdog alert against that instance produced one
+  # isolated dispatcher error ("read url_file: ... no such file or
+  # directory") while critical/warning/info test alerts fired and routed
+  # normally in the same run. So a not-yet-populated secret costs exactly
+  # this receiver's own sends (logged, retried next cycle) - never config
+  # parsing, never Alertmanager startup, never any other receiver.
   - name: "healthchecks-io"
     webhook_configs:
       - url_file: /etc/secrets/healthchecks_ping_url
