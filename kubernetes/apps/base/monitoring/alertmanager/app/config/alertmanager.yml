@@ -110,6 +110,47 @@ receivers:
         title: *alert_title
         message: *alert_message
 
+  # External dead-man's switch (added 2026-09-15). Every Pushover receiver
+  # above depends on Alertmanager itself being alive to send it, so a total
+  # failure of Prometheus + Alertmanager together pages no one - the one
+  # monitoring failure mode nothing inside this cluster can report. The
+  # `Watchdog` route below (split out of the null route further down) sends
+  # this receiver a webhook on every cycle Watchdog fires; Healthchecks.io
+  # expects that ping on a fixed schedule and raises its own, independent
+  # alert the moment the pings stop, which is exactly the case a live-inside
+  # Pushover receiver cannot cover.
+  #
+  # The check itself is a captain-owned Healthchecks.io account, not
+  # something this repo can create: see externalsecret.yaml's
+  # healthchecks_ping_url entry for the exact 1Password item/property the
+  # ping URL must be stored under, and the Watchdog route below for the
+  # Period/Grace values the Healthchecks.io check must be configured with to
+  # match this route's repeat_interval. `url_file` is read fresh on every
+  # notification attempt (unlike `url`, which is fixed at config parse time),
+  # so populating that 1Password property is a live-effect change with no
+  # Alertmanager restart needed.
+  #
+  # Proven, not assumed, at the level that matters (the rendered config, not
+  # just the notifier source): with the secret key entirely absent - not
+  # empty, genuinely missing, as ExternalSecret's default deletionPolicy
+  # produces when the 1Password item does not exist yet (see
+  # externalsecret.yaml) - `amtool check-config` against this exact file
+  # still succeeds, and a live pinned-v0.34.0 Alertmanager started fresh
+  # against it (no prior good config to fall back on) comes up healthy.
+  # Firing a synthetic Watchdog alert against that instance produced one
+  # isolated dispatcher error ("read url_file: ... no such file or
+  # directory") while critical/warning/info test alerts fired and routed
+  # normally in the same run. So a not-yet-populated secret costs exactly
+  # this receiver's own sends (logged, retried next cycle) - never config
+  # parsing, never Alertmanager startup, never any other receiver.
+  - name: "healthchecks-io"
+    webhook_configs:
+      - url_file: /etc/secrets/healthchecks_ping_url
+        # Only a firing Watchdog is a heartbeat; a resolved one is not a
+        # "still alive" signal worth an extra ping.
+        send_resolved: false
+        max_alerts: 1
+
 route:
   # `namespace` replaces `job` so each notification is about one namespace,
   # which is what the reader needs first on a phone. Severity does not need to
@@ -125,14 +166,37 @@ route:
   # Fail loud: an alert carrying no severity label at all still pages.
   receiver: "pushover-warning"
   routes:
-    # Both are structural, neither is a real condition. Watchdog is the
-    # dead-man's-switch heartbeat; InfoInhibitor exists only to be the source
-    # of the inhibit rule below. Matched by name rather than by
-    # `severity: none` so that a future rule which forgets its severity falls
-    # through to the root receiver instead of being silently dropped.
+    # Structural, not a real condition. Exists only to be the source of the
+    # inhibit rule below. Matched by name rather than by `severity: none` so
+    # that a future rule which forgets its severity falls through to the
+    # root receiver instead of being silently dropped.
     - receiver: "null"
       matchers:
-        - alertname =~ "InfoInhibitor|Watchdog"
+        - alertname = "InfoInhibitor"
+
+    # The dead-man's-switch heartbeat (see the healthchecks-io receiver
+    # above). Both severity: none, so matched by name for the same
+    # fail-loud reason as InfoInhibitor above.
+    #
+    # group_wait/group_interval/repeat_interval are set explicitly here
+    # rather than left to inherit from the root route (which would currently
+    # be 30s/5m/12h) because this cadence is a deliberate contract with an
+    # external system: Healthchecks.io must be configured with Period 5m and
+    # a Grace Time of at least 15m (3x the period, enough to absorb ordinary
+    # notification jitter without false alarms) - a shorter grace than this
+    # repeat_interval false-alarms on ordinary jitter, a much longer one
+    # leaves a real failure undetected for hours before Healthchecks.io
+    # itself pages. Watchdog is a single always-firing alert with no
+    # siblings, so in practice group_interval never matters (nothing ever
+    # joins the group) and every re-notification is paced by repeat_interval
+    # alone; group_wait: 0s just means the very first ping after a config
+    # reload goes out immediately rather than waiting 30s for no reason.
+    - receiver: "healthchecks-io"
+      matchers:
+        - alertname = "Watchdog"
+      group_wait: 0s
+      group_interval: 5m
+      repeat_interval: 5m
 
     - receiver: "pushover-critical"
       matchers:
