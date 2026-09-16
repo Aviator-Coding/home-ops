@@ -77,6 +77,47 @@ endpoints:
       - "[STATUS] == 200"
       - "[BODY].status == ok"
 
+  # The auto-discovered `home-automation_home-assistant-app` check (removed
+  # from the HTTPRoute's gatus.home-operations.com/endpoint annotation in
+  # this change) never reached Home Assistant: that route carries a
+  # SecurityPolicy that routes every request through Authentik's extAuth
+  # first, and Authentik answers with its own 200/302 login page before the
+  # request ever reaches the backend - proven with Envoy's own counters
+  # (envoy_cluster_ext_authz_denied on that route's cluster incrementing at
+  # exactly Gatus's polling rate while envoy_cluster_upstream_rq_total for
+  # the same cluster stayed absent). A STATUS-only condition against that
+  # route can never distinguish "Home Assistant answered" from "Authentik
+  # intercepted the request", so it was green for the entire outage the
+  # captain actually noticed.
+  #
+  # This check goes straight to the in-cluster Service instead (same
+  # pattern as Hermes Gateway above), bypassing Envoy/ext_authz entirely,
+  # and matches on a body field unique to Home Assistant's own
+  # manifest.json rather than just the status code. That second part is
+  # load-bearing, not defensive styling: the code-server container on this
+  # same Pod (split onto its own `home-assistant-code-server` Service,
+  # port 12321, so its readiness stays independent of Home Assistant's
+  # probe - see the HelmRelease's `service`/`route` blocks) serves its OWN
+  # /manifest.json at status 200 too (`{"name":"code-server",...}`),
+  # verified live (read-only, 2026-09-15) while both containers still
+  # answered behind a single Service - a bare `[STATUS] == 200` condition
+  # could not have told them apart, nor (per the Authentik case above)
+  # distinguished either from an ext_authz interception. The
+  # `related_applications[0].id` field is a literal HA ships in its own
+  # frontend source, present only on HA's manifest, confirmed live
+  # (`io.homeassistant.companion.android`, absent from the code-server
+  # manifest above) and unaffected by dashboard/theme customization the way
+  # a display name field could be.
+  - name: Home Assistant
+    group: home-automation
+    url: http://home-assistant.home-automation.svc.cluster.local:8123/manifest.json
+    interval: 1m
+    ui:
+      hide-url: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].related_applications[0].id == io.homeassistant.companion.android"
+
 metrics: true
 
 ui:
