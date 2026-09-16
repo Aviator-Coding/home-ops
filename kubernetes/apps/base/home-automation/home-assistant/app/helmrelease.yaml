@@ -143,9 +143,15 @@ spec:
     service:
       app:
         controller: home-assistant
+        forceRename: home-assistant
         ports:
           http:
             port: 8123
+      code-server:
+        controller: home-assistant
+        primary: false
+        publishNotReadyAddresses: true
+        ports:
           code-server:
             port: 12321
       # homebridge:
@@ -190,7 +196,7 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: home-assistant
+              - name: home-assistant-code-server
                 port: 12321
 
     persistence:
