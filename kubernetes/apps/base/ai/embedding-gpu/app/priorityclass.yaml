@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/_definitions.json#/definitions/io.k8s.api.scheduling.v1.PriorityClass
+#
+# Every other workload on talos-3 sits at priority 0 with no priorityClassName
+# (docs/talos-3-scheduling-truth.md), so a negative value here makes this pod
+# the last one the scheduler admits and the first the kubelet evicts under
+# node-pressure. preemptionPolicy: Never guarantees it can never displace a
+# Ceph OSD, postgres-17, nats, or the live LLM to make room for itself.
+#
+# Consequence, deliberate: if this pod is created or restarted during a CI
+# runner burst, it waits for a lull rather than preempting anything - a
+# briefly-unavailable embedding endpoint is a far better outcome than
+# displacing something that matters more, and it self-corrects as runners
+# drain. This does NOT address GPU compute contention between the embedder
+# and ai/vllm - no scheduling primitive can - see
+# docs/ai/b70-llm-serving-tuning.md section 4.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: embedding-gpu-low
+value: -10
+globalDefault: false
+preemptionPolicy: Never
+description: "Lowest-priority, non-preempting class for ai/embedding-gpu - yields to every other talos-3 workload under node memory pressure instead of displacing it."

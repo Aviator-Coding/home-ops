@@ -246,10 +246,18 @@ key, which still has no live consumer. What idle actually costs:
 - **VRAM: 1493 MiB**, leaving 4254 MiB free and leaving room for `ai/vllm` to restart.
 - **Host memory: 839 MiB**, measured identical at idle and under a 4-concurrent flood (which
   drew 460m CPU). The work happens on the card, so host memory does not track load.
-- **`talos-3` capacity:** allocatable 93,604 Mi, currently requested 88,002 Mi. The new pod's
-  1,536 Mi request takes it to 89,538 Mi (**95.7%**), leaving **4,066 Mi**. That figure
-  oscillates with ephemeral CI runner pods, so re-read it before any further addition
-  ([`../talos-3-scheduling-truth.md`](../talos-3-scheduling-truth.md)).
+- **`talos-3` capacity:** allocatable is 93,604 Mi, and talos-3's total committed memory
+  oscillates in a band with ephemeral CI runner pods - measured live 88,002 Mi (quiet, 1
+  runner) to 92,610 Mi (busy, 9-10 runners), the same busy state
+  [`../talos-3-scheduling-truth.md`](../talos-3-scheduling-truth.md) already measured as
+  92,926 Mi. Sizing this pod against a single instantaneous reading would be wrong in either
+  direction; what matters is the **permanent (non-CI-runner) headroom**, which that document
+  is canonical for. The shipped request is **1,024 Mi**, which the canonical doc's section 7
+  accounts for against that permanent headroom (6,489 Mi -> 5,465 Mi, roughly two fewer CI
+  runner slots) - see that section for the full arithmetic and for why this does not put
+  `ai/vllm` at any added risk. The pod also ships at the lowest priority on the node
+  (`priorityClassName: embedding-gpu-low`, `preemptionPolicy: Never`), so it yields under
+  pressure rather than displacing anything.
 - **The LLM's Helm release is never touched.** This ships as its own HelmRelease rather than a
   third controller inside `ai/vllm`, because that release owns the live chat server and uses
   `strategy: Recreate` with a ~21 GB model load - any pod-template churn there is a

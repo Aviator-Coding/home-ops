@@ -4,3 +4,4 @@ kind: Kustomization
 namespace: ai
 resources:
   - ./helmrelease.yaml
+  - ./priorityclass.yaml

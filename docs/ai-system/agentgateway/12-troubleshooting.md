@@ -47,7 +47,7 @@ Custom-host OpenAI-compat backends need `policies.tls: {}`. Symptom without it: 
 
 ## Local model 503 / no failover
 
-- Default embeddings hit `embedding-local` (`mcp-tools-embedding`, live). If they 503, check that pod, not `vllm-embed` - `vllm-embed` stays scaled to 0 and no route targets it anymore.
+- Default embeddings hit `embedding-local` (`embedding-gpu`, B70 llama.cpp SYCL, live since 2026-09-15). If they 503, check that pod, not `vllm-embed` - `vllm-embed` stays scaled to 0 and no route targets it anymore. `mcp-tools-embedding` (CPU TEI) is still live but only serves ToolHive's tool-selection index, not this route.
 - Chat failover requires `AgentgatewayPolicy/llm-chat-failover-health`. Without it group 2 is never tried.
 - OpenCode Go failover `pathPrefix` must be `/zen/go/v1`, not `/zen/go`.
 

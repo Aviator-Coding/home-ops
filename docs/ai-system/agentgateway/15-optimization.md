@@ -22,7 +22,7 @@ Grafana dashboard: `kubernetes/apps/base/ai/agentgateway-dashboards/app/llm-cost
 
 - Local chat: exact id `qwen3.6-35b-a3b` -> `llm-chat-failover` (B70 llama.cpp, then kimi-k2.6).
 - Do not send `qwen3.x-max/plus` to the local backend; those regexes are disjoint and go to OpenCode Go.
-- Default embeddings hit `embedding-local` (`mcp-tools-embedding`, CPU TEI, zero-priced - `rules/cost.yaml`), not `vllm-embed` (still scaled to 0, no route targets it). Send `model: embedding-local-cpu`, or use an OpenRouter slug embedding (`openai/text-embedding-3-small` is in the catalog) to bypass it entirely.
+- Default embeddings hit `embedding-local` (`embedding-gpu`, B70 llama.cpp SYCL, zero-priced - `rules/cost.yaml`), not `vllm-embed` (still scaled to 0, no route targets it). Use an OpenRouter slug embedding (`openai/text-embedding-3-small` is in the catalog) to bypass it entirely.
 
 ## What not to tune from the old doc
 

@@ -69,6 +69,12 @@ spec:
         strategy: Recreate
         pod:
           terminationGracePeriodSeconds: 30
+          # Lowest priority, no preemption: this pod is last scheduled and
+          # first yielded on talos-3's already-tight memory budget, and can
+          # never displace a Ceph OSD, postgres-17, nats, or ai/vllm to make
+          # room for itself. See priorityclass.yaml and
+          # docs/talos-3-scheduling-truth.md.
+          priorityClassName: embedding-gpu-low
         containers:
           app:
             image:
@@ -138,11 +144,12 @@ spec:
                 cpu: 250m
                 # Measured live: 839Mi resident, identical idle and under a
                 # 4-concurrent batch-32 flood (460m CPU) - the GPU holds the
-                # work, so host memory does not track load. Request covers that
-                # with headroom so the pod is never in the kubelet's
+                # work, so host memory does not track load. 1024Mi covers that
+                # with ~22% headroom, which is the floor: going lower would
+                # understate measured usage and put the pod in the kubelet's
                 # usage-exceeds-request eviction set on an already tight node
                 # (docs/talos-3-scheduling-truth.md).
-                memory: 1536Mi
+                memory: 1024Mi
                 devic.es/b70: 1
               limits:
                 cpu: "2"

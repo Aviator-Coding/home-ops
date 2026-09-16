@@ -52,7 +52,7 @@ spec:
   rpmLimit: 60
   tpmLimit: 100000
   metadata:
-    purpose: external service access to the local CPU embedder via LiteLLM
+    purpose: external service access to the local GPU embedder (B70) via LiteLLM
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item
