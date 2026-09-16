@@ -84,6 +84,16 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-09-15] Disable dead `csi-metrics` ServiceMonitor  (branch `fm/homeops-monitor-selector-repair`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `csi.serviceMonitor.enabled` flipped to `false` in `operator/helmrelease.yaml`. |
+| **Why** | That toggle creates a ServiceMonitor selecting `app: csi-metrics`, a label from the pre-1.20 architecture where Rook itself ran the CSI plugin pods and stamped that label on them. Since Rook v1.20 (see the 2026-06-12 entry below) ceph-csi-operator's own `ceph-csi-drivers` release owns the ctrlplugin/nodeplugin pods and stamps none of that label, and the `Driver` CRD (`csi.ceph.io/v1`) exposes no metrics field at all. Live-verified: no pod anywhere carries `app=csi-metrics`, no CSI container declares a metrics port or `--metricsport` arg - the ServiceMonitor has selected zero targets for the life of the cluster and there is no way to feed it from this repo. |
+| **Risk** | None - no CSI metrics were ever produced by this ServiceMonitor; nothing observable changes. Re-enabling would need ceph-csi-operator to gain a metrics option upstream first. |
+| **Rollback** | Set `csi.serviceMonitor.enabled` back to `true` - restores the same dead ServiceMonitor. |
+| **Verify** | `task flux:test:all` / `flate` pass. Live: `kubectl -n rook-ceph get servicemonitor` no longer lists `csi-metrics` after reconcile. |
+
 ### [2026-09-14] Exclude RGW and MDS from talos-3 to make room for an honest ai/vllm request  (branch `fm/homeops-talos3-scheduling-truth`)
 
 | Field | Value |

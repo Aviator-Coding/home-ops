@@ -7,15 +7,17 @@
 # LokiRequestLatency reads the namespace_job_route:...:99quantile recording rule
 # below, so widening the alerts alone would have left it dead.
 #
-# PROOF STATUS - read this before assuming these work now. Loki is not scraped
-# by Prometheus at all: it has no ServiceMonitor, and
-# count(loki_request_duration_seconds_count) is 0. The `loki_*` series that DO
-# exist come from promtail's client library (job="promtail-metrics"), not from
-# the Loki server. So these three alerts cannot be proven either way today, and
-# this change is a prerequisite, not a fix: without it they would still return
-# nothing after a ServiceMonitor lands. The identical [1m] defect IS proven on
-# promtail's own rule, which is scraped - see
-# ../../promtail/app/prometheusrule.yaml for the measured before/after.
+# PROOF STATUS - read this before assuming these work now. Loki gained a
+# ServiceMonitor in the same change that widened these windows
+# (`monitoring.serviceMonitor.enabled: true` in ./helmrelease.yaml) - before
+# that it had none, and count(loki_request_duration_seconds_count) was 0. The
+# `loki_*` series that DO exist independent of that toggle come from
+# promtail's client library (job="promtail-metrics"), not from the Loki
+# server - do not mistake those for proof. Confirm post-reconcile
+# (`up{job=~".*loki.*"}` and `count(loki_request_duration_seconds_count) > 0`)
+# before trusting these three alerts; the toggle alone is not proof. The
+# identical [1m] defect IS proven on promtail's own rule, which is scraped -
+# see ../../promtail/app/prometheusrule.yaml for the measured before/after.
 #
 # LokiRequestPanics is untouched: it already used increase(...[10m]).
 apiVersion: monitoring.coreos.com/v1
