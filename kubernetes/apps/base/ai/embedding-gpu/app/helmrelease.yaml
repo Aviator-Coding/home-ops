@@ -119,6 +119,22 @@ spec:
               # deliberately does not change).
               - --parallel
               - "2"
+              # Must ride along with --parallel: llama.cpp only defaults
+              # kv_unified=true when n_slots is auto (`-1`) - pinning
+              # --parallel without this flag silently flips that default off,
+              # splitting the KV/context accounting per-slot instead of
+              # sharing it. Confirmed live (local run of this exact pinned
+              # image against the real model): `--parallel 2` alone reported
+              # `n_ctx_slot = 256` at startup - HALF of --ctx-size 512, and
+              # below the CPU TEI server's 384-token ceiling this endpoint is
+              # supposed to match, contradicting the "not a capability
+              # regression" claim below. Adding this flag restored
+              # `n_ctx_slot = 512` with n_slots still pinned at 2. Safe for
+              # the same reason --parallel is safe: there is no shared KV pool
+              # here to mis-size (KV buffer is 0.00 MiB - see section 1 of the
+              # doc below), so ai/vllm's "do NOT pin --parallel/--kv-unified"
+              # rule does not transfer.
+              - --kv-unified
               # ctx/-b/-ub are one decision: llama.cpp forces n_batch = n_ubatch
               # in embedding mode, and a sequence must fit inside one ubatch, so
               # this triple sets BOTH the VRAM footprint and the maximum input

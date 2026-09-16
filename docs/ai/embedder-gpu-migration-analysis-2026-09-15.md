@@ -335,7 +335,7 @@ more opportunity to ratchet the mark upward before the limit was reached.
 
 ### The fix
 
-Two changes, in `kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml`:
+Three changes, in `kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml`:
 
 1. **`--parallel 2`**, pinned down from the auto-selected `n_slots = 4` (confirmed live from the
    startup banner: `load_model: initializing, n_slots = 4, n_ctx_slot = 512, kv_unified = 'true'`
@@ -348,7 +348,17 @@ Two changes, in `kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml`:
    (`docs/ai/b70-llm-serving-tuning.md` section 3): that rule exists because pinning mis-sizes the
    shared `kv_unified` KV-cache pool on `b9592`, collapsing chat decode to ~0.5 t/s. There is no
    KV pool here to mis-size, so that failure mode cannot apply.
-2. **`limits.memory: 2Gi -> 4Gi`**. Sized to sit well above the highest confirmed real peak
+2. **`--kv-unified`**, added alongside it after a local test caught a regression the first cut of
+   this fix missed. llama.cpp only defaults `kv_unified=true` when `n_slots` is auto (`-1`) - once
+   `--parallel` pins the slot count, that default silently flips off. Confirmed by pulling the
+   exact pinned image (`ghcr.io/ggml-org/llama.cpp:server-intel-b10820`) and running the real
+   Qwen3-Embedding-0.6B-GGUF model locally: `--parallel 2` alone reported `n_ctx_slot = 256` at
+   startup - half of `--ctx-size 512`, and **below** the CPU TEI server's 384-token ceiling this
+   endpoint is supposed to match, which would have been a real capability regression despite the
+   unchanged `--ctx-size 512`. Adding `--kv-unified` restored `n_ctx_slot = 512` with `n_slots`
+   still pinned at 2. Safe for the same reason (1) is safe: no shared KV pool exists here to
+   mis-size (KV buffer is 0.00 MiB), so `ai/vllm`'s pinning warning does not transfer.
+3. **`limits.memory: 2Gi -> 4Gi`**. Sized to sit well above the highest confirmed real peak
    (1.57 GiB), not merely above it: 4Gi leaves **2.43 GiB (61%) of headroom** over that peak, i.e.
    the peak is only 39% of the new limit. This is deliberately generous rather than a tight
    recompute, because the peak that was measured came from **partial** load at the **old**
