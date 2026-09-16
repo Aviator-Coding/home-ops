@@ -355,9 +355,9 @@ spec:
                       - sh
                       - -c
                       - |
-                        curl -sf --max-time 10 -X POST http://127.0.0.1:8080/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"probe","input":"embedding health probe"}' -o /tmp/probe.json || exit 1
-                        grep -q 'null' /tmp/probe.json && exit 1
-                        grep -qE '"embedding"[[:space:]]*:[[:space:]]*\[[^]]*[1-9]' /tmp/probe.json
+                        curl -sf --max-time 10 -X POST http://127.0.0.1:8080/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"probe","input":"embedding health probe"}' -o /tmp/probe-readiness.json || exit 1
+                        grep -q 'null' /tmp/probe-readiness.json && exit 1
+                        grep -qE '"embedding"[[:space:]]*:[[:space:]]*\[[^]]*[1-9]' /tmp/probe-readiness.json
                   periodSeconds: 30
                   timeoutSeconds: 15
                   failureThreshold: 5
@@ -369,9 +369,9 @@ spec:
                       - sh
                       - -c
                       - |
-                        curl -sf --max-time 10 -X POST http://127.0.0.1:8080/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"probe","input":"embedding health probe"}' -o /tmp/probe.json || exit 1
-                        grep -q 'null' /tmp/probe.json && exit 1
-                        grep -qE '"embedding"[[:space:]]*:[[:space:]]*\[[^]]*[1-9]' /tmp/probe.json
+                        curl -sf --max-time 10 -X POST http://127.0.0.1:8080/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"probe","input":"embedding health probe"}' -o /tmp/probe-liveness.json || exit 1
+                        grep -q 'null' /tmp/probe-liveness.json && exit 1
+                        grep -qE '"embedding"[[:space:]]*:[[:space:]]*\[[^]]*[1-9]' /tmp/probe-liveness.json
                   periodSeconds: 60
                   timeoutSeconds: 15
                   failureThreshold: 10
