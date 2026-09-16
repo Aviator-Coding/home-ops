@@ -6,6 +6,138 @@ Current node memory (as of 2026-08-21): **96 GB per node** on all 3 Talos nodes.
 
 ---
 
+## [2026-09-14] ALL 3 nodes — unannounced breaker-change power cut → Prometheus gap, kopiur movers killed mid-run; graceful shutdown runbook added
+
+| Field | Value |
+|-------|-------|
+| **Node** | ALL 3 (talos-1/2/3) — every node is control plane and runs etcd; Ceph mon/OSD/mgr are also spread across all 3 |
+| **Component** | Electrical (breaker), not hardware — mains power was cut to the whole cluster with no cordon, no drain, no Ceph `noout`, and no backup quiescing of any kind |
+| **Affected service** | Prometheus TSDB (unflushed head), kopiur backup movers, several stranded pod/Job records |
+| **Severity** | **high** — no permanent data loss and no Ceph/CNPG damage, but a real monitoring gap plus backup-credential cleanup that a graceful shutdown would have avoided entirely |
+
+### Root cause
+
+The captain cut power to the whole cluster to change a breaker. All three nodes lost power simultaneously — within **1.8 seconds** of each other — with nothing in the cluster told to stop first. This is electrically identical to yanking the plug on all three machines at once: no pod got a `SIGTERM`, no Ceph flag was set, and no in-flight kopiur/VolSync mover got a chance to finish or clean up after itself.
+
+### Evidence
+
+- **115 minutes of Prometheus data lost** (`21:30:53Z`–`23:25:53Z`) — the unflushed TSDB head block at the moment of the power cut.
+- **~23 kopiur mover Jobs killed mid-run**, leaving **42 projected credential Secrets** behind for the operator to reap (see the `credentialProjection` mechanism in `kubernetes/components/kopiur/Readme.md` "Credentials" — each mover mints a short-lived Secret in the workload namespace and reaps it itself on a clean exit; a killed mover never reaches the reap step).
+- **4 pods stranded** as `Init:ContainerStatusUnknown` orphan records.
+- **2 Jobs left `Failed`.**
+- A **false `critical` `KopiurProjectedCredentialsLeaking` page** (`min_over_time(kopiur_projected_secrets_live[13h]) > 0` — see `.claude/skills/kopiur-backups/SKILL.md`) was still firing hours later: the alert is correctly reporting real orphaned Secrets, but they are leftover mover debris from the unclean kill, not an active credential leak, and nothing auto-reaps them once the mover that owned them is gone.
+
+**The same night's controlled counter-example proves a graceful path avoids all of it.** The planned `just talos upgrade-node talos-3` roll at `00:38Z` (closing the `pcie_port_pm=off` gap — see [2026-08-24] below) drains the node properly and produced **zero** Prometheus data loss, verified with `query_range count(up)` across a 90-minute window spanning the reboot. Same class of event (a node going away), opposite outcome, because one drained first and one did not.
+
+### Impact
+
+- ~2 hours of missing cluster-wide metrics history.
+- Manual cleanup required: reap the 42 orphaned projected credential Secrets, clear the 4 orphaned `Init:ContainerStatusUnknown` pods and 2 failed Jobs, and silence/resolve the resulting `KopiurProjectedCredentialsLeaking` page once the Secrets are confirmed to be mover debris and not a real leak.
+- No Ceph data damage (BlueStore/RocksDB are crash-consistent by design; see [2026-06-30] below for the same property holding across a much worse triple-node event) and no CNPG corruption — the risk here is entirely in things that only checkpoint cleanly on a **received** signal (Prometheus's TSDB head, a kopiur mover's own cleanup step), not in things that already tolerate a hard kill.
+
+### Resolution
+
+No live recovery beyond the routine cleanup above was needed. The durable fix is the runbook below: a clear, ordered pre-power-work shutdown checklist so the next planned electrical outage stops the cluster on purpose instead of by accident.
+
+### Runbook: pre-power-work graceful shutdown and power-on
+
+Everything that needs the Kubernetes API or Ceph mon quorum must happen **before** the first `talosctl shutdown` — once two of the three nodes are down, etcd and Ceph mon quorum are both gone (2-of-3 majority), and `kubectl`/`ceph` stop being reliable. `talosctl` itself keeps working throughout, because it talks to each node's own Talos API (`apid`) directly rather than through the Kubernetes control plane — that is what makes the shutdown sequence below safe to keep issuing after quorum is lost.
+
+Live-checked against this cluster on 2026-09-14: 3/3 control-plane nodes, 3 etcd members, Ceph `HEALTH_OK` with 6/6 OSDs (2 per node, symmetric) and mon quorum `h,i,m`, and CNPG `postgres-17` running 3/3 instances one per node (primary on talos-1 at check time — it moves).
+
+#### 0. Before touching any node (API/quorum still needed)
+
+```sh
+# Ceph must be healthy before you take anything down
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph -s        # expect HEALTH_OK, 6/6 OSDs up, quorum of 3 mons
+task rook:check-osd-device-paths                                    # standing AGENTS.md reboot-safety gate
+
+# Flux should not be mid-rollout on anything
+flux get ks -A ; flux get hr -A                                     # nothing should be reconciling/failing
+
+# Prevent a rebalance from starting while a node is briefly down mid-sequence
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph osd set noout
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph osd dump | grep flags   # confirm noout is set
+
+# Check for kopiur/VolSync activity already in flight
+kubectl get snapshot -A -o json | jq -r '.items[] | select(.status.phase=="Running") | "\(.metadata.namespace)/\(.metadata.name)"'
+kubectl get jobs -A -l app.kubernetes.io/created-by=volsync -o json | jq -r '.items[] | select(.status.active>0) | "\(.metadata.namespace)/\(.metadata.name)"'
+# If either returns rows, wait for them to finish before proceeding (kopiur/VolSync runs are
+# normally a few minutes) rather than shutting down through them.
+```
+
+**Why `noout` alone, not the fuller Ceph/Rook flag set.** Ceph's own docs (and Rook's node-maintenance guide) additionally list `norecover`, `nobackfill`, `norebalance`, `nodown`, and `pause` for a full-cluster shutdown, plus scaling every `rook-ceph-{osd,mon,mgr}` and CSI-provisioner Deployment to zero in a specific order. That fuller procedure is built for an outage measured in hours with the Ceph *deployments* themselves staying down. This cluster's own history already answers the question for a short, all-3-nodes-together outage: the 2026-07-03 full 3-node reboot recovery (see below) used `noout` alone — no deployment scaling — and came back to `HEALTH_OK` with all 6 OSDs up within ~60 seconds. `noout` is what stops OSDs going down from being marked "out" and triggering a rebalance; for a breaker-change window measured in minutes, not hours, that is proportionate. Reach for the fuller flag set only if the planned outage is going to last hours, not minutes.
+
+**Prevent a new backup run from starting mid-sequence (recommended, not verified live).** kopiur and VolSync are both controller-runtime operators (`system/kopiur-controller`, `system/volsync`, 2 replicas each, Flux-managed `HelmRelease`s with a 1h reconcile interval) that create new Snapshot/mover Jobs on their own schedule watch. Scaling the operator itself to zero should stop any *new* run from starting during the shutdown window without having to touch every individual `SnapshotPolicy`/`SnapshotSchedule`:
+
+```sh
+flux suspend hr kopiur -n system  && kubectl -n system scale deploy/kopiur-controller --replicas=0
+flux suspend hr volsync -n system && kubectl -n system scale deploy/volsync --replicas=0
+```
+
+**Unverified:** this was reasoned from the operator architecture (no running controller, no schedule evaluation, no new Job), not executed against the live cluster — that is a state-changing action out of scope for a read-only session. If it turns out not to hold, the per-claim fallback is already documented in `kubernetes/components/kopiur/Readme.md` ("Suspend" section: `kubectl -n <ns> patch snapshotpolicy <name> --type=merge -p '{"spec":{"suspend":true}}'`).
+
+#### 1. Shut down two of the three nodes normally
+
+Pick an order — it does not matter which two go first, since Ceph's CRUSH placement and CNPG's pod anti-affinity are symmetric across all 3 nodes (verified: 2 OSDs per node, one CNPG instance per node). Recommend `talos-1`, `talos-2`, saving `talos-3` for last since it is already the node that needs special handling on the way back up (its GPU dock).
+
+```sh
+talosctl -n 10.10.10.11 shutdown   # talos-1 — no --force
+talosctl -n 10.10.10.12 shutdown   # talos-2 — no --force
+```
+
+**Do not use `just talos shutdown-node <node>` for this.** That recipe (`talos/mod.just`) hard-codes `talosctl shutdown --force`, and `--force` means exactly "shut down **without** a cordon/drain" (`talosctl shutdown --help`). That is the wrong tool for a planned shutdown — it is the same as the breaker cut this runbook exists to avoid, just issued from a keyboard instead of a breaker panel. Plain `talosctl shutdown` (no `--force`) cordons the node and drains it through the Kubernetes eviction API first, which is what let the [2026-08-24] `upgrade-node` roll finish with zero Prometheus loss. It also lets `postgres-17`'s own PodDisruptionBudget do its job: verified live, the `postgres-17-primary` PDB currently allows **zero** direct evictions of the primary pod (`minAvailable: 1` with exactly one pod matching that role) — a plain drain only succeeds because CNPG watches the node cordon and performs its own switchover to a replica on a still-healthy node *before* the drain's eviction call is retried, not because the PDB is lenient. Each `talosctl shutdown` call blocks until that node is fully off (`--wait` defaults true) before you move to the next command.
+
+#### 2. Shut down the third (last) node — do not rely on a plain drain here
+
+The trick in step 1 only works because a healthy node is still standing by to receive the CNPG switchover. On the last node there is nowhere left to switch over to, so `postgres-17-primary`'s PDB (and `rook-ceph-mon-pdb`, once down to one surviving mon) become **unsatisfiable**, not just temporarily blocked. A plain eviction-based drain does not hang forever on this — Talos does not strictly enforce PDBs during its own drain step (an open upstream report, siderolabs/talos#9882, describes a blocked eviction timing out after ~5 minutes and the operation proceeding anyway; **unverified on this cluster's Talos version (v1.13.10) — that issue was filed and last touched against 1.7–1.8.3**) — but that path gives the stranded pod an ordinary, uncoordinated termination rather than the clean one CNPG is built to perform, which is exactly the outcome this runbook is trying to avoid.
+
+The last node's CNPG instance is therefore left to take an ordinary, uncoordinated termination - via Talos's own drain/kubelet `SIGTERM` path, or (per siderolabs/talos#9882 above) an abrupt kill if that path doesn't complete before power-off - rather than a coordinated switchover-then-delete. This is an **accepted residual risk, not an oversight**: `postgres-17` is a 3-instance CNPG cluster replicated across all 3 nodes with continuous WAL archiving to the barman object store (`kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml`). By the time only the last node's instance remains, the other two replicas are already powered off anyway, so there is no "protect a surviving replica" case left to guard on the primary side - the actual guarantee for this data comes from WAL archiving having already completed up to that point, not from how the final in-memory instance's process happens to stop. An ordinary termination of one already-isolated instance is a materially smaller risk than what a manual quiesce step would be protecting against (an uncoordinated kill of the *active, in-quorum* primary while a replica could still receive a clean handoff) - and that risk is still fully closed for the first two nodes shut down in step 1, where a real switchover target exists.
+
+```sh
+talosctl -n 10.10.10.13 shutdown   # talos-3 - no --force
+```
+
+**Known gap (2026-09-15, accepted by the captain):** the last node's database instance is not specially quiesced before this shutdown. Doing so would need CNPG to reliably switch its primary away from a *cordoned* node before quorum breaks, and that behavior is unconfirmed on this cluster: `nodeMaintenanceWindow` is not configured, a plain `kubectl cordon` only marks a node unschedulable without evicting anything, the `kubectl cnpg` plugin that could order an explicit switchover is not installed, and `postgres-17`'s `primaryUpdateStrategy: unsupervised` / `primaryUpdateMethod: switchover` govern Postgres image/version updates, not cordon-triggered switchover. Encoding an unconfirmed mechanism into an emergency shutdown procedure risks it failing silently while the captain is standing at a breaker with the cluster already half down - so this is deliberately left as a gap rather than shipped as an unverified mitigation. Follow-up to close it: establish CNPG's actual cordon/drain behavior by reading the operator's own reconcile source, then reinstate a last-node quiesce step on confirmed evidence.
+
+#### 3. Power is now safe to cut
+
+All three nodes are fully powered off (`talosctl shutdown` without `--debug`/`--wait=false` blocks until the node is down). The breaker work can proceed — it is now de-energizing already-halted hardware, not live-running services.
+
+#### 4. Power-on order
+
+```
+1. GPU/dock PSU for talos-3 ON first. Wait 5-10s, confirm fans spin / card LED lit.
+   (Unchanged rule from [2026-08-24] below — pcie_port_pm=off closes the runtime-PM
+   race but does not remove this order; see the confirmation entry under that incident.)
+2. Power on talos-1 and talos-2 (either order, in parallel with step 1's wait) —
+   2-of-3 is what restores etcd and Ceph mon quorum.
+3. Only after step 1's wait has elapsed, power on talos-3.
+4. kubectl get nodes                          # wait for all 3 Ready
+5. ceph -s                                    # HEALTH_OK, 6/6 OSDs up, 3/3 mons in quorum
+6. ceph osd unset noout
+7. flux resume hr kopiur -n system            # restores Git-declared replica count itself
+   flux resume hr volsync -n system
+8. kubectl -n database get cluster postgres-17   # "Cluster in healthy state", 3/3 ready
+9. flux get ks -A ; flux get hr -A            # confirm nothing stuck from the outage
+10. kubectl get nodes -o custom-columns='NAME:.metadata.name,B70:.status.allocatable.devic\.es/b70'
+    # expect 99 on talos-3 — standard post-any-GPU-touch check (media-stack.md)
+11. Check Alertmanager for anything that should have self-cleared once movers resumed
+    normally (e.g. no repeat KopiurProjectedCredentialsLeaking, since nothing was
+    killed mid-run this time).
+```
+
+**Why no `just` recipe for this.** The sequence is long, but every judgment call in it (is Ceph actually healthy, is anything still `Running` that should be waited out) reads better as visible `kubectl`/`ceph` output an operator checks between steps than as a script's exit code. This is also infrequent, planned work, not a repeated operation, so it does not clear the bar for baking into automation.
+
+### Lessons
+
+- **A cordon+drain-based shutdown (`talosctl shutdown`, no `--force`) is not optional ceremony — it is the entire difference between this incident and the zero-data-loss `upgrade-node` roll the same night.** Same class of event, opposite outcome.
+- **`just talos shutdown-node` is the wrong default for planned work.** It hard-codes `--force`, i.e. "skip the drain" — appropriate for an already-unresponsive node, not for taking a healthy cluster down on purpose.
+- **A PodDisruptionBudget that looks like it should block a drain forever usually doesn't — because the thing it is protecting reacts to the cordon and steps aside first.** CNPG's primary-protecting PDB is the clearest example: it looks unsatisfiable read in isolation (`ALLOWED DISRUPTIONS: 0`), but only because a switchover is expected to happen ahead of the eviction, not because the primary is supposed to be undrainable.
+- **The last node in any "take the whole thing down" sequence is categorically different from the others** — there is no peer left to switch over to or reschedule onto. For CNPG specifically that residual risk is accepted rather than mitigated by hand (see the "Known gap" note in step 2 above): a confirmed cordon-reactive switchover mechanism doesn't exist on this cluster to build a safe manual quiesce on, so encoding one would just be a different, silent way to fail.
+
+---
+
 ## [2026-08-24] talos-3 — Arc Pro B70 disappears from PCIe bus → root port stuck D3hot
 
 | Field | Value |
@@ -165,6 +297,24 @@ Expect `99`/`99` for talos-3. Also confirm `siderolabs/thunderbolt` is gone (`ta
 #### 6. Record the result
 
 **This reboot doubles as the test of whether the mitigation works.** The interesting signal is `00:01.0` staying in `D0` with `runtime_suspended_time=0` through a boot where the card trains late. Record the outcome back into this entry either way - a success confirms the fix, and a failure means the D3hot race was not the whole story and the investigation reopens.
+
+### Activated and confirmed working (2026-09-15)
+
+**The runbook was executed 2026-09-15 ~00:38-00:46Z, firstmate-executed with the captain present**, the same night as the [2026-09-14] unannounced power cut above (that event happened first, hours earlier; this was the already-planned, separately-attended `upgrade-node` maintenance). `just talos upgrade-node talos-3` moved the node from schematic `b1a6b2ff…` straight to `a46161e7…` in **one** reboot, closing both gaps the runbook set out to close (thunderbolt drop + `pcie_port_pm=off`) in a single pass.
+
+Verified live post-reboot:
+
+| Check | Result |
+|---|---|
+| `pcie_port_pm=off` on `/proc/cmdline` | present |
+| `siderolabs/thunderbolt` extension | gone |
+| `8086:e2ff` / `8086:e223` (B70) | both present, `DRIVER=xe` |
+| `00:01.0` power state | `D0`, `runtime_status=active`, `runtime_suspended_time=0` |
+| `devic.es/b70` allocatable | `99` on talos-3 |
+
+**The B70 came back with no physical intervention** — no dock-PSU-first sequencing was needed this time; every signature above matches the pre-roll baseline exactly. Ceph dipped to 4/6 OSDs (33% degraded) during the roll and self-healed to `HEALTH_OK`, 6/6, 393 `active+clean` in about nine minutes; Flux had nothing unready afterwards; `vllm` reloaded the 35B model cleanly with zero restarts.
+
+**Important nuance — this does not close the question the runbook was testing.** The unattended power cut hours earlier ([2026-09-14] above) also power-cycled talos-3, *without* `pcie_port_pm=off` live yet, and the card returned then too. So the night produced **two** survivals of a talos-3 power cycle, not one — and neither proves the timing-dependent D3hot race is closed, since both happened to land on the lucky side of the race by chance rather than by the mitigation being present (the mitigation was only live for the second one). Read this as "the fix has not yet been disproven," not "the problem is solved." The dock-PSU-first power-on order in the Resolution section above remains the documented recovery and is unchanged by either survival — keep following it.
 
 ### Lessons
 
