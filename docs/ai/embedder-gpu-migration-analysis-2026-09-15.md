@@ -244,8 +244,12 @@ key, which still has no live consumer. What idle actually costs:
 - **GPU compute: none measurable.** The `idle` and `idle again` rows above bracket the entire
   benchmark, and chat sat at 83.65 and 83.43 t/s - unchanged.
 - **VRAM: 1493 MiB**, leaving 4254 MiB free and leaving room for `ai/vllm` to restart.
-- **Host memory: 839 MiB**, measured identical at idle and under a 4-concurrent flood (which
-  drew 460m CPU). The work happens on the card, so host memory does not track load.
+- **Host memory: this reading was wrong.** 839 MiB, measured identical at idle and under a
+  4-concurrent flood (460m CPU), was read as proof host memory does not track load because
+  the work happens on the card. Real sustained backfill traffic disproved that - see
+  [section 9](#9-2026-09-16-the-shipped-memory-limit-was-undersized-and-the-fix-is-pinned-slots--a-wider-limit)
+  for the corrected figures (cgroup peak 1.57 GiB, 18 OOMKills at the old 2Gi limit) and the
+  fix (`--parallel 2` + `--kv-unified` + `limits.memory: 4Gi`).
 - **`talos-3` capacity:** allocatable is 93,604 Mi, and talos-3's total committed memory
   oscillates in a band with ephemeral CI runner pods - measured live 88,002 Mi (quiet, 1
   runner) to 92,610 Mi (busy, 9-10 runners), the same busy state
