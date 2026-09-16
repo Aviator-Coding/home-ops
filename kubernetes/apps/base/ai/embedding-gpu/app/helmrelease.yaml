@@ -102,21 +102,32 @@ spec:
               # Pinned to 2, down from the auto-selected 4 (`n_slots = 4`, read
               # live off the startup banner - llama.cpp does not print this
               # unless asked, so do not assume it from the args list). This is
-              # the 2026-09-16 OOM fix: shipped at auto/4 slots with a 2Gi
-              # limit, the pod was OOMKilled 18 times under real backfill
-              # traffic (cgroup memory.peak 1.57 GiB / 78% of the 2Gi limit on
-              # a single partially-loaded incarnation, exit 137). Unlike
-              # ai/vllm's "do NOT pin --parallel" rule two files over, pinning
-              # is safe HERE: that rule exists because explicit --parallel
-              # mis-sizes the shared kv_unified KV-cache pool, and this model's
-              # KV buffer is 0.00 MiB (embedding has no KV cache at all - see
-              # docs/ai/embedder-gpu-migration-analysis-2026-09-15.md section
-              # 1), so there is no KV pool for pinning to mis-size. Fewer
-              # concurrent slots directly bounds the number of simultaneous
-              # per-slot host-side batch/tokenisation buffers, which is the
-              # actual OOM driver (see the memory comment below and the dated
-              # addendum in that doc for the full arithmetic and what this
-              # deliberately does not change).
+              # the first 2026-09-16 OOM fix: shipped at auto/4 slots with a
+              # 2Gi limit, the pod was OOMKilled 18 times under real backfill
+              # traffic (exit 137). Unlike ai/vllm's "do NOT pin --parallel"
+              # rule two files over, pinning is safe HERE - but NOT for the
+              # reason originally written here.
+              #
+              # CORRECTION (2026-09-16, second pass). The original justification
+              # said "this model's KV buffer is 0.00 MiB (embedding has no KV
+              # cache at all)". THAT IS WRONG, and it is wrong because it read
+              # the first line of a two-pass KV init. The real banner, from a
+              # local run of this pinned digest with this exact arg set:
+              #   llama_kv_cache: CPU KV buffer size =     0.00 MiB   <- reserve pass
+              #   llama_kv_cache: size =   56.00 MiB (   512 cells,  28 layers,
+              #                   2/1 seqs), K (f16): 28.00 MiB, V (f16): 28.00 MiB
+              #   llama_kv_cache: CPU KV buffer size =    56.00 MiB   <- actual
+              # There is a real 56 MiB KV pool, i.e. 112 KiB per token. That
+              # number is not academic: it is exactly what the host prompt cache
+              # serialises per token, and therefore the whole mechanism behind
+              # the second OOM (see --cache-ram below).
+              #
+              # Pinning remains safe, now on MEASURED grounds instead of a false
+              # premise: this exact arg set was run locally against the real
+              # model and the banner reports `n_slots = 2, n_ctx_slot = 512,
+              # kv_unified = 'true'` - a correctly-sized shared pool, not a
+              # mis-sized one. Verify that banner after ANY change to this
+              # arg block rather than re-deriving it from the flags.
               - --parallel
               - "2"
               # Must ride along with --parallel: llama.cpp only defaults
@@ -130,11 +141,68 @@ spec:
               # supposed to match, contradicting the "not a capability
               # regression" claim below. Adding this flag restored
               # `n_ctx_slot = 512` with n_slots still pinned at 2. Safe for
-              # the same reason --parallel is safe: there is no shared KV pool
-              # here to mis-size (KV buffer is 0.00 MiB - see section 1 of the
-              # doc below), so ai/vllm's "do NOT pin --parallel/--kv-unified"
-              # rule does not transfer.
+              # the same reason --parallel is safe, and with the same
+              # correction: there IS a shared KV pool here (56 MiB / 512 cells
+              # / 112 KiB per token - see the --parallel note above, which
+              # retracts the earlier "KV buffer is 0.00 MiB" claim), but this
+              # exact arg set was measured to size it correctly, so ai/vllm's
+              # "do NOT pin --parallel/--kv-unified" rule still does not
+              # transfer. The evidence is the banner, not the argument.
               - --kv-unified
+              # THE 2026-09-16 (second) OOM FIX. Without this, llama.cpp keeps a
+              # host-RAM prompt cache whose DEFAULT CEILING IS 8192 MiB - twice
+              # this container's 4Gi limit - so the cache's own pruning can
+              # never engage before the cgroup OOM-kills the process. Read off
+              # the pinned image's own `--help`:
+              #   -cram, --cache-ram N  set the maximum cache size in MiB
+              #                         (default: 8192, -1 - no limit, 0 - disable)
+              # and echoed by this exact arg set at startup:
+              #   srv load_model: prompt cache is enabled, size limit: 8192 MiB
+              #   srv       init: idle slots will be saved to prompt cache and
+              #                   cleared upon starting a new task
+              #
+              # WHY IT IS PURE WASTE HERE, NOT A TRADEOFF. The cache is
+              # WRITE-ONLY on an embedding server. Reads go through exactly one
+              # call site (`prompt_load`, tools/server/server-context.cpp:1649),
+              # which sits inside a block gated on
+              # `task.type == SERVER_TASK_TYPE_COMPLETION`. Embedding requests
+              # are SERVER_TASK_TYPE_EMBEDDING, so they can never hit it. Writes
+              # go through the `--cache-idle-slots` path (same file, :2420),
+              # which carries NO task-type guard and so fires on every task.
+              # So every request paid for an entry that nothing could ever read.
+              #
+              # THE COST IS THE FULL KV STATE OF EACH DOCUMENT. Measured locally
+              # on this pinned digest with this exact arg set:
+              #   srv prompt_save: - saving prompt with length 28,
+              #                      total state size = 3.063 MiB
+              #   srv      update: - cache state: 3 prompts, 8.644 MiB
+              #                      (limits: 8192.000 MiB, 512 tokens, 74873 est)
+              # i.e. 112 KiB per token (56.00 MiB KV / 512 cells), so a typical
+              # ~31-token document costs ~3.4 MiB of HOST RAM. ~1200 documents
+              # fills 4Gi. That is why the kill tracked request VOLUME and not
+              # request SIZE, and why 2Gi -> 4Gi only bought more requests.
+              #
+              # AND NOTHING ELSE CAN BOUND IT. llama.cpp's only adaptive guard
+              # is a std::bad_alloc handler in server_prompt_cache::alloc that
+              # cuts limit_size to 40% on allocation failure - but under a
+              # cgroup memory limit the kernel SIGKILLs at page-fault time and
+              # malloc never fails, so that handler is structurally unreachable
+              # here. Note also `update()` recomputes the token limit from the
+              # byte limit (`limit_tokens_cur`, 74873 above vs the nominal 512),
+              # so the token cap does not bound it either. No value of
+              # `limits.memory` fixes this; only capping the cache does.
+              #
+              # 0 rather than a small non-zero value: 0 is the only setting that
+              # also force-disables the idle-slot writer (server-context.cpp:1421
+              # logs `--cache-idle-slots requires --cache-ram, disabling`) and
+              # never constructs the cache at all, so there is no freed-but-
+              # retained allocator arena to leave RSS high. A small cap would
+              # still allocate and free continuously for a cache nothing reads.
+              # ai/vllm is a CHAT server where prefix reuse is genuinely worth
+              # something, so it needs a bounded non-zero value, not this - that
+              # is a separate open decision and is deliberately NOT changed here.
+              - --cache-ram
+              - "0"
               # ctx/-b/-ub are one decision: llama.cpp forces n_batch = n_ubatch
               # in embedding mode, and a sequence must fit inside one ubatch, so
               # this triple sets BOTH the VRAM footprint and the maximum input
@@ -202,26 +270,32 @@ spec:
                 devic.es/b70: 1
               limits:
                 cpu: "2"
-                # Raised 2Gi -> 4Gi in the 2026-09-16 OOM fix. The 2Gi figure
-                # was derived from a benchmark that measured RSS over a single
-                # ~100s window (839Mi, "identical idle and under a
-                # 4-concurrent batch-32 flood") and wrongly concluded host
-                # memory does not track load - real sustained backfill traffic
-                # proved otherwise: 18 OOMKills, and the cgroup memory.peak on
-                # one partially-loaded incarnation alone hit 1,680,678,912 B
-                # (1.57 GiB, 78% of the old 2Gi limit), with the captain's
-                # backfill agent already stopped, i.e. under LESS than full
-                # load. 4Gi leaves 2.43 GiB (61%) of headroom above that
-                # highest confirmed real peak - deliberately wide, because a
-                # sustained full-concurrency measurement is exactly the load
-                # test this fix is not allowed to run (would hammer the GPU
-                # the captain's chat model shares - see
-                # docs/ai/b70-llm-serving-tuning.md section 4). Paired with
-                # --parallel 2 above to bound how many concurrent per-slot
-                # buffers can stack before the next real backfill run proves
-                # or disproves this number. Full arithmetic and what remains
-                # unvalidated: docs/ai/embedder-gpu-migration-analysis-2026-09-15.md,
-                # 2026-09-16 addendum.
+                # Raised 2Gi -> 4Gi in the FIRST 2026-09-16 OOM fix, and
+                # DELIBERATELY LEFT AT 4Gi by the second one.
+                #
+                # That first fix was a ceiling, not a bound, and it did not
+                # hold: the pod went straight back to CrashLoopBackOff, 5
+                # restarts in 30 minutes, still exit 137, now against 4Gi. Each
+                # incarnation traced the same curve under live backfill
+                # (container_memory_working_set_bytes, 30s step):
+                #   0.397 GiB flat for 30 min idle
+                #   0.39 -> 1.75 -> 3.32 GiB over the next 90 s -> OOMKilled
+                # and it died on 25- and 92-token tasks, so the driver was
+                # never request SIZE. The real cause is the host prompt cache,
+                # whose default ceiling (8192 MiB) is larger than ANY limit
+                # that fits on talos-3 - fixed by `--cache-ram 0` above, which
+                # is what actually bounds this workload.
+                #
+                # So do not read 4Gi as a sized figure. With the cache off, the
+                # expected steady state is near the 0.397 GiB idle baseline;
+                # 4Gi is retained purely as headroom so that if some OTHER
+                # growth path exists it shows up as an alert rather than a
+                # third crashloop. Lowering it is safe to consider only after a
+                # full backfill has run flat against this config - and, because
+                # limits do not enter talos-3's scheduling arithmetic (requests
+                # do), lowering it buys the node nothing. Full evidence:
+                # docs/ai/embedder-gpu-migration-analysis-2026-09-15.md,
+                # 2026-09-16 addendum 2.
                 memory: 4Gi
                 devic.es/b70: 1
             probes:
