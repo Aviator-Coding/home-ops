@@ -19,6 +19,12 @@
 > - 2026-08-29: `tdarr-node` moved off `devic.es/b70` onto `devic.es/b70-vaapi` (same
 >   physical card, kernel DRM names). Live inventory owner:
 >   [`ai-gpu-changelog.md`](../ai-gpu-changelog.md) baseline + 2026-08-29 entry.
+> - 2026-09-15: embeddings are back on the card as a **second, distinct** Level Zero
+>   tenant (`ai/embedding-gpu`, llama.cpp SYCL, `devic.es/b70`) - the 2026-06-28 bullet
+>   above no longer holds. This reopens the contention this memo's Option (a) discusses,
+>   but does not itself argue for a second card: idle cost is unmeasurable and the
+>   workload is throttled by request rate, not isolated by hardware. Measured
+>   rate-vs-chat-impact curve: [`embedder-gpu-migration-analysis-2026-09-15.md`](./embedder-gpu-migration-analysis-2026-09-15.md).
 
 ## TL;DR
 

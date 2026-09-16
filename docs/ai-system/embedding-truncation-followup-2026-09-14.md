@@ -1,5 +1,17 @@
 # Embedding truncation follow-up (2026-09-14)
 
+**Update 2026-09-15:** the LiteLLM/external-caller traffic this document's
+"route that matters" section is about has since moved off this pod entirely,
+to `ai/embedding-gpu` on the B70 - see
+`docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`. That traffic now
+fails loud on over-length input (llama.cpp returns HTTP 400), closing the gap
+this document concluded TEI could not close. This pod's remaining consumer is
+ToolHive's tool-selection index only (`kubernetes/apps/base/ai/toolhive/config/
+embeddingserver.yaml`), which still cannot reach TEI's loud-failure path for
+the unrelated reason in this document's "other live consumer" section
+(`vmcp`'s hardcoded `Truncate: true`). The memory sizing and `--max-batch-tokens`
+analysis below is otherwise still the live config for that pod.
+
 ## What this ships
 
 **The embedding server's memory was under-provisioned and is fixed here:**
@@ -72,11 +84,12 @@ in TEI v1.9.3 source, `router/src/http/server.rs` and
   ever, regardless of what a caller sends in the body.
 
 **`/v1/embeddings` is the route that matters.** LiteLLM's
-`embedding-local-cpu` model (`kubernetes/apps/base/ai/litellm/app/models/
-embedding-local-cpu.yaml`) talks to TEI's `/v1/embeddings`, and every
-external caller through the `embedding-external` virtual key goes through
-LiteLLM. So the one per-request lever that works is structurally
-unreachable for the traffic this whole change exists to serve.
+`embedding-local-cpu` model (renamed `embedding-local` and moved to the GPU
+2026-09-15, `kubernetes/apps/base/ai/litellm/app/models/embedding-local.yaml`)
+talked to TEI's `/v1/embeddings`, and every external caller through the
+`embedding-external` virtual key went through LiteLLM. So the one per-request
+lever that works was structurally unreachable for the traffic this whole
+change existed to serve - see the update note at the top of this document.
 
 The other live consumer, ToolHive's `mcp-gateway-internal` vmcp pod, does
 call the native `/embed` endpoint - but its Go client hardcodes
