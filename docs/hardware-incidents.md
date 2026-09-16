@@ -92,21 +92,13 @@ talosctl -n 10.10.10.12 shutdown   # talos-2 — no --force
 
 The trick in step 1 only works because a healthy node is still standing by to receive the CNPG switchover. On the last node there is nowhere left to switch over to, so `postgres-17-primary`'s PDB (and `rook-ceph-mon-pdb`, once down to one surviving mon) become **unsatisfiable**, not just temporarily blocked. A plain eviction-based drain does not hang forever on this — Talos does not strictly enforce PDBs during its own drain step (an open upstream report, siderolabs/talos#9882, describes a blocked eviction timing out after ~5 minutes and the operation proceeding anyway; **unverified on this cluster's Talos version (v1.13.10) — that issue was filed and last touched against 1.7–1.8.3**) — but that path gives the stranded pod an ordinary, uncoordinated termination rather than the clean one CNPG is built to perform, which is exactly the outcome this runbook is trying to avoid.
 
-Sidestep it: quiesce the last node's PDB-guarded stateful pods directly before shutting it down. A direct `kubectl delete pod` is not gated by a PodDisruptionBudget (only the eviction subresource is), and it still delivers an ordinary `SIGTERM` + grace period — enough for CNPG's instance manager to perform its documented clean Postgres shutdown, and for a kopiur/VolSync mover to exit instead of being killed mid-run. Rook's mon/OSD pods do **not** need this treatment: their stores (RocksDB, BlueStore) are crash-consistent by design and have already tolerated far rougher kills in this cluster's history (see [2026-06-30] below) — the special handling here is only for things that need a **received** signal to checkpoint cleanly.
+The last node's CNPG instance is therefore left to take an ordinary, uncoordinated termination - via Talos's own drain/kubelet `SIGTERM` path, or (per siderolabs/talos#9882 above) an abrupt kill if that path doesn't complete before power-off - rather than a coordinated switchover-then-delete. This is an **accepted residual risk, not an oversight**: `postgres-17` is a 3-instance CNPG cluster replicated across all 3 nodes with continuous WAL archiving to the barman object store (`kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml`). By the time only the last node's instance remains, the other two replicas are already powered off anyway, so there is no "protect a surviving replica" case left to guard on the primary side - the actual guarantee for this data comes from WAL archiving having already completed up to that point, not from how the final in-memory instance's process happens to stop. An ordinary termination of one already-isolated instance is a materially smaller risk than what a manual quiesce step would be protecting against (an uncoordinated kill of the *active, in-quorum* primary while a replica could still receive a clean handoff) - and that risk is still fully closed for the first two nodes shut down in step 1, where a real switchover target exists.
 
 ```sh
-LAST=talos-3   # whichever node you saved for last
-kubectl get pods -A --field-selector spec.nodeName=$LAST -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name'
-
-# Directly delete (not evict) anything PDB-guarded that's still there — repeat per pod found
-kubectl -n database delete pod <cnpg-instance-pod-on-$LAST> --grace-period=30
-# If a kopiur/VolSync mover Job pod is running on this node, either wait for it or delete it the same way
-
-# Confirm they're actually gone before shutting the node down
-kubectl get pods -A --field-selector spec.nodeName=$LAST
-
-talosctl -n 10.10.10.13 shutdown   # talos-3 — no --force; nothing PDB-guarded remains to hang on
+talosctl -n 10.10.10.13 shutdown   # talos-3 - no --force
 ```
+
+**Known gap (2026-09-15, accepted by the captain):** the last node's database instance is not specially quiesced before this shutdown. Doing so would need CNPG to reliably switch its primary away from a *cordoned* node before quorum breaks, and that behavior is unconfirmed on this cluster: `nodeMaintenanceWindow` is not configured, a plain `kubectl cordon` only marks a node unschedulable without evicting anything, the `kubectl cnpg` plugin that could order an explicit switchover is not installed, and `postgres-17`'s `primaryUpdateStrategy: unsupervised` / `primaryUpdateMethod: switchover` govern Postgres image/version updates, not cordon-triggered switchover. Encoding an unconfirmed mechanism into an emergency shutdown procedure risks it failing silently while the captain is standing at a breaker with the cluster already half down - so this is deliberately left as a gap rather than shipped as an unverified mitigation. Follow-up to close it: establish CNPG's actual cordon/drain behavior by reading the operator's own reconcile source, then reinstate a last-node quiesce step on confirmed evidence.
 
 #### 3. Power is now safe to cut
 
@@ -135,14 +127,14 @@ All three nodes are fully powered off (`talosctl shutdown` without `--debug`/`--
     killed mid-run this time).
 ```
 
-**Why no `just` recipe for this.** The sequence is long, but every judgment call in it (is Ceph actually healthy, is anything still `Running` that should be waited out, which pod on the last node needs a direct delete) reads better as visible `kubectl`/`ceph` output an operator checks between steps than as a script's exit code. This is also infrequent, planned work, not a repeated operation — see the reasoning in the PR description.
+**Why no `just` recipe for this.** The sequence is long, but every judgment call in it (is Ceph actually healthy, is anything still `Running` that should be waited out) reads better as visible `kubectl`/`ceph` output an operator checks between steps than as a script's exit code. This is also infrequent, planned work, not a repeated operation — see the reasoning in the PR description.
 
 ### Lessons
 
 - **A cordon+drain-based shutdown (`talosctl shutdown`, no `--force`) is not optional ceremony — it is the entire difference between this incident and the zero-data-loss `upgrade-node` roll the same night.** Same class of event, opposite outcome.
 - **`just talos shutdown-node` is the wrong default for planned work.** It hard-codes `--force`, i.e. "skip the drain" — appropriate for an already-unresponsive node, not for taking a healthy cluster down on purpose.
 - **A PodDisruptionBudget that looks like it should block a drain forever usually doesn't — because the thing it is protecting reacts to the cordon and steps aside first.** CNPG's primary-protecting PDB is the clearest example: it looks unsatisfiable read in isolation (`ALLOWED DISRUPTIONS: 0`), but only because a switchover is expected to happen ahead of the eviction, not because the primary is supposed to be undrainable.
-- **The last node in any "take the whole thing down" sequence is categorically different from the others** — there is no peer left to switch over to or reschedule onto, so whatever depends on that mechanism needs to be quiesced by hand instead.
+- **The last node in any "take the whole thing down" sequence is categorically different from the others** — there is no peer left to switch over to or reschedule onto. For CNPG specifically that residual risk is accepted rather than mitigated by hand (see the "Known gap" note in step 2 above): a confirmed cordon-reactive switchover mechanism doesn't exist on this cluster to build a safe manual quiesce on, so encoding one would just be a different, silent way to fail.
 
 ---
 
