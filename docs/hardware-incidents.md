@@ -127,7 +127,7 @@ All three nodes are fully powered off (`talosctl shutdown` without `--debug`/`--
     killed mid-run this time).
 ```
 
-**Why no `just` recipe for this.** The sequence is long, but every judgment call in it (is Ceph actually healthy, is anything still `Running` that should be waited out) reads better as visible `kubectl`/`ceph` output an operator checks between steps than as a script's exit code. This is also infrequent, planned work, not a repeated operation — see the reasoning in the PR description.
+**Why no `just` recipe for this.** The sequence is long, but every judgment call in it (is Ceph actually healthy, is anything still `Running` that should be waited out) reads better as visible `kubectl`/`ceph` output an operator checks between steps than as a script's exit code. This is also infrequent, planned work, not a repeated operation, so it does not clear the bar for baking into automation.
 
 ### Lessons
 
