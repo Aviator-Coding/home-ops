@@ -12,6 +12,10 @@ spec:
     matchNames:
       - ai
   podMetricsEndpoints:
-    - port: "8080"
+    # The vmcp container declares exactly one named port ("http", 4483) -
+    # there is no port named "8080", so `port: "8080"` (a name lookup)
+    # resolved to zero targets. `targetPort` addresses the container port by
+    # number directly and needs no matching named port.
+    - targetPort: 8080
       path: /metrics
       interval: 15s

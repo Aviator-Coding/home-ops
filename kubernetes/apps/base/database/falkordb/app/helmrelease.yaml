@@ -209,12 +209,26 @@ spec:
               # Readiness runs a real command through the graph module, so a
               # server that is listening but has not loaded falkordb.so does
               # not read as Ready.
+              #
+              # `-e` is load-bearing, not decoration: bare redis-cli exits 0
+              # on an ERR/NOAUTH/etc reply, the same as on success, so this
+              # probe could never fail except by TCP - which tcpSocket
+              # liveness/startup already cover - and a bad credential
+              # rotation through the ExternalSecret would leave the pod
+              # Ready forever while every real client got NOAUTH. Measured
+              # live: `redis-cli -e NOSUCHCOMMAND_XYZ` and an unauthenticated
+              # `redis-cli -e GRAPH.LIST` both now exit 1; the real
+              # authenticated `redis-cli -e GRAPH.LIST` still exits 0. This
+              # is readiness only, not liveness, so a failure here can only
+              # pull the pod out of the Service's endpoints - it cannot
+              # trigger a restart, so it cannot itself cause an outage the
+              # way an over-strict liveness probe would.
               readiness:
                 enabled: true
                 custom: true
                 spec:
                   exec:
-                    command: ["/bin/sh", "-c", "redis-cli GRAPH.LIST"]
+                    command: ["/bin/sh", "-c", "redis-cli -e GRAPH.LIST"]
                   initialDelaySeconds: 5
                   periodSeconds: 10
                   timeoutSeconds: 5

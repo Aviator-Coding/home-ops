@@ -16,6 +16,14 @@ spec:
   values:
     deploymentMode: SingleBinary
 
+    # Loki has never had a ServiceMonitor - the chart ships one behind this
+    # toggle (default false) and it was never enabled, so LokiRequestErrors,
+    # LokiRequestPanics and LokiRequestLatency (prometheus-rule.yaml) were
+    # structurally dead: no loki_* series existed under any condition.
+    monitoring:
+      serviceMonitor:
+        enabled: true
+
     loki:
       analytics:
         reporting_enabled: false
