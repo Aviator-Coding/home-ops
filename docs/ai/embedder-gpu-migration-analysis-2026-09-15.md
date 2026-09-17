@@ -626,3 +626,145 @@ If it OOMs again, the curve shape is the discriminator - a flat-then-climb that 
 another per-request retention path (capture `memory.peak` and the slot logs before restarting it);
 a slow climb that plateaus is the arena high-water mark section 9 hypothesised, and *that* one is
 legitimately a limit-sizing question.
+
+## 11. 2026-09-16 (third pass): the endpoint returned all-NaN, and none of the flags did it
+
+The backfill wrote nothing for hours. `ai/embedding-gpu` returned **1024-dimension vectors in
+which every element was `null`**, on all three request shapes (`/v1/embeddings` single,
+`/v1/embeddings` batch, native `/embedding`), while reporting perfect health: 202,582 tasks,
+clean releases (`stop processing: n_tokens = 25, truncated = 0`), `/health` = ok, and **zero
+errors, warnings or SYCL messages**.
+
+### First: `null` is NaN, and the NaN is not an artefact of normalisation
+
+`null` is not a JSON convention llama.cpp chose - nlohmann::json renders any non-finite float
+that way. Requesting `encoding_format: base64` returns the raw little-endian float bytes and
+settles it:
+
+```
+first 8 words: 0xffc00000 0xffc00000 0xffc00000 0xffc00000 ...
+nan count: 1024   inf count: 0   zero count: 0   finite count: 0
+```
+
+All 1024 words are `0xFFC00000`, the canonical "indefinite" quiet NaN produced by `0.0/0.0`.
+
+The obvious mechanism - L2-normalising an all-zero vector - is **not** it, twice over. The raw
+vector is already NaN (`{"embd_normalize": -1}` on `/embedding` returns nulls too), and
+`common_embd_normalize` guards the zero case explicitly (`sum > 0.0 ? 1.0/sum : 0.0f`), so an
+all-zero input would emit all-**zero**, not NaN. The forward pass itself is producing NaN.
+
+### The bisect: every flag is innocent
+
+Method: the pinned commit `b10820` run locally under podman against the real GGUF, asserting on
+VALUES (`len == 1024`, no `None`, all finite, at least one non-zero) rather than on response
+shape. Three traffic shapes per configuration, including one built to match the live log's
+`selected slot by LCP similarity, f_sim_best = 0.360` - a **shared 36% prompt prefix**, which is
+what makes llama.cpp's prefix-reuse path fire at all. Probe texts with no common prefix never
+reach it, so a naive probe set silently tests less than it appears to.
+
+| # | configuration | `n_ctx_slot` | `kv_unified` | requests | NaN |
+|---|---|---|---|---|---|
+| A | #1702 baseline (no extra flags) | 512 (`n_slots=4`) | true | 200 | 0 |
+| B | `--parallel 2` | **256** | false | 200 | 0 |
+| C | #1708 `--parallel 2 --kv-unified` | 512 | true | 200 | 0 |
+| D | **#1710 live set** (`+ --cache-ram 0`) | 512 | true | 850 | **0** |
+| G | `--parallel 2 --cache-ram 0` | 256 | false | 200 | 0 |
+| H | `--parallel 2 --kv-unified --cache-ram 256` | 512 | true | 200 | 0 |
+
+~1,850 requests, zero NaN, zero drift. **`--kv-unified`, `--parallel 2` and `--cache-ram 0` are
+all exonerated**, individually and in every combination, including under 4-way concurrency and
+under prefix-reuse load. Row B independently re-confirms section 9's finding that `--parallel 2`
+alone halves `n_ctx_slot` to 256, so **reverting `--kv-unified` is not a fix - it is a capability
+regression** back below the CPU endpoint's 384-token ceiling.
+
+Two more candidates were closed by measurement, not by argument:
+
+- **The cached model is not corrupt.** The pod was OOMKilled 23 times and `LLAMA_CACHE=/models`
+  keeps the GGUF on a PVC, so a truncated write was a live hypothesis. The on-PVC blob hashes
+  `sha256:421a27e5…4340`, byte-identical to a freshly downloaded copy and to its own
+  HuggingFace content address.
+- **The upstream SYCL hazard does not apply.** `ggml-org/llama.cpp#24168` (empty/gibberish output
+  on Arc Pro B-series) is scoped to **hybrid attention-SSM architectures** (qwen3next / qwen35);
+  Qwen3-Embedding is pure attention. The closer behavioural match is
+  [`#26044`](https://github.com/ggml-org/llama.cpp/issues/26044) - Qwen3-Embedding returning an
+  all-NaN vector on GPU while CPU output stays correct, then *permanently wedging the server* -
+  but that report is CUDA/Volta, root cause unknown, and it explicitly records that
+  **`--no-kv-unified` did not fix it**. Treat it as a behavioural analogue, not a diagnosis.
+
+### What this pass could NOT determine, and why
+
+**The root cause is GPU-side and was not reproducible on any backend available here.** The
+failure needs the SYCL backend on the B70, and there is no Intel GPU on the bisect host; the
+pinned `server-intel` image under qemu-amd64 emulation took over five minutes just to print
+`--help`, and would have fallen back to CPU anyway. The native-arch `b10820` CPU image is the
+same commit, so it settles the *server-logic* question above completely and the *kernel* question
+not at all. Restarting or re-flagging the live pod to bisect on the card is a cluster mutation,
+outside what this pass was authorised to do.
+
+So the honest state is: **the three suspected flags are ruled out with evidence; the defect is in
+GPU execution and remains unattributed.** The next step that would actually attribute it, in
+order of cost:
+
+1. Restart the pod and immediately value-probe it. If it returns real vectors, the failure is
+   accumulated state (the `#26044` shape) rather than configuration, which changes the fix
+   entirely - and the probe added below now makes that recovery automatic.
+2. If it is NaN from the first request, bisect **on the card**: `-fa off` first (flash attention
+   is the least-covered SYCL path), then an image bump.
+
+### The real defect was that nothing could tell
+
+This endpoint was verified healthy **twice** with a probe of the form:
+
+```python
+sum(1 for x in v if x != 0)      # -> 1024 of 1024 on a vector of pure nulls
+```
+
+In Python `None != 0` is **True**, so a vector of 1024 nulls scores a perfect non-zero count. The
+check could not distinguish a working embedder from a dead one, and it was that score - not the
+server - that was reported as evidence. Measured against the live endpoint while it was emitting
+nothing but NaN:
+
+```
+old probe -> non-zero count = 1024 of 1024   => "PERFECT"
+value probe -> False                          => correctly FAILS
+```
+
+**A check that cannot fail is worse than no check, because it manufactures confidence.** Assert
+on values:
+
+```python
+ok = (len(v) == 1024 and not any(x is None for x in v)
+      and all(isinstance(x, (int, float)) for x in v)
+      and all(math.isfinite(x) for x in v) and any(x != 0 for x in v))
+```
+
+### What shipped
+
+`readiness` and `liveness` now **embed a fixed string and reject the response unless it carries
+real numbers**; `startup` keeps `/health` because there is nothing to embed until the GGUF has
+loaded. `grep -q null` is the exact detector for this failure (nlohmann renders NaN as bare
+`null`); a second check requires a digit 1-9 *inside* the embedding array, which also rejects an
+all-zero vector and is scoped to the array because the response's own `"prompt_tokens":4` would
+otherwise satisfy it. The script contains **no `$`** on purpose - Flux's envsubst substitutes
+bare `$var` as well as `${var}` over the whole built output.
+
+Budgets are deliberately forgiving (readiness ~2.5 min, liveness ~10 min of consecutive
+failures): a wedged server stays wedged, so reacting fast buys nothing, while the backfill client
+can queue both slots deep enough to make one probe slow. Readiness fires first, so callers fail
+over to the CPU endpoint before any restart is attempted, and the pod is the lowest-priority
+non-preempting workload on talos-3, so its restarts cost `ai/vllm` nothing.
+
+`scripts/ci/embedding-values-test.py` extracts that probe **out of the HelmRelease and executes
+it** against canned good / all-null / all-zero / HTTP-500 / refused responses, so the gate tests
+the shipped command rather than a copy that could drift. It was proven non-vacuous by mutation:
+it goes red when the probe is reverted to `httpGet /health`, when its checks are neutered so it
+accepts a null-filled vector, when the magnitude check is weakened from `[1-9]` to `[0-9]`, when
+a `$` is reintroduced, and when the liveness budget no longer exceeds readiness.
+
+### Re-measuring correctness for real
+
+The probe proves *finite*, not *correct* - a semantically wrong but finite vector passes it. The
+real correctness check is still section 4's: agreement against the CPU endpoint on a fixed probe
+set, which must land at **cos ≈ 0.9999992**. Run that after any image bump, GPU change, or
+recovery from this failure; a vector that is finite, unit-norm and confidently wrong looks
+exactly like a healthy one from the outside.

@@ -299,7 +299,12 @@ spec:
                 memory: 4Gi
                 devic.es/b70: 1
             probes:
-              # First boot pulls the ~1.2GB GGUF; allow 10 min.
+              # `/health` ONLY proves the HTTP server is up. It does NOT prove the
+              # model computes: on 2026-09-16 this endpoint served 202,582 tasks
+              # with `/health` = ok, zero errors and clean slot releases, while
+              # EVERY returned vector was 1024 x 0xFFC00000 (quiet NaN). Startup
+              # still uses it because there is nothing to embed until the ~1.2GB
+              # GGUF has loaded; readiness and liveness must not.
               startup:
                 enabled: true
                 custom: true
@@ -308,15 +313,68 @@ spec:
                   periodSeconds: 15
                   timeoutSeconds: 5
                   failureThreshold: 40
+              # VALUE-ASSERTING PROBE. Embeds a fixed string and rejects the
+              # response unless it carries real numbers.
+              #
+              # Two checks, and the first one is the one that matters. llama.cpp
+              # serialises through nlohmann::json, which renders a non-finite
+              # float as bare `null` - so an all-NaN vector arrives as
+              # `[null,null,...]` with HTTP 200. `grep -q null` is therefore the
+              # exact detector for the observed failure. The second check
+              # requires at least one digit 1-9 INSIDE the embedding array, which
+              # rejects an all-zero vector; it is scoped to the array because the
+              # response's own `"prompt_tokens":4` would otherwise satisfy it.
+              #
+              # NO `$` ANYWHERE IN THIS SCRIPT, DELIBERATELY. Flux runs
+              # envsubst over the entire built Kustomization output, and it
+              # substitutes bare `$var` as well as `${var}` - so a shell variable
+              # here would be eaten (or fail the whole Kustomization in strict
+              # mode) exactly as AGENTS.md's postBuild.substitute trap describes.
+              # Hence the temp file instead of the obvious command substitution.
+              #
+              # Thresholds are deliberately forgiving: a wedged server stays
+              # wedged, so there is no value in reacting fast, and the backfill
+              # client can queue both slots deep enough to make one probe slow.
+              # Readiness needs 5 consecutive failures (~2.5 min) before the pod
+              # leaves the Service and callers fail over to the CPU endpoint;
+              # liveness needs 10 (~10 min) before a restart. Restarting is the
+              # intended behaviour, not a last resort - a correct endpoint that
+              # restarts beats a fast one that returns garbage, and this pod is
+              # the lowest-priority non-preempting workload on talos-3
+              # (priorityclass.yaml), so its restarts cost ai/vllm nothing.
+              #
+              # Proven in BOTH directions by scripts/ci/embedding-values-test.py,
+              # which runs this exact command out of this file against canned
+              # good / all-null / all-zero / HTTP-500 responses.
               readiness: &probe
                 enabled: true
                 custom: true
                 spec:
-                  httpGet: { path: /health, port: 8080 }
+                  exec:
+                    command:
+                      - sh
+                      - -c
+                      - |
+                        curl -sf --max-time 10 -X POST http://127.0.0.1:8080/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"probe","input":"embedding health probe"}' -o /tmp/probe-readiness.json || exit 1
+                        grep -q 'null' /tmp/probe-readiness.json && exit 1
+                        grep -qE '"embedding"[[:space:]]*:[[:space:]]*\[[^]]*[1-9]' /tmp/probe-readiness.json
                   periodSeconds: 30
-                  timeoutSeconds: 10
-                  failureThreshold: 3
-              liveness: *probe
+                  timeoutSeconds: 15
+                  failureThreshold: 5
+              liveness:
+                <<: *probe
+                spec:
+                  exec:
+                    command:
+                      - sh
+                      - -c
+                      - |
+                        curl -sf --max-time 10 -X POST http://127.0.0.1:8080/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"probe","input":"embedding health probe"}' -o /tmp/probe-liveness.json || exit 1
+                        grep -q 'null' /tmp/probe-liveness.json && exit 1
+                        grep -qE '"embedding"[[:space:]]*:[[:space:]]*\[[^]]*[1-9]' /tmp/probe-liveness.json
+                  periodSeconds: 60
+                  timeoutSeconds: 15
+                  failureThreshold: 10
 
     service:
       app:
