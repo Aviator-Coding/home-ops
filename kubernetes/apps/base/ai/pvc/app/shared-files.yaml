@@ -20,9 +20,10 @@
 # ReplicationSource. shared-xml is safe unbacked because the Mac holds the
 # authoritative copy of that corpus; this share has no such guarantee - it is
 # general-purpose, so whatever the captain drops here may exist nowhere else.
-# It is unbacked anyway, by explicit captain decision, to keep the pair
-# symmetric and the nightly cost off a scratch/transfer folder. TREAT IT AS
-# SCRATCH: anything that must survive belongs on a backed-up claim.
+# It is unbacked anyway - a deliberate choice the captain was told about when
+# this share was requested, to keep the pair symmetric and the nightly cost off
+# a scratch/transfer folder, not an omission anyone should silently "fix".
+# TREAT IT AS SCRATCH: anything that must survive belongs on a backed-up claim.
 # Reversing this is one line - add `components/kopiur` to
 # kubernetes/apps/main/ai/pvc.yaml (and KOPIUR_PUID/PGID "10000", matching the
 # forced identity) - which is why the omission is recorded rather than assumed.
