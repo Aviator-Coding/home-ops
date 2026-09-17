@@ -6,6 +6,16 @@ metadata:
   name: &app ai-pvc
   namespace: &namespace ai
 spec:
+  # Standalone RWX claims for the `ai` namespace, both served by the `samba` app
+  # on the LAN and both mounted by hermes: shared-xml (/opt/xml, [xml]) and
+  # shared-files (/opt/files, [files]).
+  #
+  # No `components:` here on purpose - attaching `components/kopiur` would put
+  # BOTH claims on a nightly backup, and neither is meant to be backed up. The
+  # reasoning and the one-line reversal are on each PVC in
+  # ./kubernetes/apps/base/ai/pvc/app/. Note the component is per-claim
+  # (`${APP}`-named objects), so backing up only one of them would need its own
+  # Flux Kustomization, not a component include here.
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app

@@ -9,9 +9,13 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  # No `components: [../../../../../components/kopiur]`. The shared-xml claim is
-  # deliberately not backed up - the captain's Mac holds the authoritative copy
-  # of the corpus. See the comment on the PVC itself.
+  # No `components: [../../../../../components/kopiur]`. NEITHER claim this app
+  # serves is backed up, and for two different reasons: shared-xml because the
+  # captain's Mac holds the authoritative copy of the corpus, shared-files
+  # because it is an explicitly-scratch drop folder. Both decisions are recorded
+  # on the PVCs themselves (kubernetes/apps/base/ai/pvc/app/). Note the claims
+  # are created by the ai-pvc Kustomization, so attaching a backup engine here
+  # would be the wrong place regardless - it belongs on ai/pvc.yaml.
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment

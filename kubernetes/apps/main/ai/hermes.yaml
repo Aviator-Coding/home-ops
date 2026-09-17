@@ -54,7 +54,8 @@ spec:
       name: *app
       namespace: *namespace
   dependsOn:
-    # hermes mounts the shared-xml claim at /opt/xml; ai-pvc is what creates it.
+    # hermes mounts the shared-xml claim at /opt/xml and the shared-files
+    # claim at /opt/files; ai-pvc is what creates both.
     - name: ai-pvc
       namespace: *namespace
     - name: onepassword-store
