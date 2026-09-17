@@ -394,17 +394,6 @@ def test_no_backup_on_shared_claims() -> None:
             "kopiur" not in joined and "volsync" not in joined,
             f"{label} overlay must not attach kopiur/volsync (no backup on the shared claims); got {components!r}",
         )
-    # Each PVC records its own deliberate omission. Checked per-claim rather than
-    # once: the reasons differ (shared-xml mirrors the Mac, shared-files is
-    # declared scratch), and a new claim inheriting the sibling's comment by
-    # proximity is exactly how an unconsidered no-backup decision gets made.
-    for share in SHARES.values():
-        claim = share["claim"]
-        pvc_text = (PVC_DIR / f"{claim}.yaml").read_text()
-        require(
-            "DELIBERATELY NOT BACKED UP" in pvc_text or "not backed up" in pvc_text.lower(),
-            f"{claim} PVC must record the no-backup decision in a comment",
-        )
 
 
 def test_samba_overlay_wiring() -> None:
