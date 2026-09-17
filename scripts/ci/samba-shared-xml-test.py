@@ -1,30 +1,60 @@
 #!/usr/bin/env python3
-"""Semantic regression test for the LAN SMB shared-xml share.
+"""Semantic regression test for the LAN SMB shares served by ns `ai` app `samba`.
+
+Filename kept for history; this gate covers BOTH shares on that one server.
 
 Pins the captain decision (2026-09-04) that stood up a LAN-only Samba share on
 a new shared CephFS RWX claim so BOTH the captain's Mac and the hermes agent
-can read/write the ~300k-file XML corpus. The dataset itself is loaded later;
-this test pins the empty-share GitOps contract:
+can read/write the ~300k-file XML corpus, and its extension (2026-09-17) with a
+second, general-purpose share on the SAME server - one smbd, one LoadBalancer,
+one account, one forced identity, a second `[section]`:
 
-  1. Standalone `shared-xml` PVC: 100Gi, ReadWriteMany, ceph-filesystem-rwx
+    [xml]   -> /shared (claim shared-xml)   -> hermes /opt/xml
+    [files] -> /files  (claim shared-files) -> hermes /opt/files
+
+Assertions are written against the SHARES table below rather than against one
+share's literals, so a third share is onboarded by adding a row and every
+invariant below is enforced on it automatically. That is deliberate: when this
+gate covered one share, adding the second left six of its seven tests passing
+while asserting nothing whatsoever about the new share (measured 2026-09-17 -
+only the `exactly one PVC` count failed). A gate that goes green on an
+unreviewed share is worse than no gate.
+
+What is pinned:
+
+  1. One standalone PVC per share: 100Gi, ReadWriteMany, ceph-filesystem-rwx
      (csi-rwx), NOT ceph-filesystem / default `csi` (Tentacle corruption path).
-  2. No backup engine on the claim (no kopiur/volsync Component on ai-pvc or
-     samba overlays) - Mac is authoritative.
-  3. Samba app-template Deployment mounts that claim at /shared, runs
+     The rendered set is exactly the SHARES table - no extra, none missing.
+  2. No backup engine on either claim (no kopiur/volsync Component on ai-pvc or
+     samba overlays), and each PVC records that omission as a decision.
+  3. Samba app-template Deployment mounts every claim at its share path, runs
      ghcr.io/dockur/samba with a verbatim smb.conf ConfigMap, ExternalSecret
      password at /run/secrets/pass, and a LAN-only LoadBalancer on 10.50.0.55
-     port 445 (no HTTPRoute / envoy).
-  4. Ownership contract in the rendered smb.conf: force user/group hermes/smb
-     (UID/GID 10000 via env), create/directory masks, fruit:nfs_aces = no,
-     fruit:resource = file (deliberate), SMB3-only.
-  5. SETGID invariant: initContainer chowns 10000:10000 + chmod 2770; app
-     postStart waits for `pgrep -x smbd` then re-asserts 2770. A shell model of
-     dockur/samba's empty-share `chmod 0770` proves the postStart is what holds
-     setgid after the entrypoint, and a live filesystem probe proves 2770
-     carries S_ISGID while 0770 does not (OnRootMismatch skip condition).
-  6. hermes HelmRelease mounts the same claim READ-WRITE at /opt/xml on the
-     `app` container only; `/opt/data` stays on the hermes claim; hermes Flux
-     Kustomization dependsOn `ai-pvc` first.
+     port 445 (no HTTPRoute / envoy). ONE service, ONE Deployment - a new share
+     must never bring a second Samba app.
+  4. Ownership contract in the rendered smb.conf, enforced on EVERY share
+     section and cross-checked for agreement between them: force user/group
+     hermes/smb (UID/GID 10000 via env), create/directory masks and forced
+     modes, inherit permissions = no, veto files; plus global fruit:nfs_aces =
+     no, fruit:resource = file (deliberate), SMB3-only.
+  5. CLOSURE between smb.conf and the pod: every exported share path is backed
+     by a PVC volumeMount, and every shared claim mounted is exported. An
+     exported path with no PVC behind it would write into the container's
+     overlay filesystem and lose the captain's uploads on restart, while every
+     signal stayed green - that is the failure this pair of checks exists for.
+  6. SETGID invariant on every share root: initContainer chowns 10000:10000 +
+     chmod 2770; app postStart waits for `pgrep -x smbd` then re-asserts 2770.
+     A shell model of dockur/samba's entrypoint proves the postStart is what
+     holds setgid for /shared, and a live filesystem probe proves 2770 carries
+     S_ISGID while 0770 does not (the OnRootMismatch skip condition). The model
+     also pins the ASYMMETRY found in upstream samba.sh: `share="/shared"` is
+     hardcoded, so the entrypoint's empty-share `chmod 0770` never reaches any
+     other share path - the initContainer is what establishes those, and the
+     postStart re-assert is idempotent insurance.
+  7. hermes HelmRelease mounts every claim READ-WRITE at its own path on the
+     `app` container ONLY (never the init/seed/codeserver containers);
+     `/opt/data` stays on the hermes claim; hermes Flux Kustomization dependsOn
+     `ai-pvc` first.
 
 Live Mac mount_smbfs ownership drills and cluster apply are outside this
 GitOps pin (no kubeconfig in CI). This test renders the real consumers
@@ -62,9 +92,56 @@ APP_TEMPLATE_OCI = "oci://ghcr.io/bjw-s-labs/helm/app-template"
 EXPECTED_LB_IP = "10.50.0.55"
 EXPECTED_UID = "10000"
 EXPECTED_GID = "10000"
-CLAIM = "shared-xml"
 STORAGE_CLASS = "ceph-filesystem-rwx"
 CAPACITY = "100Gi"
+
+# Every LAN share this one Samba server exports. Onboarding a third share means
+# adding a row here and nothing else in this file: each test below iterates
+# SHARES, so the new share inherits the PVC contract, the ownership contract,
+# the smb.conf<->volume closure check, the setgid invariant and the hermes
+# app-only read-write mount. `entrypoint_managed` marks the ONE path upstream's
+# samba.sh touches (it hardcodes `share="/shared"`), which is what decides
+# whether the postStart re-assert is load-bearing or insurance - see
+# test_setgid_race_model_and_filesystem_bit.
+SHARES: dict[str, dict[str, Any]] = {
+    "xml": {
+        "claim": "shared-xml",
+        "samba_path": "/shared",
+        "hermes_key": "xml",
+        "hermes_path": "/opt/xml",
+        "entrypoint_managed": True,
+    },
+    "files": {
+        "claim": "shared-files",
+        "samba_path": "/files",
+        "hermes_key": "files",
+        "hermes_path": "/opt/files",
+        "entrypoint_managed": False,
+    },
+}
+CLAIMS = {s["claim"] for s in SHARES.values()}
+
+# Per-share settings that ARE the ownership contract. Asserted on every share
+# section AND cross-checked for agreement between sections, so a new share that
+# quietly relaxes one of them fails even if its own value looks plausible.
+OWNERSHIP_CONTRACT = {
+    "force user": "hermes",
+    "force group": "smb",
+    "create mask": "0664",
+    "force create mode": "0664",
+    "directory mask": "0775",
+    "force directory mode": "0775",
+    "inherit permissions": "no",
+    "read only": "no",
+    "guest ok": "no",
+    "valid users": "hermes",
+    "delete veto files": "yes",
+}
+# Not pinned to a literal list (Finder's droppings change between macOS
+# releases), but every share must veto the SAME set - a share that skips the
+# veto list hands the agent junk the others never see.
+VETO_KEY = "veto files"
+
 SAMBA_IMAGE = "ghcr.io/dockur/samba"
 # Asserted by SHAPE, not by value: the repository must be exactly SAMBA_IMAGE
 # and a non-empty tag must be present. Hardcoding the version here would make a
@@ -277,38 +354,57 @@ def overlay_doc(path: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def test_shared_xml_pvc_contract() -> None:
+def test_shared_pvc_contract() -> None:
+    """Every share has its own standalone claim, and ai/pvc renders exactly those."""
     docs = kustomize_build(PVC_DIR)
     pvcs = by_kind(docs, "PersistentVolumeClaim")
-    require(len(pvcs) == 1, f"ai/pvc must render exactly one PVC, got {len(pvcs)}")
-    pvc = pvcs[0]
-    require(pvc["metadata"]["name"] == CLAIM, f"PVC name must be {CLAIM}")
-    spec = pvc["spec"]
-    require(spec.get("storageClassName") == STORAGE_CLASS, f"storageClassName must be {STORAGE_CLASS}")
-    require(spec.get("accessModes") == ["ReadWriteMany"], "accessModes must be [ReadWriteMany]")
-    storage = ((spec.get("resources") or {}).get("requests") or {}).get("storage")
-    require(storage == CAPACITY, f"storage request must be {CAPACITY}, got {storage!r}")
-    # Standalone directory shape (not embedded in an app HelmRelease).
-    require((PVC_DIR / "shared-xml.yaml").is_file(), "shared-xml.yaml must live under ai/pvc/app/")
-    require(not (SAMBA_DIR / "shared-xml.yaml").exists(), "PVC must not be embedded under samba/")
-    require(not (REPO / "kubernetes/apps/base/ai/hermes/app/shared-xml.yaml").exists(), "PVC must not be under hermes/")
+    rendered = {pvc["metadata"]["name"] for pvc in pvcs}
+    require(
+        rendered == CLAIMS,
+        f"ai/pvc must render exactly the share claims {sorted(CLAIMS)}, got {sorted(rendered)}",
+    )
+    require(len(pvcs) == len(CLAIMS), f"duplicate PVC names in ai/pvc: {[p['metadata']['name'] for p in pvcs]}")
+
+    for pvc in pvcs:
+        name = pvc["metadata"]["name"]
+        spec = pvc["spec"]
+        require(
+            spec.get("storageClassName") == STORAGE_CLASS,
+            f"{name}: storageClassName must be {STORAGE_CLASS} (csi-rwx), not the corrupted default csi group",
+        )
+        require(spec.get("accessModes") == ["ReadWriteMany"], f"{name}: accessModes must be [ReadWriteMany]")
+        storage = ((spec.get("resources") or {}).get("requests") or {}).get("storage")
+        require(storage == CAPACITY, f"{name}: storage request must be {CAPACITY}, got {storage!r}")
+        # Standalone directory shape (not embedded in an app HelmRelease): two
+        # apps mount each of these, so neither may be owned by one of them.
+        require((PVC_DIR / f"{name}.yaml").is_file(), f"{name}.yaml must live under ai/pvc/app/")
+        require(not (SAMBA_DIR / f"{name}.yaml").exists(), f"{name} PVC must not be embedded under samba/")
+        require(
+            not (REPO / f"kubernetes/apps/base/ai/hermes/app/{name}.yaml").exists(),
+            f"{name} PVC must not be under hermes/",
+        )
 
 
-def test_no_backup_on_shared_xml() -> None:
+def test_no_backup_on_shared_claims() -> None:
     for path, label in ((PVC_OVERLAY, "ai-pvc"), (SAMBA_OVERLAY, "samba")):
         doc = overlay_doc(path)
         components = doc.get("spec", {}).get("components") or []
         joined = " ".join(str(c) for c in components)
         require(
             "kopiur" not in joined and "volsync" not in joined,
-            f"{label} overlay must not attach kopiur/volsync (no backup on shared-xml); got {components!r}",
+            f"{label} overlay must not attach kopiur/volsync (no backup on the shared claims); got {components!r}",
         )
-        # Comment on the PVC file records the deliberate omission.
-    pvc_text = (PVC_DIR / "shared-xml.yaml").read_text()
-    require(
-        "DELIBERATELY NOT BACKED UP" in pvc_text or "not backed up" in pvc_text.lower(),
-        "shared-xml PVC must record the no-backup decision in a comment",
-    )
+    # Each PVC records its own deliberate omission. Checked per-claim rather than
+    # once: the reasons differ (shared-xml mirrors the Mac, shared-files is
+    # declared scratch), and a new claim inheriting the sibling's comment by
+    # proximity is exactly how an unconsidered no-backup decision gets made.
+    for share in SHARES.values():
+        claim = share["claim"]
+        pvc_text = (PVC_DIR / f"{claim}.yaml").read_text()
+        require(
+            "DELIBERATELY NOT BACKED UP" in pvc_text or "not backed up" in pvc_text.lower(),
+            f"{claim} PVC must record the no-backup decision in a comment",
+        )
 
 
 def test_samba_overlay_wiring() -> None:
@@ -399,25 +495,56 @@ def test_samba_rendered_workload_and_service() -> None:
     conf = parse_smb_conf(smb_text)
 
     require(conf.has_section("global"), "smb.conf must have [global]")
-    require(conf.has_section("xml"), "smb.conf must have [xml] share")
-    g, x = conf["global"], conf["xml"]
+    g = conf["global"]
     require(g.get("disable netbios") == "yes", "NetBIOS must be disabled (445 only)")
     require(g.get("smb ports") == "445", "smb ports must be 445")
     require(g.get("server min protocol") == "SMB3", "SMB3 minimum")
     require(g.get("netbios name") == "HOMELAB-XML", "explicit short netbios name")
+    require(len(g.get("netbios name", "")) <= 15, "netbios name must be <= 15 chars")
     require("fruit" in g.get("vfs objects", ""), "vfs_fruit for macOS interop")
     require(g.get("fruit:metadata") == "stream", "AppleDouble metadata in xattr stream")
     require(g.get("fruit:resource") == "file", "fruit:resource=file is the measured deliberate choice")
     require(g.get("fruit:nfs_aces") == "no", "fruit:nfs_aces=no is load-bearing for ownership")
-    require(x.get("path") == "/shared", "[xml] path must be /shared")
-    require(x.get("read only") == "no", "[xml] must be writable")
-    require(x.get("force user") == "hermes", "force user = hermes")
-    require(x.get("force group") == "smb", "force group = smb")
-    require(x.get("create mask") == "0664" and x.get("force create mode") == "0664", "file mode contract")
-    require(x.get("directory mask") == "0775" and x.get("force directory mode") == "0775", "dir mode contract")
-    require(x.get("inherit permissions") == "no", "inherit permissions must be off")
-    require(x.get("valid users") == "hermes", "valid users = hermes")
-    require(x.get("guest ok") == "no", "no guest access")
+
+    # The exported share set must be exactly SHARES - no undeclared section
+    # (which would expose a path this gate never checks) and none missing.
+    exported = {s for s in conf.sections() if s != "global"}
+    require(
+        exported == set(SHARES),
+        f"smb.conf share sections must be exactly {sorted(SHARES)}, got {sorted(exported)}",
+    )
+
+    # The ownership contract, on EVERY share. This is the whole point of the app:
+    # smbd does all I/O as uid/gid 10000 so a file the Mac creates is
+    # indistinguishable from one hermes created. A share that relaxes any of
+    # these hands the captain a file the agent cannot read, while everything
+    # reports healthy.
+    for section, share in SHARES.items():
+        s = conf[section]
+        require(
+            s.get("path") == share["samba_path"],
+            f"[{section}] path must be {share['samba_path']}, got {s.get('path')!r}",
+        )
+        for key, expected in OWNERSHIP_CONTRACT.items():
+            require(
+                s.get(key) == expected,
+                f"[{section}] {key} must be {expected!r} (ownership contract), got {s.get(key)!r}",
+            )
+        require(s.get(VETO_KEY), f"[{section}] must carry a {VETO_KEY} list")
+
+    # Cross-check: every share agrees with every other on the contract keys.
+    # Catches a third share whose own values look plausible in isolation but
+    # drift from the pair - the failure this table-driven gate exists to stop.
+    for key in list(OWNERSHIP_CONTRACT) + [VETO_KEY]:
+        values = {section: conf[section].get(key) for section in SHARES}
+        require(
+            len(set(values.values())) == 1,
+            f"all shares must agree on {key!r}; got {values}",
+        )
+
+    # Share paths must be distinct, or two shares would export one directory.
+    paths = [share["samba_path"] for share in SHARES.values()]
+    require(len(set(paths)) == len(paths), f"share paths must be distinct, got {paths}")
 
     # HelmRelease values → real Deployment/Service via app-template.
     values = hr_values(
@@ -443,14 +570,31 @@ def test_samba_rendered_workload_and_service() -> None:
     require(sc.get("fsGroup") == 10000, "pod fsGroup 10000")
     require(sc.get("fsGroupChangePolicy") == "OnRootMismatch", "OnRootMismatch required for setgid skip")
 
+    # ONE Deployment, ONE Service (asserted above) - a new share is a section,
+    # never a second Samba app, a second LoadBalancer or a second IP.
     claims = pvc_volume_claims(pod)
-    require(claims.get("shared-xml") == CLAIM, "Deployment must PVC-mount shared-xml")
+    require(
+        CLAIMS.issubset(set(claims.values())),
+        f"Deployment must PVC-mount every share claim {sorted(CLAIMS)}, got {sorted(set(claims.values()))}",
+    )
 
     init = container_by_name(pod, "chown-share")
     init_cmd = "\n".join(str(x) for x in (init.get("command") or []))
-    require("chown 10000:10000 /shared" in init_cmd, "initContainer must chown 10000:10000")
-    require("chmod 2770 /shared" in init_cmd, "initContainer must chmod 2770 (setgid)")
-    require("-R" not in init_cmd.replace("/shared", ""), "chown/chmod must be non-recursive")
+    init_mounts = mounts_for(init)
+    stripped = init_cmd
+    for share in SHARES.values():
+        path = share["samba_path"]
+        require(
+            f"chown {EXPECTED_UID}:{EXPECTED_GID} {path}" in init_cmd,
+            f"initContainer must chown {EXPECTED_UID}:{EXPECTED_GID} {path}",
+        )
+        require(f"chmod 2770 {path}" in init_cmd, f"initContainer must chmod 2770 {path} (setgid)")
+        # It cannot chown a path it does not mount - that would silently succeed
+        # against the container's own filesystem and leave the real share root
+        # untouched.
+        require(path in init_mounts, f"chown-share must mount {path} to pin it")
+        stripped = stripped.replace(path, "")
+    require("-R" not in stripped, "chown/chmod must be non-recursive (the tree is too large)")
     require((init.get("securityContext") or {}).get("runAsUser") == 0, "chown-share runs as root")
 
     app = container_by_name(pod, "app")
@@ -467,14 +611,61 @@ def test_samba_rendered_workload_and_service() -> None:
     life = ((app.get("lifecycle") or {}).get("postStart") or {}).get("exec") or {}
     post_cmd = "\n".join(str(x) for x in (life.get("command") or []))
     require("pgrep -x smbd" in post_cmd, "postStart must wait on pgrep -x smbd (happens-after edge)")
-    require("chmod 2770 /shared" in post_cmd, "postStart must re-assert 2770")
     require("exit 0" in post_cmd, "postStart must always exit 0")
+    for share in SHARES.values():
+        require(
+            f"chmod 2770 {share['samba_path']}" in post_cmd,
+            f"postStart must re-assert 2770 on {share['samba_path']}",
+        )
 
     app_mounts = mounts_for(app)
-    require("/shared" in app_mounts, "app mounts /shared")
     require(app_mounts.get("/etc/samba/smb.conf", {}).get("readOnly") is True, "smb.conf readOnly")
     require(app_mounts.get("/run/secrets/pass", {}).get("subPath") == "pass", "password file mount")
     require(app_mounts.get("/run/secrets/pass", {}).get("readOnly") is True, "password mount readOnly")
+
+    # === CLOSURE: smb.conf <-> the pod's PVC volumes ===
+    # Both directions, because each failure is silent in its own way.
+    #
+    # Forward - an exported path with no PVC behind it: smbd happily serves the
+    # container's overlay filesystem, the Mac uploads succeed, Finder shows the
+    # files, and every probe stays green until the pod restarts and the uploads
+    # are gone. Nothing else in this repo would catch that.
+    #
+    # Reverse - a claim mounted but never exported: 100Gi of Ceph provisioned
+    # for a share nobody can reach, and the hermes half of the pair working
+    # while the Mac half silently does not exist.
+    volume_by_name = {v["name"]: v for v in pod.get("volumes") or []}
+    exported_paths = {share["samba_path"] for share in SHARES.values()}
+    for path in sorted(exported_paths):
+        mount = app_mounts.get(path)
+        require(mount is not None, f"app must mount every exported share path; {path} is not mounted")
+        volume = volume_by_name.get(mount["name"]) or {}
+        claim = (volume.get("persistentVolumeClaim") or {}).get("claimName")
+        require(
+            claim in CLAIMS,
+            f"exported share path {path} must be backed by a shared PVC, not {volume.get('emptyDir') and 'an emptyDir' or claim!r}",
+        )
+        require(not mount.get("readOnly"), f"{path} must be mounted read-write (both shares are writable)")
+
+    mounted_share_paths = {
+        mp
+        for mp, m in app_mounts.items()
+        if (volume_by_name.get(m["name"]) or {}).get("persistentVolumeClaim", {}).get("claimName") in CLAIMS
+    }
+    require(
+        mounted_share_paths == exported_paths,
+        f"every mounted share claim must be exported in smb.conf; mounted={sorted(mounted_share_paths)} exported={sorted(exported_paths)}",
+    )
+
+    # Each share path resolves to its OWN claim - no two sections sharing one
+    # volume, and no crossed wiring between /shared and /files.
+    for share in SHARES.values():
+        mount = app_mounts[share["samba_path"]]
+        claim = (volume_by_name[mount["name"]].get("persistentVolumeClaim") or {}).get("claimName")
+        require(
+            claim == share["claim"],
+            f"{share['samba_path']} must be backed by claim {share['claim']}, got {claim!r}",
+        )
 
     # LB IP must not collide with any other in-repo annotation, and must not be a taken address.
     require(EXPECTED_LB_IP not in TAKEN_IPS, "chosen IP must not be in the taken list")
@@ -506,40 +697,81 @@ def test_samba_rendered_workload_and_service() -> None:
 
 
 def test_setgid_race_model_and_filesystem_bit() -> None:
-    """Model dockur/samba empty-share chmod and prove 2770 carries S_ISGID."""
+    """Model dockur/samba's entrypoint and prove 2770 carries S_ISGID.
 
-    def entrypoint_empty_chmod(current: int, empty: bool) -> int:
+    The entrypoint hardcodes its own share directory (upstream samba.sh:
+    `share="/shared"`, with `/storage` as the only legacy alternative). It is
+    NOT derived from smb.conf, so its empty-share `chmod 0770` reaches exactly
+    one of our share roots. That asymmetry decides what holds each root at 2770:
+
+      /shared - the entrypoint strips setgid while the share is still empty, so
+        the app container's postStart re-assert is LOAD-BEARING.
+      /files  - never touched, so the initContainer is what establishes the bit
+        and the postStart re-assert is idempotent insurance (free, and the only
+        thing standing between us and a silent regression if upstream ever
+        starts deriving its share list from the config).
+
+    Either way the invariant is the same and the gate above asserts both paths
+    in both places, so this model only has to prove WHY.
+    """
+
+    ENTRYPOINT_SHARE = "/shared"
+
+    def entrypoint_empty_chmod(path: str, current: int, empty: bool) -> int:
         # From upstream samba.sh:
+        #   share="/shared"
         #   if [ -z "$(ls -A "$share")" ]; then chmod 0770 "$share"; fi
-        # runs AFTER the initContainer and BEFORE `exec smbd`.
+        # runs AFTER the initContainer and BEFORE `exec smbd`, and only ever
+        # against its own hardcoded $share.
+        if path != ENTRYPOINT_SHARE:
+            return current
         if empty:
             return 0o0770
         return current
 
     def poststart_reassert(_current: int, smbd_running: bool) -> int:
-        # postStart waits for pgrep -x smbd, then chmod 2770.
+        # postStart waits for pgrep -x smbd, then chmod 2770 on every share root.
         require(smbd_running, "postStart only runs its chmod after smbd is up")
         return 0o2770
 
-    # Empty share without postStart loses setgid - the bug the hook closes.
+    # --- /shared: the entrypoint strips setgid on an empty share ---
     mode = 0o2770  # initContainer
-    mode = entrypoint_empty_chmod(mode, empty=True)
-    require(mode == 0o0770, "entrypoint strips setgid on empty share")
+    mode = entrypoint_empty_chmod("/shared", mode, empty=True)
+    require(mode == 0o0770, "entrypoint strips setgid on an empty /shared")
     require(mode & stat.S_ISGID == 0, "0770 must not carry S_ISGID")
 
     # With postStart after exec smbd, setgid is restored before clients write.
-    mode = 0o2770
-    mode = entrypoint_empty_chmod(mode, empty=True)
     mode = poststart_reassert(mode, smbd_running=True)
     require(mode == 0o2770, "postStart restores 2770 after smbd")
     require(mode & stat.S_ISGID == stat.S_ISGID, "2770 must carry S_ISGID")
 
     # Non-empty share: entrypoint leaves mode alone; postStart is idempotent.
     mode = 0o2770
-    mode = entrypoint_empty_chmod(mode, empty=False)
+    mode = entrypoint_empty_chmod("/shared", mode, empty=False)
     require(mode == 0o2770, "non-empty share keeps initContainer mode")
     mode = poststart_reassert(mode, smbd_running=True)
     require(mode == 0o2770, "postStart idempotent on already-correct mode")
+
+    # --- every OTHER share root: untouched by the entrypoint ---
+    for section, share in SHARES.items():
+        path = share["samba_path"]
+        managed = bool(share["entrypoint_managed"])
+        require(
+            managed == (path == ENTRYPOINT_SHARE),
+            f"SHARES[{section}].entrypoint_managed disagrees with upstream's hardcoded "
+            f"share={ENTRYPOINT_SHARE!r}; a share at {path} is not entrypoint-managed",
+        )
+        mode = 0o2770  # initContainer
+        mode = entrypoint_empty_chmod(path, mode, empty=True)
+        if managed:
+            require(mode == 0o0770, f"{path} is entrypoint-managed and must lose setgid while empty")
+        else:
+            require(
+                mode == 0o2770 and mode & stat.S_ISGID,
+                f"{path} is not entrypoint-managed, so the initContainer's setgid must survive",
+            )
+        # The re-assert converges both cases to the same invariant.
+        require(poststart_reassert(mode, smbd_running=True) == 0o2770, f"{path} converges to 2770")
 
     # Live filesystem probe: prove the bit semantics OnRootMismatch depends on.
     with tempfile.TemporaryDirectory(prefix="setgid-probe-") as tmp:
@@ -556,7 +788,7 @@ def test_setgid_race_model_and_filesystem_bit() -> None:
         require(share.stat().st_mode & stat.S_ISGID, "re-assert 2770 restores S_ISGID")
 
 
-def test_hermes_xml_mount_rw_app_only() -> None:
+def test_hermes_shared_mounts_rw_app_only() -> None:
     values = hr_values(
         HERMES_HR,
         env={
@@ -568,59 +800,79 @@ def test_hermes_xml_mount_rw_app_only() -> None:
     persistence = values.get("persistence") or {}
     require("data" in persistence, "hermes data persistence must remain")
     require(persistence["data"].get("existingClaim") in ("hermes", "${APP}"), "data claim untouched")
-    require("xml" in persistence, "xml persistence entry required")
-    xml = persistence["xml"]
-    require(xml.get("existingClaim") == CLAIM, "xml existingClaim must be shared-xml")
-    adv = ((xml.get("advancedMounts") or {}).get("hermes") or {})
-    require(list(adv.keys()) == ["app"], f"xml must mount on app only, got {list(adv.keys())}")
-    app_mounts = adv["app"]
-    require(
-        any(m.get("path") == "/opt/xml" for m in app_mounts),
-        "app must mount shared-xml at /opt/xml",
-    )
-    # No readOnly: true on the xml mount (two-way share).
-    for m in app_mounts:
-        if m.get("path") == "/opt/xml":
-            require(not m.get("readOnly"), "/opt/xml must be read-write")
+
+    for section, share in SHARES.items():
+        key, claim, path = share["hermes_key"], share["claim"], share["hermes_path"]
+        require(key in persistence, f"hermes persistence entry {key!r} required for share [{section}]")
+        entry = persistence[key]
+        require(
+            entry.get("existingClaim") == claim,
+            f"hermes {key} existingClaim must be {claim}, got {entry.get('existingClaim')!r}",
+        )
+        adv = (entry.get("advancedMounts") or {}).get("hermes") or {}
+        # advancedMounts, not globalMounts: globalMounts would put the share on
+        # every container including the init/seed pair, which is the contract
+        # this assertion exists to hold.
+        require(
+            list(adv.keys()) == ["app"],
+            f"{key} must mount on the app container only, got {list(adv.keys())}",
+        )
+        require(
+            any(m.get("path") == path for m in adv["app"]),
+            f"app must mount {claim} at {path}",
+        )
+        # No readOnly: true - both shares are two-way by design.
+        for m in adv["app"]:
+            if m.get("path") == path:
+                require(not m.get("readOnly"), f"{path} must be read-write")
+
+    # Distinct mount points, distinct claims - no share shadowing another.
+    hermes_paths = [s["hermes_path"] for s in SHARES.values()]
+    require(len(set(hermes_paths)) == len(hermes_paths), f"hermes mount paths must be distinct: {hermes_paths}")
 
     rendered = helm_template("hermes", values, namespace="ai")
     pod = deployment_pod(rendered)
     claims = pvc_volume_claims(pod)
     require(claims.get("data") == "hermes", "data volume still claims hermes")
-    require(claims.get("xml") == CLAIM, "xml volume claims shared-xml")
+    for share in SHARES.values():
+        require(
+            claims.get(share["hermes_key"]) == share["claim"],
+            f"volume {share['hermes_key']} must claim {share['claim']}, got {claims.get(share['hermes_key'])!r}",
+        )
 
     app = container_by_name(pod, "app")
     app_m = mounts_for(app)
     require("/opt/data" in app_m and app_m["/opt/data"]["name"] == "data", "app keeps /opt/data")
-    require("/opt/xml" in app_m and app_m["/opt/xml"]["name"] == "xml", "app mounts /opt/xml")
-    require(not app_m["/opt/xml"].get("readOnly"), "/opt/xml rendered read-write")
+    for share in SHARES.values():
+        path, key = share["hermes_path"], share["hermes_key"]
+        require(path in app_m and app_m[path]["name"] == key, f"app mounts {path} from volume {key}")
+        require(not app_m[path].get("readOnly"), f"{path} rendered read-write")
 
+    shared_paths = {s["hermes_path"] for s in SHARES.values()}
     for name in ("copy-config", "seed-skills", "codeserver"):
         try:
             other = container_by_name(pod, name)
         except Failure:
             continue
         other_m = mounts_for(other)
-        require(
-            "/opt/xml" not in other_m,
-            f"{name} must NOT mount /opt/xml (app-only contract)",
-        )
-        if name != "codeserver":
-            # init/seed still see /opt/data
-            pass
+        for path in sorted(shared_paths):
+            require(
+                path not in other_m,
+                f"{name} must NOT mount {path} (app-only contract)",
+            )
         if "/opt/data" in other_m:
             require(other_m["/opt/data"]["name"] == "data", f"{name} /opt/data stays on data claim")
 
 
 def main() -> int:
     tests = [
-        test_shared_xml_pvc_contract,
-        test_no_backup_on_shared_xml,
+        test_shared_pvc_contract,
+        test_no_backup_on_shared_claims,
         test_samba_overlay_wiring,
         test_hermes_depends_on_ai_pvc_first,
         test_samba_rendered_workload_and_service,
         test_setgid_race_model_and_filesystem_bit,
-        test_hermes_xml_mount_rw_app_only,
+        test_hermes_shared_mounts_rw_app_only,
     ]
     failed = 0
     for test in tests:
