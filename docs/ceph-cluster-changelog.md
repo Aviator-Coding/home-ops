@@ -22,7 +22,7 @@ rather than hardware failures. The goal is that when something breaks we can ans
 | Layer | Value |
 |-------|-------|
 | **Rook** | v1.20.6 (operator + cluster chart tags in `operator/ocirepository.yaml` and `cluster/ocirepository.yaml`; see 2026-08-23 CephX rotation entry) |
-| **Ceph** | v20.2.4 **Tentacle** (GitOps `cephImage.tag`; RGW gateways rolled to it 2026-08-23T12:15:27Z, verified live 2026-08-23). Carries the CVE-2026-54330 SigV4 fix, which also broke every minio-go write until `rgw_sigv4_insecure` was set - **see the 2026-08-23 `rgw_sigv4_insecure` entry before touching RGW or bumping this tag**. Default `csi` subvolumegroup still broken; RWX stays on `ceph-filesystem-rwx` (4 consumers as of 2026-09-04; see that entry and 2026-08-21) |
+| **Ceph** | v20.2.4 **Tentacle** (GitOps `cephImage.tag`; RGW gateways rolled to it 2026-08-23T12:15:27Z, verified live 2026-08-23). Carries the CVE-2026-54330 SigV4 fix, which also broke every minio-go write until `rgw_sigv4_insecure` was set - **see the 2026-08-23 `rgw_sigv4_insecure` entry before touching RGW or bumping this tag**. Default `csi` subvolumegroup still broken; RWX stays on `ceph-filesystem-rwx` (4 consumers as of 2026-09-17; see that entry and 2026-08-21) |
 | **Talos** | `talos/machineconfig.yaml.j2` installer pin reconciled to **v1.13.9**, matching tuppr `TalosUpgrade` **v1.13.9** (kernel has `CONFIG_CEPH_FS=y`, `CONFIG_BLK_DEV_RBD=y`, `CONFIG_CEPH_LIB=y` — CephFS + krbd **built-in**). Changelog does not claim a running version without live `kubectl get nodes`. |
 | **Kubernetes** | `talos/machineconfig.yaml.j2` kubelet/control-plane images reconciled to **v1.36.3**, matching tuppr `KubernetesUpgrade` **v1.36.3**. Changelog does not claim a running version without live `kubectl version`. |
 | **Cluster FSID** | `6562d9b0-883a-4e55-8b5d-899eaa7e0d10` |
@@ -83,6 +83,18 @@ Notes / evidence / sources.
 ---
 
 ## Change log
+
+### [2026-09-17] Fourth live `ceph-filesystem-rwx` consumer: `ai/shared-files`  (branch `fm/homeops-second-smb-share`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | New standalone RWX claim `ai/shared-files` (100Gi, `ceph-filesystem-rwx` / group `csi-rwx`) at `kubernetes/apps/base/ai/pvc/app/shared-files.yaml`, mounted by `ai/samba` (second share section `[files]` on the existing LoadBalancer `10.50.0.55:445` - no new app, Service, or IP) and `ai/hermes` (`/opt/files`, app container only). |
+| **Why** | General-purpose LAN drop folder, sibling of `ai/shared-xml`: same server, same forced uid/gid 10000 ownership contract, same standalone-PVC shape because two apps mount it. Must not use default `ceph-filesystem` / group `csi` (still broken - 2026-08-21). |
+| **Risk** | New CephFS subvolume in `csi-rwx` only; no change to existing RWX claims or to the default `csi` group. Deliberately **not** kopiur/VolSync-backed - unlike `shared-xml` (Mac holds the authoritative copy), this claim has no such guarantee and is explicitly treated as scratch; recorded on the PVC and the samba overlay so the omission is not read as an oversight. |
+| **Rollback** | Drop `shared-files.yaml` from the `ai-pvc` overlay's `kustomization.yaml` and the hermes `files` persistence entry; reclaim the PVC/PV. |
+| **Verify** | Render-only: `task flux:test:all` / `scripts/ci/samba-shared-xml-test.py`. No live drill - brand-new claim with no live workload to suspend for (see `AGENTS.md`'s "definition of done for a new app" note). |
+
+**Still using `ceph-filesystem-rwx` (4):** `downloads/pvc` (`shared-downloads` 2Ti), `media/tdarr` (`tdarr-temp` 200Gi), `ai/pvc` (`shared-xml` 100Gi, `shared-files` 100Gi). Supersedes the tally in the 2026-09-04 entry below.
 
 ### [2026-09-15] Disable dead `csi-metrics` ServiceMonitor  (branch `fm/homeops-monitor-selector-repair`)
 
@@ -185,7 +197,7 @@ several weekly passes, re-accumulation between runs proves material.**
 | **Rollback** | Delete the `ai-pvc` / `samba` overlays and the hermes `xml` persistence entry; reclaim the PVC/PV. |
 | **Verify** | PVC Bound on `ceph-filesystem-rwx`; live mount_smbfs drill proved 10000:10000 ownership both directions (see branch intent). GitOps pin: `scripts/ci/samba-shared-xml-test.py` when present. |
 
-**Still using `ceph-filesystem-rwx` (3):** `downloads/pvc` (`shared-downloads` 2Ti), `media/tdarr` (`tdarr-temp` 200Gi), `ai/pvc` (`shared-xml` 100Gi). Supersedes the 3-PVC inventory in the 2026-08-21 entry for current ops; that entry remains the probe evidence that group `csi` is still broken. `ai/comfyui` (`comfyui-output` 25Gi) was a fourth consumer until comfyui was removed 2026-09-15. Retirement rule unchanged: only migrate back to `ceph-filesystem` after a clean `create`/`getpath`/`rm` against group `csi` on a future Ceph release - now for all **3** claims.
+Supersedes the 3-PVC inventory in the 2026-08-21 entry for current ops; that entry remains the probe evidence that group `csi` is still broken. `ai/comfyui` (`comfyui-output` 25Gi) was a fourth consumer until comfyui was removed 2026-09-15. Retirement rule unchanged: only migrate back to `ceph-filesystem` after a clean `create`/`getpath`/`rm` against group `csi` on a future Ceph release. Current tally: see the 2026-09-17 entry above.
 
 ### [2026-08-23] Fix CephMonitorQuorumAtRisk gauge-vs-count alert bug  (commits `649869b0`, `c1431311`)
 
