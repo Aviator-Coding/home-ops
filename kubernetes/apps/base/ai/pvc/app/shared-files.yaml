@@ -1,0 +1,40 @@
+---
+# General-purpose shared folder (RWX): written from the captain's Mac over SMB
+# (ns `ai`, app `samba`, share `[files]` at smb://10.50.0.55/files) and
+# read/written by the hermes agent at /opt/files. Standalone rather than
+# embedded in either HelmRelease, because two apps mount it - same reasoning as
+# its sibling shared-xml.yaml and kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml.
+#
+# Sibling of `shared-xml`, not a replacement for it: that claim is a mirror of
+# one specific corpus, this one is the captain's open drop folder. Same
+# ownership contract (uid/gid 10000 both sides), same server, second share
+# section - see kubernetes/apps/base/ai/samba/app/resources/smb.conf.
+#
+# `ceph-filesystem-rwx` (subvolumegroup `csi-rwx`), NOT `ceph-filesystem`: the
+# default `csi` group hit the Ceph Tentacle v20.2.1 subvolume corruption and
+# `csi-rwx` is the migrated-to path. CephFS claims are thin-provisioned, so
+# 100Gi reserves nothing until it is actually written.
+#
+# DELIBERATELY NOT BACKED UP, and this decision deserves more scrutiny here
+# than on shared-xml. No `components/kopiur` on the owning Kustomization and no
+# ReplicationSource. shared-xml is safe unbacked because the Mac holds the
+# authoritative copy of that corpus; this share has no such guarantee - it is
+# general-purpose, so whatever the captain drops here may exist nowhere else.
+# It is unbacked anyway - a deliberate choice the captain was told about when
+# this share was requested, to keep the pair symmetric and the nightly cost off
+# a scratch/transfer folder, not an omission anyone should silently "fix".
+# TREAT IT AS SCRATCH: anything that must survive belongs on a backed-up claim.
+# Reversing this is one line - add `components/kopiur` to
+# kubernetes/apps/main/ai/pvc.yaml (and KOPIUR_PUID/PGID "10000", matching the
+# forced identity) - which is why the omission is recorded rather than assumed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-files
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: ceph-filesystem-rwx

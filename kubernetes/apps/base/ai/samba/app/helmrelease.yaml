@@ -19,21 +19,25 @@ spec:
   values:
     controllers:
       samba:
-        # One writer identity, one shared RWX volume, and smbd holds per-file
-        # locks in its own process - a second replica would not share that state.
+        # One writer identity, and smbd holds per-file locks in its own
+        # process - a second replica would not share that state across either of
+        # the two RWX volumes it serves.
         replicas: 1
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
         initContainers:
-          # Pin the share root to the identity both sides use, so the very first
-          # SMB connection and the first hermes write land on a directory they
-          # can both traverse and write.
+          # Pin BOTH share roots to the identity both sides use, so the very
+          # first SMB connection and the first hermes write land on a directory
+          # they can both traverse and write. /shared is the XML corpus
+          # (claim shared-xml), /files is the general-purpose folder
+          # (claim shared-files); see resources/smb.conf for the share sections.
           #
-          # NON-RECURSIVE on purpose. The share is sized for ~300,000 files; a
+          # NON-RECURSIVE on purpose. /shared is sized for ~300,000 files; a
           # `chown -R` would cost minutes on every pod start and buy nothing,
           # because smbd forces 10000:10000 on everything written through it
           # (see resources/smb.conf) and the hermes agent already runs as 10000.
+          # Same reasoning applies to /files, whose contents are unbounded.
           #
           # The SETGID BIT IN 2770 IS LOAD-BEARING, and it is not obvious.
           # `fsGroupChangePolicy: OnRootMismatch` (here and on the hermes pod)
@@ -42,16 +46,27 @@ spec:
           # fails that test, so the kubelet would walk all ~300,000 entries on
           # every hermes pod start. Measured here on 2026-09-04: with the root
           # at 0770 the walk ran and left it at 2770; at 2770 it is skipped.
+          # That cost is per-volume, so /files needs the same bit for the same
+          # reason - it just has not grown into the pain yet.
           #
-          # The image's own entrypoint resets the root to 0770 while the share
-          # is still EMPTY (`if [ -z "$(ls -A /shared)" ]`), AFTER this
-          # initContainer runs. That reset is real and is NOT reliably repaired
-          # by the kubelet: OnRootMismatch only restores setgid if hermes
-          # happens to mount in the empty window, and a samba restart while the
-          # share is still empty re-strips it. This initContainer covers the
-          # pre-smbd window (hermes mounting the fresh volume first); the app
-          # container's postStart hook is what holds the setgid invariant after
-          # the entrypoint has finished both its chmod and chown branches.
+          # THE TWO PATHS ARE NOT SYMMETRIC, and the difference is upstream's,
+          # not ours. dockur/samba's entrypoint hardcodes `share="/shared"`
+          # (samba.sh; `/storage` is the only other value, a legacy fallback),
+          # so its `mkdir -p`, its empty-share `chmod 0770` and its
+          # `chown $USER:$group` apply to /shared ONLY:
+          #   /shared - the entrypoint resets it to 0770 while the share is
+          #     still EMPTY (`if [ -z "$(ls -A /shared)" ]`), AFTER this
+          #     initContainer runs. That reset is real and is NOT reliably
+          #     repaired by the kubelet: OnRootMismatch only restores setgid if
+          #     hermes happens to mount in the empty window, and a samba restart
+          #     while the share is still empty re-strips it. So the app
+          #     container's postStart hook is what HOLDS the invariant here.
+          #   /files - the entrypoint never sees this path, so nothing strips
+          #     the bit and THIS initContainer is what establishes it. The
+          #     postStart re-assert covers it too, as idempotent insurance
+          #     against upstream ever deriving its share list from smb.conf.
+          # Either way this initContainer covers the pre-smbd window (hermes
+          # mounting a fresh volume first) for both.
           chown-share:
             image:
               repository: docker.io/library/alpine
@@ -63,6 +78,8 @@ spec:
                 set -eu
                 chown 10000:10000 /shared
                 chmod 2770 /shared
+                chown 10000:10000 /files
+                chmod 2770 /files
             securityContext:
               runAsUser: 0
               runAsGroup: 0
@@ -82,15 +99,24 @@ spec:
               TZ: ${CONFIG_TIMEZONE}
               # Password arrives as a file at /run/secrets/pass (see persistence
               # below), which the entrypoint prefers over the PASS env.
-            # Re-assert share-root 2770 after the entrypoint is past both of its
-            # chmod/chown branches. Waiting on `pgrep -x smbd` is a hard
-            # happens-after edge: the entrypoint only reaches `exec smbd` after
-            # the empty-share `chmod 0770` and the `chown $USER:$group` paths,
-            # so the re-assert cannot land too early. postStart otherwise races
-            # the entrypoint (k8s guarantees no ordering). Bounded loop, always
-            # `exit 0`, and `chmod 2770` is idempotent - a no-op when already
-            # correct. Same wait-then-act shape as hermes' gateway-default
+            # Re-assert both share roots at 2770 after the entrypoint is past
+            # both of its chmod/chown branches. Waiting on `pgrep -x smbd` is a
+            # hard happens-after edge: the entrypoint only reaches `exec smbd`
+            # after the empty-share `chmod 0770` and the `chown $USER:$group`
+            # paths, so the re-assert cannot land too early. postStart otherwise
+            # races the entrypoint (k8s guarantees no ordering). Bounded loop,
+            # always `exit 0`, and `chmod 2770` is idempotent - a no-op when
+            # already correct. Same wait-then-act shape as hermes' gateway-default
             # postStart. Pair with chown-share above for the pre-smbd window.
+            #
+            # /shared NEEDS this - the entrypoint strips its setgid bit on an
+            # empty share. /files does not today, because the entrypoint's
+            # hardcoded `share="/shared"` never reaches it (see chown-share
+            # above); it is re-asserted anyway because the chmod is free, both
+            # roots then hold one invariant instead of two, and an upstream that
+            # ever derives its share list from smb.conf would strip /files
+            # silently - the failure mode being a full recursive kubelet walk on
+            # every hermes start, not an error anyone would see.
             lifecycle:
               postStart:
                 exec:
@@ -101,6 +127,7 @@ spec:
                       for i in $(seq 1 60); do
                         if pgrep -x smbd >/dev/null 2>&1; then
                           chmod 2770 /shared || true
+                          chmod 2770 /files || true
                           break
                         fi
                         sleep 1
@@ -126,7 +153,8 @@ spec:
               # possible from an unprivileged container, so this app is a
               # deliberate exception to the repo's non-root convention rather
               # than an oversight. It is reachable only from the LAN (no
-              # HTTPRoute, no envoy listener) and serves exactly one share.
+              # HTTPRoute, no envoy listener) and serves exactly two LAN
+              # shares, both to the same single account.
               runAsUser: 0
               runAsGroup: 0
             resources:
@@ -146,7 +174,9 @@ spec:
         controller: samba
         # LAN-only, on a free address in the Cilium BGP pool (10.50.0.0/24).
         # Deliberately NOT behind envoy-internal/-external: SMB is not HTTP and
-        # this share must never be publicly reachable.
+        # these shares must never be publicly reachable. One address serves both
+        # ([xml] and [files]) - a share is a section in smb.conf, not a
+        # listener, so adding one never needs another IP.
         type: LoadBalancer
         annotations:
           lbipam.cilium.io/ips: 10.50.0.55
@@ -155,7 +185,10 @@ spec:
             port: *smb
             protocol: TCP
     persistence:
-      # The shared corpus. Same claim hermes mounts at /opt/xml.
+      # The shared XML corpus, exported as [xml]. Same claim hermes mounts at
+      # /opt/xml. The path /shared is not free-choice: dockur/samba's entrypoint
+      # hardcodes it (see chown-share above), so the primary share must live
+      # there.
       shared-xml:
         existingClaim: shared-xml
         advancedMounts:
@@ -164,6 +197,19 @@ spec:
               - path: /shared
             app:
               - path: /shared
+      # The general-purpose folder, exported as [files] (smb://10.50.0.55/files)
+      # and mounted by hermes at /opt/files. Second share section on THIS
+      # server, deliberately not a second Samba app: one smbd, one LoadBalancer,
+      # one account, one forced identity. chown-share needs the same mount so it
+      # can pin the root before smbd starts.
+      shared-files:
+        existingClaim: shared-files
+        advancedMounts:
+          samba:
+            chown-share:
+              - path: /files
+            app:
+              - path: /files
       # smb.conf is the whole app - the entrypoint uses it verbatim instead of
       # generating one from env. Mounted read-only; reloader restarts the pod
       # when the ConfigMap content changes.
