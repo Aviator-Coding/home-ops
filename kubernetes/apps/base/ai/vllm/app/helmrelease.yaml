@@ -232,10 +232,14 @@ spec:
                 #
                 # 39Gi clears the measured 30-day PEAK working set of 39342Mi
                 # (not the average - steady state is ~37.6GiB) by 594Mi. The peak
-                # is the right target because the footprint is anonymous and
+                # is the right target because the footprint was anonymous and
                 # irreclaimable: container_memory_rss 37536Mi against
-                # container_memory_cache of 4Mi, because the server runs
-                # --no-mmap. The kernel cannot reclaim any of it under pressure.
+                # container_memory_cache of 4Mi. That growth was the unbounded
+                # host prompt-cache heap (see the --cache-ram/GLIBC_TUNABLES
+                # comment above), not --no-mmap - RSS holds at 635Mi through
+                # weight load while 22502Mi of file-backed page cache appears,
+                # so the weights are reclaimable and excluded from this figure.
+                # See docs/ai/vllm-host-prompt-cache.md.
                 #
                 # CORRECTION 2026-09-14: this shipped as 40Gi and the pod went
                 # Pending - `0/3 nodes are available: 2 Insufficient
