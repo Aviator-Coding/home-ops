@@ -598,8 +598,9 @@ production.)
 `limits.memory: 48Gi` with `requests.memory: 39Gi` - a much wider margin, but not an unlimited
 one. It is deliberately **not** changed here, and `--cache-ram 0` would be the wrong answer for it:
 it is a chat server, where the read path *is* `SERVER_TASK_TYPE_COMPLETION` and prefix reuse across
-multi-turn conversation is genuinely valuable. Its answer is a bounded non-zero value, which is
-tracked as its own decision.
+multi-turn conversation is genuinely valuable. Its answer is a bounded non-zero value, which was
+left on the default and did leak as predicted - fixed 2026-09-19 by `--cache-ram 4096` plus
+`GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072`: `docs/ai/vllm-host-prompt-cache.md`.
 
 ### What the next sustained backfill proves
 

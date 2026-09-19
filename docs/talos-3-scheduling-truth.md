@@ -289,14 +289,25 @@ The rest are chart-owned sidecars (`nats` prom-exporter/reloader, grafana's
 
 ## 6. Two things a future reader should not re-derive
 
-- **`ai/vllm`'s memory is anonymous, not reclaimable cache.** Measured
-  `container_memory_rss` 37536 Mi against `container_memory_cache` **4 Mi**,
-  because the server runs with `--no-mmap`. A request has to cover it; the
-  kernel cannot reclaim it under pressure. Dropping `--no-mmap` would let
-  llama.cpp mmap the GGUF so model pages become evictable page cache - that is
-  an argument change and a separate captain decision, deliberately not made
-  here, but it is the lever that would shrink the footprint rather than
-  re-shuffle around it.
+- **`ai/vllm`'s memory is anonymous, not reclaimable cache** - but
+  **`--no-mmap` is not why, and dropping it would free approximately nothing.**
+  Measured `container_memory_rss` 37536 Mi against `container_memory_cache`
+  **4 Mi**, and a request does have to cover it. **CORRECTION 2026-09-19:** the
+  original version of this bullet named dropping `--no-mmap` as "the lever that
+  would shrink the footprint". That was wrong and is retracted. Sampling the
+  pod's first minutes at 2-minute resolution shows RSS stays at **635 MiB**
+  through model load while **22,502 MiB of page cache** appears: llama.cpp's
+  `--no-mmap` path `read()`s each tensor into a small reusable buffer and
+  uploads it to VRAM, so the GGUF already lands in reclaimable, file-backed page
+  cache - the exact state dropping the flag was supposed to achieve. Leave it
+  alone. The anonymous memory was the **host prompt cache**: a single
+  `brk()`-grown `[heap]` of 17,107 Mi (vs 317 Mi on the same image with
+  `--cache-ram 0`) growing +6,485 Mi/day, fixed 2026-09-19 by `--cache-ram 4096`
+  plus `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072`. Expected post-fix
+  steady state is ~9-20 GiB, so **the 39Gi request above is expected to become
+  re-derivable downward** - but only against a measured steady state, not a
+  reading taken shortly after a roll. Full evidence:
+  `docs/ai/vllm-host-prompt-cache.md`.
 - **The descheduler's `LowNodeUtilization` plugin has never rebalanced
   anything.** Its `thresholds` are `cpu/memory/pods: 20`, and no node in this
   cluster has been under 20% memory, so it logs `No node is underutilized,
