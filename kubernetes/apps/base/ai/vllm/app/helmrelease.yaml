@@ -109,6 +109,46 @@ spec:
               # what production actually benefits from. Do not "fix" this by
               # dropping the mmproj without a decision - that removes vision.
               - "256"
+              - --cache-ram
+              # HOST-RAM prompt cache. Its absence is SILENT and means llama.cpp's
+              # 8192 MiB default - there is no log line at a level we keep, no
+              # warning, and no CI signal, which is why this is gated by
+              # scripts/ci/vllm-prompt-cache-test.py rather than left to a comment.
+              #
+              # This server was leaking on the default: host working set climbed
+              # monotonically from a 1232 MiB post-load baseline at +5622 to
+              # +6485 MiB/day and never plateaued, reaching 39531 MiB over 6.6
+              # days on the pod before this one (rescued only by the 2026-09-15
+              # talos-3 reboot, not by anything working as designed) and 26760
+              # MiB by 2026-09-19T19:12Z on the current one - on track to cross
+              # the 39Gi request ~2026-09-21 and OOMKill at the 48Gi limit
+              # ~2026-09-23. The limit is NOT a backstop here: llama.cpp's only
+              # self-limiting guard is a bad_alloc handler inside
+              # server_prompt_cache::alloc that a cgroup limit makes structurally
+              # unreachable, because the kernel SIGKILLs at page-fault time so
+              # malloc never fails. That is why ai/embedding-gpu OOMKilled 18x at
+              # 2Gi and again at 4Gi before the cause was found.
+              #
+              # The weights are NOT the cause and --no-mmap is not the suspect:
+              # measured at load, RSS stays at 635 MiB while 22502 MiB of
+              # file-backed page cache appears, so the GGUF is already
+              # reclaimable and excluded from working set. The resident growth is
+              # one brk()-grown [heap] of 17107 MiB (1 mapping) against
+              # ai/embedding-gpu's 317 MiB on the same image with --cache-ram 0,
+              # a 54x heap and ~700x slope difference whose only structurally
+              # relevant delta is this flag.
+              #
+              # 4096, NOT 0. ai/embedding-gpu pins 0 because its cache is
+              # write-only (the read path is gated on SERVER_TASK_TYPE_COMPLETION)
+              # - do not copy that value here. This is a CHAT server where prefix
+              # reuse is real and earning its keep: mean f_keep = 0.975 across
+              # 1560 slot selections, i.e. 97.5% of prompt KV is reused, and
+              # prefill is 88% of this workload's tokens (see -ub 2048 below). 0
+              # would trade an OOM for a large, permanent prefill regression.
+              #
+              # Pairs with GLIBC_TUNABLES below and does not work alone - see
+              # that comment. Full evidence: docs/ai/vllm-host-prompt-cache.md.
+              - "4096"
               - --no-mmap
               # Physical batch. -ub defaults to 512 while -b defaults to 2048, so
               # a 2048-token prefill chunk ran as FOUR GPU passes. That matters
@@ -138,6 +178,37 @@ spec:
               ZES_ENABLE_SYSMAN: "1"
               UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS: "1"
               SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS: "1"
+              # The SECOND HALF of the --cache-ram fix above, and it carries
+              # comparable weight - do not ship one without the other.
+              #
+              # --cache-ram alone bounds the cache LOGICALLY but need not shrink
+              # RSS, because the growth is driven by allocator churn as much as
+              # by cache size, and a smaller cache churns MORE often. The proof
+              # that the logical bound is not what is being honoured: the process
+              # reached 39531 MiB against a 1232 MiB baseline while its declared
+              # bound was 8192 MiB - a 4.7x overshoot - with the excess sitting
+              # in a single brk()-grown [heap] region.
+              #
+              # Mechanism: glibc's main arena grows via brk() and can only be
+              # trimmed FROM THE TOP, so any live allocation near the top pins
+              # everything below it. glibc also RAISES its dynamic mmap_threshold
+              # up to 32 MiB the first time an mmap'd block is freed; after that
+              # the sub-32 MiB per-layer KV chunks composing a cache entry come
+              # from the heap and are never returned to the OS. The server log
+              # shows exactly that pattern - 80 `making room for prompt cache
+              # entry` evictions of 191..1886 MiB (mean 860 MiB, 67.2 GiB total)
+              # in one retained window. Freeing an 1886 MiB entry and allocating
+              # a 200 MiB one strands the difference; repeat and you get a 17 GiB
+              # heap.
+              #
+              # Setting the tunable explicitly DISABLES that dynamic raise and
+              # pins the threshold at 128 KiB, so the large chunks are served by
+              # mmap - which IS returned to the OS on free. MALLOC_MMAP_THRESHOLD_
+              # is the equivalent older spelling; either works, GLIBC_TUNABLES is
+              # the supported modern one. Do not remove this when tuning
+              # --cache-ram: a future value change does not make the allocator
+              # behaviour go away.
+              GLIBC_TUNABLES: glibc.malloc.mmap_threshold=131072
             envFrom: &envFrom
               - secretRef:
                   name: vllm-secret
@@ -192,8 +263,20 @@ spec:
                 memory: 39Gi
                 devic.es/b70: 1
               limits:
-                # Unchanged. Bounding this server's growth is a separate open
-                # decision; this change only makes the reservation honest.
+                # Growth is now bounded at the source, by --cache-ram 4096 +
+                # GLIBC_TUNABLES above - NOT by this limit, which cannot serve as
+                # a backstop (llama.cpp's bad_alloc guard is unreachable under a
+                # cgroup; see the --cache-ram comment).
+                #
+                # Both this and the 39Gi request are DELIBERATELY left at their
+                # pre-fix values. They are sized for the leak, and lowering them
+                # before the fix is proven live would remove the headroom that is
+                # currently preventing an eviction. Expected post-fix steady state
+                # is ~9-20 GiB, so right-sizing is a follow-up - and it needs a
+                # measured steady state, not a reading taken shortly after a roll:
+                # the pod starts at ~1.2 GiB either way, so an early sample cannot
+                # distinguish a fix from a failure. Re-measure against
+                # docs/talos-3-scheduling-truth.md before touching either number.
                 memory: 48Gi
                 devic.es/b70: 1
             probes:
