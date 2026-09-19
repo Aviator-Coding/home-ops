@@ -43,7 +43,10 @@ What this does not catch
   - any OTHER host-memory growth path in llama.cpp
   - ai/vllm's own exposure to the same 8192 default. That is a CHAT server where
     prefix reuse is genuinely valuable, so its answer is a bounded non-zero
-    value, not this one; it is tracked separately and deliberately untouched.
+    value, not this one. It was still unset when this file was written and did
+    leak, exactly as predicted - fixed 2026-09-19 and now gated by its own
+    sibling, scripts/ci/vllm-prompt-cache-test.py. Do not copy THIS file's
+    `--cache-ram 0` onto vllm; that gate refuses it.
 """
 
 from __future__ import annotations
