@@ -57,7 +57,7 @@ spec:
             description: >-
               The hermes PVC (state.db, sessions, memories) is projected to
               reach capacity within ~14 days at its current growth rate
-              (projected to {{ $value | humanize1024 }}B of the 25Gi
+              (projected to {{ $value | humanize1024 }}B of the 40Gi
               claim). Investigate state.db growth/retention or grow the
               claim before it actually fills - a full RWO volume stops
               Hermes' single writer cold.
@@ -75,7 +75,7 @@ spec:
             description: >-
               The hermes PVC is projected to reach capacity within ~3 days
               at its current growth rate (projected to {{ $value |
-              humanize1024 }}B of the 25Gi claim). Act now - grow the
+              humanize1024 }}B of the 40Gi claim). Act now - grow the
               claim or clear space - not after Hermes' single writer starts
               failing.
           expr: |
@@ -96,7 +96,7 @@ spec:
             summary: hermes's /opt/data volume is nearly full
             description: >-
               The hermes PVC is at {{ $value | humanizePercentage }} of its
-              25Gi capacity. Hermes has a single RWO writer - a full volume
+              40Gi capacity. Hermes has a single RWO writer - a full volume
               stops it cold, not just degrades it.
           expr: |
             sum by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="ai", persistentvolumeclaim="hermes"})

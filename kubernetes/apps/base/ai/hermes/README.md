@@ -95,10 +95,11 @@ provider directly; the model id alone picks the upstream (see
 ## `state.db` retention (why the volume stopped filling)
 
 `/opt/data/state.db` is the agent's session store and it dominates this claim: **9.31 GiB of a 25Gi
-PVC that was 76% full**, growing ~175-235 MB/day, against Hermes' own 1 GiB `doctor` warning
-threshold. ~98% of it is `cron` automation transcripts, and ~79% of the file is FTS5 storage and
-index (the message text is stored **three times**: `messages`, plus an inline content copy for each
-of the two FTS indexes).
+PVC that was 76% full** (measured 2026-09-15, before the claim grew 25Gi -> 40Gi on 2026-09-20 -
+see growth-doc section 11 below), growing ~175-235 MB/day, against Hermes' own 1 GiB `doctor`
+warning threshold. ~98% of it is `cron` automation transcripts, and ~79% of the file is FTS5
+storage and index (the message text is stored **three times**: `messages`, plus an inline content
+copy for each of the two FTS indexes).
 
 Upstream's `sessions.auto_prune` was **already on and already running**. It reclaimed nothing
 because `retention_days: 90` is wider than this install is old, so only 3.3% of sessions had ever
