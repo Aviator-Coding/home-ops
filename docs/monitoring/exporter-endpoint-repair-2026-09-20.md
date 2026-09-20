@@ -271,10 +271,49 @@ reporting `SecretSynced`:
 `downloads/bazarr` reads the **same** `Homelab/plex` -> `PLEX_TOKEN` field, so populating it
 repairs Bazarr's Plex integration at the same time as the exporter.
 
-Some of these are very likely benign - `notesPlain` is a 1Password secure-note artifact, and an
-empty `CODER_OIDC_ALLOWED_GROUPS` plausibly means "no group restriction". The
-`home-automation` entries were **not** investigated and are **not** changed here; they are
-listed so the state is recorded, not because they are known faults.
+### Counting this precisely (the units differ)
+
+Measured two independent ways that agree: once by walking all 129 ExternalSecrets and resolving
+their targets, and once by sweeping all **674** Secrets in the cluster for zero-length values
+(the second method avoids any target-name-resolution hole in the first, and it also found the
+only non-ESO case, `monitoring/prometheus-kube-prometheus-stack-web-config`, which is
+Prometheus-operator-owned and normal).
+
+State the unit when quoting this, because three different numbers are all correct:
+
+- **7 secrets** carry at least one empty key.
+- **7 ExternalSecrets** own them (the two `*-tls` ones are ESO-managed but carry no
+  `ownerReferences`, so an owner-based count alone would say 5).
+- **12 empty keys** in total - of which **9 are credential-shaped**, once the two `notesPlain`
+  secure-note artifacts and `coder`'s plausibly-deliberate `CODER_OIDC_ALLOWED_GROUPS` are set
+  aside.
+
+### The two `home-automation` entries are NOT the same kind of problem
+
+They were investigated on 2026-09-20 and they differ from each other and from plex:
+
+**`home-assistant` (4 keys) - dead declarations.** Its live `/config` references none of
+`HASS_DARKSKY_API_KEY`, `HASS_ECOBEE_API_KEY`, `HASS_GOOGLE_PROJECT_ID` or
+`HASS_GOOGLE_SECURE_DEVICES_PIN`; they appear only in the ExternalSecret's own template. Nothing
+consumes them, and Dark Sky's API shut down in 2023. This is the same shape as the dead
+`APP_UID`/`APP_GID` `postBuild.substitute` pairs AGENTS.md already records: a declared value no
+manifest reads is a liability, not documentation. Home Assistant is unaffected today.
+
+**`zigbee2mqtt` (3 keys) - a live latent hazard, not a current fault.** Unlike the above these
+ARE wired into live env vars (`ZIGBEE2MQTT_CONFIG_ADVANCED_NETWORK_KEY`, `_PAN_ID`,
+`_EXT_PAN_ID`) via `secretKeyRef`, and all three are empty in the running pod. The app is
+nonetheless healthy (2/2, 14d) because its **persisted** `/data/configuration.yaml` holds a real
+`network_key` and `pan_id: 53625`, and an empty env var does not override it.
+
+The hazard is that the declarative intent - pin the Zigbee network identity from 1Password - is
+silently not in force. The values live only on the PVC. If that volume were ever restored empty
+or recreated (see the `latestImage` / populator traps in AGENTS.md), zigbee2mqtt would generate
+a **new random network key**, and every paired Zigbee device would drop off the network and need
+re-pairing. Nothing in the cluster would report an error first.
+
+Neither is changed here - both are outside this task's scope (the two scrape targets) and the
+zigbee2mqtt one in particular is a decision about whether to populate the 1Password fields from
+the live persisted config or to delete the env wiring, not a mechanical fix.
 
 The generalisable point is the one the plex case proves: **an ExternalSecret reporting
 `SecretSynced / Ready=True` does not mean the value is usable.** ESO does not validate that a
