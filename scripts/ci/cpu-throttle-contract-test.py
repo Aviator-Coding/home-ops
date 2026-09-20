@@ -23,8 +23,9 @@ the next legitimate change to it):
      requires requests == limits on BOTH cpu and memory for EVERY container,
      and losing it re-opens the 2026-09-06 OOMController kills that the
      requests==limits block was added to stop. Asserted as equality across
-     every container k8tz declares, including the cert-watcher sidecar patch -
-     never against the number 250m.
+     every container k8tz declares, including the cert-watcher sidecar patch
+     and the bootstrap initContainer k8tz injects into every OTHER pod in the
+     cluster (rook-ceph mons included) - never against the number 250m.
 
 Measurement method and evidence live at each declaration site.
 """
@@ -125,6 +126,13 @@ def _k8tz_resource_blocks(path: Path) -> list[tuple[str, dict[str, Any]]]:
     if isinstance(values.get("resources"), dict):
         blocks.append(("values.resources (webhook container)", values["resources"]))
 
+    if isinstance(values.get("initContainerResources"), dict):
+        # Not a container in k8tz's own pod - this configures the bootstrap
+        # initContainer k8tz injects into every OTHER pod in the cluster
+        # (including the rook-ceph mons). Losing requests==limits here demotes
+        # those injected pods from Guaranteed to Burstable, not k8tz itself.
+        blocks.append(("values.initContainerResources (injected bootstrap init)", values["initContainerResources"]))
+
     def walk(node: Any, trail: str) -> None:
         if isinstance(node, dict):
             for k, v in node.items():
@@ -175,10 +183,10 @@ def test_k8tz_stays_guaranteed_qos(path: Path | None = None) -> None:
     require(path.is_file(), f"{K8TZ_HELMRELEASE} is missing - update this gate if k8tz was retired")
     blocks = _k8tz_resource_blocks(path)
     require(
-        len(blocks) >= 2,
-        f"expected at least 2 k8tz resources blocks (webhook + cert-watcher sidecar), "
-        f"found {len(blocks)}: {[b[0] for b in blocks]} - if the chart changed, this gate "
-        f"must be updated rather than the assertion relaxed",
+        len(blocks) >= 3,
+        f"expected at least 3 k8tz resources blocks (webhook + cert-watcher sidecar + "
+        f"injected bootstrap init container), found {len(blocks)}: {[b[0] for b in blocks]} - "
+        f"if the chart changed, this gate must be updated rather than the assertion relaxed",
     )
     for where, res in blocks:
         req, lim = res.get("requests") or {}, res.get("limits") or {}
