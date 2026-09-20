@@ -1,0 +1,125 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# Captain-owned key for `gnhf`, an unattended agent loop run from the captain's
+# Mac. The consumer is OFF-CLUSTER - no workload in this repo holds this key -
+# so the blast radius of a rotation is whoever is driving that Mac, exactly as
+# for agent-swarm-captain.yaml, whose shape this file follows.
+#
+# WHY `chat-local`, AND WHY NOT ONE OF ITS FOUR SIBLING ALIASES.
+# models/chat-local.yaml documents five aliases of the one B70 llama.cpp
+# backend, each carrying exactly one property the others must not. Two of them
+# would be actively wrong here:
+#   - `qwen3.6-35b-a3b` carries deliberately INFLATED synthetic prices so the
+#     `demo` key's $0.05 cap can be exhausted by a single smoke test. Scoping a
+#     real consumer to it would spray play-money spend across every budget and
+#     spend dashboard - the exact confusion the 2026-08-27 pricing split fixed.
+#   - `chat-ha` carries a CLOUD FALLBACK to sonnet-5, and a config-declared
+#     fallback BYPASSES the calling key's model allow-list entirely (measured
+#     2026-08-26: a key scoped to one local model was served by
+#     anthropic/claude-sonnet-5 and billed real USD, having never named it -
+#     docs/ai-system/litellm/fallbacks.md#1). That is a D4 governance boundary,
+#     not a tuning detail: an unattended overnight loop behind a cloud fallback
+#     is an unbounded bill the first time the GPU hiccups.
+# `chat-local` is zero-priced and appears in NEITHER the `fallbacks` nor the
+# `context_window_fallbacks` list in app/litellmproxy.yaml. That absence is the
+# enforcement, and it is what makes this key structurally incapable of reaching
+# a paid provider. It fails closed on a B70 outage instead, which is the right
+# trade for an unattended loop nobody is watching.
+#
+# NO `maxBudget`, DELIBERATELY - AND THIS NEEDED A CI CHANGE, NOT JUST A COMMENT.
+# chat-local carries no `info.extra` prices, so recorded spend on this key is
+# $0.00 by construction and any dollar cap could never trip. A cap that cannot
+# fire reads as protection that does not exist, which is the anti-pattern
+# repo-wiki.yaml and ai-pr-review.yaml both call out. The rate limits below are
+# the real control here, not a dollar figure.
+# `scripts/ci/litellm-claude-code-subscription-test.py` asserts the EXACT set of
+# keys permitted to omit maxBudget rather than a bare count, precisely so the
+# next unexplained budgetless key fails the gate instead of silently joining a
+# growing allowlist. `mac-gnhf` was added to that set in the same commit as this
+# file, with the reason above recorded there too.
+#
+# RATE LIMITS - THE ACTUAL PROTECTION, AND WHAT THEY ARE PROTECTING.
+# chat-local resolves to vllm-app.ai.svc.cluster.local:8000, the single B70
+# llama.cpp server on talos-3. That SAME server also serves
+# `qwen3.6-35b-a3b-classifier`, which the D3 auto-router calls in front of
+# EVERY routed request in the cluster. So an uncapped overnight loop here does
+# not just slow itself down - it adds latency to all other AI traffic in the
+# house while the captain sleeps. The server auto-selects n_parallel=4 with
+# kv_unified=true (app/helmrelease.yaml of ai/vllm): four slots sharing one
+# 262144-token KV pool, so contention is real and a fifth concurrent request
+# queues behind the classifier's.
+#
+#   rpmLimit: 12 - matched to repo-wiki, the ONLY other unattended chat-local
+#   consumer on this backend, and chosen for the same reason its header
+#   records: at rpm 4 that job was structurally unable to finish, because it
+#   issues calls back to back with no retry or backoff and the proxy 429'd it
+#   mid-run. An agent loop has the same shape - a short "here is the tool
+#   output, continue" turn can complete in a few seconds, so a limit sized only
+#   for slow full-context turns (which pace themselves at ~2-3/min) would
+#   throttle the fast ones and stall the loop rather than pace it. 12/min is
+#   still 0.2 req/s, comfortably under the 0.5 req/s that was measured to leave
+#   chat at 99% of idle on this card (docs/ai/embedder-gpu-migration-analysis-
+#   2026-09-15.md; that curve is an embedding workload, so it is a reference
+#   point for the shape, not a transferred measurement). Because gnhf is
+#   SEQUENTIAL it holds at most one of the four slots at a time, leaving three
+#   for the classifier. The residual cost is that one slot is busy more or less
+#   continuously for hours, which does shave aggregate decode - acceptable for
+#   a single short thinking-disabled classification, and the knob to turn if
+#   overnight routed latency ever regresses.
+#
+#   tpmLimit: 200000 - the established value for every agent-shaped consumer in
+#   this directory (opencode, repo-wiki, ai-pr-review all sit here). It is just
+#   under the server's 262144 single-request ceiling, so it permits an ordinary
+#   loop turn at any realistic context while pacing one that has grown very
+#   large. A loop deliberately driving near that ceiling every call WILL 429;
+#   that is intended pacing for an unattended consumer, and raising this number
+#   is the documented response if real gnhf traffic proves it too tight.
+#
+# MINTING. `mac-gnhf` appears nowhere else in this repo, so the alias should be
+# free and the operator should mint it cleanly. If reconciliation instead
+# reports the alias already taken, STOP: LiteLLM aliases are globally unique
+# and the operator has NO adopt-by-alias path, so the CR sits
+# Ready=False/GenerateFailed forever while the proxy looks perfectly healthy.
+# Clearing that means deleting the live key through the admin API, which is a
+# real credential rotation for whoever holds it - a captain decision, not a
+# reconciliation fix. See this directory's kustomization.yaml header and
+# agent-swarm-captain.yaml, which documents exactly that forced-rotation path.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: mac-gnhf
+spec:
+  proxyRef: litellm
+  keyAlias: mac-gnhf
+  secretName: litellm-key-mac-gnhf
+  secretKey: key
+  models:
+    - chat-local
+  rpmLimit: 12
+  tpmLimit: 200000
+  metadata:
+    purpose: captain's Mac running the gnhf agent loop, off-cluster
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item
+# `litellm-consumer-mac-gnhf` (auto-created - not a captain prerequisite),
+# same pattern as every other consumer in this directory. The captain copies
+# the value from there onto the Mac; nothing in-cluster reads it.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-mac-gnhf
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-mac-gnhf
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-mac-gnhf
+          property: key

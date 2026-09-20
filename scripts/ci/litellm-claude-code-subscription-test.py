@@ -491,7 +491,15 @@ def test_virtual_key_semantics() -> None:
     # known set explicitly rather than a bare count, so the NEXT unexplained
     # budgetless key still fails this gate instead of silently joining an
     # ever-growing allowlist.
-    OTHER_BUDGETLESS_KEYS_APPROVED = {"agent-swarm-captain"}
+    # `mac-gnhf` (added 2026-09-20) is the third: the captain's off-cluster
+    # gnhf agent loop, scoped to `chat-local` ONLY. That alias carries no
+    # `info.extra` prices, so recorded spend on the key is $0.00 by
+    # construction and a maxBudget could never trip - inert by construction,
+    # the same reasoning as this key, reached via zero-priced local compute
+    # rather than via zeroed subscription pass-through fields. Its real bound
+    # is rpmLimit/tpmLimit (12/200000), sized against the shared B70 that also
+    # serves the auto-router's classifier; see that CR's own header.
+    OTHER_BUDGETLESS_KEYS_APPROVED = {"agent-swarm-captain", "mac-gnhf"}
     no_budget = {
         name
         for name, cr in keys.items()
