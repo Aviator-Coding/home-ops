@@ -176,7 +176,12 @@ RETIRED: dict[str, Retired] = {
     #
     # calibre-web-automated is the second split shape, same retained split as
     # pgadmin above.
-    "ai/hermes": Retired("ai/hermes.yaml", "hermes", "hermes", "25Gi"),
+    # 25Gi -> 40Gi on 2026-09-20: the claim hit 83% (20.27 GiB used of 24.50 GiB
+    # usable) with state.db alone at 9.7 GiB. The live expansion is a
+    # `kubectl patch pvc` - components/kopiur/pvc/pvc.yaml is ssa: IfNotPresent,
+    # so Git cannot resize a claim that already exists - and this row is what
+    # keeps the declared value honest about what a REBUILD would provision.
+    "ai/hermes": Retired("ai/hermes.yaml", "hermes", "hermes", "40Gi"),
     "ai/opencode": Retired("ai/opencode.yaml", "opencode", "opencode", "20Gi"),
     "media/calibre-web-automated": Retired(
         "media/calibre.yaml",
@@ -228,14 +233,27 @@ RAISED_CACHE: dict[str, str] = {
     # wave three tier B. Two of these three are the only claims in the fleet
     # whose snapshot is large enough for the cache to matter at all.
     #
-    # hermes: 16Gi, and the ONLY value in this table proven end to end - an r2
-    # restore of 65,978 files / 10,419,954,664 bytes completed at exactly this
-    # capacity (kopiur-r2-restore-cache-gate-2026-09-02.md). Sized to survive
-    # both regimes: 2.5x the measured ~6.2 GiB plateau if kopia's eviction
-    # holds, and the whole 10.05 GiB snapshot plus ~55% growth if it never
-    # fires. Do not lower it toward the plateau - the plateau is an unpinned
-    # kopia default this repo has never configured.
-    "ai/hermes": "16Gi",
+    # hermes: 48Gi since 2026-09-20, raised with the claim (25Gi -> 40Gi).
+    #
+    # The predecessor 16Gi is still the only value in this table proven end to
+    # end - an r2 restore of 65,978 files / 10,419,954,664 bytes completed at
+    # exactly that capacity (kopiur-r2-restore-cache-gate-2026-09-02.md) - and
+    # it was NOT inadequate when it was replaced. Required cache is
+    # min(snapshot, ~6.2 GiB), so at the current 19.44 GiB snapshot the
+    # requirement is the plateau, which 16Gi's 15.58 GiB usable clears by 2.5x.
+    #
+    # The raise is conservatism against an UNPINNED default, not a repair. What
+    # lapsed as the volume grew is the second regime the original sizing bought:
+    # cover the whole snapshot in case eviction never fires. kopiur sends
+    # `"cache":{}` and sets no cacheDefaults, so the plateau is kopia's own
+    # default, unconfigured here and free to move on a version bump. 48Gi sizes
+    # off the CLAIM instead of a moving snapshot so that cover cannot lapse
+    # again: a 40Gi claim yields ~39.2 GiB usable, the hard ceiling on any
+    # snapshot it can produce, and 48Gi yields ~46.7 GiB usable = 1.19x that
+    # ceiling and 7.5x the plateau. Do not lower it toward the plateau. Raising
+    # a cache is always the safe direction; the cliff is reached by having too
+    # little.
+    "ai/hermes": "48Gi",
     # plex: 10Gi, r2-PROVEN at exactly this value on 2026-09-12 - an r2 restore
     # of 24,726 files / 4,948,787,362 bytes completed in 7m36s, byte-exact against
     # the snapshot's own filesNew/sizeBytes, with 0 mode and 0 file-type differences
