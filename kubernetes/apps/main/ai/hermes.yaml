@@ -82,11 +82,29 @@ spec:
       #
       # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
       # default, which would provision a rebuilt claim at a fifth of the live
-      # one and could not hold this volume at all. Matched to the LIVE claim
-      # (25Gi, holding 10.05 GiB - measured 2026-09-04). Under the pvc
-      # Component's `ssa: IfNotPresent` this is create-time-only for the claim
-      # that already exists, but it is exactly what a REBUILD would provision.
-      KOPIUR_CAPACITY: 25Gi
+      # one and could not hold this volume at all. Matched to the LIVE claim.
+      # Under the pvc Component's `ssa: IfNotPresent` this is create-time-only
+      # for the claim that already exists, but it is exactly what a REBUILD
+      # would provision.
+      #
+      # GROWN 25Gi -> 40Gi, 2026-09-20. Measured that morning: 24.50 GiB usable
+      # ext4, 20.27 GiB used, 4.21 GiB free - 83% - with `state.db` alone at
+      # 9.7 GiB and `/opt/data/home` up 1.3 GB in three days. This is step 2 of
+      # the plan already written down in docs/ai-system/hermes-state-db-growth.md
+      # section 6 ("Or grow the claim ... 25Gi -> 40Gi leaves room for both a
+      # VACUUM temp copy and the WAL"), chosen over narrowing retention further
+      # and over an offline reclaim window. Growing the claim does NOT authorise
+      # `sessions.vacuum_after_prune` - that key stays false for a reason that
+      # has nothing to do with free space (section 5, and
+      # scripts/ci/hermes-state-db-retention-test.py).
+      #
+      # THIS EDIT DOES NOT RESIZE THE LIVE CLAIM. components/kopiur/pvc/pvc.yaml
+      # carries `ssa: IfNotPresent`, so Flux skips the apply entirely while the
+      # claim exists; that file's header says so outright - "growing one is
+      # `kubectl patch pvc` ... rather than a git edit". The expansion is a
+      # one-time operator action, and this value's job is to stay in step with
+      # it (scripts/ci/kopiur-stage5-test.py asserts the pair).
+      KOPIUR_CAPACITY: 40Gi
       # LOAD-BEARING, and the single most consequential identity in Stage 3.
       # hermes is the largest object in the fleet - 104,062 entries, 10.05 GiB,
       # including one 7 GB file - and its pod pins NO runAsUser at all, only
@@ -113,13 +131,52 @@ spec:
       # is min(snapshot size, ~6.2 GiB) - and at 5Gi (4.87 GiB usable) this claim's
       # 9.7 GiB snapshot ran out of cache at roughly 45% restored, every time.
       #
-      # 16Gi is sized to survive BOTH regimes, because the plateau is a kopia soft
-      # limit that this repo has never configured (kopiur sends `"cache":{}`, so
-      # kopia's built-in defaults govern eviction) and must not be leaned on:
-      #   - if eviction holds:      15.58 GiB usable vs 6.21 GiB measured peak = 2.5x
-      #   - if eviction never fires: covers the whole 9.70 GiB snapshot + ~60% growth
-      # Proven end-to-end at exactly this value: 65,978 files and 10,419,954,664
-      # bytes restored from r2, byte-for-byte the snapshot's own sizeBytes.
+      # The value is sized to survive BOTH regimes, because the plateau is a kopia
+      # soft limit that this repo has never configured (kopiur sends `"cache":{}`,
+      # so kopia's built-in defaults govern eviction) and must not be leaned on.
+      #
+      # RAISED 16Gi -> 48Gi, 2026-09-20, in the same change that grew the claim.
+      # This is CONSERVATISM AGAINST AN UNPINNED DEFAULT, not the repair of a
+      # live defect - state that accurately, because the overstated version of
+      # this reasoning was written once and had to be retracted.
+      #
+      # 16Gi was NOT inadequate and this claim was NOT near the cliff. Under the
+      # measured model the requirement is min(snapshot, ~6.2 GiB), so at today's
+      # 19.44 GiB snapshot (20,877,393,555 B, `hermes-ceph-20260920092420`) the
+      # requirement is the 6.21 GiB plateau, which 16Gi's 15.58 GiB usable clears
+      # by 2.5x. 16Gi is also r2-PROVEN (65,978 files / 10,419,954,664 bytes,
+      # byte-for-byte the snapshot's own sizeBytes). The cliff bites a claim whose
+      # snapshot is still BELOW its cache and then crosses it; hermes crossed long
+      # ago and sits on the safe side, where the plateau is the whole requirement.
+      #
+      # What the raise actually buys is the SECOND regime the original sizing
+      # deliberately covered and quietly stopped covering as the volume grew:
+      # "eviction never fires, so the cache must hold the whole snapshot". kopiur
+      # sends `"cache":{}` and neither ClusterRepository sets `cacheDefaults`, so
+      # the ~6.2 GiB plateau is kopia's own UNPINNED default - this repo does not
+      # configure it, does not pin it, and would not be told if a version bump
+      # moved it (finding 2, docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md).
+      # 16Gi covered a 9.70 GiB snapshot that way; it does not cover 19.44 GiB.
+      #
+      # 48Gi is sized off the CLAIM, not off today's snapshot, so that second
+      # regime cannot silently lapse again for the life of a 40Gi claim:
+      #   - the grown claim yields ~39.2 GiB usable ext4 (40Gi x 0.980, the ratio
+      #     measured on this very claim: 26,309,095,424 B of 26,843,545,600 B),
+      #     and that is the HARD CEILING on any snapshot it can ever produce
+      #   - 48Gi yields ~46.7 GiB usable at 0.974, the conservative ratio the
+      #     restore proof measured on its own 16Gi volume
+      #   - if eviction never fires: 46.7 / 39.2 = 1.19x the worst case the claim
+      #     is physically capable of, and 2.40x today's 19.44 GiB snapshot
+      #   - if eviction holds:       46.7 / 6.21 = 7.5x the measured plateau
+      #
+      # It is cheap conservatism, which is the other half of the argument: the
+      # cache is a thin-provisioned ephemeral PVC discarded with the mover pod, so
+      # a 48Gi request costs only what a run actually writes (~6.2 GiB observed).
+      #
+      # The exact-capacity r2 proof no longer covers this number - it was run at
+      # 16Gi - but the direction is the safe one: the cliff is reached by having
+      # too LITTLE cache, never too much. kubernetes/components/kopiur/Readme.md's
+      # proven-vs-sized table records hermes as sized-above-proven from this date.
       #
       # Note this is a PVC, not an emptyDir (the previous comment here was wrong):
       # `mode: Ephemeral` renders a generic ephemeral volumeClaimTemplate on the
@@ -131,11 +188,12 @@ spec:
       # Raising this value reaches the two SnapshotPolicies on the next Flux
       # reconcile, but NOT the standing ceph populator hermes-kopiur-dst
       # (ssa: IfNotPresent, create-once), which stays frozen at its create-time
-      # value. Closing that gap needs a one-time post-merge delete of that
-      # Restore so Flux recreates it at 16Gi (safe: no finalizers - Stage 5
+      # value - today 16Gi, from the 2026-09-02 recreate. Closing that gap needs
+      # a one-time post-merge delete of that Restore so Flux recreates it at
+      # 48Gi (safe: no finalizers, owns no backup data - Stage 5
       # sabnzbd-kopiur-dst precedent). Scratch r2 Restores set capacity in their
       # own spec and are unaffected. See the proof doc's post-merge subsection.
-      KOPIUR_CACHE_CAPACITY: 16Gi
+      KOPIUR_CACHE_CAPACITY: 48Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every
       # kopiur r2 policy in the fleet into the single 04:00 hour, which already
       # carries volsync's ceph slot. Hour 19 carries no volsync destination and

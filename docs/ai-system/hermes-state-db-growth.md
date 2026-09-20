@@ -225,6 +225,9 @@ Ordered by what unlocks the next step:
 2. **Or grow the claim.** `ceph-block` supports online expansion; `KOPIUR_CAPACITY` in
    `kubernetes/apps/main/ai/hermes.yaml` is the value a rebuild would provision, so it must be
    raised in the same change. 25Gi -> 40Gi leaves room for both a VACUUM temp copy and the WAL.
+   **This step was taken on 2026-09-20 - see [section 11](#11-the-claim-grew-25gi---40gi-2026-09-20).
+   It did not unlock steps 3 and 4, which remain an operator decision that was deliberately
+   declined at the time.**
 3. **Then `hermes sessions optimize-storage`, offline, gateway stopped.** This is the big win: it
    migrates off legacy FTS layout 0, which removes the two duplicate content copies (~3 GiB by the
    section 4 estimate) and narrows the trigram index. Upstream puts it at "~60%+". It is documented
@@ -429,3 +432,121 @@ In-image sources read for this analysis: `hermes_cli/config_defaults.py` (`sessi
 `hermes_state.py` (`_AUTO_PRUNE_STALE_OPEN_SOURCES`), `hermes_state_common.py`
 (`AUTO_VACUUM_MIN_FREELIST_RATIO`, `FTS_STORAGE_VERSION`), `hermes_cli/doctor_state.py`
 (`STATE_DB_SIZE_WARN_BYTES`), `gateway/run.py` and `cli.py` (the two auto-maintenance call sites).
+
+---
+
+## 11. The claim grew: 25Gi -> 40Gi (2026-09-20)
+
+Section 6 step 2, taken. Chosen over narrowing `retention_days` further and over the offline
+reclaim window of steps 3-4.
+
+### What was measured first
+
+| | 2026-09-15 (section 1) | 2026-09-20 |
+|---|--:|--:|
+| claim request | 25Gi | 25Gi |
+| usable ext4 | 24.50 GiB | 24.50 GiB |
+| used | 19 G (76%) | **20.27 GiB (83%)** |
+| free | 6.0 GiB | **4.21 GiB** |
+| `state.db` | 9.31 GiB | **9.7 GiB** |
+| newest ceph snapshot `sizeBytes` | 10.05 GiB (2026-09-04) | **19.44 GiB** (20,877,393,555 B) |
+
+`du -sh /opt/data/*` on 2026-09-20: `state.db` 9.7G, `home` 7.5G, `wiki` 1.7G, `ai-wiki` 510M,
+`lazy-packages` 405M, everything else under 130M. `/opt/data/home` had added 1.3 GB in three days,
+so the claim - not `state.db` alone - was the thing running out.
+
+The retention change **is** working as section 9 predicted: `state.db` went 9.31 -> ~9.7 GiB in
+five days against the pre-change 175-235 MB/day, i.e. the file is plateauing. The pressure moved to
+the rest of the volume.
+
+### The two values that changed
+
+Both in `kubernetes/apps/main/ai/hermes.yaml`:
+
+| variable | was | now | why |
+|---|--:|--:|---|
+| `KOPIUR_CAPACITY` | 25Gi | **40Gi** | the claim size a rebuild provisions; kept in step with the live claim |
+| `KOPIUR_CACHE_CAPACITY` | 16Gi | **48Gi** | restore-path correctness, below |
+
+**16Gi was not inadequate, and this claim was never near the cliff.** State that plainly, because
+the overstated version of this reasoning was written first and had to be retracted. The measured
+rule from
+[`kopiur-r2-restore-cache-gate-2026-09-02.md`](../backups/kopiur-r2-restore-cache-gate-2026-09-02.md)
+is `required cache = min(snapshot sizeBytes, ~6.2 GiB)` - a **cliff, not a slope**: kopia tracks
+restored bytes ~1:1 only until the plateau, then eviction engages and the cache holds flat. At a
+19.44 GiB snapshot the requirement is therefore the **6.21 GiB plateau**, which 16Gi's 15.581 GiB
+usable clears by **2.5x**. The cliff bites a claim whose snapshot is still *below* its cache and
+then crosses it; hermes crossed long ago and sits on the safe side, where the plateau is the whole
+requirement.
+
+So the raise is **conservatism against an unpinned default**, not the repair of a live defect. It
+rests on finding 2 of that same document: kopiur sends `"cache":{}` in its work spec and neither
+`ClusterRepository` sets `cacheDefaults`, so the ~6.2 GiB plateau is **kopia's own built-in
+default** - this repo does not configure it, does not pin it, and would not be told if a version
+bump moved it. The original 16Gi was deliberately sized to survive that hypothetical too ("eviction
+never fires, so the cache must hold the whole snapshot"), and *that* is the property which quietly
+lapsed as the volume grew: it covered a 9.70 GiB snapshot and does not cover 19.44 GiB.
+
+48Gi restores that second cover permanently, by sizing off the **claim** rather than a snapshot that
+keeps moving, so it cannot silently lapse again for the life of a 40Gi claim:
+
+| | |
+|---|--:|
+| grown claim, usable ext4 (40Gi x 0.980, the ratio measured on this claim: 26,309,095,424 of 26,843,545,600 B) | 39.2 GiB |
+| ...which is the hard ceiling on any snapshot this claim can ever produce | |
+| 48Gi cache, usable (x 0.974, the conservative ratio the restore proof measured on its own 16Gi volume) | 46.7 GiB |
+| headroom vs that ceiling | **1.19x** |
+| headroom vs today's 19.44 GiB snapshot | **2.40x** |
+| headroom vs the ~6.2 GiB eviction plateau | **7.5x** |
+
+It is also cheap, which is the other half of the argument: `mode: Ephemeral` renders a
+thin-provisioned generic ephemeral PVC discarded with the mover pod, so a 48Gi request costs only
+what a run actually writes (~6.2 GiB observed on the proof run).
+
+The exact-capacity r2 proof covers **16Gi**, not 48Gi. Raising is the safe direction - the cliff is
+reached by having too *little* cache - and the proven-vs-sized table in
+[`kubernetes/components/kopiur/Readme.md`](../../kubernetes/components/kopiur/Readme.md) now records
+hermes as sized-above-proven rather than quietly inheriting the old claim.
+
+### Neither half is applied by the merge
+
+Both objects carry `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`, so Flux creates them once and
+never reconciles them again. Two one-time operator actions:
+
+```sh
+# 1. The claim. Git cannot resize a claim that already exists - components/kopiur/pvc/pvc.yaml
+#    says so in its own header. PVC expansion is allowed on a bound claim.
+kubectl -n ai patch pvc hermes --type=merge -p '{"spec":{"resources":{"requests":{"storage":"40Gi"}}}}'
+
+# 2. The standing ceph populator, frozen at its 2026-09-02 create-time 16Gi.
+#    Safe: Pending, no finalizers, no ownerReferences, owns no backup data.
+kubectl -n ai delete restore hermes-kopiur-dst    # Flux recreates it at 48Gi
+```
+
+Expansion is **online** here and needs no pod restart: `ceph-block` is `allowVolumeExpansion: true`,
+the `rook-ceph.rbd.csi.ceph.com-ctrlplugin` Deployment runs a `csi-resizer` sidecar, the node plugin
+is cephcsi v3.17.1 (RBD online `NodeExpandVolume`), the filesystem is `ext4` on `/dev/rbd5`, and the
+claim is `RWO` and mounted, which is the case kubelet resizes in place. That is the driver's
+capability set, not a repeat of a previous run - no PVC expansion is recorded anywhere in this
+repo's docs - so verify with `df -h /opt/data` **inside the pod**, not just `kubectl get pvc`. If the claim keeps
+a `FileSystemResizePending` condition, a pod restart forces the node-side `resize2fs`; that is the
+fallback, not the expected path. `ai/hermes` is `strategy: Recreate` on an RWO claim, and a restart
+that overruns the grace period costs a ~25-minute boot integrity check (section 8 item 3), so do
+not reach for it first.
+
+### What this did NOT change, deliberately
+
+- **`sessions.vacuum_after_prune` stays `false`.** The extra headroom does make a VACUUM temp copy
+  *fit*, which was section 5's first argument - but the second argument is untouched by free space:
+  `last_vacuum` is absent from `state_meta`, so `since_vacuum is None` holds forever, the
+  `min_vacuum_interval_days` throttle never engages, and the key would trigger a full ~9.7 GiB
+  rewrite on *every* prune pass that deletes rows. That is wrong on a 40Gi claim for the same reason
+  it was wrong on a 25Gi one. Pinned by `scripts/ci/hermes-state-db-retention-test.py`.
+- **`sessions.retention_days` stays where it is.** Growth was chosen instead of a narrower window.
+- **Steps 3 and 4 of section 6** (`hermes sessions optimize-storage` / `optimize`) are now
+  *unblocked* by the space, and still not done. They need an offline window with the gateway
+  stopped, and that was explicitly declined in favour of growing the claim.
+- **The 40Gi claim is not open-ended headroom.** At the `/opt/data/home` rate alone (~0.43 GB/day)
+  the 15Gi added is on the order of months, not years. The section 9 verification and the
+  `/opt/data` utilisation alert suggested above are what should catch the next approach, rather than
+  another 83%-full discovery.

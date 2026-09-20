@@ -58,15 +58,25 @@ MEASURED_PLATEAU_GIB = 6.2
 # behind them belong here; a guess pinned in CI is worse than no pin.
 PINNED: dict[str, tuple[str, str]] = {
     "ai/hermes.yaml": (
-        "16Gi",
-        "9.70 GiB snapshot, the largest in the fleet. Its previous 5Gi (4.87 GiB usable) "
-        "ran out of cache at ~45% restored and could not restore from r2 at all. 16Gi is "
-        "sized to survive BOTH regimes: 2.5x the 6.21 GiB measured peak if kopia's "
-        "eviction holds, and enough to hold the whole 9.70 GiB snapshot plus ~60% growth "
-        "if it does not (kopiur sends `\"cache\":{}`, so the plateau is an unpinned kopia "
-        "default this repo does not control). Proven end-to-end from r2 at exactly this "
-        "value: 65,978 files / 10,419,954,664 bytes, matching the snapshot's own "
-        "filesNew and sizeBytes",
+        "48Gi",
+        "19.44 GiB snapshot on a 40Gi claim, both the largest in the fleet. Raised from "
+        "16Gi on 2026-09-20 alongside the claim (25Gi -> 40Gi) as CONSERVATISM AGAINST AN "
+        "UNPINNED DEFAULT, not to repair a live defect: 16Gi was r2-PROVEN (65,978 files "
+        "/ 10,419,954,664 bytes) and was never inadequate, because required cache is "
+        "min(snapshot, ~6.2 GiB) and at a 19.44 GiB snapshot that is the 6.21 GiB "
+        "plateau, which 16Gi's 15.58 GiB usable clears by 2.5x. The cliff bites a claim "
+        "whose snapshot is still BELOW its cache and then crosses it; this one crossed "
+        "long ago and sits on the safe side. What lapsed as the volume grew is the "
+        "SECOND regime the original sizing deliberately bought - cover the whole "
+        "snapshot in case eviction never fires - which matters only because kopiur sends "
+        "`\"cache\":{}` and sets no cacheDefaults, so the plateau is kopia's own unpinned "
+        "default that a version bump could move unannounced. 48Gi restores that cover "
+        "permanently by sizing off the CLAIM rather than a moving snapshot: a 40Gi claim "
+        "yields ~39.2 GiB usable ext4, the hard ceiling on any snapshot it can produce, "
+        "and 48Gi yields ~46.7 GiB usable = 1.19x that ceiling, 2.40x today's snapshot "
+        "and 7.5x the plateau - cheap, since the cache is a thin ephemeral PVC that "
+        "costs only what a run writes. The exact-capacity r2 proof covers 16Gi, not "
+        "48Gi; raising is the safe direction, the cliff is reached by having too little",
     ),
     "media/tdarr.yaml": (
         "10Gi",

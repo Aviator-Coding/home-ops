@@ -318,6 +318,17 @@ covers the case where the unpinned default moves or the plateau is not the hard 
 appears to be. Given that the failure mode is terminal and only discovered during recovery,
 that is the right side to err on.
 
+> **Superseded as the standing value on 2026-09-20 - this document remains the measurement, not
+> the current number.** The claim grew 25Gi -> 40Gi and the snapshot reached 19.44 GiB, so the
+> **second row only** stopped being satisfied: 16Gi no longer holds a whole snapshot. The first row
+> was never in doubt, and by the model at the top of this section 16Gi remained **sufficient** the
+> whole time - at a 19.44 GiB snapshot the requirement is the 6.21 GiB plateau, which 15.58 GiB
+> clears by 2.5x. `ai/hermes` moved to **48Gi** purely to keep the second row's cover, sized off
+> the claim's 39.2 GiB usable ceiling rather than off a snapshot that keeps moving. Read it as
+> conservatism against the unpinned default described just above, not as a fix. The model, the
+> plateau and the r2 demonstration below are unchanged and still the basis for it. See
+> [`../ai-system/hermes-state-db-growth.md`](../ai-system/hermes-state-db-growth.md) section 11.
+
 Bounding kopia explicitly with `contentCacheSizeMb` is the structural alternative - it would
 let a small capacity be made *safe* rather than merely *lucky* - and it is recorded in
 `kubernetes/components/kopiur/Readme.md` as the fix to reach for if these capacities ever
