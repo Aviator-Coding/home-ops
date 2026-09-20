@@ -51,11 +51,43 @@ spec:
     # only cover the webhook container; the cert-watcher sidecar is patched
     # to the same values below so the pod is not left Burstable.
     resources:
+      # cpu 50m -> 250m on BOTH request and limit (2026-09-20). Raised together
+      # on purpose: Guaranteed QoS needs request == limit on every container, and
+      # the whole reason this block exists is to keep that (see above). Raising
+      # only the limit would silently demote the pod to Burstable and re-open the
+      # 2026-09-06 OOMController kills. Memory is deliberately untouched.
+      #
+      # Why it had to move: a CPU limit is an ABSOLUTE CFS quota per 100ms
+      # period, not a share of the node. At 50m this webhook got 5ms of CPU per
+      # 100ms - and it is a MutatingWebhookConfiguration with
+      # failurePolicy: Fail and timeoutSeconds: 10, so its latency is on the
+      # critical path of every pod CREATE in all 21 covered namespaces.
+      #
+      # Measured from the API server's own admission histogram over 7d
+      # (8,466 calls to admission-controller.k8tz.io, 2026-09-20):
+      #
+      #   p50   18 ms     <- the actual CPU cost of one admission
+      #   p90  286 ms
+      #   p99  671 ms
+      #   max  1.0-2.5 s bucket
+      #
+      # The arithmetic closes: 18ms of work against a 5ms-per-100ms quota needs
+      # 4 periods, i.e. ~360ms wall - which is p90 (286ms) almost exactly. The
+      # container was throttled in 29.6% of its CFS periods over 7d while its
+      # MEAN usage was only 2-3m, because admission work arrives as microsecond
+      # bursts that exhaust a 50m quota instantly. Mean usage is not evidence
+      # about a bursty workload's limit.
+      #
+      # At 250m the quota is 25ms per 100ms, so a p50 admission fits in a single
+      # period. Nothing was failing - 0 rejections and 0 timeouts in 7d - but the
+      # worst observed call was already 25% of the way to the 10s timeout that
+      # would fail every pod CREATE cluster-wide, and CPU throttling produces
+      # exactly this kind of slow-and-silent degradation rather than a crash.
       requests:
-        cpu: 50m
+        cpu: 250m
         memory: 64Mi
       limits:
-        cpu: 50m
+        cpu: 250m
         memory: 64Mi
 
     webhook:
