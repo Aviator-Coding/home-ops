@@ -329,10 +329,10 @@ The rest are chart-owned sidecars (`nats` prom-exporter/reloader, grafana's
   alone. The anonymous memory was the **host prompt cache**: a single
   `brk()`-grown `[heap]` of 17,107 Mi (vs 317 Mi on the same image with
   `--cache-ram 0`) growing +6,485 Mi/day, fixed 2026-09-19 by `--cache-ram 4096`
-  plus `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072`. Expected post-fix
-  steady state is ~9-20 GiB, so **the 39Gi request above is expected to become
-  re-derivable downward** - but only against a measured steady state, not a
-  reading taken shortly after a roll. Full evidence:
+  plus `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072`. **Updated
+  2026-09-20:** the expected re-derivation happened - see §8 - against a
+  measured 17h post-fix steady state that came in well under the ~9-20 GiB
+  estimate here (peak 5750 Mi), cutting the request to 12Gi. Full evidence:
   `docs/ai/vllm-host-prompt-cache.md`.
 - **The descheduler's `LowNodeUtilization` plugin has never rebalanced
   anything.** Its `thresholds` are `cpu/memory/pods: 20`, and no node in this
