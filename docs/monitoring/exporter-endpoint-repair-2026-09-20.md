@@ -118,16 +118,42 @@ startupProbe   -> None
 
 **The ServiceMonitor was not touched.** It was already correct.
 
-### What merging this does
+### Verified end to end (2026-09-20, captain-authorised restart)
 
-The manifest change rolls the Deployment, and the replacement pod connects to the (healthy)
-database, clearing the latch. `/metrics` is then served normally. Confirm after Flux reconciles:
+The latch was cleared with `kubectl -n selfhosted rollout restart deploy/n8n`, ending the
+four-day outage. The replacement pod (`n8n-f46c8dc58-8z926`, restarts 0) connected to the
+already-healthy database immediately.
 
-```sh
-kubectl --kubeconfig=<abs path> -n selfhosted port-forward svc/n8n 18000:80
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18000/healthz/readiness   # expect 200
-curl -s http://127.0.0.1:18000/metrics | head                                        # expect n8n_* series
-```
+**The probe is proven in BOTH directions** - the same endpoint pair measured on the broken pod
+and on the recovered one:
+
+| Endpoint | Broken pod | Recovered pod |
+|---|---|---|
+| `/healthz` (old check) | **200** | 200 |
+| `/healthz/readiness` (new check) | **503** | **200** |
+| `/metrics` | 503 | **200** |
+| `/rest/login` | 503 | 401 (auth challenge, i.e. serving) |
+
+The old check reads 200 in both columns - it cannot distinguish a dead n8n from a healthy one.
+The new check separates them. That is the whole point of the change, and it is why this was not
+trusted on a green reading alone.
+
+`/metrics` now returns a real Prometheus payload: 17,216 bytes, 327 lines, **151 `n8n_` series**
+across 59 `# HELP` blocks, including `n8n_version_info{version="v2.34.6"}`,
+`n8n_instance_role_leader` and `n8n_active_workflow_count`.
+
+Confirmed at the two layers above the endpoint as well:
+
+- Prometheus: `up{job="n8n"}` moved **0 -> 1**, and `n8n_version_info` is queryable against pod
+  `n8n-f46c8dc58-8z926`. `up{job="plex-exporter"}` correctly stays **0**.
+- Gatus: `selfhosted/n8n-webhooks` recovered from 7 consecutive failures to its expected
+  **404**. That check is independent of anything changed here, so it corroborates that n8n is
+  genuinely serving rather than merely answering a health path.
+
+Note the restart was performed against the **live** pod; the probe and Gatus changes in this
+branch take effect when Flux reconciles them after merge. Recovery and the manifest fix are
+therefore independent - the fix prevents the next occurrence from going unnoticed, it is not
+what performed this recovery.
 
 ---
 
