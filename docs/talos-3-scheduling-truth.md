@@ -50,11 +50,12 @@ and talos-2**, so vllm cannot be placed anywhere else. That eliminates the
 entire "move the LLM" family of solutions. `media/tdarr-tdarr-node` holds
 `devic.es/b70-vaapi` and is pinned for the same reason.
 
-Verified immovable, totalling **57794 Mi** before the vllm change:
+Verified immovable, totalling **53698 Mi** before the vllm change (was 57794 Mi;
+the 2026-09-20 OSD request cut below removed 4096 Mi of it):
 
 | what | request | why it cannot move |
 |---|---:|---|
-| 2x Ceph OSD | 29184 Mi | `kubernetes.io/hostname` nodeSelector; own local NVMe |
+| 2x Ceph OSD | 25088 Mi | `kubernetes.io/hostname` nodeSelector; own local NVMe (was 29184 Mi until the 2026-09-20 request cut below) |
 | `rook-ceph-mon-h` | 2304 Mi | hostname nodeSelector + `openebs-hostpath` local PV |
 | `database/postgres-17-1` | 4096 Mi | CNPG `instances: 3` + `podAntiAffinityType: required` on hostname - one instance per node, in a 3-node cluster |
 | `database/nats-2` | 1024 Mi | `cluster.replicas: 3` + `maxSkew: 1` hostname spread - one per node |
@@ -62,11 +63,30 @@ Verified immovable, totalling **57794 Mi** before the vllm change:
 | static control plane | 832 Mi | `kube-apiserver`/`-controller-manager`/`-scheduler` |
 | GPU-pinned (`vllm`, `tdarr-node`) | 16896 Mi | `devic.es/b70*`, talos-3 only |
 
-The **OSD reservation is not slack**, though its current usage suggests it. The
-cluster sets `osd_memory_target: 10 GiB` with the pod bound at 14Gi
-(`rook-ceph/cluster/helmrelease.yaml`), so each OSD grows its BlueStore cache
-toward 10 GiB over time; the 30-day peaks (4783 Mi and 7380 Mi) are a cache
-still filling, not headroom to reclaim. Likewise `rook-ceph-mon` and the
+The OSD reservation is **mostly** not slack - but this paragraph originally said it
+was *entirely* not slack, and that was wrong on its stated reason. Corrected
+2026-09-20; 4096 Mi of it was in fact reclaimable on this node.
+
+The cluster sets `osd_memory_target: 10 GiB` (`rook-ceph/cluster/helmrelease.yaml`),
+and the original argument here was that each OSD grows its BlueStore cache toward
+10 GiB, so the observed peaks were "a cache still filling, not headroom to reclaim".
+Two problems with that. First, `osd_memory_target` sizes the BlueStore cache, not
+total RSS - real usage legitimately runs *above* the target, so the target is a floor
+for sizing the request, never the request itself. Second, those figures were quoted
+as "30-day peaks" but Prometheus retains **14d**, so no 30-day peak has ever been
+observable here; treat every "30-day peak" in this doc as a 14-day one.
+
+The correct argument lands in the same place but not at the same number. The highest
+OSD working set on record is **9,317 Mi** (2026-09-05, during a real 128-of-393-PG
+degradation - precisely when an OSD must not be constrained), so the request must
+clear that, which rules out matching it to the 10 GiB target. It does **not** have to
+clear 14Gi. As of 2026-09-20 the request is **12Gi** with the limit left at 14Gi, so
+a spike can still burst while the unusable 2Gi/OSD of reservation is returned to the
+node. Detection if that proves too tight:
+`max_over_time(container_memory_working_set_bytes{namespace="rook-ceph",container="osd"}[7d])`
+crossing 12,288 Mi, and it is worth re-checking after the next real recovery event.
+
+Likewise `rook-ceph-mon` and the
 `dragonfly` component deliberately set requests == limits for Guaranteed QoS,
 and dragonfly's `--maxmemory=512Mi` means its 640Mi request is a ceiling
 reservation for a cache that will fill. None of these are over-declarations.
@@ -136,6 +156,12 @@ with 358 Mi of margin. A truthful request and a usable margin were mutually
 exclusive, because the node's non-negotiable floor - 2 OSDs at 29184 Mi, a mon,
 a CNPG instance, a NATS instance, DaemonSets, the control plane - is 57794 Mi,
 **62% of the node before the LLM is placed at all**.
+
+> Those two figures are the numbers **as they stood at the time of that decision**,
+> kept as written so the reasoning still reads true. The floor has since dropped:
+> the 2026-09-20 OSD request cut took the OSD pair to 25088 Mi and the floor to
+> 53698 Mi (~57% of the node). It does not change the conclusion that was reached
+> here, only how tight it was.
 
 So a second wave moved two Ceph daemons that are neither OSDs nor mons off
 talos-3. **These two are not equivalent to each other, and the order matters.**
@@ -359,6 +385,22 @@ the permanent side of the ledger:
 ```
 permanent headroom after ai/embedding-gpu  5,465 Mi   ~= 10 CI runner slots
 ```
+
+**Updated 2026-09-20 - the OSD request cut returns 4,096 Mi to this ledger.** The
+measured figures above are left as measured on 2026-09-15; this is the delta from
+cutting the two talos-3 OSD requests 14Gi -> 12Gi (limits unchanged), and nothing
+else:
+
+```
+permanent (non-CI-runner) requests        83,019 Mi   <- was 87,115 Mi
+                                          ---------
+permanent headroom                        10,585 Mi   <- was  6,489 Mi
+permanent headroom after ai/embedding-gpu  9,561 Mi   ~= 18 CI runner slots
+```
+
+This accounts only for the OSD change. Any other in-flight talos-3 work (notably
+relocating workloads that drifted onto this node) moves the same ledger again, so
+re-measure rather than adding deltas from two sources.
 
 That does not put the node over its allocatable ceiling in either the busy or
 quiet case - it narrows the number of CI runner pods that can land on talos-3

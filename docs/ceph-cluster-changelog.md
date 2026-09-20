@@ -84,6 +84,29 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-09-20] OSD memory request 14Gi → 12Gi, limit unchanged  (branch `fm/homeops-ceph-osd-request-12gi`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | `cluster/helmrelease.yaml` `resources.osd.requests.memory` `14Gi` → `12Gi`. `limits.memory` stays `14Gi`; `requests.cpu` (500m) and `osd_memory_target` (10Gi) untouched. |
+| **Why** | 2026-09-20 fleet memory analysis: 6 OSDs each reserved 14,336 MiB against an `osd_memory_target` of 10,240 MiB and a highest-ever observed working set of **9,317 MiB**. That is 12,288 MiB of fleet-wide reservation the OSDs have never been able to defend, 4,096 MiB of it on talos-3 at ~99% committed ([`talos-3-scheduling-truth.md`](./talos-3-scheduling-truth.md)). Lowering only the *request* stops reserving burst headroom without removing it. |
+| **Why 12Gi and not 10Gi** | `osd_memory_target` sizes the BlueStore cache, **not** total RSS, and real usage legitimately exceeds it. 12,288 MiB clears the 9,317 MiB peak by 2,971 MiB. That peak was **not** a quiet-day reading - it was 2026-09-05 13:15 with 128 of 393 PGs degraded, i.e. exactly when an OSD should not be constrained. 10Gi was considered and declined. |
+| **Risk** | A recovery worse than any yet observed could push an OSD past 12,288 MiB. Because the limit is unchanged, the failure mode is *eviction ranking under node pressure*, not OOMKill - strictly cheaper than the alternative. Live production mutation: Flux reconciling it rolls all 6 OSD pods, one at a time (`osdMaxUpdatesInParallel: 1`, untouched). |
+| **Rollback** | Set `resources.osd.requests.memory` back to `14Gi`. |
+| **Verify** | Pre-merge (done 2026-09-20): `ceph health` is `HEALTH_OK`-prefixed and `task rook:check-osd-device-paths` reports SAFE; `task flux:test:all` green. Post-merge (follow-up, **not** claimed here): OSDs roll one at a time and `ceph health` returns to `HEALTH_OK` between each; then `max_over_time(container_memory_working_set_bytes{namespace="rook-ceph",container="osd"}[7d])` stays under 12,288 MiB, re-checked after the next real recovery event. |
+
+**Corrects the [2026-08-22] OSD Guaranteed QoS entry below: those pods were never Guaranteed.**
+Guaranteed QoS requires *every* container to cap both CPU and memory; the `osd` container
+sets `requests.cpu: 500m` with **no** CPU limit, so the pod is `Burstable`. Verified live
+2026-09-20 - all 6 OSD pods report `qosClass: Burstable` while still at `14Gi == 14Gi`. This
+change therefore does **not** downgrade QoS; there was no Guaranteed QoS to lose, and the old
+`# requests==limits => Guaranteed QoS` comment in the HelmRelease was wrong on that point.
+
+Retention note: Prometheus retains **14d**, so the 2026-09-05 sample behind the 9,317 MiB
+figure had already aged out when this was applied. The highest value still retained on
+2026-09-20 is **7,539 MiB**, which 12Gi clears by 4,749 MiB. Both readings support 12Gi. This
+is also why `max_over_time(...[30d])` in this repo's notes can only ever have been a 14d peak.
+
 ### [2026-09-17] Fourth live `ceph-filesystem-rwx` consumer: `ai/shared-files`  (branch `fm/homeops-second-smb-share`)
 
 | Field | Value |
@@ -257,6 +280,11 @@ Future rotations reuse the same block: bump `keyGeneration` to current+1. Rotati
 The matching 1Password item (`rook-ceph`, `ROOK_DASHBOARD_PASSWORD`) lives in the captain's external vault - delete it manually once this merges; not automated here. Applied via GitOps only; no live `ceph`/`kubectl` mutation was made.
 
 ### [2026-08-22] OSD Guaranteed QoS  (commit `cc3c135a`)
+
+> **SUPERSEDED 2026-09-20, and its premise was wrong.** The request is now `12Gi` (see the
+> 2026-09-20 entry). This entry's goal - Guaranteed QoS - was never actually achieved: the
+> `osd` container sets `requests.cpu` with no CPU limit, so the pod stays `Burstable` no
+> matter what the memory numbers are. Its **Verify** row below was therefore never satisfiable.
 
 | Field | Value |
 |-------|-------|
