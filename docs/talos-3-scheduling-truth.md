@@ -419,3 +419,65 @@ equivalent) at a single moment can return anywhere in this band depending on how
 many CI runners happen to be scheduled that instant. Compare a new workload's
 request against the **permanent headroom** above (which excludes runner churn),
 not against whatever one live reading happens to show.
+
+## 8. 2026-09-20: the node stops being the constraint - and the guard gets weaker
+
+Two changes landed together and moved talos-3 further than everything in §4 did.
+
+**`ai/vllm` 39Gi -> 12Gi.** The 39Gi in §4 was correct for what was measurable
+then: it covered a 39342 Mi peak. That peak was the unbounded host prompt-cache
+leak, which PR #1731 bounded on 2026-09-19 with `--cache-ram 4096` +
+`GLIBC_TUNABLES`. Measured on the post-fix pod (`vllm-5cb8f5f6f4-zmvqq`, started
+2026-09-19T19:40:40Z, zero restarts, 17h; all pre-fix history excluded):
+
+| | |
+|---|---:|
+| peak working set | 5750 Mi |
+| current | 5132 Mi |
+| trajectory | oscillates 4577-5750 Mi, does **not** climb |
+
+The pre-fix pod rose monotonically at +6485 Mi/day and never plateaued. The
+request is sized on the mechanism, not on the 17h peak, because prefill is 88%
+of this workload's tokens - its peak arrives with prompt volume, not with time:
+baseline 1232 Mi + the 4096 Mi cache bound = a 5328 Mi nominal ceiling, which
+the measured peak exceeds by only 1.08x; 12288 Mi is baseline + 2.7x the cache
+bound, i.e. 2.14x the measured peak.
+
+**Fifteen Class-A sites fixed.** Containers declaring `limits.memory` with no
+`requests.memory` reserve the whole limit. Sixteen were live in Git (see
+AGENTS.md for why an audit run against the *cluster* reported zero); fifteen
+were given requests sized above their measured 14d peaks.
+
+### Where that leaves the node
+
+| | before | after |
+|---|---:|---:|
+| talos-3 requested | 89222 Mi (95.3%) | **60262 Mi (64.4%)** |
+| talos-1 requested | 67265 Mi (71.9%) | 66455 Mi (71.0%) |
+| talos-2 requested | 70064 Mi (74.8%) | 69472 Mi (74.2%) |
+
+28960 Mi returned to talos-3. §4's "final arithmetic" and §7's band are
+superseded for the vllm line only; every other row in them still holds.
+
+### The thing to actually worry about now
+
+**The protection got weaker, not stronger.** §7 measured headroom in CI-runner
+slots because there were three. There are now roughly thirty. talos-3 is
+guarded only by a hand-maintained `hostname NotIn talos-3` deny-list on about a
+dozen workloads, and a deny-list **fails open**: between 2026-09-16 and
+2026-09-19, 5936 Mi landed on the node purely because the arrivals carried no
+affinity at all, while the node was at 99%. At 64% nothing pushes back at all.
+
+A taint on talos-3 plus tolerations on what genuinely belongs there (the GPU
+pair, the OSDs, the mon, the CNPG/NATS instances, the DaemonSets) fails closed
+and is the structurally correct shape. It is deliberately **not** part of this
+change - it is a placement change and its own decision.
+
+### If 12Gi is wrong
+
+`VLLMMemoryExceedsRequest` (`kubernetes/apps/base/ai/vllm/app/prometheusrule.yaml`)
+fires at `working_set / request > 1`, `for: 30m`. It was added with this cut for
+exactly that purpose: nothing else in the repo alerts on crossing a *request*,
+and the two limit rules stay silent for a further 36Gi. The observed post-fix
+band is 0.37-0.47 of the new request, so the threshold sits 2.1x above the top
+of the measured noise.
