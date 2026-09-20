@@ -44,6 +44,9 @@ spec:
                 memory: 128Mi
               requests:
                 cpu: 10m
+                # 14d peak 14.6Mi over 48,220 samples, x2 replicas. 48Mi is
+                # 3.3x it. Limit unchanged at 128Mi.
+                memory: 48Mi
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true

@@ -76,6 +76,10 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # 14d peak 202Mi over 48,174 samples - the busiest code-server
+                # in the fleet, so 320Mi (1.58x) is the tightest ratio here.
+                # Limit unchanged; an ESPHome compile runs in this container.
+                memory: 320Mi
               limits:
                 memory: 512Mi
 

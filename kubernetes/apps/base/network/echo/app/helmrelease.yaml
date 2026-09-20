@@ -43,6 +43,12 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # Declared equal to the limit deliberately: 14d peak is 49.2Mi
+                # against this 64Mi limit, so there is nothing to reclaim. It
+                # is written out rather than left to default because a
+                # limit-with-no-request reserves the whole limit silently
+                # (scripts/ci/memory-request-declared-test.py).
+                memory: 64Mi
               limits:
                 memory: 64Mi
     defaultPodOptions:

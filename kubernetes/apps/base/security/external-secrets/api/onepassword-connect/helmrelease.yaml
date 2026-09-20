@@ -59,6 +59,12 @@ spec:
             resources: &resources
               requests:
                 cpu: 10m
+                # One anchor serves both containers, so this is sized for the
+                # larger of the two: api 14d peak 111Mi (48,157 samples), sync
+                # 21Mi (48,253). 192M = 183Mi is 1.65x api and 8.7x sync.
+                # Limit unchanged. This pair is load-bearing for every
+                # ExternalSecret in the cluster, hence the conservative ratio.
+                memory: 192M
               limits:
                 memory: 256M
           sync:

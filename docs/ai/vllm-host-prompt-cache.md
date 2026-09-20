@@ -1,8 +1,8 @@
 # `ai/vllm` host prompt cache: the 2026-09-19 memory leak and its fix
 
-**Status:** fix shipped 2026-09-19, **not yet proven live**. The verification window is ~24h after
-the roll - see [§6](#6-how-to-tell-whether-it-worked). Until that is done, treat the expected
-steady state below as a prediction, not a result.
+**Status:** fix shipped 2026-09-19; request right-sized 12Gi 2026-09-20 from a measured 17h post-fix
+steady state (see [§4b](#4b-why-the-request-moved-and-the-limit-did-not)). A longer-window
+reconfirmation is still a named follow-up - see [§6](#6-how-to-tell-whether-it-worked).
 
 Claims are labelled `[MEASURED]` (read off this cluster), `[CONSENSUS]` (documented upstream/vendor
 behaviour), `[INFERENCE]` (reasoning from measured inputs). Source analysis: the 2026-09-19 fleet
@@ -30,8 +30,9 @@ is a user-visible outage on both.
 
 Crossing the **request** matters separately from crossing the limit: that is the moment the pod
 re-enters the kubelet's exceeds-set and becomes an eviction candidate again - the exact exposure
-the 2026-09-14 request raise (16Gi → 39Gi) existed to close. Nothing alerts on it; the two shipped
-rules in `prometheusrule.yaml` gate on the *limit* and fire ~1 day before the OOMKill.
+the 2026-09-14 request raise (16Gi → 39Gi) existed to close. Nothing alerted on it at the time; the
+two rules already in `prometheusrule.yaml` gate on the *limit* and fire ~1 day before the OOMKill.
+That gap was closed 2026-09-20 by `VLLMMemoryExceedsRequest` (see §4b).
 
 ## 2. What it was not
 
@@ -137,13 +138,24 @@ This is a chat server and the caching earns its keep `[MEASURED]`: mean **`f_kee
 tokens** (the `-ub 2048` rationale in the HelmRelease header). Setting 0 would trade an OOM for a
 large, permanent prefill regression.
 
-### 4b. Why the request and limit are unchanged
+### 4b. Why the request moved and the limit did not
 
-39Gi request / 48Gi limit are **deliberately left at their pre-fix values**. They are sized for the
-leak, and lowering them before the fix is proven live would remove the headroom currently
-preventing an eviction. Right-sizing is a follow-up that needs a *measured* steady state - see §6
-for why an early reading cannot supply one - and must be re-derived against
-`docs/talos-3-scheduling-truth.md`, since talos-3 sits at ~99.3% committed with ~678 MiB of margin.
+The pre-fix 39Gi request / 48Gi limit were deliberately left at the leak's own values until a
+*measured* post-fix steady state existed - lowering either earlier would have removed the headroom
+that was, at the time, the only thing preventing an eviction (see §6 for why an early reading
+cannot supply that measurement).
+
+That measurement now exists: pod `vllm-5cb8f5f6f4-zmvqq`, 17h post-fix, zero restarts, peak 5,750
+MiB, oscillating 4,577-5,750 MiB rather than climbing. On 2026-09-20 the **request was cut to
+12Gi** from that measurement - sized on the mechanism (baseline + 2.7x the 4096 MiB `--cache-ram`
+bound) rather than on the 17h peak alone, since prefill is 88% of tokens and a 17h window need not
+contain the busiest hour. Full arithmetic: the `resources.requests.memory` comment in
+`kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`.
+
+The **48Gi limit is unchanged** - a limit reserves no memory, and it stays high deliberately as
+headroom against an unobserved prefill spike while only 17h of post-fix history exists.
+`VLLMMemoryExceedsRequest` (`prometheusrule.yaml`) is the detector if 12Gi proves wrong. Node-level
+consequences of the cut: `docs/talos-3-scheduling-truth.md` §8.
 
 ## 5. What is gated
 
@@ -173,10 +185,11 @@ tokens/sec and rising `prompt eval time`** in the server log, both already print
 (`tg`/`tg_3s` decode figures alongside). If that appears, the lever is to raise `--cache-ram`, not
 to remove it.
 
-Expected post-fix steady state is **~9-20 GiB** `[INFERENCE]`: ~9.4 GiB if the bound is now honoured
-exactly, with headroom to ~20 GiB for residual fragmentation. A realistic post-fix *request* is
-12-20 GiB, i.e. 20-28 GiB reclaimable on talos-3 - but that is the follow-up, and it needs the
-measurement above first.
+The **~9-20 GiB** `[INFERENCE]` predicted here overestimated it: the measured 17h post-fix steady
+state (§4b) peaked at **5,750 MiB**, oscillating rather than climbing - well under the inference,
+which assumed the full cache bound stays resident continuously rather than being reused within a
+session. That measurement is what the 2026-09-20 request cut (§4b) is sized against; a longer
+window is still the named follow-up (§1 status line).
 
 ## 7. Related
 

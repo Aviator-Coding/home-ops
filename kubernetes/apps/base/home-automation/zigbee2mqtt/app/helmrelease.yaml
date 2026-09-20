@@ -156,6 +156,9 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # 14d peak 67Mi over 48,204 samples. 160Mi is 2.4x it.
+                # Limit unchanged at 512Mi.
+                memory: 160Mi
               limits:
                 memory: 512Mi
 

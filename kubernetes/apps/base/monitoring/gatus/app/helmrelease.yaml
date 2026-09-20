@@ -35,6 +35,14 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # Declared equal to the limit deliberately: 14d peak is 48.6Mi
+                # against this 64Mi limit, so there is no room to reclaim. It
+                # is written out rather than left to default because a
+                # limit-with-no-request reserves the whole limit silently
+                # (scripts/ci/memory-request-declared-test.py). restartPolicy
+                # Always makes this a native sidecar, so its request ADDS to
+                # the pod total rather than being max-ed with the others.
+                memory: 64Mi
               limits:
                 memory: 64Mi
             restartPolicy: Always
@@ -71,6 +79,10 @@ spec:
             resources:
               requests:
                 cpu: 100m
+                # 14d peak 47Mi over 30,883 samples. 128Mi is 2.7x it and
+                # leaves room for the auto-discovered HTTPRoute endpoint set
+                # to grow well past its current size. Limit unchanged.
+                memory: 128Mi
               limits:
                 memory: 256Mi
     defaultPodOptions:

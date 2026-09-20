@@ -36,6 +36,11 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # 14d peak 17.2Mi over 48,250 samples, x3 (DaemonSet). 32Mi is
+                # 1.9x it. Limit unchanged at 64Mi, so OOM behaviour for the
+                # b70/b70-vaapi device advertisement is untouched - only the
+                # reservation moves.
+                memory: 32Mi
               limits:
                 memory: 64Mi
             securityContext:

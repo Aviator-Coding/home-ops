@@ -287,6 +287,11 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # 14d peak 117Mi over 23,985 samples. 256Mi is 2.2x it.
+                # Limit unchanged at 1Gi - this is the code-server sidecar,
+                # not hermes itself, and an editor opening a large tree can
+                # spike well above its idle footprint.
+                memory: 256Mi
               limits:
                 memory: 1Gi
     defaultPodOptions:
