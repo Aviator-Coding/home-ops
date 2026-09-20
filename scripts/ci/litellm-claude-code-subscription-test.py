@@ -496,9 +496,12 @@ def test_virtual_key_semantics() -> None:
     # `info.extra` prices, so recorded spend on the key is $0.00 by
     # construction and a maxBudget could never trip - inert by construction,
     # the same reasoning as this key, reached via zero-priced local compute
-    # rather than via zeroed subscription pass-through fields. Its real bound
-    # is rpmLimit/tpmLimit (12/200000), sized against the shared B70 that also
-    # serves the auto-router's classifier; see that CR's own header.
+    # rather than via zeroed subscription pass-through fields. Its declared
+    # rpmLimit/tpmLimit (300/200000000, raised from an initial 12/200000 that
+    # measurably throttled the loop) are not a GPU-load protection either -
+    # that role is held by client concurrency, since gnhf is sequential and
+    # can never hold more than one of the backend's four slots; see that CR's
+    # own header for the full reasoning.
     OTHER_BUDGETLESS_KEYS_APPROVED = {"agent-swarm-captain", "mac-gnhf"}
     no_budget = {
         name

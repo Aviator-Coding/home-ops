@@ -38,42 +38,53 @@
 # growing allowlist. `mac-gnhf` was added to that set in the same commit as this
 # file, with the reason above recorded there too.
 #
-# RATE LIMITS - THE ACTUAL PROTECTION, AND WHAT THEY ARE PROTECTING.
+# RATE LIMITS - REVISED 2026-09-20 FROM MEASURED FAILURE, NOT ANALOGY.
 # chat-local resolves to vllm-app.ai.svc.cluster.local:8000, the single B70
 # llama.cpp server on talos-3. That SAME server also serves
 # `qwen3.6-35b-a3b-classifier`, which the D3 auto-router calls in front of
-# EVERY routed request in the cluster. So an uncapped overnight loop here does
-# not just slow itself down - it adds latency to all other AI traffic in the
-# house while the captain sleeps. The server auto-selects n_parallel=4 with
-# kv_unified=true (app/helmrelease.yaml of ai/vllm): four slots sharing one
-# 262144-token KV pool, so contention is real and a fifth concurrent request
-# queues behind the classifier's.
+# EVERY routed request in the cluster. The server auto-selects n_parallel=4
+# with kv_unified=true (app/helmrelease.yaml of ai/vllm): four slots sharing
+# one 262144-token KV pool.
 #
-#   rpmLimit: 12 - matched to repo-wiki, the ONLY other unattended chat-local
-#   consumer on this backend, and chosen for the same reason its header
-#   records: at rpm 4 that job was structurally unable to finish, because it
-#   issues calls back to back with no retry or backoff and the proxy 429'd it
-#   mid-run. An agent loop has the same shape - a short "here is the tool
-#   output, continue" turn can complete in a few seconds, so a limit sized only
-#   for slow full-context turns (which pace themselves at ~2-3/min) would
-#   throttle the fast ones and stall the loop rather than pace it. 12/min is
-#   still 0.2 req/s, comfortably under the 0.5 req/s that was measured to leave
-#   chat at 99% of idle on this card (docs/ai/embedder-gpu-migration-analysis-
-#   2026-09-15.md; that curve is an embedding workload, so it is a reference
-#   point for the shape, not a transferred measurement). Because gnhf is
-#   SEQUENTIAL it holds at most one of the four slots at a time, leaving three
-#   for the classifier. The residual cost is that one slot is busy more or less
-#   continuously for hours, which does shave aggregate decode - acceptable for
-#   a single short thinking-disabled classification, and the knob to turn if
-#   overnight routed latency ever regresses.
+# This CR originally shipped with rpmLimit: 12 / tpmLimit: 200000. Both were
+# wrong in practice: running the real gnhf loop unattended against this key
+# hit real throttling within the first session. The captain raised both by
+# hand through the admin API to the values now declared here, confirmed the
+# loop runs clean, and this change is what makes that fix durable instead of
+# being silently reverted on the operator's next reconcile.
 #
-#   tpmLimit: 200000 - the established value for every agent-shaped consumer in
-#   this directory (opencode, repo-wiki, ai-pr-review all sit here). It is just
-#   under the server's 262144 single-request ceiling, so it permits an ordinary
-#   loop turn at any realistic context while pacing one that has grown very
-#   large. A loop deliberately driving near that ceiling every call WILL 429;
-#   that is intended pacing for an unattended consumer, and raising this number
-#   is the documented response if real gnhf traffic proves it too tight.
+#   rpmLimit: 300 - the 12/min figure was reached by matching repo-wiki, the
+#   only other unattended chat-local consumer, on the theory that both are
+#   "agent-shaped". That analogy doesn't hold: repo-wiki is a single scripted
+#   job, not an agent loop. An agent loop burns many short tool-result turns
+#   per unit of real progress - "here is the tool output, continue" can
+#   complete in a couple of seconds - so its request RATE per unit of useful
+#   work is far higher than a job that makes one call per stage. 12/min measured
+#   as too tight for exactly that reason. 300/min is the captain's live,
+#   working value.
+#
+#   tpmLimit: 200000000 - the prior 200000 figure was justified as "just under
+#   the server's 262144 single-request ceiling", which is backwards: sitting
+#   just under the per-REQUEST ceiling means a single large-context call can by
+#   itself consume the entire per-minute budget, so the limit throttled normal
+#   operation rather than bounding abuse. On a repository this size, a
+#   single agent turn reaching that ceiling is ordinary, not a runaway case.
+#   200000000 is effectively no token ceiling at all - be honest about that
+#   rather than dressing it up as a calibrated bound; this is not a load-bearing
+#   protection and should not be read as one.
+#
+#   WHAT ACTUALLY PROTECTS THE SHARED B70 IS CLIENT CONCURRENCY, NOT rpm/tpm.
+#   gnhf is SEQUENTIAL - it issues one request, waits for the response, then
+#   issues the next - so regardless of how high its rate limit is set, it can
+#   never hold more than one of the backend's four `n_parallel` slots at a
+#   time, leaving three free for the classifier and any other consumer. The
+#   rate limits above exist to stop this key from spuriously throttling a
+#   legitimate consumer, not to bound GPU load - that would be an inert budget
+#   dressed up as a control, the exact anti-pattern this repo's runbook (see
+#   docs/ai-system/litellm/) already calls out for maxBudget on a zero-priced
+#   key. If overnight routed latency ever regresses because of this key, the
+#   fix is a client-side concurrency cap on the gnhf loop itself, not a lower
+#   rpm/tpm number here.
 #
 # MINTING. `mac-gnhf` appears nowhere else in this repo, so the alias should be
 # free and the operator should mint it cleanly. If reconciliation instead
@@ -95,8 +106,8 @@ spec:
   secretKey: key
   models:
     - chat-local
-  rpmLimit: 12
-  tpmLimit: 200000
+  rpmLimit: 300
+  tpmLimit: 200000000
   metadata:
     purpose: captain's Mac running the gnhf agent loop, off-cluster
 ---
