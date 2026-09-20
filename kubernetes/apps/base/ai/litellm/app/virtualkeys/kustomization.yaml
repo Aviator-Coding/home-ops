@@ -13,9 +13,9 @@ kind: Kustomization
 # operator diffs the live key against the spec and PATCHes only what changed,
 # so the credential itself is preserved (same property the old script had).
 #
-# Two keys here carry no `maxBudget`, for unrelated reasons -
+# Three keys here carry no `maxBudget`, for unrelated reasons -
 # `scripts/ci/litellm-claude-code-subscription-test.py` asserts this exact
-# allow-list rather than a bare count, so any THIRD budgetless key must be
+# allow-list rather than a bare count, so any FURTHER budgetless key must be
 # added there explicitly or the gate fails:
 #   - `claude-code-subscription.yaml`'s allow-list names the two subscription
 #     pass-through models - the natural `claude-sonnet-5` and `claude-opus-5`
@@ -33,6 +33,12 @@ kind: Kustomization
 #     unrelated to pricing - adopted (forced rotation, not a live-preserving
 #     adoption) on 2026-09-12 with entitlements carried over exactly as
 #     minted on 2026-09-09. See that file's own header.
+#   - `mac-gnhf.yaml` is budgetless for the SAME reason as the subscription
+#     key but via a different route: its only model is `chat-local`, which
+#     carries no `info.extra` prices at all, so recorded spend is $0.00 by
+#     construction and a cap could never trip. Its real bound is
+#     rpmLimit/tpmLimit, sized against the shared B70 that also serves the
+#     auto-router's classifier. See that file's own header.
 resources:
   - ./claude-code-subscription.yaml
   - ./demo.yaml
@@ -45,3 +51,4 @@ resources:
   - ./agent-swarm-paid.yaml
   - ./agent-swarm-network-broker.yaml
   - ./embedding-external.yaml
+  - ./mac-gnhf.yaml
