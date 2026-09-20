@@ -604,7 +604,7 @@ demonstration - keep the distinction visible rather than letting "sized" drift i
 
 | claim | cache | snapshot | r2-proven? | evidence |
 |---|--:|--:|---|---|
-| `ai/hermes` | 16Gi | 9.70 GiB | **yes** - 2026-09-02, 65,978 files / 10,419,954,664 B, peak cache 40% of usable; the only run that reaches the eviction plateau | `kopiur-r2-restore-cache-gate-2026-09-02.md` |
+| `ai/hermes` | 48Gi | 19.44 GiB | **sized above proven** - r2-proven at its previous **16Gi** on 2026-09-02 (65,978 files / 10,419,954,664 B, peak cache 40% of usable; the only run that reaches the eviction plateau), raised to 48Gi on 2026-09-20 with the claim (25Gi -> 40Gi), as conservatism against the unpinned plateau rather than because 16Gi had become insufficient - by the model above it had not. Raising is the safe direction, but the exact-capacity demonstration covers 16Gi | `kopiur-r2-restore-cache-gate-2026-09-02.md` |
 | `media/tdarr` | 10Gi | 1.70 GiB | **yes** - 2026-09-02, 17,281 files / 1,820,653,922 B | `kopiur-populator-drift-2026-09-02.md` |
 | `media/plex` | 10Gi | 4.61 GiB | **yes** - 2026-09-12, 24,726 files / 4,948,787,362 B, peak cache ~47% of usable | `kopiur-plex-r2-restore-proof-2026-09-12.md` |
 | `downloads/sabnzbd` | 10Gi | 2.06 GiB | ceph **and** r2 byte-identical at Stage 2, but at the drill's own capacity | `kopiur-restore-drill-2026-08-30.md` |
