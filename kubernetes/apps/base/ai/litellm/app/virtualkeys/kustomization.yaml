@@ -36,9 +36,10 @@ kind: Kustomization
 #   - `mac-gnhf.yaml` is budgetless for the SAME reason as the subscription
 #     key but via a different route: its only model is `chat-local`, which
 #     carries no `info.extra` prices at all, so recorded spend is $0.00 by
-#     construction and a cap could never trip. Its real bound is
-#     rpmLimit/tpmLimit, sized against the shared B70 that also serves the
-#     auto-router's classifier. See that file's own header.
+#     construction and a cap could never trip. Its rpmLimit/tpmLimit exist to
+#     stop the key from spuriously throttling the loop, not to bound GPU
+#     load - that protection is client-side concurrency instead. See that
+#     file's own header.
 resources:
   - ./claude-code-subscription.yaml
   - ./demo.yaml
