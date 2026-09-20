@@ -257,8 +257,12 @@ spec:
                 #
                 # 99.3% is a genuinely tight node and is not a target to defend;
                 # it is the only value that both fits and covers the peak. The
-                # honest next lever is the two Ceph OSDs at 14Gi each - 28GiB of
-                # this node's 91 - which is a much larger conversation than this.
+                # honest next lever was the two Ceph OSDs at 14Gi each - 28GiB of
+                # this node's 91. That lever has since been pulled, partially: on
+                # 2026-09-20 each OSD *request* went to 12Gi (limits still 14Gi),
+                # returning 4096 Mi to this node. It is not available a second
+                # time - 12Gi is sized against a measured 9,317 Mi OSD peak, not
+                # against osd_memory_target. See docs/ceph-cluster-changelog.md.
                 #
                 # This value only fits because room was made for it first, in
                 # the two rook-ceph relocations and the right-sizing that
