@@ -215,60 +215,56 @@ spec:
             resources:
               requests:
                 cpu: "2"
-                # 39Gi, raised from 16Gi 2026-09-14. Shipped that day at 40Gi
-                # first; see CORRECTION below for why that was wrong and 39Gi
-                # is the value that actually fits. This is an eviction-safety
-                # fix, not a capacity request. The kubelet ranks node-pressure
-                # eviction first by whether a pod's usage EXCEEDS its requests,
-                # then by priority, then by how far it exceeds. At 16Gi this
-                # server sat 21230Mi over its request - 117x the next pod the
-                # kubelet would actually evict (everything here is priority 0,
-                # and kube-apiserver's +2085Mi is a system-node-critical static
-                # pod). So any memory spike on talos-3 killed the LLM first, and
-                # killed it far below the 48Gi limit below, which was never the
-                # binding risk. A request that covers real usage removes the pod
-                # from the exceeds-set entirely and puts it in the last-evicted
-                # group - that is the whole point of the change.
+                # 12Gi, cut from 39Gi on 2026-09-20 against the measured
+                # post-fix steady state. The 39Gi that stood here was sized for
+                # the unbounded host prompt-cache leak, which PR #1731 closed on
+                # 2026-09-19 with --cache-ram 4096 + GLIBC_TUNABLES (see the env
+                # and args above). The limit comment below asked for exactly this
+                # follow-up and set the bar for it: a measured steady state, not
+                # a reading taken shortly after a roll. That bar is now met.
                 #
-                # 39Gi clears the measured 30-day PEAK working set of 39342Mi
-                # (not the average - steady state is ~37.6GiB) by 594Mi. The peak
-                # is the right target because the footprint was anonymous and
-                # irreclaimable: container_memory_rss 37536Mi against
-                # container_memory_cache of 4Mi. That growth was the unbounded
-                # host prompt-cache heap (see the --cache-ram/GLIBC_TUNABLES
-                # comment above), not --no-mmap - RSS holds at 635Mi through
-                # weight load while 22502Mi of file-backed page cache appears,
-                # so the weights are reclaimable and excluded from this figure.
-                # See docs/ai/vllm-host-prompt-cache.md.
+                # Why the request matters at all (unchanged, and the reason this
+                # is not cut to the peak): the kubelet ranks node-pressure
+                # eviction first by whether a pod's usage EXCEEDS its request. At
+                # 16Gi this server sat 21230Mi over its request and any spike on
+                # talos-3 killed the LLM first. A request that covers the real
+                # peak keeps the pod out of the exceeds-set entirely.
                 #
-                # CORRECTION 2026-09-14: this shipped as 40Gi and the pod went
-                # Pending - `0/3 nodes are available: 2 Insufficient
-                # devic.es/b70, 3 Insufficient memory`, an LLM outage. The shed
-                # was projected to leave 50750Mi of non-vllm requests on talos-3;
-                # once the relocations actually settled the figure was 52990Mi,
-                # about 2.2GiB higher, so 40Gi was ~346Mi short of schedulable.
-                # Measured at the time of this fix:
+                # The measurement. Pod vllm-5cb8f5f6f4-zmvqq, started
+                # 2026-09-19T19:40:40Z, zero restarts, 17h of post-fix history
+                # (all pre-fix history is deliberately excluded - it is the leak
+                # climbing to 39531Mi and would defeat the exercise):
                 #
-                #   allocatable                  93604 Mi
-                #   talos-3 others, settled      52990 Mi
-                #   room for vllm                40614 Mi
-                #   39Gi = 39936Mi -> 92926 Mi = 99.3%, margin 678 Mi   FITS
-                #   40Gi = 40960Mi -> 93950 Mi = 100.4%                 OVER
+                #   peak working set              5750 Mi
+                #   current                       5132 Mi
+                #   trajectory     oscillates 4577-5750 Mi, does NOT climb
                 #
-                # 99.3% is a genuinely tight node and is not a target to defend;
-                # it is the only value that both fits and covers the peak. The
-                # honest next lever was the two Ceph OSDs at 14Gi each - 28GiB of
-                # this node's 91. That lever has since been pulled, partially: on
-                # 2026-09-20 each OSD *request* went to 12Gi (limits still 14Gi),
-                # returning 4096 Mi to this node. It is not available a second
-                # time - 12Gi is sized against a measured 9,317 Mi OSD peak, not
-                # against osd_memory_target. See docs/ceph-cluster-changelog.md.
+                # The oscillation is the point: the pre-fix pod rose monotonically
+                # at +6485Mi/day and never plateaued. This one does not.
                 #
-                # This value only fits because room was made for it first, in
-                # the two rook-ceph relocations and the right-sizing that
-                # precede it. Do not raise it at all, and do not lower the shed,
-                # without re-measuring live: docs/talos-3-scheduling-truth.md.
-                memory: 39Gi
+                # The arithmetic, sized on the mechanism rather than on the 17h
+                # peak, because prefill is 88% of this workload's tokens - its
+                # peak arrives with prompt volume, not with time, and 17h need not
+                # contain the busiest hour it will ever see:
+                #
+                #   post-load baseline                        1232 Mi
+                #   + --cache-ram bound, fully cold-filled    4096 Mi
+                #   = nominal ceiling                         5328 Mi
+                #   measured 17h peak                         5750 Mi  (1.08x it)
+                #   request: baseline + 2.7x the cache bound 12288 Mi
+                #
+                # 12Gi is 2.14x the measured peak and leaves room for the bounded
+                # cache to cold-fill plus allocator slack well past the 1.08x
+                # overshoot actually observed. It is the bottom of the 12-20 GiB
+                # band the fleet memory analysis predicted; the real data came in
+                # below that band, and the value is deliberately NOT cut to just
+                # above 5750Mi. Returns 27648Mi to talos-3, which was the point.
+                #
+                # If this is wrong, VLLMMemoryExceedsRequest (prometheusrule.yaml)
+                # is the detector - it was added with this cut for that purpose.
+                # Do not raise or lower this without re-measuring live:
+                # docs/talos-3-scheduling-truth.md, docs/ai/vllm-host-prompt-cache.md.
+                memory: 12Gi
                 devic.es/b70: 1
               limits:
                 # Growth is now bounded at the source, by --cache-ram 4096 +
@@ -276,15 +272,16 @@ spec:
                 # a backstop (llama.cpp's bad_alloc guard is unreachable under a
                 # cgroup; see the --cache-ram comment).
                 #
-                # Both this and the 39Gi request are DELIBERATELY left at their
-                # pre-fix values. They are sized for the leak, and lowering them
-                # before the fix is proven live would remove the headroom that is
-                # currently preventing an eviction. Expected post-fix steady state
-                # is ~9-20 GiB, so right-sizing is a follow-up - and it needs a
-                # measured steady state, not a reading taken shortly after a roll:
-                # the pod starts at ~1.2 GiB either way, so an early sample cannot
-                # distinguish a fix from a failure. Re-measure against
-                # docs/talos-3-scheduling-truth.md before touching either number.
+                # The request above has since been right-sized to 12Gi against
+                # the measured post-fix steady state (2026-09-20). This limit is
+                # deliberately NOT cut with it. It costs nothing to leave high -
+                # a limit reserves no memory - and it is the remaining headroom
+                # that lets the pod survive an unobserved prefill spike instead of
+                # being OOMKilled by one, which matters precisely because only 17h
+                # of post-fix history exists. Lower it only once a much longer
+                # steady state is in hand, and never below the --cache-ram bound
+                # plus baseline (scripts/ci/vllm-prompt-cache-test.py enforces the
+                # cache-below-limit half of that).
                 memory: 48Gi
                 devic.es/b70: 1
             probes:

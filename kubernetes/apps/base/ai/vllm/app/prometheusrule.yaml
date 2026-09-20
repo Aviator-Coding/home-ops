@@ -198,6 +198,47 @@ spec:
           labels:
             severity: warning
 
+        # Added 2026-09-20 with the 39Gi -> 12Gi request cut, as that cut's
+        # detector. Nothing else in this repo alerts on crossing a REQUEST, and
+        # the request is where eviction ranking is decided: a pod whose working
+        # set exceeds its request re-enters the kubelet's exceeds-set and is
+        # evicted before any pod that is within its own request. The two rules
+        # around this one watch the 48Gi LIMIT and so stay silent for a further
+        # 36Gi - they cannot see this.
+        #
+        # This is deliberately a plain current-ratio rule, not a predict_linear
+        # one. The growth shape it guards against is no longer the slow leak the
+        # neighbouring rule was written for (PR #1731 bounded that); it is a
+        # prefill spike, which arrives with prompt volume rather than with time
+        # and which a 6h linear projection would miss entirely.
+        #
+        # Threshold and for: are sized off the measured post-fix band, NOT
+        # guessed. Over the 17h that followed the fix the pod oscillated
+        # 4577-5750 Mi against this 12288 Mi request, i.e. 0.37-0.47 - so a
+        # ratio > 1 sits a clear 2.1x above the top of the observed noise band
+        # and cannot latch on it. `for: 30m` is long enough that a single
+        # transient cold-fill of the 4096 Mi prompt cache cannot page, and short
+        # enough to arrive well before the limit rules would.
+        - alert: VLLMMemoryExceedsRequest
+          annotations:
+            summary: vllm is using more memory than it reserves
+            description: >-
+              vllm pod {{ $labels.pod }} is at
+              {{ $value | humanizePercentage }} of its memory REQUEST. It has
+              re-entered the kubelet's eviction exceeds-set and will now be
+              evicted before pods that stay within their requests. The 12Gi
+              request was sized on 2026-09-20 against a measured 5750 Mi peak;
+              if this is firing, that sizing is wrong and the request needs
+              raising - see the helmrelease resources comment.
+          expr: |
+            container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_requests{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
+              > 1
+          for: 30m
+          labels:
+            severity: warning
+
         - alert: VLLMMemoryCriticalLimit
           annotations:
             summary: vllm is close to being OOMKilled

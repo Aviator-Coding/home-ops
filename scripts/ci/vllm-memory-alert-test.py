@@ -240,9 +240,11 @@ def _series(values: list[float]) -> _Q:
 def assert_structural_contract(alerts: dict[str, dict[str, Any]]) -> None:
     require("VLLMMemoryApproachingLimit" in alerts, "missing alert VLLMMemoryApproachingLimit")
     require("VLLMMemoryCriticalLimit" in alerts, "missing alert VLLMMemoryCriticalLimit")
+    require("VLLMMemoryExceedsRequest" in alerts, "missing alert VLLMMemoryExceedsRequest")
 
     warn = alerts["VLLMMemoryApproachingLimit"]
     crit = alerts["VLLMMemoryCriticalLimit"]
+    over = alerts["VLLMMemoryExceedsRequest"]
     warn_expr = warn["expr"]
     crit_expr = crit["expr"]
 
@@ -313,18 +315,59 @@ def assert_structural_contract(alerts: dict[str, dict[str, Any]]) -> None:
             'pod!~"vllm-vllm-embed-.*"' in expr,
             f"{name}: must exclude the sibling vllm-embed controller",
         )
+        # The invariant this pins is "resolve the denominator from a LIVE
+        # kube-state-metrics series", not one specific metric name. It was
+        # written as a literal `kube_pod_container_resource_limits` check when
+        # every rule here was limit-based, and that froze the file against the
+        # first legitimate request-based rule (VLLMMemoryExceedsRequest, added
+        # 2026-09-20 with the 39Gi -> 12Gi request cut). Widened to the
+        # relationship; the dead-metric half below is unchanged and is the half
+        # that actually carries the value. See AGENTS.md on CI gates that freeze
+        # a past PR's scope boundary.
         require(
-            "kube_pod_container_resource_limits" in expr,
-            f"{name}: must join against kube_pod_container_resource_limits, "
-            "not the dead container_spec_* metric family",
+            any(
+                f"kube_pod_container_resource_{kind}" in expr
+                for kind in ("limits", "requests")
+            ),
+            f"{name}: must join against kube_pod_container_resource_limits or "
+            "kube_pod_container_resource_requests, not the dead container_spec_* "
+            "metric family",
         )
         require(
             "container_spec_" not in expr,
             f"{name}: must not use the dead container_spec_* metric family",
         )
 
+    # VLLMMemoryExceedsRequest guards the REQUEST, which is where eviction
+    # ranking is decided and which no other rule in this file can see. Pinned
+    # here so it cannot quietly decay into a second limit rule.
+    over_expr = over["expr"]
+    require(
+        "kube_pod_container_resource_requests" in over_expr,
+        "VLLMMemoryExceedsRequest must compare against the REQUEST - comparing "
+        "against the limit duplicates VLLMMemoryCriticalLimit and leaves the "
+        "eviction exceeds-set unwatched",
+    )
+    require(
+        "predict_linear(" not in over_expr,
+        "VLLMMemoryExceedsRequest must stay a plain current-ratio rule - the "
+        "shape it guards against is a prefill spike, which arrives with prompt "
+        "volume rather than with time and which a linear projection misses",
+    )
+    require(
+        over_expr.strip().endswith("> 1"),
+        "VLLMMemoryExceedsRequest threshold must remain 1 (100% of request) - "
+        "that is the exact point the pod re-enters the eviction exceeds-set",
+    )
+    require(
+        over.get("for") == "30m",
+        "VLLMMemoryExceedsRequest for: must be 30m - long enough that one "
+        "transient cold-fill of the 4096 Mi prompt cache cannot page",
+    )
+
     require(warn["labels"]["severity"] == "warning", "VLLMMemoryApproachingLimit must be severity=warning")
     require(crit["labels"]["severity"] == "critical", "VLLMMemoryCriticalLimit must be severity=critical")
+    require(over["labels"]["severity"] == "warning", "VLLMMemoryExceedsRequest must be severity=warning")
 
 
 def _noisy_band_series(hours: int = 48, step_min: int = 5) -> list[float]:
