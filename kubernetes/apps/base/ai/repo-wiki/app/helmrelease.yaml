@@ -56,6 +56,9 @@ spec:
             resources:
               requests:
                 cpu: 25m
+                # 14d peak 48Mi over 48,142 samples (mkdocs serve --dirty on a
+                # small tree). 128Mi is 2.7x it. Limit unchanged.
+                memory: 128Mi
               limits:
                 memory: 512Mi
       # Multi-pass wiki generator (generate.py): plans pages per repo, writes
@@ -117,6 +120,12 @@ spec:
             resources:
               requests:
                 cpu: 100m
+                # 14d peak 41.9Mi, the worst of 10 observed 12-hourly runs
+                # (the rest sat 24.5-30.1Mi). 128Mi is 3.0x it. This is not
+                # only a reservation win: at 2Gi the job needed 2Gi free on
+                # whichever node mkdocs holds - its podAffinity pins it there -
+                # and talos-3 has had less than that. Limit unchanged.
+                memory: 128Mi
               limits:
                 memory: 2Gi
 

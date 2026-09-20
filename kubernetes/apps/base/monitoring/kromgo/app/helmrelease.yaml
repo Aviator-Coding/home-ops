@@ -52,6 +52,9 @@ spec:
             resources:
               requests:
                 cpu: 10m
+                # 14d peak 8Mi over 48,210 samples, x2 replicas. 32Mi is 4x
+                # it. Limit unchanged at 64Mi.
+                memory: 32Mi
               limits:
                 memory: 64Mi
     defaultPodOptions:
