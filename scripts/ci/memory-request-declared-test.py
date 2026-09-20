@@ -38,6 +38,46 @@ What this asserts, and what it deliberately does not:
     Peaks move, and AGENTS.md is explicit that a gate freezing a resource
     literal goes red on the next legitimate change. Sizing rationale lives in
     a comment beside each value, where it can be revised without a CI edit.
+
+Coverage, precisely (this gate does NOT "audit every possible way a resources
+block can enter the cluster" - only these two shapes):
+
+  - A full manifest's own `resources:` block, found by walking the parsed
+    YAML tree of every kustomize.yaml under kubernetes/.
+  - The embedded body of a Kustomize strategic-merge `patch: |` block scalar
+    (a YAML dict), which yaml.safe_load otherwise leaves as an opaque string
+    leaf - invisible to the tree walk above. Found live 2026-09-20:
+    kubernetes/apps/base/flux-system/flux-instance/app/helmrelease.yaml
+    patches `limits.memory: 2Gi` onto the Flux controllers with no
+    requests.memory in the patch body - exactly this gate's target shape, and
+    it was structurally unable to see it before this fix.
+
+  A JSON6902 op-list patch (`- op: add/replace/remove, path: ..., value:
+  ...`) is deliberately left opaque. Unlike a strategic-merge patch, judging
+  one requires applying it against the target object the gate does not have -
+  a `resources` value could arrive nested inside an op's `value:` at any
+  path, or an op could remove the very requests key another op adds. Parsing
+  it as a bare YAML tree without applying it would produce false positives
+  and false negatives in about equal measure, so op-list patches are skipped
+  rather than guessed at.
+
+  A strategic-merge patch is also a genuinely different shape than a full
+  manifest even once parsed: it MERGES onto an existing object, so a patch
+  body declaring `limits.memory` alone is not necessarily reproducing the
+  live defect - the target may already declare its own requests.memory, in
+  which case the merge is complete and correct. The gate cannot resolve that
+  ambiguity from the patch text alone (the target lives in an external chart
+  in the flux-instance case above), so a patch-embedded site is handled the
+  same way as cloudnative-pg's cluster-17 below: verified once by hand
+  against the live object, then held open via a documented EXEMPT entry
+  rather than silently passed or permanently blocked.
+
+  Verified 2026-09-20: with the flux-instance EXEMPT entry removed, this
+  gate fails on exactly that site
+  (doc0/.../patches[1]/patch<embedded>/.../resources, limits.memory=2Gi) -
+  proving the patch-block walk now sees it. Restoring the entry passes
+  clean. test_patch_block_coverage() below pins the same detection
+  synthetically so it does not depend on that live file's shape persisting.
 """
 
 from __future__ import annotations
@@ -64,6 +104,21 @@ EXEMPT: dict[str, str] = {
     "kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml": (
         "CNPG Cluster; request==limit is correct (peak 3,610Mi vs 4Gi) and "
         "making it explicit risks a switchover for no effect"
+    ),
+    # Strategic-merge patch (values.instance.kustomize.patches[].patch) that
+    # sets limits.memory: 2Gi on the flux-operator-managed manager container
+    # of kustomize-controller/helm-controller/source-controller, with no
+    # requests.memory in the patch body. Verified live 2026-09-20: all three
+    # Deployments carry requests {cpu 100m|50m, memory 64Mi} alongside limits
+    # {cpu 1, memory 2Gi} - the patch merges onto flux-operator's own base
+    # manifest, which already declares requests.memory 64Mi for that
+    # container, so this is NOT a Class-A site. The base manifest lives in an
+    # external OCI chart this repo cannot read, so that fact cannot be
+    # re-derived from git and has to be pinned here from the live check.
+    "kubernetes/apps/base/flux-system/flux-instance/app/helmrelease.yaml": (
+        "SMP patch onto flux-operator's own base Deployment, which already "
+        "declares requests.memory 64Mi (verified live 2026-09-20); the "
+        "patch's limit-only body does not reproduce the defect"
     ),
 }
 
@@ -93,12 +148,43 @@ def to_bytes(q: Any) -> float | None:
     return float(m.group(1)) * _FACTOR[m.group(2)]
 
 
+def _is_json6902_ops(node: Any) -> bool:
+    """True for a JSON6902 op-list (`- op: add, path: ..., value: ...`),
+    which the walker must leave opaque rather than guess at (see module
+    docstring "Coverage, precisely")."""
+    return isinstance(node, list) and bool(node) and all(
+        isinstance(item, dict) and "op" in item and "path" in item for item in node
+    )
+
+
+def _parse_embedded_patch(text: str) -> Any | None:
+    """Parse a Kustomize `patch: |` block scalar's body as embedded YAML.
+
+    Returns None (skip, do not fail the gate) for a JSON6902 op-list, for
+    text that is not valid YAML, or for anything that does not parse to a
+    dict/list - a strategic-merge patch body is always a YAML object."""
+    try:
+        parsed = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None
+    if _is_json6902_ops(parsed):
+        return None
+    if isinstance(parsed, (dict, list)):
+        return parsed
+    return None
+
+
 def walk(node: Any, path: str, out: list[tuple[str, dict]]) -> None:
     if isinstance(node, dict):
         res = node.get("resources")
         if isinstance(res, dict):
             out.append((path + "/resources", res))
         for k, v in node.items():
+            if k == "patch" and isinstance(v, str):
+                embedded = _parse_embedded_patch(v)
+                if embedded is not None:
+                    walk(embedded, f"{path}/patch<embedded>", out)
+                continue
             walk(v, f"{path}/{k}", out)
     elif isinstance(node, list):
         for i, v in enumerate(node):
@@ -181,6 +267,83 @@ def test_exemptions_are_still_real() -> None:
     )
 
 
+def _offenders_via_walk(doc: dict) -> list[str]:
+    blocks: list[tuple[str, dict]] = []
+    walk(doc, "synthetic", blocks)
+    out = []
+    for path, res in blocks:
+        lim = res.get("limits") or {}
+        req = res.get("requests") or {}
+        if isinstance(lim, dict) and isinstance(req, dict) and "memory" in lim and "memory" not in req:
+            out.append(path)
+    return out
+
+
+def test_patch_block_coverage() -> None:
+    """Proves the `patch: |` embedding fix (walk()'s "k == 'patch'" branch)
+    actually detects the shape it exists for, rather than merely not
+    crashing on it. A limits-only SMP patch body must be flagged (mutation
+    goes red); a fully-declared one must not (control passes); a JSON6902
+    op-list and invalid YAML must both be skipped without error."""
+    control_patch = (
+        "apiVersion: apps/v1\n"
+        "kind: Deployment\n"
+        "spec:\n"
+        "  template:\n"
+        "    spec:\n"
+        "      containers:\n"
+        "        - name: manager\n"
+        "          resources:\n"
+        "            limits:\n"
+        "              memory: 2Gi\n"
+        "            requests:\n"
+        "              memory: 64Mi\n"
+    )
+    mutated_patch = (
+        "apiVersion: apps/v1\n"
+        "kind: Deployment\n"
+        "spec:\n"
+        "  template:\n"
+        "    spec:\n"
+        "      containers:\n"
+        "        - name: manager\n"
+        "          resources:\n"
+        "            limits:\n"
+        "              memory: 2Gi\n"
+    )
+    json6902_patch = (
+        "- op: add\n"
+        "  path: /spec/template/spec/containers/0/args/-\n"
+        "  value: --concurrent=10\n"
+    )
+    invalid_patch = "not: [valid, yaml"
+
+    record(
+        "patch_block_control_fully_declared_not_flagged",
+        _offenders_via_walk({"patch": control_patch}) == [],
+        "control patch (limits+requests both declared) was unexpectedly "
+        f"flagged: {_offenders_via_walk({'patch': control_patch})}",
+    )
+    mutated_offenders = _offenders_via_walk({"patch": mutated_patch})
+    record(
+        "patch_block_mutation_limits_only_is_flagged",
+        len(mutated_offenders) == 1,
+        "a limits-only SMP patch body (no requests.memory) was NOT detected "
+        "- the patch-block walker regressed to invisible again",
+    )
+    record(
+        "patch_block_json6902_skipped_without_crash",
+        _offenders_via_walk({"patch": json6902_patch}) == [],
+        "a JSON6902 op-list must be skipped, not walked as a strategic-merge "
+        "object (it has no target to evaluate the ops against)",
+    )
+    record(
+        "patch_block_invalid_yaml_skipped_without_crash",
+        _offenders_via_walk({"patch": invalid_patch}) == [],
+        "invalid YAML inside a patch: block must be skipped, not raise",
+    )
+
+
 def main() -> int:
     print("==> every limits.memory has an explicit requests.memory")
     test_every_memory_limit_has_a_declared_request()
@@ -188,6 +351,8 @@ def main() -> int:
     test_requests_never_exceed_limits()
     print("==> documented exemptions still describe real sites")
     test_exemptions_are_still_real()
+    print("==> patch: block parsing detects a limits-only SMP body and skips ops/invalid YAML")
+    test_patch_block_coverage()
 
     failed = [r for r in RESULTS if not r[1]]
     print()

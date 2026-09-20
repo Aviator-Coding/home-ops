@@ -54,6 +54,15 @@ This test does NOT grep source text as evidence. It:
          shares the "vllm-" pod-name prefix and "app" container name) never
          appears in any exp_alerts despite being pinned at a critically high
          ratio of its own limit throughout every scenario.
+       - VLLMMemoryExceedsRequest (added 2026-09-20 with the 39Gi -> 12Gi
+         request cut) fires once a sustained excursion above the REQUEST has
+         held continuously for the full for:30m window, resolves immediately
+         (not gated by for:) once the ratio drops back under 1, stays quiet
+         through a 20-minute transient that never reaches the 30m for:, and
+         never fires for the sibling vllm-embed controller despite it
+         sitting at 2x its own request throughout - exercised the same way
+         as the other two alerts, not just via the structural string checks
+         below.
 
 promtool is resolved the same way as backup-silent-failure-alerting-test.py
 (native aqua install preferred; podman image fallback).
@@ -86,6 +95,7 @@ MAIN_POD = "vllm-7cfbc95d5-9cqm7"
 CLIMB_POD = "vllm-climb"
 NOISY_POD = "vllm-noisy"
 RAMP_POD = "vllm-ramp"
+REQUEST_POD = "vllm-request"
 
 
 class Failure(Exception):
@@ -409,6 +419,25 @@ def _sustained_climb_series(lead_hours: int = 6, climb_hours: int = 30, step_min
     return out
 
 
+def _exceeds_request_series() -> list[float]:
+    """Ratio-of-request shape for VLLMMemoryExceedsRequest, at 5m steps:
+
+      t=0-25m   quiet baseline (0.5)
+      t=30-45m  a 20-minute transient excursion (1.5) - shorter than the
+                30m for:, so this must NEVER fire
+      t=50-75m  back to quiet baseline
+      t=80-125m a 45-minute sustained excursion (1.5) - long enough to
+                clear for:30m, so this must fire starting at t=110m
+      t=130-145m back to quiet baseline - must resolve immediately, not
+                gated by for:
+
+    0.5 and 1.5 are both exactly representable in binary float, so
+    humanizePercentage's rendered "150%" in the fired annotation is not at
+    the mercy of floating-point rounding.
+    """
+    return [0.5] * 6 + [1.5] * 4 + [0.5] * 6 + [1.5] * 10 + [0.5] * 4
+
+
 def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="vllm-alert-promtool-") as tmp:
         work = Path(tmp)
@@ -435,6 +464,11 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
         n_ramp = len(ramp)
         embed_ramp = [0.95] * n_ramp
         limit_ramp = [1.0] * n_ramp
+
+        exceeds = _exceeds_request_series()
+        n_exceeds = len(exceeds)
+        embed_exceeds = [2.0] * n_exceeds
+        request_one = [1.0] * n_exceeds
 
         test_doc = {
             "rule_files": ["vllm_rules.yml"],
@@ -620,6 +654,107 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                         {"eval_time": "115m", "alertname": "VLLMMemoryCriticalLimit", "exp_alerts": []},
                     ],
                 },
+                {
+                    "name": "exceeds_request_fires_holds_resolves_and_embed_excluded",
+                    "interval": "5m",
+                    "input_series": [
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{REQUEST_POD}", container="app"}}',
+                            "values": _series(exceeds),
+                        },
+                        {
+                            "series": f'kube_pod_container_resource_requests{{namespace="ai", pod="{REQUEST_POD}", container="app", resource="memory"}}',
+                            "values": _series(request_one),
+                        },
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{EMBED_POD}", container="app"}}',
+                            "values": _series(embed_exceeds),
+                        },
+                        {
+                            "series": f'kube_pod_container_resource_requests{{namespace="ai", pod="{EMBED_POD}", container="app", resource="memory"}}',
+                            "values": _series(request_one),
+                        },
+                    ],
+                    "alert_rule_test": [
+                        # t=25m: quiet baseline (0.5) - quiet.
+                        {"eval_time": "25m", "alertname": "VLLMMemoryExceedsRequest", "exp_alerts": []},
+                        # t=45m: end of a 20-minute transient (1.5, t=30-45m)
+                        # - shorter than for:30m, must NEVER fire.
+                        {"eval_time": "45m", "alertname": "VLLMMemoryExceedsRequest", "exp_alerts": []},
+                        # t=75m: back to quiet baseline after the transient.
+                        {"eval_time": "75m", "alertname": "VLLMMemoryExceedsRequest", "exp_alerts": []},
+                        # t=105m: 25m into the sustained excursion (started
+                        # t=80m) - not yet 30m, must still be quiet (proves
+                        # this isn't just "never fires", it's for:-gated).
+                        {"eval_time": "105m", "alertname": "VLLMMemoryExceedsRequest", "exp_alerts": []},
+                        # t=110m: exactly 30m into the sustained excursion -
+                        # fires, and only for the request pod - vllm-embed
+                        # (pinned at 2x its OWN request the entire time) must
+                        # never appear.
+                        {
+                            "eval_time": "110m",
+                            "alertname": "VLLMMemoryExceedsRequest",
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": "VLLMMemoryExceedsRequest",
+                                        "severity": "warning",
+                                        "namespace": "ai",
+                                        "pod": REQUEST_POD,
+                                        "container": "app",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": "vllm is using more memory than it reserves",
+                                        "description": (
+                                            f"vllm pod {REQUEST_POD} is at 150% of its memory "
+                                            "REQUEST. It has re-entered the kubelet's eviction "
+                                            "exceeds-set and will now be evicted before pods "
+                                            "that stay within their requests. The 12Gi request "
+                                            "was sized on 2026-09-20 against a measured 5750 Mi "
+                                            "peak; if this is firing, that sizing is wrong and "
+                                            "the request needs raising - see the helmrelease "
+                                            "resources comment."
+                                        ),
+                                    },
+                                }
+                            ],
+                        },
+                        # t=125m: still within the sustained excursion (ends
+                        # t=125m) - still firing.
+                        {
+                            "eval_time": "125m",
+                            "alertname": "VLLMMemoryExceedsRequest",
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": "VLLMMemoryExceedsRequest",
+                                        "severity": "warning",
+                                        "namespace": "ai",
+                                        "pod": REQUEST_POD,
+                                        "container": "app",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": "vllm is using more memory than it reserves",
+                                        "description": (
+                                            f"vllm pod {REQUEST_POD} is at 150% of its memory "
+                                            "REQUEST. It has re-entered the kubelet's eviction "
+                                            "exceeds-set and will now be evicted before pods "
+                                            "that stay within their requests. The 12Gi request "
+                                            "was sized on 2026-09-20 against a measured 5750 Mi "
+                                            "peak; if this is firing, that sizing is wrong and "
+                                            "the request needs raising - see the helmrelease "
+                                            "resources comment."
+                                        ),
+                                    },
+                                }
+                            ],
+                        },
+                        # t=130m: dropped back to 0.5 - resolves IMMEDIATELY
+                        # (resolution is not gated by for:, only the onset
+                        # is).
+                        {"eval_time": "130m", "alertname": "VLLMMemoryExceedsRequest", "exp_alerts": []},
+                    ],
+                },
             ],
         }
 
@@ -654,7 +789,9 @@ def main() -> int:
     print("  - quiet during a fresh-restart-shaped ramp despite predict_linear projecting a crossing")
     print("  - fires once a sustained climb's projection has held above the limit for for:1h")
     print("  - VLLMMemoryCriticalLimit stays a static 0.85/for:15m backstop, resolves immediately on drop")
-    print("  - the sibling vllm-embed controller never contaminates either alert")
+    print("  - VLLMMemoryExceedsRequest fires once an excursion above the request holds for for:30m,")
+    print("    resolves immediately on drop, stays quiet through a 20m transient, and excludes vllm-embed")
+    print("  - the sibling vllm-embed controller never contaminates any of the three alerts")
     return 0
 
 
