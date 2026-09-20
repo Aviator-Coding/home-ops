@@ -111,14 +111,17 @@ namespace's stateless-by-preference apps. Cross-worker enforcement of those
 same budgets also needs `litellm-dragonfly` - see
 `docs/ai-system/litellm/README.md#why-dragonfly-redis`.
 
-Four consumers are not in-cluster. `ai-pr-review` is the GitHub Actions AI PR
+Five consumers are not in-cluster. `ai-pr-review` is the GitHub Actions AI PR
 reviewer (`.github/workflows/ai-pr-review.yaml`), which runs on the in-cluster
 ARC runner and reaches this proxy over cluster DNS. `agent-swarm-captain`,
 `agent-swarm-paid` and `agent-swarm-network-broker` are consumed by
 agent-swarm runs launched locally, not by any in-cluster workload - whoever
 launches a run re-copies the current value from 1Password after each rotation
-(see those CRs' own headers). Of the four, `ai-pr-review` is the only key that
-is ALSO copied by hand into a GitHub Actions secret, because that runner has
+(see those CRs' own headers). `mac-gnhf` is consumed by `gnhf`, an unattended
+agent loop the captain runs from their Mac - scoped to `chat-local` only and
+rate-limited rather than budgeted, for the reasons in that CR's own header.
+Of the five, `ai-pr-review` is the only key that is ALSO copied by hand into
+a GitHub Actions secret, because that runner has
 no Kubernetes API access and cannot read the minted Secret - so rotating it
 has a second, easy-to-miss step. It is also the reason
 `models/pr-review-local.yaml` exists: the reviewer parses
@@ -243,10 +246,9 @@ carries **no** budget. As of 2026-08-31 it also carries no `rpmLimit`/
 `tpmLimit` (captain decision - measured headroom was 43x on requests and 267x
 on tokens, so the limits were never a meaningful guardrail): this key has no
 local ceiling of any kind, and enforcement lives entirely upstream, on
-Anthropic's own subscription rate limiting. (`agent-swarm-captain` is the
-other budgetless key in that directory, for an unrelated captain-owned reason
-- see its own CR header; `app/virtualkeys/kustomization.yaml` names the
-current full set.)
+Anthropic's own subscription rate limiting. (The other budgetless keys in
+that directory are unrelated captain-owned decisions - see each CR's own
+header; `app/virtualkeys/kustomization.yaml` names the current full set.)
 Clearing an already-set `rpmLimit`/`tpmLimit` on a live key needs a one-time
 direct admin-API call, not just removing the fields from the CR - the CRD's
 Go client omits an absent field rather than sending it as an explicit `null`,
