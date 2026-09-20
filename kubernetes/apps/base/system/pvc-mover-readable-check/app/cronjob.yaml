@@ -449,8 +449,35 @@ spec:
                   exit 0
               resources:
                 requests:
+                  # Burst job (~19s every 6h); the request is a 24/7 node
+                  # reservation, so it stays low. The limit is the lever.
                   cpu: 20m
                   memory: 64Mi
                 limits:
-                  cpu: 500m
+                  # 500m -> 1000m (2026-09-20), same mechanism and same probe
+                  # method as pvc-writable-check (see that CronJob's comment for
+                  # the full reasoning: a CPU limit is an absolute CFS quota per
+                  # 100ms period, not a share of the node, and it throttles
+                  # rather than kills - so nothing pages).
+                  #
+                  # Measured 2026-09-20, this exact script run as a one-off Job
+                  # at three limits; all three produced identical output:
+                  #
+                  #   limit | wall | cpu used | throttled periods | time STOPPED
+                  #   500m  |  38s |  6.33s   |  98/169 (58.0%)   | 2.86s
+                  #   1000m |  19s |  4.42s   |  10/ 85 (11.8%)   | 0.08s
+                  #   1500m |  18s |  4.23s   |   0/ 82 ( 0.0%)   | 0
+                  #
+                  # 1000m recovers essentially all of it (19s vs 18s at 1500m),
+                  # so it is the smallest sufficient value and matches its
+                  # sibling. Over 7d of scheduled runs this container was
+                  # throttled in 67.6% of its CFS periods.
+                  #
+                  # NOT related to the four BackoffLimitExceeded failures in the
+                  # 14d window (2026-09-08, -11, -12, -13): those runs lasted
+                  # 12-46s against activeDeadlineSeconds: 900, so they were not
+                  # deadline kills, and their pods are long past
+                  # ttlSecondsAfterFinished so the logs no longer exist. Cause
+                  # unattributed - raising this limit is not a fix for them.
+                  cpu: 1000m
                   memory: 256Mi
