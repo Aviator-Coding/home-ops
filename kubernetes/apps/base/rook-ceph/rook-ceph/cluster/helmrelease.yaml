@@ -276,13 +276,28 @@ spec:
             cpu: 100m
             memory: 256Mi
         osd:
-          # requests==limits => Guaranteed QoS (RAM RMA complete 2026-08-21, all 3
-          # nodes at 96GB/~94GiB usable; see docs/hardware-incidents.md [2026-06-30]).
+          # Request is DELIBERATELY below the limit: reserve the steady state, keep
+          # the burst headroom available but unreserved. 2026-09-20 fleet memory
+          # analysis - 6 OSDs x 14Gi reserved 12,288 MiB more than they can defend,
+          # 4,096 MiB of it on talos-3 at 99% committed (docs/talos-3-scheduling-truth.md).
+          #
+          # Why 12Gi and not 10Gi: `osd_memory_target` (10Gi, below) sizes the BlueStore
+          # cache, NOT total RSS, and real usage legitimately exceeds it. The highest OSD
+          # working set on record is 9,317 MiB, measured 2026-09-05 during a real
+          # 128-of-393-PG degradation - exactly when you least want an OSD constrained.
+          # 12Gi clears that by 2,971 MiB. Do NOT "simplify" the request down to match
+          # osd_memory_target. (That 09-05 sample is past the 14d Prometheus retention;
+          # the max still retained on 2026-09-20 is 7,539 MiB, which 12Gi clears by 4,749.)
+          #
+          # QoS is unchanged by this: these pods are Burstable and always have been -
+          # Guaranteed needs every container to cap BOTH cpu and memory, and the `osd`
+          # container requests cpu with no cpu limit. The 2026-08-22 changelog entry
+          # claiming Guaranteed QoS was never true live; verified 2026-09-20.
           requests:
             cpu: 500m
-            memory: 14Gi
+            memory: 12Gi # > observed 9,317 MiB peak; frees 2Gi/OSD of dead reservation
           limits:
-            memory: 14Gi # > osd_memory_target (10Gi) + headroom; ~94GiB node RAM
+            memory: 14Gi # UNCHANGED: a genuine spike must still be able to burst
         mgr-sidecar:
           requests:
             cpu: 50m
