@@ -32,6 +32,17 @@ spec:
           ports:
             - name: metrics
               containerPort: 9594
+          # DO NOT "fix" these three probes to target /metrics. `/` returns 200
+          # even while /metrics returns 500, which looks like an obvious bug and
+          # is load-bearing: because the pod stays Ready it stays in the Service
+          # endpoints, so Prometheus keeps scraping it, gets the 500, and records
+          # up=0 - the target is HONESTLY DOWN and TargetDown (general.rules,
+          # for: 10m) fires on it. Pointing the probes at /metrics would make the
+          # pod NotReady, drop it from the endpoints and remove the target from
+          # Prometheus entirely: `up` would not go to 0, it would CEASE TO EXIST,
+          # and TargetDown could no longer fire. That trades an honest alert for
+          # silence. Reasoning and the measured evidence:
+          # docs/monitoring/exporter-endpoint-repair-2026-09-20.md
           startupProbe:
             httpGet:
               path: /
