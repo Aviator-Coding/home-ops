@@ -43,9 +43,41 @@ Manifests:
   namespace-wide `kopiur.home-operations.com/privileged-movers` annotation
   patch - see "Privileged-mover grant" below.
 - The `comfyui` exclusion in the `GatusServiceDown` alert
-  (`kubernetes/apps/base/monitoring/gatus/app/prometheusrule.yaml`). The Gatus
-  endpoint itself is auto-discovered from the HTTPRoute inside the deleted
-  HelmRelease, so nothing further is needed for the check to stop.
+  (`kubernetes/apps/base/monitoring/gatus/app/prometheusrule.yaml`).
+
+  **Correction, 2026-09-22: this did not stop the check.** The claim above -
+  that the Gatus endpoint would disappear once the HelmRelease and its
+  HTTPRoute were pruned - was wrong. `Service/comfyui` and
+  `HTTPRoute/comfyui` in the `ai` namespace survived the Helm
+  uninstall/Flux prune as orphaned live objects (still carrying
+  `meta.helm.sh/release-name: comfyui` but no owning `HelmRelease` or Helm
+  release secret - verified live: `kubectl -n ai get helmrelease comfyui`
+  returns `NotFound`, `kubectl -n ai get secrets -l owner=helm` has no
+  comfyui entry). The HTTPRoute's `gatus.home-operations.com/endpoint`
+  annotation is exactly what makes the gatus-sidecar rediscover it on every
+  reconcile (confirmed in its logs: `updated endpoint ... namespace=ai
+  name=comfyui url=https://comfyui.sklab.dev/`, most recently
+  2026-09-20T14:03:16Z, well after this doc's original merge), so Gatus has
+  kept polling `https://comfyui.sklab.dev/` every minute and getting `503`
+  (`Service/comfyui` has no ready endpoints, since the Deployment is gone),
+  and `GatusServiceDown{key="ai_comfyui"}` has been firing continuously
+  since 2026-09-16.
+
+  This was live cluster drift, not a Git problem - no manifest in this repo
+  ever declared either orphaned object, so there was nothing to delete via a
+  PR. **Fixed operationally, 2026-09-22**: verified live that neither object
+  carried an `ownerReference`, a `HelmRelease`, a `Kustomization`, or a Helm
+  release secret; had no backing pods or `Endpoints`; and no other
+  `HTTPRoute` referenced `Service/comfyui` - then ran `kubectl -n ai delete
+  httproute comfyui` and `kubectl -n ai delete service comfyui`. The
+  gatus-sidecar logged `removed endpoint ... namespace=ai name=comfyui
+  reason=deleted` within seconds, the `ai_comfyui` entry dropped out of
+  Gatus's endpoint list, `gatus_results_endpoint_success{key="ai_comfyui"}`
+  stopped being scraped, and both the Prometheus `GatusServiceDown` rule and
+  the Alertmanager alert for `key=ai_comfyui` cleared on the next evaluation
+  cycle - confirmed via the Prometheus rules API and the Alertmanager API,
+  both showing zero comfyui alerts. No namespace, PVC, or Secret was
+  touched.
 
 Data destroyed by the Flux prune (verified live 2026-09-14):
 
