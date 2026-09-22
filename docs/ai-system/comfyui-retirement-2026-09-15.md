@@ -63,14 +63,21 @@ Manifests:
   and `GatusServiceDown{key="ai_comfyui"}` has been firing continuously
   since 2026-09-16.
 
-  This is a live cluster drift, not a Git problem - no manifest in this repo
-  declares either orphaned object, so there is nothing to delete via a PR.
-  Fix is operational: `kubectl -n ai delete httproute comfyui && kubectl -n
-  ai delete service comfyui`. Both are safe to delete (stateless routing
-  objects, not data - the volumes are already gone per the table above) and
-  the Gatus/Alertmanager check clears within one poll interval afterward.
-  Until that runs, expect `GatusServiceDown{key="ai_comfyui"}` to keep firing
-  regardless of any further Git change.
+  This was live cluster drift, not a Git problem - no manifest in this repo
+  ever declared either orphaned object, so there was nothing to delete via a
+  PR. **Fixed operationally, 2026-09-22**: verified live that neither object
+  carried an `ownerReference`, a `HelmRelease`, a `Kustomization`, or a Helm
+  release secret; had no backing pods or `Endpoints`; and no other
+  `HTTPRoute` referenced `Service/comfyui` - then ran `kubectl -n ai delete
+  httproute comfyui` and `kubectl -n ai delete service comfyui`. The
+  gatus-sidecar logged `removed endpoint ... namespace=ai name=comfyui
+  reason=deleted` within seconds, the `ai_comfyui` entry dropped out of
+  Gatus's endpoint list, `gatus_results_endpoint_success{key="ai_comfyui"}`
+  stopped being scraped, and both the Prometheus `GatusServiceDown` rule and
+  the Alertmanager alert for `key=ai_comfyui` cleared on the next evaluation
+  cycle - confirmed via the Prometheus rules API and the Alertmanager API,
+  both showing zero comfyui alerts. No namespace, PVC, or Secret was
+  touched.
 
 Data destroyed by the Flux prune (verified live 2026-09-14):
 
