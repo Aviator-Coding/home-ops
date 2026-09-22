@@ -66,12 +66,14 @@ spec:
     # the PR #1736 six-OSD memory-request rollout). The operator was OOMKilled at 11:45:13Z
     # against the chart's own default limits.memory: 512Mi (this file's prior `limits: {}`
     # left it unset, so the chart default silently applied): the pre-kill container's last
-    # successful scrape was 455.14Mi at 11:45:00Z, one minute before the kill, so the true
-    # peak is unmeasurable but bounded only below by that reading and above by wherever it
-    # crossed 512Mi. limits.memory: 1Gi is ~2x that last confirmed pre-kill reading and 2x
-    # the failed 512Mi ceiling. Idle steady-state is ~168-220Mi (kubectl top and the
-    # post-restart container's baseline agree), so do not size off that reading alone - it
-    # excludes the reconcile burst that caused the kill.
+    # successful scrape was 455.14Mi at 11:45:00Z, one minute before the kill. That reading
+    # is a LOWER BOUND only, not the true reconcile peak - the process was killed climbing
+    # past the 512Mi ceiling, so whatever it would have reached unconstrained is unmeasured
+    # and censored by the kill. limits.memory: 1Gi is therefore headroom over that censored
+    # 455Mi reading (~2x it, and 2x the failed 512Mi ceiling), not over an actual measured
+    # maximum. Idle steady-state is ~168-220Mi (kubectl top and the post-restart container's
+    # baseline agree), so do not size off that reading alone - it excludes the reconcile
+    # burst that caused the kill.
     # CPU: the same rollout window peaked at 407m (rate over [3m], 2026-09-20T11:46-11:48Z)
     # against an idle baseline of 30-40m; requests.cpu raised from 100m to 300m to give the
     # operator a realistic CFS weight during a reconcile burst under node contention. No CPU
