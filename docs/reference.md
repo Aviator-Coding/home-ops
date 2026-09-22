@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **88**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **91**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -62,6 +62,10 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 | [`ai-system/retired-2026-08-22.md`](ai-system/retired-2026-08-22.md) | What the 2026-08-22 `ai` retirements kept (Postgres, 1Password, restic repos) and how to revive each app. |
 | [`ai-system/agentmemory-retirement-2026-08-31.md`](ai-system/agentmemory-retirement-2026-08-31.md) | agentmemory retirement (2026-08-31): RBD destruction on merge, kopiur/VolSync revival identifiers, Hermes holographic memory switch. |
 | [`ai-system/hermes-state-db-growth.md`](ai-system/hermes-state-db-growth.md) | `ai/hermes` `state.db` growth measurement (9.31 GiB, ~79% FTS duplication) and the `sessions.retention_days: 30` / `vacuum_after_prune: false` fix. Read-only measurement method, why VACUUM cannot fit the claim, and the not-fixed items (existing size, boot-path `quick_check`, per-source retention). Section 11: the 2026-09-20 claim growth (25Gi -> 40Gi) and cache raise (16Gi -> 48Gi), why 16Gi was not inadequate, and the two post-merge operator actions Git alone cannot apply. |
+| [`ai-system/comfyui-retirement-2026-09-15.md`](ai-system/comfyui-retirement-2026-09-15.md) | Captain-approved removal of `comfyui` and its `comfyui-mcp` ToolHive server (2026-09-15), including deletion of 142Gi of provisioned storage. |
+| [`ai-system/embedding-truncation-followup-2026-09-14.md`](ai-system/embedding-truncation-followup-2026-09-14.md) | TEI truncation/memory sizing follow-up. **Update 2026-09-15:** the LiteLLM/external-caller traffic this covered moved to `ai/embedding-gpu` (see `ai/embedder-gpu-migration-analysis-2026-09-15.md`); remaining live consumer is ToolHive's tool-selection index, still exposed to `vmcp`'s hardcoded `Truncate: true`. |
+| [`ai/embedder-gpu-migration-analysis-2026-09-15.md`](ai/embedder-gpu-migration-analysis-2026-09-15.md) | Moving `ai/embedding-gpu` (Qwen3-Embedding-0.6B) onto the B70. Measured VRAM/throughput tradeoffs with `ai/vllm`, the host-prompt-cache OOM history, and (section 11) the 2026-09-17 null-vector incident: a pod restart clears the accumulated NaN-vector fault and the liveness probe already recovered it once in production; `batch_size=4` is the measured-safe operating point, GPU-side root cause still unattributed. |
+| [`ai/vllm-host-prompt-cache.md`](ai/vllm-host-prompt-cache.md) | `ai/vllm`'s 2026-09-19 host-RAM prompt-cache leak (no `--cache-ram` pinned) and its fix: bounded `--cache-ram 4096` plus a glibc malloc-trim tunable, and the 2026-09-20 request right-sizing to 12Gi from the measured post-fix steady state. |
 
 ## Authentik
 
@@ -91,6 +95,10 @@ Fleet PVC backup is kopiur on **all 29** VolSync-derived claims; **26 are kopiur
 | [`backups/recyclarr-config-readable-check-2026-08-31.md`](backups/recyclarr-config-readable-check-2026-08-31.md) | CSI snapshot-restore readability probe for `downloads/recyclarr-config` (CronJob claim, no standing pod). Proves mover 2000:2000 can read the claim (2913/2913 files, 607/607 dirs) - readability only, not Stage 5 restore-fidelity (that landed in the fleet proof row above). |
 | [`backups/restore-drill-2026-08-23.md`](backups/restore-drill-2026-08-23.md) | Verified VolSync restore procedure (Ceph + MinIO destinations, scratch-PVC method). Timings are a **historical snapshot** from 2026-08-23; the procedure is durable. |
 | [`backups/volsync-coverage-2026-08-22.md`](backups/volsync-coverage-2026-08-22.md) | **Historical snapshot** of a full PVC-vs-VolSync coverage audit from 2026-08-22. Re-measure before trusting any figure. Current pattern: [`kubernetes/components/volsync/Readme.md`](../kubernetes/components/volsync/Readme.md). |
+| [`backups/kopiur-ceph-index-blob-compaction-2026-09-03.md`](backups/kopiur-ceph-index-blob-compaction-2026-09-03.md) | Cause and fix for the `ceph` `ClusterRepository`'s `IndexBlobHealth=False` / `TooManyIndexBlobs` condition (2026-09-01 to 2026-09-03): an epoch-tuning problem, not broken maintenance or lost data. Why `takeoverPolicy: Force`, raising the threshold, and a flat `minDuration` are all wrong fixes. |
+| [`backups/postgres-offsite-destination-design-2026-09-12.md`](backups/postgres-offsite-destination-design-2026-09-12.md) | Design for giving the shared `postgres-17` CNPG cluster an off-site backup copy (it was the one fleet volume without one), working around CNPG's single-barman-destination-per-`Cluster` limit via an archive mirror. Shipped suspended pending a 1Password credential. |
+| [`backups/volsync-retired-repository-expiry.md`](backups/volsync-retired-repository-expiry.md) | Expiry policy and reasoning for 48 retired VolSync restic repositories (126.03 GiB) that no `--keep-*` retention can ever reach zero on a frozen repo. **Not in force** - no declarative path applies it; the exact-segment-match trap (`syncthing` is a prefix of `syncthing-data`) is the reason a naive prefix delete would destroy live data. |
+| [`backups/volsync-retired-expiry-apply-plan.md`](backups/volsync-retired-expiry-apply-plan.md) | The operator runbook that actually applies the expiry policy above, one destination at a time, only on the captain's explicit go-ahead. Merging this document applies nothing. |
 
 ## Ceph
 
@@ -113,6 +121,12 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 | Path | What it covers |
 |---|---|
 | [`database/falkordb-memory-ceiling.md`](database/falkordb-memory-ceiling.md) | Why the 2026-09-09 `database/falkordb` OOMKill loop happened (the 8Gi limit was outgrown, not misconfigured) and how the three memory numbers (request / `--maxmemory` / limit) are derived and must move together. |
+
+## Monitoring
+
+| Path | What it covers |
+|---|---|
+| [`monitoring/exporter-endpoint-repair-2026-09-20.md`](monitoring/exporter-endpoint-repair-2026-09-20.md) | Repairing the `plex` and `n8n` Prometheus scrape targets (2026-09-20): both exporters had been silently broken for months, only surfaced once PR #1698 made them scrapeable and `TargetDown` started firing. Includes the n8n `/healthz` vs `/healthz/readiness` probe trap. |
 
 ## Downloads and media
 
