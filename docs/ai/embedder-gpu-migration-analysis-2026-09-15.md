@@ -712,6 +712,37 @@ order of cost:
 2. If it is NaN from the first request, bisect **on the card**: `-fa off` first (flash attention
    is the least-covered SYCL path), then an image bump.
 
+### 2026-09-17: a restart clears it, and the shipped probe already proved that in production
+
+The two open items from the previous pass - "restart and value-probe it" and whether the fault is
+accumulated state rather than configuration - are now answered, without needing card access.
+
+**1. A restart clears the fault.** Flux rolled the `ai/embedding-gpu` pod on the PR #1711 merge at
+2026-09-17T00:56Z. The fresh pod returned 1024-dimension unit-norm vectors with zero nulls, zero
+NaNs and zero zero-components, distinct per input, with no image bump, no flag change and no card
+intervention - just the pod restart itself. That confirms the `#26044` shape this document
+flagged as the cheap first thing to try: **the fault is accumulated runtime state, not present
+from boot.** The `--kv-unified` / `--parallel 2` / `--cache-ram 0` exoneration above stands
+unchanged, and the root cause of *why* the state accumulates is still GPU-side and still
+unattributed - this only settles that a restart is sufficient to clear it, not why it happens.
+
+**2. The liveness probe shipped above already recovered this once in production, on day one.**
+During the captain's initial backfill the pod restarted exactly once, at 2026-09-17T01:20:04Z,
+with `exitCode 0` / `reason Completed` - a probe-driven `SIGTERM`, not an OOMKill (which reads
+`137`/`OOMKilled`). The pod that came up from that restart then ran healthy for roughly 23 minutes
+under load before the PR #1711 merge rolled it again. So the "reacting fast buys nothing" budget
+reasoning above did not cost the backfill anything: the probe caught a real fault and the operator
+recovery path - restart - is exactly what shipped.
+
+**3. The full backfill completed clean at the batch size actually used.** 154,715 of 154,715 nodes
+processed with GPU `batch_size=4` plus CPU fallback, zero GPU failures, in roughly 90 minutes.
+Treat `batch_size=4` as the measured-safe operating point for this workload, not as a value with
+headroom proven above it: the captain reports that larger batch sizes crashed the pod on OOM, and
+that is a **separate, still-unexplained fault** - distinct from both the NaN drift documented in
+this section and the host-prompt-cache leak in section 10 (`ai/embedding-gpu` pins `--cache-ram 0`
+precisely because that leak does not apply to it). Do not read the completed backfill as evidence
+that the OOM at higher batch sizes is understood or bounded; it is not.
+
 ### The real defect was that nothing could tell
 
 This endpoint was verified healthy **twice** with a probe of the form:
