@@ -43,9 +43,34 @@ Manifests:
   namespace-wide `kopiur.home-operations.com/privileged-movers` annotation
   patch - see "Privileged-mover grant" below.
 - The `comfyui` exclusion in the `GatusServiceDown` alert
-  (`kubernetes/apps/base/monitoring/gatus/app/prometheusrule.yaml`). The Gatus
-  endpoint itself is auto-discovered from the HTTPRoute inside the deleted
-  HelmRelease, so nothing further is needed for the check to stop.
+  (`kubernetes/apps/base/monitoring/gatus/app/prometheusrule.yaml`).
+
+  **Correction, 2026-09-22: this did not stop the check.** The claim above -
+  that the Gatus endpoint would disappear once the HelmRelease and its
+  HTTPRoute were pruned - was wrong. `Service/comfyui` and
+  `HTTPRoute/comfyui` in the `ai` namespace survived the Helm
+  uninstall/Flux prune as orphaned live objects (still carrying
+  `meta.helm.sh/release-name: comfyui` but no owning `HelmRelease` or Helm
+  release secret - verified live: `kubectl -n ai get helmrelease comfyui`
+  returns `NotFound`, `kubectl -n ai get secrets -l owner=helm` has no
+  comfyui entry). The HTTPRoute's `gatus.home-operations.com/endpoint`
+  annotation is exactly what makes the gatus-sidecar rediscover it on every
+  reconcile (confirmed in its logs: `updated endpoint ... namespace=ai
+  name=comfyui url=https://comfyui.sklab.dev/`, most recently
+  2026-09-20T14:03:16Z, well after this doc's original merge), so Gatus has
+  kept polling `https://comfyui.sklab.dev/` every minute and getting `503`
+  (`Service/comfyui` has no ready endpoints, since the Deployment is gone),
+  and `GatusServiceDown{key="ai_comfyui"}` has been firing continuously
+  since 2026-09-16.
+
+  This is a live cluster drift, not a Git problem - no manifest in this repo
+  declares either orphaned object, so there is nothing to delete via a PR.
+  Fix is operational: `kubectl -n ai delete httproute comfyui && kubectl -n
+  ai delete service comfyui`. Both are safe to delete (stateless routing
+  objects, not data - the volumes are already gone per the table above) and
+  the Gatus/Alertmanager check clears within one poll interval afterward.
+  Until that runs, expect `GatusServiceDown{key="ai_comfyui"}` to keep firing
+  regardless of any further Git change.
 
 Data destroyed by the Flux prune (verified live 2026-09-14):
 
