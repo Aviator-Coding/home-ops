@@ -13,5 +13,4 @@ resources:
   - ./dragonfly.yaml
   - ./emqx.yaml
   - ./surrealdb.yaml
-  - ./jetstream.yaml
   - ./falkordb.yaml

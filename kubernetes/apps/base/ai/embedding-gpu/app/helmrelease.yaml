@@ -71,7 +71,7 @@ spec:
           terminationGracePeriodSeconds: 30
           # Lowest priority, no preemption: this pod is last scheduled and
           # first yielded on talos-3's already-tight memory budget, and can
-          # never displace a Ceph OSD, postgres-17, nats, or ai/vllm to make
+          # never displace a Ceph OSD, postgres-17, or ai/vllm to make
           # room for itself. See priorityclass.yaml and
           # docs/talos-3-scheduling-truth.md.
           priorityClassName: embedding-gpu-low
