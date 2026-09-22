@@ -99,11 +99,11 @@ spec:
       requests:
         # cpu 500m -> 100m (2026-09-20 fleet CPU right-sizing). 14d peak at
         # 30-second resolution is 25m, so 100m clears it 4.0x; 500m reserved
-        # 20x it. Same resolution caveat as database/jetstream's nats request:
-        # the same peak reads 10m at [14d:1h] and 13m at [14d:5m], so any
-        # coarse-sampled figure is a lower bound - re-measure at [14d:30s]
-        # before trimming this further. Runs on talos-1, not the contended
-        # node. memory untouched (PR #1738 owns that).
+        # 20x it. The resolution matters: the same peak reads 10m at [14d:1h]
+        # and 13m at [14d:5m], so any coarse-sampled figure is a lower bound -
+        # re-measure at [14d:30s] before trimming this further. Runs on
+        # talos-1, not the contended node. memory untouched (PR #1738 owns
+        # that).
         cpu: 100m
         memory: 512Mi
       limits:

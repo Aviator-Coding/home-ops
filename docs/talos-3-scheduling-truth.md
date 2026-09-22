@@ -4,6 +4,13 @@ All figures measured 2026-09-14 against the live cluster and Prometheus
 (`max_over_time(container_memory_working_set_bytes[30d])` for peaks). Node
 allocatable is **93604 Mi (91.4 GiB)** on every node.
 
+**NATS/JetStream (`nats-2`) and `nack` were retired 2026-09-22** (over-provisioned:
+1 client, 0 messages held over 14d, 3 replicas x 1Gi requested for a 26Mi peak).
+Every `nats-2`/`nack` row below is a frozen measurement from before that
+removal - the freed request/limit is real headroom on talos-3, but this doc's
+committed-percentage figures were not re-measured after the retirement. Redo
+the arithmetic against live state before relying on the numbers below.
+
 ## 1. The problem: a request that looked harmless was the actual danger
 
 `ai/vllm` requested **16384 Mi** and its 30-day peak working set is **39342 Mi**

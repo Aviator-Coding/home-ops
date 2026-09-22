@@ -175,7 +175,7 @@ spec:
                   "id": 2,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/emqx-overview)\n- [NATS](/d/nats-server)",
+                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/emqx-overview)",
                     "mode": "markdown"
                   },
                   "title": "Infrastructure & Databases",
@@ -349,14 +349,6 @@ spec:
         # for D7Y / Dragonfly P2P file distribution — a CNCF project
         # unrelated to our Dragonfly DB (Redis-compatible KV). The Dragonfly
         # operator installs its own dashboard via grafanaDashboard.enabled.
-
-        nats-server:
-          # renovate: dashboardName="NATS Server Dashboard"
-          gnetId: 16256
-          revision: 2
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
 
         emqx-authentication:
           url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/authentication.json
