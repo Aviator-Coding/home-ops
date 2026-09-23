@@ -62,6 +62,62 @@ Change · Why · Evidence · Risk/rollback · Verify
 
 ---
 
+## [2026-09-22] Disable oneDNN SDPA on `ai/vllm` to stop unbounded host memory growth  (PR #1754)
+
+**Change.** In `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`: set `GGML_SYCL_FA_ONEDNN: "0"`
+on the `vllm` container, plus a CI gate and a new alert.
+
+**Why.** `VLLMMemoryExceedsRequest` paged 2026-09-22 09:22Z. A pod with both PR #1731 mitigations
+live still climbed ~+3.5 GiB/day (1.4 -> 14.8 GiB against the 12Gi request). llama.cpp `b10820`
+(`ggml/src/ggml-sycl/fattn-onednn.cpp`) keeps a function-static, never-evicted cache of compiled
+oneDNN SDPA partitions keyed on `(ubatch query length, KV length)`; `q8_0` KV takes that path on
+every prefill ubatch of 32+ tokens (upstream #25874). The prior pod that looked flat for 17h had
+processed only 0.95M prompt tokens - low traffic, not a proven plateau.
+
+**Evidence.** Live read-only `/proc/1/maps`/`smaps` diffs on the affected pod show growth as
+thousands of fixed-size anonymous mappings on an exact `N x 8192`-byte ladder, appearing only with
+new prefill shapes and never freed; zero change over a 1h52m idle window. Measured retention:
+~1 GiB per million prompt tokens, both before and after PR #1731 - so most of that PR's "17 GiB
+heap from cache churn" diagnosis was actually this leak. Full chain: `docs/ai/vllm-onednn-sdpa-leak.md`.
+
+**Risk/rollback.** Long prefills fall back to the MKL XMX flash-attention path: upstream measured
+this exact model/KV type on a B70 at 32K, 1,184 -> 834 t/s (-30%); likely more at this server's
+40-160k depths. Decode is unchanged. The value must be the numeric string `"0"` - ggml parses it
+with `sscanf(" %u")`, and `"false"`/`"off"` silently leave the leak on. Removing the env var
+restores the leak, so lift it only once a pinned tag bounds that cache.
+
+**Verify.** `scripts/ci/vllm-fa-onednn-test.py` gates the env var's presence and value. New alert
+`VLLMMemoryRetainedAboveBound` (`prometheusrule.yaml`) fires when the working set's 3h minimum
+stays above 8 GiB for 1h. That threshold sits just above the ~7,338 Mi retained ceiling (baseline +
+`--cache-ram` + one slot's checkpoints), and CI keeps it at or above that ceiling. The alert does
+not depend on the request, so it catches this class at any request size. Post-merge: confirm the working set goes flat
+under real traffic, and measure the actual prefill cost at this server's depths
+(`scripts/bench/vllm-prefill-by-depth.py`).
+
+Full record: [`ai/vllm-onednn-sdpa-leak.md`](./ai/vllm-onednn-sdpa-leak.md)
+
+## [2026-09-19] Bound the vllm host prompt cache: `--cache-ram 4096` + `mmap_threshold` pin  (PR #1731)
+
+**Change.** In `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`: add `--cache-ram 4096` (bounds
+llama.cpp's HOST-RAM prompt cache, whose absence silently defaults to 8192 MiB with no log line or
+CI signal) plus `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072` (keeps large allocations on
+their own `mmap`ed pages, returned to the OS on free, instead of pinning glibc's `brk` heap).
+
+**Why.** With no `--cache-ram`, `ai/vllm`'s host working set climbed +5.6-6.5 GiB/day from a
+1,232 MiB baseline and never plateaued. One pod reached 39,531 MiB in 6.6 days; the 2026-09-15
+talos-3 reboot ended it, not anything working as designed. Its successor was at 26,760 MiB and on
+track to OOMKill at the 48Gi limit around 2026-09-23. The 39Gi request of the time had been sized to
+cover that climb.
+
+**Risk/rollback.** Both settings stay required going forward - see `docs/ai/vllm-host-prompt-cache.md`.
+**Correction (2026-09-22):** the diagnosis that the pre-fix 17 GiB `[heap]` was prompt-cache churn
+fragmenting glibc's arena was mostly wrong; most of it was a separate, then-undiscovered leak (the
+oneDNN SDPA partition cache), fixed above. Both `--cache-ram 4096` and the `mmap_threshold` pin
+remain correct and required independent of that correction - the cache bound stops the documented
+8192 MiB default, and the malloc pin is what made the oneDNN leak visible in `/proc/1/smaps` at all.
+
+**Verify.** `scripts/ci/vllm-prompt-cache-test.py`, `docs/ai/vllm-host-prompt-cache.md`.
+
 ## [2026-09-15] Embeddings move to the B70: `ai/embedding-gpu` (llama.cpp SYCL)
 
 **Change:** new app `ai/embedding-gpu` serving `Qwen/Qwen3-Embedding-0.6B` (f16 GGUF,

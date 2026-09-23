@@ -129,6 +129,11 @@ spec:
               # malloc never fails. That is why ai/embedding-gpu OOMKilled 18x at
               # 2Gi and again at 4Gi before the cause was found.
               #
+              # 2026-09-22: most of that climb was a second, independent leak,
+              # the oneDNN SDPA partition cache (see GGML_SYCL_FA_ONEDNN in env).
+              # This cache bound is still correct and still needed: without it
+              # the default 8192 MiB would come back on top.
+              #
               # The weights are NOT the cause and --no-mmap is not the suspect:
               # measured at load, RSS stays at 635 MiB while 22502 MiB of
               # file-backed page cache appears, so the GGUF is already
@@ -208,7 +213,44 @@ spec:
               # the supported modern one. Do not remove this when tuning
               # --cache-ram: a future value change does not make the allocator
               # behaviour go away.
+              #
+              # Correction (2026-09-22): most of that 17 GiB heap was NOT cache
+              # churn. It was the oneDNN SDPA leak disabled just below, whose
+              # sub-32 MiB allocations were landing in the heap. The pin still
+              # earns its place. It keeps [heap] at ~1.7 GiB. It also gives every
+              # large live allocation its own mapping (munmap'd on free), and that
+              # made the second leak visible in /proc/1/smaps at all.
               GLIBC_TUNABLES: glibc.malloc.mmap_threshold=131072
+              # Disables llama.cpp's oneDNN Graph SDPA flash-attention path. On
+              # this workload it leaks host memory without bound. It is the cause
+              # of the growth that came back after PR #1731, with --cache-ram and
+              # the malloc pin above both live and working. Full evidence:
+              # docs/ai/vllm-onednn-sdpa-leak.md.
+              #
+              # ggml/src/ggml-sycl/fattn-onednn.cpp compiles one SDPA partition
+              # per (ubatch query length, current KV length) and keeps it in a
+              # function-static std::unordered_map that is never evicted. With
+              # q8_0 KV, every prefill ubatch of >= 32 tokens over n_kv >= 1024
+              # takes that path. Upstream #25874 enabled q8_0 on 2026-08-04:
+              # b9592 predates it, b10820 has it. So every new prompt shape pins
+              # another compiled kernel set for the life of the process. Measured
+              # 2026-09-22: ~1 GiB of retained anonymous memory per million
+              # prompt tokens, ~+3.5 GiB/day at real traffic, as thousands of
+              # fixed-size 0.4-8 MiB live mappings. Upstream master is still
+              # unbounded as of 2026-09-22.
+              #
+              # Cost, accepted by the captain 2026-09-22: long prefills fall back
+              # to the MKL XMX flash-attention path (GGML_SYCL_ENABLE_MKL_FA,
+              # default on), which keeps no per-shape cache. Upstream measured
+              # this model and KV type on a B70 at 32K prefill: 1184 t/s with
+              # oneDNN vs 834 t/s without (-30%). Decode is unchanged, because the
+              # oneDNN path never runs below 32 query tokens.
+              #
+              # The value must be numeric. ggml reads it with sscanf(" %u"), so
+              # "false" or "off" fail to parse and SILENTLY keep the default (1,
+              # on). Remove this only when the pinned tag bounds that cache - gate:
+              # scripts/ci/vllm-fa-onednn-test.py.
+              GGML_SYCL_FA_ONEDNN: "0"
             envFrom: &envFrom
               - secretRef:
                   name: vllm-secret

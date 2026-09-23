@@ -443,8 +443,14 @@ leak, which PR #1731 bounded on 2026-09-19 with `--cache-ram 4096` +
 | current | 5132 Mi |
 | trajectory | oscillates 4577-5750 Mi, does **not** climb |
 
-The pre-fix pod rose monotonically at +6485 Mi/day and never plateaued. The
-request is sized on the mechanism, not on the 17h peak, because prefill is 88%
+The pre-fix pod rose monotonically at +6485 Mi/day and never plateaued.
+**Correction 2026-09-22:** that 17h window processed only 0.95M prompt tokens.
+Under real traffic the post-fix pod climbed again (+3.5 GiB/day), because of a
+second leak - the oneDNN SDPA partition cache, fixed by `GGML_SYCL_FA_ONEDNN: "0"`
+(`docs/ai/vllm-onednn-sdpa-leak.md`). The 12Gi arithmetic below still holds for
+the bounded consumers: the retained ceiling is ~7.2 GiB (baseline + the 4096 Mi
+cache + one slot's context checkpoints). Re-confirm it after that fix under real
+traffic. The request is sized on the mechanism, not on the 17h peak, because prefill is 88%
 of this workload's tokens - its peak arrives with prompt volume, not with time:
 baseline 1232 Mi + the 4096 Mi cache bound = a 5328 Mi nominal ceiling, which
 the measured peak exceeds by only 1.08x; 12288 Mi is baseline + 2.7x the cache

@@ -227,15 +227,73 @@ spec:
               {{ $value | humanizePercentage }} of its memory REQUEST. It has
               re-entered the kubelet's eviction exceeds-set and will now be
               evicted before pods that stay within their requests. The 12Gi
-              request was sized on 2026-09-20 against a measured 5750 Mi peak;
-              if this is firing, that sizing is wrong and the request needs
-              raising - see the helmrelease resources comment.
+              request was sized on 2026-09-20 against a measured 5750 Mi peak.
+              If this is firing, either that sizing is wrong or host memory is
+              leaking. If VLLMMemoryRetainedAboveBound is also firing, it is a
+              leak, and raising the request only buys time - see
+              docs/ai/vllm-onednn-sdpa-leak.md.
           expr: |
             container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
               / on (namespace, pod, container)
             kube_pod_container_resource_requests{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app", resource="memory"}
               > 1
           for: 30m
+          labels:
+            severity: warning
+
+        # Added 2026-09-22 with GGML_SYCL_FA_ONEDNN=0 (helmrelease env) as the
+        # runtime guard for the oneDNN SDPA leak, and for any other unbounded
+        # host growth. scripts/ci/vllm-fa-onednn-test.py proves the env var is
+        # SET. Only this rule sees the leak return if a future llama.cpp image
+        # renames or ignores it (docs/ai/vllm-onednn-sdpa-leak.md).
+        #
+        # It keys on RETAINED memory: the 3h minimum of the working set, not
+        # its current value. Everything this server legitimately keeps is
+        # bounded, and the bounds come from its own config:
+        #
+        #   post-load baseline (measured)                     ~1232 Mi
+        #   + prompt cache, --cache-ram (incl. the context
+        #     checkpoints of every cached prompt)              4096 Mi
+        #   + live checkpoints of the last-used slot           ~2010 Mi
+        #     (32 x 62.8 Mi recurrent state; kv_unified +
+        #     --cache-idle-slots save idle slots into the
+        #     cache and clear them on every new task)
+        #   = retained ceiling                                ~7338 Mi
+        #
+        # So a 3h floor above 8 GiB means something outside every bound is
+        # growing. A prefill spike cannot trip it, because the transient is
+        # gone long before 3h. scripts/ci/vllm-memory-alert-test.py fails if
+        # --cache-ram is raised without raising this threshold with it.
+        #
+        # Replayed against live Prometheus (1m data) BOTH ways, 2026-09-22:
+        #   - vllm-5f8545b44d-2x424 (the oneDNN leak on the post-#1731 config):
+        #     true from 11:40Z, so it fires 12:40Z, ~46.5h after boot.
+        #   - vllm-5cb8f5f6f4-zmvqq, and the first ~45h of 2x424: quiet. The
+        #     inverted comparison returns both series, so the rule is not
+        #     dead - it is quiet.
+        # For THIS leak VLLMMemoryExceedsRequest paged first (09:22Z), because
+        # the 12Gi request sits only ~1.7x above the retained ceiling. This
+        # rule is the one that does not move when the request does. At the
+        # 39Gi request (2026-09-14..20) nothing paged on the same leak for 4.7
+        # days. This rule, at THAT config's ceiling (8192 Mi default cache, so
+        # a 12 GiB threshold), would have fired 2026-09-16 09:35Z, ~3 days
+        # before an audit found it.
+        - alert: VLLMMemoryRetainedAboveBound
+          annotations:
+            summary: vllm is retaining more host memory than its bounded caches can hold
+            description: >-
+              vllm pod {{ $labels.pod }} has not dropped below
+              {{ $value | humanize1024 }}B of working set in the last 3h.
+              Everything this server is meant to keep is bounded under ~7.2GiB
+              (baseline + the 4096 MiB prompt cache + one slot's context
+              checkpoints), so something is growing without bound. First
+              suspect: the oneDNN SDPA leak is back. Check that the running
+              image still honours GGML_SYCL_FA_ONEDNN=0 -
+              docs/ai/vllm-onednn-sdpa-leak.md.
+          expr: |
+            min_over_time(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[3h])
+              > 8 * 1024^3
+          for: 1h
           labels:
             severity: warning
 

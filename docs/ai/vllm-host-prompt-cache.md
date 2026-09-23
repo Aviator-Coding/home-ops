@@ -4,6 +4,14 @@
 steady state (see [§4b](#4b-why-the-request-moved-and-the-limit-did-not)). A longer-window
 reconfirmation is still a named follow-up - see [§6](#6-how-to-tell-whether-it-worked).
 
+> **Correction 2026-09-22 - read [`vllm-onednn-sdpa-leak.md`](vllm-onednn-sdpa-leak.md) first.**
+> The growth came back with both fixes below live and working. Most of it, before and after this
+> fix, was a second, independent leak: llama.cpp's never-evicted cache of compiled oneDNN SDPA
+> kernels. Its 0.4-8 MiB allocations sat inside the `[heap]` that §3 attributes to cache churn.
+> Both fixes here stay correct and needed. What changes is the diagnosis in §3a/§3c. And the 17h
+> "steady state" in §4b was a low-traffic window (0.95M prompt tokens), not proof of a plateau. The
+> leak is fixed by `GGML_SYCL_FA_ONEDNN: "0"`.
+
 Claims are labelled `[MEASURED]` (read off this cluster), `[CONSENSUS]` (documented upstream/vendor
 behaviour), `[INFERENCE]` (reasoning from measured inputs). Source analysis: the 2026-09-19 fleet
 memory report, sections 0, 2 (#1) and 3.
