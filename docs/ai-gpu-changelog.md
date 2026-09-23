@@ -62,7 +62,7 @@ Change · Why · Evidence · Risk/rollback · Verify
 
 ---
 
-## [2026-09-22] Disable oneDNN SDPA on `ai/vllm` to stop unbounded host memory growth
+## [2026-09-22] Disable oneDNN SDPA on `ai/vllm` to stop unbounded host memory growth  (PR #1754)
 
 **Change.** In `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`: set `GGML_SYCL_FA_ONEDNN: "0"`
 on the `vllm` container, plus a CI gate and a new alert.
@@ -88,22 +88,26 @@ restores the leak, so lift it only once a pinned tag bounds that cache.
 
 **Verify.** `scripts/ci/vllm-fa-onednn-test.py` gates the env var's presence and value. New alert
 `VLLMMemoryRetainedAboveBound` (`prometheusrule.yaml`) fires when the working set's 3h minimum
-stays above ~7,338 Mi (baseline + `--cache-ram` + one slot's checkpoints) for 1h - request-independent,
-so it still catches this class at any request size. Post-merge: confirm the working set goes flat
+stays above 8 GiB for 1h. That threshold sits just above the ~7,338 Mi retained ceiling (baseline +
+`--cache-ram` + one slot's checkpoints), and CI keeps it at or above that ceiling. The alert does
+not depend on the request, so it catches this class at any request size. Post-merge: confirm the working set goes flat
 under real traffic, and measure the actual prefill cost at this server's depths
 (`scripts/bench/vllm-prefill-by-depth.py`).
 
 Full record: [`ai/vllm-onednn-sdpa-leak.md`](./ai/vllm-onednn-sdpa-leak.md)
 
-## [2026-09-19] Bound the vllm host prompt cache: `--cache-ram 4096` + `mmap_threshold` pin
+## [2026-09-19] Bound the vllm host prompt cache: `--cache-ram 4096` + `mmap_threshold` pin  (PR #1731)
 
 **Change.** In `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`: add `--cache-ram 4096` (bounds
 llama.cpp's HOST-RAM prompt cache, whose absence silently defaults to 8192 MiB with no log line or
 CI signal) plus `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072` (keeps large allocations on
 their own `mmap`ed pages, returned to the OS on free, instead of pinning glibc's `brk` heap).
 
-**Why.** `ai/vllm` OOMKilled repeatedly with the host prompt cache on its unbounded default, driving
-the pod's memory request to 39Gi.
+**Why.** With no `--cache-ram`, `ai/vllm`'s host working set climbed +5.6-6.5 GiB/day from a
+1,232 MiB baseline and never plateaued. One pod reached 39,531 MiB in 6.6 days; the 2026-09-15
+talos-3 reboot ended it, not anything working as designed. Its successor was at 26,760 MiB and on
+track to OOMKill at the 48Gi limit around 2026-09-23. The 39Gi request of the time had been sized to
+cover that climb.
 
 **Risk/rollback.** Both settings stay required going forward - see `docs/ai/vllm-host-prompt-cache.md`.
 **Correction (2026-09-22):** the diagnosis that the pre-fix 17 GiB `[heap]` was prompt-cache churn
