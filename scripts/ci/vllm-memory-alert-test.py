@@ -85,6 +85,18 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 VLLM_RULE = ROOT / "kubernetes/apps/base/ai/vllm/app/prometheusrule.yaml"
+VLLM_HR = ROOT / "kubernetes/apps/base/ai/vllm/app/helmrelease.yaml"
+
+# Inputs to VLLMMemoryRetainedAboveBound's retained ceiling (see the rule's
+# comment). BASELINE_MIB is the measured post-load working set (2026-09-19).
+# CHECKPOINT_MIB is one context checkpoint of this model's recurrent state, seen
+# live as exact 62.8 MiB mappings (30 linear-attention layers x (2 MiB S + 96 KiB
+# conv)). DEFAULT_CTX_CHECKPOINTS is llama.cpp b10820's n_ctx_checkpoints default
+# (common/common.h), used when the args do not set --ctx-checkpoints.
+BASELINE_MIB = 1232
+CHECKPOINT_MIB = 62.8
+DEFAULT_CTX_CHECKPOINTS = 32
+GIB = 1024**3
 
 PROMTOOL_IMAGE = os.environ.get(
     "PROMTOOL_IMAGE", "quay.io/prometheus/prometheus:v3.2.1"
@@ -96,6 +108,8 @@ CLIMB_POD = "vllm-climb"
 NOISY_POD = "vllm-noisy"
 RAMP_POD = "vllm-ramp"
 REQUEST_POD = "vllm-request"
+RETAINED_OK_POD = "vllm-retained-ok"
+RETAINED_LEAK_POD = "vllm-retained-leak"
 
 
 class Failure(Exception):
@@ -251,6 +265,7 @@ def assert_structural_contract(alerts: dict[str, dict[str, Any]]) -> None:
     require("VLLMMemoryApproachingLimit" in alerts, "missing alert VLLMMemoryApproachingLimit")
     require("VLLMMemoryCriticalLimit" in alerts, "missing alert VLLMMemoryCriticalLimit")
     require("VLLMMemoryExceedsRequest" in alerts, "missing alert VLLMMemoryExceedsRequest")
+    require("VLLMMemoryRetainedAboveBound" in alerts, "missing alert VLLMMemoryRetainedAboveBound")
 
     warn = alerts["VLLMMemoryApproachingLimit"]
     crit = alerts["VLLMMemoryCriticalLimit"]
@@ -333,16 +348,21 @@ def assert_structural_contract(alerts: dict[str, dict[str, Any]]) -> None:
         # 2026-09-20 with the 39Gi -> 12Gi request cut). Widened to the
         # relationship; the dead-metric half below is unchanged and is the half
         # that actually carries the value. See AGENTS.md on CI gates that freeze
-        # a past PR's scope boundary.
-        require(
-            any(
-                f"kube_pod_container_resource_{kind}" in expr
-                for kind in ("limits", "requests")
-            ),
-            f"{name}: must join against kube_pod_container_resource_limits or "
-            "kube_pod_container_resource_requests, not the dead container_spec_* "
-            "metric family",
-        )
+        # a past PR's scope boundary. Narrowed again 2026-09-22 to RATIO rules
+        # only: VLLMMemoryRetainedAboveBound compares an absolute floor against
+        # a threshold derived from the HelmRelease's own --cache-ram (checked
+        # below), so it has no denominator to resolve.
+        if "/" in expr:
+            require(
+                any(
+                    f"kube_pod_container_resource_{kind}" in expr
+                    for kind in ("limits", "requests")
+                ),
+                f"{name}: a ratio rule must join against "
+                "kube_pod_container_resource_limits or "
+                "kube_pod_container_resource_requests, not the dead "
+                "container_spec_* metric family",
+            )
         require(
             "container_spec_" not in expr,
             f"{name}: must not use the dead container_spec_* metric family",
@@ -378,6 +398,101 @@ def assert_structural_contract(alerts: dict[str, dict[str, Any]]) -> None:
     require(warn["labels"]["severity"] == "warning", "VLLMMemoryApproachingLimit must be severity=warning")
     require(crit["labels"]["severity"] == "critical", "VLLMMemoryCriticalLimit must be severity=critical")
     require(over["labels"]["severity"] == "warning", "VLLMMemoryExceedsRequest must be severity=warning")
+
+    assert_retained_rule_contract(alerts["VLLMMemoryRetainedAboveBound"])
+
+
+def _vllm_container() -> dict[str, Any]:
+    for doc in load_docs(VLLM_HR):
+        if doc.get("kind") == "HelmRelease" and (doc.get("metadata") or {}).get("name") == "vllm":
+            return doc["spec"]["values"]["controllers"]["vllm"]["containers"]["app"]
+    raise Failure(f"{VLLM_HR}: could not find the vllm HelmRelease")
+
+
+def _arg_int(args: list[str], names: tuple[str, ...], default: int | None) -> int | None:
+    for name in names:
+        if name in args:
+            idx = args.index(name)
+            require(idx + 1 < len(args), f"{name} is present but has no value")
+            raw = args[idx + 1]
+            require(re.fullmatch(r"-?\d+", raw) is not None, f"{name} value {raw!r} is not an integer")
+            return int(raw)
+    return default
+
+
+def _mib(quantity: str) -> float:
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)(Mi|Gi|Ti)", str(quantity).strip())
+    require(match is not None, f"unsupported memory quantity {quantity!r}")
+    assert match is not None
+    return float(match.group(1)) * {"Mi": 1, "Gi": 1024, "Ti": 1024**2}[match.group(2)]
+
+
+def retained_threshold_bytes(expr: str) -> float:
+    """Parse the `> N * 1024^3` (or plain `> <bytes>`) tail of the floor rule."""
+    tail = _strip_tail(expr)
+    match = re.search(r">\s*(\d+(?:\.\d+)?)\s*\*\s*1024\s*\^\s*3$", tail)
+    if match:
+        return float(match.group(1)) * GIB
+    match = re.search(r">\s*(\d+(?:\.\d+)?)$", tail)
+    require(match is not None, "VLLMMemoryRetainedAboveBound must end in '> <GiB> * 1024^3' or '> <bytes>'")
+    assert match is not None
+    return float(match.group(1))
+
+
+def assert_retained_rule_contract(rule: dict[str, Any]) -> None:
+    """VLLMMemoryRetainedAboveBound: the 3h floor vs the config's retained ceiling.
+
+    The threshold is a RELATIONSHIP to the HelmRelease, not a free constant: it
+    must sit at or above everything llama.cpp is allowed to retain (baseline +
+    --cache-ram + one slot's full context-checkpoint budget), or it pages on a
+    healthy server, and below limits.memory, or it can never fire before the
+    OOMKill. Raising --cache-ram without revisiting the threshold fails here.
+    """
+    expr = rule["expr"]
+    require(
+        re.search(r"min_over_time\(\s*container_memory_working_set_bytes\{[^}]*\}\[3h\]\s*\)", expr) is not None,
+        "VLLMMemoryRetainedAboveBound must key on min_over_time(container_memory_working_set_bytes[3h]) - "
+        "the RETAINED floor. The instantaneous working set includes prefill spikes and prompt-cache churn, "
+        "which are bounded and must not page; a 3h minimum only moves when memory is kept",
+    )
+    require(
+        "predict_linear(" not in expr,
+        "VLLMMemoryRetainedAboveBound must stay a floor-vs-bound rule, not a projection",
+    )
+    require(rule.get("for") == "1h", "VLLMMemoryRetainedAboveBound for: must be 1h")
+    require(
+        rule["labels"]["severity"] == "warning",
+        "VLLMMemoryRetainedAboveBound must be severity=warning",
+    )
+
+    container = _vllm_container()
+    args = [str(a) for a in container.get("args", [])]
+    cache_ram = _arg_int(args, ("--cache-ram", "-cram"), None)
+    require(
+        cache_ram is not None and cache_ram > 0,
+        "the vllm HelmRelease must set a positive --cache-ram (vllm-prompt-cache-test.py owns why)",
+    )
+    assert cache_ram is not None
+    checkpoints = _arg_int(
+        args, ("--ctx-checkpoints", "-ctxcp", "--swa-checkpoints"), DEFAULT_CTX_CHECKPOINTS
+    )
+    assert checkpoints is not None
+    ceiling_mib = BASELINE_MIB + cache_ram + max(checkpoints, 0) * CHECKPOINT_MIB
+    threshold = retained_threshold_bytes(expr)
+    require(
+        threshold >= ceiling_mib * 1024**2,
+        f"VLLMMemoryRetainedAboveBound threshold {threshold / GIB:.2f} GiB is below the retained ceiling "
+        f"{ceiling_mib / 1024:.2f} GiB (baseline {BASELINE_MIB} Mi + --cache-ram {cache_ram} Mi + "
+        f"{checkpoints} x {CHECKPOINT_MIB} Mi checkpoints). A healthy server can legitimately hold that much "
+        "for hours, so this would page on normal operation - raise the threshold with the cache",
+    )
+    limit = ((container.get("resources") or {}).get("limits") or {}).get("memory")
+    require(limit is not None, "ai/vllm must declare limits.memory")
+    require(
+        threshold < _mib(limit) * 1024**2,
+        f"VLLMMemoryRetainedAboveBound threshold {threshold / GIB:.2f} GiB is not below limits.memory "
+        f"({limit}) - it could never fire before the OOMKill",
+    )
 
 
 def _noisy_band_series(hours: int = 48, step_min: int = 5) -> list[float]:
@@ -438,6 +553,55 @@ def _exceeds_request_series() -> list[float]:
     return [0.5] * 6 + [1.5] * 4 + [0.5] * 6 + [1.5] * 10 + [0.5] * 4
 
 
+def _cache_churn(i: int, low_gib: float, high_gib: float) -> float:
+    """Hourly prompt-cache sawtooth at 5m steps: low at each hour start, rising
+    to high by the hour's last sample (entries saved, then evicted/restored)."""
+    return low_gib + (high_gib - low_gib) * (i % 12) / 11
+
+
+def _retained_ok_series() -> list[float]:
+    """A HEALTHY server's working set in BYTES, 12h at 5m steps - every shape
+    the bounded consumers can legitimately produce, including the worst one:
+
+      t=0-1h55m     post-load, cache still cold (3 GiB)
+      t=2h-5h55m    prompt-cache churn between 5 and 7.3 GiB
+      t=6h-7h40m    a 105-minute prefill/transient spike to 11.5 GiB - above
+                    this rule's threshold AND above the 12Gi request
+      t=7h45m-8h55m churn again
+      t=9h-11h55m   held flat at the full retained ceiling (7.3 GiB: baseline
+                    + a full 4096 MiB cache + one slot's full checkpoint
+                    budget) for the whole 3h window
+
+    The 3h floor never exceeds 7.3 GiB, so this must never fire.
+    """
+    out: list[float] = []
+    for i in range(144):
+        if i < 24:
+            gib = 3.0
+        elif 72 <= i < 93:
+            gib = 11.5
+        elif i >= 108:
+            gib = 7.3
+        else:
+            gib = _cache_churn(i, 5.0, 7.3)
+        out.append(gib * GIB)
+    return out
+
+
+def _retained_leak_series() -> list[float]:
+    """The 2026-09-22 leak's shape in BYTES, 30h at 5m steps: a retained floor
+    climbing 0.15 GiB/h (~3.6 GiB/day, the measured rate) from 5 GiB, with
+    2 GiB of hourly cache churn on top. The floor reaches 8.0 GiB at exactly
+    t=20h (not above it) and 8.15 GiB at t=21h. The first 3h window whose
+    minimum clears 8 GiB is (20h, 23h] - range selectors are left-open, so
+    the 20h00 sample drops out at t=23h - and for: 1h moves the firing to
+    t=24h."""
+    return [
+        (5.0 + 0.15 * (i / 12) + _cache_churn(i, 0.0, 2.0)) * GIB
+        for i in range(360)
+    ]
+
+
 def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="vllm-alert-promtool-") as tmp:
         work = Path(tmp)
@@ -469,6 +633,14 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
         n_exceeds = len(exceeds)
         embed_exceeds = [2.0] * n_exceeds
         request_one = [1.0] * n_exceeds
+
+        retained_ok = _retained_ok_series()
+        retained_leak = _retained_leak_series()
+        # vllm-embed pinned at 20 GiB throughout: its 3h floor is far above the
+        # threshold, so any leak through the pod!~ exclusion shows up at once.
+        embed_retained_ok = [20.0 * GIB] * len(retained_ok)
+        embed_retained_leak = [20.0 * GIB] * len(retained_leak)
+        retained_rule = "VLLMMemoryRetainedAboveBound"
 
         test_doc = {
             "rule_files": ["vllm_rules.yml"],
@@ -711,9 +883,11 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                                             "exceeds-set and will now be evicted before pods "
                                             "that stay within their requests. The 12Gi request "
                                             "was sized on 2026-09-20 against a measured 5750 Mi "
-                                            "peak; if this is firing, that sizing is wrong and "
-                                            "the request needs raising - see the helmrelease "
-                                            "resources comment."
+                                            "peak. If this is firing, either that sizing is "
+                                            "wrong or host memory is leaking. If "
+                                            "VLLMMemoryRetainedAboveBound is also firing, it is "
+                                            "a leak, and raising the request only buys time - "
+                                            "see docs/ai/vllm-onednn-sdpa-leak.md."
                                         ),
                                     },
                                 }
@@ -741,9 +915,11 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                                             "exceeds-set and will now be evicted before pods "
                                             "that stay within their requests. The 12Gi request "
                                             "was sized on 2026-09-20 against a measured 5750 Mi "
-                                            "peak; if this is firing, that sizing is wrong and "
-                                            "the request needs raising - see the helmrelease "
-                                            "resources comment."
+                                            "peak. If this is firing, either that sizing is "
+                                            "wrong or host memory is leaking. If "
+                                            "VLLMMemoryRetainedAboveBound is also firing, it is "
+                                            "a leak, and raising the request only buys time - "
+                                            "see docs/ai/vllm-onednn-sdpa-leak.md."
                                         ),
                                     },
                                 }
@@ -753,6 +929,82 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                         # (resolution is not gated by for:, only the onset
                         # is).
                         {"eval_time": "130m", "alertname": "VLLMMemoryExceedsRequest", "exp_alerts": []},
+                    ],
+                },
+                {
+                    "name": "retained_quiet_at_bounded_ceiling_and_through_spike",
+                    "interval": "5m",
+                    "input_series": [
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{RETAINED_OK_POD}", container="app"}}',
+                            "values": _series(retained_ok),
+                        },
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{EMBED_POD}", container="app"}}',
+                            "values": _series(embed_retained_ok),
+                        },
+                    ],
+                    "alert_rule_test": [
+                        # 4h: churn only. 7h30m: 90m into the 11.5 GiB
+                        # spike. 8h: just after it. 11h55m: the whole 3h
+                        # window held at the full 7.3 GiB retained ceiling.
+                        # None of them may fire, and vllm-embed (20 GiB
+                        # floor throughout) must never appear.
+                        {"eval_time": t, "alertname": retained_rule, "exp_alerts": []}
+                        for t in ["4h", "7h30m", "8h", "10h", "11h55m"]
+                    ],
+                },
+                {
+                    "name": "retained_fires_on_leak_shaped_floor_climb",
+                    "interval": "5m",
+                    "input_series": [
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{RETAINED_LEAK_POD}", container="app"}}',
+                            "values": _series(retained_leak),
+                        },
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{EMBED_POD}", container="app"}}',
+                            "values": _series(embed_retained_leak),
+                        },
+                    ],
+                    "alert_rule_test": [
+                        # 20h: floor exactly at 8.0 GiB, not above - quiet.
+                        {"eval_time": "20h", "alertname": retained_rule, "exp_alerts": []},
+                        # 23h50m: condition true since 23h, but only 50m of
+                        # the 1h for: - still pending, must not fire yet.
+                        {"eval_time": "23h50m", "alertname": retained_rule, "exp_alerts": []},
+                        # 24h10m: held past for: 1h - fires, for the leaking
+                        # pod only. The 3h floor is the 22h00 cache-empty
+                        # sample, 5 + 0.15 * 22 = 8.3 GiB.
+                        {
+                            "eval_time": "24h10m",
+                            "alertname": retained_rule,
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": retained_rule,
+                                        "severity": "warning",
+                                        "namespace": "ai",
+                                        "pod": RETAINED_LEAK_POD,
+                                        "container": "app",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": "vllm is retaining more host memory than its bounded caches can hold",
+                                        "description": (
+                                            f"vllm pod {RETAINED_LEAK_POD} has not dropped below "
+                                            "8.3GiB of working set in the last 3h. Everything "
+                                            "this server is meant to keep is bounded under "
+                                            "~7.2GiB (baseline + the 4096 MiB prompt cache + one "
+                                            "slot's context checkpoints), so something is growing "
+                                            "without bound. First suspect: the oneDNN SDPA leak "
+                                            "is back. Check that the running image still honours "
+                                            "GGML_SYCL_FA_ONEDNN=0 - "
+                                            "docs/ai/vllm-onednn-sdpa-leak.md."
+                                        ),
+                                    },
+                                }
+                            ],
+                        },
                     ],
                 },
             ],
