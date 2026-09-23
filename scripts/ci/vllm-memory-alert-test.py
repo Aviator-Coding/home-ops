@@ -110,6 +110,8 @@ RAMP_POD = "vllm-ramp"
 REQUEST_POD = "vllm-request"
 RETAINED_OK_POD = "vllm-retained-ok"
 RETAINED_LEAK_POD = "vllm-retained-leak"
+RETAINED_GONE_POD = "vllm-retained-gone"
+RETAINED_NEW_POD = "vllm-retained-new"
 
 
 class Failure(Exception):
@@ -427,9 +429,13 @@ def _mib(quantity: str) -> float:
     return float(match.group(1)) * {"Mi": 1, "Gi": 1024, "Ti": 1024**2}[match.group(2)]
 
 
+RETAINED_LIVE_JOIN = "and on (namespace, pod, container)"
+
+
 def retained_threshold_bytes(expr: str) -> float:
-    """Parse the `> N * 1024^3` (or plain `> <bytes>`) tail of the floor rule."""
-    tail = _strip_tail(expr)
+    """Parse the `> N * 1024^3` (or plain `> <bytes>`) tail of the floor
+    comparison - the clause before the live-series AND."""
+    tail = _strip_tail(expr.partition(RETAINED_LIVE_JOIN)[0])
     match = re.search(r">\s*(\d+(?:\.\d+)?)\s*\*\s*1024\s*\^\s*3$", tail)
     if match:
         return float(match.group(1)) * GIB
@@ -460,6 +466,17 @@ def assert_retained_rule_contract(rule: dict[str, Any]) -> None:
         "VLLMMemoryRetainedAboveBound must stay a floor-vs-bound rule, not a projection",
     )
     require(rule.get("for") == "1h", "VLLMMemoryRetainedAboveBound for: must be 1h")
+    _, joined, live = expr.partition(RETAINED_LIVE_JOIN)
+    require(
+        joined != ""
+        and re.fullmatch(r"\s*container_memory_working_set_bytes\{[^}]*\}\s*", live) is not None
+        and 'pod!~"vllm-vllm-embed-.*"' in live,
+        "VLLMMemoryRetainedAboveBound must AND its floor with the LIVE instant series "
+        f"(`{RETAINED_LIVE_JOIN} container_memory_working_set_bytes{{...}}`, no range selector). "
+        "min_over_time[3h] keeps a terminated pod's samples for 3h, so without it every restart "
+        "of a leaking pod - the usual remedy - pages for hours about a pod that no longer exists "
+        "(seen live 2026-09-23 on the replaced vllm-5f8545b44d-2x424)",
+    )
     require(
         rule["labels"]["severity"] == "warning",
         "VLLMMemoryRetainedAboveBound must be severity=warning",
@@ -600,6 +617,19 @@ def _retained_leak_series() -> list[float]:
         (5.0 + 0.15 * (i / 12) + _cache_churn(i, 0.0, 2.0)) * GIB
         for i in range(360)
     ]
+
+
+def _retained_gone_values() -> _Q:
+    """A leaking pod that is then replaced, at 5m steps: a 12 GiB floor from
+    t=0 (firing from t=1h), last sample at t=4h55m, then a staleness marker at
+    t=5h - what Prometheus writes when cAdvisor stops exposing a terminated
+    container. Its samples stay inside a 3h range window until t=7h55m."""
+    return _Q(" ".join(f"{12.0 * GIB:.6f}" for _ in range(60)) + " stale")
+
+
+def _retained_new_values() -> _Q:
+    """The replacement pod: absent until t=5h, then a post-load 1.3 GiB."""
+    return _Q(" ".join(["_"] * 60 + [f"{1.3 * GIB:.6f}"] * 60))
 
 
 def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
@@ -955,6 +985,65 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                     ],
                 },
                 {
+                    "name": "retained_quiet_once_pod_terminated",
+                    "interval": "5m",
+                    "input_series": [
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{RETAINED_GONE_POD}", container="app"}}',
+                            "values": _retained_gone_values(),
+                        },
+                        {
+                            "series": f'container_memory_working_set_bytes{{namespace="ai", pod="{RETAINED_NEW_POD}", container="app"}}',
+                            "values": _retained_new_values(),
+                        },
+                    ],
+                    "alert_rule_test": [
+                        # 4h: the leaking pod is live with a 12 GiB floor held
+                        # well past for: 1h - it fires. This half proves the
+                        # live-series AND does not blind the rule to a live pod.
+                        {
+                            "eval_time": "4h",
+                            "alertname": retained_rule,
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": retained_rule,
+                                        "severity": "warning",
+                                        "namespace": "ai",
+                                        "pod": RETAINED_GONE_POD,
+                                        "container": "app",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": "vllm is retaining more host memory than its bounded caches can hold",
+                                        "description": (
+                                            f"vllm pod {RETAINED_GONE_POD} has not dropped below "
+                                            "12GiB of working set in the last 3h. Everything "
+                                            "this server is meant to keep is bounded under "
+                                            "~7.2GiB (baseline + the 4096 MiB prompt cache + one "
+                                            "slot's context checkpoints), so something is growing "
+                                            "without bound. First suspect: the oneDNN SDPA leak "
+                                            "is back. Check that the running image still honours "
+                                            "GGML_SYCL_FA_ONEDNN=0 - "
+                                            "docs/ai/vllm-onednn-sdpa-leak.md."
+                                        ),
+                                    },
+                                }
+                            ],
+                        },
+                        # 5h05m, 6h, 7h30m: the pod is gone (stale since 5h)
+                        # but its 12 GiB samples are still inside the 3h range
+                        # window until 7h55m. Without the live-series AND the
+                        # rule keeps firing here about a pod that no longer
+                        # exists; with it, it resolves at the first evaluation
+                        # after the pod disappears. The replacement pod (1.3
+                        # GiB) must not fire either.
+                        *[
+                            {"eval_time": t, "alertname": retained_rule, "exp_alerts": []}
+                            for t in ["5h05m", "6h", "7h30m"]
+                        ],
+                    ],
+                },
+                {
                     "name": "retained_fires_on_leak_shaped_floor_climb",
                     "interval": "5m",
                     "input_series": [
@@ -1044,6 +1133,9 @@ def main() -> int:
     print("  - VLLMMemoryExceedsRequest fires once an excursion above the request holds for for:30m,")
     print("    resolves immediately on drop, stays quiet through a 20m transient, and excludes vllm-embed")
     print("  - the sibling vllm-embed controller never contaminates any of the three alerts")
+    print("  - VLLMMemoryRetainedAboveBound: 3h floor vs a threshold tied to --cache-ram; quiet at the full")
+    print("    bounded ceiling and through a 105m spike, fires for:1h after a leak-shaped floor clears 8 GiB,")
+    print("    and resolves at the first evaluation after the pod terminates (live-series AND)")
     return 0
 
 
