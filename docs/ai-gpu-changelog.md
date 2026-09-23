@@ -62,6 +62,24 @@ Change · Why · Evidence · Risk/rollback · Verify
 
 ---
 
+## [2026-09-23] `VLLMMemoryRetainedAboveBound`: stop paging about terminated pods
+
+**Change.** In `kubernetes/apps/base/ai/vllm/app/prometheusrule.yaml`, the rule's 3h
+`min_over_time` floor is now ANDed `on (namespace, pod, container)` with the live instant
+`container_memory_working_set_bytes` series.
+
+**Why.** A range selector keeps a terminated pod's samples for the whole window. On the rollout of
+PR #1754 the replaced pod `vllm-5f8545b44d-2x424` went pending at 03:56Z with a 12.27 GiB floor, and
+it would have paged ~04:56Z-06:55Z about a pod that no longer existed. Every restart of a leaking
+pod - the usual remedy - would have done the same.
+
+**Risk/rollback.** A live pod still fires exactly as before; only series whose pod is gone drop out.
+The captain-approved stopgap was one Alertmanager silence (`alertname=VLLMMemoryRetainedAboveBound`,
+`pod=vllm-5f8545b44d-2x424`, until 2026-09-23 07:00Z).
+
+**Verify.** `scripts/ci/vllm-memory-alert-test.py` case `retained_quiet_once_pod_terminated`
+(red on the pre-fix expression). Detail: [`ai/vllm-onednn-sdpa-leak.md`](./ai/vllm-onednn-sdpa-leak.md) section 7.
+
 ## [2026-09-22] Disable oneDNN SDPA on `ai/vllm` to stop unbounded host memory growth  (PR #1754)
 
 **Change.** In `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`: set `GGML_SYCL_FA_ONEDNN: "0"`

@@ -174,6 +174,15 @@ But its key space is bounded (`--ctx-size 512`, so q <= 512 and seq in {256, 512
   nothing paged on this leak for 4.7 days, while the same floor rule at that config's own ceiling
   would have fired 2026-09-16 09:35Z. It is also the only detector for this gate's blind spot: a
   future image that renames or ignores `GGML_SYCL_FA_ONEDNN`.
+
+  **Corrected 2026-09-23: the rule now ANDs its floor with the live instant series.** A range
+  selector keeps a pod's samples after the pod is gone (staleness markers only hide instant
+  lookups), so as first shipped it kept evaluating a terminated pod for up to 3h. On the rollout of
+  this very fix, the replaced pod `2x424` went pending at 03:56Z with a 12.27 GiB floor and would
+  have paged ~04:56Z-06:55Z about a pod that no longer existed. A targeted Alertmanager silence
+  covered that one pod until 07:00Z. The promtool case `retained_quiet_once_pod_terminated` goes red
+  on the pre-fix expression. After an in-place container restart the still-live pod keeps its
+  pre-restart floor for the 3h window; that is deliberate, because it has just shown the growth.
 - `VLLMMemoryExceedsRequest`'s description no longer says "the request needs raising". This time the
   cause was a leak, and raising the request would only have bought time.
 

@@ -278,6 +278,20 @@ spec:
         # days. This rule, at THAT config's ceiling (8192 Mi default cache, so
         # a 12 GiB threshold), would have fired 2026-09-16 09:35Z, ~3 days
         # before an audit found it.
+        #
+        # The `and on (namespace, pod, container)` against the LIVE instant
+        # series was added 2026-09-23. A range selector keeps a pod's samples
+        # after the pod is gone, because staleness markers only hide INSTANT
+        # lookups. So min_over_time[3h] alone kept evaluating a terminated pod
+        # for up to 3h after it died. Seen on the first rollout of this rule:
+        # the replaced pod 2x424 went pending at 03:56Z with a 12.27 GiB floor
+        # and would have paged ~04:56Z-06:55Z about a pod that no longer
+        # existed. A restart is the usual remedy for a leak, so without this
+        # clause every remedy would page for hours. Scope is the pod, not the
+        # container instance: after an in-place container restart (e.g. an
+        # OOMKill) the still-live pod keeps its pre-restart floor for the 3h
+        # window. That is deliberate, because such a pod has just shown the
+        # growth this rule exists to report.
         - alert: VLLMMemoryRetainedAboveBound
           annotations:
             summary: vllm is retaining more host memory than its bounded caches can hold
@@ -291,8 +305,12 @@ spec:
               image still honours GGML_SYCL_FA_ONEDNN=0 -
               docs/ai/vllm-onednn-sdpa-leak.md.
           expr: |
-            min_over_time(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[3h])
-              > 8 * 1024^3
+            (
+              min_over_time(container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}[3h])
+                > 8 * 1024^3
+            )
+            and on (namespace, pod, container)
+            container_memory_working_set_bytes{namespace="ai", pod=~"vllm-.*", pod!~"vllm-vllm-embed-.*", container="app"}
           for: 1h
           labels:
             severity: warning
