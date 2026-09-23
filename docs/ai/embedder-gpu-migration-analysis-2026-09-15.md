@@ -599,8 +599,10 @@ production.)
 one. It is deliberately **not** changed here, and `--cache-ram 0` would be the wrong answer for it:
 it is a chat server, where the read path *is* `SERVER_TASK_TYPE_COMPLETION` and prefix reuse across
 multi-turn conversation is genuinely valuable. Its answer is a bounded non-zero value, which was
-left on the default and did leak as predicted - fixed 2026-09-19 by `--cache-ram 4096` plus
-`GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072`: `docs/ai/vllm-host-prompt-cache.md`.
+left on the default and did leak as predicted - bounded 2026-09-19 by `--cache-ram 4096` plus
+`GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072` (`docs/ai/vllm-host-prompt-cache.md`). A second,
+independent leak (llama.cpp's oneDNN SDPA partition cache) then resurfaced under real traffic and
+was fixed 2026-09-22 by `GGML_SYCL_FA_ONEDNN: "0"`: `docs/ai/vllm-onednn-sdpa-leak.md`.
 
 ### What the next sustained backfill proves
 
