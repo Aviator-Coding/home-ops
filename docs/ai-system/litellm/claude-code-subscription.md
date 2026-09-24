@@ -473,16 +473,18 @@ failing visibly, add a third CR following §5e.
 claude -p 'Reply OK' --output-format json | jq '.modelUsage[].contextWindow'
 ```
 
-**Settings that do not restore the window**, each checked 2026-09-24:
+**Settings not to use instead of `[1m]`**, each checked 2026-09-24:
 `ANTHROPIC_BETAS=context-1m-2025-08-07` alone still leaves `contextWindow` at
 200,000; `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and the `autoCompactWindow` setting
 are clamped with `min(contextWindow, value)` and cannot raise 200k;
 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` applies only to unrecognised model names, so
-`claude-sonnet-5` ignores it; `_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL=1`
-does lift the window, and it is an undocumented internal that makes the CLI
-treat this proxy as `api.anthropic.com` for first-party-only betas and body
+`claude-sonnet-5` ignores it - none of those three raise the believed window.
+`_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL=1` is different: it does lift the
+window, but stays off the list of things to reach for, because it is an
+undocumented internal that makes the CLI treat this proxy as
+`api.anthropic.com` outright, including first-party-only betas and body
 fields. The window is computed in the client from the base-URL host before
-any request, so no proxy setting fixes it.
+any request, so no proxy setting - working or not - is the fix; `[1m]` is.
 
 `ENABLE_TOOL_SEARCH=true` is safe here. `tool_reference` / `defer_loading`
 round-tripped on the v1.98.0 proxy.
