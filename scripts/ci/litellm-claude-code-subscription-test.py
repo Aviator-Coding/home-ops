@@ -34,9 +34,11 @@ scoped to were renamed:
        - omitting api_key is NOT how credential-less models work
          (get_api_key(None) falls back to ANTHROPIC_API_KEY env)
   8. Client runbook doc is a published contract (required env vars +
-     x-litellm-api-key header guidance). Rename invariants live in the
-     operator-render/CR/fallback assertions above and in the sibling
-     auto-router / fallback-chain tests, not in runbook greps.
+     x-litellm-api-key header guidance, and the §5c block's `[1m]` suffix
+     on the three model vars plus ENABLE_TOOL_SEARCH=true). Rename
+     invariants live in the operator-render/CR/fallback assertions above
+     and in the sibling auto-router / fallback-chain tests, not in runbook
+     greps.
 
 This is intentionally NOT a source-grep test: assertions are on the operator
 render output, CR semantic model, kustomize consumer output, and (when
@@ -783,6 +785,26 @@ def test_kustomize_emits_resources() -> None:
         record("kustomize_emitted_key_has_no_ceiling", False, "missing doc")
 
 
+def _section_5c_env_assignments(text: str) -> dict[str, str]:
+    """Export assignments in the first bash fence under the §5c heading."""
+    match = re.search(
+        r"### 5c\. Point the CLI at LiteLLM\n+```bash\n(.*?)```",
+        text,
+        re.S,
+    )
+    if not match:
+        return {}
+    assignments: dict[str, str] = {}
+    for raw in match.group(1).splitlines():
+        line = raw.split("#", 1)[0].strip()
+        found = re.match(r'export\s+([A-Z0-9_]+)=(?:"([^"]*)"|(\S+))', line)
+        if found:
+            assignments[found.group(1)] = (
+                found.group(2) if found.group(2) is not None else found.group(3)
+            )
+    return assignments
+
+
 def test_runbook_contract() -> None:
     """Published client-facing contract, not an implementation source grep.
 
@@ -795,12 +817,10 @@ def test_runbook_contract() -> None:
     if not exists:
         return
 
-    # Required client env contract. As of the 2026-08-31 rename, the
-    # ANTHROPIC_DEFAULT_OPUS_MODEL/ANTHROPIC_DEFAULT_SONNET_MODEL overrides
-    # that used to be load-bearing (steering by-family requests AWAY from the
-    # then-natural-named metered CRs) are gone: the natural names now resolve
-    # directly to the pass-through models, so ANTHROPIC_MODEL is the only
-    # model-selecting variable a client needs.
+    # Required client env contract. The natural names resolve to the
+    # pass-through models. §5c also sets the family vars, with a client-only
+    # [1m] suffix, because subagents and /model resolve by family and Claude
+    # Code clamps a non-api.anthropic.com base URL to a 200k window.
     needed_env = [
         "ANTHROPIC_BASE_URL",
         "ANTHROPIC_MODEL",
@@ -819,6 +839,21 @@ def test_runbook_contract() -> None:
         or f"ANTHROPIC_MODEL={MODEL_NAME}" in text
         or "ANTHROPIC_MODEL" in text and MODEL_NAME in text,
         "model assignment present",
+    )
+    # §5c env block, not a whole-doc grep: historical prose still names the
+    # family vars without [1m]. The suffix is client-only; dropping it puts
+    # auto-compact back at ~167k while every server-side check stays green.
+    section_5c = _section_5c_env_assignments(text)
+    want_1m = {
+        "ANTHROPIC_MODEL": f"{MODEL_NAME}[1m]",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": f"{MODEL_NAME}[1m]",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": f"{OPUS_MODEL_NAME}[1m]",
+    }
+    got_1m = {name: section_5c.get(name) for name in want_1m}
+    record(
+        "runbook_section_5c_model_vars_carry_1m_suffix_and_tool_search",
+        got_1m == want_1m and section_5c.get("ENABLE_TOOL_SEARCH") == "true",
+        f"models={got_1m} tool_search={section_5c.get('ENABLE_TOOL_SEARCH')!r}",
     )
     record(
         "runbook_forbids_putting_virtual_key_in_authorization",

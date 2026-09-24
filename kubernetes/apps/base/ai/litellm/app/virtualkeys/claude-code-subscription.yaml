@@ -18,11 +18,13 @@
 # describes what the key is FOR (the Claude Code CLI subscription user), it is
 # only the two models it is allow-listed to that changed names. The client-side
 # `ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` overrides
-# that the runbook's §7 describes are gone: the natural names now resolve
-# directly to these pass-through CRs, so no override is needed. Full rationale
-# and the deliberate 401 an admin gets asking for the bare natural name
-# (without a subscription OAuth token) instead of the `-metered` escape hatch:
-# docs/ai-system/litellm/claude-code-subscription.md.
+# that the runbook's §7 describes are gone for their original purpose: the
+# natural names now resolve directly to these pass-through CRs, so no override
+# is needed to steer traffic off the metered CRs. (The same vars are set again
+# in the runbook's §5c for an unrelated reason - a client-only `[1m]`
+# context-window hint.) Full rationale and the deliberate 401 an admin gets
+# asking for the bare natural name (without a subscription OAuth token)
+# instead of the `-metered` escape hatch: docs/ai-system/litellm/claude-code-subscription.md.
 #
 # THE ONLY KEY HERE WITH NO `maxBudget`, AND - AS OF 2026-08-31 - NO
 # `rpmLimit`/`tpmLimit` EITHER. THIS KEY HAS NO LOCAL CEILING AT ALL, AND THAT
@@ -134,8 +136,10 @@ spec:
     # key's `aliases` only after this allow-list has already rejected the
     # request - measured 2026-08-30, see the CR header and the doc's section 7
     # for why that ordering ruled out a per-key alias). The 2026-08-31 rename
-    # retired that override entirely: these two names are now the pass-through
-    # CRs outright, so no client-side steering is needed anymore.
+    # retired that override's original purpose: these two names are now the
+    # pass-through CRs outright, so no client-side steering off the metered
+    # CRs is needed anymore. The same vars are back in the doc's §5c for an
+    # unrelated reason - a client-only `[1m]` context-window hint.
     - claude-sonnet-5
     - claude-opus-5
 ---
