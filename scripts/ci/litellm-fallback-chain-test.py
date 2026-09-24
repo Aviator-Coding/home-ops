@@ -9,9 +9,10 @@ then:
   3. Asserts internal HTTPRoute contract (standalone, litellm-internal name,
      envoy-internal only, Gatus readiness check, Flux substitute tokens).
   4. Asserts PrometheusRule fallback alert series/labels as structured rules.
-  5. Drives the real LiteLLM v1.98.0 Router against mock backends to prove an
-     availability fallback actually serves the cloud target when the primary
-     is dead - without grepping source for the word "fallback".
+  5. Drives the real LiteLLM Router (the library version CI installs to match
+     the proxy image) against mock backends to prove an availability fallback
+     actually serves the cloud target when the primary is dead - without
+     grepping source for the word "fallback".
 
 Governance rule under test (measured live 2026-08-26, docs/ai-system/litellm/
 fallbacks.md): config-declared fallbacks BYPASS virtual-key allow-lists, so a

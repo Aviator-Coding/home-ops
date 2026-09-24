@@ -27,7 +27,8 @@ scoped to were renamed:
   5. No ExternalSecret change is required for this model (proxy still only
      pulls the shared ai-keys / litellm secrets).
   6. kustomize build emits both CRs + PushSecret.
-  7. When the real LiteLLM v1.98.0 runtime is importable, prove:
+  7. When the real LiteLLM runtime (the library version CI installs to match
+     the proxy image) is importable, prove:
        - use_custom_pricing_for_model honours explicit 0 (is not None)
        - is_anthropic_oauth_key recognises the placeholder prefix
        - omitting api_key is NOT how credential-less models work
