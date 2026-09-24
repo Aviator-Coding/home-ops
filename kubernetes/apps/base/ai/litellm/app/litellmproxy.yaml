@@ -12,15 +12,17 @@ spec:
   # model list. Deliberately not that (same reason the pre-operator
   # config.yaml refused store_model_in_db); see generalSettings below.
   applyMode: file
-  image: ghcr.io/berriai/litellm-non_root:v1.98.0
+  image: ghcr.io/berriai/litellm-non_root:v1.102.1
   # ^ v1.93.0 is the FLOOR for the D3 auto-router: `classifier_type: llm` and
   # classifier_llm_config first exist there. Below it ComplexityRouterConfig is
   # `extra="allow"`, so those keys parse clean and are then IGNORED - the
   # router silently runs the rule-based scorer the reference repo measured at
   # 25-35% tier accuracy. The floor is machine-enforced by
   # .renovate/overrides.json5 (allowedVersions ">=1.93.0" on this exact package
-  # name), which applies to this line because Renovate's `kubernetes` manager
-  # scans every image: field in kubernetes/**.yaml - including inside a CR.
+  # name). Renovate's helm-values manager extracts this image (the kubernetes
+  # manager's dashboard section is empty for the whole repo). Tag-only, matching
+  # this line's existing pin: most single-line image refs in this repo are tags,
+  # not tag@digest.
   # Upstream also dropped the `main-vX.Y.Z-stable` tag scheme after v1.81.x;
   # current releases are plain `vX.Y.Z`.
   replicas: 1
@@ -144,20 +146,22 @@ spec:
     # latency and attribution only: `messages`, `response` and
     # `proxy_server_request` are all literally the string "{}" on every row
     # (measured on the live DB before this change - 134/134 rows empty in all
-    # three columns). This flag is the ONLY gate; on v1.98.0
-    # `_should_store_prompts_and_responses_in_spend_logs()`
-    # (proxy/spend_tracking/spend_tracking_utils.py:1162) reads exactly
-    # general_settings["store_prompts_in_spend_logs"] or the
+    # three columns). This flag is the ONLY gate. On v1.102.1 it is
+    # `should_store_prompts_and_responses_in_spend_logs()`
+    # (proxy/spend_tracking/spend_tracking_utils.py:1402; v1.98.0 named the
+    # same body `_should_store_prompts_and_responses_in_spend_logs` at :1162).
+    # It reads exactly general_settings["store_prompts_in_spend_logs"] or the
     # STORE_PROMPTS_IN_SPEND_LOGS env var, and every content-bearing column is
     # written behind it.
     #
     # WHERE THE PROMPT ACTUALLY LANDS - not the column you would guess. The
     # `messages` column stays "{}" for ordinary chat/completions traffic even
-    # with this on: `_get_messages_for_spend_logs_payload` (same file:637)
-    # populates it only when `call_type == "_arealtime"`, i.e. the realtime
-    # API. The prompt for everything else lives in `proxy_server_request`
-    # (:1034, the raw request body incl. `messages`), and the completion in
-    # `response` (:1108). Read both, never `messages`. Retrieval runbook:
+    # with this on: `_get_messages_for_spend_logs_payload` (same file:867 on
+    # v1.102.1) populates it only when `call_type == "_arealtime"`, i.e. the
+    # realtime API. The prompt for everything else lives in
+    # `proxy_server_request` (:1270, the raw request body incl. `messages`),
+    # and the completion in `response` (:1348). Read both, never `messages`.
+    # Retrieval runbook:
     # docs/ai-system/litellm/request-logs.md
     #
     # CONFIDENTIALITY - primary store is the litellm DB on shared postgres-17;

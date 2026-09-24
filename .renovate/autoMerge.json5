@@ -120,5 +120,28 @@
       ],
       automerge: false,
     },
+    {
+      // MUST stay AFTER the blanket minor automerge rule above (same
+      // last-match-wins reasoning as kopiur and Talos). Sibling
+      // never-auto-merge rules share this trailing block; none may
+      // re-enable automerge for this package.
+      //
+      // GHCR docker tags carry no releaseTimestamp (Renovate's docker
+      // datasource only sets one for Docker Hub). The minor rule's 3-day
+      // minimumReleaseAge therefore stays pending forever under the default
+      // minimumReleaseAgeBehaviour "timestamp-required", and the in-cluster
+      // CronJob's internalChecksFilter "strict" never opens the branch.
+      // timestamp-optional still honors an age when a timestamp exists, and
+      // treats a missing one as old enough. Do not widen this to other GHCR
+      // images, and do not change internalChecksFilter: the other pending
+      // feat(container) rows are a separate decision.
+      // automerge stays false because a proxy minor can change OAuth header
+      // scope, spend-log writers, key-update null handling, and the
+      // auto-router. Those need a human look, the same way this bump did.
+      description: "LiteLLM proxy: GHCR has no release timestamp, so open minor PRs but never automerge them",
+      matchPackageNames: ["ghcr.io/berriai/litellm-non_root"],
+      minimumReleaseAgeBehaviour: "timestamp-optional",
+      automerge: false,
+    },
   ],
 }

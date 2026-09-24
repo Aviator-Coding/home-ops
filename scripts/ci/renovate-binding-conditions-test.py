@@ -148,6 +148,10 @@ def rule_matches(rule: dict[str, Any], dep: DepUpdate) -> bool:
         "automerge",
         "automergeType",
         "minimumReleaseAge",
+        # Not a matcher. Set on the LiteLLM proxy rule so a GHCR tag with no
+        # releaseTimestamp can leave the minor age gate. Same class of field
+        # as minimumReleaseAge: it changes behaviour, it does not select deps.
+        "minimumReleaseAgeBehaviour",
         "ignoreTests",
     }
     unknown = set(rule) - known
@@ -362,6 +366,44 @@ def test_kopiur_exclusion_still_wins(rules: list[dict[str, Any]]) -> None:
         )
 
 
+def test_litellm_proxy_minor_is_reviewed(rules: list[dict[str, Any]]) -> None:
+    """ghcr.io/berriai/litellm-non_root minors must open as PRs and not automerge.
+
+    GHCR tags have no releaseTimestamp, so timestamp-required never clears the
+    3-day minor age. timestamp-optional is package-scoped. automerge stays
+    false because a proxy minor can change request handling.
+    """
+    dep = DepUpdate(
+        "ghcr.io/berriai/litellm-non_root",
+        "docker",
+        "minor",
+        "kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml",
+    )
+    winner, idx = winning_automerge(rules, dep)
+    require(winner is False, f"litellm proxy minor must not automerge (got {winner} from rule {idx})")
+    rule = rules[idx]
+    require(
+        rule.get("matchPackageNames") == ["ghcr.io/berriai/litellm-non_root"],
+        f"winning rule must be the litellm-only package rule, got {rule.get('matchPackageNames')!r}",
+    )
+    require(
+        rule.get("minimumReleaseAgeBehaviour") == "timestamp-optional",
+        f"litellm rule must set timestamp-optional, got {rule.get('minimumReleaseAgeBehaviour')!r}",
+    )
+    # A different GHCR image must not inherit this opt-out.
+    other = DepUpdate(
+        "ghcr.io/some-org/unrelated",
+        "docker",
+        "minor",
+        "kubernetes/apps/base/media/plex/app/helmrelease.yaml",
+    )
+    other_winner, other_idx = winning_automerge(rules, other)
+    require(
+        other_winner is True,
+        f"unrelated GHCR minor must still automerge (got {other_winner} from rule {other_idx})",
+    )
+
+
 def test_rendered_renovate_app_contract(docs: list[dict[str, Any]]) -> None:
     """Conditions 1-3 as shipped: silence alerts live; hostRules intentionally absent."""
     oci = [d for d in docs if d.get("kind") == "OCIRepository"]
@@ -461,6 +503,7 @@ def main() -> int:
         run("renovate_self_update_blocked", test_renovate_self_update_blocked, rules)
         run("unrelated_updates_still_automerge", test_unrelated_updates_still_automerge, rules)
         run("kopiur_exclusion_still_wins", test_kopiur_exclusion_still_wins, rules)
+        run("litellm_proxy_minor_is_reviewed", test_litellm_proxy_minor_is_reviewed, rules)
 
     docs = run("kustomize_build_renovate_app", kustomize_build, RENOVATE_APP)
     if docs is not None:

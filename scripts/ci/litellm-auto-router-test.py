@@ -5,8 +5,8 @@ Since captain decision O1 (2026-08-26) the proxy config is not a file in Git:
 the home-operations litellm-operator renders it from the `LiteLLMModel` CRs in
 kubernetes/apps/base/ai/litellm/app/models/. This test therefore RENDERS that
 config the way the operator does (see render_config_from_crs below) and then
-exercises the result through the real LiteLLM v1.98.0 ComplexityRouter / Router
-APIs (same image the cluster runs). Consumers come from the `LiteLLMVirtualKey`
+exercises the result through the real LiteLLM ComplexityRouter / Router
+APIs of the library version CI installs to match the proxy image. Consumers come from the `LiteLLMVirtualKey`
 CRs in app/virtualkeys/. Mock OpenAI-compatible backends stand in for the local
 classifier/chat model and the cloud tiers so classification and fail-open are
 observable without the cluster or paid APIs.
@@ -1054,21 +1054,24 @@ def test_image_version_floor() -> None:
     # Since O1 the image is a full reference on the LiteLLMProxy CR, not a bare
     # tag in HelmRelease values.
     image = proxy["spec"]["image"]
-    repo, _, tag = image.partition(":")
+    # tag@digest is accepted so a later digest pin does not crash the parser.
+    ref = image.split("@", 1)[0]
+    repo, _, tag = ref.partition(":")
     record(
         "litellm_image_is_non_root_variant",
         repo == "ghcr.io/berriai/litellm-non_root",
         f"repo={repo}",
     )
-    # parse vMAJOR.MINOR.PATCH
-    assert tag.startswith("v"), f"unparseable tag in {image!r}"
-    major, minor, patch = (int(x) for x in tag[1:].split("."))
+    # Plain vMAJOR.MINOR.PATCH only. The floor is the contract; an exact tag
+    # would fail every future bump. A prerelease or non-numeric tag fails the
+    # floor record instead of raising.
+    parts = tag[1:].split(".") if tag.startswith("v") else []
+    parsed = tuple(int(p) for p in parts) if len(parts) == 3 and all(p.isdigit() for p in parts) else None
     record(
         "litellm_image_at_or_above_v1_93_0",
-        (major, minor, patch) >= (1, 93, 0),
+        parsed is not None and parsed >= (1, 93, 0),
         f"tag={tag}",
     )
-    record("litellm_image_is_v1_98_0", tag == "v1.98.0", f"tag={tag}")
 
     # Renovate floor
     overrides = (REPO / ".renovate/overrides.json5").read_text()

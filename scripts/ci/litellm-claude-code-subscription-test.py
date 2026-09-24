@@ -866,7 +866,7 @@ def test_litellm_runtime_pricing_and_oauth_helpers() -> None:
             "litellm_runtime_available_for_subscription_proofs",
             not require,
             "litellm not installed here - semantic CR proofs still ran; "
-            "re-run under ghcr.io/berriai/litellm-non_root:v1.98.0 for runtime proofs",
+            "re-run under the pinned ghcr.io/berriai/litellm-non_root image for runtime proofs",
         )
         return
 

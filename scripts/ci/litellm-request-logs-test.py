@@ -10,7 +10,7 @@ Renders the litellm-operator LiteLLMProxy CR the way file-mode does, then:
   3. Asserts MAX_STRING_LENGTH_PROMPT_IN_DB=1000000 is declared on the CR env.
   4. Asserts maximum_spend_logs_retention_period is "30d" (matches Barman).
   5. Asserts litellm_settings.callbacks is prometheus-only (no content export).
-  6. When the real LiteLLM v1.98.0 runtime is importable, prove observable
+  6. When the LiteLLM library pinned to the proxy image is importable, prove observable
      behaviour of the spend-log writers:
        - store flag off -> request/response payloads are literally "{}"
        - store flag on  -> full body and completion are serialized
@@ -58,7 +58,8 @@ PROBE_PROMPT = ("full-content-capture-probe-line\n" * PROBE_PROMPT_REPS).rstrip(
 PROBE_COMPLETION = "full content capture works"
 EXPECTED_RETENTION = "30d"
 EXPECTED_MAX_STRING = "1000000"
-EXPECTED_IMAGE = "ghcr.io/berriai/litellm-non_root:v1.98.0"
+NON_ROOT_REPO = "ghcr.io/berriai/litellm-non_root"
+VERSION_FLOOR = (1, 93, 0)
 
 RESULTS: list[dict[str, Any]] = []
 
@@ -67,6 +68,20 @@ def record(name: str, ok: bool, detail: str = "") -> None:
     RESULTS.append({"name": name, "ok": ok, "detail": detail})
     status = "PASS" if ok else "FAIL"
     print(f"[{status}] {name}" + (f" — {detail}" if detail else ""))
+
+
+def parse_proxy_image(image: str) -> tuple[str, str]:
+    """Split repo and tag. A trailing @sha256 digest is not part of the tag."""
+    ref = image.split("@", 1)[0]
+    repo, _, tag = ref.partition(":")
+    return repo, tag
+
+
+def version_tuple(tag: str) -> tuple[int, int, int] | None:
+    parts = tag[1:].split(".") if tag.startswith("v") else []
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
 
 
 def load_yaml(path: Path) -> Any:
@@ -102,10 +117,17 @@ def test_cr_config() -> dict:
     gs = cfg.get("general_settings") or {}
     ls = cfg.get("litellm_settings") or {}
 
+    repo, tag = parse_proxy_image(str(spec.get("image") or ""))
+    parsed = version_tuple(tag)
     record(
-        "pinned_image_is_v1_98_0",
-        spec.get("image") == EXPECTED_IMAGE,
-        f"image={spec.get('image')!r}",
+        "pinned_image_is_non_root",
+        repo == NON_ROOT_REPO,
+        f"repo={repo}",
+    )
+    record(
+        "pinned_image_at_or_above_v1_93_0",
+        parsed is not None and parsed >= VERSION_FLOOR,
+        f"tag={tag}",
     )
 
     record(
@@ -241,7 +263,7 @@ def test_runtime_spend_log_behaviour() -> None:
         record(
             "runtime_litellm_available",
             False,
-            "litellm not importable; run inside ghcr.io/berriai/litellm-non_root:v1.98.0",
+            "litellm not importable; install the litellm[proxy] version pinned in validate.yaml",
         )
         return
 
@@ -257,8 +279,16 @@ def test_runtime_spend_log_behaviour() -> None:
 
     record("runtime_litellm_available", True, f"litellm={getattr(litellm, '__version__', '?')}")
 
+    # v1.102.1 renamed the private gate to the public name with the same body.
+    # v1.98.0 still has the underscored spelling. Call whichever this install has.
+    if hasattr(stu, "should_store_prompts_and_responses_in_spend_logs"):
+        store_gate_name = "should_store_prompts_and_responses_in_spend_logs"
+    else:
+        store_gate_name = "_should_store_prompts_and_responses_in_spend_logs"
+    store_gate = getattr(stu, store_gate_name)
+
     # --- gate: off yields empty content columns ---
-    with mock.patch.object(stu, "_should_store_prompts_and_responses_in_spend_logs", return_value=False):
+    with mock.patch.object(stu, store_gate_name, return_value=False):
         off_req = stu._get_proxy_server_request_for_spend_logs_payload(
             metadata={},
             litellm_params={
@@ -306,7 +336,7 @@ def test_runtime_spend_log_behaviour() -> None:
         "usage": {"prompt_tokens": 2813, "completion_tokens": 4, "cost": 0.0008539},
     }
 
-    with mock.patch.object(stu, "_should_store_prompts_and_responses_in_spend_logs", return_value=True):
+    with mock.patch.object(stu, store_gate_name, return_value=True):
         # Force the raised cap used on the CR so the probe is stored whole.
         with mock.patch.dict(os.environ, {"MAX_STRING_LENGTH_PROMPT_IN_DB": EXPECTED_MAX_STRING}):
             on_req = stu._get_proxy_server_request_for_spend_logs_payload(
@@ -410,16 +440,16 @@ def test_runtime_spend_log_behaviour() -> None:
     try:
         proxy_server.general_settings = {"store_prompts_in_spend_logs": True}
         with mock.patch.dict(os.environ, {"STORE_PROMPTS_IN_SPEND_LOGS": "false"}):
-            gate_on = stu._should_store_prompts_and_responses_in_spend_logs()
+            gate_on = store_gate()
         proxy_server.general_settings = {"store_prompts_in_spend_logs": False}
         with mock.patch.dict(os.environ, {}, clear=False):
             # Clear both the setting and env.
             env2 = {k: v for k, v in os.environ.items() if k != "STORE_PROMPTS_IN_SPEND_LOGS"}
             with mock.patch.dict(os.environ, env2, clear=True):
-                gate_off = stu._should_store_prompts_and_responses_in_spend_logs()
+                gate_off = store_gate()
         proxy_server.general_settings = {}
         with mock.patch.dict(os.environ, {"STORE_PROMPTS_IN_SPEND_LOGS": "true"}):
-            gate_env = stu._should_store_prompts_and_responses_in_spend_logs()
+            gate_env = store_gate()
     finally:
         proxy_server.general_settings = original_gs
 
