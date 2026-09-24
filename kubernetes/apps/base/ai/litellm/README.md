@@ -193,8 +193,11 @@ investigation report): these two CRs used to be `claude-code-subscription` /
 METERED, household-billed CRs. The metered CRs moved to
 `claude-sonnet-5-metered` / `claude-opus-5-metered` to free the natural names
 for this pass-through. **Point 5 below is now historical** - the
-`ANTHROPIC_DEFAULT_OPUS_MODEL` client override it describes is retired,
-because the natural names ARE this pass-through now. The dedicated virtual key
+naming-collision reason for the `ANTHROPIC_DEFAULT_OPUS_MODEL` client override
+it describes is retired, because the natural names ARE this pass-through now.
+(The same variable is back in the runbook's §5c for an unrelated reason - a
+client-only `[1m]` context-window hint, not a collision workaround; see
+`docs/ai-system/litellm/claude-code-subscription.md` §5c/§9.) The dedicated virtual key
 (`claude-code-subscription`) keeps its original name; only the two models on
 its allow-list were renamed. An admin who wants the metered route on purpose
 now asks for `claude-sonnet-5-metered` / `claude-opus-5-metered` by name and
@@ -270,12 +273,15 @@ throwaway aliased key: byte-identical 403. Making an alias fire would have
 required allow-listing the metered CR on this key, leaving metered billing one
 dropped rewrite away - so the collision was closed **client-side** via
 `ANTHROPIC_DEFAULT_OPUS_MODEL` instead (evidence table in the runbook's §7).
-**The 2026-08-31 rename retired this override entirely**: Opus is still a
-second CR (same reason - a metered model needs its own credentialed entry, now
-named `claude-opus-5-metered`, and the aliasing math above hasn't changed), but
-the pass-through CR now owns the natural `claude-opus-5` name outright, so
-there is nothing left to override client-side. §7 and the new §8 of the
-runbook carry the full history and the current admin-facing contract.
+**The 2026-08-31 rename retired this override for its original reason**: Opus
+is still a second CR (same reason - a metered model needs its own credentialed
+entry, now named `claude-opus-5-metered`, and the aliasing math above hasn't
+changed), but the pass-through CR now owns the natural `claude-opus-5` name
+outright, so there is nothing left to override client-side to avoid the
+metered CR. §7 and §8 of the runbook carry the full history and the current
+admin-facing contract; its §5c/§9 cover the unrelated reason
+`ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` are set again
+today - a client-only `[1m]` context-window hint.
 
 ## Pod security posture (known gap, accepted deliberately)
 

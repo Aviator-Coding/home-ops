@@ -9,8 +9,10 @@
 # `claude-sonnet-5` moved to `claude-sonnet-5-metered`
 # (./claude-sonnet-5-metered.yaml) to free this name. This is now the primary
 # way `claude`/Claude Code reaches Sonnet through this proxy - no client-side
-# `ANTHROPIC_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` override is needed
-# anymore, because the natural name IS this model. Full rationale, the
+# override is needed to steer traffic off the metered CR anymore, because the
+# natural name IS this model. (The client still sets `ANTHROPIC_MODEL`/
+# `ANTHROPIC_DEFAULT_SONNET_MODEL` to this name plus a `[1m]` suffix, for an
+# unrelated reason - a context-window hint, §5c.) Full rationale, the
 # deliberate 401 an admin gets when they instead want the metered route, and
 # what to use for it: docs/ai-system/litellm/claude-code-subscription.md.
 #

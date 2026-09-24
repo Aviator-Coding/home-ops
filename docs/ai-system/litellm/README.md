@@ -41,7 +41,7 @@ Opus CR 2026-08-30; renamed to the natural model names 2026-08-31) lives in
 the proxy holds no credential for (`claude-sonnet-5` + `claude-opus-5`,
 previously `claude-code-subscription`/`-opus`), the deliberate non-use of
 `forward_client_headers_to_llm_api`, `$0` pricing / no-`maxBudget` key shape,
-why no client-side `ANTHROPIC_DEFAULT_*_MODEL` override is needed anymore, the
+the client-side `ANTHROPIC_DEFAULT_*_MODEL`/`[1m]` context-window fix, the
 metered `-metered` admin escape hatch, and the client runbook. Do not restate
 those facts here.
 

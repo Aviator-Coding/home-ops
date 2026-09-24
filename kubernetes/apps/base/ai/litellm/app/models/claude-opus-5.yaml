@@ -14,9 +14,11 @@
 # (./claude-opus-5-metered.yaml), so this CR now owns the name outright and
 # the client-side `ANTHROPIC_DEFAULT_OPUS_MODEL` override that used to steer
 # Claude Code's Opus family AWAY from the metered name is gone - no override
-# is needed anymore. An admin who deliberately wants the metered route asks
-# for `claude-opus-5-metered` by name and is documented where to look:
-# docs/ai-system/litellm/claude-code-subscription.md.
+# is needed for that anymore. (The client still sets
+# `ANTHROPIC_DEFAULT_OPUS_MODEL` to this name plus a `[1m]` suffix, for an
+# unrelated reason - a context-window hint, §5c.) An admin who deliberately
+# wants the metered route asks for `claude-opus-5-metered` by name and is
+# documented where to look: docs/ai-system/litellm/claude-code-subscription.md.
 #
 # This is the second CR that ../claude-sonnet-5.yaml's header anticipated
 # ("Sonnet is what `claude` drives by default; an Opus alias is a second CR,
