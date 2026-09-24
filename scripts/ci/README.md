@@ -91,7 +91,7 @@ Setup, once per environment:
 ```bash
 # .venv is provisioned by .mise.toml's _.python.venv; activate it first
 source .venv/bin/activate
-uv pip install python-hcl2 "litellm[proxy]==1.98.0"
+uv pip install python-hcl2 "litellm[proxy]==1.102.1"
 
 # mise-managed CLIs some tests shell out to (kubectl, kustomize, tofu, yq,
 # promtool via aqua:prometheus/prometheus, minijinja-cli for
@@ -105,9 +105,10 @@ for f in scripts/ci/*-test.py; do python3 "$f" || echo "FAILED: $f"; done
 ```
 
 `python-hcl2` is needed by `litellm-sso-test.py` (hard import) and
-`tofu-authentik-stack-test.py` (guarded import). `litellm[proxy]==1.98.0` matches the
-pinned cluster image (`ghcr.io/berriai/litellm-non_root:v1.98.0`, see
-`kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml`) and is required by
+`tofu-authentik-stack-test.py` (guarded import). `litellm[proxy]==1.102.1` matches the
+pinned cluster image (`ghcr.io/berriai/litellm-non_root:v1.102.1`, see
+`kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml`; CI reads the same tag
+from `LITELLM_VERSION` in `.github/workflows/validate.yaml`) and is required by
 `litellm-auto-router-test.py` and `litellm-request-logs-test.py`, which hard-fail without
 it; `litellm-claude-code-subscription-test.py` and `litellm-fallback-chain-test.py` degrade
 to a soft pass-with-note instead.
@@ -121,7 +122,7 @@ the job's own filter, or the workflow never starts and the per-job pattern is de
 `.github/workflows/validate.yaml`, and `.mise.toml` at both levels (the shell-script
 jobs share the `scripts/ci/**` / workflow / `.mise.toml` subset only).
 `validate-contention-test.py::test_trigger_paths_cover_job_filters` fails if any
-per-job pattern becomes unreachable from the trigger again. It installs `python-hcl2` and `litellm[proxy]==1.98.0` (matching
+per-job pattern becomes unreachable from the trigger again. It installs `python-hcl2` and `litellm[proxy]` at the `LITELLM_VERSION` tag (matching
 the pinned cluster proxy image), installs native `promtool` via
 `aqua:prometheus/prometheus` (version from `.mise.toml`; do not add `@version`
 in `install_args`) for PromQL rule evaluation (this runner has no podman),

@@ -383,13 +383,25 @@ jobs:
           npm install --prefix /tmp/renovate-ci --no-save --no-package-lock renovate@44.52.1
           echo "RENOVATE_NODE_PATH=/tmp/renovate-ci/node_modules/renovate" >> "${GITHUB_ENV}"
 
-      # litellm[proxy]==1.98.0 matches the pinned cluster image
-      # (ghcr.io/berriai/litellm-non_root:v1.98.0, see
+      # litellm[proxy] matches the pinned cluster image
+      # (ghcr.io/berriai/litellm-non_root, see
       # kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml) so the auto-router and
       # request-logs tests exercise the real library the proxy runs, not a stub. This makes
       # the job slower than the others here on purpose - do not soft-skip it to save time.
+      #
+      # The customManager regex only captures a value on the line after a
+      # `datasource=` comment when that line contains `: ` or `=`, and this
+      # package's docker versioning regex requires a vX.Y.Z tag. A pip
+      # `litellm[proxy]==<version>` line cannot be that capture (no `v`, and the
+      # quotes stick to the value), so the tracked tag lives in LITELLM_VERSION
+      # and the install strips the leading v. Do not edit the customManager to
+      # special-case this line.
       - name: Install Python Test Dependencies
-        run: uv pip install --system python-hcl2 "litellm[proxy]==1.98.0"
+        env:
+          # renovate: datasource=docker depName=ghcr.io/berriai/litellm-non_root
+          LITELLM_VERSION: v1.102.1
+        run: |
+          uv pip install --system python-hcl2 "litellm[proxy]==${LITELLM_VERSION#v}"
 
       # Each file is a standalone script, not a pytest module: main() calls its own
       # test_* functions and prints [PASS]/[FAIL] lines itself. See scripts/ci/README.md.
