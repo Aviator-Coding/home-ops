@@ -17,12 +17,14 @@ two pass-through model CRs moved from `claude-code-subscription` /
 `claude-code-subscription-opus` to the **natural** `claude-sonnet-5` /
 `claude-opus-5`, and the models that held those natural names - billed to this
 household's metered Anthropic key - moved to `claude-sonnet-5-metered` /
-`claude-opus-5-metered` to free them. **Every client-side
-`ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` override this
-document used to require is gone** - §5c and §7 below are updated for the new
-names, and §8 is new: it documents the deliberate 401 an admin now gets
-asking for the bare natural name, and the metered names to use on purpose
-instead. The dedicated virtual key keeps its original name, alias and Secret
+`claude-opus-5-metered` to free them. The client-side
+`ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` overrides that
+steered by-family requests off the then-metered natural names came off with
+that rename (§7). §5c sets those same variables again, to the natural
+pass-through names plus a client-only `[1m]` suffix, so Claude Code keeps the
+1M window through this proxy. §8 documents the deliberate 401 an admin now
+gets asking for the bare natural name when they wanted the metered route, and
+the metered names to use on purpose instead. The dedicated virtual key keeps its original name, alias and Secret
 (`claude-code-subscription` - it still accurately names what the key is FOR);
 only the two models it is scoped to were renamed. Nothing else in this
 document changed meaning: every measurement, table and mechanism below was
@@ -430,31 +432,60 @@ bucket.
 
 ```bash
 export ANTHROPIC_BASE_URL="https://litellm.${SECRET_DOMAIN}"   # internal gateway
-export ANTHROPIC_MODEL="claude-sonnet-5"
+export ANTHROPIC_MODEL="claude-sonnet-5[1m]"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="claude-sonnet-5[1m]"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-opus-5[1m]"
+export ENABLE_TOOL_SEARCH=true
 export ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-…your-virtual-key…"
 claude
 ```
 
-**As of the 2026-08-31 rename, that is the whole client contract - no
-`ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` override is
-needed anymore.** Before the rename, `ANTHROPIC_MODEL` alone only named the
-model for the *main* loop, and anything that asked for a model by family - a
-subagent declared `model: opus`, `/model opus`, a Task tool call - resolved
-that family through `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` instead, defaulting to
-Anthropic's own public ids `claude-opus-5` / `claude-sonnet-5` - which were,
-at the time, the **metered** CRs this key was correctly refused for (§7 tells
-that history and why it was fixed on the client rather than by proxy-side
-aliasing). Now those exact ids ARE this pass-through's own model names, so a
-by-family request resolves to the same place `ANTHROPIC_MODEL` does, with
-nothing to override. See §8 for what happens if you deliberately want the
-metered route instead.
+**`[1m]` is required, and it is client-only.** Claude Code trusts the native
+1,000,000-token window on `claude-sonnet-5` and `claude-opus-5` only when
+`ANTHROPIC_BASE_URL` is unset or is exactly `api.anthropic.com`. With this
+proxy as the base URL it believes the window is 200,000, so auto-compact fires
+around 167k tokens instead of around 967k, and it turns tool search off so
+every tool schema is sent inline. The suffix restores the 1M belief and sends
+a `context-1m` beta Anthropic accepts. Claude Code strips `[1m]` before the
+request is sent, so the wire model stays `claude-sonnet-5` / `claude-opus-5`.
+Allow-lists, model CRs, `$0` pricing, and the money-safety CI checks are
+unchanged. Verified live on Claude Code 2.1.281 against the v1.98.0 proxy,
+2026-09-24.
 
-The installed CLI (2.1.251) also honours `ANTHROPIC_DEFAULT_HAIKU_MODEL` and
-`ANTHROPIC_DEFAULT_FABLE_MODEL`. **Deliberately left unset**: no pass-through
-CR exists for those families, and inventing one is a catalog decision, not part
-of this fix. A request that resolves to either 403s (no allow-listed model of
-that name at all, pass-through or metered). If background/Haiku traffic starts
-failing visibly, the fix is a third CR following §5e, not an allow-list edit.
+**The Sonnet and Opus family vars are back because subagents and `/model`
+resolve by family.** `ANTHROPIC_MODEL` names only the main loop. Before the
+2026-08-31 rename, a by-family request (`model: opus`, `/model opus`, a Task
+tool call) resolved through `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` and landed on
+the metered CRs, which this key correctly refused (§7). Those natural names
+now belong to the pass-through CRs, and the values here are those same names
+plus `[1m]`. The 2026-08-31 metered-name collision stays closed. See §8 for
+the metered names to use on purpose.
+
+**Haiku stays unset.** The CLI also honours `ANTHROPIC_DEFAULT_HAIKU_MODEL`
+and `ANTHROPIC_DEFAULT_FABLE_MODEL`. No pass-through CR exists for those
+families, and Haiku 4.5's native window is 200k, so `[1m]` does not apply. A
+request that resolves to either name 403s. If background Haiku traffic starts
+failing visibly, add a third CR following §5e.
+
+**Self-check** (must print `1000000`):
+
+```bash
+claude -p 'Reply OK' --output-format json | jq '.modelUsage[].contextWindow'
+```
+
+**Settings that do not restore the window**, each checked 2026-09-24:
+`ANTHROPIC_BETAS=context-1m-2025-08-07` alone still leaves `contextWindow` at
+200,000; `CLAUDE_CODE_AUTO_COMPACT_WINDOW` and the `autoCompactWindow` setting
+are clamped with `min(contextWindow, value)` and cannot raise 200k;
+`CLAUDE_CODE_MAX_CONTEXT_TOKENS` applies only to unrecognised model names, so
+`claude-sonnet-5` ignores it; `_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL=1`
+does lift the window, and it is an undocumented internal that makes the CLI
+treat this proxy as `api.anthropic.com` for first-party-only betas and body
+fields. The window is computed in the client from the base-URL host before
+any request, so no proxy setting fixes it.
+
+`ENABLE_TOOL_SEARCH=true` is safe here. `tool_reference` / `defer_loading`
+round-tripped on the v1.98.0 proxy.
 
 `litellm.${SECRET_DOMAIN}` resolves on the private VLAN only (split DNS,
 `envoy-internal`); in-cluster callers can use
@@ -498,12 +529,15 @@ shape:
 4. **Decide the name deliberately, the same choice the 2026-08-31 rename made
    for Sonnet and Opus.** If nothing else on this proxy already holds that
    family's natural name (there is no metered `claude-haiku-5`/`claude-fable-5`
-   CR today), give the new pass-through CR the natural name outright and no
-   client override is needed - this is the now-preferred shape. Only reach for
-   `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` (§5c's pre-rename mechanism) if the
-   natural name is already taken by a metered CR you are not renaming; in that
-   case, follow §7's evidence for why a per-key alias does not work and why
-   the client override was the fallback, not the first choice.
+   CR today), give the new pass-through CR the natural name outright. That is
+   the preferred shape for the name: no client override is needed to steer
+   traffic off a metered CR. A native-1M family still sets
+   `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` to `<natural-name>[1m]`, the same
+   client-only window hint §5c uses for Sonnet and Opus. Point that variable
+   at a different name only when the natural name is already taken by a
+   metered CR you are not renaming; in that case, follow §7's evidence for
+   why a per-key alias does not work and why a distinct-name client override
+   was the fallback, not the first choice.
 
 **Keep the placeholder `apiKey` and the full set of explicit `$0` prices** -
 input, output, **and** the five prompt-cache fields (§4a). All of them apply
@@ -521,7 +555,7 @@ prevent, and it is what §7 rules out on measured grounds.
 
 ## 6. What these changes did NOT touch
 
-Additive by design across five passes. The money-safety boundary is unchanged
+Additive by design across the passes below. The money-safety boundary is unchanged
 in all of them: no other virtual key, no household credential, and no
 metered-model *credential* was touched. The metered CRs still carry
 `os.environ/ANTHROPIC_API_KEY` and stay absent from this key's allow-list; the
@@ -568,6 +602,14 @@ change, so the rename alone could not silently grant or revoke access -
 verified against the current repo, not assumed from the 2026-08-30 report. No
 household credential, no `/anthropic` route, and no rate limit or budget was
 touched.
+
+**2026-09-24 (client context window).** §5c's env block sets
+`ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, and
+`ANTHROPIC_DEFAULT_OPUS_MODEL` to the natural pass-through names with a
+client-only `[1m]` suffix, and sets `ENABLE_TOOL_SEARCH=true`. The family
+vars are back for the context window. The metered-name collision this rename
+closed stays closed. No model CR, virtual key, allow-list, price, or proxy
+setting changed.
 
 ---
 
@@ -752,3 +794,23 @@ all cross-reference this document and each other by name, and
 [`kubernetes/apps/base/ai/litellm/README.md`](../../../kubernetes/apps/base/ai/litellm/README.md#claude-code-subscription-pass-through)
 links here from the app's own model-catalog table - the two places an admin
 debugging a 401 against this proxy is most likely to already be looking.
+
+---
+
+## 9. Side notes from the 2026-09-24 context-window diagnosis
+
+These are separate from the compaction cause in §5c.
+
+- **Measured.** `POST /v1/messages/count_tokens` through this proxy under-counts
+  by about 30% versus the same body sent to Anthropic directly (256 KB of docs:
+  111,209 direct, 78,160 via LiteLLM; a system-plus-tools-plus-messages body:
+  22,619 direct, 15,487 via LiteLLM). The proxy calls Anthropic with the
+  deployment's placeholder key, receives 401 `"OAuth access token is invalid."`,
+  and falls back to its local tokenizer. Claude Code's auto-compact trigger
+  reads response `usage`, so this under-count does not move the compaction
+  point. It does affect client estimates such as `/context`.
+- **Inferred from header names, not tested to a real limit.** LiteLLM returns
+  Anthropic's `anthropic-ratelimit-unified-*` headers as
+  `llm_provider-anthropic-ratelimit-unified-*` (v1.98.0 and v1.102.1). Claude
+  Code reads the unprefixed names for its usage-limit warnings, so those
+  warnings likely cannot fire through this proxy.
