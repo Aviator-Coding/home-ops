@@ -46,15 +46,24 @@ spec:
         # today, so that arm of the kind regex is currently dead on the live
         # cluster - kept for when one is added, since the metric family
         # supports it generically.
+        #
+        # `namespace` on this metric is flux-operator's OWN namespace
+        # (flux-system, always) because it is a metric ON the operator, not a
+        # relabeled property of the watched object - the object's real
+        # namespace is `exported_namespace` (same pattern the FluxInstance
+        # rules above already key on in their expr). Confirmed live: HelmRelease
+        # vllm reports namespace="flux-system", exported_namespace="ai".
+        # Using `namespace` here would name every suspended object as if it
+        # lived in flux-system.
         - alert: FluxResourceSuspendedTooLong
           expr: |
             flux_resource_info{suspended="True", kind=~"Kustomization|HelmRelease|GitRepository|OCIRepository|HelmRepository|HelmChart|Bucket"}
           for: 24h
           annotations:
             summary: >-
-              Flux {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }} has been suspended for over 24h
+              Flux {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been suspended for over 24h
             description: >-
-              {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }}
+              {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }}
               has had spec.suspend: true for more than 24 hours. A suspended
               object stops reconciling and keeps applying whatever revision
               it last saw while still reporting Ready=True, silently

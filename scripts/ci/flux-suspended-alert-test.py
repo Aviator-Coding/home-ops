@@ -19,7 +19,11 @@ gauge, emitted by flux-operator itself (`serviceMonitor.create: true` on the
 flux-operator HelmRelease, job label "flux-operator") - one series per
 Flux-managed object, carrying a `suspended` label ("True"/"False") that
 flips to a brand-new time series the moment `spec.suspend` changes, plus
-`kind`/`name`/`namespace`/`ready`. That is the only live source, and this
+`kind`/`name`/`exported_namespace`/`ready`. `namespace` on this metric is
+flux-operator's OWN namespace (flux-system, always), not the watched
+object's namespace - confirmed live: HelmRelease vllm reports
+namespace="flux-system", exported_namespace="ai". That is the only live
+source, and this
 test loads the real PrometheusRule Flux would apply and pins the alert to
 that exact metric and label shape rather than to text in a doc.
 
@@ -263,26 +267,29 @@ def assert_rule_contract(alert: dict[str, Any]) -> dict[str, Any]:
         text = annotations.get(field, "")
         require(
             "{{ $labels.kind }}" in text
-            and "{{ $labels.namespace }}" in text
+            and "{{ $labels.exported_namespace }}" in text
             and "{{ $labels.name }}" in text,
             f"{ALERT_NAME}: {field} must name the suspended object via "
-            f"$labels.kind/$labels.namespace/$labels.name; got {text!r}",
+            f"$labels.kind/$labels.exported_namespace/$labels.name; got {text!r}",
         )
     return {"expr": expr, "for": alert.get("for"), "severity": labels.get("severity")}
 
 
 def _flux_resource_info_series(
-    *, kind: str, name: str, namespace: str, suspended: str
+    *, kind: str, name: str, exported_namespace: str, suspended: str
 ) -> str:
+    # `namespace` is always flux-operator's own namespace on this metric -
+    # constant here for realism, never used to identify the object.
     return (
         "flux_resource_info{"
-        f'kind="{kind}", name="{name}", namespace="{namespace}", '
-        f'suspended="{suspended}", ready="True", job="flux-operator"'
+        f'kind="{kind}", name="{name}", exported_namespace="{exported_namespace}", '
+        f'suspended="{suspended}", ready="True", job="flux-operator", '
+        'namespace="flux-system"'
         "}"
     )
 
 
-def _expected_alert(*, kind: str, name: str, namespace: str) -> dict[str, Any]:
+def _expected_alert(*, kind: str, name: str, exported_namespace: str) -> dict[str, Any]:
     """The alert promtool must produce for a suspended object with these
     identity labels - built once so every eval point in the matrix compares
     against the identical shape rather than a hand-duplicated literal."""
@@ -292,15 +299,16 @@ def _expected_alert(*, kind: str, name: str, namespace: str) -> dict[str, Any]:
             "severity": "warning",
             "kind": kind,
             "name": name,
-            "namespace": namespace,
+            "namespace": "flux-system",
+            "exported_namespace": exported_namespace,
             "ready": "True",
             "suspended": "True",
             "job": "flux-operator",
         },
         "exp_annotations": {
-            "summary": f"Flux {kind} {namespace}/{name} has been suspended for over 24h",
+            "summary": f"Flux {kind} {exported_namespace}/{name} has been suspended for over 24h",
             "description": (
-                f"{kind} {namespace}/{name} has had spec.suspend: true for "
+                f"{kind} {exported_namespace}/{name} has had spec.suspend: true for "
                 "more than 24 hours. A suspended object stops reconciling "
                 "and keeps applying whatever revision it last saw while "
                 "still reporting Ready=True, silently ignoring every merge "
@@ -329,19 +337,19 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
     input_series = [
         {
             "series": _flux_resource_info_series(
-                kind="Kustomization", name="k8tz", namespace="system-controller", suspended="True"
+                kind="Kustomization", name="k8tz", exported_namespace="system-controller", suspended="True"
             ),
             "values": always_suspended,
         },
         {
             "series": _flux_resource_info_series(
-                kind="HelmRelease", name="under-threshold-app", namespace="downloads", suspended="True"
+                kind="HelmRelease", name="under-threshold-app", exported_namespace="downloads", suspended="True"
             ),
             "values": under_threshold,
         },
         {
             "series": _flux_resource_info_series(
-                kind="Alert", name="out-of-scope-alert", namespace="flux-system", suspended="True"
+                kind="Alert", name="out-of-scope-alert", exported_namespace="flux-system", suspended="True"
             ),
             "values": always_suspended,
         },
@@ -350,7 +358,7 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
         input_series.append(
             {
                 "series": _flux_resource_info_series(
-                    kind=kind, name=f"{kind.lower()}-suspended", namespace="flux-system", suspended="True"
+                    kind=kind, name=f"{kind.lower()}-suspended", exported_namespace="flux-system", suspended="True"
                 ),
                 "values": always_suspended,
             }
@@ -358,8 +366,8 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
 
     # All of these series start suspended at t=0, so they all cross the
     # for:24h threshold at the same eval point.
-    expected_at_24h = [_expected_alert(kind="Kustomization", name="k8tz", namespace="system-controller")] + [
-        _expected_alert(kind=kind, name=f"{kind.lower()}-suspended", namespace="flux-system")
+    expected_at_24h = [_expected_alert(kind="Kustomization", name="k8tz", exported_namespace="system-controller")] + [
+        _expected_alert(kind=kind, name=f"{kind.lower()}-suspended", exported_namespace="flux-system")
         for kind in source_kinds
     ]
     expected_at_end = expected_at_24h
@@ -434,7 +442,7 @@ def assert_resumed_and_out_of_scope_never_fire(rule: dict[str, Any]) -> None:
                             "series": _flux_resource_info_series(
                                 kind="Kustomization",
                                 name="readarr",
-                                namespace="downloads",
+                                exported_namespace="downloads",
                                 suspended="True",
                             ),
                             "values": _series(resumed_true_half),
@@ -443,7 +451,7 @@ def assert_resumed_and_out_of_scope_never_fire(rule: dict[str, Any]) -> None:
                             "series": _flux_resource_info_series(
                                 kind="Kustomization",
                                 name="readarr",
-                                namespace="downloads",
+                                exported_namespace="downloads",
                                 suspended="False",
                             ),
                             "values": _series(resumed_false_half),
@@ -462,7 +470,7 @@ def assert_resumed_and_out_of_scope_never_fire(rule: dict[str, Any]) -> None:
                             "series": _flux_resource_info_series(
                                 kind="Alert",
                                 name="out-of-scope-alert",
-                                namespace="flux-system",
+                                exported_namespace="flux-system",
                                 suspended="True",
                             ),
                             "values": _series(always_suspended),
