@@ -28,3 +28,40 @@ spec:
               Flux instance {{ $labels.name }} is not ready
           labels:
             severity: critical
+
+        # Every Flux kind that can be suspended and that this cluster runs -
+        # the two Kustomizations (system-controller/k8tz, downloads/readarr)
+        # that sat suspended for 19 days in 2026-09 reported Ready=True the
+        # whole time and nothing surfaced it. flux_resource_info is emitted
+        # by flux-operator (chart value serviceMonitor.create: true on the
+        # flux-operator HelmRelease) per managed object, carrying a
+        # `suspended` label ("True"/"False") that flips to a new series the
+        # moment spec.suspend changes - verified live 2026-09-25 against the
+        # cluster's own Prometheus. kube-state-metrics has no
+        # customResourceState config for any Flux CRD, so it exposes nothing
+        # here; flux_resource_info is the only live source. Deliberately
+        # scoped to the object kinds in scope (excludes Alert/Provider/
+        # Receiver, which flux-operator also tracks but which this alert
+        # does not cover). No Bucket source is declared anywhere in this repo
+        # today, so that arm of the kind regex is currently dead on the live
+        # cluster - kept for when one is added, since the metric family
+        # supports it generically.
+        - alert: FluxResourceSuspendedTooLong
+          expr: |
+            flux_resource_info{suspended="True", kind=~"Kustomization|HelmRelease|GitRepository|OCIRepository|HelmRepository|HelmChart|Bucket"}
+          for: 24h
+          annotations:
+            summary: >-
+              Flux {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }} has been suspended for over 24h
+            description: >-
+              {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }}
+              has had spec.suspend: true for more than 24 hours. A suspended
+              object stops reconciling and keeps applying whatever revision
+              it last saw while still reporting Ready=True, silently
+              ignoring every merge to main - this is exactly how
+              system-controller/k8tz and downloads/readarr ran stale for 19
+              days in 2026-09 with nothing surfacing it. If the suspension
+              was only meant to be temporary, resume it (flux resume, or
+              kubectl patch spec.suspend=false).
+          labels:
+            severity: warning
