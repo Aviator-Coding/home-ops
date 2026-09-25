@@ -70,7 +70,7 @@ spec:
     # the kill - a LOWER BOUND only, censored by the kill, not the true reconcile peak.
     # A second, UNCENSORED reconcile burst in the same retention window gives the real number:
     # 502894592 bytes (479.60Mi) at 2026-09-12T13:51:15Z, immediately after PR #1665 merged
-    # (13:50:18 -0400) and Flux reconciled rook-ceph/cluster - the container rose from its
+    # (09:50:18 -0400 (13:50:18Z)) and Flux reconciled rook-ceph/cluster - the container rose from its
     # ~188Mi baseline to that peak and back down over about 90s with zero restarts
     # (kube_pod_container_status_restarts_total held flat at 1 throughout), so this is a
     # completed, self-resolving reconcile, not a kill in progress. It is also the highest
