@@ -341,6 +341,12 @@ Neither is changed here - both are outside this task's scope (the two scrape tar
 zigbee2mqtt one in particular is a decision about whether to populate the 1Password fields from
 the live persisted config or to delete the env wiring, not a mechanical fix.
 
+> **Resolved 2026-09-25 for zigbee2mqtt:** the captain chose to populate. All three 1Password
+> fields now hold the live network identity, `zigbee2mqtt-secret` is byte-verified equal to the
+> live config, and the pod rolled on the same network. The counts in this section describe the
+> 2026-09-20 audit and were not re-measured. Evidence and the required value encodings:
+> `docs/home-automation/zigbee2mqtt-network-key-pinning-2026-09-25.md`.
+
 The generalisable point is the one the plex case proves: **an ExternalSecret reporting
 `SecretSynced / Ready=True` does not mean the value is usable.** ESO does not validate that a
 resolved property is non-empty, and a missing 1Password field value is indistinguishable from a
