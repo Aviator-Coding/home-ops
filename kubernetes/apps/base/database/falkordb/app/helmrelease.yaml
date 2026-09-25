@@ -68,7 +68,7 @@ spec:
           app:
             image:
               repository: docker.io/falkordb/falkordb
-              tag: v4.20.6@sha256:217bc520be076ce9e85b0ba426b2379ccbaebd17f2fe6e174288bd1b36d486bb
+              tag: v4.20.7@sha256:13996aa523f0dd283f6bd6df6620b094dcea525452417c4d6ef9bef15dc9998d
 
             # --- durability, and it is LOAD-BEARING for the backups ---
             #
@@ -333,7 +333,7 @@ spec:
           browser:
             image:
               repository: docker.io/falkordb/falkordb
-              tag: v4.20.6@sha256:217bc520be076ce9e85b0ba426b2379ccbaebd17f2fe6e174288bd1b36d486bb
+              tag: v4.20.7@sha256:13996aa523f0dd283f6bd6df6620b094dcea525452417c4d6ef9bef15dc9998d
 
             # cwd matters and is not cosmetic: the image's own run.sh does
             # `cd "${FALKORDB_BROWSER_PATH}"` before starting the server, and
