@@ -118,6 +118,51 @@ endpoints:
       - "[STATUS] == 200"
       - "[BODY].related_applications[0].id == io.homeassistant.companion.android"
 
+  # echo and kromgo are on envoy-external, so their auto-discovered
+  # HTTPRoute checks land in group=external and page through
+  # GatusEndpointDown (critical). Those routes carry a SecurityPolicy, so
+  # the route check measures Authentik rather than the process behind it.
+  # These hit the in-cluster health endpoints. Echo's /healthz JSON `path`
+  # and kromgo's plain-text OK are bodies a login page cannot satisfy
+  # (both confirmed live 2026-09-26: 200 + {"path":"/healthz",...} and
+  # 200 + "OK"). Same group, so a real app failure is critical, which is
+  # the severity those public checks already claimed. github-webhook stays
+  # on its route check: GET /hook/ expecting 404 is the receiver itself.
+  - name: Echo
+    group: external
+    url: http://echo.network.svc.cluster.local/healthz
+    interval: 1m
+    ui:
+      hide-url: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].path == /healthz"
+
+  - name: Kromgo
+    group: external
+    url: http://kromgo.monitoring.svc.cluster.local:8080/readyz
+    interval: 1m
+    ui:
+      hide-url: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == OK"
+
+  # Tdarr's web UI on :8265 is already probed and auto-discovered via the
+  # HTTPRoute (group=internal). The node protocol is :8266, which answered
+  # HTTP 302 to :8265 from inside the server pod. The UI can be healthy
+  # while nothing is listening for nodes. tcp connected is that signal.
+  # group=media so GatusServiceDown (warning) covers it, and it does not
+  # join the critical external group.
+  - name: Tdarr Server
+    group: media
+    url: tcp://tdarr.media.svc.cluster.local:8266
+    interval: 1m
+    ui:
+      hide-url: true
+    conditions:
+      - "[CONNECTED] == true"
+
 metrics: true
 
 ui:

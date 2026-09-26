@@ -74,3 +74,71 @@ spec:
           for: 1m
           labels:
             severity: warning
+        # Backup age and WAL-archive staleness. LastFailedArchiveTime only
+        # sees a recorded failure (last_failed - last_archived). An archiver
+        # that stops, and a nightly backup that stops being scheduled, move
+        # neither timestamp, so that rule stays quiet.
+        #
+        # Standbys report cnpg_collector_last_available_backup_timestamp as
+        # exactly 0 (measured 2026-09-26: postgres-17-1 and postgres-17-6
+        # were 0 while primary postgres-17-5 was a real unix time, age ~8.9h).
+        # A bare time() - timestamp comparison pages both standbys at once.
+        # The timestamp > 0 filter is required. It is joined to
+        # cnpg_pg_replication_in_recovery == 0 so a demoted primary that kept
+        # a frozen non-zero timestamp cannot page after the new primary has
+        # taken over. Over the prior 14d no series was simultaneously
+        # timestamp > 0 and in_recovery == 1; the 14d peak age on a real
+        # timestamp was ~23.9h, under this 36h threshold (1.5x the @daily
+        # ScheduledBackup). The archiver series is exported only by the
+        # primary; its 7d peak lag was ~5 minutes, under the 1h threshold.
+        #
+        # timestamp > 0 cannot see a primary that reports 0 or drops the
+        # series. The two *TimestampAbsent rules are that case: the primary
+        # (in_recovery == 0) unless a positive timestamp on the same pod.
+        # Both were empty on the live primary, which does export one.
+        - alert: PostgresBackupStale
+          annotations:
+            description: Primary {{ $labels.pod }} last completed a base backup more than 36h ago. ScheduledBackup postgres-17 is daily; standbys report this timestamp as 0 and are excluded.
+            summary: Primary {{ $labels.pod }} has not completed a Postgres base backup in over 36h
+          expr: |-
+            (
+              (time() - cnpg_collector_last_available_backup_timestamp) > 129600
+            )
+              and on(pod) (cnpg_collector_last_available_backup_timestamp > 0)
+              and on(pod) (cnpg_pg_replication_in_recovery == 0)
+          for: 15m
+          labels:
+            severity: warning
+        - alert: PostgresBackupTimestampAbsent
+          annotations:
+            description: Primary {{ $labels.pod }} has no positive cnpg_collector_last_available_backup_timestamp, so PostgresBackupStale cannot see it. Standbys report 0 by design and are excluded.
+            summary: Primary {{ $labels.pod }} is not reporting a Postgres base-backup timestamp
+          expr: |-
+            (cnpg_pg_replication_in_recovery == 0)
+              unless on(pod) (cnpg_collector_last_available_backup_timestamp > 0)
+          for: 15m
+          labels:
+            severity: warning
+        - alert: PostgresWALArchiveStale
+          annotations:
+            description: Primary {{ $labels.pod }} has not archived a WAL segment in over 1h. LastFailedArchiveTime does not cover an archiver that simply stops.
+            summary: Primary {{ $labels.pod }} has not archived a WAL segment in over 1h
+          expr: |-
+            (
+              (time() - cnpg_pg_stat_archiver_last_archived_time) > 3600
+            )
+              and on(pod) (cnpg_pg_stat_archiver_last_archived_time > 0)
+              and on(pod) (cnpg_pg_replication_in_recovery == 0)
+          for: 10m
+          labels:
+            severity: warning
+        - alert: PostgresWALArchiveTimestampAbsent
+          annotations:
+            description: Primary {{ $labels.pod }} has no positive cnpg_pg_stat_archiver_last_archived_time, so PostgresWALArchiveStale cannot see it.
+            summary: Primary {{ $labels.pod }} is not reporting a WAL archive timestamp
+          expr: |-
+            (cnpg_pg_replication_in_recovery == 0)
+              unless on(pod) (cnpg_pg_stat_archiver_last_archived_time > 0)
+          for: 15m
+          labels:
+            severity: warning

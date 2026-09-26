@@ -279,3 +279,44 @@ spec:
               (2x its daily schedule)
           labels:
             severity: warning
+
+        # POLICY VANISHING. The staleness rules above compare time() against
+        # each series that still exists. Removing a SnapshotPolicy (an
+        # accidental prune, or Flux prune: true against a manifest that no
+        # longer emits it) drops that series and every per-policy alert goes
+        # silent while that claim's backups stop. A hardcoded count < 62
+        # rots the next time a claim is added or retired. This keeps each
+        # (namespace, policy) that had a last-success series 24h ago and
+        # does not have one now, so one removal is still named when another
+        # policy is added the same day.
+        #
+        # up{job="kopiur-controller-metrics"} == 1 keeps an exporter outage
+        # from paging once per policy; KopiurComponentAbsent already covers
+        # that. for: 30m absorbs leader election and a missed scrape. A
+        # deliberate retirement looks the same and pages at warning until
+        # the 24h offset forgets the series.
+        #
+        # Live 2026-09-26: count was 62 now, at offset 24h, and across 7d
+        # (min = max = 62). The expression returned no series. Restricting
+        # the right-hand set to drop ai/repo-wiki-ceph returned exactly that
+        # one series, so the empty result is the healthy case.
+        - alert: KopiurPolicyVanished
+          expr: |
+            (
+              count by (namespace, policy) (
+                kopiur_policy_last_backup_success_timestamp_seconds offset 24h
+              )
+              unless
+              count by (namespace, policy) (
+                kopiur_policy_last_backup_success_timestamp_seconds
+              )
+            )
+            and on() (up{job="kopiur-controller-metrics"} == 1)
+          for: 30m
+          annotations:
+            summary: >-
+              Kopiur backup policy {{ $labels.namespace }}/{{ $labels.policy }}
+              had a last-success series 24h ago and does not now, so
+              staleness alerts for that claim can no longer fire
+          labels:
+            severity: warning
