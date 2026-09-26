@@ -501,10 +501,20 @@ spec:
                             values:
                               - ceph-filesystem-a
                               - ceph-filesystem-b
+              # nodeTaintsPolicy: Honor - mds gets no toleration for the
+              # talos-3 home-operations.com/dedicated taint (see the
+              # REMOVED note above), but nodeTaintsPolicy defaults to
+              # Ignore, so without this the tainted node still counts as a
+              # spread domain and DoNotSchedule can refuse to place a pod
+              # anywhere at all once talos-1/talos-2 already hold their
+              # share. Live 2026-09-26: exactly this stranded
+              # ceph-filesystem-a with 0/3 nodes available during the
+              # talos-1.14.1 roll. See docs/talos-3-scheduling-truth.md.
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname
                   whenUnsatisfiable: DoNotSchedule
+                  nodeTaintsPolicy: Honor
                   labelSelector:
                     matchLabels:
                       app.kubernetes.io/name: ceph-mds
@@ -581,10 +591,15 @@ spec:
               # alone keeps rgw off talos-3 with the same effect, without a
               # per-app deny-list entry that fails open for anything that
               # forgets to carry it.
+              # nodeTaintsPolicy: Honor - same reasoning as mds above: rgw
+              # gets no toleration for the talos-3 taint, so without this the
+              # tainted node still counts as a spread domain and
+              # DoNotSchedule can refuse to place a pod anywhere at all.
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname
                   whenUnsatisfiable: DoNotSchedule
+                  nodeTaintsPolicy: Honor
                   labelSelector:
                     matchLabels:
                       app: rook-ceph-rgw

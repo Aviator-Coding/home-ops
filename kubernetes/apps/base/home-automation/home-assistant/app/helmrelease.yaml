@@ -133,10 +133,14 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile: { type: RuntimeDefault }
+      # nodeTaintsPolicy: Honor - this workload has no toleration for the
+      # talos-3 home-operations.com/dedicated taint, so exclude the tainted
+      # node from the spread domains (default nodeTaintsPolicy is Ignore).
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: ScheduleAnyway
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: home-assistant

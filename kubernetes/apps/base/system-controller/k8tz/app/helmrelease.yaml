@@ -111,10 +111,14 @@ spec:
     # webhook failurePolicy: Fail that would fail every pod CREATE in 21
     # namespaces for the duration of a node event. DoNotSchedule plus the
     # PDB in pdb.yaml keep them on distinct nodes.
+    # nodeTaintsPolicy: Honor - this workload has no toleration for the
+    # talos-3 home-operations.com/dedicated taint, so exclude the tainted
+    # node from the spread domains (default nodeTaintsPolicy is Ignore).
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: DoNotSchedule
+        nodeTaintsPolicy: Honor
         labelSelector:
           matchLabels:
             app.kubernetes.io/name: k8tz
