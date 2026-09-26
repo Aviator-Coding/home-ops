@@ -1,32 +1,42 @@
 #!/usr/bin/env python3
 """Behavioral regression for KopiurProjectedCredentialsLeaking.
 
-Pins the 2026-08-31 false-fire on `kopiur_projected_secrets_live`:
+Pins two false-fire incidents on `kopiur_projected_secrets_live`:
 
-  The gauge is a leader-only periodic census written once per
+  2026-08-31: the gauge is a leader-only periodic census written once per
   KOPIUR_WORK_SPEC_SWEEP_INTERVAL_SECS (default 6h). A single List() that
   catches legitimate in-flight projected Secrets freezes a nonzero reading
   until the next sweep, even after every Secret is reaped. The old rule
-  (`kopiur_projected_secrets_live > 0` / `for: 1h`) therefore pages for hours
-  on ordinary backup concurrency.
+  (`kopiur_projected_secrets_live > 0` / `for: 1h`) therefore paged for hours
+  on ordinary backup concurrency. Fixed by requiring the population to stay
+  positive across at least two sweep passes: `min_over_time(...[13h]) > 0`.
 
-  The fixed rule requires the population to stay positive across at least two
-  sweep passes:
-
-      min_over_time(kopiur_projected_secrets_live[13h]) > 0
-      for: 5m
+  2026-09-26: that per-series fix is itself leader-label-sensitive. The gauge
+  is exported only by the current Lease holder, so its `pod`/`instance`
+  labels change on every leader change - a fresh series with no history. A
+  new leader's OWN `min_over_time` sees only its own samples, so if its
+  startup sweep alone catches a benign in-flight population, the alert fires
+  immediately: the new series has never stored a 0. Fixed by aggregating
+  away `pod`/`instance` with `max without (...)` before `min_over_time`, via
+  a subquery, so the series is continuous straight through a leader change.
 
 This test does NOT grep source text as evidence. It:
 
   1. Loads the real PrometheusRule Flux would apply.
   2. Feeds it to Prometheus' own rule unit-test engine (`promtool test rules`)
      with synthetic series that model:
-       - the live 6h plateau incident (benign mid-flight census of 4)
-       - a genuine one-shot permanent leak (stays elevated across 2+ sweeps)
+       - the 2026-08-31 6h plateau incident (benign mid-flight census, single
+         leader series)
+       - a genuine one-shot permanent leak on a single leader series
        - a healthy always-zero fleet
-  3. Asserts observable alert fire/silence and PromQL sample sets for both the
-     fixed expression and the old bare level expression (proving the regression
-     shape the fix closes).
+       - the 2026-09-26 leader-change incident: a fresh leader series that
+         starts at a benign nonzero census and drops to zero at its own next
+         sweep
+       - a genuine leak that survives a leader change mid-leak (must still
+         fire)
+  3. Asserts observable alert fire/silence and PromQL sample sets for the
+     fixed expression against both older, narrower expressions (proving each
+     regression shape the fix closes).
 
 promtool is resolved the same way as backup-silent-failure-alerting-test.py
 (native aqua install preferred; podman image fallback).
@@ -63,6 +73,9 @@ HOURS = 48
 ALERT_NAME = "KopiurProjectedCredentialsLeaking"
 # Reproduced bare level expr that false-fired on the 2026-08-31 plateau.
 OLD_LEVEL_EXPR = "kopiur_projected_secrets_live > 0"
+# The 2026-08-31 fix: correct multi-pass semantics, but per-series - this is
+# what regressed on 2026-09-26 across a leader (pod label) change.
+PER_SERIES_MULTIPASS_EXPR = "min_over_time(kopiur_projected_secrets_live[13h])"
 
 
 class Failure(Exception):
@@ -221,20 +234,34 @@ def _permanent_leak_values(hours: int, *, start_h: int, height: int = 1) -> list
 def assert_rule_contract(alert: dict[str, Any]) -> dict[str, Any]:
     """Structural contract the expression/for/severity must keep."""
     expr = (alert.get("expr") or "").strip()
+    compact = "".join(expr.split())
+
     require(
         "min_over_time" in expr and "kopiur_projected_secrets_live" in expr,
         f"{ALERT_NAME}: expr must use min_over_time over kopiur_projected_secrets_live; "
         f"got {expr!r}",
     )
     require(
-        f"[{LOOKBACK_H}h]" in expr,
-        f"{ALERT_NAME}: lookback must be [{LOOKBACK_H}h] "
-        f"(>2x the {SWEEP_INTERVAL_H}h default sweep); got {expr!r}",
+        f"[{LOOKBACK_H}h:" in compact,
+        f"{ALERT_NAME}: lookback must be a [{LOOKBACK_H}h:...] subquery "
+        f"(>2x the {SWEEP_INTERVAL_H}h default sweep) so it survives a "
+        f"leader (pod label) change; got {expr!r}",
     )
-    compact = "".join(expr.split())
+    require(
+        "maxwithout(pod,instance)" in compact or "max without (pod, instance)" in expr,
+        f"{ALERT_NAME}: expr must aggregate away pod/instance with "
+        f"max without (pod, instance) (...) before min_over_time, or a fresh "
+        f"leader series with no history false-fires; got {expr!r}",
+    )
     require(
         compact != "kopiur_projected_secrets_live>0",
         f"{ALERT_NAME}: bare level expr must not return; got {expr!r}",
+    )
+    require(
+        "".join(PER_SERIES_MULTIPASS_EXPR.split()) + ">0" != compact,
+        f"{ALERT_NAME}: expr must not regress to the per-series (no "
+        f"aggregation) multi-pass form - that is exactly what false-fired "
+        f"on the 2026-09-26 leader change; got {expr!r}",
     )
     require(
         compact.startswith("min_over_time("),
@@ -268,6 +295,7 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
     fixed_expr = (alert.get("expr") or "").strip()
     summary = (alert.get("annotations") or {}).get("summary", "")
 
+    # --- Single-series scenarios (no leader change) -----------------------
     # Incident shape: 0 -> 4 at one sweep, held 6h, then 4 -> 0 at the next.
     # Matches the live Prometheus series from 2026-08-31 (09:29 -> 15:29).
     plateau_start = 8
@@ -280,15 +308,42 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
     healthy_vals = [0] * HOURS
 
     # Eval points (1h series interval):
-    # - mid-plateau: bare level is true; min_over_time[13h] still sees prior zeros.
     mid_plateau_h = plateau_start + SWEEP_INTERVAL_H - 1  # last hour of plateau
-    # - after plateau cleared
-    post_plateau_h = plateau_start + SWEEP_INTERVAL_H + 2
-    # - first hour where 13h lookback is entirely inside the permanent leak
-    #   (leak_start + LOOKBACK_H - 1): samples [leak_start, that hour] are all 1.
+    post_plateau_h = plateau_start + SWEEP_INTERVAL_H + 2  # after plateau cleared
     leak_min_true_h = leak_start + LOOKBACK_H - 1
-    # - one eval later so for:5m is satisfied under a 1h evaluation_interval
     leak_fire_h = leak_min_true_h + 1
+
+    # --- Leader-change scenarios --------------------------------------
+    # (A) 2026-09-26 shape: the old leader (pod="a") ran healthy - zero for a
+    # long stretch - then the Lease changed hands. The new leader (pod="b")
+    # has NO prior history; its own startup sweep catches a benign in-flight
+    # population (8, matching the live incident), holds it for one sweep
+    # interval, then its own next sweep correctly reads 0 and stays there.
+    # The fixed rule must never fire anywhere in this timeline.
+    old_leader_zero_h = 20  # long enough to anchor a 13h lookback pre-switch
+    switch_h = old_leader_zero_h
+    new_leader_plateau_h = SWEEP_INTERVAL_H
+    tail_h = HOURS - switch_h - new_leader_plateau_h
+    leader_switch_old_vals = [0] * old_leader_zero_h
+    leader_switch_new_vals = (
+        ["_"] * switch_h
+        + [8] * new_leader_plateau_h
+        + [0] * tail_h
+    )
+
+    # (B) A genuine leak starts under the old leader (pod="a"), is still live
+    # when the Lease changes hands mid-leak, and the new leader (pod="b")
+    # continues to observe it as positive on every subsequent sweep of its
+    # own. The fixed rule must still fire once the aggregated series has
+    # gone LOOKBACK_H without ever reading zero, same as the single-series
+    # case - the leader change must not reset the persistence requirement.
+    leak_switch_h = leak_start + SWEEP_INTERVAL_H - 1  # switch mid-leak, still positive
+    leak_switch_old_vals = [0] * leak_start + [1] * (leak_switch_h - leak_start + 1)
+    leak_switch_new_vals = ["_"] * (leak_switch_h + 1) + [1] * (
+        HOURS - leak_switch_h - 1
+    )
+    leak_switch_min_true_h = leak_start + LOOKBACK_H - 1
+    leak_switch_fire_h = leak_switch_min_true_h + 1
 
     class _Q(str):
         pass
@@ -455,6 +510,118 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
                         },
                     ],
                 },
+                {
+                    # 2026-09-26 regression: a fresh leader series (new pod,
+                    # no history) starts at a benign nonzero census and drops
+                    # to zero at its own next sweep. Must never fire.
+                    "name": "fresh_leader_series_benign_census_then_zero_stays_silent",
+                    "interval": "1h",
+                    "input_series": [
+                        {
+                            "series": 'kopiur_projected_secrets_live{pod="leader-a",instance="10.0.0.1:8081"}',
+                            "values": _series(leader_switch_old_vals),
+                        },
+                        {
+                            "series": 'kopiur_projected_secrets_live{pod="leader-b",instance="10.0.0.2:8081"}',
+                            "values": _series(leader_switch_new_vals),
+                        },
+                    ],
+                    "promql_expr_test": [
+                        # The pre-fix per-series form fires: pod="leader-b"'s
+                        # OWN samples never touch zero at this eval time - it
+                        # has no history before its own first (nonzero)
+                        # sample. This is the exact regression shape.
+                        {
+                            "expr": PER_SERIES_MULTIPASS_EXPR + " > 0",
+                            "eval_time": f"{switch_h + new_leader_plateau_h - 1}h",
+                            "exp_samples": [
+                                {
+                                    "labels": '{pod="leader-b",instance="10.0.0.2:8081"}',
+                                    "value": 8,
+                                }
+                            ],
+                        },
+                        # The fixed, aggregated form stays empty at every
+                        # point in the timeline - the outgoing leader's zero
+                        # remains inside the 13h window straight through the
+                        # handover, and the new leader's own next sweep
+                        # confirms zero besides.
+                        {
+                            "expr": fixed_expr,
+                            "eval_time": f"{switch_h}h",
+                            "exp_samples": [],
+                        },
+                        {
+                            "expr": fixed_expr,
+                            "eval_time": f"{switch_h + new_leader_plateau_h - 1}h",
+                            "exp_samples": [],
+                        },
+                        {
+                            "expr": fixed_expr,
+                            "eval_time": f"{HOURS - 1}h",
+                            "exp_samples": [],
+                        },
+                    ],
+                    "alert_rule_test": [
+                        {
+                            "eval_time": f"{switch_h}h",
+                            "alertname": ALERT_NAME,
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": f"{switch_h + new_leader_plateau_h - 1}h",
+                            "alertname": ALERT_NAME,
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": f"{HOURS - 1}h",
+                            "alertname": ALERT_NAME,
+                            "exp_alerts": [],
+                        },
+                    ],
+                },
+                {
+                    # A genuine leak that survives a leader change mid-leak
+                    # must still fire - the aggregated series was never zero
+                    # across the transition, so the multi-pass requirement is
+                    # unaffected by which pod happens to hold the Lease.
+                    "name": "leader_change_mid_leak_still_fires",
+                    "interval": "1h",
+                    "input_series": [
+                        {
+                            "series": 'kopiur_projected_secrets_live{pod="leader-a",instance="10.0.0.1:8081"}',
+                            "values": _series(leak_switch_old_vals),
+                        },
+                        {
+                            "series": 'kopiur_projected_secrets_live{pod="leader-b",instance="10.0.0.2:8081"}',
+                            "values": _series(leak_switch_new_vals),
+                        },
+                    ],
+                    "alert_rule_test": [
+                        {
+                            "eval_time": f"{leak_switch_min_true_h}h",
+                            "alertname": ALERT_NAME,
+                            # Multi-pass expr just turned true - pending under
+                            # for:5m, not yet firing.
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": f"{leak_switch_fire_h}h",
+                            "alertname": ALERT_NAME,
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": ALERT_NAME,
+                                        "severity": "critical",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": summary,
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                },
             ],
         }
 
@@ -463,9 +630,10 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
         test_path.write_text(yaml.dump(unit, sort_keys=False, width=1000))
         test_out = _run_promtool(["test", "rules", test_path.name], work)
 
-        # Regression proof: the PRE-FIX bare-level rule with for:1h DOES fire on
-        # the identical benign plateau series. Same input, opposite alert outcome
-        # - the reason the expression had to change.
+        # Regression proof: the PRE-2026-08-31-FIX bare-level rule with
+        # for:1h DOES fire on the identical benign plateau series. Same
+        # input, opposite alert outcome - the reason the expression first
+        # changed.
         old_rule = {
             "groups": [
                 {
@@ -526,6 +694,74 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
         old_path.write_text(yaml.dump(old_unit, sort_keys=False, width=1000))
         old_out = _run_promtool(["test", "rules", old_path.name], work)
 
+        # Second regression proof: the PRE-2026-09-26-FIX per-series
+        # multi-pass rule (the 2026-08-31 fix, verbatim, with no pod/instance
+        # aggregation) DOES fire on a fresh leader series whose own history
+        # starts at a benign nonzero census - the exact 2026-09-26 incident.
+        per_series_rule = {
+            "groups": [
+                {
+                    "name": "kopiur-absent.rules-per-series",
+                    "rules": [
+                        {
+                            "alert": ALERT_NAME,
+                            "expr": PER_SERIES_MULTIPASS_EXPR + " > 0\n",
+                            "for": "5m",
+                            "labels": {"severity": "critical"},
+                            "annotations": {"summary": "per-series, no leader aggregation"},
+                        }
+                    ],
+                }
+            ]
+        }
+        (work / "kopiur_rules_per_series.yml").write_text(
+            yaml.safe_dump(per_series_rule, sort_keys=False)
+        )
+        per_series_fire_h = switch_h + 1  # for:5m satisfied one eval after switch
+        per_series_unit = {
+            "rule_files": ["kopiur_rules_per_series.yml"],
+            "evaluation_interval": "1h",
+            "tests": [
+                {
+                    "name": "per_series_fires_on_fresh_leader_benign_census",
+                    "interval": "1h",
+                    "input_series": [
+                        {
+                            "series": 'kopiur_projected_secrets_live{pod="leader-a",instance="10.0.0.1:8081"}',
+                            "values": _series(leader_switch_old_vals),
+                        },
+                        {
+                            "series": 'kopiur_projected_secrets_live{pod="leader-b",instance="10.0.0.2:8081"}',
+                            "values": _series(leader_switch_new_vals),
+                        },
+                    ],
+                    "alert_rule_test": [
+                        {
+                            "eval_time": f"{per_series_fire_h}h",
+                            "alertname": ALERT_NAME,
+                            "exp_alerts": [
+                                {
+                                    "exp_labels": {
+                                        "alertname": ALERT_NAME,
+                                        "severity": "critical",
+                                        "pod": "leader-b",
+                                        "instance": "10.0.0.2:8081",
+                                    },
+                                    "exp_annotations": {
+                                        "summary": "per-series, no leader aggregation",
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        _quote_values(per_series_unit)
+        per_series_path = work / "kopiur_creds_leak_per_series_test.yml"
+        per_series_path.write_text(yaml.dump(per_series_unit, sort_keys=False, width=1000))
+        per_series_out = _run_promtool(["test", "rules", per_series_path.name], work)
+
         # Evidence dump for the outer test gate: the series shapes + eval points.
         evidence = {
             "plateau_values_head": plateau_vals[
@@ -537,8 +773,14 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
             "leak_start_h": leak_start,
             "leak_min_true_h": leak_min_true_h,
             "leak_fire_h": leak_fire_h,
+            "leader_switch_h": switch_h,
+            "leader_switch_new_plateau_h": new_leader_plateau_h,
+            "per_series_fire_h": per_series_fire_h,
+            "leak_switch_h": leak_switch_h,
+            "leak_switch_fire_h": leak_switch_fire_h,
             "fixed_expr": fixed_expr,
             "old_level_expr": OLD_LEVEL_EXPR,
+            "per_series_expr": PER_SERIES_MULTIPASS_EXPR,
         }
 
     return {
@@ -546,12 +788,16 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
         "test_rules": "PASS",
         "test_out_tail": test_out[-300:],
         "old_regression_out_tail": old_out[-200:],
+        "per_series_regression_out_tail": per_series_out[-200:],
         "evidence": evidence,
         "scenarios": [
             "benign_six_hour_census_plateau_stays_silent",
             "permanent_leak_fires_after_two_sweep_passes",
             "healthy_zero_census_stays_silent",
+            "fresh_leader_series_benign_census_then_zero_stays_silent",
+            "leader_change_mid_leak_still_fires",
             "old_bare_level_fires_on_benign_plateau",
+            "per_series_fires_on_fresh_leader_benign_census",
         ],
     }
 
@@ -564,7 +810,7 @@ def main() -> int:
     alert = alerts[ALERT_NAME]
     print(f"    found {ALERT_NAME}")
 
-    print("==> multi-pass lookback / severity contract")
+    print("==> multi-pass lookback / leader-aggregation / severity contract")
     contract = assert_rule_contract(alert)
     print(
         f"    OK lookback={contract['lookback_h']}h "
@@ -588,6 +834,16 @@ def main() -> int:
         f"leak fires at {ev['leak_fire_h']}h "
         f"(min_over_time true from {ev['leak_min_true_h']}h)"
     )
+    print(
+        f"    leader switch at {ev['leader_switch_h']}h: fixed rule stays "
+        f"silent through the {ev['leader_switch_new_plateau_h']}h new-leader "
+        f"plateau; per-series (pre-2026-09-26-fix) form fires at "
+        f"{ev['per_series_fire_h']}h"
+    )
+    print(
+        f"    leak spanning a leader switch at {ev['leak_switch_h']}h still "
+        f"fires at {ev['leak_switch_fire_h']}h"
+    )
 
     print("PASS: KopiurProjectedCredentialsLeaking multi-pass semantics hold")
     print("covered:")
@@ -595,6 +851,11 @@ def main() -> int:
     print("  - identical plateau DOES fire under pre-fix bare level + for:1h")
     print("  - permanent leak fires once min_over_time[13h] stays > 0 across sweeps")
     print("  - healthy zero census stays silent")
+    print("  - a fresh leader series (new pod/instance, no history) that starts at a")
+    print("    benign census and drops to zero at its own next sweep stays silent")
+    print("    under the fixed (leader-aggregated) rule, but DOES fire under the")
+    print("    2026-08-31 per-series form - the 2026-09-26 regression")
+    print("  - a genuine leak that survives a leader change mid-leak still fires")
     print("  - promtool check rules accepts the PrometheusRule groups")
     return 0
 
