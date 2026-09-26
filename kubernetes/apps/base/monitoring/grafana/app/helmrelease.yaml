@@ -175,7 +175,7 @@ spec:
                   "id": 2,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/emqx-overview)",
+                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n- [Ceph Cluster](/d/tbO9LAiZK)\n- [Ceph Usage](/d/ceph-usage)\n- [Ceph Hosts](/d/ceph-hosts-overview)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/emqx-overview)",
                     "mode": "markdown"
                   },
                   "title": "Infrastructure & Databases",
@@ -187,7 +187,7 @@ spec:
                   "id": 3,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-observatory)\n- [Ollama](/d/ollama-llm-inference)\n\n## 🎬 Media\n- [Plex](/d/plex-media-server-exporter)\n- [Tdarr](/d/tdarr)",
+                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LiteLLM](/d/litellm)\n- [LiteLLM Routing](/d/llm-routing)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-observatory)\n- [Ollama](/d/ollama-llm-inference)\n\n## 🎬 Media\n- [Plex](/d/plex-media-server-exporter)\n- [Tdarr](/d/tdarr)",
                     "mode": "markdown"
                   },
                   "title": "AI/ML & Media",
@@ -199,7 +199,7 @@ spec:
                   "id": 4,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 📥 Downloads\n- [Sonarr](/d/sonarr-v3)\n- [Radarr](/d/radarr-v3)\n- [Lidarr](/d/lidarr)\n- [Prowlarr](/d/prowlarr)\n\n## 🔒 Security\n- [Authentik](/d/authentik-overview)\n\n## 📊 Monitoring\n- [Prometheus](/d/prometheus-stats)\n- [Gatus](/d/gatus)",
+                    "content": "## 📥 Downloads\n- [Sonarr](/d/sonarr-v3)\n- [Radarr](/d/radarr-v3)\n- [Lidarr](/d/lidarr)\n- [Prowlarr](/d/prowlarr)\n\n## 🔒 Security\n- [Authentik](/d/authentik-overview)\n\n## 📊 Monitoring\n- [Prometheus](/d/prometheus-stats)\n- [Gatus](/d/gatus)\n- [UniFi Sites](/d/9WaGWZaZk)\n- [UniFi Clients](/d/jMfvAjxWz)",
                     "mode": "markdown"
                   },
                   "title": "Downloads, Security & Monitoring",
@@ -473,12 +473,17 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
+        # PDU Insights (grafana.com 23027) is not imported: this Prometheus
+        # has no unpoller_device_outlet_* series, so every panel would be empty.
         unifi-insights:
           # renovate: dashboardName="UniFi-Poller: Client Insights - Prometheus"
           gnetId: 11315
           revision: 9
           datasource:
             - name: DS_PROMETHEUS
+              value: Prometheus
+            # A few panels still reference the upstream input name.
+            - name: DS_UNIFI_POLLER
               value: Prometheus
 
         unifi-network-sites:
@@ -488,6 +493,8 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+            - name: DS_UNIFI_POLLER
+              value: Prometheus
 
         unifi-usw:
           # renovate: dashboardName="UniFi-Poller: USW Insights - Prometheus"
@@ -496,6 +503,8 @@ spec:
           datasource:
             - name: "DS_PROMETHEUS"
               value: Prometheus
+            - name: DS_UNIFI_POLLER
+              value: Prometheus
 
         unifi-uap:
           # renovate: dashboardName="UniFi-Poller: UAP Insights - Prometheus"
@@ -503,6 +512,8 @@ spec:
           revision: 10
           datasource:
             - name: "DS_PROMETHEUS"
+              value: Prometheus
+            - name: DS_UNIFI_POLLER
               value: Prometheus
 
       security:
@@ -587,7 +598,11 @@ spec:
       GF_AUTH_ANONYMOUS_ENABLED: false
       GF_AUTH_BASIC_ENABLED: false
       GF_DATE_FORMATS_USE_BROWSER_LOCALE: true
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /tmp/dashboards/home.json
+      # Do not set GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH. It overrides
+      # grafana.ini dashboards.default_home_dashboard_path, and the sidecar
+      # directory (/tmp/dashboards) has no home.json, so every visit to
+      # /api/dashboards/home returns 500. The chart writes the landing
+      # dashboard to the path grafana.ini already names.
       GF_EXPLORE_ENABLED: true
       GF_FEATURE_TOGGLES_ENABLE: publicDashboards
       GF_LOG_MODE: console

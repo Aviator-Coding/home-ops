@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Ops boards adapted from joryirving/home-ops litellm.json and
+# litellm-routing.json. Every litellm_* series they query is already scraped.
+# The datasource variable defaults to this cluster's Prometheus uid.
+#
+# Not vendored, on purpose:
+# - litellm-economics and litellm-selfhosted filter on another cluster's model
+#   names, subscription prices, and PDU outlet indexes. The outlet metric
+#   (unpoller_device_outlet_outlet_power) is not in this Prometheus.
+# - vllm, llama-server, and the NVIDIA/ROCm node boards query families this
+#   Prometheus does not publish (no vllm_* / llama_* series; the GPU here is
+#   the Arc B70, already covered by gpu-node).
+# - grafana.com 24055 is an Azure Monitor board, not Prometheus.
+configMapGenerator:
+  - name: litellm-dashboard
+    files:
+      - litellm.json
+  - name: litellm-routing-dashboard
+    files:
+      - litellm-routing.json
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    # ${datasource} is a Grafana dashboard variable, not a Flux var.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+    grafana_folder: AI/ML
+  labels:
+    grafana_dashboard: "true"

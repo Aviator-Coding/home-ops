@@ -28,16 +28,10 @@ spec:
         # excluded on purpose: those measure the household's own WAN, not an
         # application, and are not what this alert is for.
         #
-        # `name!~` excludes one endpoint confirmed red live (2026-09-12,
+        # `name!~` excludes an endpoint confirmed red live (2026-09-12,
         # after the fsGroup fix restored real monitoring - not a number
         # carried over from the outage) for reasons that are not a Gatus
         # check problem, so excluded rather than paged on from day one:
-        #   - rook-ceph-dashboard: orphaned live HTTPRoute pointing at a
-        #     Service that was deliberately removed with the dashboard
-        #     feature itself (dashboard.enabled: false, PR #1394,
-        #     2026-08-23); nothing in git references this route any more, so
-        #     there is nothing left for a manifest change to fix - the live
-        #     object needs a one-time out-of-band delete.
         #   - Radarr Import Queue: this synthetic endpoint (group=downloads)
         #     already has its own dedicated RadarrImportQueueBlocked alert
         #     below for the same signal (a stuck import, not a down
@@ -58,7 +52,7 @@ spec:
         # signal).
         - alert: GatusServiceDown
           expr: |
-            gatus_results_endpoint_success{group!~"external|connectivity", name!~"rook-ceph-dashboard|Radarr Import Queue|Hermes Gateway"} == 0
+            gatus_results_endpoint_success{group!~"external|connectivity", name!~"Radarr Import Queue|Hermes Gateway"} == 0
           for: 10m
           annotations:
             summary: >-

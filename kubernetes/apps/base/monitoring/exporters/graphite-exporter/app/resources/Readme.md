@@ -9,7 +9,7 @@ Vendored mapping for `prom/graphite-exporter` (HelmRelease tag currently
 | What | Path |
 |------|------|
 | Mapping ConfigMap source | `graphite_mapping.conf` (this directory); mounted at `/tmp/graphite_mapping.conf` |
-| Dashboards | `kubernetes/apps/base/monitoring/exporters/graphite-exporter/dashboard/truenas-scale/` (`truenas-scale.json`, `truenas-scale-disk-insights.json`, `truenas-scale-temperatures.json`; Grafana folder `TrueNas`) |
+| Dashboards | Retired. The three TrueNAS boards queried `cpu_temperature`, `disk_await`, `zfs_*` and the rest of the graphite-mapped names, and this Prometheus has none of them: `graphite_last_processed_timestamp_seconds` stays 0 because the NAS has never sent a sample. |
 | HelmRelease | `../helmrelease.yaml` - LoadBalancer TCP/UDP 2003, metrics 9108 |
 
 Mappings expect Graphite prefix `truenas` (see `match: 'truenas\.(.*)\....'`).
@@ -21,8 +21,9 @@ live EXTERNAL-IP with `kubectl -n monitoring get svc graphite-exporter`.
 
 Upstream warns that from exporter config **v2.1** you must also install their
 `netdata.conf` on the TrueNAS host because TrueNAS 25.04 dropped default
-metrics. This cluster vendors the mapping file and three dashboards only. It
-does **not** vendor `netdata.conf`. Do not bump the mapping to v2.1 without
-adding that host file.
+metrics. This cluster vendors the mapping file only. It does **not** vendor
+`netdata.conf`. Do not bump the mapping to v2.1 without adding that host
+file, and do not put the TrueNAS boards back until a sample has actually
+arrived (`graphite_last_processed_timestamp_seconds` > 0).
 
 Bumping the mapping is a separate change; this Readme only records the gap.

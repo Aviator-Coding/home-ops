@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The three grafana.com Ceph boards (2842, 5336, 5342) stay on the Grafana
+# HelmRelease download list. These two are the rest of that set:
+# Ceph Usage is grafana.com 23246, Ceph Hosts Overview is the Ceph mixin
+# hosts-overview dashboard. Both query ceph_* / node_* series this Prometheus
+# already scrapes. The mixin board's node queries use `or` between the legacy
+# and current node_exporter names, so the legacy names being absent is fine.
+#
+# Not imported: a PDU/outlet board, and any dashboard whose panels name
+# metrics this Prometheus does not publish.
+configMapGenerator:
+  - name: ceph-usage-dashboard
+    files:
+      - ceph-usage.json
+  - name: ceph-hosts-overview-dashboard
+    files:
+      - ceph-hosts-overview.json
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    # ${prometheus} and $device_class are Grafana variables, not Flux vars.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+    grafana_folder: Storage
+  labels:
+    grafana_dashboard: "true"
