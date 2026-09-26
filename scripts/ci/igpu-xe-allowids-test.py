@@ -144,17 +144,17 @@ def helm_template_gpudeviceplugin(values: dict[str, Any]) -> dict[str, Any]:
         charts = list(tmp_path.glob("*.tgz"))
         assert_true(len(charts) == 1, f"expected one chart tgz, got {charts}")
 
-        # Flatten chart values the same way the HelmRelease does (top-level keys).
-        set_args: list[str] = []
-        for key, val in values.items():
-            if isinstance(val, bool):
-                rendered = "true" if val else "false"
-            else:
-                rendered = str(val)
-            set_args.extend(["--set", f"{key}={rendered}"])
+        # Pass the HelmRelease's values through as a real values file rather than
+        # flattening to `--set key=value`: `--set` can only express scalars, and
+        # this HelmRelease's values are not all scalar (e.g. `tolerations` is a
+        # list of maps) - stringifying a non-scalar for `--set` produces garbage
+        # `helm` cannot parse. A values file round-trips any YAML-representable
+        # value, matching how Flux itself applies `spec.values`.
+        values_file = tmp_path / "values.yaml"
+        values_file.write_text(yaml.safe_dump(values))
 
         templated = subprocess.run(
-            ["helm", "template", "igpu-xe-test", str(charts[0]), *set_args],
+            ["helm", "template", "igpu-xe-test", str(charts[0]), "--values", str(values_file)],
             capture_output=True,
             text=True,
         )
