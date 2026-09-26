@@ -131,6 +131,13 @@ is also why `max_over_time(...[30d])` in this repo's notes can only ever have be
 
 ### [2026-09-14] Exclude RGW and MDS from talos-3 to make room for an honest ai/vllm request  (branch `fm/homeops-talos3-scheduling-truth`)
 
+> **Mechanism superseded 2026-09-26.** The `NotIn talos-3` `nodeAffinity` blocks this entry
+> added were removed once talos-3 gained a `NoSchedule` taint
+> (`talos/nodes/talos-3.yaml.j2`); RGW and MDS get no toleration for it, so the taint alone
+> now keeps them off talos-3 with the same effect. The decision recorded here (why RGW/MDS
+> should not run on talos-3) is unchanged - only the enforcement mechanism moved. See
+> [`talos-3-scheduling-truth.md`](./talos-3-scheduling-truth.md) section 9.
+
 | Field | Value |
 |-------|-------|
 | **Change** | Added `nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution` (`kubernetes.io/hostname NotIn [talos-3]`) to both `cephObjectStores[0].spec.gateway.placement` and `cephFileSystems[0].spec.metadataServer.placement` in `cluster/helmrelease.yaml`. No OSD, mon, pool, or CRUSH change; no image or tuning change. |

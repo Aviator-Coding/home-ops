@@ -346,9 +346,11 @@ The rest are chart-owned sidecars (`nats` prom-exporter/reloader, grafana's
   cluster has been under 20% memory, so it logs `No node is underutilized,
   nothing to do here, you might tune your thresholds further` and evicts 0 on
   every 5-minute pass while correctly classifying talos-3 as `overutilized`.
-  Do not expect it to relieve talos-3. Its
-  `RemovePodsViolatingNodeAffinity` plugin *is* effective and will enforce the
-  `NotIn talos-3` rules added here.
+  Do not expect it to relieve talos-3. Its `RemovePodsViolatingNodeAffinity`
+  plugin was effective against the `hostname NotIn talos-3` deny-list this
+  section originally added, but that deny-list was replaced by a node taint
+  in section 9 - a taint is enforced by the scheduler at admission time, not
+  by the descheduler evicting after the fact.
 
 ## 7. 2026-09-15: `ai/embedding-gpu` added, and why the "committed" figure is a band, not a point
 
