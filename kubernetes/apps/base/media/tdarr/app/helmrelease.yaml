@@ -151,6 +151,53 @@ spec:
                   - SETGID
                   - FOWNER
                   - DAC_OVERRIDE
+            # The node dials the server on :8266 and does not listen, so
+            # there is no local port to httpGet. liveness is only the local
+            # Tdarr_Node process: s6 can keep the container Running after
+            # that process dies. readiness and startup ask the server
+            # whether this pod's nodeName still has a process heartbeat
+            # younger than 3 minutes. Measured idle, that age was about 1s;
+            # a 1ms ceiling and an unknown nodeName both failed the same
+            # command. The heartbeat is readiness, not liveness, so a
+            # server-side API blip marks the pod NotReady instead of
+            # restarting the GPU worker. KubePodNotReady pages on that.
+            # :8266 itself is the Gatus "Tdarr Server" tcp check.
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/usr/bin/pgrep", "-x", "Tdarr_Node"]
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 5
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        wget -qO- "http://tdarr.media.svc.cluster.local:8265/api/v2/get-nodes" | /usr/bin/node -e 'let s="";process.stdin.on("data",d=>{s+=d});process.stdin.on("end",()=>{let nodes;try{nodes=JSON.parse(s)}catch(e){process.exit(1)}const hit=Object.values(nodes).find(n=>n&&n.nodeName===process.env.nodeName);if(!hit)process.exit(1);const fresh=Object.values(hit.processes||{}).some(p=>p&&(Date.now()-p.lastUpdateTime)<180000);process.exit(fresh?0:1)})'
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        wget -qO- "http://tdarr.media.svc.cluster.local:8265/api/v2/get-nodes" | /usr/bin/node -e 'let s="";process.stdin.on("data",d=>{s+=d});process.stdin.on("end",()=>{let nodes;try{nodes=JSON.parse(s)}catch(e){process.exit(1)}const hit=Object.values(nodes).find(n=>n&&n.nodeName===process.env.nodeName);if(!hit)process.exit(1);const fresh=Object.values(hit.processes||{}).some(p=>p&&(Date.now()-p.lastUpdateTime)<180000);process.exit(fresh?0:1)})'
+                  periodSeconds: 10
+                  failureThreshold: 30
             resources:
               requests:
                 cpu: 100m
