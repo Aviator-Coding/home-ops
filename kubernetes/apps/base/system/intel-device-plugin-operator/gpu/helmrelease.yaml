@@ -41,3 +41,12 @@ spec:
     # three nodes and the iGPUs confirm advertising xe (talos-1/2 xe=99,
     # talos-3 was 198 pooled iGPU+B70). The B70 no longer contributes here.
     allowIDs: "0xa7a0"
+    # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2). This is
+    # a DaemonSet (one pod per node with the gpu feature label, all three
+    # nodes), advertising each node's own Raptor Lake iGPU - talos-3's included
+    # - so it needs the matching toleration to keep running there. See
+    # docs/talos-3-scheduling-truth.md.
+    tolerations:
+      - key: home-operations.com/dedicated
+        operator: Exists
+        effect: NoSchedule

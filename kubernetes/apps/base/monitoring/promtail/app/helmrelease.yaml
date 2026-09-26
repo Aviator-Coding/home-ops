@@ -12,6 +12,22 @@ spec:
   values:
     fullnameOverride: promtail
 
+    # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2). This
+    # chart's own tolerations default (control-plane/master only) would
+    # otherwise be REPLACED wholesale by this values block (Helm does not
+    # merge lists), so both defaults are restated here alongside the new one.
+    # See docs/talos-3-scheduling-truth.md.
+    tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: home-operations.com/dedicated
+        operator: Exists
+        effect: NoSchedule
+
     resources:
       requests:
         cpu: 50m

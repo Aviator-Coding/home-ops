@@ -123,22 +123,21 @@ spec:
                   - ALL
 
     defaultPodOptions:
-      # TEMPORARY: pinned away from talos-3 (→ runs on talos-1/talos-2).
-      # talos-3: B70 LLM stack + Ceph + tdarr transcodes, no swap + a kernel-6.18
-      # MGLRU reclaim regression → node-wide OOM bursts. One killed sabnzbd (exit137)
-      # as collateral on 2026-06-27. MGLRU is now disabled via machine.sysfs
-      # (talos/machineconfig.yaml.j2); keep sabnzbd off talos-3 until that soaks.
-      # Re-evaluate after the MGLRU fix is proven. See docs/hardware-incidents.md
+      # Originally pinned away from talos-3 as a TEMPORARY measure: B70 LLM
+      # stack + Ceph + tdarr transcodes, no swap + a kernel-6.18 MGLRU reclaim
+      # regression -> node-wide OOM bursts. One killed sabnzbd (exit137) as
+      # collateral on 2026-06-27. MGLRU is now disabled via machine.sysfs
+      # (talos/machineconfig.yaml.j2). See docs/hardware-incidents.md
       # (2026-06-27).
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-                      - talos-3
+      #
+      # `affinity` NotIn talos-3 REMOVED 2026-09-26: it is now redundant.
+      # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) and
+      # this app gets no toleration for it, so the taint alone keeps it off
+      # talos-3 with the same effect - which also means the original
+      # "re-evaluate once MGLRU is proven safe" question is now moot: getting
+      # sabnzbd back onto talos-3 would need an explicit toleration added
+      # here, a decision this change does not make. See
+      # docs/talos-3-scheduling-truth.md.
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname

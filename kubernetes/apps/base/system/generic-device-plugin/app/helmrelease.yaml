@@ -16,6 +16,15 @@ spec:
   values:
     defaultPodOptions:
       priorityClassName: system-node-critical
+      # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2). This
+      # DaemonSet advertises the discrete Arc Pro B70 (devic.es/b70,
+      # devic.es/b70-vaapi) that only exists on that node, so it needs the
+      # matching toleration to run there at all. See
+      # docs/talos-3-scheduling-truth.md.
+      tolerations:
+        - key: home-operations.com/dedicated
+          operator: Exists
+          effect: NoSchedule
 
     controllers:
       generic-device-plugin:

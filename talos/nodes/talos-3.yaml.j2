@@ -3,6 +3,24 @@ machine:
   type: controlplane
   install:
     disk: /dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800007
+  # Replaces the hostname-NotIn-talos-3 affinity deny-list (2026-09-20 decision,
+  # docs/talos-3-scheduling-truth.md section 8): a deny-list fails open (any
+  # workload with no nodeAffinity at all can still land here), a taint fails
+  # closed (nothing schedules here without an explicit toleration). Every
+  # belongs-there workload (the GPU pair, the 2 Ceph OSDs + mon, the CNPG
+  # instance, and every DaemonSet whose chart allows it) carries a matching
+  # toleration added in the same change - see docs/talos-3-scheduling-truth.md
+  # for the full inventory and the two DaemonSets (rbd/cephfs CSI nodeplugin,
+  # multus) that could not receive one from this repo.
+  #
+  # Landing this taint needs `just talos apply-node talos-3` (machine config
+  # only - no schematic/kernel change, so `upgrade-node` is not required) run
+  # by an operator with a live talosconfig; merging this file alone does not
+  # apply it (see talos/AGENTS.md). NoSchedule (not NoExecute) so applying it
+  # never evicts anything already running - a should-move pod drains only on
+  # its own next reschedule.
+  nodeTaints:
+    home-operations.com/dedicated: NoSchedule
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig
