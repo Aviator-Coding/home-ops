@@ -19,23 +19,12 @@ spec:
       retries: 3
   values:
     fullnameOverride: *app
-    # Kept off talos-3 - same reasoning as the userland apps that carry this
-    # block (see kubernetes/apps/base/downloads/radarr/app/helmrelease.yaml).
-    # konflate is the worst offender by hidden load rather than by declared
-    # size: it requests 256Mi but its 30-day peak working set is 1542Mi
-    # (measured 2026-09-14), so it was quietly consuming 6x its declaration on
-    # the node with the least room. Verified by `helm template` that this chart
-    # honours a top-level `affinity` value - a passing `flate` run does not
-    # prove that on its own.
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: kubernetes.io/hostname
-                  operator: NotIn
-                  values:
-                    - talos-3
+    # `affinity` NotIn talos-3 REMOVED 2026-09-26: it is now redundant.
+    # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) and
+    # this app gets no toleration for it, so the taint alone keeps it off
+    # talos-3 with the same effect, without a per-app deny-list entry that
+    # fails open for anything that forgets to carry it. See
+    # docs/talos-3-scheduling-truth.md.
     image:
       # Chart 0.6.2 stamps this digest at package time; keep it explicit so we
       # never float on :latest/:rolling. Digest wins over tag in the chart helper.

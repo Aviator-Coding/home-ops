@@ -19,6 +19,14 @@ spec:
     podAntiAffinityType: required
     nodeSelector:
       kubernetes.io/os: linux
+    # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) so
+    # nothing lands there without an explicit toleration. instances: 3 +
+    # required podAntiAffinity on hostname means one instance must be able
+    # to land on talos-3 (docs/talos-3-scheduling-truth.md).
+    tolerations:
+      - key: home-operations.com/dedicated
+        operator: Exists
+        effect: NoSchedule
 
   # - unsupervised: automated update of the primary once all
   #                 replicas have been upgraded (default)

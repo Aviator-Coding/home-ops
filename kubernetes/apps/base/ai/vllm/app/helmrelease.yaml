@@ -39,6 +39,14 @@ spec:
         strategy: Recreate
         pod:
           terminationGracePeriodSeconds: 60
+          # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) so
+          # nothing lands there without an explicit toleration - this pod is
+          # pinned to that node by devic.es/b70 (comment above), so it needs
+          # one. See docs/talos-3-scheduling-truth.md.
+          tolerations:
+            - key: home-operations.com/dedicated
+              operator: Exists
+              effect: NoSchedule
         containers:
           app:
             image:

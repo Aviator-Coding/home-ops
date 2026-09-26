@@ -206,6 +206,24 @@ spec:
           # needs Linux >= 7.0. Talos ships 6.18.x, so rotating client keys would
           # break every RBD map and CephFS mount. Revisit only after Talos ships
           # a kernel 7 release.
+      # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) so
+      # nothing lands there without an explicit toleration. `all` is merged
+      # into every Rook daemon type's own placement (mon, osd, mgr,
+      # crashcollector, exporter) rather than replacing it, so this alone
+      # covers every CephCluster-managed pod that belongs on talos-3 (the 2
+      # OSDs pinned there via storage.nodes, and mon-h). It deliberately does
+      # NOT cover mds/rgw below, which are kept off talos-3 on purpose - see
+      # their own placement blocks - nor the rbd/cephfs CSI nodeplugin
+      # DaemonSets, which are owned by ceph-csi-operator's `Driver` CRs via an
+      # internal `ceph-csi-drivers` Helm release this repo does not manage
+      # (same structural gap as the ctrlplugin note above). See
+      # docs/talos-3-scheduling-truth.md.
+      placement:
+        all:
+          tolerations:
+            - key: home-operations.com/dedicated
+              operator: Exists
+              effect: NoSchedule
       crashCollector:
         disable: false
       dashboard:
@@ -455,36 +473,22 @@ spec:
               # It also does not follow an active rank across a failover to its
               # standby-replay (e.g. b colocating with c after a fails over to c),
               # since that pairing is Ceph state, not a Kubernetes label.
-              # Kept off talos-3 so the node's memory reservation can tell the
-              # truth about ai/vllm (docs/talos-3-scheduling-truth.md). Unlike
-              # the RGW relocation above, this one is NOT moving a redundant
-              # replica: ceph-filesystem-b held ACTIVE rank 1 on talos-3
-              # (measured 2026-09-14 - `ceph fs status`: rank 0 active on -a,
-              # rank 1 active on -b, -c and -d standby-replay, 7 clients, 4468
-              # DNS / 469 caps). Draining it forces a rank failover to the
-              # standby-replay -d. That is a routine, designed Ceph operation -
-              # standby-replay exists for exactly this and every node roll
-              # triggers it - but it is a different class of action, so it ships
-              # as its own change and should be verified by `ceph health`
-              # returning HEALTH_OK before anything downstream is called done.
+              # ceph-filesystem-b held ACTIVE rank 1 on talos-3 (measured
+              # 2026-09-14 - `ceph fs status`: rank 0 active on -a, rank 1
+              # active on -b, -c and -d standby-replay, 7 clients, 4468 DNS /
+              # 469 caps), so historically excluding talos-3 here forced a
+              # rank failover to standby-replay -d on every reconcile. That was
+              # a routine, designed Ceph operation, but a different class of
+              # action from RGW's relocation above.
               #
-              # Consequence to know: Rook applies this one placement block to
-              # all 4 mds pods (see above), so excluding talos-3 confines them
-              # to talos-1/talos-2, 2 each under the maxSkew 1 spread below.
-              # That stays schedulable even during a single-node drain - with
-              # one eligible domain left the skew is 0, so DoNotSchedule is
-              # satisfied and all 4 land on the survivor - but for the length of
-              # a talos-1 or talos-2 maintenance window the filesystem has no
-              # node-level MDS redundancy, where before it still had two nodes.
-              # A talos-3 window is now strictly better: no MDS churn at all.
-              nodeAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  nodeSelectorTerms:
-                    - matchExpressions:
-                        - key: kubernetes.io/hostname
-                          operator: NotIn
-                          values:
-                            - talos-3
+              # REMOVED 2026-09-26: the explicit `NotIn talos-3` nodeAffinity
+              # that used to live here is now redundant. talos-3 carries a
+              # NoSchedule taint (talos/nodes/talos-3.yaml.j2) and mds gets no
+              # toleration for it (mds is deliberately not a belongs-there
+              # workload - docs/talos-3-scheduling-truth.md), so the taint
+              # alone keeps mds off talos-3 with the same effect, without a
+              # per-app deny-list entry that fails open for anything that
+              # forgets to carry it.
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -565,22 +569,18 @@ spec:
             instances: 2
             priorityClassName: system-cluster-critical
             placement:
-              # Kept off talos-3 so the node's memory reservation can tell the
-              # truth about ai/vllm (docs/talos-3-scheduling-truth.md). This is
-              # the low-risk half of that relocation: RGW runs `instances: 2`,
-              # one on talos-2 and one on talos-3, both actively serving behind
-              # the same service. Moving the talos-3 replica leaves the other
-              # one serving throughout - no failover, no rank promotion, and no
-              # client-visible interruption. Contrast metadataServer below,
-              # which is NOT equivalent.
-              nodeAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  nodeSelectorTerms:
-                    - matchExpressions:
-                        - key: kubernetes.io/hostname
-                          operator: NotIn
-                          values:
-                            - talos-3
+              # RGW runs `instances: 2` behind one service, both actively
+              # serving - unlike metadataServer above, losing either is not a
+              # failover.
+              #
+              # REMOVED 2026-09-26: the explicit `NotIn talos-3` nodeAffinity
+              # that used to live here is now redundant. talos-3 carries a
+              # NoSchedule taint (talos/nodes/talos-3.yaml.j2) and rgw gets no
+              # toleration for it (rgw is deliberately not a belongs-there
+              # workload - docs/talos-3-scheduling-truth.md), so the taint
+              # alone keeps rgw off talos-3 with the same effect, without a
+              # per-app deny-list entry that fails open for anything that
+              # forgets to carry it.
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname

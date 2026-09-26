@@ -9,6 +9,28 @@ spec:
     kind: OCIRepository
     name: multus
   interval: 1h
+  # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2). The
+  # chart hardcodes this DaemonSet's tolerations to CriticalAddonsOnly only
+  # (multus.hardcodedValues in the chart's templates/common.yaml, merged with
+  # `mergeOverwrite .Values (hardcodedValues)` - i.e. the chart's own value
+  # always wins, so a `values.controllers.multus.pod.tolerations` override
+  # here is silently discarded; verified with `helm template` against this
+  # chart version). A postRenderer JSON6902 patch is the only way to add a
+  # toleration without forking the chart. See docs/talos-3-scheduling-truth.md.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              version: v1
+              kind: DaemonSet
+              name: multus
+            patch: |-
+              - op: add
+                path: /spec/template/spec/tolerations/-
+                value:
+                  key: home-operations.com/dedicated
+                  operator: Exists
+                  effect: NoSchedule
   values:
     cni:
       binPath: /opt/cni/bin

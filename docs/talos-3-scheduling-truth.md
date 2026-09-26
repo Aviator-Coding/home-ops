@@ -494,3 +494,110 @@ exactly that purpose: nothing else in the repo alerts on crossing a *request*,
 and the two limit rules stay silent for a further 36Gi. The observed post-fix
 band is 0.37-0.47 of the new request, so the threshold sits 2.1x above the top
 of the measured noise.
+
+## 9. 2026-09-26: the deny-list becomes a taint
+
+Section 8 flagged the risk directly: the `hostname NotIn talos-3` deny-list
+fails open, and freed headroom invites more of it. This section closes that
+gap by replacing every such deny-list entry with a
+`home-operations.com/dedicated: NoSchedule` taint on talos-3
+(`talos/nodes/talos-3.yaml.j2`) plus a matching toleration on every workload
+that genuinely belongs on that node. A taint fails closed: nothing schedules
+there without an explicit toleration, so a future workload arriving with no
+affinity at all - the exact failure mode measured in section 8 - now goes
+`Pending` instead of landing.
+
+`NoSchedule`, not `NoExecute`, was chosen deliberately: applying the taint
+does not evict anything already running. A pod that no longer belongs (or
+never did - drift) only leaves the node on its own next reschedule (a
+rollout, a manual delete, a node reboot). It also means this change alone
+cannot be verified as "done" by watching pods move - the placement
+correction is enforced only from the next scheduling decision onward.
+
+**Applying it needs an operator step this PR does not perform.** Merging the
+`talos/nodes/talos-3.yaml.j2` change only lands the template; per
+`talos/AGENTS.md`, a machine-config-only change (no schematic/kernel change
+here) needs `just talos apply-node talos-3` run by an operator with a live
+`talosconfig`. Offline-validated with the documented method (render with
+`minijinja-cli`, substitute dummy base64 for `ref+op://` refs, `talosctl
+machineconfig patch` + `talosctl validate -m metal`) before this PR - the
+rendered config including the taint is schema-valid. `apply-node`, not
+`upgrade-node`: nothing here touches the factory schematic.
+
+### Live inventory: every pod on talos-3 at the time of this change, classified
+
+Captured via `kubectl get pods -A --field-selector spec.nodeName=talos-3`
+cross-referenced with owner kind. "Belongs" = pinned to this node by
+something structural (a GPU resource only this node advertises, a hostname
+nodeSelector, or a CNPG/Ceph instance-per-node requirement) and now carries a
+toleration. "Drift" = no such tie; nothing added, it drains on its own next
+reschedule and the taint prevents it recurring. "Static/unaffected" = bypasses
+the scheduler entirely, taints do not apply.
+
+| workload | kind | verdict | toleration added |
+|---|---|---|---|
+| `ai/vllm` | Deployment | belongs (`devic.es/b70`) | yes, in HelmRelease `pod.tolerations` |
+| `ai/embedding-gpu` | Deployment | belongs (`devic.es/b70`, shares the card) | yes, in HelmRelease `pod.tolerations` |
+| `media/tdarr-tdarr-node` | Deployment | belongs (`devic.es/b70-vaapi`) | yes, in HelmRelease `pod.tolerations` |
+| `rook-ceph-osd-2`, `rook-ceph-osd-4` | Deployment (Rook-managed) | belongs (`storage.nodes` hostname pin, local NVMe) | yes, via `cephClusterSpec.placement.all.tolerations` |
+| `rook-ceph-mon-h` | Deployment (Rook-managed) | belongs (local `openebs-hostpath` PV) | yes, via `placement.all` (same as OSDs) |
+| `rook-ceph-crashcollector-talos-3`, `rook-ceph-exporter-talos-3` | Deployment (Rook-managed, one per node) | belongs (co-located with the node's own daemons) | yes, via `placement.all` (Rook merges `all` into every daemon type's own placement) |
+| `rook-ceph-osd-prepare-talos-3` | Job (Rook-managed) | belongs (runs once per node with an OSD) | yes, via `placement.all` |
+| `database/postgres-17-1` | CNPG-managed pod | belongs (`instances: 3` + required podAntiAffinity on hostname - one instance per node) | yes, `Cluster.spec.affinity.tolerations` |
+| `kube-system/cilium` | DaemonSet | belongs (CNI, every node) | no change needed - already `operator: Exists` with no key (tolerates everything) |
+| `kube-system/mglru-disable` | DaemonSet | belongs (node-level sysfs tuning, every node) | no change needed - already `operator: Exists` with no key |
+| `kube-system/spegel` | DaemonSet | belongs (every node) | no change needed - already tolerates every `NoSchedule` taint (`effect: NoSchedule, operator: Exists`, no key) |
+| `monitoring/kube-prometheus-stack-prometheus-node-exporter` | DaemonSet | belongs (every node) | no change needed - same as spegel |
+| `monitoring/promtail` | DaemonSet | belongs (every node) | yes - chart replaces the whole `tolerations` list from values, so both its existing control-plane/master defaults and the new one are now declared together |
+| `rook-ceph/rook-discover` | DaemonSet | belongs (feeds this node's OSD device inventory) | yes, via the operator chart's `discover.tolerations` |
+| `system/generic-device-plugin` | DaemonSet | belongs (advertises this node's B70) | yes, `defaultPodOptions.tolerations` |
+| `system/intel-gpu-plugin-xe` | DaemonSet (via `GpuDevicePlugin` CR) | belongs (advertises this node's own iGPU, all 3 nodes) | yes, CR's `spec.tolerations` |
+| `kube-system/multus` | DaemonSet | belongs (CNI, every node) | yes, but **not** via values - see gap below |
+| `rook-ceph/rook-ceph.cephfs.csi.ceph.com-nodeplugin`, `rook-ceph/rook-ceph.rbd.csi.ceph.com-nodeplugin` | DaemonSet (owned by `Driver` CR) | belongs (mounts Ceph volumes for pods on this node) | **no - unreachable from this repo, see gap below** |
+| `kube-system/kube-apiserver-talos-3`, `kube-controller-manager-talos-3`, `kube-scheduler-talos-3` | static pod | unaffected | none needed - static pods bypass the scheduler entirely |
+| everything else observed on talos-3 (ai/hermes, ai/litellm, ai/samba, ai/searxng-dragonfly, database/{cloudnative-pg-operator,pgadmin,surrealdb}, home-automation/*, monitoring/{alertmanager,grafana,gatus,...}, security/{authentik-dragonfly,onepassword-connect}, selfhosted/{rsshub,rsshub-dragonfly,paperless-ngx-dragonfly}, system-controller/k8tz, system-upgrade/tuppr, system/kopiur-{controller,webhook}, rook-ceph-operator, kube-prometheus-stack-operator, plus all Jobs/CronJobs: actions-runner-system, downloads, renovate, system pvc-*-check, ceph-q/r2-q) | mixed (Deployment/StatefulSet/Job/CronJob) | drift - no nodeAffinity ties any of these to talos-3 | none - this is exactly the class of pod the old deny-list could not stop and the taint now does; they reschedule off talos-3 on their own next rollout/restart |
+
+### Two DaemonSets that could not get a toleration from this repo
+
+**`rook-ceph.{cephfs,rbd}.csi.ceph.com-nodeplugin`.** Since Rook v1.20's
+ceph-csi-operator migration, these DaemonSets are owned by `Driver` CRs
+(`csi.ceph.io/v1`) created by an internal `ceph-csi-drivers` Helm release that
+Flux does not manage - the exact same structural gap already documented for
+the `ctrlplugin` Deployment in `kubernetes/apps/base/rook-ceph/rook-ceph/operator/helmrelease.yaml`.
+The `Driver` CRD does define `spec.nodePlugin.tolerations` (confirmed live
+against the installed CRD), so the field exists - but nothing in this repo's
+Flux-managed manifests can set it, and applying a competing `Driver` object
+would fight whatever reconciles the internal release, matching the reasoning
+already accepted for ctrlplugin.
+
+**Consequence:** applying the taint does not affect the currently-running
+nodeplugin pods on talos-3 (NoSchedule never evicts). But the next time either
+pod is recreated on talos-3 - a node reboot, a manual delete, or a rollout of
+the `ceph-csi-drivers` release itself - it will fail to reschedule there, and
+talos-3 will lose the ability to mount RBD/CephFS volumes for any pod on that
+node, including `database/postgres-17-1` (its only local dependency on
+working CSI). **This must be re-verified before the next talos-3 reboot**: if
+`kubectl -n rook-ceph get pods -o wide | grep nodeplugin | grep talos-3`
+would come back empty after that reboot, the toleration gap needs a live
+`kubectl patch driver` (or an upstream/chart fix) before the reboot proceeds -
+not after.
+
+**`kube-system/multus`.** The chart (`ghcr.io/bjw-s-labs/helm/multus`)
+hardcodes this DaemonSet's tolerations in its own template
+(`multus.hardcodedValues` in `templates/common.yaml`), merged onto user values
+with `mergeOverwrite .Values (hardcodedValues)` - i.e. the chart's own value
+always wins. Verified with `helm template` against chart 1.3.5: a
+`values.controllers.multus.pod.tolerations` override renders as if it were
+never set. Worked around with a `postRenderers` JSON6902 patch on the
+HelmRelease instead (`kubernetes/apps/base/kube-system/multus/app/helmrelease.yaml`),
+appending the toleration directly to the rendered DaemonSet - this one is not
+a gap, just not fixable through `values`.
+
+### What this change does not do
+
+It does not re-derive talos-3's memory arithmetic (section 8's numbers stand)
+and it does not decide whether any of the "drift" workloads in the inventory
+above *should* eventually get an explicit anti-affinity or move permanently -
+it only stops new drift of that shape from recurring. It also does not apply
+the taint to the live cluster (see the operator step above) or reboot any
+node.

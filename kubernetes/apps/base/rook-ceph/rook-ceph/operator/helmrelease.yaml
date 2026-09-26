@@ -94,3 +94,13 @@ spec:
         cpu: 300m
       limits:
         memory: 1Gi
+    # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2). The
+    # `discover` DaemonSet needs to run there (it feeds `rook-discover`'s
+    # device inventory for that node's 2 OSDs), so it gets the matching
+    # toleration - the operator chart's only placement knob for this
+    # DaemonSet. See docs/talos-3-scheduling-truth.md.
+    discover:
+      tolerations:
+        - key: home-operations.com/dedicated
+          operator: Exists
+          effect: NoSchedule
