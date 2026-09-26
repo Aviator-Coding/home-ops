@@ -10,7 +10,7 @@ spec:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    tag: 2026.5.6
+    tag: 2026.8.3
   url: oci://ghcr.io/goauthentik/helm-charts/authentik
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
@@ -117,6 +117,12 @@ spec:
         #   6  are gone outright - django_model_{inserts,updates,deletes}_total,
         #      django_migrations_{applied,unapplied}_total and
         #      authentik_tasks_errors_total have no live counterpart at all.
+        #
+        # 2026.8.3 UPGRADE (2026-09-26): charts/authentik/templates/
+        # prometheusrule.yaml diffed byte-identical between the authentik-
+        # 2026.5.6 and authentik-2026.8.3 helm chart tags (same sha256, 195
+        # lines, empty diff) - the template did not change, so the 2026-09-14
+        # metric-fault inventory above is unaffected by this version bump.
         #
         # WHY NOT REPAIR THEM. Nothing consumes them: all 40 grafana_dashboard
         # ConfigMaps in the cluster were scanned and NONE references `django_`

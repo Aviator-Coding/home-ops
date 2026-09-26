@@ -2,7 +2,7 @@
 
 Start with the operator files (outside `docs/`), then every markdown file under `docs/`.
 
-`find docs -type f -name '*.md'` is **91**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
+`find docs -type f -name '*.md'` is **94**. The tables below index those files (including this one). Rows marked **historical snapshot** are dated captures, not current runbooks.
 
 Paths that live in different directories for the same subsystem (AI, Ceph, network) are grouped together here on purpose. The files themselves were not moved.
 
@@ -73,6 +73,7 @@ GPU hardware, the live `ai` namespace stack (Hermes, ToolHive, AgentGateway, Lit
 | Path | What it covers |
 |---|---|
 | [`authentik/terraform.md`](authentik/terraform.md) | Authentik OpenTofu stack: inventory, import vs create, RGW state bucket, apply approval gate, CI read-only plans. Read before any `tofu plan` / `tofu apply`. |
+| [`authentik/2026-09-26-server-2026.8-upgrade.md`](authentik/2026-09-26-server-2026.8-upgrade.md) | Planned server/worker/embedded-outpost upgrade 2026.5.6 -> 2026.8.3: release-line and breaking-change research, helm chart diff, pre-upgrade live baseline (CNPG + per-app SSO checks), and why PR #1639's `terraform-provider-authentik` bump is a separate, dependent change. |
 
 ## Backups
 
