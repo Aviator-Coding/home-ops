@@ -26,7 +26,7 @@ spec:
     tolerations:
       - key: home-operations.com/dedicated
         operator: Exists
-        effect: NoSchedule
+        effect: PreferNoSchedule
 
   # - unsupervised: automated update of the primary once all
   #                 replicas have been upgraded (default)

@@ -5,22 +5,34 @@ machine:
     disk: /dev/disk/by-id/nvme-WD_BLACK_SN770M_1TB_251211800007
   # Replaces the hostname-NotIn-talos-3 affinity deny-list (2026-09-20 decision,
   # docs/talos-3-scheduling-truth.md section 8): a deny-list fails open (any
-  # workload with no nodeAffinity at all can still land here), a taint fails
-  # closed (nothing schedules here without an explicit toleration). Every
+  # workload with no nodeAffinity at all can still land here). Every
   # belongs-there workload (the GPU pair, the 2 Ceph OSDs + mon, the CNPG
   # instance, and every DaemonSet whose chart allows it) carries a matching
   # toleration added in the same change - see docs/talos-3-scheduling-truth.md
   # for the full inventory and the two DaemonSets (rbd/cephfs CSI nodeplugin,
   # multus) that could not receive one from this repo.
   #
+  # PreferNoSchedule, not NoSchedule (2026-09-26 decision, docs/talos-3-scheduling-truth.md
+  # section 9): a hard NoSchedule taint fails closed on more than the GPU/Ceph
+  # workloads it was meant for - once the general fleet drifts off talos-3 (the
+  # descheduler's RemovePodsViolatingNodeTaints does not evict the drift; pods
+  # only leave on their own next rollout), draining talos-1 or talos-2 strands
+  # ~85 pods (cert-manager, coredns, authentik, the Rook operator among them)
+  # with nowhere to go, while talos-3 sits on ~13 free cores it cannot give
+  # them. PreferNoSchedule is a scheduler score penalty (TaintToleration weight
+  # 3) rather than a filter, so untainted-toleration pods can overflow onto
+  # talos-3 during a drain and return to talos-1/talos-2 on their next
+  # rollout. It is not fail-closed: a strong enough combination of preferred
+  # affinity/spread/resource scores could in principle still land an
+  # untolerating pod here, though this is a much smaller leak than the old
+  # deny-list, which had no penalty at all.
+  #
   # Landing this taint needs `just talos apply-node talos-3` (machine config
   # only - no schematic/kernel change, so `upgrade-node` is not required) run
   # by an operator with a live talosconfig; merging this file alone does not
-  # apply it (see talos/AGENTS.md). NoSchedule (not NoExecute) so applying it
-  # never evicts anything already running - a should-move pod drains only on
-  # its own next reschedule.
+  # apply it (see talos/AGENTS.md).
   nodeTaints:
-    home-operations.com/dedicated: NoSchedule
+    home-operations.com/dedicated: PreferNoSchedule
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig

@@ -46,7 +46,7 @@ spec:
           tolerations:
             - key: home-operations.com/dedicated
               operator: Exists
-              effect: NoSchedule
+              effect: PreferNoSchedule
         containers:
           app:
             image:

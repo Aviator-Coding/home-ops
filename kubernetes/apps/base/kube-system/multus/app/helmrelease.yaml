@@ -30,7 +30,7 @@ spec:
                 value:
                   key: home-operations.com/dedicated
                   operator: Exists
-                  effect: NoSchedule
+                  effect: PreferNoSchedule
   values:
     cni:
       binPath: /opt/cni/bin

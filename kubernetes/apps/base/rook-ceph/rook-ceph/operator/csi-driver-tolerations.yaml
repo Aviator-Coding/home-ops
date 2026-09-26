@@ -103,7 +103,7 @@ spec:
     tolerations:
       - key: home-operations.com/dedicated
         operator: Exists
-        effect: NoSchedule
+        effect: PreferNoSchedule
 ---
 apiVersion: csi.ceph.io/v1
 kind: Driver
@@ -118,4 +118,4 @@ spec:
     tolerations:
       - key: home-operations.com/dedicated
         operator: Exists
-        effect: NoSchedule
+        effect: PreferNoSchedule

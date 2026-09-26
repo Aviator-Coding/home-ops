@@ -627,6 +627,70 @@ it only stops new drift of that shape from recurring. It also does not apply
 the taint to the live cluster (see the operator step above) or reboot any
 node.
 
+### 2026-09-26 correction: `NoSchedule` fails closed on more than intended - changed to `PreferNoSchedule`
+
+The `NoSchedule` effect chosen above, and the "fails closed" framing in this
+section's opening paragraphs, is no longer the live decision. A read-only
+measurement the same day (after the Talos v1.14.1 roll) found that once the
+general-fleet drift documented in the inventory above rolls off talos-3 on
+its own next reschedule - which the taint was explicitly designed to let
+happen - a drain of talos-1 or talos-2 has nowhere to place that fleet:
+simulating a drain against the resettled (post-drift) placement stranded
+about 85 pods (both cert-manager replicas, both coredns replicas, authentik,
+the Rook operator among them) `Pending`, while talos-3 sat at only ~35% CPU /
+55% memory with roughly 13 free cores and 41 free Gi it could not receive any
+of that fleet into. Tuppr's upgrade hooks cannot lift the taint at the one
+point in a rolling upgrade where that would help (no per-node hook exists;
+`hooks.pre` runs once before every node, `hooks.post` runs once after every
+node is done - see the full options analysis in
+`/Users/coder/firstmate/data/homeops-talos3-taint-maintenance-fit/report.md`),
+and cutting requests cannot close a ~10 CPU / ~10 Gi deficit without cutting
+something already at or over its measured peak.
+
+The taint is now `PreferNoSchedule`
+(`home-operations.com/dedicated: PreferNoSchedule` in
+`talos/nodes/talos-3.yaml.j2`), and every toleration in the inventory above
+was updated from `effect: NoSchedule` to `effect: PreferNoSchedule` to match
+(the GPU/OSD/mon/CNPG/DaemonSet workloads still schedule there regardless,
+because prefer does not filter and they have no other legal node).
+`PreferNoSchedule` is a scheduler *score* penalty, not a filter -
+`TaintToleration` carries weight 3 in the stock `kube-scheduler` this cluster
+runs (`v1.36.5`, `pkg/scheduler/apis/config/v1/default_plugins.go`), a 300
+point gap on a 0-100 normalized score for one untolerated taint, versus a
+maximum 200 points available from `PodTopologySpread` (weight 2) and lesser
+contributions from `NodeResourcesFit` (weight 1). That means: talos-3 stays
+the last resort for the general fleet under normal, non-drain conditions (the
+`nodeTaintsPolicy: Honor` entries added in section 10 already exclude it from
+spread domains for pods that don't tolerate it, so spread does not add points
+for landing there), but during an actual drain of talos-1 or talos-2 the
+overflow can and should land on talos-3, and returns to talos-1/talos-2 on
+its next rollout once the drained node is back. This is not fail-closed the
+way `NoSchedule` was: a sufficiently large stack of preferred affinity/spread/
+resource scores could in principle still beat the 300-point gap and place an
+untolerating pod here outside of a drain - untraced by a live scheduler
+dry-run - but it is a far smaller leak than the pre-taint deny-list, which
+carried no penalty at all.
+
+The descheduler's `RemovePodsViolatingNodeTaints` strategy does not evict
+`PreferNoSchedule` violators unless `includePreferNoSchedule` is set (this
+cluster's policy does not set it), so drift that lands on talos-3 during a
+drain is cleared the same way `NoSchedule` drift already was not being
+cleared - on the workload's own next rollout, not by the descheduler.
+
+If a genuinely hard exclusion is ever required again, the alternative
+evaluated and rejected in favor of `PreferNoSchedule` is a critical-only
+toleration list under the existing `NoSchedule` taint (adding the toleration
+only to the drain-critical controllers: the Rook operator, coredns,
+cert-manager plus its webhook and cainjector, k8tz, authentik, the CNPG
+operator, envoy, the CSI provisioners, MDS, RGW). That option is
+deterministic and closes the operator deadlock, but leaves the ordinary
+non-critical app fleet `Pending` for the whole drain - it does not solve the
+app outage, only the controller deadlock. Do not add a tuppr pre-hook to
+automate lifting a hard taint: the hook ordering (one sequential `hooks.pre`
+before any node, one sequential `hooks.post` after every node) cannot land a
+lift between talos-3 coming back and talos-1's drain starting, which is the
+only window where a lift would help.
+
 ## 10. 2026-09-26: the taint alone left a second gap - `nodeTaintsPolicy`
 
 Section 9's taint landed live and the same day's attended Talos 1.14.1 roll

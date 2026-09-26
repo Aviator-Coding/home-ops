@@ -79,6 +79,20 @@ spec:
             - matchExpressions:
                 - key: node-role.kubernetes.io/control-plane
                   operator: Exists
+    # Both replicas landed on talos-2 (no spread, no anti-affinity), so
+    # draining that one node took cluster DNS down entirely
+    # (docs/talos-3-scheduling-truth.md section 9). maxSkew 1 on hostname
+    # forces the two replicas apart; nodeTaintsPolicy Honor keeps this from
+    # trying to place a replica on the talos-3 taint it does not tolerate.
+    topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: '{{ template "coredns.name" . }}'
+            app.kubernetes.io/instance: '{{ .Release.Name }}'
+        topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: DoNotSchedule
+        nodeTaintsPolicy: Honor
     resources:
       requests:
         cpu: 100m
