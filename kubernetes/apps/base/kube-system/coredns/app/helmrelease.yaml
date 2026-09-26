@@ -63,6 +63,22 @@ spec:
           - name: log
             configBlock: |-
               class error
+    # Keep the node's DHCP search domain out of autopath. Since Talos 1.14 the
+    # dhcp4/bond0 lease's `sklab.dev` search domain reaches the node resolv.conf
+    # despite `disableSearchDomain: true`, and `autopath @kubernetes` appends
+    # CoreDNS's own resolv.conf search list to every pod's walk. sklab.dev is
+    # DNSSEC-signed on Cloudflare, so every nonexistent `<name>.sklab.dev`
+    # answers NOERROR/NODATA and autopath returned that empty answer for all
+    # external names and dotted service FQDNs (2026-09-26 roll incident).
+    # This is the same resolv.conf the Default policy produced, minus the
+    # search line: 169.254.116.108 is Talos hostDNS (forwardKubeDNSToHost).
+    # Talos-side root fix (stop taking the DHCP search domain) is a follow-up;
+    # this override is harmless after it lands.
+    deployment:
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 169.254.116.108
     affinity:
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
