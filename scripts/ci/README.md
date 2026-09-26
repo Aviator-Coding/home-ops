@@ -23,6 +23,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `gpu-node-dashboard-test.py` | Intel GPU node Grafana dashboard (hwmon/device-plugin PromQL contract) |
 | `grafana-mcp-deploy-test.py` | in-cluster grafana-mcp ToolHive `MCPServer` deployment |
 | `grafana-sa-provisioner-test.py` | grafana-sa-provisioner (captain option C) |
+| `grafana-dashboard-gaps-test.py` | Grafana home path must stay the chart file (the sidecar `/tmp/dashboards/home.json` override 500s), Ceph usage/hosts and LiteLLM ops/routing boards render as substitution-disabled ConfigMaps, UniFi downloads rewrite `DS_UNIFI_POLLER`, and the three TrueNAS boards stay deleted |
 | `hermes-state-db-retention-test.py` | `ai/hermes` state.db retention contract (`auto_prune` pinned on, `vacuum_after_prune` pinned **off** because a VACUUM cannot fit the claim and would retry to ENOSPC, `retention_days` asserted as a *shape* - narrower than upstream's 90 - so a further narrowing needs no CI edit) |
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
 | `kopiur-stage0-test.py` | kopiur Stage 0: operator pin/CRDs/monitoring, ceph+r2 ClusterRepositories + deletion protection, no SnapshotPolicy/Schedule, Renovate automerge exclusion, VolSync untouched |
