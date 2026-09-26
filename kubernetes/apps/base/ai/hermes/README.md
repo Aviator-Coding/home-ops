@@ -88,9 +88,9 @@ provider directly; the model id alone picks the upstream (see
   via `SEARXNG_URL`.
 
 > **No `OPENAI_BASE_URL`.** It's a *global* OpenAI-SDK override that pins the endpoint
-> for **every** provider. Per-provider `base_url` in `config.yaml` is the right layer.
-> If Hermes ever won't boot without an OpenAI key, re-add a dummy `OPENAI_API_KEY`
-> **only** (never `OPENAI_BASE_URL`).
+> for **every** provider. Per-provider `api` in `config.yaml`'s `providers:` dict is
+> the right layer. If Hermes ever won't boot without an OpenAI key, re-add a dummy
+> `OPENAI_API_KEY` **only** (never `OPENAI_BASE_URL`).
 
 ## `state.db` retention (why the volume stopped filling)
 

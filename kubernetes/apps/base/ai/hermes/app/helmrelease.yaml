@@ -99,11 +99,11 @@ spec:
               # The old OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL env were
               # REMOVED on purpose: OPENAI_BASE_URL is a global OpenAI-SDK override
               # that hijacked the endpoint for EVERY provider (it pinned grok-4.3
-              # to /opencodego). Per-provider base_url in config.yaml is the right
-              # layer; OPENAI_BASE_URL only ever applied to the `openai-api`
-              # provider, which we no longer use. If Hermes ever refuses to boot
-              # without an OpenAI key, re-add a dummy `OPENAI_API_KEY` ONLY (never
-              # OPENAI_BASE_URL).
+              # to /opencodego). Per-provider `api` in config.yaml's `providers:`
+              # dict is the right layer; OPENAI_BASE_URL only ever applied to
+              # the `openai-api` provider, which we no longer use. If Hermes
+              # ever refuses to boot without an OpenAI key, re-add a dummy
+              # `OPENAI_API_KEY` ONLY (never OPENAI_BASE_URL).
               # --- Web dashboard (chat / management UI) on :9119 ---
               HERMES_DASHBOARD: "1"
               HERMES_DASHBOARD_HOST: 0.0.0.0
