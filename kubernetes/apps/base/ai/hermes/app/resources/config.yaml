@@ -228,3 +228,23 @@ sessions:
   # driven job (`hermes sessions optimize-storage`, which also migrates this DB
   # off legacy FTS layout 0) and needs free space first - see the doc.
   vacuum_after_prune: false
+
+# Approval gating for flagged commands. Declared explicitly so it is durable:
+# without an `approvals:` key here, Hermes runs on the image's stock defaults
+# and the `copy-config` initContainer (see file header) wipes any in-pod
+# adjustment on every restart - confirmed 2026-09-26, live /opt/data/config.yaml
+# carried no approvals override at all (an earlier in-pod
+# destructive_slash_confirm: false, seen 2026-09-18, did not survive the
+# 2026-09-24 pod restart). These are exactly the current (= stock default)
+# values - pinning them for durability, not changing what is gated.
+approvals:
+  mode: smart
+  timeout: 300
+  cron_mode: deny
+  single_query_mode: deny
+  unattended_mode: deny
+  smart_policy: ""
+  denial_breaker_threshold: 3
+  deny: []
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
