@@ -77,6 +77,85 @@ flux suspend hr volsync -n system && kubectl -n system scale deploy/volsync --re
 
 **Unverified:** this was reasoned from the operator architecture (no running controller, no schedule evaluation, no new Job), not executed against the live cluster — that is a state-changing action out of scope for a read-only session. If it turns out not to hold, the per-claim fallback is already documented in `kubernetes/components/kopiur/Readme.md` ("Suspend" section: `kubectl -n <ns> patch snapshotpolicy <name> --type=merge -p '{"spec":{"suspend":true}}'`).
 
+#### 0b. Optional: hibernate `postgres-17` first — long full-cluster outages ONLY, not routine drain-drain shutdowns
+
+**When to use this step:** only when the shutdown will keep all 3 nodes off for longer than a
+routine drain-based maintenance (e.g. extended electrical/facilities work), where the database
+going down at the very start is already implied by the whole cluster going dark. **When not to use
+it:** the ordinary breaker-style outage this runbook otherwise describes — step 1's drains already
+give `postgres-17` a clean switchover on nodes 1 and 2, and step 2's accepted residual risk for the
+last node (see the "Known gap" note there) is a small, already-mitigated risk (WAL archiving is the
+safety net for an already-isolated instance). Running this step for a routine outage trades that
+small risk for a much larger one: it takes the database, and everything backed by it, offline for
+the *entire* shutdown sequence instead of just the last few minutes.
+
+**Why it must run here, before step 1, and not at the last-node step.** CloudNativePG's declarative
+hibernation (`cnpg.io/hibernation` annotation) is cluster-wide, not per-node — confirmed on the
+running operator version, `ghcr.io/cloudnative-pg/cloudnative-pg:1.30.1` (source
+`pkg/reconciler/hibernation/reconciler.go`, `internal/controller/cluster_controller.go:551-566`;
+upstream repo `github.com/cloudnative-pg/cloudnative-pg`, tag `v1.30.1`). The moment the annotation
+is set to `"on"`, the reconciler deletes the primary pod first, then every replica, everywhere they
+are scheduled, regardless of which node is currently being shut down. `postgres-17` runs one
+instance per node (symmetric), so there is no way to hibernate "just the last node" — the only place
+this step can go is before any node is drained.
+
+**What hibernation actually does (source-confirmed and live-tested against a throwaway cluster, not
+the real `postgres-17`):** the hibernation check runs *before* the controller's normal
+switchover/PDB/service reconciliation, deletes the primary pod first, then replicas one at a time
+(`pkg/reconciler/hibernation/reconciler.go:66-98`) — the opposite order from a switchover, and
+correct here because hibernation intentionally forecloses any promotion. Pod deletion goes through
+the instance manager's ordinary SIGTERM path, which runs a manual `CHECKPOINT` on the primary and
+then `pg_ctl stop -m smart` (falling back to `-m fast`) — the same clean-shutdown path every other
+pod deletion in this cluster already uses, not a hibernation-specific one
+(`pkg/management/postgres/instance.go:637-689,1684-1709`). PVCs are never touched by the hibernation
+reconciler and stay `Bound` throughout. `status.currentPrimary`/`targetPrimary` are never modified,
+so resume brings back the same primary with no promotion and no timeline fork. Measured on a
+throwaway 2-instance test cluster: ~10-12s to reach 0 pods after annotating, ~37s from
+`hibernation=off` to `Cluster in healthy state` with 2/2 pods — expect resume time to scale with
+`postgres-17`'s real Postgres startup/replication-rejoin time, not with any hibernation-specific
+mechanism. The operator also defers hibernation (parks rather than proceeding) if
+`cluster.status.phase` isn't `Healthy` at annotate time, so confirm cluster health first.
+
+**Dependent-app impact — read this before deciding to use this step.** `postgres-17`
+(`database/cloudnative-pg/cluster-17`, via `postgres-17-rw`) backs `security/authentik` (**cluster
+SSO** — the ExtAuth outpost login path), `ai/litellm`, `selfhosted/n8n`, `selfhosted/paperless-ngx`,
+`selfhosted/linkwarden`, `coder`, and `downloads/{prowlarr,readarr,radarr,lidarr,sonarr,
+reading-glasses}`, plus `media/seerr`. All of these go down for the whole hibernation window,
+including Authentik SSO, which an operator might otherwise still want mid-shutdown to reach an
+SSO-gated dashboard while draining nodes 1-2.
+
+```sh
+# Confirm cluster is healthy before annotating — hibernation defers (does nothing) otherwise
+kubectl -n database get cluster postgres-17   # expect "Cluster in healthy state", 3/3 ready
+
+kubectl -n database annotate cluster postgres-17 cnpg.io/hibernation=on --overwrite
+
+# Wait for the condition to reach "Hibernated"
+kubectl -n database get cluster postgres-17 -o jsonpath='{.status.conditions[?(@.type=="cnpg.io/hibernation")].reason}'
+
+# Confirm all pods are gone and PVCs are kept
+kubectl -n database get pods -l cnpg.io/cluster=postgres-17     # expect no resources found
+kubectl -n database get pvc -l cnpg.io/cluster=postgres-17      # expect all Bound, unchanged
+```
+
+Then proceed with steps 1-3 below (all 3 node shutdowns) as normal — step 2's last-node accepted
+residual risk no longer applies, since `postgres-17` is already fully stopped by this point.
+
+**Resume, after power-on, once all 3 nodes are back and the CNPG operator is healthy** (i.e. after
+power-on step 4, `kubectl get nodes` showing all 3 Ready — no need to wait for the full power-on
+sequence's later steps first):
+
+```sh
+kubectl -n database annotate cluster postgres-17 cnpg.io/hibernation=off --overwrite
+
+# Wait for the same primary to come back with no promotion, then all replicas to rejoin
+kubectl -n database get cluster postgres-17   # wait for "Cluster in healthy state", 3/3 ready
+kubectl -n database get pods -l cnpg.io/cluster=postgres-17 -o wide   # confirm primary + 2 replicas Ready
+```
+
+This does not replace the step 2 accepted-residual-risk language for the ordinary drain-drain
+sequence below — it is a separate, opt-in step for longer full-cluster outages only.
+
 #### 1. Shut down two of the three nodes normally
 
 Pick an order — it does not matter which two go first, since Ceph's CRUSH placement and CNPG's pod anti-affinity are symmetric across all 3 nodes (verified: 2 OSDs per node, one CNPG instance per node). Recommend `talos-1`, `talos-2`, saving `talos-3` for last since it is already the node that needs special handling on the way back up (its GPU dock).
