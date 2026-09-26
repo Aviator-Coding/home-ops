@@ -103,12 +103,8 @@ machine:
     nodeIP:
       validSubnets:
         - 10.10.10.0/24
-  network:
-    disableSearchDomain: true
-    nameservers:
-      - 10.10.10.1
-      - 1.1.1.1
-      - 1.0.0.1
+  # Nameservers and search domains live in the ResolverConfig document at the
+  # end of this file: Talos rejects them here once that document exists.
   time:
     disabled: false
     servers:
@@ -278,3 +274,25 @@ cluster:
 apiVersion: v1alpha1
 kind: OOMConfig
 triggerExpression: memory_full_avg10 > 50.0 && d_memory_full_avg10 > 0.0 && time_since_trigger > duration("30s")
+---
+# DNS resolvers and search domains. Talos 1.14 started copying the DHCP
+# lease's domain (option 15/119, `sklab.dev`) into the node's search domains,
+# which v1alpha1 `disableSearchDomain: true` does not suppress (it only covers
+# the hostname-derived domain). Every pod inherits the node search list, and
+# Cloudflare's DNSSEC answers NOERROR/NODATA for any nonexistent
+# `<name>.sklab.dev`, so musl clients stop their search walk there and fail
+# to resolve service FQDNs and external names (2026-09-26 roll incident).
+# An explicitly empty `domains: []` replaces the DHCP search domains (a nil
+# list would inherit them), restoring the pre-1.14 state of no search domain.
+# `disableDefault` carries over the old v1alpha1 `disableSearchDomain: true`.
+# hostDNS stays in v1alpha1 `machine.features.hostDNS`: Talos only takes it
+# from this document when enabled here.
+apiVersion: v1alpha1
+kind: ResolverConfig
+nameservers:
+  - address: 10.10.10.1
+  - address: 1.1.1.1
+  - address: 1.0.0.1
+searchDomains:
+  domains: []
+  disableDefault: true
