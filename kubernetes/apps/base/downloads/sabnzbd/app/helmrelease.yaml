@@ -131,16 +131,20 @@ spec:
       # (2026-06-27).
       #
       # `affinity` NotIn talos-3 REMOVED 2026-09-26: it is now redundant.
-      # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) and
-      # this app gets no toleration for it, so the taint alone keeps it off
-      # talos-3 with the same effect - which also means the original
-      # "re-evaluate once MGLRU is proven safe" question is now moot: getting
-      # sabnzbd back onto talos-3 would need an explicit toleration added
-      # here, a decision this change does not make. See
-      # docs/talos-3-scheduling-truth.md.
-      # nodeTaintsPolicy: Honor - default nodeTaintsPolicy is Ignore, which
-      # would still count tainted talos-3 as a spread domain despite the
-      # missing toleration noted above.
+      # talos-3 carries a home-operations.com/dedicated taint
+      # (talos/nodes/talos-3.yaml.j2) and this app gets no toleration for it.
+      # The taint was NoSchedule (a hard filter, equivalent to the removed
+      # affinity) at the time of this removal; it was switched the same day
+      # to PreferNoSchedule (a scheduler score penalty, not a filter), so
+      # what now keeps sabnzbd off talos-3 is the 300-point TaintToleration
+      # gap (docs/talos-3-scheduling-truth.md section 9), not an absolute
+      # exclusion - which also means the original "re-evaluate once MGLRU is
+      # proven safe" question is moot either way: getting sabnzbd back onto
+      # talos-3 would need an explicit toleration added here, a decision
+      # this change does not make. See docs/talos-3-scheduling-truth.md.
+      # nodeTaintsPolicy: Honor - filters only NoSchedule/NoExecute taints,
+      # so it no longer excludes talos-3 (now PreferNoSchedule) from the
+      # spread domain; kept as hygiene against any future hard taint.
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname

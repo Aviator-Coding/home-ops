@@ -82,8 +82,11 @@ spec:
     # Both replicas landed on talos-2 (no spread, no anti-affinity), so
     # draining that one node took cluster DNS down entirely
     # (docs/talos-3-scheduling-truth.md section 9). maxSkew 1 on hostname
-    # forces the two replicas apart; nodeTaintsPolicy Honor keeps this from
-    # trying to place a replica on the talos-3 taint it does not tolerate.
+    # forces the two replicas apart. nodeTaintsPolicy Honor only filters
+    # NoSchedule/NoExecute taints, so it does not exclude talos-3 (its taint
+    # is PreferNoSchedule); the TaintToleration score penalty is what keeps
+    # a replica off talos-3 under normal conditions instead
+    # (docs/talos-3-scheduling-truth.md section 9).
     topologySpreadConstraints:
       - labelSelector:
           matchLabels:

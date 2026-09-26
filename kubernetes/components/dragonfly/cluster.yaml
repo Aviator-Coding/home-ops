@@ -53,10 +53,14 @@ spec:
   # and DoNotSchedule can refuse to place a pod anywhere at all. Live
   # 2026-09-26: exactly this stranded ai/searxng-dragonfly-0,
   # selfhosted/paperless-ngx-dragonfly-0 and selfhosted/rsshub-dragonfly-1
-  # with 0/3 nodes available during the talos-1.14.1 roll. Confirmed the
-  # installed Dragonfly CRD (dragonflies.dragonflydb.io) passes
-  # topologySpreadConstraints through as a plain core TopologySpreadConstraint,
-  # nodeTaintsPolicy included. See docs/talos-3-scheduling-truth.md.
+  # with 0/3 nodes available during the talos-1.14.1 roll (the taint was
+  # NoSchedule at the time). Confirmed the installed Dragonfly CRD
+  # (dragonflies.dragonflydb.io) passes topologySpreadConstraints through as
+  # a plain core TopologySpreadConstraint, nodeTaintsPolicy included. The
+  # taint was switched the same day to PreferNoSchedule, which Honor does
+  # not filter, so this dead-end can no longer recur against the current
+  # taint and Honor is now hygiene against a future hard taint rather than
+  # active protection. See docs/talos-3-scheduling-truth.md sections 9-10.
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: "kubernetes.io/hostname"

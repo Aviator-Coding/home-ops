@@ -93,8 +93,11 @@ spec:
         fsGroup: 5050
         fsGroupChangePolicy: OnRootMismatch
       # nodeTaintsPolicy: Honor - this workload has no toleration for the
-      # talos-3 home-operations.com/dedicated taint, so exclude the tainted
-      # node from the spread domains (default nodeTaintsPolicy is Ignore).
+      # talos-3 home-operations.com/dedicated taint, but Honor only filters
+      # NoSchedule/NoExecute taints and the taint is now PreferNoSchedule, so
+      # it no longer excludes talos-3 from the spread domains; the
+      # TaintToleration score penalty keeps this workload off talos-3 under
+      # normal conditions instead (docs/talos-3-scheduling-truth.md section 9).
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname

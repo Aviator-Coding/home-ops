@@ -659,11 +659,17 @@ runs (`v1.36.5`, `pkg/scheduler/apis/config/v1/default_plugins.go`), a 300
 point gap on a 0-100 normalized score for one untolerated taint, versus a
 maximum 200 points available from `PodTopologySpread` (weight 2) and lesser
 contributions from `NodeResourcesFit` (weight 1). That means: talos-3 stays
-the last resort for the general fleet under normal, non-drain conditions (the
-`nodeTaintsPolicy: Honor` entries added in section 10 already exclude it from
-spread domains for pods that don't tolerate it, so spread does not add points
-for landing there), but during an actual drain of talos-1 or talos-2 the
-overflow can and should land on talos-3, and returns to talos-1/talos-2 on
+the last resort for the general fleet under normal, non-drain conditions -
+**not** because of the `nodeTaintsPolicy: Honor` entries added in section 10:
+per upstream kube-scheduler (`pkg/scheduler/framework/plugins/podtopologyspread/common.go`
+`matchNodeInclusionPolicies`, which calls `helper.DoNotScheduleTaintsFilterFunc()`),
+`Honor` excludes a node from the spread domain only for a taint with effect
+`NoSchedule` or `NoExecute` - it does not match `PreferNoSchedule`, so those
+entries are now a no-op with respect to this taint and talos-3 is counted as
+an ordinary spread domain again. The 300-point `TaintToleration` gap alone is
+what keeps an untolerating pod off talos-3 under normal conditions, but
+during an actual drain of talos-1 or talos-2 the overflow can and should
+land on talos-3, and returns to talos-1/talos-2 on
 its next rollout once the drained node is back. This is not fail-closed the
 way `NoSchedule` was: a sufficiently large stack of preferred affinity/spread/
 resource scores could in principle still beat the 300-point gap and place an
@@ -769,3 +775,20 @@ keeps the source consistent with every other entry but has no live effect
 until that separate chart-wiring gap is fixed - out of scope for this
 change, which only closes the `nodeTaintsPolicy` gap on constraints that
 already reach a pod.
+
+**2026-09-26 correction: every `nodeTaintsPolicy: Honor` entry above stopped
+excluding talos-3 the moment section 9 switched the taint to
+`PreferNoSchedule`.** `Honor` only filters a node out of the spread domain
+for a taint with effect `NoSchedule` or `NoExecute`
+(`helper.DoNotScheduleTaintsFilterFunc()`, see section 9's correction) -
+`PreferNoSchedule` is not in that set, so talos-3 is once again an ordinary
+spread domain for every constraint listed here. None of this reopens the
+live regression this section fixed (that was a `DoNotSchedule` hard failure
+against a filtered-out node, and talos-3 is no longer filtered out at all,
+so there is no node left for `DoNotSchedule` to refuse), and the outcome
+these entries were added for - keeping each workload off talos-3 in normal
+operation - still holds, but now via the `TaintToleration` score penalty
+described in section 9, not via this field. The field is harmless to leave
+in place (it is correct, general `TopologySpreadConstraint` hygiene against
+any future hard taint), but do not read it as active protection against the
+current `home-operations.com/dedicated` taint.
