@@ -97,10 +97,12 @@ spec:
     # talos-3 carries a home-operations.com/dedicated taint
     # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
     # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
-    # section 9). The `discover` DaemonSet needs to run there (it feeds
-    # `rook-discover`'s device inventory for that node's 2 OSDs), so it gets
-    # the matching toleration - the operator chart's only placement knob for
-    # this DaemonSet. See docs/talos-3-scheduling-truth.md.
+    # section 9). The `discover` DaemonSet is scheduled there regardless
+    # (prefer does not filter and it has no other legal node - it feeds
+    # `rook-discover`'s device inventory for that node's 2 OSDs); this
+    # toleration is hygiene against a future hard taint, not the thing
+    # keeping it running there - the operator chart's only placement knob
+    # for this DaemonSet. See docs/talos-3-scheduling-truth.md.
     discover:
       tolerations:
         - key: home-operations.com/dedicated

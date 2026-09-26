@@ -46,8 +46,10 @@ spec:
     # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
     # section 9). This is a DaemonSet (one pod per node with the gpu feature
     # label, all three nodes), advertising each node's own Raptor Lake iGPU -
-    # talos-3's included - so it needs the matching toleration to keep
-    # running there. See docs/talos-3-scheduling-truth.md.
+    # talos-3's included. The talos-3 pod is scheduled there regardless
+    # (prefer does not filter and it has no other legal node); this
+    # toleration is hygiene against a future hard taint, not the thing
+    # keeping it running there. See docs/talos-3-scheduling-truth.md.
     tolerations:
       - key: home-operations.com/dedicated
         operator: Exists

@@ -19,9 +19,11 @@ spec:
       # talos-3 carries a home-operations.com/dedicated taint
       # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
       # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
-      # section 9). This DaemonSet advertises the discrete Arc Pro B70
-      # (devic.es/b70, devic.es/b70-vaapi) that only exists on that node, so
-      # it gets the matching toleration to keep running there. See
+      # section 9). This DaemonSet is scheduled there regardless (prefer
+      # does not filter and it has no other legal node - it advertises the
+      # discrete Arc Pro B70, devic.es/b70 and devic.es/b70-vaapi, that only
+      # exists on that node); this toleration is hygiene against a future
+      # hard taint, not the thing keeping it running there. See
       # docs/talos-3-scheduling-truth.md.
       tolerations:
         - key: home-operations.com/dedicated
