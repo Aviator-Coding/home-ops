@@ -5,7 +5,9 @@
 # reloader restarts the pod when this ConfigMap changes. Change models/providers
 # HERE, in Git — NOT via `hermes model` / `hermes config edit`, whose writes are
 # wiped on the next restart.
-custom_providers:
+_config_version: 46
+
+providers:
   # THE one LLM provider: the agentgateway unified /v1 endpoint. The gateway
   # routes by model id (local qwen -> B70 llama.cpp with kimi failover, bare
   # Go ids like kimi-k2.6/glm-5.1 -> OpenCode Go, vendor slugs like
@@ -14,24 +16,27 @@ custom_providers:
   # dummy — it's never sent on the wire (the gateway overrides Authorization).
   # It exists only so the auxiliary client can resolve a credential: without it
   # Hermes logs "no resolvable api_key" warnings.
-  # NOTE: the value must NOT be `no-key-required`/`no-key`/`` — Hermes' v11→12
-  # config migration (custom_providers→providers dict) drops exactly those
-  # sentinels, so the key would vanish and the warning return. `no-auth` survives.
+  # NOTE: the value must NOT be `no-key-required`/`no-key`/`` — those are the
+  # sentinels Hermes treats as "no credential"; `no-auth` survives as one.
   #
   # NAMING TRAP (kept for posterity): hermes-agent's auxiliary-client resolver
   # (agent/auxiliary_client.py::_normalize_aux_provider) strips the `custom:`
   # prefix and, if what's left matches a BUILT-IN provider id (e.g.
   # `openrouter`), routes into that native branch instead of looking up the
-  # custom_providers entry — silently bypassing the gateway base_url (confirmed
+  # providers entry — silently bypassing the gateway base_url (confirmed
   # live 2026-07-04 with a `custom:openrouter` reference). Keep this provider's
   # name collision-free with hermes-agent's provider registry (`gateway` is
   # safe); never name a custom provider after a built-in one.
   #
-  # Referenced everywhere as `custom:gateway`.
-  - name: gateway
-    base_url: http://internal-noauth.ai.svc.cluster.local/v1
+  # Referenced everywhere as `custom:gateway`. This is the v12 `providers:`
+  # dict shape (converted 2026-09-26 from the legacy `custom_providers:` list
+  # by running Hermes' own v11->v12 migration, read-only, against a copy of
+  # this file in the live pod, to get the exact shape it produces).
+  gateway:
+    api: http://internal-noauth.ai.svc.cluster.local/v1
+    name: gateway
     api_key: no-auth
-    api_mode: chat_completions
+    transport: chat_completions
 
 # Default serving model: the local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL).
 # Free and rate-limit-proof. llama-server auto-selects n_parallel=4 +
