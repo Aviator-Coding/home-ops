@@ -157,7 +157,7 @@ what performed this recovery.
 
 ---
 
-## 2. plex-exporter - NOT fixable from Git
+## 2. plex-exporter - the sync path is fixed in Git; the value is still a captain action
 
 ### What is wrong
 
@@ -221,40 +221,47 @@ GET /status/sessions   -> HTTP 200  {"MediaContainer":{"size":0}}
 GET /library/sections  -> HTTP 200  {"MediaContainer":{"size":3,...}}
 ```
 
-**So no token needs to be minted.** The remaining step is only to copy that value into
+**So no token needs to be minted.** The remaining step is only to get that value into
 1Password, which is a captain action - this repo's rule is that app secrets live in
-1Password and reach the cluster through ExternalSecrets, never in Git and never written by
-hand into a live Secret.
+1Password and reach the cluster through ExternalSecrets, never in Git.
 
 ### Captain action
 
-Populate the **`PLEX_TOKEN` field of the `plex` item in the `Homelab` vault**.
-
-`Homelab` is correct and deliberate: in-cluster ESO reaches the cluster through 1Password
-Connect, whose credential can only see `Homelab`, `Automation` and `Services`. The hyphenated
-`Home-Lab` vault (used by `vals` for bootstrap/Talos rendering) is **invisible to Connect** -
-an ExternalSecret can never read from it.
-
-Read the value the server is already using:
+**Updated 2026-09-26:** the path is now a `PushSecret`
+(`kubernetes/apps/base/media/plex/app/pushsecret.yaml`), the same "operator seeds a Secret, a
+PushSecret upserts one field of the existing 1Password item" shape as
+`ai/litellm-sso-credentials`. Populating `Homelab/plex` -> `PLEX_TOKEN` directly in 1Password
+still works (ESO reads it either way), but the sanctioned path is to create the source Secret
+in-cluster and let the PushSecret carry it up:
 
 ```sh
 export KUBECONFIG=<absolute path>   # never the mise-shim-overridden one, see AGENTS.md NOTES
+
+# Read the value the server is already using
 kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
   'grep -oE "PlexOnlineToken=\"[^\"]+\"" "/config/Library/Application Support/Plex Media Server/Preferences.xml" | cut -d\" -f2'
+
+# Seed the PushSecret's source (created once, by hand; never commit this)
+kubectl --kubeconfig=$KUBECONFIG -n media create secret generic plex-token \
+  --from-literal=PLEX_TOKEN=<value from above>
 ```
 
-Paste it into `Homelab/plex` -> `PLEX_TOKEN`. No manifest change is needed; the ExternalSecret
-already refers to exactly that item and property, and refreshes every 5 minutes.
+The `PushSecret` upserts that into `Homelab/plex` -> `PLEX_TOKEN` within its `refreshInterval`
+(1h). `Homelab` is correct and deliberate there: in-cluster ESO/PushSecret reaches the cluster
+through 1Password Connect, whose credential can only see `Homelab`, `Automation` and `Services`.
+The hyphenated `Home-Lab` vault (used by `vals` for bootstrap/Talos rendering) is **invisible to
+Connect** - neither an ExternalSecret nor a PushSecret can ever reach it.
 
 Verify afterwards:
 
 ```sh
-kubectl --kubeconfig=$KUBECONFIG -n media get externalsecret plex-exporter     # SecretSynced
+kubectl --kubeconfig=$KUBECONFIG -n media get pushsecret plex-token             # Synced
+kubectl --kubeconfig=$KUBECONFIG -n media get externalsecret plex-exporter      # SecretSynced
 kubectl --kubeconfig=$KUBECONFIG -n media get secret plex-exporter-secret \
-  -o jsonpath='{.data.PLEX_TOKEN}' | base64 -d | wc -c                         # expect ~20, not 0
-kubectl --kubeconfig=$KUBECONFIG -n media rollout restart deploy/plex-exporter # pick up new env
+  -o jsonpath='{.data.PLEX_TOKEN}' | base64 -d | wc -c                          # expect ~20, not 0
+kubectl --kubeconfig=$KUBECONFIG -n media rollout restart deploy/plex-exporter  # pick up new env
 kubectl --kubeconfig=$KUBECONFIG -n media port-forward svc/plex-exporter 19594:9594
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:19594/metrics        # expect 200
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:19594/metrics         # expect 200
 ```
 
 `TargetDown` for `job=plex-exporter` clears within ~10 minutes of the target returning 200.
