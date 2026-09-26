@@ -121,6 +121,34 @@
       automerge: false,
     },
     {
+      // MUST stay AFTER the three blanket automerge rules above (same
+      // last-match-wins reasoning as kopiur and Talos). Sibling
+      // never-auto-merge rules may share this trailing block; none may
+      // re-enable automerge for these names.
+      //
+      // ghcr.io/siderolabs/kubelet's version pin feeds the live
+      // `KubernetesUpgrade` CR directly
+      // (kubernetes/apps/base/system-upgrade/tuppr/upgrades/kubernetesupgrade.yaml),
+      // which tuppr applies across all 3 Talos nodes with no manual
+      // apply-node/human step between a merge and a real cluster upgrade -
+      // gated only by two healthChecks. This is the exact same shape as the
+      // Talos/tuppr exclusion above, so it gets the same treatment: these
+      // packages must never auto-merge, patch or otherwise. The other four
+      // packages are grouped with kubelet (see the "Kubernetes" group in
+      // .renovate/groups.json5) because scripts/ci/version-consistency.sh
+      // requires all five to match the KubernetesUpgrade version in the same
+      // PR - grouping them does not make an unattended merge any safer.
+      description: "Never auto merge Kubernetes control-plane/kubelet - kubelet feeds tuppr's KubernetesUpgrade CR, which upgrades the live cluster with no human apply step",
+      matchPackageNames: [
+        "ghcr.io/siderolabs/kubelet",
+        "registry.k8s.io/kube-apiserver",
+        "registry.k8s.io/kube-controller-manager",
+        "registry.k8s.io/kube-proxy",
+        "registry.k8s.io/kube-scheduler",
+      ],
+      automerge: false,
+    },
+    {
       // MUST stay AFTER the blanket minor automerge rule above (same
       // last-match-wins reasoning as kopiur and Talos). Sibling
       // never-auto-merge rules share this trailing block; none may
