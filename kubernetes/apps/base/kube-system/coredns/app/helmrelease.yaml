@@ -35,10 +35,7 @@ spec:
           - name: kubernetes
             parameters: cluster.local in-addr.arpa ip6.arpa
             configBlock: |-
-              pods verified
               fallthrough in-addr.arpa ip6.arpa
-          - name: autopath
-            parameters: "@kubernetes"
           # Cluster is IPv4-only (Cilium enable-ipv6=false, no IPv6 egress).
           # Answer AAAA queries with NODATA so resolvers fall back to A
           # immediately instead of wasting attempts on unreachable IPv6
@@ -63,17 +60,13 @@ spec:
           - name: log
             configBlock: |-
               class error
-    # Keep the node's DHCP search domain out of autopath. Since Talos 1.14 the
-    # dhcp4/bond0 lease's `sklab.dev` search domain reaches the node resolv.conf
-    # despite `disableSearchDomain: true`, and `autopath @kubernetes` appends
-    # CoreDNS's own resolv.conf search list to every pod's walk. sklab.dev is
-    # DNSSEC-signed on Cloudflare, so every nonexistent `<name>.sklab.dev`
-    # answers NOERROR/NODATA and autopath returned that empty answer for all
-    # external names and dotted service FQDNs (2026-09-26 roll incident).
-    # This is the same resolv.conf the Default policy produced, minus the
-    # search line: 169.254.116.108 is Talos hostDNS (forwardKubeDNSToHost).
-    # Talos-side root fix (stop taking the DHCP search domain) is a follow-up;
-    # this override is harmless after it lands.
+    # Pin forward's upstream at Talos hostDNS (169.254.116.108), the nameserver
+    # Default policy uses, without inheriting the node resolv.conf. autopath and
+    # pods verified (which existed only to feed it) are gone: cache serve_stale
+    # turns autopath answers into NXDOMAIN after ~30s per name, and a DHCP
+    # search domain on this file (sklab.dev, DNSSEC NODATA) then breaks external
+    # names and dotted service FQDNs (2026-09-26). Leave autopath out while
+    # serve_stale is set.
     deployment:
       dnsPolicy: None
       dnsConfig:
