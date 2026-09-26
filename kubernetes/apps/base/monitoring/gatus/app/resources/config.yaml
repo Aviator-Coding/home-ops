@@ -128,7 +128,18 @@ endpoints:
   # 200 + "OK"). Same group, so a real app failure is critical, which is
   # the severity those public checks already claimed. github-webhook stays
   # on its route check: GET /hook/ expecting 404 is the receiver itself.
-  - name: Echo
+  #
+  # Named "(in-cluster)" rather than plain "Echo"/"Kromgo": Gatus keys
+  # endpoints by lowercased group+name, and the gatus-sidecar
+  # auto-discovers the SAME echo/kromgo HTTPRoutes into group=external
+  # under the plain lowercase names "echo"/"kromgo" - a same-named static
+  # entry here collides and gatus panics at startup
+  # ("invalid endpoint external_echo: name and group combination must be
+  # unique"), which crashlooped the whole pod from 2026-09-26 until this
+  # rename (confirmed live against the sidecar's generated
+  # /config/gatus-sidecar.yaml, which carries `name: echo, group: external`
+  # and `name: kromgo, group: external`).
+  - name: Echo (in-cluster)
     group: external
     url: http://echo.network.svc.cluster.local/healthz
     interval: 1m
@@ -138,7 +149,7 @@ endpoints:
       - "[STATUS] == 200"
       - "[BODY].path == /healthz"
 
-  - name: Kromgo
+  - name: Kromgo (in-cluster)
     group: external
     url: http://kromgo.monitoring.svc.cluster.local:8080/readyz
     interval: 1m

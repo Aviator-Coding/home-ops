@@ -442,7 +442,9 @@ def assert_gatus_promtool(rule: dict[str, Any], alerts: dict[str, dict[str, Any]
             values,
         )
 
-    echo_down = _expect(alerts["GatusEndpointDown"], {"group": "external", "name": "Echo", "job": "gatus"})
+    echo_down = _expect(
+        alerts["GatusEndpointDown"], {"group": "external", "name": "Echo (in-cluster)", "job": "gatus"}
+    )
     tdarr_down = _expect(
         alerts["GatusServiceDown"], {"group": "media", "name": "Tdarr Server", "job": "gatus"}
     )
@@ -453,7 +455,7 @@ def assert_gatus_promtool(rule: dict[str, Any], alerts: dict[str, dict[str, Any]
         {
             "name": "incluster_echo_down_is_critical",
             "interval": "1m",
-            "input_series": [ep("external", "Echo", down)],
+            "input_series": [ep("external", "Echo (in-cluster)", down)],
             "alert_rule_test": [
                 {"eval_time": "4m", "alertname": "GatusEndpointDown", "exp_alerts": []},
                 {"eval_time": "5m", "alertname": "GatusEndpointDown", "exp_alerts": [echo_down]},
@@ -463,7 +465,7 @@ def assert_gatus_promtool(rule: dict[str, Any], alerts: dict[str, dict[str, Any]
         {
             "name": "incluster_echo_up_stays_silent",
             "interval": "1m",
-            "input_series": [ep("external", "Echo", up)],
+            "input_series": [ep("external", "Echo (in-cluster)", up)],
             "alert_rule_test": [
                 {"eval_time": "20m", "alertname": "GatusEndpointDown", "exp_alerts": []},
             ],
@@ -501,12 +503,12 @@ def assert_gatus_promtool(rule: dict[str, Any], alerts: dict[str, dict[str, Any]
 def assert_gatus_endpoints() -> None:
     cfg = yaml.safe_load(GATUS_CONFIG.read_text())
     endpoints = {item["name"]: item for item in cfg["endpoints"]}
-    echo = endpoints["Echo"]
+    echo = endpoints["Echo (in-cluster)"]
     require(echo["group"] == "external", "Echo must be group external so GatusEndpointDown covers it")
     require(echo["url"] == "http://echo.network.svc.cluster.local/healthz", echo["url"])
     require("[STATUS] == 200" in echo["conditions"], "Echo must require HTTP 200")
     require("[BODY].path == /healthz" in echo["conditions"], "Echo must match its own JSON path")
-    kromgo = endpoints["Kromgo"]
+    kromgo = endpoints["Kromgo (in-cluster)"]
     require(kromgo["group"] == "external", "Kromgo must be group external")
     require(kromgo["url"] == "http://kromgo.monitoring.svc.cluster.local:8080/readyz", kromgo["url"])
     require("[BODY] == OK" in kromgo["conditions"], "Kromgo must match the plain OK body")
