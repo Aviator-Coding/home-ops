@@ -128,7 +128,7 @@ SSO-gated dashboard while draining nodes 1-2.
 # Confirm cluster is healthy before annotating — hibernation defers (does nothing) otherwise
 kubectl -n database get cluster postgres-17   # expect "Cluster in healthy state", 3/3 ready
 
-kubectl -n database annotate cluster postgres-17 cnpg.io/hibernation=on
+kubectl -n database annotate cluster postgres-17 cnpg.io/hibernation=on --overwrite
 
 # Wait for the condition to reach "Hibernated"
 kubectl -n database get cluster postgres-17 -o jsonpath='{.status.conditions[?(@.type=="cnpg.io/hibernation")].reason}'
