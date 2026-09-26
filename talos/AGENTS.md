@@ -47,7 +47,7 @@ just talos apply-node talos-1
 # 4. schematic.yaml.j2 (kernel args + extensions) or Talos version: upgrade-node
 #    (apply-node alone does not boot a new factory image - see note below)
 just talos upgrade-node talos-1
-just talos upgrade-k8s v1.36.3
+just talos upgrade-k8s v1.36.5
 ```
 
 Merging a `machineconfig.yaml.j2`/node-overlay/`schematic.yaml.j2` change only lands
