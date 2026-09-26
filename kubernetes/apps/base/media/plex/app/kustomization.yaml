@@ -7,5 +7,6 @@ resources:
   - ./deployment.yaml
   - ./externalsecret.yaml
   - ./helmrelease.yaml
+  - ./pushsecret.yaml
   - ./service.yaml
   - ./servicemonitor.yaml
