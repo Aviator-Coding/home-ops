@@ -642,8 +642,8 @@ the Rook operator among them) `Pending`, while talos-3 sat at only ~35% CPU /
 of that fleet into. Tuppr's upgrade hooks cannot lift the taint at the one
 point in a rolling upgrade where that would help (no per-node hook exists;
 `hooks.pre` runs once before every node, `hooks.post` runs once after every
-node is done - see the full options analysis in
-`/Users/coder/firstmate/data/homeops-talos3-taint-maintenance-fit/report.md`),
+node is done - see the full options analysis (firstmate-local, not in this
+repo): `data/homeops-talos3-taint-maintenance-fit/report.md`),
 and cutting requests cannot close a ~10 CPU / ~10 Gi deficit without cutting
 something already at or over its measured peak.
 
