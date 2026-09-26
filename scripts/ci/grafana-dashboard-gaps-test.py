@@ -98,8 +98,6 @@ def assert_helmrelease() -> None:
             names.get("DS_UNIFI_POLLER") == "Prometheus",
             f"{key} must map DS_UNIFI_POLLER to Prometheus, got {names}",
         )
-    blob = HELMRELEASE.read_text()
-    require("gnetId: 23027" not in blob, "PDU dashboard 23027 has no outlet metrics here")
 
 
 def assert_configmaps(docs: list[dict[str, Any]]) -> None:

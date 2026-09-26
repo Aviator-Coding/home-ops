@@ -720,7 +720,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 36
       },
@@ -747,44 +747,108 @@
       "type": "piechart"
     },
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 37,
+      "panels": [],
+      "title": "Deployment Health",
+      "type": "row"
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Total tokens grouped into provider/subscription buckets over the selected range",
+      "description": "Current per-deployment health from litellm_deployment_state (0=healthy, 1=unhealthy). This is a latched gauge - it stays 1 after a single past failure until that deployment's next success - so pair it with the failure-rate panel to tell \"unhealthy and still failing\" from \"was unhealthy once\" (docs/ai-system/litellm/fallbacks.md).",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Healthy",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Unhealthy",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 36
+        "w": 8,
+        "x": 0,
+        "y": 43
       },
-      "id": 19,
+      "id": 38,
       "options": {
-        "displayLabels": [
-          "name",
-          "percent"
-        ],
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value",
-            "percent"
-          ]
-        },
-        "pieType": "donut",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "litellm_deployment_state",
+          "legendFormat": "{{litellm_model_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Deployment State by Model",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Per-deployment success and failure rate - the two counters LiteLLM's deployment-health tracking is actually built on.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 8,
+        "y": 43
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
         }
       },
       "targets": [
@@ -793,8 +857,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum(increase(litellm_total_tokens_metric_total{requested_model=~\"chatgpt/.*|gpt-5\\\\..*\"}[$__range])) or vector(0)), \"provider\", \"ChatGPT\", \"\", \"\")",
-          "legendFormat": "{{provider}}",
+          "expr": "sum by (litellm_model_name) (rate(litellm_deployment_success_responses_total[5m]))",
+          "legendFormat": "{{litellm_model_name}} ok/s",
           "refId": "A"
         },
         {
@@ -802,67 +866,69 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "label_replace((sum(increase(litellm_total_tokens_metric_total{requested_model=~\"dsv4f|dsv4p|mimo-v2.5|mimo-v2.5-pro|go-gpt-5.6-luna|qwen3.8-max|qwen3.7-plus|go-minimax-m3|mimo-v2-pro|mimo-v2-omni\"}[$__range])) or vector(0)), \"provider\", \"Opencode Go\", \"\", \"\")",
-          "legendFormat": "{{provider}}",
+          "expr": "sum by (litellm_model_name) (rate(litellm_deployment_failure_responses_total[5m]))",
+          "legendFormat": "{{litellm_model_name}} fail/s",
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "label_replace((sum(increase(litellm_total_tokens_metric_total{requested_model=~\"glm-.*\"}[$__range])) or vector(0)), \"provider\", \"GLM\", \"\", \"\")",
-          "legendFormat": "{{provider}}",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "label_replace((sum(increase(litellm_total_tokens_metric_total{requested_model=~\"MiniMax.*\"}[$__range])) or vector(0)), \"provider\", \"MiniMax\", \"\", \"\")",
-          "legendFormat": "{{provider}}",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "label_replace((sum(increase(litellm_total_tokens_metric_total{requested_model=~\"kimi-.*\"}[$__range])) or vector(0)), \"provider\", \"Kimi\", \"\", \"\")",
-          "legendFormat": "{{provider}}",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "label_replace((sum(increase(litellm_total_tokens_metric_total{requested_model=~\"frontier-pool|reasoning-pool|auto|complexity_router\"}[$__range])) or vector(0)), \"provider\", \"Pools\", \"\", \"\")",
-          "legendFormat": "{{provider}}",
-          "refId": "F"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "label_replace((sum(increase(litellm_total_tokens_metric_total{requested_model=~\"self-hosted|nvidia|nvidia-test|nemotron|vision|muse|summary|reviewer|dsv4f-local|ryzen|memini-embed|memini-rerank|toolhive-embed|llama-.*|mellum2-.*|qwen3\\\\.5-4b\"}[$__range])) or vector(0)), \"provider\", \"Self-hosted\", \"\", \"\")",
-          "legendFormat": "{{provider}}",
-          "refId": "G"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "label_replace((sum(increase(litellm_total_tokens_metric_total{requested_model!~\"chatgpt/.*|gpt-5\\\\..*|dsv4f|dsv4p|mimo-v2.5|mimo-v2.5-pro|go-gpt-5.6-luna|qwen3.8-max|qwen3.7-plus|go-minimax-m3|mimo-v2-pro|mimo-v2-omni|glm-.*|MiniMax.*|kimi-.*|frontier-pool|reasoning-pool|auto|complexity_router|self-hosted|nvidia|nvidia-test|nemotron|vision|muse|summary|reviewer|dsv4f-local|ryzen|memini-embed|memini-rerank|toolhive-embed|llama-.*|mellum2-.*|qwen3\\\\.5-4b\"}[$__range])) or vector(0)), \"provider\", \"Other\", \"\", \"\")",
-          "legendFormat": "{{provider}}",
-          "refId": "H"
         }
       ],
-      "title": "Tokens by Provider (range)",
-      "type": "piechart"
+      "title": "Deployment Success vs Failure Rate by Model (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Fallback chain triggers over the selected range. Both counters are prometheus_client Counters that emit no series until first used, so an all-zero reading here means no fallback fired in range, not a broken query. litellm_deployment_cooled_down_total is deliberately not charted: every model group on this proxy has exactly one deployment, and LiteLLM exempts single-deployment groups from cooldown, so that counter is structurally inert on this cluster (docs/ai-system/litellm/fallbacks.md).",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "id": 40,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "sortOrder": "descending"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(increase(litellm_deployment_successful_fallbacks_total[$__range])) or vector(0)",
+          "legendFormat": "Successful Fallbacks",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(increase(litellm_deployment_failed_fallbacks_total[$__range])) or vector(0)",
+          "legendFormat": "Failed Fallbacks",
+          "refId": "B"
+        }
+      ],
+      "title": "Fallback Events (range)",
+      "type": "bargauge"
     },
     {
       "collapsed": false,
@@ -870,7 +936,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 42
+        "y": 54
       },
       "id": 24,
       "panels": [],
@@ -893,7 +959,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 43
+        "y": 55
       },
       "id": 25,
       "options": {
@@ -940,7 +1006,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 43
+        "y": 55
       },
       "id": 26,
       "options": {
@@ -987,7 +1053,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 43
+        "y": 55
       },
       "id": 27,
       "options": {
@@ -1055,7 +1121,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 43
+        "y": 55
       },
       "id": 28,
       "options": {
@@ -1102,7 +1168,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 47
+        "y": 59
       },
       "id": 29,
       "options": {
@@ -1144,7 +1210,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 47
+        "y": 59
       },
       "id": 30,
       "options": {
@@ -1185,7 +1251,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 67
       },
       "id": 31,
       "panels": [],
@@ -1204,7 +1270,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 68
       },
       "fieldConfig": {
         "defaults": {
@@ -1253,7 +1319,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 56
+        "y": 68
       },
       "fieldConfig": {
         "defaults": {
@@ -1300,7 +1366,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 56
+        "y": 68
       },
       "fieldConfig": {
         "defaults": {
@@ -1347,7 +1413,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 64
+        "y": 76
       },
       "fieldConfig": {
         "defaults": {
@@ -1396,7 +1462,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 64
+        "y": 76
       },
       "fieldConfig": {
         "defaults": {

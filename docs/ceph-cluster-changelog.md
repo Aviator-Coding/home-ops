@@ -84,6 +84,17 @@ Notes / evidence / sources.
 
 ## Change log
 
+### [2026-09-26] Stop excluding the orphaned `rook-ceph-dashboard` Gatus check  (branch `fm/homeops-dashboard-gaps`)
+
+| Field | Value |
+|-------|-------|
+| **Change** | Removed `rook-ceph-dashboard` from the `GatusServiceDown` alert's `name!~` exclusion list in `kubernetes/apps/base/monitoring/gatus/app/prometheusrule.yaml`. No manifest declares the `rook-ceph-dashboard` HTTPRoute any more - it was already removed from git in the "[2026-08-22] Remove Ceph mgr dashboard" entry below - so this exclusion had become the "blind the check forever" anti-pattern rather than a fix. |
+| **Why** | Same lesson as the `ai/comfyui` orphan (`docs/ai-system/comfyui-retirement-2026-09-15.md`, live cleanup in commit `5e67585e`): a Flux prune of an HTTPRoute manifest does not reliably remove the live object, and permanently excluding the resulting 503 by name just hides a real gap instead of fixing it. The correct fix is to delete the live orphan, not keep the exclusion. |
+| **Not done here** | The actual live `kubectl -n rook-ceph delete httproute rook-ceph-dashboard` (and, if it still exists, `kubectl -n rook-ceph delete service rook-ceph-mgr-dashboard`) was **not** run as part of this change - this branch was authored in a sandboxed worktree with no `kubeconfig`/cluster access (expected and normal per the root `AGENTS.md` NOTES on fresh worktrees), so live state could not be inspected or mutated. |
+| **Risk** | If the live orphaned HTTPRoute is still present, removing the exclusion makes `GatusServiceDown` start firing for `rook-ceph-dashboard` (`severity: warning`) until an operator does the one-time delete. That is the intended, visible failure mode - the alternative (leaving the exclusion) is what blinded this endpoint in the first place. |
+| **Rollback** | Re-add `rook-ceph-dashboard` to the `name!~` list if the live delete cannot happen soon and the resulting page is unwanted in the interim. |
+| **Verify** | Post-merge, an operator with cluster access: confirm `kubectl -n rook-ceph get httproute rook-ceph-dashboard` and `kubectl -n rook-ceph get service rook-ceph-mgr-dashboard` (expect the route to exist with no owning Flux Kustomization/HelmRelease and the Service to already be gone, mirroring the comfyui evidence), then `kubectl -n rook-ceph delete httproute rook-ceph-dashboard`, and confirm the `rook-ceph-dashboard` endpoint drops out of Gatus's endpoint list and `GatusServiceDown{name="rook-ceph-dashboard"}` clears - same verification shape as the comfyui removal. Record that follow-up here once done. |
+
 ### [2026-09-20] OSD memory request 14Gi → 12Gi, limit unchanged  (branch `fm/homeops-ceph-osd-request-12gi`)
 
 | Field | Value |
