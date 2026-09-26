@@ -98,14 +98,17 @@ spec:
       tdarr-node:
         replicas: 1
         pod:
-          # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) so
-          # nothing lands there without an explicit toleration - this pod is
-          # pinned to that node by devic.es/b70-vaapi (comment above), so it
-          # needs one. See docs/talos-3-scheduling-truth.md.
+          # talos-3 carries a home-operations.com/dedicated taint
+          # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26
+          # (a scheduler score penalty, not a filter -
+          # docs/talos-3-scheduling-truth.md section 9) - this pod is pinned
+          # to that node by devic.es/b70-vaapi (comment above), so this
+          # toleration keeps the score penalty from disadvantaging the only
+          # node it can legally run on. See docs/talos-3-scheduling-truth.md.
           tolerations:
             - key: home-operations.com/dedicated
               operator: Exists
-              effect: NoSchedule
+              effect: PreferNoSchedule
         containers:
           app:
             image:

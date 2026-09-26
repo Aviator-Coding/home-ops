@@ -20,11 +20,16 @@ spec:
   values:
     fullnameOverride: *app
     # `affinity` NotIn talos-3 REMOVED 2026-09-26: it is now redundant.
-    # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) and
-    # this app gets no toleration for it, so the taint alone keeps it off
-    # talos-3 with the same effect, without a per-app deny-list entry that
-    # fails open for anything that forgets to carry it. See
-    # docs/talos-3-scheduling-truth.md.
+    # talos-3 carries a home-operations.com/dedicated taint
+    # (talos/nodes/talos-3.yaml.j2) and this app gets no toleration for it.
+    # The taint was NoSchedule (a hard filter, equivalent to the removed
+    # affinity) at the time of this removal; it was switched the same day to
+    # PreferNoSchedule (a scheduler score penalty, not a filter), so what now
+    # keeps this app off talos-3 in normal operation is the 300-point
+    # TaintToleration gap (docs/talos-3-scheduling-truth.md section 9), not
+    # an absolute exclusion - a per-app deny-list entry is still not
+    # reinstated here because it would fail open the same way the removed
+    # one did for anything that forgets to carry it.
     image:
       # Chart 0.6.2 stamps this digest at package time; keep it explicit so we
       # never float on :latest/:rolling. Digest wins over tag in the chart helper.

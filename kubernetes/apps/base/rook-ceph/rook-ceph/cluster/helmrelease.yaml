@@ -206,8 +206,11 @@ spec:
           # needs Linux >= 7.0. Talos ships 6.18.x, so rotating client keys would
           # break every RBD map and CephFS mount. Revisit only after Talos ships
           # a kernel 7 release.
-      # talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2) so
-      # nothing lands there without an explicit toleration. `all` is merged
+      # talos-3 carries a home-operations.com/dedicated taint
+      # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
+      # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
+      # section 9); this toleration keeps that penalty from disadvantaging the
+      # pods that belong there. `all` is merged
       # into every Rook daemon type's own placement (mon, osd, mgr,
       # crashcollector, exporter) rather than replacing it, so this alone
       # covers every CephCluster-managed pod that belongs on talos-3 (the 2
@@ -223,7 +226,7 @@ spec:
           tolerations:
             - key: home-operations.com/dedicated
               operator: Exists
-              effect: NoSchedule
+              effect: PreferNoSchedule
       crashCollector:
         disable: false
       dashboard:
@@ -483,12 +486,18 @@ spec:
               #
               # REMOVED 2026-09-26: the explicit `NotIn talos-3` nodeAffinity
               # that used to live here is now redundant. talos-3 carries a
-              # NoSchedule taint (talos/nodes/talos-3.yaml.j2) and mds gets no
-              # toleration for it (mds is deliberately not a belongs-there
-              # workload - docs/talos-3-scheduling-truth.md), so the taint
-              # alone keeps mds off talos-3 with the same effect, without a
-              # per-app deny-list entry that fails open for anything that
-              # forgets to carry it.
+              # home-operations.com/dedicated taint (talos/nodes/talos-3.yaml.j2)
+              # and mds gets no toleration for it (mds is deliberately not a
+              # belongs-there workload - docs/talos-3-scheduling-truth.md).
+              # The taint was NoSchedule (a hard filter, equivalent to the
+              # removed affinity) at the time of this removal; it was
+              # switched the same day to PreferNoSchedule (a scheduler score
+              # penalty, not a filter), so what now keeps mds off talos-3 in
+              # normal operation is the 300-point TaintToleration gap
+              # (docs/talos-3-scheduling-truth.md section 9), not an absolute
+              # exclusion - a per-app deny-list entry is still not reinstated
+              # here because it would fail open the same way the removed one
+              # did for anything that forgets to carry it.
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -503,13 +512,16 @@ spec:
                               - ceph-filesystem-b
               # nodeTaintsPolicy: Honor - mds gets no toleration for the
               # talos-3 home-operations.com/dedicated taint (see the
-              # REMOVED note above), but nodeTaintsPolicy defaults to
-              # Ignore, so without this the tainted node still counts as a
-              # spread domain and DoNotSchedule can refuse to place a pod
-              # anywhere at all once talos-1/talos-2 already hold their
-              # share. Live 2026-09-26: exactly this stranded
-              # ceph-filesystem-a with 0/3 nodes available during the
-              # talos-1.14.1 roll. See docs/talos-3-scheduling-truth.md.
+              # REMOVED note above). Live 2026-09-26: without this, the
+              # default Ignore counted the tainted node as a spread domain
+              # and DoNotSchedule refused to place ceph-filesystem-a
+              # anywhere at all (0/3 nodes available) once talos-1/talos-2
+              # already held their share, during the talos-1.14.1 roll - the
+              # taint was NoSchedule at the time. Honor only filters
+              # NoSchedule/NoExecute taints, so now that the taint is
+              # PreferNoSchedule this dead-end can no longer recur here
+              # either way; kept as hygiene against a future hard taint. See
+              # docs/talos-3-scheduling-truth.md sections 9-10.
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname
@@ -585,16 +597,27 @@ spec:
               #
               # REMOVED 2026-09-26: the explicit `NotIn talos-3` nodeAffinity
               # that used to live here is now redundant. talos-3 carries a
-              # NoSchedule taint (talos/nodes/talos-3.yaml.j2) and rgw gets no
-              # toleration for it (rgw is deliberately not a belongs-there
-              # workload - docs/talos-3-scheduling-truth.md), so the taint
-              # alone keeps rgw off talos-3 with the same effect, without a
-              # per-app deny-list entry that fails open for anything that
-              # forgets to carry it.
+              # home-operations.com/dedicated taint (talos/nodes/talos-3.yaml.j2)
+              # and rgw gets no toleration for it (rgw is deliberately not a
+              # belongs-there workload - docs/talos-3-scheduling-truth.md).
+              # The taint was NoSchedule (a hard filter, equivalent to the
+              # removed affinity) at the time of this removal; it was
+              # switched the same day to PreferNoSchedule (a scheduler score
+              # penalty, not a filter), so what now keeps rgw off talos-3 in
+              # normal operation is the 300-point TaintToleration gap
+              # (docs/talos-3-scheduling-truth.md section 9), not an absolute
+              # exclusion - a per-app deny-list entry is still not reinstated
+              # here because it would fail open the same way the removed one
+              # did for anything that forgets to carry it.
               # nodeTaintsPolicy: Honor - same reasoning as mds above: rgw
               # gets no toleration for the talos-3 taint, so without this the
-              # tainted node still counts as a spread domain and
-              # DoNotSchedule can refuse to place a pod anywhere at all.
+              # default Ignore counted the tainted node as a spread domain
+              # and DoNotSchedule could refuse to place a pod anywhere at
+              # all. Honor only filters NoSchedule/NoExecute taints, so now
+              # that the taint is PreferNoSchedule this dead-end can no
+              # longer recur here either way; kept as hygiene against a
+              # future hard taint (docs/talos-3-scheduling-truth.md sections
+              # 9-10).
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname

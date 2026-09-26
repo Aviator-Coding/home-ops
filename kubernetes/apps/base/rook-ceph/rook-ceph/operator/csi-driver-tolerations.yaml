@@ -40,11 +40,16 @@
 # any spec change, so this SSA patch alone is sufficient - no OperatorConfig
 # edit needed.
 #
-# talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2). This
-# closes the one remaining gap from that change: without it, a future
-# talos-3 reboot or a rollout of the nodeplugin DaemonSets would leave that
-# node unable to mount RBD/CephFS volumes (including for
-# database/postgres-17-1). See docs/talos-3-scheduling-truth.md.
+# talos-3 carries a home-operations.com/dedicated taint
+# (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
+# scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
+# section 9). Under the original NoSchedule effect this toleration closed
+# the one remaining gap from that change: without it, a talos-3 reboot or a
+# rollout of the nodeplugin DaemonSets would have left that node unable to
+# mount RBD/CephFS volumes (including for database/postgres-17-1).
+# PreferNoSchedule no longer blocks DaemonSet placement on its required node
+# either way, so this is now hygiene against a future hard taint rather than
+# the sole thing preventing that outage. See docs/talos-3-scheduling-truth.md.
 #
 # Two annotations are required because these two objects enter this
 # Kustomization's Flux inventory the moment they're listed as a resource here
@@ -103,7 +108,7 @@ spec:
     tolerations:
       - key: home-operations.com/dedicated
         operator: Exists
-        effect: NoSchedule
+        effect: PreferNoSchedule
 ---
 apiVersion: csi.ceph.io/v1
 kind: Driver
@@ -118,4 +123,4 @@ spec:
     tolerations:
       - key: home-operations.com/dedicated
         operator: Exists
-        effect: NoSchedule
+        effect: PreferNoSchedule
