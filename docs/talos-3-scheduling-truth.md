@@ -552,35 +552,58 @@ the scheduler entirely, taints do not apply.
 | `rook-ceph/rook-discover` | DaemonSet | belongs (feeds this node's OSD device inventory) | yes, via the operator chart's `discover.tolerations` |
 | `system/generic-device-plugin` | DaemonSet | belongs (advertises this node's B70) | yes, `defaultPodOptions.tolerations` |
 | `system/intel-gpu-plugin-xe` | DaemonSet (via `GpuDevicePlugin` CR) | belongs (advertises this node's own iGPU, all 3 nodes) | yes, CR's `spec.tolerations` |
-| `kube-system/multus` | DaemonSet | belongs (CNI, every node) | yes, but **not** via values - see gap below |
-| `rook-ceph/rook-ceph.cephfs.csi.ceph.com-nodeplugin`, `rook-ceph/rook-ceph.rbd.csi.ceph.com-nodeplugin` | DaemonSet (owned by `Driver` CR) | belongs (mounts Ceph volumes for pods on this node) | **no - unreachable from this repo, see gap below** |
+| `kube-system/multus` | DaemonSet | belongs (CNI, every node) | yes, but **not** via values - see below |
+| `rook-ceph/rook-ceph.cephfs.csi.ceph.com-nodeplugin`, `rook-ceph/rook-ceph.rbd.csi.ceph.com-nodeplugin` | DaemonSet (owned by `Driver` CR) | belongs (mounts Ceph volumes for pods on this node) | yes, but **not** via the rook-ceph chart - see below |
 | `kube-system/kube-apiserver-talos-3`, `kube-controller-manager-talos-3`, `kube-scheduler-talos-3` | static pod | unaffected | none needed - static pods bypass the scheduler entirely |
 | everything else observed on talos-3 (ai/hermes, ai/litellm, ai/samba, ai/searxng-dragonfly, database/{cloudnative-pg-operator,pgadmin,surrealdb}, home-automation/*, monitoring/{alertmanager,grafana,gatus,...}, security/{authentik-dragonfly,onepassword-connect}, selfhosted/{rsshub,rsshub-dragonfly,paperless-ngx-dragonfly}, system-controller/k8tz, system-upgrade/tuppr, system/kopiur-{controller,webhook}, rook-ceph-operator, kube-prometheus-stack-operator, plus all Jobs/CronJobs: actions-runner-system, downloads, renovate, system pvc-*-check, ceph-q/r2-q) | mixed (Deployment/StatefulSet/Job/CronJob) | drift - no nodeAffinity ties any of these to talos-3 | none - this is exactly the class of pod the old deny-list could not stop and the taint now does; they reschedule off talos-3 on their own next rollout/restart |
 
-### Two DaemonSets that could not get a toleration from this repo
+### Two DaemonSets whose tolerations could not be set through their normal chart
 
 **`rook-ceph.{cephfs,rbd}.csi.ceph.com-nodeplugin`.** Since Rook v1.20's
 ceph-csi-operator migration, these DaemonSets are owned by `Driver` CRs
-(`csi.ceph.io/v1`) created by an internal `ceph-csi-drivers` Helm release that
-Flux does not manage - the exact same structural gap already documented for
-the `ctrlplugin` Deployment in `kubernetes/apps/base/rook-ceph/rook-ceph/operator/helmrelease.yaml`.
-The `Driver` CRD does define `spec.nodePlugin.tolerations` (confirmed live
-against the installed CRD), so the field exists - but nothing in this repo's
-Flux-managed manifests can set it, and applying a competing `Driver` object
-would fight whatever reconciles the internal release, matching the reasoning
-already accepted for ctrlplugin.
+(`csi.ceph.io/v1`), and those CRs are created once by a manual, out-of-band
+`helm install ceph-csi-drivers ...` (`deploy/charts/ceph-csi-drivers` in the
+`ceph/ceph-csi-operator` repo, installed per Rook's own documented procedure -
+`Documentation/Helm-Charts/csi-drivers-chart.md` at rook/rook `v1.20.7`) that
+Flux does not manage and never will - matching the ctrlplugin note already in
+`kubernetes/apps/base/rook-ceph/rook-ceph/operator/helmrelease.yaml`. That
+rules out the rook-ceph/rook-ceph-cluster charts as a path (neither declares
+`ceph-csi-drivers` as a Helm dependency - checked both charts' `Chart.yaml`
+at `v1.20.7`) and rules out fighting a full competing Helm release for the
+same reason already accepted for ctrlplugin.
 
-**Consequence:** applying the taint does not affect the currently-running
-nodeplugin pods on talos-3 (NoSchedule never evicts). But the next time either
-pod is recreated on talos-3 - a node reboot, a manual delete, or a rollout of
-the `ceph-csi-drivers` release itself - it will fail to reschedule there, and
-talos-3 will lose the ability to mount RBD/CephFS volumes for any pod on that
-node, including `database/postgres-17-1` (its only local dependency on
-working CSI). **This must be re-verified before the next talos-3 reboot**: if
-`kubectl -n rook-ceph get pods -o wide | grep nodeplugin | grep talos-3`
-would come back empty after that reboot, the toleration gap needs a live
-`kubectl patch driver` (or an upstream/chart fix) before the reboot proceeds -
-not after.
+**But the `Driver` object's own field is a different, and reachable, path.**
+Traced to the exact code the live operator runs
+(`quay.io/cephcsi/ceph-csi-operator:v1.0.4`, confirmed live 2026-09-26 -
+matches the `ceph-csi-operator` dependency version pinned in
+`deploy/charts/rook-ceph/Chart.yaml` at rook/rook `v1.20.7`):
+`ceph-csi-operator` `internal/controller/driver_controller.go` at `v1.0.4`,
+`reconcileNodePluginDaemonSet()` line 1291
+(`pluginSpec := cmp.Or(r.driver.Spec.NodePlugin, &csiv1.NodePluginSpec{})`)
+and line 1333 (`Tolerations: pluginSpec.Tolerations,`) - the running
+DaemonSet's tolerations come directly from the live `Driver` object's
+`spec.nodePlugin.tolerations`, and the controller watches `Driver` objects
+directly and reconciles on any spec change. No OperatorConfig defaulting is
+needed (`mergeDriverSpecs`, same file line ~1761-1869, only fills a field
+that is nil on the Driver object, and this field already has a value once we
+set it). The live CRD (`drivers.csi.ceph.io`) marks neither `spec` nor
+`nodePlugin` `x-kubernetes-map-type: atomic` (checked directly against the
+installed CRD), so a partial manifest setting only
+`spec.nodePlugin.tolerations` merges at that field via SSA without touching
+sibling fields (`affinity`, `priorityClassName`, `resources`, ...) that the
+Helm release already set - this is not "a competing `Driver` object" in the
+sense the ctrlplugin note warns about, since nothing else claims this exact
+field today (verified live: `kubectl -n rook-ceph get driver <name> -o
+jsonpath='{.spec.nodePlugin.tolerations}'` returns empty on both objects).
+
+Closed with `kubernetes/apps/base/rook-ceph/rook-ceph/operator/csi-driver-tolerations.yaml`
+(a plain `Driver` patch, same directory as `csi-driver-rbac.yaml`, which
+documents this same class of out-of-band-release gap for RBAC). Verify after
+merge with the same live command above - it should now return the
+toleration on both `Driver` objects, and
+`kubectl -n rook-ceph get pods -o wide | grep nodeplugin` should show both
+DaemonSets still `2/2`/`3/3` desired-vs-current after the taint lands and a
+future talos-3 reboot.
 
 **`kube-system/multus`.** The chart (`ghcr.io/bjw-s-labs/helm/multus`)
 hardcodes this DaemonSet's tolerations in its own template

@@ -1,0 +1,121 @@
+---
+# Adds the talos-3 taint toleration to the two live `Driver` CRs
+# (rook-ceph.{rbd,cephfs}.csi.ceph.com) that own the CSI nodeplugin
+# DaemonSets. These objects are created once by a manual, out-of-band
+# `helm install ceph-csi-drivers ...` (see csi-driver-rbac.yaml above and
+# docs/talos-3-scheduling-truth.md section 9) - Flux does not own that Helm
+# release and never will (fighting it is explicitly out of scope, same as the
+# ctrlplugin note in ../helmrelease.yaml). This file does not attempt to own
+# the whole object: it is a partial manifest carrying only
+# `spec.nodePlugin.tolerations`, applied via ordinary Kustomize/SSA on top of
+# the Helm-created object. That field is unset on the live object (verified
+# 2026-09-26: `kubectl -n rook-ceph get driver <name> -o jsonpath='{.spec.nodePlugin.tolerations}'`
+# returns empty) and the CRD marks neither `nodePlugin` (an object) nor its
+# parent `spec` with `x-kubernetes-map-type: atomic` (verified against the
+# live CRD `drivers.csi.ceph.io`), so SSA merges this at the `nodePlugin`
+# field level and leaves every sibling field (affinity, priorityClassName,
+# resources, ...) exactly as the Helm release set it.
+#
+# Traced to the exact code path at the live operator version
+# (quay.io/cephcsi/ceph-csi-operator:v1.0.4, confirmed live 2026-09-26 via
+# `kubectl -n rook-ceph get deploy ceph-csi-controller-manager -o jsonpath='{.spec.template.spec.containers[0].image}'`,
+# matching the rook-ceph chart's pinned `ceph-csi-operator` dependency
+# version 1.0.4 in deploy/charts/rook-ceph/Chart.yaml at rook/rook tag
+# v1.20.7 - our live rook-ceph-operator image): ceph/ceph-csi-operator
+# internal/controller/driver_controller.go at v1.0.4,
+# `reconcileNodePluginDaemonSet()`:
+#   line 1291: `pluginSpec := cmp.Or(r.driver.Spec.NodePlugin, &csiv1.NodePluginSpec{})`
+#   line 1333: `Tolerations: pluginSpec.Tolerations,` (set directly on the
+#              DaemonSet's pod spec)
+# `pluginSpec` there IS `Driver.Spec.NodePlugin` - no OperatorConfig
+# defaulting is required for this to take effect (OperatorConfig's
+# `driverSpecDefaults.nodePlugin.tolerations` is a second, unused path that
+# would only fire if this field were left unset -
+# ceph-csi-operator/internal/controller/driver_controller.go:337-338 calls
+# `mergeDriverSpecs`, which only fills a field when it is nil on the Driver
+# object; see mergeDriverSpecs, driver_controller.go:1761 comment "will fill
+# in any unset fields in dest with a copy of the same field in src"). The
+# ceph-csi-operator controller watches `Driver` objects directly
+# (SetupWithManager, driver_controller.go) and re-reconciles the DaemonSet on
+# any spec change, so this SSA patch alone is sufficient - no OperatorConfig
+# edit needed.
+#
+# talos-3 carries a NoSchedule taint (talos/nodes/talos-3.yaml.j2). This
+# closes the one remaining gap from that change: without it, a future
+# talos-3 reboot or a rollout of the nodeplugin DaemonSets would leave that
+# node unable to mount RBD/CephFS volumes (including for
+# database/postgres-17-1). See docs/talos-3-scheduling-truth.md.
+#
+# Two annotations are required because these two objects enter this
+# Kustomization's Flux inventory the moment they're listed as a resource here
+# - and Flux's `driver_controller.go` sets an owner reference from each
+# Driver CR to the nodeplugin DaemonSet AND ctrlplugin Deployment it manages
+# (`ctrlutil.SetControllerReference(&r.driver, daemonSet, r.Scheme)`,
+# ceph-csi-operator driver_controller.go). If this file or the enclosing
+# Kustomization were ever removed, an ordinary Flux prune would DELETE these
+# Driver objects - which Kubernetes would then cascade into deleting the
+# owned DaemonSet/Deployment, taking down RBD/CephFS mount/unmount
+# cluster-wide, not just on talos-3. Verified against the exact source this
+# cluster's kustomize-controller runs
+# (ghcr.io/fluxcd/kustomize-controller:v1.9.4, confirmed live 2026-09-26 via
+# `kubectl -n flux-system get deploy kustomize-controller -o jsonpath='{.spec.template.spec.containers[0].image}'`):
+#
+# - `kustomize.toolkit.fluxcd.io/prune: disabled` - the value must be the
+#   exact lowercase string `disabled`: `DisabledValue = "disabled"`,
+#   fluxcd/kustomize-controller `api/v1/kustomization_types.go` line 32 at
+#   tag `v1.9.4` (the same repo's own `docs/spec/v1/kustomizations.md` table
+#   at that tag inconsistently prints `Disabled`, capitalized - the constant
+#   in code is authoritative and matches this repo's existing lowercase
+#   precedent, e.g. `kubernetes/components/common/namespace.yaml`). It is
+#   read straight from the object's live annotations during
+#   `deleteObjects()`'s `Exclusions` map
+#   (`internal/controller/kustomization_controller.go` line 1411 at the same
+#   tag), which is what actually protects an object from
+#   `manager.DeleteAll(...)` during garbage collection.
+# - `kustomize.toolkit.fluxcd.io/ssa: Merge` - value is the exact string
+#   `Merge`: `MergeValue = "Merge"`, same `kustomization_types.go` line 33.
+#   This tells the controller to only claim the fields THIS manifest
+#   declares rather than reconcile the whole object as sole owner, so the
+#   Helm-set fields on the same object (affinity, priorityClassName,
+#   resources, ...) are left alone rather than fought over on drift.
+#   IMPORTANT CAVEAT, confirmed in the same doc
+#   (`docs/spec/v1/kustomizations.md` "Merge" section at `v1.9.4`): a list
+#   field with no explicit `x-kubernetes-list-type` in its CRD schema is
+#   atomic by Kubernetes SSA's own default (server-side-apply KEP), and the
+#   `drivers.csi.ceph.io` CRD does not set `x-kubernetes-list-type` on
+#   `nodePlugin.tolerations` (verified live) - so this list is atomic exactly
+#   like `PodSpec.tolerations`, the doc's own worked example of a field Merge
+#   cannot split ownership of. That does not weaken this patch: nothing else
+#   has ever set this field (verified live 2026-09-26, empty on both
+#   objects), so there is no other manager to conflict with - Merge is
+#   protecting the OTHER fields on this object from us, not protecting this
+#   field from anyone else.
+apiVersion: csi.ceph.io/v1
+kind: Driver
+metadata:
+  name: rook-ceph.rbd.csi.ceph.com
+  namespace: rook-ceph
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: Merge
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  nodePlugin:
+    tolerations:
+      - key: home-operations.com/dedicated
+        operator: Exists
+        effect: NoSchedule
+---
+apiVersion: csi.ceph.io/v1
+kind: Driver
+metadata:
+  name: rook-ceph.cephfs.csi.ceph.com
+  namespace: rook-ceph
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: Merge
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  nodePlugin:
+    tolerations:
+      - key: home-operations.com/dedicated
+        operator: Exists
+        effect: NoSchedule
