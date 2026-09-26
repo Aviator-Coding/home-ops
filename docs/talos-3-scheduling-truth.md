@@ -626,3 +626,82 @@ above *should* eventually get an explicit anti-affinity or move permanently -
 it only stops new drift of that shape from recurring. It also does not apply
 the taint to the live cluster (see the operator step above) or reboot any
 node.
+
+## 10. 2026-09-26: the taint alone left a second gap - `nodeTaintsPolicy`
+
+Section 9's taint landed live and the same day's attended Talos 1.14.1 roll
+hit a second, distinct gap: once talos-3 rebooted with the taint applied,
+four pods with no toleration for it - `rook-ceph/rook-ceph-mds-ceph-filesystem-a`,
+`ai/searxng-dragonfly-0`, `selfhosted/paperless-ngx-dragonfly-0`,
+`selfhosted/rsshub-dragonfly-1` - went `Pending` with
+`0/3 nodes are available: 1 node(s) had untolerated taint(s), 2 node(s)
+didn't match pod topology spread constraints`, and the missing MDS held Ceph
+at `HEALTH_WARN` (insufficient standby MDS), which blocked tuppr's Ceph
+health gate and stalled the roll to talos-1/talos-2.
+
+The mechanism: a `topologySpreadConstraint`'s `nodeTaintsPolicy` defaults to
+`Ignore` (both the Kubernetes core field and every CRD checked below
+inherit this default), so a tainted node with no matching pods still counts
+as an eligible spread domain. With `whenUnsatisfiable: DoNotSchedule` and
+`maxSkew: 1-2`, once talos-1 and talos-2 each already hold their share, the
+only node left that would keep the skew legal is the tainted talos-3 - which
+the taint then refuses. The pod has nowhere to go. `ScheduleAnyway`
+constraints do not hard-fail this way, but still score the empty tainted
+node as attractive, so they carry the same latent gap.
+
+This is not specific to the four pods that happened to hit it live - it is
+every `topologySpreadConstraint` in the repo whose workload does not
+tolerate the taint. Fixed by adding `nodeTaintsPolicy: Honor` to each one so
+the tainted node is excluded from the spread domain calculation entirely
+(the taint's *own* semantics - "nodes without taints, along with tainted
+nodes for which the incoming pod has a toleration, are included"). Workloads
+that already tolerate the taint (Rook's `cephClusterSpec.placement.all`,
+merged into mgr/mon) were left unchanged - talos-3 is a legitimate domain
+for them.
+
+Every constraint changed, found via `git grep topologySpreadConstraints --
+kubernetes` and cross-checked against the toleration list
+(`git grep home-operations.com/dedicated -- kubernetes talos`):
+
+- `kubernetes/components/dragonfly/cluster.yaml` - the live regression's root
+  cause (searxng/paperless-ngx/rsshub dragonfly instances)
+- `kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml` - mds
+  and rgw placement blocks (the live regression's other root cause)
+- `kubernetes/apps/base/database/cloudnative-pg/pgadmin/helmrelease.yaml`
+- `kubernetes/apps/base/database/surrealdb/app/helmrelease.yaml` (see caveat
+  below)
+- `kubernetes/apps/base/downloads/sabnzbd/app/helmrelease.yaml`
+- `kubernetes/apps/base/downloads/sonarr/app/helmrelease.yaml`
+- `kubernetes/apps/base/home-automation/home-assistant/app/helmrelease.yaml`
+- `kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml`
+- `kubernetes/apps/base/selfhosted/excalidraw/app/helmrelease.yaml`
+- `kubernetes/apps/base/system-controller/k8tz/app/helmrelease.yaml`
+- `kubernetes/apps/base/system/fstrim/app/helmrelease.yaml` (CronJob,
+  `parallelism: 3` across 3 nodes - the same shape as the live regression)
+
+**CRD/chart verification, not assumption.** `nodeTaintsPolicy` is part of the
+core Kubernetes `TopologySpreadConstraint` type, so any manifest that renders
+a plain pod spec (all the app-template/grafana-chart entries above) carries it
+through unmodified - confirmed live post-merge against each rendered
+Deployment/CronJob (`kubectl get deploy/cronjob ... -o jsonpath=...
+topologySpreadConstraints`). For the two CRD-mediated paths, checked the
+*installed* CRD schema rather than assuming: `kubectl get crd
+dragonflies.dragonflydb.io -o jsonpath='...topologySpreadConstraints...'` and
+the equivalent for `cephfilesystems.ceph.rook.io` /
+`cephobjectstores.ceph.rook.io` both show the full core
+`TopologySpreadConstraint` schema, `nodeTaintsPolicy` included. CephCluster's
+mgr/mon placement (`spec.placement.<daemon>.topologySpreadConstraints`,
+under the CRD's `x-kubernetes-preserve-unknown-fields: true` shared
+`placement` map) also has the field in its embedded schema - moot here since
+those two daemon types already tolerate the taint and were left unchanged.
+
+**Caveat: `database/surrealdb`'s `topologySpreadConstraints` value was
+already dead before this change**, unrelated to `nodeTaintsPolicy` -
+`task flux:test:all` has flagged it under "values not used by the chart"
+since before this fix (one of the four pre-existing warnings noted
+repo-wide), and the live `Deployment/surrealdb` pod spec carries no
+`topologySpreadConstraints` at all. Adding `nodeTaintsPolicy: Honor` there
+keeps the source consistent with every other entry but has no live effect
+until that separate chart-wiring gap is fixed - out of scope for this
+change, which only closes the `nodeTaintsPolicy` gap on constraints that
+already reach a pod.

@@ -121,10 +121,14 @@ spec:
               topologyKey: kubernetes.io/hostname
 
     # Topology spread
+    # nodeTaintsPolicy: Honor - this workload has no toleration for the
+    # talos-3 home-operations.com/dedicated taint, so exclude the tainted
+    # node from the spread domains (default nodeTaintsPolicy is Ignore).
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: ScheduleAnyway
+        nodeTaintsPolicy: Honor
         labelSelector:
           matchLabels:
             app.kubernetes.io/name: surrealdb

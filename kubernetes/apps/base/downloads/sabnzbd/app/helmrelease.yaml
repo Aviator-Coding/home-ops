@@ -138,10 +138,14 @@ spec:
       # sabnzbd back onto talos-3 would need an explicit toleration added
       # here, a decision this change does not make. See
       # docs/talos-3-scheduling-truth.md.
+      # nodeTaintsPolicy: Honor - default nodeTaintsPolicy is Ignore, which
+      # would still count tainted talos-3 as a spread domain despite the
+      # missing toleration noted above.
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: ScheduleAnyway
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: sabnzbd
