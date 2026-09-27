@@ -107,6 +107,37 @@ intended.
 - `scripts/ci/toolhive-session-probe-test.py`: pins that check's shape so it cannot drift back
   into a check that cannot fail.
 
+## Considered and rejected: pointing vmcp at `ai/embedding-gpu`
+
+`ai/embedding-gpu` serves the same Qwen3-Embedding-0.6B from the B70. vmcp v0.42.1 can reach
+it: `optimizer.embeddingProvider: openai` POSTs to `<base>/embeddings`, and llama.cpp serves
+`/v1/embeddings`. It was measured on 2026-09-27 and rejected:
+
+- **Batch-size OOM risk.** vmcp's OpenAI client sends the whole catalog in ONE request
+  (`openAIMaxBatchSize = 2048` in `similarity/openai_client.go`), so every session would be a
+  449-input request. Larger batch sizes are the still-unexplained OOM shape recorded for this
+  pod: batch 4 is the measured-safe point, and it was OOMKilled 2x (31 restarts) in the 12
+  days before this measurement. That request was not sent, so the live service was not
+  risked.
+- **NaN drift.** At the safe batch of 4, one of three full-catalog passes returned null
+  (NaN) components. This is the known, unexplained `embedding-gpu` fault. Go's JSON decoder
+  turns `null` into `0` for a float32 without an error, so tool search would degrade silently.
+- **Shared card.** The pod runs at priorityClass `embedding-gpu-low` (-10, never preempts)
+  on the B70 it shares with `ai/vllm` chat. Every MCP session, including Hermes' ~1/min
+  retries while failing, would put a 449-text burst on that card. That is the request-rate
+  chat-throttling tradeoff described in AGENTS.md.
+- **Coupling.** The operator rejects `openai` together with `embeddingServerRef`. The switch
+  would drop the managed reference and hardcode the URL.
+- **Speed is not the difference.** At batch 4 with sequential requests, the GPU took 5.4s for
+  all 449 texts, against 6.0s for bge-small on CPU. The Qwen tokenizer puts every tool text
+  at 339 tokens or fewer, so llama.cpp's 512-token context would reject none.
+- **Quality is not the difference.** On the same five queries (kubectl pods, flux
+  kustomization, github PRs, grafana prometheus, radarr add movie), Qwen3's semantic-only
+  top-2 held the right tool 5/5. bge-small through the real hybrid `find_tool` did too; its
+  only miss was ranking `arr_radarr_add_movie` 2nd rather than 1st. vmcp blends BM25 over
+  very lexical tool names with the semantic score, and it sends queries without Qwen3's
+  instruct prefix, so Qwen3's edge here is marginal.
+
 ## Known gap
 
 When the embedding call fails **fast** instead of slowly, vmcp still answers `initialize` with
