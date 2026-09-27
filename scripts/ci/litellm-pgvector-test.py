@@ -162,14 +162,93 @@ def test_tag_changes_with_any_context_byte() -> dict[str, Any]:
     return {"base": base, "mutated": mutated}
 
 
-def test_build_workflow_uses_this_algorithm() -> dict[str, Any]:
-    text = BUILD_WF.read_text()
+def build_workflow_steps() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    wf = yaml.safe_load(BUILD_WF.read_text())
+    return wf, wf["jobs"]["build"]["steps"]
+
+
+def find_step(
+    steps: list[dict[str, Any]], *, id_: str | None = None, uses_prefix: str | None = None
+) -> dict[str, Any] | None:
+    for step in steps:
+        if id_ is not None and step.get("id") == id_:
+            return step
+        if uses_prefix is not None and str(step.get("uses", "")).startswith(uses_prefix):
+            return step
+    return None
+
+
+def run_command_lines(run_script: str) -> list[str]:
+    """Non-blank lines of a `run:` script that are not entirely a `#` comment."""
+    return [line.strip() for line in run_script.splitlines() if line.strip() and not line.strip().startswith("#")]
+
+
+def check_build_workflow(wf: dict[str, Any], steps: list[dict[str, Any]]) -> dict[str, Any]:
+    env = wf.get("env", {})
     require(
-        "scripts/ci/litellm-pgvector-test.py --print-tag" in text,
-        "build-litellm-pgvector.yaml must derive its tag from this script's --print-tag",
+        env.get("IMAGE_NAME") == IMAGE_REPOSITORY.removeprefix("ghcr.io/"),
+        f"workflow env.IMAGE_NAME {env.get('IMAGE_NAME')!r} != {IMAGE_REPOSITORY.removeprefix('ghcr.io/')!r}",
     )
-    require(IMAGE_REPOSITORY.removeprefix("ghcr.io/") in text, "workflow pushes a different image name")
-    return {"workflow": BUILD_WF.name}
+
+    tag_step = find_step(steps, id_="tag")
+    require(tag_step is not None, "no step with id: tag")
+    lines = run_command_lines(tag_step.get("run", ""))
+    require(
+        any("python3 scripts/ci/litellm-pgvector-test.py --print-tag" in line for line in lines),
+        "the tag step must run this script's --print-tag as a command, not just mention it in a comment",
+    )
+    require(
+        any("GITHUB_OUTPUT" in line and re.search(r"\btag=", line) for line in lines),
+        "the tag step must write its result to GITHUB_OUTPUT as 'tag'",
+    )
+
+    build_step = find_step(steps, uses_prefix="docker/build-push-action@")
+    require(build_step is not None, "no docker/build-push-action step")
+    with_ = build_step.get("with", {})
+    require(
+        with_.get("context") == ".github/docker/litellm-pgvector",
+        f"build-push context {with_.get('context')!r} != .github/docker/litellm-pgvector",
+    )
+    expected_tags = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}"
+    require(
+        with_.get("tags") == expected_tags,
+        f"build-push tags {with_.get('tags')!r} must be env.REGISTRY/env.IMAGE_NAME tagged with the tag step's output",
+    )
+    return {"image": f"{env.get('REGISTRY')}/{env.get('IMAGE_NAME')}"}
+
+
+def test_build_workflow_uses_this_algorithm() -> dict[str, Any]:
+    wf, steps = build_workflow_steps()
+    return check_build_workflow(wf, steps)
+
+
+def test_build_workflow_checker_refuses_wrong_wiring() -> dict[str, Any]:
+    wf, steps = build_workflow_steps()
+
+    wrong_tag = copy.deepcopy(steps)
+    find_step(wrong_tag, uses_prefix="docker/build-push-action@")["with"]["tags"] = (
+        "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+    )
+
+    commented_out = copy.deepcopy(steps)
+    find_step(commented_out, id_="tag")["run"] = (
+        "set -euo pipefail\n"
+        "# python3 scripts/ci/litellm-pgvector-test.py --print-tag\n"
+        'echo "tag=deadbeef" >> "$GITHUB_OUTPUT"\n'
+    )
+
+    refusals = {}
+    for label, mutated_steps in {
+        "build step tags a literal instead of the computed tag": wrong_tag,
+        "print-tag invocation only appears in a comment": commented_out,
+    }.items():
+        try:
+            check_build_workflow(wf, mutated_steps)
+        except Failure as exc:
+            refusals[label] = str(exc)
+        else:
+            raise Failure(f"checker accepted {label}")
+    return {"refused": sorted(refusals)}
 
 
 # --- vector width + embedding model -------------------------------------
@@ -351,6 +430,7 @@ def main() -> int:
         test_helmrelease_names_the_tag_the_build_context_produces,
         test_tag_changes_with_any_context_byte,
         test_build_workflow_uses_this_algorithm,
+        test_build_workflow_checker_refuses_wrong_wiring,
         test_embedding_width_and_model_agree,
         test_embedding_checker_refuses_upstream_width,
         test_registry_is_private_seeded_and_reachable,
