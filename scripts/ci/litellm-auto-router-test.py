@@ -829,9 +829,11 @@ def test_externalsecret_no_new_op_item() -> None:
     # litellm + cloudnative-pg were pre-existing; ai-keys is the shared existing item.
     # litellm-sso is created and populated by OpenTofu (terraform/authentik/litellm.tofu)
     # via a PushSecret to wire LiteLLM's UI SSO through Authentik, landed deliberately in
-    # d159d7f5 (PR #1473). Its value never lands in git. This allow-list exists to catch an
-    # UNEXPECTED new secret source; a fifth, unrecognised item must still fail this test.
-    allowed = {"litellm", "cloudnative-pg", "ai-keys", "litellm-sso"}
+    # d159d7f5 (PR #1473). Its value never lands in git. litellm-pgvector (2026-09-27) is
+    # the pgvector vector store's bearer key, written by pushsecret-pgvector.yaml from a
+    # hand-seeded Secret, same seam as litellm-sso. This allow-list exists to catch an
+    # UNEXPECTED new secret source; a sixth, unrecognised item must still fail this test.
+    allowed = {"litellm", "cloudnative-pg", "ai-keys", "litellm-sso", "litellm-pgvector"}
     record(
         "externalsecret_only_existing_1password_items",
         set(keys) <= allowed and "ai-keys" in keys,
