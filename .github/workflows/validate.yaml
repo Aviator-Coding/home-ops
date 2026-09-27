@@ -399,7 +399,7 @@ jobs:
       - name: Install Python Test Dependencies
         env:
           # renovate: datasource=docker depName=ghcr.io/berriai/litellm-non_root
-          LITELLM_VERSION: v1.102.1
+          LITELLM_VERSION: v1.103.0
         run: |
           uv pip install --system python-hcl2 "litellm[proxy]==${LITELLM_VERSION#v}"
 

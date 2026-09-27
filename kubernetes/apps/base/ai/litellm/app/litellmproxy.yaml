@@ -12,7 +12,7 @@ spec:
   # model list. Deliberately not that (same reason the pre-operator
   # config.yaml refused store_model_in_db); see generalSettings below.
   applyMode: file
-  image: ghcr.io/berriai/litellm-non_root:v1.102.1
+  image: ghcr.io/berriai/litellm-non_root:v1.103.0
   # ^ v1.93.0 is the FLOOR for the D3 auto-router: `classifier_type: llm` and
   # classifier_llm_config first exist there. Below it ComplexityRouterConfig is
   # `extra="allow"`, so those keys parse clean and are then IGNORED - the
