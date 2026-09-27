@@ -272,8 +272,33 @@ spec:
     # value iterates as characters and fails closed - verified), and the
     # top-level /key/generate field is Enterprise-gated on this OSS image.
     # Access rule and evidence: ../README.md#model-catalog (the Jev section).
-    # CI: scripts/ci/litellm-openrouter-passthrough-test.py drives LiteLLM's own
+    # CI: scripts/ci/litellm-passthrough-lockdown-test.py drives LiteLLM's own
     # RouteChecks against these entries.
+    #
+    # --- /anthropic pass-through lockdown (2026-09-27) ----------------------
+    # Same shape, same mechanism, for the BUILT-IN `/anthropic/{endpoint:path}`
+    # route (llm_passthrough_endpoints.py anthropic_proxy_route). It forwards
+    # to https://api.anthropic.com on the household METERED ANTHROPIC_API_KEY
+    # for any valid LiteLLM key, with no `models` allow-list check. The
+    # envoy-internal HTTPRouteFilter in httproute-internal.yaml has 404'd the
+    # hostname path since 2026-08-31, but the in-cluster Service DNS path
+    # (http://litellm.ai.svc.cluster.local:4000/anthropic/...) stayed open
+    # until these entries. Zero legitimate callers: no /anthropic row in
+    # LiteLLM_SpendLogs over the proxy's whole life (2026-08-26 on) and no
+    # /anthropic route in litellm_proxy_total_requests_metric_total; every
+    # consumer, the Claude Code subscription clients included, uses /v1/*.
+    # - The master key keeps POST /anthropic/v1/messages and its free
+    #   count_tokens sibling, on the same metered credential it can already
+    #   spend through the claude-*-metered models.
+    # - Those two entries deliberately leave `forward_headers` unset. The
+    #   native handler forwards EVERY client header (including the caller's own
+    #   LiteLLM key in Authorization/x-litellm-api-key) to api.anthropic.com;
+    #   a registry entry replaces that with exactly the headers below. A
+    #   client can still pass `x-pass-anthropic-beta` (LiteLLM strips the
+    #   prefix and never lets it name a credential header).
+    # - Everything else under /anthropic hits the dead catch-all, admin or not.
+    # Evidence and re-open procedure:
+    # docs/ai-system/litellm/README.md#anthropic-pass-through-route-closed-2026-08-31
     pass_through_endpoints:
       - path: /openrouter/alpha/decisions
         target: https://openrouter.ai/api/alpha/decisions
@@ -284,6 +309,26 @@ spec:
           Content-Type: application/json
       - path: /openrouter
         target: http://127.0.0.1:9/openrouter-pass-through-locked
+        include_subpath: true
+        auth: true
+      - path: /anthropic/v1/messages
+        target: https://api.anthropic.com/v1/messages
+        methods: ["POST"]
+        auth: true
+        headers:
+          x-api-key: os.environ/ANTHROPIC_API_KEY
+          anthropic-version: "2023-06-01"
+          Content-Type: application/json
+      - path: /anthropic/v1/messages/count_tokens
+        target: https://api.anthropic.com/v1/messages/count_tokens
+        methods: ["POST"]
+        auth: true
+        headers:
+          x-api-key: os.environ/ANTHROPIC_API_KEY
+          anthropic-version: "2023-06-01"
+          Content-Type: application/json
+      - path: /anthropic
+        target: http://127.0.0.1:9/anthropic-pass-through-locked
         include_subpath: true
         auth: true
 

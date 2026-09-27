@@ -50,15 +50,16 @@ backup window. Mechanism, citations, retrieval runbook and retention:
   annotations field, and this repo's Gatus/Homepage/external-dns conventions
   are all annotation-driven - rationale and the live DNS evidence are in that
   file's header and in `docs/ai-system/litellm/fallbacks.md`. The same file
-  also carries a `/anthropic` rule that closes LiteLLM's built-in Anthropic
-  pass-through on the **gateway/hostname path only**
+  also carries a `/anthropic` rule that 404s LiteLLM's built-in Anthropic
+  pass-through on the gateway/hostname path
   (`https://litellm.${SECRET_DOMAIN}/anthropic/...`). That pass-through is not
-  allow-list checked and can reach the household `ANTHROPIC_API_KEY`. The
-  in-cluster Service DNS path
-  (`http://litellm.ai.svc.cluster.local:4000/anthropic/...` - used by
-  ai-pr-review, opencode, and repo-wiki) remains fully open and unallowlisted
-  to any pod holding a valid virtual key; closing it is a separate,
-  not-yet-tracked follow-up. Invariant and re-open procedure:
+  allow-list checked and reaches the household `ANTHROPIC_API_KEY`. Since
+  2026-09-27 the in-cluster Service DNS path
+  (`http://litellm.ai.svc.cluster.local:4000/anthropic/...`) is closed too, by
+  `pass_through_endpoints` entries on `app/litellmproxy.yaml`: every virtual
+  key is refused the whole prefix, and only the master key keeps
+  `POST /anthropic/v1/messages` and its `count_tokens` sibling. Invariant,
+  evidence and re-open procedure:
   `docs/ai-system/litellm/README.md#anthropic-pass-through-route-closed-2026-08-31`.
 - No gateway-level ExtAuth/`SecurityPolicy` was added: 49 of the 52 internal
   HTTPRoutes in this cluster carry none, and the internal gateway is itself the
@@ -257,7 +258,7 @@ exactly this block onto the CR, testing, then removing it and resuming:
 
 The order of the two entries is load-bearing: the native handler takes its
 target from the first matching entry. CI pins the order through litellm's
-own route checks: `scripts/ci/litellm-openrouter-passthrough-test.py`.
+own route checks: `scripts/ci/litellm-passthrough-lockdown-test.py`.
 
 **Granting a virtual key is not possible declaratively today.** LiteLLM wants
 a *list* in the key's (or team's) `metadata.allowed_passthrough_routes`. The

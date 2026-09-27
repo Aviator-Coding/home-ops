@@ -4,8 +4,11 @@
 Invariant (docs/ai-system/litellm/README.md § Anthropic pass-through route):
 the subscription route must never reach a household-metered Anthropic
 credential. LiteLLM v1.98.0 registers `/anthropic/{endpoint}` unconditionally
-with no config/CRD gate and no virtual-key model allow-list check, so the
-gateway is the narrowest layer that can close hostname traffic.
+with no config/CRD toggle and no virtual-key model allow-list check. This
+test pins the outer, gateway layer (hostname traffic, closed for everyone);
+the in-cluster Service DNS path is made admin-only one layer down by
+`pass_through_endpoints` on the LiteLLMProxy CR, pinned by
+litellm-passthrough-lockdown-test.py.
 
 This test parses the HTTPRoute + HTTPRouteFilter the same way Envoy Gateway
 consumes them (structured Gateway API objects, not source greps) and asserts:
