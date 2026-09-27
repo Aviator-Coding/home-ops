@@ -92,6 +92,47 @@ provider directly; the model id alone picks the upstream (see
 > the right layer. If Hermes ever won't boot without an OpenAI key, re-add a dummy
 > `OPENAI_API_KEY` **only** (never `OPENAI_BASE_URL`).
 
+## Browser (`browser_*` tools) and Bot Desktop (viewable VNC screen)
+
+The `app` image tag is pinned to the **`-desktop`** variant
+(`docker.io/nousresearch/hermes-agent:v2026.9.24-desktop`), not the plain tag. The
+plain tag ships **no Chromium binary at all**, and hermes-agent's own source
+(`tools/bot_desktop/runtime.py::installable()`) says packages like these "can only
+arrive in the image" for a published Docker deployment — the container drops to
+uid 10000 with no `sudo`, so there is no supported way to `apt install` them at
+runtime. The `-desktop` tag is the vendor's own build that bakes in both Chromium
+(for the `browser_*` tools) and the TigerVNC/Xfce stack (for Bot Desktop) — do not
+switch back to the plain tag without re-adding both.
+
+**Sandbox flags.** `config.yaml` has no `browser.backend: local` value (that key
+only toggles built-in-tools vs the Browser-Use CLI — `""` / `"browser-use"` /
+`"off"`, `"local"` isn't valid) and no `browser.launch_args` key at all — checked
+against the pinned `hermes_agent` source. Chromium flags instead come from the
+`AGENT_BROWSER_ARGS` env var (`helmrelease.yaml`), which is set explicitly because
+hermes-agent's own root/Docker/AppArmor auto-detection for injecting
+`--no-sandbox`/`--disable-dev-shm-usage` never fires in this pod (agent runs as uid
+10000, not detected as Docker, no AppArmor sysctl on Talos) — without the override
+Chromium would try its real sandbox and hang until timeout.
+
+**Bot Desktop** is a full headless Xfce desktop (one per Hermes profile) a human can
+watch or take over — useful for anything the headless `browser_*` tools can't do
+(logins with interactive challenges, etc.). It's **opt-in**, never auto-started
+(`bot_desktop.auto_start` defaults `false`), and needs no extra manifest wiring:
+- VNC/RFB (TigerVNC's `Xvnc`) listens on a **0600 Unix socket only** — no TCP port,
+  nothing to expose.
+- Viewing/taking over rides the **existing** dashboard WebSocket
+  (`https://hermes.${SECRET_DOMAIN}/api/display/ws`), already behind the same basic
+  auth as the rest of the dashboard — no separate Service, port, or HTTPRoute.
+- No extra privileges: it's a plain X session under the same uid the gateway
+  already runs as; the window manager runs with compositing off (no GPU needed).
+
+To open it: in the dashboard, go to the Bots → this bot → **Screen** pane and hit
+**Start** (creates the session if one isn't already running, subject to the
+`bot_desktop.min_free_memory_mb` gate — default 1536 MB free, comfortably inside
+this pod's 6Gi limit). From a terminal (dashboard terminal, or `kubectl -n ai exec
+-it deploy/hermes -c app -- hermes computer-use screen status|start|stop`) you can
+check/drive the same session without a browser.
+
 ## `state.db` retention (why the volume stopped filling)
 
 `/opt/data/state.db` is the agent's session store and it dominates this claim: **9.31 GiB of a 25Gi
