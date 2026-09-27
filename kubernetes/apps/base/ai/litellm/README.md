@@ -205,8 +205,11 @@ typesafe/jev-1.13"]` (already present in the pinned image's cost map:
 `input_cost_per_token: 4.2e-08`, `output_cost_per_token: 0.0` - matching the
 captain's request exactly).
 
-**Access rule (since 2026-09-27): only the master key reaches it, and no
-virtual key can.** Out of the box the route took ANY valid LiteLLM key, and a
+**Access rule (since 2026-09-27, captain decision `openrouter-grant`, option
+A): only the master key and SSO proxy-admin users reach it, and no virtual
+key is granted.** No virtual key was chosen because none can be granted
+declaratively (the operator limitation below), and nothing in-cluster
+consumes jev today. Out of the box the route took ANY valid LiteLLM key, and a
 key's `models` allow-list is not a guard there. It only fires when the JSON
 body happens to carry a `model` field. Measured live 2026-09-27 with the
 `demo` key, which is allow-listed to `qwen3.6-35b-a3b` alone:
@@ -268,7 +271,7 @@ API is not a workaround: it is out-of-Git drift, and the operator decodes key
 metadata as `map[string]string`. A granted key would also need
 `typesafe/jev-1.13` on its `models` list, because the `model` check still
 applies when the body names it. Granting one therefore needs an operator
-field for it first.
+field for it first, then a new captain decision.
 
 The original discovery run (2026-09-27, zero config changes, before the
 lockdown; its spend rows name `litellm_proxy_master_key`, so it used the
