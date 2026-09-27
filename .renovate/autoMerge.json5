@@ -171,5 +171,24 @@
       minimumReleaseAgeBehaviour: "timestamp-optional",
       automerge: false,
     },
+    {
+      // MUST stay AFTER the blanket digest automerge rule above (same
+      // last-match-wins reasoning as kopiur/Talos/kubelet): narrows its
+      // schedule for this one package without disabling automerge.
+      //
+      // ghcr.io/diygod/rsshub is pinned `latest@sha256:...`
+      // (kubernetes/apps/base/selfhosted/rsshub/app/helmrelease.yaml) and
+      // upstream rebuilds `latest` many times a day. With no schedule the
+      // blanket digest rule above merged 33 rsshub digest PRs between
+      // 2026-09-07 and 2026-09-27, often two or three a day - each one
+      // restarting the pod (deploymentStrategy: Recreate). automerge stays
+      // true; `schedule` only throttles how often Renovate opens (and
+      // therefore merges) a new digest PR for this package, to once a week.
+      // No repo-wide timezone is configured, so this schedule runs in UTC.
+      description: "rsshub tracks a rolling `latest` tag that rebuilds many times a day - limit its digest updates to once a week instead of every rebuild",
+      matchPackageNames: ["ghcr.io/diygod/rsshub"],
+      matchUpdateTypes: ["digest"],
+      schedule: ["before 6am on monday"],
+    },
   ],
 }
