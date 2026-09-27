@@ -41,6 +41,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `litellm-claude-code-subscription-test.py` | Claude Code Max/Pro subscription pass-through |
 | `litellm-fallback-chain-test.py` | Phase 5 LiteLLM availability/context fallback chains |
 | `litellm-anthropic-passthrough-test.py` | Gateway-level close of LiteLLM `/anthropic` pass-through (HTTPRouteFilter directResponse 404, catch-all backend preserved) |
+| `litellm-openrouter-passthrough-test.py` | Admin-only lockdown of LiteLLM's built-in `/openrouter` pass-through: every `/openrouter` `pass_through_endpoints` entry is `auth: true`, the exact `alpha/decisions` entry precedes the dead-loopback catch-all (the native handler takes the first registry match), driven through litellm's own `_register_pass_through_endpoint` + `RouteChecks`; also proves the operator's string-metadata grant shape grants nothing. Mutation-proven red on dropped auth, swapped order and a removed catch-all |
 | `litellm-pr-reviewer-test.py` | AI PR reviewer workflow + `pr-review-local` / `ai-pr-review` D4 contracts |
 | `litellm-request-logs-test.py` | full prompt/response capture in LiteLLM spend logs |
 | `litellm-sso-test.py` | LiteLLM UI SSO through Authentik |
@@ -114,8 +115,8 @@ for f in scripts/ci/*-test.py; do python3 "$f" || echo "FAILED: $f"; done
 pinned cluster image (`ghcr.io/berriai/litellm-non_root:v1.102.1`, see
 `kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml`; CI reads the same tag
 from `LITELLM_VERSION` in `.github/workflows/validate.yaml`) and is required by
-`litellm-auto-router-test.py` and `litellm-request-logs-test.py`, which hard-fail without
-it; `litellm-claude-code-subscription-test.py` and `litellm-fallback-chain-test.py` degrade
+`litellm-auto-router-test.py`, `litellm-request-logs-test.py` and
+`litellm-openrouter-passthrough-test.py`, which hard-fail without it; `litellm-claude-code-subscription-test.py` and `litellm-fallback-chain-test.py` degrade
 to a soft pass-with-note instead.
 
 ### CI status

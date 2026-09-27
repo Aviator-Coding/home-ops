@@ -233,6 +233,60 @@ spec:
     store_prompts_in_spend_logs: true
     maximum_spend_logs_retention_period: "30d"
 
+    # --- /openrouter pass-through lockdown (2026-09-27) ---------------------
+    # The image's BUILT-IN `/openrouter/{endpoint:path}` route (llm_passthrough_
+    # endpoints.py, BerriAI/litellm#42301 backported in #42595) forwards
+    # anything under /openrouter/ to https://openrouter.ai/api/ on the shared
+    # OPENROUTER_API_KEY for ANY valid LiteLLM key. A key's `models` allow-list
+    # applies only incidentally, when the JSON body happens to carry a `model`
+    # field, so it is not a guard: measured live 2026-09-27 with the `demo` key
+    # (allow-listed to qwen3.6-35b-a3b only), a chat body naming OpenRouter's
+    # `models` array was forwarded to OpenRouter (it answered the 400 for a bogus
+    # id itself, i.e. a real id would have been billed), and `GET
+    # /openrouter/v1/key` returned the account's usage and limit.
+    #
+    # This block makes that route admin-only without touching the native
+    # handler. The two entries do different jobs:
+    # - `auth: true` puts a path in LiteLLM's pass-through registry as
+    #   auth-enforced, and for every NON-admin key
+    #   RouteChecks.non_proxy_admin_allowed_routes_check then demands a match on
+    #   the key's or team's `allowed_passthrough_routes` BEFORE any other route
+    #   rule (proxy/auth/route_checks.py). No key here carries one, so every
+    #   virtual key gets 403. The master key (and SSO proxy-admin users) skip
+    #   that check. That default-deny is the whole point: a NEW key is denied
+    #   too, without anyone remembering to scope it.
+    # - The native handler still wins FastAPI dispatch (registered first), but
+    #   it reads its target and headers from the FIRST registry entry matching
+    #   the request path and method (create_pass_through_route's url branch,
+    #   proxy/pass_through_endpoints/pass_through_endpoints.py) and does not
+    #   append the subpath. So the ORDER below is load-bearing. The exact
+    #   decisions entry must come first and carry the real target and
+    #   credential, or typesafe/jev-1.13 breaks for the master key too. The
+    #   catch-all must come last and point at a dead loopback port with no
+    #   headers, so any other /openrouter/... path fails closed (500 connection
+    #   refused, no credential sent) even for an admin.
+    #
+    # A virtual key CANNOT be granted this route declaratively today:
+    # `allowed_passthrough_routes` must be a list, the operator's
+    # LiteLLMVirtualKey/LiteLLMTeam `metadata` is map[string]string (a string
+    # value iterates as characters and fails closed - verified), and the
+    # top-level /key/generate field is Enterprise-gated on this OSS image.
+    # Access rule and evidence: ../README.md#model-catalog (the Jev section).
+    # CI: scripts/ci/litellm-openrouter-passthrough-test.py drives LiteLLM's own
+    # RouteChecks against these entries.
+    pass_through_endpoints:
+      - path: /openrouter/alpha/decisions
+        target: https://openrouter.ai/api/alpha/decisions
+        methods: ["POST"]
+        auth: true
+        headers:
+          Authorization: "Bearer os.environ/OPENROUTER_API_KEY"
+          Content-Type: application/json
+      - path: /openrouter
+        target: http://127.0.0.1:9/openrouter-pass-through-locked
+        include_subpath: true
+        auth: true
+
   litellmSettings:
     callbacks: ["prometheus"] # exposes /metrics on the proxy port (4000)
     # Response cache, mirrored from the reference repo's pattern (joryirving
