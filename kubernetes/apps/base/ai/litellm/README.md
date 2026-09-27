@@ -177,22 +177,79 @@ registered despite Z.ai returning `Insufficient balance or no resource package`
 for every completion as of 2026-08-27. That header is the place to look if a
 GLM call ever fails; it is an unfunded account, not a bad route.
 
-**`typesafe/jev-1.13` (TypeSafe Jev 1.13) was evaluated 2026-09-27 and deliberately NOT registered.**
-Its id resolves at the per-model endpoints catalog
+**`typesafe/jev-1.13` (TypeSafe Jev 1.13, captain request 2026-09-27) has
+deliberately NO `LiteLLMModel` CR - it cannot be reached that way at all, and
+does not need one.** Its id resolves at the per-model endpoints catalog
 (`GET /api/v1/models/typesafe/jev-1.13/endpoints`) but is absent from the
 public listing (`GET /api/v1/models`, which lists only the unrelated
 `typesafe/jev-router`) - so id verification alone would have looked clean.
 But its OpenRouter architecture reports output modality `decisions` rather
-than `text`, and a live call through LiteLLM's own `openrouter/` code path
-(`litellm.completion(model="openrouter/typesafe/jev-1.13", ...)`, run
-in-pod against the real proxy) confirmed it is structurally incompatible
-with the chat-completions path every `LiteLLMModel` in this directory relies
-on - OpenRouter itself rejects it: `"typesafe/jev-1.13 is a decisions model
-and cannot be used with the chat/completions endpoint. Use the
-/api/alpha/decisions endpoint instead."` LiteLLM has no such endpoint, so
-this model cannot be served by this proxy at all. Do not re-add it without
-LiteLLM (or a bespoke integration) gaining support for OpenRouter's
-`decisions` model class.
+than `text`, and a live call through LiteLLM's own `openrouter/`
+chat-completions code path (`litellm.completion(model="openrouter/typesafe/
+jev-1.13", ...)`, run in-pod against the real proxy) confirmed OpenRouter
+itself rejects it there: `"typesafe/jev-1.13 is a decisions model and cannot
+be used with the chat/completions endpoint. Use the /api/alpha/decisions
+endpoint instead."` No `LiteLLMModel` CR, present or absent, changes that -
+the chat-completions path is simply the wrong door for this model.
+
+**The right door already exists with zero config.** The pinned
+`ghcr.io/berriai/litellm-non_root:v1.102.1` image ships a native
+`/openrouter/{endpoint:path}` pass-through route
+(`litellm/proxy/pass_through_endpoints/llm_passthrough_endpoints.py`,
+merged upstream BerriAI/litellm#42301, backported to 1.102.x in #42595) that
+forwards to `https://openrouter.ai/api/{endpoint}` using the same
+`OPENROUTER_API_KEY` every model in this directory already resolves via
+`os.environ/OPENROUTER_API_KEY`, gated by the same `user_api_key_auth`
+dependency (a valid LiteLLM key - master or virtual - required; no key's
+`models` allow-list applies, because pass-through requests never reach
+`can_key_call_model`) as every other route, and priced by a native
+`TypeSafePassthroughLoggingHandler` against `litellm.model_cost["openrouter/
+typesafe/jev-1.13"]` (already present in the pinned image's cost map:
+`input_cost_per_token: 4.2e-08`, `output_cost_per_token: 0.0` - matching the
+captain's request exactly). So `POST /openrouter/alpha/decisions` on this
+proxy already reaches OpenRouter's decisions API for this model.
+
+Verified live 2026-09-27 with zero config changes, via `flux suspend ks litellm
+-n ai` -> direct pod exec (never through a config change) -> `flux resume`:
+- Valid key, correct body ->
+  `POST http://litellm.ai.svc.cluster.local:4000/openrouter/alpha/decisions`
+  returned `200` with a real decision
+  (`{"answers":{"choice":{"choice":"heads","probabilities":{...},"confidence":0.81}},"usage":{"input_tokens":316,"output_tokens":31,"cost":0.000013272},...}`).
+- No key -> `401 Authentication Error, No api key passed in.` (the route is
+  not open).
+- `GET /spend/logs?start_date=...&end_date=...` on the shared postgres-17
+  spend log showed the daily total rise by exactly `2 * 0.000013272` after
+  two such calls - confirming spend IS tracked for this route, unlike an
+  ad-hoc `general_settings.pass_through_endpoints` block would need to be
+  told to do (an earlier draft of this change added exactly such a block;
+  it worked but was redundant with the native route and was dropped).
+
+**Request/response shape** (OpenRouter's decisions API, not OpenAI chat
+completions - `supported_parameters: []` on this model is the tell):
+
+```jsonc
+// POST /openrouter/alpha/decisions  (Authorization: Bearer <litellm key>)
+{
+  "model": "typesafe/jev-1.13",
+  "state": "<free-text context for the decision>",
+  "questions": {
+    "<question_key>": {
+      "type": "choice",           // or "score" / "noul" - unexplored, not needed here
+      "instructions": "<what to decide>",
+      "criteria": {"<option_a>": "<description>", "<option_b>": "<description>"}
+    }
+  }
+}
+// -> {"model":"...","answers":{"<question_key>":{"type":"choice","choice":"<option_a>","probabilities":{...},"confidence":0.0-1.0}},"usage":{"input_tokens":N,"output_tokens":N,"cost":N},"id":"gen-dec-...","provider":"TypeSafe"}
+```
+
+**What this does NOT give you**, deliberately out of scope of the captain's
+request: no `LiteLLMModel` CR (none is possible or needed), no entry on any
+`LiteLLMVirtualKey` `models` allow-list (irrelevant here - see above), no
+`auto`-router wiring, and no interaction with `typesafe/jev-router` (a
+separate, ordinary `text->text` chat model this route also happens to be
+able to reach at `/openrouter/v1/chat/completions`, untouched by this
+change).
 
 ## Claude Code subscription pass-through
 
