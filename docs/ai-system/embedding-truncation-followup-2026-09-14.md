@@ -226,3 +226,9 @@ incompatible vector spaces right now. This is an operational action outside
 git; it is not performed by this change and remains a follow-up for
 firstmate/the captain, same as #1681's own commit message and the previous
 version of this document already flagged.
+
+**Corrected 2026-09-27:** this premise was wrong. vmcp re-embeds the whole
+tool catalog inside every session's `initialize`, not once at pod startup,
+so no stale cross-model vector state can survive a session boundary and no
+restart is needed for vector-space compatibility. See
+`docs/ai-system/toolhive-optimizer-embedding-timeout-2026-09-27.md`.
