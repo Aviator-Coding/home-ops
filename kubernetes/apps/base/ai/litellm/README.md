@@ -192,25 +192,91 @@ be used with the chat/completions endpoint. Use the /api/alpha/decisions
 endpoint instead."` No `LiteLLMModel` CR, present or absent, changes that -
 the chat-completions path is simply the wrong door for this model.
 
-**The right door already exists with zero config.** The pinned
-`ghcr.io/berriai/litellm-non_root:v1.102.1` image ships a native
+**The right door is the image's native pass-through, and it is ADMIN-ONLY.**
+The pinned `ghcr.io/berriai/litellm-non_root:v1.102.1` image ships a native
 `/openrouter/{endpoint:path}` pass-through route
 (`litellm/proxy/pass_through_endpoints/llm_passthrough_endpoints.py`,
 merged upstream BerriAI/litellm#42301, backported to 1.102.x in #42595) that
 forwards to `https://openrouter.ai/api/{endpoint}` using the same
 `OPENROUTER_API_KEY` every model in this directory already resolves via
-`os.environ/OPENROUTER_API_KEY`, gated by the same `user_api_key_auth`
-dependency (a valid LiteLLM key - master or virtual - required; no key's
-`models` allow-list applies, because pass-through requests never reach
-`can_key_call_model`) as every other route, and priced by a native
+`os.environ/OPENROUTER_API_KEY`, and prices this model with a native
 `TypeSafePassthroughLoggingHandler` against `litellm.model_cost["openrouter/
 typesafe/jev-1.13"]` (already present in the pinned image's cost map:
 `input_cost_per_token: 4.2e-08`, `output_cost_per_token: 0.0` - matching the
-captain's request exactly). So `POST /openrouter/alpha/decisions` on this
-proxy already reaches OpenRouter's decisions API for this model.
+captain's request exactly).
 
-Verified live 2026-09-27 with zero config changes, via `flux suspend ks litellm
--n ai` -> direct pod exec (never through a config change) -> `flux resume`:
+**Access rule (since 2026-09-27, captain decision `openrouter-grant`, option
+A): only the master key and SSO proxy-admin users reach it, and no virtual
+key is granted.** No virtual key was chosen because none can be granted
+declaratively (the operator limitation below), and nothing in-cluster
+consumes jev today. Out of the box the route took ANY valid LiteLLM key, and a
+key's `models` allow-list is not a guard there. It only fires when the JSON
+body happens to carry a `model` field. Measured live 2026-09-27 with the
+`demo` key, which is allow-listed to `qwen3.6-35b-a3b` alone:
+- A chat body using OpenRouter's `models` array instead of `model` was
+  forwarded to OpenRouter on the shared credit. OpenRouter itself answered
+  the 400 for a bogus id, so a real id would have been billed.
+- `GET /openrouter/v1/key` returned the OpenRouter account's usage and
+  limit.
+
+Every virtual key in `app/virtualkeys/` had that reach, including `demo`,
+`ha-demo`, `router-demo` and the empty-allow-list `agent-swarm-paid`.
+
+The lockdown is two `generalSettings.pass_through_endpoints` entries on
+`app/litellmproxy.yaml` (its comment there carries the mechanism in full):
+- An exact `POST /openrouter/alpha/decisions` entry carries the real target
+  and credential.
+- A catch-all on `/openrouter` points at a dead loopback port and sends no
+  headers.
+
+Both entries are `auth: true`, which makes LiteLLM require an
+`allowed_passthrough_routes` match from every non-admin key before any other
+route rule. No key carries one, so:
+- **Every virtual key, including any key added later, gets `403 Key/team not
+  allowed to access passthrough route`** on every `/openrouter/...` path.
+  Ordinary routes are untouched (`/v1/chat/completions`, `/v1/embeddings`,
+  `/v1/messages`).
+- **The master key**, and SSO users holding the proxy-admin role, still get
+  `200` on `POST /openrouter/alpha/decisions`. Every other `/openrouter/...`
+  path fails closed for them too (`500`, connection refused, no credential
+  sent), because only the decisions door is wanted.
+
+Verified live 2026-09-27 before merge, by suspending `ks/litellm`, patching
+exactly this block onto the CR, testing, then removing it and resuming:
+- `demo`, `ha-demo`, `router-demo`, `agent-swarm-paid`, `ai-pr-review` and
+  `embedding-external` each got `403` on `POST /openrouter/alpha/decisions`,
+  on `GET /openrouter/v1/key`, and on the `models`-array chat body.
+- The master key got `200` with a real decision on `alpha/decisions`. The
+  spend log recorded it as `pass_through_endpoint` / `openrouter` at
+  `$0.000012978`, so pricing still runs through the native handler. The
+  master key got `500` (dead loopback) on the other two paths.
+- Ordinary traffic stayed `200`: chat on `ai-pr-review` (`pr-review-local`),
+  `repo-wiki` (`chat-local`), `ha-demo` (`chat-ha`) and `demo`
+  (`qwen3.6-35b-a3b`), and embeddings on `embedding-external`. `demo` naming a
+  model outside its list was still `403`.
+
+The order of the two entries is load-bearing: the native handler takes its
+target from the first matching entry. CI pins the order through litellm's
+own route checks: `scripts/ci/litellm-openrouter-passthrough-test.py`.
+
+**Granting a virtual key is not possible declaratively today.** LiteLLM wants
+a *list* in the key's (or team's) `metadata.allowed_passthrough_routes`. The
+operator's `LiteLLMVirtualKey`/`LiteLLMTeam` `metadata` is
+`map[string]string`, and a string value fails closed (it is iterated as
+characters - verified, and pinned by the CI test above). The top-level
+`/key/generate` `allowed_passthrough_routes` field is Enterprise-gated on
+this OSS image (`403 This feature is only available for LiteLLM Enterprise
+users`). Hand-writing a list onto an operator-managed key through the admin
+API is not a workaround: it is out-of-Git drift, and the operator decodes key
+metadata as `map[string]string`. A granted key would also need
+`typesafe/jev-1.13` on its `models` list, because the `model` check still
+applies when the body names it. Granting one therefore needs an operator
+field for it first, then a new captain decision.
+
+The original discovery run (2026-09-27, zero config changes, before the
+lockdown; its spend rows name `litellm_proxy_master_key`, so it used the
+master key, which keeps this access), via
+`flux suspend ks litellm -n ai` -> direct pod exec -> `flux resume`:
 - Valid key, correct body ->
   `POST http://litellm.ai.svc.cluster.local:4000/openrouter/alpha/decisions`
   returned `200` with a real decision
@@ -219,10 +285,7 @@ Verified live 2026-09-27 with zero config changes, via `flux suspend ks litellm
   not open).
 - `GET /spend/logs?start_date=...&end_date=...` on the shared postgres-17
   spend log showed the daily total rise by exactly `2 * 0.000013272` after
-  two such calls - confirming spend IS tracked for this route, unlike an
-  ad-hoc `general_settings.pass_through_endpoints` block would need to be
-  told to do (an earlier draft of this change added exactly such a block;
-  it worked but was redundant with the native route and was dropped).
+  two such calls - confirming spend IS tracked for this route.
 
 **Request/response shape** (OpenRouter's decisions API, not OpenAI chat
 completions - `supported_parameters: []` on this model is the tell):
@@ -244,12 +307,12 @@ completions - `supported_parameters: []` on this model is the tell):
 ```
 
 **What this does NOT give you**, deliberately out of scope of the captain's
-request: no `LiteLLMModel` CR (none is possible or needed), no entry on any
-`LiteLLMVirtualKey` `models` allow-list (irrelevant here - see above), no
+request: no `LiteLLMModel` CR (none is possible or needed), no virtual-key
+access (see the access rule above), no
 `auto`-router wiring, and no interaction with `typesafe/jev-router` (a
-separate, ordinary `text->text` chat model this route also happens to be
-able to reach at `/openrouter/v1/chat/completions`, untouched by this
-change).
+separate, ordinary `text->text` chat model; `/openrouter/v1/chat/completions`
+is now closed by the catch-all for every caller, so reaching it would need a
+`LiteLLMModel` CR like any other OpenRouter model).
 
 ## Claude Code subscription pass-through
 
