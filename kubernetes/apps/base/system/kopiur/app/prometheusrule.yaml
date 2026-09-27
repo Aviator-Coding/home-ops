@@ -157,9 +157,42 @@ spec:
         # (`reaped projected credentials copy secret=<snapshot>-creds-N`) and
         # the `kopiur_secrets_projected_total` / `kopiur_creds_secrets_reaped_total`
         # counters - not this gauge.
+        #
+        # LEADER-CHANGE REGRESSION (2026-09-26). The `min_over_time(...[13h])`
+        # form above is per-series, and `kopiur_projected_secrets_live` is
+        # leader-only (finding (a) above) - its `pod`/`instance` labels change
+        # every time the Lease changes hands, which starts a brand-new
+        # Prometheus series with NO history. A fresh series' own
+        # `min_over_time` is the min of only ITS OWN samples, so a new
+        # leader's first (startup) sweep reading alone determines the result:
+        # if it catches an ordinary in-flight population (routine, per finding
+        # (c)), the new series has literally never stored a 0 and the alert
+        # fires immediately - unrelated to whether any credential is actually
+        # at rest. Measured live: the new leader took over at 17:25Z, its
+        # startup sweep published 8, and the alert paged critical for hours
+        # while zero credential Secrets existed anywhere in the cluster; the
+        # previous leader's own series had shown the identical benign 6->0
+        # shape across one sweep interval moments before the handover.
+        #
+        # Fix: aggregate away `pod`/`instance` with `max without (...)` BEFORE
+        # applying `min_over_time`, via a subquery. Prometheus's staleness
+        # handling means the outgoing leader's series and the incoming
+        # leader's series never overlap but also never gap (the old series'
+        # last sample stands until the new one reports), so the aggregated
+        # series is continuous straight through a leader change - a stale
+        # zero from the outgoing pod remains inside the window exactly as if
+        # no handover had happened, and a genuine leak (never zero on either
+        # pod) still requires the full multi-pass span to clear. This is
+        # strictly a continuity fix: the multi-pass persistence requirement
+        # (13h > 2x the 6h default sweep) is unchanged, and a real leak still
+        # fires - including one that started under the old leader and is
+        # still live when the new leader takes over, since the aggregated
+        # series was never at zero across the transition.
         - alert: KopiurProjectedCredentialsLeaking
           expr: |
-            min_over_time(kopiur_projected_secrets_live[13h]) > 0
+            min_over_time(
+              (max without (pod, instance) (kopiur_projected_secrets_live))[13h:]
+            ) > 0
           annotations:
             summary: >-
               kopiur projected credential Secrets have remained live across at
