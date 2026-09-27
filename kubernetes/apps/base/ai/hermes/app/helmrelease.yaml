@@ -75,9 +75,30 @@ spec:
               runAsGroup: 0
         containers:
           app:
+            # The `-desktop` tag is the same pinned release as the plain tag, just with
+            # Chromium AND the Bot Desktop packages (TigerVNC, Xfce) baked in - both are
+            # genuinely missing from the plain tag (confirmed live: no chromium binary,
+            # no Playwright cache) and hermes-agent's own source says both can only ever
+            # arrive baked into the image, never installed at runtime, since the
+            # published image ships no `sudo` and drops to uid 10000 with no root path
+            # back (tools/bot_desktop/runtime.py `installable()`). Confirmed present in
+            # v2026.9.24-desktop via a throwaway pod: chromium, Xvnc, xfwm4,
+            # xfce4-panel, xfdesktop, xfsettingsd, dbus-run-session, xauth, xdpyinfo,
+            # xprop all resolve on PATH.
+            #
+            # Renovate tracking: verified directly against this repo's own installed
+            # renovate (44.52.1) `modules/versioning/docker` - the default "docker"
+            # versioning scheme's `isCompatible()` treats a tag's dash-suffix as a
+            # compatibility qualifier that must match the CURRENTLY PINNED tag's own
+            # suffix, so with "desktop" pinned here Renovate only proposes future
+            # `vYYYY.M.D-desktop` tags and never drifts back to the suffix-less tag
+            # (same mechanism as the Plex X.Y.Z.BUILD-HASH entry in
+            # .renovate/overrides.json5, just without that entry's problem: our suffix
+            # is a constant string, not a per-release hash, so the default versioning
+            # already does the right thing with no extra packageRule needed).
             image:
               repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.9.24
+              tag: v2026.9.24-desktop
             # The image's `gateway-default` s6 *profile* service already runs the
             # gateway (cron + messaging platforms). Passing `gateway run` here too
             # started a SECOND gateway that collided at startup ("Another gateway
@@ -166,6 +187,30 @@ spec:
               # as a sane single-phase worst case on multi-GB state.db files
               # (_MAX_LEASE_S).
               HERMES_STARTUP_WATCHDOG_TIMEOUT_S: "900"
+              # --- Chromium sandbox bypass for the local browser_* tools. ---
+              #
+              # hermes-agent's config.yaml has NO `browser.backend: local` value and NO
+              # `browser.launch_args` key at all (checked against the pinned image's own
+              # hermes_agent-0.21.5: hermes_cli/config_defaults.py's `browser:` block only
+              # accepts backend "" | "browser-use" | "off" - a built-in-tools/Browser-Use-CLI
+              # toggle, unrelated to local-vs-cloud - and local Chromium is already what runs
+              # when no `cloud_provider` is configured, which is our case). Chromium flags are
+              # instead read from the AGENT_BROWSER_ARGS env var by
+              # tools/browser_tool_session.py's `_apply_chromium_sandbox_args`.
+              #
+              # That function auto-injects --no-sandbox/--disable-dev-shm-usage only when
+              # `_needs_chromium_sandbox_bypass()` is true: euid 0, `_running_in_docker()`
+              # (checks /.dockerenv + "docker" in /proc/1/cgroup), or the Ubuntu 23.10+
+              # unprivileged-userns AppArmor restriction. None of those fire here - measured
+              # live in this pod: the s6-dropped agent process runs as uid 10000 (not 0),
+              # containerd gives no /.dockerenv and no "docker" string in cgroup, and
+              # /proc/sys/kernel/apparmor_restrict_unprivileged_userns doesn't exist on this
+              # Talos kernel. So without this override Chromium tries its real setuid sandbox,
+              # which cannot work under the pod's default securityContext (no CAP_SYS_ADMIN,
+              # no setuid helper) and browser_navigate/open would hang until timeout.
+              # --disable-gpu: no GPU device is exposed to this pod; avoids Chromium probing
+              # for one. Comma-separated per _apply_chromium_sandbox_args's own join.
+              AGENT_BROWSER_ARGS: "--no-sandbox,--disable-dev-shm-usage,--disable-gpu"
               # --- Git access (single private repo). Inject a global git config
               # via env (no writable $HOME needed): the `store` helper reads the
               # token from the mounted `.git-credentials` file (see persistence
