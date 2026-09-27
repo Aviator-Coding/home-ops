@@ -17,11 +17,12 @@ kind: Kustomization
 # `scripts/ci/litellm-claude-code-subscription-test.py` asserts this exact
 # allow-list rather than a bare count, so any FURTHER budgetless key must be
 # added there explicitly or the gate fails:
-#   - `claude-code-subscription.yaml`'s allow-list names the two subscription
+#   - `claude-code-subscription.yaml`'s allow-list names the four subscription
 #     pass-through models - the natural `claude-sonnet-5` and `claude-opus-5`
 #     since the 2026-08-31 rename (previously
-#     `claude-code-subscription`/`claude-code-subscription-opus`; see that
-#     file's own header). It stays budgetless because those models are
+#     `claude-code-subscription`/`claude-code-subscription-opus`), plus
+#     `claude-haiku-4-5-20251001` and `claude-fable-5-1` added 2026-09-27; see
+#     that file's own header. It stays budgetless because those models are
 #     zero-priced across every field including the five prompt-cache ones
 #     (runbook §4a - zeroing only input/output left ~$54 of fictional recorded
 #     spend until 2026-08-31), so recorded spend is $0 and a maxBudget could

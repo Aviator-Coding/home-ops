@@ -264,8 +264,8 @@ spec:
         # --- Claude Code subscription pass-through phantom-spend regression
         # (docs/ai-system/litellm/claude-code-subscription.md §4a,
         # virtualkeys/claude-code-subscription.yaml) ---
-        # This key has NO maxBudget (its two models are priced $0 on every
-        # field including the five prompt-cache ones) and, since 2026-08-31,
+        # This key has NO maxBudget (all four models it may call are priced $0
+        # on every field including the five prompt-cache ones) and, since 2026-08-31,
         # NO rpmLimit/tpmLimit either - litellm_spend_metric_total is therefore
         # the only ceiling-adjacent signal left on this key, and it exists
         # purely to catch a REGRESSION of the 2026-08-31 cache-pricing fix,
@@ -282,9 +282,10 @@ spec:
           annotations:
             description: >-
               The claude-code-subscription virtual key is recording NONZERO
-              spend again. Both models it may call (claude-sonnet-5 and
+              spend again. All four models it may call (claude-sonnet-5 and
               claude-opus-5, renamed from claude-code-subscription/-opus on
-              2026-08-31) are priced at an explicit $0 on every field,
+              2026-08-31; claude-haiku-4-5-20251001 and claude-fable-5-1, added
+              2026-09-27) are priced at an explicit $0 on every field,
               including the five prompt-cache fields, specifically
               BECAUSE this key carries no maxBudget and no rate limits - a
               nonzero reading here means the pricing has regressed (a cache

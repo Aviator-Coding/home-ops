@@ -7,6 +7,20 @@
 # neither `auto` nor `claude-sonnet-5-metered`/`claude-opus-5-metered` - a
 # caller wanting those needs a key that says so, priced against a real budget.
 #
+# EXTENDED 2026-09-27 (captain decision, "2-yes" on "Should I add Haiku and
+# Fable as subscription models") to also allow-list
+# `claude-haiku-4-5-20251001` (../models/claude-haiku-4-5-20251001.yaml) and
+# `claude-fable-5-1` (../models/claude-fable-5-1.yaml) - two more
+# credential-less pass-through CRs, same shape as Sonnet/Opus. Haiku's name is
+# the dated form because that is the exact id both Anthropic's catalog and
+# Claude Code itself use for that family (no bare `claude-haiku-4-5` model
+# exists); Fable's is `claude-fable-5-1`, not the older `claude-fable-5` that
+# the METERED sibling CR still owns unchanged - the two are distinct models
+# in Anthropic's catalog, not a naming collision, so unlike the 2026-08-31
+# Sonnet/Opus rename, no rename was needed here. Full resolution evidence:
+# both new CRs' headers and docs/ai-system/litellm/claude-code-subscription.md
+# §5e.
+#
 # RENAMED 2026-08-31 (captain decision, Alternative B of
 # data/homeops-claude-code-passthrough-design/report.md): the two pass-through
 # model CRs this key allow-lists moved from `claude-code-subscription` /
@@ -124,24 +138,34 @@ spec:
   secretName: litellm-key-claude-code-subscription
   secretKey: key
   models:
-    # BOTH entries are subscription pass-through CRs for which the proxy holds
-    # NO credential (../models/claude-sonnet-5.yaml, ../models/claude-opus-5.yaml).
-    # Neither is the metered `claude-sonnet-5-metered`/`claude-opus-5-metered`,
-    # and adding either of those here is the one change this file exists to
-    # prevent - it would make subscription traffic bill the household's
-    # metered ANTHROPIC_API_KEY. The Opus entry was added 2026-08-30 after a
-    # `claude` subagent requested Opus by name and was correctly refused; at
-    # the time the collision with the then-natural-named metered `claude-opus-5`
-    # was closed CLIENT-side via ANTHROPIC_DEFAULT_OPUS_MODEL (LiteLLM applies a
+    # ALL FOUR entries are subscription pass-through CRs for which the proxy
+    # holds NO credential (../models/claude-sonnet-5.yaml,
+    # ../models/claude-opus-5.yaml, ../models/claude-haiku-4-5-20251001.yaml,
+    # ../models/claude-fable-5-1.yaml). None is a metered route
+    # (`claude-sonnet-5-metered`/`claude-opus-5-metered`/`claude-fable-5`), and
+    # adding one of those here is the one change this file exists to prevent -
+    # it would make subscription traffic bill the household's metered
+    # ANTHROPIC_API_KEY. The Opus entry was added 2026-08-30 after a `claude`
+    # subagent requested Opus by name and was correctly refused; at the time
+    # the collision with the then-natural-named metered `claude-opus-5` was
+    # closed CLIENT-side via ANTHROPIC_DEFAULT_OPUS_MODEL (LiteLLM applies a
     # key's `aliases` only after this allow-list has already rejected the
     # request - measured 2026-08-30, see the CR header and the doc's section 7
     # for why that ordering ruled out a per-key alias). The 2026-08-31 rename
-    # retired that override's original purpose: these two names are now the
-    # pass-through CRs outright, so no client-side steering off the metered
-    # CRs is needed anymore. The same vars are back in the doc's §5c for an
-    # unrelated reason - a client-only `[1m]` context-window hint.
+    # retired that override's original purpose: `claude-sonnet-5`/
+    # `claude-opus-5` are now the pass-through CRs outright, so no
+    # client-side steering off the metered CRs is needed anymore. The same
+    # vars are back in the doc's §5c for an unrelated reason - a client-only
+    # `[1m]` context-window hint. Haiku and Fable were added 2026-09-27
+    # (captain decision "2-yes"): neither name was ever held by a metered CR
+    # (`claude-fable-5`, the OLDER Fable model, is a distinct catalog entry
+    # from `claude-fable-5-1`, not a collision), so both were added directly
+    # with no rename and no client-side override needed - see each new CR's
+    # header for the id-resolution evidence.
     - claude-sonnet-5
     - claude-opus-5
+    - claude-haiku-4-5-20251001
+    - claude-fable-5-1
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item

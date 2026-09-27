@@ -20,7 +20,7 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, non-secret SSO `env`, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | 39 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5-metered`, `claude-sonnet-5-metered`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - `claude-sonnet-5` + `claude-opus-5` (renamed 2026-08-31 from `claude-code-subscription` / `claude-code-subscription-opus`), the odd ones out: the proxy holds **no credential** for either - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through) - and `embedding-local` (added 2026-09-13 as `embedding-local-cpu`, renamed and moved to the GPU 2026-09-15), a SEPARATE embedding backend - it IS on the B70 now, but it is not one of the five chat aliases: it is its own llama.cpp server (`../../embedding-gpu/`) sharing the card, so heavy use of it degrades chat. See that file's header, `../virtualkeys/embedding-external.yaml`, and `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`. |
+| [`app/models/`](app/models/) | 41 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5-metered`, `claude-sonnet-5-metered`, `claude-fable-5` (metered), the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - `claude-sonnet-5` + `claude-opus-5` + `claude-haiku-4-5-20251001` + `claude-fable-5-1` (Sonnet/Opus renamed 2026-08-31 from `claude-code-subscription` / `claude-code-subscription-opus`; Haiku/Fable added 2026-09-27), the odd ones out: the proxy holds **no credential** for any of the four - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through) - and `embedding-local` (added 2026-09-13 as `embedding-local-cpu`, renamed and moved to the GPU 2026-09-15), a SEPARATE embedding backend - it IS on the B70 now, but it is not one of the five chat aliases: it is its own llama.cpp server (`../../embedding-gpu/`) sharing the card, so heavy use of it degrades chat. See that file's header, `../virtualkeys/embedding-external.yaml`, and `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`. |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
@@ -317,13 +317,21 @@ is now closed by the catch-all for every caller, so reaching it would need a
 
 ## Claude Code subscription pass-through
 
-`claude-sonnet-5` (Sonnet, captain request 2026-08-27) and `claude-opus-5`
-(added 2026-08-30) are the two models here the proxy holds **no credential**
-for. A `claude` CLI logged in to a personal Max/Pro subscription sends its own
-OAuth token per request; LiteLLM forwards it to Anthropic, so the tokens bill
-that person's flat-rate plan while the cluster gets per-request
-tokens/latency/virtual-key attribution it previously never saw. The two CRs
-differ in exactly one line (`params.model`).
+`claude-sonnet-5` (Sonnet, captain request 2026-08-27), `claude-opus-5` (added
+2026-08-30), `claude-haiku-4-5-20251001` and `claude-fable-5-1` (both added
+2026-09-27, captain decision "2-yes") are the four models here the proxy holds
+**no credential** for. A `claude` CLI logged in to a personal Max/Pro
+subscription sends its own OAuth token per request; LiteLLM forwards it to
+Anthropic, so the tokens bill that person's flat-rate plan while the cluster
+gets per-request tokens/latency/virtual-key attribution it previously never
+saw. All four CRs differ from each other in exactly one line (`params.model`).
+Haiku's modelName is the DATED id (`claude-haiku-4-5-20251001`), not a dash
+form - that is the only id Anthropic's own catalog has for that family, and
+the exact string the `claude-code-subscription` key was already sending
+before this CR existed. Fable's `claude-fable-5-1` is a distinct, newer model
+from the unrelated metered `claude-fable-5` CR (a different id in Anthropic's
+own catalog, not a rename target) - see the runbook's §5e for the full
+resolution evidence for both.
 
 **RENAMED 2026-08-31** (captain decision, Alternative B of the pass-through
 investigation report): these two CRs used to be `claude-code-subscription` /

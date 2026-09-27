@@ -31,15 +31,22 @@ document changed meaning: every measurement, table and mechanism below was
 re-verified against the current config and still holds, with names updated
 in place.
 
-Declared by two model CRs - Sonnet
-[`claude-sonnet-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-sonnet-5.yaml)
-and, since 2026-08-30, Opus
-[`claude-opus-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-opus-5.yaml).
+Declared by four model CRs - Sonnet
+[`claude-sonnet-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-sonnet-5.yaml),
+since 2026-08-30 Opus
+[`claude-opus-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-opus-5.yaml),
+and since 2026-09-27 Haiku
+[`claude-haiku-4-5-20251001.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-haiku-4-5-20251001.yaml)
+and Fable
+[`claude-fable-5-1.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-fable-5-1.yaml).
 They are **the only model CRs in this repo for which the proxy holds no
 credential**, they differ from each other in exactly one line (`params.model`),
-and everything this document says about one applies unchanged to the other.
-Why Opus is a separate CR rather than a per-key alias, with the measurements
-behind that: **§7**.
+and everything this document says about one applies unchanged to the others.
+Why each is a separate CR rather than a per-key alias, with the measurements
+behind that: **§7**. Haiku and Fable's own id-resolution evidence (why the
+Haiku CR uses a dated id while the others use dash form, and why Fable's CR is
+a new addition rather than a rename of the existing metered `claude-fable-5`):
+**§5e**.
 
 Upstream tutorial: <https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription>.
 Everything below that contradicts it was measured against our own pinned image
@@ -381,10 +388,11 @@ is sent per-request.
 Registration is not entitlement, so this model ships with its own key
 (captain decision 2026-08-27):
 [`app/virtualkeys/claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/claude-code-subscription.yaml).
-It is allow-listed to the two pass-through models (`claude-sonnet-5` and
-`claude-opus-5` since the 2026-08-31 rename) and nothing else, so it is not a
+It is allow-listed to the four pass-through models (`claude-sonnet-5` and
+`claude-opus-5` since the 2026-08-31 rename; `claude-haiku-4-5-20251001` and
+`claude-fable-5-1` since 2026-09-27) and nothing else, so it is not a
 second door into the metered Anthropic models (`claude-sonnet-5-metered` /
-`claude-opus-5-metered`). Both allow-listed models are CRs for which **the
+`claude-opus-5-metered`). All four allow-listed models are CRs for which **the
 proxy holds no credential**;
 that property, not the length of the list, is what keeps this key unable to
 spend the household's money, and `scripts/ci/litellm-claude-code-subscription-test.py`
@@ -435,37 +443,46 @@ export ANTHROPIC_BASE_URL="https://litellm.${SECRET_DOMAIN}"   # internal gatewa
 export ANTHROPIC_MODEL="claude-sonnet-5[1m]"
 export ANTHROPIC_DEFAULT_SONNET_MODEL="claude-sonnet-5[1m]"
 export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-opus-5[1m]"
+export ANTHROPIC_DEFAULT_FABLE_MODEL="claude-fable-5-1[1m]"
 export ENABLE_TOOL_SEARCH=true
 export ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-…your-virtual-key…"
 claude
 ```
 
 **`[1m]` is required, and it is client-only.** Claude Code trusts the native
-1,000,000-token window on `claude-sonnet-5` and `claude-opus-5` only when
-`ANTHROPIC_BASE_URL` is unset or is exactly `api.anthropic.com`. With this
-proxy as the base URL it believes the window is 200,000, so auto-compact fires
-around 167k tokens instead of around 967k, and it turns tool search off so
-every tool schema is sent inline. The suffix restores the 1M belief and sends
-a `context-1m` beta Anthropic accepts. Claude Code strips `[1m]` before the
-request is sent, so the wire model stays `claude-sonnet-5` / `claude-opus-5`.
-Allow-lists, model CRs, `$0` pricing, and the money-safety CI checks are
-unchanged. Verified live on Claude Code 2.1.281 against the v1.98.0 proxy,
-2026-09-24.
+1,000,000-token window on `claude-sonnet-5`, `claude-opus-5` and
+`claude-fable-5-1` only when `ANTHROPIC_BASE_URL` is unset or is exactly
+`api.anthropic.com`. With this proxy as the base URL it believes the window is
+200,000, so auto-compact fires around 167k tokens instead of around 967k, and
+it turns tool search off so every tool schema is sent inline. The suffix
+restores the 1M belief and sends a `context-1m` beta Anthropic accepts. Claude
+Code strips `[1m]` before the request is sent, so the wire model stays
+`claude-sonnet-5` / `claude-opus-5` / `claude-fable-5-1`. Allow-lists, model
+CRs, `$0` pricing, and the money-safety CI checks are unchanged. Verified live
+on Claude Code 2.1.281 against the v1.98.0 proxy, 2026-09-24 (Sonnet/Opus);
+Fable added 2026-09-27 on the same mechanism, confirmed against its catalog
+entry (`context.native_1m: true`, same as Sonnet/Opus - §5e).
 
-**The Sonnet and Opus family vars are back because subagents and `/model`
-resolve by family.** `ANTHROPIC_MODEL` names only the main loop. Before the
-2026-08-31 rename, a by-family request (`model: opus`, `/model opus`, a Task
-tool call) resolved through `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` and landed on
-the metered CRs, which this key correctly refused (§7). Those natural names
-now belong to the pass-through CRs, and the values here are those same names
-plus `[1m]`. The 2026-08-31 metered-name collision stays closed. See §8 for
-the metered names to use on purpose.
+**The Sonnet, Opus and Fable family vars are back because subagents and
+`/model` resolve by family.** `ANTHROPIC_MODEL` names only the main loop.
+Before the 2026-08-31 rename, a by-family request (`model: opus`, `/model
+opus`, a Task tool call) resolved through `ANTHROPIC_DEFAULT_<FAMILY>_MODEL`
+and landed on the metered CRs, which this key correctly refused (§7). Those
+natural names now belong to the pass-through CRs, and the Sonnet/Opus values
+here are those same names plus `[1m]`. The 2026-08-31 metered-name collision
+stays closed. `ANTHROPIC_DEFAULT_FABLE_MODEL` is set for a different reason -
+there was never a metered `claude-fable-5-1` to collide with (§5e) - purely
+for the same client-only 1M context-window hint. See §8 for the metered names
+to use on purpose.
 
-**Haiku stays unset.** The CLI also honours `ANTHROPIC_DEFAULT_HAIKU_MODEL`
-and `ANTHROPIC_DEFAULT_FABLE_MODEL`. No pass-through CR exists for those
-families, and Haiku 4.5's native window is 200k, so `[1m]` does not apply. A
-request that resolves to either name 403s. If background Haiku traffic starts
-failing visibly, add a third CR following §5e.
+**Haiku stays unset, deliberately.** The CLI also honours
+`ANTHROPIC_DEFAULT_HAIKU_MODEL`. A pass-through CR now exists
+(`claude-haiku-4-5-20251001`, added 2026-09-27 - §5e) and Claude Code's
+unmodified default already resolves to that exact id, so setting the variable
+would be a pure no-op: there is no metered collision to steer around and, since
+Haiku 4.5's native window stays 200k (`[1m]` does not apply - §5e), no
+window-hint benefit either. Leave it unset unless a future Haiku release moves
+the family's default id away from `claude-haiku-4-5-20251001`.
 
 **Self-check** (must print `1000000`):
 
@@ -514,32 +531,69 @@ key as history, not as spend - and if NEW rows start carrying cost again, a cach
 price field has been dropped from a model CR. The same rows drive the Prometheus metrics scraped by
 [`app/servicemonitor.yaml`](../../../kubernetes/apps/base/ai/litellm/app/servicemonitor.yaml).
 
-### 5e. Adding a further family (Haiku, Fable)
+### 5e. Adding a further family (Haiku, Fable - done 2026-09-27)
 
-Opus is already done -
+Opus was done first -
 [`app/models/claude-opus-5.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-opus-5.yaml),
-added 2026-08-30, renamed 2026-08-31. To add another family, follow the same
-shape:
+added 2026-08-30, renamed 2026-08-31. Haiku and Fable followed on 2026-09-27
+(captain decision "2-yes" on "Should I add Haiku and Fable as subscription
+models"):
+[`app/models/claude-haiku-4-5-20251001.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-haiku-4-5-20251001.yaml)
+and
+[`app/models/claude-fable-5-1.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-fable-5-1.yaml).
+To add a further family, follow the same shape:
 
-1. Copy either subscription CR to a new file with its own
-   `metadata.name`/`modelName` and a different `params.model`, resolving the
-   id against Anthropic's **direct** catalog (`models/kustomization.yaml`
-   rule 3 - the dash form `anthropic/claude-haiku-5` or similar, never
-   OpenRouter's dotted spelling).
+1. Copy any existing subscription CR to a new file with its own
+   `metadata.name`/`modelName` and a different `params.model`.
 2. Add the file to `models/kustomization.yaml`.
 3. Add the new `modelName` to the virtual key's allow-list.
-4. **Decide the name deliberately, the same choice the 2026-08-31 rename made
-   for Sonnet and Opus.** If nothing else on this proxy already holds that
-   family's natural name (there is no metered `claude-haiku-5`/`claude-fable-5`
-   CR today), give the new pass-through CR the natural name outright. That is
-   the preferred shape for the name: no client override is needed to steer
-   traffic off a metered CR. A native-1M family still sets
-   `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` to `<natural-name>[1m]`, the same
-   client-only window hint §5c uses for Sonnet and Opus. Point that variable
-   at a different name only when the natural name is already taken by a
-   metered CR you are not renaming; in that case, follow §7's evidence for
-   why a per-key alias does not work and why a distinct-name client override
-   was the fallback, not the first choice.
+4. **Resolve the id against Anthropic's live catalog - never guess the dash
+   form.** `GET https://api.anthropic.com/v1/models` with the pod's own
+   `ANTHROPIC_API_KEY` (harmless - it only lists models, never spends) is
+   authoritative, but is not by itself enough to know which id a family's
+   *bare* alias (`opus`, `fable`, `haiku`) currently resolves to when a caller
+   asks for it by family rather than by exact id - the catalog can list
+   several ids for one family (Anthropic's had both `claude-fable-5` and
+   `claude-fable-5-1` live on 2026-09-27) with no field marking which one is
+   "current". Cross-check Claude Code's own baked-in resolution: the
+   installed CLI binary embeds a `model-catalog.json` with a
+   `latest_per_family` map (`{fable: "claude-fable-5-1", opus:
+   "claude-opus-5-5", sonnet: "claude-sonnet-5", haiku: "claude-haiku-4-5"}`
+   as measured 2026-09-27 against Claude Code 2.1.283) - extract it with
+   `strings -a <path-to-claude.exe> | grep -o 'latest_per_family:{[^}]*}'`.
+   That map's values are catalog KEYS, not necessarily the wire id: each
+   catalog entry also carries `provider_ids.first_party`, which is the string
+   actually sent to the direct Anthropic API and can differ from the key (the
+   Haiku entry's key is `claude-haiku-4-5`, but its `first_party` - and the
+   only id Anthropic's own catalog lists - is `claude-haiku-4-5-20251001`).
+   **The live `LiteLLM_SpendLogs` table is the strongest evidence of all**,
+   when it exists: query it for `model ILIKE '%<family>%'` grouped by exact
+   string - a caller already sending real (if refused) requests for a family
+   tells you definitively what id to register, no inference needed. This is
+   exactly how Haiku was resolved: the `claude-code-subscription` key's own
+   pre-existing failed requests already named `claude-haiku-4-5-20251001`
+   verbatim.
+5. **Decide the name deliberately, the same choice the 2026-08-31 rename made
+   for Sonnet and Opus.** Check every consumer of the natural name first -
+   `grep -rn '<name>' kubernetes/ docs/ scripts/ci/`, plus a live query of
+   `LiteLLM_VerificationToken.models` and `LiteLLM_SpendLogs.model` for any
+   existing holder or spend - before assuming a rename is even needed. It may
+   not be: Fable's natural id turned out to be `claude-fable-5-1`, a model
+   `../claude-fable-5.yaml` (the older, metered Fable 5) never held, so there
+   was no collision and no rename - just a new CR. If nothing holds the
+   family's natural name, give the new pass-through CR that name outright; no
+   client override is needed to steer traffic off a metered CR. A native-1M
+   family still sets `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` to
+   `<natural-name>[1m]`, the same client-only window hint §5c uses for
+   Sonnet, Opus and Fable - check the catalog entry's `context` object for
+   `native_1m: true` before adding it (Haiku's entry has none; its window
+   stays 200k, so the variable is left unset instead - §5c). Point the
+   variable at a different name only when the natural name is genuinely taken
+   by a metered CR you are not renaming; in that case, follow §7's evidence
+   for why a per-key alias does not work and why a distinct-name client
+   override was the fallback, not the first choice. If a rename WOULD break a
+   live consumer, stop and get a decision before changing anything - don't
+   guess at whether a caller can tolerate it.
 
 **Keep the placeholder `apiKey` and the full set of explicit `$0` prices** -
 input, output, **and** the five prompt-cache fields (§4a). All of them apply
@@ -549,9 +603,9 @@ silent fallback to the household's metered `ANTHROPIC_API_KEY`; dropping a
 cache zero restarts the fictional-spend accrual that §4a closed.
 
 **Never solve a new family by adding its metered name to the allow-list**
-(`claude-opus-5-metered`, `claude-sonnet-5-metered`, `auto`). That converts
-this key into the second door into metered billing the whole design exists to
-prevent, and it is what §7 rules out on measured grounds.
+(`claude-opus-5-metered`, `claude-sonnet-5-metered`, `claude-fable-5`, `auto`).
+That converts this key into the second door into metered billing the whole
+design exists to prevent, and it is what §7 rules out on measured grounds.
 
 ---
 
@@ -612,6 +666,27 @@ client-only `[1m]` suffix, and sets `ENABLE_TOOL_SEARCH=true`. The family
 vars are back for the context window. The metered-name collision this rename
 closed stays closed. No model CR, virtual key, allow-list, price, or proxy
 setting changed.
+
+**2026-09-27 (Haiku and Fable added, captain decision "2-yes").** Two new
+model CRs -
+[`claude-haiku-4-5-20251001.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-haiku-4-5-20251001.yaml)
+and
+[`claude-fable-5-1.yaml`](../../../kubernetes/apps/base/ai/litellm/app/models/claude-fable-5-1.yaml)
+- were added to the subscription key's allow-list, following the exact
+Sonnet/Opus shape (placeholder `apiKey`, all seven `$0` price fields). Unlike
+the 2026-08-31 Sonnet/Opus rename, **no existing model CR was renamed or
+touched**: `claude-fable-5` (the older, metered Fable 5) was confirmed to have
+no live consumer (no virtual key, auto-router entry, or fallback chain named
+it, and it has never been called per `LiteLLM_SpendLogs`) and is a genuinely
+distinct catalog entry from `claude-fable-5-1`, not a naming collision - so it
+keeps its name and its `os.environ/ANTHROPIC_API_KEY` credential unchanged.
+Haiku had no metered CR to collide with at all. §5c's env block gained
+`ANTHROPIC_DEFAULT_FABLE_MODEL=claude-fable-5-1[1m]` (Fable has a genuine
+native 1M window, same as Sonnet/Opus); `ANTHROPIC_DEFAULT_HAIKU_MODEL` was
+deliberately left unset (Haiku's window stays 200k, and its natural default
+already resolves to the registered id with no override needed). No other
+model CR, virtual key, fallback chain, auto-router entry, or credential was
+touched.
 
 ---
 
@@ -771,7 +846,7 @@ Nothing about how they work changed, only their name.
 
 **Reaching them requires a key entitled to the metered route.** The dedicated
 `claude-code-subscription` key (§5b) is deliberately NOT one - its allow-list
-holds only the two credential-less pass-through CRs, and the CI test
+holds only the four credential-less pass-through CRs, and the CI test
 (`scripts/ci/litellm-claude-code-subscription-test.py`,
 `virtualkey_allowlist_names_no_metered_route`) fails the build if that ever
 changes. Reach the metered models the same way every other cloud consumer in
