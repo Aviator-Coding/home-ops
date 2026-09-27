@@ -1,0 +1,69 @@
+diff --git a/main.py b/main.py
+index 9ff5ab8..af8c403 100644
+--- a/main.py
++++ b/main.py
+@@ -85,6 +85,32 @@ async def shutdown():
+     await db.disconnect()
+ 
+ 
++def _metadata_equalities(filters: dict) -> dict:
++    """Flatten a search `filters` object to {metadata key: required value}.
++
++    Accepts this server's own flat form ({"category": "support"}) and the
++    OpenAI Vector Stores form LiteLLM forwards: a comparison filter
++    {"type": "eq", "key": ..., "value": ...} or an {"type": "and", "filters":
++    [...]} of them. Upstream read the OpenAI form as literal metadata keys
++    ("type", "key", "value") and silently matched nothing; any other operator
++    is now a 400 instead of an empty result.
++    """
++    kind = filters.get("type")
++    if kind is None:
++        return filters
++    if kind == "eq" and "key" in filters:
++        return {filters["key"]: filters.get("value")}
++    if kind == "and" and isinstance(filters.get("filters"), list):
++        merged = {}
++        for sub in filters["filters"]:
++            merged.update(_metadata_equalities(sub))
++        return merged
++    raise HTTPException(
++        status_code=400,
++        detail=f"Unsupported filter {kind!r}: only 'eq' comparisons, optionally combined with 'and', are supported",
++    )
++
++
+ async def generate_query_embedding(query: str) -> List[float]:
+     """
+     Generate an embedding for the query using LiteLLM
+@@ -260,7 +286,7 @@ async def search_vector_store(
+         query_vector_str = "[" + ",".join(map(str, query_embedding)) + "]"
+         
+         # Build the raw SQL query for vector similarity search
+-        limit = min(request.limit or 20, 100)  # Cap at 100 results
++        limit = min(request.max_num_results or request.limit or 20, 100)  # Cap at 100 results
+         
+         # Base query with vector similarity using cosine distance
+         # Use configurable field names
+@@ -286,7 +312,7 @@ async def search_vector_store(
+         filter_conditions = []
+         
+         if request.filters:
+-            for key, value in request.filters.items():
++            for key, value in _metadata_equalities(request.filters).items():
+                 filter_conditions.append(f"{fields.metadata_field}->>${param_count} = ${param_count + 1}")
+                 query_params.extend([key, str(value)])
+                 param_count += 2
+diff --git a/models.py b/models.py
+index 70f4bff..d121db0 100644
+--- a/models.py
++++ b/models.py
+@@ -28,6 +28,9 @@ class VectorStoreResponse(BaseModel):
+ class VectorStoreSearchRequest(BaseModel):
+     query: str
+     limit: Optional[int] = 20
++    # The OpenAI Vector Stores API (and therefore LiteLLM's pg_vector provider)
++    # names the result cap `max_num_results`; `limit` is this server's own.
++    max_num_results: Optional[int] = None
+     filters: Optional[Dict[str, Any]] = None
+     return_metadata: Optional[bool] = True
+ 

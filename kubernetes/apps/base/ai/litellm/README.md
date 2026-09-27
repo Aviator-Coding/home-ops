@@ -26,6 +26,7 @@ from the CRs here.
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
 | [`app/externalsecret.yaml`](app/externalsecret.yaml) | `litellm-secret` (master/salt key, `DATABASE_URL`, `INIT_POSTGRES_*`, the four provider keys `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`, `OPENROUTER_API_KEY`, plus `GENERIC_CLIENT_ID`/`GENERIC_CLIENT_SECRET` from `litellm-sso`). |
 | [`app/pushsecret-sso.yaml`](app/pushsecret-sso.yaml) | Pushes OpenTofu-generated OAuth2 credentials into 1Password `Automation/litellm-sso` via the `onepassword-automation` ClusterSecretStore. |
+| [`app/pushsecret-pgvector.yaml`](app/pushsecret-pgvector.yaml) | Pushes the hand-seeded `litellm-pgvector-seed` Secret (vector-store bearer key + its Postgres role password) into 1Password `litellm-pgvector`. See [Vector store (pgvector)](#vector-store-pgvector). |
 | `app/servicemonitor.yaml`, `app/prometheusrule.yaml` | Scrape + alerts against the operator-rendered Service. |
 
 **Request logging.** `generalSettings.store_prompts_in_spend_logs: true`
@@ -452,6 +453,117 @@ metered CR. §7 and §8 of the runbook carry the full history and the current
 admin-facing contract; its §5c/§9 cover the unrelated reason
 `ANTHROPIC_DEFAULT_OPUS_MODEL`/`ANTHROPIC_DEFAULT_SONNET_MODEL` are set again
 today - a client-only `[1m]` context-window hint.
+
+## Vector store (pgvector)
+
+Added 2026-09-27 (captain request: "create a pgvector database for litellm and
+connect to it, use the local embedding model"). LiteLLM's Vector Stores API
+with the `pg_vector` provider, backed by a database on the shared `postgres-17`
+cluster and embedded by `embedding-local` (Qwen3-Embedding-0.6B, 1024-d, on the
+B70).
+
+```
+client --search--> LiteLLM /v1/vector_stores/default/search
+                     | registry entry (litellmproxy.yaml extraConfig)
+                     v
+                   ai/litellm-pgvector  --embeds the query--> LiteLLM /embeddings (embedding-local,
+                     |                                        key litellm-pgvector)
+                     v
+                   postgres-17 / database litellm_pgvector (pgvector 0.8.0, HNSW cosine)
+```
+
+| Piece | Where |
+| --- | --- |
+| Server ([BerriAI/litellm-pgvector](https://github.com/BerriAI/litellm-pgvector), OpenAI-compatible) | `../litellm-pgvector/app/helmrelease.yaml`, ClusterIP `litellm-pgvector.ai.svc.cluster.local:8000`, no HTTPRoute |
+| Image (upstream publishes none) | `.github/docker/litellm-pgvector/` (pinned upstream commit + two local fixes), built by `.github/workflows/build-litellm-pgvector.yaml` under a content-addressed tag |
+| Role, database, `vector` extension, tables, the seeded `default` store | `../litellm-pgvector/app/dbinit.yaml` + `resources/schema.sql` |
+| Registration in LiteLLM | `app/litellmproxy.yaml` `extraConfig.vector_store_registry` |
+| Query-embedding key (`embedding-local` only) | `app/virtualkeys/litellm-pgvector.yaml` |
+| Invariants between all of the above | `scripts/ci/litellm-pgvector-test.py` |
+
+**Search** - any virtual key, internal route or in-cluster. A registered
+store with no `team_id` is open to every key; the search itself is not
+checked against a key's `models` list, only the server's own query embedding
+is (it runs on the `litellm-pgvector` key).
+
+```bash
+curl -s https://litellm.${SECRET_DOMAIN}/v1/vector_stores/default/search \
+  -H "Authorization: Bearer $LITELLM_KEY" -H 'Content-Type: application/json' \
+  -d '{"query": "how long does pizza dough ferment?", "max_num_results": 5}'
+```
+
+**RAG in a chat call** - LiteLLM searches the store and prepends the hits as a
+`Context:` user message before the model sees the prompt (verified on
+v1.102.1). Keep `max_num_results` small; every hit is injected verbatim.
+
+```json
+{"model": "chat-local",
+ "messages": [{"role": "user", "content": "How long does pizza dough ferment?"}],
+ "tools": [{"type": "file_search", "vector_store_ids": ["default"], "max_num_results": 3}]}
+```
+
+**Ingest** - NOT through LiteLLM. On v1.102.1 the `pg_vector` provider
+implements only store create and search: `/v1/vector_stores/{id}/files` is
+wired for `openai` alone (`ProviderConfigManager.get_provider_vector_store_files_config`)
+and `/v1/rag/ingest` has no `pg_vector` ingestion class
+(`litellm/rag/ingestion/__init__.py`). The server has no file or chunking
+endpoint either: it stores text you have already chunked, next to a vector you
+supply. So ingest is two calls - embed through LiteLLM with YOUR key (the row
+is then attributable in the spend log), then write to the server with its
+bearer key, which only admins hold (1Password `litellm-pgvector`, field
+`LITELLM_PGVECTOR_SERVER_API_KEY`):
+
+```bash
+kubectl -n ai port-forward svc/litellm-pgvector 18000:8000 &
+TEXT='Pizza dough needs 65 percent hydration and a 48 hour cold ferment.'
+EMB=$(curl -s https://litellm.${SECRET_DOMAIN}/v1/embeddings \
+  -H "Authorization: Bearer $LITELLM_KEY" -H 'Content-Type: application/json' \
+  -d "$(jq -n --arg t "$TEXT" '{model: "embedding-local", input: $t}')" | jq -c '.data[0].embedding')
+jq -n --arg t "$TEXT" --argjson e "$EMB" '{content: $t, embedding: $e, metadata: {source: "notes"}}' |
+  curl -s localhost:18000/v1/vector_stores/default/embeddings \
+    -H "Authorization: Bearer $PGVECTOR_SERVER_KEY" -H 'Content-Type: application/json' -d @-
+```
+
+`/v1/vector_stores/default/embeddings/batch` takes `{"embeddings": [...]}` for
+bulk loads. Vectors MUST come from `embedding-local`: a vector from any other
+model is the wrong width (rejected) or, worse, the right width in a different
+space (accepted, and every search silently ranks it wrong). Embedding is on the
+B70 shared with chat, so pace a bulk load by request rate - roughly 0.5 req/s
+at batch 32 leaves chat at 99% (`docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`).
+
+**Filters** - `eq` on a metadata key, optionally inside an `and`
+(`{"type": "eq", "key": "source", "value": "notes"}`). Anything else is a 400.
+Upstream read OpenAI-form filters as literal metadata keys and matched nothing;
+local patch `0002` in the image fixes that and `max_num_results`, which
+upstream also ignored (every search returned 20).
+
+**Another store** - create it on the server (`POST /v1/vector_stores` with the
+bearer key; it returns a random id), then add a second
+`vector_store_registry` entry with that id. Or, to keep the id readable, seed
+it in `schema.sql` like `default`. `POST /v1/vector_stores` through LiteLLM
+does not reach this server: it would need the provider's fallback env var
+`PG_VECTOR_API_KEY`, which is deliberately never set (see the comment on the
+registry entry - it would open every store id to every key).
+
+**Changing the embedding model** means a new width in `schema.sql`,
+`EMBEDDING__DIMENSIONS` and the key's allow-list together, AND re-embedding
+every row: vectors from two models are not comparable. The CI gate enforces
+the three-way agreement; nothing can enforce the re-embed.
+
+**Data and backups.** Stored text sits in plain rows in `litellm_pgvector` on
+`postgres-17`, so it rides that cluster's Barman backups to the LAN TrueNAS
+MinIO (30d) and nothing else - the same boundary as the spend-log content
+above.
+
+**Credentials and rotation.** `pushsecret-pgvector.yaml` carries the seed
+command and the rotation procedure. The proxy tolerates a missing
+`LITELLM_PGVECTOR_API_KEY` at startup (the registry keeps a null key and only
+this store's searches fail), so a secrets hiccup here cannot take the proxy
+down for other consumers.
+
+**Health.** The server's `/health` is static (process up, not DB up); a
+database problem surfaces as 500s on search, logged by the proxy as failed
+`avector_store_search` calls.
 
 ## Pod security posture (known gap, accepted deliberately)
 

@@ -4,7 +4,8 @@
 # LiteLLM's `pg_vector` provider. Stateless - every byte it serves lives in the
 # `litellm_pgvector` database on the shared postgres-17 cluster, so the
 # cluster's Barman backups (LAN TrueNAS MinIO, 30d) cover it with nothing
-# app-side. How it is used and what it cannot do: ../README.md.
+# app-side. How it is used and what it cannot do:
+# ../../litellm/README.md "Vector store (pgvector)".
 #
 # ClusterIP only, no HTTPRoute: LiteLLM reaches it in-cluster for searches, and
 # the write API (ingest) is for in-cluster or port-forwarded admin use - its
@@ -48,7 +49,7 @@ spec:
               #   python3 scripts/ci/litellm-pgvector-test.py --print-tag
               # which is also what that test asserts.
               repository: ghcr.io/aviator-coding/litellm-pgvector
-              tag: b553f84-ccae0dfac994
+              tag: b553f84-4f42740a837a
             env:
               # The LiteLLM SDK inside the server needs a provider prefix to
               # talk to an OpenAI-compatible endpoint; `openai/` makes it POST

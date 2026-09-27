@@ -34,6 +34,10 @@ COPY constraints.txt /tmp/constraints.txt
 # if any no longer applies cleanly (e.g. after bumping the commit above).
 #   0001: list/create 500'd once a store had been written to - raw-query
 #         timestamps arrive as strings, not datetimes.
+#   0002: search ignored the OpenAI-named params LiteLLM sends: every search
+#         (and every file_search context injection) returned the server
+#         default of 20 chunks whatever `max_num_results` said, and OpenAI-form
+#         `filters` were read as literal metadata keys and matched nothing.
 COPY *.patch /tmp/patches/
 WORKDIR /app
 RUN for p in /tmp/patches/*.patch; do patch -p1 --forward --no-backup-if-mismatch < "$p"; done
