@@ -52,6 +52,22 @@ README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 
 RESULTS: list[dict[str, Any]] = []
 
+
+# AI Hub metadata a local alias may declare without affecting routing or spend
+# (captain request 2026-09-27; proof in app/models/chat-local.yaml). Anything
+# else in model_info - above all a *_cost* key - is still refused, so the
+# "no prices" invariant below is a key check, not a literal empty-dict freeze.
+HUB_METADATA_KEYS = frozenset({"mode", "max_input_tokens", "max_output_tokens", "max_tokens"})
+
+
+def non_hub_model_info(model_info: dict | None) -> dict:
+    """model_info minus pure AI Hub metadata (mode, token limits, supports_*)."""
+    return {
+        k: v
+        for k, v in (model_info or {}).items()
+        if k not in HUB_METADATA_KEYS and not k.startswith("supports_")
+    }
+
 # Metric families the Phase 5 alerts depend on - verified live against the
 # proxy's /metrics on 2026-08-26 (fallbacks.md §4).
 REQUIRED_FALLBACK_METRICS = {
@@ -333,7 +349,7 @@ def test_chat_ha_model_shape(cfg: dict) -> None:
     )
     record(
         "chat_ha_has_no_governance_accounting_prices",
-        not ha.get("model_info"),
+        not non_hub_model_info(ha.get("model_info")),
         f"model_info={ha.get('model_info')!r}",
     )
     record(

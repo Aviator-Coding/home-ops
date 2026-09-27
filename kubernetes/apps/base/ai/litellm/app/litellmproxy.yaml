@@ -345,6 +345,62 @@ spec:
       host: litellm-dragonfly.ai.svc.cluster.local
       port: 6379
       ttl: 300
+    # AI HUB PUBLICATION (captain decision `hub-public-set`, 2026-09-27,
+    # option A). This list is the ONLY way a model reaches the Hub
+    # (/public/model_hub, the UI's public Model Hub page): the Admin UI "make
+    # public" button calls /model_group/make_public, which returns HTTP 500 on
+    # this proxy because store_model_in_db is false (see generalSettings), so
+    # there is no UI/API path and therefore no out-of-Git drift. A NEW model is
+    # NOT published until its modelName is added here.
+    #
+    # Publication is discovery only - it grants nothing; entitlement stays on
+    # each LiteLLMVirtualKey's `models` allow-list. /public/* is
+    # unauthenticated, and this proxy has only the internal HTTPRoute, so the
+    # audience is the LAN. Deliberately OMITTED, as internal plumbing no human
+    # should pick: qwen3.6-35b-a3b-classifier (the auto router's own sub-call),
+    # pr-review-local (the CI reviewer's alias) and qwen3.6-35b-a3b (the `demo`
+    # budget smoke test, whose synthetic governance price would display as a
+    # real $50/$100 per 1M tokens). What the Hub shows per model comes from
+    # each LiteLLMModel's `info` (local models) or LiteLLM's cost map (cloud).
+    public_model_groups:
+      - auto
+      - chat-ha
+      - chat-local
+      - claude-fable-5
+      - claude-fable-5-1
+      - claude-haiku-4-5-20251001
+      - claude-opus-4-8
+      - claude-opus-5
+      - claude-opus-5-metered
+      - claude-sonnet-5
+      - claude-sonnet-5-metered
+      - deepseek-v4-flash
+      - deepseek-v4-flash-0731
+      - deepseek-v4-pro
+      - deepseek-v4-pro-0813
+      - embedding-local
+      - gemini-3.1-pro
+      - gemini-3.5-flash-lite
+      - gemini-3.6-flash
+      - gemini-3.7-flash
+      - gemma-4-31b
+      - glm-5.2
+      - glm-5.3
+      - gpt-5.6-luna
+      - gpt-5.6-sol
+      - gpt-5.6-terra
+      - gpt-6-astra
+      - gpt-6-astra-pro
+      - gpt-oss-20b
+      - grok-4.5
+      - grok-4.6
+      - kimi-k3
+      - minimax-m3
+      - muse-glimmer-30b
+      - nemotron-3.5-lightning
+      - qwen3.6-27b
+      - qwen3.8-2.4t-a95b
+      - qwen3.8-27b
 
   # --- Phase 5 fallback chains ---------------------------------------------
   # Maps verbatim to config.yaml's router_settings (the CRD field is a

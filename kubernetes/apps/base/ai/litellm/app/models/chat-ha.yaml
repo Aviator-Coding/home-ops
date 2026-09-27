@@ -54,3 +54,12 @@ spec:
     model: openai/qwen3.6-35b-a3b
     apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
     apiKey: "not-needed" # llama.cpp server has no --api-key set
+  # AI HUB METADATA only - rationale, sources and the inertness proof are on
+  # ./chat-local.yaml; keep the block identical across all five aliases.
+  info:
+    mode: chat
+    maxInputTokens: 262144
+    supportsFunctionCalling: true
+    supportsVision: true
+    extra:
+      supports_reasoning: true

@@ -43,6 +43,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `litellm-fallback-chain-test.py` | Phase 5 LiteLLM availability/context fallback chains |
 | `litellm-anthropic-passthrough-test.py` | Gateway-level close of LiteLLM `/anthropic` pass-through (HTTPRouteFilter directResponse 404, catch-all backend preserved); the Service DNS path is covered by `litellm-passthrough-lockdown-test.py` |
 | `litellm-passthrough-lockdown-test.py` | Admin-only lockdown of LiteLLM's built-in `/openrouter` and `/anthropic` pass-throughs: per prefix, every `pass_through_endpoints` entry is `auth: true` and never `forward_headers`, the exact admin entries (`/openrouter/alpha/decisions`; `/anthropic/v1/messages` and its `count_tokens`) precede the dead-loopback catch-all (the native handler takes the first registry match), driven through litellm's own `_register_pass_through_endpoint` + `RouteChecks`; also proves the operator's string-metadata grant shape grants nothing. Mutation-proven red per prefix on dropped auth, swapped order, a removed catch-all and `forward_headers` |
+| `litellm-ai-hub-test.py` | AI Hub publication (`litellmSettings.public_model_groups`, the only path while `store_model_in_db` is false): every published name is a registered `LiteLLMModel`, the three plumbing aliases stay unpublished, every model is either published or a documented exclusion, and through litellm's own `Router` every published local model renders a mode and context window with no price (cloud rows come from the remote cost map the live proxy fetches, so they are not checked offline). Mutation-proven red on a typo, a published plumbing alias, an unlisted model, local models without `info`, and a priced local model |
 | `litellm-pr-reviewer-test.py` | AI PR reviewer workflow + `pr-review-local` / `ai-pr-review` D4 contracts |
 | `litellm-request-logs-test.py` | full prompt/response capture in LiteLLM spend logs |
 | `litellm-sso-test.py` | LiteLLM UI SSO through Authentik |
@@ -117,8 +118,8 @@ for f in scripts/ci/*-test.py; do python3 "$f" || echo "FAILED: $f"; done
 pinned cluster image (`ghcr.io/berriai/litellm-non_root:v1.102.1`, see
 `kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml`; CI reads the same tag
 from `LITELLM_VERSION` in `.github/workflows/validate.yaml`) and is required by
-`litellm-auto-router-test.py`, `litellm-request-logs-test.py` and
-`litellm-passthrough-lockdown-test.py`, which hard-fail without it; `litellm-claude-code-subscription-test.py` and `litellm-fallback-chain-test.py` degrade
+`litellm-auto-router-test.py`, `litellm-request-logs-test.py`,
+`litellm-passthrough-lockdown-test.py` and `litellm-ai-hub-test.py`, which hard-fail without it; `litellm-claude-code-subscription-test.py` and `litellm-fallback-chain-test.py` degrade
 to a soft pass-with-note instead.
 
 ### CI status

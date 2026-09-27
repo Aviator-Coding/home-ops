@@ -65,6 +65,37 @@ FLOATING_MAJOR = re.compile(r"@v\d+$")
 RESULTS: list[dict[str, Any]] = []
 
 
+# AI Hub metadata a local alias may declare without affecting routing or spend
+# (captain request 2026-09-27; proof in app/models/chat-local.yaml). This reads
+# the RAW CR `info` block, so typed fields are mapped to their model_info names
+# and `extra` is flattened the way the operator renders it. Anything left - above
+# all a *_cost* key - is still refused, so "no prices" stays a key check rather
+# than a literal empty-block freeze.
+_TYPED_INFO_FIELDS = {
+    "mode": "mode",
+    "maxInputTokens": "max_input_tokens",
+    "maxOutputTokens": "max_output_tokens",
+    "maxTokens": "max_tokens",
+    "supportsFunctionCalling": "supports_function_calling",
+    "supportsPromptCaching": "supports_prompt_caching",
+    "supportsVision": "supports_vision",
+}
+HUB_METADATA_KEYS = frozenset({"mode", "max_input_tokens", "max_output_tokens", "max_tokens"})
+
+
+def non_hub_cr_info(info: dict | None) -> dict:
+    """A LiteLLMModel `info` block, rendered, minus pure AI Hub metadata."""
+    info = dict(info or {})
+    rendered = dict(info.pop("extra", None) or {})
+    for field, value in info.items():
+        rendered[_TYPED_INFO_FIELDS.get(field, field)] = value
+    return {
+        k: v
+        for k, v in rendered.items()
+        if k not in HUB_METADATA_KEYS and not k.startswith("supports_")
+    }
+
+
 def record(name: str, ok: bool, detail: str = "") -> None:
     RESULTS.append({"name": name, "ok": ok, "detail": detail})
     status = "PASS" if ok else "FAIL"
@@ -621,7 +652,7 @@ def test_model_cr() -> dict[str, Any]:
     info = spec.get("info") or params.get("info") or additional.get("model_info")
     record(
         "model_has_no_governance_accounting_prices",
-        not info,
+        not non_hub_cr_info(info),
         f"info={info!r}",
     )
 

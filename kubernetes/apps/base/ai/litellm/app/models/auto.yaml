@@ -109,3 +109,11 @@ spec:
         # long conversation on a paid model. Revisit only if cross-turn provider
         # prompt-cache hit rate turns out to matter more than the spend.
         session_affinity: false
+  info:
+    # AI HUB METADATA only: without it the Hub lists `auto` with no mode. Its
+    # context window and capabilities are deliberately left unset, because they
+    # are whichever tier's (see tiers above) and differ per request. Pricing is
+    # stripped from a strategy-router alias by LiteLLM itself, so this block can
+    # never make `auto` look priced or free. Proven on litellm 1.102.1 (offline
+    # Router, 2026-09-27) to leave a routed request's upstream body unchanged.
+    mode: chat
