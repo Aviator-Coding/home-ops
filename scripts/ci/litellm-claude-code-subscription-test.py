@@ -3,27 +3,30 @@
 
 Renders the litellm-operator CR surface the way the operator does in file mode
 (same approach as litellm-fallback-chain-test.py / litellm-auto-router-test.py),
-then asserts the captain-approved semantics for the pass-through models,
-`claude-sonnet-5` and `claude-opus-5` (2026-08-27; RENAMED 2026-08-31 from
-`claude-code-subscription`/`claude-code-subscription-opus` to the natural
-names - captain decision, Alternative B of
+then asserts the captain-approved semantics for the four pass-through models -
+`claude-sonnet-5` and `claude-opus-5` (2026-08-27/2026-08-30; RENAMED
+2026-08-31 from `claude-code-subscription`/`claude-code-subscription-opus` to
+the natural names - captain decision, Alternative B of
 data/homeops-claude-code-passthrough-design/report.md - freeing those names
 from the formerly-metered CRs, which moved to `claude-sonnet-5-metered` /
-`claude-opus-5-metered`). The dedicated virtual key KEEPS its original name,
-alias and Secret (`claude-code-subscription`) - only the two models it is
-scoped to were renamed:
+`claude-opus-5-metered`), plus `claude-haiku-4-5-20251001` and
+`claude-fable-5-1` (both ADDED 2026-09-27, captain decision "2-yes", with no
+rename - neither name was ever held by a metered CR). The dedicated virtual
+key KEEPS its original name, alias and Secret (`claude-code-subscription`) -
+only the model allow-list changed:
 
-  1. Model CRs (Sonnet + Opus) are rendered into model_list with the matching
-     anthropic/claude-*-5 upstream, a non-secret sk-ant-oat placeholder
-     api_key (NOT os.environ/ANTHROPIC_*), and explicit $0 custom prices on
-     all seven fields (input, output, and the five prompt-cache ones).
+  1. Model CRs (Sonnet, Opus, Haiku, Fable) are rendered into model_list with
+     the matching anthropic/claude-* upstream, a non-secret sk-ant-oat
+     placeholder api_key (NOT os.environ/ANTHROPIC_*), and explicit $0 custom
+     prices on all seven fields (input, output, and the five prompt-cache
+     ones).
   2. Proxy general/litellm settings do NOT enable the global
      forward_client_headers_to_llm_api flag.
   3. The model is absent from every config-declared fallback chain.
-  4. Its dedicated virtual key is scoped only to the subscription models
-     (Sonnet + Opus pass-through CRs), and carries no rpmLimit/tpmLimit
-     (removed 2026-08-31) and deliberately NO maxBudget - no local ceiling
-     of any kind - and has a matching PushSecret.
+  4. Its dedicated virtual key is scoped only to the four subscription models
+     (Sonnet/Opus/Haiku/Fable pass-through CRs), and carries no
+     rpmLimit/tpmLimit (removed 2026-08-31) and deliberately NO maxBudget - no
+     local ceiling of any kind - and has a matching PushSecret.
   5. No ExternalSecret change is required for this model (proxy still only
      pulls the shared ai-keys / litellm secrets).
   6. kustomize build emits both CRs + PushSecret.
@@ -66,9 +69,10 @@ RUNBOOK = REPO / "docs/ai-system/litellm/claude-code-subscription.md"
 README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 
 # The virtual key's own name/alias/Secret - UNCHANGED by the 2026-08-31
-# rename. It still accurately describes what the key is FOR (the Claude Code
-# CLI subscription user); only the two models it is allow-listed to changed
-# names, which is why this is a separate constant from MODEL_NAME below.
+# rename and the 2026-09-27 Haiku/Fable addition. It still accurately
+# describes what the key is FOR (the Claude Code CLI subscription user); only
+# the models it is allow-listed to have changed, which is why this is a
+# separate constant from MODEL_NAME below.
 KEY_NAME = "claude-code-subscription"
 # RENAMED 2026-08-31 from `claude-code-subscription` to the natural
 # `claude-sonnet-5` (captain decision, Alternative B of
