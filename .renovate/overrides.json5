@@ -190,5 +190,44 @@
       matchPackageNames: ["quay.io/ceph/ceph"],
       allowedVersions: "/^v?\\d+\\.2\\.\\d+$/",
     },
+    {
+      // Plex tags are X.Y.Z.BUILD-HASH (e.g. 1.43.1.10611-1e34174b1), where
+      // HASH is a per-release git commit shortref that never repeats. Under
+      // the default "docker" versioning scheme this is not a prerelease
+      // problem (isStable/isGreaterThan both already agree a newer tag is
+      // newer and stable) - it is a *compatibility* problem: "docker"
+      // versioning treats the dash-suffix as a compatibility qualifier that
+      // must match the currently-installed tag's suffix exactly (the same
+      // mechanism that keeps e.g. an "-alpine" image from being "compatible"
+      // with a "-slim" one of the same version). Since the hash differs on
+      // every single release, isCompatible(candidate, current) is false for
+      // every candidate except the currently-installed tag itself, so
+      // Renovate's lookup filters out every real update before it ever gets
+      // to ranking them - confirmed directly against the installed
+      // renovate@44.52.1 package's modules/versioning docker.isCompatible().
+      // This is why the dependency dashboard (#489) lists the image but has
+      // never shown an "Updates:" line and no Renovate PR has ever opened
+      // for it, despite 1.43.2/1.43.3/1.43.4 all being live upstream.
+      //
+      // The fix is a regex versioning scheme that captures major/minor/patch/
+      // build as named groups Renovate actually supports, but leaves the
+      // trailing commit hash UNCAPTURED - critically, NOT as a
+      // "compatibility" named group. Naming it "compatibility" reproduces the
+      // exact same bug (isCompatible again requires an exact hash match,
+      // verified against the same renovate package); leaving it unnamed
+      // means every tag is "compatible" with every other tag, matching how
+      // these images actually relate on Docker Hub.
+      //
+      // Under this versioning, 1.43.1 -> 1.43.4 classifies as an ordinary
+      // "patch" update (major/minor both unchanged) - see the repo-wide
+      // "Auto merge all container and helm patch updates" rule in
+      // .renovate/autoMerge.json5, which automerges patch updates on the
+      // "docker" datasource with no minimumReleaseAge delay. No automerge
+      // rule is added or changed here.
+      description: "Plex uses X.Y.Z.BUILD-HASH tags; regex-version them so Renovate can see updates past the per-release commit hash",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/plexinc/pms-docker"],
+      versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[a-f0-9]+$",
+    },
   ],
 }
