@@ -24,6 +24,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `grafana-mcp-deploy-test.py` | in-cluster grafana-mcp ToolHive `MCPServer` deployment |
 | `grafana-sa-provisioner-test.py` | grafana-sa-provisioner (captain option C) |
 | `grafana-dashboard-gaps-test.py` | Grafana home path must stay the chart file (the sidecar `/tmp/dashboards/home.json` override 500s), Ceph usage/hosts and LiteLLM ops/routing boards render as substitution-disabled ConfigMaps, UniFi downloads rewrite `DS_UNIFI_POLLER`, and the three TrueNAS boards stay deleted |
+| `toolhive-session-probe-test.py` | the `ToolHive MCP Session` Gatus check stays a real MCP `initialize` against the URL Hermes uses, asserts on vmcp's `serverInfo`, fits inside Hermes' 30s connect budget, and still pages via `GatusServiceDown` (the `/health` check stayed green through the 2026-09-14..27 outage) |
 | `hermes-state-db-retention-test.py` | `ai/hermes` state.db retention contract (`auto_prune` pinned on, `vacuum_after_prune` pinned **off** because a VACUUM cannot fit the claim and would retry to ENOSPC, `retention_days` asserted as a *shape* - narrower than upstream's 90 - so a further narrowing needs no CI edit) |
 | `hostpolicy-ceph-selector-test.py` | Ceph LAN-isolation host CCNP selector |
 | `kopiur-stage0-test.py` | kopiur Stage 0: operator pin/CRDs/monitoring, ceph+r2 ClusterRepositories + deletion protection, no SnapshotPolicy/Schedule, Renovate automerge exclusion, VolSync untouched |

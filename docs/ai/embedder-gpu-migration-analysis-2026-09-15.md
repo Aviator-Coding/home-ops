@@ -301,6 +301,13 @@ is not a shortcut - it cannot follow:
 That workload is ~959 vectors rebuilt in memory on vmcp restart, so CPU is right for it anyway,
 and since both servers produce the same vectors nothing downstream has to know which answered.
 
+> **Corrected 2026-09-27:** that sizing was wrong. vmcp re-embeds the whole catalog (449 tools)
+> on *every MCP session*, inside `initialize`, and Qwen3 on this CPU pod took ~490s per session.
+> So no client could open a ToolHive session from 2026-09-14 on. The CPU server now runs
+> `BAAI/bge-small-en-v1.5` (6s per session) and no longer matches the GPU server's vectors. That
+> is harmless, because the index is rebuilt in memory for each session. See
+> `docs/ai-system/toolhive-optimizer-embedding-timeout-2026-09-27.md`.
+
 **The backfill did not run.** Producing the 154,715 embeddings is a separate operation.
 
 ## 8. A trap found on the way
