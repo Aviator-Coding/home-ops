@@ -26,7 +26,13 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
-    # Allow DNS replies from CoreDNS in kube-system
+    # Allow DNS replies from CoreDNS in kube-system. No ports restriction here
+    # on purpose: NetworkPolicy `ports` matches the DESTINATION port on this
+    # pod, and a DNS reply arrives on loki's ephemeral source port, never 53
+    # - a port:53 restriction (as added in #1800) can never match a reply and
+    # silently drops every DNS response. Reproduced live 2026-09-26: Cilium
+    # recorded `drop (Policy denied) ... identity <coredns>-><loki>:
+    # 10.43.0.10:53 -> <loki-ip>:<ephemeral> udp` for every query.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -34,8 +40,3 @@ spec:
           podSelector:
             matchLabels:
               k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
