@@ -307,6 +307,22 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
     leak_vals = _permanent_leak_values(HOURS, start_h=leak_start, height=1)
     healthy_vals = [0] * HOURS
 
+    # A single sweep catching exactly one real in-flight credential copy - the
+    # smallest possible nonzero census, not just the 2026-08-31 height-4
+    # plateau. Measured live: the 23:26:52Z sweep published 1
+    # (ai/hermes-r2-...-creds-0, a real backup mid-run), the reaper removed
+    # it 3 minutes later, and the NEXT sweep (05:26:52Z, 6h later) read 0
+    # again - the gauge holds the frozen 1 the whole 6h between, regardless
+    # of the reaper's action minutes in. Same 0 -> N -> 0 shape as the
+    # plateau above, at the minimum possible N, on a single (non-leader-
+    # change) series.
+    single_copy_start = 10
+    single_copy_vals = _plateau_values(
+        HOURS, start_h=single_copy_start, duration_h=SWEEP_INTERVAL_H, height=1
+    )
+    single_copy_mid_h = single_copy_start + SWEEP_INTERVAL_H - 1
+    single_copy_post_h = single_copy_start + SWEEP_INTERVAL_H + 2
+
     # Eval points (1h series interval):
     mid_plateau_h = plateau_start + SWEEP_INTERVAL_H - 1  # last hour of plateau
     post_plateau_h = plateau_start + SWEEP_INTERVAL_H + 2  # after plateau cleared
@@ -473,6 +489,50 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
                                     },
                                 }
                             ],
+                        },
+                    ],
+                },
+                {
+                    # Smallest possible nonzero census (N=1) from a single
+                    # real in-flight credential copy, reaped minutes later -
+                    # the exact 23:26:52Z -> 05:26:52Z live shape. Must not
+                    # fire: no leak, just one sweep catching one real,
+                    # short-lived, legitimate copy.
+                    "name": "single_sweep_inflight_copy_between_zeros_stays_silent",
+                    "interval": "1h",
+                    "input_series": [
+                        {
+                            "series": "kopiur_projected_secrets_live",
+                            "values": _series(single_copy_vals),
+                        }
+                    ],
+                    "promql_expr_test": [
+                        {
+                            "expr": fixed_expr,
+                            "eval_time": f"{single_copy_mid_h}h",
+                            "exp_samples": [],
+                        },
+                        {
+                            "expr": fixed_expr,
+                            "eval_time": f"{single_copy_post_h}h",
+                            "exp_samples": [],
+                        },
+                    ],
+                    "alert_rule_test": [
+                        {
+                            "eval_time": f"{single_copy_mid_h}h",
+                            "alertname": ALERT_NAME,
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": f"{single_copy_post_h}h",
+                            "alertname": ALERT_NAME,
+                            "exp_alerts": [],
+                        },
+                        {
+                            "eval_time": f"{HOURS - 1}h",
+                            "alertname": ALERT_NAME,
+                            "exp_alerts": [],
                         },
                     ],
                 },
@@ -793,6 +853,7 @@ def assert_promtool_semantics(alert: dict[str, Any], rule: dict[str, Any]) -> di
         "scenarios": [
             "benign_six_hour_census_plateau_stays_silent",
             "permanent_leak_fires_after_two_sweep_passes",
+            "single_sweep_inflight_copy_between_zeros_stays_silent",
             "healthy_zero_census_stays_silent",
             "fresh_leader_series_benign_census_then_zero_stays_silent",
             "leader_change_mid_leak_still_fires",
@@ -850,6 +911,8 @@ def main() -> int:
     print("  - benign 6h frozen census plateau does NOT fire under fixed rule")
     print("  - identical plateau DOES fire under pre-fix bare level + for:1h")
     print("  - permanent leak fires once min_over_time[13h] stays > 0 across sweeps")
+    print("  - a single sweep catching one real in-flight credential copy (N=1),")
+    print("    reaped minutes later, does NOT fire (23:26:52Z -> 05:26:52Z live shape)")
     print("  - healthy zero census stays silent")
     print("  - a fresh leader series (new pod/instance, no history) that starts at a")
     print("    benign census and drops to zero at its own next sweep stays silent")
