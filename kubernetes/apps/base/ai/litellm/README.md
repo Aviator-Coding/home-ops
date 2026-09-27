@@ -315,6 +315,30 @@ separate, ordinary `text->text` chat model; `/openrouter/v1/chat/completions`
 is now closed by the catch-all for every caller, so reaching it would need a
 `LiteLLMModel` CR like any other OpenRouter model).
 
+### AI Hub publication (Git-only)
+
+The [AI Hub](https://docs.litellm.ai/docs/proxy/ai_hub) (`/public/model_hub`
+and the UI's public Model Hub page) lists exactly the models named in
+`spec.litellmSettings.public_model_groups` in `app/litellmproxy.yaml`
+(captain decision `hub-public-set`, 2026-09-27: every user-facing model, minus
+the internal `qwen3.6-35b-a3b-classifier`, `pr-review-local` and demo-priced
+`qwen3.6-35b-a3b` aliases). Publication is **Git-only**: the Admin UI "make
+public" button calls `/model_group/make_public`, which returns HTTP 500 here
+because `store_model_in_db` is false, so nothing set in the UI can drift.
+**A new `LiteLLMModel` is not on the Hub until its `modelName` is added to
+that list.** Publishing grants no access; entitlement stays on each
+`LiteLLMVirtualKey`'s allow-list.
+
+What the Hub shows per model is `model_info`: LiteLLM's cost map for cloud
+models, and the CR's `info` block for local ones, which the cost map cannot
+resolve. A local model registered without `info` shows no mode, context window
+or capabilities - see `app/models/chat-local.yaml` for the declared shape and
+the proof that it changes neither the upstream request nor recorded spend. The
+`openai` provider label on local models is derived from the `openai/` prefix
+of `params.model` (the routing contract) and is not settable. The MCP and
+agent hubs are empty because the proxy has no MCP servers or agents
+registered.
+
 ## Claude Code subscription pass-through
 
 `claude-sonnet-5` (Sonnet, captain request 2026-08-27), `claude-opus-5` (added
