@@ -15,6 +15,13 @@ spec:
     apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
     apiKey: "not-needed" # llama.cpp server has no --api-key set
   info:
+    # AI HUB METADATA only - rationale, sources and the inertness proof are on
+    # ./chat-local.yaml; keep these four keys and supports_reasoning identical
+    # across all five aliases. The prices below are the one thing that differs.
+    mode: chat
+    maxInputTokens: 262144
+    supportsFunctionCalling: true
+    supportsVision: true
     # Governance-accounting prices (not cloud billing). Required so virtual-key
     # spend accrues: without non-zero prices LiteLLM records $0 spend and the
     # demo $0.05 maxBudget / LiteLLMConsumerBudgetExhausted path never trips.
@@ -26,3 +33,4 @@ spec:
     extra:
       input_cost_per_token: 0.00005
       output_cost_per_token: 0.0001
+      supports_reasoning: true

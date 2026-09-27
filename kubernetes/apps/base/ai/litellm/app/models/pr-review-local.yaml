@@ -67,3 +67,12 @@ spec:
       extra_body:
         chat_template_kwargs:
           enable_thinking: false
+  # AI HUB METADATA only - rationale, sources and the inertness proof are on
+  # ./chat-local.yaml; keep the block identical across all five aliases.
+  info:
+    mode: chat
+    maxInputTokens: 262144
+    supportsFunctionCalling: true
+    supportsVision: true
+    extra:
+      supports_reasoning: false

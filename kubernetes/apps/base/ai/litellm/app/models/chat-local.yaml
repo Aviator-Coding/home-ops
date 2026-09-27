@@ -77,3 +77,35 @@ spec:
     model: openai/qwen3.6-35b-a3b
     apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
     apiKey: "not-needed" # llama.cpp server has no --api-key set
+  # AI HUB METADATA (model_info), and ONLY metadata. LiteLLM cannot look a
+  # local llama.cpp model up in its cost map, so without these keys the Model
+  # Hub / AI Hub shows this alias with no mode, no context window and no
+  # capabilities at all. Every value is read off ../../../vllm/app/helmrelease.yaml:
+  #   - maxInputTokens 262144 = its --ctx-size (the model's native window)
+  #   - supportsVision: the mmproj is loaded (multimodal)
+  #   - supportsFunctionCalling: --jinja tool calling, verified on b10820
+  #   - supports_reasoning (no typed CRD field, so `extra`): Qwen3.6 is a
+  #     thinking model - false on the two aliases that disable thinking
+  #     (pr-review-local, qwen3.6-35b-a3b-classifier)
+  # maxOutputTokens is deliberately UNSET: llama.cpp's n_predict defaults to
+  # -1, so the only ceiling is whatever of the 262144 window the prompt leaves,
+  # and any fixed number here would be invented.
+  #
+  # Proven inert on the pinned image (litellm 1.102.1, offline Router built
+  # from the live rendered config, 2026-09-27): the upstream request body for a
+  # tools+image+reasoning_effort call and the recorded response_cost are
+  # byte-identical with and without these keys, and pricing is untouched (it
+  # still comes from `extra` prices or their absence). The `openai` provider
+  # label the Hub shows is NOT fixable here - LiteLLM derives it from the
+  # `openai/` prefix of params.model, which is the routing contract.
+  #
+  # Keep this block IDENTICAL on all five aliases of this backend (only
+  # supports_reasoning differs), because they also share one backend cost-map
+  # key and each alias's own values are what keep them from reading another's.
+  info:
+    mode: chat
+    maxInputTokens: 262144
+    supportsFunctionCalling: true
+    supportsVision: true
+    extra:
+      supports_reasoning: true

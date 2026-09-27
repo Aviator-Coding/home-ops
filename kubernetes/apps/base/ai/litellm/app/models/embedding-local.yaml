@@ -61,3 +61,10 @@ spec:
     apiKey: "not-needed" # llama-server runs with no --api-key
   info:
     mode: embedding
+    # AI HUB METADATA only: the backend's --ctx-size (= -b = -ub) 512, i.e. the
+    # input ceiling above past which llama.cpp answers 400. Without it the Hub
+    # shows no context window. Proven inert on litellm 1.102.1 (offline Router,
+    # 2026-09-27): a 900-token input is still forwarded untruncated, so the
+    # fail-loud behaviour above is unchanged - LiteLLM only truncates to this
+    # value for a semantic-cache embedder, which this proxy does not run.
+    maxInputTokens: 512
