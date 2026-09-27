@@ -166,6 +166,30 @@ spec:
               # as a sane single-phase worst case on multi-GB state.db files
               # (_MAX_LEASE_S).
               HERMES_STARTUP_WATCHDOG_TIMEOUT_S: "900"
+              # --- Chromium sandbox bypass for the local browser_* tools. ---
+              #
+              # hermes-agent's config.yaml has NO `browser.backend: local` value and NO
+              # `browser.launch_args` key at all (checked against the pinned image's own
+              # hermes_agent-0.21.5: hermes_cli/config_defaults.py's `browser:` block only
+              # accepts backend "" | "browser-use" | "off" - a built-in-tools/Browser-Use-CLI
+              # toggle, unrelated to local-vs-cloud - and local Chromium is already what runs
+              # when no `cloud_provider` is configured, which is our case). Chromium flags are
+              # instead read from the AGENT_BROWSER_ARGS env var by
+              # tools/browser_tool_session.py's `_apply_chromium_sandbox_args`.
+              #
+              # That function auto-injects --no-sandbox/--disable-dev-shm-usage only when
+              # `_needs_chromium_sandbox_bypass()` is true: euid 0, `_running_in_docker()`
+              # (checks /.dockerenv + "docker" in /proc/1/cgroup), or the Ubuntu 23.10+
+              # unprivileged-userns AppArmor restriction. None of those fire here - measured
+              # live in this pod: the s6-dropped agent process runs as uid 10000 (not 0),
+              # containerd gives no /.dockerenv and no "docker" string in cgroup, and
+              # /proc/sys/kernel/apparmor_restrict_unprivileged_userns doesn't exist on this
+              # Talos kernel. So without this override Chromium tries its real setuid sandbox,
+              # which cannot work under the pod's default securityContext (no CAP_SYS_ADMIN,
+              # no setuid helper) and browser_navigate/open would hang until timeout.
+              # --disable-gpu: no GPU device is exposed to this pod; avoids Chromium probing
+              # for one. Comma-separated per _apply_chromium_sandbox_args's own join.
+              AGENT_BROWSER_ARGS: "--no-sandbox,--disable-dev-shm-usage,--disable-gpu"
               # --- Git access (single private repo). Inject a global git config
               # via env (no writable $HOME needed): the `store` helper reads the
               # token from the mounted `.git-credentials` file (see persistence
