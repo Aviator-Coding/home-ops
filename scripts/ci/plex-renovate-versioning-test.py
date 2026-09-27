@@ -34,21 +34,29 @@ not a source grep:
      docker.io/plexinc/pms-docker specifically, and leaves an unrelated
      docker package on the default scheme (negative control).
   2. Under the resolved regex scheme, isCompatible(newer tag, current tag) is
-     true and isGreaterThan orders them correctly, for the real installed tag
-     and the real 1.43.4.10903-e5521bd8c release named in the investigation.
+     true and isGreaterThan orders them correctly, for the installed tag and
+     a later, format-correct release.
   3. Reproduces the bug: under the default "docker" scheme, the same tag pair
      is NOT compatible - confirming the mechanism this rule fixes.
   4. Replicates the real lookup gate (filterVersions + isCompatible, the
      exact composition used in lookup/index.js) over a realistic release
      series: zero survivors under "docker" (matching "no PR has ever
      opened"), all newer releases survive under the regex scheme.
-  5. getUpdateType classifies the real jump as an ordinary "patch" update,
-     matching the packageRule's comment and the repo-wide patch-automerge
-     rule it relies on (no automerge rule is added or changed by this fix).
+  5. getUpdateType classifies the jump to that later release as an ordinary
+     "patch" update, matching the packageRule's comment and the repo-wide
+     patch-automerge rule it relies on (no automerge rule is added or
+     changed by this fix).
   6. Adversarial: the regex scheme rejects tags that don't fit the
      X.Y.Z.BUILD-HASH shape (bare "latest", a missing hash, a non-hex hash,
      only three numeric components) - the fix is not simply "accept
      everything".
+
+CURRENT_TAG tracks the live helmrelease.yaml tag and is a deliberate canary
+(see test_live_tag_matches_investigation): a Renovate-driven bump moves it,
+and this test's own failure message says to update it here. It last moved on
+2026-09-27 when a Renovate PR (docker.io/plexinc/pms-docker 1.43.1.10611-
+1e34174b1 -> 1.43.4.10903-e5521bd8c) landed - proof the regex-versioning fix
+is working, so the rule is still needed for the next such bump.
 
 Requires a local `renovate` install (RENOVATE_NODE_PATH) or network access to
 `npm install renovate@44.52.1` - same harness as talos-renovate-pin-test.py /
@@ -78,14 +86,15 @@ PACKAGE = "docker.io/plexinc/pms-docker"
 UNRELATED_PACKAGE = "quay.io/ceph/ceph"
 
 # The tag actually deployed today (kubernetes/apps/base/media/plex/app/helmrelease.yaml).
-CURRENT_TAG = "1.43.1.10611-1e34174b1"
-# The real release named in the investigation as live upstream since 2026-09-10.
-TARGET_TAG = "1.43.4.10903-e5521bd8c"
+CURRENT_TAG = "1.43.4.10903-e5521bd8c"
+# A later, format-correct release used to prove the fix against (hash value
+# is illustrative - only the shape and distinctness of the hash matters).
+TARGET_TAG = "1.43.7.11200-e5521bd9c"
 # Format-correct intermediate releases (hash values are illustrative - only
 # the shape and distinctness of the hash matters for this rule).
 CANDIDATE_TAGS = [
-    "1.43.2.10700-aaaaaaaaa",
-    "1.43.3.10800-bbbbbbbbb",
+    "1.43.5.11000-aaaaaaaaa",
+    "1.43.6.11100-bbbbbbbbb",
     TARGET_TAG,
 ]
 
@@ -480,7 +489,7 @@ def test_renovate_behavior(probe: dict[str, Any]) -> None:
 
     require(
         probe["checks"]["updateType"] == "patch",
-        "the real reported jump (1.43.1 -> 1.43.4) must classify as an ordinary 'patch' update "
+        f"the jump ({CURRENT_TAG} -> {TARGET_TAG}) must classify as an ordinary 'patch' update "
         f"(major/minor unchanged) so it flows through the existing patch-automerge rule, got {probe['checks']['updateType']!r}",
     )
 
