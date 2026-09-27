@@ -6,11 +6,14 @@
 # this alias now points at the Arc Pro B70, not a CPU pod - a name asserting
 # "cpu" for a GPU service is exactly the kind of drift this repo removes rather
 # than documents. The neutral name also survives the next backend move without
-# another rename. Safe to rename: `../virtualkeys/embedding-external.yaml` is
-# the only key that allow-lists it and that key still has no live external
+# another rename. Safe to rename: at the time, `../virtualkeys/embedding-external.yaml`
+# was the only key that allow-listed it and that key still had no live external
 # consumer, and agentgateway's default /v1/embeddings rule routes on "not a
 # vendor slug", not on this exact string, so a caller still sending the old id
 # through the gateway keeps working (it just is not a LiteLLM alias any more).
+# (Every virtual key now allow-lists this alias, added 2026-09-27 - see the
+# individual files under ../virtualkeys/ - but that change is orthogonal to
+# this rename's safety argument.)
 #
 # BACKEND: ../../embedding-gpu/app/helmrelease.yaml - Qwen3-Embedding-0.6B
 # (1024-dim, last-token pooling) served by llama.cpp's SYCL backend on the B70.
