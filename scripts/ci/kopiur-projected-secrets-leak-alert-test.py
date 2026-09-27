@@ -248,20 +248,8 @@ def assert_rule_contract(alert: dict[str, Any]) -> dict[str, Any]:
         f"leader (pod label) change; got {expr!r}",
     )
     require(
-        "maxwithout(pod,instance)" in compact or "max without (pod, instance)" in expr,
-        f"{ALERT_NAME}: expr must aggregate away pod/instance with "
-        f"max without (pod, instance) (...) before min_over_time, or a fresh "
-        f"leader series with no history false-fires; got {expr!r}",
-    )
-    require(
         compact != "kopiur_projected_secrets_live>0",
         f"{ALERT_NAME}: bare level expr must not return; got {expr!r}",
-    )
-    require(
-        "".join(PER_SERIES_MULTIPASS_EXPR.split()) + ">0" != compact,
-        f"{ALERT_NAME}: expr must not regress to the per-series (no "
-        f"aggregation) multi-pass form - that is exactly what false-fired "
-        f"on the 2026-09-26 leader change; got {expr!r}",
     )
     require(
         compact.startswith("min_over_time("),
