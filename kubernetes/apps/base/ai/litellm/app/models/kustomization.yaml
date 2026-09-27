@@ -83,7 +83,6 @@ resources:
   - ./gpt-oss-20b.yaml
   - ./grok-4.5.yaml
   - ./grok-4.6.yaml
-  - ./jev-1.13.yaml
   - ./kimi-k3.yaml
   - ./minimax-m3.yaml
   - ./muse-glimmer-30b.yaml

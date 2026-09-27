@@ -20,7 +20,7 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, non-secret SSO `env`, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | 40 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5-metered`, `claude-sonnet-5-metered`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - `claude-sonnet-5` + `claude-opus-5` (renamed 2026-08-31 from `claude-code-subscription` / `claude-code-subscription-opus`), the odd ones out: the proxy holds **no credential** for either - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through) - and `embedding-local` (added 2026-09-13 as `embedding-local-cpu`, renamed and moved to the GPU 2026-09-15), a SEPARATE embedding backend - it IS on the B70 now, but it is not one of the five chat aliases: it is its own llama.cpp server (`../../embedding-gpu/`) sharing the card, so heavy use of it degrades chat. See that file's header, `../virtualkeys/embedding-external.yaml`, and `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`. |
+| [`app/models/`](app/models/) | 39 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5-metered`, `claude-sonnet-5-metered`, the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - `claude-sonnet-5` + `claude-opus-5` (renamed 2026-08-31 from `claude-code-subscription` / `claude-code-subscription-opus`), the odd ones out: the proxy holds **no credential** for either - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through) - and `embedding-local` (added 2026-09-13 as `embedding-local-cpu`, renamed and moved to the GPU 2026-09-15), a SEPARATE embedding backend - it IS on the B70 now, but it is not one of the five chat aliases: it is its own llama.cpp server (`../../embedding-gpu/`) sharing the card, so heavy use of it degrades chat. See that file's header, `../virtualkeys/embedding-external.yaml`, and `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`. |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
@@ -177,14 +177,22 @@ registered despite Z.ai returning `Insufficient balance or no resource package`
 for every completion as of 2026-08-27. That header is the place to look if a
 GLM call ever fails; it is an unfunded account, not a bad route.
 
-**`jev-1.13`** (TypeSafe Jev 1.13, captain request 2026-09-27) is the one entry
-here whose id had to be resolved against the per-model **endpoints** catalog
-(`GET /api/v1/models/typesafe/jev-1.13/endpoints`) rather than the public
-listing (`GET /api/v1/models`), which omits it entirely and lists only the
-unrelated `typesafe/jev-router`. It is also the one entry whose OpenRouter
-architecture reports output modality `decisions` rather than `text` - see
-that CR's own header for the live-call verification status before relying
-on it.
+**`typesafe/jev-1.13` (TypeSafe Jev 1.13) was evaluated 2026-09-27 and deliberately NOT registered.**
+Its id resolves at the per-model endpoints catalog
+(`GET /api/v1/models/typesafe/jev-1.13/endpoints`) but is absent from the
+public listing (`GET /api/v1/models`, which lists only the unrelated
+`typesafe/jev-router`) - so id verification alone would have looked clean.
+But its OpenRouter architecture reports output modality `decisions` rather
+than `text`, and a live call through LiteLLM's own `openrouter/` code path
+(`litellm.completion(model="openrouter/typesafe/jev-1.13", ...)`, run
+in-pod against the real proxy) confirmed it is structurally incompatible
+with the chat-completions path every `LiteLLMModel` in this directory relies
+on - OpenRouter itself rejects it: `"typesafe/jev-1.13 is a decisions model
+and cannot be used with the chat/completions endpoint. Use the
+/api/alpha/decisions endpoint instead."` LiteLLM has no such endpoint, so
+this model cannot be served by this proxy at all. Do not re-add it without
+LiteLLM (or a bespoke integration) gaining support for OpenRouter's
+`decisions` model class.
 
 ## Claude Code subscription pass-through
 
