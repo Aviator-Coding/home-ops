@@ -238,6 +238,20 @@ route rule. No key carries one, so:
   path fails closed for them too (`500`, connection refused, no credential
   sent), because only the decisions door is wanted.
 
+Verified live 2026-09-27 before merge, by suspending `ks/litellm`, patching
+exactly this block onto the CR, testing, then removing it and resuming:
+- `demo`, `ha-demo`, `router-demo`, `agent-swarm-paid`, `ai-pr-review` and
+  `embedding-external` each got `403` on `POST /openrouter/alpha/decisions`,
+  on `GET /openrouter/v1/key`, and on the `models`-array chat body.
+- The master key got `200` with a real decision on `alpha/decisions`. The
+  spend log recorded it as `pass_through_endpoint` / `openrouter` at
+  `$0.000012978`, so pricing still runs through the native handler. The
+  master key got `500` (dead loopback) on the other two paths.
+- Ordinary traffic stayed `200`: chat on `ai-pr-review` (`pr-review-local`),
+  `repo-wiki` (`chat-local`), `ha-demo` (`chat-ha`) and `demo`
+  (`qwen3.6-35b-a3b`), and embeddings on `embedding-external`. `demo` naming a
+  model outside its list was still `403`.
+
 The order of the two entries is load-bearing: the native handler takes its
 target from the first matching entry. CI pins the order through litellm's
 own route checks: `scripts/ci/litellm-openrouter-passthrough-test.py`.
@@ -256,7 +270,9 @@ metadata as `map[string]string`. A granted key would also need
 applies when the body names it. Granting one therefore needs an operator
 field for it first.
 
-Verified live 2026-09-27, zero config changes, before the lockdown, via
+The original discovery run (2026-09-27, zero config changes, before the
+lockdown; its spend rows name `litellm_proxy_master_key`, so it used the
+master key, which keeps this access), via
 `flux suspend ks litellm -n ai` -> direct pod exec -> `flux resume`:
 - Valid key, correct body ->
   `POST http://litellm.ai.svc.cluster.local:4000/openrouter/alpha/decisions`
