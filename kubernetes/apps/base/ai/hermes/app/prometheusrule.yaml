@@ -18,10 +18,12 @@
 # single-replica but does migrate nodes on reschedule (measured: 3 distinct
 # per-node series in a 30-day range query), and a bare per-instance series
 # would silently reset predict_linear's regression window on every
-# migration - the same instance/pod-label-reset trap called out in AGENTS.md
-# for the KopiurProjectedCredentialsLeaking false-page. Summing collapses to
-# one logical series (only one node's series is ever non-null at a time, so
-# the sum is just whichever one is currently reporting).
+# migration - the same instance/pod-label-reset trap documented in
+# kubernetes/apps/base/system/kopiur/app/prometheusrule.yaml's
+# LEADER-CHANGE REGRESSION comment for the KopiurProjectedCredentialsLeaking
+# false-page. Summing collapses to one logical series (only one node's
+# series is ever non-null at a time, so the sum is just whichever one is
+# currently reporting).
 #
 # Growth here is smooth and monotonic (unlike ai/vllm's noisy RSS, see that
 # app's prometheusrule.yaml), so a plain predict_linear crossing is
