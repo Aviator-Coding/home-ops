@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://k8s-schemas.home-operations.com/networking.k8s.io/networkpolicy_v1.json
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: flux-operator-allow-dns-replies
+spec:
+  # The flux-operator chart ships its own NetworkPolicy `flux-operator-web`
+  # (Helm-managed, not in git) which does not admit kube-dns. This is an
+  # additive supplemental policy - NetworkPolicies targeting the same pod
+  # OR-combine - matching that policy's own podSelector exactly, confirmed
+  # live via `kubectl get networkpolicy flux-operator-web -n flux-system -o
+  # yaml`. Do not disable or replace the chart's own policy.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: flux-operator
+      app.kubernetes.io/name: flux-operator
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow DNS replies from CoreDNS in kube-system. No ports restriction here
+    # on purpose: NetworkPolicy `ports` matches the DESTINATION port on this
+    # pod, and a DNS reply arrives on the pod's ephemeral source port, never
+    # 53 - a port:53 restriction (as added in #1800) can never match a reply
+    # and silently drops every DNS response. See loki-ingress and AGENTS.md
+    # for the full mechanism (Cilium reply-conntrack fails to correlate a DNS
+    # reply back to its request when the client pod's node also hosts a
+    # CoreDNS replica).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns

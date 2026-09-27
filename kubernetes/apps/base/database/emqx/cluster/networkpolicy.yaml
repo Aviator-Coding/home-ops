@@ -45,3 +45,18 @@ spec:
     # username/password auth is the real security boundary.
     - ports:
         - { port: 18083, protocol: TCP }
+    # Allow DNS replies from CoreDNS in kube-system. No ports restriction here
+    # on purpose: NetworkPolicy `ports` matches the DESTINATION port on this
+    # pod, and a DNS reply arrives on emqx's ephemeral source port, never 53
+    # - a port:53 restriction (as added in #1800) can never match a reply and
+    # silently drops every DNS response. See loki-ingress and AGENTS.md for
+    # the full mechanism (Cilium reply-conntrack fails to correlate a DNS
+    # reply back to its request when the client pod's node also hosts a
+    # CoreDNS replica).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
