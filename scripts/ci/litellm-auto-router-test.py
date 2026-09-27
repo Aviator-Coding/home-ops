@@ -49,6 +49,22 @@ BASELINE_QWEN = {
 RESULTS: list[dict[str, Any]] = []
 
 
+# AI Hub metadata a local alias may declare without affecting routing or spend
+# (captain request 2026-09-27; proof in app/models/chat-local.yaml). Anything
+# else in model_info - above all a *_cost* key - is still refused, so the
+# "no prices" invariant below is a key check, not a literal empty-dict freeze.
+HUB_METADATA_KEYS = frozenset({"mode", "max_input_tokens", "max_output_tokens", "max_tokens"})
+
+
+def non_hub_model_info(model_info: dict | None) -> dict:
+    """model_info minus pure AI Hub metadata (mode, token limits, supports_*)."""
+    return {
+        k: v
+        for k, v in (model_info or {}).items()
+        if k not in HUB_METADATA_KEYS and not k.startswith("supports_")
+    }
+
+
 def record(name: str, ok: bool, detail: str = "") -> None:
     RESULTS.append({"name": name, "ok": ok, "detail": detail})
     status = "PASS" if ok else "FAIL"
@@ -467,7 +483,7 @@ def test_config_semantics(cfg: dict) -> dict:
             "api_base": qwen["litellm_params"]["api_base"],
             "api_key": qwen["litellm_params"]["api_key"],
         },
-        "model_info": dict(qwen.get("model_info") or {}),
+        "model_info": non_hub_model_info(qwen.get("model_info")),
     }
     record(
         "direct_qwen_byte_identical_to_pre_d3",
@@ -646,7 +662,7 @@ def test_local_pricing_split(cfg: dict) -> None:
     classifier = by_name(model_list, "qwen3.6-35b-a3b-classifier")
     record(
         "classifier_has_no_prices",
-        not (classifier.get("model_info") or {}),
+        not non_hub_model_info(classifier.get("model_info")),
         f"model_info={classifier.get('model_info')!r}",
     )
 
@@ -660,7 +676,7 @@ def test_local_pricing_split(cfg: dict) -> None:
     )
     record(
         "chat_local_has_no_prices",
-        not (local.get("model_info") or {}),
+        not non_hub_model_info(local.get("model_info")),
         f"model_info={local.get('model_info')!r}",
     )
 
