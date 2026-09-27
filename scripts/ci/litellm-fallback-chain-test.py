@@ -353,14 +353,22 @@ def test_virtualkey_entitlement_split() -> None:
         set(keys) >= {"demo", "ha-demo", "router-demo"},
         f"names={sorted(keys)}",
     )
+    # `embedding-local` was added to every virtual key's allow-list on
+    # 2026-09-27 (captain intent: "all keys should be able to access this
+    # local embedding model") - a credential-less, zero-priced sunk-hardware
+    # model, not a chat backend, so it is an explicit exception to the
+    # "terminal local only" / "only chat-ha" invariants these two checks
+    # exist to enforce, not a relaxation of them.
     record(
         "demo_is_terminal_local_only",
-        keys.get("demo", {}).get("models") == ["qwen3.6-35b-a3b"],
+        sorted(keys.get("demo", {}).get("models") or [])
+        == sorted(["qwen3.6-35b-a3b", "embedding-local"]),
         f"demo.models={keys.get('demo', {}).get('models')!r}",
     )
     record(
         "ha_demo_holds_only_chat_ha",
-        keys.get("ha-demo", {}).get("models") == ["chat-ha"],
+        sorted(keys.get("ha-demo", {}).get("models") or [])
+        == sorted(["chat-ha", "embedding-local"]),
         f"ha-demo.models={keys.get('ha-demo', {}).get('models')!r}",
     )
     # ha-demo must NOT also hold the terminal local alias or a direct cloud model

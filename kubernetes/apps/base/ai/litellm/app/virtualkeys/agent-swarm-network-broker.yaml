@@ -36,9 +36,12 @@ spec:
   secretName: litellm-key-agent-swarm-network-broker
   secretKey: key
   # Measured live 2026-09-12: single local model, $1 cap, no budget duration,
-  # no rate limits.
+  # no rate limits. `embedding-local` added 2026-09-27 (captain intent: "all
+  # keys should be able to access this local embedding model") - credential-
+  # less and zero-priced, so it does not touch the $1 cap in practice.
   models:
     - chat-local
+    - embedding-local
   maxBudget: "1.00"
   metadata:
     purpose: prove the gateway path through the broker, task-scoped

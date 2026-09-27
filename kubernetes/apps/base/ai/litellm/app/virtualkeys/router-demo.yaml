@@ -18,8 +18,13 @@ spec:
   keyAlias: router-demo
   secretName: litellm-key-router-demo
   secretKey: key
+  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
+  # able to access this local embedding model") - a direct, credential-less,
+  # zero-priced grant, not a routed alias, so it does not reopen the
+  # "reaches Anthropic only through classification" governance boundary above.
   models:
     - auto
+    - embedding-local
   # Deliberately small but larger than the `demo` cap. A purely local routed
   # request (SIMPLE/MEDIUM + classifier) no longer moves spend at all -
   # chat-local and qwen3.6-35b-a3b-classifier are zero-priced, so both spend

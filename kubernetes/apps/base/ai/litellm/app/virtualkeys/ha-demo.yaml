@@ -22,8 +22,13 @@ spec:
   keyAlias: ha-demo
   secretName: litellm-key-ha-demo
   secretKey: key
+  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
+  # able to access this local embedding model") - credential-less, zero-priced,
+  # and carries no config-declared fallback of its own, so it does not extend
+  # the cloud-entitlement argument above.
   models:
     - chat-ha
+    - embedding-local
   # Unlike `demo`'s $0.05, this is a REAL-USD cap, not a governance-accounting
   # one: chat-ha carries no info.extra prices, so local traffic accrues $0 and
   # the only thing that moves this number is cloud fallback spend during a B70

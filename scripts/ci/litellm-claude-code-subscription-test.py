@@ -110,6 +110,20 @@ FABLE_MODEL_NAME = "claude-fable-5-1"
 # "only models for which the proxy holds NO credential", which the
 # allowlist_holds_only_credential_less_models check below enforces directly.
 SUBSCRIPTION_MODELS = [MODEL_NAME, OPUS_MODEL_NAME, HAIKU_MODEL_NAME, FABLE_MODEL_NAME]
+# ADDED 2026-09-27 (captain intent: "all keys should be able to access this
+# local embedding model" - every LiteLLMVirtualKey's models allow-list,
+# including this one, was widened to include the free local embedder). It is
+# a NAMED EXCEPTION, not folded into SUBSCRIPTION_MODELS: it is not an
+# Anthropic pass-through, is irrelevant to the fallback-chain checks below,
+# and reaches the same money-safety property (this budgetless key cannot be
+# made to bill anything) by a different route - no price, not no credential.
+# See ../../kubernetes/apps/base/ai/litellm/app/models/embedding-local.yaml
+# (apiKey "not-needed", no info.extra prices at all) and this key's own CR
+# comment for the reasoning.
+EMBEDDING_MODEL_NAME = "embedding-local"
+# The actual expected allow-list for this key: the four subscription models
+# plus the embedding exception above.
+ALLOWED_MODELS = SUBSCRIPTION_MODELS + [EMBEDDING_MODEL_NAME]
 # Metered Anthropic routes that must never appear on this key's allow-list.
 # `-metered` suffix since the 2026-08-31 rename freed the bare Sonnet/Opus
 # names above for the pass-through models this key IS scoped to.
@@ -495,31 +509,74 @@ def test_virtual_key_semantics() -> None:
     allowed = spec.get("models") or []
     record(
         "virtualkey_scoped_only_to_subscription_models",
-        sorted(allowed) == sorted(SUBSCRIPTION_MODELS),
-        f"models={allowed!r} expected={sorted(SUBSCRIPTION_MODELS)!r}",
+        sorted(allowed) == sorted(ALLOWED_MODELS),
+        f"models={allowed!r} expected={sorted(ALLOWED_MODELS)!r}",
     )
     # THE MONEY-SAFETY INVARIANT, and the reason the check above is a set and
     # not a length. Adding a model to this key is only safe when the proxy
-    # holds NO credential for it: every allow-listed name must resolve to a
-    # model CR whose params.apiKey is the non-secret placeholder, never
-    # `os.environ/ANTHROPIC_API_KEY` and never absent (an absent key is NOT
-    # credential-less - AnthropicModelInfo.get_api_key falls back to the env
-    # var the pod holds). This is what actually stops subscription traffic
-    # billing the household's metered account.
+    # holds NO credential for it: every Anthropic subscription entry must
+    # resolve to a model CR whose params.apiKey is the non-secret placeholder,
+    # never `os.environ/ANTHROPIC_API_KEY` and never absent (an absent key is
+    # NOT credential-less - AnthropicModelInfo.get_api_key falls back to the
+    # env var the pod holds). This is what actually stops subscription
+    # traffic billing the household's metered account.
+    #
+    # EMBEDDING_MODEL_NAME is checked separately below, by name: it is
+    # legitimately not the OAuth placeholder (its own apiKey is the literal
+    # "not-needed", not an env credential either), so folding it into this
+    # loop would either weaken the placeholder check for every other model or
+    # false-fail on a model that was never meant to carry it.
     model_crs = {
         c["metadata"]["name"]: ((c.get("spec") or {}).get("params") or {})
         for c in _load_crs(MODELS_DIR, "LiteLLMModel")
     }
+    anthropic_allowed = [m for m in allowed if m != EMBEDDING_MODEL_NAME]
     not_credential_less = [
         name
-        for name in allowed
+        for name in anthropic_allowed
         if model_crs.get(name, {}).get("apiKey") != PLACEHOLDER
     ]
     record(
         "virtualkey_allowlist_holds_only_credential_less_models",
         not_credential_less == [],
         f"offenders={not_credential_less} "
-        f"(each allow-listed model must carry apiKey={PLACEHOLDER!r})",
+        f"(each allow-listed Anthropic model must carry apiKey={PLACEHOLDER!r})",
+    )
+    # The embedding exception's OWN money-safety proof: not an env credential
+    # (so it can't fall back to a metered key) and not the OAuth placeholder
+    # either (it is not an Anthropic pass-through at all).
+    embedding_params = model_crs.get(EMBEDDING_MODEL_NAME, {})
+    embedding_api_key = embedding_params.get("apiKey")
+    record(
+        "virtualkey_embedding_exception_carries_no_env_credential",
+        EMBEDDING_MODEL_NAME not in allowed
+        or (
+            isinstance(embedding_api_key, str)
+            and embedding_api_key != PLACEHOLDER
+            and not embedding_api_key.startswith("os.environ/")
+        ),
+        f"embedding_api_key={embedding_api_key!r}",
+    )
+    # And it must stay genuinely free: no info.extra prices at all (not just
+    # zeroed ones), or a future edit to the model CR could quietly turn this
+    # budgetless key into a billable one through the one allow-listed name
+    # that was never covered by the cache-pricing zeroing above.
+    embedding_cr = next(
+        (
+            c
+            for c in _load_crs(MODELS_DIR, "LiteLLMModel")
+            if c["metadata"]["name"] == EMBEDDING_MODEL_NAME
+        ),
+        None,
+    )
+    embedding_info_extra = (
+        (((embedding_cr or {}).get("spec") or {}).get("info") or {}).get("extra")
+        or {}
+    )
+    record(
+        "virtualkey_embedding_exception_declares_no_prices",
+        EMBEDDING_MODEL_NAME not in allowed or embedding_info_extra == {},
+        f"info.extra={embedding_info_extra!r}",
     )
     metered_on_key = [m for m in allowed if m in METERED_MODELS]
     record(
@@ -738,7 +795,7 @@ def test_kustomize_emits_resources() -> None:
         spec = k.get("spec") or {}
         record(
             "kustomize_emitted_key_has_no_ceiling",
-            sorted(spec.get("models") or []) == sorted(SUBSCRIPTION_MODELS)
+            sorted(spec.get("models") or []) == sorted(ALLOWED_MODELS)
             and "rpmLimit" not in spec
             and "tpmLimit" not in spec
             and "maxBudget" not in spec,
@@ -835,7 +892,7 @@ def test_kustomize_emits_resources() -> None:
         spec = key_doc.get("spec") or {}
         record(
             "kustomize_emitted_key_has_no_ceiling",
-            sorted(spec.get("models") or []) == sorted(SUBSCRIPTION_MODELS)
+            sorted(spec.get("models") or []) == sorted(ALLOWED_MODELS)
             and "rpmLimit" not in spec
             and "tpmLimit" not in spec
             and "maxBudget" not in spec,

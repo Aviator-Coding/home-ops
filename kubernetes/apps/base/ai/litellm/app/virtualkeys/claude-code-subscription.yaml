@@ -166,6 +166,20 @@ spec:
     - claude-opus-5
     - claude-haiku-4-5-20251001
     - claude-fable-5-1
+    # ADDED 2026-09-27 (captain intent: "all keys should be able to access
+    # this local embedding model"), and NOT a fifth Anthropic pass-through
+    # entry - this is `../models/embedding-local.yaml`, the sunk-hardware
+    # Qwen3-Embedding-0.6B server on the B70. It carries no `os.environ/*`
+    # credential (`apiKey: "not-needed"`, llama-server runs with no
+    # `--api-key`) and no `info.extra` prices at all, so it cannot make this
+    # budgetless key bill anything, metered or otherwise - the same
+    # money-safety property the four pass-through CRs have, reached by a
+    # different route (no credential to leak vs. no price to charge).
+    # scripts/ci/litellm-claude-code-subscription-test.py treats it as a
+    # named exception for exactly this reason rather than folding it into
+    # SUBSCRIPTION_MODELS, which stays the Anthropic-only set that drives the
+    # fallback-chain and OAuth-placeholder assertions.
+    - embedding-local
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item

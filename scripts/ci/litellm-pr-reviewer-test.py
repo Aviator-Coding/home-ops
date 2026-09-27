@@ -672,9 +672,13 @@ def test_virtualkey_cr() -> dict[str, Any]:
         spec.get("secretName") == "litellm-key-ai-pr-review",
         f"got={spec.get('secretName')!r}",
     )
+    # `embedding-local` was added to every virtual key's allow-list on
+    # 2026-09-27 (captain intent: "all keys should be able to access this
+    # local embedding model") - a credential-less, zero-priced sunk-hardware
+    # model, not a chat/review backend, so it is an explicit exception here.
     record(
         "virtualkey_allowlist_exactly_pr_review_local",
-        models == ["pr-review-local"],
+        sorted(models) == sorted(["pr-review-local", "embedding-local"]),
         f"got={models}",
     )
     # Must not hold auto or any cloud alias. Names are the METERED CRs

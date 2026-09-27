@@ -39,8 +39,12 @@ spec:
   # have it: `auto`'s COMPLEX/REASONING tiers are Anthropic, which would put an
   # unattended cron on a paid API). `chat-local` carries no cloud fallback
   # either, so this key is structurally incapable of reaching a paid model.
+  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
+  # able to access this local embedding model") - credential-less, zero-priced,
+  # so it does not turn this batch job into a paid-model consumer.
   models:
     - chat-local
+    - embedding-local
   # INERT, deliberately kept. Every model above is priced at zero, so spend can
   # never rise and this cap can never fire - it bounds nothing today. It stays
   # for two reasons. (1) It is the guard that matters the moment anyone widens

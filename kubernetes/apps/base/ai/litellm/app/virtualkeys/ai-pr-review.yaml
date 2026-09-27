@@ -49,8 +49,13 @@ spec:
   # allow-list must keep excluding is `claude-sonnet-5-metered` -
   # ../models/claude-sonnet-5-metered.yaml - and the same allow-list denial
   # applies to it unchanged, since the check runs before model dispatch).
+  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
+  # able to access this local embedding model") - credential-less and
+  # zero-priced, same as pr-review-local, so it does not reopen the
+  # cost-escalation argument above.
   models:
     - pr-review-local
+    - embedding-local
   # INERT, deliberately kept - identical reasoning to repo-wiki.yaml, read that
   # file's maxBudget comment for the full version. `pr-review-local` is priced
   # at zero, so spend can never rise and this cap can never fire. It stays

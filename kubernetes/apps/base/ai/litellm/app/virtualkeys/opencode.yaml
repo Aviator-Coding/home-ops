@@ -24,8 +24,11 @@ spec:
   keyAlias: opencode
   secretName: litellm-key-opencode
   secretKey: key
+  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
+  # able to access this local embedding model") - credential-less, zero-priced.
   models:
     - auto
+    - embedding-local
   maxBudget: "10.00"
   budgetDuration: 30d
   rpmLimit: 8

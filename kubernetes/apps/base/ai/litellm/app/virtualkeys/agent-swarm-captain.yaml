@@ -33,8 +33,13 @@ spec:
   secretName: litellm-key-agent-swarm-captain
   secretKey: key
   # Measured live 2026-09-12: single local model, no budget, no rate limits.
+  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
+  # able to access this local embedding model") - a credential-less,
+  # zero-priced sunk-hardware model, so it does not reopen the "unchanged
+  # entitlements" note above in any way that matters financially.
   models:
     - chat-local
+    - embedding-local
   metadata:
     purpose: agent-swarm local runs, captain-owned
 ---
