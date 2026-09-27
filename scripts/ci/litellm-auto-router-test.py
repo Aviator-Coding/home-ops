@@ -652,11 +652,23 @@ def test_local_pricing_split(cfg: dict) -> None:
     # the CALLING key, so while it was priced it was ~100% of an `auto`
     # consumer's recorded spend even after the tiers moved to `chat-local`.
     # Cloud models are priced by LiteLLM's built-in cost map, never by hand -
-    # see models/kustomization.yaml.
+    # see models/kustomization.yaml - with one kind of exception: a METERED
+    # cloud model the bundled cost map does not know, whose declared price IS
+    # the invoice (without it LiteLLM would record $0 for real spend). Such a
+    # model must route to a cloud provider, never a local backend.
+    invoice_priced = {"qwen/qwen3-embedding-8b"}  # OpenRouter, $0.01/1M input (2026-09-27)
     record(
         "only_the_demo_alias_carries_synthetic_prices",
-        priced == {"qwen3.6-35b-a3b"},
+        priced - invoice_priced == {"qwen3.6-35b-a3b"},
         f"priced={sorted(priced)}",
+    )
+    record(
+        "invoice_priced_models_are_cloud_routed",
+        all(
+            by_name(model_list, name)["litellm_params"].get("model", "").startswith("openrouter/")
+            for name in invoice_priced & priced
+        ),
+        f"invoice_priced={sorted(invoice_priced & priced)}",
     )
 
     classifier = by_name(model_list, "qwen3.6-35b-a3b-classifier")

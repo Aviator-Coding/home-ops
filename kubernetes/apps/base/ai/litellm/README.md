@@ -20,7 +20,7 @@ from the CRs here.
 | File | What it declares |
 | --- | --- |
 | [`app/litellmproxy.yaml`](app/litellmproxy.yaml) | The `LiteLLMProxy` - image, probes, envFrom, non-secret SSO `env`, admin-API access, `litellmSettings`, `routerSettings` (incl. `redis_host`/`redis_port` against `litellm-dragonfly` - see `docs/ai-system/litellm/README.md#why-dragonfly-redis`). Deliberately **no** `spec.route`. |
-| [`app/models/`](app/models/) | 41 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5-metered`, `claude-sonnet-5-metered`, `claude-fable-5` (metered), the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - `claude-sonnet-5` + `claude-opus-5` + `claude-haiku-4-5-20251001` + `claude-fable-5-1` (Sonnet/Opus renamed 2026-08-31 from `claude-code-subscription` / `claude-code-subscription-opus`; Haiku/Fable added 2026-09-27), the odd ones out: the proxy holds **no credential** for any of the four - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through) - and `embedding-local` (added 2026-09-13 as `embedding-local-cpu`, renamed and moved to the GPU 2026-09-15), a SEPARATE embedding backend - it IS on the B70 now, but it is not one of the five chat aliases: it is its own llama.cpp server (`../../embedding-gpu/`) sharing the card, so heavy use of it degrades chat. See that file's header, `../virtualkeys/embedding-external.yaml`, and `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`. |
+| [`app/models/`](app/models/) | 42 `LiteLLMModel` CRs, one per model. Five of them are the SAME local B70 backend under different aliases, each carrying one property the others must not: `qwen3.6-35b-a3b` (terminal, **synthetically priced** - reached only by the `demo` budget test), `chat-local` (terminal, **zero-priced** - what real traffic runs on), `chat-ha` (**cloud fallback** for entitled keys), `qwen3.6-35b-a3b-classifier` (thinking disabled, separate metrics series), `pr-review-local` (thinking disabled, AI PR reviewer only - `docs/ai-system/litellm/pr-reviewer.md`). Plus `auto` (the D3 router), `claude-opus-5-metered`, `claude-sonnet-5-metered`, `claude-fable-5` (metered), the 2026-08-27 `indydevdan-model-stack` batch - see [Model catalog](#model-catalog) below - `claude-sonnet-5` + `claude-opus-5` + `claude-haiku-4-5-20251001` + `claude-fable-5-1` (Sonnet/Opus renamed 2026-08-31 from `claude-code-subscription` / `claude-code-subscription-opus`; Haiku/Fable added 2026-09-27), the odd ones out: the proxy holds **no credential** for any of the four - see [Claude Code subscription pass-through](#claude-code-subscription-pass-through) - and `embedding-local` (added 2026-09-13 as `embedding-local-cpu`, renamed and moved to the GPU 2026-09-15), a SEPARATE embedding backend - it IS on the B70 now, but it is not one of the five chat aliases: it is its own llama.cpp server (`../../embedding-gpu/`) sharing the card, so heavy use of it degrades chat. See that file's header, `../virtualkeys/embedding-external.yaml`, and `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`. Plus `qwen/qwen3-embedding-8b` (CR `qwen3-embedding-8b`, added 2026-09-27): OpenRouter's metered embedding model, used by the [pgvector store](#vector-store-pgvector) at 2000 dims. |
 | [`app/virtualkeys/`](app/virtualkeys/) | One `LiteLLMVirtualKey` + its `PushSecret` per consumer (D4). |
 | [`app/httproute-internal.yaml`](app/httproute-internal.yaml) | Standalone internal `HTTPRoute` named `litellm-internal` (not `litellm`) - the operator deletes any route whose name matches the proxy CR when `spec.route` is absent. |
 | [`app/dbinit.yaml`](app/dbinit.yaml) | `postgres-init` Job creating the role + database in the shared `postgres-17` cluster. |
@@ -457,34 +457,48 @@ today - a client-only `[1m]` context-window hint.
 ## Vector store (pgvector)
 
 Added 2026-09-27 (captain request: "create a pgvector database for litellm and
-connect to it, use the local embedding model"). LiteLLM's Vector Stores API
-with the `pg_vector` provider, backed by a database on the shared `postgres-17`
-cluster and embedded by `embedding-local` (Qwen3-Embedding-0.6B, 1024-d, on the
-B70).
+connect to it"; captain decision the same day: embed with OpenRouter's
+`qwen/qwen3-embedding-8b` for both ingest and query, not `embedding-local`).
+LiteLLM's Vector Stores API with the `pg_vector` provider, backed by a database
+on the shared `postgres-17` cluster.
 
 ```
 client --search--> LiteLLM /v1/vector_stores/default/search
                      | registry entry (litellmproxy.yaml extraConfig)
                      v
-                   ai/litellm-pgvector  --embeds the query--> LiteLLM /embeddings (embedding-local,
-                     |                                        key litellm-pgvector)
+                   ai/litellm-pgvector  --embeds the query--> LiteLLM /embeddings
+                     |                    (qwen/qwen3-embedding-8b, dimensions 2000,
+                     |                     key litellm-pgvector) --> OpenRouter
                      v
-                   postgres-17 / database litellm_pgvector (pgvector 0.8.0, HNSW cosine)
+                   postgres-17 / database litellm_pgvector (pgvector 0.8.0, vector(2000), HNSW cosine)
 ```
 
 | Piece | Where |
 | --- | --- |
 | Server ([BerriAI/litellm-pgvector](https://github.com/BerriAI/litellm-pgvector), OpenAI-compatible) | `../litellm-pgvector/app/helmrelease.yaml`, ClusterIP `litellm-pgvector.ai.svc.cluster.local:8000`, no HTTPRoute |
-| Image (upstream publishes none) | `.github/docker/litellm-pgvector/` (pinned upstream commit + two local fixes), built by `.github/workflows/build-litellm-pgvector.yaml` under a content-addressed tag |
+| Image (upstream publishes none; captain-approved repo pipeline) | `.github/docker/litellm-pgvector/` (pinned upstream commit + three local fixes), built by `.github/workflows/build-litellm-pgvector.yaml` into `ghcr.io/aviator-coding/litellm-pgvector` under a content-addressed tag |
 | Role, database, `vector` extension, tables, the seeded `default` store | `../litellm-pgvector/app/dbinit.yaml` + `resources/schema.sql` |
 | Registration in LiteLLM | `app/litellmproxy.yaml` `extraConfig.vector_store_registry` |
-| Query-embedding key (`embedding-local` only) | `app/virtualkeys/litellm-pgvector.yaml` |
+| Embedding model (metered, $0.01 per 1M input tokens) | `app/models/qwen3-embedding-8b.yaml` |
+| Ingest + query embedding key (that one model only) | `app/virtualkeys/litellm-pgvector.yaml` |
 | Invariants between all of the above | `scripts/ci/litellm-pgvector-test.py` |
+
+**Why 2000 dimensions.** Qwen3-Embedding-8B answers 4096 dims by default, and
+pgvector cannot index that: HNSW and IVFFlat cap `vector` at 2000 dims
+(verified on the cluster's 0.8.0: `vector(2001)` refuses an HNSW index) and
+`halfvec` at 4000, still short of 4096. The model is Matryoshka-trained and
+OpenRouter honours the OpenAI `dimensions` parameter for it, returning the
+renormalised prefix of the full vector (measured cosine 0.99995 against the
+truncated 4096-d answer), so the store asks for 2000 - the widest a plain
+`vector` column indexes, with no need to patch every `::vector` cast in
+upstream's SQL as `halfvec` would. OpenRouter serves the model from more than
+one backend (Nebius, DeepInfra); their vectors for the same input agree to
+cosine 0.99996, so a store written through both is consistent.
 
 **Search** - any virtual key, internal route or in-cluster. A registered
 store with no `team_id` is open to every key; the search itself is not
 checked against a key's `models` list, only the server's own query embedding
-is (it runs on the `litellm-pgvector` key).
+is (it runs on the `litellm-pgvector` key, so query spend lands there).
 
 ```bash
 curl -s https://litellm.${SECRET_DOMAIN}/v1/vector_stores/default/search \
@@ -502,40 +516,46 @@ v1.102.1). Keep `max_num_results` small; every hit is injected verbatim.
  "tools": [{"type": "file_search", "vector_store_ids": ["default"], "max_num_results": 3}]}
 ```
 
-**Ingest** - NOT through LiteLLM. On v1.102.1 the `pg_vector` provider
-implements only store create and search: `/v1/vector_stores/{id}/files` is
-wired for `openai` alone (`ProviderConfigManager.get_provider_vector_store_files_config`)
-and `/v1/rag/ingest` has no `pg_vector` ingestion class
+**Ingest** - NOT through LiteLLM's vector-store API. On v1.102.1 the
+`pg_vector` provider implements only store create and search:
+`/v1/vector_stores/{id}/files` is wired for `openai` alone
+(`ProviderConfigManager.get_provider_vector_store_files_config`) and
+`/v1/rag/ingest` has no `pg_vector` ingestion class
 (`litellm/rag/ingestion/__init__.py`). The server has no file or chunking
 endpoint either: it stores text you have already chunked, next to a vector you
-supply. So ingest is two calls - embed through LiteLLM with YOUR key (the row
-is then attributable in the spend log), then write to the server with its
-bearer key, which only admins hold (1Password `litellm-pgvector`, field
-`LITELLM_PGVECTOR_SERVER_API_KEY`):
+supply. So ingest is two calls - embed through LiteLLM with the store's key
+(1Password `litellm-consumer-litellm-pgvector`), then write to the server with
+its bearer key (1Password `litellm-pgvector`, field
+`LITELLM_PGVECTOR_SERVER_API_KEY`). Both are admin credentials:
 
 ```bash
 kubectl -n ai port-forward svc/litellm-pgvector 18000:8000 &
 TEXT='Pizza dough needs 65 percent hydration and a 48 hour cold ferment.'
 EMB=$(curl -s https://litellm.${SECRET_DOMAIN}/v1/embeddings \
-  -H "Authorization: Bearer $LITELLM_KEY" -H 'Content-Type: application/json' \
-  -d "$(jq -n --arg t "$TEXT" '{model: "embedding-local", input: $t}')" | jq -c '.data[0].embedding')
+  -H "Authorization: Bearer $PGVECTOR_EMBED_KEY" -H 'Content-Type: application/json' \
+  -d "$(jq -n --arg t "$TEXT" '{model: "qwen/qwen3-embedding-8b", input: $t, dimensions: 2000}')" |
+  jq -c '.data[0].embedding')
 jq -n --arg t "$TEXT" --argjson e "$EMB" '{content: $t, embedding: $e, metadata: {source: "notes"}}' |
   curl -s localhost:18000/v1/vector_stores/default/embeddings \
     -H "Authorization: Bearer $PGVECTOR_SERVER_KEY" -H 'Content-Type: application/json' -d @-
 ```
 
-`/v1/vector_stores/default/embeddings/batch` takes `{"embeddings": [...]}` for
-bulk loads. Vectors MUST come from `embedding-local`: a vector from any other
-model is the wrong width (rejected) or, worse, the right width in a different
-space (accepted, and every search silently ranks it wrong). Embedding is on the
-B70 shared with chat, so pace a bulk load by request rate - roughly 0.5 req/s
-at batch 32 leaves chat at 99% (`docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`).
+`"dimensions": 2000` is mandatory on every ingest embedding: without it the
+model answers 4096 and the insert is refused (`expected 2000 dimensions, not
+4096`). `/v1/vector_stores/default/embeddings/batch` takes
+`{"embeddings": [...]}` for bulk loads, and `/v1/embeddings` takes a list of
+inputs. Vectors MUST come from this model at this width: a vector from any
+other model at the same width is accepted and silently ranks wrong. The key's
+$5/30d budget and 1M tpm bound a runaway bulk load.
 
 **Filters** - `eq` on a metadata key, optionally inside an `and`
 (`{"type": "eq", "key": "source", "value": "notes"}`). Anything else is a 400.
 Upstream read OpenAI-form filters as literal metadata keys and matched nothing;
-local patch `0002` in the image fixes that and `max_num_results`, which
-upstream also ignored (every search returned 20).
+local patch `0002` fixes that and `max_num_results`, which upstream also
+ignored (every search returned 20). Patch `0003` makes the server request
+`dimensions` on its query embeddings (via `extra_body`: the litellm SDK
+inside the image refuses `dimensions` for an `openai/` model it does not
+recognise).
 
 **Another store** - create it on the server (`POST /v1/vector_stores` with the
 bearer key; it returns a random id), then add a second
@@ -543,17 +563,20 @@ bearer key; it returns a random id), then add a second
 it in `schema.sql` like `default`. `POST /v1/vector_stores` through LiteLLM
 does not reach this server: it would need the provider's fallback env var
 `PG_VECTOR_API_KEY`, which is deliberately never set (see the comment on the
-registry entry - it would open every store id to every key).
+registry entry - it would open every store id to every key). Every store
+shares the one `embeddings` table and so the one width and model.
 
-**Changing the embedding model** means a new width in `schema.sql`,
-`EMBEDDING__DIMENSIONS` and the key's allow-list together, AND re-embedding
-every row: vectors from two models are not comparable. The CI gate enforces
-the three-way agreement; nothing can enforce the re-embed.
+**Changing the embedding model or width** means changing `schema.sql`'s
+`vector(N)`, `EMBEDDING__DIMENSIONS` and the key's allow-list together, AND
+re-embedding every row: vectors from two models, or two widths, are not
+comparable. The CI gate enforces the agreement and the 2000-dim index ceiling;
+nothing can enforce the re-embed.
 
-**Data and backups.** Stored text sits in plain rows in `litellm_pgvector` on
-`postgres-17`, so it rides that cluster's Barman backups to the LAN TrueNAS
-MinIO (30d) and nothing else - the same boundary as the spend-log content
-above.
+**Data leaving the cluster.** Every ingested chunk and every search query is
+sent to OpenRouter (and on to Nebius or DeepInfra) to be embedded - unlike the
+local `embedding-local`. The stored text and vectors sit in plain rows in
+`litellm_pgvector` on `postgres-17`, so they ride that cluster's Barman backups
+to the LAN TrueNAS MinIO (30d).
 
 **Credentials and rotation.** `pushsecret-pgvector.yaml` carries the seed
 command and the rotation procedure. The proxy tolerates a missing

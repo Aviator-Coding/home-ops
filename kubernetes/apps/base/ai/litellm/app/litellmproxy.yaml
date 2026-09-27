@@ -398,6 +398,7 @@ spec:
       - minimax-m3
       - muse-glimmer-30b
       - nemotron-3.5-lightning
+      - qwen/qwen3-embedding-8b
       - qwen3.6-27b
       - qwen3.8-2.4t-a95b
       - qwen3.8-27b
@@ -503,7 +504,7 @@ spec:
       - chat-ha: ["claude-sonnet-5-metered"]
       - auto: ["claude-sonnet-5-metered"]
 
-  # --- Vector stores (pgvector, embedded by embedding-local) ----------------
+  # --- Vector stores (pgvector, embedded by qwen/qwen3-embedding-8b) --------
   # Why extraConfig and not the CRD's dedicated `vectorStoreRegistry` field:
   # that field is validated as `type: object` (litellm-operator 0.0.19
   # api/v1alpha1/litellmproxy_types.go), but LiteLLM's vector_store_registry
@@ -526,8 +527,8 @@ spec:
           vector_store_id: default
           custom_llm_provider: pg_vector
           vector_store_description: >-
-            Household pgvector store. Chunks are embedded with embedding-local
-            (Qwen3-Embedding-0.6B, 1024-d) on the local B70.
+            Household pgvector store. Chunks are embedded with
+            qwen/qwen3-embedding-8b (OpenRouter) at 2000 dimensions.
           api_base: http://litellm-pgvector.ai.svc.cluster.local:8000
           # NOT PG_VECTOR_API_KEY. That is the name PGVectorStoreConfig falls
           # back to for a store with no registered key, so exporting it would

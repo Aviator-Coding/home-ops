@@ -2,7 +2,8 @@
 """Guard: the ai/litellm-pgvector vector store stays wired end to end.
 
 Captain request 2026-09-27: "create a pgvector database for litellm and connect
-to it, use the local embedding model for this". The pieces live in four places
+to it", embedded (captain decision the same day) by OpenRouter's
+qwen/qwen3-embedding-8b for both ingest and query. The pieces live in four places
 that nothing else keeps in agreement, and every way they can drift apart fails
 SILENTLY - the pods stay Ready and only searches go wrong:
 
@@ -14,8 +15,11 @@ SILENTLY - the pods stay Ready and only searches go wrong:
    .github/workflows/build-litellm-pgvector.yaml calls `--print-tag` here, so
    the builder and this gate share one algorithm.
 2. The vector width. Upstream's Prisma schema hardcodes vector(1536);
-   Qwen3-Embedding-0.6B emits 1024. schema.sql, EMBEDDING__DIMENSIONS and the
-   model must agree, or every insert is rejected by pgvector.
+   Qwen3-Embedding-8B natively emits 4096, which no pgvector index can take
+   (HNSW/IVFFlat cap `vector` at 2000), so the store requests 2000 through the
+   `dimensions` parameter. schema.sql and EMBEDDING__DIMENSIONS must agree, or
+   every insert is rejected, and the width must stay <= 2000 while schema.sql
+   builds an HNSW index on it, or the Job fails and the store never exists.
 3. The embedding model. The server embeds each search query through LiteLLM
    with its own virtual key. EMBEDDING__MODEL must be `openai/<name>` (the
    LiteLLM SDK needs a provider prefix to talk to the proxy), <name> must be the
@@ -182,11 +186,20 @@ def schema_width(sql: str) -> int:
     return widths.pop()
 
 
+# pgvector's documented HNSW/IVFFlat ceiling for the `vector` type.
+INDEXABLE_VECTOR_DIMS = 2000
+
+
 def check_embedding_contract(hr: dict[str, Any], sql: str, key: dict[str, Any], model_names: set[str]) -> dict[str, Any]:
     env = helmrelease_container(hr).get("env", {})
     dims = int(env.get("EMBEDDING__DIMENSIONS", "0"))
     width = schema_width(sql)
     require(dims == width, f"EMBEDDING__DIMENSIONS={dims} but schema.sql declares vector({width})")
+    if re.search(r"USING\s+(hnsw|ivfflat)\b", sql_code(sql), re.I):
+        require(
+            width <= INDEXABLE_VECTOR_DIMS,
+            f"vector({width}) exceeds pgvector's {INDEXABLE_VECTOR_DIMS}-dim index limit; the HNSW index would fail",
+        )
     model = env.get("EMBEDDING__MODEL", "")
     require(model.startswith("openai/"), f"EMBEDDING__MODEL {model!r} lacks the openai/ provider prefix")
     name = model.removeprefix("openai/")
@@ -220,6 +233,9 @@ def test_embedding_checker_refuses_upstream_width() -> dict[str, Any]:
     names = model_names()
     refusals = {}
     upstream_sql = re.sub(r"vector\(\d+\)", "vector(1536)", sql_code(SCHEMA_SQL.read_text()))
+    native_hr = copy.deepcopy(hr)
+    helmrelease_container(native_hr)["env"]["EMBEDDING__DIMENSIONS"] = "4096"
+    native_sql = re.sub(r"vector\(\d+\)", "vector(4096)", sql_code(SCHEMA_SQL.read_text()))
     wide_key = copy.deepcopy(key)
     wide_key["spec"]["models"] = [*key["spec"]["models"], "chat-local"]
     bare = copy.deepcopy(hr)
@@ -227,6 +243,7 @@ def test_embedding_checker_refuses_upstream_width() -> dict[str, Any]:
     env["EMBEDDING__MODEL"] = env["EMBEDDING__MODEL"].removeprefix("openai/")
     for label, args in {
         "upstream vector(1536)": (hr, upstream_sql, key, names),
+        "unindexable native 4096": (native_hr, native_sql, key, names),
         "widened allow-list": (hr, SCHEMA_SQL.read_text(), wide_key, names),
         "no provider prefix": (bare, SCHEMA_SQL.read_text(), key, names),
     }.items():

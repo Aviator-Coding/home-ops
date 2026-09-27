@@ -38,6 +38,9 @@ COPY constraints.txt /tmp/constraints.txt
 #         (and every file_search context injection) returned the server
 #         default of 20 chunks whatever `max_num_results` said, and OpenAI-form
 #         `filters` were read as literal metadata keys and matched nothing.
+#   0003: query embeddings now request `dimensions=EMBEDDING__DIMENSIONS`, so a
+#         Matryoshka model (Qwen3-Embedding-8B, native 4096) answers at the
+#         store's indexable width instead of failing the length check.
 COPY *.patch /tmp/patches/
 WORKDIR /app
 RUN for p in /tmp/patches/*.patch; do patch -p1 --forward --no-backup-if-mismatch < "$p"; done

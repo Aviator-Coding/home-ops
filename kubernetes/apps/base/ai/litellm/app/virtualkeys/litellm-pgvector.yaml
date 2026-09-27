@@ -1,20 +1,24 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
-# The key ai/litellm-pgvector uses to embed every SEARCH QUERY through this
-# proxy (BerriAI/litellm-pgvector calls litellm.aembedding against LiteLLM on
-# each /search). Scoped to exactly the one model the store's vectors come from:
-# a query embedded by any other model would land in a different vector space
-# and return confident nonsense rather than an error, so the allow-list is
-# also a correctness guard, not only an entitlement one.
+# The embedding key of the ai/litellm-pgvector vector store (captain decision
+# 2026-09-27: the store embeds with OpenRouter's qwen/qwen3-embedding-8b for
+# both ingest and query). Two users:
+#   - the server itself, which embeds every SEARCH QUERY through this proxy
+#     (BerriAI/litellm-pgvector calls litellm.aembedding on each /search);
+#   - whoever INGESTS, which embeds each chunk here before writing it to the
+#     server (../../README.md "Vector store (pgvector)"). The ingester already
+#     holds the server's admin bearer key, so sharing this one adds no access.
 #
-# Ingest does NOT use this key - callers embed their own chunks with their own
-# key (see ../../README.md "Vector store (pgvector)"), so every row in the
-# store is attributable in the spend log to whoever wrote it.
+# Scoped to exactly the one model the store's vectors come from. That is a
+# correctness guard as much as an entitlement one: a vector from any other
+# model lands in a different space and ranks silently wrong. For that reason
+# this key is the deliberate exception to "every key may call embedding-local"
+# (#1817) - embedding-local's 1024-d vectors do not belong in this store.
 #
-# maxBudget is set and INERT for the same reason as embedding-external.yaml:
-# embedding-local is zero-priced, and the cap only matters if `models` is ever
-# widened to something priced. scripts/ci/litellm-claude-code-subscription-test.py
-# pins the exact budgetless set; this key is deliberately not in it.
+# The model is metered ($0.01 per 1M input tokens, models/qwen3-embedding-8b.yaml),
+# so maxBudget is live here, unlike on the zero-priced embedding keys:
+# $5/30d is 500M tokens, far above any household corpus plus query traffic,
+# and a runaway bulk load stops at $5.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -25,18 +29,16 @@ spec:
   secretName: litellm-key-litellm-pgvector
   secretKey: key
   models:
-    - embedding-local
-  maxBudget: "1.00"
+    - qwen/qwen3-embedding-8b
+  maxBudget: "5.00"
   budgetDuration: 30d
-  # One embedding call per search, each a single short query (batch of one).
-  # The B70 is shared with chat and has no compute partition; at batch 32 about
-  # 1 req/s costs chat ~30% (docs/ai/embedder-gpu-migration-analysis-2026-09-15.md),
-  # and a one-query batch is far cheaper than that, so 60/min is a runaway
-  # backstop rather than a chat-protection throttle.
-  rpmLimit: 60
-  tpmLimit: 100000
+  # Sized for a bulk ingest, not for query traffic (one short embedding per
+  # search). The backend is OpenRouter, not the shared B70, so these bound
+  # spend rate and a runaway client only: 1M tokens/min is $0.01/min.
+  rpmLimit: 120
+  tpmLimit: 1000000
   metadata:
-    purpose: query embeddings for the ai/litellm-pgvector vector store
+    purpose: ingest and query embeddings for the ai/litellm-pgvector vector store
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the operator-minted key into 1Password item

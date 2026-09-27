@@ -49,21 +49,22 @@ spec:
               #   python3 scripts/ci/litellm-pgvector-test.py --print-tag
               # which is also what that test asserts.
               repository: ghcr.io/aviator-coding/litellm-pgvector
-              tag: b553f84-4f42740a837a
+              tag: b553f84-3c129ca9b802
             env:
               # The LiteLLM SDK inside the server needs a provider prefix to
               # talk to an OpenAI-compatible endpoint; `openai/` makes it POST
-              # {base}/embeddings to our proxy with model `embedding-local`.
-              # Must stay the ONLY model the litellm-pgvector key may call - a
-              # query embedded by any other model lands in a different vector
-              # space (scripts/ci/litellm-pgvector-test.py).
-              EMBEDDING__MODEL: openai/embedding-local
+              # {base}/embeddings to our proxy with model
+              # `qwen/qwen3-embedding-8b` (OpenRouter, captain decision
+              # 2026-09-27). Must stay the ONLY model the litellm-pgvector key
+              # may call - a query embedded by any other model lands in a
+              # different vector space (scripts/ci/litellm-pgvector-test.py).
+              EMBEDDING__MODEL: openai/qwen/qwen3-embedding-8b
               EMBEDDING__BASE_URL: http://litellm.ai.svc.cluster.local:4000
-              # Qwen3-Embedding-0.6B's width, and the vector(N) in
-              # resources/schema.sql. The server rejects any query vector of a
-              # different length, so a model swap fails loudly here rather
-              # than returning wrong neighbours.
-              EMBEDDING__DIMENSIONS: "1024"
+              # Sent as `dimensions` on every query embedding (image patch
+              # 0003) and checked against the answer's length; equals the
+              # vector(N) in resources/schema.sql. 2000, not the model's native
+              # 4096, because 2000 is pgvector's HNSW limit - see schema.sql.
+              EMBEDDING__DIMENSIONS: "2000"
               # litellm otherwise fetches its model cost map from GitHub at
               # import; nothing here prices anything.
               LITELLM_LOCAL_MODEL_COST_MAP: "True"
