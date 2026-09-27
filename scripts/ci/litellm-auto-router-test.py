@@ -662,13 +662,23 @@ def test_local_pricing_split(cfg: dict) -> None:
         priced - invoice_priced == {"qwen3.6-35b-a3b"},
         f"priced={sorted(priced)}",
     )
+    # Non-vacuous by construction: invoice_priced <= priced fails the moment a
+    # declared invoice-priced model's price is dropped or zeroed, which is the
+    # exact regression this split guards against (a metered cloud model would
+    # otherwise silently record $0 real spend).
+    registered = {m["model_name"] for m in model_list}
+    record(
+        "invoice_priced_models_are_registered_and_priced",
+        invoice_priced <= priced,
+        f"missing_or_unpriced={sorted(invoice_priced - priced)}",
+    )
     record(
         "invoice_priced_models_are_cloud_routed",
         all(
             by_name(model_list, name)["litellm_params"].get("model", "").startswith("openrouter/")
-            for name in invoice_priced & priced
+            for name in invoice_priced & registered
         ),
-        f"invoice_priced={sorted(invoice_priced & priced)}",
+        f"invoice_priced={sorted(invoice_priced & registered)}",
     )
 
     classifier = by_name(model_list, "qwen3.6-35b-a3b-classifier")
