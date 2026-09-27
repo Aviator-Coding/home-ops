@@ -388,10 +388,11 @@ is sent per-request.
 Registration is not entitlement, so this model ships with its own key
 (captain decision 2026-08-27):
 [`app/virtualkeys/claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/claude-code-subscription.yaml).
-It is allow-listed to the two pass-through models (`claude-sonnet-5` and
-`claude-opus-5` since the 2026-08-31 rename) and nothing else, so it is not a
+It is allow-listed to the four pass-through models (`claude-sonnet-5` and
+`claude-opus-5` since the 2026-08-31 rename; `claude-haiku-4-5-20251001` and
+`claude-fable-5-1` since 2026-09-27) and nothing else, so it is not a
 second door into the metered Anthropic models (`claude-sonnet-5-metered` /
-`claude-opus-5-metered`). Both allow-listed models are CRs for which **the
+`claude-opus-5-metered`). All four allow-listed models are CRs for which **the
 proxy holds no credential**;
 that property, not the length of the list, is what keeps this key unable to
 spend the household's money, and `scripts/ci/litellm-claude-code-subscription-test.py`
@@ -845,7 +846,7 @@ Nothing about how they work changed, only their name.
 
 **Reaching them requires a key entitled to the metered route.** The dedicated
 `claude-code-subscription` key (§5b) is deliberately NOT one - its allow-list
-holds only the two credential-less pass-through CRs, and the CI test
+holds only the four credential-less pass-through CRs, and the CI test
 (`scripts/ci/litellm-claude-code-subscription-test.py`,
 `virtualkey_allowlist_names_no_metered_route`) fails the build if that ever
 changes. Reach the metered models the same way every other cloud consumer in
