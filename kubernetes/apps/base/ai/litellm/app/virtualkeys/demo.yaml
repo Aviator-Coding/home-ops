@@ -15,8 +15,11 @@ spec:
   # Deliberately NOT given the `auto` alias or the Anthropic tier backends -
   # see router-demo.yaml for the routed-consumer shape and
   # docs/ai-system/litellm/auto-router.md#budgets.
+  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
+  # able to access this local embedding model") - credential-less, zero-priced.
   models:
     - qwen3.6-35b-a3b
+    - embedding-local
   # Decimal STRING, not a number - the CRD types maxBudget as a string.
   # Spend accrues from the per-token prices on the model CR
   # (models/qwen3.6-35b-a3b.yaml `info.extra`); with zero prices LiteLLM

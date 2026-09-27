@@ -390,10 +390,11 @@ Registration is not entitlement, so this model ships with its own key
 [`app/virtualkeys/claude-code-subscription.yaml`](../../../kubernetes/apps/base/ai/litellm/app/virtualkeys/claude-code-subscription.yaml).
 It is allow-listed to the four pass-through models (`claude-sonnet-5` and
 `claude-opus-5` since the 2026-08-31 rename; `claude-haiku-4-5-20251001` and
-`claude-fable-5-1` since 2026-09-27) and nothing else, so it is not a
-second door into the metered Anthropic models (`claude-sonnet-5-metered` /
-`claude-opus-5-metered`). All four allow-listed models are CRs for which **the
-proxy holds no credential**;
+`claude-fable-5-1` since 2026-09-27), plus `embedding-local` (added
+2026-09-27, credential-less and zero-priced - see the CR's own header), so it
+is not a second door into the metered Anthropic models (`claude-sonnet-5-metered` /
+`claude-opus-5-metered`). All five allow-listed models are either CRs for which **the
+proxy holds no credential** or (for `embedding-local`) carry no price at all;
 that property, not the length of the list, is what keeps this key unable to
 spend the household's money, and `scripts/ci/litellm-claude-code-subscription-test.py`
 asserts it directly (every allow-listed name must carry the placeholder

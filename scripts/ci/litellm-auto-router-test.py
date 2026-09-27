@@ -726,9 +726,13 @@ def test_repo_wiki_consumer_matches_generator() -> None:
     if spec is None:
         record("repo_wiki_model_matches_allowlist", False, "repo-wiki LiteLLMVirtualKey missing")
         return
+    # `embedding-local` was added to every virtual key's allow-list on
+    # 2026-09-27 (captain intent: "all keys should be able to access this
+    # local embedding model") - a credential-less, zero-priced sunk-hardware
+    # model, not a chat backend, so it is an explicit exception here.
     record(
         "repo_wiki_scoped_to_zero_priced_local_alias",
-        spec["models"] == ["chat-local"],
+        sorted(spec["models"]) == sorted(["chat-local", "embedding-local"]),
         f"models={spec['models']!r}",
     )
     hr = yaml.safe_load(
@@ -759,15 +763,23 @@ def test_consumers() -> None:
     )
     if not required <= set(keys):
         return
-    record("demo_consumer_still_direct_only", keys["demo"]["models"] == ["qwen3.6-35b-a3b"])
+    # `embedding-local` was added to every virtual key's allow-list on
+    # 2026-09-27 (captain intent: "all keys should be able to access this
+    # local embedding model") - a credential-less, zero-priced sunk-hardware
+    # model, not a chat backend, so it is an explicit exception to the three
+    # "scoped only to" invariants below, not a relaxation of them.
+    record(
+        "demo_consumer_still_direct_only",
+        sorted(keys["demo"]["models"]) == sorted(["qwen3.6-35b-a3b", "embedding-local"]),
+    )
     record(
         "router_demo_scoped_to_auto_only",
-        keys["router-demo"]["models"] == ["auto"],
+        sorted(keys["router-demo"]["models"]) == sorted(["auto", "embedding-local"]),
         f"models={keys['router-demo']['models']!r}",
     )
     record(
         "ha_demo_scoped_to_chat_ha_only",
-        keys["ha-demo"]["models"] == ["chat-ha"],
+        sorted(keys["ha-demo"]["models"]) == sorted(["chat-ha", "embedding-local"]),
         f"models={keys['ha-demo']['models']!r}",
     )
     # The CRD types maxBudget as a decimal STRING, not a number - a YAML float

@@ -33,7 +33,8 @@ It **cannot** approve, request changes, or block a merge:
   approve pull requests" is not needed for advisory mode and stays off.
 
 It also **cannot spend money**. `ai_model` is `pr-review-local`, a zero-priced local alias with no
-cloud fallback, and the `ai-pr-review` virtual key allow-lists that one model and nothing else.
+cloud fallback, and the `ai-pr-review` virtual key allow-lists only that model plus
+`embedding-local` (added 2026-09-27, also credential-less and zero-priced) - nothing else.
 `review_routing_mode` is left `off`, so there is no smart-model escalation path to bound - which
 matters because this fires on every PR in a repo with heavy Renovate traffic.
 

@@ -104,8 +104,11 @@ spec:
   keyAlias: mac-gnhf
   secretName: litellm-key-mac-gnhf
   secretKey: key
+  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
+  # able to access this local embedding model") - credential-less, zero-priced.
   models:
     - chat-local
+    - embedding-local
   rpmLimit: 300
   tpmLimit: 200000000
   metadata:
