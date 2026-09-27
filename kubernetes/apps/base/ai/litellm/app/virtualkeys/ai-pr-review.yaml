@@ -34,8 +34,9 @@ spec:
   keyAlias: ai-pr-review
   secretName: litellm-key-ai-pr-review
   secretKey: key
-  # Exactly one model, and it must stay that way. `pr-review-local` is the
-  # zero-priced, fallback-free, non-thinking local alias
+  # `pr-review-local` is the primary model, and it must stay the ONLY
+  # non-zero-priced-capable entry here: it is the zero-priced,
+  # fallback-free, non-thinking local alias
   # (../models/pr-review-local.yaml). This key must NOT hold `auto`: the D3
   # router's COMPLEX/REASONING tiers are Anthropic, and this consumer fires
   # unattended on every pull request in a repo that receives heavy Renovate
