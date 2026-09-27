@@ -84,23 +84,56 @@ MODEL_NAME = "claude-sonnet-5"
 # `claude-code-subscription-opus` to the natural `claude-opus-5`, freeing the
 # name from the formerly-metered CR, which moved to `claude-opus-5-metered`.
 OPUS_MODEL_NAME = "claude-opus-5"
+# Haiku half, ADDED 2026-09-27 (captain decision "2-yes" on "Should I add
+# Haiku and Fable as subscription models"). Unlike Sonnet/Opus this is the
+# DATED form: Anthropic's own /v1/models catalog has no bare `claude-haiku-4-5`
+# entry, only `claude-haiku-4-5-20251001` - verified live 2026-09-27, and
+# confirmed empirically by the subscription key's own pre-existing failed
+# requests in LiteLLM_SpendLogs, which already named this exact dated id. No
+# metered CR ever held this name, so there was no rename to make. See
+# ../../kubernetes/apps/base/ai/litellm/app/models/claude-haiku-4-5-20251001.yaml
+# header for the full resolution evidence.
+HAIKU_MODEL_NAME = "claude-haiku-4-5-20251001"
+# Fable half, ADDED 2026-09-27 (same captain decision). `claude-fable-5-1`, NOT
+# the older `claude-fable-5` that the unrelated metered CR still owns
+# unchanged - the two are distinct models in Anthropic's catalog (Fable 5 vs
+# Fable 5.1), not a naming collision, confirmed by Claude Code's own baked-in
+# model-catalog.json (`latest_per_family.fable == "claude-fable-5-1"`). See
+# ../../kubernetes/apps/base/ai/litellm/app/models/claude-fable-5-1.yaml
+# header for the full resolution evidence.
+FABLE_MODEL_NAME = "claude-fable-5-1"
 # Every model this key may name. The invariant is not "exactly one model" but
 # "only models for which the proxy holds NO credential", which the
 # allowlist_holds_only_credential_less_models check below enforces directly.
-SUBSCRIPTION_MODELS = [MODEL_NAME, OPUS_MODEL_NAME]
+SUBSCRIPTION_MODELS = [MODEL_NAME, OPUS_MODEL_NAME, HAIKU_MODEL_NAME, FABLE_MODEL_NAME]
 # Metered Anthropic routes that must never appear on this key's allow-list.
-# `-metered` suffix since the 2026-08-31 rename freed the bare names above for
-# the pass-through models this key IS scoped to.
+# `-metered` suffix since the 2026-08-31 rename freed the bare Sonnet/Opus
+# names above for the pass-through models this key IS scoped to.
+# `claude-fable-5` (the older, unrelated Fable 5 model - see FABLE_MODEL_NAME
+# above) is included here too: it is a real metered route with an env
+# credential, and it must never be confused with its `claude-fable-5-1`
+# pass-through sibling.
 METERED_MODELS = [
     "claude-sonnet-5-metered",
     "claude-opus-5-metered",
     "claude-opus-4-8",
+    "claude-fable-5",
     "auto",
 ]
 PLACEHOLDER_PREFIX = "sk-ant-oat"
 PLACEHOLDER = "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
 EXPECTED_UPSTREAM = "anthropic/claude-sonnet-5"
 EXPECTED_UPSTREAM_OPUS = "anthropic/claude-opus-5"
+EXPECTED_UPSTREAM_HAIKU = "anthropic/claude-haiku-4-5-20251001"
+EXPECTED_UPSTREAM_FABLE = "anthropic/claude-fable-5-1"
+# (model_name, expected upstream id, metered sibling name to cross-check or
+# None). Sonnet is asserted separately above (the original, non-looped shape);
+# this list drives the generalized sibling checks in test_model_render.
+SUBSCRIPTION_SIBLINGS = [
+    (OPUS_MODEL_NAME, EXPECTED_UPSTREAM_OPUS, "claude-opus-5-metered"),
+    (HAIKU_MODEL_NAME, EXPECTED_UPSTREAM_HAIKU, None),
+    (FABLE_MODEL_NAME, EXPECTED_UPSTREAM_FABLE, None),
+]
 # Zeroing input/output alone does NOT make recorded spend $0. Prompt-cache
 # pricing lives in its own fields and `_resolve_builtin_model_cost_entry`
 # (litellm utils.py) copies the built-in map's `_CACHE_PRICING_FIELDS` onto a
@@ -296,61 +329,80 @@ def test_model_render(cfg: dict) -> None:
         f"{type(info.get('output_cost_per_token')).__name__})",
     )
 
-    # --- Opus sibling: identical shape, one line different -----------------
-    om = by_name(cfg["model_list"], OPUS_MODEL_NAME)
+    # --- Siblings (Opus, Haiku, Fable): identical shape, one line different -
+    # Opus (2026-08-30) and Haiku/Fable (2026-09-27) all follow the exact
+    # pattern the original Opus-only block established; generalized to a loop
+    # over SUBSCRIPTION_SIBLINGS so a future family adds one tuple, not another
+    # copy-pasted block.
+    for name, expected_upstream, metered_sibling in SUBSCRIPTION_SIBLINGS:
+        sm = by_name(cfg["model_list"], name)
+        record(
+            f"{name}_subscription_model_present_in_operator_render",
+            sm is not None,
+            f"has={sm is not None}",
+        )
+        if sm is None:
+            continue
+        slp = sm.get("litellm_params") or {}
+        record(
+            f"{name}_upstream_model_id_matches_anthropic_direct_catalog",
+            slp.get("model") == expected_upstream,
+            f"model={slp.get('model')!r} want={expected_upstream!r}",
+        )
+        # The whole money-safety argument in one assertion: no env credential,
+        # not absent (absent falls back to ANTHROPIC_API_KEY), and
+        # oat-prefixed so a tokenless caller gets Anthropic's 401 instead of a
+        # silent metered charge.
+        sak = slp.get("api_key")
+        record(
+            f"{name}_api_key_is_present_non_env_placeholder",
+            isinstance(sak, str)
+            and sak == PLACEHOLDER
+            and not str(sak).startswith("os.environ/"),
+            f"api_key={sak!r}",
+        )
+        record(
+            f"{name}_api_key_carries_sk_ant_oat_prefix_for_oauth_branch",
+            isinstance(sak, str) and sak.startswith(PLACEHOLDER_PREFIX),
+            f"prefix_ok={isinstance(sak, str) and sak.startswith(PLACEHOLDER_PREFIX)}",
+        )
+        if metered_sibling:
+            # Sibling metered route must still use the env credential - proves
+            # this is an addition, not a rewrite of the metered route.
+            metered = by_name(cfg["model_list"], metered_sibling)
+            record(
+                f"sibling_{metered_sibling}_still_uses_shared_env_key",
+                bool(metered)
+                and (metered.get("litellm_params") or {}).get("api_key")
+                == "os.environ/ANTHROPIC_API_KEY",
+                f"api_key={(metered or {}).get('litellm_params', {}).get('api_key')!r}",
+            )
+        sinfo = sm.get("model_info") or {}
+        record(
+            f"{name}_model_info_zeroes_cache_prices_not_just_input_output",
+            _zero_price_offenders(sinfo) == [],
+            f"offenders={_zero_price_offenders(sinfo)}",
+        )
+        record(
+            f"{name}_model_info_declares_explicit_zero_token_prices",
+            sinfo.get("input_cost_per_token") == 0
+            and sinfo.get("output_cost_per_token") == 0
+            and type(sinfo.get("input_cost_per_token")) in (int, float)
+            and type(sinfo.get("output_cost_per_token")) in (int, float),
+            f"model_info={sinfo!r}",
+        )
+
+    # claude-fable-5 (the OLDER, unrelated Fable 5 model) must still use the
+    # env credential and stay entirely untouched by this change - proves the
+    # Fable addition above is a distinct new CR, not a rewrite or rename of
+    # the existing metered one.
+    old_fable = by_name(cfg["model_list"], "claude-fable-5")
     record(
-        "opus_subscription_model_present_in_operator_render",
-        om is not None,
-        f"has={om is not None}",
-    )
-    if om is None:
-        return
-    olp = om.get("litellm_params") or {}
-    record(
-        "opus_upstream_model_id_is_anthropic_claude_opus_5_dash_form",
-        olp.get("model") == EXPECTED_UPSTREAM_OPUS,
-        f"model={olp.get('model')!r}",
-    )
-    # The whole money-safety argument in one assertion: no env credential, not
-    # absent (absent falls back to ANTHROPIC_API_KEY), and oat-prefixed so a
-    # tokenless caller gets Anthropic's 401 instead of a silent metered charge.
-    oak = olp.get("api_key")
-    record(
-        "opus_api_key_is_present_non_env_placeholder",
-        isinstance(oak, str)
-        and oak == PLACEHOLDER
-        and not str(oak).startswith("os.environ/"),
-        f"api_key={oak!r}",
-    )
-    record(
-        "opus_api_key_carries_sk_ant_oat_prefix_for_oauth_branch",
-        isinstance(oak, str) and oak.startswith(PLACEHOLDER_PREFIX),
-        f"prefix_ok={isinstance(oak, str) and oak.startswith(PLACEHOLDER_PREFIX)}",
-    )
-    # Sibling metered Opus must still use the env credential - proves this is
-    # an addition, not a rewrite of the metered route. `-metered` name since
-    # the 2026-08-31 rename freed the bare name for this pass-through CR.
-    metered_opus = by_name(cfg["model_list"], "claude-opus-5-metered")
-    record(
-        "sibling_claude_opus_5_metered_still_uses_shared_env_key",
-        bool(metered_opus)
-        and (metered_opus.get("litellm_params") or {}).get("api_key")
+        "unrelated_claude_fable_5_metered_still_uses_shared_env_key",
+        bool(old_fable)
+        and (old_fable.get("litellm_params") or {}).get("api_key")
         == "os.environ/ANTHROPIC_API_KEY",
-        f"opus_api_key={(metered_opus or {}).get('litellm_params', {}).get('api_key')!r}",
-    )
-    oinfo = om.get("model_info") or {}
-    record(
-        "opus_model_info_zeroes_cache_prices_not_just_input_output",
-        _zero_price_offenders(oinfo) == [],
-        f"offenders={_zero_price_offenders(oinfo)}",
-    )
-    record(
-        "opus_model_info_declares_explicit_zero_token_prices",
-        oinfo.get("input_cost_per_token") == 0
-        and oinfo.get("output_cost_per_token") == 0
-        and type(oinfo.get("input_cost_per_token")) in (int, float)
-        and type(oinfo.get("output_cost_per_token")) in (int, float),
-        f"model_info={oinfo!r}",
+        f"api_key={(old_fable or {}).get('litellm_params', {}).get('api_key')!r}",
     )
 
 
@@ -647,6 +699,8 @@ def test_kustomize_emits_resources() -> None:
         expected_upstream = {
             MODEL_NAME: EXPECTED_UPSTREAM,
             OPUS_MODEL_NAME: EXPECTED_UPSTREAM_OPUS,
+            HAIKU_MODEL_NAME: EXPECTED_UPSTREAM_HAIKU,
+            FABLE_MODEL_NAME: EXPECTED_UPSTREAM_FABLE,
         }
         bad = []
         for name, want in expected_upstream.items():
@@ -725,6 +779,8 @@ def test_kustomize_emits_resources() -> None:
     expected_upstream = {
         MODEL_NAME: EXPECTED_UPSTREAM,
         OPUS_MODEL_NAME: EXPECTED_UPSTREAM_OPUS,
+        HAIKU_MODEL_NAME: EXPECTED_UPSTREAM_HAIKU,
+        FABLE_MODEL_NAME: EXPECTED_UPSTREAM_FABLE,
     }
     emitted = {
         d.get("metadata", {}).get("name"): d
@@ -848,12 +904,27 @@ def test_runbook_contract() -> None:
         "ANTHROPIC_MODEL": f"{MODEL_NAME}[1m]",
         "ANTHROPIC_DEFAULT_SONNET_MODEL": f"{MODEL_NAME}[1m]",
         "ANTHROPIC_DEFAULT_OPUS_MODEL": f"{OPUS_MODEL_NAME}[1m]",
+        # Fable's catalog entry carries a genuine native 1M window
+        # (context.native_1m=true), same as Sonnet/Opus - see
+        # claude-fable-5-1.yaml's header - so it gets the same client-only
+        # window-hint suffix.
+        "ANTHROPIC_DEFAULT_FABLE_MODEL": f"{FABLE_MODEL_NAME}[1m]",
     }
     got_1m = {name: section_5c.get(name) for name in want_1m}
     record(
         "runbook_section_5c_model_vars_carry_1m_suffix_and_tool_search",
         got_1m == want_1m and section_5c.get("ENABLE_TOOL_SEARCH") == "true",
         f"models={got_1m} tool_search={section_5c.get('ENABLE_TOOL_SEARCH')!r}",
+    )
+    # Haiku 4.5's real context window stays at 200k (no native_1m in its
+    # catalog entry - see claude-haiku-4-5-20251001.yaml's header), so `[1m]`
+    # would be misleading and ANTHROPIC_DEFAULT_HAIKU_MODEL is deliberately
+    # NOT set in §5c: the natural default already resolves to this CR with no
+    # window-hint benefit to claim.
+    record(
+        "runbook_section_5c_omits_haiku_1m_suffix",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL" not in section_5c,
+        f"section_5c_keys={sorted(section_5c)}",
     )
     record(
         "runbook_forbids_putting_virtual_key_in_authorization",
