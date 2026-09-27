@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://k8s-schemas.home-operations.com/networking.k8s.io/networkpolicy_v1.json
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana-image-renderer-allow-dns-replies
+spec:
+  # The grafana chart's imageRenderer subchart ships its own NetworkPolicy
+  # `grafana-image-renderer-ingress` (Helm-managed, not in git) which does not
+  # admit kube-dns. This is an additive supplemental policy -
+  # NetworkPolicies targeting the same pod OR-combine - matching that
+  # policy's own podSelector exactly, confirmed live via `kubectl get
+  # networkpolicy grafana-image-renderer-ingress -n monitoring -o yaml`. Do
+  # not disable or replace the chart's own policy.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: grafana
+      app.kubernetes.io/name: grafana-image-renderer
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow DNS replies from CoreDNS in kube-system. No ports restriction here
+    # on purpose: NetworkPolicy `ports` matches the DESTINATION port on this
+    # pod, and a DNS reply arrives on the pod's ephemeral source port, never
+    # 53 - a port:53 restriction (as added in #1800) can never match a reply
+    # and silently drops every DNS response. See loki-ingress and AGENTS.md
+    # for the full mechanism (Cilium reply-conntrack fails to correlate a DNS
+    # reply back to its request when the client pod's node also hosts a
+    # CoreDNS replica).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
