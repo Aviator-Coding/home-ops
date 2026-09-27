@@ -77,6 +77,50 @@ endpoints:
       - "[STATUS] == 200"
       - "[BODY].status == ok"
 
+  # Opens a real MCP session on the ToolHive gateway, the way Hermes does:
+  # same in-cluster URL, streamable-HTTP `initialize`, no auth. The
+  # auto-discovered `mcp-gateway` route check probes vmcp's /health, which
+  # stayed 200 from 2026-09-14 to 2026-09-27 while every `initialize` hung
+  # (vmcp builds its tool-search index inside the handshake, and the
+  # embedding server behind it could not finish - see
+  # kubernetes/apps/base/ai/toolhive/config/embeddingserver.yaml). This check
+  # was red for that whole state (a live 40s initialize returned 0 bytes)
+  # and is green once a session opens (~7s measured 2026-09-27). Both
+  # directions were run 2026-09-27 on a scratch pod with this Gatus image:
+  # success=true at 8.1s against bge-small, success=false at 25.0s against
+  # the Qwen3 server.
+  #
+  # Blind spot: when the embedding call fails FAST (measured: TEI refusing
+  # connections mid-restart), vmcp still answers this initialize 200 and
+  # terminates the session right after, so a client's next request fails.
+  # Catching that needs a second request carrying the Mcp-Session-Id
+  # response header, and Gatus v5.36 has no header placeholder to store it.
+  # A TEI pod that is down is covered by its readiness probe
+  # (KubePodNotReady); a TEI that is up but answering errors is not.
+  #
+  # The 25s client timeout sits under Hermes' 30s connect_timeout, so green
+  # means Hermes can connect. The body condition matches vmcp's own
+  # serverInfo name, which /health, a 406, or a login page cannot satisfy.
+  # Every probe creates one anonymous vmcp session and one full-catalog
+  # embed (~23.5 CPU core-seconds), hence 5m rather than 1m.
+  - name: ToolHive MCP Session
+    group: ai
+    url: http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp
+    method: POST
+    headers:
+      Content-Type: application/json
+      Accept: application/json, text/event-stream
+    body: |
+      {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"gatus","version":"1"}}}
+    client:
+      timeout: 25s
+    interval: 5m
+    ui:
+      hide-url: true
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].result.serverInfo.name == mcp-gateway-internal"
+
   # The auto-discovered `home-automation_home-assistant-app` check (removed
   # from the HTTPRoute's gatus.home-operations.com/endpoint annotation in
   # this change) never reached Home Assistant: that route carries a

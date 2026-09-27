@@ -9,8 +9,14 @@ this document concluded TEI could not close. This pod's remaining consumer is
 ToolHive's tool-selection index only (`kubernetes/apps/base/ai/toolhive/config/
 embeddingserver.yaml`), which still cannot reach TEI's loud-failure path for
 the unrelated reason in this document's "other live consumer" section
-(`vmcp`'s hardcoded `Truncate: true`). The memory sizing and `--max-batch-tokens`
-analysis below is otherwise still the live config for that pod.
+(`vmcp`'s hardcoded `Truncate: true`).
+
+**Update 2026-09-27:** that pod no longer runs Qwen3. Under vmcp's per-session
+full-catalog embed, Qwen3 on CPU took ~490s per MCP session, so no client
+could connect to ToolHive from 2026-09-14 on. The pod now runs
+`BAAI/bge-small-en-v1.5` with no `--max-batch-tokens` override. The memory
+sizing and `--max-batch-tokens` analysis below is historical. See
+`docs/ai-system/toolhive-optimizer-embedding-timeout-2026-09-27.md`.
 
 ## What this ships
 
@@ -220,3 +226,9 @@ incompatible vector spaces right now. This is an operational action outside
 git; it is not performed by this change and remains a follow-up for
 firstmate/the captain, same as #1681's own commit message and the previous
 version of this document already flagged.
+
+**Corrected 2026-09-27:** this premise was wrong. vmcp re-embeds the whole
+tool catalog inside every session's `initialize`, not once at pod startup,
+so no stale cross-model vector state can survive a session boundary and no
+restart is needed for vector-space compatibility. See
+`docs/ai-system/toolhive-optimizer-embedding-timeout-2026-09-27.md`.

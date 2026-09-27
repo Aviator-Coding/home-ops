@@ -8,9 +8,10 @@
 # MOVED TO THE B70 2026-09-15. This used to point at the CPU
 # Text-Embeddings-Inference pod (../../../toolhive/config/embeddingserver.yaml),
 # which still exists and still serves ToolHive's own tool-selection index - see
-# that file's header for why it cannot follow this move. Same model, same
-# vectors (measured mean cosine 0.9999992 between the two servers), so this was
-# not a re-index event; it is ~85x faster at batch 32 and it fails loud on
+# that file's header for why it stays on CPU (it has run bge-small-en-v1.5
+# since 2026-09-27). At the time of this move both ran the same model with the
+# same vectors (measured mean cosine 0.9999992), so this was not a re-index
+# event; it is ~85x faster at batch 32 and it fails loud on
 # over-length input instead of silently truncating.
 #
 # STILL NOT vllm-embed. That AgentgatewayBackend pointed at the llm-scaler
