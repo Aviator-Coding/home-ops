@@ -520,6 +520,12 @@ spec:
   # entry names, so the id is stable across rebuilds. Usage, the ingest path
   # and what LiteLLM does NOT support for this provider: README.md
   # "Vector store (pgvector)".
+  #
+  # Guardrail (captain decision "A with guardrail", README.md "Vector store
+  # (pgvector)"): no team_id - open to every virtual key - because
+  # config-registered stores ignore team_id and chat file_search checks only
+  # key/team object_permission allow-lists on this operator version. Revisit
+  # when LiteLLM v1.104.0 ships. Non-sensitive content only.
   extraConfig:
     vector_store_registry:
       - vector_store_name: default
@@ -527,8 +533,10 @@ spec:
           vector_store_id: default
           custom_llm_provider: pg_vector
           vector_store_description: >-
-            Household pgvector store. Chunks are embedded with
-            qwen/qwen3-embedding-8b (OpenRouter) at 2000 dimensions.
+            Household pgvector store. Non-sensitive content only (never
+            personal documents or credentials) - open to every virtual key.
+            Chunks are embedded with qwen/qwen3-embedding-8b (OpenRouter) at
+            2000 dimensions.
           api_base: http://litellm-pgvector.ai.svc.cluster.local:8000
           # NOT PG_VECTOR_API_KEY. That is the name PGVectorStoreConfig falls
           # back to for a store with no registered key, so exporting it would

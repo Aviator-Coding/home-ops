@@ -47,6 +47,7 @@ decision it pins - read it first if you're touching the app or feature it covers
 | `litellm-pr-reviewer-test.py` | AI PR reviewer workflow + `pr-review-local` / `ai-pr-review` D4 contracts |
 | `litellm-request-logs-test.py` | full prompt/response capture in LiteLLM spend logs |
 | `litellm-sso-test.py` | LiteLLM UI SSO through Authentik |
+| `litellm-pgvector-test.py` | `ai/litellm-pgvector` vector store wired end to end: the self-built image's content-addressed tag matches the HelmRelease and the build workflow's own algorithm, `EMBEDDING__DIMENSIONS` agrees with `schema.sql`'s `vector(N)` width (and stays within pgvector's HNSW/IVFFlat index ceiling), `EMBEDDING__MODEL` carries the `openai/` prefix and is the litellm-pgvector key's only allowed model, and the `vector_store_registry` entry's `api_key` uses a private env var (never the `PG_VECTOR_API_KEY` fallback name) pointing at a store id `schema.sql` actually seeds. Mutation-proven red on each drift |
 | `terraform-ci-workflows-test.py` | terraform-diff / terraform-publish CI contract |
 | `tofu-authentik-stack-test.py` | the Authentik OpenTofu adoption stack |
 | `validate-contention-test.py` | validate.yaml runner-pool contention timeouts + python-tests ordering; every per-job filter pattern must also be reachable from `on.pull_request.paths` (dead-filter regression that left `docs/tdarr/**` untested until 2026-09-01) |

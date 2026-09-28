@@ -456,6 +456,19 @@ today - a client-only `[1m]` context-window hint.
 
 ## Vector store (pgvector)
 
+**NON-SENSITIVE material only** - docs, references, repo knowledge. Never
+personal documents or credentials. Captain decision ("A with guardrail"): the
+store stays registered open to **every** virtual key, including the demo keys
+(`demo`, `ha-demo`, `router-demo`) and `ai-pr-review` (which processes
+untrusted PR content) - any of them can search it and pull hits into chat via
+`file_search` (see **Search** below). Team scoping is not declaratively
+enforceable today: LiteLLM v1.102.1 + litellm-operator 0.0.19's
+config-registered stores ignore `team_id`, and chat `file_search` checks only
+key/team `object_permission` allow-lists, which the operator's CRDs cannot
+express. Revisit scoping when LiteLLM v1.104.0 ships. Ingest requires the
+litellm-pgvector server's own admin bearer key (see **Ingest** below), not a
+virtual key, so only whoever holds that 1Password item can write to the store.
+
 Added 2026-09-27 (captain request: "create a pgvector database for litellm and
 connect to it"; captain decision the same day: embed with OpenRouter's
 `qwen/qwen3-embedding-8b` for both ingest and query, not `embedding-local`).
