@@ -55,8 +55,14 @@ done
     exit 1
 }
 
+# Throwaway data dir: an operator's real `tofu init` leaves .terraform/ with the
+# S3 backend recorded, which this credential-less check would otherwise pick up.
+data_dir="$(mktemp -d)"
+trap 'rm -rf "${data_dir}"' EXIT
+
 for stack in "${stacks[@]}"; do
     printf '==> %s\n' "${stack}"
+    export TF_DATA_DIR="${data_dir}/${stack##*/}"
     tofu -chdir="${stack}" init -backend=false -input=false -no-color
     tofu -chdir="${stack}" validate -no-color
 done
