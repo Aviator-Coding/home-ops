@@ -12,7 +12,7 @@ Add new findings here or to the owning document, not back into `AGENTS.md` - see
 
 - **LiteLLM has no config-file-only way to declare a virtual key with a budget or rate limit** - keys with `max_budget`/`rpm_limit`/`tpm_limit` only exist via the proxy's `/key/generate` REST API, and without a connected Postgres `DATABASE_URL` that API stores keys in memory only (gone on every pod restart). This is why `ai/litellm` (governance layer, `docs/ai-system/litellm/README.md`) depends on the shared `postgres-17` CNPG cluster even though the rest of `ai/` is stateless-by-preference, and why its virtual keys are minted through that API rather than declared in `config.yaml`. Since captain decision O1 (2026-08-26) the minting is done by the **home-operations litellm-operator** (`kubernetes/apps/base/ai/litellm-operator/`, chart pinned in its `app/helmrelease.yaml`): `LiteLLMVirtualKey` CRs in `ai/litellm/app/virtualkeys/` replaced a hand-written `consumers.json` + `provision_keys.py` + hook Job + CronJob + RBAC, and `LiteLLMModel` CRs in `app/models/` replaced the `config.yaml` ConfigMap.
 
-Fourteen things to know before touching it:
+Fifteen things to know before touching it:
 
 (1) **`LiteLLMProxySpec` has no `securityContext`, `serviceAccountName`, `automountServiceAccountToken`, `strategy`, `initContainers` or `startupProbe` field**, so the operator-rendered proxy pod carries none of this repo's usual pod hardening and the `default` SA token *is* mounted - the accepted-gap table and why a kustomize patch cannot fix it (the operator reconciles that Deployment back) are in `kubernetes/apps/base/ai/litellm/README.md`.
 

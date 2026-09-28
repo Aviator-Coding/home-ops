@@ -259,9 +259,11 @@ spec:
               # strategy's cooldown side effect on its semaphore-gated
               # pre-call check, or its batched-redis-write scheduler
               # behaving differently against a real Redis backend than the
-              # local-only cache the unit test used) - see kubernetes/apps/
-              # base/ai/litellm/app/models/embedding-local.yaml's git history
-              # for that investigation. Captain decision 2026-09-27: revert
+              # local-only cache the unit test used) - the LiteLLM-side cap
+              # was only ever live-patched via kubectl, never committed, so
+              # there is no git history for it; the investigation is recorded
+              # in full at .claude/skills/litellm-proxy/SKILL.md item (15).
+              # Captain decision 2026-09-27: revert
               # the LiteLLM-side cap entirely and bound load in the embedding
               # server's own request handling instead.
               #
