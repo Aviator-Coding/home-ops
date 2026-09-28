@@ -180,7 +180,7 @@ jobs:
       # minijinja-cli and talosctl come from .mise.toml so CI renders with the same
       # versions `just talos render-config` uses locally.
       - name: Setup Tools
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
         with:
           install_args: aqua:mitsuhiko/minijinja aqua:siderolabs/talos aqua:mikefarah/yq
 
@@ -202,7 +202,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
         with:
           install_args: aqua:mikefarah/yq
 
@@ -223,7 +223,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
         with:
           install_args: aqua:kubernetes-sigs/kustomize aqua:yannh/kubeconform
 
@@ -275,7 +275,7 @@ jobs:
       # opentofu comes from .mise.toml so CI validates with the same version the
       # runbook tells an operator to plan with.
       - name: Setup Tools
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
         with:
           install_args: opentofu
 
@@ -339,7 +339,7 @@ jobs:
       # which failed python-tests on every PR with "No version is set for shim:
       # promtool"). Pinned by scripts/ci/mise-install-args-test.py.
       - name: Setup Tools
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
         with:
           install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
 
