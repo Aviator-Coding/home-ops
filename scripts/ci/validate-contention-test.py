@@ -316,11 +316,20 @@ def eval_if(
 
 
 def default_needs_gate(job: Job, needs: dict[str, JobState], if_pass: bool) -> bool:
-    """Mirror Actions: without always(), a non-success dependency skips the job."""
+    """Mirror Actions: any explicit status-check function drops the implicit success() gate.
+
+    A job's default `if` is an implicit `success()` (all needs succeeded).
+    Writing a custom `if:` that itself calls a status-check function
+    (`always()`, `cancelled()`, ...) replaces that implicit check rather than
+    adding to it, so `if: ${{ !cancelled() && <guard> }}` runs even when a
+    needed job failed. This is the `success` job pattern shared by
+    flate.yaml, image-pull.yaml, and validate.yaml.
+    """
     if not if_pass:
         return False
-    has_always = bool(_FUNC_ALWAYS.search(_strip_expr(job.if_expr))) if job.if_expr else False
-    if has_always:
+    body = _strip_expr(job.if_expr) if job.if_expr else ""
+    has_status_fn = bool(_FUNC_ALWAYS.search(body) or _FUNC_CANCELLED.search(body))
+    if has_status_fn:
         return True
     for dep in job.needs:
         st = needs.get(dep)
@@ -377,6 +386,29 @@ def schedule(
                         result=force_results.get(jid, "success"),
                         outputs=dict(changed_outputs),
                     )
+            elif jid == "success":
+                # Mirrors the real job's steps: it runs unconditionally (per
+                # !cancelled() dropping the implicit needs-success gate), then
+                # its "Any jobs failed?" step inspects needs.*.result itself -
+                # so, unlike every other job here, its own conclusion is
+                # failure/success rather than skipped whenever a dependency
+                # did not succeed.
+                if_pass = eval_if(
+                    job.if_expr,
+                    needs=needs_view,
+                    is_fork=is_fork,
+                    run_cancelled=run_cancelled,
+                )
+                if not default_needs_gate(job, needs_view, if_pass):
+                    results[jid] = JobState(result="skipped")
+                elif run_cancelled:
+                    results[jid] = JobState(result="cancelled")
+                elif jid in force_results:
+                    results[jid] = JobState(result=force_results[jid])
+                elif any(st.result == "failure" for st in needs_view.values()):
+                    results[jid] = JobState(result="failure")
+                else:
+                    results[jid] = JobState(result="success")
             else:
                 if_pass = eval_if(
                     job.if_expr,
@@ -560,6 +592,11 @@ def test_scheduler_scenarios(model: WorkflowModel) -> dict[str, Any]:
         )
     if scenarios["scripts_ci_only"]["filter"] != "success":
         raise Failure("scripts/ci-only: filter must succeed")
+    if scenarios["scripts_ci_only"]["success"] != "success":
+        raise Failure(
+            "scripts/ci-only: Validate - Success must pass when siblings "
+            f"skip and nothing fails (got {scenarios['scripts_ci_only']})"
+        )
 
     # 3. Sibling failure must not hide python-tests (always() + filter success).
     scenarios["sibling_failure"] = schedule(
@@ -574,6 +611,15 @@ def test_scheduler_scenarios(model: WorkflowModel) -> dict[str, Any]:
             "failed talos must not skip python-tests "
             f"(got {scenarios['sibling_failure']})"
         )
+    # Validate - Success must FAIL (not skip) when a sibling it depends on
+    # fails: this is the exact check branch-protection would mark required,
+    # so a single failed job must surface as a failed required check, never
+    # as a silently-skipped (green) one.
+    if scenarios["sibling_failure"]["success"] != "failure":
+        raise Failure(
+            "single sibling failure (talos) must fail Validate - Success, "
+            f"not skip/succeed it (got {scenarios['sibling_failure']})"
+        )
 
     # 4. filter failure must skip python-tests (no coverage without filter).
     scenarios["filter_failure"] = schedule(
@@ -586,6 +632,11 @@ def test_scheduler_scenarios(model: WorkflowModel) -> dict[str, Any]:
             "filter failure must skip python-tests "
             f"(got {scenarios['filter_failure']})"
         )
+    if scenarios["filter_failure"]["success"] != "failure":
+        raise Failure(
+            "filter failure must fail Validate - Success "
+            f"(got {scenarios['filter_failure']})"
+        )
 
     # 5. Cancelled run must not schedule python-tests work.
     scenarios["cancelled"] = schedule(
@@ -595,13 +646,27 @@ def test_scheduler_scenarios(model: WorkflowModel) -> dict[str, Any]:
         raise Failure(
             f"cancelled run must not run python-tests: {scenarios['cancelled']}"
         )
+    # A job gated by `if: !cancelled() && ...` that has not yet started when
+    # the run is cancelled evaluates its own `if` to false (cancelled() is
+    # true, so !cancelled() is false) and is marked skipped - it only becomes
+    # "cancelled" itself if it was already in flight, which downstream
+    # `success` never is here since every one of its needs was skipped first.
+    if scenarios["cancelled"]["success"] != "skipped":
+        raise Failure(
+            "cancelled run must skip Validate - Success (its own !cancelled() "
+            f"guard), not post a stale pass/fail (got {scenarios['cancelled']})"
+        )
 
-    # 6. Fork PR: filter skips, everything skips.
+    # 6. Fork PR: filter skips, everything skips - including Validate -
+    # Success, whose repeated fork guard exists precisely so it never
+    # schedules onto the self-hosted runner for a fork PR.
     scenarios["fork"] = schedule(model, changed_outputs=full, is_fork=True)
     if scenarios["fork"]["filter"] != "skipped":
         raise Failure(f"fork must skip filter: {scenarios['fork']}")
     if scenarios["fork"]["python-tests"] != "skipped":
         raise Failure(f"fork must skip python-tests: {scenarios['fork']}")
+    if scenarios["fork"]["success"] != "skipped":
+        raise Failure(f"fork must skip Validate - Success: {scenarios['fork']}")
 
     # 7. Without always()-style gate, the OLD python-tests if would drop coverage
     # on scripts/ci-only. Prove the new expression is what saves it by evaluating
@@ -681,23 +746,8 @@ def test_scheduler_scenarios(model: WorkflowModel) -> dict[str, Any]:
     return scenarios
 
 
-def _trigger_covers(pattern: str, trigger_paths: list[str]) -> bool:
-    """Would a file matching `pattern` also start the workflow?
-
-    GitHub filters at the trigger AND inside the filter job, and the trigger
-    wins: if a path is absent from on.pull_request.paths the workflow never
-    starts, so the per-job pattern is dead no matter what it says.
-    """
-    if pattern in trigger_paths:
-        return True
-    for trigger in trigger_paths:
-        if trigger.endswith("/**") and pattern.startswith(trigger[: -len("**")]):
-            return True
-    return False
-
-
-def test_trigger_paths_cover_job_filters(model: WorkflowModel) -> dict[str, Any]:
-    """Every per-job filter pattern must be reachable from the trigger paths.
+def test_trigger_has_no_path_filter(model: WorkflowModel) -> dict[str, Any]:
+    """on.pull_request must carry no `paths:` filter at all.
 
     Regression: from PR #1530 until 2026-09-01 the pythontests filter listed
     docs/tdarr/** and docs/tdarr-errored-remuxes.md while on.pull_request.paths
@@ -705,25 +755,22 @@ def test_trigger_paths_cover_job_filters(model: WorkflowModel) -> dict[str, Any]
     tdarr-flow-nodes-test.py - which byte-checks every Tdarr flow node source
     against the committed flow artifact - never ran in CI. A dead per-job
     pattern is worse than a missing one: it reads as coverage.
+
+    Fixed (see docs/branch-protection.md) by moving all path filtering down
+    into the `filter` job and out of the trigger entirely: the workflow (and
+    its aggregate `Validate - Success` check) always starts and always posts
+    a result, so a trigger-level paths list - which can only ever go stale
+    relative to the job-level filters again - must never come back.
     """
-    failures: list[str] = []
-    uncovered: dict[str, list[str]] = {}
-    for sid, patterns in sorted(model.path_filters.items()):
-        missing = [p for p in patterns if not _trigger_covers(p, model.trigger_paths)]
-        if missing:
-            uncovered[sid] = missing
-            _check(
-                False,
-                f"filter step {sid!r} matches {missing} which on.pull_request.paths "
-                f"does not cover, so those patterns can never fire; "
-                f"trigger paths are {model.trigger_paths}",
-                failures,
-            )
+    _check(
+        not model.trigger_paths,
+        f"on.pull_request must not have a paths: filter; got {model.trigger_paths}",
+        (failures := []),
+    )
     if failures:
         raise Failure("; ".join(failures))
     return {
         "trigger_paths": model.trigger_paths,
-        "uncovered": uncovered,
         "checked_steps": sorted(model.path_filters),
     }
 
@@ -832,7 +879,7 @@ def main() -> int:
         ("python_tests_if_preserves_coverage", lambda: test_python_tests_if_preserves_coverage(model)),
         ("scheduler_scenarios", lambda: test_scheduler_scenarios(model)),
         ("path_filters_keep_workflow_self_test", lambda: test_path_filters_keep_workflow_self_test(model)),
-        ("trigger_paths_cover_job_filters", lambda: test_trigger_paths_cover_job_filters(model)),
+        ("trigger_has_no_path_filter", lambda: test_trigger_has_no_path_filter(model)),
         ("runner_capacity_unchanged", test_runner_capacity_unchanged),
         ("jobs_still_on_home_ops_runner", lambda: test_jobs_still_on_home_ops_runner(model)),
         ("validation_entrypoints_preserved", lambda: test_validation_entrypoints_preserved(model)),
