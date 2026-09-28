@@ -251,10 +251,11 @@ spec:
     #   auth-enforced, and for every NON-admin key
     #   RouteChecks.non_proxy_admin_allowed_routes_check then demands a match on
     #   the key's or team's `allowed_passthrough_routes` BEFORE any other route
-    #   rule (proxy/auth/route_checks.py). No key here carries one, so every
-    #   virtual key gets 403. The master key (and SSO proxy-admin users) skip
-    #   that check. That default-deny is the whole point: a NEW key is denied
-    #   too, without anyone remembering to scope it.
+    #   rule (proxy/auth/route_checks.py). Only `jev-decisions` carries one
+    #   (for POST /openrouter/alpha/decisions alone), so every other virtual
+    #   key gets 403. The master key (and SSO proxy-admin users) skip that
+    #   check. That default-deny is the whole point: a NEW key is denied too,
+    #   without anyone remembering to scope it.
     # - The native handler still wins FastAPI dispatch (registered first), but
     #   it reads its target and headers from the FIRST registry entry matching
     #   the request path and method (create_pass_through_route's url branch,
@@ -271,7 +272,13 @@ spec:
     # LiteLLMVirtualKey/LiteLLMTeam `metadata` is map[string]string (a string
     # value iterates as characters and fails closed - verified), and the
     # top-level /key/generate field is Enterprise-gated on this OSS image.
-    # Access rule and evidence: ../README.md#model-catalog (the Jev section).
+    # The one grant (captain decision `jev-door-grant`, 2026-09-28) is a
+    # one-time admin /key/update putting that list in `jev-decisions`'s
+    # metadata: virtualkeys/jev-decisions.yaml. It can only reach the exact
+    # POST entry below with a real target; any other path it is route-allowed
+    # on (a subpath, another method) resolves to the dead catch-all.
+    # Access rule, runbook and evidence: ../README.md#model-catalog (the Jev
+    # section).
     # CI: scripts/ci/litellm-passthrough-lockdown-test.py drives LiteLLM's own
     # RouteChecks against these entries.
     #

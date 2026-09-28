@@ -55,3 +55,4 @@ resources:
   - ./embedding-external.yaml
   - ./mac-gnhf.yaml
   - ./litellm-pgvector.yaml
+  - ./jev-decisions.yaml
