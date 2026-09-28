@@ -11,11 +11,12 @@ identity 2000:2000 - never mounting or modifying the live RWO claim.
 This test does NOT re-run the live cluster probe (fresh worktrees have no
 kubeconfig; AGENTS.md). It pins the public result + procedure contract the
 same way kopiur-stage2-test.py pins the sabnzbd restore drill, and it
-*executes* the measure script shipped inside the procedure doc against
-synthetic fixtures so the classification logic is proven behaviorally:
+*executes* the measure script the procedure installs against synthetic
+fixtures so the classification logic is proven behaviorally:
 
-  1. Extract measure.sh from the procedure document (the durable operator
-     interface - not a reimplementation).
+  1. Load measure.sh from MEASURE_SCRIPT, the file the procedure doc pipes
+     into the walker pod (the durable operator interface - not a
+     reimplementation).
   2. Run it under a PATH that supplies a busybox-compatible `stat -c` shim
      (macOS/BSD stat is not GNU/busybox), against fixture trees covering:
        - owner/group/other readability and directory execute bits
@@ -49,6 +50,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 DOC = ROOT / "docs/backups/recyclarr-config-readable-check-2026-08-31.md"
+MEASURE_SCRIPT = ROOT / "scripts/ci/fixtures/recyclarr-measure.sh"
 OVERLAY = ROOT / "kubernetes/apps/main/downloads/recyclarr.yaml"
 COMPONENT_README = ROOT / "kubernetes/components/kopiur/Readme.md"
 HELMRELEASE = (
@@ -76,33 +78,17 @@ def require(cond: bool, msg: str) -> None:
         print(f"[FAIL] {msg}")
 
 
-def extract_measure_script(doc_text: str) -> str:
-    """Pull the measure.sh body from the procedure doc's install heredoc.
+def load_measure_script() -> str:
+    """Read measure.sh from its own file, which the procedure doc installs.
 
-    The doc is the owned operator interface: the script lives inside a
-    `<<'EOF' ... EOF` block after `cat > /tmp/measure.sh`. Extracting it is
-    loading the public procedure artifact, not grepping incidental source.
+    The procedure doc pipes this file into the walker pod, so the script the
+    operator runs and the script executed here are the same bytes.
     """
-    marker = "cat > /tmp/measure.sh && chmod 0755 /tmp/measure.sh"
-    idx = doc_text.find(marker)
-    if idx < 0:
-        raise AssertionError("procedure doc missing measure.sh install heredoc")
-    # Find the opening <<'EOF' after the marker, then the matching closing EOF.
-    heredoc_start = doc_text.find("<<'EOF'", idx)
-    if heredoc_start < 0:
-        raise AssertionError("measure.sh heredoc opener not found")
-    body_start = doc_text.find("\n", heredoc_start) + 1
-    # Closing fence is a line that is exactly EOF (possibly indented in the md
-    # fence, but inside the bash block it is bare EOF).
-    rest = doc_text[body_start:]
-    # The install block ends at a line containing only EOF before the next
-    # kubectl exec that runs the script.
-    m = re.search(r"^EOF\s*$", rest, re.M)
-    if not m:
-        raise AssertionError("measure.sh heredoc closer not found")
-    body = rest[: m.start()]
+    if not MEASURE_SCRIPT.is_file():
+        raise AssertionError(f"missing {MEASURE_SCRIPT.relative_to(ROOT)}")
+    body = MEASURE_SCRIPT.read_text()
     if not body.lstrip().startswith("#!/bin/sh"):
-        raise AssertionError("extracted measure script missing shebang")
+        raise AssertionError("measure script missing shebang")
     return body
 
 
@@ -180,7 +166,7 @@ def run_measure(
     measure_script: str | None = None,
     extra_env: dict[str, str] | None = None,
 ) -> tuple[int, str, str]:
-    """Execute the extracted measure.sh against root_dir; return (rc, out, err)."""
+    """Execute measure.sh against root_dir; return (rc, out, err)."""
     assert measure_script is not None
     with tempfile.TemporaryDirectory(prefix="recyclarr-readable-") as td:
         tdp = Path(td)
@@ -721,8 +707,11 @@ def test_procedure_document_contract() -> None:
         "doc ties filesNew to the live file count",
     )
 
-    # Procedure embeds the runnable measure script.
-    require("#!/bin/sh" in text, "doc embeds measure.sh")
+    # Procedure installs the runnable measure script from its own file.
+    require(
+        str(MEASURE_SCRIPT.relative_to(ROOT)) in text,
+        "doc installs measure.sh from its script file",
+    )
     require("MOVER_UID" in text and "MOVER_GID" in text, "script requires mover identity")
 
     # Must NOT claim to have built the fleet-wide CronJob.
@@ -804,26 +793,25 @@ def test_empty_file_trap_regression(measure_script: str) -> None:
 
 def main() -> int:
     require(DOC.is_file(), f"procedure doc present at {DOC.relative_to(ROOT)}")
-    doc_text = DOC.read_text()
     try:
-        measure_script = extract_measure_script(doc_text)
+        measure_script = load_measure_script()
     except AssertionError as e:
-        require(False, f"extract measure.sh: {e}")
+        require(False, f"load measure.sh: {e}")
         print(f"Summary: {passed} passed, {failed} failed")
         return 1
 
     require(
         "can_read" in measure_script or "bit(mode" in measure_script,
-        "extracted script carries mode-bit readability classifier",
+        "measure script carries mode-bit readability classifier",
     )
     require(
         "lost+found" in measure_script or "lost_found" in measure_script,
-        "extracted script special-cases lost+found",
+        "measure script special-cases lost+found",
     )
     require(
         'substr(type, 1, 7) == "regular"' in measure_script
         or "regular empty" in measure_script,
-        "extracted script prefix-matches regular files (empty-file trap)",
+        "measure script prefix-matches regular files (empty-file trap)",
     )
 
     test_classifier_all_readable(measure_script)

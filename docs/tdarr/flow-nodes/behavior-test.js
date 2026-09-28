@@ -13,6 +13,11 @@ const vm = require('vm');
 const NODES = __dirname;
 const FLOW_DIR = path.join(__dirname, '..');
 const ROOT = path.join(__dirname, '..', '..', '..');
+// Docs whose prose testDocsContract pins. Retargeting a contract to its new
+// home (skill tdarr-transcoding / media-stack) is a one-line change here.
+const MEDIA_STACK_DOC = path.join(ROOT, 'docs/media-stack.md');
+const ERRORED_REMUXES_DOC = path.join(ROOT, 'docs/tdarr-errored-remuxes.md');
+const TRAPS_INDEX_DOC = path.join(ROOT, 'AGENTS.md');
 const evidence = [];
 const failures = [];
 
@@ -515,9 +520,9 @@ function sectionByPrefix(sections, prefix) {
 
 function testDocsContract() {
   log('\n== docs contract snippets ==');
-  const ms = fs.readFileSync(path.join(ROOT, 'docs/media-stack.md'), 'utf8');
-  const er = fs.readFileSync(path.join(ROOT, 'docs/tdarr-errored-remuxes.md'), 'utf8');
-  const agents = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf8');
+  const ms = fs.readFileSync(MEDIA_STACK_DOC, 'utf8');
+  const er = fs.readFileSync(ERRORED_REMUXES_DOC, 'utf8');
+  const agents = fs.readFileSync(TRAPS_INDEX_DOC, 'utf8');
 
   // media-stack must NOT present librariesToNotProcess as the working safety guard
   assert.ok(ms.includes('Tdarr Pro') || ms.includes('licence') || ms.includes('license') || ms.includes('auth'),
