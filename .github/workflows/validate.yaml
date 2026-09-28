@@ -154,10 +154,16 @@ jobs:
         with:
           patterns: |-
             scripts/ci/**
-            docs/tdarr/**
-            docs/tdarr-errored-remuxes.md
+            AGENTS.md
+            docs/**
+            .agents/skills/**
+            .claude/skills
+            .claude/skills/**
+            .github/*.md
+            kubernetes/components/**
             kubernetes/apps/base/ai/**
-            kubernetes/apps/main/ai/**
+            kubernetes/apps/base/system/**
+            kubernetes/apps/main/**
             .github/docker/litellm-pgvector/**
             .github/workflows/validate.yaml
             .mise.toml
@@ -288,6 +294,42 @@ jobs:
       - name: Format and Validate OpenTofu Stacks
         run: ./scripts/ci/tofu-validate.sh
 
+  # Repo-wide docs guards: size budget ratchet, doc/skill link checker, and the
+  # yaml-language-server/renovate comment-line guard. They read the whole tree,
+  # so unlike the jobs above this one has no path filter and runs on every
+  # same-repo PR (stdlib only, no pip). Full history gives the comment guard
+  # its merge base. python-tests also runs them, but only on its own paths.
+  docs-guards:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    needs: filter
+    name: docs-guards
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    # Same mise-action Setup Tools class as talos (see the header).
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: python uv
+
+      - name: Run Docs Guards
+        env:
+          DIFF_GUARD_BASE: origin/${{ github.event.repository.default_branch }}
+        run: |
+          fail=0
+          for f in scripts/ci/docs-budget-test.py scripts/ci/doc-links-test.py scripts/ci/functional-comments-guard-test.py; do
+            echo "::group::${f}"
+            python3 "${f}" || fail=1
+            echo "::endgroup::"
+          done
+          exit "${fail}"
+
   python-tests:
     # always() keeps this job running when a sibling is skipped (path-filter
     # miss) or failed; without it, needs: on skipped jobs would skip us too
@@ -306,6 +348,7 @@ jobs:
       - bootstrap
       - renovate-config
       - terraform
+      - docs-guards
     name: python-tests
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     # Uncontended-ish: 96s (pip 33s). Contended success: 469s (pip 416s,
@@ -409,6 +452,7 @@ jobs:
       - bootstrap
       - renovate-config
       - terraform
+      - docs-guards
       - python-tests
     name: Validate - Success
     runs-on: gha-runner-scale-set-aviator-coding-home-ops

@@ -20,6 +20,8 @@ What this catches
   - dropping .github/workflows/validate.yaml from per-job path filters
   - raising home-ops scale-set minRunners/maxRunners
   - removing or renaming the validator entrypoints the jobs invoke
+  - docs-guards losing a guard, full history, its base ref, or gaining a path gate
+  - the pythontests filter dropping a path whose changes doc-reading tests see
 
 What this does not catch
   - live cluster CPU contention (only CI can exercise that end-to-end)
@@ -74,7 +76,7 @@ PYTHON_TIMEOUT_FLOOR_MIN = 20  # ~2.5x the 469s contended success
 FILTER_TIMEOUT_MAX_MIN = 5
 RENOVATE_TIMEOUT_MAX_MIN = 10
 
-MISE_HEAVY_JOBS = ("talos", "versions", "bootstrap", "terraform")
+MISE_HEAVY_JOBS = ("talos", "versions", "bootstrap", "terraform", "docs-guards")
 LIGHT_PREDECESSORS = (
     "filter",
     "talos",
@@ -82,6 +84,29 @@ LIGHT_PREDECESSORS = (
     "bootstrap",
     "renovate-config",
     "terraform",
+    "docs-guards",
+)
+
+# Repo-wide guards that read the whole tree; docs-guards runs them on every
+# same-repo PR, independent of any path filter.
+DOCS_GUARDS = (
+    "scripts/ci/docs-budget-test.py",
+    "scripts/ci/doc-links-test.py",
+    "scripts/ci/functional-comments-guard-test.py",
+)
+
+# Paths whose changes can break a doc-, skill- or overlay-reading test, so
+# python-tests must run for them (docs-to-skills restructure, PR0).
+PYTHONTESTS_REQUIRED_PATTERNS = (
+    "scripts/ci/**",
+    "AGENTS.md",
+    "docs/**",
+    ".agents/skills/**",
+    ".claude/skills/**",
+    ".github/*.md",
+    "kubernetes/components/**",
+    "kubernetes/apps/base/system/**",
+    "kubernetes/apps/main/**",
 )
 
 # Validator entrypoints each job must still invoke (coverage must not shrink).
@@ -92,6 +117,7 @@ JOB_RUN_MARKERS = {
     "terraform": "./scripts/ci/tofu-validate.sh",
     "python-tests": "scripts/ci/*-test.py",
     "renovate-config": "renovate-config-validator",
+    "docs-guards": "scripts/ci/docs-budget-test.py",
 }
 
 
@@ -862,6 +888,64 @@ def test_no_workflow_level_job_serialization(model: WorkflowModel) -> dict[str, 
     return {"mise_needs": {j: model.jobs[j].needs for j in MISE_HEAVY_JOBS}, "concurrency": conc}
 
 
+def test_docs_guards_run_on_every_same_repo_pr(model: WorkflowModel) -> dict[str, Any]:
+    """docs-guards has no path gate, full history, and runs all three guards."""
+    failures: list[str] = []
+    job = model.jobs["docs-guards"]
+    body = _strip_expr(job.if_expr)
+    _check(FORK_GUARD in body, f"docs-guards must keep the fork guard; got {job.if_expr!r}", failures)
+    _check(
+        "outputs." not in body,
+        f"docs-guards must not gate on a path-filter output; got {job.if_expr!r}",
+        failures,
+    )
+    blob = "\n".join(job.run_scripts)
+    for guard in DOCS_GUARDS:
+        _check(guard in blob, f"docs-guards must run {guard}", failures)
+    checkout = next(
+        (st for st in job.steps if (st.get("uses") or "").startswith("actions/checkout@")),
+        {},
+    )
+    _check(
+        (checkout.get("with") or {}).get("fetch-depth") == 0,
+        "docs-guards checkout needs fetch-depth: 0 for the comment guard's merge base",
+        failures,
+    )
+    envs = [st.get("env") or {} for st in job.steps]
+    _check(
+        any("DIFF_GUARD_BASE" in e for e in envs),
+        "docs-guards must set DIFF_GUARD_BASE so a missing base fails instead of skipping",
+        failures,
+    )
+    none_changed = {k: "[]" for k in (
+        "talos", "versions", "bootstrap", "renovate", "terraform", "pythontests"
+    )}
+    results = schedule(model, changed_outputs=none_changed)
+    _check(
+        results["docs-guards"] == "success",
+        f"docs-guards must run when every path filter is empty; got {results}",
+        failures,
+    )
+    _check(
+        results["python-tests"] == "skipped",
+        f"python-tests must still skip when its filter is empty; got {results}",
+        failures,
+    )
+    fork = schedule(model, changed_outputs=none_changed, is_fork=True)
+    _check(fork["docs-guards"] == "skipped", f"fork must skip docs-guards: {fork}", failures)
+    if failures:
+        raise Failure("; ".join(failures))
+    return {"docs-guards.if": job.if_expr, "no_paths_changed": results}
+
+
+def test_pythontests_filter_covers_doc_readers(model: WorkflowModel) -> dict[str, Any]:
+    patterns = model.path_filters.get("pythontests") or []
+    missing = [p for p in PYTHONTESTS_REQUIRED_PATTERNS if p not in patterns]
+    if missing:
+        raise Failure(f"pythontests filter must include {missing}; got {patterns}")
+    return {"pythontests": patterns}
+
+
 def main() -> int:
     report: dict[str, Any] = {"ok": False, "tests": {}}
     failures: list[str] = []
@@ -884,6 +968,8 @@ def main() -> int:
         ("jobs_still_on_home_ops_runner", lambda: test_jobs_still_on_home_ops_runner(model)),
         ("validation_entrypoints_preserved", lambda: test_validation_entrypoints_preserved(model)),
         ("no_workflow_level_job_serialization", lambda: test_no_workflow_level_job_serialization(model)),
+        ("docs_guards_run_on_every_same_repo_pr", lambda: test_docs_guards_run_on_every_same_repo_pr(model)),
+        ("pythontests_filter_covers_doc_readers", lambda: test_pythontests_filter_covers_doc_readers(model)),
     ]
 
     for name, fn in tests:

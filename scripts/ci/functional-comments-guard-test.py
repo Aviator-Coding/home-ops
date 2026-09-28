@@ -20,8 +20,10 @@ reorder these. This test enforces:
      annotation must be captured by one of the customManager's matchStrings,
      i.e. its value still sits on the very next line.
 
-The base defaults to `origin/main`; set DIFF_GUARD_BASE to override. When the
-base cannot be resolved the diff guard fails in CI and is skipped locally.
+The base is DIFF_GUARD_BASE (the docs-guards job in validate.yaml sets it on
+a full-history checkout); when it is set and cannot be resolved the diff guard
+fails. Unset, it tries `origin/main` and skips when that cannot be resolved
+(a shallow checkout such as the python-tests job, or a fresh local clone).
 A deliberate removal (e.g. an image that stops being Renovate-tracked) goes in
 ALLOWED_REMOVALS with a reason for the PR that makes it.
 """
@@ -35,8 +37,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BASE_REF = os.environ.get("DIFF_GUARD_BASE", "origin/main")
-IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
+BASE_REQUIRED = bool(os.environ.get("DIFF_GUARD_BASE"))
+BASE_REF = os.environ.get("DIFF_GUARD_BASE") or "origin/main"
 
 FUNCTIONAL = re.compile(r"(?:#|//)\s*(?:yaml-language-server:|renovate:)")
 RENOVATE_ANNOTATION = re.compile(r"(?:#|//)\s*renovate:.*?(datasource=\S+ depName=\S+)")
@@ -104,8 +106,8 @@ def resolve_base() -> str | None:
 def test_diff_guard() -> None:
     base = resolve_base()
     if base is None:
-        if IN_CI:
-            record(False, f"cannot resolve merge base with {BASE_REF} (fetch-depth: 0?)")
+        if BASE_REQUIRED:
+            record(False, f"cannot resolve merge base with DIFF_GUARD_BASE={BASE_REF} (fetch-depth: 0?)")
         else:
             print(f"[SKIP] diff guard: cannot resolve merge base with {BASE_REF}")
         return
