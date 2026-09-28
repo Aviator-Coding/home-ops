@@ -150,12 +150,6 @@ Flat `docs/ceph-cluster-changelog.md` and `docs/ceph-performance-review.md` are 
 | [`network/cmd.md`](network/cmd.md) | **Historical snapshot** (2025-08-16) of node networking during the `10.10.3.0/24` to `10.10.10.0/24` cutover. Not current node networking. |
 | [`network/envoy-gateway-internal-domains-analysis-2026-07.md`](network/envoy-gateway-internal-domains-analysis-2026-07.md) | **Historical snapshot** (2026-07-03/04) of an internal-domain outage analysis. Do not use for current chart versions or hostname counts. |
 
-## Persistent volumes
-
-| Path | What it covers |
-|---|---|
-| [`pvc/pvc-health-checks.md`](pvc/pvc-health-checks.md) | How Flux waits for PVCs to bind before deploying, plus troubleshooting unbound claims. |
-
 ## Cluster and repo
 
 | Path | What it covers |
