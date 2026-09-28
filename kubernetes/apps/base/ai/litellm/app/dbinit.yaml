@@ -31,7 +31,11 @@ kind: Job
 metadata:
   name: litellm-db-init
   annotations:
-    kustomize.toolkit.fluxcd.io/force: "true"
+    # `enabled`, the only value kustomize-controller honours (api/v1
+    # EnabledValue). The `"true"` this carried until 2026-09-28 was silently
+    # ignored, so a changed Job spec failed Flux's dry-run with "field is
+    # immutable" instead of being recreated (scripts/ci/flux-annotation-values-test.py).
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   backoffLimit: 6
   template:
