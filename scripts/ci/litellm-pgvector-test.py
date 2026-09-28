@@ -422,6 +422,79 @@ def test_overlay_is_wired() -> dict[str, Any]:
     return {"dependsOn": sorted(deps)}
 
 
+# --- db-init environment -------------------------------------------------
+
+DBINIT = APP_DIR / "dbinit.yaml"
+APP_ES = APP_DIR / "externalsecret.yaml"
+POSTGRES_INIT_IMAGE = "ghcr.io/home-operations/postgres-init"
+
+
+def secret_templates(es_docs: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
+    """Target Secret name -> the keys its ExternalSecret template renders."""
+    return {
+        d["spec"]["target"]["name"]: dict(d["spec"]["target"]["template"]["data"])
+        for d in es_docs
+        if d.get("kind") == "ExternalSecret"
+    }
+
+
+def effective_env(container: dict[str, Any], secrets: dict[str, dict[str, str]]) -> dict[str, str]:
+    """The container's environment as the kubelet builds it: envFrom first, then
+    `env` in order, each `$(VAR)` expanded against what is already defined."""
+    env: dict[str, str] = {}
+    for src in container.get("envFrom", []):
+        name = src["secretRef"]["name"]
+        require(name in secrets, f"{container['name']}: envFrom Secret {name!r} has no ExternalSecret here")
+        env.update(secrets[name])
+    for entry in container.get("env", []):
+        value = entry.get("value", "")
+        env[entry["name"]] = re.sub(r"\$\(([A-Za-z_][A-Za-z0-9_]*)\)", lambda m: env.get(m.group(1), m.group(0)), value)
+    return env
+
+
+def check_dbinit_env(job: dict[str, Any], es_docs: list[dict[str, Any]]) -> dict[str, Any]:
+    secrets = secret_templates(es_docs)
+    spec = job["spec"]["template"]["spec"]
+    containers = spec.get("initContainers", []) + spec.get("containers", [])
+    init = [c for c in containers if c["image"].startswith(POSTGRES_INIT_IMAGE) and "command" not in c]
+    require(len(init) == 1, f"expected one postgres-init entrypoint container, found {len(init)}")
+    init_env = effective_env(init[0], secrets)
+    # postgres-init runs psql/createuser/createdb with no --dbname: any libpq
+    # variable it inherits redirects them, and PGDATABASE made its password
+    # step fail silently on the first deploy (role with a NULL password).
+    leaked = sorted(k for k in init_env if k.startswith("PG"))
+    require(not leaked, f"postgres-init container inherits libpq vars {leaked} - keep them out of its Secret")
+    schema = [c for c in containers if c.get("command") == ["psql"]]
+    require(len(schema) == 1, "expected one psql schema container")
+    schema_env = effective_env(schema[0], secrets)
+    for pg, init_key in (("PGHOST", "INIT_POSTGRES_HOST"), ("PGDATABASE", "INIT_POSTGRES_DBNAME"), ("PGPASSWORD", "INIT_POSTGRES_SUPER_PASS")):
+        require(
+            schema_env.get(pg) == init_env.get(init_key),
+            f"schema container {pg}={schema_env.get(pg)!r} does not resolve to {init_key}",
+        )
+    return {"init_env": sorted(init_env), "schema_db": schema_env["PGDATABASE"]}
+
+
+def test_postgres_init_gets_no_libpq_env() -> dict[str, Any]:
+    return check_dbinit_env(one_doc(DBINIT, "Job"), load_docs(APP_ES))
+
+
+def test_dbinit_env_checker_refuses_the_first_deploy_bug() -> dict[str, Any]:
+    job = one_doc(DBINIT, "Job")
+    es_docs = load_docs(APP_ES)
+    # The exact 2026-09-28 shape: PG* in the shared Secret.
+    broken = copy.deepcopy(es_docs)
+    for d in broken:
+        data = d["spec"]["target"]["template"]["data"]
+        if "INIT_POSTGRES_DBNAME" in data:
+            data["PGDATABASE"] = data["INIT_POSTGRES_DBNAME"]
+    try:
+        check_dbinit_env(job, broken)
+    except Failure as exc:
+        return {"refused": str(exc)}
+    raise Failure("checker accepted PGDATABASE in the postgres-init Secret")
+
+
 def main() -> int:
     if sys.argv[1:] == ["--print-tag"]:
         print(image_tag())
@@ -436,6 +509,8 @@ def main() -> int:
         test_registry_is_private_seeded_and_reachable,
         test_registry_checker_refuses_fallback_name,
         test_overlay_is_wired,
+        test_postgres_init_gets_no_libpq_env,
+        test_dbinit_env_checker_refuses_the_first_deploy_bug,
     ]
     failed = 0
     for test in tests:
