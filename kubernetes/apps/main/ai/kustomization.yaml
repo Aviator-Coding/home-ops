@@ -38,6 +38,7 @@ resources:
   - ./hermes.yaml
   - ./litellm-operator.yaml
   - ./litellm.yaml
+  - ./litellm-pgvector.yaml
   - ./opencode.yaml
   - ./pvc.yaml
   - ./repo-wiki.yaml

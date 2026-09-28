@@ -23,7 +23,13 @@ kind: Kustomization
 # what the per-consumer D4 budgets must measure; hand-written prices would
 # silently decouple recorded spend from the invoice. The rule is "declared
 # prices must match the invoice", so the exceptions are models whose
-# invoice is not metered per token:
+# invoice is not metered per token, plus one metered model the cost map
+# cannot price:
+#   - qwen/qwen3-embedding-8b (OpenRouter, 2026-09-27) declares its real
+#     OpenRouter price, $0.01 per 1M input tokens, because the bundled cost
+#     map has no `openrouter/qwen/qwen3-embedding-8b` entry: left undeclared
+#     it would record $0 against real spend. Re-check it against
+#     https://openrouter.ai/api/v1/embeddings/models if OpenRouter reprices.
 #   - qwen3.6-35b-a3b is the ONLY local entry with prices: inflated
 #     governance-accounting figures so the tiny `demo` budget can be
 #     exhausted by one request, and `demo` is now its only consumer. Real
@@ -99,6 +105,7 @@ resources:
   - ./pr-review-local.yaml
   - ./qwen3.6-27b.yaml
   - ./qwen3.6-35b-a3b-classifier.yaml
+  - ./qwen3-embedding-8b.yaml
   - ./qwen3.6-35b-a3b.yaml
   - ./qwen3.8-2.4t-a95b.yaml
   - ./qwen3.8-27b.yaml

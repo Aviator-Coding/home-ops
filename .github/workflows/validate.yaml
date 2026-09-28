@@ -90,6 +90,11 @@ on:
       # an unrelated scripts/ci/** PR could ever surface it.
       - kubernetes/apps/base/ai/**
       - kubernetes/apps/main/ai/**
+      # The litellm-pgvector build context, for the same two-level reason:
+      # litellm-pgvector-test.py derives the image tag from its contents and
+      # fails when the HelmRelease names a different one, so a Dockerfile-only
+      # change is precisely the change that gate exists to catch.
+      - .github/docker/litellm-pgvector/**
       - kubernetes/apps/base/system-upgrade/**
       - kubernetes/apps/main/system-upgrade/**
       - scripts/ci/**
@@ -184,6 +189,7 @@ jobs:
             docs/tdarr-errored-remuxes.md
             kubernetes/apps/base/ai/**
             kubernetes/apps/main/ai/**
+            .github/docker/litellm-pgvector/**
             .github/workflows/validate.yaml
             .mise.toml
 

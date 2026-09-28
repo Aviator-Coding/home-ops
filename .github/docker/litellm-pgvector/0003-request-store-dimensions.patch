@@ -1,0 +1,38 @@
+diff --git a/embedding_service.py b/embedding_service.py
+index c9e4930..679ce50 100644
+--- a/embedding_service.py
++++ b/embedding_service.py
+@@ -27,7 +27,15 @@ class EmbeddingService:
+                 model=self.config.model,
+                 input=[text],
+                 api_base=self.config.base_url,
+-                api_key=self.config.api_key
++                api_key=self.config.api_key,
++                # Ask for the store's width instead of the model's native one:
++                # a Matryoshka model (Qwen3-Embedding-8B, native 4096) returns a
++                # renormalised prefix, which the length check below accepts.
++                # Sent in extra_body, not as `dimensions=`: this litellm SDK
++                # raises UnsupportedParamsError for `dimensions` on any openai/
++                # model it does not know to be text-embedding-3, and drop_params
++                # would silently discard it. The proxy forwards it as-is.
++                extra_body={"dimensions": self.config.dimensions},
+             )
+             logging.debug(f"Embedding response: {response}")
+             
+@@ -62,7 +70,15 @@ class EmbeddingService:
+                 model=self.config.model,
+                 input=texts,
+                 api_base=self.config.base_url,
+-                api_key=self.config.api_key
++                api_key=self.config.api_key,
++                # Ask for the store's width instead of the model's native one:
++                # a Matryoshka model (Qwen3-Embedding-8B, native 4096) returns a
++                # renormalised prefix, which the length check below accepts.
++                # Sent in extra_body, not as `dimensions=`: this litellm SDK
++                # raises UnsupportedParamsError for `dimensions` on any openai/
++                # model it does not know to be text-embedding-3, and drop_params
++                # would silently discard it. The proxy forwards it as-is.
++                extra_body={"dimensions": self.config.dimensions},
+             )
+             
+             # Extract embeddings from response

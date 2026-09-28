@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ai
+resources:
+  - ./externalsecret.yaml
+  - ./dbinit.yaml
+  - ./helmrelease.yaml
+configMapGenerator:
+  # Hash suffix kept ON purpose: a schema.sql edit renames the ConfigMap, which
+  # changes the db-init Job's spec, so Flux recreates the Job and the new SQL is
+  # applied (see dbinit.yaml).
+  - name: litellm-pgvector-schema
+    files:
+      - schema.sql=./resources/schema.sql

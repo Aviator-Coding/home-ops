@@ -1,0 +1,65 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# The embedding key of the ai/litellm-pgvector vector store (captain decision
+# 2026-09-27: the store embeds with OpenRouter's qwen/qwen3-embedding-8b for
+# both ingest and query). Two users:
+#   - the server itself, which embeds every SEARCH QUERY through this proxy
+#     (BerriAI/litellm-pgvector calls litellm.aembedding on each /search);
+#   - whoever INGESTS, which embeds each chunk here before writing it to the
+#     server (../../README.md "Vector store (pgvector)"). The ingester already
+#     holds the server's admin bearer key, so sharing this one adds no access.
+#
+# Scoped to exactly the one model the store's vectors come from. That is a
+# correctness guard as much as an entitlement one: a vector from any other
+# model lands in a different space and ranks silently wrong. For that reason
+# this key is the deliberate exception to "every key may call embedding-local"
+# (#1817) - embedding-local's 1024-d vectors do not belong in this store.
+#
+# The model is metered ($0.01 per 1M input tokens, models/qwen3-embedding-8b.yaml),
+# so maxBudget is live here, unlike on the zero-priced embedding keys:
+# $5/30d is 500M tokens, far above any household corpus plus query traffic,
+# and a runaway bulk load stops at $5.
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: litellm-pgvector
+spec:
+  proxyRef: litellm
+  keyAlias: litellm-pgvector
+  secretName: litellm-key-litellm-pgvector
+  secretKey: key
+  models:
+    - qwen/qwen3-embedding-8b
+  maxBudget: "5.00"
+  budgetDuration: 30d
+  # Sized for a bulk ingest, not for query traffic (one short embedding per
+  # search). The backend is OpenRouter, not the shared B70, so these bound
+  # spend rate and a runaway client only: 1M tokens/min is $0.01/min.
+  rpmLimit: 120
+  tpmLimit: 1000000
+  metadata:
+    purpose: ingest and query embeddings for the ai/litellm-pgvector vector store
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the operator-minted key into 1Password item
+# `litellm-consumer-litellm-pgvector` (auto-created - not a captain
+# prerequisite), which ai/litellm-pgvector's ExternalSecret reads back - the
+# same continuity pattern as every other consumer in this directory.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-litellm-pgvector
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-litellm-pgvector
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-litellm-pgvector
+          property: key

@@ -32,6 +32,9 @@ repos:
         name: Check files with shebangs being executable
       - id: trailing-whitespace
         name: Fix trailing whitespace
+        # A unified diff's blank context line is a single space; stripping it
+        # makes the patch stop applying (.github/docker/*/NNNN-*.patch).
+        exclude: \.patch$
       - id: pretty-format-json
         name: Format JSON
         args: [--autofix, --no-sort-keys]

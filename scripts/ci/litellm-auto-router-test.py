@@ -652,11 +652,33 @@ def test_local_pricing_split(cfg: dict) -> None:
     # the CALLING key, so while it was priced it was ~100% of an `auto`
     # consumer's recorded spend even after the tiers moved to `chat-local`.
     # Cloud models are priced by LiteLLM's built-in cost map, never by hand -
-    # see models/kustomization.yaml.
+    # see models/kustomization.yaml - with one kind of exception: a METERED
+    # cloud model the bundled cost map does not know, whose declared price IS
+    # the invoice (without it LiteLLM would record $0 for real spend). Such a
+    # model must route to a cloud provider, never a local backend.
+    invoice_priced = {"qwen/qwen3-embedding-8b"}  # OpenRouter, $0.01/1M input (2026-09-27)
     record(
         "only_the_demo_alias_carries_synthetic_prices",
-        priced == {"qwen3.6-35b-a3b"},
+        priced - invoice_priced == {"qwen3.6-35b-a3b"},
         f"priced={sorted(priced)}",
+    )
+    # Non-vacuous by construction: invoice_priced <= priced fails the moment a
+    # declared invoice-priced model's price is dropped or zeroed, which is the
+    # exact regression this split guards against (a metered cloud model would
+    # otherwise silently record $0 real spend).
+    registered = {m["model_name"] for m in model_list}
+    record(
+        "invoice_priced_models_are_registered_and_priced",
+        invoice_priced <= priced,
+        f"missing_or_unpriced={sorted(invoice_priced - priced)}",
+    )
+    record(
+        "invoice_priced_models_are_cloud_routed",
+        all(
+            by_name(model_list, name)["litellm_params"].get("model", "").startswith("openrouter/")
+            for name in invoice_priced & registered
+        ),
+        f"invoice_priced={sorted(invoice_priced & registered)}",
     )
 
     classifier = by_name(model_list, "qwen3.6-35b-a3b-classifier")
@@ -829,9 +851,11 @@ def test_externalsecret_no_new_op_item() -> None:
     # litellm + cloudnative-pg were pre-existing; ai-keys is the shared existing item.
     # litellm-sso is created and populated by OpenTofu (terraform/authentik/litellm.tofu)
     # via a PushSecret to wire LiteLLM's UI SSO through Authentik, landed deliberately in
-    # d159d7f5 (PR #1473). Its value never lands in git. This allow-list exists to catch an
-    # UNEXPECTED new secret source; a fifth, unrecognised item must still fail this test.
-    allowed = {"litellm", "cloudnative-pg", "ai-keys", "litellm-sso"}
+    # d159d7f5 (PR #1473). Its value never lands in git. litellm-pgvector (2026-09-27) is
+    # the pgvector vector store's bearer key, written by pushsecret-pgvector.yaml from a
+    # hand-seeded Secret, same seam as litellm-sso. This allow-list exists to catch an
+    # UNEXPECTED new secret source; a sixth, unrecognised item must still fail this test.
+    allowed = {"litellm", "cloudnative-pg", "ai-keys", "litellm-sso", "litellm-pgvector"}
     record(
         "externalsecret_only_existing_1password_items",
         set(keys) <= allowed and "ai-keys" in keys,

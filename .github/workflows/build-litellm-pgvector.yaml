@@ -1,0 +1,128 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# Builds ghcr.io/aviator-coding/litellm-pgvector (BerriAI publishes no image)
+# from .github/docker/litellm-pgvector for kubernetes/apps/base/ai/litellm-pgvector.
+#
+# The tag is CONTENT-ADDRESSED - `scripts/ci/litellm-pgvector-test.py
+# --print-tag`, i.e. upstream commit + a hash of the build directory - so a tag
+# is never rebuilt with different contents, and a build is skipped when its tag
+# already exists. The same script's test asserts the HelmRelease names exactly
+# this tag (validate.yaml python-tests), so the two cannot drift.
+#
+# Why it also runs on pull_request, and pushes from it: image-pull.yaml pulls
+# every image a PR introduces onto a node, so the image has to exist BEFORE
+# merge or that check fails. Content addressing is what makes pushing from an
+# unmerged branch safe - an abandoned PR can only ever leave behind an unused
+# tag, never overwrite one a merged manifest points at. If image-pull ran
+# before this build finished on a PR's first push, re-run it once this is green.
+name: Build litellm-pgvector
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+    paths:
+      - .github/docker/litellm-pgvector/**
+      - .github/workflows/build-litellm-pgvector.yaml
+      - scripts/ci/litellm-pgvector-test.py
+  push:
+    branches:
+      - main
+    paths:
+      - .github/docker/litellm-pgvector/**
+      - .github/workflows/build-litellm-pgvector.yaml
+      - scripts/ci/litellm-pgvector-test.py
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: aviator-coding/litellm-pgvector
+
+jobs:
+  build:
+    # Fork guard: this job holds packages:write. A fork PR never reaches it
+    # (same guard as every other workflow here that carries credentials).
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    name: Build and Push
+    # GitHub-hosted: the in-cluster ARC runner has no Docker daemon.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Determine Tag
+        id: tag
+        run: |
+          set -euo pipefail
+          TAG="$(python3 scripts/ci/litellm-pgvector-test.py --print-tag)"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Content-addressed tag: ${TAG}"
+
+      - name: Check if image already exists
+        id: check
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+        run: |
+          if docker manifest inspect "${IMAGE}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE} already exists - nothing to build"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GHCR
+        if: steps.check.outputs.exists != 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        if: steps.check.outputs.exists != 'true'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .github/docker/litellm-pgvector
+          # The cluster is x86_64 only (Talos nodes talos-1..3).
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+          EXISTS: ${{ steps.check.outputs.exists }}
+        run: |
+          {
+            echo "## litellm-pgvector"
+            echo ""
+            echo "- **Image:** \`${IMAGE}\`"
+            if [ "${EXISTS}" = "true" ]; then
+              echo "- **Status:** Skipped (tag already exists)"
+            else
+              echo "- **Status:** Built and pushed"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

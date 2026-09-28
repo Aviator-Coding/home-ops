@@ -54,3 +54,4 @@ resources:
   - ./agent-swarm-network-broker.yaml
   - ./embedding-external.yaml
   - ./mac-gnhf.yaml
+  - ./litellm-pgvector.yaml
