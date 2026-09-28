@@ -88,7 +88,7 @@ STAGE0_README = ROOT / "kubernetes/apps/base/system/kopiur/README.md"
 # JIT-loaded kopiur skill, which is now the operator-facing owner of that depth.
 # AGENTS.md keeps only the data-loss tripwires plus a pointer, so pinning this
 # contract there would re-grow exactly what the relocation removed.
-KOPIUR_SKILL = ROOT / ".claude" / "skills" / "kopiur-backups" / "SKILL.md"
+KOPIUR_SKILL = ROOT / ".agents" / "skills" / "kopiur-backups" / "SKILL.md"
 
 STAGE2_APP = "sabnzbd"
 STAGE2_NS = "downloads"
@@ -855,7 +855,7 @@ def test_operator_docs_reflect_stage2() -> None:
     for path, label in (
         (COMPONENT_README, "components/kopiur/Readme.md"),
         (STAGE0_README, "system/kopiur/README.md"),
-        (KOPIUR_SKILL, ".claude/skills/kopiur-backups/SKILL.md"),
+        (KOPIUR_SKILL, ".agents/skills/kopiur-backups/SKILL.md"),
     ):
         require(path.is_file(), f"missing {label}")
         text = path.read_text()

@@ -29,7 +29,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 WAVE_TWO = REPO / "docs" / "backups" / "kopiur-wave-two-reproof-2026-09-02.md"
-SKILL = REPO / ".claude" / "skills" / "kopiur-backups" / "SKILL.md"
+SKILL = REPO / ".agents" / "skills" / "kopiur-backups" / "SKILL.md"
 
 # Authoritative classification from Part 1 "What properly can and cannot mean".
 # The three cannot-deeper claims hold essentially nothing; the two complete
