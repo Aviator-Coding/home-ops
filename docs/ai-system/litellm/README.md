@@ -147,8 +147,10 @@ which sends `/v1/messages`.
 ([app README, typesafe/jev-1.13](../../../kubernetes/apps/base/ai/litellm/README.md#model-catalog)).
 Registering a path in LiteLLM's own pass-through registry with `auth: true`
 makes `RouteChecks.non_proxy_admin_allowed_routes_check` demand an
-`allowed_passthrough_routes` match from every non-admin key, and no key here
-carries one (none can, declaratively). The native handler still serves the
+`allowed_passthrough_routes` match from every non-admin key. No key carries
+one for `/anthropic` (none can, declaratively); the only granted key anywhere
+is `jev-decisions`, hand-granted `POST /openrouter/alpha/decisions` alone. The
+native handler still serves the
 request, but takes its target and headers from the FIRST matching registry
 entry and drops the subpath, so the order is load-bearing:
 

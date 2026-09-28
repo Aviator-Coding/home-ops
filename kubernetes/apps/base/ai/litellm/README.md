@@ -207,11 +207,14 @@ typesafe/jev-1.13"]` (already present in the pinned image's cost map:
 `input_cost_per_token: 4.2e-08`, `output_cost_per_token: 0.0` - matching the
 captain's request exactly).
 
-**Access rule (since 2026-09-27, captain decision `openrouter-grant`, option
-A): only the master key and SSO proxy-admin users reach it, and no virtual
-key is granted.** No virtual key was chosen because none can be granted
-declaratively (the operator limitation below), and nothing in-cluster
-consumes jev today. Out of the box the route took ANY valid LiteLLM key, and a
+**Access rule: the master key, SSO proxy-admin users, and exactly one
+virtual key, `jev-decisions`.** The admin-only lockdown dates from 2026-09-27
+(captain decision `openrouter-grant`, option A). The one key was added
+2026-09-28 (captain decision `jev-door-grant`, option B) for the shared
+decision skill. It is granted by a one-time admin step, because no key can
+be granted declaratively (the operator limitation below). See
+[Granting the jev-decisions key](#granting-the-jev-decisions-key).
+Out of the box the route took ANY valid LiteLLM key, and a
 key's `models` allow-list is not a guard there. It only fires when the JSON
 body happens to carry a `model` field. Measured live 2026-09-27 with the
 `demo` key, which is allow-listed to `qwen3.6-35b-a3b` alone:
@@ -233,11 +236,18 @@ The lockdown is two `generalSettings.pass_through_endpoints` entries on
 
 Both entries are `auth: true`, which makes LiteLLM require an
 `allowed_passthrough_routes` match from every non-admin key before any other
-route rule. No key carries one, so:
-- **Every virtual key, including any key added later, gets `403 Key/team not
-  allowed to access passthrough route`** on every `/openrouter/...` path.
+route rule. Only `jev-decisions` carries one, so:
+- **Every other virtual key, including any key added later, gets `403 Key/team
+  not allowed to access passthrough route`** on every `/openrouter/...` path.
   Ordinary routes are untouched (`/v1/chat/completions`, `/v1/embeddings`,
   `/v1/messages`).
+- **`jev-decisions` gets `200` on `POST /openrouter/alpha/decisions` only.**
+  Its grant is prefix-matched and method-blind, so LiteLLM also route-allows
+  it on a subpath or another method. Those requests land on the dead
+  catch-all, not on OpenRouter. It gets `403` on every other
+  `/openrouter/...` path and on any body naming a model other than
+  `typesafe/jev-1.13` (its `models` allow-list). OpenRouter refuses a
+  decisions body without a string `model`, so that check always fires here.
 - **The master key**, and SSO users holding the proxy-admin role, still get
   `200` on `POST /openrouter/alpha/decisions`. Every other `/openrouter/...`
   path fails closed for them too (`500`, connection refused, no credential
@@ -268,12 +278,81 @@ operator's `LiteLLMVirtualKey`/`LiteLLMTeam` `metadata` is
 characters - verified, and pinned by the CI test above). The top-level
 `/key/generate` `allowed_passthrough_routes` field is Enterprise-gated on
 this OSS image (`403 This feature is only available for LiteLLM Enterprise
-users`). Hand-writing a list onto an operator-managed key through the admin
-API is not a workaround: it is out-of-Git drift, and the operator decodes key
-metadata as `map[string]string`. A granted key would also need
-`typesafe/jev-1.13` on its `models` list, because the `model` check still
-applies when the body names it. Granting one therefore needs an operator
-field for it first, then a new captain decision.
+users`). The same list inside `metadata` is NOT gated: only proxy admins may
+set it, and the master key can. A granted key also needs `typesafe/jev-1.13`
+on its `models` list, because the `model` check still applies.
+
+### Granting the jev-decisions key
+
+`app/virtualkeys/jev-decisions.yaml` declares the key (models
+`typesafe/jev-1.13` only, `$1`/30d, no `spec.metadata`) and pushes it to
+1Password item `litellm-consumer-jev-decisions`. The grant itself is one
+admin `/key/update` that lives only in LiteLLM's database, so it is out of
+Git by necessity. Two facts, measured with throwaway keys on 2026-09-28,
+make that workable:
+- **The grant survives every operator reconcile.** The operator re-sends the
+  spec through `/key/update` on each reconcile. With no `spec.metadata` it
+  sends no `metadata` field, and LiteLLM then keeps the existing metadata.
+  Declaring `spec.metadata` on this CR would change that: the operator would
+  send it, LiteLLM would replace the whole object, and the grant would be
+  silently gone. CI refuses `spec.metadata` on this CR.
+- **Recreating the key loses the grant, and fails closed.** Deleting the CR,
+  its `litellm-key-jev-decisions` Secret, or the key in LiteLLM makes the
+  operator mint a new key without the grant. The new key gets `403 Key/team
+  not allowed to access passthrough route` on the door until the step below
+  is re-applied. The decision skill treats that like an inconclusive answer
+  and asks the captain, so a lost grant never turns into a wrong decision.
+
+Apply the grant once after the key is first minted, and again after any
+recreation. It runs in the proxy pod with the master key from that pod's
+environment. It looks the key up by alias and updates it by hash, so no key
+is ever printed or copied:
+
+```bash
+kubectl -n ai exec -i deploy/litellm -c litellm -- python3 - <<'PY'
+import json, os, urllib.parse, urllib.request
+BASE, MASTER = "http://127.0.0.1:4000", os.environ["LITELLM_MASTER_KEY"]
+def call(path, body=None, method="POST"):
+    req = urllib.request.Request(BASE + path, method=method,
+        data=None if body is None else json.dumps(body).encode(),
+        headers={"Authorization": "Bearer " + MASTER, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read())
+query = urllib.parse.urlencode({"key_alias": "jev-decisions", "return_full_object": "true"})
+(row,) = call("/key/list?" + query, method="GET")["keys"]
+call("/key/update", {"key": row["token"], "metadata": {"allowed_passthrough_routes": ["/openrouter/alpha/decisions"]}})
+print(call("/key/info?key=" + row["token"], method="GET")["info"]["metadata"])
+PY
+```
+
+It must print `{'allowed_passthrough_routes': ['/openrouter/alpha/decisions']}`.
+The `metadata` body replaces the key's whole metadata object. That is safe
+only because this key has no other metadata. Grant exactly that one path and
+nothing wider. CI proves through LiteLLM's own
+route checks that the grant reaches OpenRouter on
+`POST /openrouter/alpha/decisions` and nowhere else.
+
+### Decision endpoint contract (for the decision skill)
+
+- **URL:** `POST https://litellm.${SECRET_DOMAIN}/openrouter/alpha/decisions`
+  from the LAN (internal route only), or
+  `http://litellm.ai.svc.cluster.local:4000/openrouter/alpha/decisions`
+  in-cluster.
+- **Headers:** `Authorization: Bearer <jev-decisions key>` (1Password
+  `litellm-consumer-jev-decisions`, field `key`) and
+  `Content-Type: application/json`.
+- **Body and response:** the request/response shape below. `model` is
+  required and must be exactly `typesafe/jev-1.13`.
+- **Result codes:**
+  - `200`: a decision.
+  - `403` "not allowed to access passthrough route": the grant is missing;
+    re-apply the step above.
+  - `403` "key not allowed to access model": the body named another model.
+  - `400` from OpenRouter: malformed body.
+  - `429` or a budget error: the key's rate limits or `$1`/30d budget.
+
+  The skill should treat every non-`200` answer as inconclusive and ask the
+  captain.
 
 The original discovery run (2026-09-27, zero config changes, before the
 lockdown; its spend rows name `litellm_proxy_master_key`, so it used the
@@ -310,7 +389,7 @@ completions - `supported_parameters: []` on this model is the tell):
 
 **What this does NOT give you**, deliberately out of scope of the captain's
 request: no `LiteLLMModel` CR (none is possible or needed), no virtual-key
-access (see the access rule above), no
+access beyond `jev-decisions` (see the access rule above), no
 `auto`-router wiring, and no interaction with `typesafe/jev-router` (a
 separate, ordinary `text->text` chat model; `/openrouter/v1/chat/completions`
 is now closed by the catch-all for every caller, so reaching it would need a
