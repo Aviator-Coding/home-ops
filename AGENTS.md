@@ -291,5 +291,5 @@ subsystem at all.
 
 `scripts/ci/docs-budget-test.py` enforces this: it fails when this file, a skill, a skill
 `references/*.md` file or a YAML/json5 comment block grows past its budget or its recorded
-baseline. Raising one needs an allowlist entry with a reason in `scripts/ci/docs-budget.json5`;
+baseline. Raising one needs an allowlist entry with a reason in `scripts/ci/docs-budget.json`;
 lower the baseline whenever you shrink a file.
