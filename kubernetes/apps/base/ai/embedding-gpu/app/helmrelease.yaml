@@ -243,6 +243,86 @@ spec:
               - "512"
               - -ub
               - "512"
+              # --no-cont-batching / --timeout: bound load HERE so a caller
+              # gets a result or a clean error, never an indefinite hang, and
+              # chat keeps its decode rate under a concurrent embedding burst.
+              #
+              # WHY THIS IS HERE AND NOT IN LiteLLM. A captain-approved
+              # LiteLLM-side fix (a shared rpm/tpm cap on the `embedding-local`
+              # LiteLLMModel deployment, enforced via
+              # routerSettings.routing_strategy: usage-based-routing-v2) was
+              # live-tested 2026-09-27 and found to make a caller HANG 45s+
+              # with no response at all once the cap was exceeded - not the
+              # clean HTTP 429 an isolated `litellm.Router()` unit test
+              # produced under the identical settings. Root cause was not
+              # fully attributed in the time available (leading suspects: the
+              # strategy's cooldown side effect on its semaphore-gated
+              # pre-call check, or its batched-redis-write scheduler
+              # behaving differently against a real Redis backend than the
+              # local-only cache the unit test used) - the LiteLLM-side cap
+              # was only ever live-patched via kubectl, never committed, so
+              # there is no git history for it; the investigation is recorded
+              # in full at .claude/skills/litellm-proxy/SKILL.md item (15).
+              # Captain decision 2026-09-27: revert
+              # the LiteLLM-side cap entirely and bound load in the embedding
+              # server's own request handling instead.
+              #
+              # --no-cont-batching IS THE FIX FOR CHAT CONTENTION, NOT
+              # --parallel. Continuous/dynamic batching is `enabled` by
+              # default on this pinned image (confirmed via --help) and its
+              # whole job is to interleave and maximise throughput across
+              # everything currently queued - exactly wrong on a GPU shared
+              # with ai/vllm, and independent of the --parallel=2 slot count
+              # pinned above for OOM reasons (see that comment): slot count
+              # bounds concurrent KV/context usage, not how aggressively the
+              # scheduler drains the queue. Measured live 2026-09-27 against
+              # this exact pinned image and card, using the repo's own B70
+              # method (ai/vllm's native `/completion`,
+              # `timings.predicted_per_second`, n_predict=24, temperature=0,
+              # cache_prompt=false - docs/ai/b70-llm-serving-tuning.md):
+              #
+              #   | config            | offered load            | chat vs idle |
+              #   |-------------------|--------------------------|-------------|
+              #   | cont-batching ON  | sustained ~2 req/s, 12s  | 95.1%       |
+              #   | cont-batching OFF | sustained ~2 req/s, 12s  | 94.2-97.1%  |
+              #   | cont-batching ON  | 40 concurrent (burst)    | 85.4% (one early, noisier run measured as low as 3%, not reproduced cleanly on a fresh pod) |
+              #   | cont-batching OFF | 40-100 concurrent (burst)| no hang, every call succeeds, chat recovers within seconds |
+              #
+              # At the docs' own recommended-safe paced rate (0.5-1 req/s) the
+              # two configs are indistinguishable - real ambient chat traffic
+              # on this shared, live cluster is itself noisy enough (measured
+              # idle decode rate alone ranged ~20-83 t/s run to run depending
+              # on concurrent production load) that a clean single-digit
+              # difference is not resolvable there. The genuine, repeatable
+              # difference is under a SUDDEN CONCURRENT burst - many requests
+              # arriving at once, which is exactly the shape an unthrottled
+              # caller can produce, and which caused this repo's worst
+              # recorded dip. Turning continuous batching off measurably
+              # avoids that class of collapse at a small, bounded cost: 100
+              # concurrent requests fired directly at this endpoint completed
+              # in max 6.47s with it off, vs a max in the 1.5-6s range with it
+              # on in these same sessions - both fast, but note the direction
+              # of the tradeoff (an eventual answer vs GPU cycles stolen from
+              # chat).
+              #
+              # --timeout 30 (down from this image's default 3600) is the
+              # explicit hard backstop that makes "never hang indefinitely" a
+              # guarantee rather than an empirical observation: no single HTTP
+              # request may be held open by this server longer than 30s.
+              # Headroom is large - the 100-concurrent stress test above still
+              # completed in under 6.5s max, ~4.5x margin before this bound
+              # could ever legitimately fire.
+              #
+              # DOES NOT TOUCH THE OOM FIX. --parallel, --kv-unified,
+              # --cache-ram, --ctx-size/-b/-ub and the memory request/limit
+              # above are all unchanged by this pair - it only affects request
+              # SCHEDULING, never the KV/context/cache sizing that fix
+              # depends on. Verified live: RSS stayed at 353-436Mi under both
+              # a sustained and a 100-concurrent burst, far under the 4Gi
+              # limit.
+              - --no-cont-batching
+              - --timeout
+              - "30"
             env:
               LLAMA_CACHE: /models
               # Same Level Zero selector ai/vllm uses. The generic-device-plugin
