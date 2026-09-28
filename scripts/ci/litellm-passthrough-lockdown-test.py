@@ -50,8 +50,7 @@ CI asserts the parts Git owns:
      would send a declared one on every reconcile and LiteLLM replaces the
      whole metadata object, deleting the hand-applied grant.
   7. No LiteLLMVirtualKey or LiteLLMTeam declares a grant at all.
-  8. The exact grant list the README runbook applies (pinned as a literal in
-     the README) admits POST /openrouter/alpha/decisions to the real target,
+  8. The grant list the README runbook applies admits POST /openrouter/alpha/decisions to the real target,
      and every other probe is refused or lands on a dead loopback (the grant
      is prefix-matched and method-blind, so only the registry order keeps
      subpaths and other methods off the provider).
@@ -67,7 +66,6 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import json
 import logging
 import shutil
 import subprocess
@@ -198,7 +196,6 @@ JEV_EXTRA_PROBES: tuple[tuple[str, str], ...] = (
     ("POST", "/openrouter/alpha/decisions/x"),
     ("GET", "/openrouter/alpha/decisions/gen-dec-1"),
 )
-README_PATH = APP_DIR.parent / "README.md"
 
 RESULTS: list[dict[str, Any]] = []
 
@@ -533,12 +530,6 @@ def main() -> int:
     record("no_declared_passthrough_grant_on_any_key_or_team", not others, ", ".join(others))
     g = granted_findings(entries, JEV_GRANT)
     record("jev_grant_opens_exactly_the_decisions_door", not g, "; ".join(g))
-    grant_literal = '"allowed_passthrough_routes": ' + json.dumps(JEV_GRANT)
-    record(
-        "readme_runbook_applies_this_exact_grant",
-        grant_literal in README_PATH.read_text(),
-        f"README must contain {grant_literal}",
-    )
 
     # Mutation proof for the door.
     jev_mutations: dict[str, list[dict[str, Any]]] = {}

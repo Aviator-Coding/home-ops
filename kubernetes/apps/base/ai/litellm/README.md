@@ -328,7 +328,7 @@ PY
 It must print `{'allowed_passthrough_routes': ['/openrouter/alpha/decisions']}`.
 The `metadata` body replaces the key's whole metadata object. That is safe
 only because this key has no other metadata. Grant exactly that one path and
-nothing wider. CI pins the literal above, and proves through LiteLLM's own
+nothing wider. CI proves through LiteLLM's own
 route checks that the grant reaches OpenRouter on
 `POST /openrouter/alpha/decisions` and nowhere else.
 
