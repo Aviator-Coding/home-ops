@@ -24,7 +24,6 @@ spec:
   timeout: 5m
   path: "./kubernetes/apps/base/ai/litellm-operator/app"
   prune: true
-  wait: true
   sourceRef:
     kind: GitRepository
     name: flux-system
