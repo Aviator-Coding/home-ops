@@ -1,0 +1,58 @@
+diff --git a/main.py b/main.py
+index 159bcd9..9ff5ab8 100644
+--- a/main.py
++++ b/main.py
+@@ -1,6 +1,7 @@
+ import os
+ import asyncio
+ import time
++from datetime import datetime, timezone
+ from typing import List, Optional
+ from fastapi import FastAPI, HTTPException, Depends, Header
+ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+@@ -26,6 +27,23 @@ from embedding_service import embedding_service
+ 
+ load_dotenv()
+ 
++
++def _epoch(value) -> Optional[int]:
++    """Unix seconds for a timestamp column read through `db.query_raw`.
++
++    Prisma's raw queries return `timestamp` columns as ISO-8601 strings, not
++    datetime objects, so calling `.timestamp()` on them raised AttributeError
++    and 500'd create/list for any store whose last_active_at was set (i.e. after
++    the first ingest). Naive values are UTC, matching the server's NOW().
++    """
++    if not value:
++        return None
++    if isinstance(value, str):
++        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
++    if value.tzinfo is None:
++        value = value.replace(tzinfo=timezone.utc)
++    return int(value.timestamp())
++
+ app = FastAPI(
+     title="OpenAI Vector Stores API",
+     description="OpenAI-compatible Vector Stores API using PGVector",
+@@ -108,8 +126,8 @@ async def create_vector_store(
+         
+         # Convert to response format
+         created_at = int(vector_store["created_at_timestamp"])
+-        expires_at = int(vector_store["expires_at"].timestamp()) if vector_store.get("expires_at") else None
+-        last_active_at = int(vector_store["last_active_at"].timestamp()) if vector_store.get("last_active_at") else None
++        expires_at = _epoch(vector_store.get("expires_at"))
++        last_active_at = _epoch(vector_store.get("last_active_at"))
+         
+         return VectorStoreResponse(
+             id=vector_store["id"],
+@@ -183,8 +201,8 @@ async def list_vector_stores(
+         vector_stores = []
+         for row in results:
+             created_at = int(row["created_at_timestamp"])
+-            expires_at = int(row["expires_at"].timestamp()) if row.get("expires_at") else None
+-            last_active_at = int(row["last_active_at"].timestamp()) if row.get("last_active_at") else None
++            expires_at = _epoch(row.get("expires_at"))
++            last_active_at = _epoch(row.get("last_active_at"))
+             
+             vector_store = VectorStoreResponse(
+                 id=row["id"],

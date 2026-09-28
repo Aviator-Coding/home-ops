@@ -1,0 +1,45 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app litellm-pgvector
+  namespace: &namespace ai
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  # The rendered workload, never the HelmRelease (house rule: a HelmRelease
+  # stays Ready through a crashloop).
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: *app
+      namespace: *namespace
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
+    - name: cloudnative-pg
+      namespace: database
+    # Not only for the proxy the server embeds queries through: the litellm
+    # Kustomization also owns the two PushSecrets that CREATE the 1Password
+    # items this app's ExternalSecrets read (`litellm-pgvector` and
+    # `litellm-consumer-litellm-pgvector`), so they exist before it starts.
+    - name: litellm
+      namespace: ai
+  interval: 1h
+  path: ./kubernetes/apps/base/ai/litellm-pgvector/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m

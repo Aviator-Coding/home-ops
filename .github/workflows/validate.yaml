@@ -158,6 +158,7 @@ jobs:
             docs/tdarr-errored-remuxes.md
             kubernetes/apps/base/ai/**
             kubernetes/apps/main/ai/**
+            .github/docker/litellm-pgvector/**
             .github/workflows/validate.yaml
             .mise.toml
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Behavioral contract for the ai/embedding-gpu host prompt-cache bound.
+"""Behavioral contract for ai/embedding-gpu: the host prompt-cache bound, and
+(added 2026-09-27) the --no-cont-batching/--timeout load bound that replaced a
+reverted LiteLLM-side rpm/tpm cap - see test_load_bound_never_hangs_indefinitely.
 
 Pins the 2026-09-16 (second) OOM fix. `ai/embedding-gpu` was OOMKilled 18 times
 against a 2Gi limit, then 5 more times in 30 minutes against the raised 4Gi one.
@@ -171,6 +173,70 @@ def test_cache_ram_is_bounded_below_the_container_limit(docs: list[dict[str, Any
         )
 
 
+def test_load_bound_never_hangs_indefinitely(docs: list[dict[str, Any]]) -> None:
+    """--no-cont-batching + a bounded --timeout, added 2026-09-27.
+
+    Captain decision after a LiteLLM-side rpm/tpm cap (routerSettings.routing_strategy:
+    usage-based-routing-v2 on the embedding-local LiteLLMModel) was live-tested and found
+    to make a caller HANG 45s+ with no response once the cap was exceeded, instead of a
+    clean HTTP 429 - see the removed change's history. Bound load HERE instead: continuous
+    batching (enabled by default on this image) is what lets a concurrent embedding burst
+    starve ai/vllm of GPU cycles - independent of the --parallel=2 slot count above, which
+    bounds memory, not scheduling aggressiveness - and this image's own --timeout default
+    (3600s) is far too generous to guarantee "never hangs" on its own.
+
+    What this catches
+      - `--no-cont-batching` removed (continuous batching silently re-enables, restoring
+        the chat-contention behaviour measured live 2026-09-27)
+      - `--timeout` removed (restores the 3600s default - technically still bounded, but
+        no longer a meaningful backstop) or set to zero/negative (llama.cpp does not
+        accept 0 here the way --cache-ram does; this is a plain socket timeout)
+      - `--timeout` set at or above the image's own 3600s default, which is not a
+        deliberate bound
+
+    What this does not catch
+      - whether 30s is the right value under real production traffic (only a live
+        sustained run proves that - the 100-concurrent stress test that produced this
+        value maxed at 6.47s, ~4.5x headroom)
+      - any OTHER llama.cpp scheduling change that could reintroduce chat contention
+    """
+    container = _container(_helmrelease(docs))
+    args = [str(a) for a in container.get("args", [])]
+
+    assert_true(
+        "--no-cont-batching" in args or "-nocb" in args,
+        "ai/embedding-gpu args must set --no-cont-batching. Continuous batching is "
+        "enabled by default on this image and measurably lets a concurrent embedding "
+        "burst starve ai/vllm's decode rate - see the helmrelease comment for the "
+        "measured before/after.",
+    )
+    assert_true(
+        "--cont-batching" not in args and "-cb" not in args,
+        "ai/embedding-gpu args must not also set --cont-batching/-cb - that would "
+        "override the --no-cont-batching flag this gate requires.",
+    )
+
+    assert_true(
+        "--timeout" in args or "-to" in args,
+        "ai/embedding-gpu args must set --timeout. Without it this image defaults to "
+        "3600s, which is not a meaningful backstop against an indefinite-looking hang.",
+    )
+    flag = "--timeout" if "--timeout" in args else "-to"
+    idx = args.index(flag)
+    assert_true(idx + 1 < len(args), f"{flag} is present but has no value")
+    raw = args[idx + 1]
+    assert_true(
+        re.fullmatch(r"\d+", raw) is not None,
+        f"{flag} value {raw!r} is not a positive integer number of seconds",
+    )
+    timeout_s = int(raw)
+    assert_true(
+        0 < timeout_s < 3600,
+        f"{flag}={timeout_s}s must be a deliberate bound strictly below this image's "
+        "own 3600s default, or it is not actually bounding anything.",
+    )
+
+
 def test_requests_and_priority_keep_the_llm_safe(docs: list[dict[str, Any]]) -> None:
     """The embedder must stay the first thing yielded, never a preemptor."""
     hr = _helmrelease(docs)
@@ -211,6 +277,7 @@ def main() -> int:
     docs = _docs()
     tests = [
         test_cache_ram_is_bounded_below_the_container_limit,
+        test_load_bound_never_hangs_indefinitely,
         test_requests_and_priority_keep_the_llm_safe,
     ]
     failed = 0
