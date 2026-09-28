@@ -6,6 +6,14 @@
 # filter on, so before this workflow a PR touching only `talos/` ran exactly one
 # check: the labeler.
 #
+# This workflow (like flate.yaml and image-pull.yaml) has no trigger-level
+# `paths:` filter: it always starts and its aggregate `Validate - Success` job
+# always posts a result, reporting success-via-skip when the per-job `filter`
+# step below finds nothing relevant. That is what makes `Validate - Success`
+# safe to add to the branch-protection required-checks list, unlike the old
+# trigger-level filter, which meant the check simply never existed outside its
+# path list. See docs/branch-protection.md.
+#
 # Scope, honestly:
 #   - `talosctl validate` is a *schema* check. It catches render breakage and
 #     machine-config keys Talos does not know. It does NOT catch invalid enum
@@ -60,46 +68,6 @@ on:
     types: [opened, synchronize, reopened]
     branches:
       - main
-    paths:
-      - .github/workflows/validate.yaml
-      - .mise.toml
-      - .renovate/**
-      - .renovaterc.json5
-      - bootstrap/**
-      # docs/tdarr/** and docs/tdarr-errored-remuxes.md are here because the
-      # pythontests per-job filter matches them: tdarr-flow-nodes-test.py runs
-      # docs/tdarr/flow-nodes/behavior-test.js, which byte-checks every flow node
-      # source against docs/tdarr/flow-movies_av1_nvenc_v1.after.json. Path
-      # filtering happens at BOTH levels and the trigger wins, so a per-job
-      # pattern that is absent here never gets evaluated at all - the workflow
-      # simply does not start. That gap was live from PR #1530 until 2026-09-01:
-      # the filter listed docs/tdarr/** while the trigger did not, so a
-      # docs/tdarr-only change ran no python tests and the byte-check the rebuild
-      # runbook promises never executed. Pinned by
-      # scripts/ci/validate-contention-test.py::test_trigger_paths_cover_job_filters.
-      - docs/tdarr-errored-remuxes.md
-      - docs/tdarr/**
-      # kubernetes/apps/{base,main}/ai/** are here for the same two-level reason
-      # as docs/tdarr/** above: grafana-mcp-deploy-test.py renders
-      # kubernetes/apps/base/ai/toolhive/mcp-servers and kubernetes/apps/main/ai,
-      # and samba-shared-xml-test.py renders kubernetes/apps/base/ai/{pvc,samba}/app
-      # plus the same overlays - so a change to those manifests is exactly the
-      # change class that can break those gates. Until 2026-09-06 neither level
-      # listed them: #1598 moved the grafana-mcp image pin, started no Validate
-      # run at all, and left grafana-mcp-deploy-test.py red on `main` where only
-      # an unrelated scripts/ci/** PR could ever surface it.
-      - kubernetes/apps/base/ai/**
-      - kubernetes/apps/main/ai/**
-      # The litellm-pgvector build context, for the same two-level reason:
-      # litellm-pgvector-test.py derives the image tag from its contents and
-      # fails when the HelmRelease names a different one, so a Dockerfile-only
-      # change is precisely the change that gate exists to catch.
-      - .github/docker/litellm-pgvector/**
-      - kubernetes/apps/base/system-upgrade/**
-      - kubernetes/apps/main/system-upgrade/**
-      - scripts/ci/**
-      - talos/**
-      - terraform/**
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
@@ -109,8 +77,9 @@ permissions:
   contents: read
 
 jobs:
-  # Per-job path filtering. The workflow-level `paths:` above is the union of every
-  # gate, so without this a `.renovate/`-only PR would also run the Talos jobs.
+  # Per-job path filtering: each `filter` step below is now the *only* path
+  # decision (no trigger-level `paths:` - see the header above), so without
+  # this a `.renovate/`-only PR would also run the Talos jobs.
   # Same pattern as flate.yaml / image-pull.yaml.
   filter:
     # Fork guard. Every job in this workflow lands on the self-hosted runner, which
@@ -425,3 +394,30 @@ jobs:
             echo "::endgroup::"
           done
           exit "${fail}"
+
+  success:
+    # `!cancelled()` alone would still schedule this job onto the self-hosted runner
+    # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
+    # Same pattern as flate.yaml / image-pull.yaml `success` jobs: this is the single
+    # check context safe to add to branch-protection required_status_checks, since it
+    # always posts (success-via-skip when every per-job filter found nothing relevant).
+    if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
+    needs:
+      - filter
+      - talos
+      - versions
+      - bootstrap
+      - renovate-config
+      - terraform
+      - python-tests
+    name: Validate - Success
+    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    timeout-minutes: 5
+    steps:
+      - name: Any jobs failed?
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
+
+      - name: All jobs passed or skipped?
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"

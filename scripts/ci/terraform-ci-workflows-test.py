@@ -436,12 +436,11 @@ def test_flate_untouched() -> dict[str, Any]:
     data, _text = load_workflow(FLATE)
     on = on_block(data)
     assert "pull_request" in on, on
+    # Path filtering moved from the trigger down into the `filter` job (see
+    # docs/branch-protection.md) so the workflow always starts and its check
+    # run always posts; the trigger itself now carries no paths at all.
     paths = list(on["pull_request"].get("paths") or [])
-    assert paths, "flate must path-filter; an empty paths list runs on every PR"
-    assert all(
-        p == "kubernetes/**" or p.startswith("kubernetes/") for p in paths
-    ), paths
-    assert not any("terraform" in p for p in paths), paths
+    assert not paths, f"flate must not trigger-level path-filter anymore; got {paths}"
 
     jobs = data["jobs"]
     assert "filter" in jobs and "test" in jobs, sorted(jobs)

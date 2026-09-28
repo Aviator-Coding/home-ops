@@ -59,20 +59,19 @@ actually required — the gap in the next section is unaffected — it only remo
 that let a merge outrun the non-required checks. The full required-checks restructure below was
 evaluated and declined in favor of this smaller, reversible change.
 
-## Why only `Labeler - Labeler` is required — and why that's deliberate, not incomplete
+## Why only `Labeler - Labeler` is required today — and how that's being closed
 
 Required status checks and path-filtered workflows interact badly: if a required check's
 workflow never triggers for a given PR, GitHub leaves that check `Expected` forever and the PR
 can never merge. This repo's substantive validation workflows —
 [`flate.yaml`](../.github/workflows/flate.yaml),
-[`image-pull.yaml`](../.github/workflows/image-pull.yaml),
-[`validate.yaml`](../.github/workflows/validate.yaml), and
-[`terraform-diff.yaml`](../.github/workflows/terraform-diff.yaml) — all filter on `paths:` **at the
-`on: pull_request:` trigger level**, not inside a job. A PR that touches none of those paths
-never starts the workflow at all — no check run is ever created, skipped or otherwise. Requiring
-any of them today would permanently block every PR outside their path list.
+[`image-pull.yaml`](../.github/workflows/image-pull.yaml), and
+[`validate.yaml`](../.github/workflows/validate.yaml) — used to filter on `paths:` **at the
+`on: pull_request:` trigger level**, not inside a job. A PR that touched none of those paths
+never started the workflow at all — no check run was ever created, skipped or otherwise.
+Requiring any of them would have permanently blocked every PR outside their path list.
 
-This is not hypothetical — it is what actually happens, measured live against real merged PRs:
+This was not hypothetical — it is what actually happened, measured live against real merged PRs:
 
 | PR | What it touched | Checks that actually posted |
 |---|---|---|
@@ -80,45 +79,48 @@ This is not hypothetical — it is what actually happens, measured live against 
 | [#1390](https://github.com/Aviator-Coding/home-ops/pull/1390) (talos-only, before `validate.yaml` existed) | `talos/machineconfig.yaml.j2`, `docs/` | `Labeler - Labeler` only — the historical "one check" case `validate.yaml` (#1391) was written to close |
 | [#1399](https://github.com/Aviator-Coding/home-ops/pull/1399) (`kubernetes/apps/**` change) | `kubernetes/apps/monitoring/...`, `docs/` | `Labeler`, `Flux Local - *` (incl. `Flux Local - Success`), `Image Pull - *` (incl. `Image Pull - Success`) |
 
-`validate.yaml` itself demonstrably works for its own scoped paths (e.g. runs 7-8, triggered on
-the open `renovate/kubectl-1.x` PR which touches `.mise.toml`) — the problem isn't that it's
-broken, it's that its trigger-level path filter means it simply never runs, and posts nothing,
-for PRs outside `talos/**`, `bootstrap/**`, `.renovate/**`, `.renovaterc.json5`,
-`kubernetes/apps/base/system-upgrade/**`, `kubernetes/apps/main/system-upgrade/**`, `scripts/ci/**`, `.mise.toml`, or its own workflow file.
-The same is true of `flate.yaml` / `image-pull.yaml` outside `kubernetes/**`, and of
-`terraform-diff.yaml` outside `terraform/**`. Root-level docs, `README.md`, `Taskfile.yaml`,
-`.taskfiles/**`, and most of `docs/**` are covered by none of them.
+**Fixed:** `flate.yaml`, `image-pull.yaml`, and `validate.yaml` no longer carry a trigger-level
+`paths:` filter at all. Each already computed a job-level `filter` step (via
+`bjw-s-labs/action-changed-files`) for exactly this kind of path detection; the fix moves the
+*only* path decision to that job level and lets the trigger fire unconditionally. `validate.yaml`
+additionally gained an aggregate `Validate - Success` job — mirroring the `Flate - Success` /
+`Image Pull - Success` jobs the other two workflows already had — since it previously had no
+single check summarizing its 7-way fan-out (`talos`, `versions`, `bootstrap`, `renovate-config`,
+`terraform`, `python-tests`).
 
-Two PR-triggered workflows have **no path filter on their trigger** and therefore run on
-every PR to `main`: [`labeler.yaml`](../.github/workflows/labeler.yaml) and
-[`ai-pr-review.yaml`](../.github/workflows/ai-pr-review.yaml). Both carry the same-repo fork
-guard (`if: github.event.pull_request.head.repo.full_name == github.repository`, mirrored from
-the `image-pull`/`validate`/`terraform-diff` fork guards documented in `AGENTS.md`); a job-level
-`if` still creates a check run (`skipped`), and GitHub treats a skipped required check as
-passing — unlike a trigger-level `paths:` mismatch, which creates no check run at all. That is
-what makes a no-path-filter workflow *structurally* safe to mark required: it is guaranteed to
-resolve, one way or another, for every PR. **Only `Labeler - Labeler` is actually required
-today.** `ai-pr-review` is deliberately left off the ruleset even though it could be required
-without the path-filter trap — it is advisory-only by construction (`publish_mode: comment`,
-not a merge gate) and must not become one; see
+This is the same pattern [`labeler.yaml`](../.github/workflows/labeler.yaml) already used: a
+same-repo fork guard (`if: github.event.pull_request.head.repo.full_name == github.repository`,
+documented in `AGENTS.md`) gates each job, and a job-level `if` still creates a check run
+(`skipped`) rather than no check run at all — GitHub treats a skipped required check as passing.
+That is what makes a no-trigger-path-filter workflow *structurally* safe to mark required: its
+aggregate check is guaranteed to resolve, one way or another (success, success-via-skip, or
+failure), for every PR, including from a fork.
+
+[`ai-pr-review.yaml`](../.github/workflows/ai-pr-review.yaml) also has no trigger-level path
+filter and runs on every PR, but stays off the ruleset by design — it is advisory-only
+(`publish_mode: comment`, not a merge gate) and must not become one; see
 [`docs/ai-system/litellm/pr-reviewer.md`](ai-system/litellm/pr-reviewer.md).
+[`terraform-diff.yaml`](../.github/workflows/terraform-diff.yaml) still trigger-path-filters on
+`terraform/**` and is out of scope here (optional follow-up, not a reliability gap: a bad
+`terraform/` change is caught by `validate.yaml`'s `terraform` job, which now always starts).
 
-**This means the ruleset does not yet gate the checks that actually catch a broken
-Kustomization or a bad Talos config** — that gap is real and is the direct consequence of how
-`flate.yaml` / `image-pull.yaml` / `validate.yaml` / `terraform-diff.yaml` are triggered, not a gap in this task.
+**`Labeler - Labeler` remains the only entry in `required_status_checks` today** — see Rollout
+below for why the new checks aren't added to the live ruleset yet.
 
-## Follow-up to close the gap
+## Rollout
 
-To safely require `Flate - Success` / `Image Pull - Success` / a `validate.yaml`
-aggregate check (and, if desired later, `terraform-diff`'s success job), those path-filtered
-workflows need their path filtering moved from the `on: pull_request: paths:` trigger down into
-a job-level check (they already compute a `filter` job internally for exactly this kind of path
-detection — see each workflow's `filter` job) so the workflow — and therefore its check run —
-always starts, and reports success-via-skip when nothing relevant changed, the same way
-`labeler.yaml`'s fork guard already does. Once that's done, add those check contexts to this
-ruleset's `required_status_checks.required_status_checks` array with
-`gh api -X PUT repos/Aviator-Coding/home-ops/rulesets/21250320` (or via the ruleset edit UI) and
-this document should be updated to match.
+Closing the gap is two steps, deliberately not done in the same change:
+
+1. **This PR:** remove the trigger-level `paths:` filters and add `Validate - Success`, so
+   `Flate - Success`, `Image Pull - Success`, and `Validate - Success` become checks that post on
+   every PR going forward.
+2. **Separately, after this PR has merged and at least one subsequent PR has run these
+   workflows** (GitHub's ruleset UI/API can only require a context that has posted at least once),
+   add those three contexts to `required_status_checks.required_status_checks` with
+   `gh api -X PUT repos/Aviator-Coding/home-ops/rulesets/21250320` (or the ruleset edit UI), with
+   explicit go-ahead at that time — this is a live-ruleset mutation on the production repo, not
+   something to bundle into the workflow-file change. Update the "Full applied payload" section
+   below to match once that lands.
 
 ## Full applied payload
 
