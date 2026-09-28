@@ -422,13 +422,18 @@ def test_workflow_terraform_job() -> dict[str, Any]:
     if "opentofu" not in str(setup.get("with", {})):
         raise Failure("terraform job must install opentofu via mise")
 
-    # PyYAML 1.1 parses unquoted `on:` as boolean True.
+    # validate.yaml intentionally has no trigger-level `paths:` filter (see
+    # docs/branch-protection.md) — a path miss there means the workflow never
+    # starts, so its check can never be required without blocking unrelated
+    # PRs. Path gating happens at the job level instead, asserted above via
+    # the `filter` job's Terraform Changes patterns.
     on_block = wf.get("on", wf.get(True))
     if not isinstance(on_block, dict):
         raise Failure("workflow missing on: trigger block")
-    on_paths = on_block["pull_request"]["paths"]
-    if "terraform/**" not in on_paths:
-        raise Failure("workflow pull_request paths missing terraform/**")
+    if "paths" in on_block.get("pull_request", {}):
+        raise Failure(
+            "workflow pull_request must not carry a trigger-level paths filter"
+        )
 
     return {
         "job": "terraform",
