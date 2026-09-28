@@ -690,7 +690,7 @@ roles are a separate feature on the `Cluster` (`spec.managed.roles`), so using
 it would mean editing the shared `postgres-17` Cluster that 15+ other apps
 depend on. The Job keeps the same `ghcr.io/home-operations/postgres-init` image
 and `INIT_POSTGRES_*` contract every other Postgres-backed app in this repo
-uses. It is idempotent, and carries `kustomize.toolkit.fluxcd.io/force: "true"`
+uses. It is idempotent, and carries `kustomize.toolkit.fluxcd.io/force: enabled`
 so a Renovate image bump can delete-and-recreate an otherwise-immutable Job.
 
 ## Verifying end to end
