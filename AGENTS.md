@@ -14,7 +14,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 │   └── components/     # alerts, common, dragonfly, kopiur (+ kopiur/pvc), volsync (3 claims left)
 ├── talos/              # minijinja templates (see talos/AGENTS.md)
 ├── bootstrap/          # just bootstrap stages (see bootstrap/AGENTS.md)
-├── .claude/skills/     # JIT-loaded subsystem skills - the depth that used to live in NOTES
+├── .agents/skills/     # agent skills, one per subsystem (.claude/skills is a symlink) - see SKILL INDEX
 ├── .taskfiles/         # included: 1password, k8s, flux, rook, network, actions-runner
 ├── terraform/          # OpenTofu stacks for config outside Flux's reach (see NOTES)
 ├── docs/               # runbooks, incident history, ceph/network notes
@@ -40,7 +40,7 @@ Gatus is an app under `kubernetes/apps/base/monitoring/gatus`, not a component. 
 | CI workflows | `.github/workflows/` | flate, renovate, codeql, image-pull, label-sync, validate, terraform-diff, terraform-publish, ai-pr-review, plus build-talosctl-busybox, labeler, tag, test-runner |
 | Branch protection | GitHub ruleset on `main`, applied via `gh api` (not in Git) | `docs/branch-protection.md`. Only `Labeler - Labeler` is a required status check today - flate/image-pull/validate all path-filter at the `on: pull_request:` trigger level, so they never post a check outside their paths and are unsafe to require as-is (see doc for the live-measured proof and the follow-up needed to close the gap) |
 | Renovate config | `.renovaterc.json5` + `.renovate/` | Presets/config (extends Aviator-Coding/mortyops + local, incl. `.renovate/talos.json5`). Live writer is the in-cluster CronJob (`kubernetes/apps/base/renovate/`); GHA `.github/workflows/renovate.yaml` schedule is commented out as two-minute rollback. Owner: `kubernetes/apps/base/renovate/README.md` |
-| Subsystem deep knowledge | `.claude/skills/<name>/SKILL.md` | JIT-loaded skills holding the detail that used to sit inline in NOTES: `kopiur-backups`, `litellm-proxy`, `authentik-terraform`, `tdarr-transcoding`, `intel-gpu`, `cilium-host-policy`, `flux-substitution`. Each `description` line is the load trigger - load the matching skill before touching that subsystem. The always-loaded entries below keep only the tripwire plus this pointer. |
+| Subsystem deep knowledge | `.agents/skills/<name>/SKILL.md` | One skill per subsystem, listed in SKILL INDEX below. Each `description` line is the load trigger - load the matching skill before touching that subsystem. The always-loaded entries below keep only the tripwire plus a pointer. |
 | Tool versions | `.mise.toml` | kubectl, flux, talos, helm, kustomize, vals, 1password-cli, just, minijinja, etc. Resolve with `mise which <cli>` / `mise exec` (see NOTES). |
 | Authentik SSO config | `terraform/authentik/` (OpenTofu) | Adopted apps/providers via `import` blocks, plus stack-created LiteLLM OIDC (`litellm.tofu`). Other flows/stages/mappings stay Authentik-blueprint data sources. **Never `tofu apply` without an explicit go-ahead.** Runbook: `docs/authentik/terraform.md` |
 | AI stack | `kubernetes/apps/main/ai/` (Flux Kustomizations) + `kubernetes/apps/base/ai/` (manifests) | Hermes + ToolHive (`toolhive.stacklok.dev/v1alpha1` `MCPServer`) + agentgateway + LiteLLM (governance + fallback chains; **internal** route only since 2026-08-26, never the public listener; delivered by `litellm.home-operations.com/v1alpha1` CRs from `ai/litellm-operator` - `docs/ai-system/litellm/{README,fallbacks}.md`). kagent/kmcp tombstones: `docs/ai-system/{kagent,kmcp}`. Retired 2026-08-22: `docs/ai-system/retired-2026-08-22.md` |
@@ -110,6 +110,40 @@ just bootstrap cluster             # DR / first-time only
 Talos nodes are `talos-1|talos-2|talos-3` mapping to `10.10.10.11/12/13`. Do not target the VIP `10.10.10.10`. Full recipes: `talos/AGENTS.md`, `bootstrap/AGENTS.md`.
 
 Debugging: `flux get sources git -A`, `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide`, `kubectl -n {ns} logs {pod} -f`, `kubectl -n {ns} describe pod {pod}`, `kubectl get replicationsource,replicationdestination -A`.
+
+## SKILL INDEX
+
+Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink). Harnesses that do not auto-load them: read the matching `SKILL.md` before touching its subsystem. Stubs point at today's docs until their content lands.
+
+| Skill | Load when touching |
+|---|---|
+| `flux-gitops` | apps, overlays, Flux healthChecks/wait/dependsOn, live HelmRelease tests |
+| `flux-substitution` | literal `${...}` in Flux-reconciled files, envsubst failures |
+| `app-workloads` | pod securityContext, fsGroup, probes, PVC mounts, linuxserver images |
+| `node-scheduling` | requests/limits, tolerations, affinity, talos-3 placement, throttling/OOM |
+| `secrets-1password` | ExternalSecret, PushSecret, 1Password items, `ref+op://` |
+| `github-ci` | workflows, `scripts/ci` gates, ARC runners, branch protection |
+| `renovate` | Renovate config, `# renovate:` annotations, risky Renovate merges |
+| `talos-nodes` | `talos/*.j2`, `just talos`, tuppr upgrades, reboots, power work |
+| `rook-ceph` | Rook/Ceph config, CephX, RGW, OSD health, storage classes |
+| `system-namespaces` | k8tz, tuppr namespace, kube-system add-ons, fstrim |
+| `cilium-host-policy` | CiliumClusterwideNetworkPolicy, host firewall, nodeSelector policies |
+| `networking` | HTTPRoute, Gateway, SecurityPolicy, external-dns, BGP, NetworkPolicy |
+| `authentik-terraform` | `terraform/**`, Authentik SSO apps/providers, ExtAuth routes |
+| `kopiur-backups` | any kopiur component, CR, restore, alert or backup failure |
+| `volsync-carveouts` | the 3 VolSync carve-out claims, RS/RD, restores, retired repos |
+| `pvc-integrity-checks` | pvc-writable-check, pvc-mover-readable-check, their RBAC and alerts |
+| `litellm-proxy` | LiteLLM proxy/operator CRs, models, keys, fallbacks, PR reviewer |
+| `hermes-agent` | Hermes config, restarts, state.db, LLM/MCP routing, samba |
+| `agentgateway` | agentgateway routes, listeners, backends, API keys, cost table |
+| `ai-stack` | ai namespace apps, ToolHive, opencode/repo-wiki, AI app retirement |
+| `b70-llm-serving` | vllm and embedding-gpu flags, memory, alerts, embedding checks |
+| `intel-gpu` | GPU device plugins, `devic.es/b70*`, VA-API, GPU telemetry |
+| `observability` | PrometheusRule, Service/PodMonitor, Alertmanager, Gatus, Grafana, probes |
+| `media-stack` | *arr apps, SABnzbd, Recyclarr, Bazarr, Plex, backlog searches |
+| `tdarr-transcoding` | Tdarr libraries, flows, customFunction nodes, errored remuxes |
+| `databases` | FalkorDB, SurrealDB, CloudNativePG, EMQX, Dragonfly |
+| `home-automation` | Zigbee2MQTT, Home Assistant, matter-server, esphome |
 
 ## NOTES
 
@@ -248,9 +282,14 @@ document it summarises, and it drifts. That already happened - this file and
 prerequisite as "raise the cache AND prove an r2 restore" after `media/plex`'s raise to 10Gi had
 already landed, while the source proof document recorded the standing values correctly.
 
-So: write the finding once, where it is owned. Add a subsystem skill under `.claude/skills/` when
+So: write the finding once, where it is owned. Add a subsystem skill under `.agents/skills/` when
 the audience is "an agent working on that subsystem" - the `description` line is the load trigger,
 so state the trigger condition precisely; a vague one means the skill never loads when it is
 needed. Keep an always-loaded line here only for a tripwire: silent data loss, a cluster-wide
 outage, or an unrecoverable state, where an agent needs the warning *before* deciding to touch the
 subsystem at all.
+
+`scripts/ci/docs-budget-test.py` enforces this: it fails when this file, a skill, a skill
+`references/*.md` file or a YAML/json5 comment block grows past its budget or its recorded
+baseline. Raising one needs an allowlist entry with a reason in `scripts/ci/docs-budget.json5`;
+lower the baseline whenever you shrink a file.
