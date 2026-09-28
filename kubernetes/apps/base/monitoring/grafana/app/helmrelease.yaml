@@ -111,7 +111,7 @@ spec:
     dashboards:
       default:
         external-dns:
-          # renovate: dashboardName="External-DNS"
+          # renovate: depName="External-DNS"
           gnetId: 15038
           revision: 3
           datasource:
@@ -119,7 +119,7 @@ spec:
               value: Prometheus
 
         node-exporter-full:
-          # renovate: dashboardName="Node Exporter Full"
+          # renovate: depName="Node Exporter Full"
           gnetId: 1860
           revision: 40
           datasource:
@@ -258,7 +258,7 @@ spec:
         # dashboard updates from applying).
 
         kube-state-metrics:
-          # renovate: dashboardName="Kube-State-Metrics"
+          # renovate: depName="Kube-State-Metrics"
           gnetId: 13332
           revision: 1
           datasource:
@@ -266,7 +266,7 @@ spec:
               value: Prometheus
 
         volsync:
-          # removate: dashboardName="VolSync Dashboard"
+          # renovate: depName="VolSync Dashboard"
           gnetId: 21356
           revision: 2
           datasource:
@@ -288,7 +288,7 @@ spec:
           datasource: Prometheus
 
         k8s-system-api-server:
-          # renovate: dashboardName="Kubernetes / System / API Server"
+          # renovate: depName="Kubernetes / System / API Server"
           gnetId: 15761
           revision: 19
           datasource:
@@ -296,7 +296,7 @@ spec:
               value: Prometheus
 
         k8s-views-global:
-          # renovate: dashboardName="Kubernetes / Views / Global"
+          # renovate: depName="Kubernetes / Views / Global"
           gnetId: 15757
           revision: 43
           datasource:
@@ -304,7 +304,7 @@ spec:
               value: Prometheus
 
         k8s-views-namespaces:
-          # renovate: dashboardName="Kubernetes / Views / Namespaces"
+          # renovate: depName="Kubernetes / Views / Namespaces"
           gnetId: 15758
           revision: 43
           datasource:
@@ -312,7 +312,7 @@ spec:
               value: Prometheus
 
         k8s-views-nodes:
-          # renovate: dashboardName="Kubernetes / Views / Nodes"
+          # renovate: depName="Kubernetes / Views / Nodes"
           gnetId: 15759
           revision: 36
           datasource:
@@ -320,7 +320,7 @@ spec:
               value: Prometheus
 
         k8s-views-pods:
-          # renovate: dashboardName="Kubernetes / Views / Pods"
+          # renovate: depName="Kubernetes / Views / Pods"
           gnetId: 15760
           revision: 36
           datasource:
@@ -328,7 +328,7 @@ spec:
               value: Prometheus
 
         k8s-volumes:
-          # renovate: dashboardName="K8s / Storage / Volumes / Cluster"
+          # renovate: depName="K8s / Storage / Volumes / Cluster"
           gnetId: 11454
           revision: 14
           datasource:
@@ -394,7 +394,7 @@ spec:
               value: Prometheus
 
         ollama-llm-inference:
-          # renovate: dashboardName="Ollama LLM Inference"
+          # renovate: depName="Ollama LLM Inference"
           gnetId: 25086
           revision: 1
           datasource:
@@ -408,7 +408,7 @@ spec:
 
       media:
         plex-media-server-exporter:
-          # renovate: dashboardName="plex-media-server-exporter"
+          # renovate: depName="plex-media-server-exporter"
           gnetId: 17891
           revision: 1
           datasource:
@@ -416,7 +416,7 @@ spec:
               value: Prometheus
 
         tdarr:
-          # renovate: dashboardName="Tdarr"
+          # renovate: depName="Tdarr"
           gnetId: 20388
           revision: 1
           datasource:
@@ -426,7 +426,7 @@ spec:
       downloads:
         # No official grafana.com exportarr dashboards exist for Lidarr, Readarr, or Prowlarr as of 2026-04-17.
         sonarr-v3:
-          # renovate: dashboardName="Sonarr v3"
+          # renovate: depName="Sonarr v3"
           gnetId: 12530
           revision: 2
           datasource:
@@ -434,7 +434,7 @@ spec:
               value: Prometheus
 
         radarr-v3:
-          # renovate: dashboardName="Radarr v3"
+          # renovate: depName="Radarr v3"
           gnetId: 12896
           revision: 1
           datasource:
@@ -458,7 +458,7 @@ spec:
 
       monitoring:
         prometheus-stats:
-          # renovate: dashboardName="Prometheus Stats"
+          # renovate: depName="Prometheus Stats"
           gnetId: 2
           revision: 1
           datasource:
@@ -466,7 +466,7 @@ spec:
               value: Prometheus
 
         gatus:
-          # renovate: dashboardName="Gatus"
+          # renovate: depName="Gatus"
           gnetId: 24379
           revision: 1
           datasource:
@@ -476,7 +476,7 @@ spec:
         # PDU Insights (grafana.com 23027) is not imported: this Prometheus
         # has no unpoller_device_outlet_* series, so every panel would be empty.
         unifi-insights:
-          # renovate: dashboardName="UniFi-Poller: Client Insights - Prometheus"
+          # renovate: depName="UniFi-Poller: Client Insights - Prometheus"
           gnetId: 11315
           revision: 9
           datasource:
@@ -487,7 +487,7 @@ spec:
               value: Prometheus
 
         unifi-network-sites:
-          # renovate: dashboardName="UniFi-Poller: Network Sites - Prometheus"
+          # renovate: depName="UniFi-Poller: Network Sites - Prometheus"
           gnetId: 11311
           revision: 5
           datasource:
@@ -497,7 +497,7 @@ spec:
               value: Prometheus
 
         unifi-usw:
-          # renovate: dashboardName="UniFi-Poller: USW Insights - Prometheus"
+          # renovate: depName="UniFi-Poller: USW Insights - Prometheus"
           gnetId: 11312
           revision: 9
           datasource:
@@ -507,7 +507,7 @@ spec:
               value: Prometheus
 
         unifi-uap:
-          # renovate: dashboardName="UniFi-Poller: UAP Insights - Prometheus"
+          # renovate: depName="UniFi-Poller: UAP Insights - Prometheus"
           gnetId: 11314
           revision: 10
           datasource:
@@ -518,7 +518,7 @@ spec:
 
       security:
         authentik:
-          # renovate: dashboardName="authentik"
+          # renovate: depName="authentik"
           gnetId: 23043
           revision: 1
           datasource:
@@ -527,7 +527,7 @@ spec:
 
       storage:
         ceph-cluster:
-          # renovate: dashboardName="Ceph Cluster"
+          # renovate: depName="Ceph Cluster"
           gnetId: 2842
           revision: 18
           datasource:
@@ -535,7 +535,7 @@ spec:
               value: Prometheus
 
         ceph-osd:
-          # renovate: dashboardName="Ceph - OSD (Single)"
+          # renovate: depName="Ceph - OSD (Single)"
           gnetId: 5336
           revision: 9
           datasource:
@@ -543,7 +543,7 @@ spec:
               value: Prometheus
 
         ceph-pools:
-          # renovate: dashboardName="Ceph - Pools"
+          # renovate: depName="Ceph - Pools"
           gnetId: 5342
           revision: 9
           datasource:
