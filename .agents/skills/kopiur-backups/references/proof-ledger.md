@@ -65,6 +65,13 @@ the three `‡` rows); a real scratch restore rather than a status field.
 
 ## Corrections after the table
 
+Row 12 `downloads/sabnzbd-config` is the Stage 2 fidelity subject. That
+restore gate passed: both destinations were byte-identical, including modes
+and ownership. `KOPIUR_PUID` / `KOPIUR_PGID` must match the files or the
+backup fails closed. That is a prerequisite for every claim, not a sabnzbd
+quirk.
+
+
 - **Row 5** `downloads/autobrr`: the app was removed. The kopia snapshots were
   kept (`Retain`). There is no live claim. Do not treat the row as a current
   volume.

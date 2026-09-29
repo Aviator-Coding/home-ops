@@ -16,7 +16,7 @@ wave-two record still documents autobrr's retirement, because it happened.
   wave one, 2026-09-01 - the pilot: `ai/repo-wiki`,
   `downloads/recyclarr-config`, `downloads/sabnzbd-config`, `media/seerr`,
   chosen for regenerable or reconstructible content and clean restore proofs.
-  Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md (all 30
+  Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md (all 30
   claims restore-proven on both destinations). Record:
   docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
 
@@ -28,7 +28,7 @@ wave-two record still documents autobrr's retirement, because it happened.
   objection. What authorises them is completeness of proof (100% of claim
   content, destination-identical in content AND metadata) plus, for the two
   2Gi `selfhosted` claims, a PVC that cannot outgrow its restore cache.
-  Authorising evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md
+  Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
   part 4. Record: docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
 
   wave three, 2026-09-04: the remaining 19 eligible claims, on the same fleet
@@ -223,7 +223,7 @@ RAISED_CACHE: dict[str, str] = {
     # two waves inside the measured danger zone.
     "downloads/sabnzbd": "10Gi",
     # Raised 2Gi -> 10Gi on 2026-09-02, before this retirement, by the fleet
-    # audit in docs/backups/kopiur-populator-drift-2026-09-02.md: tdarr sat at
+    # audit in .agents/skills/kopiur-backups/references/restore-and-cache.md: tdarr sat at
     # 87% of usable cache and radarr at 70%, and the requirement does not rise
     # smoothly past the cache - it jumps to the ~6.2 GiB plateau. 10Gi clears
     # the plateau outright, so neither can reach the cliff again. tdarr is
@@ -258,7 +258,7 @@ RAISED_CACHE: dict[str, str] = {
     # of 24,726 files / 4,948,787,362 bytes completed in 7m36s, byte-exact against
     # the snapshot's own filesNew/sizeBytes, with 0 mode and 0 file-type differences
     # across 37,201 entries and the restored Plex database opening and returning
-    # real library content (kopiur-plex-r2-restore-proof-2026-09-12.md). The wave's
+    # real library content (.agents/skills/kopiur-backups/references/restore-and-cache.md). The wave's
     # strongest open follow-up is now CLOSED.
     #
     # Do not lower this toward the 4.6 GiB measured peak. That peak is a property

@@ -30,7 +30,7 @@ spec:
     # VOLSYNC RETIRED 2026-09-02 - migration Stage 5, wave two, volume 2 of 4.
     # kopiur is now the ONLY backup engine on this claim.
     #
-    # Authorising evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # part 1. This claim is small - 2 files / 184 KiB - but the proof covers
     # 100% of what it holds, including a mode-2700 directory, and both
     # destinations restored identically in content AND in mode/uid/gid.

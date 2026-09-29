@@ -37,7 +37,7 @@ spec:
     # sealed with. Losing it does not just lose the workflows; it makes any
     # other copy of them undecryptable.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 24 - 7725/7725 files restored from BOTH destinations into a scratch
     # PVC with an IDENTICAL per-file manifest digest (`cd0fae1c2aff`), no
     # markers and no caveats. The kopiur restore is additionally MODE-faithful

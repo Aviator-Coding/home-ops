@@ -23,7 +23,7 @@ spec:
     # what closed restore-proof finding 2, the last prerequisite standing
     # between this claim and retirement, and it is why hermes leads tier B.
     #
-    # Also proof-row 1 of docs/backups/kopiur-restore-proof-2026-09-01.md:
+    # Also proof-row 1 of .agents/skills/kopiur-backups/references/proof-ledger.md:
     # 65921/65921 from BOTH destinations, identical digest (`f37eb3217b51`).
     # Its `CACHEDIR.TAG` caveat is ADJUDICATED, not outstanding: the 23,467
     # omitted files are all under validly-signed tags - uv caches, four stock
@@ -120,7 +120,7 @@ spec:
       # The old 5Gi was carried across from VOLSYNC_CACHE_CAPACITY above - a
       # restic-heritage number ("20-50% of the PVC") that has nothing to do with
       # how kopia uses a cache - and it could not restore this claim from r2:
-      # docs/backups/kopiur-restore-proof-2026-09-01.md finding 2 recorded a
+      # .agents/skills/kopiur-backups/references/proof-ledger.md finding 2 recorded a
       # terminal `no space left on device` on /var/cache/kopia, and a failed
       # Restore never retries.
       #

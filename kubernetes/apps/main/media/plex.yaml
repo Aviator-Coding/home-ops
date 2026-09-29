@@ -13,7 +13,7 @@ spec:
     # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier B (the
     # large claims). kopiur is now the ONLY backup engine on this claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 19 - 21251/21251 files restored from BOTH destinations into a scratch
     # PVC with an identical per-file manifest digest (`9b8b4a197241`), no
     # markers and no caveats.
@@ -27,7 +27,7 @@ spec:
     # files / 4,948,787,362 bytes, matching filesNew and sizeBytes), with 0 mode
     # and 0 file-type differences across 37,201 entries, and the restored Plex
     # database opened and returned real library content.
-    # docs/backups/kopiur-plex-r2-restore-proof-2026-09-12.md.
+    # .agents/skills/kopiur-backups/references/restore-and-cache.md.
     # Captain decision 2026-09-04; retirement record:
     # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
     #
@@ -91,7 +91,7 @@ spec:
       # clears by 57%. That plateau is an UNPINNED kopia default, so the thing
       # that could invalidate this value is a kopia version bump, not the
       # calendar.
-      # docs/backups/kopiur-plex-r2-restore-proof-2026-09-12.md
+      # .agents/skills/kopiur-backups/references/restore-and-cache.md
       # docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md
       KOPIUR_CACHE_CAPACITY: 10Gi
       # Namespace r2 hour. The component default (`H 4 * * *`) would put every

@@ -15,7 +15,7 @@ spec:
     # (ordinary config volumes). kopiur is now the ONLY backup engine on this
     # claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 16 - 161/161 files restored from BOTH destinations into a scratch PVC
     # with an identical per-file manifest digest (`364f08cdd3bb`), including
     # the five 0600 fabric-credential files that a uid-1000 mover cannot open.

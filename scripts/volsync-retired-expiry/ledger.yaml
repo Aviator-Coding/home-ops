@@ -74,7 +74,7 @@ tiers:
     # exists and kopiur backs it up today on BOTH destinations (verified against
     # live SnapshotSchedules 2026-09-12: all 26 appear as <app>-ceph and
     # <app>-r2), and the whole fleet is restore-proven on both
-    # (docs/backups/kopiur-restore-proof-2026-09-01.md). So this is a THIRD
+    # (.agents/skills/kopiur-backups/references/proof-ledger.md). So this is a THIRD
     # copy of data that already has two, and its only remaining value is
     # pre-migration history.
     expires: "2027-03-31"

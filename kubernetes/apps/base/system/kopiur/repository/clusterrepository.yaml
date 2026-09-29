@@ -133,7 +133,7 @@ spec:
   # (measured 2026-09-03). Backing this out for real means declaring
   # `minDuration: 24h` explicitly, letting it apply, then removing the block.
   # Same shape as the LiteLLMVirtualKey rpmLimit trap in AGENTS.md.
-  # Evidence: docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md
+  # Evidence: .agents/skills/kopiur-backups/references/repository-maintenance.md
   parameters:
     epoch:
       minDuration: 4h
@@ -197,5 +197,5 @@ spec:
   # will reproduce ceph's warning and needs the same `minDuration` treatment -
   # re-derived against r2's OWN maintenance offsets (quick ~00:16, full ~03:35),
   # not copied from ceph's. Left untuned to keep the change to what the evidence
-  # required. See docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md.
+  # required. See .agents/skills/kopiur-backups/references/repository-maintenance.md.
   onNamespaceDelete: Orphan

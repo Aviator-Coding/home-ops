@@ -14,7 +14,7 @@ spec:
     # (ordinary config volumes). kopiur is now the ONLY backup engine on this
     # claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 21 - 17278/17278 files restored from BOTH destinations into a scratch
     # PVC with an identical per-file manifest digest (`b29eb20847d8`), the
     # largest file count of any tier-A claim. This is ALSO the one claim in the
@@ -22,7 +22,7 @@ spec:
     # value: 17,281 files / 1,820,653,922 bytes restored from r2 at exactly the
     # 10Gi below, matching the snapshot's filesNew/sizeBytes, 0 mode or
     # ownership differences across 24,054 entries
-    # (docs/backups/kopiur-populator-drift-2026-09-02.md).
+    # (.agents/skills/kopiur-backups/references/restore-and-cache.md).
     #
     # The hand-authored transcode flows are versioned in docs/tdarr/flow-nodes/
     # and are therefore reconstructible, which is what puts this claim in tier
@@ -99,7 +99,7 @@ spec:
       # Proven end-to-end from r2 at exactly this value on 2026-09-02, with the
       # restored tree verified by file count and per-tree sha256 rather than by
       # a success status. Evidence:
-      # docs/backups/kopiur-populator-drift-2026-09-02.md.
+      # .agents/skills/kopiur-backups/references/restore-and-cache.md.
       #
       # One variable feeds both SnapshotPolicies and the standing Restore.
       # Raising it reaches the policies on the next Flux reconcile but NOT the
