@@ -25,6 +25,7 @@ spec:
             - serve
             - --transport=http
             - --port=8000
+            - --read-only
           env:
             # In-cluster mode: no KUBECONFIG; uses the pod service account.
             - name: RUNTIME_NAMESPACE

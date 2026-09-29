@@ -119,6 +119,22 @@ annotation has to be on `spec.podTemplateSpec.metadata.annotations`
 on `resourceOverrides.proxyDeployment` does not roll the consumer.
 Removing it leaves a rotated token stale until some other rollout.
 
+## Flux MCP is read-only
+
+`flux-operator-mcp` runs with `--read-only` and its ServiceAccount has
+only `kubectl-mcp-readonly`; the Flux write ClusterRole is gone. Flux
+controllers apply as cluster-admin, so a gateway token must not reach
+apply or delete. Flux changes ship by pull request. Do not add the write
+grant back.
+
+## vmcp memory
+
+The vmcp container limit is 2Gi (request 256Mi), set on
+`VirtualMCPServer.spec.podTemplateSpec` in `config/virtualmcpserver.yaml`.
+At 1Gi it was OOMKilled: the working set climbs about 680MiB/day.
+`MCPGatewayMemoryGrowth` (48h linear projection above the limit) and
+`MCPGatewayMemoryNearLimit` (over 80%) live in `config/prometheusrule.yaml`.
+
 ## kubectl-mcp RBAC
 
 `ClusterRole/kubectl-mcp-readonly` carries an `aggregationRule` and no

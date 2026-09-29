@@ -19,7 +19,7 @@ listed only so a retirement does not treat them as unused.
 
 Live MCP servers (each a `toolhive.stacklok.dev/v1alpha1` `MCPServer`):
 `arr`, `flux`, `github`, `grafana-mcp`, `kubectl`, `kubesearch`.
-`VirtualMCPServer/mcp-gateway-internal` federates them.
+`VirtualMCPServer/mcp-gateway-internal` federates them. `flux` is read-only.
 `EmbeddingServer/mcp-tools-embedding` is the CPU model on the session path.
 Hermes connects to
 `http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp`.
