@@ -40,7 +40,8 @@ introspection endpoint. A static token cannot pass either. So
 `incomingAuth` stays `anonymous`, and `config/networkpolicy.yaml` is what
 closes the in-cluster Service `vmcp-mcp-gateway-internal:4483`: it admits
 4483 only from the `envoy-internal` proxy pods (label
-`gateway.envoyproxy.io/owning-gateway-name`) and 8080 only from Prometheus.
+`gateway.envoyproxy.io/owning-gateway-name`) and from Prometheus, which
+scrapes `/metrics` there (nothing listens on 8080).
 A new in-cluster consumer must use the LAN route with the token, not the
 Service. Removing the policy reopens the token bypass.
 
