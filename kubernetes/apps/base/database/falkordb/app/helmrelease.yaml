@@ -35,22 +35,9 @@ spec:
           reloader.stakater.com/auto: "true"
 
         initContainers:
-          # emptyDir volumes are created root-owned; the kubelet's fsGroup walk
-          # sets the GROUP to 1000 and adds group-write, but leaves the OWNER as
-          # root. That is enough to write a file and NOT enough for the browser,
-          # whose token store calls chmod() on the directory itself - and chmod
-          # requires ownership, not write permission. Measured: with the two
-          # emptyDirs mounted but not chowned, login fails with
-          # `EPERM: operation not permitted, chmod '.data'`. Same fix, same
-          # reason as database/cloudnative-pg/pgadmin and downloads/bazarr.
-          #
-          # This is the one container in the pod that is not 1000:1000, which
-          # means kopiur's `SecurityContextCompatible` status condition will no
-          # longer be emitted for this claim. That condition is positive-only
-          # and its absence is NOT a failure signal (AGENTS.md; pgadmin lacks it
-          # for exactly this reason). The real proof that the mover identity
-          # works is a Succeeded snapshot whose stats cover the volume - the
-          # backup identity itself is unchanged by this PR.
+          # emptyDir stays root-owned after fsGroup. The browser chmods the
+          # directory, so an init must chown it. SecurityContextCompatible
+          # stays absent, and that is not a failure. Skill databases.
           fix-permissions:
             image:
               repository: docker.io/library/busybox
@@ -70,91 +57,9 @@ spec:
               repository: docker.io/falkordb/falkordb
               tag: v4.20.7@sha256:13996aa523f0dd283f6bd6df6620b094dcea525452417c4d6ef9bef15dc9998d
 
-            # --- durability, and it is LOAD-BEARING for the backups ---
-            #
-            # kopiur backs this claim up with `copyMethod: Snapshot` - a CSI
-            # block-level VolumeSnapshot with no application hook, i.e.
-            # CRASH-CONSISTENT, exactly like pulling the power cord. Redis
-            # survives that, but only through what it has already fsynced. On
-            # RDB alone the newest durable state is the last completed `save`
-            # point, so a snapshot restores a stale graph while reporting
-            # complete success. MEASURED on this exact image and claim: one
-            # snapshot taken mid-write restored 2174 of 2199 nodes with
-            # `appendonly yes`, and 200 of 2199 with the image's stock
-            # RDB-only durability - a 91% silent loss, with an identical clean
-            # startup log either way. `appendfsync everysec` bounds the loss to
-            # ~1s of writes; a torn AOF tail is handled by Redis's own
-            # `aof-load-truncated yes` default (confirmed live).
-            # docs/backups/falkordb-snapshot-restorability-2026-09-04.md
-            #
-            # The `save` points stay as a second line of defence: they bound AOF
-            # replay time at start and leave a self-contained dump.rdb in the
-            # snapshot.
-            #
-            # Bypass run.sh and exec redis-server directly. run.sh's only other
-            # action with BROWSER=0 is mkdir of the data dir, which already
-            # exists because the PVC is mounted there. The hazard being avoided:
-            # run.sh does `exec redis-server ${REDIS_ARGS}` UNQUOTED, so a
-            # password put through REDIS_ARGS undergoes field splitting and
-            # pathname expansion. A password with spaces/tabs becomes multiple
-            # argv entries (wrong/empty requirepass while REDISCLI_AUTH from
-            # envFrom keeps the full literal - readiness gets NOAUTH forever),
-            # and one containing * or ? can glob-expand. 1Password-generated
-            # secrets commonly include those characters. --requirepass is
-            # double-quoted so the password is one argv entry regardless of
-            # content; $${FALKORDB_ARGS} stays unquoted on purpose because the
-            # image ships it as multiple separate args (MAX_QUEUED_QUERIES 25
-            # TIMEOUT 1000 RESULTSET_SIZE 10000). `exec` so redis-server stays
-            # PID 1 and receives SIGTERM directly. Redis rewrites its process
-            # title before anything can read argv - verified live: /proc/1/cmdline
-            # is `redis-server *:6379`, with no --requirepass and no password.
-            #
-            # Every $${VAR} IS ESCAPED ON PURPOSE - do not "fix" it to a single
-            # $. Flux's postBuild envsubst runs over the entire built
-            # Kustomization output, and this cluster runs
-            # StrictPostBuildSubstitutions=true, so an unescaped shell variable
-            # here reads as an undefined Flux variable and fails the WHOLE
-            # Kustomization - not just this resource. `flate` does NOT catch it:
-            # it substitutes leniently, renders the token as empty and still
-            # exits 0 (measured on this app: 304 passed with the unescaped form
-            # in place). `$${...}` renders to `${...}`, which is what the shell
-            # then expands at start. AGENTS.md UNIQUE STYLES, skill
-            # `flux-substitution`.
-            #
-            # --- --maxmemory: the bound, and why the NUMBER is load-bearing ---
-            #
-            # Without it FalkorDB has no ceiling of its own (`maxmemory 0`,
-            # `QUERY_MEM_CAPACITY 0` are both stock), so nothing stands between
-            # the process and the cgroup limit and it grows until the kernel
-            # kills it. That is the 2026-09-08 (2Gi) and 2026-09-09 (8Gi) shape
-            # of the same failure: raising the limit alone only moves the cliff.
-            # With it, exceeding the ceiling refuses WRITES and keeps serving
-            # READS - re-measured on this image via `COMMAND INFO`:
-            # GRAPH.QUERY carries `write denyoom` (refused above maxmemory),
-            # GRAPH.RO_QUERY carries `readonly` and does not.
-            #
-            # 12gb = 0.75 of the 16Gi limit (Redis parses `gb` as 1024^3), the
-            # same ratio the alerts in prometheusrule.yaml are thresholded
-            # against - move one and you must move both.
-            #
-            # THE CEILING MUST STAY ABOVE THE LIVE DATASET. `maxmemory` is
-            # compared against `used_memory`, which INCLUDES the loaded graph -
-            # re-measured here at used_memory 7,275,413,312 B versus cgroup
-            # anon 7,474,188,288 B - a 2.66% gap - so Redis's accounting really
-            # does see the GraphBLAS matrices. Set it below that and `noeviction` refuses every write
-            # from the moment the AOF finishes loading: the database comes up
-            # looking perfectly healthy and silently rejects all ingestion, with
-            # no way to shed memory to recover. A 6gb value was drafted on
-            # 2026-09-08 when this graph was 1.7 GiB; against today's 6.78 GiB
-            # it would do exactly that. 12gb leaves ~5 GiB of ingestion headroom
-            # above the current dataset and ~4 GiB below the cgroup cap for the
-            # AOF-rewrite fork.
-            #
-            # maxmemory-policy stays `noeviction` and MUST NOT become an
-            # eviction policy. Eviction here does not shed cache - the graph is
-            # a single Redis key, so evicting it deletes millions of the
-            # captain's edges. `noeviction` is what makes hitting the ceiling a
-            # clean error instead of data loss.
+            # AOF is load-bearing: a crash-consistent snapshot restores only
+            # fsynced writes. --maxmemory 12gb, the 16Gi limit, and the alert
+            # ratios move together. Escape every $${VAR}. Skill databases.
             command:
               - /bin/sh
               - -c
@@ -173,24 +78,9 @@ spec:
                   name: falkordb-secret
 
             env:
-              # The browser IS now deployed - as the `browser` container below,
-              # not from inside this one. Keeping this at "0" is not a leftover
-              # and does not contradict that: `run.sh` is what reads BROWSER,
-              # and the command above deliberately bypasses run.sh entirely, so
-              # the value is inert TODAY. It stays as a guard for tomorrow. If
-              # the custom command were ever reverted to the image default,
-              # run.sh would background a second browser inside this container
-              # that would race the sidecar for :3000, and the loser's error is
-              # a bind failure in a process nothing is probing. "0" makes that
-              # reversion fail safe.
-              #
-              # Running the browser as its own container rather than as
-              # run.sh's background job is the deliberate choice: it keeps
-              # redis-server as PID 1 receiving SIGTERM directly (the whole
-              # point of `exec` above), it stops a browser crash from being
-              # invisible behind a healthy database, and it scopes the browser's
-              # writable mounts and resource limits to the browser alone.
-              # run.sh's `&` form has none of those properties.
+              # BROWSER=0 is inert while run.sh is bypassed. Leave it: reverting
+              # to the image command would start a second browser on :3000.
+              # Skill databases.
               BROWSER: "0"
 
             probes:
@@ -206,23 +96,9 @@ spec:
                   periodSeconds: 30
                   timeoutSeconds: 5
                   failureThreshold: 5
-              # Readiness runs a real command through the graph module, so a
-              # server that is listening but has not loaded falkordb.so does
-              # not read as Ready.
-              #
-              # `-e` is load-bearing, not decoration: bare redis-cli exits 0
-              # on an ERR/NOAUTH/etc reply, the same as on success, so this
-              # probe could never fail except by TCP - which tcpSocket
-              # liveness/startup already cover - and a bad credential
-              # rotation through the ExternalSecret would leave the pod
-              # Ready forever while every real client got NOAUTH. Measured
-              # live: `redis-cli -e NOSUCHCOMMAND_XYZ` and an unauthenticated
-              # `redis-cli -e GRAPH.LIST` both now exit 1; the real
-              # authenticated `redis-cli -e GRAPH.LIST` still exits 0. This
-              # is readiness only, not liveness, so a failure here can only
-              # pull the pod out of the Service's endpoints - it cannot
-              # trigger a restart, so it cannot itself cause an outage the
-              # way an over-strict liveness probe would.
+              # Readiness is redis-cli -e GRAPH.LIST. Without -e, redis-cli
+              # exits 0 on NOAUTH and ERR. Readiness only: it does not restart
+              # the pod. Skill databases.
               readiness:
                 enabled: true
                 custom: true
@@ -252,66 +128,9 @@ spec:
                   - ALL
 
             resources:
-              # --- sized against the MEASURED dataset, 2026-09-09 ---
-              #
-              # These three numbers are one design and must move together:
-              # request = measured resting set, --maxmemory (above) = 0.75 of
-              # the limit, limit = ceiling + fork headroom. Changing the limit
-              # alone silently moves where writes are refused.
-              #
-              # The 8Gi limit that preceded this was not misconfigured, it was
-              # OUTGROWN. On 2026-09-09 00:44-00:45Z an ingestion roughly
-              # quadrupled plc_code_graph - 8,195,288 -> 35,997,296 edges - in
-              # about two minutes (working set 1.80 -> 5.53 GiB across two
-              # scrapes, having been flat at 1.80 GiB for the preceding 80
-              # minutes). Measured on the restored pod once it was serving
-              # again: `GRAPH.MEMORY USAGE` total_graph_sz_mb 6743,
-              # `INFO memory` used_memory 6.78 GiB / rss 6.99 GiB. So the graph
-              # ALONE now needs ~6.6 GiB and the process ~7.0 GiB.
-              #
-              # Why 8Gi could not survive that, and why the crash loop was
-              # self-perpetuating rather than transient: every boot reloaded the
-              # graph, then ~15s later Redis auto-triggered an AOF rewrite
-              # (`Starting automatic rewriting of AOF on 102% growth` - the
-              # stock auto-aof-rewrite-percentage 100, guaranteed to be met
-              # after an ingestion that large), forked, and the transient on top
-              # of a ~7 GiB resident set crossed 8 GiB. Because the rewrite
-              # never completed, the AOF base was never refreshed, so the very
-              # same trigger was armed again on the next boot. Measured cgroup
-              # peaks over that loop: 7.45-7.76 GiB against an 8.0 GiB cap.
-              # It could not have recovered on its own.
-              #
-              # 16Gi limit. Resting 7.0 GiB plus a worst-case fork - Redis
-              # documents CoW as bounded above by a full duplication of the
-              # resident set - is ~14 GiB, and 16Gi covers that with slack. The
-              # observed cost is far smaller (`Fork CoW for AOF rewrite: peak
-              # 82 MB` for the rewrite that completed once this limit was live,
-              # 547 MB for an earlier one taken under active ingestion), so this
-              # is deliberately generous against the documented bound rather
-              # than tuned to the happy path.
-              #
-              # Affordable, checked before the raise rather than assumed:
-              # talos-2 holds 93,604Mi allocatable against 69,096Mi of requests
-              # (73%) and 25.8 GiB of ACTUAL use (28%), i.e. ~65 GiB genuinely
-              # free. All three nodes have >=17 GiB of unrequested memory, so
-              # the 7Gi request below is schedulable anywhere this RWO claim can
-              # follow it, not just on talos-2.
-              #
-              # Request 7Gi = the measured resting RSS. It is a hard,
-              # unshareable reservation and takes talos-2 to ~79% of memory
-              # requests, which is the top of this cluster's normal band - but a
-              # 2Gi request beside a 7 GiB working set is exactly what lets the
-              # scheduler place this pod somewhere it does not fit, and that
-              # understatement is what the previous entry here already warned
-              # about at 256Mi. Reserve what it actually holds.
-              #
-              # NOT changed, deliberately: auto-aof-rewrite-percentage. Making
-              # rewrites rarer treats the fork as the fault, but the fork was
-              # only ever the trigger - with adequate headroom the same rewrite
-              # completed in 10s for 82 MB of CoW. Raising it would also grow
-              # the AOF and lengthen an already 22s replay, for no gain against
-              # the real constraint, which is dataset size. Disk is not the
-              # pressure either: 1.23 GiB used of 19.52 GiB.
+              # Request 7Gi is the resting set. The 16Gi limit and --maxmemory
+              # 12gb move with it. Do not raise auto-aof-rewrite-percentage to
+              # hide the fork. Skill databases.
               requests:
                 cpu: 50m
                 memory: 7Gi

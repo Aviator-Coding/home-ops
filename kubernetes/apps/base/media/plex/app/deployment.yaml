@@ -41,8 +41,7 @@ spec:
           # pod NotReady, drop it from the endpoints and remove the target from
           # Prometheus entirely: `up` would not go to 0, it would CEASE TO EXIST,
           # and TargetDown could no longer fire. That trades an honest alert for
-          # silence. Reasoning and the measured evidence:
-          # docs/monitoring/exporter-endpoint-repair-2026-09-20.md
+          # silence. Skill observability.
           startupProbe:
             httpGet:
               path: /

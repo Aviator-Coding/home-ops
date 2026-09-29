@@ -1,27 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
 #
-# Recency-bounded replacements for two kube-prometheus-stack rules, switched
-# off via `defaultRules.disabled` in ../helmrelease.yaml. Alert name, severity,
-# `for` and the upstream runbook_url are kept deliberately: only the latch is
-# removed, so the captain's muscle memory for these names still works.
-#
-# Both upstream expressions compare a kube-state-metrics gauge against a
-# threshold with no recency clause, so they keep firing for exactly as long as
-# the dead object behind them is retained by the API server. Measured live on
-# 2026-09-15, these two were the largest non-null-routed contributors to a
-# Pushover channel doing 84 notifications a day:
-#
-#   KubeJobFailed         4 Jobs, ages 13.3h / 13.3h / 32.6h / 43.8h
-#                         system/fstrim-29822640 had 2 successes and 1 failed
-#                         pod - the work completed - and had been paging 32h.
-#   KubeContainerWaiting  2 pods, both phase=Failed / UnexpectedAdmissionError,
-#                         10 days old, replaced long ago by healthy pods.
-#
-# Neither of these is a silence: the failed Job objects and terminal pods stay
-# exactly where they are and stay queryable. What changes is that a page means
-# "this happened recently", which is the only version of the statement a human
-# can act on.
+# Recency replacements for KubeJobFailed and KubeContainerWaiting (the chart
+# copies stay disabled). Names, severity, for, and runbook_url stay.
+# Skill observability.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

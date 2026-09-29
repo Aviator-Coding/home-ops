@@ -1,23 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
 #
-# Replacement for kube-prometheus-stack's KubeAggregatedAPIErrors, switched off
-# via `defaultRules.disabled` in ../helmrelease.yaml.
-#
-# Upstream uses increase(...[1m]). This Prometheus scrapes at 1m
-# (prometheus.prometheusSpec.scrapeInterval), and rate()/increase() need two
-# samples inside the window, so a [1m] window can never return a series -
-# the rule was syntactically valid, listed as healthy, and structurally
-# incapable of firing. Measured 2026-09-15:
-#
-#   increase(aggregator_unavailable_apiservice_total{job="apiserver"}[1m]) >= 0
-#     -> 0 series
-#   increase(aggregator_unavailable_apiservice_total{job="apiserver"}[5m]) >= 0
-#     -> 4 series
-#
-# [5m] is used rather than the [3m] floor so the rule tolerates a missed scrape
-# without collapsing back to two samples. Over the 24h to 2026-09-15 the [5m]
-# value never exceeded 0, so widening the window adds no notification volume.
+# Replacement for the chart's KubeAggregatedAPIErrors (disabled there).
+# increase() window is [5m]: [1m] returns no series at a 1m scrape.
+# Skill observability.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
