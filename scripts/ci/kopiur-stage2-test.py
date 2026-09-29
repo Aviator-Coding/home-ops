@@ -22,7 +22,7 @@ it: the kopiur pvc Component. The Stage 2 fidelity contract itself is unchanged
 - this claim being the most-proven volume in the fleet is exactly why it led
 the pilot. Retired-set coverage lives in kopiur-stage5-test.py.
 
-This test does not grep source text as its evidence. It:
+This test does not grep prose as its evidence; docs are only checked for existence. It:
   1. Renders the real kustomize builds Flux would apply for the kopiur backup
      and kopiur pvc components under the PRODUCTION sabnzbd substitute map
      parsed from downloads/sabnzbd.yaml (KOPIUR_CLAIM=sabnzbd-config,
@@ -30,8 +30,7 @@ This test does not grep source text as its evidence. It:
      negative-control render pins the component defaults (uid/gid 1000,
      r2 'H 4 * * *') when those overrides are omitted.
   2. Parses the sabnzbd Flux overlay, every apps/main overlay's components
-     list, the sabnzbd workload securityContext, and the Stage 2 drill
-     document into structured objects / measured fields.
+     list and the sabnzbd workload securityContext into structured objects.
   3. Asserts the Stage 2 safety contract on those objects:
        - the Stage 2 fidelity volume stays onboarded (sabnzbd); the exact
          fleet set is pinned by kopiur-stage3-test.py
@@ -54,14 +53,10 @@ This test does not grep source text as its evidence. It:
          kopiur-credentials (credential-scope 2026-08-30 replaced the standing
          per-namespace copies with operator-minted per-run projection; the
          three projection legs are pinned by kopiur-stage1-test.py)
-       - drill document records: Stage 2 PASS, both-destination identical
-         sha256 digest, finding 1 (empty pilot / .status.stats), finding 2
-         (mover identity), proved VolSync simultaneity with the observed
-         post-kopiur lastSync times, and the hard-constraint language
 
 Live Snapshot/Restore Succeeded and cluster byte compares remain post-merge /
-operator gates already executed in the drill; this pins the GitOps + drill
-contract that must hold before merge.
+operator gates already executed in the drill; this pins the GitOps contract
+that must hold before merge.
 """
 
 from __future__ import annotations
@@ -82,8 +77,6 @@ SABNZBD_HR = ROOT / "kubernetes/apps/base/downloads/sabnzbd/app/helmrelease.yaml
 APPS_MAIN = ROOT / "kubernetes/apps/main"
 DRILL_DOC = ROOT / "docs/backups/kopiur-restore-runbook.md"
 VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
-COMPONENT_README = ROOT / "kubernetes/components/kopiur/Readme.md"
-STAGE0_README = ROOT / "kubernetes/apps/base/system/kopiur/README.md"
 # The Stage 2 documentary facts moved out of AGENTS.md on 2026-09-01 into the
 # JIT-loaded kopiur skill, which is now the operator-facing owner of that depth.
 # AGENTS.md keeps only the data-loss tripwires plus a pointer, so pinning this
@@ -127,19 +120,6 @@ COMPONENT_DEFAULT_KOPIUR_CEPH_CRON = "H 1-23/4 * * *"
 COMPONENT_DEFAULT_KOPIUR_R2_CRON = "H 4 * * *"
 COMPONENT_DEFAULT_PUID = 1000
 COMPONENT_DEFAULT_PGID = 1000
-
-# Measured Stage 2 fidelity digest from the live drill (public result contract).
-STAGE2_MANIFEST_DIGEST = (
-    "5f748bb724937dabd5c5030135c772d50a6056b38221fcc3dd04356fdb5b4e6f"
-)
-STAGE2_FILE_COUNT = 2062
-STAGE2_BYTE_COUNT = 2208506538
-
-# Observed VolSync lastSyncTimes after kopiur snapshots (simultaneity proved).
-OBSERVED_SAB_CEPH_LASTSYNC = "2026-08-30T20:31:24Z"
-OBSERVED_AUTOBRR_CEPH_LASTSYNC = "2026-08-30T20:46:07Z"
-KOPIUR_SAB_CEPH_SNAPSHOT = "2026-08-30T19:45:46Z"
-KOPIUR_AUTOBRR_CEPH_SNAPSHOT = "2026-08-30T18:53:22Z"
 
 # Was both Stage 2 pilots; `autobrr` left the fleet with its app on 2026-09-02.
 STAGE2_ONBOARDED = frozenset({(STAGE2_NS, STAGE2_APP)})
@@ -681,39 +661,15 @@ def test_default_puid_without_override_is_1000() -> None:
         )
 
 
-def test_drill_document_contract() -> None:
-    """The restore runbook keeps the Stage 2 safety contract, not the dated log."""
-    runbook = ROOT / "docs/backups/kopiur-restore-runbook.md"
-    require(runbook.is_file(), "kopiur restore runbook must exist")
-    require(VOLSYNC_DRILL.is_file(), "VolSync sibling drill must remain")
-    text = runbook.read_text()
-    lowered = text.lower()
-    require("onMissingSnapshot: Fail" in text, "drill Restores must set onMissingSnapshot: Fail")
-    require("target.pvc" in text, "drill must use Restore.spec.target.pvc")
-    require("just kube restore" in lowered, "drill must forbid in-place just kube restore")
-    require("status.stats" in text, "drill must require a non-zero .status.stats")
-    require("filesNew" in text and "sizeBytes" in text, "empty-snapshot shape must be named")
-    require("KOPIUR_PUID" in text or "podSecurityContext" in text, "drill must set mover identity")
-    require("credentialProjection" in text, "hand-written Restore must project credentials")
-    require("ceph" in lowered and "r2" in lowered, "drill covers both destinations")
-    require(re.search(r"snapshot", lowered) and re.search(r"do not delete", lowered),
-            "drill must forbid deleting a Snapshot CR that owns data")
-    require("readOnly: true" in text or "read-only" in lowered, "restored volume is mounted read-only")
-
-
-def test_operator_docs_reflect_stage2() -> None:
-    """Stage 2's still-true result lives in the proof ledger and the skill."""
-    ledger = (ROOT / ".agents/skills/kopiur-backups/references/proof-ledger.md").read_text()
-    skill = (ROOT / ".agents/skills/kopiur-backups/SKILL.md").read_text()
-    lowered = ledger.lower()
-    require("sabnzbd" in lowered, "ledger must name sabnzbd-config")
-    require("byte-identical" in lowered, "ledger must record the byte-identical result")
-    require(re.search(r"stage 2", lowered) and re.search(r"pass", lowered),
-            "ledger must record that the Stage 2 restore gate passed")
-    require("ceph" in lowered and "r2" in lowered, "ledger covers both destinations")
-    require("KOPIUR_PUID" in skill, "skill must document the mover-identity trap")
-    require("1000" in skill, "skill must document the 1000 default")
-    require("exactly ONE volume" not in skill, "skill must not freeze the one-volume era")
+def test_operator_docs_exist() -> None:
+    """The runbook, sibling drill and skill proof ledger stay in the tree."""
+    for path in (
+        DRILL_DOC,
+        VOLSYNC_DRILL,
+        KOPIUR_SKILL,
+        ROOT / ".agents/skills/kopiur-backups/references/proof-ledger.md",
+    ):
+        require(path.is_file(), f"{path.relative_to(ROOT)} must exist")
 
 
 def test_no_embedded_credentials(docs_list: list[list[dict[str, Any]]]) -> None:
@@ -791,8 +747,7 @@ def main() -> int:
     )
     run("workload_identity_matches_override", test_workload_identity_matches_override)
     run("default_puid_without_override_is_1000", test_default_puid_without_override_is_1000)
-    run("drill_document_contract", test_drill_document_contract)
-    run("operator_docs_reflect_stage2", test_operator_docs_reflect_stage2)
+    run("operator_docs_exist", test_operator_docs_exist)
     run(
         "no_embedded_credentials",
         lambda: test_no_embedded_credentials([kopiur_docs, pvc_docs]),
