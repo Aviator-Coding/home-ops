@@ -3,19 +3,81 @@ name: intel-gpu
 description: "Read before any change touching the cluster's Intel GPUs: generic-device-plugin groups or mountPaths, the devic.es/b70 and devic.es/b70-vaapi resources, gpu.intel.com/xe, any workload that transcodes or runs inference on a GPU, or a Grafana panel/alert over GPU metrics. Covers the DRM device-node rename that silently kills VA-API and what GPU telemetry Prometheus does and does not have."
 ---
 
-# Intel GPUs: device plugins, VA-API and telemetry
+# Intel GPUs: devices, VA-API, telemetry
 
-Relocated verbatim from `AGENTS.md` on 2026-09-01 so it loads only when this subsystem is in play.
-The text below is unchanged; only line breaks were inserted. `AGENTS.md` keeps a one-sentence pointer.
-Add new findings here or to the owning document, not back into `AGENTS.md` - see its
-"Maintaining this file" section for the rule.
+One discrete Arc Pro B70 on talos-3 (PCI `0000:03:00.0`, `8086:e223`) plus
+a Raptor Lake iGPU (`0xa7a0`) on each node. llama.cpp flags, the NaN
+probe, and the embedding rate curve are skill `b70-llm-serving`. This
+skill is the device and the metrics.
 
-- **NEVER rename a DRM device node with `generic-device-plugin`'s `mountPath`, and never ship a GPU change without running the VA-API check.** The `b70` group remaps the Arc B70 to `card0`/`renderD128`; that rename is fatal to VA-API, because libdrm ignores the path you pass, `fstat()`s the fd, reads `/sys/dev/char/<major>:<minor>/uevent` and reopens the canonical `DEVNAME` it finds there (`dri/renderD129`) - a path the container does not have. `vaGetDisplayDRM()` then fails before any driver loads. Level Zero (vllm) opens whatever `/dev/dri/render*` exists and is unaffected, so **the AI stack stays green while transcoding is completely dead**; that asymmetry hid a total 3-day Tdarr outage (2026-08-26, PR #1443). VA-API consumers must use `devic.es/b70-vaapi`, which exposes the same card under its kernel names. Two related traps in the same config: its device IDs are `sha1(count + every host path in the group)`, so **adding a path to an existing group changes all its IDs and invalidates kubelet's live allocations** for pods holding that resource (add a new group instead); and the config is a `subPath` mount, which kubelet never refreshes, so the `configMapGenerator` hash must stay enabled or a config-only edit is inert until someone restarts the DaemonSet by hand. Allocatable capacity is not proof that transcoding works - verification commands: `docs/media-stack.md` "Verifying VA-API after a GPU change"; mechanism and evidence: `docs/ai-gpu-changelog.md` (2026-08-29).
+## Tripwires
 
-- **No xpu-smi/level-zero/DCGM-equivalent GPU exporter is deployed, so per-engine busy %, VRAM utilization, and clocks are not queryable in Prometheus for either Intel GPU.** Verified live 2026-08-26 while building `ai/gpu-node-dashboard`. What does exist: the discrete Arc B70 (talos-3 only, `devic.es/b70`) surfaces a kernel `xe`-driver hwmon chip (`node_hwmon_chip_names{chip_name="xe"}`, chip id `0000:02:01_0_0000:03:00_0`) with `temp2`=package/`temp3`=VRAM (`node_hwmon_temp_celsius`), `power1` cap/crit (`node_hwmon_power_cap_watt`/`_crit_watt`, static config values, not live draw), `fan1` RPM (`node_hwmon_fan_rpm`), and energy counters `energy1`=card/`energy2`=package (`node_hwmon_energy_joule_total`, `rate()` them for live watts - there is no direct power-draw gauge). The fleet iGPU (`gpu.intel.com/xe`, on-die, all 3 nodes) has **no dedicated hwmon chip at all** - only kube-state-metrics' device-plugin `kube_node_status_allocatable`/`kube_pod_container_resource_requests{resource="gpu_intel_com_xe"}` show allocation/usage, no thermal or utilization signal. Dashboard and verified panel list: `kubernetes/apps/base/ai/gpu-node-dashboard/app/gpu-node.json`.
+1. **Never rename a DRM node with `generic-device-plugin` `mountPath`.**
+   The `b70` group exposes the card as `card0` / `renderD128` for Level
+   Zero. libdrm ignores that path, `fstat`s the fd, and reopens the
+   kernel `DEVNAME` (`dri/renderD129`). VA-API then fails before a
+   driver loads. Level Zero stays green, so inference looks healthy
+   while transcoding is dead. VA-API consumers use `devic.es/b70-vaapi`
+   (`card1` / `renderD129`). Allocatable capacity is not proof.
+   [devices.md](references/devices.md)
+2. **Device IDs are `sha1(count + every host path in the group)`.**
+   Adding a path to `b70` changes all 99 IDs and drops kubelet's live
+   allocations. Add a group instead of editing that one.
+3. **The device-plugin config is a `subPath` mount.** Kubelet never
+   refreshes it. The `configMapGenerator` name-suffix hash in
+   `kubernetes/apps/base/system/generic-device-plugin/app/kustomization.yaml`
+   must stay enabled. A comment-only edit of `config/config.yaml` still
+   rolls the DaemonSet. Do not touch that file to tidy prose.
+4. **No per-engine utilization exporter.** Prometheus has the B70 `xe`
+   hwmon chip (temps, fan, energy counters) and kube-state-metrics
+   allocation for the iGPU. The iGPU has no hwmon chip. There is no
+   VRAM-utilization gauge and no `xpu-smi` equivalent.
+   [telemetry.md](references/telemetry.md)
+5. **Do not migrate GPU scheduling to DRA, and never via
+   `adminAccess: true`.** The Intel driver README says it is beta and
+   not for production, and it cannot share one GPU (upstream issue #79,
+   strict 1-to-1 or SR-IOV). `vllm` and `tdarr-node` both need the one
+   B70. Reopen only when the CAUTION line is gone **and** #79 ships
+   `allowMultipleAllocation: true`. [dra.md](references/dra.md)
+6. **`allowIDs: "0xa7a0"` is already set** on the Intel GPU plugin
+   (`kubernetes/apps/base/system/intel-device-plugin-operator/gpu/helmrelease.yaml`).
+   It scopes `gpu.intel.com/xe` to the iGPU. Do not re-add it, and do
+   not drop it while the B70 is also an `xe` device.
+7. **Do not buy a second B70** on the current recommendation. The buy-if
+   is a >32 GB MoE in production **and** talos-3 seating that card at
+   PCIe x8 or wider, or llm-scaler#382 closing so vLLM-XPU prefill is a
+   hard requirement. The chassis question (second OCuLink or x8/x8
+   bifurcation) is still open. [second-card.md](references/second-card.md)
 
-- **The B70 now has TWO tenants and no compute partition, so driving the embedding endpoint hard throttles the captain's live chat model.** Since 2026-09-15 `ai/embedding-gpu` (llama.cpp SYCL, Qwen3-Embedding-0.6B) shares the card with `ai/vllm`. `devic.es/b70` `count: 99` is a scheduling token, not a fence, and no knob isolates compute - so this is a rate decision, not a config one. Measured at batch 32: **0.5 req/s leaves chat at 99% of idle** (backfill of 154,715 nodes ~2.6h), 1 req/s costs 30%, 4 req/s costs 84%, and an always-full queue collapses chat ~45x. Degradation is fully reversible and idle costs nothing measurable. Throttle by REQUEST RATE, not concurrency - at equal throughput a saturated queue cost chat 7x more than a paced one. Card is **82.4% used** (26909 of 32656 MiB held by the LLM), not mostly free; do not repeat the retracted reading that `--gpu-memory-utilization=0.20` describes the chat server - that string belongs to the `replicas: 0` `vllm-embed` controller and llama.cpp has no such flag. Curve, VRAM arithmetic and the CPU server that deliberately stays for ToolHive: `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md`.
+## Where things live
 
-- **Both B70 llama.cpp workloads inherit `--cache-ram`'s 8192 MiB HOST-RAM prompt-cache default, and no `limits.memory` can bound it** - llama.cpp's only self-limiting guard is a `bad_alloc` handler that a cgroup limit makes structurally unreachable (the kernel SIGKILLs at page-fault time, so `malloc` never fails), which is why `ai/embedding-gpu` OOMKilled 18x at 2Gi and again at 4Gi before the cause was found. It pins **`--cache-ram 0`**, free there because the cache is **write-only** on an embedding server (reads are gated on `SERVER_TASK_TYPE_COMPLETION`, the `--cache-idle-slots` writer is not), each entry costing the document's full KV state (112 KiB/token, so ~1200 docs fill 4Gi). `ai/vllm` shares the image and must **not** get the same fix - prefix reuse is real for chat (mean `f_keep` 0.975 over 1,560 slot selections), so it needs a bounded non-zero value: it pins `--cache-ram 4096` plus `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072` (`docs/ai/vllm-host-prompt-cache.md`). Never drop either: `--cache-ram`'s absence silently restores 8192 MiB with no error and no CI signal (gates: `scripts/ci/embedding-gpu-prompt-cache-test.py`, `scripts/ci/vllm-prompt-cache-test.py`). **But most of `ai/vllm`'s climb (+6,485 MiB/day to 39,531 MiB, and again at +3.5 GiB/day after that fix) was a SECOND leak that the cache bound cannot touch:** llama.cpp's SYCL flash-attention keeps a never-evicted cache of compiled oneDNN SDPA kernels, one per new (prefill ubatch length, KV length) shape, which `q8_0` KV hits on every prefill chunk of 32+ tokens. `ai/vllm` therefore pins **`GGML_SYCL_FA_ONEDNN: "0"`** (accepted cost: ~30% slower long prefill). It must be numeric, because ggml parses it with `sscanf("%u")` and `"false"`/`"off"` silently leave the leak on. Keep it until a pinned tag bounds that cache, and check on every image bump that the variable still exists, since a rename is invisible to CI (gate: `scripts/ci/vllm-fa-onednn-test.py`; runtime detector: `VLLMMemoryRetainedAboveBound`; evidence and post-merge checks: `docs/ai/vllm-onednn-sdpa-leak.md`). Mechanism, the measured curve and the retraction of the "embedding has no KV cache" claim that misdirected the first two fixes: `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md` section 10.
+| What | Path |
+|---|---|
+| `devic.es/b70` and `devic.es/b70-vaapi` | `kubernetes/apps/base/system/generic-device-plugin/app/config/config.yaml` |
+| iGPU plugin (`allowIDs`) | `kubernetes/apps/base/system/intel-device-plugin-operator/gpu/helmrelease.yaml` |
+| B70 hwmon dashboard | `kubernetes/apps/base/ai/gpu-node-dashboard/app/gpu-node.json` |
+| iGPU loss alert | `kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/gpu-loss.yaml` |
+| VA-API check after a GPU change | `docs/media-stack.md` (skill `tdarr-transcoding`) |
+| B70 dock power order, `pcie_port_pm=off` | skill `talos-nodes` |
 
-- **An embedding endpoint can return vectors of pure NaN while every signal is green, and the reflexive probe CANNOT detect it.** On 2026-09-16 `ai/embedding-gpu` served 202,582 tasks with `/health` ok, clean slot releases and zero errors/warnings while every returned vector was 1024x `0xFFC00000` - and it was reported healthy **twice** because the check used was `sum(1 for x in v if x != 0)`, which scores a null-filled vector a perfect 1024/1024 (`None != 0` is True in Python, and llama.cpp renders a non-finite float as bare JSON `null`). The captain's backfill stored nothing for hours against a server that believed it was working. So: **never verify an embedding endpoint by response shape, length or non-zero count** - assert the values are finite and non-zero (`not any(x is None ...)`, `all(math.isfinite(...))`, `any(x != 0 ...)`), and prove the assertion can FAIL on a null-filled vector before trusting a green run; a check that cannot fail manufactures confidence. Readiness/liveness now embed a fixed string and assert on values (gate: `scripts/ci/embedding-values-test.py`, which executes the shipped probe and is mutation-proven to go red). A full local bisect of the pinned commit exonerated **`--kv-unified`, `--parallel 2` and `--cache-ram 0`** across ~1,850 requests - do not "fix" this by reverting `--kv-unified`, which alone halves `n_ctx_slot` to 256 and is a capability regression; the cached GGUF is also byte-identical, so the defect is GPU-side and still unattributed. **Operator recovery is a plain pod restart**: measured 2026-09-17, the pod Flux rolled on the PR #1711 merge (00:56Z) came up returning 1024-dim unit-norm vectors with zero nulls/NaNs/zero-components, distinct per input - the fault is accumulated runtime state, not present from boot. The liveness probe already recovered this once in production before that merge, on day one of the migration: during the captain's initial backfill the pod restarted once at 01:20:04Z with `exitCode 0` / `reason Completed` (a probe-driven `SIGTERM`, not an OOMKill, which would read `137`/`OOMKilled`) - that restarted pod then ran healthy for roughly 23 minutes under load. The full backfill (154,715 of 154,715 nodes, GPU `batch_size=4` plus CPU fallback, zero GPU failures, ~90 minutes) is the measured-safe operating point; **larger batch sizes reportedly OOM the pod, a separate, still-not-understood fault distinct from both the NaN drift and the `--cache-ram` leak.** Evidence, the bisect table and the two upstream issues that do and do not apply: `docs/ai/embedder-gpu-migration-analysis-2026-09-15.md` section 11.
+Those system and monitoring files are not this domain's to tidy. The
+invariants above are why a comment edit there is not free.
+
+## Procedures
+
+- Device groups and the VA-API check: [devices.md](references/devices.md).
+- What a panel can query: [telemetry.md](references/telemetry.md).
+- Why DRA stays unshipped: [dra.md](references/dra.md).
+- Second card: [second-card.md](references/second-card.md).
+- Serving baseline the device was sized around: [baseline.md](references/baseline.md).
+
+## Verify
+
+- After any device-plugin or kernel change, run the VA-API check in
+  `docs/media-stack.md` on `tdarr-node`. `kubectl describe node` showing
+  `devic.es/b70` allocatable is the Level Zero path only.
+- `scripts/ci/igpu-xe-allowids-test.py` pins `allowIDs` and the consumer
+  maps. A retired GPU app must leave that map in the same change.
+- Read-only: B70 energy is
+  `rate(node_hwmon_energy_joule_total{instance="talos-3", chip="0000:02:01_0_0000:03:00_0", sensor="energy1"}[5m])`.
+  Absence of a VRAM gauge is expected.
