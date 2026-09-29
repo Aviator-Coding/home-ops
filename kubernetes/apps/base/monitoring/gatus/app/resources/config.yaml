@@ -140,7 +140,6 @@ metrics: true
 ui:
   title: Status | Gatus
   header: Status
-  # logo: https://avatars.githubusercontent.com/u/213795
   link: https://github.com/Aviator-Coding
   buttons:
     - name: Github
