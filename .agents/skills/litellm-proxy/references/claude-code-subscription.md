@@ -87,7 +87,7 @@ Consequences:
   retention). Never edit or zero those records to make the number clean.
 - `LiteLLMClaudeCodeSubscriptionSpendRegression` fires on
   `increase(litellm_spend_metric_total{api_key_alias="claude-code-subscription"}[1h]) > 0`.
-  That counter increments per logged call, so any new nonzero means a price
+  That counter accumulates each logged call's cost, so any increase means a price
   field regressed or an unpriced model joined the allow-list.
 
 ## The key's allow-list (CI-pinned)
@@ -96,8 +96,10 @@ Only the four pass-through CRs plus `embedding-local` (credential-less and
 zero-priced). Never a metered route (`claude-sonnet-5-metered`,
 `claude-opus-5-metered`, `claude-fable-5`) and never `auto`: that would make
 subscription traffic a second door into household billing.
-`scripts/ci/litellm-claude-code-subscription-test.py` asserts every
-allow-listed Anthropic name carries the placeholder and all seven zeros.
+`scripts/ci/litellm-claude-code-subscription-test.py` asserts the allow-list
+names no metered model, and checks the placeholder and all seven zeros for each
+name in its `SUBSCRIPTION_MODELS` constant, so a new family must be added there.
+No other key may allow-list a pass-through model.
 None of these models may appear in a fallback chain (a fallback there would
 also fail every caller without a token).
 
@@ -118,7 +120,7 @@ natural name outright is the only safe shape.
 1. Copy a pass-through CR; change `metadata.name`, `modelName` and
    `params.model`. Keep the placeholder `apiKey` and all seven zeros.
 2. Add it to `models/kustomization.yaml`, the key's `models`, and
-   `public_model_groups`.
+   `public_model_groups`, and the name to `SUBSCRIPTION_MODELS` in the CI test.
 3. Resolve the id: `GET https://api.anthropic.com/v1/models` with the pod's
    key lists ids but not which one a bare family alias means. Cross-check the
    installed CLI's baked-in catalog

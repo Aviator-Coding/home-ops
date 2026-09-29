@@ -67,7 +67,8 @@ LiteLLM wants a **list** in the key's (or team's)
 `map[string]string`, and a string value is iterated as characters and fails
 closed. The top-level `/key/generate` `allowed_passthrough_routes` field is
 Enterprise-gated on this OSS image. The same list inside `metadata` is not
-gated, but only a proxy admin can set it.
+gated, but only a proxy admin can set it. A granted key also needs the target
+model on its `models` list, because the model check still applies.
 
 ## The one exception: `jev-decisions` (captain decision `jev-door-grant`)
 

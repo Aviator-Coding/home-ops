@@ -39,8 +39,9 @@ Retrieval runbook (UI, API, SQL):
   cost history goes with the content. The durable `LiteLLM_Daily*Spend`
   rollups (Admin UI Usage, `/user/daily/activity`) are untouched. The
   last-30d SQL views can lose their oldest day at the boundary; accepted.
-- Optional knobs, all off: `maximum_spend_logs_cleanup_cron`,
-  `use_spend_logs_partitioning` (needs the table converted first).
+- `maximum_autorouter_session_retention_period` also schedules the pruner.
+  Optional knobs, all off: `maximum_spend_logs_cleanup_cron`,
+  `use_spend_logs_partitioning` (needs upstream `partition_spend_logs.sql` first).
 
 ## Confidentiality
 
@@ -67,8 +68,8 @@ Retrieval runbook (UI, API, SQL):
   Anthropic row); it is `null` when the provider reported cost (OpenRouter:
   see `response.usage.cost`).
 - Per model/consumer/day: Admin UI Usage (`/user/daily/activity`, rollups).
-  Top models/keys: `/global/spend/models`, `/keys`, `/provider` (30-day views).
-- Prometheus: `litellm_spend_metric_total`, `litellm_{input,output,total}_tokens_metric`;
+  Top keys/providers: `/global/spend/keys`, `/global/spend/provider` (30-day views).
+- Prometheus: `litellm_spend_metric_total`, `litellm_{input,output,total}_tokens_metric_total`;
   these series appear only after the first request since the last restart.
 - Local spend is not money: only `qwen3.6-35b-a3b` is priced (the demo
   fixture), and its rows dominate the headline total. Old rows keep the

@@ -80,7 +80,8 @@ Traps these encode (each found by measurement):
    factory (`litellm_deployment_cooled_down_total`,
    `litellm_llm_api_failed_requests_metric_total`) do appear when their event
    happens, which proves the naming. Do not "repair" these alerts. Metric
-   names need the `_total` suffix.
+   names need the `_total` suffix. `LiteLLMHighFailureRate`'s
+   `litellm_proxy_failed_requests_metric_total` is sparse the same way.
 2. **`litellm_deployment_state` is latched**: set to 1 on any failure, back to
    0 only on a later success. Alone it would alert forever after one blip on
    an idle deployment; the `and on (model_id)` failure-rate guard makes it

@@ -113,5 +113,8 @@ stores share one table, so one model and width.
 - The `vector` extension exists only because the shared postgres-17 image
   (`tensorchord/cloudnative-pgvecto.rs`) ships pgvector; an image swap there
   breaks the next db-init.
+- `EMBEDDING__MODEL` keeps the `openai/` prefix so the server embeds through
+  this proxy with its own key (never `openrouter/`). No HTTPRoute: the write
+  API uses one shared bearer key.
 - The server's `/health` is static (process up, not DB up). A DB problem shows
   as 500s on search, logged by the proxy as failed `avector_store_search`.

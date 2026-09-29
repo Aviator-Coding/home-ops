@@ -16,7 +16,8 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
   `docs/branch-protection.md`), and "Allow GitHub Actions to create and approve
   pull requests" stays off.
 - `on_model_failure: notice`: a GPU outage posts "AI review could not run"
-  instead of a red check.
+  instead of a red check. That notice carries a `request_changes` verdict, so
+  it stays green only while `fail_on_request_changes` is false.
 
 ## Cannot spend money
 
@@ -29,7 +30,8 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
   pinned off explicitly so an upstream default flip cannot widen a job that
   holds `pull-requests: write`.
 - `ai_fallback_model: pr-review-local`, an availability retry on the same free
-  alias. Do not clear it: the pinned action exports
+  alias. Never point it anywhere but the local
+  alias, and do not clear it: the pinned action exports
   `AI_FALLBACK_BASE_URL = ai_fallback_base_url || ai_base_url` and refuses to
   run when that is set and the fallback model is empty.
 

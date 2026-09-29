@@ -148,10 +148,10 @@ reason:
 | `repo-wiki` | `chat-local` | ai/repo-wiki cron; `WIKI_MODEL` in its HelmRelease must match this allow-list |
 | `ai-pr-review` | `pr-review-local` | GitHub Actions reviewer ([pr-reviewer.md](pr-reviewer.md)); never `auto` |
 | `claude-code-subscription` | the four pass-through CRs | [claude-code-subscription.md](claude-code-subscription.md) |
-| `agent-swarm-captain`, `agent-swarm-network-broker` | `chat-local` | off-cluster agent-swarm runs |
+| `agent-swarm-captain`, `agent-swarm-network-broker` | `chat-local` | off-cluster agent-swarm runs; the broker's $1 is a lifetime cap (no `budgetDuration`, on purpose) |
 | `agent-swarm-paid` | `[]` (all) | off-cluster, $25 hard cap |
 | `mac-gnhf` | `chat-local` | captain's Mac loop, off-cluster |
-| `embedding-external` | `embedding-local` | external embedding callers; rpm also protects chat on the shared B70 |
+| `embedding-external` | `embedding-local` | external embedding callers; rpm also protects chat on the shared B70 (tune once a real consumer exists) |
 | `litellm-pgvector` | `qwen/qwen3-embedding-8b` only | vector store ([vector-store.md](vector-store.md)); deliberately no `embedding-local` |
 | `jev-decisions` | `typesafe/jev-1.13` | decision door, $1/30d ([passthrough-lockdown.md](passthrough-lockdown.md)); no `embedding-local` |
 

@@ -112,7 +112,8 @@ only on the two thinking-off aliases). Keep it identical: the aliases share
 one backend cost-map key, so an alias without its own values reads a
 sibling's. `maxOutputTokens` stays unset (llama.cpp `n_predict` defaults to
 -1). This metadata was proven not to change the upstream request or recorded
-spend. The `openai` provider label comes from the `openai/` prefix and cannot
+spend. The CI "no prices" gates check price keys, not an empty `model_info`; never
+widen them past pure metadata. The `openai` provider label comes from the `openai/` prefix and cannot
 be changed. `auto` declares only `mode: chat`; its window is whichever tier
 served.
 
@@ -152,7 +153,8 @@ route is LAN-only.
   (subscription pass-through, Fable 5.1) are distinct catalog models, not a
   rename.
 - `typesafe/jev-1.13` has no `LiteLLMModel` and must not get one: it is a
-  decisions model that OpenRouter refuses on chat completions. It is reached
+  decisions model that OpenRouter refuses on chat completions. It is absent from OpenRouter's `/models` list (only the per-model endpoints
+  catalog has it), so do not treat it as unmatched. It is reached
   only through the `/openrouter/alpha/decisions` pass-through
   ([passthrough-lockdown.md](passthrough-lockdown.md)).
 

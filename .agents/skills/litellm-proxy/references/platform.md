@@ -117,7 +117,8 @@ crashloop for a few seconds until the Job finishes.
   (single-vault `onepassword-automation` store) -> `app/externalsecret.yaml`
   -> `GENERIC_CLIENT_ID/SECRET`. Runbook: `docs/authentik/terraform.md` §8.
 - Non-secret SSO settings are plain `env` on `litellmproxy.yaml`:
-  - `PROXY_BASE_URL` drives the redirect URI
+  - `PROXY_BASE_URL` drives the redirect URI (unset, LiteLLM falls back to
+    the in-cluster Service URL, which a browser cannot follow)
     (`<PROXY_BASE_URL>/sso/callback`). Change it only together with the
     allowed redirect URI in `litellm.tofu`, or every login fails with an
     opaque redirect_uri error.
@@ -145,7 +146,10 @@ SA token is mounted (that SA holds no RoleBindings in `ai`), and rollouts are
 RollingUpdate (two proxies may briefly share the DB; LiteLLM tolerates it).
 The image `litellm-non_root` still drops to a non-root UID. Do not patch the
 operator's Deployment with kustomize: the operator reverts it. Reopen when the
-CRD grows a securityContext field.
+CRD grows a securityContext field, and restore the old app-template values:
+uid 1000, gid/fsGroup 100, seccomp `RuntimeDefault`, no privilege escalation,
+drop ALL, `automountServiceAccountToken: false`, `strategy: Recreate`. Keep
+`readOnlyRootFilesystem: false`: this image needs a writable root.
 
 Not gaps:
 
@@ -169,4 +173,5 @@ proxy at the old 2Gi limit. The raise is only a backstop
 credential, which since request logging also reads prompt/response bodies.
 Revisit before any broader exposure. The operator labels its Service
 `app.kubernetes.io/name=litellm`, and the Service name gives `job="litellm"`.
+Renaming the `LiteLLMProxy` CR changes `job=` and breaks `LiteLLMProxyDown`.
 `/metrics` 307-redirects to `/metrics/`; Prometheus follows it.

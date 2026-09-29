@@ -67,7 +67,8 @@ claude
   family, not by `ANTHROPIC_MODEL`.
 - `ANTHROPIC_DEFAULT_HAIKU_MODEL` stays unset on purpose: Claude Code already
   resolves Haiku to `claude-haiku-4-5-20251001`, and Haiku 4.5's window is
-  200k, so `[1m]` does not apply.
+  200k, so `[1m]` does not apply. Revisit only if Claude Code's Haiku default
+  moves off that id.
 - `ENABLE_TOOL_SEARCH=true` is safe through this proxy.
 - `litellm.${SECRET_DOMAIN}` resolves on the private VLAN only; in-cluster
   callers can use `http://litellm.ai.svc.cluster.local:4000`.

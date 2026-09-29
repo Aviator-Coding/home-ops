@@ -53,7 +53,7 @@ CLUSTER_17 = (
     / "kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml"
 )
 
-# A 4,683-char prompt: deliberately over the 2048-char default cap.
+# A multi-thousand-char prompt: deliberately over the 2048-char default cap.
 PROBE_PROMPT_REPS = 140
 PROBE_PROMPT = ("full-content-capture-probe-line\n" * PROBE_PROMPT_REPS).rstrip("\n")
 PROBE_COMPLETION = "full content capture works"
