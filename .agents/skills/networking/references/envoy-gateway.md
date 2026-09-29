@@ -74,3 +74,22 @@ sidecar; once the sidecar finishes its own drain (`--drain-timeout=180s`)
 and exits, port 19002 disappears and kubelet records `FailedPreStopHook`.
 A passive sleep lets the shutdown-manager drain run uninterrupted, and envoy
 still drains via `spec.shutdown.drainTimeout`.
+
+## Proxy placement
+
+`app/envoy.yaml` sets `envoyDeployment.pod.topologySpreadConstraints`
+(`maxSkew: 1`, `kubernetes.io/hostname`, `DoNotSchedule`) on the shared
+EnvoyProxy, so each Gateway's two replicas land on different nodes.
+`matchLabelKeys: gateway.envoyproxy.io/owning-gateway-name` keeps the count per
+gateway; a plain `app.kubernetes.io/name: envoy` selector alone would spread
+all four proxies together. It applies to `envoy-internal` too: it has the same
+`externalTrafficPolicy: Local`, so a node without an endpoint does not
+advertise the VIP. The old soft anti-affinity was diluted across all proxies
+and let both `envoy-external` pods share talos-2.
+
+Constraints of the hard rule: with 3 nodes and 2 replicas a rolling update
+(surge 1, unavailable 0) surges onto the free node. While a node is drained or
+down, its replica stays Pending and the PDB-protected survivor serves alone;
+a roll started in that state stalls with the old pods intact. talos-3's
+`PreferNoSchedule` taint does not block placement. Do not raise `replicas`
+above the schedulable node count.
