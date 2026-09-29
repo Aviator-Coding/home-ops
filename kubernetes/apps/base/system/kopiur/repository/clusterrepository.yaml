@@ -14,8 +14,7 @@ spec:
       bucket: kopiur
       # Bare host[:port], no scheme. Port 80 is plain HTTP inside the cluster.
       endpoint: rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80
-      # Ceph RGW wants the zonegroup as region (verified live:
-      # `radosgw-admin zonegroup list` -> ceph-objectstore).
+      # Ceph RGW wants the zonegroup as region (`radosgw-admin zonegroup list`).
       region: ceph-objectstore
       tls:
         disableTls: true

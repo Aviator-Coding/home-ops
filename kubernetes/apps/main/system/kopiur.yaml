@@ -13,7 +13,7 @@ spec:
     # ClusterRepository credentials come from 1Password through ESO.
     - name: onepassword-store
       namespace: security
-    # copyMethod: Snapshot backups take CSI VolumeSnapshots (Stage 1 onward).
+    # copyMethod: Snapshot backups take CSI VolumeSnapshots.
     - name: snapshot-controller
       namespace: kube-system
   healthChecks:

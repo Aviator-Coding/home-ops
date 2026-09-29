@@ -23,7 +23,6 @@ spec:
     csi:
       # CSI controller placement is not settable from this repo. The Driver CR belongs to the internal ceph-csi-drivers release.
       # Kernel mount options live on the CephCluster. See skill rook-ceph.
-      # NOTE: Enable the driver and snapshotter if you want to use CephFS
       enableCephfsDriver: true
       enableCephfsSnapshotter: true
       enableLiveness: true
@@ -36,7 +35,7 @@ spec:
     monitoring:
       enabled: true
     # Explicit 1Gi. limits: {} does not clear the chart default 512Mi, which OOMKilled the operator.
-    # See skill rook-ceph. (PR #1751)
+    # See skill rook-ceph.
     resources:
       requests:
         memory: 128Mi

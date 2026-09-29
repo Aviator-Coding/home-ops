@@ -9,7 +9,7 @@ metadata:
   labels:
     app.kubernetes.io/name: pvc-writable-check
 spec:
-  # Every 6h: cheap enough (~1-3 min, read-only exec calls) to run often, and
+  # Every 6h: cheap enough (read-only exec calls) to run often, and
   # frequent enough to catch a newly introduced permission bug within a
   # working day without adding meaningful load. Offset from the hour so it
   # doesn't pile onto the many other jobs scheduled exactly on :00.
@@ -281,10 +281,8 @@ spec:
                   exit 0
               resources:
                 requests:
-                  # Stays low on purpose: this is a burst job that runs for
-                  # ~22s every 6h, so the request is a 24/7 node reservation
-                  # for work that occupies 0.1% of the day. The limit, not the
-                  # request, is what this job actually needs raised.
+                  # Stays low on purpose: burst job, so the request is a 24/7 node
+                  # reservation. The limit, not the request, is the lever.
                   cpu: 20m
                   memory: 64Mi
                 limits:

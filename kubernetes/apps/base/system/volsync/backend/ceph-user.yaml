@@ -3,9 +3,9 @@ apiVersion: ceph.rook.io/v1
 kind: CephObjectStoreUser
 metadata:
   name: volsync
-  namespace: system # Replace with your Rook namespace
+  namespace: system
 spec:
-  store: ceph-objectstore  # Replace with your CephObjectStore name
+  store: ceph-objectstore
   clusterNamespace: rook-ceph
   displayName: volsync-user
   quotas:

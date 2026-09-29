@@ -1,7 +1,5 @@
 ---
-# VolumeSnapshotClass with pool parameter fix
-# This overrides the Helm-generated VolumeSnapshotClass to add the missing pool parameter
-# Without this, the CSI driver searches in .rgw.root pool instead of ceph-blockpool
+# Overrides the Helm-generated class to add the pool parameter; without it the CSI driver searches .rgw.root.
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
@@ -19,4 +17,4 @@ parameters:
   clusterID: rook-ceph
   csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
   csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph
-  pool: ceph-blockpool # ← THE FIX: This parameter was missing
+  pool: ceph-blockpool

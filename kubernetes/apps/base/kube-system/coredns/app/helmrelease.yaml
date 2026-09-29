@@ -61,12 +61,10 @@ spec:
             configBlock: |-
               class error
     # Pin forward's upstream at Talos hostDNS (169.254.116.108), the nameserver
-    # Default policy uses, without inheriting the node resolv.conf. autopath and
-    # pods verified (which existed only to feed it) are gone: cache serve_stale
-    # turns autopath answers into NXDOMAIN after ~30s per name, and a DHCP
-    # search domain on this file (sklab.dev, DNSSEC NODATA) then breaks external
-    # names and dotted service FQDNs (2026-09-26). Leave autopath out while
-    # serve_stale is set.
+    # Default policy uses, without inheriting the node resolv.conf. Leave
+    # autopath out while cache serve_stale is set: it turns autopath answers
+    # into NXDOMAIN after ~30s per name, and a DHCP search domain (DNSSEC
+    # NODATA) then breaks external names and dotted service FQDNs.
     deployment:
       dnsPolicy: None
       dnsConfig:
