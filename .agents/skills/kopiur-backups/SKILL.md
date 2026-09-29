@@ -9,7 +9,8 @@ kopiur is the backup engine. VolSync remains only on three carve-outs
 (`selfhosted/paperless-ngx`, `paperless-ngx-media`, `syncthing-data`); skill
 `volsync-carveouts`. Born-kopiur claims (`database/falkordb`,
 `database/surrealdb`) never had VolSync. Assume kopiur-only unless the overlay
-includes `components/volsync`.
+includes `components/volsync`. A kopiur overlay never `dependsOn` the VolSync
+operator; it depends on `kopiur-repository` in `system`.
 
 The chart tag lives in
 `kubernetes/apps/base/system/kopiur/app/ocirepository.yaml`. Read that file.

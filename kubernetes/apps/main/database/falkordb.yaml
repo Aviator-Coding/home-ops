@@ -53,6 +53,4 @@ spec:
       # KOPIUR_CLAIM and KOPIUR_PUID are omitted: the claim is the app, and the files are 1000:1000.
       # 10Gi clears the ~6.2 GiB restore plateau. The 2Gi default does not. Skill `kopiur-backups`.
       KOPIUR_CACHE_CAPACITY: 10Gi
-      # Namespace r2 hour. The H 4 default would pile every r2 policy into 04:00. Ceph stays on the
-      # component default. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 7 * * *"

@@ -10,8 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
-    # Proof: proof-ledger.md row 3. Skill `kopiur-backups`.
+    # Proof: proof-ledger.md row 3.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
   healthChecks:
@@ -44,12 +43,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # Create-time only under ssa IfNotPresent. A rebuild provisions this size, not the component default.
-      # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 5Gi
-      # Sized for the restore cliff: min(snapshot sizeBytes, ~6.2 GiB). A raise does not update the standing
-      # Restore. Skill `kopiur-backups`.
       KOPIUR_CACHE_CAPACITY: 2Gi
-      # Mover identity is measured from the files. Component default 1000 fails closed when it does not
-      # match. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 19 * * *"

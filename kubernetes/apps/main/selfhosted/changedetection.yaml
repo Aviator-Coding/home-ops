@@ -18,13 +18,10 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    # kopiur is the only engine on this claim. Do not depend on the VolSync operator. Skill
-    # `kopiur-backups`.
     - name: kopiur-repository
       namespace: system
   components:
-    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
-    # Proof: proof-ledger.md row 22. Skill `kopiur-backups`.
+    # Proof: proof-ledger.md row 22.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
   postBuild:
@@ -33,7 +30,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # Claim name differs from the app. The pvc component names the PVC from this. Skill `kopiur-backups`.
       KOPIUR_CLAIM: changedetection-config
       # Inherited from the retired VOLSYNC_CAPACITY, not the component's 5Gi default (which would provision a
       # rebuilt claim at 5x the live 1Gi).

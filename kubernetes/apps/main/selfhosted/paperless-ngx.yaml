@@ -50,8 +50,6 @@ spec:
       VOLSYNC_CLAIM: paperless-ngx
       VOLSYNC_CAPACITY: 10Gi
       GATUS_GROUP: *namespace
-      # Namespace r2 hour. The H 4 default would pile every r2 policy into 04:00. Ceph stays on the
-      # component default. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
@@ -130,7 +128,5 @@ spec:
     substitute:
       APP: paperless-ngx-media
       KOPIUR_CLAIM: paperless-ngx-media
-      # Sized for the restore cliff: min(snapshot sizeBytes, ~6.2 GiB). A raise does not update the standing
-      # Restore. Skill `kopiur-backups`.
       KOPIUR_CACHE_CAPACITY: 5Gi
       KOPIUR_SCHEDULE_R2: "H 14 * * *"

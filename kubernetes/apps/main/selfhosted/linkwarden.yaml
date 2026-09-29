@@ -22,15 +22,12 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    # kopiur is the only engine on this claim. Do not depend on the VolSync operator. Skill
-    # `kopiur-backups`.
     - name: kopiur-repository
       namespace: system
     - name: cloudnative-pg
       namespace: database
   components:
-    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
-    # Proof: proof-ledger.md row 23. Skill `kopiur-backups`.
+    # Proof: proof-ledger.md row 23.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
   postBuild:
@@ -39,9 +36,5 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # Claim name matches the app, so KOPIUR_CLAIM is omitted. Capacity is create-time only (ssa IfNotPresent).
-      # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 5Gi
-      # Namespace r2 hour. The H 4 default would pile every r2 policy into 04:00. Ceph stays on the
-      # component default. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
