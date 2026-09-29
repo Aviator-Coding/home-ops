@@ -1,26 +1,19 @@
 # ai namespace
 
-GitOps for this cluster's AI stack. Flux entry: `kustomization.yaml` in this
-directory. Live apps (not kagent or kmcp):
+GitOps for this cluster's AI stack. Flux overlays: `kubernetes/apps/main/ai/`.
 
-| Job | App | Notes |
+| Job | App | Skill |
 | --- | --- | --- |
-| LLM routing | `agentgateway/` | Unified OpenAI-style `/v1`. Manifests under `agentgateway/app/` (especially `httproute-unified.yaml` and `gateways/`). |
-| LLM governance (internal only) | `litellm/` | Virtual keys/budgets/fallback chains. Internal route only (`litellm.${SECRET_DOMAIN}` on `envoy-internal`, captain-approved 2026-08-26); never the public listener. Delivered by `litellm.home-operations.com/v1alpha1` CRs. See skill `litellm-proxy` and `litellm/README.md`. |
-| LiteLLM control plane | `litellm-operator/` | home-operations litellm-operator: renders `litellm/`'s proxy Deployment/Service/config and mints its virtual keys. **Not** the reference cluster's LLMKube auto-register (off here). |
-| Agent runtime | `hermes/` | Homelab operator. Config is GitOps (`app/resources/config.yaml`). |
-| MCP servers | `toolhive/` | Operator + `toolhive.stacklok.dev/v1alpha1` `MCPServer` CRs. **Not** kagent.dev's `MCPServer`. |
-| Local chat GPU | `vllm/` | llama.cpp SYCL on the B70; service keeps the `vllm` name. |
+| Agent runtime | `hermes/` | `hermes-agent` |
+| LLM routing | `agentgateway/` | `agentgateway` |
+| LLM governance | `litellm/`, `litellm-operator/`, `litellm-pgvector/` | `litellm-proxy` |
+| MCP | `toolhive/` | `ai-stack` |
+| Local chat and embeddings | `vllm/`, `embedding-gpu/` | `b70-llm-serving` |
+| GPU devices and telemetry | `gpu-node-dashboard/` plus the device plugins under `system/` | `intel-gpu` |
+| Coding consumers | `opencode/`, `repo-wiki/` | `ai-stack` |
+| Web search | `searxng/` | `hermes-agent` (URL pin), `ai-stack` (deploy) |
+| Shared files | `samba/`, `pvc/` | `hermes-agent` |
 
-There is no chat UI here any more. `open-webui` was retired on 2026-08-22
-together with `kokoro`, `miso-gallery`, `open-notebook`, `perplexica` and
-`qdrant`; what was kept out of band and how to revive each is in
-`docs/ai-system/retired-2026-08-22.md`. `agentmemory` was retired on
-2026-08-31; see `docs/ai-system/agentmemory-retirement-2026-08-31.md`. Hermes'
-long-term memory is now the `holographic` provider bundled in its own image
-(see `hermes/README.md`).
-
-kagent and kmcp were removed on 2026-06-07 (#941 / #942). Their remaining docs
-are tombstones: `docs/ai-system/kagent/README.md`, `docs/ai-system/kmcp/README.md`.
-
-GPU runbooks: `docs/ai/`, incident log `docs/ai-gpu-changelog.md`.
+kagent, kmcp, and kgateway are not deployed. Skill `ai-stack` has the
+retirement checklist and the one Snapshot CR that must not be deleted.
+GPU changelog: `docs/ai-gpu-changelog.md`.
