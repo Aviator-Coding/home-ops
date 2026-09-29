@@ -144,22 +144,9 @@ spec:
                   echo "postgres-offsite-mirror: start $$(date -u +%FT%TZ)"
                   echo "postgres-offsite-mirror: $${SRC} -> $${DST}"
 
-                  # COPY-ONLY, and this is the single most important line here.
-                  # `rclone copy` never deletes on the destination. It must
-                  # NEVER become `rclone sync`, and no --delete-* flag may be
-                  # added. CNPG enforces its 30d window by running
-                  # barman-cloud-backup-delete against the LAN store; if those
-                  # deletions propagated, two things would follow: the 35d
-                  # off-site window would be fiction (objects would go at 30d,
-                  # before the prune below could ever apply), and any LAN-side
-                  # wipe would reach the off-site copy on the next run. A copy
-                  # that faithfully reproduces the loss it exists to survive is
-                  # a replica, not a backup - and that single point of failure
-                  # is the whole reason this job exists.
-                  #
-                  # --s3-no-check-bucket keeps the R2 token least-privilege: no
-                  # HeadBucket/CreateBucket call, so it needs object access
-                  # only.
+                  # COPY-ONLY: `rclone copy` never deletes on the destination. It must NEVER become `rclone sync`
+                  # and no --delete-* flag may be added, or CNPG's 30d LAN-side deletions and any LAN wipe would
+                  # propagate and the off-site copy would stop being a backup. --s3-no-check-bucket keeps the R2 token object-only.
                   rclone copy "$${SRC}" "$${DST}" \
                     --fast-list \
                     --transfers 4 \
@@ -172,22 +159,9 @@ spec:
 
                   echo "postgres-offsite-mirror: copy complete $$(date -u +%FT%TZ)"
 
-                  # INDEPENDENT age-based expiry - the off-site retention rule,
-                  # not a mirror of LAN deletions. `set -eu` above means a
-                  # failed copy aborts before reaching this, so the off-site
-                  # copy is never eroded by a run that did not first refresh
-                  # it.
-                  #
-                  # Ages read from the source mtime rclone preserves in object
-                  # metadata, so an object expires 35d after it was ORIGINALLY
-                  # written, not 35d after it was copied. Where that metadata
-                  # is ever unavailable rclone falls back to the R2 upload
-                  # time, which only ever makes an object look YOUNGER - it
-                  # errs toward keeping data, which is the safe direction.
-                  #
-                  # Counted first and compared against a ceiling rather than
-                  # relying on `--max-delete`, whose applicability to `rclone
-                  # delete` (as opposed to `sync`) is not documented.
+                  # INDEPENDENT age-based expiry, not a mirror of LAN deletions; `set -eu` means a failed copy aborts before it.
+                  # Ages come from the preserved source mtime (35d after ORIGINAL write); missing metadata only makes objects
+                  # look younger, the safe direction. Counted against a ceiling rather than relying on `--max-delete`.
                   rclone lsf --files-only --recursive \
                     --min-age "$${OFFSITE_RETENTION}" "$${DST}" >/tmp/offsite-candidates.list
                   CANDIDATES="$$(wc -l </tmp/offsite-candidates.list | tr -d ' ')"

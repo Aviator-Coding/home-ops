@@ -231,7 +231,7 @@ jobs:
       - name: Format and Validate OpenTofu Stacks
         run: ./scripts/ci/tofu-validate.sh
 
-  # Repo-wide docs guards: size budget ratchet, doc/skill link checker, and the
+  # Repo-wide docs guards: absolute size budgets, doc/skill link checker, and the
   # yaml-language-server/renovate comment-line guard. They read the whole tree,
   # so unlike the jobs above this one has no path filter and runs on every
   # same-repo PR (stdlib only, no pip). Full history gives the comment guard

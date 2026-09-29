@@ -78,22 +78,9 @@ spec:
                     exit 1
                   fi
 
-                  # One row per (pod, container, PVC volumeMount) that is not
-                  # declared read-only and not opted out via SKIP_ANNOTATION.
-                  # readOnly:true on the volumeMount is the primary way an app
-                  # declares "this mount is expected to be read-only" - it is
-                  # already how Kubernetes itself expresses that intent, so no
-                  # new field is needed for it. SKIP_ANNOTATION is the escape
-                  # hatch for the rarer case where an app can't express that
-                  # at the volumeMount level (see README "Declaring expected
-                  # read-only").
-                  # Piped rather than a `<<<` here-string: this bash/image
-                  # combination backs a here-string for a payload this size
-                  # (a few hundred KB to multi-MB of pod JSON, cluster-sized)
-                  # with an actual temp file, which fails outright under
-                  # readOnlyRootFilesystem ("cannot create temp file for
-                  # here-document") - found live while validating this check.
-                  # A pipe never touches disk.
+                  # One row per PVC volumeMount not declared readOnly and not opted out via SKIP_ANNOTATION
+                  # (README "Declaring expected read-only"). Piped, not a `<<<` here-string: bash backs a large
+                  # here-string with a temp file, which fails under readOnlyRootFilesystem.
                   ROWS=$(printf '%s' "${PODS_JSON}" | jq -r --arg skipAnno "${SKIP_ANNOTATION}" '
                     .items[]
                     | select((.metadata.annotations // {})[$skipAnno] != "true")
