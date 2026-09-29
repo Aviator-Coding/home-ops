@@ -24,9 +24,10 @@ One provider, `forward_domain`, `external_host` `https://auth.${SECRET_DOMAIN}`,
 `cookie_domain` `.${SECRET_DOMAIN}`. SecurityPolicies in git:
 
 - `network/echo`
-- `home-automation/home-assistant`
+- `home-automation/home-assistant` (app route and the `hass-code` browser terminal)
 - `monitoring/kromgo`
 - `ai/opencode`
+- `ai/hermes` (the `hermes-code` browser terminal)
 - `database/falkordb`
 - `flux-system/headlamp`
 

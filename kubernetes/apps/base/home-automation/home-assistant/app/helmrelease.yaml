@@ -84,6 +84,7 @@ spec:
                 memory: 768Mi
               limits:
                 memory: 2Gi
+          # --auth none: Authentik SSO gates the route at Envoy (securitypolicy.yaml).
           code-server:
             image:
               repository: ghcr.io/coder/code-server

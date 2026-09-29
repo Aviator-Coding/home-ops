@@ -166,8 +166,9 @@ spec:
                       exit 0
           # Browser VS Code over the agent's state PVC. Same pod as `app`, so it
           # shares the RWO /opt/data mount (no multi-attach, no node affinity).
-          # Runs as uid 10000 to own /opt/data (hermes owns it as 10000). LAN-only
-          # via envoy-internal; --auth none (the internal net is the gate).
+          # Runs as uid 10000 to own /opt/data (hermes owns it as 10000). --auth none
+          # because Authentik SSO gates the route at Envoy (securitypolicy.yaml); the
+          # Service port is still open to in-cluster callers.
           codeserver:
             image:
               repository: ghcr.io/coder/code-server
@@ -235,7 +236,7 @@ spec:
           - backendRefs:
               - name: *app
                 port: *dash
-      # Browser VS Code. LAN-only. code-server has no auth of its own.
+      # Browser VS Code. code-server has no auth of its own; securitypolicy.yaml adds SSO.
       codeserver:
         hostnames:
           - "hermes-code.${SECRET_DOMAIN}"
