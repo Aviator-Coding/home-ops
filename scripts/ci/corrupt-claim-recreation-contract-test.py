@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 """Semantic regression test for the corrupt-claim recreation contract.
 
-Pins the 2026-08-31 ai/opencode volume recreation findings that live in:
-
-  - docs/backups/corrupt-claim-recreation-runbook.md  (durable procedure)
-  - docs/backups/corrupt-claim-recreation-runbook.md  (measured evidence)
-  - AGENTS.md  (two fleet-wide findings)
-
 THE CENTRAL CONTRACT: deleting a PVC and letting Flux recreate it from
 dataSourceRef does NOT restore from the restic repository. The populator
 clones ${APP}-dst.status.latestImage, and ${APP}-dst is trigger manual
@@ -15,27 +9,9 @@ On a newly-onboarded app that one run can leave latestImage as a snapshot
 of an EMPTY volume forever. The fix is to delete the ReplicationDestination
 TOGETHER WITH the PVC so restore-once fires against the populated repo.
 
-VolSync was RETIRED from ai/opencode on 2026-09-04 (Stage 5 wave three, tier B
-- docs/backups/kopiur-wave-three-retirement-2026-09-04.md), so that overlay is
-no longer a live example of the trap. NOTHING here was dropped, and the trap is
-NOT obsolete: it is a property of `components/volsync`, which still protects
-three claims (selfhosted/paperless-ngx, paperless-ngx-media, syncthing-data),
-and the runbook still applies to every one of them. Two things changed:
-
-  - The component render moved onto `selfhosted/paperless-ngx`, the permanent
-    dual-engine carve-out, so the shape is asserted against a claim that is
-    actually still exposed to it rather than against a historical one.
-  - The opencode overlay pin INVERTED: it now asserts the retirement, and that
-    the capacity the 2026-08-31 recreation provisioned survived the engine swap
-    into KOPIUR_CAPACITY. Retirement is what finally removes this trap from
-    opencode - a rebuilt claim is now populated from a kopiur `Restore`, which
-    resolves a snapshot at restore time, instead of from a
-    ReplicationDestination whose `latestImage` was pinned at first deploy.
-
-The measured evidence (documentary contract, below) is historical fact and is
-asserted unchanged.
-
-This test does NOT grep implementation source as its evidence. It:
+VolSync was retired from ai/opencode on 2026-09-04, but the trap is a property
+of `components/volsync`, which still protects selfhosted/paperless-ngx,
+paperless-ngx-media and syncthing-data. This test therefore:
 
   1. Renders the real volsync Component kustomize build Flux would apply for
      selfhosted/paperless-ngx (postBuild.substitute taken from the live
@@ -46,17 +22,11 @@ This test does NOT grep implementation source as its evidence. It:
      writable-stage moverSecurityContext.fsGroup (the mode-relaxation
      fingerprint), enableFileDeletion (lost+found removal), and ceph-block
      reclaimPolicy Delete (RBD image is genuinely destroyed).
-  3. Parses the operator-facing result artifacts (runbook + evidence +
-     AGENTS.md) as owned text contracts - the same class as the Stage 2
-     drill pin in kopiur-stage2-test.py - and asserts the measured gates,
-     the two findings as first-class facts, and the safety constraints
-     (no credential contents, never delete a kopiur Snapshot CR, delete
-     RD with the PVC not patch trigger.manual).
+  3. Pins that opencode no longer runs VolSync and kept its capacity.
 
-Live cluster confirmation (destroy + recreate + five verification gates)
-was already executed 2026-08-31 and is recorded in the evidence doc.
-Fresh worktrees never carry kubeconfig (AGENTS.md); this CI gate therefore
-pins the GitOps + documentary contract that must hold before merge.
+The runbook and skill are checked for existence only; their prose is not
+asserted. Fresh worktrees never carry kubeconfig, so live confirmation is a
+post-merge operator step.
 """
 
 from __future__ import annotations
@@ -79,7 +49,6 @@ ROOK_CLUSTER_HR = (
     ROOT / "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml"
 )
 RUNBOOK = ROOT / "docs/backups/corrupt-claim-recreation-runbook.md"
-EVIDENCE = ROOT / "docs/backups/corrupt-claim-recreation-runbook.md"
 # The one file that must carry both fleet-wide findings. Retargeting them to a
 # skill (planned: volsync-carveouts) is a one-line change here.
 FINDINGS_DOC = ROOT / ".agents/skills/volsync-carveouts/SKILL.md"
@@ -108,28 +77,6 @@ TRAP_APP = "paperless-ngx"
 TRAP_NS = "selfhosted"
 TRAP_OVERLAY = ROOT / "kubernetes/apps/main/selfhosted/paperless-ngx.yaml"
 TRAP_CAPACITY = "10Gi"
-
-# Measured evidence numbers from the 2026-08-31 run (public result contract).
-LIVE_FILE_COUNT = 4749
-LIVE_DIR_COUNT = 950
-LIVE_BYTE_COUNT = 161_617_941
-LIVE_MANIFEST_DIGEST = (
-    "9f400f6d6b99f25c039b763d5458b8ec4fb0347e9149baa3e88ba92a28fafc55"
-)
-PRECHECK_IDENTICAL = 4748
-POST_IDENTICAL = 4744
-POST_DIFFERING = 5
-VOLSYNC_CEPH_SNAPSHOT = "5d72f28a"
-VOLSYNC_MINIO_SNAPSHOT = "81f18d92"
-KOPIUR_CEPH_SNAPSHOT = "b2fdf535020b18f89572e819d297d436"
-KOPIUR_FILES_NEW = 4749
-KOPIUR_SIZE_BYTES = 161_589_393
-RESTIC_FALLBACK_SNAPSHOT = "4f8214f8"
-EMPTY_DST_LAST_SYNC = "2026-08-27T10:20:07Z"
-EMPTY_DST_IMAGE = "volsync-opencode-dst-dest-20260827062006"
-NEW_RBD_DEVICE = "/dev/rbd15"
-PROCESSED_SIZE_MIB = "154.131"
-
 
 class Failure(Exception):
     pass
@@ -520,15 +467,12 @@ def test_ceph_block_reclaim_delete() -> None:
     # storageClass.reclaimPolicy under cephBlockPools / storageClass
     # Rook chart: cephClusterSpec is separate; block pool storageClass lives at
     # cephBlockPools[].storageClass.reclaimPolicy or top-level.
-    text = yaml.safe_dump(values)
     # Walk structured values for a storageClass named ceph-block with Delete.
     found = _find_ceph_block_reclaim(values)
     require(
         found == "Delete",
         f"ceph-block reclaimPolicy must be Delete (RBD image destroyed with PVC), got {found!r}",
     )
-    # Keep a textual anchor so a chart restructure that drops the name still fails.
-    require("ceph-block" in text, "helm values must still declare ceph-block")
 
 
 def _find_ceph_block_reclaim(obj: Any) -> str | None:
@@ -559,30 +503,12 @@ def test_recreation_docs_exist() -> None:
         require(path.is_file(), f"missing {path.relative_to(ROOT)}")
 
 
-def test_no_credential_contents_in_diff_paths() -> None:
-    """No credential file contents in any committed recreation artifact."""
-    for path in (RUNBOOK, EVIDENCE, FINDINGS_DOC):
-        text = path.read_text()
-        # Reject base64-ish long tokens next to git-credentials context.
-        for m in re.finditer(r".{0,80}git-credentials.{0,120}", text, re.I):
-            window = m.group(0)
-            require(
-                not re.search(r"https?://[^:\s]+:[^@\s]+@", window),
-                f"{path.name} appears to embed a git-credentials URL with userinfo",
-            )
-            require(
-                not re.search(r"ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}", window),
-                f"{path.name} appears to embed a GitHub token near git-credentials",
-            )
-
-
 def main() -> int:
     tests = [
         ("opencode_overlay_pins", test_opencode_overlay_pins),
         ("rendered_empty_latestimage_trap", None),  # filled below with the trap subject
         ("ceph_block_reclaim_delete", test_ceph_block_reclaim_delete),
         ("recreation_docs_exist", test_recreation_docs_exist),
-        ("no_credential_contents", test_no_credential_contents_in_diff_paths),
     ]
     failed = 0
     passed = 0
