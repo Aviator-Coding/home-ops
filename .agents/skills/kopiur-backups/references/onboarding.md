@@ -132,3 +132,24 @@ safe only while it is at least the claim size (a 2Gi claim cannot outgrow a
 `calibre-web-automated` and `cloudnative-pg` (`pgadmin`): no `dependsOn` from
 the backup Kustomization back to the claim, and no PVC object in
 `healthChecks`.
+
+## Why the component pins these values
+
+- `copyMethod: Snapshot` (also the CRD default): the mover reads a temporary PVC
+  restored from a CSI VolumeSnapshot and never mounts the live claim, which is
+  what makes running kopiur and VolSync against one PVC safe.
+- `mover.cache.mode: Ephemeral` (also the default, pinned because it is
+  load-bearing): the kopia cache is discarded after each run, so kopiur adds no
+  standing cache PVCs. VolSync alone held 105 cache PVCs / 324 GiB of
+  `ceph-block` when this was chosen; `Persistent` would start a second set.
+- `podSecurityContext` mirrors VolSync's `moverSecurityContext`, so both engines
+  read the claim as one identity and a kopiur restore reproduces VolSync's
+  ownership.
+- `retention` copies the matching VolSync `retain` block so the engines stay
+  comparable. r2 has no `keepHourly`: it is the billed offsite copy and takes
+  one snapshot a day, so an hourly tier would retain nothing.
+- Ceph runs on odd hours (`H 1-23/4`), r2 at hour 4, against VolSync's even
+  hours and hour 3. The hour, not the minute, separates the engines, so never
+  hand-assign the `H` minute. `timezone` defaults to `America/New_York` because
+  kopiur reads cron as UTC otherwise and the stagger breaks at the next DST
+  change. `jitter` is derived from (scheduleUID, slot) on top of the hashed minute.

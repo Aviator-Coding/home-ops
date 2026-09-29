@@ -23,9 +23,7 @@ env:
 
 jobs:
   filter:
-    # Fork guard. The `pull` job below runs `talosctl image pull` against a real node
-    # with credentials mounted by the cluster, so PR-authored code from a fork must
-    # never reach this runner. Mirrors labeler.yaml. Same-repo PRs are unaffected.
+    # Fork guard, mirrors labeler.yaml: `pull` runs `talosctl image pull` against a real node with cluster credentials.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Image Pull - Filter
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
@@ -43,10 +41,6 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Image Pull - Resolve New Images
-    # Runs on the local ARC runner: flate is a static Go binary, so the Docker
-    # daemon flux-local's container action needed is no longer required. This one
-    # job replaces the former `extract` (a 2-way branch matrix, each rendering the
-    # whole cluster) plus `diff` (jq set subtraction) pair.
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     timeout-minutes: 15
     outputs:
@@ -59,9 +53,7 @@ jobs:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
 
-      # Single checkout: flate's --base materializes the baseline tree from git,
-      # replacing the former per-branch checkout matrix. fetch-depth: 0 is what
-      # makes origin/<default> resolvable.
+      # fetch-depth: 0 makes origin/<default> resolvable for --base.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,11 +67,6 @@ jobs:
           version: ${{ env.FLATE_VERSION }}
           base: ""
 
-      # No retry loop, no `--network host`, no HOME/XDG_CACHE_HOME override, and no
-      # embedded Python: those all existed to work around running flux-local as a
-      # non-root Docker container (intermittent TLS resets through the docker
-      # bridge, Helm 4 cache permissions, and reaching a flux-local ContextVar that
-      # had no env var). flate has bounded source-fetch retry of its own.
       - name: Resolve New Images
         id: resolve
         run: |
@@ -149,8 +136,7 @@ jobs:
             talosctl version --client
           fi
 
-      # This retry is NOT a flux-local workaround: it absorbs transient failures
-      # talking to a real Talos node, and stays.
+      # The retry absorbs transient failures talking to a real Talos node.
       - name: Pull Image
         run: |
           for attempt in 1 2 3 4; do

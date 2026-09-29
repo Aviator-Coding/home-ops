@@ -1,4 +1,5 @@
 ---
+# Areas
 - name: area/bootstrap
   color: "0e8a16"
 - name: area/docs
@@ -21,6 +22,7 @@
   color: "0e8a16"
 - name: area/terraform
   color: "0e8a16"
+# Renovate Types
 - name: renovate/container
   color: "027fa0"
 - name: renovate/github-action
@@ -31,6 +33,7 @@
   color: "027fa0"
 - name: renovate/helm
   color: "027fa0"
+# Semantic Types
 - name: type/digest
   color: "ffeC19"
 - name: type/patch
@@ -39,6 +42,7 @@
   color: "ff9800"
 - name: type/major
   color: "f6412d"
+# Uncategorized
 - name: community
   color: "370fb2"
 - name: hold

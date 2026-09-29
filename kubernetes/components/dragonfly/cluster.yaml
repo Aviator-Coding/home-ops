@@ -9,34 +9,21 @@ spec:
   image: ghcr.io/dragonflydb/dragonfly:v2.0.0
   replicas: 2
   args:
-    # Dragonfly v1.38.0 enforces a 256 MiB-per-proactor-thread floor, so with
-    # --proactor_threads=2 the minimum --maxmemory is 512Mi. limits.memory
-    # below is sized 128Mi above that to leave runtime headroom (internal
-    # structures, fork-on-snapshot, allocator slack).
+    # 256 MiB floor per proactor thread, so 2 threads need at least 512Mi. Skill `databases` references/dragonfly.md.
     - --maxmemory=512Mi
     - --proactor_threads=2
     - --cluster_mode=emulated
-    # Cache-only policy: LRU-evict at maxmemory instead of returning OOM to clients.
     - --cache_mode=true
     - --default_lua_flags=allow-undeclared-keys
   resources:
-    # All four resource fields set with requests == limits so the pod gets
-    # Guaranteed QoS (last-evicted tier, immune to node-pressure eviction).
-    # CPU limit may cause throttling under spike load; for cache workloads
-    # at this scale, the eviction protection matters more than burst CPU.
+    # requests == limits keeps Guaranteed QoS; the memory limit is 128Mi above --maxmemory for runtime headroom.
     requests:
       cpu: 250m
       memory: 640Mi
     limits:
       cpu: 250m
       memory: 640Mi
-  # A Dragonfly's own master and replica must never share a node - otherwise
-  # the replica buys nothing when that node is lost. The spread constraint
-  # below does NOT guarantee this: topologySpreadConstraints.labelSelector is
-  # evaluated only against pods in the SAME namespace, so it balances all of a
-  # namespace's dragonfly pods collectively rather than each instance's two
-  # replicas. Measured 2026-09-14: selfhosted/rsshub-dragonfly-0 AND -1 were
-  # both on talos-3 while every per-namespace skew was still a legal 1.
+  # Master and replica must not share a node. The spread constraint below does not guarantee that (it balances the whole namespace), so this required anti-affinity does.
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

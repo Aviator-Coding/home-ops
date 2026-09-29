@@ -8,17 +8,10 @@ spec:
   policyRef:
     name: "${APP}-r2"
   schedule:
-    # Daily, matching VolSync's r2 cadence, but in the 04:00 hour where VolSync
-    # runs in the 03:00 one - the same structural hour offset used for ceph.
-    # Minute is hashed (`H`); do not hand-assign it. See
-    # ../ceph/snapshotschedule.yaml for why the hour, not the minute, separates
-    # the two systems.
+    # Daily at hour 4, one hour off VolSync. Do not hand-assign the H minute. Skill `kopiur-backups` references/onboarding.md.
     cron: "${KOPIUR_SCHEDULE_R2:-H 4 * * *}"
     jitter: 5m
-    # Same reasoning as ../ceph/snapshotschedule.yaml: without this, the hour
-    # is evaluated as literal UTC rather than the America/New_York VolSync and
-    # k8tz already use, which breaks the engine stagger at the next DST
-    # transition. See ../Readme.md "Timezone: kopiur vs VolSync".
+    # Without a timezone the hour is read as UTC and the stagger breaks at DST. Skill `kopiur-backups`.
     timezone: "${KOPIUR_SCHEDULE_TIMEZONE:-America/New_York}"
   deletion:
     onScheduleDelete: Retain
