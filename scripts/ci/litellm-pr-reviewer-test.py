@@ -586,15 +586,10 @@ def test_standards_file() -> None:
         size < STANDARDS_HARD_TRUNC_BYTES,
         f"bytes={size} limit={STANDARDS_HARD_TRUNC_BYTES}",
     )
-    # AGENTS.md is the trap the curated file exists to avoid.
-    agents = REPO / "AGENTS.md"
-    if agents.is_file():
-        agents_size = agents.stat().st_size
-        record(
-            "agents_md_exceeds_truncation_so_curated_file_is_required",
-            agents_size > STANDARDS_HARD_TRUNC_BYTES,
-            f"AGENTS.md_bytes={agents_size}",
-        )
+    # AGENTS.md's size is deliberately not asserted here: shrinking it is the
+    # goal of the docs budget (scripts/ci/docs-budget-test.py). The invariant
+    # is that the reviewer reads the curated file explicitly, which
+    # test_workflow pins via standards_file == .github/ai-review-rules.md.
 
 
 def test_model_cr() -> dict[str, Any]:

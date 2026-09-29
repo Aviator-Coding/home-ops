@@ -80,7 +80,10 @@ ROOK_CLUSTER_HR = (
 )
 RUNBOOK = ROOT / "docs/backups/corrupt-claim-recreation-runbook.md"
 EVIDENCE = ROOT / "docs/backups/opencode-volume-recreation-2026-08-31.md"
-AGENTS = ROOT / "AGENTS.md"
+# The one file that must carry both fleet-wide findings. Retargeting them to a
+# skill (planned: volsync-carveouts) is a one-line change here.
+FINDINGS_DOC = ROOT / "AGENTS.md"
+FINDINGS_LABEL = str(FINDINGS_DOC.relative_to(ROOT))
 VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
 KOPIUR_DRILL = ROOT / "docs/backups/kopiur-restore-drill-2026-08-30.md"
 
@@ -935,9 +938,9 @@ def test_evidence_result_contract() -> None:
 
 
 def test_agents_findings() -> None:
-    """Both fleet-wide findings must be first-class AGENTS.md NOTES entries."""
-    require(AGENTS.is_file(), "AGENTS.md must exist")
-    text = AGENTS.read_text()
+    """Both fleet-wide findings must be first-class entries in FINDINGS_DOC."""
+    require(FINDINGS_DOC.is_file(), f"{FINDINGS_LABEL} must exist")
+    text = FINDINGS_DOC.read_text()
 
     # Finding 1: empty latestImage / silent restore-nothing.
     require(
@@ -947,20 +950,20 @@ def test_agents_findings() -> None:
             text,
             re.S,
         ),
-        "AGENTS.md must document latestImage frozen at first-deploy",
+        f"{FINDINGS_LABEL} must document latestImage frozen at first-deploy",
     )
     require(
         "corrupt-claim-recreation-runbook.md" in text,
-        "AGENTS.md must point at the recreation runbook",
+        f"{FINDINGS_LABEL} must point at the recreation runbook",
     )
     require(
         "opencode-volume-recreation-2026-08-31.md" in text,
-        "AGENTS.md must point at the measured evidence",
+        f"{FINDINGS_LABEL} must point at the measured evidence",
     )
     require(
         re.search(r"No eligible snapshots found", text)
         and re.search(r"No data will be restored", text),
-        "AGENTS.md must quote the empty-repo mover log",
+        f"{FINDINGS_LABEL} must quote the empty-repo mover log",
     )
     require(
         re.search(
@@ -968,21 +971,21 @@ def test_agents_findings() -> None:
             r"|delete the ReplicationDestination \*together with\* the PVC",
             text,
         ),
-        "AGENTS.md must state the RD+PVC delete fix",
+        f"{FINDINGS_LABEL} must state the RD+PVC delete fix",
     )
     require(
         re.search(r"never to patch `?spec\.trigger\.manual`?", text, re.I)
         or re.search(r"never to patch spec.trigger.manual", text),
-        "AGENTS.md must forbid patching trigger.manual",
+        f"{FINDINGS_LABEL} must forbid patching trigger.manual",
     )
     require(
         re.search(r"re-stages a new clone within seconds", text),
-        "AGENTS.md must warn that VolSync restages clones within seconds of Job delete",
+        f"{FINDINGS_LABEL} must warn that VolSync restages clones within seconds of Job delete",
     )
     require(
         re.search(r"concurrencyPolicy:\s*Forbid", text)
         or re.search(r"concurrencyPolicy.*Forbid", text),
-        "AGENTS.md must warn that a Running kopiur Snapshot blocks later backups",
+        f"{FINDINGS_LABEL} must warn that a Running kopiur Snapshot blocks later backups",
     )
 
     # Finding 2: VolSync restore widens permissions.
@@ -992,26 +995,26 @@ def test_agents_findings() -> None:
             r"|permanently relaxes every file mode by one group-write bit",
             text,
         ),
-        "AGENTS.md must document VolSync mode relaxation as its own finding",
+        f"{FINDINGS_LABEL} must document VolSync mode relaxation as its own finding",
     )
     require(
         re.search(r"644→664|644->664", text) and re.search(r"600→660|600->660", text),
-        "AGENTS.md must list the mode-relaxation mapping including 600→660",
+        f"{FINDINGS_LABEL} must list the mode-relaxation mapping including 600→660",
     )
     require(
         re.search(r"\.git-credentials", text),
-        "AGENTS.md mode-relaxation finding must name .git-credentials",
+        f"{FINDINGS_LABEL} mode-relaxation finding must name .git-credentials",
     )
     require(
         re.search(r"kopiur restores.*read-only|stage read-only", text, re.I)
         or re.search(r"kopiur restores, which stage read-only", text),
-        "AGENTS.md must contrast kopiur read-only restores preserving modes",
+        f"{FINDINGS_LABEL} must contrast kopiur read-only restores preserving modes",
     )
 
 
 def test_no_credential_contents_in_diff_paths() -> None:
     """No credential file contents in any committed recreation artifact."""
-    for path in (RUNBOOK, EVIDENCE, AGENTS):
+    for path in (RUNBOOK, EVIDENCE, FINDINGS_DOC):
         text = path.read_text()
         # Reject base64-ish long tokens next to git-credentials context.
         for m in re.finditer(r".{0,80}git-credentials.{0,120}", text, re.I):

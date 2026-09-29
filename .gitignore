@@ -30,7 +30,7 @@ Thumbs.db
 
 # Claude Code artifacts
 .claude/*
-!.claude/skills/
+!.claude/skills
 logs/
 specs/
 reports/

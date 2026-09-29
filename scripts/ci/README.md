@@ -20,6 +20,9 @@ decision it pins - read it first if you're touching the app or feature it covers
 
 | file | pins |
 |---|---|
+| `docs-budget-test.py` | docs size budget with a no-growth ratchet (AGENTS.md, skills, YAML/json5 comment blocks; baseline and allowlist in `docs-budget.json`, `--update` lowers the baseline) plus skill consistency (name, SKILL INDEX, `.claude/skills` symlink). Also run by the `docs-guards` job on every same-repo PR |
+| `doc-links-test.py` | every Markdown link, `docs/`/skill path mention, `references/` file and "skill `<name>`" pointer resolves. Also run by `docs-guards` |
+| `functional-comments-guard-test.py` | no change removes or reorders a `yaml-language-server`/`renovate` comment line in a surviving file, and every `renovate:` annotation stays capturable by the customManager. Also run by `docs-guards`, which sets `DIFF_GUARD_BASE` |
 | `gpu-node-dashboard-test.py` | Intel GPU node Grafana dashboard (hwmon/device-plugin PromQL contract) |
 | `grafana-mcp-deploy-test.py` | in-cluster grafana-mcp ToolHive `MCPServer` deployment |
 | `grafana-sa-provisioner-test.py` | grafana-sa-provisioner (captain option C) |

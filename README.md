@@ -22,7 +22,8 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 | Day-to-day commands, app layout, secrets, Volsync, agent-facing conventions and anti-patterns | [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` is a symlink to it) |
 | Talos templates, render/apply/upgrade | [`talos/AGENTS.md`](talos/AGENTS.md) |
 | First-time / disaster-recovery bootstrap | [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md) |
-| Docs index | [`docs/reference.md`](docs/reference.md) |
+| Human runbooks | [`docs/README.md`](docs/README.md) |
+| Agent skills (one per subsystem) | [`.agents/skills/`](.agents/skills/) - indexed in `AGENTS.md` |
 
 ## Layout
 
@@ -34,7 +35,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 │   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, kopiur (+ pvc), volsync (3 claims left))
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
-├── .claude/skills/     # JIT-loaded subsystem skills (depth relocated from AGENTS.md NOTES)
+├── .agents/skills/     # agent skills, one per subsystem (.claude/skills is a symlink)
 ├── .taskfiles/         # task recipes (flux, rook, network, 1password, actions-runner)
 ├── docs/               # runbooks and incident history
 └── .mise.toml          # workstation tool versions
