@@ -148,7 +148,7 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 #
 # Wave two - four more, retired 2026-09-02 on the deeper proofs in
 # .agents/skills/kopiur-backups/references/proof-ledger.md part 4, recorded in
-# the same file. Unlike wave one these
+# .agents/skills/kopiur-backups/references/retirement-and-removal.md. Unlike wave one these
 # are NOT all regenerable: `ntfy` holds real auth state and
 # `obsidian-livesync` is a genuine Obsidian vault, escalated to the captain and
 # retired on an explicit decision after an objection. What authorises them is
@@ -158,7 +158,7 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 #
 # Wave three - the remaining 19 eligible claims, retired 2026-09-04, on the
 # same fleet restore proof plus a re-measured restore-cache audit. Recorded in
-# the same file. Shipped in three
+# that file. Shipped in three
 # risk-tiered commits (11 ordinary config volumes, 4 large claims, 4 carrying
 # real user-authored state) so a revert stays surgical; the tiering is a
 # sequencing device, not three different evidence standards - every row cleared
