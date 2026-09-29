@@ -13,8 +13,9 @@ port or endpoint name that the Service actually has (`port: metrics`), or
 select the anchor name.
 
 On a PodMonitor endpoint, `port:` is a container port **name**. `targetPort:`
-is the number. They are not interchangeable. `ai/toolhive` needed
-`targetPort: 8080` because no port was named `8080`.
+is the number. They are not interchangeable. `ai/toolhive` once used
+`targetPort: 8080` for a port nothing listened on; it now uses `port: http`
+(4483).
 
 Alertmanager's job relabel is separate and load-bearing. See
 [alertmanager.md](alertmanager.md).
