@@ -13,7 +13,7 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
   approve or request changes.
 - `allow_approve`, `approve_forks`, `fail_on_request_changes` stay false.
 - **Never a required status check** (branch protection:
-  `docs/branch-protection.md`), and "Allow GitHub Actions to create and approve
+  skill `github-ci`, `references/branch-protection.md`), and "Allow GitHub Actions to create and approve
   pull requests" stays off.
 - `on_model_failure: notice`: a GPU outage posts "AI review could not run"
   instead of a red check. That notice carries a `request_changes` verdict, so

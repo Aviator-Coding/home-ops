@@ -15,7 +15,7 @@ const FLOW_DIR = path.join(__dirname, '..');
 const ROOT = path.join(__dirname, '..', '..', '..');
 // Docs whose prose testDocsContract pins. Retargeting a contract to its new
 // home (skill tdarr-transcoding / media-stack) is a one-line change here.
-const MEDIA_STACK_DOC = path.join(ROOT, 'docs/media-stack.md');
+const MEDIA_STACK_DOC = path.join(ROOT, '.agents/skills/media-stack/SKILL.md');
 const ERRORED_REMUXES_DOC = path.join(ROOT, 'docs/tdarr-errored-remuxes.md');
 const TRAPS_INDEX_DOC = path.join(ROOT, 'AGENTS.md');
 const evidence = [];

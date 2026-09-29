@@ -57,7 +57,7 @@ skill is the device and the metrics.
 | iGPU plugin (`allowIDs`) | `kubernetes/apps/base/system/intel-device-plugin-operator/gpu/helmrelease.yaml` |
 | B70 hwmon dashboard | `kubernetes/apps/base/ai/gpu-node-dashboard/app/gpu-node.json` |
 | iGPU loss alert | `kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/gpu-loss.yaml` |
-| VA-API check after a GPU change | `docs/media-stack.md` (skill `tdarr-transcoding`) |
+| VA-API check after a GPU change | [vaapi-check.md](references/vaapi-check.md) (skill `tdarr-transcoding` consumes it) |
 | B70 dock power order, `pcie_port_pm=off` | skill `talos-nodes` |
 
 Those system and monitoring files are not this domain's to tidy. The
@@ -65,7 +65,8 @@ invariants above are why a comment edit there is not free.
 
 ## Procedures
 
-- Device groups and the VA-API check: [devices.md](references/devices.md).
+- Device groups: [devices.md](references/devices.md).
+- VA-API check after a GPU change: [vaapi-check.md](references/vaapi-check.md).
 - What a panel can query: [telemetry.md](references/telemetry.md).
 - Why DRA stays unshipped: [dra.md](references/dra.md).
 - Second card: [second-card.md](references/second-card.md).
@@ -74,7 +75,7 @@ invariants above are why a comment edit there is not free.
 ## Verify
 
 - After any device-plugin or kernel change, run the VA-API check in
-  `docs/media-stack.md` on `tdarr-node`. `kubectl describe node` showing
+  [vaapi-check.md](references/vaapi-check.md) on `tdarr-node`. `kubectl describe node` showing
   `devic.es/b70` allocatable is the Level Zero path only.
 - `scripts/ci/igpu-xe-allowids-test.py` pins `allowIDs` and the consumer
   maps. A retired GPU app must leave that map in the same change.

@@ -55,7 +55,7 @@ does not page. Prove a check both ways before trusting it.
 | Grafana Viewer token self-heal | `kubernetes/apps/base/monitoring/grafana-sa-provisioner/` |
 | Shared-downloads capacity page | `kubernetes/apps/base/downloads/maintenance/app/prometheusrule.yaml` |
 | Coder alert runbooks (GitHub anchors, ConfigMap) | `kubernetes/apps/base/coder/app/runbooks/` |
-| Human SABnzbd disk runbook | `docs/downloads/sabnzbd-disk-space-runbook.md` |
+| Human SABnzbd disk runbook | `.agents/skills/media-stack/references/sabnzbd-disk-space.md` |
 
 ## Procedures
 

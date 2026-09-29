@@ -23,7 +23,7 @@ Exercises the same offline contract CI and operators rely on:
 
 Live ``tofu plan`` against Authentik is operator-only (needs the read-only
 token + RGW keys) and is deliberately not attempted here. The delivered empty
-plan is recorded in ``docs/authentik/terraform.md`` status and is not grepped
+plan is recorded in the PR that delivered the stack and is not grepped
 from prose by this suite.
 """
 
@@ -423,7 +423,7 @@ def test_workflow_terraform_job() -> dict[str, Any]:
         raise Failure("terraform job must install opentofu via mise")
 
     # validate.yaml intentionally has no trigger-level `paths:` filter (see
-    # docs/branch-protection.md) — a path miss there means the workflow never
+    # skill github-ci references/branch-protection.md) — a path miss there means the workflow never
     # starts, so its check can never be required without blocking unrelated
     # PRs. Path gating happens at the job level instead, asserted above via
     # the `filter` job's Terraform Changes patterns.

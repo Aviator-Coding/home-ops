@@ -30,7 +30,7 @@ This test does not grep source text. It:
     name fails again)
 
 Live post-merge gates (vainfo / av1_qsv / real library file) remain the
-commands in docs/media-stack.md; offline here we prove the GitOps inputs that
+commands in skill intel-gpu references/vaapi-check.md; offline here we prove the GitOps inputs that
 drive those outcomes cannot silently regress.
 """
 

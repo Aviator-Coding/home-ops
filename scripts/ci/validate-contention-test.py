@@ -782,7 +782,7 @@ def test_trigger_has_no_path_filter(model: WorkflowModel) -> dict[str, Any]:
     against the committed flow artifact - never ran in CI. A dead per-job
     pattern is worse than a missing one: it reads as coverage.
 
-    Fixed (see docs/branch-protection.md) by moving all path filtering down
+    Fixed (see skill github-ci references/branch-protection.md) by moving all path filtering down
     into the `filter` job and out of the trigger entirely: the workflow (and
     its aggregate `Validate - Success` check) always starts and always posts
     a result, so a trigger-level paths list - which can only ever go stale

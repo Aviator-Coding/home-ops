@@ -45,7 +45,7 @@ reverts those rows to defaults while the pod stays green.
 | Flow restore document | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` |
 | Node sources and harness | `docs/tdarr/flow-nodes/` (do not edit the harness) |
 | Parked masters and the DV choice | [masters.md](references/masters.md) and `docs/tdarr-errored-remuxes.md` |
-| VA-API check | `docs/media-stack.md` "Verifying VA-API after a GPU change"; mechanism is skill `intel-gpu` |
+| VA-API check | skill `intel-gpu`, [vaapi-check.md](../intel-gpu/references/vaapi-check.md) |
 
 ## Procedures
 

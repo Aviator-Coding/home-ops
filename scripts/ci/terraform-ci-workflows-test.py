@@ -437,7 +437,7 @@ def test_flate_untouched() -> dict[str, Any]:
     on = on_block(data)
     assert "pull_request" in on, on
     # Path filtering moved from the trigger down into the `filter` job (see
-    # docs/branch-protection.md) so the workflow always starts and its check
+    # skill github-ci references/branch-protection.md) so the workflow always starts and its check
     # run always posts; the trigger itself now carries no paths at all.
     paths = list(on["pull_request"].get("paths") or [])
     assert not paths, f"flate must not trigger-level path-filter anymore; got {paths}"

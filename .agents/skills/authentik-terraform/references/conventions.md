@@ -37,8 +37,7 @@ Local schema check, no credentials:
 State files and plan files stay gitignored (`terraform/.gitignore` and the
 guard in `tofu-validate.sh`).
 
-`docs/authentik/terraform.md` is the short human pointer. Procedures live in
-this skill. Section numbers in older comments mean:
+Procedures live in this skill. Section numbers in older comments mean:
 
 | Old section | Here |
 |---|---|

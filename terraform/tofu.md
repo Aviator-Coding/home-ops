@@ -9,7 +9,7 @@ Skill `authentik-terraform`
 
 1. Nothing here applies itself. `terraform-diff.yaml` may post a read-only
    plan. `tofu apply` stays behind the go-ahead in
-   [`docs/authentik/terraform.md`](../docs/authentik/terraform.md).
+   [`apply-runbook.md`](../.agents/skills/authentik-terraform/references/apply-runbook.md).
 2. State holds OAuth client secrets in plaintext. It stays in a private
    bucket, never in Git.
 3. Adopt objects that already exist (`import` blocks). Create only what

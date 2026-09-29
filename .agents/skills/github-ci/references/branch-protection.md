@@ -46,6 +46,46 @@ versions check was recorded after merge. Renovate now merges on its own pass,
 which gives the other workflows a cycle to post. That does not make those
 checks required.
 
-The applied payload (Admin bypass, four rules, Labeler only) is kept in
-`docs/branch-protection.md` so a rebuild does not depend on the API response.
-Update that JSON only when the live ruleset changes.
+The applied payload (Admin bypass, four rules, Labeler only) is kept below so a
+rebuild does not depend on the API response. Update that JSON only when the
+live ruleset changes.
+
+## Applied payload
+
+```json
+{
+  "name": "main-branch-protection",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "conditions": {
+    "ref_name": { "include": ["refs/heads/main"], "exclude": [] }
+  },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "Labeler - Labeler", "integration_id": 15368 }
+        ]
+      }
+    }
+  ]
+}
+```

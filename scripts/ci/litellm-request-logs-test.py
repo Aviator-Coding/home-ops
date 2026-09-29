@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Behavioral validation of full prompt/response capture in LiteLLM spend logs.
 
-Captain request 2026-08-27. Runbook: docs/ai-system/litellm/request-logs.md;
+Captain request 2026-08-27. Runbook: skill litellm-proxy references/spend-logs.md;
 mechanism: skill litellm-proxy (references/spend-logs.md).
 
 Renders the litellm-operator LiteLLMProxy CR the way file-mode does, then:
@@ -45,9 +45,9 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 APP_DIR = REPO / "kubernetes/apps/base/ai/litellm/app"
 PROXY_PATH = APP_DIR / "litellmproxy.yaml"
-RUNBOOK = REPO / "docs/ai-system/litellm/request-logs.md"
+RUNBOOK = REPO / ".agents/skills/litellm-proxy/references/spend-logs.md"
 README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
-README_DOCS = REPO / "docs/ai-system/litellm/README.md"
+SKILL_MD = REPO / ".agents/skills/litellm-proxy/SKILL.md"
 CLUSTER_17 = (
     REPO
     / "kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml"
@@ -232,18 +232,18 @@ def test_runbook_contract() -> None:
         f"missing={missing}" if missing else f"bytes={len(text)}",
     )
 
-    # Cross-links from the two READMEs so the captain can find the runbook.
+    # Cross-links from the app README and the skill so the captain can find the runbook.
     app_readme = README_APP.read_text()
-    docs_readme = README_DOCS.read_text()
+    skill_md = SKILL_MD.read_text()
     record(
         "app_readme_points_at_request_logs_runbook",
-        "request-logs.md" in app_readme or "request logs" in app_readme.lower(),
-        "link present" if "request-logs" in app_readme else "missing link",
+        "spend-logs.md" in app_readme or "request logs" in app_readme.lower(),
+        "link present" if "spend-logs" in app_readme else "missing link",
     )
     record(
-        "docs_readme_points_at_request_logs_runbook",
-        "request-logs.md" in docs_readme,
-        "link present" if "request-logs.md" in docs_readme else "missing link",
+        "skill_points_at_request_logs_runbook",
+        "spend-logs.md" in skill_md,
+        "link present" if "spend-logs.md" in skill_md else "missing link",
     )
 
 
