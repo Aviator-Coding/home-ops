@@ -260,7 +260,7 @@ spec:
         kube-state-metrics:
           # renovate: depName="Kube-State-Metrics"
           gnetId: 13332
-          revision: 1
+          revision: 12
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
