@@ -306,7 +306,7 @@ spec:
         k8s-views-namespaces:
           # renovate: depName="Kubernetes / Views / Namespaces"
           gnetId: 15758
-          revision: 43
+          revision: 46
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
