@@ -29,7 +29,7 @@ wave-two record still documents autobrr's retirement, because it happened.
   content, destination-identical in content AND metadata) plus, for the two
   2Gi `selfhosted` claims, a PVC that cannot outgrow its restore cache.
   Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
-  part 4. Record: .agents/skills/kopiur-backups/references/retirement-and-removal.md.
+  part 4.
 
   wave three, 2026-09-04: the remaining 19 eligible claims, on the same fleet
   restore proof (every one of them a destination-identical PASS row) plus a
@@ -39,7 +39,6 @@ wave-two record still documents autobrr's retirement, because it happened.
   zigbee2mqtt}`, `media/tdarr`, `selfhosted/changedetection`; tier B
   `ai/{hermes,opencode}`, `media/{plex,calibre-web-automated}`; tier C
   `home-automation/home-assistant`, `selfhosted/{n8n,linkwarden,syncthing}`.
-  Record: .agents/skills/kopiur-backups/references/retirement-and-removal.md.
 
 `selfhosted/paperless-ngx` stays dual-engine permanently by captain carve-out,
 and `selfhosted/syncthing-data` / `selfhosted/paperless-ngx-media` were

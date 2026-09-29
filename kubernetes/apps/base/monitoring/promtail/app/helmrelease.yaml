@@ -14,8 +14,8 @@ spec:
 
     # talos-3 carries a home-operations.com/dedicated taint
     # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
-    # scheduler score penalty, not a filter - .agents/skills/node-scheduling/references/talos-3-ledger.md
-    # section 9). This chart's own tolerations default (control-plane/master
+    # scheduler score penalty, not a filter - .agents/skills/node-scheduling/references/talos-3-ledger.md).
+    # This chart's own tolerations default (control-plane/master
     # only) would otherwise be REPLACED wholesale by this values block (Helm
     # does not merge lists), so both defaults are restated here alongside the
     # new one. See .agents/skills/node-scheduling/references/talos-3-ledger.md.
