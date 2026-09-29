@@ -136,7 +136,10 @@ If the MinIO NAS is lost too, Postgres has no off-site copy (the offsite mirror 
    `caccc0cb2ab28d2d60e684eefc22ba4143ba3888ca78cb7d7f724460e6af6ae4` (read live 2026-09-28).
    A `RepositoryNotInitialized` means the endpoint, bucket or credential is wrong; fix the
    1Password item, never set `create.enabled: true`. A different uniqueId means it connected
-   to the wrong repository: stop.
+   to the wrong repository: stop. While r2 is not `Ready`, the populator Restores wait in
+   `Pending` with `RepositoryNotReady` rather than going `Failed`, and that time does not count
+   against their wait window: stuck-`Pending` Restores plus `KopiurRepositoryNotReady` mean fix
+   the repository, not the claims.
 4. `ceph` goes `Ready` with a **new** uniqueId. That is expected.
 
 ## Phase 3 - The 26 populator claims restore from r2
@@ -156,14 +159,31 @@ If the MinIO NAS is lost too, Postgres has no off-site copy (the offsite mirror 
 2. **Pass:** every `*-kopiur-dst` claimed by a PVC is `Completed` with reason `RestoreSucceeded`.
    A `Failed` one names the claim and cause in `status.claims`. Any `NoSnapshotContinue` means
    a populator was not fail-closed: treat that claim as empty and hand-restore it (phase 4).
-3. Check each resolved snapshot against phase 0: time at or before `T_LOSS`, and
-   `Snapshot.status.stats` consistent with the restored volume.
+3. Check each resolved snapshot against phase 0: `status.resolved.kopiaSnapshotID` and
+   `pinnedAt` must be the snapshot expected at or before `T_LOSS`. Take evidence from
+   `Restore.status` (`resolved`, `status.claims.<pvc>.logTail`), not mover logs: kopiur deletes a
+   successful mover Job within about 20 s, and the mover reports no file or byte counts.
 4. Time: `media/plex` restored 4.6 GiB from r2 in 7m36s (about 10 MiB/s). Restores are not
    concurrency-capped, so `ai/hermes` (~19.6 GiB) bounds the phase at roughly 30-40 min.
 5. If a claim failed: keep its PVC unbound, fix the cause (usually cache capacity or mover
    identity, see the `kopiur-backups` skill), then delete the `Restore` **and** the Pending PVC.
    Both carry `ssa: IfNotPresent`, so `flux reconcile ks <app> -n <ns>` recreates them from the
    DR-mode Git state, and the new PVC starts the claim over. A failed `Restore` never retries.
+   A failed claim also leaves up to 3 ephemeral cache PVCs (one per mover attempt, at the claim's
+   cache size) until the Job TTL expires after 1 h.
+6. **Once every claim passes steps 2-3, delete the completed populator Restores**, then
+   `flux reconcile ks <app> -n <ns>` so they come back unclaimed:
+
+   ```bash
+   kubectl get restore -A --no-headers | awk '$2 ~ /-kopiur-dst$/ {print $1, $2}' |
+     while read ns name; do kubectl -n "$ns" delete restore "$name"; done
+   ```
+
+   kopiur 0.10.10 never reaps a Restore's credential copy (`<restore>-restore-creds-N`) while
+   the Restore exists, so the r2 keys would otherwise sit in 6 app namespaces and the critical
+   `KopiurProjectedCredentialsLeaking` page (Pushover priority 2) fires about 13 h later. This is
+   safe: the claims are bound (`TargetAlreadyBound`), and the Restores carry no finalizers and own
+   no data.
 
 ## Phase 4 - Hand restores for the 5 claims without a working populator
 
@@ -208,16 +228,18 @@ Identity and cache are the live r2 policy values (2026-09-28); re-read them from
        cache: {mode: Ephemeral, capacity: <cache>}
    ```
 
-3. Wait for `Completed` and check `.status.resolved.kopiaSnapshotID`. Resume the HelmRelease and
+3. Wait for `Completed` and check `.status.resolved.kopiaSnapshotID`. Delete the Restore right
+   away (same credential-copy reason as phase 3 step 6), then resume the HelmRelease and
    Kustomization and let the workload scale back up.
 
 Do **not** use `just kube restore`: it is VolSync-only, clones `${APP}-dst`, and reads `ceph`.
 
 ## Phase 5 - Verify
 
-1. Each of the 31 claims: restored file count and bytes consistent with the resolved snapshot's
-   `status.stats` (kopia skips `CACHEDIR.TAG` directories, so fewer files than the old live
-   volume can be correct), and the app works: log in, data present.
+1. Each of the 31 claims: the pinned snapshot ID from phase 3/4 is the one expected from phase 0,
+   and the app works: log in, data present. A file-count check needs a read-only reader pod on
+   the claim, compared with the snapshot's `Snapshot.status.stats` (kopia skips `CACHEDIR.TAG`
+   directories, so fewer files than the old live volume can be correct).
 2. Postgres: `kubectl -n database get cluster postgres-17` healthy, recovered to at or near
    `T_LOSS`, `ContinuousArchiving=True` against the new `serverName`.
 
@@ -231,9 +253,8 @@ Do **not** use `just kube restore`: it is VolSync-only, clones `${APP}-dst`, and
    `flux reconcile ks` each app so they come back ceph-pointed. Deleting a `Restore` whose claim
    is bound does not touch the volume; they carry no finalizers and own no data
    ([`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md)).
-4. Delete the phase 4 hand-written Restores.
-5. Check adoption: each r2 policy's `status.adoption` covers its pre-disaster history.
-6. Record the event, and the next rebuild's Postgres `serverName`, in `docs/`.
+4. Check adoption: each r2 policy's `status.adoption` covers its pre-disaster history.
+5. Record the event, and the next rebuild's Postgres `serverName`, in `docs/`.
 
 ## Recovering from a silent empty rebuild
 
