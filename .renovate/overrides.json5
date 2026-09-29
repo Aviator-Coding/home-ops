@@ -31,9 +31,7 @@
       overridePackageName: "ghcr.io/siderolabs/installer",
     },
     {
-      // 2.3.x drops EMQX OSS 5.8.x support (calls Enterprise-only
-      // load_rebalance API -> readiness gate stuck -> MQTT down).
-      // See emqx/emqx-operator#1202. Stay on the 2.2.x line.
+      // 2.3.x calls an Enterprise-only API and sticks the OSS broker (emqx/emqx-operator#1202).
       description: "Pin EMQX operator to 2.2.x (Open-Source broker compat)",
       matchPackageNames: ["emqx-operator", "ghcr.io/emqx/emqx-operator"],
       allowedVersions: "<2.3.0",
@@ -76,11 +74,7 @@
       automerge: false,
     },
     {
-      // Ceph versioning: x.0.z = development, x.1.z = RC, x.2.z = stable.
-      // Renovate matches registry tags, not docs.ceph.com/en/latest/releases/,
-      // so RCs like v21.1.0 (no official v21 release) get proposed as upgrades
-      // (#1396). Restrict to stable tags only. Do not apply this to
-      // ghcr.io/rook/ceph - Rook versions as ordinary semver.
+      // x.0.z is dev, x.1.z is RC; registry tags surface RCs as upgrades (#1396). Not for ghcr.io/rook/ceph. Skill `renovate` references/versioning-traps.md.
       description: "Keep quay.io/ceph/ceph on stable x.2.z tags (skip x.0.z dev and x.1.z RC)",
       matchDatasources: ["docker"],
       matchPackageNames: ["quay.io/ceph/ceph"],
