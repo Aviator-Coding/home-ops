@@ -1,30 +1,7 @@
 #!/usr/bin/env bash
-# Format-check and schema-validate every OpenTofu stack under terraform/.
-#
-# This script (and validate.yaml's terraform job that calls it) stays
-# credential-less: `tofu init -backend=false`, so the S3 backend in
-# terraform/authentik/backend.tofu is never contacted and no state lock is
-# taken. Real read-only plans against the live backend/API live in
-# terraform-diff.yaml (see docs/authentik/terraform.md section 9).
-# `tofu apply` remains fully behind the explicit approval gate in that doc's
-# section 7 - nothing here mints, reads, or references apply credentials.
-#
-# WHAT THIS CATCHES
-#   - formatting drift (`tofu fmt`)
-#   - unknown or misspelled resource, data source and attribute names, checked
-#     against the real provider schema downloaded from the registry
-#   - type errors, unresolved references, undeclared variables
-#   - provider versions that do not satisfy the lock file, or a lock file missing
-#     hashes for this runner's platform
-#   - state or rendered tfvars accidentally committed
-#
-# WHAT THIS DOES NOT CATCH - do not read a green run as apply-safety
-#   - anything that requires talking to Authentik or the state backend.
-#     `tofu validate` never calls the API, so it cannot tell you whether an
-#     import id resolves, whether a resource matches the live object, or
-#     whether a plan is free of destructive changes. For that, see the
-#     read-only plan path in terraform-diff.yaml / section 9; apply stays
-#     section 7-gated.
+# Credential-less tofu fmt and tofu validate -backend=false for every stack under terraform/.
+# A green run is not apply-safety: this never calls Authentik or the state backend. Live read-only plans are terraform-diff.yaml. Apply needs an explicit go-ahead.
+# Skill `authentik-terraform` references/ci-plan.md and references/apply-runbook.md.
 set -euo pipefail
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

@@ -44,23 +44,7 @@ spec:
           labelSelector:
             matchLabels:
               app: ${APP}-dragonfly
-  # Best-effort balance of a namespace's dragonfly pods across nodes. Kept for
-  # that broader spread; the anti-affinity above is what actually separates an
-  # instance's own two replicas.
-  # nodeTaintsPolicy: Honor - dragonfly gets no toleration for the talos-3
-  # home-operations.com/dedicated taint, but nodeTaintsPolicy defaults to
-  # Ignore, so without this the tainted node still counts as a spread domain
-  # and DoNotSchedule can refuse to place a pod anywhere at all. Live
-  # 2026-09-26: exactly this stranded ai/searxng-dragonfly-0,
-  # selfhosted/paperless-ngx-dragonfly-0 and selfhosted/rsshub-dragonfly-1
-  # with 0/3 nodes available during the talos-1.14.1 roll (the taint was
-  # NoSchedule at the time). Confirmed the installed Dragonfly CRD
-  # (dragonflies.dragonflydb.io) passes topologySpreadConstraints through as
-  # a plain core TopologySpreadConstraint, nodeTaintsPolicy included. The
-  # taint was switched the same day to PreferNoSchedule, which Honor does
-  # not filter, so this dead-end can no longer recur against the current
-  # taint and Honor is now hygiene against a future hard taint rather than
-  # active protection. See docs/talos-3-scheduling-truth.md sections 9-10.
+  # Required anti-affinity separates an instance's replicas. nodeTaintsPolicy Honor: the default Ignore still counts a tainted node, and DoNotSchedule can then strand pods. Skill `node-scheduling`.
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: "kubernetes.io/hostname"

@@ -2,7 +2,7 @@
 #
 # Credentials never live in this tree. `authentik_token` is supplied through the
 # environment as TF_VAR_authentik_token, rendered from 1Password by `vals` - see
-# secrets.vals.yaml and the runbook in ../../docs/authentik/terraform.md.
+# secrets.vals.yaml. Skill `authentik-terraform` references/state-and-credentials.md.
 
 terraform {
   required_version = "~> 1.12"

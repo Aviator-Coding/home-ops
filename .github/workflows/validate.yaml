@@ -1,66 +1,8 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-#
-# CI gates for the parts of this repo Flux never sees. `talos/`, `bootstrap/` and
-# `.renovate/` are outside the `kubernetes/**` paths that flate and Image Pull
-# filter on, so before this workflow a PR touching only `talos/` ran exactly one
-# check: the labeler.
-#
-# This workflow (like flate.yaml and image-pull.yaml) has no trigger-level
-# `paths:` filter: it always starts and its aggregate `Validate - Success` job
-# always posts a result, reporting success-via-skip when the per-job `filter`
-# step below finds nothing relevant. That is what makes `Validate - Success`
-# safe to add to the branch-protection required-checks list, unlike the old
-# trigger-level filter, which meant the check simply never existed outside its
-# path list. See docs/branch-protection.md.
-#
-# Scope, honestly:
-#   - `talosctl validate` is a *schema* check. It catches render breakage and
-#     machine-config keys Talos does not know. It does NOT catch invalid enum
-#     values, malformed or wrong CIDRs, or a missing install disk - all three were
-#     tested directly and pass validation. A green run here is not permission to
-#     apply a config to a node; the dry-run, one-node-at-a-time discipline in
-#     talos/AGENTS.md is what covers that.
-#   - The `bootstrap` job covers `bootstrap/kustomize/` only. `bootstrap/helmfile/`
-#     renders through vals against 1Password, which CI has no credentials for.
-#   - The `terraform` job below is `tofu fmt` + `tofu validate` with
-#     `-backend=false`: a pure schema check, no credential of any kind. It
-#     cannot tell you whether a plan is destructive.
-#     A real, read-only `tofu plan` against the live backend (and, for
-#     authentik, the live Authentik API) now runs separately and unattended on
-#     every same-repo pull request, in terraform-diff.yaml - a deliberate,
-#     captain-approved change (2026-08-27) from this job's original "CI can
-#     never reach the live instance" design. `tofu apply` is unaffected: it
-#     remains fully behind the explicit captain-approval gate in
-#     docs/authentik/terraform.md section 7. See that doc's section 9 for the
-#     full reasoning and the one credential involved.
-#   - The `python-tests` job runs every `scripts/ci/*-test.py` regression test
-#     (semantic pins of captain decisions/invariants). Inventory, local setup,
-#     and the deliberate litellm pin live in scripts/ci/README.md - not here.
-#
-# Runner contention (measured 2026-08-29, PR #1481, run 33233099018):
-#   Editing this file matches every per-job path filter, so talos / versions /
-#   bootstrap / terraform / python-tests / Validate-Filter all launch at once
-#   onto gha-runner-scale-set-aviator-coding-home-ops (Labeler is a separate
-#   workflow on the same scale set). That is not a runner-slot shortage:
-#   attempt 1 assigned 7 distinct runner pods (`maxRunners: 15` was not the
-#   ceiling). Uncontended `jdx/mise-action` Setup Tools is 10-23s and the
-#   actual validators are 0-2s; python-tests `uv pip install litellm[proxy]`
-#   is 33s on a lucky 8-way run and 416s on an unlucky one. On the unlucky
-#   run, talos spent its entire timeout-minutes: 10 inside Setup Tools
-#   (`cancelled` at 602s, never reached talos-validate.sh) and then passed
-#   in 17s when rerun alone on the same head. Symptom: a random red check
-#   that passes on rerun. Do not raise minRunners/maxRunners to "fix" that.
-#   Timeouts below are sized from those numbers (mise jobs 25m = 2.5x the
-#   10m kill, because Setup Tools never finished so 10m is only a lower
-#   bound). python-tests needs the lighter jobs so the heavy pip install
-#   does not overlap their Setup Tools; always() is required so a skipped
-#   predecessor (path-filter miss) does not skip python-tests. We did not
-#   drop this workflow file from the per-job filters: that would skip
-#   self-test of a workflow edit. We did not job-concurrency-serialize the
-#   whole set: GitHub counts concurrency wait toward timeout-minutes, which
-#   would recreate the same cancel under queue. Contract pin:
-#   scripts/ci/validate-contention-test.py (inventory: scripts/ci/README.md).
+# CI for talos/, bootstrap/, .renovate/ and terraform/. No trigger-level paths filter, so Validate - Success always posts. talosctl validate and the terraform job are schema-only; live read-only plans are terraform-diff.yaml.
+# A red check that passes on rerun is runner contention (PR #1481), not a slot shortage. Do not raise maxRunners, drop this file from the per-job filters, or serialize the jobs. Pin: scripts/ci/validate-contention-test.py.
+# Skill `github-ci` references/workflows.md. Apply stays behind an explicit go-ahead. Skill `authentik-terraform` references/apply-runbook.md.
 name: Validate
 
 on:
@@ -285,12 +227,7 @@ jobs:
         with:
           install_args: opentofu
 
-      # No credentials are set for this step, deliberately: it stays a pure
-      # schema check (`-backend=false`, `tofu validate` never calls the
-      # Authentik API). A real plan against the live backend runs separately, in
-      # terraform-diff.yaml (read-only, gated only by that workflow's fork
-      # guard) - see docs/authentik/terraform.md section 9 for why that is
-      # considered safe and `tofu apply` is not.
+      # Credential-less schema check. Live read-only plans are terraform-diff.yaml. Skill `authentik-terraform` references/ci-plan.md.
       - name: Format and Validate OpenTofu Stacks
         run: ./scripts/ci/tofu-validate.sh
 

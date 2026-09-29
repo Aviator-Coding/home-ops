@@ -1,22 +1,4 @@
-# The two adopted OIDC applications on this instance, plus their OAuth2 providers.
-#
-# Every value below was read out of the live instance before it was written down
-# (see the inventory in ../../docs/authentik/terraform.md). This file adopts what
-# exists; it does not propose a new configuration.
-#
-# Two adoption rules make that adoption non-destructive, and both matter:
-#
-#   1. `client_secret` is deliberately absent. It is optional+computed in the
-#      provider schema, so after `import` OpenTofu carries the live secret in
-#      state and plans no change. Declaring it would mean sourcing the current
-#      value exactly - and getting that wrong silently rotates the secret and
-#      breaks every login for that app.
-#   2. `client_id` is required by the schema, so it must be declared. It is fed
-#      from 1Password as the existing value, never generated. See variables.tofu.
-#
-# `grant_types` is likewise omitted here (imported providers only): it is
-# optional+computed and the read adopts Authentik's stock set. Created providers
-# must declare it - see litellm.tofu and docs/authentik/terraform.md §7b.
+# Adopted providers omit client_secret and grant_types. Declaring client_secret rotates the live secret. Created providers must declare grant_types. Skill `authentik-terraform`.
 
 locals {
   oauth2_applications = {

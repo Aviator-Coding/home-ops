@@ -32,9 +32,12 @@ exclusion because it feeds the same installer.
 |---|---|
 | `quay.io/ceph/ceph` | `/^v?\d+\.2\.\d+$/` (x.0.z dev, x.1.z RC, x.2.z stable). Not for `ghcr.io/rook/ceph` |
 | `public.ecr.aws/emqx/emqx` | `<5.9.0` (5.9+ is Enterprise-only). Open-source line ends at 5.8.x |
-| `emqx-operator` | `<2.3.0` |
-| `docker.io/plexinc/pms-docker` | regex versioning. Docker compatibility treats the dash-suffix as a qualifier that must match the installed tag, and Plex's suffix is a per-release hash, so every candidate is incompatible. The regex scheme is what lets updates surface |
-| authentik provider | coupled to the server release line the provider was generated from |
+| `emqx-operator` | `<2.3.0` (2.3 calls an Enterprise-only API and sticks the OSS broker) |
+| `docker.io/plexinc/pms-docker` | regex versioning. Docker compatibility treats the dash-suffix as a qualifier that must match the installed tag, and Plex's suffix is a per-release hash, so every candidate is incompatible. The regex scheme is what lets updates surface. A Plex bump classifies as patch and follows the blanket patch automerge rule |
+| authentik provider | `automerge: false`, coupled to the server release line the provider was generated from (`goauthentik/authentik`) |
+| mise `1password-cli` | no GitHub repo. Resolve via docker `1password/op` with `versioning: semver`, or docker `isStable` ranks a `-beta` tag as stable |
+| agentgateway charts | `<2.0.0`. The same OCI repo also publishes a v2 kgateway-bundled lineage |
+| `ghcr.io/berriai/litellm-non_root` minors | `minimumReleaseAgeBehaviour: timestamp-optional`, because GHCR docker tags carry no `releaseTimestamp` and `timestamp-required` leaves the PR pending forever. `automerge` stays false |
 
 When a pin starts proposing again, re-check that package's versioning scheme
 against installed Renovate (`getRegexPredicate`, `filterVersions`, `isStable`,

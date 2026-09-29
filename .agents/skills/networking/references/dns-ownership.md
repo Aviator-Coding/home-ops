@@ -48,6 +48,13 @@ the no-port form.
 `cilium monitor --type drop` shows the ephemeral destination port on a dropped
 reply.
 
+## Staleness alert
+
+`ExternalDNSStale` in `network/cloudflare-dns/app/prometheusrule.yaml` is
+unselectored on purpose: one rule covers cloudflare-dns and unifi-dns. The
+threshold is 180s, three times `--interval=1m`. A 60s threshold sits inside
+the healthy staleness sawtooth and stays true on a healthy controller.
+
 ## nslookup
 
 Short names and `ndots:5` make search-domain behavior matter. Busybox

@@ -48,6 +48,10 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
 9. **Never seed a Secret with client-side `kubectl apply`.** The value is
    copied into `kubectl.kubernetes.io/last-applied-configuration`. Use
    `kubectl create`, or server-side apply. Skill `secrets-1password`.
+10. **`FluxResourceSuspendedTooLong` keys `exported_namespace`.**
+    `flux_resource_info` is the only live suspended signal. kube-state-metrics
+    has no Flux CRD state. The metric's `namespace` label is always
+    `flux-system`, because it is a metric on the operator.
 
 ## Where things live
 
