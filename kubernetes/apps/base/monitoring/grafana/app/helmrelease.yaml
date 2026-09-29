@@ -290,7 +290,7 @@ spec:
         k8s-system-api-server:
           # renovate: depName="Kubernetes / System / API Server"
           gnetId: 15761
-          revision: 19
+          revision: 21
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
