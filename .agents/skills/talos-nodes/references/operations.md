@@ -70,4 +70,4 @@ Substitute dummy base64 for any unresolved `ref+op://` before validate. `just` i
 
 ## Bootstrap
 
-`just bootstrap cluster` is disaster recovery, not a reconcile. It `kubectl apply`s and `helmfile sync`s. Never run it against a healthy cluster. Human steps: `bootstrap/README.md`.
+`just bootstrap cluster` is disaster recovery, not a reconcile. It `kubectl apply`s and `helmfile sync`s. Never run it against a healthy cluster. Human steps: [bootstrap/README.md](../../../../bootstrap/README.md).

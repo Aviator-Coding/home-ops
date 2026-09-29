@@ -212,6 +212,78 @@ off-cluster disaster-recovery copy.
 
 ---
 
+## 4. RGW realm, zone and system user
+
+Helm sets `rgw_realm` so RGW does not create a fresh orphan `default` zone on every start. The realm, zonegroup and zone defaults, and the zone system user, are not Helm values. Repeat this after a rebuild, from the toolbox Deployment. Do not put the printed keys in Git.
+
+```bash
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- \
+  radosgw-admin realm default --rgw-realm=ceph-objectstore
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- \
+  radosgw-admin zonegroup default --rgw-zonegroup=ceph-objectstore --rgw-realm=ceph-objectstore
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- \
+  radosgw-admin zone default --rgw-zone=ceph-objectstore \
+  --rgw-zonegroup=ceph-objectstore --rgw-realm=ceph-objectstore
+
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- \
+  radosgw-admin user create --uid=zone.user --display-name="Zone System User" --system
+# keys from that output:
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- \
+  radosgw-admin zone modify --rgw-zone=ceph-objectstore \
+  --access-key=<ACCESS_KEY> --secret=<SECRET_KEY> --rgw-realm=ceph-objectstore
+kubectl rollout restart deployment -n rook-ceph -l app=rook-ceph-rgw
+```
+
+Without the system user, zone sync reports `Access/Secret keys not found`.
+
+If `radosgw-admin zone list` still shows a `default` zone beside `ceph-objectstore`:
+
+```bash
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- radosgw-admin zone delete --rgw-zone=default
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- radosgw-admin zonegroup delete --rgw-zonegroup=default
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- rados -p .rgw.root rm zone_names.default
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- rados -p .rgw.root rm zonegroups_names.default
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- rados -p .rgw.root rm default.zone.
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- rados -p .rgw.root rm default.zonegroup.
+```
+
+Delete `default.rgw.log`, `default.rgw.control` and `default.rgw.meta` only when `ceph osd pool ls` shows them and they hold nothing you still need. Restart RGW again.
+
+The mgr modules `rook` and `nfs` stay off. Do not enable `rook` to "finish" this setup.
+
+## 5. Slow ops and laggy PGs
+
+The PG read lease is 0.8 times `osd_heartbeat_grace`. A slow OSD that misses it flips PGs to `LAGGY` and blocks reads. `waiting for readable` in the blocked-op dump is that lease, not a client bug.
+
+```bash
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph health detail
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph tell osd.N dump_blocked_ops
+kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph osd down osd.N
+# or: kubectl -n rook-ceph delete pod -l ceph-osd-id=N
+```
+
+Stop the sustained writer (unpack queue or backup) before calling the OSD failed. Do not mark every OSD down.
+
+## 6. All three mons, RocksDB store gone
+
+One mon: delete that mon's Deployment and PVC. Rook recreates it from quorum. Do not restore an old store over a live quorum.
+
+All three mons crash-looping on RocksDB `Corruption` / missing `.ldb` / checksum mismatch: rebuild the mon store from current OSD data. Do not restore an old backup. The metadata CronJob does not snapshot `/var/lib/rook`.
+
+```bash
+# on each OSD host, against that OSD's data path:
+ceph-objectstore-tool --data-path /var/lib/ceph/osd/ceph-<id> \
+  --op update-mon-db --mon-store-path /tmp/mon-store
+ceph-monstore-tool /tmp/mon-store rebuild -- \
+  --keyring /etc/ceph/ceph.client.admin.keyring --mon-ids a b c
+```
+
+The rebuild does not recover the CephFS FSMap or non-OSD keyrings. This cluster uses CephFS RWX, so after the mons are back, recreate the filesystem with the recovery flag, set it joinable, and reapply `standby_count_wanted`. Upstream: Ceph "troubleshooting-mon" and "recover-fs-after-mon-store-loss".
+
+## 7. Blockpool min_size=1, brief only
+
+A `min_size=1` window on the block pool has been used twice to break an RBD-activate deadlock while PGs were inactive. It is not a standing setting. Restore `min_size=2` before calling the cluster healthy. Pool `size` stays 3. Never apply this to the CephFS data pool as a shortcut.
+
 ## Important notes
 
 1. **FSID is critical.** Without the original FSID, OSDs with data cannot
