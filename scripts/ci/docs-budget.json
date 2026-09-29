@@ -1,10 +1,3 @@
 {
-  "allowlist": [
-    {
-      "path": "kubernetes/apps/base/ai/hermes/app/resources/config.yaml",
-      "metric": "comment_block_lines",
-      "limit": 24,
-      "reason": "Hermes config payload read at runtime via a reloader-driven ConfigMap: any byte change restarts Hermes uncleanly, so its comments change only together with a real config change (skill hermes-agent)."
-    }
-  ]
+  "allowlist": []
 }

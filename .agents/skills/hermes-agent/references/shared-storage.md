@@ -42,7 +42,8 @@ root makes kubelet chown every file on the next Hermes start. The Samba
 initContainer sets the bit and is non-recursive on purpose (`/shared` is
 hundreds of thousands of files).
 
-`smb.conf` is a reloader payload. Do not edit it to tidy comments.
+`smb.conf` is a reloader payload: any byte, comments included, restarts the
+samba pod (it drops the SMB sessions). Land such edits alone.
 
 `replicas: 1` and `Recreate` on Samba stay. smbd's per-file locks are
 in-process; a second replica would not share them. Reloader is on, for the

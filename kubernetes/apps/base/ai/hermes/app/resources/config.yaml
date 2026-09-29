@@ -1,37 +1,21 @@
-# Hermes runtime config — GitOps source of truth.
+# Hermes runtime config - GitOps source of truth.
 #
 # The `copy-config` initContainer (helmrelease.yaml) copies this to
 # /opt/data/config.yaml on EVERY pod start (overwriting any in-pod edits), and
 # reloader restarts the pod when this ConfigMap changes. Change models/providers
-# HERE, in Git — NOT via `hermes model` / `hermes config edit`, whose writes are
-# wiped on the next restart.
+# HERE, in Git, NOT via `hermes model` / `hermes config edit`.
 _config_version: 46
 
 providers:
-  # THE one LLM provider: the agentgateway unified /v1 endpoint. The gateway
-  # routes by model id (local qwen -> B70 llama.cpp with kimi failover, bare
-  # Go ids like kimi-k2.6/glm-5.1 -> OpenCode Go, vendor slugs like
-  # x-ai/grok-4.3 -> OpenRouter — see agentgateway/app/httproute-unified.yaml)
-  # and injects the real provider keys upstream, so the `api_key` below is a
-  # dummy — it's never sent on the wire (the gateway overrides Authorization).
-  # It exists only so the auxiliary client can resolve a credential: without it
-  # Hermes logs "no resolvable api_key" warnings.
-  # NOTE: the value must NOT be `no-key-required`/`no-key`/`` — those are the
-  # sentinels Hermes treats as "no credential"; `no-auth` survives as one.
+  # THE one LLM provider: agentgateway's unified /v1 endpoint. The gateway routes
+  # by model id and injects the real provider keys (agentgateway/app/httproute-unified.yaml),
+  # so `api_key` is a dummy that is never sent on the wire. It exists only so the
+  # auxiliary client resolves a credential (else "no resolvable api_key" warnings).
+  # It must NOT be `no-key-required`/`no-key`/``: Hermes treats those as "no credential".
   #
-  # NAMING TRAP (kept for posterity): hermes-agent's auxiliary-client resolver
-  # (agent/auxiliary_client.py::_normalize_aux_provider) strips the `custom:`
-  # prefix and, if what's left matches a BUILT-IN provider id (e.g.
-  # `openrouter`), routes into that native branch instead of looking up the
-  # providers entry — silently bypassing the gateway base_url (confirmed
-  # live 2026-07-04 with a `custom:openrouter` reference). Keep this provider's
-  # name collision-free with hermes-agent's provider registry (`gateway` is
-  # safe); never name a custom provider after a built-in one.
-  #
-  # Referenced everywhere as `custom:gateway`. This is the v12 `providers:`
-  # dict shape (converted 2026-09-26 from the legacy `custom_providers:` list
-  # by running Hermes' own v11->v12 migration, read-only, against a copy of
-  # this file in the live pod, to get the exact shape it produces).
+  # Never name a custom provider after a built-in id (`openrouter`, ...): the
+  # auxiliary-client resolver then routes into the native integration and bypasses
+  # this base_url. `gateway` is safe. Referenced everywhere as `custom:gateway`.
   gateway:
     api: http://internal-noauth.ai.svc.cluster.local/v1
     name: gateway
@@ -39,13 +23,9 @@ providers:
     transport: chat_completions
 
 # Default serving model: the local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL).
-# Free and rate-limit-proof. llama-server auto-selects n_parallel=4 +
-# kv_unified=true (do not pin those flags). Fan-out above 4 queues. The gateway
-# resolves this exact id through its llm-chat-failover backend: if the local
-# server errors or is unavailable (e.g. ComfyUI scaled vllm to 0 under the
-# Dedicated-VRAM runbook) the GATEWAY fails over to kimi-k2.6 on OpenCode Go
-# before the `fallback_providers` chain below ever fires - the effective chain
-# is local -> kimi-k2.6 (gateway) -> glm-5.1 -> deepseek/deepseek-v4-flash.
+# llama-server auto-selects n_parallel=4 + kv_unified=true (do not pin those
+# flags); fan-out above 4 queues. The gateway fails the local model over to
+# kimi-k2.6 before `fallback_providers` below ever fires.
 # To serve a cloud model instead, set e.g.
 # model: { default: x-ai/grok-4.3, provider: custom:gateway }.
 model:
@@ -53,46 +33,23 @@ model:
   provider: custom:gateway
 
 # Fail-over chain for the MAIN agentic loop (fires only if the gateway's own
-# local->kimi failover also fails): glm-5.1 on the flat-rate OpenCode Go sub,
-# then deepseek-v4-flash via OpenRouter (billed PAYG from OpenRouter credit —
-# deliberately NOT on the Go sub, since this tier exists for Go-quota
-# exhaustion). glm-5.1 is the strongest tool-caller on the OpenCode-Go sub
-# (tops τ²-bench / BFCL agentic vs kimi/deepseek/qwen), which matters because
-# this fallback runs the full tool-calling loop. deepseek-v4-flash replaced
-# x-ai/grok-4.3 here (2026-07-10): grok was the #1 OpenRouter spend ($8 of the
-# $10 monthly key cap) and this tier burned ~$2.5/day when it fired for real —
-# deepseek-v4-flash is ~14x cheaper ($0.09/$0.18 vs $1.25/$2.50 per M tok) and
-# already trusted in the stack (agentmemory consolidation). The aux chores
-# below stay on kimi-k2.6 — they only summarise content, they don't tool-call.
+# local->kimi failover also fails): glm-5.1 on the flat-rate OpenCode Go sub, then
+# deepseek-v4-flash via OpenRouter (PAYG, deliberately NOT on the Go sub: this
+# tier exists for Go-quota exhaustion). This chain runs the full tool-calling
+# loop, unlike the aux chores below.
 fallback_providers:
   - provider: custom:gateway
     model: glm-5.1
   - provider: custom:gateway
     model: deepseek/deepseek-v4-flash
 
-# Auxiliary context chores mostly run on kimi via the gateway, NOT the local
-# model: web_extract fires N parallel LLM calls (one per fetched page) on large
-# content, and the 4-slot unified-KV local llama-server queues / times out once
-# fan-out exceeds 4. kimi handles that concurrency, and aux volume is low
-# (bursty, per-task) so it won't burn the cloud limits the way the continuous
-# main loop did.
+# Auxiliary chores run mostly on kimi via the gateway, NOT the local model:
+# web_extract fires N parallel calls (one per page) and the 4-slot local
+# llama-server queues / times out past 4.
 # IMPORTANT: aux fallback uses the PER-TASK `fallback_chain`, NOT the global
-# `fallback_providers` above — without it Hermes falls back to the main model
-# (=the local qwen) and re-times-out, so the heavy chores pin a cloud fallback
-# (also parallel-capable). `vision` runs on an OpenRouter slug because the
-# local 35B is text-only. `compression` is the one exception — it's pinned
-# straight to a cloud model as PRIMARY, not kimi; see its own comment below.
-#
-# Cost note (2026-07-09): compression/vision/web_extract-fallback were all Grok
-# (x-ai/grok-4.3, $1.25/$2.50 per M tok on OpenRouter) — the only *metered*
-# spend in this config (glm-5.1 above runs on the flat-rate OpenCode Go sub,
-# not billed per-token, so it's already the "free" tier). compression and
-# vision are PRIMARY (fire every session), so they're the real cost drivers —
-# moved to much cheaper models with the needed capability: gpt-oss-120b for
-# text-only chores (~35x/~14x cheaper than grok-4.3), qwen3-vl for vision
-# (~12x/~6x cheaper, still a dedicated vision-language model). 2026-07-10:
-# grok-4.3 was also dropped from the last-resort fallback tier above (see its
-# comment) — no automated task uses a $1+/M model anymore.
+# `fallback_providers` above; without it Hermes falls back to the main model
+# (the local qwen) and re-times-out. `vision` needs a vision-capable cloud slug
+# (the local 35B is text-only). `compression` is pinned to a cloud primary, see below.
 auxiliary:
   web_extract:
     provider: custom:gateway
@@ -100,15 +57,10 @@ auxiliary:
     fallback_chain:
       - provider: custom:gateway
         model: openai/gpt-oss-120b
-  # Compression runs on a cloud model, NOT kimi. Rationale: on a kimi failure
-  # (e.g. OpenCode Go quota exhaustion), hermes-agent's own compressor retry logic
-  # falls back to the MAIN model automatically — it does NOT consult this task's
-  # fallback_chain. Our main model is the 4-slot unified-KV local B70 llama-server,
-  # which is already serving the live session, so that fallback queues / times out
-  # under contention (repeated "Failed to generate context summary" warnings).
-  # Pinning a cloud model as primary here sidesteps both the kimi quota exposure
-  # and the local-model contention structurally. gpt-oss-120b: cheap, text-only
-  # (compression never needs vision), solid summarization of tool-call transcripts.
+  # Cloud primary, NOT kimi: on a provider error hermes-agent's compressor falls
+  # back to the MAIN model (it does not consult this task's fallback_chain), which
+  # is the local llama-server already serving the live session and queues /
+  # times out under contention.
   compression:
     provider: custom:gateway
     model: openai/gpt-oss-120b
@@ -118,9 +70,8 @@ auxiliary:
   title_generator:
     provider: custom:gateway
     model: kimi-k2.6
-  # qwen3-vl-32b-instruct: dedicated vision-language model, ~12x/~6x cheaper than
-  # grok-4.3 on OpenRouter. Pinned here (not kimi) because the local 35B is
-  # text-only.
+  # Dedicated vision-language model, pinned here (not kimi) because the local 35B
+  # is text-only.
   vision:
     provider: custom:gateway
     model: qwen/qwen3-vl-32b-instruct
@@ -129,17 +80,12 @@ auxiliary:
 web:
   search_backend: searxng
 
-# Aggregated MCP tools via the ToolHive VirtualMCPServer (ns ai). The vmcp
-# "mcp-gateway-internal" federates every toolhive.stacklok.dev/v1alpha1
-# MCPServer in the `mcp-tools` group (active set:
-# kubernetes/apps/base/ai/toolhive/mcp-servers/kustomization.yaml) behind one
-# streamable-http endpoint at /mcp. Hermes connects through the LAN route
-# (MCP_GATEWAY_URL) with the bearer token (MCP_GATEWAY_TOKEN), both from the
-# hermes Secret: a NetworkPolicy closes the vmcp Service to everything but
-# envoy-internal. Tool names are prefixed per backend ({workload}_). Deployed by
-# kubernetes/apps/base/ai/toolhive. (joryirving routes this through litellm /mcp;
-# this cluster's LiteLLM is governance-only for LLM virtual keys and is not
-# an MCP gateway.)
+# Aggregated MCP tools via the ToolHive VirtualMCPServer (ns ai): the vmcp
+# "mcp-gateway-internal" federates every MCPServer in the `mcp-tools` group behind
+# one streamable-http endpoint at /mcp. Hermes reaches it through the LAN route with
+# a bearer token (MCP_GATEWAY_URL, MCP_GATEWAY_TOKEN, both from the hermes Secret);
+# a NetworkPolicy closes the vmcp Service to everything but envoy-internal. Tool
+# names are prefixed per backend ({workload}_); LiteLLM is not an MCP gateway here.
 mcp_servers:
   toolhive:
     url: ${MCP_GATEWAY_URL}
@@ -147,17 +93,9 @@ mcp_servers:
       Authorization: "Bearer ${MCP_GATEWAY_TOKEN}"
     enabled: true
 
-# Persistent cross-session memory. agentmemory (the shared in-cluster service) was
-# retired 2026-08-31 - see docs/ai-system/agentmemory-retirement-2026-08-31.md: it
-# received 1 real usage window in 14 days, Hermes itself wrote 9 observations in 16
-# days, and its runtime (iii 0.11.2, whole-store-in-a-HashMap) could not be stabilised
-# at any memory limit. `holographic` is Hermes' bundled provider instead: a local
-# SQLite fact store (FTS5 search, trust scoring, HRR-based compositional retrieval)
-# already shipped in the image at /opt/hermes/plugins/memory/holographic, requiring no
-# new infrastructure and no shared network service. It is in-process to Hermes only -
-# it cannot serve workstation agents the way agentmemory did - but it is the near-zero
-# consumer this pod actually needs. `memory.provider` below ACTIVATES a provider
-# (without it Hermes shows `provider: none` and captures nothing).
+# Persistent cross-session memory. `memory.provider` ACTIVATES a provider (without
+# it Hermes shows `provider: none` and captures nothing). `holographic` is Hermes'
+# bundled local SQLite fact store: in-process only, no shared service.
 memory:
   provider: holographic
   auto_migrate: true
@@ -173,74 +111,30 @@ platform_toolsets:
 telegram:
   require_mention: false
 
-# ── state.db retention (bounds /opt/data/state.db growth) ──────────────────────
-# Measured 2026-09-15: state.db was 9.31 GiB (2,440,957 x 4 KiB pages) on a 25Gi
-# claim already 76% full, growing ~175-235 MB/day. Full evidence, every query and
-# the read-only proof: docs/ai-system/hermes-state-db-growth.md.
+# state.db retention (bounds /opt/data/state.db growth)
 #
-# These are upstream's own supported settings (hermes_cli/config_defaults.py
-# `sessions:`), NOT a bespoke mechanism. `hermes_cli/config.py::load_config`
-# deep-merges DEFAULT_CONFIG, so every key not listed here already has upstream's
-# default - the three below are the ones where upstream's default is wrong for
-# this claim.
+# Upstream's own supported settings (hermes_cli/config_defaults.py `sessions:`).
+# Every key not listed deep-merges to upstream's default. Rationale for each:
+# skill `hermes-agent`, references/state-db.md.
 sessions:
-  # Upstream default is ALREADY true, so this line changes no behaviour - it is
-  # here because both call sites read `_sess_cfg.get("auto_prune", False)`
-  # (gateway/run.py, cli.py `_run_state_db_auto_maintenance`): the DEFAULT is the
-  # only thing making it true, and a future upstream flip would silently disable
-  # pruning on this install. Pinning it makes the intent reviewable in Git.
+  # Upstream default is already true; pinned because both call sites read
+  # `.get("auto_prune", False)`, so an upstream flip would silently stop pruning.
   auto_prune: true
 
-  # THE ACTUAL FIX. Upstream default is 90. At 90 days this install cannot fit
-  # its own claim: measured recent volume is ~3,100 message_count/day at ~56 KiB
-  # all-in per message_count, so the 90-day steady state is ~15.6 GiB of state.db
-  # on top of ~9.7 GB of other /opt/data content = ~25.3 GB against a 25Gi claim.
-  # The 90-day window is also why pruning has been a no-op so far: the install is
-  # only 98.9 days old, so just 218 sessions (3.3% of message_count) had ever
-  # aged out, and `PRAGMA freelist_count` was 292 of 2,440,957 pages (0.012%).
-  #
-  # 30 days -> ~5.2 GiB steady state, and on the first pass it makes 4,027 ended
-  # sessions / 56,629 message_count (32.7%) eligible. 99.3% of that delete set is
-  # `cron` automation; ALL 5 telegram, all 21 tui and all 13 subagent sessions
-  # survive (only human loss: 43 ended `cli` sessions last active >=64 days ago).
-  #
-  # Dial it further with this one number if the volume climbs again: 21 -> ~3.6 GiB,
-  # 14 -> ~2.4 GiB. Per-source retention (cron kept shorter than human chat) does
-  # NOT exist upstream - NousResearch/hermes-agent#110589 is open and there is no
-  # `source_retention` / `cron.session_retention_days` key anywhere in this image.
-  # A single session can be exempted permanently by PINNING it (`pinned` sessions
-  # are never pruned at any age); none are pinned today.
+  # THE ACTUAL FIX. Upstream default is 90, which does not fit this claim. Dial this
+  # one number down if volume climbs again (must stay 0 < n < 90). Upstream has no
+  # per-source retention. A session can be exempted permanently by pinning it.
   retention_days: 30
 
-  # LOAD-BEARING, and deliberately the OPPOSITE of upstream's `true` default.
-  # VACUUM is the only thing that returns freed pages to the filesystem, and it
-  # CANNOT SUCCEED here: it rewrites every page through the WAL (see
-  # hermes_state_maintenance.py::vacuum, which TRUNCATEs the WAL afterwards for
-  # exactly this reason), so a ~9.3 GiB database needs comparable free space and
-  # the claim has 6.0 GiB. Left at `true` it would be ATTEMPTED on every pass
-  # that deletes rows - `last_vacuum` is absent from state_meta, so the
-  # min_vacuum_interval_days throttle never engages - and the freelist ratio
-  # after a 30-day prune (~33%) clears the 25% gate, so it would fire, write
-  # until ENOSPC and roll back. On a volume already at 76% that risks filling it
-  # to 100%, which stops Hermes writing anything at all. Not reclaiming is
-  # strictly safer than that.
-  #
-  # Consequence, stated plainly: the file does NOT shrink. Pruning frees pages
-  # into the freelist and SQLite REUSES them for subsequent inserts (upstream's
-  # own words in config_defaults.py), so growth stops and the file plateaus near
-  # its current 9.31 GiB. Reclaiming the existing space is an offline, operator-
-  # driven job (`hermes sessions optimize-storage`, which also migrates this DB
-  # off legacy FTS layout 0) and needs free space first - see the doc.
+  # LOAD-BEARING, and deliberately the OPPOSITE of upstream's `true` default: VACUUM
+  # rewrites every page through the WAL and cannot succeed on this claim, yet would
+  # be attempted on every prune that deletes rows and write until ENOSPC. The file
+  # plateaus instead of shrinking; that is intended (state-db.md).
   vacuum_after_prune: false
 
-# Approval gating for flagged commands. Declared explicitly so it is durable:
-# without an `approvals:` key here, Hermes runs on the image's stock defaults
-# and the `copy-config` initContainer (see file header) wipes any in-pod
-# adjustment on every restart - confirmed 2026-09-26, live /opt/data/config.yaml
-# carried no approvals override at all (an earlier in-pod
-# destructive_slash_confirm: false, seen 2026-09-18, did not survive the
-# 2026-09-24 pod restart). These are exactly the current (= stock default)
-# values - pinning them for durability, not changing what is gated.
+# Approval gating for flagged commands. Declared explicitly so it is durable: the
+# `copy-config` initContainer wipes any in-pod adjustment on every restart. These
+# are the stock default values, pinned for durability, not changing what is gated.
 approvals:
   mode: smart
   timeout: 300

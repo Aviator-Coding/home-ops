@@ -7,7 +7,8 @@ description: "Read before editing kubernetes/apps/base/ai/hermes/** (config.yaml
 
 Hermes is the homelab operator in namespace `ai`. It is a single writer on an
 RWO `ceph-block` claim. Config, the runtime skill, and Samba share contents
-are payloads the pod reads: do not treat a comment edit there as free.
+are payloads the pod reads: a comment edit there still restarts the pod
+uncleanly, so batch them and never pair one with an unrelated rollout.
 
 ## Tripwires
 
@@ -50,7 +51,7 @@ are payloads the pod reads: do not treat a comment edit there as free.
 
 | What | Path |
 |---|---|
-| Config payload (do not edit for comment cleanup) | `kubernetes/apps/base/ai/hermes/app/resources/config.yaml` |
+| Config payload (any byte, comments included, restarts the pod) | `kubernetes/apps/base/ai/hermes/app/resources/config.yaml` |
 | Runtime skill payload | `kubernetes/apps/base/ai/hermes/app/skills/homelab-commit-watcher/` |
 | HelmRelease | `kubernetes/apps/base/ai/hermes/app/helmrelease.yaml` |
 | Alerts (live PVC capacity, not a hardcoded size) | `kubernetes/apps/base/ai/hermes/app/prometheusrule.yaml` |

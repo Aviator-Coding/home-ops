@@ -16,6 +16,10 @@ In `sessions:` of `resources/config.yaml`:
 | `vacuum_after_prune` | `false` | See below. Independent of how large the claim is. |
 | `retention_days` | integer, `0 < n < 90` | 90 is upstream's default and was measured not to fit. 30 is the current value. 21 or 14 need no CI edit. Removing the key deep-merges back to 90. |
 
+`retention_days` is the one dial. Upstream has no per-source retention (cron
+kept shorter than human chat), but a session can be exempted permanently by
+pinning it.
+
 Gate: `scripts/ci/hermes-state-db-retention-test.py`. It asserts the shape,
 not a frozen `retention_days` literal, and that `hermes-configmap` still
 sources `resources/config.yaml`. The `copy-config` initContainer copies that

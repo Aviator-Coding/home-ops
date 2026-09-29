@@ -54,6 +54,19 @@ server that is already serving the session.
 
 `vision` stays on a vision-capable cloud model. The local 35B is text-only.
 
+## Memory and MCP
+
+`memory.provider: holographic` activates Hermes' bundled local SQLite fact
+store (in-process only, no shared service). Without the key Hermes shows
+`provider: none` and captures nothing. The shared agentmemory service is
+retired (skill `ai-stack`, references/retirement.md).
+
+MCP is one endpoint: the ToolHive VirtualMCPServer `mcp-gateway-internal` at
+`/mcp`, reached via the LAN route with a bearer token (`MCP_GATEWAY_URL`,
+`MCP_GATEWAY_TOKEN` in the hermes Secret); a NetworkPolicy closes the vmcp
+Service to everything but envoy-internal. Tools are prefixed `{workload}_`.
+LiteLLM is not an MCP gateway here.
+
 ## Web search
 
 `web.search_backend: searxng`, URL from `SEARXNG_URL`. SearXNG itself is
