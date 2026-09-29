@@ -38,7 +38,7 @@ Two neighbours of the same operation:
   (`concurrencyPolicy: Forbid`). Skill `kopiur-backups`.
 
 Human steps, including the busybox `find` inventory that must not use
-`-exec {} +`: `docs/backups/corrupt-claim-recreation-runbook.md`.
+`-exec {} +`: [corrupt-claim-recreation.md](corrupt-claim-recreation.md).
 
 ## Scratch drill versus live restore
 
@@ -48,7 +48,7 @@ this way.
 
 - **Prove a snapshot without touching the app:** new `ReplicationDestination`
   and scratch PVC, using the app's existing read-only credential Secret.
-  Procedure: `docs/backups/restore-drill-2026-08-23.md`. A small app
+  Procedure: [volsync-scratch-drill.md](volsync-scratch-drill.md). A small app
   restores and mount-verifies in about a minute. Ceph and MinIO were both
   proved end to end.
 - **Put data back into the live claim:** `just kube restore <namespace> <app>`

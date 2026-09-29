@@ -82,9 +82,9 @@ Comments that name an older tag are stale.
     suspended `rclone copy` mirror, never `sync`.
     `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/README.md`.
 16. **Full-cluster restore from r2** is
-    `docs/backups/full-cluster-restore-from-r2.md`. Do not invent a second
-    procedure. Five claims have no populator path and are hand-restored; that
-    runbook names them.
+    [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md). Do not invent a
+    second procedure. Five claims have no populator path and are hand-restored;
+    that runbook names them.
 
 ## Where things live
 
@@ -94,20 +94,21 @@ Comments that name an older tag are stale.
 | Operator, repositories, alerts | `kubernetes/apps/base/system/kopiur/` |
 | Per-claim `KOPIUR_*` | `kubernetes/apps/main/<ns>/<app>.yaml` |
 | Identity, r2 hour, retired vs never-VolSync sets | `scripts/ci/kopiur-stage3-test.py` |
-| Human restore (scratch) | `docs/backups/kopiur-restore-runbook.md` |
-| Human claim rebuild | `docs/backups/corrupt-claim-recreation-runbook.md` |
-| Full-cluster r2 | `docs/backups/full-cluster-restore-from-r2.md` |
+| Human restore (scratch) | [kopiur-scratch-drill.md](references/kopiur-scratch-drill.md) |
+| Human claim rebuild | skill `volsync-carveouts`, [corrupt-claim-recreation.md](../volsync-carveouts/references/corrupt-claim-recreation.md) |
+| Full-cluster r2 | [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md) |
 | Fleet proof rows (overlay "row N") | [proof-ledger.md](references/proof-ledger.md) |
 | CI | `scripts/ci/kopiur-*.py` |
 
 ## Procedures
 
 - Onboard or retire a claim: [onboarding.md](references/onboarding.md), [retirement-and-removal.md](references/retirement-and-removal.md).
-- Size or raise cache, delete a stale populator, run a drill: [restore-and-cache.md](references/restore-and-cache.md) and the human runbook.
+- Size or raise cache, delete a stale populator, run a drill: [restore-and-cache.md](references/restore-and-cache.md) and [kopiur-scratch-drill.md](references/kopiur-scratch-drill.md).
 - Read a green backup that might be empty or lossy: [proof-ledger.md](references/proof-ledger.md).
 - `IndexBlobHealth` or a parameters change: [repository-maintenance.md](references/repository-maintenance.md).
 - Leak alert or projection: [credentials.md](references/credentials.md), [alerts.md](references/alerts.md).
 - Operator install, buckets, DR-mode commit: [stage0-operator.md](references/stage0-operator.md).
+- Full-cluster loss, restore every volume from r2: [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md).
 
 ## Verify
 

@@ -95,5 +95,5 @@ loudly instead of materializing a blank credential.
   now, and returning a series when the comparison is inverted) once the job has actually
   run. That can only happen after the credential lands.
 - **The restore path remains unproven.** No CNPG restore has ever been exercised on this
-  cluster; all restore documents under `docs/backups/` are VolSync or kopiur. The drill was
+  cluster; all restore runbooks (skills `kopiur-backups`, `volsync-carveouts`) are VolSync or kopiur. The drill was
   deliberately deferred by the captain on 2026-09-11 and is out of scope here.

@@ -23,6 +23,6 @@ file. Skill reference `references/multi-volume.md`.
   prints credentials. Confirm the Secret exists and that a mover Job
   authenticated.
 
-Scratch restore: `docs/backups/restore-drill-2026-08-23.md`.
+Scratch restore: `.agents/skills/volsync-carveouts/references/volsync-scratch-drill.md`.
 Retired-repository expiry is not in force:
-`docs/backups/volsync-retired-repository-expiry.md`.
+`.agents/skills/volsync-carveouts/references/retired-repo-expiry.md`.

@@ -42,6 +42,6 @@ The only pre-ESO secret is `onepassword-secret` in `security` (`1password-creden
 
 ## After Flux
 
-A rebuild after Ceph data loss restores no volume by itself. Land the DR-mode commit before bootstrapping and follow `docs/backups/full-cluster-restore-from-r2.md`.
+A rebuild after Ceph data loss restores no volume by itself. Land the DR-mode commit before bootstrapping and follow `.agents/skills/kopiur-backups/references/full-cluster-restore-r2.md`.
 
 `mod.just` runs `talosctl config info` at load, so `just -l bootstrap` needs a `TALOSCONFIG`. The `base` stage depends on `ready`.

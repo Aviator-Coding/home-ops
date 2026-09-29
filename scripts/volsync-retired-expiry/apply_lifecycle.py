@@ -36,7 +36,7 @@ in-cluster credential is not permitted to manage bucket configuration - which is
 the case for r2, whose token has object read/write but not the
 `Workers R2 Storage Write` permission group that lifecycle management requires.
 
-See docs/backups/volsync-retired-expiry-apply-plan.md.
+See .agents/skills/volsync-carveouts/references/retired-expiry-apply-plan.md.
 """
 
 from __future__ import annotations

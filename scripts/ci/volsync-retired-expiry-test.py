@@ -33,7 +33,7 @@ absence of a `Days`-based expiry, which would be a correctness bug rather than a
 preference: `Days` counts from each object's own creation time and would delete
 most of this the moment it was installed.
 
-Owning document: docs/backups/volsync-retired-repository-expiry.md
+Owning document: .agents/skills/volsync-carveouts/references/retired-repo-expiry.md
 """
 
 from __future__ import annotations
@@ -50,8 +50,9 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 TOOL_DIR = REPO / "scripts" / "volsync-retired-expiry"
 LEDGER = TOOL_DIR / "ledger.yaml"
-DOC = REPO / "docs" / "backups" / "volsync-retired-repository-expiry.md"
-APPLY_PLAN = REPO / "docs" / "backups" / "volsync-retired-expiry-apply-plan.md"
+SKILL_REFS = REPO / ".agents" / "skills" / "volsync-carveouts" / "references"
+DOC = SKILL_REFS / "retired-repo-expiry.md"
+APPLY_PLAN = SKILL_REFS / "retired-expiry-apply-plan.md"
 APPLIER = TOOL_DIR / "apply_lifecycle.py"
 APPS_MAIN = REPO / "kubernetes" / "apps" / "main"
 

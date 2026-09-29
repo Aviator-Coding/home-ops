@@ -23,5 +23,5 @@ in `SKILL.md`. Procedures are in `references/`.
 
 Fleet proof rows ("row N") are
 `.agents/skills/kopiur-backups/references/proof-ledger.md`.
-Human restore: `docs/backups/kopiur-restore-runbook.md`.
-Corrupt-claim rebuild: `docs/backups/corrupt-claim-recreation-runbook.md`.
+Human restore: `.agents/skills/kopiur-backups/references/kopiur-scratch-drill.md`.
+Corrupt-claim rebuild: `.agents/skills/volsync-carveouts/references/corrupt-claim-recreation.md`.

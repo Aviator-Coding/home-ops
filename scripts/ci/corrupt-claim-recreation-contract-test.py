@@ -48,12 +48,12 @@ OPENCODE_OVERLAY = ROOT / "kubernetes/apps/main/ai/opencode.yaml"
 ROOK_CLUSTER_HR = (
     ROOT / "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml"
 )
-RUNBOOK = ROOT / "docs/backups/corrupt-claim-recreation-runbook.md"
+RUNBOOK = ROOT / ".agents/skills/volsync-carveouts/references/corrupt-claim-recreation.md"
 # The one file that must carry both fleet-wide findings. Retargeting them to a
 # skill (planned: volsync-carveouts) is a one-line change here.
 FINDINGS_DOC = ROOT / ".agents/skills/volsync-carveouts/SKILL.md"
-VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
-KOPIUR_DRILL = ROOT / "docs/backups/kopiur-restore-runbook.md"
+VOLSYNC_DRILL = ROOT / ".agents/skills/volsync-carveouts/references/volsync-scratch-drill.md"
+KOPIUR_DRILL = ROOT / ".agents/skills/kopiur-backups/references/kopiur-scratch-drill.md"
 
 # Live opencode overlay pins (source of truth at render time). VolSync retired
 # 2026-09-04, so the VOLSYNC_* schedule pins went with the Component that read
