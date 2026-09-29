@@ -50,18 +50,20 @@ spec:
           labels:
             severity: warning
 
-        # A first install that fails and then retries as an upgrade has no rollback target, so the HelmRelease stays Stalled with Ready=False and emits no further events. Skill `flux-gitops`.
+        # Aggregated over the identity labels so a flapping ready/reason label does not reset the 30m timer. A first install that fails and then retries as an upgrade has no rollback target, so the HelmRelease stays Stalled with Ready=False and emits no further events. Skill `flux-gitops`.
         - alert: FluxResourceNotReadyTooLong
           expr: |
-            flux_resource_info{ready="False", suspended!="True", kind=~"HelmRelease|Kustomization"} == 1
+            max by (kind, exported_namespace, name) (
+              flux_resource_info{ready!="True", suspended!="True", kind=~"HelmRelease|Kustomization"}
+            ) == 1
           for: 30m
           annotations:
             summary: >-
               Flux {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been not Ready for over 30m
             description: >-
               {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }}
-              has reported Ready=False (reason {{ $labels.reason }}) for more
-              than 30 minutes. A HelmRelease whose first install failed goes
+              has not been Ready for more than 30 minutes, including while it
+              retries and flips between False and Unknown. A HelmRelease whose first install failed goes
               Stalled (MissingRollbackTarget) and Flux stops reconciling it
               while its Kustomization can still report Ready. Inspect it with
               flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}

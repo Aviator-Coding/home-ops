@@ -13,10 +13,12 @@ see flux-suspended-alert-test.py), whose `ready` label is "True", "False" or
 Loads the real PrometheusRule and evaluates it with promtool:
 
   - a HelmRelease and a Kustomization Ready=False for 30m fire, naming the
-    object and its reason.
+    object.
   - Ready=False for 29m stays pending.
   - Ready=False that recovers to True before 30m never fires.
-  - Ready="Unknown" (a normal in-flight reconcile), a suspended object, an
+  - a series flapping between False and Unknown with a changing reason for
+    over 30m fires (a retrying release keeps its timer).
+  - a suspended object (even flapping), an
     out-of-scope kind and a Ready=True object never fire.
 """
 
@@ -48,25 +50,21 @@ def info(kind: str, name: str, ns: str, *, ready: str, suspended: str = "False",
     )
 
 
-def expected(kind: str, name: str, ns: str, reason: str = "UpgradeFailed") -> dict:
+def expected(kind: str, name: str, ns: str) -> dict:
     return {
         "exp_labels": {
             "alertname": ALERT_NAME,
             "severity": "warning",
             "kind": kind,
             "name": name,
-            "namespace": "flux-system",
             "exported_namespace": ns,
-            "ready": "False",
-            "suspended": "False",
-            "reason": reason,
-            "job": "flux-operator",
         },
         "exp_annotations": {
             "summary": f"Flux {kind} {ns}/{name} has been not Ready for over 30m",
             "description": (
-                f"{kind} {ns}/{name} has reported Ready=False (reason {reason}) for more "
-                "than 30 minutes. A HelmRelease whose first install failed goes "
+                f"{kind} {ns}/{name} has not been Ready for more than 30 minutes, "
+                "including while it retries and flips between False and Unknown. "
+                "A HelmRelease whose first install failed goes "
                 "Stalled (MissingRollbackTarget) and Flux stops reconciling it "
                 "while its Kustomization can still report Ready. Inspect it with "
                 f"flux get hr -n {ns} {name} "
@@ -81,7 +79,6 @@ def expected(kind: str, name: str, ns: str, reason: str = "UpgradeFailed") -> di
 def contract(alert: dict) -> None:
     expr = (alert.get("expr") or "").strip()
     base.require("flux_resource_info" in expr, f"expr must key on flux_resource_info: {expr!r}")
-    base.require('ready="False"' in expr, f'expr must filter ready="False": {expr!r}')
     base.require(
         'suspended!="True"' in expr,
         f'expr must exclude suspended objects (FluxResourceSuspendedTooLong owns them): {expr!r}',
@@ -110,13 +107,25 @@ def run(rule: dict) -> None:
         {"series": info("HelmRelease", "flapper", "ai", ready="False"), "values": vals(["1"] * 20)},
         {"series": info("HelmRelease", "flapper", "ai", ready="True"), "values": vals(["_"] * 20 + ["1"] * 40)},
     ]
+    flap_false = vals(["1", "_"] * (MINUTES // 2))
+    flap_unknown = vals(["_", "1"] * (MINUTES // 2))
     series = [
+        {"series": info("HelmRelease", "retrying", "ai", ready="False", reason="UpgradeFailed"),
+         "values": flap_false},
+        {"series": info("HelmRelease", "retrying", "ai", ready="Unknown", reason="Progressing"),
+         "values": flap_unknown},
+        {"series": info("Kustomization", "retrying-ks", "media", ready="False", reason="BuildFailed"),
+         "values": flap_false},
+        {"series": info("Kustomization", "retrying-ks", "media", ready="Unknown", reason="Progressing"),
+         "values": flap_unknown},
+        {"series": info("HelmRelease", "flapping-suspended", "ai", ready="False", suspended="True"),
+         "values": flap_false},
+        {"series": info("HelmRelease", "flapping-suspended", "ai", ready="Unknown", suspended="True"),
+         "values": flap_unknown},
         {"series": info("HelmRelease", "litellm-pgvector", "ai", ready="False"), "values": always_false},
         {"series": info("Kustomization", "broken-ks", "media", ready="False", reason="BuildFailed"),
          "values": always_false},
         {"series": info("HelmRelease", "suspended-app", "ai", ready="False", suspended="True"),
-         "values": always_false},
-        {"series": info("HelmRelease", "reconciling", "ai", ready="Unknown", reason="Progressing"),
          "values": always_false},
         {"series": info("HelmRelease", "healthy", "ai", ready="True", reason="InstallSucceeded"),
          "values": always_false},
@@ -128,7 +137,9 @@ def run(rule: dict) -> None:
     ]
     firing = [
         expected("HelmRelease", "litellm-pgvector", "ai"),
-        expected("Kustomization", "broken-ks", "media", "BuildFailed"),
+        expected("Kustomization", "broken-ks", "media"),
+        expected("HelmRelease", "retrying", "ai"),
+        expected("Kustomization", "retrying-ks", "media"),
     ]
     with tempfile.TemporaryDirectory(prefix="flux-not-ready-alert-") as tmp:
         work = Path(tmp)
