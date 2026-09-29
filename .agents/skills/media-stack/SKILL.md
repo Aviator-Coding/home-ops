@@ -25,7 +25,7 @@ which movie sits on which profile are application database state, not Git.
    double disk for the copy window.
 5. **Do not measure or delete `shared-downloads` from the SABnzbd pod.** Its
    RBD incomplete mount shadows the CephFS path. Use the Radarr pod. The
-   human steps are `docs/downloads/sabnzbd-disk-space-runbook.md`.
+   human steps are [sabnzbd-disk-space.md](references/sabnzbd-disk-space.md).
 6. **Plex does not see NFS filesystem events.** `FSEventLibraryUpdatesEnabled`
    looks right and does nothing. Scan triggers are Radarr/Sonarr Connect plus
    Plex's periodic update, and both live in app databases.
@@ -48,9 +48,8 @@ which movie sits on which profile are application database state, not Git.
 | Shared downloads PVC and janitor | `kubernetes/apps/base/downloads/pvc/`, `downloads/maintenance/` |
 | Plex, Seerr, Calibre, Tdarr | `kubernetes/apps/base/media/` |
 | Plex token PushSecret | `kubernetes/apps/base/media/plex/app/pushsecret.yaml` |
-| Disk-full runbook (alert text links here) | `docs/downloads/sabnzbd-disk-space-runbook.md` |
-| Operator notes (anchors other docs link) | `docs/media-stack.md` |
-| VA-API check after a GPU change | `docs/media-stack.md` "Verifying VA-API after a GPU change"; mechanism is skill `intel-gpu` |
+| Disk-full runbook (alert text links here) | `.agents/skills/media-stack/references/sabnzbd-disk-space.md` |
+| VA-API check after a GPU change | skill `intel-gpu`, [vaapi-check.md](../intel-gpu/references/vaapi-check.md) |
 
 ## Procedures
 
@@ -58,6 +57,7 @@ which movie sits on which profile are application database state, not Git.
 - Missing-movie backlog: [backlog-search.md](references/backlog-search.md).
 - Plex scans and the token: [plex.md](references/plex.md).
 - Paths, categories, hardlinks: [arr-settings.md](references/arr-settings.md).
+- SABnzbd out of disk, ghost tree, janitor: [sabnzbd-disk-space.md](references/sabnzbd-disk-space.md).
 
 ## Verify
 

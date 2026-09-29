@@ -1,13 +1,15 @@
 # Full-cluster rebuild: restore every volume from r2
 
+Skill `kopiur-backups`. Stage 0 background: [stage0-operator.md](stage0-operator.md).
+
 Use this when the Ceph cluster's data is gone: disks wiped, hardware lost, or a new FSID
 (`RECOVERY-PROCEDURES.md` section 3,
-[`kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`](../../kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md)).
+`kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`).
 If the OSD disks and FSID survive, use that document instead: Ceph comes back with its
 buckets and the standing populators restore from `ceph` as designed.
 
 To rebuild **one** claim on a healthy cluster, use
-[`corrupt-claim-recreation-runbook.md`](corrupt-claim-recreation-runbook.md), not this.
+skill `volsync-carveouts`, `references/corrupt-claim-recreation.md`, not this.
 
 ## Why a plain rebuild is not enough
 
@@ -128,7 +130,7 @@ If the MinIO NAS is lost too, Postgres has no off-site copy (the offsite mirror 
 
 ## Phase 2 - Rebuild
 
-1. Follow [`bootstrap/AGENTS.md`](../../bootstrap/AGENTS.md): `just bootstrap cluster`. Flux then
+1. Follow `bootstrap/AGENTS.md`: `just bootstrap cluster`. Flux then
    reconciles `cluster-apps`.
 2. Wait for Rook `HEALTH_OK`, then the `kopiur` and `kopiur-repository` Kustomizations.
 3. **Gate:** `kubectl get clusterrepository r2 -o jsonpath='{.status.phase} {.status.uniqueId}'`
@@ -252,9 +254,9 @@ Do **not** use `just kube restore`: it is VolSync-only, clones `${APP}-dst`, and
 3. The standing Restores are still r2-pointed (`IfNotPresent`). Delete every `*-kopiur-dst` and
    `flux reconcile ks` each app so they come back ceph-pointed. Deleting a `Restore` whose claim
    is bound does not touch the volume; they carry no finalizers and own no data
-   ([skill `kopiur-backups`, `references/restore-and-cache.md`](../../.agents/skills/kopiur-backups/references/restore-and-cache.md)).
+   ([restore-and-cache.md](restore-and-cache.md)).
 4. Check adoption: each r2 policy's `status.adoption` covers its pre-disaster history.
-5. Record the event, and the next rebuild's Postgres `serverName`, in `docs/`.
+5. Record the event, and the next rebuild's Postgres `serverName`, in the PR that reverts DR mode.
 
 ## Recovering from a silent empty rebuild
 

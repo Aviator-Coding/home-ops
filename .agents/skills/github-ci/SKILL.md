@@ -58,7 +58,7 @@ and credential-less `terraform/`. `flate` and `image-pull` only see
 | Gate inventory and local run | `scripts/ci/README.md` |
 | Runner manifests | `kubernetes/apps/base/actions-runner-system/` |
 | Talos role | `gha-runner-scale-set/app/rbac.yaml` (`os:operator`) |
-| Ruleset record | `docs/branch-protection.md` |
+| Ruleset record | [branch-protection.md](references/branch-protection.md) |
 | Contention pin | `scripts/ci/validate-contention-test.py` |
 | Renovate writer overlap | skill `renovate` |
 

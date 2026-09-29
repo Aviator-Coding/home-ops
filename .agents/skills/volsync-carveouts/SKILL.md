@@ -67,10 +67,10 @@ The three: `selfhosted/paperless-ngx` (permanent), `paperless-ngx-media`,
 | Component | `kubernetes/components/volsync/` |
 | Operator, admission policy, alerts | `kubernetes/apps/base/system/volsync/` |
 | Carve-out overlays | `kubernetes/apps/main/selfhosted/paperless-ngx.yaml`, `syncthing.yaml` |
-| Scratch restore drill | `docs/backups/restore-drill-2026-08-23.md` |
-| Corrupt-claim rebuild | `docs/backups/corrupt-claim-recreation-runbook.md` |
-| Expiry decision (not applied) | `docs/backups/volsync-retired-repository-expiry.md` |
-| Expiry apply (needs a go-ahead) | `docs/backups/volsync-retired-expiry-apply-plan.md` |
+| Scratch restore drill | [volsync-scratch-drill.md](references/volsync-scratch-drill.md) |
+| Corrupt-claim rebuild | [corrupt-claim-recreation.md](references/corrupt-claim-recreation.md) |
+| Expiry decision (not applied) | [retired-repo-expiry.md](references/retired-repo-expiry.md) |
+| Expiry apply (needs a go-ahead) | [retired-expiry-apply-plan.md](references/retired-expiry-apply-plan.md) |
 | Ledger the apply plan reads | `scripts/volsync-retired-expiry/ledger.yaml` |
 | Gate | `scripts/ci/volsync-retired-expiry-test.py` |
 

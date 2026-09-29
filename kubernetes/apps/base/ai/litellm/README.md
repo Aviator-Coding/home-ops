@@ -6,8 +6,8 @@
 (`../litellm-operator/`). The operator owns the proxy Deployment, Service and
 rendered `config.yaml`; nothing here renders a Deployment. Agent knowledge
 (tripwires, procedures): skill `litellm-proxy`. Human runbooks:
-[request logs](../../../../../docs/ai-system/litellm/request-logs.md) and
-[Claude Code client setup](../../../../../docs/ai-system/litellm/claude-code-subscription.md).
+[request logs](../../../../../.agents/skills/litellm-proxy/references/spend-logs.md) and
+[Claude Code client setup](../../../../../.agents/skills/litellm-proxy/references/claude-code-subscription.md).
 
 **Scope (captain decision B4):** internal route only - `litellm-internal` on
 `envoy-internal` at `litellm.${SECRET_DOMAIN}`, plus
@@ -43,7 +43,7 @@ Already existing and reused: `cloudnative-pg` (`POSTGRES_SUPER_PASS`) and
 `ai-keys` (`ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`,
 `OPENROUTER_API_KEY`, the same fields agentgateway reads). Written by
 PushSecrets, not by hand: `Automation/litellm-sso` (from OpenTofu,
-`docs/authentik/terraform.md` §8), `litellm-pgvector` (seed command in
+`.agents/skills/authentik-terraform/references/apply-runbook.md`), `litellm-pgvector` (seed command in
 `app/pushsecret-pgvector.yaml`) and every `litellm-consumer-*` item.
 
 Until `litellm` exists the ExternalSecret reports `SecretSyncedError`, the

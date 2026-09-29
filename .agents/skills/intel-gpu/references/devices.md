@@ -27,7 +27,7 @@ broke it again.
 
 Level Zero opens whatever `/dev/dri/render*` exists, so the AI stack
 stays up. That split hid a multi-day Tdarr outage (PR #1443). Ship no
-GPU change without the VA-API check in `docs/media-stack.md`.
+GPU change without the VA-API check in [vaapi-check.md](vaapi-check.md).
 
 If kernel enumeration order changes, `b70-vaapi`'s `mountPath` values
 have to follow the new kernel names. Tdarr then falls back to its CPU

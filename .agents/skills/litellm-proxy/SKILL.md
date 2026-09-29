@@ -86,7 +86,7 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 | Flux overlays | `kubernetes/apps/main/ai/litellm{,-operator,-pgvector}.yaml` |
 | Authentik OIDC provider | `terraform/authentik/litellm.tofu` (skill `authentik-terraform`) |
 | AI PR reviewer | `.github/workflows/ai-pr-review.yaml`, `.github/ai-review-rules.md` |
-| Human runbooks | `kubernetes/apps/base/ai/litellm/README.md` (prerequisites, Jev grant), `docs/ai-system/litellm/` (client setup, reading request logs) |
+| Human runbooks | `kubernetes/apps/base/ai/litellm/README.md` (prerequisites, Jev grant), [claude-code-subscription.md](references/claude-code-subscription.md) (client setup), [spend-logs.md](references/spend-logs.md) (reading request logs) |
 | CI gates | `scripts/ci/litellm-*-test.py` |
 
 ## Procedures

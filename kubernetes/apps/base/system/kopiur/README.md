@@ -18,4 +18,4 @@ Read skill `kopiur-backups` before changing it. Operator invariants are
 - 1Password item `kopiur-ceph-bucket` is a record nothing reads. The OBC
   Secret is what the controller uses.
 
-Full-cluster restore: `docs/backups/full-cluster-restore-from-r2.md`.
+Full-cluster restore: `.agents/skills/kopiur-backups/references/full-cluster-restore-r2.md`.

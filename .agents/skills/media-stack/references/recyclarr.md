@@ -24,5 +24,8 @@ every release's score makes the profile accept nothing, which looks like
 "indexers are down" (`Reports grabbed: 0`). Read the score on a rejected
 release before changing indexers.
 
+Manual sync:
+`kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date +%s)`.
+
 Import lists are not in the Recyclarr file. `searchOnAdd` is Radarr
 Settings, Lists. See [backlog-search.md](backlog-search.md).

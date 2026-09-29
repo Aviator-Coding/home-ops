@@ -16,4 +16,4 @@ GitOps for this cluster's AI stack. Flux overlays: `kubernetes/apps/main/ai/`.
 
 kagent, kmcp, and kgateway are not deployed. Skill `ai-stack` has the
 retirement checklist and the one Snapshot CR that must not be deleted.
-GPU changelog: `docs/ai-gpu-changelog.md`.
+GPU changelog: `.agents/skills/b70-llm-serving/references/changelog.md`.

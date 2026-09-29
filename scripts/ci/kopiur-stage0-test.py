@@ -20,7 +20,7 @@ This test does not grep source text as its evidence. It:
          protection (threshold + onNamespaceDelete: Orphan)
        - create.enabled true on ceph (a rebuild needs a new local repository)
          and false on r2 (the surviving copy: connect-only, see
-         docs/backups/full-cluster-restore-from-r2.md)
+         .agents/skills/kopiur-backups/references/full-cluster-restore-r2.md)
        - no SnapshotPolicy / SnapshotSchedule / ReplicationSource objects
        - credentials use explicit remoteRef.property (no dataFrom.extract) and
          never embed secret values

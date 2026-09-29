@@ -1,11 +1,11 @@
-# kopiur restore drill
+# kopiur scratch restore drill
 
 Prove a claim's ceph and r2 snapshots come back byte-identical, without
-touching the live volume. Full-cluster recovery is a different procedure:
-`docs/backups/full-cluster-restore-from-r2.md`. Rebuilding a corrupt claim
-from restic is `docs/backups/corrupt-claim-recreation-runbook.md`.
-
-Skill `kopiur-backups`, reference `references/restore-and-cache.md`.
+touching the live volume. Full-cluster recovery is
+[full-cluster-restore-r2.md](full-cluster-restore-r2.md). Rebuilding a corrupt
+claim from restic is skill `volsync-carveouts`,
+`references/corrupt-claim-recreation.md`. Why the steps are shaped this way:
+[restore-and-cache.md](restore-and-cache.md).
 
 ## Hard constraint
 

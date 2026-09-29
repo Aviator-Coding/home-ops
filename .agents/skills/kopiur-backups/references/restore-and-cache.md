@@ -1,8 +1,8 @@
 # Restore cache, populators, and drills
 
-Human steps: `docs/backups/kopiur-restore-runbook.md`. This file is why those
-steps are shaped the way they are. Full-cluster loss is a different document:
-`docs/backups/full-cluster-restore-from-r2.md`.
+Human steps: [kopiur-scratch-drill.md](kopiur-scratch-drill.md). This file is why those
+steps are shaped the way they are. Full-cluster loss is a different reference:
+[full-cluster-restore-r2.md](full-cluster-restore-r2.md).
 
 ## The cache cliff
 

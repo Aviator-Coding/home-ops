@@ -22,7 +22,7 @@ import, so a large import briefly uses the space twice.
 SABnzbd auto-pauses when complete-dir free space drops to about 100G, which is
 about 5% of 2 Ti. The capacity alerts at 15% (warning) and 7% (critical) are
 there to fire first. Runbook, including why `du` inside the SABnzbd pod misses
-a ghost tree: `docs/downloads/sabnzbd-disk-space-runbook.md`. Alert text in
+a ghost tree: [sabnzbd-disk-space.md](sabnzbd-disk-space.md). Alert text in
 `kubernetes/apps/base/downloads/maintenance/app/prometheusrule.yaml` links that
 file. Keep the path.
 

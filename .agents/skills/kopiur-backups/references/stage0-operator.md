@@ -57,7 +57,7 @@ A green `SnapshotSchedule` with `filesNew: 0` backed up an empty tree. Read
 The rebuilt `ceph` repository is new and empty. Populators with `Fail` stay
 failed instead of seeding empty PVCs. Restoring the fleet from r2 is a
 DR-mode commit **before** bootstrap, then
-`docs/backups/full-cluster-restore-from-r2.md`.
+[full-cluster-restore-r2.md](full-cluster-restore-r2.md).
 
 Five claims have no populator path and are hand-restored. The runbook names
 them: `database/falkordb`, `database/surrealdb`,

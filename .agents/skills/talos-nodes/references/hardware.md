@@ -1,6 +1,6 @@
 # Hardware facts still in force
 
-The incident narratives live in git history. `docs/hardware-incidents.md` is a one-screen index. Procedures a human runs are the two runbooks.
+The incident narratives live in git history. Procedures a human runs: [power-down-up.md](power-down-up.md) and [talos-3-b70-reboot.md](talos-3-b70-reboot.md).
 
 ## Schematic (cluster-wide)
 
@@ -31,13 +31,20 @@ Expect 99 on talos-3 and `<none>` or 0 on talos-1 and talos-2. Device-plugin det
 
 | Entry | Still-true consequence |
 |---|---|
-| Undrained three-node power cut | `shutdown --force` skips drain. Prometheus and in-flight kopiur movers were the casualties. Use `docs/runbooks/power-down-up.md`. |
+| Undrained three-node power cut | `shutdown --force` skips drain. Prometheus and in-flight kopiur movers were the casualties. Use [power-down-up.md](power-down-up.md). |
 | B70 missing after a talos-3 power cycle | Dock-PSU-first. `pcie_port_pm=off` is the preventive arg, already booted once successfully. The runbook is still the recovery if the card is absent. |
 | OOMController kill storm | `OOMConfig` in the machine config is the codified trigger. Do not retune it from a desktop PSI default. OSD QoS stayed Burstable on purpose (skill `rook-ceph`). |
 | talos-1 faulty SODIMM | RAM RMA is done (96 GB dual-channel on all three). Do not re-add the old `NotIn talos-1` affinities. |
 | SN770M firmware HMB bug | Mon RocksDB corruption. Firmware 731150WD is the fixed revision. All-mon rebuild is in `RECOVERY-PROCEDURES.md`, not a backup restore. |
 | B70 install bus exhaustion | `pci=assign-busses` is the fix. Leave it. |
 | NAS DAC / iGPU GuC | Historical. Not a Talos template knob. |
+
+Also still true:
+
+- The OOMController trigger is the machine-config `OOMConfig`; a live `talosctl patch` does not survive re-render (`talos/machineconfig.yaml.j2`).
+- cilium-agent stays Guaranteed so it is not the OOM victim (cilium HelmRelease). OSDs stay Burstable, request 12Gi, limit 14Gi (PR #1736).
+- A brief blockpool `min_size=1` window was used twice during mon recovery and restored to 2 both times (`RECOVERY-PROCEDURES.md` section 7). Mon store disks are SN770M on firmware that closed the HMB bug (section 6).
+- Node memory alerts: `kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/node-memory-pressure.yaml`.
 
 ## Nodes
 

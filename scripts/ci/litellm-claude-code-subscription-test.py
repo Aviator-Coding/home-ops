@@ -66,7 +66,7 @@ MODELS_DIR = APP_DIR / "models"
 VIRTUALKEYS_DIR = APP_DIR / "virtualkeys"
 PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 EXTERNAL_SECRET_PATH = APP_DIR / "externalsecret.yaml"
-RUNBOOK = REPO / "docs/ai-system/litellm/claude-code-subscription.md"
+RUNBOOK = REPO / ".agents/skills/litellm-proxy/references/claude-code-subscription.md"
 SKILL_REF = REPO / ".agents/skills/litellm-proxy/references/claude-code-subscription.md"
 README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 

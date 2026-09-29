@@ -116,7 +116,7 @@ tasks:
 
   # OSD device-path drift audit + reboot-safety gate (Rook bug #17224).
   # Run before `just talos upgrade-node`/`reboot-node`/`reset-node` or any OSD restart.
-  # See docs/ceph/osd-device-path-recovery.md
+  # See .agents/skills/rook-ceph/references/osd-device-path-recovery.md
   check-osd-device-paths:
     desc: Audit OSD deployment device-path drift + reboot-safety gate (Rook #17224)
     cmds:

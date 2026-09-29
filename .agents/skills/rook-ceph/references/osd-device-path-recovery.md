@@ -1,6 +1,6 @@
-# Runbook: OSD stuck after restart/reboot (device-path drift)
+# OSD stuck after restart or reboot (device-path drift)
 
-When a `rook-ceph-osd-N` pod won't come back after a restart or node reboot — most
+When a `rook-ceph-osd-N` pod won't come back after a restart or node reboot - most
 dangerously *while the cluster is already degraded*. This is a **known, `wontfix` Rook
 limitation**, not a disk failure.
 
@@ -32,7 +32,7 @@ OSD deployment's `ROOK_BLOCK_PATH`. NVMe kernel names reshuffle across reboots/r
 
 Rook's safety net is the activate script's "relocate" fallback: if the stored path holds
 the wrong OSD, it runs a full `ceph-volume raw list` to find the OSD on any disk. That
-fallback **works under normal load** — but it returns empty when the cluster is heavily
+fallback **works under normal load** - but it returns empty when the cluster is heavily
 loaded/wedged, which is exactly when the 2026-06-14 incident restarted an OSD. See also
 [rook/rook discussion #7796](https://github.com/rook/rook/discussions/7796).
 
@@ -45,10 +45,10 @@ maintainer review of that PR, not a considered rejection of the approach. Rook v
 recovery below remain the correct and only mechanism until upstream reopens this.
 
 > Why we don't "just fix the config": the CephCluster CR **already** uses by-id device
-> names, and **raw mode is the recommended Rook default** — this layout *is* best practice.
+> names, and **raw mode is the recommended Rook default** - this layout *is* best practice.
 > Rook simply doesn't use the by-id path for `ROOK_BLOCK_PATH`; no config toggle changes
-> that. There is **no best-practice "permanent fix"** — the clean fix is the upstream code
-> change (#17224, `wontfix`). Migrating raw→LVM would dodge the naming issue but trades
+> that. There is **no best-practice "permanent fix"** - the clean fix is the upstream code
+> change (#17224, `wontfix`). Migrating raw->LVM would dodge the naming issue but trades
 > *against* best practice (LVM is legacy, reserved for encryption + `metadataDevice`, and
 > carries its own LVM-tag/metadata-corruption risk), so it's a last resort, not a fix.
 
@@ -77,13 +77,13 @@ recovery below remain the correct and only mechanism until upstream reopens this
 
 ## Recovery
 
-### Case A — one OSD stuck, the others up (the common case)
+### Case A - one OSD stuck, the others up (the common case)
 
 Point the deployment at the **correct current kernel name**, then bounce the stuck pod.
 
 1. Find the correct device (the disk whose BlueStore `whoami` == N, from Diagnosis #2),
    e.g. `/dev/nvme0n1`.
-2. Patch `ROOK_BLOCK_PATH` (strategic merge → index-independent):
+2. Patch `ROOK_BLOCK_PATH` (strategic merge -> index-independent):
    ```bash
    kubectl -n rook-ceph patch deploy rook-ceph-osd-N --type=strategic -p \
      '{"spec":{"template":{"spec":{"initContainers":[{"name":"activate","env":[{"name":"ROOK_BLOCK_PATH","value":"/dev/nvme0n1"}]}]}}}}'
@@ -97,16 +97,16 @@ Point the deployment at the **correct current kernel name**, then bounce the stu
    `ceph-volume raw activate successful for osd ID: N`, then `ceph osd tree` shows it
    `up`. It auto-marks `in` if it was auto-marked `out`.
 
-> The operator may revert the patched path on a later reconcile — that's fine, the pod
+> The operator may revert the patched path on a later reconcile - that's fine, the pod
 > has already activated. The path will be stale again after the next reboot (expected).
 
-### Case B — all OSDs on a node down after a reboot
+### Case B - all OSDs on a node down after a reboot
 
 Fix **one** OSD's path as in Case A and let it start. Rook can then re-detect and update
 the sibling OSD deployments on that node automatically (per discussion #7796). If it
 doesn't, repeat Case A per OSD.
 
-### Co-symptom — stuck peering / blocked MDS requests
+### Co-symptom - stuck peering / blocked MDS requests
 
 If PGs are stuck `peering`/`activating` and a `ceph pg <pgid> query` hangs, the primary
 OSD's PG state machine is wedged. Force a clean re-peer **without** a pod restart or disk
@@ -130,24 +130,25 @@ kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph status       # HEALTH_O
 
 - **Before** `just talos upgrade-node` / `reboot-node` / `reset-node` (each reboots that
   node's OSDs): confirm `task rook:check-osd-device-paths` is green (HEALTH_OK). Reboot
-  one node at a time and wait for HEALTH_OK before the next — a healthy cluster lets the
+  one node at a time and wait for HEALTH_OK before the next - a healthy cluster lets the
   relocate fallback self-heal each OSD on boot.
 - Don't restart an OSD or reboot a node while the cluster is degraded. If you must, expect
   to apply Case A.
 - **Ceph/Rook upgrades** (Renovate bumps) restart OSDs via the *operator*, not the kubelet.
   Rook v1.20.0 only takes down OSDs that are **`ok-to-stop`** (won't drop a PG below
-  `min_size`), which on a 3-host `size=3` cluster already serializes per host — that's the
+  `min_size`), which on a 3-host `size=3` cluster already serializes per host - that's the
   core safety. `cephClusterSpec.storage.osdMaxUpdatesInParallel: 1` (note: nested under
   **`storage`**, not spec-level) caps it explicitly so the operator rolls OSDs one at a time,
   each self-healing against a healthy cluster.
 - **Keep these Rook settings OFF** (they're at safe defaults): `upgradeOSDRequiresHealthyPGs`
-  (can deadlock with #17224 — a stuck OSD keeps PGs unhealthy, which blocks the update that
+  (can deadlock with #17224 - a stuck OSD keeps PGs unhealthy, which blocks the update that
   would fix it), `removeOSDsIfOutAndSafeToRemove` (could auto-**purge** a recoverable
   stale-path OSD), `skipUpgradeChecks` / `continueUpgradeAfterChecksEvenIfNotHealthy`.
 
 ## Related
 
 - Incident + the trigger we removed: SABnzbd tiny-file flood moved off CephFS to
-  ceph-block (PR #983) → see `docs/ceph-cluster-changelog.md`.
+  ceph-block (PR #983).
+- Other OSD-won't-start failure: [osd-store-corruption-recovery.md](osd-store-corruption-recovery.md).
 - Proper fix is upstream (Rook #17224, `wontfix`); raw + by-id is already the
-  best-practice layout. raw→LVM is a last-resort workaround only (see the root-cause note).
+  best-practice layout. raw->LVM is a last-resort workaround only (see the root-cause note).

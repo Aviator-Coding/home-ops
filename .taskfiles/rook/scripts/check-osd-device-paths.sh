@@ -11,7 +11,7 @@
 #
 # This audit is informational; the real go/no-go for rebooting a node or restarting an
 # OSD is cluster health -- it exits non-zero unless Ceph is HEALTH_OK.
-# Recovery for a stuck OSD: docs/ceph/osd-device-path-recovery.md
+# Recovery for a stuck OSD: .agents/skills/rook-ceph/references/osd-device-path-recovery.md
 set -euo pipefail
 
 # Don't let git-bash/MSYS rewrite container-side paths (e.g. /var/lib/ceph/...,
@@ -56,7 +56,7 @@ case "$health" in
   *)
     echo "NOT SAFE: cluster is not HEALTH_OK. The relocate fallback can return empty"
     echo "under load, so a restarted STALE OSD may fail to re-activate (stuck Init)."
-    echo "Fix cluster health first. Recovery: docs/ceph/osd-device-path-recovery.md"
+    echo "Fix cluster health first. Recovery: .agents/skills/rook-ceph/references/osd-device-path-recovery.md"
     exit 1
     ;;
 esac

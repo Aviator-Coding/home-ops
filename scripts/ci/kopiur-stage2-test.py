@@ -75,8 +75,8 @@ KOPIUR_PVC = ROOT / "kubernetes/components/kopiur/pvc"
 SABNZBD_OVERLAY = ROOT / "kubernetes/apps/main/downloads/sabnzbd.yaml"
 SABNZBD_HR = ROOT / "kubernetes/apps/base/downloads/sabnzbd/app/helmrelease.yaml"
 APPS_MAIN = ROOT / "kubernetes/apps/main"
-DRILL_DOC = ROOT / "docs/backups/kopiur-restore-runbook.md"
-VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
+DRILL_DOC = ROOT / ".agents/skills/kopiur-backups/references/kopiur-scratch-drill.md"
+VOLSYNC_DRILL = ROOT / ".agents/skills/volsync-carveouts/references/volsync-scratch-drill.md"
 # The Stage 2 documentary facts moved out of AGENTS.md on 2026-09-01 into the
 # JIT-loaded kopiur skill, which is now the operator-facing owner of that depth.
 # AGENTS.md keeps only the data-loss tripwires plus a pointer, so pinning this

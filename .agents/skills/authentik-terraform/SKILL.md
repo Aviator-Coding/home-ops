@@ -69,7 +69,6 @@ outpost. `postgresql.enabled: false`; the DB is `postgres-17`.
 | ReferenceGrant | `app/referencegrant.yaml` |
 | CI plan | `.github/workflows/terraform-diff.yaml` |
 | Schema CI | `.github/workflows/validate.yaml` terraform job, `scripts/ci/tofu-validate.sh` |
-| Human pointer | `docs/authentik/terraform.md` |
 
 ## Procedures
 

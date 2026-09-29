@@ -34,7 +34,7 @@ No kopiur check. `policy.rebootMode: powercycle` is a hard reset, not a graceful
 
 ## Node roll
 
-Planned reboot or upgrade, one node at a time. Default order talos-3, talos-2, talos-1 so the GPU node is the attended one and the last two rebuild quorum around it. Power-off of the whole cluster is the opposite order: shut talos-3 down last (`docs/runbooks/power-down-up.md`).
+Planned reboot or upgrade, one node at a time. Default order talos-3, talos-2, talos-1 so the GPU node is the attended one and the last two rebuild quorum around it. Power-off of the whole cluster is the opposite order: shut talos-3 down last ([power-down-up.md](power-down-up.md)).
 
 Before the first node:
 
@@ -43,9 +43,9 @@ kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph status   # HEALTH_OK, 6
 task rook:check-osd-device-paths
 ```
 
-Wait for `HEALTH_OK` again before the next node. If an OSD stays `Init`, stop and follow `docs/ceph/osd-device-path-recovery.md`. Do not reboot the other nodes to "unstick" it.
+Wait for `HEALTH_OK` again before the next node. If an OSD stays `Init`, stop and follow `osd-device-path-recovery.md` in skill `rook-ceph` references. Do not reboot the other nodes to "unstick" it.
 
-talos-3 additionally: dock PSU first on the way back up, then the host. After it is Ready, `devic.es/b70` allocatable is 99. Details: `docs/runbooks/talos-3-b70-reboot.md`.
+talos-3 additionally: dock PSU first on the way back up, then the host. After it is Ready, `devic.es/b70` allocatable is 99. Details: [talos-3-b70-reboot.md](talos-3-b70-reboot.md).
 
 ## Offline render without 1Password
 

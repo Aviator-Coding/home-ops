@@ -30,7 +30,7 @@ edit that breaks the structure fail loudly instead of quietly.
 
 Nothing here deletes anything, reads any credential, or talks to any network.
 It prints JSON. Applying that JSON is a separate, deliberate operator action -
-see docs/backups/volsync-retired-repository-expiry.md.
+see .agents/skills/volsync-carveouts/references/retired-repo-expiry.md.
 """
 
 from __future__ import annotations

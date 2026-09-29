@@ -4,7 +4,7 @@
 # RWX) silently filled to 96% with dead data, SABnzbd hit its complete_free=100G
 # auto-pause and the whole usenet pipeline froze — nothing alerted first.
 # 100G ≈ 5% of 2 Ti, so these thresholds (15% warn / 7% crit) fire BEFORE the
-# pause trips. Runbook: docs/downloads/sabnzbd-disk-space-runbook.md
+# pause trips. Runbook: .agents/skills/media-stack/references/sabnzbd-disk-space.md
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -24,7 +24,7 @@ spec:
               ({{ $value | humanizePercentage }} available). SABnzbd auto-pauses
               at 100G free (~5% of 2Ti) — clean up NOW, before the pipeline
               freezes: check for _UNPACK_/_FAILED_ orphans and side-channel
-              dumps (docs/downloads/sabnzbd-disk-space-runbook.md).
+              dumps (.agents/skills/media-stack/references/sabnzbd-disk-space.md).
           labels:
             severity: warning
         - alert: SharedDownloadsAlmostFull
@@ -38,6 +38,6 @@ spec:
               ({{ $value | humanizePercentage }} available) — SABnzbd's 100G
               complete_free pause is imminent or already tripped, and Ceph
               nearfull follows (2026-07-03 pattern). Reclaim space immediately
-              per docs/downloads/sabnzbd-disk-space-runbook.md.
+              per .agents/skills/media-stack/references/sabnzbd-disk-space.md.
           labels:
             severity: critical

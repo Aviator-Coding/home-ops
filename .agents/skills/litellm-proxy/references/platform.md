@@ -115,7 +115,7 @@ crashloop for a few seconds until the Job finishes.
 - Credential hop: tofu output -> `litellm-sso-credentials` Secret (created once
   by hand) -> `app/pushsecret-sso.yaml` -> 1Password `Automation/litellm-sso`
   (single-vault `onepassword-automation` store) -> `app/externalsecret.yaml`
-  -> `GENERIC_CLIENT_ID/SECRET`. Runbook: `docs/authentik/terraform.md` §8.
+  -> `GENERIC_CLIENT_ID/SECRET`. Runbook: skill `authentik-terraform`, `references/apply-runbook.md` (push a generated LiteLLM client).
 - Non-secret SSO settings are plain `env` on `litellmproxy.yaml`:
   - `PROXY_BASE_URL` drives the redirect URI (unset, LiteLLM falls back to
     the in-cluster Service URL, which a browser cannot follow)
