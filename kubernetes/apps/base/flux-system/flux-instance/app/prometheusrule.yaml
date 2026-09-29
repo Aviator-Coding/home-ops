@@ -49,3 +49,24 @@ spec:
               kubectl patch spec.suspend=false).
           labels:
             severity: warning
+
+        # A first install that fails and then retries as an upgrade has no rollback target, so the HelmRelease stays Stalled with Ready=False and emits no further events. Skill `flux-gitops`.
+        - alert: FluxResourceNotReadyTooLong
+          expr: |
+            flux_resource_info{ready="False", suspended!="True", kind=~"HelmRelease|Kustomization"} == 1
+          for: 30m
+          annotations:
+            summary: >-
+              Flux {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been not Ready for over 30m
+            description: >-
+              {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }}
+              has reported Ready=False (reason {{ $labels.reason }}) for more
+              than 30 minutes. A HelmRelease whose first install failed goes
+              Stalled (MissingRollbackTarget) and Flux stops reconciling it
+              while its Kustomization can still report Ready. Inspect it with
+              flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}
+              (or flux get ks for a Kustomization). If it is Stalled, once
+              the cause is fixed run flux reconcile hr {{ $labels.name }}
+              -n {{ $labels.exported_namespace }} --reset.
+          labels:
+            severity: warning
