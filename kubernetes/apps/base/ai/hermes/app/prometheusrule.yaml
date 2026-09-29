@@ -1,47 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
 #
-# There was NO capacity alert covering the hermes PVC before this file, on a
-# volume that has a real, monotonic growth trajectory (state.db alone, not
-# retention-managed): measured live 2026-09-15 at 75.83% full (19.86Gi used /
-# 25Gi, kubelet_volume_stats_{used,capacity}_bytes{namespace="ai",
-# persistentvolumeclaim="hermes"}), growing at ~237MB/day over a clean
-# continuous 4.125-day window on the pod's current node
-# (kubelet_volume_stats_used_bytes rose 18973179904 -> 19950194688 bytes,
-# hourly samples, no reversals) - roughly 29.5 days of runway at the current
-# rate (deriv() over the same series: 2508.32 B/s = ~216.7 MiB/day, giving a
-# slightly more conservative estimate than the raw endpoint-to-endpoint
-# delta above; both land in the same band).
-#
-# `sum by (namespace, persistentvolumeclaim)` collapses the per-node
-# `instance`/`node` label kubelet attaches to this metric: the pod is RWO
-# single-replica but does migrate nodes on reschedule (measured: 3 distinct
-# per-node series in a 30-day range query), and a bare per-instance series
-# would silently reset predict_linear's regression window on every
-# migration - the same instance/pod-label-reset trap documented in
-# kubernetes/apps/base/system/kopiur/app/prometheusrule.yaml's
-# LEADER-CHANGE REGRESSION comment for the KopiurProjectedCredentialsLeaking
-# false-page. Summing collapses to one logical series (only one node's
-# series is ever non-null at a time, so the sum is just whichever one is
-# currently reporting).
-#
-# Growth here is smooth and monotonic (unlike ai/vllm's noisy RSS, see that
-# app's prometheusrule.yaml), so a plain predict_linear crossing is
-# sufficient - no need for vllm's extra "already elevated" floor clause to
-# suppress a post-restart-ramp false positive.
-#
-# Verified live against Prometheus 2026-09-15, both ways, for every rule
-# below:
-#   - Warning (14d horizon > capacity): empty now. Raising the horizon to
-#     30d is the first point it returns a series (29d: empty, 30d: fires at
-#     26490497238.9 bytes vs a 26309095424-byte capacity) - i.e. the real
-#     runway is ~29.5 days, consistent with the growth-rate estimate above,
-#     and the query is not structurally incapable of firing.
-#   - Critical/trend (3d horizon > capacity): empty now (runway is ~29.5d,
-#     nowhere near 3d).
-#   - Critical/floor (static ratio > 0.95): empty now (0.7583). Lowering the
-#     threshold to 0.70 returns a series at the current 0.7583 ratio,
-#     proving the comparison and join are live and correct.
+# Sum by (namespace, persistentvolumeclaim). A per-node series resets predict_linear on reschedule.
+# Compare to the live capacity, not a hardcoded size. See skill hermes-agent references/state-db.md.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

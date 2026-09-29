@@ -1,40 +1,7 @@
 ---
-# The cluster's local embedding service, reached directly (not through
-# LiteLLM - see ../httproute-unified.yaml's default /v1/embeddings rule for
-# why). Qwen/Qwen3-Embedding-0.6B (1024-dim, last-token pooling), declared at
-# ../../../embedding-gpu/app/helmrelease.yaml. OpenAI-compatible at its native
-# /v1/embeddings. In-cluster service: no TLS, no auth secret.
-#
-# MOVED TO THE B70 2026-09-15. This used to point at the CPU
-# Text-Embeddings-Inference pod (../../../toolhive/config/embeddingserver.yaml),
-# which still exists and still serves ToolHive's own tool-selection index - see
-# that file's header for why it stays on CPU (it has run bge-small-en-v1.5
-# since 2026-09-27). At the time of this move both ran the same model with the
-# same vectors (measured mean cosine 0.9999992), so this was not a re-index
-# event; it is ~85x faster at batch 32 and it fails loud on
-# over-length input instead of silently truncating.
-#
-# STILL NOT vllm-embed. That AgentgatewayBackend pointed at the llm-scaler
-# deployment that is pinned replicas: 0 (see backends/vllm.yaml's header) and
-# served a DIFFERENT model (Qwen3-VL-Embedding-2B), so it was never a drop-in
-# for this route and remains removed.
-#
-# THIS BACKEND NOW SHARES THE B70 WITH CHAT, which has no compute partition.
-# Sustained heavy use degrades ai/vllm; the measured rate-vs-impact table is in
-# docs/ai/embedder-gpu-migration-analysis-2026-09-15.md.
-#
-# Worked examples for an external caller (any model id that is not a
-# vendor slug or bare `text-embedding-*` lands on this backend - see
-# ../httproute-unified.yaml's default /v1/embeddings rule):
-#   # Bearer-keyed public listener (key from 1Password `ai-gateway-keys`,
-#   # see ../policies/apikey-policy.yaml):
-#   curl -s https://llm-api.${SECRET_DOMAIN}/v1/embeddings \
-#     -H "Authorization: Bearer $GATEWAY_API_KEY" -H 'Content-Type: application/json' \
-#     -d '{"model":"embedding-local","input":"hello world"}'
-#   # In-cluster keyless (trusted workloads only):
-#   curl -s http://internal-noauth.ai.svc.cluster.local/v1/embeddings \
-#     -H 'Content-Type: application/json' \
-#     -d '{"model":"embedding-local","input":"hello world"}'
+# Local embedder, reached directly, not through LiteLLM. Not vllm-embed (replicas 0, different model).
+# This shares the B70 with chat. Throttle by request rate. See skill b70-llm-serving references/contention.md
+# and skill agentgateway references/routing-backends.md.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:

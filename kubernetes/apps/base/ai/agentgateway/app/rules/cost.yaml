@@ -1,16 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
-# Estimated LLM spend computed from agentgateway native token metrics
-# (agentgateway_gen_ai_client_token_usage histogram, labels
-# gen_ai_request_model + gen_ai_token_type) multiplied by the price table
-# below. This is the GitOps replacement for LiteLLM's DB-based spend
-# tracking: tokens are exact, USD is an estimate.
-#
-# >>> PRICE TABLE - maintain me! USD per 1 MILLION tokens. <<<
-# Model names must match the `model` field clients send (the
-# gen_ai_request_model label). Models without a price row still show up in
-# the ai:gen_ai_tokens_unpriced:rate5m series (dashboard panel "Unpriced
-# models") so nothing is silently uncounted.
+# USD per 1M tokens. Names must match the model field clients send. A model with no row
+# shows up unpriced rather than as zero. See skill agentgateway references/routing-backends.md.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -170,15 +161,8 @@ spec:
         - record: *price
           labels: { gen_ai_request_model: grok-4.3, gen_ai_token_type: input_cache_write }
           expr: vector(1.25)
-        # --- OpenRouter - slug-form ids (with provider prefix; the unified
-        # router's vendor-slug catch-all sends them here), billed PAYG from
-        # OpenRouter credit at provider list price (no markup).
-        # Hermes vision + fallback use x-ai/grok-4.3; agentmemory consolidation
-        # uses deepseek/deepseek-v4-flash. Distinct from the bare grok-4.3 /
-        # deepseek-v4-flash ids above (direct xAI / free OpenCode-Go routes).
-        # deepseek rate is an estimate — confirm on the live OpenRouter model page.
-        # Cache-read/write ratios below mirror the equivalent direct-provider
-        # family above and are estimates for the same reason. ---
+        # OpenRouter slug ids, pay as you go, no markup. Distinct from the bare ids above.
+        # deepseek and the cache ratios are estimates. See skill agentgateway references/routing-backends.md.
         - record: *price
           labels: { gen_ai_request_model: x-ai/grok-4.3, gen_ai_token_type: input }
           expr: vector(1.25)
@@ -205,7 +189,7 @@ spec:
           expr: vector(0.09)
         # Hermes compression (gpt-oss-120b, text) + vision (qwen3-vl-32b)
         # primaries. Rates are estimates derived from the "~35x/~14x and
-        # ~12x/~6x cheaper than grok-4.3" sizing in hermes config.yaml —
+        # ~12x/~6x cheaper than grok-4.3" sizing in hermes config.yaml -
         # confirm on the live OpenRouter model pages. Cache ratios are estimates too.
         - record: *price
           labels: { gen_ai_request_model: openai/gpt-oss-120b, gen_ai_token_type: input }
@@ -231,17 +215,8 @@ spec:
         - record: *price
           labels: { gen_ai_request_model: qwen/qwen3-vl-32b-instruct, gen_ai_token_type: input_cache_write }
           expr: vector(0.1)
-        # --- OpenCode Go - flat $10/mo subscription, so the marginal
-        # per-token cost is $0 (the fixed monthly fee is not captured by token
-        # metrics). Priced at 0 so Go traffic leaves the "unpriced models"
-        # panel. Model ids are bare (e.g. glm-5.1), not the opencode-go/
-        # config form. Pay-as-you-go OpenCode Zen (dormant backend) is
-        # intentionally NOT priced here - its per-token rates aren't
-        # published and several ids (claude-*, gemini-*) collide with the
-        # direct-provider rows above (the metric can't tell the routes apart).
-        # qwen3.6-35b-a3b is the in-cluster llama.cpp/SYCL model on the local
-        # Arc Pro B70 (backends/vllm.yaml) - hardware is sunk cost, so it is
-        # priced at 0 like the other free tiers, not left unpriced. ---
+        # OpenCode Go is a flat subscription, so marginal cost is 0. Zen stays unpriced on purpose.
+        # qwen3.6-35b-a3b is local hardware, also 0. See skill agentgateway references/routing-backends.md.
         - record: *price
           labels: { gen_ai_request_model: minimax-m3, gen_ai_token_type: input }
           expr: &free vector(0)
