@@ -10,8 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
-    # Proof: proof-ledger.md row 7. Skill `kopiur-backups`.
+    # Proof: proof-ledger.md row 7.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
   dependsOn:
@@ -19,8 +18,6 @@ spec:
       namespace: downloads
     - name: onepassword-store
       namespace: security
-    # kopiur is the only engine on this claim. Do not depend on the VolSync operator. Skill
-    # `kopiur-backups`.
     - name: kopiur-repository
       namespace: system
   interval: 30m
@@ -31,17 +28,10 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # Claim name differs from the app. The pvc component names the PVC from this. Skill `kopiur-backups`.
       KOPIUR_CLAIM: lidarr-config
-      # Create-time only under ssa IfNotPresent. A rebuild provisions this size, not the component default.
-      # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 8Gi
-      # 2Gi default clears this snapshot. This mover uid is measured from the files; default 1000 fails closed.
-      # Skill `kopiur-backups`.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
-      # Namespace r2 hour. The H 4 default would pile every r2 policy into 04:00. Ceph stays on the
-      # component default. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 11 * * *"
   prune: true
   sourceRef:

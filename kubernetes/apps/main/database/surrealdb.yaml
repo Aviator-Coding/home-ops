@@ -114,8 +114,6 @@ spec:
         kind: Secret
     substitute:
       APP: surrealdb
-      # Mover identity is measured from the files. Component default 1000 fails closed when it does not
-      # match. Skill `kopiur-backups`.
       KOPIUR_PUID: "65532"
       KOPIUR_PGID: "65532"
       # Namespace r2 hour (kubernetes/components/kopiur/Readme.md schedule

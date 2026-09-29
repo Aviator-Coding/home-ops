@@ -8,8 +8,6 @@ metadata:
 spec:
   targetNamespace: *namespace
   dependsOn:
-    # kopiur is the only engine on this claim. Do not depend on the VolSync operator. Skill
-    # `kopiur-backups`.
     - name: kopiur-repository
       namespace: system
   commonMetadata:
@@ -17,8 +15,7 @@ spec:
       app.kubernetes.io/name: *app
   path: ./kubernetes/apps/base/media/calibre/calibre-web-automated
   components:
-    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
-    # Proof: proof-ledger.md row 18. Skill `kopiur-backups`.
+    # Proof: proof-ledger.md row 18.
     - ../../../../../components/kopiur/pvc
   prune: true
   sourceRef:
@@ -41,8 +38,6 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # Claim name matches the app, so KOPIUR_CLAIM is omitted. Capacity is create-time only (ssa IfNotPresent).
-      # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 20Gi
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
@@ -73,8 +68,6 @@ spec:
       APP: *app
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# kopiur is the only engine on this claim. Do not depend on the VolSync operator. Skill
-# `kopiur-backups`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -105,8 +98,6 @@ spec:
         kind: Secret
     substitute:
       APP: calibre-web-automated
-      # Mover identity is measured from the files. Component default 1000 fails closed when it does not
-      # match. Skill `kopiur-backups`.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
       # Namespace r2 hour, outside the kopiur ceph slots (01/05/09/13/17/21).
