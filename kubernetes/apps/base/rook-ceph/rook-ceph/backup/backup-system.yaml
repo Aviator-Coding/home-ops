@@ -8,7 +8,7 @@ spec:
   accessModes: ["ReadWriteOnce"]
   resources:
     requests:
-      storage: 50Gi # Larger storage for multiple backups
+      storage: 50Gi
   storageClassName: "openebs-hostpath"
 ---
 apiVersion: batch/v1

@@ -11,11 +11,9 @@ metadata:
   name: runner-maintenance
   namespace: actions-runner-system
 rules:
-  # Allow listing and deleting pods for runner cleanup
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["list", "delete"]
-  # Allow reading secrets for GitHub token access
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get"]

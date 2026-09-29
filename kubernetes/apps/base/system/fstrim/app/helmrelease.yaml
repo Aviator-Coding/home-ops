@@ -17,9 +17,8 @@ spec:
         cronjob:
           schedule: "0 0 * * 1"
           startingDeadlineSeconds: 600
-          parallelism: 3 # Set this to your number of nodes
-          # The first pass has ~951 GiB of never-discarded blocks to work through
-          # on downloads/sabnzbd-incomplete alone, so a run can outlast its window.
+          parallelism: 3
+          # A run can outlast its window when many blocks were never discarded.
           concurrencyPolicy: Forbid
           backoffLimit: 0
 

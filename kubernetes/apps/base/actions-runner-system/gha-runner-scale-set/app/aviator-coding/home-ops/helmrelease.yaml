@@ -24,7 +24,7 @@ spec:
     githubConfigUrl: https://github.com/aviator-coding/home-ops
     githubConfigSecret: *secret
     minRunners: 1
-    maxRunners: 15  # Reduced from 20 to leave headroom for other workloads
+    maxRunners: 15  # leaves headroom for other workloads
     listenerMetrics:
       counters:
         gha_started_jobs_total:
@@ -91,15 +91,6 @@ spec:
               "event_name",
               "job_result",
             ]
-    # containerMode:
-    #   type: kubernetes
-    #   kubernetesModeWorkVolumeClaim:
-    #     accessModes:
-    #       - ReadWriteOnce
-    #     storageClassName: ceph-block
-    #     resources:
-    #       requests:
-    #         storage: 25Gi
     template:
       metadata:
         annotations:
@@ -109,17 +100,14 @@ spec:
         # No workflow on this runner calls the Kubernetes API, so no token is
         # mounted and no `serviceAccountName` is set: the chart then creates its
         # own `<scale-set>-no-permission` ServiceAccount, which has no bindings.
-        # See app/rbac.yaml (security-audit finding F1).
+        # See app/rbac.yaml.
         automountServiceAccountToken: false
-        # Allow graceful shutdown for runner cleanup
         terminationGracePeriodSeconds: 30
         tolerations:
           - key: node-role.kubernetes.io/control-plane
             operator: Exists
             effect: NoSchedule
         securityContext:
-          # runAsUser: 1001
-          # runAsGroup: 1001
           fsGroup: 1001
         initContainers:
           # Pre-download talosctl to avoid downloading on every job
@@ -152,17 +140,11 @@ spec:
                 value: "1"
             resources:
               requests:
-                cpu: "200m"      # Reduced from 500m - actual usage 8-14m
-                memory: "512Mi"  # Reduced from 2Gi - actual usage 125-142Mi
+                cpu: "200m"
+                memory: "512Mi"
               limits:
                 cpu: "2"
                 memory: "8Gi"
-            # securityContext:
-            #   allowPrivilegeEscalation: true
-            #   readOnlyRootFilesystem: false
-            #   runAsNonRoot: false
-            #   runAsUser: 0
-            #   runAsGroup: 0
             volumeMounts:
               - name: work
                 mountPath: /home/runner/_work
@@ -187,7 +169,6 @@ spec:
               secretName: actions-runner
           - name: talos-bin
             emptyDir: {}
-    ######################################################################################################
     # Listener pod resource configuration to prevent eviction during pressure
     listenerTemplate:
       spec:
@@ -201,7 +182,6 @@ spec:
               limits:
                 cpu: "200m"
                 memory: "256Mi"
-    ######################################################################################################
     controllerServiceAccount:
       name: gha-runner-scale-set-controller
       namespace: actions-runner-system

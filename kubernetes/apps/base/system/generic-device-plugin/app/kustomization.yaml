@@ -13,7 +13,6 @@ configMapGenerator:
 # config-only change is inert until someone restarts the DaemonSet by hand. The
 # content hash changes the ConfigMap name, kustomizeconfig.yaml rewrites the
 # HelmRelease reference to it, and the pod template change rolls the DaemonSet.
-# A device-plugin restart does not disturb pods holding allocated devices
-# (verified live 2026-08-29: vllm kept its B70 slot and 0 restarts).
+# A device-plugin restart does not disturb pods holding allocated devices.
 configurations:
   - kustomizeconfig.yaml

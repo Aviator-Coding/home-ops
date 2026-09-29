@@ -45,7 +45,6 @@ spec:
           osd_class_update_on_start: "false"
           device_failure_prediction_mode: local
 
-          # CephX authentication for security
           auth_client_required: "cephx"
           auth_cluster_required: "cephx"
           auth_service_required: "cephx"
@@ -59,7 +58,7 @@ spec:
         osd:
           # 10 GiB is the BlueStore cache target, not OSD RSS. Do not cut the 12Gi request to match it.
           # See skill rook-ceph.
-          osd_memory_target: "10737418240" # 10 GiB (pod limit raised to 14Gi)
+          osd_memory_target: "10737418240" # 10 GiB
           osd_recovery_max_active: "3" # Don't overwhelm homelab hardware
           # One scrub per OSD, window 01:00-07:00. See skill rook-ceph.
           osd_max_scrubs: "1"
@@ -69,12 +68,12 @@ spec:
           osd_mclock_profile: high_client_ops
 
           # Threshold 5 is Ceph's own non-default and still trips a real stall. Lifetime 3600 is what stops one stall latching HEALTH_WARN for a day and blocking the reboot gate.
-          # See skill rook-ceph. (PR #1665)
+          # See skill rook-ceph.
           bluestore_slow_ops_warn_threshold: "5"
           bluestore_slow_ops_warn_lifetime: "3600"
 
         # Literature caps, not fio: Samsung 15000, Lexar 7000. A set cap makes the OSD skip re-bench. No osd.1.
-        # See skill rook-ceph. (PR #981)
+        # See skill rook-ceph.
         "osd.0":
           osd_mclock_max_capacity_iops_ssd: "15000" # Samsung 980 PRO 2TB
         "osd.2":
@@ -89,8 +88,7 @@ spec:
           osd_mclock_max_capacity_iops_ssd: "7000" # Lexar NM790 4TB (DRAM-less HMB)
 
         mds:
-          # Larger CephFS metadata cache (plenty of node RAM headroom); kept
-          # below the 10Gi MDS pod limit. Helps metadata-heavy CephFS ops.
+          # Kept below the 10Gi MDS pod limit.
           mds_cache_memory_limit: "8589934592" # 8 GiB
 
         client.rgw:
@@ -98,19 +96,19 @@ spec:
           rgw_realm: ceph-objectstore
 
           # Keep true until a Tentacle image carrying ceph/ceph#71192 lands in the same commit, then prove unsigned content-type PUT 200 and unsigned x-amz-* 403.
-          # See skill rook-ceph. (PR #1401)
+          # See skill rook-ceph.
           rgw_sigv4_insecure: "true"
       security:
         cephx:
           # Daemon keys are aes256k at generation 2. Next rotation sets keyGeneration to current+1. csi stays aes (kernel < 7.0).
-          # See skill rook-ceph. (PR #1398)
+          # See skill rook-ceph.
           daemon:
             keyType: aes256k
             keyRotationPolicy: KeyGeneration
             keyGeneration: 2
           # csi stays aes. Kernel clients need Linux >= 7.0. These nodes run 6.18.x. See skill rook-ceph.
       # Effect must match PreferNoSchedule. `all` covers mon, osd, and mgr. It does not cover mds or rgw.
-      # CSI nodeplugins are operator/csi-driver-tolerations.yaml. See skill node-scheduling. (PR #1798)
+      # CSI nodeplugins are operator/csi-driver-tolerations.yaml. See skill node-scheduling.
       placement:
         all:
           tolerations:
@@ -174,12 +172,12 @@ spec:
             memory: 256Mi
         osd:
           # Request 12Gi is above the 9317 Mi peak. osd_memory_target is cache, not RSS. Limit 14Gi stays so a spike can burst. OSDs stay Burstable.
-          # See skill rook-ceph. (PR #1736)
+          # See skill rook-ceph.
           requests:
             cpu: 500m
-            memory: 12Gi # > observed 9,317 MiB peak; frees 2Gi/OSD of dead reservation
+            memory: 12Gi
           limits:
-            memory: 14Gi # UNCHANGED: a genuine spike must still be able to burst
+            memory: 14Gi
         mgr-sidecar:
           requests:
             cpu: 50m
@@ -225,8 +223,6 @@ spec:
               labelSelector:
                 matchLabels:
                   app: rook-ceph-mon
-    #---------------------------------------------
-    #-- Ceph Block Pool Storage configuration
     cephBlockPools:
       - name: ceph-blockpool
         enableRBDStats: true
@@ -267,8 +263,6 @@ spec:
       name: csi-ceph-blockpool
       isDefault: false
       deletionPolicy: Delete
-    #---------------------------------------------
-    #-- Ceph File System Storage configuration
     cephFileSystems:
       - name: &cephFileSystemName ceph-filesystem
         spec:
@@ -287,7 +281,6 @@ spec:
                 size: 3
               parameters:
                 compression_mode: none
-                # bulk=true: autoscaler-driven PG growth for the main CephFS data pool.
                 bulk: "true"
           metadataServer:
             activeCount: 2
@@ -347,8 +340,6 @@ spec:
       name: csi-ceph-filesystem
       isDefault: false
       deletionPolicy: Delete
-    #---------------------------------------------
-    #-- Ceph Object Store configuration
     cephObjectStores:
       - name: &cephObjectStoreName ceph-objectstore
         spec:
@@ -375,7 +366,6 @@ spec:
                 memory: 1Gi
               limits:
                 memory: 3Gi
-            # HA configuration: 2 RGW instances spread across nodes
             instances: 2
             priorityClassName: system-cluster-critical
             placement:

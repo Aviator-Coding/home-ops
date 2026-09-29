@@ -428,7 +428,7 @@ spec:
                   exit 0
               resources:
                 requests:
-                  # Burst job (~19s every 6h); the request is a 24/7 node
+                  # Burst job; the request is a 24/7 node
                   # reservation, so it stays low. The limit is the lever.
                   cpu: 20m
                   memory: 64Mi

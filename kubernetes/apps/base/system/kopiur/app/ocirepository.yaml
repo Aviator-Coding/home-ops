@@ -10,8 +10,8 @@ spec:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    # Exact tag, never a floating one: kopiur is an alpha API that broke its
-    # user-visible surface roughly once a fortnight through July 2026. Renovate
+    # Exact tag, never a floating one: kopiur is an alpha API that breaks its
+    # user-visible surface frequently. Renovate
     # may propose bumps as PRs but must never merge one unattended - see the
     # kopiur exclusion in .renovate/autoMerge.json5 and README.md "Upgrades".
     tag: 0.10.10

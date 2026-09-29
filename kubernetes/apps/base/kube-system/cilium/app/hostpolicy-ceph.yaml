@@ -28,9 +28,8 @@ spec:
         - world
       toPorts:
         - ports:
-            # mon msgr2. Only v2 is bound (monmap epoch 30: all three mons are
-            # v2:10.10.10.x:3300). Cluster-internal mon traffic is
-            # host/remote-node identity and unaffected.
+            # mon msgr2. Only v2 is bound (v2:10.10.10.x:3300). Cluster-internal
+            # mon traffic is host/remote-node identity and unaffected.
             - port: "3300"
               protocol: TCP
             # mon msgr1. ms_bind_msgr1 is true but no mon currently binds it;
@@ -39,16 +38,12 @@ spec:
               protocol: TCP
             # RGW, cleartext HTTP (CephObjectStore gateway.port: 80, no
             # securePort). Serves an anonymous bucket listing on the node IP.
-            # NOTE: this is the one port also used by LoadBalancer services
-            # (envoy-external 10.50.0.21:80, envoy-internal 10.50.0.26:80, the
-            # three ai/* LBs). Those target LB IPs, not the node IP, so they
-            # are a different destination and should be unaffected - the audit
-            # window exists to prove exactly that before this enforces.
+            # Also the port of LoadBalancer services (envoy-*, ai/* LBs), but
+            # those target LB IPs, not the node IP, so this rule does not match them.
             - port: "80"
               protocol: TCP
-            # mgr prometheus module - unauthenticated metrics, live at
-            # http://10.10.10.12:9283/. Prometheus scrapes it from a pod, which
-            # is SNAT'd to a node IP and so is not `world`.
+            # mgr prometheus module - unauthenticated metrics. Prometheus scrapes
+            # it from a pod, which is SNAT'd to a node IP and so is not `world`.
             - port: "9283"
               protocol: TCP
             # ceph-exporter - unauthenticated per-daemon metrics on every node.
@@ -67,10 +62,8 @@ spec:
               protocol: TCP
             - port: "8443"
               protocol: TCP
-            # OSD / MDS / mgr msgr2 data path. Range comes from the live
-            # settings ms_bind_port_min=6800 / ms_bind_port_max=7568 - note
-            # this cluster's max is NOT the 7300 upstream default. No ephemeral
-            # (32768-60999) or NodePort (30000-32767) range overlaps this.
+            # OSD / MDS / mgr msgr2 data path (ms_bind_port_min/max, max is NOT
+            # the 7300 upstream default). No ephemeral or NodePort range overlaps it.
             - port: "6800"
               endPort: 7568
               protocol: TCP

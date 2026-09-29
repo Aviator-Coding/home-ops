@@ -8,12 +8,7 @@ spec:
   groups:
     - name: ceph-reliability
       rules:
-        # container_spec_memory_limit_bytes does not exist in this Prometheus
-        # (cAdvisor is scraped but the container_spec_* families are absent),
-        # so this alert could never fire. Swapped to kube-state-metrics'
-        # kube_pod_container_resource_limits, which needs an explicit on(...)
-        # join because the two metrics carry different label sets. Live check
-        # after the swap: all three mons read ~0.18 of their 2Gi limit.
+        # container_spec_* is absent here; the limit comes from kube-state-metrics via an explicit on(...) join. See skill observability.
         - alert: CephMonitorMemoryHigh
           expr: |
             container_memory_working_set_bytes{namespace="rook-ceph", container="mon"}
@@ -34,12 +29,7 @@ spec:
           annotations:
             summary: "OSD {{ $labels.pod }} has restarted more than 3 times in 1 hour"
 
-        # ceph_osd_slow_ops does not exist; ceph_trackedop_slow_ops_count is the
-        # live per-daemon equivalent and keeps the ceph_daemon label this
-        # annotation depends on. Note it is a COUNTER ("Number of operations
-        # taking over ten seconds"), not a gauge, so a bare > 5 would latch on
-        # permanently after the fifth slow op the cluster ever saw - increase()
-        # over a window is what makes "sustained" mean sustained.
+        # ceph_trackedop_slow_ops_count is a counter: increase() keeps "sustained" meaningful, a bare > 5 latches forever.
         - alert: CephOSDSlowOps
           expr: |
             increase(ceph_trackedop_slow_ops_count{ceph_daemon=~"osd.*"}[10m]) > 5
@@ -58,7 +48,6 @@ spec:
           annotations:
             summary: "Ceph monitor quorum has fewer than 3 members"
 
-        # Capacity alerts
         - alert: CephClusterNearFull
           expr: |
             ceph_cluster_total_used_bytes / ceph_cluster_total_bytes > 0.75
@@ -99,7 +88,6 @@ spec:
             summary: "OSD {{ $labels.ceph_daemon }} storage usage above 90%"
             description: "OSD {{ $labels.ceph_daemon }} is {{ $value | humanizePercentage }} full. Critical!"
 
-        # OSD down/health alerts
         - alert: CephOSDDown
           expr: ceph_osd_up == 0
           for: 5m
@@ -130,7 +118,6 @@ spec:
 
     - name: ceph-pg-health
       rules:
-        # Placement Group Health Alerts
         - alert: CephPGDegraded
           expr: ceph_pg_degraded > 0
           for: 15m
@@ -140,8 +127,7 @@ spec:
             summary: "Ceph placement groups are degraded"
             description: "{{ $value }} placement groups are in degraded state. Data is still accessible but not fully replicated."
 
-        # ceph_pg_inactive does not exist. Ceph exports per-state PG gauges, so
-        # inactive is derived: everything not counted as active.
+        # ceph_pg_inactive does not exist; inactive is derived from the per-state PG gauges.
         - alert: CephPGInactive
           expr: |
             (ceph_pg_total - ceph_pg_active) > 0
@@ -161,9 +147,7 @@ spec:
             summary: "Ceph placement groups are inconsistent"
             description: "{{ $value }} placement groups have inconsistent data. Run 'ceph pg repair' after investigation."
 
-        # ceph_pg_recovery_full does not exist; the live gauge is
-        # ceph_pg_recovery_toofull. backfill_toofull is included because a full
-        # cluster blocks backfill the same way it blocks recovery.
+        # ceph_pg_recovery_full does not exist; use recovery_toofull, plus backfill_toofull since a full cluster blocks both.
         - alert: CephPGRecoveryFull
           expr: |
             (ceph_pg_recovery_toofull + ceph_pg_backfill_toofull) > 0
@@ -179,7 +163,6 @@ spec:
 
     - name: ceph-crash-detection
       rules:
-        # Crash Detection Alert
         - alert: CephCrashesDetected
           expr: ceph_health_detail{name=~"RECENT_CRASH|RECENT_MGR_MODULE_CRASH"} == 1
           for: 5m
@@ -191,7 +174,6 @@ spec:
 
     - name: ceph-iops-performance
       rules:
-        # High IOPS Alert - sustained high I/O during backup windows
         - alert: CephHighIOPS
           expr: |
             sum(irate(ceph_osd_op_w[5m]) + irate(ceph_osd_op_r[5m])) > 300
@@ -202,7 +184,6 @@ spec:
             summary: "Ceph cluster experiencing high IOPS"
             description: "Total cluster IOPS {{ $value | humanize }} exceeds 300 ops/sec for more than 5 minutes. This may indicate backup schedule overlap or unusual workload."
 
-        # OSD Latency Disparity Alert - monitors device class performance variance
         - alert: CephOSDLatencyDisparity
           expr: |
             max(ceph_osd_apply_latency_ms) - min(ceph_osd_apply_latency_ms) > 15
@@ -213,7 +194,6 @@ spec:
             summary: "High latency variance between Ceph OSDs"
             description: "OSD apply latency disparity is {{ $value }}ms. Samsung 980 PRO (osd.0, osd.1) typically have higher latency than Lexar NM790 (osd.2-5). Investigate if variance exceeds expected device-class differences."
 
-        # Individual OSD High Latency Alert
         - alert: CephOSDHighLatency
           expr: |
             ceph_osd_apply_latency_ms > 50

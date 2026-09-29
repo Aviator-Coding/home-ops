@@ -5,7 +5,7 @@ metadata:
   name: pvc-writable-check
   namespace: system
 ---
-# Split-role design (captain decision after review of the first cut's cluster-wide pods/exec grant): (a) pvc-writable-check-read - pods get/list, ClusterRoleBinding, cluster-wide.
+# Split-role design (captain decision, avoids a cluster-wide pods/exec grant): (a) pvc-writable-check-read - pods get/list, ClusterRoleBinding, cluster-wide.
 # Skill `pvc-integrity-checks`.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

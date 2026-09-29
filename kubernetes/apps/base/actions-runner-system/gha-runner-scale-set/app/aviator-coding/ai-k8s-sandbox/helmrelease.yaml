@@ -24,7 +24,7 @@ spec:
     githubConfigUrl: https://github.com/aviator-coding/ai-k8s-sandbox
     githubConfigSecret: *secret
     minRunners: 1
-    maxRunners: 15  # Reduced from 20 to leave headroom for other workloads
+    maxRunners: 15  # leaves headroom for other workloads
     listenerMetrics:
       counters:
         gha_started_jobs_total:
@@ -91,15 +91,6 @@ spec:
               "event_name",
               "job_result",
             ]
-    # containerMode:
-    #   type: kubernetes
-    #   kubernetesModeWorkVolumeClaim:
-    #     accessModes:
-    #       - ReadWriteOnce
-    #     storageClassName: ceph-block
-    #     resources:
-    #       requests:
-    #         storage: 25Gi
     template:
       metadata:
         annotations:
@@ -111,19 +102,15 @@ spec:
         # and docker buildx - it touches neither the Kubernetes API nor talosctl,
         # so this pod gets no ServiceAccount token, no `serviceAccountName` (the
         # chart supplies its own no-permission ServiceAccount, separate from the
-        # home-ops scale set's) and no Talos credential. It previously shared a
-        # cluster-admin + os:admin ServiceAccount with the public home-ops runner,
-        # while also running a privileged dind sidecar. See app/rbac.yaml.
+        # home-ops scale set's) and no Talos credential, since it runs a privileged
+        # dind sidecar. See app/rbac.yaml.
         automountServiceAccountToken: false
-        # Allow graceful shutdown for runner cleanup
         terminationGracePeriodSeconds: 30
         tolerations:
           - key: node-role.kubernetes.io/control-plane
             operator: Exists
             effect: NoSchedule
         securityContext:
-          # runAsUser: 1001
-          # runAsGroup: 1001
           fsGroup: 1001
         containers:
           - name: runner
@@ -155,24 +142,17 @@ spec:
                 value: "1"
             resources:
               requests:
-                cpu: "200m"      # Reduced from 500m - actual usage 8-14m
-                memory: "512Mi"  # Reduced from 2Gi - actual usage 125-142Mi
+                cpu: "200m"
+                memory: "512Mi"
               limits:
                 cpu: "2"
                 memory: "8Gi"
-            # securityContext:
-            #   allowPrivilegeEscalation: true
-            #   readOnlyRootFilesystem: false
-            #   runAsNonRoot: false
-            #   runAsUser: 0
-            #   runAsGroup: 0
             volumeMounts:
               - name: work
                 mountPath: /home/runner/_work
               - name: docker-certs
                 mountPath: /certs
                 readOnly: true
-          # Docker-in-Docker sidecar for container builds
           - name: dind
             # renovate: datasource=docker depName=docker
             image: docker:29-dind
@@ -209,7 +189,6 @@ spec:
             emptyDir: {}
           - name: dind-storage
             emptyDir: {}
-    ######################################################################################################
     # Listener pod resource configuration to prevent eviction during pressure
     listenerTemplate:
       spec:
@@ -223,7 +202,6 @@ spec:
               limits:
                 cpu: "200m"
                 memory: "256Mi"
-    ######################################################################################################
     controllerServiceAccount:
       name: gha-runner-scale-set-controller
       namespace: actions-runner-system

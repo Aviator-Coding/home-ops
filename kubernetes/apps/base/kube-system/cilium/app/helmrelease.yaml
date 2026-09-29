@@ -127,24 +127,16 @@ spec:
       hostNamespaceOnly: true
     tunneling:
       mtu: 9000
-    # Chart default is maxUnavailable: 2, which on a 3-node cluster restarts
-    # two thirds of the datapath at once. Enabling hostFirewall recompiles and
-    # reloads bpf_host, so this is the one rollout where a bad load must not be
-    # able to hit two nodes simultaneously - dropping to 1 keeps two healthy
-    # nodes (and etcd quorum) while a failure is caught and reverted.
-    # Independent of the audit/enforce staging; safe to keep permanently.
+    # Chart default maxUnavailable: 2 would restart two thirds of the datapath
+    # at once on 3 nodes. 1 keeps two healthy nodes (and etcd quorum) through a bad bpf_host load.
     updateStrategy:
       type: RollingUpdate
       rollingUpdate:
         maxUnavailable: 1
     # Guaranteed QoS (requests == limits on EVERY container, init containers
-    # included) so the Talos runtime.OOMController never selects the agent:
-    # its victim ranking assigns Guaranteed cgroups weight 0.0. During the
-    # 2026-06-30/07-03 OOM cascade the burstable cilium-agent was a chronic
-    # victim (503 restarts on talos-1), taking the node network plane down
-    # with every kill. Memory limit raised 1Gi -> 1536Mi (live peak 743Mi)
-    # since the request is now reserved anyway; CPU limit is required for
-    # Guaranteed (live peak ~100m, 500m leaves burst room).
+    # included) so the Talos OOMController never selects the agent: a kill
+    # takes the node network plane down. CPU limit is required for Guaranteed.
+    # See skill node-scheduling.
     resources:
       requests:
         cpu: 500m
