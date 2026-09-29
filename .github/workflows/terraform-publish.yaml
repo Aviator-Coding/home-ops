@@ -60,7 +60,6 @@ jobs:
         run: |
           # Hardcoded lowercase owner segment, not `github.repository_owner`: ghcr.io
           # rejects uppercase image names and the org name is `Aviator-Coding`.
-          # Mirrors build-talosctl-busybox.yaml's IMAGE_NAME convention.
           echo "artifact=ghcr.io/aviator-coding/manifests/terraform:$(git rev-parse --short HEAD)" >> "${GITHUB_OUTPUT}"
 
       - name: Publish OCI Artifact
