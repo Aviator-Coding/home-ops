@@ -80,18 +80,9 @@ jobs:
             --no-progress \
             --output json > new-images.json
 
-          # flate's image detector deliberately requires a "/" in the reference
-          # (isImageRef in pkg/image/image.go, on the assumption that bare-name
-          # references "aren't seen in production GitOps manifests"), so bare
-          # Docker Hub official images are never reported. This cluster has four
-          # -- e.g. `docker:29-dind` in the ai-k8s-sandbox runner -- and at least
-          # one is Renovate-managed, so without this recovery a bump to it would
-          # silently stop being pre-pulled. Read them off the changed-only render
-          # instead. Scoped to a literal `image:` key, so it cannot pick up the
-          # PromQL/RBAC strings flate's own general string walk is guarding
-          # against. It may re-list an unchanged bare image that happens to sit in
-          # the changed subtree; pulling an already-present image is cheap, and
-          # the whole bare-image population here is four.
+          # flate skips bare Docker Hub references (no "/", e.g. `docker:29-dind`),
+          # so recover them from a literal `image:` key in the changed-only render.
+          # It may re-list an unchanged bare image; re-pulling one is cheap.
           flate build all \
             --path kubernetes/clusters/main \
             --base "${BASE}" \

@@ -104,7 +104,6 @@ jobs:
             docker --version >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
 
-            # Check if Docker daemon is accessible
             if docker info &> /dev/null; then
               echo "Docker daemon accessible" >> $GITHUB_STEP_SUMMARY
               echo "**Docker Info:**" >> $GITHUB_STEP_SUMMARY
@@ -163,7 +162,6 @@ jobs:
         run: |
           echo "## Docker Functionality Test" >> $GITHUB_STEP_SUMMARY
 
-          # Check if Docker daemon is accessible before testing
           if ! docker info &> /dev/null; then
             echo "Docker daemon not accessible - skipping Docker functionality tests" >> $GITHUB_STEP_SUMMARY
             echo "**Error:**" >> $GITHUB_STEP_SUMMARY
@@ -173,7 +171,6 @@ jobs:
             exit 0  # Don't fail the job, just skip Docker tests
           fi
 
-          # Test pulling a small image
           echo "**Pulling hello-world image:**" >> $GITHUB_STEP_SUMMARY
           if docker pull hello-world:latest; then
             echo "Docker pull successful" >> $GITHUB_STEP_SUMMARY
@@ -182,7 +179,6 @@ jobs:
             exit 1
           fi
 
-          # Test running the image
           echo "**Running hello-world container:**" >> $GITHUB_STEP_SUMMARY
           if docker run --rm hello-world; then
             echo "Docker run successful" >> $GITHUB_STEP_SUMMARY
@@ -191,7 +187,6 @@ jobs:
             exit 1
           fi
 
-          # Clean up
           docker rmi hello-world:latest || true
 
   test-runner-file-operations:
@@ -206,11 +201,9 @@ jobs:
         run: |
           echo "## File System Tests" >> $GITHUB_STEP_SUMMARY
 
-          # Create test directory
           mkdir -p test-runner-workspace
           cd test-runner-workspace
 
-          # Test file creation
           echo "Hello from self-hosted runner!" > test-file.txt
           if [[ -f test-file.txt ]]; then
             echo "File creation successful" >> $GITHUB_STEP_SUMMARY
@@ -218,7 +211,6 @@ jobs:
             echo "File creation failed" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Test file reading
           content=$(cat test-file.txt)
           if [[ "$content" == "Hello from self-hosted runner!" ]]; then
             echo "File reading successful" >> $GITHUB_STEP_SUMMARY
@@ -226,7 +218,6 @@ jobs:
             echo "File reading failed" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Test permissions
           chmod +x test-file.txt
           if [[ -x test-file.txt ]]; then
             echo "File permissions change successful" >> $GITHUB_STEP_SUMMARY
@@ -234,7 +225,6 @@ jobs:
             echo "File permissions change failed" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Clean up
           cd ..
           rm -rf test-runner-workspace
 
