@@ -2,7 +2,7 @@
   "allowlist": [],
   "baseline": {
     "agents_md_bytes": {
-      "AGENTS.md": 124248
+      "AGENTS.md": 83466
     },
     "comment_block_lines": {
       "kubernetes/apps/base/ai/agentgateway/app/backends/embedding-local.yaml": 36,
