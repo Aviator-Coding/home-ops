@@ -1,25 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
 #
-# Every rate() window here was [1m] against a 1m scrape interval, which cannot
-# hold the two samples a rate needs, so all 20 recording rules and the two
-# alerts built on them returned nothing. Widened to [5m] on 2026-09-15.
-# LokiRequestLatency reads the namespace_job_route:...:99quantile recording rule
-# below, so widening the alerts alone would have left it dead.
-#
-# PROOF STATUS - read this before assuming these work now. Loki gained a
-# ServiceMonitor in the same change that widened these windows
-# (`monitoring.serviceMonitor.enabled: true` in ./helmrelease.yaml) - before
-# that it had none, and count(loki_request_duration_seconds_count) was 0. The
-# `loki_*` series that DO exist independent of that toggle come from
-# promtail's client library (job="promtail-metrics"), not from the Loki
-# server - do not mistake those for proof. Confirm post-reconcile
-# (`up{job=~".*loki.*"}` and `count(loki_request_duration_seconds_count) > 0`)
-# before trusting these three alerts; the toggle alone is not proof. The
-# identical [1m] defect IS proven on promtail's own rule, which is scraped -
-# see ../../promtail/app/prometheusrule.yaml for the measured before/after.
-#
-# LokiRequestPanics is untouched: it already used increase(...[10m]).
+# Recording rules and the alerts on them use [5m]. [1m] returns nothing
+# at a 1m scrape. job=promtail-metrics is not the Loki server.
+# LokiRequestPanics already uses increase([10m]). Skill observability.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
