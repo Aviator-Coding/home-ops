@@ -32,9 +32,7 @@ spec:
               # Erase any remaining filesystem/BlueStore signatures (this is what
               # lsblk/blkid key on; without it the operator sees a "configured" disk)
               wipefs -af /host${disk} || echo "wipefs failed"
-              # Destroy the partition table
               sgdisk --zap-all /host${disk} || echo "sgdisk not applicable"
-              # Full-device TRIM/discard (forced) to clear all data on the SSD
               blkdiscard -f /host${disk} || echo "blkdiscard not supported"
               # Belt-and-suspenders: zero the head of the device
               dd if=/dev/zero of=/host${disk} bs=1M count=100 oflag=direct conv=fsync || true

@@ -162,15 +162,10 @@ spec:
                       continue
                     fi
 
-                    # Awkward case: scaled-to-zero apps and claims with no pod
-                    # at all never produce a row here in the first place
-                    # (discovery is pod-driven). This branch is specifically
-                    # for a pod that exists but whose container isn't
-                    # currently in a running state - e.g. CrashLoopBackOff,
-                    # ContainerCreating, or a Job pod whose container already
-                    # exited by the time we got to it. None of that is
-                    # evidence the volume is unwritable, so it's a skip, not a
-                    # failure.
+                    # A pod that exists but whose container is not running (CrashLoopBackOff,
+                    # ContainerCreating, an exited Job pod) is no evidence the volume is
+                    # unwritable: a skip, not a failure. Scaled-to-zero apps produce no row at all
+                    # (discovery is pod-driven).
                     if [[ "${running}" != "true" ]]; then
                       echo "SKIP  (container not running)      ${ns}/${pod} [${container}] ${mountpath} (claim=${claim})"
                       SKIPPED_NOT_RUNNING=$((SKIPPED_NOT_RUNNING + 1))
@@ -179,15 +174,10 @@ spec:
 
                     CHECKED=$((CHECKED + 1))
 
-                    # `test -w <path>` as a direct argv exec (no shell
-                    # invocation) is a single access(2)/stat(2)-style check:
-                    # it does not write anything, so this is safe against
-                    # every pod in the cluster including stateful storage
-                    # (Ceph mons, Postgres) and against a mount that is
-                    # genuinely read-only. Passing mountpath as its own argv
-                    # element (never interpolated into a shell string) means
-                    # a pod that put shell metacharacters in its own mountPath
-                    # can't inject anything here.
+                    # `test -w <path>` as a direct argv exec is a read-only access check, safe
+                    # against every pod (Ceph mons, Postgres) and against genuinely read-only
+                    # mounts. mountpath is its own argv element, never interpolated into a shell
+                    # string, so a hostile mountPath cannot inject anything.
                     OUT=$(timeout 15 kubectl exec -n "${ns}" "${pod}" -c "${container}" -- test -w "${mountpath}" 2>&1)
                     RC=$?
 
@@ -197,11 +187,9 @@ spec:
                       continue
                     fi
 
-                    # Awkward case: containers without a shell (distroless /
-                    # scratch images) don't ship a standalone `test` binary
-                    # either. Retry through `sh`, still passing the path as a
-                    # separate argv element (positional parameter $1), never
-                    # spliced into the script text.
+                    # Containers without a shell (distroless / scratch) ship no standalone `test`
+                    # binary either. Retry through `sh`, still passing the path as positional
+                    # parameter $1, never spliced into the script text.
                     if grep -qF '"test": executable file not found' <<<"${OUT}"; then
                       OUT2=$(timeout 15 kubectl exec -n "${ns}" "${pod}" -c "${container}" -- sh -c 'test -w "$1"' sh "${mountpath}" 2>&1)
                       RC2=$?
@@ -248,19 +236,13 @@ spec:
                         FAILURES+=("${ns}/${claim} (pod ${pod}, container ${container}, path ${mountpath})")
                         ;;
                     esac
-                  # Process substitution, not a `<<<` here-string: same
-                  # temp-file concern as above (ROWS is small today, but this
-                  # keeps the whole script free of a construct that silently
-                  # depends on payload size), and it still runs the loop in
-                  # the current shell so FAILURES survives past the loop.
-                  # Trailing newline is load-bearing: command substitution
-                  # strips every trailing newline from jq's output, and
-                  # `while read` then drops the final row on EOF-without-\n
-                  # (classic bash gotcha). A sweep with a single candidate
-                  # would check nothing; an N-candidate sweep silently skipped
-                  # whichever row sorted last. printf '%s\n' restores exactly
-                  # one terminator; an empty ROWS still yields one empty
-                  # iteration which the [[ -z ns ]] guard continues past.
+                  # Process substitution, not a `<<<` here-string (temp file, see above); it also
+                  # keeps the loop in the current shell so FAILURES survives it.
+                  # Trailing newline is load-bearing: command substitution strips every trailing
+                  # newline from jq's output, and `while read` then drops the final row on
+                  # EOF-without-\n, so a single-candidate sweep would check nothing. printf '%s\n'
+                  # restores exactly one terminator; an empty ROWS yields one empty iteration
+                  # that the [[ -z ns ]] guard continues past.
                   done < <(printf '%s\n' "${ROWS}")
 
                   echo ""

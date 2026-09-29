@@ -83,13 +83,10 @@ spec:
 
                   echo "pvc-mover-readable-check: sweep starting at $(date -u +%FT%TZ)"
 
-                  # ---------------------------------------------------------
-                  # Scope and mover identities, resolved from the LIVE CRs.
-                  # Never from the components' defaults: KOPIUR_PUID/PGID are
-                  # overridden per claim (10 of 31 claims are non-default, and
-                  # they range from 0 to 10000), so a default-derived identity
-                  # would measure the wrong thing and report a false clean.
-                  # ---------------------------------------------------------
+                  # Scope and mover identities, resolved from the LIVE CRs, never from the
+                  # components' defaults: KOPIUR_PUID/PGID are overridden per claim, so a
+                  # default-derived identity would measure the wrong thing and report a false
+                  # clean.
                   # Capture each discovery pipeline's status separately.
                   # pipefail is already on, so a failed kubectl OR jq fails the
                   # whole assignment. Never continue with a partial map: an
@@ -245,9 +242,7 @@ spec:
                     echo transient
                   }
 
-                  # ---------------------------------------------------------
                   # Sweep
-                  # ---------------------------------------------------------
                   COVERED=0; MEASURED=0; CLEAN=0
                   UNMEASURED_NS_EXCLUDED=0; UNMEASURED_UNMOUNTED=0; UNMEASURED_SUBPATH=0
                   UNMEASURED_NOT_RUNNING=0; UNMEASURED_NO_TOOLS=0; UNMEASURED_RBAC=0
@@ -311,8 +306,7 @@ spec:
 
                     # Substring tests use bash `case`, never a `<<<` here-string:
                     # this image backs a here-string with a real temp file, which
-                    # fails under readOnlyRootFilesystem (pvc-writable-check hit
-                    # this live). `case` is a builtin and touches no disk.
+                    # fails under readOnlyRootFilesystem. `case` is a builtin and touches no disk.
                     if [[ "${OUT}" != *"WALK_ERRORS="* ]]; then
                       case "$(classify_exec_failure "${RC}" "${OUT}")" in
                         rbac)
