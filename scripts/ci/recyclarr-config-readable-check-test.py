@@ -37,8 +37,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
-import stat as statmod
 import subprocess
 import sys
 import tempfile
