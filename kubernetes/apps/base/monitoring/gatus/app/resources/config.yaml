@@ -49,24 +49,9 @@ endpoints:
       - "[BODY].warnings == false"
       - "[BODY].errors == false"
 
-  # Hermes runs its gateway (Telegram/Discord/cron + the OpenAI-compatible API
-  # on :8642) as a SEPARATE s6 service from the dashboard on :9119, in the
-  # same container. The auto-discovered `hermes-app` HTTPRoute check above
-  # only ever probed :9119, so a wedged/dead gateway with a perfectly healthy
-  # dashboard was invisible to every existing signal - measured live
-  # 2026-09-14/15: the gateway process sat in state D with :8642 refusing
-  # connections (absent from /proc/net/tcp) for the entire outage, while
-  # :9119 kept answering 200 the whole time.
-  #
-  # This hits the gateway's OWN unauthenticated health path directly, not the
-  # dashboard's SPA catch-all (verified live: dashboard :9119 `/health` 200s
-  # the login-page HTML for literally any unknown path - the exact
-  # auth-gated-redirect trap this cluster has been burned by before, which
-  # would make a status-code condition prove nothing). `/health` on :8642 is
-  # a dedicated, unauthenticated JSON endpoint
-  # (`{"status":"ok","platform":"hermes-agent",...}`) confirmed live both
-  # ways on this same pod: connection refused while the gateway was wedged,
-  # 200 with that body once it recovered.
+  # Gateway :8642, not the dashboard :9119. The dashboard SPA returns 200
+  # for unknown paths, so this matches the gateway's own /health JSON.
+  # Skill observability.
   - name: Hermes Gateway
     group: ai
     url: http://hermes.ai.svc.cluster.local:8642/health
@@ -77,32 +62,9 @@ endpoints:
       - "[STATUS] == 200"
       - "[BODY].status == ok"
 
-  # Opens a real MCP session on the ToolHive gateway, the way Hermes does:
-  # same in-cluster URL, streamable-HTTP `initialize`, no auth. The
-  # auto-discovered `mcp-gateway` route check probes vmcp's /health, which
-  # stayed 200 from 2026-09-14 to 2026-09-27 while every `initialize` hung
-  # (vmcp builds its tool-search index inside the handshake, and the
-  # embedding server behind it could not finish - see
-  # kubernetes/apps/base/ai/toolhive/config/embeddingserver.yaml). This check
-  # was red for that whole state (a live 40s initialize returned 0 bytes)
-  # and is green once a session opens (~7s measured 2026-09-27). Both
-  # directions were run 2026-09-27 on a scratch pod with this Gatus image:
-  # success=true at 8.1s against bge-small, success=false at 25.0s against
-  # the Qwen3 server.
-  #
-  # Blind spot: when the embedding call fails FAST (measured: TEI refusing
-  # connections mid-restart), vmcp still answers this initialize 200 and
-  # terminates the session right after, so a client's next request fails.
-  # Catching that needs a second request carrying the Mcp-Session-Id
-  # response header, and Gatus v5.36 has no header placeholder to store it.
-  # A TEI pod that is down is covered by its readiness probe
-  # (KubePodNotReady); a TEI that is up but answering errors is not.
-  #
-  # The 25s client timeout sits under Hermes' 30s connect_timeout, so green
-  # means Hermes can connect. The body condition matches vmcp's own
-  # serverInfo name, which /health, a 406, or a login page cannot satisfy.
-  # Every probe creates one anonymous vmcp session and one full-catalog
-  # embed (~23.5 CPU core-seconds), hence 5m rather than 1m.
+  # initialize, not /health: /health stays 200 while the handshake hangs.
+  # 25s timeout, 5m interval. A fast embed failure can still return 200.
+  # Skill observability.
   - name: ToolHive MCP Session
     group: ai
     url: http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp
@@ -121,37 +83,9 @@ endpoints:
       - "[STATUS] == 200"
       - "[BODY].result.serverInfo.name == mcp-gateway-internal"
 
-  # The auto-discovered `home-automation_home-assistant-app` check (removed
-  # from the HTTPRoute's gatus.home-operations.com/endpoint annotation in
-  # this change) never reached Home Assistant: that route carries a
-  # SecurityPolicy that routes every request through Authentik's extAuth
-  # first, and Authentik answers with its own 200/302 login page before the
-  # request ever reaches the backend - proven with Envoy's own counters
-  # (envoy_cluster_ext_authz_denied on that route's cluster incrementing at
-  # exactly Gatus's polling rate while envoy_cluster_upstream_rq_total for
-  # the same cluster stayed absent). A STATUS-only condition against that
-  # route can never distinguish "Home Assistant answered" from "Authentik
-  # intercepted the request", so it was green for the entire outage the
-  # captain actually noticed.
-  #
-  # This check goes straight to the in-cluster Service instead (same
-  # pattern as Hermes Gateway above), bypassing Envoy/ext_authz entirely,
-  # and matches on a body field unique to Home Assistant's own
-  # manifest.json rather than just the status code. That second part is
-  # load-bearing, not defensive styling: the code-server container on this
-  # same Pod (split onto its own `home-assistant-code-server` Service,
-  # port 12321, so its readiness stays independent of Home Assistant's
-  # probe - see the HelmRelease's `service`/`route` blocks) serves its OWN
-  # /manifest.json at status 200 too (`{"name":"code-server",...}`),
-  # verified live (read-only, 2026-09-15) while both containers still
-  # answered behind a single Service - a bare `[STATUS] == 200` condition
-  # could not have told them apart, nor (per the Authentik case above)
-  # distinguished either from an ext_authz interception. The
-  # `related_applications[0].id` field is a literal HA ships in its own
-  # frontend source, present only on HA's manifest, confirmed live
-  # (`io.homeassistant.companion.android`, absent from the code-server
-  # manifest above) and unaffected by dashboard/theme customization the way
-  # a display name field could be.
+  # In-cluster Service, matching a Home Assistant manifest.json body field.
+  # Status-only on the HTTPRoute stays green through ext_authz, and
+  # code-server also serves /manifest.json. Skill observability.
   - name: Home Assistant
     group: home-automation
     url: http://home-assistant.home-automation.svc.cluster.local:8123/manifest.json
@@ -162,27 +96,9 @@ endpoints:
       - "[STATUS] == 200"
       - "[BODY].related_applications[0].id == io.homeassistant.companion.android"
 
-  # echo and kromgo are on envoy-external, so their auto-discovered
-  # HTTPRoute checks land in group=external and page through
-  # GatusEndpointDown (critical). Those routes carry a SecurityPolicy, so
-  # the route check measures Authentik rather than the process behind it.
-  # These hit the in-cluster health endpoints. Echo's /healthz JSON `path`
-  # and kromgo's plain-text OK are bodies a login page cannot satisfy
-  # (both confirmed live 2026-09-26: 200 + {"path":"/healthz",...} and
-  # 200 + "OK"). Same group, so a real app failure is critical, which is
-  # the severity those public checks already claimed. github-webhook stays
-  # on its route check: GET /hook/ expecting 404 is the receiver itself.
-  #
-  # Named "(in-cluster)" rather than plain "Echo"/"Kromgo": Gatus keys
-  # endpoints by lowercased group+name, and the gatus-sidecar
-  # auto-discovers the SAME echo/kromgo HTTPRoutes into group=external
-  # under the plain lowercase names "echo"/"kromgo" - a same-named static
-  # entry here collides and gatus panics at startup
-  # ("invalid endpoint external_echo: name and group combination must be
-  # unique"), which crashlooped the whole pod from 2026-09-26 until this
-  # rename (confirmed live against the sidecar's generated
-  # /config/gatus-sidecar.yaml, which carries `name: echo, group: external`
-  # and `name: kromgo, group: external`).
+  # In-cluster health bodies, not the ext_authz route. The (in-cluster)
+  # suffix avoids colliding with auto-discovered external/echo and
+  # external/kromgo, which panics Gatus at startup. Skill observability.
   - name: Echo (in-cluster)
     group: external
     url: http://echo.network.svc.cluster.local/healthz

@@ -123,28 +123,9 @@ spec:
                   - ALL
 
     defaultPodOptions:
-      # Originally pinned away from talos-3 as a TEMPORARY measure: B70 LLM
-      # stack + Ceph + tdarr transcodes, no swap + a kernel-6.18 MGLRU reclaim
-      # regression -> node-wide OOM bursts. One killed sabnzbd (exit137) as
-      # collateral on 2026-06-27. MGLRU is now disabled via machine.sysfs
-      # (talos/machineconfig.yaml.j2). See docs/hardware-incidents.md
-      # (2026-06-27).
-      #
-      # `affinity` NotIn talos-3 REMOVED 2026-09-26: it is now redundant.
-      # talos-3 carries a home-operations.com/dedicated taint
-      # (talos/nodes/talos-3.yaml.j2) and this app gets no toleration for it.
-      # The taint was NoSchedule (a hard filter, equivalent to the removed
-      # affinity) at the time of this removal; it was switched the same day
-      # to PreferNoSchedule (a scheduler score penalty, not a filter), so
-      # what now keeps sabnzbd off talos-3 is the 300-point TaintToleration
-      # gap (docs/talos-3-scheduling-truth.md section 9), not an absolute
-      # exclusion - which also means the original "re-evaluate once MGLRU is
-      # proven safe" question is moot either way: getting sabnzbd back onto
-      # talos-3 would need an explicit toleration added here, a decision
-      # this change does not make. See docs/talos-3-scheduling-truth.md.
-      # nodeTaintsPolicy: Honor - filters only NoSchedule/NoExecute taints,
-      # so it no longer excludes talos-3 (now PreferNoSchedule) from the
-      # spread domain; kept as hygiene against any future hard taint.
+      # No dedicated-taint toleration. PreferNoSchedule keeps this off
+      # talos-3 by score, not a hard filter. An explicit toleration is
+      # required to place it there. Skill node-scheduling.
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname

@@ -74,37 +74,9 @@ spec:
               limits:
                 memory: 1000Mi
             probes:
-              # n8n serves TWO different health endpoints and they are not
-              # interchangeable. Upstream comments /healthz in
-              # packages/cli/src/abstract-server.ts as "main health check
-              # should not care about DB connections" - it is
-              # `res.send({status:'ok'})` with no condition, so it CANNOT fail
-              # while the process is alive. /healthz/readiness is the DB-aware
-              # one: 200 only when `connected && migrated && fullyReady`.
-              #
-              # Pointing BOTH probes at /healthz hid a total 4-day n8n outage
-              # (2026-09-16 -> 2026-09-20). A Postgres blip latched n8n's
-              # `connectionState.connected` false and it never recovered, so the
-              # global gate registered in setupHealthCheck() answered
-              # `{"code":503,"message":"Database is not ready!"}` to EVERY route
-              # - /rest/login, /metrics, webhooks, unknown paths alike - while
-              # /healthz still returned 200, the pod stayed 1/1 Ready, and the
-              # Gatus check on /healthz stayed green the whole time. The DB was
-              # reachable from the pod throughout (TCP to postgres-17-rw:5432
-              # succeeded); only n8n's cached flag was stuck.
-              #
-              # Liveness deliberately STAYS on /healthz: a DB-aware liveness
-              # probe would restart every DB-dependent pod on each CNPG
-              # switchover. Readiness moves to /healthz/readiness, which is a
-              # cached in-memory flag read (no DB query, so timeoutSeconds: 1 is
-              # still right). A latched pod now leaves the Service endpoints and
-              # trips kube-prometheus-stack's namespace-agnostic KubePodNotReady
-              # (for: 15m) instead of sitting silently dead.
-              #
-              # startup stays disabled on purpose: readiness failures never
-              # restart a pod, so a slow schema migration just holds the pod
-              # NotReady until it finishes. A startup probe on the readiness
-              # path would instead CrashLoop n8n through a long migration.
+              # /healthz cannot fail, so liveness stays there. Readiness and
+              # Gatus use /healthz/readiness. A DB-aware liveness probe would
+              # restart the pod on every CNPG switchover. Skill observability.
               liveness:
                 enabled: true
                 custom: true

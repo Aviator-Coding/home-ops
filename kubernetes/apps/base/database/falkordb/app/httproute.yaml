@@ -1,28 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
 #
-# The FalkorDB Browser (the explorer UI), internal only. `envoy-internal` is the
-# sole parentRef and external-dns only publishes the internal record. Nothing
-# public - see securitypolicy.yaml for the auth gate, which is not optional
-# here: this is an interactive UI onto a database.
-#
-# LAN-only is structural, not just annotation discipline: `network/cloudflare-dns`
-# passes `--gateway-name=envoy-external`, so an HTTPRoute parented to
-# envoy-internal is invisible to the public publisher regardless of what
-# annotations it carries.
-#
-# --- why `falkordb-browser` and not `falkordb` ---
-#
-# The database LoadBalancer in service-lb.yaml already claims
-# `falkordb.${SECRET_DOMAIN}` -> 10.50.0.24. `network/unifi-dns` runs
-# `sources: ["gateway-httproute", "service"]` with `policy: sync`, so it is the
-# single writer for BOTH that Service annotation and this HTTPRoute hostname.
-# Pointing both at `falkordb.${SECRET_DOMAIN}` would hand one owner two
-# conflicting desired targets for one record - the LoadBalancer address and the
-# envoy-internal address - which under `policy: sync` is a record that flaps
-# between the two rather than a clean failure. Two names, one writer, no
-# contention. `falkordb-browser` also matches what upstream calls the component
-# (FalkorDB Browser), so the name says which of the two endpoints it is.
+# Internal browser UI only. Hostname is falkordb-browser so it does not
+# flap with the falkordb LoadBalancer record under unifi-dns sync.
+# The auth policy is required. Skill databases.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

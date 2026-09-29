@@ -109,7 +109,7 @@ spec:
       limits:
         memory: 2Gi
 
-    # Pod anti-affinity for HA
+    # Preferred anti-affinity only. replicaCount stays 1. Skill databases.
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -136,32 +136,8 @@ spec:
           matchLabels:
             app.kubernetes.io/name: surrealdb
 
-    # route:
-    # @TODO seems not to work
-    #   app:
-    #     annotations:
-    #       gethomepage.dev/enabled: "true"
-    #       gethomepage.dev/description: surrealdb
-    #       gethomepage.dev/group: database
-    #       # gethomepage.dev/icon: sh-kokoro.svg
-    #       gethomepage.dev/name: *app
-    #       gethomepage.dev/app: *app
-    #       external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
-    #       gatus.home-operations.com/endpoint: |-
-    #         conditions: ["[STATUS] == 200"]
-    #     hostnames:
-    #       - "{{ .Release.Name }}.${SECRET_DOMAIN}"
-    #       - sdb.${SECRET_DOMAIN}
-    #     parentRefs:
-    #       - name: envoy-internal
-    #         namespace: network
-    #         sectionName: https
-    #     backendRefs:
-    #       - name: surrealdb
-    #         namespace: database
-    #         port: 8000
-
-    # Health checks
+    # route: does not work on this chart. Leave it unset. A real HTTPRoute
+    # is its own manifest. Skill databases.
     livenessProbe:
       httpGet:
         path: /health
