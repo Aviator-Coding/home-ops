@@ -170,6 +170,10 @@ Nothing in that exercise deleted a `Snapshot`, `SnapshotPolicy`,
    `KOPIUR_*` value that `ceph/restore.yaml` consumes, emit the
    delete-and-reconcile commands for those claims. A general live-versus-Git
    drift detector was deliberately not proposed.
+5. **`ai/hermes` `plc_code_graph/.venv` is not cache-excluded.** It has no
+   `CACHEDIR.TAG`, hardlinks the uv cache, and added about 6 GB to snapshots.
+   A `SnapshotPolicy` `ignoreRules` change was left for its own PR. Detail:
+   `docs/ai-system/hermes-state-db-growth.md`.
 
 ## Crash-consistent databases
 

@@ -36,3 +36,18 @@ healthy. Do not rewrite them onto an always-present neighbour.
 Per-run projection evidence is the operator log and
 `kopiur_secrets_projected_total`, not the live gauge and not
 `credsReapedAt`. See [credentials.md](credentials.md).
+
+## Other rules in the same file
+
+- `KopiurComponentAbsent` / `KopiurWebhookAbsent`: the chart rules go silent
+  when the operator stops emitting. The webhook is `failurePolicy: Fail`, so
+  a missing webhook rejects CR writes.
+- `KopiurBackupEmpty`: a succeeded snapshot whose file count is 0. The
+  positive-only `SecurityContextCompatible` condition is not a Prometheus
+  series, so this rule is the empty-volume signal.
+- `KopiurBackupStaleCeph` fires at 6h. The chart's `KopiurBackupStale` waits
+  48h for every policy, which is twelve missed 4-hour ceph runs.
+  `KopiurBackupStaleR2` stays at 48h (2x the daily schedule).
+- `KopiurPolicyVanished`: staleness only sees a series that still exists. This
+  fires when a policy's last-success series disappears while the controller
+  is up.

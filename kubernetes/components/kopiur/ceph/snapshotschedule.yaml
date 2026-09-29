@@ -8,37 +8,14 @@ spec:
   policyRef:
     name: "${APP}-ceph"
   schedule:
-    # Every 4 hours, matching VolSync's ceph cadence - but on the ODD 4-hour
-    # slots (01,05,09,13,17,21) where VolSync runs on the even ones
-    # (00,04,08,...). That hour offset is what keeps the two systems off each
-    # other, and it is structural rather than probabilistic.
-    #
-    # The MINUTE is Jenkins-style `H`: kopiur hashes it deterministically from
-    # the schedule's identity, which spreads 100+ future volumes across the
-    # hour on its own. This is the native replacement for VolSync's
-    # hand-maintained per-app stagger table and its MutatingAdmissionPolicy
-    # (which injects a `sleep $(shuf -i 0-90 -n 1)` initContainer into every
-    # volsync-src-* Job). Do NOT hand-assign minutes here.
-    #
-    # Note kopiur accepts BARE `H` only - Jenkins range syntax `H(0-19)` is
-    # rejected by the webhook ("CronPattern contains illegal character 'H'"),
-    # which is why the hour field, not a bounded minute, does the separating.
+    # Odd hours 01,05,09,13,17,21 so VolSync's even-hour ceph jobs stay one hour away. Do not hand-assign the H minute.
+    # Skill `kopiur-backups`.
     cron: "${KOPIUR_SCHEDULE_CEPH:-H 1-23/4 * * *}"
     # Deterministic, derived from (scheduleUID, slot) - decorrelates the actual
     # firing instant on top of the hashed minute.
     jitter: 5m
-    # Without this, an unset timezone makes the operator evaluate the cron
-    # literally as UTC, while VolSync's Go scheduler honours the process TZ -
-    # America/New_York, injected cluster-wide by the k8tz mutating webhook
-    # (system-controller/k8tz). The two engines then silently disagree about
-    # what these hour numbers mean. Today that accidentally still keeps the
-    # ODD/EVEN 4-hour stagger above intact (both offsets are multiples of the
-    # 4-hour period), but the offset between UTC and America/New_York changes
-    # by exactly 1 hour at every US DST transition, so it does NOT keep working
-    # after 2026-11-01 (EST) - see ../Readme.md "Timezone: kopiur vs VolSync"
-    # for the measured collision. Pinning both engines to the same IANA zone
-    # VolSync already runs in makes the written cron mean what a human reading
-    # it expects, and holds the 1-hour stagger constant across DST.
+    # kopiur evaluates cron as UTC unless timezone is set, and the odd/even stagger then collides at EST.
+    # Skill `kopiur-backups`.
     timezone: "${KOPIUR_SCHEDULE_TIMEZONE:-America/New_York}"
   # See ../ceph/snapshotpolicy.yaml for why this is pinned rather than defaulted.
   deletion:

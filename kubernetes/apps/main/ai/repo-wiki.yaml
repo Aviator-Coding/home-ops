@@ -10,21 +10,8 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # VOLSYNC RETIRED 2026-09-01 - migration Stage 5, pilot volume 1 of 4.
-    # kopiur is now the ONLY backup engine on this claim.
-    #
-    # Authorising evidence, per volume and per destination:
-    # .agents/skills/kopiur-backups/references/proof-ledger.md (row 3, `ai/repo-wiki`:
-    # 165/165 files restored from ceph AND r2, byte-identical to each other).
-    # Why this volume was chosen, and the post-retirement re-proof:
-    # docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
-    #
-    # The second include is what keeps the PVC alive, and it is not optional.
-    # The volsync Component was the only manifest emitting this claim, and this
-    # overlay runs prune: true - so removing it without a replacement makes
-    # Flux DELETE the app's data volume for a change that was only ever meant
-    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
-    # why that file must carry `ssa: IfNotPresent`.
+    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
+    # Proof: proof-ledger.md row 3. Skill `kopiur-backups`.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
   healthChecks:
@@ -60,26 +47,12 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # Inherited from the retired VOLSYNC_CAPACITY and matched to the live
-      # claim (5Gi; the volume holds ~450 KB). Under the pvc Component's
-      # `ssa: IfNotPresent` this is create-time-only for the claim that already
-      # exists, but it is exactly what a REBUILD would provision - so it has to
-      # stay true to the live claim rather than drift into decoration.
+      # Create-time only under ssa IfNotPresent. A rebuild provisions this size, not the component default.
+      # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 5Gi
-      # Ephemeral, so it sizes a per-run volume and adds no standing PVC. Left
-      # at 2Gi: restore-proof finding 2 (an r2 restore needs materially more
-      # kopia cache than the same restore from ceph) is a large-claim problem -
-      # 2Gi is ~4600x this volume's 450 KB, and the post-retirement r2 restore
-      # was re-proven at this value rather than assumed from the ceph one.
-      # See docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
+      # Sized for the restore cliff: min(snapshot sizeBytes, ~6.2 GiB). A raise does not update the standing
+      # Restore. Skill `kopiur-backups`.
       KOPIUR_CACHE_CAPACITY: 2Gi
-      # No KOPIUR_PUID/PGID: the identity is left at the component default of
-      # 1000:1000, and that is a MEASURED result rather than an assumption -
-      # live measurement 2026-08-30 found every entry owned 1000:1000 (pod
-      # securityContext 1000:1000:1000) and nothing unreadable at 1000.
-      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
-      # kopiur r2 policy in the fleet into the single 04:00 hour, which already
-      # carries volsync's ceph slot. Hour 19 carries no volsync destination and
-      # no kopiur ceph slot (01/05/09/13/17/21). Ceph stays on the component
-      # default, which is already structurally offset.
+      # Mover identity is measured from the files. Component default 1000 fails closed when it does not
+      # match. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 19 * * *"

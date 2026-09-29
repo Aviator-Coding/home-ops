@@ -29,37 +29,8 @@ spec:
     # reconciled at all - and both of our repositories (ceph, r2) are that kind.
     installScope: cluster
 
-    # CREDENTIAL PROJECTION. Captain decision 2026-08-30, key `credential-scope`
-    # (Option B), which closes the question Stage 1 deliberately deferred.
-    #
-    # What it buys: a mover Job runs in the WORKLOAD namespace and loads its
-    # repository credentials with namespace-local `envFrom`, while both of our
-    # ClusterRepository objects pin their Secrets to `system`. With this on, the
-    # operator SSA-copies those Secrets into the mover's namespace for the life
-    # of the run and reaps them afterwards, so NO repository credential sits at
-    # rest in an app namespace. Stage 1 instead kept three standing Secrets in
-    # `downloads`; extending that shape to Stage 3 would have meant 18 standing
-    # objects across 6 app namespaces, each granting read AND write to both
-    # backup repositories - the ransomware-shaped risk the component Readme
-    # names in terms.
-    #
-    # THE ACCEPTED COST, STATED PLAINLY: this flag is the only thing that adds
-    # `create`/`patch`/`delete` on `secrets` to the operator's ClusterRole (see
-    # the chart's templates/role.tpl), and `create` CANNOT be scoped to a Secret
-    # name. A compromised kopiur operator therefore becomes a cluster-wide
-    # credential-rewrite primitive. The captain took that trade with it named.
-    # Do not widen anything further on top of it.
-    #
-    # This flag alone grants only the RBAC. Projection needs all three legs:
-    #   1. this flag                                     (operator RBAC)
-    #   2. `credentialProjection.allowed: true` on each  (repository-owner gate)
-    #      ClusterRepository - ../repository/clusterrepository.yaml
-    #   3. `credentialProjection.enabled: true` on each  (consumer opt-in)
-    #      SnapshotPolicy/Restore - kubernetes/components/kopiur/
-    # Miss leg 2 or 3 and every CR still reconciles clean while the mover fails
-    # at run time; miss leg 1 and the operator surfaces an actionable 403 in the
-    # resource status. All three are CRD/chart fields verified against the
-    # installed 0.10.5, not a fork.
+    # CREDENTIAL PROJECTION. Captain decision 2026-08-30, key `credential-scope` (Option B), which closes the question Stage 1 deliberately deferred.
+    # Skill `kopiur-backups`.
     features:
       credentialProjection:
         enabled: true
@@ -111,48 +82,8 @@ spec:
       serviceMonitor:
         enabled: true
       prometheusRule:
-        # 13 shipped alerts. None of them covers "the operator vanished" - they
-        # all depend on the operator emitting metrics - so ./prometheusrule.yaml
-        # carries our own absent() rule alongside them.
-        #
-        # FOUR OF THE 13 LOOK DEAD AND ARE NOT. KopiurRepositoryBreakerOpen,
-        # KopiurRepositoryConnectSlow, KopiurSnapshotsGated and
-        # KopiurSnapshotWaitingForSlot select on kopiur_repository_breaker_open,
-        # kopiur_snapshot_gated and kopiur_snapshot_waiting_for_slot, and none of
-        # those three metric names is present in Prometheus - which makes an
-        # inventory-based audit ("does the name appear in
-        # /api/v1/label/__name__/values?") flag all four as unfireable. They are
-        # correct. All three are i64_observable_gauges whose callback observes
-        # NOTHING while the condition is absent, so the series exists only while
-        # the fault does. Their own source descriptions say so in terms
-        # (crates/controller/src/metrics.rs, upstream home-operations/kopiur):
-        # the breaker gauge "disappears when the breaker closes", the gated
-        # gauge "drains to absence as the parked Snapshots launch", and
-        # waiting_for_slot "exists only while the run is queued".
-        #
-        # Measured 2026-09-14 against live Prometheus, all consistent with
-        # healthy rather than broken: both ClusterRepositories (ceph, r2) are
-        # phase=Ready with kopiur_repository_consecutive_backend_failures=0, so
-        # the breaker is closed on both and emitting nothing is correct; no
-        # Snapshot is Pending (1020 Succeeded / 19 Discovered / 1 Failed), so
-        # nothing is gated or queued for a slot; and none of the three metrics
-        # has produced a single series across the full 30d retention. The
-        # reason= label values the two repository rules partition
-        # (unreachable|vanished|other and timed_out) are exactly the four
-        # breaker_open_reason() can return, so the split is complete.
-        #
-        # Do not "repair" these onto
-        # kopiur_repository_consecutive_backend_failures or a similar
-        # always-present series: that gauge is 0 while healthy, which is a
-        # different signal (a probe streak, not an open breaker) and would
-        # change what the alert means. Absence here is the healthy state.
-        #
-        # Do not override backupStaleAfterSeconds to close the 48h-vs-4h
-        # cadence gap: the chart exposes one threshold, not a per-destination
-        # split. KopiurBackupStaleCeph (6h critical) and KopiurBackupStaleR2
-        # (48h warning) live in ./prometheusrule.yaml. Leave this chart rule
-        # enabled - it still owns the never-succeeded / all-Succeeded-CRs-pruned
-        # branch those two do not duplicate.
+        # The chart alerts go silent if the operator stops emitting. The absent() rule is in ./prometheusrule.yaml.
+        # Skill `kopiur-backups`.
         enabled: true
       dashboards:
         enabled: true

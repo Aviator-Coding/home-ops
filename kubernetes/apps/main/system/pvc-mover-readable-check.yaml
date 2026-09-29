@@ -17,11 +17,7 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  # Deliberately no targetNamespace, exactly as on pvc-writable-check: Flux
-  # would overwrite metadata.namespace on every namespaced resource in the
-  # build - including the per-namespace RoleBindings in rbac.yaml - collapsing
-  # them onto one namespace and failing with a namespace-transformation ID
-  # conflict. ServiceAccount, ConfigMap, CronJob and PrometheusRule declare
-  # namespace: system explicitly instead.
+  # No targetNamespace. Flux would rewrite metadata.namespace and collapse every RoleBinding into system.
+  # Skill `pvc-integrity-checks`.
   timeout: 5m
   wait: false

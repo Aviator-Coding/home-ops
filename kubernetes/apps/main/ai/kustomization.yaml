@@ -8,27 +8,8 @@ components:
   - ../../../components/common
   - ../../../components/alerts
 
-# Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui,
-# perplexica, qdrant. Flux prunes their workloads and PVCs; the retained
-# out-of-band data and the revival path for each are in
-# docs/ai-system/retired-2026-08-22.md.
-#
-# Retired 2026-08-31: agentmemory. Manifest-only retirement (Flux prunes the
-# PVC on merge); the retained backups and revival path are in
-# docs/ai-system/agentmemory-retirement-2026-08-31.md.
-#
-# Retired 2026-09-15: comfyui (captain decision, "we are not using it remove it
-# we can add it later") and its comfyui-mcp ToolHive server. Unlike the two
-# retirements above this one is NOT manifest-only in effect: all five PVCs
-# (models/output/input/custom-nodes/user, 142Gi provisioned) are deleted by the
-# Flux prune, and both StorageClasses are reclaimPolicy: Delete, so the
-# underlying RBD images and the CephFS subvolume go with them. The three kopiur
-# claims' kopia snapshots survive in the ceph and r2 repositories - the
-# component pins deletion.onPolicyDelete/onScheduleDelete: Retain - but with
-# the policies gone nothing prunes them either. Revival means re-adding the
-# manifests and re-downloading the checkpoints; the captain-authored
-# comfyui-user settings are recoverable only from those retained snapshots.
-# Full record: docs/ai-system/comfyui-retirement-2026-09-15.md.
+# Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant.
+# Skill `ai-stack`.
 
 resources:
   - ./agentgateway.yaml
