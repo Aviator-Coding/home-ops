@@ -13,6 +13,9 @@ references that no gate reports. This test fails on any of:
      mentioned anywhere in a tracked text file that does not exist.
   3. A `references/<file>.md` path mentioned anywhere that no skill carries.
   4. A "skill `<name>`" pointer naming a skill that does not exist.
+  5. A skill file (SKILL.md or references/*.md) that mentions any path under
+     docs/ other than the SKILL_DOCS_ALLOWED tdarr files. Runbooks live in the
+     skills; docs/ keeps only what the tdarr node harness reads.
 
 KNOWN_DANGLING lists mentions that are deliberately left unresolved (history
 recorded in a dated report). Each entry needs a reason; an entry that stops
@@ -43,6 +46,10 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "config.yaml is a pod payload; a comment edit restarts Hermes. Facts live in skill ai-stack",
 }
 
+# docs/ paths a skill may still mention: the tdarr harness reads these files,
+# so they stay in docs/ and the tdarr skills point at them.
+SKILL_DOCS_ALLOWED = ("docs/tdarr/", "docs/tdarr-errored-remuxes.md")
+
 # Files whose Markdown is runtime payload rather than repo documentation.
 EXCLUDED = {
     # Hermes runtime skill shipped via configMapGenerator; its [text](url)
@@ -57,7 +64,34 @@ PATH_MENTION = re.compile(
     r"(?<![\w./-])((?:docs/[\w./-]+?\.md)|(?:\.(?:agents|claude)/skills/[\w./-]*[\w-]))(?![\w-])"
 )
 REF_MENTION = re.compile(r"(?<![\w./-])references/([\w.-]+\.md)")
+SKILL_DOCS_MENTION = re.compile(r"(?<![\w./-])((?:\.\./)*docs/[\w./*-]*)")
 SKILL_MENTION = re.compile(r"\bskills? `([a-z0-9][a-z0-9-]*)`")
+
+
+def skill_docs_violations(rel: str, text: str) -> list[str]:
+    """Mentions of docs/ paths in a skill file that are not allowlisted."""
+    if not re.match(r"\.agents/skills/[^/]+/(SKILL\.md|references/[^/]+\.md)$", rel):
+        return []
+    found = []
+    for m in SKILL_DOCS_MENTION.finditer(text):
+        mention = m.group(1).lstrip("./")
+        if not mention.startswith(SKILL_DOCS_ALLOWED):
+            found.append(f"{rel}: skill points at {mention}; runbooks belong in skill references")
+    return found
+
+
+def self_test() -> list[str]:
+    """The skill-docs guard must reject a wrong input and accept the tdarr ones."""
+    problems = []
+    bad = "See docs/backups/restore.md and ../../../../docs/ai-system/x.md."
+    if len(skill_docs_violations(".agents/skills/demo/SKILL.md", bad)) != 2:
+        problems.append("self-test: skill docs guard did not flag docs/ mentions")
+    good = "Harness reads docs/tdarr/flow-nodes/x.js and docs/tdarr-errored-remuxes.md."
+    if skill_docs_violations(".agents/skills/demo/references/a.md", good):
+        problems.append("self-test: skill docs guard flagged an allowlisted tdarr path")
+    if skill_docs_violations("README.md", bad):
+        problems.append("self-test: skill docs guard flagged a non-skill file")
+    return problems
 
 
 def tracked_files() -> list[str]:
@@ -103,7 +137,7 @@ def main() -> int:
     tracked = set(files)
     skills = skill_names()
     refs = reference_files()
-    problems: list[str] = []
+    problems: list[str] = self_test()
     used_known: set[tuple[str, str]] = set()
     checked_links = checked_mentions = 0
 
@@ -137,6 +171,8 @@ def main() -> int:
                 base = ROOT if target.startswith("/") else path.parent
                 if not exists(base / target.lstrip("/")):
                     problems.append(f"{rel}: broken link -> {target}")
+
+        problems.extend(skill_docs_violations(rel, text))
 
         for m in PATH_MENTION.finditer(text):
             mention = m.group(1).rstrip(".")

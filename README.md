@@ -22,7 +22,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 | Day-to-day commands, app layout, secrets, Volsync, agent-facing conventions and anti-patterns | [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` is a symlink to it) |
 | Talos templates, render/apply/upgrade | [`talos/AGENTS.md`](talos/AGENTS.md) |
 | First-time / disaster-recovery bootstrap | [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md) |
-| Human runbooks | [`docs/README.md`](docs/README.md) |
+| Runbooks | skill references under [`.agents/skills/`](.agents/skills/); [`docs/README.md`](docs/README.md) for the exceptions |
 | Agent skills (one per subsystem) | [`.agents/skills/`](.agents/skills/) - indexed in `AGENTS.md` |
 
 ## Layout
@@ -37,7 +37,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
 ├── .agents/skills/     # agent skills, one per subsystem (.claude/skills is a symlink)
 ├── .taskfiles/         # task recipes (flux, rook, network, 1password, actions-runner)
-├── docs/               # runbooks and incident history
+├── docs/               # tdarr harness files and a runbook pointer
 └── .mise.toml          # workstation tool versions
 ```
 

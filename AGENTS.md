@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux v2. `CLAUDE.md` is a symlink to this file. Subsystem knowledge lives in skills (SKILL INDEX below); operator detail also in [`talos/AGENTS.md`](talos/AGENTS.md), [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md) and the runbooks listed in [`docs/README.md`](docs/README.md).
+Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux v2. `CLAUDE.md` is a symlink to this file. Subsystem knowledge lives in skills (SKILL INDEX below); operator detail also in [`talos/AGENTS.md`](talos/AGENTS.md), [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md) and the runbooks in skill references (SKILL INDEX below; [`docs/README.md`](docs/README.md) lists the few that live elsewhere).
 
 **Core stack**: Talos Linux + Flux v2 + Cilium (CNI, BGP LoadBalancer, kube-proxy replacement, no L2 announcements) + Rook-Ceph + External Secrets Operator/1Password + Cloudflare Tunnel + External-DNS (split: `network/cloudflare-dns` public, `network/unifi-dns` internal) + kopiur (primary backup; VolSync only on 3 carve-outs) + Gateway API (`envoy-internal`/`envoy-external` in `network`) + kube-prometheus-stack/Loki/Tempo/Grafana/Gatus in `monitoring`.
 
@@ -18,7 +18,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 ├── .agents/skills/             # one skill per subsystem (.claude/skills is a symlink)
 ├── .taskfiles/                 # task domains: 1password, k8s, flux, rook, network, actions-runner
 ├── terraform/                  # OpenTofu stacks outside Flux (Authentik)
-├── docs/                       # human runbooks only (docs/README.md)
+├── docs/                       # tdarr harness files + pointer (docs/README.md)
 └── .renovate/                  # Renovate presets
 ```
 
