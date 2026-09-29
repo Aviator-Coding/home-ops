@@ -16,7 +16,7 @@ spec:
     # Placeholder, not a secret: omitting apiKey would fall back to the metered ANTHROPIC_API_KEY.
     apiKey: "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
   info:
-    # Flat-rate invoice: explicit $0, including the five cache fields (IO-only zeros left ~$54 phantom spend).
+    # Flat-rate invoice: explicit $0, including the five cache fields (IO-only zeros once left phantom spend).
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0
