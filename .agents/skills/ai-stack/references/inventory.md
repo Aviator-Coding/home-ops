@@ -21,10 +21,10 @@ Live MCP servers (each a `toolhive.stacklok.dev/v1alpha1` `MCPServer`):
 `arr`, `flux`, `github`, `grafana-mcp`, `kubectl`, `kubesearch`.
 `VirtualMCPServer/mcp-gateway-internal` federates them.
 `EmbeddingServer/mcp-tools-embedding` is the CPU model on the session path.
-Hermes connects to
-`http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp`.
-The LAN route `mcp.${SECRET_DOMAIN}` requires a bearer token (1Password
-`mcp-gateway`); the in-cluster Service does not check it.
+Hermes, opencode and the Gatus session check connect to
+`https://mcp.${SECRET_DOMAIN}/mcp` with a bearer token (1Password
+`mcp-gateway`). The in-cluster Service `vmcp-mcp-gateway-internal:4483` is
+closed by NetworkPolicy to everything but envoy-internal.
 [toolhive.md](toolhive.md) "Gateway auth".
 
 ## Not deployed

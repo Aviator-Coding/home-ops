@@ -67,9 +67,10 @@ endpoints:
   # Skill observability.
   - name: ToolHive MCP Session
     group: ai
-    url: http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp
+    url: ${MCP_GATEWAY_URL}
     method: POST
     headers:
+      Authorization: "Bearer ${MCP_GATEWAY_TOKEN}"
       Content-Type: application/json
       Accept: application/json, text/event-stream
     body: |

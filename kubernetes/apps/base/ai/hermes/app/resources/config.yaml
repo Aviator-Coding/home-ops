@@ -133,16 +133,16 @@ web:
 # "mcp-gateway-internal" federates every toolhive.stacklok.dev/v1alpha1
 # MCPServer in the `mcp-tools` group (active set:
 # kubernetes/apps/base/ai/toolhive/mcp-servers/kustomization.yaml) behind one
-# streamable-http endpoint at /mcp. The bearer token is enforced on the LAN route
-# only; this in-cluster URL does not check it, but Hermes always sends it
-# (MCP_GATEWAY_TOKEN, from the hermes Secret). Tool names are prefixed per
-# backend ({workload}_). Deployed by
+# streamable-http endpoint at /mcp. Hermes connects through the LAN route
+# (MCP_GATEWAY_URL) with the bearer token (MCP_GATEWAY_TOKEN), both from the
+# hermes Secret: a NetworkPolicy closes the vmcp Service to everything but
+# envoy-internal. Tool names are prefixed per backend ({workload}_). Deployed by
 # kubernetes/apps/base/ai/toolhive. (joryirving routes this through litellm /mcp;
 # this cluster's LiteLLM is governance-only for LLM virtual keys and is not
-# an MCP gateway - connect straight to the vmcp service.)
+# an MCP gateway.)
 mcp_servers:
   toolhive:
-    url: http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp
+    url: ${MCP_GATEWAY_URL}
     headers:
       Authorization: "Bearer ${MCP_GATEWAY_TOKEN}"
     enabled: true

@@ -37,7 +37,10 @@
   "mcp": {
     "toolhive": {
       "type": "remote",
-      "url": "http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp",
+      "url": "{env:MCP_GATEWAY_URL}",
+      "headers": {
+        "Authorization": "Bearer {env:MCP_GATEWAY_TOKEN}"
+      },
       "enabled": true
     }
   }

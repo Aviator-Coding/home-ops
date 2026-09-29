@@ -81,8 +81,9 @@ DM the bot from an allowed user. `TELEGRAM_BOT_TOKEN` and
 | `DISCORD_WEBHOOK` | Channel webhook for the commit digest |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | BotFather token and numeric user ids |
 
-`MCP_GATEWAY_TOKEN` (the ToolHive MCP gateway bearer token) is not a
-prerequisite. It comes from 1Password item `mcp-gateway`, which
+`MCP_GATEWAY_TOKEN` (the ToolHive MCP gateway bearer token, sent to
+`https://mcp.${SECRET_DOMAIN}/mcp`) is not a prerequisite.
+It comes from 1Password item `mcp-gateway`, which
 `ai/toolhive`'s PushSecret writes.
 
 Git access is that one repo-scoped fine-grained PAT, rendered to

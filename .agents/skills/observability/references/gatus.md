@@ -53,8 +53,10 @@ deployment, so every restart has a real outage window longer than the
 external checks' 5m. A restart counter does not cover it: the container can
 stay up while the gateway is down and the dashboard stays healthy.
 
-The MCP gateway check posts `initialize` to the in-cluster ToolHive URL, not
-the auto-discovered `/health`. `/health` stays 200 while `initialize` hangs.
+The MCP gateway check posts `initialize` to the LAN route
+`mcp.${SECRET_DOMAIN}/mcp` with the bearer token (`MCP_GATEWAY_URL` and
+`MCP_GATEWAY_TOKEN` in `gatus-secret`), not the auto-discovered `/health`.
+The in-cluster Service is closed to Gatus by NetworkPolicy. `/health` stays 200 while `initialize` hangs.
 The client timeout is 25s, under Hermes' connect timeout, and the interval
 is 5m because each probe embeds the catalog. The body must match vmcp's
 `serverInfo` name. A fast embedding failure can still return 200 and then
