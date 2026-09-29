@@ -8,7 +8,7 @@ it took ~490s per session. Hermes reported "Connecting to MCP server 'toolhive'
 timed out after 30s" for thirteen days while every health signal stayed green,
 because the only Gatus check on the gateway probed vmcp's `/health` - a path
 that answers 200 as long as the process is alive. Diagnosis:
-docs/ai-system/toolhive-optimizer-embedding-timeout-2026-09-27.md.
+.agents/skills/ai-stack/references/toolhive.md.
 
 The fix added a Gatus endpoint that performs a real MCP `initialize` against the
 same URL Hermes uses. It was run both ways before merge (red at 25.0s against
@@ -43,7 +43,7 @@ REPO = Path(__file__).resolve().parents[2]
 GATUS_CONFIG = REPO / "kubernetes/apps/base/monitoring/gatus/app/resources/config.yaml"
 GATUS_RULE = REPO / "kubernetes/apps/base/monitoring/gatus/app/prometheusrule.yaml"
 HERMES_CONFIG = REPO / "kubernetes/apps/base/ai/hermes/app/resources/config.yaml"
-EVIDENCE_DOC = REPO / "docs/ai-system/toolhive-optimizer-embedding-timeout-2026-09-27.md"
+EVIDENCE_DOC = REPO / ".agents/skills/ai-stack/references/toolhive.md"
 
 PROBE_NAME = "ToolHive MCP Session"
 # Hermes' default MCP connect budget: hermes_cli/mcp_config.py

@@ -107,12 +107,8 @@ spec:
   timeout: 5m
   path: "./kubernetes/apps/base/ai/toolhive/mcp-servers"
   prune: true
-  # One Deployment (toolhive's HTTP proxyrunner) + one StatefulSet (the
-  # actual stdio MCP server process) per active MCPServer CR - both must be
-  # checked, since the proxy's own /health only reflects the proxy listener,
-  # not its stdio backend. Only the 6 currently-active servers (see this
-  # path's kustomization.yaml); garmin-connect/ha/seerr/talos are deactivated
-  # and correctly absent here.
+  # Check the proxy Deployment and the stdio StatefulSet. The proxy /health does not cover the backend.
+  # Skill `ai-stack`.
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment

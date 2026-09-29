@@ -1,35 +1,6 @@
 ---
 # Second, OFF-SITE copy of the postgres-17 barman archive.
-#
-# Why this exists rather than a second CNPG backup destination: CloudNativePG
-# has exactly ONE live barman destination per Cluster, and the mechanism that
-# appears to lift that limit is silently broken upstream. A second
-# ScheduledBackup carrying its own `barmanObjectName` passes schema validation,
-# runs, and reports `completed` WHILE WRITING TO THE LAN STORE - the plugin
-# resolves the destination only from the Cluster's `spec.plugins`
-# (cloudnative-pg#7778, closed not-planned). And `barman-cloud-backup` bundles
-# no WAL, so a base backup in a store that receives no WAL cannot reach
-# consistency on restore anyway. Full evidence:
-# docs/backups/postgres-offsite-destination-design-2026-09-12.md
-#
-# So the archive itself is copied - `base/` AND `wals/` together, which is what
-# makes the off-site copy independently restorable. Nothing on the live Cluster
-# changes: no plugin, no `spec.plugins`, no rolling restart of the three
-# Postgres instances.
-#
-# TWO PROPERTIES BELOW ARE CORRECTNESS REQUIREMENTS, NOT TUNING. Both are
-# argued in full in the design document; the short form is in the comments at
-# each site. (1) The transfer is COPY-ONLY. (2) Expiry on R2 is an INDEPENDENT
-# age-based prune, never a mirror of LAN deletions.
-#
-# A half-written WAL object cannot be copied, and that is a property of S3
-# rather than of scheduling luck: an in-flight PutObject is neither listable
-# nor gettable, and a multipart upload materializes as an object only at
-# CompleteMultipartUpload. So a run sees a finished object or no object. The
-# residual risk is an incomplete SET - a base backup whose trailing
-# `backup.info` has not landed (inert, since barman's catalogue keys off that
-# file), or a WAL gap from an interrupted run. Read the off-site recovery point
-# as the LAST CONTIGUOUS WAL segment, never as the newest object present.
+# Skill `databases`.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -38,23 +9,8 @@ metadata:
   labels:
     app.kubernetes.io/name: postgres-offsite-mirror
 spec:
-  # SHIPS SUSPENDED, AND UN-SUSPENDING IS THE DELIBERATE ACT THAT TURNS THE
-  # MIRROR ON.
-  #
-  # The mirror cannot run until 1Password item `cloudnative-pg-r2` exists in a
-  # Connect-visible vault (see externalsecret.yaml for the exact fields). Until
-  # then the `cloudnative-pg-r2-secret` Secret does not exist, so every
-  # scheduled run would sit in CreateContainerConfigError - an hourly failing
-  # job that reads as a broken deployment.
-  #
-  # Deliberately NOT left to start itself the moment the Secret appears.
-  # Turning the mirror on is a one-line follow-up change to this field, so that
-  # "the off-site copy is live" is something a human asserted in git and can
-  # point at, rather than a side effect of a credential showing up. A change
-  # that reads as running when it is not is the failure pattern this fleet
-  # keeps hitting.
-  #
-  # Merging this installs the mirror. It does NOT start it.
+  # SHIPS SUSPENDED, AND UN-SUSPENDING IS THE DELIBERATE ACT THAT TURNS THE MIRROR ON.
+  # Skill `databases`.
   suspend: true
   # Hourly, offset from :00. The off-site WAL stream therefore lags the LAN
   # copy by up to ~1h - this is a second copy, not a second primary; the LAN
@@ -118,21 +74,12 @@ spec:
                   value: home-ops-postgres-cluster
                 - name: SERVER_NAME
                   value: postgres17-v5
-                # 35d against the LAN's 30d (CNPG `spec.backup.retentionPolicy`
-                # on cluster-17.yaml). Longer on purpose: the five-day margin
-                # means a LAN-side prune can never race this job into dropping
-                # an object the off-site copy still needs, and a deletion on
-                # the LAN - accidental, mistaken retention change, or hostile -
-                # does not reach the off-site copy the same day. The effective
-                # off-site recovery window stays the intended 30d.
+                # 35d, five days past the LAN 30d retention, so a LAN prune cannot race this copy.
+                # Skill `databases`.
                 - name: OFFSITE_RETENTION
                   value: 35d
-                # Runaway guard on the prune below. Steady state expires well
-                # under this in an hour; a breach means something is wrong
-                # (a bad OFFSITE_RETENTION, a clock problem, a re-seeded
-                # archive) and the job must fail loudly rather than delete. If
-                # a breach is ever legitimate, investigate first and raise this
-                # deliberately - do not remove it.
+                # Runaway guard: a candidate count above PRUNE_CEILING fails the job instead of deleting.
+                # Skill `databases`.
                 - name: PRUNE_CEILING
                   value: "2000"
                 - name: HOME
@@ -187,15 +134,7 @@ spec:
                 - /bin/sh
                 - -c
                 # EVERY shell token below is written `$${...}` / `$$(...)`.
-                # Flux runs strict-mode envsubst over the entire built
-                # Kustomization, so an unescaped `${VAR}` here would be read as
-                # a missing Flux variable and fail the WHOLE Kustomization -
-                # the collision that froze four apps for 44 days (#1371).
-                # `${SECRET_DOMAIN}` above is a real Flux variable and is
-                # correctly left unescaped; this resource legitimately mixes
-                # the two, which is why it escapes rather than carrying
-                # `kustomize.toolkit.fluxcd.io/substitute: disabled`.
-                # Neither `flate` nor `task flux:test:all` catches this.
+                # Skill `databases`.
                 - |
                   set -eu
 

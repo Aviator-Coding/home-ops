@@ -8,34 +8,8 @@ metadata:
 spec:
   targetNamespace: *namespace
   components:
-    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier C (real
-    # user-authored state). kopiur is now the ONLY backup engine on this claim.
-    #
-    # Tier C exists because these four volumes hold things nobody can
-    # regenerate. This one is the whole Home Assistant configuration -
-    # automations, dashboards, integration credentials, the recorder database -
-    # authored by hand over years. What authorises retiring it anyway is the
-    # completeness of the proof, not the replaceability of the content:
-    # docs/backups/kopiur-restore-proof-2026-09-01.md row 15 restored 79/79
-    # files from BOTH destinations into a scratch PVC with an IDENTICAL
-    # per-file manifest digest (`46c7155751e6`) - content and metadata.
-    #
-    # Its `CACHEDIR.TAG` marker is ADJUDICATED, not outstanding: the 17 omitted
-    # files are the contents of `.venv`, a Python virtualenv, and snapshot
-    # `filesNew` equals the restored count exactly - the signal that the
-    # omission is deliberate rather than lossy.
-    #
-    # Restore cache stays at the 2Gi component default: 12 MiB against ~1.95
-    # GiB usable is 0.6%, and the claim is 5Gi. Captain decision 2026-09-04;
-    # retirement record:
-    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
-    #
-    # The second include is what keeps the PVC alive, and it is not optional.
-    # The volsync Component was the only manifest emitting this claim, and this
-    # overlay runs prune: true - so removing it without a replacement makes
-    # Flux DELETE the app's data volume for a change that was only ever meant
-    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
-    # why that file must carry `ssa: IfNotPresent`.
+    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
+    # Proof: proof-ledger.md row 15. Skill `kopiur-backups`.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
   commonMetadata:
@@ -44,10 +18,8 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    # The `volsync` (system) dependency went with the volsync Component above -
-    # nothing in this Kustomization renders a VolSync object any more, so
-    # waiting on the VolSync operator would be a dependency on an unrelated app.
-    # kopiur is the sole backup engine on this claim.
+    # kopiur is the only engine on this claim. Do not depend on the VolSync operator. Skill
+    # `kopiur-backups`.
     - name: kopiur-repository
       namespace: system
     - name: multus-networks
@@ -67,23 +39,9 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
-      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}. The HelmRelease's
-      # own `existingClaim` was renamed VOLSYNC_CLAIM -> KOPIUR_CLAIM in this
-      # change for the same reason.
-      #
-      # Inherited from the retired VOLSYNC_CAPACITY and matched to the LIVE
-      # claim (5Gi, holding 12 MiB - measured 2026-09-04). Under the pvc
-      # Component's `ssa: IfNotPresent` this is create-time-only for the claim
-      # that already exists, but it is exactly what a REBUILD would provision.
+      # Claim name matches the app, so KOPIUR_CLAIM is omitted. Capacity is create-time only (ssa IfNotPresent).
+      # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 5Gi
-      # Identity left at the component default of 1000:1000, and that is a
-      # MEASURED result rather than an assumption: live measurement 2026-08-30
-      # found all 142 entries owned 1000:1000 (pod securityContext
-      # 1000:1000:1000) and zero unreadable files or directories at 1000.
-      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
-      # kopiur r2 policy in the fleet into the single 04:00 hour, which already
-      # carries volsync's ceph slot plus 13 volsync r2 runs. Hour 10 carries no
-      # volsync destination and no kopiur ceph slot (01/05/09/13/17/21). Ceph
-      # stays on the component default, which is already structurally offset.
+      # Namespace r2 hour. The H 4 default would pile every r2 policy into 04:00. Ceph stays on the
+      # component default. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 10 * * *"

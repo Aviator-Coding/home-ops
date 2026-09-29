@@ -1,14 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotpolicy_v1alpha1.json
-#
 # The R2 (offsite, Cloudflare) destination for ${KOPIUR_CLAIM:-${APP}}.
-# Sibling of ../../volsync/r2/replicationsource.yaml. See ../ceph/snapshotpolicy.yaml
-# for the reasoning behind the 1:1 single-repository shape, Ephemeral cache and
-# pinned deletion protection - all of it applies identically here.
-#
-# There is no r2 Restore object: the standing restore-target-in-waiting is
-# declared against the local ceph repository only (../ceph/restore.yaml), the
-# same asymmetry VolSync has.
+# Skill `kopiur-backups`.
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: SnapshotPolicy
 metadata:

@@ -37,8 +37,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
-import stat as statmod
 import subprocess
 import sys
 import tempfile
@@ -49,7 +47,7 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-DOC = ROOT / "docs/backups/recyclarr-config-readable-check-2026-08-31.md"
+DOC = ROOT / ".agents/skills/pvc-integrity-checks/references/mover-readable.md"
 MEASURE_SCRIPT = ROOT / "scripts/ci/fixtures/recyclarr-measure.sh"
 OVERLAY = ROOT / "kubernetes/apps/main/downloads/recyclarr.yaml"
 COMPONENT_README = ROOT / "kubernetes/components/kopiur/Readme.md"
@@ -517,7 +515,7 @@ def _load_overlay_substitute() -> dict[str, Any]:
 
 
 def test_overlay_identity_and_doc_pointer() -> None:
-    """GitOps overlay keeps mover 2000:2000 and points at the procedure doc."""
+    """GitOps overlay keeps mover 2000:2000 for the recyclarr claim."""
     require(OVERLAY.is_file(), "recyclarr overlay exists")
     sub = _load_overlay_substitute()
     require(
@@ -532,16 +530,6 @@ def test_overlay_identity_and_doc_pointer() -> None:
         str(sub.get("KOPIUR_PGID")) == MOVER_GID,
         f"KOPIUR_PGID={MOVER_GID} got {sub.get('KOPIUR_PGID')}",
     )
-    # Comment contract: overlay names the procedure doc (operator breadcrumb).
-    raw = OVERLAY.read_text()
-    require(
-        "recyclarr-config-readable-check-2026-08-31.md" in raw,
-        "overlay comments must point at the readable-check procedure doc",
-    )
-    require(
-        "2913/2913" in raw,
-        "overlay comments must record the live file readability verdict",
-    )
 
 
 def test_workload_declares_2000() -> None:
@@ -555,7 +543,6 @@ def test_workload_declares_2000() -> None:
     for doc in yaml.safe_load_all(text):
         if not isinstance(doc, dict):
             continue
-        blob = yaml.dump(doc)
 
         def walk(obj: Any) -> None:
             nonlocal found_user, found_group
@@ -575,190 +562,8 @@ def test_workload_declares_2000() -> None:
     require(found_group, "helmrelease declares runAsGroup/fsGroup: 2000")
 
 
-def test_procedure_document_contract() -> None:
-    """The procedure doc is the public result artifact - pin its acceptance gate."""
-    require(DOC.is_file(), f"missing procedure doc {DOC.relative_to(ROOT)}")
-    text = DOC.read_text()
-    lowered = text.lower()
-
-    # Subject + verdict.
-    require("recyclarr-config" in lowered, "doc subject is recyclarr-config")
-    require(
-        re.search(r"fully readable|is fully readable", lowered),
-        "doc declares fully-readable verdict",
-    )
-    require(
-        re.search(rf"\b{LIVE_FILES}\s*/\s*{LIVE_FILES}\b", text)
-        or f"FILES_TOTAL={LIVE_FILES}" in text,
-        f"doc records {LIVE_FILES}/{LIVE_FILES} files",
-    )
-    require(
-        re.search(rf"\b{LIVE_DIRS}\s*/\s*{LIVE_DIRS}\b", text)
-        or f"DIRS_TOTAL={LIVE_DIRS}" in text,
-        f"doc records {LIVE_DIRS}/{LIVE_DIRS} directories",
-    )
-    require(
-        "FILES_UNREADABLE=0" in text or re.search(r"files_unreadable=0", lowered),
-        "doc records zero unreadable files",
-    )
-    require(
-        "WALK_ERRORS=0" in text or re.search(r"walk errors\s*\|\s*0", lowered),
-        "doc records zero walk errors",
-    )
-    require(
-        re.search(r"mover.*2000|uid/gid 2000|identity \(uid/gid 2000\)", lowered),
-        "doc names mover identity 2000",
-    )
-
-    # Scope: readability only, not full Stage 5 restore-fidelity.
-    require(
-        re.search(r"stage\s*5", lowered)
-        and re.search(r"readability", lowered)
-        and (
-            "not" in lowered
-            and (
-                "restore-fidelity" in lowered
-                or "restore fidelity" in lowered
-                or "per-volume restore" in lowered
-            )
-        ),
-        "doc must scope itself as readability, not full Stage 5 restore proof",
-    )
-
-    # Approach selection: three candidates, (c) chosen, (a)/(b) rejected.
-    require(
-        re.search(r"cronjob'?s? own run|during the cronjob", lowered),
-        "doc weighs candidate (a): measure during CronJob run",
-    )
-    require(
-        re.search(r"short-lived pod|mount the claim read-only", lowered),
-        "doc weighs candidate (b): short-lived pod on live claim",
-    )
-    require(
-        re.search(r"restored copy|volumesnapshot|measure a restored", lowered),
-        "doc weighs/chooses candidate (c): restored copy / VolumeSnapshot",
-    )
-    require(
-        re.search(r"readwriteonce|accessmodes", lowered.replace(" ", "")),
-        "doc verifies RWO access mode before rejecting live mount",
-    )
-    require(
-        re.search(r"rejected", lowered),
-        "doc states rejected alternatives",
-    )
-
-    # Four false-clean traps called out.
-    require(
-        "-uid" in text or "no -uid" in lowered or "has no `-uid`" in lowered or "has no -uid" in lowered,
-        "doc/script avoid busybox find -uid/-gid trap",
-    )
-    require(
-        "regular empty file" in lowered,
-        "doc/script handle busybox zero-byte 'regular empty file' trap",
-    )
-    require(
-        "lost+found" in lowered,
-        "doc counts lost+found separately",
-    )
-    require(
-        "walk_errors" in lowered or "walk errors" in lowered,
-        "doc counts walk errors explicitly (never suppress stderr)",
-    )
-    require(
-        "/tmp" in lowered and ("read-only" in lowered or "readonly" in lowered.replace("-", "")),
-        "doc warns about /tmp on hardened read-only rootfs containers",
-    )
-
-    # Mover identity from live SnapshotPolicy, not component defaults.
-    require(
-        "snapshotpolicy" in lowered and "podsecuritycontext" in lowered.replace(" ", ""),
-        "doc resolves mover identity from live SnapshotPolicy.spec.mover.podSecurityContext",
-    )
-
-    # Job-history trap: successfulJobsHistoryLimit 0.
-    require(
-        "successfuljobshistorylimit" in lowered.replace(" ", "")
-        or "successfulJobsHistoryLimit" in text,
-        "doc warns successfulJobsHistoryLimit:0 makes Job history untrustworthy",
-    )
-    require(
-        "lastsuccessfultime" in lowered.replace(" ", "")
-        or "lastSuccessfulTime" in text,
-        "doc uses lastSuccessfulTime, not Job objects",
-    )
-
-    # Read-only against the claim; scratch cleanup; CronJob untouched.
-    require(
-        re.search(r"read[\s-]*only", lowered) and "live" in lowered,
-        "doc keeps the live claim read-only / untouched",
-    )
-    require(
-        "delete pod" in lowered or "cleanup" in lowered,
-        "doc cleans up scratch objects",
-    )
-
-    # Cross-check against kopiur production snapshot stats.
-    require(
-        "filesNew" in text or "filesnew" in lowered,
-        "doc cross-checks against kopiur snapshot stats filesNew",
-    )
-    require(
-        str(LIVE_FILES) in text and ("filesNew" in text or "filesnew" in lowered),
-        "doc ties filesNew to the live file count",
-    )
-
-    # Procedure installs the runnable measure script from its own file.
-    require(
-        str(MEASURE_SCRIPT.relative_to(ROOT)) in text,
-        "doc installs measure.sh from its script file",
-    )
-    require("MOVER_UID" in text and "MOVER_GID" in text, "script requires mover identity")
-
-    # Must NOT claim to have built the fleet-wide CronJob.
-    require(
-        "mover-readable-check" in lowered
-        and (
-            "open" in lowered
-            or "captain decision" in lowered
-            or "not addressed" in lowered
-            or "separate" in lowered
-        ),
-        "doc leaves fleet-wide pvc-mover-readable-check as open captain decision",
-    )
-
-
-def test_component_readme_pointer() -> None:
-    """SecurityContextCompatible table + Stage-4 summary point at the proof."""
-    require(COMPONENT_README.is_file(), "kopiur Readme exists")
-    text = COMPONENT_README.read_text()
-    require(
-        "recyclarr-config-readable-check-2026-08-31.md" in text,
-        "Readme links the readable-check procedure doc",
-    )
-    require(
-        "2913/2913" in text,
-        "Readme records the 2913/2913 file verdict",
-    )
-    require(
-        re.search(
-            r"recyclarr-config.*2000:2000|2000:2000.*recyclarr-config",
-            text,
-            re.S,
-        )
-        or ("recyclarr-config" in text and "2000:2000" in text),
-        "Readme names recyclarr-config mover identity 2000:2000 in the proof row",
-    )
-    # Still flags that full Stage 5 restore-fidelity remains outstanding.
-    lowered = text.lower()
-    require(
-        "recyclarr" in lowered
-        and (
-            "restore-fidelity" in lowered
-            or "stage 5" in lowered
-            or "restore proof" in lowered
-        ),
-        "Readme keeps Stage 5 restore-fidelity as still required for recyclarr",
-    )
+def test_procedure_document_exists() -> None:
+    require(DOC.is_file(), f"missing {DOC.relative_to(ROOT)}")
 
 
 def test_empty_file_trap_regression(measure_script: str) -> None:
@@ -822,10 +627,9 @@ def main() -> int:
     test_empty_file_trap_regression(measure_script)
     test_walk_errors_fail_closed(measure_script)
     test_requires_mover_identity(measure_script)
-    test_procedure_document_contract()
+    test_procedure_document_exists()
     test_overlay_identity_and_doc_pointer()
     test_workload_declares_2000()
-    test_component_readme_pointer()
 
     print(f"Summary: {passed} passed, {failed} failed")
     return 0 if failed == 0 else 1

@@ -1,19 +1,6 @@
 ---
-# Content-based (body-model) routing, step 1 of 2 (step 2 = ../httproute-unified.yaml).
-# A PreRouting transformation copies the OpenAI request-body `model` field into the
-# `x-model` request header BEFORE route selection, so the unified /v1 HTTPRoute can
-# pick a provider backend by model name. This is the agentgateway-documented pattern
-# (docs/kubernetes/llm/content-routing), applied to ALL THREE data-plane gateways —
-# the unified /v1 router is the single LLM entry point everywhere (in-cluster
-# keyless, Authentik-gated internal, and the Bearer-keyed public llm-api).
-#
-# SAFETY: the transform is wrapped in `conditional` so the body is parsed ONLY for
-# requests whose path starts with /v1/chat/completions or /v1/embeddings (the
-# unified endpoints, which always carry a JSON body with a `model`). There is
-# deliberately NO fallback entry, so every other request on these shared gateways —
-# GET /v1/models, /v1/messages, health probes, admin/UI hostnames — skips the
-# transform entirely and is never body-parsed. request.path / request.method
-# / request.headers accessors per docs/about/policies/conditional-policies.
+# Copies the body model into x-model before routing, only for /v1/chat/completions and /v1/embeddings.
+# No fallback entry: other paths must not be body-parsed. See skill agentgateway references/routing-backends.md.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayPolicy
 metadata:

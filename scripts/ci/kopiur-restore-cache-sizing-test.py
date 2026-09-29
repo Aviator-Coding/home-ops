@@ -42,12 +42,12 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 APPS_MAIN = REPO / "kubernetes" / "apps" / "main"
-PROOF_DOC = REPO / "docs" / "backups" / "kopiur-r2-restore-cache-gate-2026-09-02.md"
+PROOF_DOC = REPO / ".agents/skills/kopiur-backups/references/restore-and-cache.md"
 # The second end-to-end r2 demonstration: media/plex at its standing 10Gi. Kept
 # beside PROOF_DOC because the two together are what make every value in PINNED
 # a measurement rather than a judgement call - the model comes from the first,
 # and the second is the only evidence that it transfers to another claim.
-PLEX_PROOF_DOC = REPO / "docs" / "backups" / "kopiur-plex-r2-restore-proof-2026-09-12.md"
+PLEX_PROOF_DOC = REPO / ".agents/skills/kopiur-backups/references/restore-and-cache.md"
 
 # The observed plateau: the ceiling the cache reaches on a large restore before
 # kopia's own eviction engages. Any claim whose snapshot exceeds its cache must
@@ -88,7 +88,7 @@ PINNED: dict[str, tuple[str, str]] = {
         "2026-09-02: 17,281 files / 1,820,653,922 bytes, matching the snapshot's own "
         "filesNew and sizeBytes exactly, with 0 mode or ownership differences across "
         "24,054 entries and 17,278/17,281 files byte-identical to an independent ceph "
-        "restore. See docs/backups/kopiur-populator-drift-2026-09-02.md",
+        "restore. See .agents/skills/kopiur-backups/references/restore-and-cache.md",
     ),
     "downloads/radarr.yaml": (
         "10Gi",

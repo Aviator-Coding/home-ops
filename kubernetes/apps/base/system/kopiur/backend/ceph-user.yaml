@@ -8,13 +8,8 @@ spec:
   clusterNamespace: rook-ceph
   displayName: kopiur-user
   quotas:
-    # Sized from measurement, not copied: the live `volsync` bucket holds
-    # 59.5 GiB across 14,466 objects today (radosgw-admin bucket stats,
-    # 2026-08-30), and Stage 3 runs both backup systems in parallel. 500G is
-    # ~8x the current Ceph backup footprint - real headroom for the parallel
-    # run plus growth - while staying ~14% of the pool's 3.5 TiB MAX AVAIL.
-    # volsync's own 20G is already exceeded 3x over, which is a good reason not
-    # to copy it.
+    # 500G headroom. Do not copy volsync's 20G quota; that quota was already exceeded.
+    # Skill `kopiur-backups`.
     maxSize: 500G
     maxObjects: 1000000
     maxBuckets: 10

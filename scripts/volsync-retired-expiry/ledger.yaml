@@ -1,35 +1,6 @@
 ---
-# VolSync retired-repository expiry ledger
-#
-# NOT a Kubernetes manifest and NOT reconciled by Flux. Nothing in this repo can
-# apply it - see docs/backups/volsync-retired-repository-expiry.md for why the
-# usual declarative paths are all structurally unavailable here, and for the
-# apply runbook. This file is the single source of truth for WHAT expires and
-# WHEN; scripts/volsync-retired-expiry/render_lifecycle.py turns it into the S3
-# lifecycle configuration that each object store then enforces on its own.
-#
-# Every entry below is a TOP-LEVEL PREFIX in the `volsync` bucket. A VolSync
-# restic repository lives at <bucket>/<APP> (see the RESTIC_REPOSITORY template
-# in kubernetes/components/volsync/*/externalsecret.yaml), so one prefix is one
-# whole repository.
-#
-# MATCHING RULE - the entire safety argument of this file:
-#   Entries here are bare prefix names with NO trailing slash. The renderer is
-#   the ONLY place a slash is appended, and it always appends one, producing an
-#   S3 Filter.Prefix of "<name>/". Because every object key in these buckets
-#   contains a "/" (measured: 0 of 6123 ceph keys lack one), "<name>/" selects
-#   exactly that repository's objects and can never select a longer sibling
-#   segment: "syncthing-data/config" does not begin with "syncthing/", since
-#   byte 9 is "-" and not "/". That is a property of string comparison, not a
-#   convention this repo maintains.
-#
-#   `syncthing` (retired, below) and `syncthing-data` (LIVE, protected) are the
-#   live proof of this, and scripts/ci/volsync-retired-expiry-test.py refuses
-#   the merge if that pair ever stops being safe.
-#
-# Measured 2026-09-12 by listing all three buckets read-only (ListObjectsV2 /
-# `radosgw-admin bucket list`). Sizes are evidence for the decision, not inputs
-# to it - the renderer ignores them.
+# Not a Kubernetes manifest and not reconciled by Flux. Expiry is NOT IN FORCE until an operator applies it.
+# Skill `volsync-carveouts`.
 measured_at: "2026-09-12"
 
 buckets:
@@ -58,25 +29,12 @@ protected:
   - syncthing-data
 
 # Retired repositories, split by whether anything else still backs the data up.
-# The tier decides the date; nothing else does. A single date per tier is
-# deliberate: 48 individually-chosen dates would be 48 chances to fat-finger one,
-# and the review value of "every sole-copy repo expires on this one day" is
-# higher than any per-app precision we could actually justify.
-#
-# Both dates are ABSOLUTE and in the future. That is forced, not stylistic: S3
-# `Expiration.Days` is measured from each object's own creation time, and these
-# repositories stopped being written to between 2025-05 and 2026-09, so ANY
-# Days-based rule would delete most of this the moment it was installed.
+# Skill `volsync-carveouts`.
 tiers:
 
   redundant:
-    # Retired from VolSync during the kopiur Stage 5 migration. The claim still
-    # exists and kopiur backs it up today on BOTH destinations (verified against
-    # live SnapshotSchedules 2026-09-12: all 26 appear as <app>-ceph and
-    # <app>-r2), and the whole fleet is restore-proven on both
-    # (docs/backups/kopiur-restore-proof-2026-09-01.md). So this is a THIRD
-    # copy of data that already has two, and its only remaining value is
-    # pre-migration history.
+    # Retired from VolSync during the kopiur Stage 5 migration.
+    # Skill `volsync-carveouts`.
     expires: "2027-03-31"
     # ~6.5 months out. The last retirement wave landed 2026-09-04; a defect
     # introduced by the migration surfaces in weeks, not quarters, and two
@@ -142,13 +100,8 @@ tiers:
     # ReplicationSource, no kopiur SnapshotSchedule. This restic repository is
     # the ONLY remaining copy of that data anywhere.
     expires: "2027-09-30"
-    # ~12.5 months out: deliberately double the redundant tier. 12 months is not
-    # an arbitrary round number - it is the retention this repo already chose for
-    # data it cares about, in `retain.monthly: 12` on the r2 ReplicationSource
-    # (kubernetes/components/volsync/r2/replicationsource.yaml). Applying the
-    # captain's own existing answer to "how far back is worth keeping" is the
-    # defensible floor for data with no second copy, and a full year covers a
-    # complete seasonal cycle of "actually, bring that app back".
+    # ~12.5 months out, double the redundant tier. This repository is the only remaining copy.
+    # Skill `volsync-carveouts`.
     reason: no other copy exists anywhere - app and volume are both gone
     prefixes:
     # ceph: 259673311 B / 297 obj, r2: 240224703 B / 154 obj, minio: 232857904 B / 208 obj; last write 2026-08-31

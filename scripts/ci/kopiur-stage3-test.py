@@ -7,7 +7,7 @@ whole stage was that BOTH engines stay live on every volume: nothing was retired
 there, and no VolSync object was touched.
 
 UPDATED 2026-09-01 for Stage 5, which began retiring VolSync per volume after
-docs/backups/kopiur-restore-proof-2026-09-01.md restore-proved all 30 claims on
+.agents/skills/kopiur-backups/references/proof-ledger.md restore-proved all 30 claims on
 both destinations. The dual-engine invariant is therefore no longer universal -
 it is now EXACT, against the RETIRED_CLAIMS set below (the pilot four). A claim
 that goes single-engine without being listed there still fails, and so does a
@@ -141,13 +141,13 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 # 27 claims across three waves. Three of the fleet's 29 stay dual-engine.
 #
 # Wave one - the pilot four, retired 2026-09-01. Each was restore-proven on
-# BOTH destinations first (docs/backups/kopiur-restore-proof-2026-09-01.md) and
+# BOTH destinations first (.agents/skills/kopiur-backups/references/proof-ledger.md) and
 # re-proven after retirement
 # (docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md). They were chosen
 # for regenerable/reconstructible content and clean, unambiguous proofs.
 #
 # Wave two - four more, retired 2026-09-02 on the deeper proofs in
-# docs/backups/kopiur-wave-two-reproof-2026-09-02.md part 4, recorded in
+# .agents/skills/kopiur-backups/references/proof-ledger.md part 4, recorded in
 # docs/backups/kopiur-wave-two-retirement-2026-09-02.md. Unlike wave one these
 # are NOT all regenerable: `ntfy` holds real auth state and
 # `obsidian-livesync` is a genuine Obsidian vault, escalated to the captain and

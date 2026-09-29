@@ -917,7 +917,7 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                                             "wrong or host memory is leaking. If "
                                             "VLLMMemoryRetainedAboveBound is also firing, it is "
                                             "a leak, and raising the request only buys time - "
-                                            "see docs/ai/vllm-onednn-sdpa-leak.md."
+                                            "see .agents/skills/b70-llm-serving/references/memory.md."
                                         ),
                                     },
                                 }
@@ -949,7 +949,7 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                                             "wrong or host memory is leaking. If "
                                             "VLLMMemoryRetainedAboveBound is also firing, it is "
                                             "a leak, and raising the request only buys time - "
-                                            "see docs/ai/vllm-onednn-sdpa-leak.md."
+                                            "see .agents/skills/b70-llm-serving/references/memory.md."
                                         ),
                                     },
                                 }
@@ -1024,7 +1024,7 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                                             "without bound. First suspect: the oneDNN SDPA leak "
                                             "is back. Check that the running image still honours "
                                             "GGML_SYCL_FA_ONEDNN=0 - "
-                                            "docs/ai/vllm-onednn-sdpa-leak.md."
+                                            ".agents/skills/b70-llm-serving/references/memory.md."
                                         ),
                                     },
                                 }
@@ -1088,7 +1088,7 @@ def assert_promtool_semantics(rule: dict[str, Any]) -> dict[str, Any]:
                                             "without bound. First suspect: the oneDNN SDPA leak "
                                             "is back. Check that the running image still honours "
                                             "GGML_SYCL_FA_ONEDNN=0 - "
-                                            "docs/ai/vllm-onednn-sdpa-leak.md."
+                                            ".agents/skills/b70-llm-serving/references/memory.md."
                                         ),
                                     },
                                 }

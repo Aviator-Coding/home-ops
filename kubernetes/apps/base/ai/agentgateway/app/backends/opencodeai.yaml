@@ -21,7 +21,7 @@ spec:
 ---
 # OpenCode Zen AgentgatewayBackend (OpenAI-compatible, PAYG, serves under
 # /zen). DORMANT: no model in use, so the unified /v1 router
-# (../httproute-unified.yaml) has no rule for it — re-enabling is one routing
+# (../httproute-unified.yaml) has no rule for it - re-enabling is one routing
 # rule there (careful: several Zen ids collide with direct-provider ids, see
 # the pricing note in ../rules/cost.yaml). Backend + secret kept so the
 # credential path stays wired.
