@@ -4,20 +4,9 @@ kind: ServiceAccount
 metadata:
   name: kubectl-mcp-readonly
 ---
-# Broad read-only access for kubectl MCP, split across TWO ClusterRoles.
-#
-# GOTCHA (the reason for the split): on a ClusterRole with an aggregationRule,
-# the RBAC controller OWNS `rules` — it overwrites the field with the union of
-# the selected ClusterRoles, silently discarding any rules written here (that
-# is exactly what happened: the manual nodes/nonResourceURLs grants below were
-# stripped on reconcile, breaking cluster://nodes for the MCP server).
-# So: the aggregated role carries NO rules of its own; the hand-written rules
-# live in `kubectl-mcp-readonly-base`, which feeds the aggregate via the custom
-# label selector.
-#
-# - aggregate-to-view selector: same as built-in "view" — expands with operators
-#   that ship rbac.authorization.k8s.io/aggregate-to-view ClusterRoles (CRDs, etc.).
-# - custom selector: pulls in kubectl-mcp-readonly-base below.
+# aggregationRule discards hand-written rules. Grants live on kubectl-mcp-readonly-base,
+# labeled rbac.home-operations.com/aggregate-to-kubectl-mcp-readonly. Core Secrets are omitted.
+# See skill ai-stack references/toolhive.md.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -31,7 +20,7 @@ aggregationRule:
 ---
 # Hand-written grants for kubectl MCP. Kubernetes Secrets (core v1) are excluded.
 # - Non-core apiGroups: resources "*" is safe for Secret *objects* (they only exist in group "").
-# - Core group "": explicit resource list — secrets omitted; exec/proxy-style subresources omitted.
+# - Core group "": explicit resource list - secrets omitted; exec/proxy-style subresources omitted.
 # Aggregated into kubectl-mcp-readonly via the label; the binding targets the
 # aggregated role, NOT this one.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -55,7 +44,7 @@ rules:
       - /version/
     verbs:
       - get
-  # Core v1 — everything except secrets (and without exec/proxy attach paths).
+  # Core v1 - everything except secrets (and without exec/proxy attach paths).
   - apiGroups:
       - ""
     resources:

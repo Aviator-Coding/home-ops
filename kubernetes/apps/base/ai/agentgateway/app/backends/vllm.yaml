@@ -50,7 +50,7 @@ spec:
               model: kimi-k2.6
             host: opencode.ai
             port: 443
-            # pathPrefix REPLACES the default /v1 base path — it must include
+            # pathPrefix REPLACES the default /v1 base path - it must include
             # the /v1 suffix or requests land on /zen/go/chat/completions and
             # get the opencode.ai website back.
             pathPrefix: /zen/go/v1

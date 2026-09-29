@@ -37,12 +37,22 @@ TEXT_NAMES = {"Taskfile.yaml", ".justfile", "Dockerfile", ".mise.toml", ".gitign
 
 # (path of the file carrying the mention, mentioned path) -> reason.
 KNOWN_DANGLING: dict[tuple[str, str], str] = {
-    ("docs/ai-system/agentmemory-retirement-2026-08-31.md", "docs/reference.md"):
-        "dated report records which docs it edited; docs/reference.md was replaced by docs/README.md",
-    ("docs/ai-system/retired-2026-08-22.md", "docs/reference.md"):
-        "dated report records the state of the retired index",
-    ("docs/ai-system/agentmemory-retirement-2026-08-31.md", "docs/ai-system/litellm/fallbacks.md"):
-        "dated report records which docs it edited; that doc moved into skill litellm-proxy",
+    ("docs/ceph-cluster-changelog.md", "docs/ai-system/comfyui-retirement-2026-09-15.md"):
+        "other domain; comfyui retirement facts moved to skill ai-stack",
+    ("docs/talos-3-scheduling-truth.md", "docs/ai/vllm-host-prompt-cache.md"):
+        "other domain; prompt-cache facts moved to skill b70-llm-serving",
+    ("docs/talos-3-scheduling-truth.md", "docs/ai/vllm-onednn-sdpa-leak.md"):
+        "other domain; oneDNN facts moved to skill b70-llm-serving",
+    ("AGENTS.md", "docs/ai/vllm-host-prompt-cache.md"):
+        "scheduling bullet is the node-scheduling domain; prompt-cache facts moved to skill b70-llm-serving",
+    ("AGENTS.md", "docs/ai/vllm-onednn-sdpa-leak.md"):
+        "scheduling bullet is the node-scheduling domain; oneDNN facts moved to skill b70-llm-serving",
+    ("kubernetes/apps/base/ai/hermes/app/resources/config.yaml", "docs/ai-system/agentmemory-retirement-2026-08-31.md"):
+        "config.yaml is a pod payload; a comment edit restarts Hermes. Facts live in skill ai-stack",
+    ("scripts/bench/b70-serving-harness.py", "docs/ai/b70-llm-serving-tuning.md"):
+        "bench script is outside this domain; the matrix lives in skill b70-llm-serving",
+    ("scripts/bench/vllm-prefill-by-depth.py", "docs/ai/vllm-onednn-sdpa-leak.md"):
+        "bench script is outside this domain; section 8b lives in skill b70-llm-serving references/memory.md",
     ("docs/backups/autobrr-removal-2026-09-02.md", "docs/reference.md"):
         "dated report records which docs it edited",
     ("docs/grafana-operator-removal.md", "docs/reference.md"):

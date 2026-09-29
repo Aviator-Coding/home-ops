@@ -1,51 +1,8 @@
 # yaml-language-server: $schema=https://k8s-schemas.home-operations.com/toolhive.stacklok.dev/embeddingserver_v1alpha1.json
 #
-# ToolHive's tool-selection index, and nothing else. Its only consumer is the
-# vmcp optimizer in ./virtualmcpserver.yaml (bound by `embeddingServerRef`).
-# LiteLLM's `embedding-local` and the agentgateway embeddings backend moved to
-# ../../embedding-gpu on 2026-09-15.
-#
-# TRIPWIRE - the model here is on the MCP connect path, so size it by
-# per-session latency, not by embedding quality:
-#
-#   vmcp re-embeds the WHOLE aggregated tool catalog (449 tools on 2026-09-27)
-#   on EVERY new MCP session, inside `initialize`, as sequential /embed chunks
-#   of 32 (github.com/stacklok/toolhive v0.42.1
-#   pkg/vmcp/server/serve_optimizer.go optimizerSessionTools ->
-#   toolstore UpsertTools -> similarity/tei_client.go EmbedBatch). Each chunk
-#   has a 30s HTTP timeout (optimizer.embeddingServiceTimeout default), and
-#   the client gives the whole handshake 30s (Hermes' `hermes mcp test`
-#   connect_timeout default) or 60s (Hermes' runtime connect).
-#
-# From 2026-09-14 (#1681, which swapped this server to Qwen3-Embedding-0.6B
-# for the LiteLLM document traffic that later left) to 2026-09-27, NO client
-# could open a toolhive session: `initialize` hung and Hermes reported
-# "Connecting to MCP server 'toolhive' timed out after 30s" while every
-# health check stayed green. Measured on identical scratch pods (this image,
-# 4-CPU limit, uncontended talos-2, the real 449 tool texts):
-#
-#   Qwen/Qwen3-Embedding-0.6B  487.5s per session, worst chunk 65s
-#   BAAI/bge-small-en-v1.5       6.0s per session, worst chunk 1.0s
-#
-# so Qwen3 on CPU could never finish at any CPU size this pod gets. Full
-# diagnosis: docs/ai-system/toolhive-optimizer-embedding-timeout-2026-09-27.md.
-#
-# bge-small-en-v1.5 is the EmbeddingServer CRD's own default. Its 512-token
-# input limit truncates 0 of the 449 tool texts (max 399 tokens, p95 136;
-# Qwen3 at --max-batch-tokens 384 truncated one), and find_tool returned the
-# right backend's tools for kubectl/flux/github/grafana/radarr queries. The
-# vectors live only in vmcp's in-memory store and are rebuilt per session, so
-# a model change needs no re-index.
-#
-# Before changing the model, time one full-catalog embed against a scratch
-# pod (method in the doc above) and keep it well under 30s. The Gatus check
-# "ToolHive MCP Session" (monitoring/gatus config.yaml) fails if a real
-# initialize stops completing within that budget.
-#
-# The CRD's `embeddingProvider: openai` (new since this server was first
-# written) could reach the llama.cpp server on the B70, but not together with
-# `embeddingServerRef`, and it would put a 449-text burst on the card for
-# every MCP session - the B70 chat-throttling tradeoff in AGENTS.md. Not used.
+# Tool-selection index for vmcp only. Keep BAAI/bge-small-en-v1.5: Qwen3-Embedding-0.6B
+# takes about 487s per session and the handshake budget is 30s. Do not point this at the B70.
+# See skill ai-stack references/toolhive.md.
 apiVersion: toolhive.stacklok.dev/v1alpha1
 kind: EmbeddingServer
 metadata:
@@ -56,19 +13,8 @@ spec:
   env:
     - name: HOSTNAME
       value: "::"
-  # No --max-batch-tokens: that override existed only because Qwen3's 32768
-  # max_input_length made TEI's warmup buffer 16 GiB at the default. For
-  # bge-small the buffer is min(512, 16384)^2 * 12 heads * 4 bytes = 12 MiB,
-  # and the default keeps more texts per forward pass. Measured live
-  # 2026-09-27: started -> Ready in 34s.
-  #
-  # Sizing, measured live 2026-09-27 on this model after several sessions
-  # plus four back-to-back full-catalog embeds: memory.peak 719Mi (RSS 617Mi);
-  # one full-catalog embed costs ~23.5 CPU core-seconds (47 for two).
-  # requests.cpu is the CFS weight under contention: at 1 core a session's
-  # embed still finishes in ~24s with the node saturated, inside the 30s
-  # budget, while an idle node lets it burst to the 4-core limit (~6s).
-  # The 4-core limit keeps a session burst from taking a whole node.
+  # No --max-batch-tokens. bge-small's warmup buffer is about 12 MiB. Request 1 CPU so a
+  # saturated node still finishes inside 30s; the 4 CPU limit is the burst. See skill ai-stack references/toolhive.md.
   resources:
     requests:
       cpu: "1"

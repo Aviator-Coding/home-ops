@@ -1,48 +1,9 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
 #
-# GPU embedding endpoint: Qwen/Qwen3-Embedding-0.6B served from the Arc Pro B70
-# on talos-3 by llama.cpp's SYCL backend.
-#
-# WHY A SEPARATE HELMRELEASE AND NOT A THIRD CONTROLLER IN ai/vllm:
-# ai/vllm owns the captain's live chat server. Adding a controller there means a
-# Helm upgrade of THAT release, and `vllm` uses `strategy: Recreate` with a
-# ~21GB model load, so any pod-template churn is a multi-minute LLM outage. This
-# app never touches that release.
-#
-# WHY llama.cpp AND NOT TEI-XPU OR vLLM (all three were tried or priced):
-#  - TEI `xpu-ipex-latest` was DEPLOYED ON THIS CARD 2026-09-15 and FAILED:
-#    "Could not start Python backend" -> "Could not create backend". The card is
-#    device 0xe223 (Battlemage), read live from
-#    /sys/bus/pci/devices/0000:03:00.0/device; the IPEX build inside that image
-#    predates B-series silicon. Not a config error - the router starts, downloads
-#    weights, then cannot bring up its backend at all.
-#  - vLLM (intel/llm-scaler-vllm, the `vllm-embed` shape) pre-allocates
-#    `--gpu-memory-utilization` as a fraction of the card's TOTAL memory. With
-#    only 5747 MiB actually free (measured, see below) even the existing 0.20
-#    would claim 6.4GiB and fail or starve the LLM. It also needs a wrapper to
-#    present a TEI-shaped endpoint.
-#  - llama.cpp SYCL is already the proven stack on this exact card (it is what
-#    `ai/vllm` runs), so this reuses a known-good image tag.
-#
-# CORRECTNESS IS PROVEN, NOT ASSUMED. There is a documented SYCL regression on
-# sibling Arc silicon that returns numerically-shaped garbage, so this was
-# measured against the live CPU TEI server on the same probe set (2026-09-15):
-#   cos(GPU vector, CPU TEI vector) = 0.9999992 mean over 12 probes
-#   (L2 distance 0.0012 on unit vectors; f16 vs TEI's float32 accounts for it)
-# 1024 dimensions, no NaN, no all-zero, 12/12 distinct, all L2-normalised.
-# Known-similar pairs mean 0.771 vs known-dissimilar mean 0.239, fully separated
-# (min similar 0.726 > max dissimilar 0.356).
-# CONSEQUENCE: this endpoint and the CPU TEI endpoint share one vector space, so
-# moving a caller between them needs NO re-index.
-#
-# DO NOT add `<|endoftext|>` to inputs. llama.cpp already applies this model's
-# EOS for last-token pooling; appending it by hand measured WORSE agreement with
-# TEI (0.9910 vs 0.9999992). The upstream advice to add it manually
-# (ggml-org/llama.cpp#14234, closed) is stale for this build and GGUF.
-#
-# Reasoning, the full benchmark and the LLM-contention curve:
-# docs/ai/embedder-gpu-migration-analysis-2026-09-15.md
+# Separate HelmRelease: a change here must not Recreate the chat server.
+# TEI XPU failed on this Battlemage card. Do not append <|endoftext|>. Cosine vs the CPU
+# endpoint is not the NaN probe. See skill b70-llm-serving references/embeddings.md.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -63,25 +24,14 @@ spec:
     controllers:
       embedding-gpu:
         replicas: 1
-        # Recreate, matching ai/vllm: the old pod must release the GPU before
-        # the new one claims it. `devic.es/b70` is a share-token, not a fence,
-        # so two copies would both load weights and double the VRAM held.
+        # Recreate: devic.es/b70 is a share token, so two copies both load weights.
         strategy: Recreate
         pod:
           terminationGracePeriodSeconds: 30
-          # Lowest priority, no preemption: this pod is last scheduled and
-          # first yielded on talos-3's already-tight memory budget, and can
-          # never displace a Ceph OSD, postgres-17, or ai/vllm to make
-          # room for itself. See priorityclass.yaml and
-          # docs/talos-3-scheduling-truth.md.
+          # Lowest priority, never preempts. See priorityclass.yaml and skill node-scheduling.
           priorityClassName: embedding-gpu-low
-          # talos-3 carries a home-operations.com/dedicated taint
-          # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26
-          # (a scheduler score penalty, not a filter -
-          # docs/talos-3-scheduling-truth.md section 9) - this pod is pinned
-          # to that node by devic.es/b70 (shared with ai/vllm), so this
-          # toleration keeps the score penalty from disadvantaging the only
-          # node it can legally run on. See docs/talos-3-scheduling-truth.md.
+          # talos-3 PreferNoSchedule: this pod can only land there, so it tolerates the penalty.
+          # See skill node-scheduling.
           tolerations:
             - key: home-operations.com/dedicated
               operator: Exists
@@ -90,18 +40,13 @@ spec:
           app:
             image:
               repository: ghcr.io/ggml-org/llama.cpp
-              # Same tag ai/vllm runs. Deliberate: it is the only llama.cpp
-              # build proven on this card, and pinning both to one tag means a
-              # future bump is evaluated once against both workloads.
+              # Same tag as ai/vllm. Re-measure both workloads before the next bump.
               tag: server-intel-b10820
             args:
               - -hf
               - Qwen/Qwen3-Embedding-0.6B-GGUF:f16
               - --embedding
-              # Qwen3-Embedding is a last-token-pooling model - this is not
-              # optional. `pooling type = 3` is echoed in the startup banner and
-              # was verified live. Mean pooling silently produces a different
-              # (wrong) vector space.
+              # Last-token pooling. Mean pooling is a different vector space.
               - --pooling
               - last
               - --host
@@ -110,292 +55,52 @@ spec:
               - "8080"
               - -ngl
               - "99"
-              # Pinned to 2, down from the auto-selected 4 (`n_slots = 4`, read
-              # live off the startup banner - llama.cpp does not print this
-              # unless asked, so do not assume it from the args list). This is
-              # the first 2026-09-16 OOM fix: shipped at auto/4 slots with a
-              # 2Gi limit, the pod was OOMKilled 18 times under real backfill
-              # traffic (exit 137). Unlike ai/vllm's "do NOT pin --parallel"
-              # rule two files over, pinning is safe HERE - but NOT for the
-              # reason originally written here.
-              #
-              # CORRECTION (2026-09-16, second pass). The original justification
-              # said "this model's KV buffer is 0.00 MiB (embedding has no KV
-              # cache at all)". THAT IS WRONG, and it is wrong because it read
-              # the first line of a two-pass KV init. The real banner, from a
-              # local run of this pinned digest with this exact arg set:
-              #   llama_kv_cache: CPU KV buffer size =     0.00 MiB   <- reserve pass
-              #   llama_kv_cache: size =   56.00 MiB (   512 cells,  28 layers,
-              #                   2/1 seqs), K (f16): 28.00 MiB, V (f16): 28.00 MiB
-              #   llama_kv_cache: CPU KV buffer size =    56.00 MiB   <- actual
-              # There is a real 56 MiB KV pool, i.e. 112 KiB per token. That
-              # number is not academic: it is exactly what the host prompt cache
-              # serialises per token, and therefore the whole mechanism behind
-              # the second OOM (see --cache-ram below).
-              #
-              # Pinning remains safe, now on MEASURED grounds instead of a false
-              # premise: this exact arg set was run locally against the real
-              # model and the banner reports `n_slots = 2, n_ctx_slot = 512,
-              # kv_unified = 'true'` - a correctly-sized shared pool, not a
-              # mis-sized one. Verify that banner after ANY change to this
-              # arg block rather than re-deriving it from the flags.
+              # Must pin 2. There is a 56 MiB F16 KV pool; the 0.00 MiB line is only the reserve pass.
+              # The chat "do not pin --parallel" rule does not transfer. See skill b70-llm-serving references/embeddings.md.
               - --parallel
               - "2"
-              # Must ride along with --parallel: llama.cpp only defaults
-              # kv_unified=true when n_slots is auto (`-1`) - pinning
-              # --parallel without this flag silently flips that default off,
-              # splitting the KV/context accounting per-slot instead of
-              # sharing it. Confirmed live (local run of this exact pinned
-              # image against the real model): `--parallel 2` alone reported
-              # `n_ctx_slot = 256` at startup - HALF of --ctx-size 512, and
-              # below the CPU TEI server's 384-token ceiling this endpoint is
-              # supposed to match, contradicting the "not a capability
-              # regression" claim below. Adding this flag restored
-              # `n_ctx_slot = 512` with n_slots still pinned at 2. Safe for
-              # the same reason --parallel is safe, and with the same
-              # correction: there IS a shared KV pool here (56 MiB / 512 cells
-              # / 112 KiB per token - see the --parallel note above, which
-              # retracts the earlier "KV buffer is 0.00 MiB" claim), but this
-              # exact arg set was measured to size it correctly, so ai/vllm's
-              # "do NOT pin --parallel/--kv-unified" rule still does not
-              # transfer. The evidence is the banner, not the argument.
+              # Required with --parallel. Without it n_ctx_slot halves to 256.
+              # See skill b70-llm-serving references/embeddings.md.
               - --kv-unified
-              # THE 2026-09-16 (second) OOM FIX. Without this, llama.cpp keeps a
-              # host-RAM prompt cache whose DEFAULT CEILING IS 8192 MiB - twice
-              # this container's 4Gi limit - so the cache's own pruning can
-              # never engage before the cgroup OOM-kills the process. Read off
-              # the pinned image's own `--help`:
-              #   -cram, --cache-ram N  set the maximum cache size in MiB
-              #                         (default: 8192, -1 - no limit, 0 - disable)
-              # and echoed by this exact arg set at startup:
-              #   srv load_model: prompt cache is enabled, size limit: 8192 MiB
-              #   srv       init: idle slots will be saved to prompt cache and
-              #                   cleared upon starting a new task
-              #
-              # WHY IT IS PURE WASTE HERE, NOT A TRADEOFF. The cache is
-              # WRITE-ONLY on an embedding server. Reads go through exactly one
-              # call site (`prompt_load`, tools/server/server-context.cpp:1649),
-              # which sits inside a block gated on
-              # `task.type == SERVER_TASK_TYPE_COMPLETION`. Embedding requests
-              # are SERVER_TASK_TYPE_EMBEDDING, so they can never hit it. Writes
-              # go through the `--cache-idle-slots` path (same file, :2420),
-              # which carries NO task-type guard and so fires on every task.
-              # So every request paid for an entry that nothing could ever read.
-              #
-              # THE COST IS THE FULL KV STATE OF EACH DOCUMENT. Measured locally
-              # on this pinned digest with this exact arg set:
-              #   srv prompt_save: - saving prompt with length 28,
-              #                      total state size = 3.063 MiB
-              #   srv      update: - cache state: 3 prompts, 8.644 MiB
-              #                      (limits: 8192.000 MiB, 512 tokens, 74873 est)
-              # i.e. 112 KiB per token (56.00 MiB KV / 512 cells), so a typical
-              # ~31-token document costs ~3.4 MiB of HOST RAM. ~1200 documents
-              # fills 4Gi. That is why the kill tracked request VOLUME and not
-              # request SIZE, and why 2Gi -> 4Gi only bought more requests.
-              #
-              # AND NOTHING ELSE CAN BOUND IT. llama.cpp's only adaptive guard
-              # is a std::bad_alloc handler in server_prompt_cache::alloc that
-              # cuts limit_size to 40% on allocation failure - but under a
-              # cgroup memory limit the kernel SIGKILLs at page-fault time and
-              # malloc never fails, so that handler is structurally unreachable
-              # here. Note also `update()` recomputes the token limit from the
-              # byte limit (`limit_tokens_cur`, 74873 above vs the nominal 512),
-              # so the token cap does not bound it either. No value of
-              # `limits.memory` fixes this; only capping the cache does.
-              #
-              # 0 rather than a small non-zero value: 0 is the only setting that
-              # also force-disables the idle-slot writer (server-context.cpp:1421
-              # logs `--cache-idle-slots requires --cache-ram, disabling`) and
-              # never constructs the cache at all, so there is no freed-but-
-              # retained allocator arena to leave RSS high. A small cap would
-              # still allocate and free continuously for a cache nothing reads.
-              # ai/vllm is a CHAT server where prefix reuse is genuinely worth
-              # something, so it needs a bounded non-zero value, not this - that
-              # is a separate open decision and is deliberately NOT changed here.
+              # 0. The embedding cache is write-only, and absence restores the silent 8192 MiB default.
+              # A memory limit cannot stop that. Do not copy chat's 4096. See skill b70-llm-serving references/memory.md.
               - --cache-ram
               - "0"
-              # ctx/-b/-ub are one decision: llama.cpp forces n_batch = n_ubatch
-              # in embedding mode, and a sequence must fit inside one ubatch, so
-              # this triple sets BOTH the VRAM footprint and the maximum input
-              # length. Measured on the live card 2026-09-15, same probe set:
-              #   -ub 2048 -> compute buffer 1224.96 MiB, total 3257 MiB
-              #   -ub  512 -> compute buffer  300.74 MiB, total 1493 MiB
-              # and throughput at the REAL input length (~31 tokens, the live
-              # TEI server's lifetime mean) is the same within noise:
-              # 176.4 vs 190.9 emb/s at batch 32, 280.7 vs 269.2 at 4 concurrent.
-              # So 512 buys back 1764 MiB for nothing measurable.
-              #
-              # That VRAM matters for one specific reason: if `ai/vllm` ever
-              # restarts while this pod is resident, it must still fit. The card
-              # is 32656 MiB and the LLM occupies 26909 MiB (measured), so at
-              # 1493 MiB the LLM restarts with 4254 MiB to spare; at 3257 MiB
-              # that margin shrinks to 2490 MiB. Both work - 512 is chosen for
-              # the margin, not because 2048 fails.
-              #
-              # 512 is also ABOVE the 384-token ceiling the CPU TEI server is
-              # pinned at, so this is not a capability regression. Raising it is
-              # a one-line change with the cost table above; do not raise it
-              # speculatively (same rule as --max-batch-tokens in
-              # ../../toolhive/config/embeddingserver.yaml).
+              # One triple. 512 leaves room for a chat restart; 2048 fits but spends that margin.
+              # See skill b70-llm-serving references/embeddings.md.
               - --ctx-size
               - "512"
               - -b
               - "512"
               - -ub
               - "512"
-              # --no-cont-batching / --timeout: bound load HERE so a caller
-              # gets a result or a clean error, never an indefinite hang, and
-              # chat keeps its decode rate under a concurrent embedding burst.
-              #
-              # WHY THIS IS HERE AND NOT IN LiteLLM. A captain-approved
-              # LiteLLM-side fix (a shared rpm/tpm cap on the `embedding-local`
-              # LiteLLMModel deployment, enforced via
-              # routerSettings.routing_strategy: usage-based-routing-v2) was
-              # live-tested 2026-09-27 and found to make a caller HANG 45s+
-              # with no response at all once the cap was exceeded - not the
-              # clean HTTP 429 an isolated `litellm.Router()` unit test
-              # produced under the identical settings. Root cause was not
-              # fully attributed in the time available (leading suspects: the
-              # strategy's cooldown side effect on its semaphore-gated
-              # pre-call check, or its batched-redis-write scheduler
-              # behaving differently against a real Redis backend than the
-              # local-only cache the unit test used) - the LiteLLM-side cap
-              # was only ever live-patched via kubectl, never committed, so
-              # there is no git history for it; the investigation is recorded
-              # in full at .agents/skills/litellm-proxy/SKILL.md item (15).
-              # Captain decision 2026-09-27: revert
-              # the LiteLLM-side cap entirely and bound load in the embedding
-              # server's own request handling instead.
-              #
-              # --no-cont-batching IS THE FIX FOR CHAT CONTENTION, NOT
-              # --parallel. Continuous/dynamic batching is `enabled` by
-              # default on this pinned image (confirmed via --help) and its
-              # whole job is to interleave and maximise throughput across
-              # everything currently queued - exactly wrong on a GPU shared
-              # with ai/vllm, and independent of the --parallel=2 slot count
-              # pinned above for OOM reasons (see that comment): slot count
-              # bounds concurrent KV/context usage, not how aggressively the
-              # scheduler drains the queue. Measured live 2026-09-27 against
-              # this exact pinned image and card, using the repo's own B70
-              # method (ai/vllm's native `/completion`,
-              # `timings.predicted_per_second`, n_predict=24, temperature=0,
-              # cache_prompt=false - docs/ai/b70-llm-serving-tuning.md):
-              #
-              #   | config            | offered load            | chat vs idle |
-              #   |-------------------|--------------------------|-------------|
-              #   | cont-batching ON  | sustained ~2 req/s, 12s  | 95.1%       |
-              #   | cont-batching OFF | sustained ~2 req/s, 12s  | 94.2-97.1%  |
-              #   | cont-batching ON  | 40 concurrent (burst)    | 85.4% (one early, noisier run measured as low as 3%, not reproduced cleanly on a fresh pod) |
-              #   | cont-batching OFF | 40-100 concurrent (burst)| no hang, every call succeeds, chat recovers within seconds |
-              #
-              # At the docs' own recommended-safe paced rate (0.5-1 req/s) the
-              # two configs are indistinguishable - real ambient chat traffic
-              # on this shared, live cluster is itself noisy enough (measured
-              # idle decode rate alone ranged ~20-83 t/s run to run depending
-              # on concurrent production load) that a clean single-digit
-              # difference is not resolvable there. The genuine, repeatable
-              # difference is under a SUDDEN CONCURRENT burst - many requests
-              # arriving at once, which is exactly the shape an unthrottled
-              # caller can produce, and which caused this repo's worst
-              # recorded dip. Turning continuous batching off measurably
-              # avoids that class of collapse at a small, bounded cost: 100
-              # concurrent requests fired directly at this endpoint completed
-              # in max 6.47s with it off, vs a max in the 1.5-6s range with it
-              # on in these same sessions - both fast, but note the direction
-              # of the tradeoff (an eventual answer vs GPU cycles stolen from
-              # chat).
-              #
-              # --timeout 30 (down from this image's default 3600) is the
-              # explicit hard backstop that makes "never hang indefinitely" a
-              # guarantee rather than an empirical observation: no single HTTP
-              # request may be held open by this server longer than 30s.
-              # Headroom is large - the 100-concurrent stress test above still
-              # completed in under 6.5s max, ~4.5x margin before this bound
-              # could ever legitimately fire.
-              #
-              # DOES NOT TOUCH THE OOM FIX. --parallel, --kv-unified,
-              # --cache-ram, --ctx-size/-b/-ub and the memory request/limit
-              # above are all unchanged by this pair - it only affects request
-              # SCHEDULING, never the KV/context/cache sizing that fix
-              # depends on. Verified live: RSS stayed at 353-436Mi under both
-              # a sustained and a 100-concurrent burst, far under the 4Gi
-              # limit.
+              # Bound load here. A LiteLLM rpm cap was live-tested and hung; it was never committed.
+              # --timeout 30 replaces the image default of 3600. See skill b70-llm-serving references/contention.md.
               - --no-cont-batching
               - --timeout
               - "30"
             env:
               LLAMA_CACHE: /models
-              # Same Level Zero selector ai/vllm uses. The generic-device-plugin
-              # `b70` group re-exposes the card at /dev/dri/card0+renderD128;
-              # note that /sys/class/drm/card0 inside the container is still the
-              # HOST's card0, which is the iGPU (0xa7a0) - sysfs is not renamed,
-              # only the device node. Anything deriving sysfs from the device
-              # name reads the wrong card. Use /sys/bus/pci/devices/0000:03:00.0.
+              # /dev/dri/card0 here is the B70; /sys/class/drm/card0 is the iGPU. Use PCI 0000:03:00.0.
+              # See skill intel-gpu references/devices.md.
               ONEAPI_DEVICE_SELECTOR: level_zero:0
               ZES_ENABLE_SYSMAN: "1"
               UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS: "1"
             resources:
               requests:
                 cpu: 250m
-                # NOT raised in the 2026-09-16 OOM fix despite real usage now
-                # provably exceeding it under load (see the memory comment
-                # below) - deliberately. Requests drive talos-3's tight
-                # scheduling arithmetic (docs/talos-3-scheduling-truth.md
-                # section 7), and raising a limit does not touch that
-                # arithmetic. Sitting in the kubelet's usage-exceeds-request
-                # eviction set is this pod's intended failure mode: it ships
-                # at the lowest priority on the node with `preemptionPolicy:
-                # Never` (see priorityclass.yaml) specifically so it is always
-                # the first thing evicted under real memory pressure and can
-                # never preempt anything ahead of it - see
-                # docs/talos-3-scheduling-truth.md section 1 for why priority
-                # (not overage size) is the kubelet's tiebreaker among
-                # exceeds-set pods, which is what keeps this change from
-                # putting ai/vllm or anything else at risk. The original
-                # 839Mi-resident measurement this request was sized from was
-                # itself part of the flawed benchmark below and should not be
-                # trusted as a usage figure either - it is left alone only
-                # because moving it needs the node arithmetic redone, and
-                # nothing here has shown that redo is warranted yet.
+                # 1024Mi on purpose: this pod is evicted before chat. Do not raise it without
+                # redoing the talos-3 arithmetic. See skill node-scheduling.
                 memory: 1024Mi
                 devic.es/b70: 1
               limits:
                 cpu: "2"
-                # Raised 2Gi -> 4Gi in the FIRST 2026-09-16 OOM fix, and
-                # DELIBERATELY LEFT AT 4Gi by the second one.
-                #
-                # That first fix was a ceiling, not a bound, and it did not
-                # hold: the pod went straight back to CrashLoopBackOff, 5
-                # restarts in 30 minutes, still exit 137, now against 4Gi. Each
-                # incarnation traced the same curve under live backfill
-                # (container_memory_working_set_bytes, 30s step):
-                #   0.397 GiB flat for 30 min idle
-                #   0.39 -> 1.75 -> 3.32 GiB over the next 90 s -> OOMKilled
-                # and it died on 25- and 92-token tasks, so the driver was
-                # never request SIZE. The real cause is the host prompt cache,
-                # whose default ceiling (8192 MiB) is larger than ANY limit
-                # that fits on talos-3 - fixed by `--cache-ram 0` above, which
-                # is what actually bounds this workload.
-                #
-                # So do not read 4Gi as a sized figure. With the cache off, the
-                # expected steady state is near the 0.397 GiB idle baseline;
-                # 4Gi is retained purely as headroom so that if some OTHER
-                # growth path exists it shows up as an alert rather than a
-                # third crashloop. Lowering it is safe to consider only after a
-                # full backfill has run flat against this config - and, because
-                # limits do not enter talos-3's scheduling arithmetic (requests
-                # do), lowering it buys the node nothing. Full evidence:
-                # docs/ai/embedder-gpu-migration-analysis-2026-09-15.md,
-                # 2026-09-16 addendum 2.
+                # Headroom, not a bound. --cache-ram 0 is what stops the OOM.
+                # See skill b70-llm-serving references/memory.md.
                 memory: 4Gi
                 devic.es/b70: 1
             probes:
-              # `/health` ONLY proves the HTTP server is up. It does NOT prove the
-              # model computes: on 2026-09-16 this endpoint served 202,582 tasks
-              # with `/health` = ok, zero errors and clean slot releases, while
-              # EVERY returned vector was 1024 x 0xFFC00000 (quiet NaN). Startup
-              # still uses it because there is nothing to embed until the ~1.2GB
-              # GGUF has loaded; readiness and liveness must not.
+              # /health cannot see NaN. Startup only. Readiness and liveness assert finite values.
               startup:
                 enabled: true
                 custom: true
@@ -404,39 +109,9 @@ spec:
                   periodSeconds: 15
                   timeoutSeconds: 5
                   failureThreshold: 40
-              # VALUE-ASSERTING PROBE. Embeds a fixed string and rejects the
-              # response unless it carries real numbers.
-              #
-              # Two checks, and the first one is the one that matters. llama.cpp
-              # serialises through nlohmann::json, which renders a non-finite
-              # float as bare `null` - so an all-NaN vector arrives as
-              # `[null,null,...]` with HTTP 200. `grep -q null` is therefore the
-              # exact detector for the observed failure. The second check
-              # requires at least one digit 1-9 INSIDE the embedding array, which
-              # rejects an all-zero vector; it is scoped to the array because the
-              # response's own `"prompt_tokens":4` would otherwise satisfy it.
-              #
-              # NO `$` ANYWHERE IN THIS SCRIPT, DELIBERATELY. Flux runs
-              # envsubst over the entire built Kustomization output, and it
-              # substitutes bare `$var` as well as `${var}` - so a shell variable
-              # here would be eaten (or fail the whole Kustomization in strict
-              # mode) exactly as AGENTS.md's postBuild.substitute trap describes.
-              # Hence the temp file instead of the obvious command substitution.
-              #
-              # Thresholds are deliberately forgiving: a wedged server stays
-              # wedged, so there is no value in reacting fast, and the backfill
-              # client can queue both slots deep enough to make one probe slow.
-              # Readiness needs 5 consecutive failures (~2.5 min) before the pod
-              # leaves the Service and callers fail over to the CPU endpoint;
-              # liveness needs 10 (~10 min) before a restart. Restarting is the
-              # intended behaviour, not a last resort - a correct endpoint that
-              # restarts beats a fast one that returns garbage, and this pod is
-              # the lowest-priority non-preempting workload on talos-3
-              # (priorityclass.yaml), so its restarts cost ai/vllm nothing.
-              #
-              # Proven in BOTH directions by scripts/ci/embedding-values-test.py,
-              # which runs this exact command out of this file against canned
-              # good / all-null / all-zero / HTTP-500 responses.
+              # nlohmann renders NaN as bare null, so grep -q null is the detector. No $ in this
+              # script: Flux envsubst eats it. Gate: scripts/ci/embedding-values-test.py.
+              # See skill b70-llm-serving references/embeddings.md.
               readiness: &probe
                 enabled: true
                 custom: true
@@ -475,11 +150,7 @@ spec:
             port: 8080
 
     persistence:
-      # Model cache only. Deliberately NOT backed up: the contents are a
-      # re-downloadable GGUF, same reasoning as ai/vllm's own `models` claim,
-      # which carries no kopiur component either. Without it every pod start
-      # re-fetches 1.2GB from HuggingFace and the endpoint's availability
-      # depends on HuggingFace being reachable.
+      # Re-downloadable GGUF. Not backed up. Without the claim every start re-fetches it.
       models:
         type: persistentVolumeClaim
         accessMode: ReadWriteOnce

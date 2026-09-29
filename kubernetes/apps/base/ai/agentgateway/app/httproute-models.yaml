@@ -10,17 +10,8 @@ kind: HTTPRoute
 metadata:
   name: llm-models
   annotations:
-    # Guard, not a cure. This route declares no `spec.hostnames`, so
-    # external-dns's gateway-httproute source would fall back to the parent
-    # listener hostname - the `*.${SECRET_DOMAIN}` wildcard - and publish it
-    # against the Gateway LB IP. Same opt-out the equivalent envoy catch-all
-    # uses (network/envoy-gateway/app/envoy.yaml `https-redirect`).
-    # NOTE the live LAN record `*.${SECRET_DOMAIN} -> 10.50.0.27` is NOT
-    # external-dns's: every record it manages has a `k8s.main.<type>-<name>`
-    # registry TXT twin and the wildcard has none (measured 2026-09-06 against
-    # the unifi webhook's own /records: 71 TXT twins, zero for the wildcard).
-    # It is a hand-made UniFi record, so external-dns will never delete it and
-    # removing it is a UniFi-side change, not a repo change.
+    # No hostname, so gateway-httproute would publish the wildcard. The live LAN wildcard
+    # is a hand-made UniFi record. See skill networking.
     external-dns.alpha.kubernetes.io/controller: none
 spec:
   parentRefs:
@@ -39,10 +30,10 @@ spec:
 ---
 # >>> MODEL CATALOG - maintain me alongside rules/cost.yaml! <<<
 # One entry per in-use model id (owned_by = the backend the unified router
-# sends it to — informational only). Adding a model = a routing rule in
+# sends it to - informational only). Adding a model = a routing rule in
 # httproute-unified.yaml (if its family is new) + a price row in
 # rules/cost.yaml + an entry here.
-# `body` is capped at 4096 chars — if the catalog outgrows it, switch to
+# `body` is capped at 4096 chars - if the catalog outgrows it, switch to
 # `bodyExpression` (16384 chars, CEL string literal).
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayPolicy

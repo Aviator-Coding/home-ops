@@ -8,8 +8,10 @@ components:
   - ../../../components/common
   - ../../../components/alerts
 
-# Retired 2026-08-22: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant.
-# Skill `ai-stack`.
+# Retired: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant
+# (2026-08-22), agentmemory (2026-08-31), comfyui and comfyui-mcp (2026-09-15).
+# Flux prunes their workloads and PVCs; comfyui's five PVCs are deleted with
+# their RBD images. Retained data and revival: skill ai-stack, references/retirement.md.
 
 resources:
   - ./agentgateway.yaml

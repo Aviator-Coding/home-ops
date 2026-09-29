@@ -41,10 +41,10 @@ WHAT THIS DOES NOT CATCH
   - whether the GPU is producing CORRECT vectors, only whether it is producing
     real numbers. A semantically wrong but finite vector passes. Agreement with
     the CPU endpoint is a measured, operator-run check - see
-    docs/ai/embedder-gpu-migration-analysis-2026-09-15.md section 4 (baseline
-    cos = 0.9999992) and section 11 (the re-measure procedure).
+    .agents/skills/b70-llm-serving/references/embeddings.md (baseline
+    cos = 0.9999992 and the re-measure procedure).
   - the root cause of the NaN itself, which is GPU-side and was NOT reproducible
-    on any locally-runnable backend (section 11 records the full bisect).
+    on any locally-runnable backend (embeddings.md records the bisect).
 """
 
 from __future__ import annotations

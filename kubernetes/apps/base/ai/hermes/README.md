@@ -1,324 +1,86 @@
-# Hermes Agent
+# Hermes
 
-[NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) — a
-self-improving conversational AI agent (learning loop, persistent memory, skills),
-deployed here as a homelab operator. Self-contained Python image; no upstream Helm
-chart, so this is a hand-authored `app-template` deploy.
+Homelab operator. Image tag stays on the `-desktop` suffix (Chromium and
+the VNC stack are baked in; the process cannot `apt install` after it
+drops to uid 10000). Skill `hermes-agent` owns restarts, `state.db`,
+routing, and Samba. This page is the human setup.
 
-The pod runs two containers:
+| Container | URL |
+| --- | --- |
+| `app` (dashboard, basic auth) | `https://hermes.${SECRET_DOMAIN}` |
+| `codeserver` (no auth of its own, internal gateway only) | `https://hermes-code.${SECRET_DOMAIN}` |
 
-| Container | Purpose | URL |
-| --------- | ------- | --- |
-| `app` | Hermes gateway + built-in dashboard (basic auth) | `https://hermes.${SECRET_DOMAIN}` |
-| `codeserver` | Browser VS Code over `/opt/data` (skills/config/sessions) | `https://hermes-code.${SECRET_DOMAIN}` (LAN) |
+Ports: `9119` dashboard, `8642` API, `12321` code-server. Mounts:
+`/opt/data` (RWO, single writer), `/opt/xml`, `/opt/files`.
 
-Plus an OpenAI-compatible API on `:8642`.
+## Config is Git
 
-### Volumes
+`copy-config` copies `app/resources/config.yaml` onto the PVC on every
+start. Edit that file and commit. `hermes config edit` in the pod is
+overwritten on the next restart. Any byte of that file or a runtime
+skill restarts the pod. Do not edit them to tidy comments.
 
-| Mount | Claim | Scope | Notes |
-| ----- | ----- | ----- | ----- |
-| `/opt/data` | chart-owned `hermes` (RWO `ceph-block`) | `app` + `codeserver` | sessions/memories/skills; single-writer; kopiur-backed |
-| `/opt/xml` | ns-level `shared-xml` (RWX `ceph-filesystem-rwx`) | `app` only | ~300k-file XML corpus shared with the captain's Mac over LAN SMB (`samba` at `smb://10.50.0.55/xml`). Read-write on purpose. **Not backed up** (Mac is authoritative) - see the comment on `kubernetes/apps/base/ai/pvc/app/shared-xml.yaml`. Ownership is forced to uid/gid 10000 at the Samba layer (`force user`/`force group` in `kubernetes/apps/base/ai/samba/app/resources/smb.conf`). Flux `dependsOn: ai-pvc` is required so the claim exists before hermes mounts it. |
-| `/opt/files` | ns-level `shared-files` (RWX `ceph-filesystem-rwx`) | `app` only | General-purpose drop folder, sibling of `shared-xml` on the same `samba` server (`smb://10.50.0.55/files`). Read-write on purpose. **Not backed up** - deliberately, and with more scrutiny than `shared-xml` since there is no Mac-side authoritative copy; treat it as scratch - see the comment on `kubernetes/apps/base/ai/pvc/app/shared-files.yaml`. Same forced uid/gid 10000 ownership contract as `shared-xml`. Flux `dependsOn: ai-pvc` is required so the claim exists before hermes mounts it. |
+## Browser and Bot Desktop
 
-> The `app` container exposes a terminal + cluster RBAC + git, so the dashboard is
-> gated by basic auth. `codeserver` has **no auth of its own** — it is only on the
-> **internal** gateway (`envoy-internal`, LAN). Front it with Authentik if you ever
-> need more than network isolation.
+`AGENT_BROWSER_ARGS` is set because the image's sandbox auto-detection
+never fires (uid 10000, no AppArmor on Talos). Without
+`--no-sandbox,--disable-dev-shm-usage,--disable-gpu`, Chromium hangs.
 
-> **`webui` (removed 2026-08-21).** A third sidecar ran
-> [nesquena/hermes-webui](https://github.com/nesquena/hermes-webui) as a richer
-> standalone chat UI. Renovate's 0.52.157 → 0.52.158 bump made the image pip-install
-> `hermes-agent` at container start, which upstream refuses to build ("Building
-> wheels or sdists for hermes-agent is not supported") — permanent CrashLoopBackOff,
-> the third such incident for this component. Removed rather than pinned back: the
-> route sat at probe-floor traffic (~1 req/min, 100% 5xx, no human usage) with no
-> real users to justify carrying the risk of a fourth incident.
+Bot Desktop is opt-in (`bot_desktop.auto_start` stays false). VNC listens
+on a mode-0600 unix socket only. Open it from the dashboard Screen pane,
+or `hermes computer-use screen status|start|stop`. The viewer is the
+existing dashboard WebSocket. `min_free_memory_mb` defaults to 1536,
+inside the 6Gi app limit.
 
-## Configuration is GitOps (read this first)
+## When a restart looks healthy and is not
 
-Hermes reads its model/provider config from **`/opt/data/config.yaml`** (on the PVC).
-That file is **owned by Git**: the `copy-config` initContainer copies
-[`app/resources/config.yaml`](app/resources/config.yaml) into the PVC **on every pod
-start**, and reloader restarts the pod when the ConfigMap changes.
+Probes are TCP on `9119`. The pod stays Running and Gatus stays green
+while the gateway is stuck. Read
+`/opt/data/logs/gateway-startup-watchdog.log`. Do not add a gateway
+liveness probe. Skill `hermes-agent` references/restarts.md.
 
-**Change models/providers/skills config by editing `app/resources/config.yaml` and
-committing** — *not* with in-pod `hermes model` / `hermes config edit`, whose writes
-are overwritten on the next restart.
+`sessions.vacuum_after_prune` stays false. Narrowing `retention_days`
+is the dial. Reclaiming disk is an offline
+`hermes sessions optimize-storage` after there is free space. Skill
+`hermes-agent` references/state-db.md.
 
-### LLM backend
+## Cluster RBAC
 
-| Provider | Routing | Auth |
-| -------- | ------- | ---- |
-| `custom:gateway` (**default** `qwen3.6-35b-a3b`) | agentgateway unified `/v1` on `internal-noauth` — routes by model id (local qwen → B70 llama.cpp, bare Go ids → OpenCode Go, vendor slugs → OpenRouter) | keyless (gateway injects the real provider keys) |
+ServiceAccount `hermes`. `hermes-read-all` is get/list/watch across the
+homelab. `hermes-pod-delete` can delete a wedged pod.
+`hermes-exec-deploy` is `pods/exec` and deployment rollout-restart in
+namespace `ai` only. Widen that Role on purpose. It is not read-only.
 
-**Every model goes through this ONE provider** — Hermes never talks to an LLM
-provider directly; the model id alone picks the upstream (see
-`agentgateway/app/httproute-unified.yaml`).
+## Memory and skills
 
-`config.yaml` also sets:
-- **Fallback chain** — the gateway resolves the local default through its
-  `llm-chat-failover` backend (local → `kimi-k2.6` on OpenCode Go), and Hermes' own
-  chain adds `glm-5.1` → `deepseek/deepseek-v4-flash` (OpenRouter PAYG, ~14x cheaper
-  than the grok-4.3 it replaced), so a local outage (e.g. ComfyUI scaling
-  `vllm` to 0 under the Dedicated-VRAM runbook) doesn't kill the session. The local
-  default is free and rate-limit-proof, so long tasks don't burn cloud limits. The
-  hermes-side fallback uses `glm-5.1` (strongest tool-caller on the Go sub) rather
-  than kimi, since the fallback runs the full agentic tool-calling loop; the last
-  tier is deliberately off the Go sub since it exists for Go-quota exhaustion.
-- **Auxiliary routing** - `web_extract` / `session_search` / `title_generator` run on kimi,
-  **not** the local model: `web_extract` fires N parallel LLM calls (one per page) that
-  the **4-slot unified KV** llama.cpp process queues / times out once fan-out exceeds 4.
-  Aux chores stay on cloud so they do not contend with the live session. Aux volume is
-  low/bursty so it won't hit the cloud limits the main loop did. Aux fallback uses a
-  **per-task `fallback_chain`** (the global `fallback_providers` is main-loop only), so
-  the heavy chores pin a cloud fallback. `compression` is the exception: it runs on
-  `openai/gpt-oss-120b` as its **primary**, not kimi, because hermes-agent's compressor
-  falls back to the *main* model (not this task's `fallback_chain`) on a provider error -
-  on a kimi quota outage that meant it retried against the local model while that process
-  was already serving the live session, causing repeated "Failed to generate context
-  summary" failures. Pinning a cloud model as primary sidesteps that structurally.
-  `vision` runs on `qwen/qwen3-vl-32b-instruct` since the local 35B is text-only.
-  **Custom-provider naming trap:** hermes-agent's auxiliary-client resolver treats a
-  custom provider named after a *built-in* id (e.g. `openrouter`) as its own native
-  integration, silently bypassing the gateway — see the naming-trap comment in
-  `config.yaml` before ever renaming the `gateway` provider.
-- **Web search** — `web.search_backend: searxng`, wired to the in-cluster SearXNG
-  via `SEARXNG_URL`.
+Long-term memory is the bundled `holographic` provider
+(`memory.provider: holographic`), a SQLite store on this pod. It is not
+shared with other agents. `agentmemory` is retired. Skill `ai-stack`.
 
-> **No `OPENAI_BASE_URL`.** It's a *global* OpenAI-SDK override that pins the endpoint
-> for **every** provider. Per-provider `api` in `config.yaml`'s `providers:` dict is
-> the right layer. If Hermes ever won't boot without an OpenAI key, re-add a dummy
-> `OPENAI_API_KEY` **only** (never `OPENAI_BASE_URL`).
-
-## Browser (`browser_*` tools) and Bot Desktop (viewable VNC screen)
-
-The `app` image tag is pinned to the **`-desktop`** variant
-(`docker.io/nousresearch/hermes-agent:v2026.9.24-desktop`), not the plain tag. The
-plain tag ships **no Chromium binary at all**, and hermes-agent's own source
-(`tools/bot_desktop/runtime.py::installable()`) says packages like these "can only
-arrive in the image" for a published Docker deployment — the container drops to
-uid 10000 with no `sudo`, so there is no supported way to `apt install` them at
-runtime. The `-desktop` tag is the vendor's own build that bakes in both Chromium
-(for the `browser_*` tools) and the TigerVNC/Xfce stack (for Bot Desktop) — do not
-switch back to the plain tag without re-adding both.
-
-**Sandbox flags.** `config.yaml` has no `browser.backend: local` value (that key
-only toggles built-in-tools vs the Browser-Use CLI — `""` / `"browser-use"` /
-`"off"`, `"local"` isn't valid) and no `browser.launch_args` key at all — checked
-against the pinned `hermes_agent` source. Chromium flags instead come from the
-`AGENT_BROWSER_ARGS` env var (`helmrelease.yaml`), which is set explicitly because
-hermes-agent's own root/Docker/AppArmor auto-detection for injecting
-`--no-sandbox`/`--disable-dev-shm-usage` never fires in this pod (agent runs as uid
-10000, not detected as Docker, no AppArmor sysctl on Talos) — without the override
-Chromium would try its real sandbox and hang until timeout.
-
-**Bot Desktop** is a full headless Xfce desktop (one per Hermes profile) a human can
-watch or take over — useful for anything the headless `browser_*` tools can't do
-(logins with interactive challenges, etc.). It's **opt-in**, never auto-started
-(`bot_desktop.auto_start` defaults `false`), and needs no extra manifest wiring:
-- VNC/RFB (TigerVNC's `Xvnc`) listens on a **0600 Unix socket only** — no TCP port,
-  nothing to expose.
-- Viewing/taking over rides the **existing** dashboard WebSocket
-  (`https://hermes.${SECRET_DOMAIN}/api/display/ws`), already behind the same basic
-  auth as the rest of the dashboard — no separate Service, port, or HTTPRoute.
-- No extra privileges: it's a plain X session under the same uid the gateway
-  already runs as; the window manager runs with compositing off (no GPU needed).
-
-To open it: in the dashboard, go to the Bots → this bot → **Screen** pane and hit
-**Start** (creates the session if one isn't already running, subject to the
-`bot_desktop.min_free_memory_mb` gate — default 1536 MB free, comfortably inside
-this pod's 6Gi limit). From a terminal (dashboard terminal, or `kubectl -n ai exec
--it deploy/hermes -c app -- hermes computer-use screen status|start|stop`) you can
-check/drive the same session without a browser.
-
-## `state.db` retention (why the volume stopped filling)
-
-`/opt/data/state.db` is the agent's session store and it dominates this claim: **9.31 GiB of a 25Gi
-PVC that was 76% full** (measured 2026-09-15, before the claim grew 25Gi -> 40Gi on 2026-09-20 -
-see growth-doc section 11 below), growing ~175-235 MB/day, against Hermes' own 1 GiB `doctor`
-warning threshold. ~98% of it is `cron` automation transcripts, and ~79% of the file is FTS5
-storage and index (the message text is stored **three times**: `messages`, plus an inline content
-copy for each of the two FTS indexes).
-
-Upstream's `sessions.auto_prune` was **already on and already running**. It reclaimed nothing
-because `retention_days: 90` is wider than this install is old, so only 3.3% of sessions had ever
-aged out (`PRAGMA freelist_count` was 292 of 2,440,957 pages). The `sessions:` block in
-[`app/resources/config.yaml`](app/resources/config.yaml) narrows that to **30 days**, which is ~99%
-`cron` data and keeps every Telegram, TUI and subagent session.
-
-Two things worth knowing before touching it:
-
-- **`vacuum_after_prune: false` is deliberate and load-bearing.** VACUUM rewrites every page through
-  the WAL, so it needs ~9.3 GiB against 6.0 GiB free. Because `last_vacuum` is absent from
-  `state_meta` its 30-day throttle never engages, so at upstream's `true` default it would be
-  attempted on **every** pass that deletes rows, write until ENOSPC and roll back, risking a
-  100%-full volume. The file therefore does **not** shrink; pruning frees pages onto the freelist and
-  SQLite reuses them, which is what stops the growth.
-- **The sweep is startup-only**, throttled to once per 24h, so the bound is enforced at pod-restart
-  cadence rather than continuously.
-
-Reclaiming the existing 9.31 GiB needs free space first and then an offline
-`hermes sessions optimize-storage` (this DB is still on legacy FTS layout 0). That is an operator
-decision, not automated. Full measurements, the read-only method, the verification commands and the
-CUDA-wheel/snapshot finding: [`docs/ai-system/hermes-state-db-growth.md`](../../../../../docs/ai-system/hermes-state-db-growth.md).
-
-## Restarting Hermes is never clean, and that used to be unrecoverable
-
-**Assume any restart of this pod is an unclean exit.** `container-boot.log` records `prior_exit` on
-each container start: the last **9 consecutive boots** (2026-09-04T23:15 EDT → 2026-09-15T07:01 EDT)
-all read `unclean`, and every one of the 6 `SIGTERM`s in `gateway-shutdown-diag.log` produced one.
-That is arithmetic, not bad luck:
-
-- The gateway's own shutdown path awaits the cron ticker for up to **65s**
-  (`_CRON_SHUTDOWN_DRAIN_TIMEOUT`) then housekeeping for **35s**
-  (`_HOUSEKEEPING_SHUTDOWN_DRAIN_TIMEOUT`) *before* it can reach `mark_exited`.
-- It never gets that long. `gateway-default` is registered directly in `/run/service`, so it is
-  neither an s6-rc service nor a legacy `/etc/services.d` one (`/run/s6/legacy-services` is empty).
-  On container `SIGTERM`, PID 1's `.s6-svscan/SIGTERM` handler runs `s6-linux-init-shutdown`, and
-  `s6-linux-init-shutdownd` is started **`-g 3000`** - a 3-second gap before `SIGKILL`.
-- So **raising `terminationGracePeriodSeconds` does nothing here**, and neither would
-  `S6_SERVICES_GRACETIME` (that only covers the empty legacy-services path). The `-g` value is baked
-  into the image's s6 basedir. Don't reach for either lever; it is inert.
-
-An unclean exit leaves `state/gateway.lifecycle.json` at `phase=running`, which makes the next boot
-run `lifecycle_ledger.check_state_db_integrity` - `PRAGMA quick_check(1)` over the **whole** of
-`state.db`. Unlike `hermes_cli/backup.py` (`DEFAULT_INTEGRITY_CHECK_MAX_BYTES = 2 GiB`), that call
-site has **no size ceiling, no timeout and no progress lease**, and no env or config lever bounds it.
-
-The trap is the ordering: `record_startup` only rewrites the sentinel **after** the check returns,
-and the watchdog's `mark_exited` refuses to touch a sentinel owned by another pid. So if the check
-is killed mid-flight, nothing changes on disk and the next boot does exactly the same thing. That is
-a loop with no exit - measured twice on 2026-09-14/15 at a **~1506s period**, once for 5.5h, ending
-only when a human deleted the sentinel by hand.
-
-Duration vs. budget, both measured on this claim:
-
-| | |
-|---|---|
-| check duration | 665s (2026-09-06) → 1295s / 1383s / **1510.92s** (2026-09-11) → never finished |
-| watchdog runway at the 300s default | **~1502.6s** (9 fires, `extensions: 3`, `lease_count: 2`) |
-
-The fix is `HERMES_STARTUP_WATCHDOG_TIMEOUT_S` in
-[`app/helmrelease.yaml`](app/helmrelease.yaml) (runway is `4 x timeout`, so 900 → 3600s) plus the
-6Gi memory limit that stops the check re-reading most of `state.db` off Ceph. Both are commented at
-the point of use with the source paths and the measurements.
-
-**Two things that will mislead you while this is happening.** The pod stays `2/2 Running` with
-`RESTARTS 0` and Gatus stays green, because all three probes are a TCP check on the dashboard port
-`9119` and the `dashboard` s6 service is independent of `gateway-default` - **no probe in this
-manifest can observe the gateway at all**. And the restarts are s6 respawning a service inside a
-container that never restarts, so `kubectl get pods` shows nothing. Read
-`/opt/data/logs/gateway-startup-watchdog.log` and the `gateway.start` cadence in
-`gateway-exit-diag.log` instead. Do **not** add a liveness probe on the gateway to close that gap:
-a legitimate post-unclean-exit boot is minutes long, and a probe would recreate the same loop one
-level up, at the container.
-
-## Cluster RBAC (operator access)
-
-Hermes runs under its own `hermes` ServiceAccount (`automountServiceAccountToken: true`
-— app-template v5 defaults it to false) with:
-
-- **`hermes-read-all`** (ClusterRole) — get/list/watch across core, apps, batch,
-  networking, gateway, storage, metrics, Flux (helm/kustomize/source), External
-  Secrets, Volsync and CNPG. Hermes can fully inspect/diagnose the homelab.
-- **`hermes-pod-delete`** (ClusterRole) — delete a wedged pod so a controller
-  reschedules it.
-- **`hermes-exec-deploy`** (Role, ns `ai`) — `pods/exec` (diagnostics) and
-  `deployments` patch/update (rollout-restart) in this namespace only.
-
-This is read-everywhere + a narrow self-heal write surface. Widen the
-`hermes-exec-deploy` Role (or add namespaced bindings) if you want it to operate
-beyond `ai`.
-
-## Long-term memory (holographic)
-
-**agentmemory (retired 2026-08-31, see
-[docs/ai-system/agentmemory-retirement-2026-08-31.md](../../../../../docs/ai-system/agentmemory-retirement-2026-08-31.md))
-used to run this as a shared in-cluster service.** It was retired: 100% of its
-routine traffic was a broken Gatus health check, Hermes itself wrote 9
-observations in 16 days against a declared `dependsOn`, and its runtime could
-not be stabilised at any memory limit (whole-store-in-a-HashMap, no eviction).
-
-Hermes now uses its own bundled `holographic` memory provider instead -
-`memory.provider: holographic` in `config.yaml`. It is a local SQLite fact
-store (FTS5 search, trust scoring, entity resolution, HRR-based compositional
-retrieval) already shipped in the image at
-`/opt/hermes/plugins/memory/holographic`, requiring no new infrastructure,
-no shared network service, and no embeddings endpoint. Hermes gets
-`fact_store` / `fact_feedback` tools; recall survives restarts and new
-sessions but is scoped to this pod's own `/opt/data/memory_store.db` - it
-cannot be shared with workstation agents or the ToolHive gateway the way
-agentmemory was.
-
-## Skills (GitOps-managed)
-
-Agent skills are version-controlled in [`app/skills/`](app/skills/) and copied onto
-the PVC at `/opt/data/skills` by the `seed-skills` init on every start. Add a skill
-by dropping a `skills/<name>/` dir and a matching `configMapGenerator` entry +
-persistence mount.
-
-Shipped: **`homelab-commit-watcher`** — ranks interesting commits across `k8s-at-home`
-peers and posts a digest to a **Discord webhook** (`DISCORD_WEBHOOK`). It uses
-`HOMELAB_GH_TOKEN` (a `public_repo` PAT — deliberately *not* `GH_TOKEN`, which Hermes
-scrubs) and the gateway for per-repo summaries. Register its daily run in-agent once
-the pod is up:
-
-```bash
-# in the dashboard terminal, or: kubectl -n ai exec -it deploy/hermes -c app -- hermes ...
-# create the `homelab-peers-commit-watcher` cron (see the skill's SKILL.md).
-```
+Runtime skills live in `app/skills/` and are copied to `/opt/data/skills`
+on start. Shipped: `homelab-commit-watcher` (Discord digest). Register
+its cron once in the dashboard after the pod is up. The skill file is a
+payload: editing it restarts Hermes.
 
 ## Telegram
 
-DM the bot from an allowed user. The gateway-default profile starts the Telegram
-platform when `TELEGRAM_BOT_TOKEN` is present; `TELEGRAM_ALLOWED_USERS` gates access.
-Both come from the `hermes` secret.
+DM the bot from an allowed user. `TELEGRAM_BOT_TOKEN` and
+`TELEGRAM_ALLOWED_USERS` come from the `hermes` 1Password item.
 
-## Prerequisites (before first sync)
+## Prerequisites
 
-1. **1Password item `hermes`** (the `onepassword` ClusterSecretStore vault):
-   - `HERMES_DASHBOARD_USER` / `HERMES_DASHBOARD_PASSWORD`
-   - `HERMES_DASHBOARD_SECRET` — `openssl rand -hex 32`
-   - `GITHUB_LLM_WIKI_TOKEN` — fine-grained, single-repo PAT (see **Git access**)
-   - `API_SERVER_KEY` — `openssl rand -hex 32` (OpenAI-compatible API on `:8642`)
-   - `HOMELAB_GH_TOKEN` — classic GitHub PAT, **`public_repo` only** (commit-watcher)
-   - `DISCORD_WEBHOOK` — channel → Integrations → Webhooks → New
-   - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` — BotFather token + numeric ids
+1Password item `hermes`:
 
-## Git access (single private repo)
+| Field | What it is |
+| --- | --- |
+| `HERMES_DASHBOARD_USER`, `HERMES_DASHBOARD_PASSWORD` | Dashboard basic auth |
+| `HERMES_DASHBOARD_SECRET` | `openssl rand -hex 32` |
+| `GITHUB_LLM_WIKI_TOKEN` | Fine-grained PAT, one repo, Contents read and write. Not a classic PAT |
+| `API_SERVER_KEY` | `openssl rand -hex 32` for the `:8642` API |
+| `HOMELAB_GH_TOKEN` | Classic PAT, `public_repo` only. Commit-watcher. Distinct from the wiki token. OpenCode reuses this field |
+| `DISCORD_WEBHOOK` | Channel webhook for the commit digest |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | BotFather token and numeric user ids |
 
-Hermes gets access to **exactly one** private repo without exposing any other:
-
-1. **Fine-grained PAT** (GitHub → Settings → Developer settings → Fine-grained
-   tokens): *Repository access* → *Only select repositories* → the one repo;
-   *Permissions* → *Contents* → **Read and write**. Set an expiry.
-2. Store it in the `hermes` 1Password item as `GITHUB_LLM_WIKI_TOKEN`.
-
-The `hermes-git` ExternalSecret renders it into a `.git-credentials` file mounted
-read-only at `/secrets/git/.git-credentials`, consumed by git's `store` helper
-(wired via `GIT_CONFIG_*` env, no writable `$HOME`). Because the PAT is repo-scoped
-server-side, GitHub rejects it for any other repo — that's the boundary. (A *classic*
-PAT or account SSH key would expose every repo; don't use those.)
-
-> This `GITHUB_LLM_WIKI_TOKEN` (write, one repo) is separate from the commit-watcher's
-> `HOMELAB_GH_TOKEN` (read-only, public repos). Keep them distinct.
-
-## Notes
-
-- **Single-writer state on `/opt/data`.** sessions/memories/skills (incl. SQLite) are not
-  concurrency-safe → `replicas: 1` + `strategy: Recreate` + RWO `ceph-block` PVC. The
-  `codeserver` sidecar shares that claim **in the same pod** (no multi-attach). Do not
-  scale up. The separate RWX `shared-xml`/`shared-files` mounts at `/opt/xml`/`/opt/files`
-  are multi-writer by design (hermes + Mac via Samba) and do not change this rule.
-- **Gateway runs via the profile service, not the CMD.** The image auto-starts a
-  `gateway-default` s6 service (the gateway: cron + messaging). The container CMD is
-  idled (`args: ["sleep","infinity"]`) — passing `gateway run` started a *second*
-  gateway that collided and CrashLooped. **Don't set `args` back to `gateway run`.**
-- **Runs as root then drops** to UID 10000 (s6-overlay), so no `runAsNonRoot` on the
-  `app` container — `fsGroup: 10000` makes the PVC writable for the dropped user.
-- **Cost tracking:** every model goes through the agentgateway unified `/v1`, so
-  ALL Hermes LLM traffic is in gateway cost metering (`rules/cost.yaml`) and Tempo
-  tracing — there is no untracked direct-provider path anymore.
-- **Ports:** `9119` dashboard, `8642` OpenAI-compatible API, `12321` code-server.
+Git access is that one repo-scoped fine-grained PAT, rendered to
+`/secrets/git/.git-credentials`. GitHub rejects it for every other repo.
+Do not substitute a classic PAT or an account SSH key.

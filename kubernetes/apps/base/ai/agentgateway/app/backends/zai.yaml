@@ -21,7 +21,7 @@ spec:
 ---
 # Z.AI AgentgatewayBackend (OpenAI-compatible, serves under /api/paas/v4).
 # DORMANT: no model in use (glm-* ids deliberately route to OpenCode Go), so
-# the unified /v1 router (../httproute-unified.yaml) has no rule for it —
+# the unified /v1 router (../httproute-unified.yaml) has no rule for it -
 # re-enabling is one routing rule there. Backend + secret kept so the
 # credential path stays wired.
 apiVersion: agentgateway.dev/v1alpha1

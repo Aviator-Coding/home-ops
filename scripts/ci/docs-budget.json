@@ -2,23 +2,10 @@
   "allowlist": [],
   "baseline": {
     "agents_md_bytes": {
-      "AGENTS.md": 49364
+      "AGENTS.md": 46331
     },
     "comment_block_lines": {
-      "kubernetes/apps/base/ai/agentgateway/app/backends/embedding-local.yaml": 36,
-      "kubernetes/apps/base/ai/agentgateway/app/gateways/internal.yaml": 16,
-      "kubernetes/apps/base/ai/agentgateway/app/httproute-api-external.yaml": 23,
-      "kubernetes/apps/base/ai/agentgateway/app/httproute-unified.yaml": 21,
-      "kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml": 77,
-      "kubernetes/apps/base/ai/hermes/app/helmrelease.yaml": 38,
-      "kubernetes/apps/base/ai/hermes/app/prometheusrule.yaml": 42,
       "kubernetes/apps/base/ai/hermes/app/resources/config.yaml": 24,
-      "kubernetes/apps/base/ai/pvc/app/shared-files.yaml": 28,
-      "kubernetes/apps/base/ai/pvc/app/shared-xml.yaml": 16,
-      "kubernetes/apps/base/ai/samba/app/helmrelease.yaml": 40,
-      "kubernetes/apps/base/ai/toolhive/config/embeddingserver.yaml": 47,
-      "kubernetes/apps/base/ai/vllm/app/helmrelease.yaml": 49,
-      "kubernetes/apps/base/ai/vllm/app/prometheusrule.yaml": 159,
       "kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/cronjob.yaml": 16,
       "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/cephfs-rwx-subvolumegroup.yaml": 20,
       "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml": 46,

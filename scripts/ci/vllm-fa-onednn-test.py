@@ -3,7 +3,7 @@
 
 Pins the 2026-09-22 fix for the memory growth that came back after PR #1731
 (`--cache-ram 4096` + the glibc mmap_threshold pin), with both of those halves
-live and working. Full evidence: docs/ai/vllm-onednn-sdpa-leak.md.
+live and working. Mechanism and the post-merge checks: .agents/skills/b70-llm-serving/references/memory.md.
 
 The cause is in llama.cpp's SYCL backend, not in the server's caches.
 `ggml/src/ggml-sycl/fattn-onednn.cpp` compiles one oneDNN Graph SDPA partition
@@ -47,7 +47,7 @@ What this does not catch
     ggml/src/ggml-sycl/ggml-sycl.cpp still reads GGML_SYCL_FA_ONEDNN.
   - whether the prefill regression at this server's real depths is acceptable.
     That is measured post-merge from the server log (the method and the
-    pre-merge baseline are in docs/ai/vllm-onednn-sdpa-leak.md).
+    pre-merge baseline are in .agents/skills/b70-llm-serving/references/memory.md).
 
 Lifting it: only once the pinned llama.cpp tag bounds that partition cache
 (an LRU or capacity limit on the `cache` map in fattn-onednn.cpp, or keys that
@@ -144,7 +144,7 @@ def test_chat_server_disables_onednn_sdpa(docs: list[dict[str, Any]]) -> None:
         "unordered_map keyed on query length AND KV length) is never evicted. "
         "Measured 2026-09-22: ~1 GiB retained per million prompt tokens, "
         "~+3.5 GiB/day, silently, toward an OOMKill. "
-        "See docs/ai/vllm-onednn-sdpa-leak.md.",
+        "See .agents/skills/b70-llm-serving/references/memory.md.",
     )
 
     raw = env[ENV_NAME]
