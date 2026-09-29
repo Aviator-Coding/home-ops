@@ -20,9 +20,8 @@ Where feasible the real consumer artifact is also exercised:
 
 Live cluster proof (OpenAI chat completion through the virtual key from a
 runner pod) is intentionally outside this unit: it needs the in-cluster ARC
-runner and a minted key. Evidence, the proven credential-absent skip path,
-and what is still unproven (model-backed review) are owned by
-docs/ai-system/litellm/pr-reviewer.md §7.
+runner and a minted key. Design and the operator runbook are owned by skill
+litellm-proxy (references/pr-reviewer.md).
 """
 
 from __future__ import annotations
@@ -41,7 +40,7 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 WF_PATH = REPO / ".github" / "workflows" / "ai-pr-review.yaml"
 STANDARDS_PATH = REPO / ".github" / "ai-review-rules.md"
-DOC_PATH = REPO / "docs" / "ai-system" / "litellm" / "pr-reviewer.md"
+DOC_PATH = REPO / ".agents" / "skills" / "litellm-proxy" / "references" / "pr-reviewer.md"
 APP_DIR = REPO / "kubernetes" / "apps" / "base" / "ai" / "litellm" / "app"
 MODEL_PATH = APP_DIR / "models" / "pr-review-local.yaml"
 VK_PATH = APP_DIR / "virtualkeys" / "ai-pr-review.yaml"
@@ -709,7 +708,7 @@ def test_virtualkey_cr() -> dict[str, Any]:
     )
     # Must not hold auto or any cloud alias. Names are the METERED CRs
     # (`-metered` suffix, renamed 2026-08-31 - captain decision, Alternative B
-    # of data/homeops-claude-code-passthrough-design/report.md); the bare
+    # of the pass-through investigation); the bare
     # `claude-sonnet-5`/`claude-opus-5` now belong to the credential-less
     # Claude Code subscription pass-through, which is a separate (non-money)
     # concern from this allow-list boundary.

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Contract tests for the admin-only lockdown of LiteLLM's built-in provider pass-throughs.
 
-Invariant (kubernetes/apps/base/ai/litellm/README.md, the typesafe/jev-1.13
-section of Model catalog, and docs/ai-system/litellm/README.md#anthropic-pass-
-through-route-closed-2026-08-31): the image's built-in `/openrouter/{endpoint}`
+Invariant (skill litellm-proxy, references/passthrough-lockdown.md): the image's built-in `/openrouter/{endpoint}`
 and `/anthropic/{endpoint}` routes forward to the provider on a shared server-
 side credential (OPENROUTER_API_KEY, and the household METERED
 ANTHROPIC_API_KEY) and are NOT gated by a virtual key's `models` allow-list
@@ -481,7 +479,7 @@ def main() -> int:
     # The only grant shape the operator can emit is a map[string]string value.
     # It must NOT grant anything (a string iterates as characters in
     # check_passthrough_route_access); if a future litellm starts honouring it,
-    # the README's "no virtual key can be granted declaratively" claim is stale.
+    # the skill's "no virtual key can be granted declaratively" claim is stale.
     for spec in PREFIXES:
         g = semantic_findings(
             entries, (spec,), metadata={"allowed_passthrough_routes": spec.admin_paths[0].path}

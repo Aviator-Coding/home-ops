@@ -41,6 +41,11 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "dated report records which docs it edited; docs/reference.md was replaced by docs/README.md",
     ("docs/ai-system/retired-2026-08-22.md", "docs/reference.md"):
         "dated report records the state of the retired index",
+    ("docs/ai-system/agentmemory-retirement-2026-08-31.md", "docs/ai-system/litellm/fallbacks.md"):
+        "dated report records which docs it edited; that doc moved into skill litellm-proxy",
+    (".renovate/overrides.json5", "docs/ai-system/litellm/auto-router.md"):
+        "editing .renovate/** fires renovate.yaml's push trigger on merge (AGENTS.md NOTES); "
+        "retarget to skill litellm-proxy references/auto-router.md with the next deliberate .renovate change",
     ("docs/backups/autobrr-removal-2026-09-02.md", "docs/reference.md"):
         "dated report records which docs it edited",
     ("docs/grafana-operator-removal.md", "docs/reference.md"):

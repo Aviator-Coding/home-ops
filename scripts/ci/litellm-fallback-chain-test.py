@@ -14,8 +14,8 @@ then:
      actually serves the cloud target when the primary is dead - without
      grepping source for the word "fallback".
 
-Governance rule under test (measured live 2026-08-26, docs/ai-system/litellm/
-fallbacks.md): config-declared fallbacks BYPASS virtual-key allow-lists, so a
+Governance rule under test (measured live, see skill litellm-proxy
+references/fallbacks.md): config-declared fallbacks BYPASS virtual-key allow-lists, so a
 cloud fallback may only sit on aliases whose every consumer is already
 cloud-entitled. qwen3.6-35b-a3b and chat-local stay terminal; chat-ha carries
 the chain. chat-local is the zero-priced alias real traffic runs on (added
@@ -47,7 +47,8 @@ PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 HTTPRoute_PATH = APP_DIR / "httproute-internal.yaml"
 PROMETHEUS_PATH = APP_DIR / "prometheusrule.yaml"
 MAIN_KS_PATH = REPO / "kubernetes/apps/main/ai/litellm.yaml"
-FALLBACKS_DOC = REPO / "docs/ai-system/litellm/fallbacks.md"
+FALLBACKS_DOC = REPO / ".agents/skills/litellm-proxy/references/fallbacks.md"
+DRILL_DOC = REPO / ".agents/skills/litellm-proxy/references/failover-drill.md"
 README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 
 RESULTS: list[dict[str, Any]] = []
@@ -69,7 +70,7 @@ def non_hub_model_info(model_info: dict | None) -> dict:
     }
 
 # Metric families the Phase 5 alerts depend on - verified live against the
-# proxy's /metrics on 2026-08-26 (fallbacks.md §4).
+# proxy's /metrics (skill litellm-proxy, references/fallbacks.md "Alerts").
 REQUIRED_FALLBACK_METRICS = {
     "litellm_deployment_failed_fallbacks_total",
     "litellm_deployment_successful_fallbacks_total",
@@ -309,8 +310,8 @@ def test_router_settings_entitlement_boundary(cfg: dict) -> None:
         f"terminal={terminal_local} ctx_keys={sorted(ctx)}",
     )
     # Targets must be the METERED CR (`-metered` suffix, renamed 2026-08-31 -
-    # captain decision, Alternative B of
-    # data/homeops-claude-code-passthrough-design/report.md). The bare
+    # captain decision, Alternative B of the
+    # pass-through investigation). The bare
     # `claude-sonnet-5` name now belongs to the Claude Code subscription
     # pass-through, which holds no credential of its own - a fallback pointed
     # there would 401 every failed-over request instead of serving it.
@@ -678,29 +679,23 @@ def test_prometheus_fallback_alerts() -> None:
 
 
 def test_docs_contract() -> None:
+    # The skill reference must carry the governance rule this test enforces in
+    # config, and point at a failover drill that exists. Topic presence only;
+    # no dated measurements are pinned.
     text = FALLBACKS_DOC.read_text() if FALLBACKS_DOC.exists() else ""
     record("fallbacks_doc_exists", FALLBACKS_DOC.exists() and len(text) > 1000, f"bytes={len(text)}")
-    headings = [ln.strip() for ln in text.splitlines() if ln.startswith("#")]
+    lowered = text.lower()
     needed = [
-        "governance",
+        "bypasses the calling key's model allow-list",
+        "cloud-entitled",
         "availability",
         "context",
         "alert",
-        "Post-merge",
-        "internal route",
+        "failover-drill.md",
     ]
-    # Section presence via heading text (published contract), case-insensitive.
-    missing = [
-        n for n in needed if not any(n.lower() in h.lower() for h in headings)
-    ]
-    # The doc uses "1. The governance result..." style - also accept body anchors.
-    if missing:
-        body_ok = all(
-            n.lower() in text.lower() for n in needed
-        )
-        if body_ok:
-            missing = []
+    missing = [n for n in needed if n.lower() not in lowered]
     record("fallbacks_doc_covers_required_topics", not missing, f"missing={missing}")
+    record("failover_drill_doc_exists", DRILL_DOC.exists(), f"path={DRILL_DOC}")
 
     # README B4 must state internal is approved, public still forbidden.
     readme = README_APP.read_text() if README_APP.exists() else ""
