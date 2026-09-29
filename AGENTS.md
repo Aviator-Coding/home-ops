@@ -227,14 +227,6 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 
 - **ExtAuth is one domain-wide proxy provider, so a new hostname does not need its own Authentik application; a new namespace needs a ReferenceGrant `from` entry.** An unauthenticated 302 is not proof of coverage. skill `authentik-terraform`.
 
-<<<<<<< HEAD
-=======
-- **A recyclarr `assign_scores_to` entry must match by `trash_id`, never by profile `name`.** A TRaSH guide rename silently orphans every name-matched custom-format score onto whatever profile still holds the old name, while recyclarr creates a new profile under the new name that gets none of the intended scoring - happened here 2026-04-09 to 2026-08-29, when a rewrite renamed `SQP-1 (2160p)` to `[SQP] SQP-1 (2160p)` and every subsequent custom-format change (including a real fix, PR #1369) landed on a 2-movie orphan instead of the 240-movie profile in use. `trash_id` matching is immune to the rename. Root cause, the compounding `min_format_score` override, and the fix: `docs/media-stack.md#recyclarr---declarative-quality-config`. Which movie sits on which Radarr quality profile is Radarr database state, not GitOps - recyclarr only creates/scores profiles, it never assigns a movie to one - so a profile restructure (as in the 2026-08-29 fix) needs a one-off Radarr API pass, documented in the same section.
-
-- **Radarr never searches for a monitored-but-missing movie on its own** - there is no scheduled missing-movie task and every import list runs `searchOnAdd: false`, so a movie a list adds just sits with no file until a matching new RSS release happens to appear or a human triggers a search. This is why the SQP-1 profile fix above needed a separate, deliberate 347-movie backlog search rather than just fixing the config and waiting. That search must be sized against free disk **before** running - a few hundred movies at even moderate quality can be multiple TB, and nothing else in the stack checks that first. Procedure, sizing method, and staged/rate-limit-safe search pattern: `docs/media-stack.md#backlog-missing-movie-search`.
-
-- **An app can be denied write access to its own PVC while Ready, probes, and Gatus stay green.** Skill `pvc-integrity-checks`.
->>>>>>> 9c0caf2b (docs(kopiur): keep current backup facts in skills and runbooks)
 - **An app can be Ready while it cannot write its PVC: a pod-options key the chart does not read is discarded, and `flate` stays green.** skill `app-workloads`.
 - **`fsGroup` re-owns existing volume content on the next mount, including under `OnRootMismatch`, and the chown persists after revert.** skill `app-workloads`.
 - **Helm cannot unset a field it never rendered, so a hand-added `securityContext` or volume survives `flux reconcile`.** skill `flux-gitops`.

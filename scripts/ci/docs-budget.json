@@ -2,7 +2,7 @@
   "allowlist": [],
   "baseline": {
     "agents_md_bytes": {
-      "AGENTS.md": 64078
+      "AGENTS.md": 49364
     },
     "comment_block_lines": {
       "kubernetes/apps/base/ai/agentgateway/app/backends/embedding-local.yaml": 36,
@@ -19,28 +19,7 @@
       "kubernetes/apps/base/ai/toolhive/config/embeddingserver.yaml": 47,
       "kubernetes/apps/base/ai/vllm/app/helmrelease.yaml": 49,
       "kubernetes/apps/base/ai/vllm/app/prometheusrule.yaml": 159,
-      "kubernetes/apps/base/coder/app/rules/coderd.yaml": 44,
-      "kubernetes/apps/base/database/cloudnative-pg/cluster-17/prometheusrule.yaml": 22,
       "kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/cronjob.yaml": 16,
-      "kubernetes/apps/base/database/falkordb/app/externalsecret.yaml": 27,
-      "kubernetes/apps/base/database/falkordb/app/helmrelease.yaml": 85,
-      "kubernetes/apps/base/database/falkordb/app/httproute.yaml": 23,
-      "kubernetes/apps/base/database/falkordb/app/prometheusrule.yaml": 27,
-      "kubernetes/apps/base/database/falkordb/app/securitypolicy.yaml": 17,
-      "kubernetes/apps/base/database/falkordb/app/service-lb.yaml": 23,
-      "kubernetes/apps/base/database/surrealdb/app/helmrelease.yaml": 24,
-      "kubernetes/apps/base/downloads/sabnzbd/app/helmrelease.yaml": 22,
-      "kubernetes/apps/base/media/plex/app/externalsecret.yaml": 16,
-      "kubernetes/apps/base/monitoring/alertmanager/app/config/alertmanager.yml": 33,
-      "kubernetes/apps/base/monitoring/alertmanager/app/externalsecret.yaml": 23,
-      "kubernetes/apps/base/monitoring/gatus/app/helmrelease.yaml": 18,
-      "kubernetes/apps/base/monitoring/gatus/app/prometheusrule.yaml": 32,
-      "kubernetes/apps/base/monitoring/gatus/app/resources/config.yaml": 31,
-      "kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/apiserver-aggregation.yaml": 18,
-      "kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/kubernetes-apps-recency.yaml": 22,
-      "kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/node-memory-pressure.yaml": 28,
-      "kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/node-network.yaml": 40,
-      "kubernetes/apps/base/monitoring/loki/app/prometheus-rule.yaml": 20,
       "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/cephfs-rwx-subvolumegroup.yaml": 20,
       "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml": 46,
       "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/prometheusrules.yaml": 34,
@@ -54,9 +33,6 @@
       "kubernetes/apps/base/system/volsync/app/mutatingadmissionpolicy.yaml": 46,
       "talos/machineconfig.yaml.j2": 22,
       "talos/nodes/talos-3.yaml.j2": 28
-    },
-    "skill_description_chars": {
-      ".agents/skills/kopiur-backups/SKILL.md": 520
     }
   }
 }
