@@ -89,6 +89,7 @@ below are invisible when a rename drops them.
 - Host memory, oneDNN, §8a/§8b, alerts: [memory.md](references/memory.md).
 - NaN, batch OOM, correctness: [embeddings.md](references/embeddings.md).
 - Sharing the card: [contention.md](references/contention.md).
+- One-screen change log, one line per change with PR: [changelog.md](references/changelog.md).
 
 ## Verify
 

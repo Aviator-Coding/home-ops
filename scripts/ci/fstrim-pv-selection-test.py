@@ -28,7 +28,7 @@ This test does not treat source greps as proof. It:
 
 Live cluster proof (one-off Jobs on talos-1/2/3 selecting 49 RBD + 1 xfs each
 once, scoped trims on radarr-config/tempo-0/loki-0, sabnzbd left for Monday
-schedule, crash prune 2447->0) lives in docs/ceph-cluster-changelog.md and is
+schedule, crash prune 2447->0) is recorded in .agents/skills/rook-ceph/references/changelog.md and is
 out of scope for this offline gate.
 """
 

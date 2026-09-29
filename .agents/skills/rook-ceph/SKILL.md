@@ -32,8 +32,6 @@ Rook is the only writer of Ceph config. A green `ceph status` does not mean RGW 
 | `csi-rwx` subvolumegroup | `cluster/cephfs-rwx-subvolumegroup.yaml` |
 | PrometheusRules | `cluster/prometheusrules.yaml` |
 | Metadata backup + emergency steps | `backup/backup-system.yaml`, `backup/RECOVERY-PROCEDURES.md` |
-| OSD device-path and store-corruption runbooks | `docs/ceph/osd-device-path-recovery.md`, `docs/ceph/osd-store-corruption-recovery.md` |
-| One-screen change log | `docs/ceph-cluster-changelog.md` |
 | Rook task recipes | `.taskfiles/rook/Taskfile.yaml` (`task rook:check-osd-device-paths`) |
 | Host firewall for Ceph ports | skill `cilium-host-policy` |
 
@@ -43,6 +41,9 @@ Rook is the only writer of Ceph config. A green `ceph status` does not mean RGW 
 - CephX, SigV4, reclaim, QoS, modules, pools: [decisions.md](references/decisions.md).
 - RGW realm/zone after a rebuild, and how to see a 403: [rgw.md](references/rgw.md).
 - Toolbox, slow ops, PG reads: [diagnostics.md](references/diagnostics.md).
+- OSD stuck `Init:0/5` after a reboot (device-path drift, Rook #17224): [osd-device-path-recovery.md](references/osd-device-path-recovery.md).
+- OSD crash-looping in `load_pgs` (BlueStore OMAP corruption, destroy and recreate): [osd-store-corruption-recovery.md](references/osd-store-corruption-recovery.md).
+- One-screen change log, one line per change with PR: [changelog.md](references/changelog.md).
 - Emergency recover and post-rebuild RGW steps: `backup/RECOVERY-PROCEDURES.md`.
 
 ## Verify

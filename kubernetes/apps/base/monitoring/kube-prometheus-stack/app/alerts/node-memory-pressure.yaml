@@ -24,7 +24,7 @@ spec:
               {{ $value | humanizePercentage }} of wall time over 15m - the
               node is spending real time in reclaim. Move heavy burstables
               off before the Talos OOMController starts killing
-              (docs/hardware-incidents.md).
+              (.agents/skills/talos-nodes/references/hardware.md).
           labels:
             severity: warning
         # Acute tier is PSI full (node_pressure_memory_stalled), rate [3m].
@@ -88,6 +88,6 @@ spec:
               rook-ceph container {{ $labels.container }} in pod
               {{ $labels.pod }} has been in CrashLoopBackOff for 15m — check
               for OSD store corruption signatures or device-path drift
-              (docs/ceph/osd-device-path-recovery.md).
+              (.agents/skills/rook-ceph/references/osd-device-path-recovery.md).
           labels:
             severity: critical

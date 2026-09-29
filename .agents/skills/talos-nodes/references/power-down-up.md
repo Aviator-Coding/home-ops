@@ -65,7 +65,7 @@ Cut power only after all three calls have returned.
 
 ## Power-on
 
-1. talos-3 dock PSU on. Wait 5-10 seconds. Fans and the card LED should be on. `pcie_port_pm=off` does not replace this. See [`talos-3-b70-reboot.md`](talos-3-b70-reboot.md).
+1. talos-3 dock PSU on. Wait 5-10 seconds. Fans and the card LED should be on. `pcie_port_pm=off` does not replace this. See [talos-3-b70-reboot.md](talos-3-b70-reboot.md).
 2. Power talos-1 and talos-2. Two nodes restore etcd and mon quorum.
 3. Power talos-3 after the dock wait.
 4. `kubectl get nodes` shows three Ready.

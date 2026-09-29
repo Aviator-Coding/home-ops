@@ -1,4 +1,4 @@
-# AI / B70 GPU changelog
+# AI / B70 GPU change log
 
 One line per change that still matters. Current pins, the VA-API split, and
 the DRA stop live in skills `b70-llm-serving` and `intel-gpu`. Git history

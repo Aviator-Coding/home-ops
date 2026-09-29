@@ -23,7 +23,7 @@ This test does not grep source text. It:
     request/limit keys from every containers[*].resources block
 
 Live post-merge gate remains the allocatable count check in
-docs/ai-gpu-changelog.md (talos-3 xe drops 198 -> 99). Offline here we prove
+.agents/skills/b70-llm-serving/references/changelog.md (talos-3 xe drops 198 -> 99). Offline here we prove
 the GitOps inputs that drive that outcome cannot silently re-pool the B70.
 """
 

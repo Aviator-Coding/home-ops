@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
 # Both prior B70 losses (2026-06 bus-number exhaustion, 2026-08 D3hot
 # enumeration race) were discovered late by a human noticing something else
-# — nothing alerted (docs/hardware-incidents.md). kube-state-metrics already
+# — nothing alerted (.agents/skills/talos-nodes/references/hardware.md). kube-state-metrics already
 # emits kube_node_status_allocatable per extended resource with no allowlist
 # extension needed (verified live 2026-08-26 against the running cluster):
 # resource="devic_es_b70" on all 3 nodes (0 on talos-1/2, 99 on talos-3) and
@@ -25,7 +25,7 @@ spec:
           annotations:
             summary: >-
               talos-3 allocatable devic.es/b70 has been 0 for 5m — the Arc
-              Pro B70 has left the PCIe bus (docs/hardware-incidents.md).
+              Pro B70 has left the PCIe bus (.agents/skills/talos-nodes/references/hardware.md).
               Check `kubectl get nodes -o custom-columns=NAME:.metadata.name,B70:.status.allocatable.devic\.es/b70`
               and GPU pods for Pending status.
           labels:
@@ -33,7 +33,7 @@ spec:
         # Deliberately not pinned to a node: ksm emits this series for every
         # node advertising gpu.intel.com/xe (all three iGPUs; allowIDs 0xa7a0),
         # so the alert covers any node that registers the resource
-        # (docs/hardware-incidents.md).
+        # (.agents/skills/talos-nodes/references/hardware.md).
         - alert: XeGpuLost
           expr: kube_node_status_allocatable{resource="gpu_intel_com_xe"} == 0
           for: 5m
@@ -41,7 +41,7 @@ spec:
             summary: >-
               {{ $labels.node }} allocatable gpu.intel.com/xe has been 0 for
               5m — the node's xe-bound iGPU dropped off the bus or the device
-              plugin stopped reporting it (docs/hardware-incidents.md). Check
+              plugin stopped reporting it (.agents/skills/talos-nodes/references/hardware.md). Check
               GPU pods for Pending status.
           labels:
             severity: critical

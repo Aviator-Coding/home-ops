@@ -2,7 +2,7 @@
 
 These steps match the live backup in
 [`backup-system.yaml`](./backup-system.yaml) and the device-path runbook
-[`docs/ceph/osd-device-path-recovery.md`](../../../../../../docs/ceph/osd-device-path-recovery.md).
+[`osd-device-path-recovery.md`](../../../../../../.agents/skills/rook-ceph/references/osd-device-path-recovery.md).
 Do not invent missing objects. There is no `backup-pod` Deployment, no
 `cleanup-all-nodes.yaml`, and no `initial-backup-job.yaml`.
 
@@ -91,7 +91,7 @@ durable off-cluster storage.
 
 If the cluster and its nodes are gone, OSD data is unrecoverable and a
 new FSID is required. All-mon-store loss also cannot be restored from an
-old backup; see `docs/ceph-cluster-changelog.md` (mon RocksDB store
+old backup; see `.agents/skills/talos-nodes/references/hardware.md` (mon RocksDB store
 corruption). Copy the backup directory off-cluster **before** any wipe if
 you still need the original FSID.
 
@@ -105,7 +105,7 @@ OSD rolls stay serial. Deleting every OSD at once
 (`kubectl delete pods -n rook-ceph -l app=rook-ceph-osd`) is the blast
 radius that runbook forbids: on a degraded cluster Rook #17224 relocate
 fallback returns empty and pods stick `Init:0/5`. See
-[`docs/ceph/osd-device-path-recovery.md`](../../../../../../docs/ceph/osd-device-path-recovery.md).
+[`osd-device-path-recovery.md`](../../../../../../.agents/skills/rook-ceph/references/osd-device-path-recovery.md).
 
 ```bash
 # 1. Confirm mons answer

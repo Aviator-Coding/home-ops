@@ -8,7 +8,7 @@ kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph health detail
 kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph config dump
 ```
 
-`ceph -s` must show `HEALTH_OK` and 6/6 OSDs up before a node reboot or an operator-driven OSD roll. Pair it with `task rook:check-osd-device-paths`. An OSD stuck `Init` after a reboot is the device-path bug (Rook #17224): `docs/ceph/osd-device-path-recovery.md`. Store corruption on one OSD: `docs/ceph/osd-store-corruption-recovery.md`.
+`ceph -s` must show `HEALTH_OK` and 6/6 OSDs up before a node reboot or an operator-driven OSD roll. Pair it with `task rook:check-osd-device-paths`. An OSD stuck `Init` after a reboot is the device-path bug (Rook #17224): [osd-device-path-recovery.md](osd-device-path-recovery.md). Store corruption on one OSD: [osd-store-corruption-recovery.md](osd-store-corruption-recovery.md).
 
 ## Slow ops and laggy PGs
 

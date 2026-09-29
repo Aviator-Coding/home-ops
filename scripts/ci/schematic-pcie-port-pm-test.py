@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Semantic regression test for the talos-3 Arc Pro B70 PCIe runtime-PM mitigation.
 
-docs/hardware-incidents.md [2026-08-24]: the B70's root port (00:01.0) can
+.agents/skills/talos-nodes/references/hardware.md [2026-08-24]: the B70's root port (00:01.0) can
 runtime-suspend to D3hot before a late-training card finishes link-up. With
 HotPlugCapable=0 the port never rediscovers it. The mitigation is the kernel
 argument pcie_port_pm=off on the Image Factory schematic (not machine config).
@@ -20,7 +20,7 @@ This test does not grep comment text. It:
 
 Offline here we prove the GitOps input upgrade-node will bake into the
 installer image. The live activation remains the attended
-`just talos upgrade-node talos-3` runbook in docs/hardware-incidents.md.
+`just talos upgrade-node talos-3` runbook in .agents/skills/talos-nodes/references/hardware.md.
 """
 
 from __future__ import annotations

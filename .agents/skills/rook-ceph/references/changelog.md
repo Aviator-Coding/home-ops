@@ -1,6 +1,6 @@
-# Ceph cluster log
+# Ceph change log
 
-Current config, versions and procedures: skill `rook-ceph`. Emergency steps, RGW realm/zone, slow ops, all-mon rebuild: `kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`. Git history is the incident archive.
+Current config: [baseline.md](baseline.md). Emergency steps, RGW realm/zone, slow ops, all-mon rebuild: `kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`. Git history is the incident archive.
 
 | Change | PR |
 |---|---|
