@@ -114,8 +114,7 @@ Comments that name an older tag are stale.
 - `python3 scripts/ci/kopiur-stage0-test.py` through `stage5`, plus
   `kopiur-timezone-test.py`, `kopiur-epoch-tuning-test.py`,
   `kopiur-restore-cache-sizing-test.py`,
-  `kopiur-projected-secrets-leak-alert-test.py`,
-  `kopiur-wave-two-deeper-proof-count-test.py`.
+  `kopiur-projected-secrets-leak-alert-test.py`.
 - `task flux:test:all`.
 - After any `KOPIUR_*` change that the standing `Restore` consumes, read the
   live object. `Ready=True` on the Kustomization does not mean the populator
