@@ -51,7 +51,7 @@ HOST_ENDPOINT_DROPPED_LABELS = frozenset(
 
 # Measured host-endpoint label sets (identical shape on talos-1/2/3; hostname
 # differs on the *node* but is stripped before it reaches the host endpoint).
-# Values that survive were recorded in the incident notes for this fix.
+# Values that survive were measured live.
 HOST_ENDPOINT_LABELS: dict[str, dict[str, str]] = {
     "talos-1": {
         "node-role.kubernetes.io/control-plane": "",

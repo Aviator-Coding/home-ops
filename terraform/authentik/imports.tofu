@@ -1,8 +1,8 @@
 # Adoption of the existing live objects.
 #
-# The import surface is the 7 ADOPTED objects still managed after open-webui was
-# removed: coder + pg-admin providers and applications, the proxy provider, the
-# echo application, and the outpost attachment. Each is paired with an `import`
+# The import surface is the 7 ADOPTED objects: coder + pg-admin providers and
+# applications, the proxy provider, the echo application, and the outpost
+# attachment. Each is paired with an `import`
 # block so a rebuilt state reattaches to the live object instead of minting a
 # second one (new client secrets / a second forward-auth provider would break
 # every SSO login on the cluster).
@@ -10,9 +10,7 @@
 # LiteLLM is deliberately create-only in litellm.tofu and has NO import block
 # here - it is the first stack-owned object that did not already exist.
 #
-# The IDs below were read out of the live instance (Authentik's Postgres) during
-# the inventory; the format each resource expects comes from its passthrough
-# importer:
+# The format each resource's passthrough importer expects:
 #
 #   authentik_application                    -> slug
 #   authentik_provider_oauth2                -> numeric provider pk

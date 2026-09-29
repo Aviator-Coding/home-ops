@@ -193,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     protected = list(render_lifecycle.load_ledger()["protected"])
     print(f"rules       : {len(rules)} from ledger.yaml")
 
-    # ---- pre-flight proof against a fresh listing -------------------------
+    # pre-flight proof against a fresh listing
     print("\npre-flight: listing the live bucket and re-proving the match ...")
     keys: list[str] = []
     for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET):
@@ -224,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
               "not an error - the ledger is a dated measurement - but they will never "
               "expire until they are added.")
 
-    # ---- previous state ---------------------------------------------------
+    # previous state
     try:
         prev: Any = s3.get_bucket_lifecycle_configuration(Bucket=BUCKET)
         prev_rules = prev.get("Rules", [])
@@ -246,13 +246,13 @@ def main(argv: list[str] | None = None) -> int:
     args.save_previous.write_text(json.dumps({"Rules": prev_rules}, indent=2, default=str))
     print(f"previous state saved to {args.save_previous}")
 
-    # ---- write ------------------------------------------------------------
+    # write
     print("\nwriting lifecycle configuration ...")
     s3.put_bucket_lifecycle_configuration(
         Bucket=BUCKET, LifecycleConfiguration={"Rules": rules}
     )
 
-    # ---- mandatory read-back ---------------------------------------------
+    # mandatory read-back
     print("reading it back ...")
     got = s3.get_bucket_lifecycle_configuration(Bucket=BUCKET).get("Rules", [])
     want_by_id = {r["ID"]: r for r in rules}

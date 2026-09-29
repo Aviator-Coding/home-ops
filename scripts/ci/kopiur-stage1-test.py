@@ -964,10 +964,8 @@ def main() -> int:
             print(f"[FAIL] {name}: unexpected {type(e).__name__}: {e}")
             failures.append(f"{name}: {e}")
 
-    # Pilot render. This used to parse the LIVE downloads/autobrr.yaml so the
-    # pin stayed honest as that overlay evolved; the app was removed on
-    # 2026-09-02, so it now renders from PILOT_SUBSTITUTE - the same values,
-    # recorded as history. See that constant for why they must not be edited to
+    # Pilot render from PILOT_SUBSTITUTE (the downloads/autobrr app is gone;
+    # the values are recorded history). See that constant for why they must not be edited to
     # accommodate a component change.
     pilot_env = {
         **PILOT_SUBSTITUTE,

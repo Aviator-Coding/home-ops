@@ -9,7 +9,7 @@ there, and no VolSync object was touched.
 UPDATED 2026-09-01 for Stage 5, which began retiring VolSync per volume after
 .agents/skills/kopiur-backups/references/proof-ledger.md restore-proved all 30 claims on
 both destinations. The dual-engine invariant is therefore no longer universal -
-it is now EXACT, against the RETIRED_CLAIMS set below (the pilot four). A claim
+it is now EXACT, against the RETIRED_CLAIMS set below. A claim
 that goes single-engine without being listed there still fails, and so does a
 listed claim that still renders VolSync.
 
