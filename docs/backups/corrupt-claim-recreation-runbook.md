@@ -1,13 +1,11 @@
 # Recreating a corrupt claim (runbook)
 
-> **Durable procedure.** Written while recreating `ai/opencode` on 2026-08-31, but the
-> ordering, the gates, and the traps are the reusable part. Measured numbers from that
-> run are in [Appendix A](#appendix-a---the-2026-08-31-aiopencode-run) and are evidence,
-> not a spec.
+> **Durable procedure.** The ordering, the gates, and the traps are the reusable part.
+> The measured record of the first run is in git history.
 >
 > Sibling documents: [`restore-drill-2026-08-23.md`](restore-drill-2026-08-23.md) (VolSync
-> restore) and [`kopiur-restore-drill-2026-08-30.md`](kopiur-restore-drill-2026-08-30.md)
-> (kopiur restore). Those two prove a repository can be read back; **this one is about
+> scratch restore) and [`kopiur-restore-runbook.md`](kopiur-restore-runbook.md) (kopiur
+> scratch restore). Those prove a repository can be read back; **this one is about
 > throwing a live volume away and rebuilding it from that repository.** Read the
 > "Hard constraint" section of the 2026-08-23 drill first - it binds here too.
 
@@ -201,8 +199,8 @@ while you are trying to delete the destination.
      and the replacement run started on its own).
    - **Delete the VolSync `ReplicationSource`s too**, not only their Jobs. Flux is
      suspended so Git will not recreate them mid-procedure, but the in-cluster VolSync
-     controller still reconciles live RS objects and **re-stages a new clone within
-     seconds of each Job/clone delete** - fighting that loop is how the 2026-08-31 run
+     controller still reconciles live RS objects and **re-stages a new clone within seconds
+     of each Job/clone delete** - fighting that loop is how the 2026-08-31 run
      got stuck. Deleting an RS never touches the restic repository; Flux recreates the
      sources cleanly on resume.
    - Dependent VolumeSnapshots must go before the PVC. Deleting the claim while RBD
@@ -234,15 +232,17 @@ kubectl -n <ns> exec $POD -c app -- sh -c 'cd <mountpath>
   echo "files=$(find . -type f | wc -l)"
   echo "dirs=$(find . -type d | wc -l)"
   echo "symlinks=$(find . -type l | wc -l)"
-  echo "bytes=$(find . -type f -exec stat -c %s {} + | awk "{s+=\$1} END {print s}")"'
+  echo "bytes=$(find . -type f -exec stat -c %s {} \\; | awk "{s+=\$1} END {print s}")"
+  echo "manifest_lines=$(find . -type f | wc -l)"'
 
-# per-file sha256 manifest
+# per-file sha256 manifest. Busybox `find -exec {} +` can drop paths and still
+# exit 0. Use \\; and check the manifest line count against `find | wc -l`.
 kubectl -n <ns> exec $POD -c app -- sh -c \
   'cd <mountpath> && find . -type f -print0 | sort -z | xargs -0 sha256sum' > sha256-live.txt
 
 # modes and ownership
 kubectl -n <ns> exec $POD -c app -- sh -c \
-  'cd <mountpath> && find . -mindepth 1 -exec stat -c "%a %U:%G %F %n" {} + | sort -k4' > modes-live.txt
+  'cd <mountpath> && find . -mindepth 1 -exec stat -c "%a %U:%G %F %n" {} \\; | sort -k4' > modes-live.txt
 ```
 
 Reduce the manifest to one comparable number with `sort sha256-live.txt | shasum -a 256`.
@@ -307,9 +307,3 @@ mean the cause is upstream of the volume.
   `kubectl patch` of a pod spec **survives `flux reconcile --force`** - undo such edits
   explicitly with a merge patch setting each key to `null`, then confirm the live object
   matches git. Scaling a Deployment is owned by the chart and does come back on reconcile.
-
-## Appendix A - the 2026-08-31 `ai/opencode` run
-
-See [`opencode-volume-recreation-2026-08-31.md`](opencode-volume-recreation-2026-08-31.md)
-for the measured record of this procedure's first execution: the empty-`latestImage`
-discovery, the pre-check numbers, and the post-recreation verification evidence.

@@ -181,56 +181,5 @@ before considering the drill done. **Never delete anything without that label** 
 never delete the app's own `<app>-dst`, `<app>-config`/`<app>` PVC, or `ReplicationSource`
 objects; those are Git-managed and none of this drill's business.
 
-## Results
-
-Both runs restored `home-automation/esphome`'s `esphome-config` claim (5Gi, 46 files, includes
-a `.git` checkout and small config/secret files) into a scratch PVC of the same size, then
-verified via `sha256sum` cross-check against the live pod's current `.gitignore` /
-`.device-builder.json`. Both checksums matched exactly in both runs - the restore is genuine,
-not an empty repository skeleton.
-
-| Destination | Restic snapshot restored | Trigger -> sync complete | Restic mover time | PVC bind | Verify pod ready | Total (trigger -> verified) |
-|---|---|---:|---:|---:|---:|---:|
-| **Ceph** (`ceph-objectstore`, RGW) | `aa39f511`, 2026-08-23 16:15:35 EDT (newest) | 14.5s | 4s | ~15-20s after trigger | 20:52:38Z (37s after trigger) | **~50s** |
-| **MinIO** (`nas.sklab.dev:9000`) | `7c7999a7`, 2026-08-23 12:15:38 EDT (newest) | 23.9s | 3s | 20:54:27Z (34s after trigger) | 20:54:42Z (49s after trigger) | **~50s** |
-
-Both destinations restore in under a minute for a small (5Gi-class, sub-100-object-repo) app.
-Larger apps (`immich` at 100Gi; at drill time `syncthing-data` was also 100Gi, right-sized
-to 15Gi on 2026-08-31 — see `kubernetes/apps/base/selfhosted/syncthing/app/README.md`)
-will take substantially longer - restic mover time scales with snapshot size, not just
-object count - so do not extrapolate these timings to the whole fleet without re-measuring
-on a representative large app.
-
-## What this drill did and did not prove
-
-- **Proved**: the Ceph destination restore path works end-to-end today (post the RGW
-  `v20.2.4` SigV4 fix earlier the same day), producing byte-identical file **content** to the live
-  app. The MinIO path, already known to be healthy, was re-proven identically as a baseline.
-  The manual-trigger + scratch-PVC pattern above is safe to repeat against any app without
-  touching its live volume.
-- **Did not prove**: file-mode fidelity (this drill did not compare modes; a later run showed
-  VolSync restores permanently relax every mode by one group-write bit - see
-  `docs/backups/corrupt-claim-recreation-runbook.md`). R2-destination restores (not exercised -
-  time did not permit; the R2 restic repository uses the same shape, only the
-  `ReplicationDestination`'s `repository:` Secret name changes to `<app>-volsync-r2-secret`, so
-  the same procedure applies unmodified). Restore behavior for a large PVC (100Gi-class).
-  Restore of a CephFS (`ReadWriteMany`) claim - this drill only covered `ceph-block`/RWO.
-  Rebuilding a live claim from `dataSourceRef`/`latestImage` (that path has its own trap and
-  runbook: `docs/backups/corrupt-claim-recreation-runbook.md`).
-- **Follow-up worth doing**: turn this into a recurring, scheduled drill (e.g. quarterly,
-  rotating which app) now that a safe procedure exists, rather than relying on ad hoc exercises.
-  R1.2 in the task's supporting investigation's ordered work list already flagged "exercise one
-  restore" as outstanding; this closes that for Ceph and MinIO but leaves R2 and large-PVC
-  restores open.
-
-## Safety notes for whoever runs this next
-
-- The scratch `ReplicationDestination`'s `spec.restic.repository` field reuses the app's
-  **existing** credential Secret read-only; nothing about this procedure writes to the restic
-  repository (VolSync's restore/read path performs no writes to the backup bucket beyond a
-  short-lived restic lock file, cleaned up automatically).
-- `enableFileDeletion: true` on the scratch `ReplicationDestination` only affects files inside
-  the scratch PVC being restored into, not the source repository.
-- Always verify the `<app>-restore-drill*` object names are free before applying (`kubectl get
-  ... <app>-restore-drill-dst` should 404) so a re-run never collides with a previous drill's
-  leftovers.
+Measured results from the original drill are in git history.
+The procedure above is the one to run.

@@ -1,30 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/restore_v1alpha1.json
-#
-# kopiur's counterpart to ../../volsync/ceph/replicationdestination.yaml: the
-# standing restore-target-in-waiting, declared once per app so a rebuilt claim
-# can be seeded from the newest ceph snapshot without anyone hand-writing a
-# manifest during an incident. Only the CEPH destination gets one, exactly as
-# VolSync only has a ceph ReplicationDestination - it is the local, fastest
-# repository. Restoring from r2 is a deliberate, hand-written act.
-#
-# PASSIVE until a rebuilt claim claims it. `target.populator` means "wait to
-# be claimed by a PVC's spec.dataSourceRef". Bound claims never repoint -
-# spec.dataSourceRef is immutable on a bound PVC - so a live claim keeps its
-# VolSync ${APP}-dst ref (inert once VolSync is retired) and this Restore stays
-# Pending / AwaitingPvcDataSourceRef indefinitely. It is claimed only by a
-# REBUILT claim created fresh from components/kopiur/pvc. Declaring it now still
-# ships the restore path with the backup path rather than inventing it under
-# pressure.
-#
-# NOT the object to use for a restore DRILL. Per
-# docs/backups/restore-drill-2026-08-23.md a drill must create a NEW, uniquely
-# named target and never touch a live claim or the standing destination - use a
-# scratch Restore with `target.pvc`, which makes its own PVC. The same document
-# explains why editing a standing destination in place is a trap: it carries
-# the Flux ssa: IfNotPresent label below, so Flux creates it once and then never
-# reconciles it again, and any manual edit persists silently forever (a live
-# VolSync ReplicationDestination has been drifted since October 2025 this way).
+# kopiur's counterpart to ../../volsync/ceph/replicationdestination.
+# Skill `kopiur-backups`.
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:
@@ -35,22 +12,8 @@ spec:
   repository:
     kind: ClusterRepository
     name: ceph
-  # Consumer half of the credential-projection gate. A Restore's mover runs in
-  # the workload namespace exactly as a backup mover does, so the restore path
-  # needs this as much as the backup path - and it must ship WITH it, because
-  # the standing per-namespace credentials it used to fall back on are gone.
-  # See kubernetes/components/kopiur/ceph/snapshotpolicy.yaml for the rationale.
-  #
-  # CAVEAT, and it is a real one: this object carries the `ssa: IfNotPresent`
-  # label below, so Flux creates it once and NEVER reconciles it again. Adding
-  # this field does not reach a Restore that already exists in the cluster. Fix
-  # a missing credentialProjection by DELETING and recreating the Restore (safe:
-  # no finalizers, no ownerReferences, owns no backup data) - not by repointing
-  # a claim. Precedent: sabnzbd-kopiur-dst (Stage 5 pilot) and downloads/autobrr
-  # (2026-09-02 fleet audit - frozen at create-time identity and missing this
-  # field entirely; both closed in docs/backups/kopiur-populator-drift-2026-09-02.md).
-  # Bound claims keep their VolSync ${APP}-dst dataSourceRef forever; only a
-  # rebuilt claim from components/kopiur/pvc claims this object.
+  # Consumer half of the credential-projection gate.
+  # Skill `kopiur-backups`.
   credentialProjection:
     enabled: true
   source:
@@ -61,12 +24,8 @@ spec:
   target:
     populator: {}
   policy:
-    # INVARIANT: fail-closed. A restore that finds no snapshot must fail loudly
-    # (Restore Failed, claim unbound, KopiurRestoreFailed), never provision an
-    # empty volume. Only claims with history consume this object, and after a
-    # full-cluster loss `Continue` would bring every claim back empty and green,
-    # then back that emptiness up to r2 as its newest snapshot.
-    # Full rebuild: docs/backups/full-cluster-restore-from-r2.md.
+    # INVARIANT: fail-closed. A restore that finds no snapshot must fail loudly (Restore Failed, claim unbound, KopiurRestoreFailed), never provision an empty volume.
+    # Skill `kopiur-backups`.
     onMissingSnapshot: Fail
   mover:
     podSecurityContext:
