@@ -17,6 +17,9 @@ the proxy checks the model the caller asks for.
   `HOMELAB_GH_TOKEN` (`public_repo`, read and write). No new item.
 - ToolHive MCP stays:
   `http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp`.
+  It sends no token: that Service does not check one. Moving it to the
+  LAN route needs `MCP_GATEWAY_TOKEN` from 1Password `mcp-gateway` and an
+  `Authorization` header. [toolhive.md](toolhive.md) "Gateway auth".
 - The memory plugin and Context7 were not carried over. `agentmemory` is
   retired, so a future memory backend is new work.
   [retirement.md](retirement.md)

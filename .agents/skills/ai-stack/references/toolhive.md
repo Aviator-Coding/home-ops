@@ -29,6 +29,31 @@ replay `Mcp-Session-Id` (it only stores body values). A down TEI pod is
 still `KubePodNotReady`. A pod that is up and returns errors is not
 covered.
 
+## Gateway auth
+
+`https://mcp.${SECRET_DOMAIN}` requires `Authorization: Bearer <token>`.
+Everything except `/health` (open for Gatus) returns 401 without it.
+Envoy enforces it (`config/securitypolicy.yaml`, `apiKeyAuth` on HTTPRoute
+rule `mcp`), not vmcp. vmcp 0.42.1 accepts `anonymous`, `local` or `oidc`
+only, and its OIDC validator needs a signed JWT with `exp` or an RFC 7662
+introspection endpoint. A static token cannot pass either. So
+`incomingAuth` stays `anonymous`, and the in-cluster Service
+`vmcp-mcp-gateway-internal:4483` accepts any caller without a token.
+
+- Token: ESO `Password` generator + ExternalSecret `mcp-gateway-token`
+  (`refreshPolicy: CreatedOnce`), pushed to 1Password vault `Automation`,
+  item `mcp-gateway`, field `MCP_GATEWAY_TOKEN`
+  (`config/pushsecret.yaml`, `deletionPolicy: None`).
+- Consumer: read that item with an ExternalSecret (`extract: mcp-gateway`)
+  and send the header. Hermes does this even though its in-cluster URL
+  does not check the token. A LAN client copies the field from 1Password.
+- Rotate: delete ExternalSecret `ai/mcp-gateway-token`. A new token is
+  minted and pushed over the field, and Envoy picks it up without a
+  restart. Consumers follow on their ExternalSecret refresh (Hermes 1h)
+  and Reloader.
+- Rule names on the HTTPRoute are load-bearing: renaming `mcp` detaches
+  the policy.
+
 ## Do not point vmcp at `ai/embedding-gpu`
 
 Measured and rejected:
