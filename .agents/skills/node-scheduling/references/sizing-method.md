@@ -19,6 +19,8 @@ The limit is a CFS quota for each 100ms period. A container at a fraction of its
 
 Mean CPU under a limit is not a sizing input: the quota is what caps the mean. A `max_over_time(rate(...[5m])[14d:1h])` peak under-reports a burst, and coarser steps under-report further. Size from the finest resolution you can actually query, then re-read the container's throttle ratio (`container_cpu_cfs_throttled_periods_total` over `container_cpu_cfs_periods_total`) after the change.
 
+On this cluster the same 14-day peak for `database/postgres-17` reads 27m at a 1h step and 1397m at a 30s step. `rook-ceph` rgw reads 169m versus 1441m. At 30s resolution, 48 workloads already peak above their CPU request. `system/pvc-writable-check` spent 89.1% of its CFS periods throttled while its node sat near idle; `pvc-mover-readable-check` 58.0%; `system-controller/k8tz` 29.6% while averaging a few millicores. The declaration comments on those workloads hold the curves. Gate: `scripts/ci/cpu-throttle-contract-test.py`.
+
 A CPU request is the container's weight when the node is contended. talos-3 is that node. A request that looks generous on talos-1 can still starve work here. Do not cut one on talos-3 from an idle-node chart.
 
 ## Guaranteed versus Burstable
