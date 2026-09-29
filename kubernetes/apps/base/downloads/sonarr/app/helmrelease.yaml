@@ -75,12 +75,9 @@ spec:
               capabilities: { drop: ["ALL"] }
 
     defaultPodOptions:
-      # nodeTaintsPolicy: Honor - this workload has no toleration for the
-      # talos-3 home-operations.com/dedicated taint, but Honor only filters
-      # NoSchedule/NoExecute taints and the taint is now PreferNoSchedule, so
-      # it no longer excludes talos-3 from the spread domains; the
-      # TaintToleration score penalty keeps this workload off talos-3 under
-      # normal conditions instead (.agents/skills/node-scheduling/references/talos-3-ledger.md).
+      # nodeTaintsPolicy: Honor only filters NoSchedule/NoExecute taints. The talos-3
+      # dedicated taint is PreferNoSchedule, so talos-3 stays in the spread domains and
+      # the TaintToleration score penalty keeps this workload off it. Skill node-scheduling.
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname
@@ -122,7 +119,6 @@ spec:
           gethomepage.dev/group: Downloads
           gethomepage.dev/name: *app
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/sonarr.svg
-          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Sonarr is a PVR for Usenet and BitTorrent users to manage and download TV shows."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=sonarr
         hostnames:

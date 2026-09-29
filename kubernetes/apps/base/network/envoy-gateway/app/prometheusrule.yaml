@@ -8,14 +8,10 @@ spec:
   groups:
     - name: envoy-gateway.rules
       rules:
-        # An Envoy proxy lost its xDS connection to the envoy-gateway controller and
-        # can no longer receive route/endpoint (EDS) updates — it serves FROZEN config.
-        # This is the exact condition behind the 2026-06-23 outage: the controller
-        # crash-looped, the proxies' GatewayNamespaceMode SA tokens expired, xDS auth
-        # failed, and envoy-internal stayed pinned to a dead agentmemory pod IP.
-        # Runbook: kubectl -n network rollout restart deploy envoy-gateway, then
-        # envoy-internal + envoy-external (fresh token → xDS resync). 10m absorbs the
-        # brief reconnect during a normal controller roll.
+        # An Envoy proxy lost its xDS connection to the controller and serves FROZEN config (no route/endpoint
+        # updates). Cause seen: controller crash-loop, expired GatewayNamespaceMode SA tokens, xDS auth failure.
+        # Runbook: kubectl -n network rollout restart deploy envoy-gateway, then envoy-internal + envoy-external.
+        # 10m absorbs a normal controller roll. Skill `networking`, references/envoy-gateway.md.
         - alert: EnvoyProxyControlPlaneDisconnected
           expr: envoy_control_plane_connected_state{namespace="network"} == 0
           for: 10m
@@ -26,10 +22,9 @@ spec:
               rollout restart envoy-gateway then envoy-internal/envoy-external.
           labels:
             severity: critical
-        # The controller is crash-looping. On 2026-06-23 this was a liveness-kill
-        # (exit 137, reason=Error, NOT OOM — it idles ~160Mi) driven by stale proxies
-        # flooding the kubejwt auth interceptor with expired tokens. A crash-looping
-        # controller stops pushing xDS, which is what freezes the proxies above.
+        # The controller is crash-looping. Past cause: a liveness-kill (exit 137, not OOM) from stale proxies
+        # flooding the auth interceptor with expired tokens; a crash-looping controller stops pushing xDS, which
+        # freezes the proxies. Skill `networking`, references/envoy-gateway.md.
         - alert: EnvoyGatewayControllerCrashLooping
           expr: increase(kube_pod_container_status_restarts_total{namespace="network", pod=~"envoy-gateway-.*"}[15m]) >= 2
           for: 5m

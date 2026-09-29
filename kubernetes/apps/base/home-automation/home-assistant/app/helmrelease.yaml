@@ -21,11 +21,9 @@ spec:
 
         pod:
           annotations:
-            # Static IP only. MAC pin removed 2026-05-02 to fix macvlan
-            # "address already in use" race during pod recreation: with a
-            # pinned MAC on bond0.3, the kernel rejects the new pod's net1
-            # while the dying pod's veth still holds the same MAC. A fresh
-            # MAC each cycle eliminates the collision; IoT devices key on IP.
+            # Static IP only, no MAC pin: a pinned MAC on bond0.3 makes the kernel reject the
+            # new pod's net1 while the dying pod's veth holds it. IoT devices key on IP.
+            # Skill home-automation.
             k8s.v1.cni.cncf.io/networks: |
               [{
                 "name":"multus-iot",
@@ -47,20 +45,9 @@ spec:
             envFrom:
               - secretRef:
                   name: home-assistant
-            # This app had zero probes before this change (audited
-            # 2026-09-15): the container could run indefinitely while HA
-            # itself was wedged, still read Ready, and nothing would notice
-            # until the lights stopped working. /manifest.json is served
-            # without authentication (verified live, read-only, via
-            # in-cluster Service port-forward - status 200 with no session)
-            # so the probe measures HA's own HTTP server, not the ext_authz
-            # chain in front of the public route. Once this is live,
-            # kube_pod_status_ready reflects real responsiveness, which is
-            # enough on its own to activate the existing upstream
-            # KubePodNotReady rule (kubernetes-apps group, for: 15m,
-            # severity: warning) for this pod - no new PrometheusRule
-            # needed, and existing cluster-wide KubePodCrashLooping/OOMKilled
-            # rules already cover this namespace regardless of probes.
+            # /manifest.json is served without authentication, so the probe measures HA's own
+            # HTTP server, not the ext_authz chain in front of the public route. Pod readiness
+            # then drives the upstream KubePodNotReady rule. Skill home-automation.
             probes:
               liveness: &probes
                 enabled: true
@@ -92,12 +79,8 @@ spec:
             resources:
               requests:
                 cpu: 10m
-                # Explicit memory request. Without one, Kubernetes defaults
-                # requests.memory to limits.memory, so this container reserved
-                # the full 2Gi on its node while its 30-day peak working set
-                # was 393Mi (measured 2026-09-14). The limit is unchanged - it
-                # still bounds growth; only the scheduler reservation becomes
-                # honest. 768Mi is ~2x the measured peak.
+                # Explicit memory request: without one Kubernetes reserves the full 2Gi limit on
+                # the node. 768Mi is ~2x the 30-day peak working set of 393Mi. Skill node-scheduling.
                 memory: 768Mi
               limits:
                 memory: 2Gi
@@ -133,12 +116,9 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile: { type: RuntimeDefault }
-      # nodeTaintsPolicy: Honor - this workload has no toleration for the
-      # talos-3 home-operations.com/dedicated taint, but Honor only filters
-      # NoSchedule/NoExecute taints and the taint is now PreferNoSchedule, so
-      # it no longer excludes talos-3 from the spread domains; the
-      # TaintToleration score penalty keeps this workload off talos-3 under
-      # normal conditions instead (.agents/skills/node-scheduling/references/talos-3-ledger.md).
+      # nodeTaintsPolicy: Honor only filters NoSchedule/NoExecute taints. The talos-3
+      # dedicated taint is PreferNoSchedule, so talos-3 stays in the spread domains and
+      # the TaintToleration score penalty keeps this workload off it. Skill node-scheduling.
       topologySpreadConstraints:
         - maxSkew: 2
           topologyKey: kubernetes.io/hostname
@@ -161,16 +141,6 @@ spec:
         ports:
           code-server:
             port: 12321
-      # homebridge:
-      #   primary: false
-      #   controller: "home-assistant"
-      #   type: LoadBalancer
-      #   annotations:
-      #     "io.cilium/lb-ipam-ips": "10.40.0.100/16"
-      #   ports:
-      #     homekit:
-      #       port: 21061
-      #       protocol: TCP
 
     route:
       app:
@@ -209,12 +179,8 @@ spec:
     persistence:
       config:
         enabled: true
-        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
-        # on 2026-09-04 (Stage 5 wave three), and that overlay now defines no
-        # VOLSYNC_* key. The `:-home-assistant` default meant this kept rendering
-        # correctly either way, which is exactly why it is renamed rather than
-        # left to rot - a token naming a variable nothing defines is a silent
-        # trap for whoever edits it next. See ai/repo-wiki's precedent.
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: the overlay defines no VOLSYNC_* key, and the
+        # `:-home-assistant` default would hide a token naming a variable nothing defines.
         existingClaim: ${KOPIUR_CLAIM:-home-assistant}
         globalMounts:
           - path: /config

@@ -35,9 +35,8 @@ spec:
       APP: *app
       # Claim name differs from the app. The pvc component names the PVC from this. Skill `kopiur-backups`.
       KOPIUR_CLAIM: changedetection-config
-      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
-      # default, which would provision a rebuilt claim at 5x the live one.
-      # Matched to the LIVE claim (1Gi, holding 36 MiB - measured 2026-09-04).
+      # Inherited from the retired VOLSYNC_CAPACITY, not the component's 5Gi default (which would provision a
+      # rebuilt claim at 5x the live 1Gi).
       KOPIUR_CAPACITY: 1Gi
       # 2Gi default clears this snapshot. Namespace r2 hour; ceph stays on the component default.
       # Skill `kopiur-backups`.

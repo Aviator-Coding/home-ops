@@ -37,10 +37,7 @@ spec:
     - name: dragonfly-operator
       namespace: database
   components:
-    # BOTH backup systems, deliberately and simultaneously - the parallel-run
-    # safety property of migration Stage 3. volsync's entry is unchanged and
-    # stays that way until a restore has been demonstrated from kopiur for this
-    # volume (Stage 5).
+    # Dual-engine carve-out: volsync stays until a restore is demonstrated from kopiur. Skill `volsync-carveouts`.
     - ../../../../../components/volsync
     - ../../../../../components/kopiur
     - ../../../../../components/dragonfly
@@ -58,9 +55,8 @@ spec:
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Second volume: the volsync component above only protects the single ${VOLSYNC_CLAIM}
-# (`paperless-ngx`, the data PVC). `paperless-ngx-media` is the scanned-document store -
-# the originals and their archived PDFs - and is not reconstructible from the database.
+# Second volume: the volsync component above only protects the data PVC (`paperless-ngx`).
+# `paperless-ngx-media` is the scanned-document store - the originals and their archived PDFs - and is not reconstructible from the database.
 # The `paperless-ngx-consume` inbox is deliberately NOT backed up: paperless deletes
 # files from it once they are ingested into media, so it only ever holds transient state.
 apiVersion: kustomize.toolkit.fluxcd.io/v1

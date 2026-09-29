@@ -26,9 +26,7 @@ spec:
               tag: 2.1.5
             env:
               TZ: America/New_York
-              # Syncthing home directory for config/keys
               STHOMEDIR: /var/syncthing/config
-              # Data directory for synced files
               STGUIADDRESS: 0.0.0.0:8384
               STDEFAULTFOLDER: /var/syncthing/data
             resources:
@@ -84,16 +82,8 @@ spec:
     persistence:
       config:
         enabled: true
-        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
-        # on 2026-09-04 (Stage 5 wave three), and that overlay now defines no
-        # VOLSYNC_* key. The default is corrected to the literal claim name at
-        # the same time, because the old `:-*app` was a DANGLING YAML ALIAS,
-        # not an anchor reference - kustomize emits the token verbatim, so the
-        # moment VOLSYNC_CLAIM stopped being defined the render became
-        # `existingClaim: *app` and flate failed the whole Kustomization with
-        # `unknown anchor 'app' referenced`. The trap was recorded in
-        # .agents/skills/kopiur-backups/references/retirement-and-removal.md and never
-        # fired, because the overlay always set VOLSYNC_CLAIM until now.
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: the overlay defines no VOLSYNC_* key any more.
+        # Skill `kopiur-backups`, references/onboarding.md (dangling VolSync aliases).
         existingClaim: ${KOPIUR_CLAIM:-syncthing}
         globalMounts:
           - path: /var/syncthing/config

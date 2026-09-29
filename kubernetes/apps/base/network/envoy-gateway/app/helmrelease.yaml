@@ -12,12 +12,9 @@ spec:
   values:
     global:
       imageRegistry: mirror.gcr.io
-    # Controller deployment resources MUST live under `deployment.envoyGateway`.
-    # A `resources:` block under `config.envoyGateway` (where it was before) is part
-    # of the EnvoyGateway *config file* schema and is silently IGNORED, so the
-    # controller ran on chart defaults. 1Gi is ample — it idles ~160Mi and the
-    # 2026-06-23 exit-137 crashloop was a liveness-kill from a GatewayNamespaceMode
-    # SA-token auth storm (stale proxies), NOT an OOM. See prometheusrule.yaml.
+    # Controller resources MUST live under `deployment.envoyGateway`; a `resources:` block under
+    # `config.envoyGateway` is part of the config-file schema and is silently IGNORED.
+    # Skill `networking`, references/envoy-gateway.md.
     deployment:
       envoyGateway:
         resources:

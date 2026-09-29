@@ -108,12 +108,11 @@ spec:
                   failureThreshold: 3
             resources:
               requests:
-                cpu: 500m # Increased from 5m to 500m
+                cpu: 500m
                 memory: 2048Mi
               limits:
-                cpu: 4000m # Raised 2000m->4000m so par2/7zip aren't throttled (slow API trips probes)
-                # 10Gi: post-processing 60-80GB UHD remuxes (par2 + unrar)
-                # was OOMKilling at 6Gi.
+                cpu: 4000m # par2/7zip must not be throttled: a slow API trips the probes
+                # 10Gi: post-processing 60-80GB UHD remuxes (par2 + unrar) OOMKills below this.
                 memory: 10240Mi
             securityContext:
               allowPrivilegeEscalation: false
@@ -159,12 +158,10 @@ spec:
             app:
               - path: /data/downloads
 
-      # Article-assembly scratch (download_dir) on ceph-block (RWO, block) instead
-      # of CephFS RWX, to keep the thousands of tiny SABnzbd_article_* files off the
-      # MDS metadata journal (2026-06-14 storm stalled the whole filesystem). Mounts
-      # over the usenet/incomplete subpath of the shared-downloads CephFS mount;
-      # `complete` stays on shared-downloads (CephFS RWX) for *arr hardlinks. Path
-      # matches download_dir in sabnzbd.ini so no SABnzbd setting change is needed.
+      # download_dir scratch on ceph-block, not CephFS: thousands of tiny
+      # SABnzbd_article_* files storm the MDS metadata journal. Mounts over the
+      # usenet/incomplete subpath; `complete` stays on shared-downloads for *arr
+      # hardlinks. Path matches download_dir in sabnzbd.ini. Skill media-stack.
       incomplete:
         existingClaim: sabnzbd-incomplete
         advancedMounts:
@@ -188,7 +185,6 @@ spec:
           gethomepage.dev/group: Downloads
           gethomepage.dev/name: *app
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/sabnzbd.svg
-          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "SABnzbd is an open source binary newsreader written in Python. It simplifies the process of downloading from Usenet."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=sabnzbd
         hostnames:

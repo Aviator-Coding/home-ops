@@ -38,10 +38,7 @@ spec:
           memory: 1Gi
         requests:
           cpu: 71m
-          # 14d peak 364Mi over 24,354 samples. 640Mi is 1.76x it - tighter
-          # than the other right-sizings in this sweep because coderd grows
-          # with concurrent workspace builds and the peak is the least flat
-          # of the set. Limit unchanged at 1Gi.
+          # Request tracks peak working set with tight headroom: coderd grows with concurrent workspace builds.
           memory: 640Mi
       envFrom:
         - secretRef:
@@ -94,17 +91,12 @@ spec:
         - name: CODER_UPDATE_CHECK
           value: "false"
 
-      # service:
       service:
           enabled: true
           ports:
             http:
               port: 8080
           type: ClusterIP
-      # ingress:
-      #   enable: true
-      #   className: internal
-      #   host: "coder.${SECRET_DOMAIN}"
   postRenderers:
     - kustomize:
         patches:

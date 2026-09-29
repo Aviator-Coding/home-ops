@@ -19,20 +19,11 @@ spec:
       retries: 3
   values:
     fullnameOverride: *app
-    # `affinity` NotIn talos-3 REMOVED 2026-09-26: it is now redundant.
-    # talos-3 carries a home-operations.com/dedicated taint
-    # (talos/nodes/talos-3.yaml.j2) and this app gets no toleration for it.
-    # The taint was NoSchedule (a hard filter, equivalent to the removed
-    # affinity) at the time of this removal; it was switched the same day to
-    # PreferNoSchedule (a scheduler score penalty, not a filter), so what now
-    # keeps this app off talos-3 in normal operation is the 300-point
-    # TaintToleration gap (.agents/skills/node-scheduling/references/talos-3-ledger.md), not
-    # an absolute exclusion - a per-app deny-list entry is still not
-    # reinstated here because it would fail open the same way the removed
-    # one did for anything that forgets to carry it.
+    # `affinity` NotIn talos-3 is not needed: the talos-3 PreferNoSchedule taint (no toleration here)
+    # keeps this app off it via the TaintToleration score. Skill `node-scheduling`, references/talos-3-ledger.md.
     image:
-      # Chart 0.6.2 stamps this digest at package time; keep it explicit so we
-      # never float on :latest/:rolling. Digest wins over tag in the chart helper.
+      # The chart stamps this digest at package time; keep it explicit so we never float on :latest/:rolling.
+      # Digest wins over tag in the chart helper.
       tag: "0.6.2"
       digest: sha256:cf5d2656a059a430ecf1eaf87eb58854f00692e2dfbe3b2476a6f88c441a44fb
     config:
@@ -45,8 +36,7 @@ spec:
       # way helm-controller will. tpl'd by the chart.
       kubeVersion: "{{ .Capabilities.KubeVersion.Version }}"
       logFormat: json
-      # Read-only pilot (captain 2026-08-29): write-back stays off. Do not
-      # enable these, and do not add secret.writeToken / app credentials.
+      # Read-only pilot: write-back stays off. Do not enable these, and do not add secret.writeToken / app credentials.
       statusChecks: false
       prComments: false
       renderForkPrs: false

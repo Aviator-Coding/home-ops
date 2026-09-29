@@ -19,26 +19,14 @@ spec:
           resources:
             requests:
               cpu: 100m
-              # Explicit memory request. Without one Kubernetes defaults
-              # requests.memory to limits.memory, so every envoy pod (2 per
-              # gateway x 2 gateways = 4) reserved a full 1Gi. Measured
-              # 2026-09-14: 30-day peak working set is 200Mi on the busiest
-              # (envoy-external) and 105Mi on envoy-internal. The 1Gi limit is
-              # unchanged and still absorbs traffic spikes.
+              # Explicit memory request: without one, requests.memory defaults to the 1Gi limit and every envoy pod
+              # (4 in total) reserves all of it. The request tracks observed peak; the limit still absorbs spikes.
               memory: 256Mi
             limits:
               memory: 1Gi
-        # The gateway-helm v1.7.1 CRD does not expose
-        # envoyDeployment.container.lifecycle or pod.terminationGracePeriodSeconds.
-        # Use the strategic-merge `patch` escape hatch to override the
-        # chart-injected envoy preStop (httpGet :19002/shutdown/ready).
-        # That probe polls the sibling shutdown-manager container; when the
-        # shutdown-manager finishes its own preStop
-        # (`envoy-gateway envoy shutdown --drain-timeout=180s`) and exits,
-        # port 19002 disappears and kubelet records FailedPreStopHook on the
-        # envoy container. Replacing it with a passive sleep lets the
-        # shutdown-manager-driven graceful drain run uninterrupted; envoy
-        # still receives SIGTERM and drains via spec.shutdown.drainTimeout.
+        # The gateway-helm CRD does not expose envoyDeployment.container.lifecycle or
+        # pod.terminationGracePeriodSeconds, so the strategic-merge `patch` replaces the chart-injected envoy
+        # preStop. Skill `networking`, references/envoy-gateway.md.
         patch:
           type: StrategicMerge
           value:

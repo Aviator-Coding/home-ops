@@ -1,8 +1,7 @@
 ---
-# Daily janitor for the shared-downloads CephFS volume (2026-07-03 incident:
-# the 2 Ti PVC hit 96% and tripped SABnzbd's complete_free=100G auto-pause;
-# ~1 TiB of it was orphaned _UNPACK_*/_FAILED_* dirs — SAB retry-loops unpacks
-# as the disk fills and never garbage-collects the failed attempts).
+# Daily janitor for the shared-downloads CephFS volume. SABnzbd retry-loops
+# unpacks as the disk fills and never garbage-collects the failed attempts, and
+# orphaned _UNPACK_*/_FAILED_* dirs fill the PVC until complete_free auto-pauses SAB.
 # Full writeup: .agents/skills/media-stack/references/sabnzbd-disk-space.md
 #
 # Scope is DELIBERATELY narrow — depth-2 under usenet/complete only

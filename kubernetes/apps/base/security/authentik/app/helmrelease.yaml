@@ -38,7 +38,6 @@ spec:
       deploymentAnnotations:
         secret.reloader.stakater.com/reload: &secret authentik-secret
       env:
-        # Media file storage
         - name: AUTHENTIK_STORAGE__MEDIA__BACKEND
           value: s3
         - name: AUTHENTIK_STORAGE__MEDIA__S3__USE_SSL
@@ -55,7 +54,6 @@ spec:
           value: $(BUCKET_NAME)
         - name: AUTHENTIK_STORAGE__MEDIA__S3__CUSTOM_DOMAIN
           value: $(BUCKET_HOST):$(BUCKET_PORT)/$(BUCKET_NAME)
-          # Authentik
         - name: AUTHENTIK_DISABLE_STARTUP_ANALYTICS
           value: "false"
         - name: AUTHENTIK_DISABLE_UPDATE_CHECK
@@ -114,11 +112,3 @@ spec:
         enabled: true
         serviceMonitor:
           enabled: true
-
-    # Need to sort out the storage
-    # persistence:
-    #   config:
-    #     enabled: true
-    #     existingClaim: *app
-    #     globalMounts:
-    #       - path: /data/config

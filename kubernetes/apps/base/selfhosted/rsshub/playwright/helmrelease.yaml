@@ -49,11 +49,8 @@ spec:
                   - ALL
                 add:
                   - SYS_ADMIN
-    # `selfhostedPodOptions` is not a key the app-template chart knows, so Helm
-    # silently discarded this whole block and the pod shipped with an EMPTY
-    # securityContext. It appeared exactly once in the repo against 31 correct
-    # `defaultPodOptions` uses, and nothing catches it: it is legal YAML, flate
-    # passes, and the HelmRelease reconciles green.
+    # `selfhostedPodOptions` is not an app-template key, so Helm silently discarded this block and the
+    # pod ran with an EMPTY securityContext (legal YAML, flate passes, HelmRelease green). Skill `app-workloads`.
     defaultPodOptions:
       securityContext:
         runAsNonRoot: false
@@ -76,11 +73,8 @@ spec:
               - identifier: app
                 port: &port 3000
     persistence:
-      # browserless keeps no durable state: DATA_DIR held nothing but the
-      # `lost+found` mkfs artifact, and even browserless's own metrics go to
-      # the /tmp emptyDir below. The 5Gi ceph-block claim and its three
-      # ReplicationSources protected zero bytes, so both are removed here per
-      # the 2026-08-30 captain decision.
+      # browserless keeps no durable state (DATA_DIR held only `lost+found`; metrics go to the /tmp
+      # emptyDir below), so there is no PVC and nothing to back up.
       config:
         type: emptyDir
         globalMounts:

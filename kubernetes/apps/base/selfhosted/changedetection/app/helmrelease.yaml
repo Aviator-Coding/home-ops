@@ -21,21 +21,11 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    # Identity is declared POD-level, matching every other onboarded app in the
-    # fleet, so the workload identity lives in one place rather than only on the
-    # container that happens to mount the claim. `browser` (browserless/chrome)
-    # then needs its own container-level override back to its image's
-    # `blessuser` uid 999 - see its comment below for why it cannot move.
-    #
-    # This placement does NOT buy kopiur's `SecurityContextCompatible`
-    # condition, and nothing here can: measured 2026-08-31, the operator emits
-    # it only when the mover uid matches EVERY container of every pod mounting
-    # the claim, initContainers included, so the 999 sidecar suppresses it even
-    # though it mounts nothing. The condition is positive-only - its absence is
-    # neither a pass nor a failure - and `database/pgadmin` is absent for the
-    # identical reason (root `fix-permissions` initContainer). What actually
-    # proves this identity works is that kopia read the whole volume: see
-    # `components/kopiur/Readme.md` "SecurityContextCompatible".
+    # Identity is declared pod-level like the rest of the fleet; `browser` (browserless/chrome) overrides
+    # back to its image's `blessuser` uid 999 (see below). This does NOT earn kopiur's
+    # `SecurityContextCompatible` condition: it needs the mover uid to match every container of every pod
+    # mounting the claim, and the 999 sidecar suppresses it. The condition is positive-only (absence is not
+    # a failure); a whole-volume kopia read is the proof. See `components/kopiur/Readme.md`.
     defaultPodOptions:
       securityContext:
         runAsUser: 1000
@@ -50,14 +40,9 @@ spec:
             image:
               repository: ghcr.io/dgtlmoon/changedetection.io
               tag: 0.55.8@sha256:5438423d5e906eff4e8f7886823482ad23f472bf7b8530ccaca89fb48c337882
-            # Identity (1000:1000, inherited from defaultPodOptions above) is
-            # MEASURED, not declared-and-hoped: the image default is root, and
-            # before this the pod ran as uid 0 while the overlay claimed
-            # 2000:2000 and both VolSync movers ran 1000:1000. 1000:1000 is the
-            # only value with a real claim to the data - every file and every
-            # setgid directory under /datastore is already group 1000 (the stamp
-            # of a VolSync restore mover) - and it is kopiur's fleet default, so
-            # no KOPIUR_PUID/PGID override is needed.
+            # Identity 1000:1000 (from defaultPodOptions) is measured: the image default is root, every file and
+            # setgid directory under /datastore is already group 1000, and it is kopiur's fleet default, so no
+            # KOPIUR_PUID/PGID override is needed.
             env:
               PORT: &port 5000
               USE_X_SETTINGS: 1
@@ -73,13 +58,9 @@ spec:
               repository: docker.io/browserless/chrome
               tag: latest@sha256:57d19e414d9fe4ae9d2ab12ba768c97f38d51246c5b31af55a009205c136012f
               pullPolicy: IfNotPresent
-            # Overrides the pod-level 1000:1000 back to this image's own
-            # `blessuser`, and this is NOT cosmetic: tested at uid 1000 on
-            # 2026-08-31, Chrome fails to launch outright
-            # (`chrome_crashpad_handler: --database is required`, "retries
-            # exhausted") while the container still reports Ready - so every
-            # browser-backed watch would break silently. It mounts no PVC, so
-            # nothing about the backup identity depends on it.
+            # Overrides the pod-level 1000:1000 back to the image's `blessuser` (999): at uid 1000 Chrome fails to
+            # launch (`chrome_crashpad_handler: --database is required`) while the container still reports Ready,
+            # silently breaking every browser-backed watch. It mounts no PVC, so the backup identity is unaffected.
             securityContext:
               runAsUser: 999
               runAsGroup: 999
@@ -129,13 +110,8 @@ spec:
     persistence:
       config:
         enabled: true
-        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
-        # on 2026-09-04 (Stage 5 wave three), and that overlay now defines no
-        # VOLSYNC_* key. Unlike its siblings this token carries NO `:-default`,
-        # so leaving it reading VOLSYNC_CLAIM would have rendered an EMPTY
-        # existingClaim the moment the key went away - a silently different
-        # failure from the dangling-alias trap the wave-two record describes,
-        # and one flate would not have caught either.
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM. This token has no `:-default`, so a stale VOLSYNC_CLAIM would render an
+        # EMPTY existingClaim. Skill `kopiur-backups`, references/onboarding.md.
         existingClaim: "${KOPIUR_CLAIM}"
         advancedMounts:
           main:

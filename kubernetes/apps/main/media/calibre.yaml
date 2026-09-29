@@ -44,11 +44,6 @@ spec:
       # Claim name matches the app, so KOPIUR_CLAIM is omitted. Capacity is create-time only (ssa IfNotPresent).
       # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 20Gi
-      # The retired VOLSYNC_PUID/PGID of 2000:2000 are gone with the Component
-      # that read them. The identity itself is NOT lost: KOPIUR_PUID/PGID on
-      # the `calibre-web-automated-kopiur` Kustomization below carry the same
-      # measured 2000:2000, and that is now the only mover identity this claim
-      # has. Do not restore the VOLSYNC_ pair - nothing reads it.
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -100,8 +95,8 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
-    # Deliberately no dependsOn calibre-web-automated - see header GREENFIELD
-    # ORDERING. kopiur-repository is the dependency that actually matters.
+    # Deliberately no dependsOn calibre-web-automated (greenfield deadlock).
+    # kopiur-repository is the dependency that matters. Skill `kopiur-backups`.
     - name: kopiur-repository
       namespace: system
   postBuild:
@@ -114,7 +109,5 @@ spec:
       # match. Skill `kopiur-backups`.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
-      # Namespace r2 hour. Hour 15 carries no remaining dual-engine volsync
-      # destination collision for this claim and no kopiur ceph slot
-      # (01/05/09/13/17/21).
+      # Namespace r2 hour, outside the kopiur ceph slots (01/05/09/13/17/21).
       KOPIUR_SCHEDULE_R2: "H 15 * * *"

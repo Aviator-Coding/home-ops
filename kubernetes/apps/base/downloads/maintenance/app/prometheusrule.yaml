@@ -1,10 +1,10 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
-# Capacity tripwire from the 2026-07-03 incident: shared-downloads (2 Ti CephFS
-# RWX) silently filled to 96% with dead data, SABnzbd hit its complete_free=100G
-# auto-pause and the whole usenet pipeline froze — nothing alerted first.
-# 100G ≈ 5% of 2 Ti, so these thresholds (15% warn / 7% crit) fire BEFORE the
-# pause trips. Runbook: .agents/skills/media-stack/references/sabnzbd-disk-space.md
+# Capacity tripwire: shared-downloads (2 Ti CephFS RWX) filling with dead data
+# hits SABnzbd's complete_free=100G auto-pause and freezes the usenet pipeline.
+# 100G is about 5% of 2 Ti, so these thresholds (15% warn / 7% crit) fire BEFORE
+# the pause trips.
+# Runbook: .agents/skills/media-stack/references/sabnzbd-disk-space.md
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

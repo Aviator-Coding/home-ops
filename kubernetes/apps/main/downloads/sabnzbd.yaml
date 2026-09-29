@@ -39,9 +39,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # The claim is `sabnzbd-config` while the app is `sabnzbd`. This is the
-      # common case for real apps, and autobrr (claim name == app name) never
-      # exercised it. It now also drives the pvc Component's PVC name.
+      # Claim name differs from the app. The pvc component names the PVC from this. Skill `kopiur-backups`.
       KOPIUR_CLAIM: sabnzbd-config
       # Create-time only under ssa IfNotPresent. A rebuild provisions this size, not the component default.
       # Skill `kopiur-backups`.

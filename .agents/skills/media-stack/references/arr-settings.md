@@ -16,6 +16,12 @@ nothing in Git deletes it if someone adds it back in the UI.
 | `/data/downloads/usenet/incomplete` | `sabnzbd-incomplete` RBD | SABnzbd pod only. The mount shadows that path on CephFS |
 | `/data/nas-media` | NFS `nas` media export | *arr imports |
 
+The incomplete scratch is RBD (`ceph-block`) on purpose: article assembly
+writes thousands of tiny `SABnzbd_article_*` files, which on CephFS storm the
+MDS metadata journal and can stall the whole filesystem. Finished media moves
+to `complete` on the CephFS volume so the *arr hardlink-style import flow is
+unchanged. Do not move `download_dir` back to CephFS.
+
 Hardlinks between CephFS and NFS cannot work. Sonarr and Radarr copy on
 import, so a large import briefly uses the space twice.
 

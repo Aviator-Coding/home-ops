@@ -9,13 +9,10 @@ components:
   - ../../../components/alerts
 
 resources:
-  # Pre Flux-Kustomizations
-  # - ./namespace.yaml
-  # Flux-Kustomizations
   - ./esphome.yaml
   - ./home-assistant.yaml
   - ./matter-server.yaml
-  - ./zigbee2mqtt.yaml # We sare using SLZB-06M
+  - ./zigbee2mqtt.yaml
 
 # Patch target is not-used. The annotation admits a root mover for the whole namespace; it does not change any other claim's uid.
 # Skill `kopiur-backups`.

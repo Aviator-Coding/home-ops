@@ -43,12 +43,9 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: media
             app.kubernetes.io/name: plex-exporter
-    # Allow DNS replies from CoreDNS in kube-system. No ports restriction here
-    # on purpose - same reasoning as loki-ingress/AGENTS.md: Cilium
-    # reply-conntrack fails to correlate a DNS reply back to its request when
-    # the client pod's node also hosts a CoreDNS replica, so this pod is
-    # structurally exposed whenever it lands on talos-1/talos-2 even though
-    # it is currently safe by placement luck (talos-3, no local CoreDNS).
+    # Allow DNS replies from CoreDNS in kube-system. No ports restriction on purpose:
+    # Cilium reply-conntrack fails to correlate a DNS reply to its request when the
+    # client pod's node also hosts a CoreDNS replica. Skill networking.
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
