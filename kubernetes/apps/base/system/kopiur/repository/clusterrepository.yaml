@@ -170,8 +170,14 @@ spec:
       name: kopiur-r2-secret
       namespace: system
       key: KOPIA_PASSWORD
+  # CONNECT-ONLY, unlike `ceph`. r2 is the copy that survives a full-cluster
+  # loss and already exists (bootstrapped 2026-08-30), so a rebuilt cluster must
+  # find it, never create it: a wrong endpoint, bucket or credential then fails
+  # as RepositoryNotInitialized instead of silently initializing a second,
+  # empty "r2". Governs first bootstrap only; no effect on the live repository.
+  # Full rebuild: docs/backups/full-cluster-restore-from-r2.md.
   create:
-    enabled: true
+    enabled: false
   mode: ReadWrite
   # See the `ceph` repository above for the full rationale. Same owner-side
   # consent, same three-leg gate, same captain decision (`credential-scope`).

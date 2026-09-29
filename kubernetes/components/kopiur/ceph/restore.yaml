@@ -61,18 +61,13 @@ spec:
   target:
     populator: {}
   policy:
-    # Deploy-or-restore, and a DELIBERATE departure from the CRD's `Fail`
-    # default. `Continue` provisions an EMPTY volume when the policy has no
-    # snapshot yet, which is what makes a first deploy of a brand-new app work
-    # at all; `Fail` would wedge the claim forever waiting for history that
-    # cannot exist. This mirrors VolSync's ReplicationDestination behaviour and
-    # is the setting both large adopters ship.
-    #
-    # The trade-off is real and worth stating: `Continue` means a restore that
-    # finds nothing silently yields an empty volume instead of erroring. That is
-    # correct for a populator seeding a fresh claim and WRONG for a drill, which
-    # is the other reason a drill uses its own scratch Restore (fail-closed).
-    onMissingSnapshot: Continue
+    # INVARIANT: fail-closed. A restore that finds no snapshot must fail loudly
+    # (Restore Failed, claim unbound, KopiurRestoreFailed), never provision an
+    # empty volume. Only claims with history consume this object, and after a
+    # full-cluster loss `Continue` would bring every claim back empty and green,
+    # then back that emptiness up to r2 as its newest snapshot.
+    # Full rebuild: docs/backups/full-cluster-restore-from-r2.md.
+    onMissingSnapshot: Fail
   mover:
     podSecurityContext:
       runAsUser: ${KOPIUR_PUID:-1000}

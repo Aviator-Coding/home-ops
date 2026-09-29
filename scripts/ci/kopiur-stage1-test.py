@@ -57,7 +57,7 @@ This test does not grep source text as its evidence. It:
          native bare H minute, and HOUR slots that cannot collide with the
          pilot's VolSync schedules (ceph odd 4h vs even :45; r2 11 vs 03)
        - Restore is ${APP}-kopiur-dst (not ${APP}-dst), passive populator,
-         onMissingSnapshot Continue, ssa IfNotPresent
+         onMissingSnapshot Fail (fail-closed), ssa IfNotPresent
        - parent Component resources only ./backup (no pvc.yaml)
        - downloads/autobrr is fully absent (overlay, app directory and
          namespace-kustomization entry), and no other overlay picked up its
@@ -665,8 +665,9 @@ def test_restore_passive_contract(docs: list[dict[str, Any]]) -> None:
     )
     policy = spec.get("policy") or {}
     require(
-        policy.get("onMissingSnapshot") == "Continue",
-        f"onMissingSnapshot must be Continue (deploy-or-restore), got {policy}",
+        policy.get("onMissingSnapshot") == "Fail",
+        "onMissingSnapshot must be Fail: an empty repository must fail the restore "
+        f"loudly, never provision an empty volume (full-cluster loss), got {policy}",
     )
     cache = ((spec.get("mover") or {}).get("cache")) or {}
     require(cache.get("mode") == "Ephemeral", f"Restore cache must be Ephemeral, got {cache}")
