@@ -56,8 +56,7 @@ spec:
             resources:
               requests:
                 cpu: 25m
-                # 14d peak 48Mi over 48,142 samples (mkdocs serve --dirty on a
-                # small tree). 128Mi is 2.7x it. Limit unchanged.
+                # 128Mi is 2.7x the observed 14d peak (48Mi). Limit unchanged.
                 memory: 128Mi
               limits:
                 memory: 512Mi
@@ -120,23 +119,14 @@ spec:
             resources:
               requests:
                 cpu: 100m
-                # 14d peak 41.9Mi, the worst of 10 observed 12-hourly runs
-                # (the rest sat 24.5-30.1Mi). 128Mi is 3.0x it. This is not
-                # only a reservation win: at 2Gi the job needed 2Gi free on
-                # whichever node mkdocs holds - its podAffinity pins it there -
-                # and talos-3 has had less than that. Limit unchanged.
+                # 128Mi is 3.0x the observed 14d peak (41.9Mi). A 2Gi request needed 2Gi free on
+                # the node mkdocs holds (podAffinity pins it there). Limit unchanged.
                 memory: 128Mi
               limits:
                 memory: 2Gi
 
     persistence:
       data:
-        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
-        # on 2026-09-01 (Stage 5 pilot) and the overlay no longer defines any
-        # VOLSYNC_* key. The `:-repo-wiki` default meant this kept rendering
-        # correctly under Flux's strict envsubst either way, which is exactly
-        # how a stale reference survives unnoticed - it is renamed rather than
-        # left to rot. The claim name is unchanged.
         existingClaim: ${KOPIUR_CLAIM:-repo-wiki}
         advancedMounts:
           mkdocs:

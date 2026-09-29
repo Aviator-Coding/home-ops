@@ -21,7 +21,7 @@ spec:
 # Reached ONLY via the unified /v1 router (../httproute-unified.yaml) by model
 # name (claude-*); `Completions` translates OpenAI Chat Completions -> Anthropic
 # Messages, and the unified /v1/messages rule keeps the native protocol for
-# Anthropic-SDK clients. No per-provider path route exists anymore.
+# Anthropic-SDK clients.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:

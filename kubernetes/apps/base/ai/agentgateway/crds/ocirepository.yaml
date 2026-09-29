@@ -12,6 +12,6 @@ spec:
   ref:
     tag: v1.4.1
   # ghcr mirror of the same chart (identical digest to cr.agentgateway.dev).
-  # CI flate reconcile hit Cloudflare 522s on cr.agentgateway.dev HEAD checks
-  # (2026-08-31, PR #1527 Diff-ks); GHCR is the durable public pull path.
+  # CI flate reconcile hit Cloudflare 522s on cr.agentgateway.dev HEAD checks;
+  # GHCR is the durable public pull path.
   url: oci://ghcr.io/agentgateway/charts/agentgateway-crds

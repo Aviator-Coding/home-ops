@@ -46,7 +46,6 @@ spec:
           port: 4000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/httproutefilter_v1alpha1.json
-# Referenced by the /anthropic rule above.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: HTTPRouteFilter
 metadata:

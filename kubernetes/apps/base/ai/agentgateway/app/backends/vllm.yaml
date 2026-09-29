@@ -30,7 +30,7 @@ spec:
 # (../httproute-unified.yaml) resolves the exact model id qwen3.6-35b-a3b
 # through this backend, so EVERY client of the local model transparently
 # gains the cloud failover. Embeddings are deliberately excluded: a fallback
-# embedder at different dimensions would corrupt agentmemory's vector index.
+# embedder at different dimensions would corrupt a consumer's vector index.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -61,7 +61,7 @@ spec:
                   name: opencodego-secret
 ---
 # REQUIRED for failover: without a health policy targeting the backend,
-# providers are never evicted and group 2 is never tried (verified live).
+# providers are never evicted and group 2 is never tried.
 # Connection failures count toward eviction too; a 429 Retry-After header
 # overrides the eviction duration.
 apiVersion: agentgateway.dev/v1alpha1

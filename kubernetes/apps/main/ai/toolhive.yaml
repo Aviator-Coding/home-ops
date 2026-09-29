@@ -68,8 +68,7 @@ spec:
   path: "./kubernetes/apps/base/ai/toolhive/config"
   prune: true
   # mcp-gateway-internal (Deployment) and mcp-tools-embedding (StatefulSet)
-  # are the workloads the VirtualMCPServer/EmbeddingServer CRs in this path
-  # render to; verified live against the running cluster.
+  # are the workloads the VirtualMCPServer/EmbeddingServer CRs in this path render to.
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
