@@ -61,9 +61,6 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "bench script is outside this domain; the matrix lives in skill b70-llm-serving",
     ("scripts/bench/vllm-prefill-by-depth.py", "docs/ai/vllm-onednn-sdpa-leak.md"):
         "bench script is outside this domain; section 8b lives in skill b70-llm-serving references/memory.md",
-    (".renovate/overrides.json5", "docs/ai-system/litellm/auto-router.md"):
-        "editing .renovate/** fires renovate.yaml's push trigger on merge (AGENTS.md NOTES); "
-        "retarget to skill litellm-proxy references/auto-router.md with the next deliberate .renovate change",
     ("docs/backups/autobrr-removal-2026-09-02.md", "docs/reference.md"):
         "dated report records which docs it edited",
     ("docs/grafana-operator-removal.md", "docs/reference.md"):
