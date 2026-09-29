@@ -22,19 +22,8 @@ spec:
     timezone: America/New_York
     cronJobTimeZone: true
 
-    # Injected bootstrap initContainers get requests==limits so they never
-    # disqualify a pod from Guaranteed QoS (Talos runtime.OOMController skips
-    # Guaranteed cgroups - the rook-ceph mons depend on this; a resource-less
-    # k8tz init kept them Burstable despite requests==limits everywhere else).
-    #
-    # The imageVolume strategy this block once said to revisit HAS shipped (it
-    # is chart 0.20.0, already pinned below - there is no bump to make) and was
-    # evaluated on 2026-09-01 and DECLINED. It would drop these init containers
-    # and the mons stay Guaranteed, but upstream's own README says initContainer
-    # "remains the recommended strategy for now, because imageVolume currently
-    # does not support mounting /etc/localtime" - which would silently leave 242
-    # containers resolving /etc/localtime as UTC. Full evidence, and the two
-    # upstream conditions that reopen it: docs/k8tz-imagevolume-evaluation.md
+    # Init requests equal limits, so an injected init does not demote a Guaranteed pod. imageVolume stays off: it cannot mount /etc/localtime.
+    # See skill system-namespaces.
     initContainerResources:
       requests:
         cpu: 100m
@@ -43,46 +32,9 @@ spec:
         cpu: 100m
         memory: 128Mi
 
-    # The controller itself was the cluster's only BestEffort pod, so Talos
-    # runtime.OOMController SIGKILLed it on every PSI spike (9 times in 33h
-    # on talos-1, 2026-09-06). requests==limits on every container makes the
-    # pod Guaranteed, which that controller skips. Working set 2026-09-06:
-    # k8tz 12-14Mi / 2-3m, cert-watcher 7-8Mi / <1m. The chart's `resources`
-    # only cover the webhook container; the cert-watcher sidecar is patched
-    # to the same values below so the pod is not left Burstable.
+    # Webhook request equals limit. Raising only the limit demotes the pod to Burstable. Chart resources do not cover cert-watcher.
+    # See skill system-namespaces.
     resources:
-      # cpu 50m -> 250m on BOTH request and limit (2026-09-20). Raised together
-      # on purpose: Guaranteed QoS needs request == limit on every container, and
-      # the whole reason this block exists is to keep that (see above). Raising
-      # only the limit would silently demote the pod to Burstable and re-open the
-      # 2026-09-06 OOMController kills. Memory is deliberately untouched.
-      #
-      # Why it had to move: a CPU limit is an ABSOLUTE CFS quota per 100ms
-      # period, not a share of the node. At 50m this webhook got 5ms of CPU per
-      # 100ms - and it is a MutatingWebhookConfiguration with
-      # failurePolicy: Fail and timeoutSeconds: 10, so its latency is on the
-      # critical path of every pod CREATE in all 21 covered namespaces.
-      #
-      # Measured from the API server's own admission histogram over 7d
-      # (8,466 calls to admission-controller.k8tz.io, 2026-09-20):
-      #
-      #   p50   18 ms     <- the actual CPU cost of one admission
-      #   p90  286 ms
-      #   p99  671 ms
-      #   max  1.0-2.5 s bucket
-      #
-      # The arithmetic closes: 18ms of work against a 5ms-per-100ms quota needs
-      # 4 periods, i.e. ~360ms wall - which is p90 (286ms) almost exactly. The
-      # container was throttled in 29.6% of its CFS periods over 7d while its
-      # MEAN usage was only 2-3m, because admission work arrives as microsecond
-      # bursts that exhaust a 50m quota instantly. Mean usage is not evidence
-      # about a bursty workload's limit.
-      #
-      # At 250m the quota is 25ms per 100ms, so a p50 admission fits in a single
-      # period. Nothing was failing - 0 rejections and 0 timeouts in 7d - but the
-      # worst observed call was already 25% of the way to the 10s timeout that
-      # would fail every pod CREATE cluster-wide, and CPU throttling produces
-      # exactly this kind of slow-and-silent degradation rather than a crash.
       requests:
         cpu: 250m
         memory: 64Mi
@@ -107,16 +59,8 @@ spec:
                   app.kubernetes.io/name: k8tz
               topologyKey: kubernetes.io/hostname
 
-    # Preferred anti-affinity above can still co-locate both replicas. With
-    # webhook failurePolicy: Fail that would fail every pod CREATE in 21
-    # namespaces for the duration of a node event. DoNotSchedule plus the
-    # PDB in pdb.yaml keep them on distinct nodes.
-    # nodeTaintsPolicy: Honor - this workload has no toleration for the
-    # talos-3 home-operations.com/dedicated taint, but Honor only filters
-    # NoSchedule/NoExecute taints and the taint is now PreferNoSchedule, so
-    # it no longer excludes talos-3 from the spread domains; the
-    # TaintToleration score penalty keeps this workload off talos-3 under
-    # normal conditions instead (docs/talos-3-scheduling-truth.md section 9).
+    # DoNotSchedule spread plus the PDB. Honor does not see the current PreferNoSchedule taint.
+    # See skill node-scheduling.
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
@@ -140,9 +84,8 @@ spec:
               kind: Namespace
               metadata:
                 name: not-used
-          # Chart 0.20.0 applies .Values.resources only to the webhook
-          # container. The cert-watcher sidecar ships with resources: {}
-          # and would keep the pod Burstable (and OOM-eligible) otherwise.
+          # Chart resources skip cert-watcher. Keep this patch request equal to limit or the pod stays Burstable.
+          # See skill system-namespaces.
           - target:
               version: v1
               kind: Deployment

@@ -9,17 +9,8 @@ spec:
     kind: OCIRepository
     name: multus
   interval: 1h
-  # talos-3 carries a home-operations.com/dedicated taint
-  # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
-  # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
-  # section 9). The chart hardcodes this DaemonSet's tolerations to
-  # CriticalAddonsOnly only
-  # (multus.hardcodedValues in the chart's templates/common.yaml, merged with
-  # `mergeOverwrite .Values (hardcodedValues)` - i.e. the chart's own value
-  # always wins, so a `values.controllers.multus.pod.tolerations` override
-  # here is silently discarded; verified with `helm template` against this
-  # chart version). A postRenderer JSON6902 patch is the only way to add a
-  # toleration without forking the chart. See docs/talos-3-scheduling-truth.md.
+  # Chart mergeOverwrite drops values tolerations. This JSON6902 add is the only in-repo path. Effect must stay PreferNoSchedule.
+  # See skill node-scheduling.
   postRenderers:
     - kustomize:
         patches:
@@ -42,9 +33,7 @@ spec:
       resources:
         requests:
           cpu: 10m
-          # Explicit memory request: a limit-only declaration makes Kubernetes
-          # reserve the whole limit, so this DaemonSet held 512Mi on every node
-          # against a 30-day peak working set of 7Mi (measured 2026-09-14).
+          # Explicit request. A limit with no request reserves the whole limit. See skill node-scheduling.
           memory: 64Mi
         limits:
           memory: 512Mi

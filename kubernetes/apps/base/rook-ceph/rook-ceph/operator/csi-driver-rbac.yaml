@@ -1,16 +1,7 @@
 ---
-# Workaround for https://github.com/rook/rook/issues/17644 — rook v1.20.0 deploys the
-# ceph-csi-operator and Driver CRs, but ships neither the driver ServiceAccounts nor
-# their RBAC, so the ctrlplugin Deployments / nodeplugin DaemonSets wedge at 0/N
-# (FailedCreate: serviceaccount not found) and all RBD/CephFS attach/detach breaks.
-# Vendored from ceph-csi-operator v1.0.1 deploy/multifile/csi-rbac.yaml (rbd + cephfs
-# subset only; nfs/nvmeof excluded), with the ServiceAccount names de-prefixed to match
-# rook's blank csiServiceAccountPrefix default and namespace set to rook-ceph.
-# Keep until a ceph-csi-drivers chart (or equivalent) is added to GitOps.
-# Rook #17644 resolution was "install the CSI driver charts", not "v1.20.1
-# bakes RBAC into the operator chart". Charts are v1.20.4 and this file is
-# still required; deleting it reproduces FailedCreate: serviceaccount not
-# found and breaks all RBD/CephFS attach.
+# Rook does not ship CSI ServiceAccounts or their RBAC (rook/rook#17644).
+# Deleting this file wedges ctrlplugin and nodeplugin at FailedCreate and breaks every RBD and CephFS attach.
+# See skill rook-ceph.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

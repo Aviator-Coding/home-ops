@@ -2,24 +2,14 @@
   "allowlist": [],
   "baseline": {
     "agents_md_bytes": {
-      "AGENTS.md": 46331
+      "AGENTS.md": 32505
     },
     "comment_block_lines": {
       "kubernetes/apps/base/ai/hermes/app/resources/config.yaml": 24,
       "kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/cronjob.yaml": 16,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/cephfs-rwx-subvolumegroup.yaml": 20,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml": 46,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/prometheusrules.yaml": 34,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/operator/csi-driver-tolerations.yaml": 96,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/operator/helmrelease.yaml": 26,
       "kubernetes/apps/base/selfhosted/homepage/app/configmap.yaml": 16,
-      "kubernetes/apps/base/system-controller/k8tz/app/helmrelease.yaml": 32,
-      "kubernetes/apps/base/system/fstrim/app/helmrelease.yaml": 21,
-      "kubernetes/apps/base/system/generic-device-plugin/app/config/config.yaml": 23,
       "kubernetes/apps/base/system/pvc-writable-check/app/cronjob.yaml": 16,
-      "kubernetes/apps/base/system/volsync/app/mutatingadmissionpolicy.yaml": 46,
-      "talos/machineconfig.yaml.j2": 22,
-      "talos/nodes/talos-3.yaml.j2": 28
+      "kubernetes/apps/base/system/volsync/app/mutatingadmissionpolicy.yaml": 46
     }
   }
 }

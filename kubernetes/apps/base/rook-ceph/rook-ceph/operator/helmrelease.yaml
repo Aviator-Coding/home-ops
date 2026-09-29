@@ -21,40 +21,13 @@ spec:
     crds:
       enabled: true
     csi:
-      # NOTE: there is no way to place the CSI controller plugin from this repo,
-      # and it is not an oversight - do not go looking for the value again.
-      # rook v1.20 moved CSI to ceph-csi-operator, so
-      # `rook-ceph.{rbd,cephfs}.csi.ceph.com-ctrlplugin` is owned by a
-      # `Driver` CR (csi.ceph.io/v1). That CR *does* carry a usable
-      # `spec.controllerPlugin.affinity`, but it is created by an internal Helm
-      # release (`ceph-csi-drivers`) that Flux does not manage, and nothing
-      # surfaces it: this chart's only `nodeAffinity` value targets the
-      # `discover` DaemonSet, and `CephCluster.spec.csi` exposes just
-      # `cephfs` / `readAffinity` / `skipUserCreation`. Reaching it would mean
-      # fighting that internal release or applying a competing `Driver` CR.
-      # Checked 2026-09-14 while freeing memory on talos-3, where the rbd
-      # ctrlplugin's 1024Mi was wanted and proved structurally unavailable -
-      # docs/talos-3-scheduling-truth.md "What could not be moved".
-      #
-      # NOTE: cephFSKernelMountOptions was removed from the v1.20 operator chart
-      # (ceph-csi-operator migration). The effective kernel mount option now lives on
-      # the CephCluster CR (cephClusterSpec.csi.cephfs.kernelMountOptions in the cluster HR).
+      # CSI controller placement is not settable from this repo. The Driver CR belongs to the internal ceph-csi-drivers release.
+      # Kernel mount options live on the CephCluster. See skill rook-ceph.
       # NOTE: Enable the driver and snapshotter if you want to use CephFS
       enableCephfsDriver: true
       enableCephfsSnapshotter: true
       enableLiveness: true
-      # DISABLED 2026-09-15: this chart value creates ServiceMonitor
-      # `csi-metrics` selecting `app: csi-metrics`, a label from the pre-1.20
-      # architecture where rook itself ran the CSI plugin pods and stamped
-      # that label on them. Since v1.20 (see the NOTE above), the ctrlplugin/
-      # nodeplugin pods are owned by ceph-csi-operator's `Driver` CR via its
-      # own internal `ceph-csi-drivers` Helm release, which this repo does not
-      # manage. Live-verified: no pod anywhere carries `app=csi-metrics`, no
-      # CSI container declares a metrics port or `--metricsport` arg, and the
-      # `Driver` CRD (csi.ceph.io/v1) exposes no metrics field at all - so the
-      # ServiceMonitor has selected zero targets for the life of the cluster
-      # and there is no way to feed it from this repo. Toggling this back on
-      # would require ceph-csi-operator to gain a metrics option upstream.
+      # Stays off. No pod carries app=csi-metrics, and the Driver CRD has no metrics field. See skill rook-ceph.
       serviceMonitor:
         enabled: false
     enableDiscoveryDaemon: true
@@ -62,47 +35,16 @@ spec:
       repository: ghcr.io/rook/ceph
     monitoring:
       enabled: true
-    # Sized from Prometheus history, re-verified 2026-09-25 against the full 14d retention
-    # window (2026-09-11T12:15Z onward), which still covers the 2026-09-20 OOM. The operator
-    # was OOMKilled at 11:45:13Z against the chart's own default limits.memory: 512Mi (this
-    # file's prior `limits: {}` left it unset, so the chart default silently applied): the
-    # pre-kill container's last successful scrape was 455.14Mi at 11:45:00Z, one minute before
-    # the kill - a LOWER BOUND only, censored by the kill, not the true reconcile peak.
-    # A second, UNCENSORED reconcile burst in the same retention window gives the real number:
-    # 502894592 bytes (479.60Mi) at 2026-09-12T13:51:15Z, immediately after PR #1665 merged
-    # (09:50:18 -0400 (13:50:18Z)) and Flux reconciled rook-ceph/cluster - the container rose
-    # from its ~188Mi baseline to that peak and back down over about 90s with zero restarts
-    # (kube_pod_container_status_restarts_total held flat at 1 throughout), so this is a
-    # completed, self-resolving reconcile, not a kill in progress. It is also the highest
-    # value anywhere in the 14d window (checked via max_over_time(...[15m]) across the full
-    # retention to avoid under-sampling a spike - see the CPU-throttle AGENTS.md entry on why
-    # coarse sampling under-reports peaks). limits.memory: 1Gi is therefore ~2.13x headroom
-    # over an actual measured, non-censored maximum, not just 2x a kill-truncated reading.
-    # Idle steady-state is ~168-220Mi (kubectl top and the post-restart container's baseline
-    # agree), so do not size off that reading alone - it excludes the reconcile burst.
-    # Node: the operator carries no nodeAffinity/nodeSelector and both measured peaks landed
-    # on different nodes (talos-3 on 2026-09-12, talos-2 on 2026-09-20), so it can land on
-    # talos-3 - checked 2026-09-25: talos-3 sits at 69% memory requests committed, and this
-    # pod's own 128Mi request is too small to matter there either way.
-    # CPU: the same two reconcile bursts peaked at 407-430m (rate over [3m]) against an idle
-    # baseline of 30-40m; requests.cpu raised from 100m to 300m to give the operator a
-    # realistic CFS weight during a reconcile burst under node contention. No CPU limit is set
-    # (chart has none), so this is a scheduling-weight change only, not a cap.
+    # Explicit 1Gi. limits: {} does not clear the chart default 512Mi, which OOMKilled the operator.
+    # See skill rook-ceph. (PR #1751)
     resources:
       requests:
         memory: 128Mi
         cpu: 300m
       limits:
         memory: 1Gi
-    # talos-3 carries a home-operations.com/dedicated taint
-    # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
-    # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
-    # section 9). The `discover` DaemonSet is scheduled there regardless
-    # (prefer does not filter and it has no other legal node - it feeds
-    # `rook-discover`'s device inventory for that node's 2 OSDs); this
-    # toleration is hygiene against a future hard taint, not the thing
-    # keeping it running there - the operator chart's only placement knob
-    # for this DaemonSet. See docs/talos-3-scheduling-truth.md.
+    # Discover DaemonSet toleration. PreferNoSchedule makes it hygiene for a future hard taint.
+    # See skill node-scheduling.
     discover:
       tolerations:
         - key: home-operations.com/dedicated

@@ -37,16 +37,6 @@ TEXT_NAMES = {"Taskfile.yaml", ".justfile", "Dockerfile", ".mise.toml", ".gitign
 
 # (path of the file carrying the mention, mentioned path) -> reason.
 KNOWN_DANGLING: dict[tuple[str, str], str] = {
-    ("docs/ceph-cluster-changelog.md", "docs/ai-system/comfyui-retirement-2026-09-15.md"):
-        "other domain; comfyui retirement facts moved to skill ai-stack",
-    ("docs/talos-3-scheduling-truth.md", "docs/ai/vllm-host-prompt-cache.md"):
-        "other domain; prompt-cache facts moved to skill b70-llm-serving",
-    ("docs/talos-3-scheduling-truth.md", "docs/ai/vllm-onednn-sdpa-leak.md"):
-        "other domain; oneDNN facts moved to skill b70-llm-serving",
-    ("AGENTS.md", "docs/ai/vllm-host-prompt-cache.md"):
-        "scheduling bullet is the node-scheduling domain; prompt-cache facts moved to skill b70-llm-serving",
-    ("AGENTS.md", "docs/ai/vllm-onednn-sdpa-leak.md"):
-        "scheduling bullet is the node-scheduling domain; oneDNN facts moved to skill b70-llm-serving",
     ("kubernetes/apps/base/ai/hermes/app/resources/config.yaml", "docs/ai-system/agentmemory-retirement-2026-08-31.md"):
         "config.yaml is a pod payload; a comment edit restarts Hermes. Facts live in skill ai-stack",
     ("scripts/bench/b70-serving-harness.py", "docs/ai/b70-llm-serving-tuning.md"):
@@ -57,9 +47,6 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "dated report records which docs it edited",
     ("docs/grafana-operator-removal.md", "docs/reference.md"):
         "records which docs mentioned grafana-operator at the time",
-    ("kubernetes/apps/base/rook-ceph/rook-ceph/operator/csi-driver-tolerations.yaml",
-     "docs/spec/v1/kustomizations.md"):
-        "upstream Flux kustomize-controller doc, not a path in this repo",
 }
 
 # Files whose Markdown is runtime payload rather than repo documentation.

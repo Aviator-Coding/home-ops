@@ -34,22 +34,10 @@ spec:
     name: xe
     nodeFeatureRule: false
     sharedDevNum: 99
-    # Discrete B70 consumers request generic-device-plugin resources, not this
-    # pool: Level Zero (vllm/vllm-embed) uses devic.es/b70; VA-API
-    # (tdarr-node) uses devic.es/b70-vaapi. allowIDs scopes this pool to the
-    # Raptor Lake iGPU (0xa7a0) only, now that xe.force_probe is applied on all
-    # three nodes and the iGPUs confirm advertising xe (talos-1/2 xe=99,
-    # talos-3 was 198 pooled iGPU+B70). The B70 no longer contributes here.
+    # This pool is the iGPU only (allowIDs 0xa7a0). B70 consumers use devic.es/b70 and devic.es/b70-vaapi.
+    # See skill intel-gpu.
     allowIDs: "0xa7a0"
-    # talos-3 carries a home-operations.com/dedicated taint
-    # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
-    # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
-    # section 9). This is a DaemonSet (one pod per node with the gpu feature
-    # label, all three nodes), advertising each node's own Raptor Lake iGPU -
-    # talos-3's included. The talos-3 pod is scheduled there regardless
-    # (prefer does not filter and it has no other legal node); this
-    # toleration is hygiene against a future hard taint, not the thing
-    # keeping it running there. See docs/talos-3-scheduling-truth.md.
+    # Toleration is hygiene under PreferNoSchedule. See skill node-scheduling.
     tolerations:
       - key: home-operations.com/dedicated
         operator: Exists
