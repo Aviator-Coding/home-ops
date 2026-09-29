@@ -39,7 +39,7 @@ gate to land an edit removes the canary.
 - `docs-budget-test.py` ratchets sizes. `--update` lowers or drops a baseline.
   It never raises one. Shrink the file and the baseline in the same change.
 - `doc-links-test.py` resolves Markdown links, `docs/…md`, skill paths,
-  `references/<file>.md`, and ``skill `name` ``. Do not pin skill prose in a test.
+  `references/<file>.md`, and a backtick skill-name pointer. Do not pin skill prose in a test.
 - `functional-comments-guard-test.py` fails if a surviving file drops or
   reorders a `# yaml-language-server:` or `# renovate:` line. The annotation
   value must stay on the following line so the customManager can capture it.
