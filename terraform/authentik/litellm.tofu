@@ -1,28 +1,17 @@
-# LiteLLM UI single sign-on.
-#
-# Unlike every other resource in this stack, this one is NEW: there is no
-# matching object on the live instance and no `import` block for it. It is the
-# first thing this stack creates rather than adopts, so it is the only place a
-# plan is expected to show an addition.
-#
-# The credential handling is therefore the opposite of applications.tofu, and
-# deliberately so. There, `client_secret` is left undeclared because declaring it
-# would rotate a live secret. Here there is no live secret to protect, and
-# LiteLLM has to be told what it is, so both halves are generated in OpenTofu and
-# surfaced through outputs.tofu. Neither is ever written into Git.
+# LiteLLM UI single sign-on. CREATED by this stack (no import block), so unlike the adopted
+# providers both credential halves are generated here and surfaced via outputs.tofu, never Git.
+# Kubernetes side: skill litellm-proxy (references/platform.md).
 
 resource "random_string" "litellm_client_id" {
   length  = 40
   special = false
-  # Authentik's own client ids are 40 alphanumeric characters; matching that
-  # keeps the object indistinguishable from a UI-created one.
+  # Same shape as Authentik's own client ids.
 }
 
 resource "random_password" "litellm_client_secret" {
   length  = 128
   special = false
-  # Alphanumeric on purpose: this value is handed to LiteLLM through an
-  # environment variable, and punctuation in env values is a portability trap.
+  # Alphanumeric: it reaches LiteLLM through an environment variable.
 }
 
 resource "authentik_provider_oauth2" "litellm" {
@@ -34,36 +23,20 @@ resource "authentik_provider_oauth2" "litellm" {
   issuer_mode   = "per_provider"
   logout_method = "backchannel"
 
-  # Implicit consent: this is an interactive UI login for
-  # an operator tool, and an explicit consent screen on every sign-in buys
-  # nothing here. Authorization reuses the stock implicit-consent flow;
-  # invalidation is LiteLLM-only (see litellm_invalidation below) so logout
-  # ends the Authentik browser session without changing any other provider.
+  # Stock implicit-consent flow; LiteLLM-only invalidation flow (see below).
   authorization_flow = data.authentik_flow.provider_authorization_implicit_consent.id
-  # .uuid, NOT .id. authentik_flow's terraform id is the SLUG (the create
-  # returned id=litellm-invalidation-flow), while the provider API validates
-  # invalidation_flow as a UUID and 400s on anything else. The stage binding
-  # below already uses .uuid; this reference did not, and only a live apply
-  # surfaced it.
+  # .uuid, NOT .id: authentik_flow's terraform id is the slug, and the API 400s on it.
   invalidation_flow = authentik_flow.litellm_invalidation.uuid
 
-  # MUST be declared explicitly, and this is the one attribute where the
-  # create path differs from the import path. `grant_types` is optional+computed,
-  # so the imported providers can safely omit it - their read adopts the live
-  # stock set. A CREATED provider has nothing to adopt: omitting it here produced
-  # grant_types = {} on the live object, and Authentik then rejected every
-  # authorize with "Invalid grant_type for provider" / invalid_request. Verified
-  # in the server log and against the database (providers 2 and 4 carry the full
-  # set; 70 was empty).
+  # MUST be declared on a CREATED provider: omitted, it is empty and Authentik rejects every
+  # authorize ("Invalid grant_type for provider"). Imported providers adopt the live set.
   grant_types = ["authorization_code"]
 
   include_claims_in_id_token = true
   signing_key                = data.authentik_certificate_key_pair.self_signed.id
 
-  # openid + email + profile (LiteLLM's default GENERIC_SCOPE) plus the custom
-  # litellm_role scope below. The Kubernetes side must request the same set via
-  # GENERIC_SCOPE, or Authentik never emits the role claim and first login lands
-  # as INTERNAL_USER_VIEW_ONLY.
+  # Must match GENERIC_SCOPE on litellmproxy.yaml, or no role claim is emitted and first login
+  # lands as INTERNAL_USER_VIEW_ONLY.
   property_mappings = concat(
     data.authentik_property_mapping_provider_scope.oauth2_default.ids,
     [authentik_property_mapping_provider_scope.litellm_role.id],
@@ -74,10 +47,7 @@ resource "authentik_provider_oauth2" "litellm" {
   refresh_token_validity  = "days=30"
   refresh_token_threshold = "seconds=0"
 
-  # LiteLLM builds this as get_custom_url(PROXY_BASE_URL) + "/sso/callback"
-  # (ui_sso.py get_redirect_url_for_sso, sso_callback_route="sso/callback").
-  # Read out of the running v1.98.0 image rather than from documentation, since
-  # a wrong redirect URI fails the login with an opaque provider-side error.
+  # <PROXY_BASE_URL>/sso/callback as LiteLLM builds it; change both together.
   allowed_redirect_uris = [
     {
       matching_mode     = "strict"
@@ -97,11 +67,8 @@ resource "authentik_application" "litellm" {
   policy_engine_mode = "any"
 }
 
-# Custom scope claim so SSO users land as proxy_admin without a manual first
-# login + PROXY_ADMIN_ID step. Value must be exactly "proxy_admin"
-# (LitellmUserRoles.PROXY_ADMIN in the running v1.98.0 image). Mirrored from the
-# reference repo's litellm_role mapping shape. LiteLLM reads it via
-# GENERIC_USER_ROLE_ATTRIBUTE over the token/userinfo payload.
+# SSO users land as proxy_admin (value must be exactly "proxy_admin"); LiteLLM reads the claim
+# via GENERIC_USER_ROLE_ATTRIBUTE.
 resource "authentik_property_mapping_provider_scope" "litellm_role" {
   name       = "LiteLLM Role"
   scope_name = "litellm_role"
@@ -110,13 +77,8 @@ resource "authentik_property_mapping_provider_scope" "litellm_role" {
   EOT
 }
 
-# LiteLLM-only invalidation flow. The shared default-provider-invalidation-flow
-# has zero stage bindings, so RP-initiated logout only ends the application
-# session and leaves the Authentik browser session alive. With
-# AUTO_REDIRECT_UI_LOGIN_TO_SSO that makes logout look like a no-op. Binding a
-# User Logout stage onto the shared default would change logout for every
-# OIDC/proxy app (coder, pg-admin, echo ExtAuth); this flow is
-# scoped to authentik_provider_oauth2.litellm only.
+# LiteLLM-only invalidation flow with a User Logout stage, so logout ends the Authentik session.
+# Never bind that stage to the shared default flow: it would change logout for every other app.
 resource "authentik_flow" "litellm_invalidation" {
   name        = "LiteLLM Invalidation"
   title       = "LiteLLM Invalidation"

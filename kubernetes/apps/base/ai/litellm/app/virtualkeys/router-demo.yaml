@@ -1,14 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
-# D3 auto-router consumer. Scoped to the routed alias ONLY, which is the point:
-# this key reaches Anthropic exclusively through a classification it does not
-# control. A key whose models list contains only `auto` can still be routed to
-# every tier backend AND still runs the classifier: verified 2026-08-26 - the
-# allow-list is checked against the model the CALLER asked for, not the one the
-# router resolves to. That makes `auto` a real governance boundary - such a key
-# cannot call claude-opus-5-metered directly (RENAMED from the bare
-# `claude-opus-5` on 2026-08-31 - see ../models/claude-opus-5-metered.yaml),
-# only reach it by being classified into that tier.
+# Auto-router consumer, auto only: reaches cloud tiers only by classification, never directly.
+# Its budget measures only COMPLEX/REASONING cloud spend. references/auto-router.md.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -18,21 +11,9 @@ spec:
   keyAlias: router-demo
   secretName: litellm-key-router-demo
   secretKey: key
-  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
-  # able to access this local embedding model") - a direct, credential-less,
-  # zero-priced grant, not a routed alias, so it does not reopen the
-  # "reaches Anthropic only through classification" governance boundary above.
   models:
     - auto
     - embedding-local
-  # Deliberately small but larger than the `demo` cap. A purely local routed
-  # request (SIMPLE/MEDIUM + classifier) no longer moves spend at all -
-  # chat-local and qwen3.6-35b-a3b-classifier are zero-priced, so both spend
-  # rows stay 0.0 (measured 2026-08-27: a SIMPLE auto request went $0.04735
-  # before the split, $0.003 with tiers moved but classifier still priced, then
-  # $0.00000000 once the classifier was zeroed). This $0.50 cap therefore
-  # measures only cloud-tier spend on COMPLEX/REASONING. Raise maxBudget here
-  # when real Anthropic traffic runs it out; local volume is rpmLimit/tpmLimit.
   maxBudget: "0.5"
   budgetDuration: 30d
   rpmLimit: 6

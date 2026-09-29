@@ -1,54 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# Fable half of the Claude Code Max/Pro SUBSCRIPTION pass-through (captain
-# decision 2026-09-27, "2-yes" on "Should I add Haiku and Fable as
-# subscription models").
-#
-# THIS IS NOT A RENAME OF ../claude-fable-5.yaml, AND THERE IS NO COLLISION TO
-# CLOSE. `claude-fable-5` (Fable 5, January 2026 cutoff) and `claude-fable-5-1`
-# (Fable 5.1, June 2026 cutoff) are two DISTINCT models in Anthropic's own
-# catalog (verified live 2026-09-27, `GET https://api.anthropic.com/v1/models`
-# with the pod's ANTHROPIC_API_KEY: both ids are present) - unlike the
-# 2026-08-31 Sonnet/Opus rename, where the metered and pass-through CRs fought
-# over the exact same string. `../claude-fable-5.yaml` keeps its name, its
-# `os.environ/ANTHROPIC_API_KEY` credential, and its consumers unchanged - a
-# repo-wide grep plus a live `LiteLLM_VerificationToken`/`LiteLLM_SpendLogs`
-# query (2026-09-27) found it has none today: no virtual key, auto-router
-# entry, or fallback chain names it, and it has never been called. There is
-# nothing live to break either way.
-#
-# `claude-fable-5-1` is the name because that is what Claude Code actually
-# requests for the Fable family today, not `claude-fable-5`. Two independent
-# sources agree: Anthropic's live catalog lists `claude-fable-5-1` as a
-# distinct, newer entry, and Claude Code's own baked-in model-catalog.json
-# (extracted from the installed 2.1.283 CLI binary, `latest_per_family`)
-# resolves `fable` to `claude-fable-5-1` - the same map that resolves
-# `sonnet`/`opus`/`haiku` to the ids this proxy already uses for those
-# families. The CLI's own `--model` help-text example (`'claude-fable-5'`)
-# and a still-present `claude-fable-5[1m]` string in the same binary are
-# stale/legacy artifacts, not evidence of the current default:
-# `latest_per_family` is the field the CLI's own settings-migration path
-# defers to (a `tengu_fable5_to_fable_alias_migration` string in the same
-# binary migrates a user's old PINNED `claude-fable-5[1m]` setting to the
-# generic `fable` alias, precisely so it tracks whichever model is current
-# rather than staying pinned to the superseded one).
-#
-# `[1m]` DOES apply here, same as Sonnet/Opus: the catalog entry carries
-# `context:{window:1e6,native_1m:true,supports_1m_beta:true}` - a genuine 1M
-# native window, not just a tolerated suffix (contrast the Haiku sibling,
-# which stays at 200k). `ANTHROPIC_DEFAULT_FABLE_MODEL=claude-fable-5-1[1m]`
-# is set in the client runbook §5c for the same context-window-hint reason as
-# the Sonnet/Opus vars.
-#
-# THE PROXY HOLDS NO CREDENTIAL FOR THIS ONE, same as its Sonnet/Opus/Haiku
-# subscription siblings. Read ../claude-sonnet-5.yaml's header first: every
-# rule it states (the placeholder apiKey, the $0 pricing including the five
-# cache fields) applies here unchanged and for the same measured reasons - the
-# caller's own `claude` CLI sends its subscription OAuth token
-# (`Authorization: Bearer sk-ant-oat...`) per request and Anthropic bills that
-# person's flat-rate plan, never this household's metered `ANTHROPIC_API_KEY`.
-#
-# Client runbook: docs/ai-system/litellm/claude-code-subscription.md.
+# Claude Code subscription PASS-THROUGH: the caller's own OAuth token pays, never ANTHROPIC_API_KEY.
+# INVARIANT: placeholder apiKey + $0 on all seven price fields below are load-bearing (money safety).
+# Fable 5.1, a distinct model from the metered claude-fable-5 (not a rename).
+# See skill litellm-proxy (references/claude-code-subscription.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
@@ -57,31 +12,11 @@ spec:
   modelName: claude-fable-5-1
   proxyRef: litellm
   params:
-    # Resolved against Anthropic's DIRECT catalog (models/kustomization.yaml
-    # rule 3) - the current dash-form-with-version-suffix id, distinct from
-    # the unrelated metered ../claude-fable-5.yaml sibling. See this file's
-    # header for why this is the current id Claude Code requests, not that
-    # one.
     model: anthropic/claude-fable-5-1
-
-    # Same placeholder mechanism as the Sonnet/Opus/Haiku siblings - see
-    # claude-sonnet-5.yaml's header for the full reasoning (omitting apiKey
-    # falls back to os.environ/ANTHROPIC_API_KEY; this placeholder blocks that
-    # fallback while routing the request down LiteLLM's OAuth branch, so a
-    # tokenless caller gets Anthropic's own self-describing 401 instead of a
-    # silent metered charge).
+    # Placeholder, not a secret: omitting apiKey would fall back to the metered ANTHROPIC_API_KEY.
     apiKey: "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
-
   info:
-    # Same DELIBERATE pricing exception as the other subscription siblings,
-    # for the same reason: this model's invoice is a person's FLAT-RATE
-    # subscription, so the built-in metered cost map would inflate a D4
-    # budget with dollars nobody is ever charged. Zero is honoured
-    # (use_custom_pricing_for_model tests `is not None`), and all five
-    # prompt-cache fields are zeroed too - IO-only zeros left ~$54 of
-    # fictional cache-only spend on the Sonnet CR before that gap was closed
-    # 2026-08-31 (runbook §4a). Keep the calling key budgetless for the same
-    # reason.
+    # Flat-rate invoice: explicit $0, including the five cache fields (IO-only zeros left ~$54 phantom spend).
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0

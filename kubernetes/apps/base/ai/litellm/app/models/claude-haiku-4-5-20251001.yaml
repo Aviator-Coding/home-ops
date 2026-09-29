@@ -1,45 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# Haiku half of the Claude Code Max/Pro SUBSCRIPTION pass-through (captain
-# decision 2026-09-27, "2-yes" on "Should I add Haiku and Fable as
-# subscription models"). The `claude-code-subscription` key had already been
-# sending this exact model id and getting refused - `LiteLLM_SpendLogs` shows
-# it requesting `claude-haiku-4-5-20251001` repeatedly from 2026-09-24 through
-# 2026-09-27, every one `status=failure`, because no CR named it.
-#
-# UNLIKE THE SONNET/OPUS/FABLE SIBLINGS, THIS NAME IS THE DATED, NOT THE DASH,
-# FORM - because that is what Anthropic's own catalog and Claude Code's own
-# baked-in catalog both name for this family. Verified live 2026-09-27 against
-# `GET https://api.anthropic.com/v1/models` with the pod's own
-# ANTHROPIC_API_KEY: the catalog has NO bare `claude-haiku-4-5` entry, only
-# `claude-haiku-4-5-20251001`. Claude Code's own compiled model-catalog.json
-# (extracted from the installed 2.1.283 CLI binary) resolves
-# `latest_per_family.haiku` to the catalog KEY `claude-haiku-4-5`, but that
-# entry's `provider_ids.first_party` - the string actually sent on the wire to
-# the direct Anthropic API - is `claude-haiku-4-5-20251001`. The spend log
-# above confirms this empirically: every failed request named the dated form,
-# never the bare one. So this modelName is simultaneously "the natural name"
-# (no metered CR ever held it - see ./kustomization.yaml) and "the exact wire
-# id" - there is no collision to close and no client-side override needed.
-#
-# `[1m]` does NOT apply here (unlike Sonnet/Opus/Fable). Haiku 4.5's real
-# context window is 200,000 tokens - the catalog entry's `supports_1m_suffix`
-# flag only means the CLI tolerates a trailing `[1m]` without erroring, it
-# does not grant a bigger window (no `native_1m`/`window:1e6`, unlike the
-# Fable sibling's entry). `ANTHROPIC_DEFAULT_HAIKU_MODEL` is therefore left
-# unset in the client runbook §5c: the natural default already resolves here,
-# and there is no window-hint reason to set it. See
-# docs/ai-system/litellm/claude-code-subscription.md §5c/§5e.
-#
-# THE PROXY HOLDS NO CREDENTIAL FOR THIS ONE, same as its Sonnet/Opus/Fable
-# subscription siblings. Read ../claude-sonnet-5.yaml's header first: every
-# rule it states (the placeholder apiKey, the $0 pricing including the five
-# cache fields) applies here unchanged and for the same measured reasons - the
-# caller's own `claude` CLI sends its subscription OAuth token
-# (`Authorization: Bearer sk-ant-oat...`) per request and Anthropic bills that
-# person's flat-rate plan, never this household's metered `ANTHROPIC_API_KEY`.
-#
-# Client runbook: docs/ai-system/litellm/claude-code-subscription.md.
+# Claude Code subscription PASS-THROUGH: the caller's own OAuth token pays, never ANTHROPIC_API_KEY.
+# INVARIANT: placeholder apiKey + $0 on all seven price fields below are load-bearing (money safety).
+# Dated id on purpose: Anthropic's catalog has no bare claude-haiku-4-5, and it is Claude Code's wire id.
+# See skill litellm-proxy (references/claude-code-subscription.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
@@ -48,29 +12,11 @@ spec:
   modelName: claude-haiku-4-5-20251001
   proxyRef: litellm
   params:
-    # Resolved against Anthropic's DIRECT catalog (models/kustomization.yaml
-    # rule 3) - the dated form, since that catalog has no bare
-    # `claude-haiku-4-5` entry for this family. See this file's header.
     model: anthropic/claude-haiku-4-5-20251001
-
-    # Same placeholder mechanism as the Sonnet/Opus/Fable siblings - see
-    # claude-sonnet-5.yaml's header for the full reasoning (omitting apiKey
-    # falls back to os.environ/ANTHROPIC_API_KEY; this placeholder blocks that
-    # fallback while routing the request down LiteLLM's OAuth branch, so a
-    # tokenless caller gets Anthropic's own self-describing 401 instead of a
-    # silent metered charge).
+    # Placeholder, not a secret: omitting apiKey would fall back to the metered ANTHROPIC_API_KEY.
     apiKey: "sk-ant-oat-PLACEHOLDER-CLIENT-SENDS-ITS-OWN-TOKEN"
-
   info:
-    # Same DELIBERATE pricing exception as the other subscription siblings,
-    # for the same reason: this model's invoice is a person's FLAT-RATE
-    # subscription, so the built-in metered cost map would inflate a D4
-    # budget with dollars nobody is ever charged. Zero is honoured
-    # (use_custom_pricing_for_model tests `is not None`), and all five
-    # prompt-cache fields are zeroed too - IO-only zeros left ~$54 of
-    # fictional cache-only spend on the Sonnet CR before that gap was closed
-    # 2026-08-31 (runbook §4a). Keep the calling key budgetless for the same
-    # reason.
+    # Flat-rate invoice: explicit $0, including the five cache fields (IO-only zeros left ~$54 phantom spend).
     extra:
       input_cost_per_token: 0
       output_cost_per_token: 0

@@ -1,28 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# Qwen3-Embedding-8B on OpenRouter (captain decision 2026-09-27): the embedding
-# model of the ai/litellm-pgvector vector store, for both ingest and query.
-# Registered under OpenRouter's own id; verified against
-# https://openrouter.ai/api/v1/embeddings/models on 2026-09-27 (id
-# `qwen/qwen3-embedding-8b`, prompt $0.00000001/token = $0.01 per 1M input
-# tokens, completion $0, context 32768, OpenRouter routes it to Nebius or
-# DeepInfra - measured cosine 0.99996 between the two for the same input, so
-# a store mixing both is consistent).
-#
-# WIDTH. It returns 4096 dims by default, and pgvector cannot index that: HNSW
-# and IVFFlat cap `vector` at 2000 dims (and `halfvec` at 4000, still short of
-# 4096). The model is Matryoshka-trained and OpenRouter honours the OpenAI
-# `dimensions` parameter for it (measured: 1024/2000 requested -> 1024/2000
-# returned, unit-norm, and the 2000-d vector is the renormalised 4096-d prefix,
-# cosine 0.99995), so the store asks for `dimensions: 2000` - the widest a plain
-# `vector` column can still HNSW-index. That parameter is sent per request, NOT
-# pinned here: other callers of this model keep its native 4096. Every vector
-# written to the store must therefore be requested with `"dimensions": 2000`;
-# anything else is rejected by the vector(2000) column rather than stored.
-#
-# PRICE. LiteLLM's bundled cost map has no `openrouter/qwen/qwen3-embedding-8b`
-# entry (1.102.1: only scaleway/novita/fireworks/llamagate variants, at other
-# prices), so the OpenRouter price is declared explicitly or spend would log $0.
+# The vector store's embedding model (OpenRouter, metered). Store callers request dimensions: 2000.
+# Declares its real price: the bundled cost map has no openrouter entry and would record $0.
+# See skill litellm-proxy (references/vector-store.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:

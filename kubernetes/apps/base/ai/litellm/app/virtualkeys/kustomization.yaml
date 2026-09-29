@@ -2,45 +2,9 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# One file per consumer (captain decision D4), each pairing a
-# LiteLLMVirtualKey with the PushSecret that mirrors its minted key to
-# 1Password. This replaces resources/consumers.json + provision_keys.py and
-# both provisioning controllers - the operator owns minting, updating and
-# deleting the key through the proxy's admin API.
-#
-# Adding a consumer: copy a file, change the name/secretName/remoteKey and the
-# limits, add it here. Raising a budget: edit the number and commit - the
-# operator diffs the live key against the spec and PATCHes only what changed,
-# so the credential itself is preserved (same property the old script had).
-#
-# Three keys here carry no `maxBudget`, for unrelated reasons -
-# `scripts/ci/litellm-claude-code-subscription-test.py` asserts this exact
-# allow-list rather than a bare count, so any FURTHER budgetless key must be
-# added there explicitly or the gate fails:
-#   - `claude-code-subscription.yaml`'s allow-list names the four subscription
-#     pass-through models - the natural `claude-sonnet-5` and `claude-opus-5`
-#     since the 2026-08-31 rename (previously
-#     `claude-code-subscription`/`claude-code-subscription-opus`), plus
-#     `claude-haiku-4-5-20251001` and `claude-fable-5-1` added 2026-09-27; see
-#     that file's own header. It stays budgetless because those models are
-#     zero-priced across every field including the five prompt-cache ones
-#     (runbook §4a - zeroing only input/output left ~$54 of fictional recorded
-#     spend until 2026-08-31), so recorded spend is $0 and a maxBudget could
-#     never trip. As of 2026-08-31 it also carries no rpmLimit/tpmLimit -
-#     enforcement is entirely upstream on Anthropic's subscription ceiling;
-#     LiteLLMClaudeCodeSubscriptionSpendRegression watches for renewed phantom
-#     spend. Read that file's header before copying its shape.
-#   - `agent-swarm-captain.yaml` is budgetless by original captain decision,
-#     unrelated to pricing - adopted (forced rotation, not a live-preserving
-#     adoption) on 2026-09-12 with entitlements carried over exactly as
-#     minted on 2026-09-09. See that file's own header.
-#   - `mac-gnhf.yaml` is budgetless for the SAME reason as the subscription
-#     key but via a different route: its allow-list (`chat-local`, plus
-#     `embedding-local` added 2026-09-27) carries no `info.extra` prices at
-#     all, so recorded spend is $0.00 by construction and a cap could never
-#     trip. Its rpmLimit/tpmLimit exist to stop the key from spuriously
-#     throttling the loop, not to bound GPU load - that protection is
-#     client-side concurrency instead. See that file's own header.
+# One LiteLLMVirtualKey + PushSecret per consumer (D4). The keys allowed to omit maxBudget are an
+# exact set asserted by scripts/ci/litellm-claude-code-subscription-test.py (claude-code-subscription,
+# agent-swarm-captain, mac-gnhf). See skill litellm-proxy (references/governance-keys.md).
 resources:
   - ./claude-code-subscription.yaml
   - ./demo.yaml

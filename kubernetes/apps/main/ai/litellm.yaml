@@ -11,17 +11,13 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../../components/dragonfly
-  # The operator-rendered workload, named after the LiteLLMProxy CR. Never the
-  # HelmRelease or the LiteLLMProxy CR itself (house rule): only the Deployment
-  # reflects a pod-level failure.
+  # The operator-rendered Deployment, never the LiteLLMProxy CR (skill flux-gitops).
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
       name: *app
       namespace: *namespace
-  # Dragonfly is a CR - status.phase is its readiness signal (same shape as
-  # selfhosted/rsshub). healthCheckExprs only customises objects already in the
-  # assessment set; see AGENTS.md healthChecks house rule.
+  # Dragonfly readiness is status.phase; only evaluated for objects in the assessment set.
   healthCheckExprs:
     - apiVersion: dragonflydb.io/v1alpha1
       kind: Dragonfly
@@ -32,19 +28,12 @@ spec:
       namespace: security
     - name: dragonfly-operator
       namespace: database
-    # CRDs + the controller must be Ready first. This is stronger than an
-    # ordinary ordering edge: the operator's ValidatingWebhookConfiguration
-    # has failurePolicy: Fail for every LiteLLM kind, so with the operator
-    # down the API server REJECTS this Kustomization's CRs at admission.
+    # Hard requirement: its webhook rejects LiteLLM CRs at admission while it is down.
     - name: litellm-operator
       namespace: ai
     - name: cloudnative-pg
       namespace: database
-    # Points at vllm-app as a backend. Flux dependsOn waits for the vllm
-    # Kustomization Ready condition (including its Deployment healthCheck),
-    # so a first-boot ~21GB GGUF download delays this app until vllm is Ready.
-    # litellm's own probes do not call the backend; this coupling is only
-    # ordering, not a runtime health dependency.
+    # Ordering only: vllm-app is a backend, not a runtime health dependency.
     - name: vllm
       namespace: ai
   interval: 1h

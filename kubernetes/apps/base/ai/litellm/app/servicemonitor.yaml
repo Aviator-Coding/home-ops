@@ -10,24 +10,13 @@ spec:
       path: /metrics
       interval: 30s
       scrapeTimeout: 10s
-      # /metrics requires proxy auth by default (litellm_settings.callbacks:
-      # prometheus). Reuses LITELLM_MASTER_KEY to avoid a second secret -
-      # deliberate tradeoff: Prometheus (and anyone who can read the
-      # scrape config / that Secret) holds the proxy's full admin credential,
-      # not a metrics-only token. Acceptable on the internal-only route
-      # (master-key still required for /metrics and the admin API; public
-      # listener remains forbidden). Revisit before any broader exposure.
+      # Reuses the master key (deliberate): Prometheus holds the full admin credential,
+      # which can also read logged prompts. Revisit before any broader exposure.
       authorization:
         credentials:
           name: litellm-secret
           key: LITELLM_MASTER_KEY
-  # Still matches after the operator migration: the operator labels the Service
-  # it creates with app.kubernetes.io/name=litellm (a constant in its
-  # renderer - `appName`, not the CR name), plus instance=<proxy name> and
-  # managed-by=litellm-operator. The port name is `http` there too, and
-  # prometheus-operator derives `job` from the Service NAME, which is the
-  # LiteLLMProxy CR's name - so `up{job="litellm"}` in prometheusrule.yaml is
-  # unchanged as well.
+  # The operator labels its Service app.kubernetes.io/name=litellm; job="litellm" comes from its name.
   selector:
     matchLabels:
       app.kubernetes.io/name: litellm

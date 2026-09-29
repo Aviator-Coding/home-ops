@@ -3,11 +3,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: ai
-# Delivered by the home-operations litellm-operator's CRDs (captain decision
-# O1, 2026-08-26) rather than a bjw-s app-template HelmRelease. The proxy
-# Deployment, Service and rendered config.yaml ConfigMap are all created by the
-# operator from litellmproxy.yaml + models/, so none of them appear here.
-# Ordering and the operator itself: kubernetes/apps/main/ai/litellm-operator.yaml.
+# The operator creates the proxy Deployment, Service and config ConfigMap from these CRs.
+# See skill litellm-proxy.
 resources:
   - ./externalsecret.yaml
   - ./pushsecret-sso.yaml

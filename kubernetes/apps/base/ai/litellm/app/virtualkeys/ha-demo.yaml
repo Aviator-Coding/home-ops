@@ -1,18 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
-# Phase 5 fallback-chain consumer: the CLOUD-ENTITLED counterpart to `demo`.
-#
-# `demo` holds `qwen3.6-35b-a3b` (no fallback, cannot reach Anthropic by any
-# path). This key holds `chat-ha` - the same B70 model, but with a
-# `claude-sonnet-5-metered` availability + context-window fallback declared on
-# it in the proxy's routerSettings (RENAMED from the bare `claude-sonnet-5` on
-# 2026-08-31 - see ../models/claude-sonnet-5-metered.yaml). Holding this key IS
-# the cloud entitlement, because a config-declared fallback is not allow-list
-# checked (measured 2026-08-26, docs/ai-system/litellm/fallbacks.md#1).
-#
-# It is also the vehicle for the post-merge failover proof - see
-# docs/ai-system/litellm/fallbacks.md#5, which exercises the chain against a
-# throwaway dead-backend model rather than degrading the real vllm backend.
+# Cloud-entitled failover demo: holding chat-ha IS the cloud entitlement (config fallbacks bypass
+# allow-lists). Its budget is real USD, moved only by fallback spend. references/fallbacks.md.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -22,19 +11,9 @@ spec:
   keyAlias: ha-demo
   secretName: litellm-key-ha-demo
   secretKey: key
-  # `embedding-local` added 2026-09-27 (captain intent: "all keys should be
-  # able to access this local embedding model") - credential-less, zero-priced,
-  # and carries no config-declared fallback of its own, so it does not extend
-  # the cloud-entitlement argument above.
   models:
     - chat-ha
     - embedding-local
-  # Unlike `demo`'s $0.05, this is a REAL-USD cap, not a governance-accounting
-  # one: chat-ha carries no info.extra prices, so local traffic accrues $0 and
-  # the only thing that moves this number is cloud fallback spend during a B70
-  # outage. $1 is roughly 500k Sonnet input tokens - enough to ride out a long
-  # outage on light traffic, small enough that a fallback stuck open cannot run
-  # away unnoticed before LiteLLMConsumerBudgetExhausted fires.
   maxBudget: "1.0"
   budgetDuration: 30d
   rpmLimit: 10

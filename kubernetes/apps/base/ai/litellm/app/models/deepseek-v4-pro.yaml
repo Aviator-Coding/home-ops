@@ -1,19 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# Tier B - Workhorse (daily driver).
-# Source: captain's `indydevdan-model-stack` sheet, 2026-08-27.
-#
-# OpenRouter is the only credential this repo holds that reaches this
-# vendor, so it is the route by necessity, not preference.
-# Model id verified against the live provider catalog:
-# GET https://openrouter.ai/api/v1/models (2026-08-27).
-#
-# The undated spreadsheet row maps to the undated slug, which the catalog
-# titles `DeepSeek V4 Pro 0423` - a distinct, older snapshot from the
-# separately-listed `deepseek-v4-pro-0813`.
-#
-# REGISTRATION ONLY - see ./kustomization.yaml for what that does and does
-# not grant, and for why no `info.extra` prices appear here.
+# Tier B (indydevdan-model-stack). Registration only - no key is entitled by this file.
+# Id resolved on the live OpenRouter catalog; no info.extra prices (cost map is the invoice).
+# Undated slug = the older `0423` snapshot, distinct from deepseek-v4-pro-0813.
+# See skill litellm-proxy (references/model-catalog.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:

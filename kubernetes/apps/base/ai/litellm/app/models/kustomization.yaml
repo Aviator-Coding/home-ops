@@ -1,71 +1,9 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# One LiteLLMModel CR per model_list entry. The operator renders them into the
-# proxy's config.yaml sorted by metadata.name and rolls the proxy only when the
-# rendered config actually changes (config-hash pod annotation).
-#
-# Adding a model: add a file here and to this list, then add the model name to
-# whichever LiteLLMVirtualKey (../virtualkeys/) should be allowed to call it.
-#
-# REGISTRATION IS NOT ENTITLEMENT. A file here only makes the model callable by
-# name on the proxy. It grants nothing on its own: every model must still be
-# named on a LiteLLMVirtualKey's `models` allow-list before any consumer can
-# reach it, and must be named in models/auto.yaml before the D3 router will
-# route to it. Both are captain decisions (D4 budget/entitlement split), which
-# is why the 2026-08-27 `indydevdan-model-stack` batch below landed with
-# neither. The one documented way registration alone can spend money is a
-# config-declared fallback chain, which bypasses the calling key's allow-list -
-# see ../../README.md and docs/ai-system/litellm/fallbacks.md before adding one.
-#
-# NO `info.extra` PRICES on any METERED cloud model here, deliberately.
-# LiteLLM's built-in model-cost map already prices them in real USD, which is
-# what the per-consumer D4 budgets must measure; hand-written prices would
-# silently decouple recorded spend from the invoice. The rule is "declared
-# prices must match the invoice", so the exceptions are models whose
-# invoice is not metered per token, plus one metered model the cost map
-# cannot price:
-#   - qwen/qwen3-embedding-8b (OpenRouter, 2026-09-27) declares its real
-#     OpenRouter price, $0.01 per 1M input tokens, because the bundled cost
-#     map has no `openrouter/qwen/qwen3-embedding-8b` entry: left undeclared
-#     it would record $0 against real spend. Re-check it against
-#     https://openrouter.ai/api/v1/embeddings/models if OpenRouter reprices.
-#   - qwen3.6-35b-a3b is the ONLY local entry with prices: inflated
-#     governance-accounting figures so the tiny `demo` budget can be
-#     exhausted by one request, and `demo` is now its only consumer. Real
-#     production traffic must NOT run on a priced local alias - it runs on
-#     `chat-local` (zero-priced, no fallback) precisely so that a consumer's
-#     recorded spend means real USD. The classifier alias was zeroed for the
-#     same reason on 2026-08-27: LiteLLM bills its sub-call to the CALLING
-#     key, so pricing it charged every routed consumer for the router's own
-#     local bookkeeping. See chat-local.yaml for the four-alias split.
-#   - claude-sonnet-5, claude-opus-5, claude-haiku-4-5-20251001 and
-#     claude-fable-5-1 (Sonnet/Opus RENAMED from claude-code-subscription and
-#     claude-code-subscription-opus on 2026-08-31, captain decision -
-#     Alternative B of data/homeops-claude-code-passthrough-design/report.md;
-#     Haiku/Fable ADDED 2026-09-27, captain decision "2-yes"), billed to a
-#     caller's own FLAT-RATE Claude subscription, priced at an explicit $0 on
-#     every field including the five prompt-cache ones (runbook §4a - IO-only
-#     zeros left ~$54 of fictional cache spend) so the metered cost map cannot
-#     inflate a D4 budget with dollars nobody is charged. Read
-#     claude-sonnet-5.yaml's header before copying their shape - they are the
-#     only entries here for which the proxy holds no credential, and the
-#     claude-opus-5/claude-haiku-4-5-20251001/claude-fable-5-1 ones each exist
-#     as a SEPARATE CR rather than a per-key alias because LiteLLM applies key
-#     aliases after the allow-list check (measured; see claude-opus-5.yaml's
-#     header). The formerly-natural-named METERED Sonnet/Opus routes moved to
-#     claude-sonnet-5-metered / claude-opus-5-metered to free those names - see
-#     those two files' headers and the runbook for the deliberate 401 an admin
-#     gets asking for the bare name without a subscription OAuth token.
-#     claude-haiku-4-5-20251001 and claude-fable-5-1 had NO metered CR holding
-#     their name (claude-fable-5, the older Fable 5, is a DISTINCT model, not a
-#     collision - see claude-fable-5-1.yaml's header), so no rename was needed
-#     for either.
-#
-# The 2026-08-27 batch resolved every id against the live provider catalog
-# rather than the sheet's display names; two rows had no real-catalog match and
-# were deliberately dropped rather than guessed (Gemma 4 12B, Qwen3.5-4B), and
-# Mythos 5 is org-restricted (404 on our key). Provenance: PR body.
+# One LiteLLMModel per model. REGISTRATION IS NOT ENTITLEMENT: a key must allow-list it,
+# and a new model must also join public_model_groups (litellmproxy.yaml). Metered models
+# carry no info.extra prices. See skill litellm-proxy (references/model-catalog.md).
 resources:
   - ./auto.yaml
   - ./chat-ha.yaml

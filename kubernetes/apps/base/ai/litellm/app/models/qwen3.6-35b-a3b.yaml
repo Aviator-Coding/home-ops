@@ -1,8 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# Direct local model - the captain's lab-proven six-line entry (B4/D4),
-# unchanged in substance since the pre-operator config.yaml. Every consumer
-# that calls `qwen3.6-35b-a3b` by name still bypasses the D3 router entirely.
+# The synthetically PRICED local alias: the `demo` budget-test fixture only, never production traffic.
+# See skill litellm-proxy (references/governance-keys.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
@@ -15,21 +14,12 @@ spec:
     apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
     apiKey: "not-needed" # llama.cpp server has no --api-key set
   info:
-    # AI HUB METADATA only - rationale, sources and the inertness proof are on
-    # ./chat-local.yaml; keep these four keys and supports_reasoning identical
-    # across all five aliases. The prices below are the one thing that differs.
+    # Hub metadata; keep identical on all five aliases (only the prices differ).
     mode: chat
     maxInputTokens: 262144
     supportsFunctionCalling: true
     supportsVision: true
-    # Governance-accounting prices (not cloud billing). Required so virtual-key
-    # spend accrues: without non-zero prices LiteLLM records $0 spend and the
-    # demo $0.05 maxBudget / LiteLLMConsumerBudgetExhausted path never trips.
-    # Tuned so a short smoke-test completion can exhaust the demo cap.
-    # Raise/lower alongside the demo LiteLLMVirtualKey's maxBudget when
-    # expanding later. `extra` is the CRD's escape hatch for model_info keys
-    # with no typed field - it is merged verbatim into model_info, which is
-    # LiteLLM's documented custom-pricing location.
+    # Governance-accounting prices so demo's $0.05 cap is exhaustible by one smoke test.
     extra:
       input_cost_per_token: 0.00005
       output_cost_per_token: 0.0001
