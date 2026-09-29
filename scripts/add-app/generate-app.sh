@@ -123,10 +123,9 @@ append_file() {
   echo "appended to $path"
 }
 
-# Compute the relative-path depth from a base kustomize directory up to
-# kubernetes/, matching the trap documented in .agents/skills/flux-gitops/references/app-shapes.md: a
-# components: include's ../ count depends on how deep the base path is, and
-# this is the exact bug the searxng app/ rename hit on 2026-09-01.
+# Relative-path depth from a base kustomize directory up to kubernetes/: a
+# components: include's ../ count depends on how deep the base path is
+# (trap in .agents/skills/flux-gitops/references/app-shapes.md).
 components_relpath() {
   local dir="$1" name="$2"
   # dir is repo-relative, e.g. kubernetes/apps/base/ai/my-app/app

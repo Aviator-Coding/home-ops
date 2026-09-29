@@ -125,7 +125,7 @@ def run(args):
         print(f"#   ambient@{tag}: {a}", flush=True)
         return a
 
-    # ---- P1: pure prefill -------------------------------------------------
+    # P1: pure prefill
     if "1" in args.phases:
         note("P1-start")
         runs = []
@@ -141,7 +141,7 @@ def run(args):
         }
         note("P1-end")
 
-    # ---- P2: pure decode --------------------------------------------------
+    # P2: pure decode
     if "2" in args.phases:
         note("P2-start")
         runs = []
@@ -155,7 +155,7 @@ def run(args):
         }
         note("P2-end")
 
-    # ---- P3: mixed batch (the measured production penalty) ----------------
+    # P3: mixed batch (the measured production penalty)
     if "3" in args.phases:
         note("P3-start")
         decode_out, prefill_out = [], []
@@ -192,7 +192,7 @@ def run(args):
             print(f"P3 decoder: pred_n={r['pred_n']} decode={r['pred_ps']:.2f} t/s", flush=True)
         note("P3-end")
 
-    # ---- P4: concurrent production-shaped load ----------------------------
+    # P4: concurrent production-shaped load
     if "4" in args.phases:
         note("P4-start")
         out, lock = [], threading.Lock()
