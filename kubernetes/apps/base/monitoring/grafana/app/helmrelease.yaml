@@ -460,7 +460,7 @@ spec:
         prometheus-stats:
           # renovate: depName="Prometheus Stats"
           gnetId: 2
-          revision: 1
+          revision: 2
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
