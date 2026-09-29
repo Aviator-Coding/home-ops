@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mcp-gateway-rules
+  labels:
+    prometheus: k8s
+    role: alert-rules
+spec:
+  groups:
+    - name: mcp-gateway.rules
+      rules:
+        - alert: MCPGatewayMemoryGrowth
+          annotations:
+            summary: the MCP gateway working set is on track to hit its memory limit within 2 days
+            description: >-
+              vmcp pod {{ $labels.pod }} working set is projected to reach
+              {{ $value | humanize1024 }}B within 48h at the growth of the
+              last 6h, above its memory limit. The baseline is a leak-like
+              climb of about 680MiB/day, so expect an OOMKill and dropped
+              MCP sessions. Restart the pod or raise the limit in
+              toolhive/config/virtualmcpserver.yaml.
+          expr: |
+            predict_linear(container_memory_working_set_bytes{namespace="ai", pod=~"mcp-gateway-internal-.*", container="vmcp"}[6h], 48*3600)
+              > on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="ai", pod=~"mcp-gateway-internal-.*", container="vmcp", resource="memory"}
+          for: 1h
+          labels:
+            severity: warning
+
+        - alert: MCPGatewayMemoryNearLimit
+          annotations:
+            summary: the MCP gateway is close to being OOMKilled
+            description: >-
+              vmcp pod {{ $labels.pod }} is at {{ $value | humanizePercentage }}
+              of its memory limit. An OOMKill drops every open MCP session.
+          expr: |
+            container_memory_working_set_bytes{namespace="ai", pod=~"mcp-gateway-internal-.*", container="vmcp"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="ai", pod=~"mcp-gateway-internal-.*", container="vmcp", resource="memory"}
+              > 0.8
+          for: 15m
+          labels:
+            severity: warning

@@ -8,6 +8,7 @@ resources:
   - ./mcp-telemetry.yaml
   - ./mcpgroup.yaml
   - ./podmonitor.yaml
+  - ./prometheusrule.yaml
   - ./pushsecret.yaml
   - ./securitypolicy.yaml
   - ./virtualmcpserver.yaml
