@@ -455,8 +455,8 @@ def test_config_semantics(cfg: dict) -> dict:
     model_list = cfg["model_list"]
     names = [m["model_name"] for m in model_list]
     # `-metered` names: the D3 router's cloud tiers are the METERED CRs,
-    # renamed 2026-08-31 (captain decision, Alternative B of
-    # data/homeops-claude-code-passthrough-design/report.md). The bare
+    # renamed 2026-08-31 (captain decision, Alternative B of the
+    # pass-through investigation). The bare
     # `claude-sonnet-5`/`claude-opus-5` now belong to the credential-less
     # Claude Code subscription pass-through and must never be routed to by the
     # classifier.
@@ -717,7 +717,7 @@ def test_local_pricing_split(cfg: dict) -> None:
     )
 
     # D4 boundary: a config-declared fallback bypasses the calling key's
-    # allow-list (docs/ai-system/litellm/fallbacks.md#1), so an alias listed in
+    # allow-list (skill litellm-proxy, references/fallbacks.md), so an alias listed in
     # either fallback map IS a cloud entitlement regardless of who holds it.
     # `chat-local` must appear in neither, which is what makes it structurally
     # incapable of reaching a paid API - the same property `qwen3.6-35b-a3b`
@@ -1137,11 +1137,12 @@ def test_image_version_floor() -> None:
 
 
 def test_docs_exist() -> None:
-    doc = REPO / "docs/ai-system/litellm/auto-router.md"
+    # The operator knowledge lives in the litellm-proxy skill reference. Pin that
+    # it still covers each topic an agent needs before touching the router,
+    # checked via markdown headings, not implementation greps.
+    doc = REPO / ".agents/skills/litellm-proxy/references/auto-router.md"
     text = doc.read_text() if doc.exists() else ""
     record("auto_router_doc_exists", doc.exists() and len(text) > 500, f"bytes={len(text)}")
-    # Docs as a user-facing artifact: required sections present as structure,
-    # checked via markdown headings (the published contract), not implementation greps.
     headings = [ln.strip() for ln in text.splitlines() if ln.startswith("#")]
     needed = [
         "Tiers",

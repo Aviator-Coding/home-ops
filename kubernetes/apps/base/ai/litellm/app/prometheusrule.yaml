@@ -24,13 +24,6 @@ spec:
           annotations:
             description: LiteLLM has returned failed requests at a sustained rate for 10 minutes - check the /v1 backend (vllm-app) and proxy logs.
             summary: LiteLLM is failing a sustained share of requests.
-          # Verified against live Prometheus 2026-09-06: the name needs the
-          # OpenMetrics _total suffix. Without it the series does not exist and
-          # this alert could never fire. The sibling
-          # litellm_proxy_total_requests_metric_total carries 48 live series,
-          # which is what confirms the convention; the failed counter has no
-          # series only because there have been no failures, and it will appear
-          # the moment there are.
           expr: |-
             rate(litellm_proxy_failed_requests_metric_total[15m]) > 0.1
           for: 10m
@@ -45,41 +38,9 @@ spec:
           for: 5m
           labels:
             severity: warning
-        # --- Phase 5 fallback chains (docs/ai-system/litellm/fallbacks.md) ---
-        # Every series below was confirmed to exist and carry the labels used
-        # here by scraping the live proxy's /metrics on 2026-08-26 while
-        # driving real fallback events through throwaway probe models. The
-        # observed label set on both fallback counters is:
-        #   {requested_model, fallback_model, exception_class, exception_status,
-        #    api_key_alias, hashed_api_key, model_id, team, team_alias}
-        # `requested_model` is the alias the CALLER asked for (the primary) and
-        # `fallback_model` is the target the chain moved to.
-        #
-        # BOTH FALLBACK COUNTERS ARE ABSENT FROM PROMETHEUS RIGHT NOW, AND THAT
-        # IS CORRECT - do not "repair" these three alerts. Re-confirmed
-        # 2026-09-14 after an inventory-based audit flagged them as unfireable
-        # for naming a metric that "does not exist". The names are exactly
-        # right: litellm v1.98.0 declares both via _counter_factory as
-        # `litellm_deployment_successful_fallbacks` and
-        # `litellm_deployment_failed_fallbacks`
-        # (litellm/integrations/prometheus.py), and prometheus_client appends
-        # the `_total` suffix used here. A prometheus_client Counter WITH
-        # labels emits no series at all until .labels() is first called, so the
-        # family only appears once a fallback has actually happened - which is
-        # precisely why the 2026-08-26 verification above had to DRIVE real
-        # fallback events to observe it.
-        #
-        # The proof that this is sparseness and not a rename is the siblings:
-        # over the same 30d retention in which both fallback counters have 0
-        # series, litellm_deployment_cooled_down_total has 3 and
-        # litellm_llm_api_failed_requests_metric_total has 27 - same registry,
-        # same factory, same `_total` convention, materialising exactly when
-        # their event occurred. A naming error would have broken those too.
-        #
-        # So these three alerts are silent because this proxy has served no
-        # fallback in 30d, not because they are broken. The same reasoning is
-        # already recorded for litellm_llm_api_failed_requests_metric_total on
-        # LiteLLMHighFailureRate above.
+        # Fallback/router alerts: skill litellm-proxy (references/fallbacks.md, references/auto-router.md).
+        # The two fallback counters are SPARSE (no series until the first fallback): absence is the
+        # healthy state, not a wrong name - do not "repair" these alerts. Names need the _total suffix.
         - alert: LiteLLMFallbackChainExhausted
           annotations:
             description: >-
@@ -96,12 +57,7 @@ spec:
           for: 5m
           labels:
             severity: critical
-        # LiteLLMSustainedFailover and LiteLLMContextWindowFallbackFiring split
-        # the same successful_fallbacks counter by exception_class. Without the
-        # ContextWindowExceeded exclusion below, a sustained large-prompt
-        # workload would trip this availability alert 15m earlier than the
-        # dedicated context-window alert, with the wrong remediation (fix the
-        # local backend / watch cloud cost from outage).
+        # Split by exception_class so prompt overflow does not raise the availability alert.
         - alert: LiteLLMSustainedFailover
           annotations:
             description: >-
@@ -162,12 +118,7 @@ spec:
           for: 15m
           labels:
             severity: warning
-        # 403-vs-429 split. NOTE the api_provider selector: our OWN governance
-        # denials (a virtual key calling a model outside its allow-list) also
-        # surface as exception_status="403", with exception_class="ProxyException"
-        # and an EMPTY api_provider - those are the allow-list working correctly
-        # and must never page. Selecting api_provider="anthropic" keeps this
-        # alert on genuine upstream credential rejections only.
+        # api_provider="anthropic" keeps our own allow-list 403s (empty api_provider) off this alert.
         - alert: LiteLLMCloudProviderAuthFailing
           annotations:
             description: >-
@@ -201,13 +152,7 @@ spec:
           for: 10m
           labels:
             severity: warning
-        # --- D3 auto-router (docs/ai-system/litellm/auto-router.md) ---
-        # `requested_model` is the alias the CALLER asked for and
-        # `model_id`/`litellm_model_name` is the deployment that actually served
-        # it, so `requested_model="auto"` split by model name IS the per-tier
-        # routing breakdown - verified against a live /metrics scrape
-        # 2026-08-26. The classifier is a separate model_name on purpose, which
-        # is what makes these two series separable from ordinary local chat.
+        # requested_model is what the caller asked for; the classifier has its own model name.
         - alert: LiteLLMRouterClassifierFailingOpen
           annotations:
             description: >-
@@ -251,7 +196,7 @@ spec:
               cloud tier over the last hour. The router exists to keep cheap work
               local, so a sustained majority landing on Anthropic means either the
               traffic really did get harder, or the classifier/rubric has drifted.
-              Tuning guidance: docs/ai-system/litellm/auto-router.md#tuning.
+              Tuning guidance: skill litellm-proxy, .agents/skills/litellm-proxy/references/auto-router.md (Tuning).
             summary: LiteLLM auto-router is sending most traffic to the cloud tier.
           expr: |-
             sum(rate(litellm_deployment_success_responses_total{requested_model="auto", litellm_model_name=~"claude-.*"}[1h]))
@@ -261,23 +206,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-        # --- Claude Code subscription pass-through phantom-spend regression
-        # (docs/ai-system/litellm/claude-code-subscription.md §4a,
-        # virtualkeys/claude-code-subscription.yaml) ---
-        # This key has NO maxBudget (all four models it may call are priced $0
-        # on every field including the five prompt-cache ones) and, since 2026-08-31,
-        # NO rpmLimit/tpmLimit either - litellm_spend_metric_total is therefore
-        # the only ceiling-adjacent signal left on this key, and it exists
-        # purely to catch a REGRESSION of the 2026-08-31 cache-pricing fix,
-        # not to cap anything. litellm_spend_metric_total is the Prometheus
-        # scrape name for the per-request Counter incremented on every logged
-        # call regardless of amount
-        # (_increment_top_level_request_and_spend_metrics, v1.98.0,
-        # labelnames include api_key_alias; live-measured series name on this
-        # cluster matches docs/ai-system/litellm/auto-router.md). The first
-        # real request after the 2026-08-31T04:09:50Z restart is what proves
-        # this alert can fire at all - process counters reset on that restart,
-        # so the series starts fresh rather than carrying the DB's $54.31.
+        # That key has no budget or limits; any new spend means a $0 price field regressed.
         - alert: LiteLLMClaudeCodeSubscriptionSpendRegression
           annotations:
             description: >-

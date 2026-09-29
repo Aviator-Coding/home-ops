@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Contract tests for closing LiteLLM's built-in /anthropic pass-through.
 
-Invariant (docs/ai-system/litellm/README.md § Anthropic pass-through route):
+Invariant (skill litellm-proxy, references/passthrough-lockdown.md):
 the subscription route must never reach a household-metered Anthropic
 credential. LiteLLM v1.98.0 registers `/anthropic/{endpoint}` unconditionally
 with no config/CRD toggle and no virtual-key model allow-list check. This

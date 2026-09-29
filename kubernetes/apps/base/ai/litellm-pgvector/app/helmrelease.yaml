@@ -1,15 +1,7 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
-# BerriAI/litellm-pgvector: the OpenAI-compatible vector-store server behind
-# LiteLLM's `pg_vector` provider. Stateless - every byte it serves lives in the
-# `litellm_pgvector` database on the shared postgres-17 cluster, so the
-# cluster's Barman backups (LAN TrueNAS MinIO, 30d) cover it with nothing
-# app-side. How it is used and what it cannot do:
-# ../../litellm/README.md "Vector store (pgvector)".
-#
-# ClusterIP only, no HTTPRoute: LiteLLM reaches it in-cluster for searches, and
-# the write API (ingest) is for in-cluster or port-forwarded admin use - its
-# single bearer key is not a per-user credential.
+# BerriAI/litellm-pgvector: the stateless server behind LiteLLM's pg_vector store (data lives in
+# postgres-17). ClusterIP only, no HTTPRoute. See skill litellm-proxy (references/vector-store.md).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -30,7 +22,7 @@ spec:
     defaultPodOptions:
       automountServiceAccountToken: false
       securityContext:
-        # The image's own USER. No fsGroup: the pod mounts no volume it owns.
+        # The image's own USER; no fsGroup (no owned volume).
         runAsNonRoot: true
         runAsUser: 65534
         runAsGroup: 65534
@@ -42,41 +34,23 @@ spec:
         containers:
           app:
             image:
-              # Built from .github/docker/litellm-pgvector by
-              # .github/workflows/build-litellm-pgvector.yaml. The tag is
-              # content-addressed (upstream commit + build-context hash): after
-              # ANY edit in that directory, set it to the output of
-              #   python3 scripts/ci/litellm-pgvector-test.py --print-tag
-              # which is also what that test asserts.
+              # Content-addressed tag: after ANY edit in .github/docker/litellm-pgvector set it to
+              # `python3 scripts/ci/litellm-pgvector-test.py --print-tag` (the test asserts it).
               repository: ghcr.io/aviator-coding/litellm-pgvector
               tag: b553f84-3c129ca9b802
             env:
-              # The LiteLLM SDK inside the server needs a provider prefix to
-              # talk to an OpenAI-compatible endpoint; `openai/` makes it POST
-              # {base}/embeddings to our proxy with model
-              # `qwen/qwen3-embedding-8b` (OpenRouter, captain decision
-              # 2026-09-27). Must stay the ONLY model the litellm-pgvector key
-              # may call - a query embedded by any other model lands in a
-              # different vector space (scripts/ci/litellm-pgvector-test.py).
+              # INVARIANT: model, EMBEDDING__DIMENSIONS, schema.sql's vector(N) and the litellm-pgvector
+              # key's one-model allow-list move together (CI-enforced); 2000 is pgvector's HNSW limit.
               EMBEDDING__MODEL: openai/qwen/qwen3-embedding-8b
               EMBEDDING__BASE_URL: http://litellm.ai.svc.cluster.local:4000
-              # Sent as `dimensions` on every query embedding (image patch
-              # 0003) and checked against the answer's length; equals the
-              # vector(N) in resources/schema.sql. 2000, not the model's native
-              # 4096, because 2000 is pgvector's HNSW limit - see schema.sql.
               EMBEDDING__DIMENSIONS: "2000"
-              # litellm otherwise fetches its model cost map from GitHub at
-              # import; nothing here prices anything.
+              # No cost-map fetch from GitHub at import; nothing here prices anything.
               LITELLM_LOCAL_MODEL_COST_MAP: "True"
             envFrom:
               - secretRef:
                   name: litellm-pgvector-secret
+            # /health is static (process up, not DB up); a DB outage shows as 500s on search.
             probes:
-              # Upstream's /health is static - it proves the process serves
-              # HTTP, not that Postgres is reachable. Kept for liveness and
-              # readiness because it is the only unauthenticated route; a DB
-              # outage shows up as 500s on search, which the LiteLLM proxy
-              # logs as failed vector-store calls.
               liveness: &probes
                 enabled: true
                 custom: true
@@ -95,9 +69,6 @@ spec:
             resources:
               requests:
                 cpu: 10m
-                # Measured 2026-09-27 on a local run of this exact image
-                # (read-only rootfs, uid 65534): 173MB idle, 233MB after
-                # ingest + search. The litellm SDK import dominates.
                 memory: 320Mi
               limits:
                 memory: 768Mi
@@ -108,7 +79,7 @@ spec:
           http:
             port: *port
     persistence:
-      # Prisma's query engine and Python both want a writable /tmp.
+      # Prisma's query engine and Python want a writable /tmp.
       tmp:
         type: emptyDir
         globalMounts:

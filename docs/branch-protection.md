@@ -99,7 +99,8 @@ failure), for every PR, including from a fork.
 [`ai-pr-review.yaml`](../.github/workflows/ai-pr-review.yaml) also has no trigger-level path
 filter and runs on every PR, but stays off the ruleset by design — it is advisory-only
 (`publish_mode: comment`, not a merge gate) and must not become one; see
-[`docs/ai-system/litellm/pr-reviewer.md`](ai-system/litellm/pr-reviewer.md).
+skill `litellm-proxy`
+([`references/pr-reviewer.md`](../.agents/skills/litellm-proxy/references/pr-reviewer.md)).
 [`terraform-diff.yaml`](../.github/workflows/terraform-diff.yaml) still trigger-path-filters on
 `terraform/**` and is out of scope here (optional follow-up, not a reliability gap: a bad
 `terraform/` change is caught by `validate.yaml`'s `terraform` job, which now always starts).

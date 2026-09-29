@@ -9,8 +9,7 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  # The rendered workload, never the HelmRelease (house rule: a HelmRelease
-  # stays Ready through a crashloop).
+  # The rendered workload, never the HelmRelease.
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
@@ -21,10 +20,7 @@ spec:
       namespace: security
     - name: cloudnative-pg
       namespace: database
-    # Not only for the proxy the server embeds queries through: the litellm
-    # Kustomization also owns the two PushSecrets that CREATE the 1Password
-    # items this app's ExternalSecrets read (`litellm-pgvector` and
-    # `litellm-consumer-litellm-pgvector`), so they exist before it starts.
+    # litellm owns the PushSecrets that create the 1Password items this app reads.
     - name: litellm
       namespace: ai
   interval: 1h

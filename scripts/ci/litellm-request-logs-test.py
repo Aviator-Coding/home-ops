@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Behavioral validation of full prompt/response capture in LiteLLM spend logs.
 
-Captain request 2026-08-27 / docs/ai-system/litellm/request-logs.md.
+Captain request 2026-08-27. Runbook: docs/ai-system/litellm/request-logs.md;
+mechanism: skill litellm-proxy (references/spend-logs.md).
 
 Renders the litellm-operator LiteLLMProxy CR the way file-mode does, then:
 
@@ -52,7 +53,7 @@ CLUSTER_17 = (
     / "kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml"
 )
 
-# Matches the live probe recorded in request-logs.md §10.
+# A multi-thousand-char prompt: deliberately over the 2048-char default cap.
 PROBE_PROMPT_REPS = 140
 PROBE_PROMPT = ("full-content-capture-probe-line\n" * PROBE_PROMPT_REPS).rstrip("\n")
 PROBE_COMPLETION = "full content capture works"
@@ -219,9 +220,6 @@ def test_runbook_contract() -> None:
         "MAX_STRING_LENGTH_PROMPT_IN_DB",
         "maximum_spend_logs_retention_period",
         "store_model_in_db",
-        "full content capture works",
-        "0.0008539",
-        "gen-1787882691-eK0dnnHsVU5MzNL03Rqx",
         "LiteLLM_SpendLogs",
         "cost_breakdown",
         "nas.",

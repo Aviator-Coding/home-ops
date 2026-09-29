@@ -6,8 +6,8 @@ Renders the litellm-operator CR surface the way the operator does in file mode
 then asserts the captain-approved semantics for the four pass-through models -
 `claude-sonnet-5` and `claude-opus-5` (2026-08-27/2026-08-30; RENAMED
 2026-08-31 from `claude-code-subscription`/`claude-code-subscription-opus` to
-the natural names - captain decision, Alternative B of
-data/homeops-claude-code-passthrough-design/report.md - freeing those names
+the natural names - captain decision, Alternative B of the
+pass-through investigation - freeing those names
 from the formerly-metered CRs, which moved to `claude-sonnet-5-metered` /
 `claude-opus-5-metered`), plus `claude-haiku-4-5-20251001` and
 `claude-fable-5-1` (both ADDED 2026-09-27, captain decision "2-yes", with no
@@ -37,8 +37,9 @@ only the model allow-list changed:
        - omitting api_key is NOT how credential-less models work
          (get_api_key(None) falls back to ANTHROPIC_API_KEY env)
   8. Client runbook doc is a published contract (required env vars +
-     x-litellm-api-key header guidance, and the §5c block's `[1m]` suffix
-     on the three model vars plus ENABLE_TOOL_SEARCH=true). Rename
+     x-litellm-api-key header guidance, and the "Point the CLI at LiteLLM"
+     block's `[1m]` suffix on the model vars plus ENABLE_TOOL_SEARCH=true);
+     the skill reference records the forward-headers decision. Rename
      invariants live in the operator-render/CR/fallback assertions above
      and in the sibling auto-router / fallback-chain tests, not in runbook
      greps.
@@ -66,6 +67,7 @@ VIRTUALKEYS_DIR = APP_DIR / "virtualkeys"
 PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 EXTERNAL_SECRET_PATH = APP_DIR / "externalsecret.yaml"
 RUNBOOK = REPO / "docs/ai-system/litellm/claude-code-subscription.md"
+SKILL_REF = REPO / ".agents/skills/litellm-proxy/references/claude-code-subscription.md"
 README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 
 # The virtual key's own name/alias/Secret - UNCHANGED by the 2026-08-31
@@ -75,8 +77,8 @@ README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 # separate constant from MODEL_NAME below.
 KEY_NAME = "claude-code-subscription"
 # RENAMED 2026-08-31 from `claude-code-subscription` to the natural
-# `claude-sonnet-5` (captain decision, Alternative B of
-# data/homeops-claude-code-passthrough-design/report.md), freeing the name
+# `claude-sonnet-5` (captain decision, Alternative B of the
+# pass-through investigation), freeing the name
 # from the formerly-metered CR, which moved to `claude-sonnet-5-metered`.
 MODEL_NAME = "claude-sonnet-5"
 # Opus half, added 2026-08-30 after a `claude` subagent asked for Opus by name
@@ -84,7 +86,7 @@ MODEL_NAME = "claude-sonnet-5"
 # credential-less CR rather than a per-key alias, because LiteLLM v1.98.0
 # applies a key's `aliases` in litellm_pre_call_utils only AFTER
 # can_key_call_model has already 403'd in the auth dependency - measured, see
-# the CR header and runbook section 7. RENAMED 2026-08-31 from
+# skill litellm-proxy (references/governance-keys.md). RENAMED 2026-08-31 from
 # `claude-code-subscription-opus` to the natural `claude-opus-5`, freeing the
 # name from the formerly-metered CR, which moved to `claude-opus-5-metered`.
 OPUS_MODEL_NAME = "claude-opus-5"
@@ -471,7 +473,7 @@ def test_absent_from_fallback_chains(cfg: dict) -> None:
     # Both pass-through models must stay out of every chain, in both roles.
     # As a PRIMARY, a fallback would send a tokenless caller's failed request
     # on to a metered model - a config-declared fallback bypasses the calling
-    # key's allow-list (see docs/ai-system/litellm/fallbacks.md). As a TARGET,
+    # key's allow-list (skill litellm-proxy, references/fallbacks.md). As a TARGET,
     # it would route some other consumer's traffic at a model that requires a
     # client-supplied OAuth token nobody else sends.
     as_primary = [s for s in SUBSCRIPTION_MODELS if s in avail or s in ctx]
@@ -903,9 +905,9 @@ def test_kustomize_emits_resources() -> None:
 
 
 def _section_5c_env_assignments(text: str) -> dict[str, str]:
-    """Export assignments in the first bash fence under the §5c heading."""
+    """Export assignments in the first bash fence under the "Point the CLI at LiteLLM" heading."""
     match = re.search(
-        r"### 5c\. Point the CLI at LiteLLM\n+```bash\n(.*?)```",
+        r"#+ (?:[\d.a-z]+\. )?Point the CLI at LiteLLM\n+```bash\n(.*?)```",
         text,
         re.S,
     )
@@ -935,7 +937,7 @@ def test_runbook_contract() -> None:
         return
 
     # Required client env contract. The natural names resolve to the
-    # pass-through models. §5c also sets the family vars, with a client-only
+    # pass-through models. The CLI block also sets the family vars, with a client-only
     # [1m] suffix, because subagents and /model resolve by family and Claude
     # Code clamps a non-api.anthropic.com base URL to a 200k window.
     needed_env = [
@@ -957,9 +959,9 @@ def test_runbook_contract() -> None:
         or "ANTHROPIC_MODEL" in text and MODEL_NAME in text,
         "model assignment present",
     )
-    # §5c env block, not a whole-doc grep: historical prose still names the
-    # family vars without [1m]. The suffix is client-only; dropping it puts
-    # auto-compact back at ~167k while every server-side check stays green.
+    # The CLI env block, not a whole-doc grep. The suffix is client-only;
+    # dropping it puts auto-compact back at ~167k while every server-side
+    # check stays green.
     section_5c = _section_5c_env_assignments(text)
     want_1m = {
         "ANTHROPIC_MODEL": f"{MODEL_NAME}[1m]",
@@ -980,7 +982,7 @@ def test_runbook_contract() -> None:
     # Haiku 4.5's real context window stays at 200k (no native_1m in its
     # catalog entry - see claude-haiku-4-5-20251001.yaml's header), so `[1m]`
     # would be misleading and ANTHROPIC_DEFAULT_HAIKU_MODEL is deliberately
-    # NOT set in §5c: the natural default already resolves to this CR with no
+    # NOT set in the CLI block: the natural default already resolves to this CR with no
     # window-hint benefit to claim.
     record(
         "runbook_section_5c_omits_haiku_1m_suffix",
@@ -1004,12 +1006,10 @@ def test_runbook_contract() -> None:
         "out of scope" in text.lower() and "headless" in text.lower(),
         "headless scope note present",
     )
-    # Decision record: flag deliberately off.
     record(
-        "runbook_records_forward_client_headers_deliberately_off",
-        "forward_client_headers_to_llm_api" in text
-        and ("did NOT set" in text or "deliberately" in text.lower() or "flag off" in text.lower()),
-        "flag decision recorded",
+        "skill_reference_exists",
+        SKILL_REF.exists(),
+        "skill reference exists",
     )
 
     readme = README_APP.read_text() if README_APP.exists() else ""

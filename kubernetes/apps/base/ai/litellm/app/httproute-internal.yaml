@@ -1,44 +1,12 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
-# INTERNAL-ONLY route for the LiteLLM proxy (captain instruction, 2026-08-26).
-#
-# B4 as it now stands: LiteLLM never fronts the PUBLIC listener - that half of
-# the decision is unchanged and still non-negotiable. Only the internal gateway
-# is relaxed, and only on the captain's explicit instruction. There is no
-# `envoy-external` parentRef here and there must never be one; see this app's
-# README.md for the full current wording.
-#
-# WHY A STANDALONE HTTPRoute AND NOT THE OPERATOR'S `spec.route`:
-# not for DNS. `spec.route` would in fact have resolved correctly - the
-# `envoy-internal` Gateway itself carries
-# `external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}` and
-# external-dns inherits it for every attached route (verified live 2026-08-26:
-# searxng and jellyfin carry NO route-level target annotation and both resolve
-# via CNAME to internal.${SECRET_DOMAIN}; jellyfin has since been retired). The
-# reason is ANNOTATIONS: the
-# operator's route schema is exactly {hostnames, parentRefs, filters} and has
-# no annotations field at all, so an operator-owned route cannot carry the
-# `gatus.home-operations.com/endpoint` or `gethomepage.dev/*` keys this repo
-# puts on every app route.
-#
-# That matters concretely rather than cosmetically. Gatus DOES auto-discover
-# routes with no annotation (the same Gateway carries
-# `gatus.home-operations.com/endpoint: "group: internal"`), but it then applies
-# a default `[STATUS] == 200` check against `/` - which is why `agentmemory`
-# (404) and `mcp-gateway` (406) currently sit permanently red in Gatus. Owning
-# the annotation lets this app point its check at a real health endpoint and
-# land in the `ai` group instead of `internal`.
+# INTERNAL-ONLY route (captain decision B4): never an envoy-external parentRef.
+# Hand-written instead of the operator's spec.route, which cannot carry annotations.
+# See skill litellm-proxy (references/platform.md).
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  # NOT `litellm`. The operator DELETES any HTTPRoute whose name equals the
-  # LiteLLMProxy's name in the proxy's namespace when spec.route is absent -
-  # it treats it as an orphan of a route it owns. Proven live 2026-08-26: a
-  # route named `litellm` survived creation, then vanished on the very next
-  # LiteLLMProxy reconcile, while an otherwise identical `litellm-nametest`
-  # survived. That failure mode is nasty because it is DELAYED - the route
-  # works until something touches the proxy CR. Keep this suffixed, and match
-  # the sibling convention (`agentgateway-internal`).
+  # NEVER `litellm`: the operator deletes a route named after the proxy CR on a later reconcile.
   name: litellm-internal
   annotations:
     gethomepage.dev/enabled: "true"
@@ -46,14 +14,8 @@ metadata:
     gethomepage.dev/name: LiteLLM
     gethomepage.dev/description: "LLM governance proxy - virtual keys, budgets, fallback chains"
     gethomepage.dev/icon: litellm.png
-    # Redundant given the Gateway-level annotation above, kept because every
-    # other app route in this repo states its target explicitly.
     external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
-    # /health/readiness, not / - it returns {"status":"healthy","db":"connected"}
-    # and so also covers the Postgres dependency that the virtual-key and spend
-    # machinery needs, whereas / only proves the web server is up. Verified
-    # unauthenticated 200 on the live proxy 2026-08-26 (the /metrics endpoint
-    # requires a Bearer token, but the health endpoints do not).
+    # /health/readiness also covers the Postgres dependency.
     gatus.home-operations.com/endpoint: |-
       group: ${GATUS_GROUP}
       conditions: ["[STATUS] == 200", "[BODY].status == healthy"]
@@ -66,29 +28,8 @@ spec:
       namespace: network
       sectionName: https
   rules:
-    # CLOSES the unused built-in `/anthropic/{endpoint}` pass-through on the
-    # GATEWAY/HOSTNAME path (https://litellm.${SECRET_DOMAIN}/anthropic/...).
-    # docs/ai-system/litellm/README.md#anthropic-pass-through-route-closed-2026-08-31.
-    # That route resolves a SERVER-SIDE Anthropic credential (falling back to the
-    # household ANTHROPIC_API_KEY the pod holds) and is not gated by any
-    # virtual key's model allow-list, so any key valid on this proxy could
-    # reach it - the exact hole the subscription-route invariant forbids.
-    # Since 2026-09-27 the in-cluster Service DNS path
-    # (http://litellm.ai.svc.cluster.local:4000/anthropic/...) is closed as
-    # well, one layer down: `pass_through_endpoints` in litellmproxy.yaml make
-    # the whole prefix admin-only inside the proxy, which covers this hostname
-    # too. This rule stays as the outer layer - nothing, not even the master
-    # key, reaches /anthropic through the gateway. No config.yaml flag
-    # disables the route itself: it is registered unconditionally in
-    # litellm/proxy/pass_through_endpoints/llm_passthrough_endpoints.py, and
-    # the LiteLLMProxy CRD has no field for it either. Non-use was
-    # verified across three independent sources (LiteLLM_SpendLogs,
-    # LiteLLM_DailyGatewayRequests, and Prometheus's
-    # litellm_proxy_total_requests_metric_total route label) before this was
-    # added - see the doc section above for the evidence and the re-open
-    # procedure. Gateway API path matching is most-specific-wins regardless
-    # of list order, so this rule intercepts `/anthropic` before the
-    # catch-all below sends it to the litellm backend.
+    # Outer layer closing the built-in /anthropic pass-through on the hostname path (the proxy's
+    # pass_through_endpoints close the Service path). Most-specific path wins regardless of order.
     - matches:
         - path:
             type: PathPrefix
@@ -105,9 +46,7 @@ spec:
           port: 4000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/httproutefilter_v1alpha1.json
-# Referenced by the `/anthropic` rule above. A single revert of that rule plus
-# this resource fully restores the route - nothing else on this HTTPRoute or
-# any other route is touched.
+# Referenced by the /anthropic rule above.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: HTTPRouteFilter
 metadata:

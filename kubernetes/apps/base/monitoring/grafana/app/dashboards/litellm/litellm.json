@@ -764,7 +764,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Current per-deployment health from litellm_deployment_state (0=healthy, 1=unhealthy). This is a latched gauge - it stays 1 after a single past failure until that deployment's next success - so pair it with the failure-rate panel to tell \"unhealthy and still failing\" from \"was unhealthy once\" (docs/ai-system/litellm/fallbacks.md).",
+      "description": "Current per-deployment health from litellm_deployment_state (0=healthy, 1=unhealthy). This is a latched gauge - it stays 1 after a single past failure until that deployment's next success - so pair it with the failure-rate panel to tell \"unhealthy and still failing\" from \"was unhealthy once\" (skill litellm-proxy, .agents/skills/litellm-proxy/references/fallbacks.md).",
       "fieldConfig": {
         "defaults": {
           "mappings": [
@@ -879,7 +879,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Fallback chain triggers over the selected range. Both counters are prometheus_client Counters that emit no series until first used, so an all-zero reading here means no fallback fired in range, not a broken query. litellm_deployment_cooled_down_total is deliberately not charted: every model group on this proxy has exactly one deployment, and LiteLLM exempts single-deployment groups from cooldown, so that counter is structurally inert on this cluster (docs/ai-system/litellm/fallbacks.md).",
+      "description": "Fallback chain triggers over the selected range. Both counters are prometheus_client Counters that emit no series until first used, so an all-zero reading here means no fallback fired in range, not a broken query. litellm_deployment_cooled_down_total is deliberately not charted: every model group on this proxy has exactly one deployment, and LiteLLM exempts single-deployment groups from cooldown, so that counter is structurally inert on this cluster (skill litellm-proxy, .agents/skills/litellm-proxy/references/fallbacks.md).",
       "fieldConfig": {
         "defaults": {
           "unit": "short",

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Contract tests for what the LiteLLM AI Hub publishes and how it renders.
 
-Invariant (kubernetes/apps/base/ai/litellm/README.md "AI Hub publication
-(Git-only)", captain decision `hub-public-set` 2026-09-27): the Hub lists
+Invariant (skill litellm-proxy, references/model-catalog.md "AI Hub
+publication", captain decision `hub-public-set` 2026-09-27): the Hub lists
 exactly `spec.litellmSettings.public_model_groups` on the LiteLLMProxy CR. The
 Admin UI "make public" path returns 500 on this proxy (store_model_in_db is
 false), so that list is the only publication mechanism, and a model reaches the

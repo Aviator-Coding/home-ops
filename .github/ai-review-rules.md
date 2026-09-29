@@ -3,9 +3,9 @@
 Review standards for the automated reviewer in `.github/workflows/ai-pr-review.yaml`.
 
 **Why this file exists instead of `AGENTS.md`.** The reviewer inlines its standards file whole
-and then hard-truncates it to the first 16000 bytes. `AGENTS.md` is ~70kB, so handing it over
-would silently deliver an arbitrary head-slice, cut mid-sentence, that drops the entire `NOTES`
-section - where most of this repo's load-bearing review knowledge lives. This file is the
+and then hard-truncates it to the first 16000 bytes. `AGENTS.md` is far larger than that, so
+handing it over would silently deliver an arbitrary head-slice, cut mid-sentence, that drops most
+of its tripwires and its skill index. This file is the
 review-relevant distillation, kept under that cap on purpose. `AGENTS.md` remains authoritative
 for humans and for agents doing the work; if the two disagree, `AGENTS.md` wins.
 

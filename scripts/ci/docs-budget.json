@@ -2,10 +2,9 @@
   "allowlist": [],
   "baseline": {
     "agents_md_bytes": {
-      "AGENTS.md": 127837
+      "AGENTS.md": 124248
     },
     "comment_block_lines": {
-      ".github/workflows/ai-pr-review.yaml": 68,
       ".github/workflows/terraform-diff.yaml": 54,
       ".github/workflows/validate.yaml": 61,
       ".renovate/autoMerge.json5": 35,
@@ -19,39 +18,6 @@
       "kubernetes/apps/base/ai/hermes/app/helmrelease.yaml": 38,
       "kubernetes/apps/base/ai/hermes/app/prometheusrule.yaml": 42,
       "kubernetes/apps/base/ai/hermes/app/resources/config.yaml": 24,
-      "kubernetes/apps/base/ai/litellm-pgvector/app/dbinit.yaml": 23,
-      "kubernetes/apps/base/ai/litellm/app/dbinit.yaml": 26,
-      "kubernetes/apps/base/ai/litellm/app/httproute-internal.yaml": 28,
-      "kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml": 89,
-      "kubernetes/apps/base/ai/litellm/app/models/auto.yaml": 16,
-      "kubernetes/apps/base/ai/litellm/app/models/chat-ha.yaml": 43,
-      "kubernetes/apps/base/ai/litellm/app/models/chat-local.yaml": 66,
-      "kubernetes/apps/base/ai/litellm/app/models/claude-fable-5-1.yaml": 49,
-      "kubernetes/apps/base/ai/litellm/app/models/claude-haiku-4-5-20251001.yaml": 40,
-      "kubernetes/apps/base/ai/litellm/app/models/claude-opus-5-metered.yaml": 27,
-      "kubernetes/apps/base/ai/litellm/app/models/claude-opus-5.yaml": 52,
-      "kubernetes/apps/base/ai/litellm/app/models/claude-sonnet-5-metered.yaml": 28,
-      "kubernetes/apps/base/ai/litellm/app/models/claude-sonnet-5.yaml": 31,
-      "kubernetes/apps/base/ai/litellm/app/models/embedding-local.yaml": 51,
-      "kubernetes/apps/base/ai/litellm/app/models/glm-5.2.yaml": 21,
-      "kubernetes/apps/base/ai/litellm/app/models/glm-5.3.yaml": 21,
-      "kubernetes/apps/base/ai/litellm/app/models/kustomization.yaml": 65,
-      "kubernetes/apps/base/ai/litellm/app/models/pr-review-local.yaml": 52,
-      "kubernetes/apps/base/ai/litellm/app/models/qwen3-embedding-8b.yaml": 23,
-      "kubernetes/apps/base/ai/litellm/app/models/qwen3.6-35b-a3b-classifier.yaml": 45,
-      "kubernetes/apps/base/ai/litellm/app/prometheusrule.yaml": 35,
-      "kubernetes/apps/base/ai/litellm/app/pushsecret-pgvector.yaml": 25,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/agent-swarm-captain.yaml": 23,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/agent-swarm-network-broker.yaml": 26,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/agent-swarm-paid.yaml": 18,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/ai-pr-review.yaml": 25,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/claude-code-subscription.yaml": 128,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/embedding-external.yaml": 26,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/jev-decisions.yaml": 38,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/kustomization.yaml": 39,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/litellm-pgvector.yaml": 19,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/mac-gnhf.yaml": 95,
-      "kubernetes/apps/base/ai/litellm/app/virtualkeys/repo-wiki.yaml": 25,
       "kubernetes/apps/base/ai/pvc/app/shared-files.yaml": 28,
       "kubernetes/apps/base/ai/pvc/app/shared-xml.yaml": 16,
       "kubernetes/apps/base/ai/samba/app/helmrelease.yaml": 40,
@@ -150,8 +116,7 @@
       "terraform/authentik/secrets.vals.yaml": 21
     },
     "skill_description_chars": {
-      ".agents/skills/kopiur-backups/SKILL.md": 520,
-      ".agents/skills/litellm-proxy/SKILL.md": 402
+      ".agents/skills/kopiur-backups/SKILL.md": 520
     }
   }
 }

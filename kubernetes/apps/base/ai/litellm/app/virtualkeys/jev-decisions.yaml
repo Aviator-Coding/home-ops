@@ -1,43 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
-# The one non-admin credential allowed through the TypeSafe Jev decisions door
-# (captain decision `jev-door-grant`, option B, 2026-09-28). Its consumer is
-# the shared decision skill: before a crucial call it is unsure about, an agent
-# asks Jev (`typesafe/jev-1.13`) for a typed choice and escalates to the
-# captain only when the answer is inconclusive.
-#
-# THIS CR ALONE GRANTS NOTHING ON THE DOOR. `/openrouter/alpha/decisions` is
-# an `auth: true` pass-through (../litellmproxy.yaml), so LiteLLM refuses every
-# non-admin key there unless the key's `metadata.allowed_passthrough_routes`
-# is a LIST naming the path. The operator cannot write a list (its `metadata`
-# is map[string]string, and a string value fails closed), so the grant is ONE
-# out-of-Git admin `/key/update`, applied after the operator mints this key.
-# Runbook and the exact body: ../../README.md "Granting the jev-decisions key".
-#
-# NEVER add `spec.metadata` here. The operator re-sends this spec through
-# `/key/update` on every reconcile; while `metadata` is absent it sends none and
-# LiteLLM keeps the hand-applied grant (measured live 2026-09-28 with a
-# throwaway key). The moment `metadata` is declared, the operator sends it and
-# LiteLLM REPLACES the whole metadata object, silently deleting the grant.
-# scripts/ci/litellm-passthrough-lockdown-test.py fails on it.
-#
-# Recreating this key (deleting the CR, or its output Secret, or the key in
-# LiteLLM) mints a key WITHOUT the grant: calls get `403 Key/team not allowed
-# to access passthrough route` until the runbook step is re-applied. That is
-# fail-closed by design - the skill treats it as inconclusive and asks.
-#
-# `models` holds only the Jev id. OpenRouter rejects a decisions body that has
-# no string `model` (measured: 400 "expected string, received undefined"), so
-# LiteLLM's allow-list check always fires on this path and a body naming any
-# other model is refused (403). The id is not a LiteLLMModel CR and must not
-# become one: the chat-completions route rejects decisions models (README).
-# No `embedding-local`, unlike most keys: this credential is for one call only.
-#
-# Priced by the image's native TypeSafePassthroughLoggingHandler against
-# `openrouter/typesafe/jev-1.13` in the cost map ($0.042 per 1M input tokens,
-# $0 output; ~$0.0000134 per ~320-token decision), so spend is recorded and the
-# budget below is live: $1/30d is roughly 75,000 decisions, far above a
-# human-in-the-loop skill, and a runaway loop stops at $1.
+# The one non-admin key allowed through POST /openrouter/alpha/decisions (captain decision jev-door-grant).
+# The grant is an out-of-Git admin /key/update (../../README.md). NEVER add spec.metadata: the operator
+# would overwrite and delete the grant. Skill litellm-proxy (references/passthrough-lockdown.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -47,20 +12,17 @@ spec:
   keyAlias: jev-decisions
   secretName: litellm-key-jev-decisions
   secretKey: key
+  # The Jev id only; it is not (and must not become) a LiteLLMModel.
   models:
     - typesafe/jev-1.13
+  # Priced natively from the cost map; $1/30d stops a runaway loop.
   maxBudget: "1.00"
   budgetDuration: 30d
-  # A decision is one short request an agent makes before a crucial step,
-  # so these bound a runaway client only.
   rpmLimit: 30
   tpmLimit: 50000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
-# Mirrors the operator-minted key into 1Password item
-# `litellm-consumer-jev-decisions` (auto-created - not a captain
-# prerequisite), where the decision skill reads it - the same continuity
-# pattern as every other consumer in this directory.
+# Mirrors the key to 1Password litellm-consumer-jev-decisions, where the decision skill reads it.
 apiVersion: external-secrets.io/v1alpha1
 kind: PushSecret
 metadata:

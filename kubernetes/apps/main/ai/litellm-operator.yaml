@@ -9,11 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  # Deployment, not HelmRelease: an HR healthCheck only proves the last helm
-  # action succeeded and stays Ready through a crashloop (house rule, see
-  # CLAUDE.md). Here it also has to be the workload for a second reason - the
-  # chart's ValidatingWebhookConfiguration has failurePolicy: Fail, so a
-  # LiteLLM CR cannot even be admitted until this pod is serving.
+  # The Deployment: an HR healthCheck stays Ready through a crashloop, and the CRs cannot be
+  # admitted until this pod serves its failurePolicy: Fail webhook.
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
