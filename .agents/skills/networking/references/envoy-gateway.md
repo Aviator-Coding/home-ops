@@ -54,6 +54,13 @@ This is the outer layer only. It never sees in-cluster Service DNS. Closing
 a Service path is the backend's own config (LiteLLM
 `pass_through_endpoints`, skill `litellm-proxy`).
 
+A static bearer token uses `SecurityPolicy.spec.apiKeyAuth` with
+`extractFrom.headers: [Authorization]`. Envoy strips the `Bearer ` prefix
+before comparing. `targetRefs[].sectionName` scopes it to one named route
+rule, so a health path can stay open. The same outer-layer limit applies:
+callers of the Service bypass it. Example: `ai/toolhive/config`
+(skill `ai-stack`).
+
 agentgateway uses `AgentgatewayPolicy.spec.traffic.directResponse` on
 `agentgateway.dev` routes. An Envoy `HTTPRouteFilter` does not apply there.
 

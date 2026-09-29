@@ -23,6 +23,9 @@ Live MCP servers (each a `toolhive.stacklok.dev/v1alpha1` `MCPServer`):
 `EmbeddingServer/mcp-tools-embedding` is the CPU model on the session path.
 Hermes connects to
 `http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp`.
+The LAN route `mcp.${SECRET_DOMAIN}` requires a bearer token (1Password
+`mcp-gateway`); the in-cluster Service does not check it.
+[toolhive.md](toolhive.md) "Gateway auth".
 
 ## Not deployed
 

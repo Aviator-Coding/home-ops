@@ -81,6 +81,8 @@ spec:
   dependsOn:
     - name: toolhive
       namespace: *namespace
+    - name: onepassword-store
+      namespace: security
   postBuild:
     substituteFrom:
       - name: cluster-secrets

@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+# Bearer token on the MCP route. vmcp has no static-token mode, so Envoy enforces it here and
+# callers of the in-cluster Service bypass it. Envoy strips "Bearer " before comparing, and
+# sanitize drops the header before vmcp. Only rule `mcp`: `health` stays open for Gatus.
+# Skill ai-stack references/toolhive.md.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: mcp-gateway-auth
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: mcp-gateway
+      sectionName: mcp
+  apiKeyAuth:
+    # Every key in this Secret is a client id and its value a valid token.
+    credentialRefs:
+      - group: ""
+        kind: Secret
+        name: mcp-gateway-token
+    extractFrom:
+      - headers:
+          - Authorization
+    sanitize: true

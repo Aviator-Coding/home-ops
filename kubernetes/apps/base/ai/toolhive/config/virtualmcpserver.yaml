@@ -12,6 +12,8 @@ spec:
         prefixFormat: "{workload}_"
   embeddingServerRef:
     name: mcp-tools-embedding
+  # vmcp accepts only anonymous, local or OIDC JWTs, no static token. The bearer token is
+  # enforced on the route (securitypolicy.yaml); the in-cluster Service is unauthenticated.
   incomingAuth:
     type: anonymous
   outgoingAuth:
