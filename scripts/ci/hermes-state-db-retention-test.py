@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Semantic regression test for the `ai/hermes` state.db retention contract.
 
-Pins the 2026-09-15 decision recorded in docs/ai-system/hermes-state-db-growth.md.
+Pins the contract recorded in .agents/skills/hermes-agent/references/state-db.md.
 Measured then: `/opt/data/state.db` was 9.31 GiB (2,440,957 x 4 KiB pages) on a
 25Gi claim already 76% full (6.0 GiB free), growing ~175-235 MB/day, against
 Hermes' own 1 GiB `doctor` warning threshold.
@@ -51,7 +51,7 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 CONFIG = REPO / "kubernetes" / "apps" / "base" / "ai" / "hermes" / "app" / "resources" / "config.yaml"
 KUSTOMIZATION = REPO / "kubernetes" / "apps" / "base" / "ai" / "hermes" / "app" / "kustomization.yaml"
-EVIDENCE_DOC = REPO / "docs" / "ai-system" / "hermes-state-db-growth.md"
+EVIDENCE_DOC = REPO / ".agents" / "skills" / "hermes-agent" / "references" / "state-db.md"
 
 # Upstream's default, from hermes_cli/config_defaults.py `sessions.retention_days`.
 # Anything >= this is "no narrower than the default", i.e. the state that was
@@ -101,8 +101,8 @@ def test_vacuum_after_prune_is_off() -> None:
         f"sessions.vacuum_after_prune must be `false`, got {got!r}. VACUUM rewrites every "
         "page through the WAL and needs ~9.3 GiB against 6.0 GiB free; with `last_vacuum` "
         "absent from state_meta its interval throttle never engages, so it would be retried "
-        "on every prune pass, write until ENOSPC and risk a 100%-full volume. See "
-        "docs/ai-system/hermes-state-db-growth.md section 5.",
+        "on every prune pass, write until ENOSPC and risk a full volume. See "
+        ".agents/skills/hermes-agent/references/state-db.md.",
     )
 
 
@@ -122,10 +122,9 @@ def test_retention_is_narrower_than_the_upstream_default() -> None:
     require(
         got < UPSTREAM_DEFAULT_RETENTION_DAYS,
         f"sessions.retention_days is {got}, which is not narrower than upstream's default "
-        f"{UPSTREAM_DEFAULT_RETENTION_DAYS}. The 90-day window was measured to project a "
-        "~15.6 GiB state.db steady state on top of ~9.7 GB of other /opt/data content, "
-        "against a 25Gi claim. Narrow it (21 and 14 are both fine and need no CI change) "
-        "or re-do the arithmetic in docs/ai-system/hermes-state-db-growth.md first.",
+        f"{UPSTREAM_DEFAULT_RETENTION_DAYS}. A 90-day window does not fit this claim. "
+        "Narrow it (any integer in 1..89 passes and needs no CI change) "
+        "or re-do the arithmetic in .agents/skills/hermes-agent/references/state-db.md first.",
     )
 
 

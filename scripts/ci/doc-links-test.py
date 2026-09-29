@@ -43,6 +43,10 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "other domain; prompt-cache facts moved to skill b70-llm-serving",
     ("docs/talos-3-scheduling-truth.md", "docs/ai/vllm-onednn-sdpa-leak.md"):
         "other domain; oneDNN facts moved to skill b70-llm-serving",
+    ("AGENTS.md", "docs/ai/vllm-host-prompt-cache.md"):
+        "scheduling bullet is the node-scheduling domain; prompt-cache facts moved to skill b70-llm-serving",
+    ("AGENTS.md", "docs/ai/vllm-onednn-sdpa-leak.md"):
+        "scheduling bullet is the node-scheduling domain; oneDNN facts moved to skill b70-llm-serving",
     ("kubernetes/components/volsync/Readme.md", "docs/ai-system/retired-2026-08-22.md"):
         "other domain; retirement facts moved to skill ai-stack",
     ("kubernetes/apps/main/ai/kustomization.yaml", "docs/ai-system/retired-2026-08-22.md"):

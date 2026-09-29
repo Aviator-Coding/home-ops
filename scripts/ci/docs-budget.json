@@ -2,7 +2,7 @@
   "allowlist": [],
   "baseline": {
     "agents_md_bytes": {
-      "AGENTS.md": 124248
+      "AGENTS.md": 121214
     },
     "comment_block_lines": {
       ".github/workflows/terraform-diff.yaml": 54,
@@ -10,20 +10,7 @@
       ".renovate/autoMerge.json5": 35,
       ".renovate/overrides.json5": 66,
       "kubernetes/apps/base/actions-runner-system/gha-runner-scale-set/app/rbac.yaml": 26,
-      "kubernetes/apps/base/ai/agentgateway/app/backends/embedding-local.yaml": 36,
-      "kubernetes/apps/base/ai/agentgateway/app/gateways/internal.yaml": 16,
-      "kubernetes/apps/base/ai/agentgateway/app/httproute-api-external.yaml": 23,
-      "kubernetes/apps/base/ai/agentgateway/app/httproute-unified.yaml": 21,
-      "kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml": 77,
-      "kubernetes/apps/base/ai/hermes/app/helmrelease.yaml": 38,
-      "kubernetes/apps/base/ai/hermes/app/prometheusrule.yaml": 42,
       "kubernetes/apps/base/ai/hermes/app/resources/config.yaml": 24,
-      "kubernetes/apps/base/ai/pvc/app/shared-files.yaml": 28,
-      "kubernetes/apps/base/ai/pvc/app/shared-xml.yaml": 16,
-      "kubernetes/apps/base/ai/samba/app/helmrelease.yaml": 40,
-      "kubernetes/apps/base/ai/toolhive/config/embeddingserver.yaml": 47,
-      "kubernetes/apps/base/ai/vllm/app/helmrelease.yaml": 49,
-      "kubernetes/apps/base/ai/vllm/app/prometheusrule.yaml": 159,
       "kubernetes/apps/base/cert-manager/cert-manager/app/prometheusrule.yaml": 23,
       "kubernetes/apps/base/coder/app/rules/coderd.yaml": 44,
       "kubernetes/apps/base/database/cloudnative-pg/cluster-17/prometheusrule.yaml": 22,
