@@ -35,7 +35,7 @@ spec:
     # (ordinary config volumes). kopiur is now the ONLY backup engine on this
     # claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 9 - 6086/6086 files restored from BOTH destinations into a scratch
     # PVC with an identical per-file manifest digest (`6fb28da0d1cf`), no
     # markers and no caveats. This is also the larger of the two claims whose
@@ -95,7 +95,7 @@ spec:
       #
       # Sized rather than proven: the r2 restore demonstration for this size
       # class was run on media/tdarr, the tighter of the two, at this same 10Gi.
-      # See docs/backups/kopiur-populator-drift-2026-09-02.md.
+      # See .agents/skills/kopiur-backups/references/restore-and-cache.md.
       #
       # Reaches both SnapshotPolicies on the next Flux reconcile but NOT the
       # standing populator radarr-kopiur-dst (ssa: IfNotPresent, create-once),

@@ -4,7 +4,7 @@
 `parameters.epoch.minDuration` on the `ceph` ClusterRepository looks like a
 cosmetic knob and is actually what keeps `IndexBlobHealth` inside its threshold.
 Both mechanics below were MEASURED on 2026-09-03
-(docs/backups/kopiur-ceph-index-blob-compaction-2026-09-03.md). The first was
+(.agents/skills/kopiur-backups/references/repository-maintenance.md). The first was
 established by an experiment that falsified the first attempt at this fix - so
 neither is a guess:
 
@@ -50,7 +50,7 @@ MANIFEST = (
     / "repository"
     / "clusterrepository.yaml"
 )
-PROOF_DOC = REPO / "docs" / "backups" / "kopiur-ceph-index-blob-compaction-2026-09-03.md"
+PROOF_DOC = REPO / ".agents/skills/kopiur-backups/references/repository-maintenance.md"
 
 # The plateau chosen, from simulating both mechanics against the real maintenance
 # AND backup schedules over 2,400 epoch-days (the model reproduces the observed

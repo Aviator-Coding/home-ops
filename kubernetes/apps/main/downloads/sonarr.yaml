@@ -35,7 +35,7 @@ spec:
     # (ordinary config volumes). kopiur is now the ONLY backup engine on this
     # claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 13 - 124/124 files restored from BOTH destinations into a scratch PVC
     # with an identical per-file manifest digest (`7077025cb0fd`), no markers
     # and no caveats. Captain decision 2026-09-04; retirement record:

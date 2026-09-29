@@ -44,7 +44,7 @@ spec:
     # objection. That is recorded as a decision, not inferred from the evidence
     # - and it does not weaken the paperless-ngx carve-out, which is unchanged.
     #
-    # Evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md part 1 -
+    # Evidence: .agents/skills/kopiur-backups/references/proof-ledger.md part 1 -
     # 8 files / 561 KiB, 100% of what the claim holds, restored identically
     # from BOTH destinations in content and in mode/uid/gid, and metadata
     # identical to live. Complete rather than thin: the 8 files are a real

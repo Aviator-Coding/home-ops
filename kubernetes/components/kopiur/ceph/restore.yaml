@@ -48,7 +48,7 @@ spec:
   # no finalizers, no ownerReferences, owns no backup data) - not by repointing
   # a claim. Precedent: sabnzbd-kopiur-dst (Stage 5 pilot) and downloads/autobrr
   # (2026-09-02 fleet audit - frozen at create-time identity and missing this
-  # field entirely; both closed in docs/backups/kopiur-populator-drift-2026-09-02.md).
+  # field entirely; both closed in .agents/skills/kopiur-backups/references/restore-and-cache.md).
   # Bound claims keep their VolSync ${APP}-dst dataSourceRef forever; only a
   # rebuilt claim from components/kopiur/pvc claims this object.
   credentialProjection:

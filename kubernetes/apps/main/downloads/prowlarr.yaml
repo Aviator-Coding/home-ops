@@ -32,7 +32,7 @@ spec:
     # VOLSYNC RETIRED 2026-09-02 - migration Stage 5, wave two, volume 1 of 4.
     # kopiur is now the ONLY backup engine on this claim.
     #
-    # Authorising evidence: docs/backups/kopiur-wave-two-reproof-2026-09-02.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # part 2 - the destination-identical re-drill that closed the last
     # ambiguous row of the fleet proof. A matched verification-snapshot pair
     # (`prowlarr-{ceph,r2}-w2ver`, both 713 files / 56,777,475 bytes) restored
@@ -75,7 +75,7 @@ spec:
       # is real but unreached: a restore only fails once the claim crosses
       # ~1.95 GiB, a 36x growth. The standing fleet-wide answer (a 10Gi
       # component default covering all 30 claims) is an open captain decision,
-      # recorded in docs/backups/kopiur-populator-drift-2026-09-02.md.
+      # recorded in .agents/skills/kopiur-backups/references/restore-and-cache.md.
       # LOAD-BEARING and the only 3002:3000 pair in the fleet. The pod runs
       # 3002:3000:3000; the volume mixes 1000:3000 (526 entries) with
       # 3002:3000 (188). Measured 2026-08-30 the default of 1000 reads it

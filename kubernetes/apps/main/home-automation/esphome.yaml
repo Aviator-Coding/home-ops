@@ -35,7 +35,7 @@ spec:
     # (ordinary config volumes). kopiur is now the ONLY backup engine on this
     # claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 14 - 46/46 files restored from BOTH destinations into a scratch PVC
     # with an identical per-file manifest digest (`baa6b55032b5`). This claim
     # is also the subject of that proof's finding 3: `/config/secrets.yaml` is

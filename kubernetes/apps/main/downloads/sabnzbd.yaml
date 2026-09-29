@@ -39,7 +39,7 @@ spec:
     # Stage 1 pilot - turned out to hold ZERO files. It is the most-proven
     # volume in the fleet: a byte-identical restore from BOTH destinations in
     # docs/backups/kopiur-restore-drill-2026-08-30.md, again in
-    # docs/backups/kopiur-restore-proof-2026-09-01.md (row 12,
+    # .agents/skills/kopiur-backups/references/proof-ledger.md (row 12,
     # `downloads/sabnzbd-config`: 2064/2064 files, ceph and r2 identical), and
     # once more after this retirement. That is why it leads the pilot.
     #

@@ -16,7 +16,7 @@ spec:
     # automations, dashboards, integration credentials, the recorder database -
     # authored by hand over years. What authorises retiring it anyway is the
     # completeness of the proof, not the replaceability of the content:
-    # docs/backups/kopiur-restore-proof-2026-09-01.md row 15 restored 79/79
+    # .agents/skills/kopiur-backups/references/proof-ledger.md row 15 restored 79/79
     # files from BOTH destinations into a scratch PVC with an IDENTICAL
     # per-file manifest digest (`46c7155751e6`) - content and metadata.
     #

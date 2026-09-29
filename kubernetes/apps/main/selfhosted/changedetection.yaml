@@ -29,7 +29,7 @@ spec:
     # (ordinary config volumes). kopiur is now the ONLY backup engine on this
     # claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 22 - 3069/3069 files restored from BOTH destinations into a scratch
     # PVC with an identical per-file manifest digest (`ab4e633a8227`), no
     # markers and no caveats.

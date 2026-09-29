@@ -39,7 +39,7 @@ spec:
     # changes or disappears. (Its relational state is in postgres-17, see the
     # dependsOn above, with its own continuous archiving.)
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 23 - 67/67 files restored from BOTH destinations into a scratch PVC
     # with an IDENTICAL per-file manifest digest (`b42975d15de3`), no markers
     # and no caveats. Restore cache stays at the 2Gi component default: 0.18

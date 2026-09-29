@@ -13,7 +13,7 @@ spec:
     # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier B (the
     # large claims). kopiur is now the ONLY backup engine on this claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 2 - 4749/4749 files restored from BOTH destinations into a scratch
     # PVC with an identical per-file manifest digest (`d9954a835a98`), no
     # markers and no caveats.
@@ -24,7 +24,7 @@ spec:
     # because a 20Gi claim can grow into one.
     #
     # This is also the claim whose volume was recreated on 2026-08-31 after the
-    # frozen-`latestImage` trap (docs/backups/opencode-volume-recreation-2026-08-31.md).
+    # frozen-`latestImage` trap (docs/backups/corrupt-claim-recreation-runbook.md).
     # Retirement REMOVES that trap rather than inheriting it: the VolSync
     # ReplicationDestination whose stale latestImage was the hazard goes with
     # this change, and a rebuilt claim is populated from the kopiur Restore,

@@ -44,7 +44,7 @@ spec:
     # verdict stands and this change does not touch it.
     #
     # Authorising evidence for the config claim:
-    # docs/backups/kopiur-restore-proof-2026-09-01.md row 29 - 21/21 files
+    # .agents/skills/kopiur-backups/references/proof-ledger.md row 29 - 21/21 files
     # restored from BOTH destinations into a scratch PVC with an IDENTICAL
     # per-file manifest digest (`05d36861232d`), no markers and no caveats.
     # Losing this volume would not lose file content (the peers still have it)

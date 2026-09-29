@@ -27,7 +27,7 @@ spec:
     # backup half lives in the `calibre-web-automated-kopiur` Kustomization
     # below.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 18 - 23/23 files restored from BOTH destinations into a scratch PVC
     # with an identical per-file manifest digest (`d06f7d879f11`). Its
     # `CACHEDIR.TAG` marker is ADJUDICATED, not outstanding: the 14 omitted

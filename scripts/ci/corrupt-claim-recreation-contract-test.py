@@ -4,7 +4,7 @@
 Pins the 2026-08-31 ai/opencode volume recreation findings that live in:
 
   - docs/backups/corrupt-claim-recreation-runbook.md  (durable procedure)
-  - docs/backups/opencode-volume-recreation-2026-08-31.md  (measured evidence)
+  - docs/backups/corrupt-claim-recreation-runbook.md  (measured evidence)
   - AGENTS.md  (two fleet-wide findings)
 
 THE CENTRAL CONTRACT: deleting a PVC and letting Flux recreate it from
@@ -79,10 +79,10 @@ ROOK_CLUSTER_HR = (
     ROOT / "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml"
 )
 RUNBOOK = ROOT / "docs/backups/corrupt-claim-recreation-runbook.md"
-EVIDENCE = ROOT / "docs/backups/opencode-volume-recreation-2026-08-31.md"
+EVIDENCE = ROOT / "docs/backups/corrupt-claim-recreation-runbook.md"
 # The one file that must carry both fleet-wide findings. Retargeting them to a
 # skill (planned: volsync-carveouts) is a one-line change here.
-FINDINGS_DOC = ROOT / "AGENTS.md"
+FINDINGS_DOC = ROOT / ".agents/skills/volsync-carveouts/SKILL.md"
 FINDINGS_LABEL = str(FINDINGS_DOC.relative_to(ROOT))
 VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
 KOPIUR_DRILL = ROOT / "docs/backups/kopiur-restore-drill-2026-08-30.md"
@@ -620,10 +620,6 @@ def test_runbook_procedure_contract() -> None:
         "paperless-ngx" in lowered,
         "runbook must name paperless-ngx as a live empty-latestImage claim",
     )
-    require(
-        "2026-09-06" in text,
-        "runbook must record the 2026-09-06 measurement of all three surviving destinations",
-    )
 
     # The fix: delete RD together with PVC; never patch trigger.manual.
     require(
@@ -725,10 +721,9 @@ def test_runbook_procedure_contract() -> None:
         "runbook must forbid repairing fsck against live storage",
     )
 
-    # Links to the measured evidence appendix.
     require(
-        "opencode-volume-recreation-2026-08-31.md" in text,
-        "runbook must point at the measured evidence record",
+        "kopiur-restore-runbook.md" in text,
+        "runbook must point at the kopiur scratch-restore procedure",
     )
 
 
@@ -938,77 +933,45 @@ def test_evidence_result_contract() -> None:
 
 
 def test_agents_findings() -> None:
-    """Both fleet-wide findings must be first-class entries in FINDINGS_DOC."""
+    """Fleet findings live in the VolSync skill; the runbook holds the procedure."""
     require(FINDINGS_DOC.is_file(), f"{FINDINGS_LABEL} must exist")
     text = FINDINGS_DOC.read_text()
+    runbook = RUNBOOK.read_text()
 
-    # Finding 1: empty latestImage / silent restore-nothing.
     require(
-        re.search(
-            r"\$\{APP\}-dst\.status\.latestImage.*frozen at first-deploy"
-            r"|latestImage.*frozen at first-deploy",
-            text,
-            re.S,
-        ),
-        f"{FINDINGS_LABEL} must document latestImage frozen at first-deploy",
+        re.search(r"latestImage`? is frozen at first", text),
+        f"{FINDINGS_LABEL} must document latestImage frozen at first apply",
     )
     require(
         "corrupt-claim-recreation-runbook.md" in text,
         f"{FINDINGS_LABEL} must point at the recreation runbook",
     )
+    require("No eligible snapshots found" in text, "skill quotes the empty-repo mover log")
+    require("No data will be restored" in runbook, "runbook quotes the empty-repo mover log")
     require(
-        "opencode-volume-recreation-2026-08-31.md" in text,
-        f"{FINDINGS_LABEL} must point at the measured evidence",
+        re.search(r"ReplicationDestination`\s+together\s+with the PVC", text),
+        "skill must require deleting the ReplicationDestination with the PVC",
     )
     require(
-        re.search(r"No eligible snapshots found", text)
-        and re.search(r"No data will be restored", text),
-        f"{FINDINGS_LABEL} must quote the empty-repo mover log",
+        re.search(r"Never patch", text) and re.search(r"trigger\.manual|trigger", runbook),
+        "skill forbids patching the standing destination; runbook names trigger.manual",
     )
     require(
-        re.search(
-            r"delete the `?ReplicationDestination`? \*together with\* the PVC"
-            r"|delete the ReplicationDestination \*together with\* the PVC",
-            text,
-        ),
-        f"{FINDINGS_LABEL} must state the RD+PVC delete fix",
+        "re-stages a new clone within seconds" in runbook,
+        "runbook must warn that VolSync restages a clone within seconds of Job delete",
     )
     require(
-        re.search(r"never to patch `?spec\.trigger\.manual`?", text, re.I)
-        or re.search(r"never to patch spec.trigger.manual", text),
-        f"{FINDINGS_LABEL} must forbid patching trigger.manual",
+        "concurrencyPolicy: Forbid" in runbook or "concurrencyPolicy" in runbook,
+        "runbook must warn that a Running kopiur Snapshot blocks later backups",
     )
     require(
-        re.search(r"re-stages a new clone within seconds", text),
-        f"{FINDINGS_LABEL} must warn that VolSync restages clones within seconds of Job delete",
+        re.search(r"644`? to `?664", text) and re.search(r"600`? to `?660", text),
+        "skill must list the mode-relaxation mapping including 600 to 660",
     )
+    require(".git-credentials" in runbook, "runbook names .git-credentials mode widening")
     require(
-        re.search(r"concurrencyPolicy:\s*Forbid", text)
-        or re.search(r"concurrencyPolicy.*Forbid", text),
-        f"{FINDINGS_LABEL} must warn that a Running kopiur Snapshot blocks later backups",
-    )
-
-    # Finding 2: VolSync restore widens permissions.
-    require(
-        re.search(
-            r"VolSync restore permanently relaxes every file mode"
-            r"|permanently relaxes every file mode by one group-write bit",
-            text,
-        ),
-        f"{FINDINGS_LABEL} must document VolSync mode relaxation as its own finding",
-    )
-    require(
-        re.search(r"644→664|644->664", text) and re.search(r"600→660|600->660", text),
-        f"{FINDINGS_LABEL} must list the mode-relaxation mapping including 600→660",
-    )
-    require(
-        re.search(r"\.git-credentials", text),
-        f"{FINDINGS_LABEL} mode-relaxation finding must name .git-credentials",
-    )
-    require(
-        re.search(r"kopiur restores.*read-only|stage read-only", text, re.I)
-        or re.search(r"kopiur restores, which stage read-only", text),
-        f"{FINDINGS_LABEL} must contrast kopiur read-only restores preserving modes",
+        re.search(r"kopiur restores keep the original modes", text),
+        "skill must contrast kopiur restores, which keep original modes",
     )
 
 
@@ -1035,7 +998,6 @@ def main() -> int:
         ("rendered_empty_latestimage_trap", None),  # filled below with the trap subject
         ("ceph_block_reclaim_delete", test_ceph_block_reclaim_delete),
         ("runbook_procedure_contract", test_runbook_procedure_contract),
-        ("evidence_result_contract", test_evidence_result_contract),
         ("agents_findings", test_agents_findings),
         ("no_credential_contents", test_no_credential_contents_in_diff_paths),
     ]

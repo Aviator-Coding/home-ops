@@ -2,7 +2,7 @@
   "allowlist": [],
   "baseline": {
     "agents_md_bytes": {
-      "AGENTS.md": 124248
+      "AGENTS.md": 107793
     },
     "comment_block_lines": {
       ".github/workflows/terraform-diff.yaml": 54,

@@ -14,7 +14,7 @@ spec:
     # (ordinary config volumes). kopiur is now the ONLY backup engine on this
     # claim.
     #
-    # Authorising evidence: docs/backups/kopiur-restore-proof-2026-09-01.md
+    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
     # row 7 - 478/478 files restored from BOTH destinations into a scratch PVC
     # with an identical per-file manifest digest (`7b727e6495b0`), no markers
     # and no caveats. Content class: *arr music-library configuration, backed

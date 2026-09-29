@@ -33,7 +33,7 @@ spec:
     # kopiur is now the ONLY backup engine on this claim.
     #
     # Authorising evidence, per volume and per destination:
-    # docs/backups/kopiur-restore-proof-2026-09-01.md (row 11,
+    # .agents/skills/kopiur-backups/references/proof-ledger.md (row 11,
     # `downloads/recyclarr-config`: 2913/2913 files restored from ceph AND r2,
     # byte-identical to each other). Why this volume was chosen, and the
     # post-retirement re-proof:
@@ -67,7 +67,7 @@ spec:
       # taken from that declaration. Readability for this identity was later
       # proven 2026-08-31 via a CSI snapshot-restore probe of the claim
       # (2913/2913 files, 607/607 dirs; mover 2000:2000):
-      # docs/backups/recyclarr-config-readable-check-2026-08-31.md
+      # .agents/skills/pvc-integrity-checks/references/mover-readable.md
       # That is readability only - not Stage 5 restore-fidelity. If the pair
       # is wrong kopiur still fails closed and loudly (which is what makes it
       # detectable), but nothing else covers this claim after VolSync
