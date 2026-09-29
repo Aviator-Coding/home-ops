@@ -21,7 +21,7 @@
 # kube-state-metrics carry different label sets. Verified live: the join
 # returns 0.4359 for the running pod against its 16Gi limit.
 #
-# Design and full evidence: docs/database/falkordb-memory-ceiling.md
+# Ceiling, AOF, and the three ratios: skill databases.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

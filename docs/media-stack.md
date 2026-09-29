@@ -1,623 +1,122 @@
-# Media Stack
+# Media stack
 
-Architecture and operational reference for the downloads, management, and media server pipeline. Covers Usenet acquisition, automated library management, quality control, subtitle management, and GPU transcoding.
+Operator notes for the downloads and media namespaces. Agent tripwires live in
+skill `media-stack`. Tdarr flow behaviour lives in skill `tdarr-transcoding`.
 
----
+The stack is usenet-only. No torrent client is deployed. Radarr's disabled
+qBittorrent client and Prowlarr's four definition-less torrent indexers were
+removed through each app's API. That state is in the app database, not Git.
+Re-adding a torrent path is a new decision.
 
-## Overview
+## Storage
 
-The media stack is split across two Kubernetes namespaces (`default` is empty):
+Imports copy. A hardlink cannot cross CephFS (`shared-downloads`) and NFS
+(`nas-media`). Budget double disk for the copy window.
 
-| Namespace | Purpose | Key Apps |
-|-----------|---------|----------|
-| `downloads` | Acquisition + library management | SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr, reading-glasses |
-| `media` | Media servers + post-processing | Plex, Seerr, Tdarr, Calibre-Web-Automated, Calibre-Downloader |
+Do not `du` or delete `shared-downloads` from the SABnzbd pod. Since PR #983
+the incomplete tree is an RBD volume that shadows that path inside the pod.
+Use the Radarr pod. Alerts and the ghost-tree incident:
+`docs/downloads/sabnzbd-disk-space-runbook.md`.
 
-`default/kustomization.yaml` has `resources: []`. CWA + Calibre-Downloader live under `media/calibre/` and Flux-target `media`.
+| Path | Volume |
+|---|---|
+| `/data/downloads/usenet/complete` | `shared-downloads` (CephFS, 2Ti) |
+| `/data/downloads/usenet/incomplete` | `sabnzbd-incomplete` (RBD) |
+| `/data/nas-media` | NFS |
 
-`media/calibre-web/` was removed; CWA is the only Calibre app under `media/calibre/`.
+SABnzbd pauses when complete free space hits 100G. Alerts fire at 15% and 7%
+free, before that pause.
 
-`media/immich/` was retired 2026-08-30 - it was never initialized (0 users, 0 assets in 152 days)
-and its 100 Gi `immich-library` claim held only nightly dumps of an empty database. Its orphaned
-restic repository (minio only) sits in the `sole_copy` tier of the 2026-09-12 retired-repository
-expiry decision, expiring 2027-09-30 - not deleted immediately, and not yet applied to any
-bucket: [`docs/backups/volsync-retired-repository-expiry.md`](backups/volsync-retired-repository-expiry.md).
+## Recyclarr - Declarative quality config
 
-`media/jellyfin/` was retired the same day: the captain watches on Plex, and Jellyfin logged zero
-playback, session or authentication activity in 24 h. Its `10.50.0.50` LoadBalancer IP is now
-free, and it was the third `gpu.intel.com/xe` consumer alongside plex and rsshub-playwright.
+`assign_scores_to` matches `trash_id`, never profile `name`. A TRaSH rename
+orphans name-matched scores onto the old profile and creates an empty new one
+(PR #1369). Which movie sits on which profile is Radarr database state.
+Recyclarr does not assign movies. A profile change needs a Radarr API pass:
+`GET /api/v3/qualityprofile`, then `PUT /api/v3/movie/editor`.
 
-FlareSolverr (Cloudflare bypass proxy) lives in the `network` namespace (`kubernetes/apps/base/network/flaresolverr/`), not `downloads`/`media` - consumed by Prowlarr (IndexerProxy, UI-configured, not GitOps) and Calibre-Downloader (`EXT_BYPASSER_URL`).
-
-In `downloads`, **autobrr was removed on 2026-09-02** (captain decision - unused; record: `docs/backups/autobrr-removal-2026-09-02.md`), joining `cross-seed` and `qbittorrent`, which were removed (dead, unreferenced directories) and are no longer present in `kubernetes/apps/main/downloads/kustomization.yaml`. That app-directory removal missed a leftover wiring: sabnzbd's `helmrelease.yaml` still set `XSEED_HOST`/`XSEED_PORT`, shipped a `xseed.sh` post-processing script, and pulled a `cross-seed` 1Password item into its `ExternalSecret`. Confirmed dead on 2026-08-31 (`script_dir` was unset in the live `sabnzbd.ini` and no category named the script, so it never ran - zero matches for `xseed`/`cross-seed` across 5+ months of rotated sabnzbd logs) and removed for good.
-
-**The stack is usenet-only by deliberate captain decision (2026-08-30), not by accident.** No torrent client is deployed, and Radarr's `qBittorrent` download client entry (pointed at a nonexistent `qbittorrent.downloads.svc.cluster.local`, always `enable: false`) plus Prowlarr's four definition-less torrent indexers (`BitSearch`, `TorrentGalaxyClone`, `Isohunt2`, `iDope` - flagged by Prowlarr's own `IndexerNoDefinitionCheck` health check as broken and unusable) were deleted as leftover state implying a torrent path that did not exist. **Both deletions were live API calls against Radarr's and Prowlarr's own databases, not GitOps** - qBittorrent's download-client config and Prowlarr's indexer list live in each app's Postgres backend, not in a committed manifest, so there is nothing in Git to change beyond this note. Re-adding torrent support later (a qBittorrent deployment plus indexer definitions) remains straightforward; this just removes the illusion that it already half-works. Full record: `data/decisions-2026-08-30/downloads-usenet-only.md`.
-
-Flow: **Indexers** -> Prowlarr -> *arr apps -> SABnzbd -> imports to NAS -> Plex serves -> Tdarr transcodes in place to AV1.
-
----
-
-## Storage Architecture
-
-Storage is split between CephFS (complete downloads), Ceph block (SAB incomplete scratch), and NFS (permanent media):
-
-| Volume | Backing | Access | Size | Purpose |
-|--------|---------|--------|------|---------|
-| `shared-downloads` | `ceph-filesystem-rwx` (RWX) | RWX | 2 Ti | `usenet/complete/` and other download scratch |
-| `sabnzbd-incomplete` | `ceph-block` (RWO) | RWO | 1500 Gi | SAB article-assembly (`download_dir`); bind-mounted **over** `/data/downloads/usenet/incomplete` |
-| `{app}-config` | Ceph block (RWO) | RWO | 1-10 Gi | Per-app config PVCs with Volsync backup |
-| NFS `/mnt/storage/Media` | NAS (NFS) | RWX | ~40+ TiB | Permanent media library |
-
-Manifests: `kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml` and `sabnzbd-incomplete.yaml`. There is no `shared-downloads-pvc.yaml`.
-
-Incomplete is **not** on the shared PVC. Since PR #983 it is a separate RBD volume overlaying that path in the sab pod. `du` inside sab will miss a ghost tree on CephFS under the mount. Full incident notes: [`downloads/sabnzbd-disk-space-runbook.md`](downloads/sabnzbd-disk-space-runbook.md). Do not duplicate incomplete-path settings here.
-
-### Hardlink limitation
-
-Downloads live on CephFS, media lives on NFS -- **hardlinks are impossible across filesystems**. Imports from Sonarr/Radarr copy rather than hardlink, which uses temporary double disk space during import. This is an accepted tradeoff for NAS-backed media.
-
-### Mount conventions
-
-| Container path | Source |
-|----------------|--------|
-| `/data/downloads` | `shared-downloads` (all download + *arr apps) |
-| `/data/downloads/usenet/incomplete` | `sabnzbd-incomplete` overlay, **sab pod only** |
-| `/data/nas-media` | NFS mount `nas.${SECRET_DOMAIN}:/mnt/storage/Media` (read-write for *arr imports) |
-| `/media` | Same NFS mount, alternative path used by Tdarr |
-
----
-
-## Application Reference
-
-### SABnzbd - Usenet download client
-
-**Namespace:** `downloads` | **Image:** `ghcr.io/home-operations/sabnzbd` | **Hostname:** `sabnzbd.${SECRET_DOMAIN}`
-
-Categories map to the *arr apps. The init container also creates audiobooks, comics, magazines, and other:
-
-| Category | Folder | Consumed by |
-|----------|--------|-------------|
-| `movies` | `movies` | Radarr |
-| `tv` | `tv` | Sonarr |
-| `music` | `music` | Lidarr |
-| `books` | `books` | Readarr |
-
-**Critical UI settings (not in GitOps):**
-- Article Cache: **1 GB**
-- Direct Unpack: **ON** (`direct_unpack=1`). Live-confirmed 2026-08-21 via SAB API; set 2026-06-24 with `complete_free=100G` / `download_free=100G`. TRaSH still recommends OFF; this cluster keeps ON as runtime state on the config PVC. See the [disk-space runbook](downloads/sabnzbd-disk-space-runbook.md).
-- Disable **ALL Sorting** (the *arr apps handle renaming)
-- Abort jobs that cannot be completed: **ON**
-- Action on encrypted RAR: **Abort**
-- Incomplete: `/data/downloads/usenet/incomplete` (RBD overlay)
-- Complete: `/data/downloads/usenet/complete` (`shared-downloads`)
-
-The init container pre-creates the category subdirectories on the shared PVC.
-
-### Prowlarr - Indexer manager
-
-Central proxy for all indexers. All *arr apps should be registered in `Settings > Apps` and pull indexer config from Prowlarr. Do **not** add indexers directly to Sonarr/Radarr/Lidarr.
-
-Service DNS registered in Prowlarr:
-- `http://sonarr.downloads.svc.cluster.local:8989`
-- `http://radarr.downloads.svc.cluster.local:7878`
-- `http://lidarr.downloads.svc.cluster.local:8080`
-- `http://readarr.downloads.svc.cluster.local:8787`
-
-### Sonarr / Radarr / Lidarr / Readarr - Library managers
-
-All four follow the same pattern. Quality profiles and custom formats are managed declaratively by **Recyclarr** (see below).
-
-**Naming schemes (TRaSH recommended):**
-
-Sonarr standard episode:
-```
-{Series TitleYear} - S{season:00}E{episode:00} - {Episode CleanTitle} [{Custom Formats}]{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
-```
-
-Radarr standard movie:
-```
-{Movie CleanTitle} {(Release Year)} {imdb-{ImdbId}} {edition-{Edition Tags}} [{Custom Formats}]{[Quality Full]}{[MediaInfo AudioCodec}{ MediaInfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
-```
-
-Lidarr track format:
-```
-{Album Title} ({Release Year})/{Artist Name} - {Album Title} - {track:00} - {Track Title}
-```
-
-**Root folders:**
-- Sonarr: `/data/nas-media/TV-Shows`
-- Radarr: `/data/nas-media/Movies`
-- Lidarr: `/data/nas-media/Music`
-- Readarr: `/data/nas-media/Books`
-
-**Common settings:**
-- Analyze video files: **ON** (required for MediaInfo tokens in filenames)
-- Propers and Repacks: **Do Not Prefer** (custom formats handle scoring)
-- Download clients point to `sabnzbd.downloads.svc.cluster.local:8080` with the matching category
-
-### Recyclarr - Declarative quality config
-
-**File:** `kubernetes/apps/base/downloads/recyclarr/app/config/recyclarr.yml`
-**Schedule:** Daily CronJob (`@daily`)
-
-Syncs TRaSH Guide quality profiles, quality definitions, and custom formats to Sonarr and Radarr. Changes to `recyclarr.yml` require a commit+push, then either wait for the next daily run or trigger manually:
+`min_format_score` above what any release can reach looks like "indexers are
+down". Config: `kubernetes/apps/base/downloads/recyclarr/app/config/recyclarr.yml`.
 
 ```sh
 kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date +%s)
 ```
 
-**Configured profiles:**
+## Library scoping (Tdarr server state, not Git)
 
-| App | Profile | Target |
-|-----|---------|--------|
-| Sonarr | WEB-1080p | 720p/1080p WEB content |
-| Sonarr | WEB-2160p | 2160p WEB + HDR |
-| Radarr | SQP-1 (2160p) | Streaming quality 2160p, guide default `min_format_score: 1000` |
-| Radarr | SQP-1 (1080p) | Streaming quality 1080p, guide default `min_format_score: 1000` - for titles unlikely to ever get a UHD release |
+`librariesToNotProcess` is a Tdarr Pro feature and a no-op on this unlicensed
+install. Scope is the library toggle `processTranscodes`.
 
-`assign_scores_to` in `recyclarr.yml` matches by `trash_id`, not profile `name`. A 2026-04-09 guide rewrite renamed the synced profile from `SQP-1 (2160p)` to `[SQP] SQP-1 (2160p)`, which silently orphaned every name-matched custom-format score onto a stale 2-movie profile for over four months; a compounding `min_format_score: 2000` override on the *new* profile (double the guide's 1000) then rejected every remaining release, so the 2026-08-29 outage looked like "no grabs" rather than a rename drift. `trash_id` matching survives a guide rename; `name` matching does not.
+| Library | Id | Transcodes |
+|---|---|---|
+| Movies AV1 | `gEUZf7Nx6` | `processTranscodes: true` |
+| Series | `j5g_Es7sD` | `processTranscodes: false` |
 
-**Which movies land on which SQP-1 profile is Radarr database state, not GitOps.** Recyclarr only creates/scores the two profiles above - it never assigns a movie to one. The 2026-08-29 fix classified the existing library with one rule, applied once via the Radarr API (`PUT /api/v3/movie/editor`): a movie moves to **SQP-1 (1080p)** if `year < 2010` **or** its genres include `Documentary`; everything else stays on **SQP-1 (2160p)**. New movies keep whatever profile their import list assigns (mostly `Any`, profile 1) or default to 2160p unless re-classified by the same rule. There is no scheduled job re-applying this - a future large cohort of pre-2010/documentary titles added by list will need the same one-off API pass.
+Health checks and scanning stay on for Series. The flow, the parked masters,
+and the open Dolby Vision choice are skill `tdarr-transcoding` and
+`docs/tdarr-errored-remuxes.md`. Rebuild steps: `docs/tdarr/README.md`.
+Keep `transcodecpuWorkers` at least 1.
 
-**Custom format categories applied:**
-- **Unwanted (Sonarr)**: AV1, BR-DISK, LQ, x265 (HD), Bad Dual Groups, No-RlsGroup, Obfuscated, Retags, Scene
-- **Unwanted (Radarr)**: the Sonarr set plus **3D** (Radarr-only; do not toggle 3D on Sonarr from this table)
-- **Repacks**: Repack/Proper, Repack2, Repack3
-- **Streaming services** (Sonarr): AMZN, ATVP, DCU, DSNP, HBO, HMAX, HULU, iT, MAX, NF, PCOK, PMTP, SHO, STAN
-- **Movie versions** (Radarr): Criterion Collection, Hybrid, Remaster, IMAX, IMAX Enhanced
-- **HDR** (WEB-2160p): DV (WEBDL)
-- **Trusted groups** (Radarr): hallowed
-- **Language/naming risk** (Radarr, SQP-1 2160p only, score -25 each): Language: Not English, MULTi -- deprioritizes (does not block) releases whose filename is more likely to defeat Radarr's import parser and get stuck `importBlocked` in the queue; see "Finding which *arr app is failing imports" below
+## Library scan triggers (application settings, not GitOps)
 
-### Bazarr - Subtitle management
+Plex does not see NFS filesystem events. Leave
+`FSEventLibraryUpdatesEnabled` off. Two settings live in the app databases
+and are lost on a scratch restore:
 
-**TRaSH-recommended scoring:**
+1. Radarr and Sonarr Connect, host `plex.media.svc.cluster.local:32400`, on
+   import, upgrade, and rename.
+2. Plex "Update my library periodically"
+   (`ScheduledLibraryUpdatesEnabled`), hourly.
 
-| Setting | Value |
-|---------|-------|
-| Series minimum score | 90 |
-| Movies minimum score | 80 |
+Seerr stays green while the library is frozen. Compare the movie folder count
+to Plex `totalSize` (not the page `size`) and to `scannedAt`. Pass
+`--kubeconfig` explicitly. `autoEmptyTrash` is on. Skill `media-stack`,
+`references/plex.md`.
 
-Connects to Sonarr and Radarr for series/movie metadata. Provider priority: OpenSubtitles.com > Podnapisi > Supersubtitles > Addic7ed.
+## Backlog missing-movie search
 
-### Autobrr - REMOVED 2026-09-02
+Radarr has no scheduled missing-movie task. Import lists run
+`searchOnAdd: false`. A monitored movie with no file sits until a new RSS
+hit or a human search. Size the search against free disk first.
 
-Autobrr is **no longer deployed**. It was the last app in the stack whose reason
-for existing was torrent-side automation, and it had gone unused since the stack
-was committed usenet-only on 2026-08-30 (`data/decisions-2026-08-30/downloads-usenet-only.md`).
-The captain removed it outright on 2026-09-02.
+1. Count `monitored && !hasFile` per quality profile (`GET /api/v3/movie`).
+2. Sample accepted release sizes (`GET /api/v3/release?movieId=`).
+3. Compare the estimate to `GET /api/v3/rootfolder` free space. Stay under
+   about half of free space, or stage a subset.
+4. `POST /api/v3/command` `MoviesSearch` in batches of about 20, with a pause
+   between batches, so indexer quotas survive.
+5. Confirm the queue is downloading, not only that the command returned.
 
-Removed with it NOW: its manifests and Flux overlay. The `scripts/ci` gates that
-pinned its paths were UPDATED (not deleted) so a half-revert cannot reintroduce
-the app. Still present until post-merge ops: the `postgres-17` database (which
-held its real state - the claim carried a single 2,179-byte config file; not in
-Git, created imperatively by `postgres-init`, and still held open by the live
-pod until Flux prunes the app) and the 1Password `autobrr` item. **Its kopiur
-backup history was deliberately KEPT** and is retained in both the `ceph` and
-`r2` repositories. Removal record, including the retained-snapshot proof and the
-post-merge operational steps: `docs/backups/autobrr-removal-2026-09-02.md`.
+Cutoff Unmet is a different action: it searches movies that already have a
+file below cutoff. `searchOnAdd: true` is not enabled.
 
-Re-adding torrent automation later means redeploying autobrr from scratch
-alongside a torrent client; nothing here half-works in the meantime.
+## Verifying VA-API after a GPU change
 
----
-
-## Tdarr - GPU transcoding
-
-**Namespace:** `media` | **Hostname:** `tdarr.${SECRET_DOMAIN}`
-
-Not a DaemonSet. The worker requests `devic.es/b70-vaapi` (generic-device-plugin on
-the discrete Arc Pro B70 at talos-3 PCI `0000:03:00.0`) because the AV1 QSV codec
-path needs that card; iGPUs restored by `xe.force_probe=a7a0` are not enough. Still
-a single replica (server `internalNode=false`), not a DaemonSet - a DaemonSet would
-strand Pending pods on nodes without the B70. Resource split and force_probe
-detail: [`ai-gpu-changelog.md`](ai-gpu-changelog.md).
-
-`b70-vaapi` is the same physical card as `devic.es/b70`, exposed under the device
-names the kernel gives it (`card1`/`renderD129`) instead of the `card0`/`renderD128`
-rename the `b70` group applies. **VA-API cannot use a renamed DRM node** - see
-[Verifying VA-API after a GPU change](#verifying-va-api-after-a-gpu-change).
-
-| Controller | Type | Purpose | GPU |
-|-----------|------|---------|-----|
-| `tdarr` | Deployment (1 pod) | Web UI, orchestrator, database | No |
-| `tdarr-node` | Deployment (`replicas: 1`) | Transcode worker on the B70 (talos-3) | `devic.es/b70-vaapi: 1` |
-
-Optional external Windows node via Service `tdarr-node-lb` (`10.50.0.54:8266`,
-`tdarr/app/externalservice.yaml`). Live UI (2026-08-21): k8s node `talos-3`
-(`transcodegpuWorkers=1`) plus `desktop-aviator` (`transcodegpuWorkers=2`).
-Stale registrations for talos-1/2 may still appear with GPU workers at 0.
-
-The server has `internalNode=false` so it doesn't compete for GPU. Expect
-1 `tdarr-*` server pod + 1 `tdarr-tdarr-node-*` worker on talos-3, not three
-workers.
-
-### Worker environment
-
-The k8s worker pod gets:
-```
-serverIP=tdarr.media.svc.cluster.local
-serverPort=8266
-nodeType=mapped            # All workers see /media at the same path
-transcodegpuWorkers=1      # One QSV transcode at a time
-transcodecpuWorkers=1      # Fallback worker. Never set this to 0: a GPU-only
-                           # node turns any VA-API regression into a silent,
-                           # total transcoding outage (2026-08-26, below).
-healthcheckgpuWorkers=1
-healthcheckcpuWorkers=1
-nodeName=<k8s pod nodeName> # Registers with pod's scheduling node
-ffmpegVersion=7
-```
-
-### Library scoping (Tdarr server state, not Git)
-
-**`librariesToNotProcess` is a silent no-op on this unlicensed install - never
-use it as a scope boundary.** Mechanism, live proof, and the refuted "server
-push" hypothesis are owned by
-[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §1 (depth in skill
-`tdarr-transcoding`; tripwire in root `AGENTS.md`). What holds here without a licence is the
-library-level toggle:
-
-| Library | Id | Transcodes | How enforced |
-|---------|----|------------|--------------|
-| Movies AV1 | `gEUZf7Nx6` | **processed** | Restored 2026-08-29 with the B70 VA-API fix |
-| Series | `j5g_Es7sD` | **excluded** | `processTranscodes: false` (2026-08-31) + flow `guard_scope` |
-
-Health checks and folder scanning stay on for Series; only transcoding is
-refused. `librariesToNotProcess` remains on the node as decoration - do not add
-to it and do not trust it.
-
-**Errored 4K remux masters.** Do **not** bulk-requeue: Tdarr rewrites in place
-and AV1 is lossy. As of 2026-08-31 the error table held 47 files (7 parked
-masters + CPU-argument collateral), then 45 after two low-value verification
-transcodes; an eighth master (`Johnny Mnemonic (1995)`) was already destroyed
-by a bulk UI requeue on 2026-08-30. **Six masters remain parked**: the seventh
-and smallest, `A House of Dynamite (2025)`, was processed as a single approved
-canary on 2026-08-31 - all 44 streams and all 35 subtitle tracks survived, but
-its Dolby Vision layer did not (HDR10 is preserved). **Five of the six remaining
-masters also carry DV**, and that loss is specific to the `av1_qsv` encoder, not
-to AV1 - `libsvtav1 -dolbyvision true` preserves it, but a 4K `libsvtav1` encode
-is the ~7 GiB job the 4K CPU guard exists to prevent. Weigh that before deciding
-about the other six. Its untouched original is retained at
-`/media/.tdarr-canary-rollback/`. Current count, root causes, subtitle path,
-the 4K CPU guard, and recovery copies:
-[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md).
-Errored files stay out of `table1` until explicitly requeued - re-enabling a
-library does not pull them back (verified 2026-08-29 and 2026-08-31).
-
-### Transcode flow (configured in Tdarr UI, not Git)
-
-Classic Boosh HEVC plugin stack is **not** in use (`pluginIDs` empty). Both
-libraries use Tdarr Flow `movies_av1_nvenc_v1`, named
-**Movies AV1 (QSV/B70 xe) - DV-safe v4**. The flow is **Tdarr SQLite state, not
-GitOps** - it does not survive a `tdarr-config` PVC rebuild. Rebuild runbook
-(order, restore commands, behavioural verification):
-[`docs/tdarr/README.md`](tdarr/README.md). Recovery *artifact* is
-`docs/tdarr/flow-movies_av1_nvenc_v1.after.json`; node excerpts and the CI
-harness live under `docs/tdarr/flow-nodes/`. Full change list, proofs, the 4K
-CPU guard, and still-open edges (`e_dv_bypass`, `br_*_bypass`):
-[`docs/tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md) §3 / §4b.
-
-Libraries (2026-08-21):
-
-| Library | Folder | Flow |
-|---------|--------|------|
-| Series | `/media/TV-Shows` | `movies_av1_nvenc_v1` |
-| Movies AV1 | `/media/Movies` | `movies_av1_nvenc_v1` |
-
-Flow encoder plugins (Community `ffmpegCommandSetVideoEncoder`):
-
-| Setting | Value |
-|---------|-------|
-| `outputCodec` | `av1` |
-| `hardwareType` | `qsv` |
-| `hardwareEncoding` / `hardwareDecoding` | `true` |
-| container | `mkv` |
-| quality ladders | cq24 / cq26 / cq28 (`ffmpegQuality` 22/23/24 with quality flag off; CQ via encoder-aware custom args) |
-
-The flow skips files that are already AV1. Post-2026-08-31 it also carries a
-Movies-path scope guard, working size/duration/HDR checks (customFunction nodes
-must use `inputsDB.code`, not `function`), encoder-aware CPU/GPU args, the 4K
-CPU guard inside `cargs22/23/24` (refuses `libsvtav1` above a measured memory
-budget so a 4K CPU job cannot OOM the node), and subtitle conversion
-(`mov_text` → `srt`) - never `forceConform`, which deletes tracks. None of
-those flow/library rows is GitOps - see the rebuild runbook. The flow **id**
-still says `nvenc`; the live plugins are QSV on the B70.
-
-### Library file type filter
-
-Tdarr cannot process disc images (`.iso`). Live `containerFilter` on both
-libraries:
-```
-mkv,mp4,avi,ts,mov,m4v,wmv,flv,webm
-```
-
-### ISO file policy
-
-BR-DISK and ISO files are blocked going forward:
-- Both TRaSH SQP-1 score sets include `BR-DISK` with a large negative score (and our Unwanted `assign_scores_to` reinforces it on SQP-1 2160p)
-- That penalty alone drives the release below the guide's `min_format_score: 1000` floor
-- Existing ISO files should be deleted and re-downloaded via Radarr's "Cutoff Unmet" view
-
----
-
-## Plex - Media server
-
-**Namespace:** `media` | **GPU:** `gpu.intel.com/xe: 1` (`plex/app/helmrelease.yaml`). Seerr is also deployed in `media`.
-
-### Library scan triggers (application settings, not GitOps)
-
-Plex ships with **every** scan trigger disabled by default, and this cluster ran that way
-from first boot until 2026-08-29: the library was built entirely by hand-run "Scan Library
-Files" calls, the last one 2026-06-19T00:44:21Z. Because Seerr polls Plex's "recently added"
-every 5 minutes and reports success, a frozen library still looks green on every dashboard --
-it took 71 days and 96 Radarr-imported movies going invisible before anyone noticed.
-
-Two triggers are configured now, and both are UI/API-only state that lives in each app's own
-database -- **a config-volume rebuild of Plex, Radarr, or Sonarr loses this** the same way it
-would lose an Authentik Proxy Provider (see the root `CLAUDE.md` NOTES). Nothing in this repo
-re-applies it, so re-check it after any restore-from-scratch:
-
-1. **Radarr and Sonarr -> Settings -> Connect -> "Plex Media Server"**, host
-   `plex.media.svc.cluster.local:32400`, `On Import` + `On Upgrade` + `On Rename` (+
-   `On Movie Delete` in Radarr, `On Episode File Delete` in Sonarr) enabled. This is the
-   primary trigger: it refreshes only the one changed folder, seconds after every import.
-2. **Plex -> Settings -> Library -> "Update my library periodically"**
-   (`ScheduledLibraryUpdatesEnabled`), hourly. Belt-and-braces for hand-placed files that never
-   go through Radarr/Sonarr (NAS files owned by `uid 3000` with bare names, vs. `uid 2000` +
-   `{imdb-...}` for Radarr imports) -- those get no notification from either app.
-3. **Do not enable** Plex's "scan my library automatically" (`FSEventLibraryUpdatesEnabled`,
-   filesystem-event scanning). Media arrives over NFS from another host, so inotify-style
-   events never fire there; this setting would look correct and silently do nothing.
-
-`autoEmptyTrash` is already on, so a manual or scheduled scan also clears out Plex entries
-whose backing file was deleted or upgraded away (11 such entries existed on 2026-08-29, all
-cleared by the scan that landed this section).
-
-**Counterfactual check, if this is ever suspected to have regressed:** compare Plex's on-disk
-movie folder count against its library size, and check how old `scannedAt` is.
+Allocatable GPU capacity is not proof that transcoding works. Run this after
+any change to `generic-device-plugin`, the Talos GPU kernel args, the GPU
+hardware, or the `tdarr_node` image. The mechanism (libdrm reopens the
+canonical `DEVNAME`) is skill `intel-gpu`.
 
 ```sh
-export KUBECONFIG=/path/to/kubeconfig   # never the mise-shim-overridden one, see NOTES
-PLEX_TOKEN=$(kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
-  'grep -oE "PlexOnlineToken=\"[^\"]+\"" "/config/Library/Application Support/Plex Media Server/Preferences.xml" | cut -d\" -f2')
-
-# disk truth (movie folder count)
-kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- \
-  find /data/nas-media/Movies -mindepth 1 -maxdepth 1 -type d | wc -l
-
-# Plex library size (MediaContainer totalSize= on /all; Size=0 returns size=\"0\")
-# + section title/scannedAt age
-kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
-  "curl -s -H 'X-Plex-Token: ${PLEX_TOKEN}' 'http://localhost:32400/library/sections/1/all?X-Plex-Container-Start=0&X-Plex-Container-Size=0'" \
-  | grep -oE 'MediaContainer[^>]*totalSize=\"[^\"]*\"'
-kubectl --kubeconfig=$KUBECONFIG exec -n media deploy/plex -c app -- sh -c \
-  "curl -s -H 'X-Plex-Token: ${PLEX_TOKEN}' 'http://localhost:32400/library/sections'" \
-  | grep -oE '(title|scannedAt)=\"[^\"]*\"'
-```
-
-The folder count and MediaContainer `totalSize` should match (within a file or two -- Plex does not
-scan every container it can't parse, e.g. a bare `.VOB` DVD rip has no Plex entry and is not a
-scan-trigger fault). With `X-Plex-Container-Size=0`, page `size` is always 0; use `totalSize` for
-the real library count. If they diverge by dozens and `scannedAt` is more than a day old, the
-Connect notifications or the periodic-scan setting were lost -- reapply steps 1-2 above, then
-run one manual "Scan Library Files" to clear the backlog.
-
----
-
-## Data flow
-
-```
-User adds movie to Radarr
-  │
-  ├─> Radarr queries Prowlarr-managed indexers
-  │   └─> Custom format scoring applied (Recyclarr-synced)
-  │
-  ├─> Best release sent to SABnzbd with category=movies
-  │   └─> Downloaded to /data/downloads/usenet/complete/movies/
-  │
-  ├─> SABnzbd post-processes (par2 repair, unrar; Direct Unpack ON)
-  │
-  ├─> Radarr imports to /data/nas-media/Movies/
-  │   └─> File is copied (not hardlinked) due to CephFS -> NFS boundary
-  │   └─> Old release removed if upgrade
-  │
-  ├─> Bazarr detects new file, downloads subtitles
-  │
-  ├─> Plex library scan picks up the new file
-  │   └─> Plex does not watch NFS; needs Radarr/Sonarr Connect + hourly scheduled update
-  │       (see "Library scan triggers" under Plex above). Lost on config-volume rebuild.
-  │
-  └─> Tdarr library scan queues for health check / transcode
-      └─> If not already AV1: transcode to AV1 via Intel QSV (B70 on talos-3)
-          and/or the external Windows node
-      └─> Replaces file in place (/media = NAS Media)
-```
-
----
-
-## Operations
-
-### Triggering a Recyclarr sync
-
-Changes to `recyclarr.yml` apply on the next `@daily` run. To apply immediately:
-
-```sh
-kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date +%s)
-kubectl -n downloads logs -l app.kubernetes.io/name=recyclarr -f
-```
-
-### Re-downloading movies below cutoff
-
-In Radarr UI:
-1. **Movies** menu > **Cutoff Unmet**
-2. Select all > **Search**
-
-Radarr queues searches for everything below the SQP-1 cutoff score. Useful after expanding custom formats or deleting low-quality files.
-
-### Backlog missing-movie search
-
-**Nothing in this stack searches for a monitored-but-missing movie on its own.** Radarr's own
-task list has no scheduled "missing movie search", and every import list runs `searchOnAdd:
-false` - a movie a list adds just sits `monitored: true` / no file until Radarr happens to see a
-matching *new* RSS release, or a human triggers a search. This is invisible day to day (RSS
-`Reports grabbed: 0` looks identical to "everything is already downloaded"), so a backlog only
-becomes visible when someone checks `GET /api/v3/movie` for `monitored && !hasFile` - it was 347
-movies on 2026-08-29, discovered while investigating the outage documented above.
-
-Run a backlog search deliberately, after any event that could have left movies stuck missing: the
-initial cause here (a `min_format_score` override rejecting every release), a big import-list
-addition, or a long Radarr outage. **Always size it against free disk first** - a few hundred
-movies at even moderate quality can be multiple TB, and nothing else in this stack checks that
-before grabbing:
-
-1. Count monitored-and-missing movies **per quality profile** (`GET /api/v3/movie`, filter
-   `monitored && !hasFile`, group by `qualityProfileId`) - different profiles have very different
-   expected sizes.
-2. For a small sample per profile, run an interactive search (`GET /api/v3/release?movieId=<id>`)
-   and read the *accepted* releases' real sizes and hit rate - do not guess a flat average. Genre
-   matters: documentary/TV-movie titles on this stack's profiles have a much lower accept rate
-   than mainstream theatrical titles, because no release group produces an HD-Bluray-tier release
-   for them (same defect that caused the original outage, just below the size floor for scoped
-   profiles rather than above it).
-3. Multiply sampled hit-rate x sampled size x population per profile, sum, and compare against
-   the root folder's live free space (`GET /api/v3/rootfolder`). If the estimate is more than
-   roughly half of free space, do not run the full search - stage a subset, or escalate for a
-   decision (a size cap on the profile, accepting the full run anyway, etc).
-4. If it fits, trigger the search in **batches**, not one 300+ movie burst: `POST /api/v3/command`
-   with `{"name": "MoviesSearch", "movieIds": [...]}`, a bounded batch size (used 20), and a pause
-   between batches (used 120s). This stack's enabled indexers are proxied through Prowlarr and
-   include several usenet providers with their own daily/per-window API quotas
-   (`GET /api/v3/indexer` for the current list) - a single unpaced burst across 300+ movies can
-   trip those limits and get the whole indexer set rate-limited or banned, which is worse than a
-   slower backlog clear.
-5. Confirm end to end: releases grabbed (`GET /api/v3/queue`), handed to the download client, and
-   actually downloading - not just that the search command returned. Movies that still find
-   nothing after a real profile fix are an expected outcome, not a bug; group them by what they
-   have in common (language mismatch, no HD-Bluray-tier release group, not yet released) since
-   that tells you whether another profile gap remains.
-
-**Candidate fix, not yet applied:** flipping `searchOnAdd: true` on the import lists
-(`kubernetes/apps/base/downloads/recyclarr/app/config/recyclarr.yml` does not manage import
-lists; they are Radarr-side, `Settings > Lists`) would make a newly-added movie search
-immediately instead of waiting on RSS, closing the root cause of this class of silent backlog.
-It was deliberately **not** enabled as part of the 2026-08-29 fix because it changes ongoing
-behavior (an immediate indexer hit on every future list addition) rather than clearing the
-existing backlog, and needs its own rate-limit/quota consideration for list-driven bulk adds.
-
-### Deleting files directly from NAS
-
-Not recommended -- go through the *arr UI when possible. For bulk cleanup (e.g., removing ISOs), exec into a pod that has the NFS mount:
-
-```sh
-kubectl -n downloads exec deployment/radarr -- find /data/nas-media/Movies -name "*.iso" -type f
-```
-
-After direct deletion, trigger a rescan in Radarr so it marks the movies as missing:
-- Radarr > System > Tasks > **Rescan Movie**
-
-### Checking Tdarr worker health
-
-```sh
-kubectl -n media get pods -l app.kubernetes.io/name=tdarr -o wide
-```
-
-Expect 1 `tdarr-*` server pod + 1 `tdarr-tdarr-node-*` worker on talos-3. The Tdarr UI shows worker stats under Nodes Overview.
-
-### Monitoring GPU usage
-
-```sh
-kubectl get nodes -o json | jq -r '.items[] | "\(.metadata.name): xe=\(.status.allocatable."gpu.intel.com/xe" // "0") b70=\(.status.allocatable."devic.es/b70" // "0") b70-vaapi=\(.status.allocatable."devic.es/b70-vaapi" // "0")"'
-```
-
-`devic.es/b70` and `devic.es/b70-vaapi` are `99` only on talos-3. Both are the
-same physical card: `b70` for Level Zero consumers (vllm),
-`b70-vaapi` for VA-API consumers (tdarr-node).
-`gpu.intel.com/xe` is the Intel plugin pool for plex/playwright,
-scoped to the iGPU (`allowIDs: "0xa7a0"`) and present as `99` on all three
-nodes. `gpu.intel.com/i915` stays 0 after the xe migration.
-
-### Verifying VA-API after a GPU change
-
-**Allocatable capacity is not proof that transcoding works.** Run this after ANY
-change to `generic-device-plugin`'s config, the Talos GPU kernel args, a node's
-GPU hardware, or the `tdarr_node` image. It takes seconds and it is the only
-check that exercises the path Tdarr actually uses:
-
-```sh
-# 1. Names must match minors. card1 must be minor 1, renderD129 must be minor 129.
 kubectl -n media exec deploy/tdarr-tdarr-node -c app -- ls -l /dev/dri/
-
-# 2. VA-API must open a display and list AV1 encode.
 kubectl -n media exec deploy/tdarr-tdarr-node -c app -- \
   vainfo --display drm --device /dev/dri/renderD129 | grep -E 'Driver version|AV1.*Enc'
-
-# 3. The encoder Tdarr invokes must actually run.
 kubectl -n media exec deploy/tdarr-tdarr-node -c app -- \
   tdarr-ffmpeg -y -f lavfi -i testsrc=size=1920x1080:rate=30 -frames:v 120 \
   -c:v av1_qsv -b:v 5M /tmp/vaapi-check.mp4
 ```
 
-Healthy output is `Driver version: Intel iHD driver ... - 26.2.2`,
-`VAProfileAV1Profile0 : VAEntrypointEncSlice`, and an ffmpeg run ending in a
-`frame= 120 ... Lsize=` summary. The failure signature is
-`Failed to a DRM display for the given device` from `vainfo` and
-`Cannot open a VA display from DRM device` / `Device creation failed: -542398533`
-from ffmpeg.
-
-**Why this check exists.** `generic-device-plugin` can rename a device node via
-`mountPath`, and for DRM nodes that rename is fatal to VA-API. libdrm does not
-trust the path you hand it: it `fstat()`s the fd, reads
-`/sys/dev/char/<major>:<minor>/uevent`, and re-derives the canonical `DEVNAME`.
-If the container does not also have the device at that canonical name,
-`vaGetDisplayDRM()` fails before any driver loads. Level Zero (vllm)
-opens whatever `/dev/dri/render*` it finds and is unaffected, so **the AI stack
-stays green while transcoding is completely dead**. That is exactly what happened
-on 2026-08-26: PR #1443 renamed the B70 to `card0`/`renderD128`, and because
-`transcodecpuWorkers` was `0` there was no fallback, so every job failed for three
-days with the Tdarr UI showing an idle, healthy server. See
-[`ai-gpu-changelog.md`](ai-gpu-changelog.md).
-
-### Finding which *arr app is failing imports
-
-Check Sonarr/Radarr Activity > History for failed imports. Common causes:
-- File already exists at target path (unmonitored duplicate)
-- Permission issue on NFS (should not happen -- fsGroup=2000 across all apps)
-- Quality profile rejection (check custom format score in release details)
-- Radarr matched the grab by movie ID but can't re-parse the downloaded filename (`trackedDownloadState: importBlocked`) -- hardcoded parser behavior, not a settings toggle; common on non-English/MULTi releases. Requires manual **Activity > Queue > Manual Import**. Recyclarr deprioritizes (does not block) parse-risky releases (see Custom format categories above); a stuck item pages via the `RadarrImportQueueBlocked` Gatus alert (`kubernetes/apps/base/monitoring/gatus/app/resources/config.yaml`) instead of accumulating silently
-
-### Backup and recovery
-
-All config PVCs have Volsync with triple backup (Ceph snapshots every 4h, NAS MinIO every 6h, Cloudflare R2 daily). The `shared-downloads` PVC is **not** backed up (transient data). `sabnzbd-incomplete` is disposable scratch with no Volsync. The NAS media library is backed up at the NAS level, separately from cluster Volsync.
-
----
+Healthy: Intel iHD driver version, `VAProfileAV1Profile0 : VAEntrypointEncSlice`,
+and ffmpeg ending in a `frame= 120` summary. Failure: `Failed to a DRM display`
+from vainfo, or `Device creation failed: -542398533` from ffmpeg.
+`card1` / `renderD129` are the kernel names. A renamed `mountPath` leaves
+Level Zero green and VA-API dead.
 
 ## Key files
 
-| Purpose | Path |
-|---------|------|
-| SABnzbd | `kubernetes/apps/base/downloads/sabnzbd/` |
-| Sonarr | `kubernetes/apps/base/downloads/sonarr/` |
-| Radarr | `kubernetes/apps/base/downloads/radarr/` |
-| Lidarr | `kubernetes/apps/base/downloads/lidarr/` |
-| Readarr | `kubernetes/apps/base/downloads/readarr/` |
-| Prowlarr | `kubernetes/apps/base/downloads/prowlarr/` |
-| Bazarr | `kubernetes/apps/base/downloads/bazarr/` |
-| Recyclarr config | `kubernetes/apps/base/downloads/recyclarr/app/config/recyclarr.yml` |
-| Shared downloads PVC | `kubernetes/apps/base/downloads/pvc/app/shared-downloads.yaml` |
-| SAB incomplete PVC | `kubernetes/apps/base/downloads/pvc/app/sabnzbd-incomplete.yaml` |
-| SAB disk-space runbook | `docs/downloads/sabnzbd-disk-space-runbook.md` |
-| Plex | `kubernetes/apps/base/media/plex/` |
-| Tdarr | `kubernetes/apps/base/media/tdarr/` |
-| GPU changelog | `docs/ai-gpu-changelog.md` |
-| Volsync component | `kubernetes/components/volsync/` |
-
----
-
-## References
-
-- [TRaSH Guides](https://trash-guides.info/) - quality profile recommendations, naming schemes, custom formats
-- [Servarr Wiki](https://wiki.servarr.com/) - official *arr documentation
-- [Recyclarr Docs](https://recyclarr.dev/) - declarative *arr config
-- [Tdarr Docs](https://docs.tdarr.io/) - transcoding and distributed setup
-- [bjw-s app-template](https://github.com/bjw-s-labs/helm-charts) - Helm chart used for most deployments
+| App | Path |
+|---|---|
+| SABnzbd, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, Recyclarr | `kubernetes/apps/base/downloads/` |
+| Shared downloads and the disk janitor | `kubernetes/apps/base/downloads/pvc/`, `downloads/maintenance/` |
+| Plex, Seerr, Calibre, Tdarr | `kubernetes/apps/base/media/` |
+| Disk-full runbook | `docs/downloads/sabnzbd-disk-space-runbook.md` |
