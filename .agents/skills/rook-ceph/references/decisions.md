@@ -43,4 +43,4 @@ The flag also disables the `x-amz-*` check that is the real CVE mitigation. Remo
 
 ## PG notes worth keeping
 
-PG count is autoscaled (`bulk: true` on the data pools). A decrease is supported by the autoscaler; the old `docs/ceph/pg.md` claim that PG decrease is unsupported was wrong. Do not hand-set `pg_num` to chase a target. Confirm with `ceph osd pool autoscale-status` before declaring the autoscaler stuck. There is no dedicated replication network; that idea was researched and not applied.
+PG count is autoscaled (`bulk: true` on the data pools). A decrease is supported by the autoscaler. Do not hand-set `pg_num` to chase a target. Confirm with `ceph osd pool autoscale-status` before declaring the autoscaler stuck. There is no dedicated replication network; that idea was researched and not applied.

@@ -36,5 +36,5 @@ A block-pool `min_size=1` window has been used, twice, to break an RBD-activate 
 ## What not to use
 
 - Plain `rbd du` for free-space or fstrim proof. Use `rbd du --exact`.
-- `docs/ceph/pg.md` said PG decrease is unsupported. The autoscaler can decrease. Read `ceph osd pool autoscale-status`.
+- Hand-setting `pg_num` because a decrease looks unsupported. The autoscaler can decrease. Read `ceph osd pool autoscale-status`.
 - A full `task rook:wipe-*` as recovery. Those tasks destroy OSD disks and the hostpath metadata backup. Read `RECOVERY-PROCEDURES.md` section 3 first.
