@@ -25,10 +25,10 @@ every 4 hours). `.github/workflows/renovate.yaml` is the rollback path: its
    does not matter. None of them may turn automerge back on.
 3. **Never-automerge list** (proposals still open as PRs): Renovate's own chart
    (`matchFileNames: kubernetes/apps/base/renovate/**`), kopiur images, the four
-   Talos packages, the five Kubernetes control-plane/kubelet packages, and
+   Talos packages, the five Kubernetes control-plane/kubelet packages,
    `ghcr.io/berriai/litellm-non_root`, and the CloudNativePG chart and operator
-   image (1.31.0 removes the in-tree barman backup; skill `databases`). rsshub digests stay `automerge: true`
-   on `before 6am on monday` (UTC).
+   image (1.31.0 removes the in-tree barman backup; skill `databases`). rsshub
+   digests stay `automerge: true` on `before 6am on monday` (UTC).
 4. **A version pin uses a negated regex, never a bare `<X.Y.Z`.**
    `allowedVersions` filters candidates. Once the tracked value passes a
    ceiling, Renovate proposes nothing. Talos excludes only v1.13.3:

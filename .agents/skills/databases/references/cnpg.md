@@ -5,6 +5,11 @@ The operator chart tag is the OCIRepository `ref.tag` in
 The cluster image, instance count, and `serverName` are in
 `cluster-17/cluster-17.yaml`. The Readme's chart version is not authoritative.
 
+The clusters back up through the in-tree barman (`barmanObjectStore`), which
+CNPG 1.31.0 removes. Renovate never automerges the operator chart or image
+(`.renovate/autoMerge.json5`), so an upgrade to 1.31.0 or later is a human
+decision that needs a backup path migration first.
+
 ## One barman destination
 
 A `Cluster` has one live barman store. A second `ScheduledBackup` that names
