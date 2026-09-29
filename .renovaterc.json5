@@ -1,14 +1,7 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   dependencyDashboard: true,
-  // Platform automerge lets GitHub merge the moment its own required checks
-  // (Labeler only, see skill github-ci references/branch-protection.md) go green, which can be
-  // 3-23s after Labeler passes - while flate, Image Pull and validate are
-  // still queued and then cancelled by the branch deletion. Measured on 10
-  // merged PRs 2026-09-12, including two where a RED versions check was
-  // recorded AFTER the merge. The full required-checks restructure
-  // skill github-ci references/branch-protection.md specifies was evaluated and declined in favor
-  // of this single reversible setting.
+  // Platform automerge would merge on Labeler alone, before flate, Image Pull and validate finish. Skill `renovate`.
   platformAutomerge: false,
   extends: [
     "github>Aviator-Coding/mortyops//ci/renovate/default.json5",
@@ -21,17 +14,7 @@
     "github>Aviator-Coding/home-ops//.renovate/labels.json5",
     "github>Aviator-Coding/home-ops//.renovate/overrides.json5",
     "github>Aviator-Coding/home-ops//.renovate/talos.json5",
-    // No :automergeBranch here on purpose. Branch automerge requires the
-    // branch to reach a green commit status, and no workflow in this repo
-    // triggers on a push to renovate/** - every `push:` trigger is scoped to
-    // branches: [main] - so such a branch sits permanently `pending` with zero
-    // checks and `ignoreTests: false` correctly refuses to merge it. Measured:
-    // `git log --format=%s -200 origin/main | grep -cv "(#[0-9]*)$"` returns 0,
-    // i.e. every update that has ever landed did so through a PR. Leaving the
-    // preset in place made the config read as an active fast path that has
-    // produced zero merges, and it is the same mechanism that stranded four
-    // renovate/* branches for 15 days. Do NOT re-add it without also giving
-    // renovate/** branches a real status check.
+    // No :automergeBranch on purpose: renovate/** pushes get no status check, so branch automerge never merges. Do NOT re-add it. Skill `renovate`.
   ],
   ignorePaths: [
     "**/*.sops.*",

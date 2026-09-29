@@ -2,9 +2,7 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
-      // automergeType is deliberately left at Renovate's default ("pr"): see
-      // the :automergeBranch note in .renovaterc.json5. Branch automerge is a
-      // dead end in this repo because renovate/** branches never get a status.
+      // automergeType stays at the default "pr". Skill `renovate`.
       description: "Auto merge all container digest updates",
       matchDatasources: ["docker"],
       automerge: true,
@@ -12,8 +10,6 @@
       ignoreTests: false,
     },
     {
-      // automergeType deliberately left at Renovate's default ("pr") - same
-      // reasoning as the digest rule above.
       description: "Auto merge all container and helm patch updates",
       matchDatasources: ["docker", "helm", "github-releases", "github-tags"],
       automerge: true,
@@ -35,10 +31,7 @@
       automerge: false,
     },
     {
-      // MUST stay AFTER the three blanket automerge rules above: Renovate
-      // evaluates packageRules in order and a later matching rule overrides an
-      // earlier one. Sibling never-auto-merge rules (Talos below) may follow;
-      // none of them may re-enable automerge for these names.
+      // MUST stay after the three blanket automerge rules. Skill `renovate`.
       description: "Never auto merge kopiur - it is the backup system on an alpha API",
       matchPackageNames: [
         "ghcr.io/home-operations/charts/kopiur",
