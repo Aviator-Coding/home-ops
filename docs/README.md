@@ -14,6 +14,7 @@ dated reports.
 | OSD crash-looping in `load_pgs` | [`ceph/osd-store-corruption-recovery.md`](ceph/osd-store-corruption-recovery.md) |
 | Ceph metadata emergency recovery | [`RECOVERY-PROCEDURES.md`](../kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md) |
 | Cluster bootstrap / disaster recovery | [`bootstrap/AGENTS.md`](../bootstrap/AGENTS.md) |
+| Full-cluster rebuild: restore every volume from r2 | [`backups/full-cluster-restore-from-r2.md`](backups/full-cluster-restore-from-r2.md) |
 | Talos render, apply, upgrade | [`talos/AGENTS.md`](../talos/AGENTS.md) |
 | kopiur scratch restore | [`backups/kopiur-restore-drill-2026-08-30.md`](backups/kopiur-restore-drill-2026-08-30.md) |
 | VolSync scratch restore | [`backups/restore-drill-2026-08-23.md`](backups/restore-drill-2026-08-23.md) |

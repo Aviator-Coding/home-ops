@@ -873,10 +873,18 @@ repoint - `spec.dataSourceRef` is immutable - so a live claim keeps its VolSync
 still-present Stage 5 retired volumes - which is now almost the whole fleet -
 that is already the contract today.
 
-It carries `policy.onMissingSnapshot: Continue`, a deliberate departure from the
-CRD's `Fail` default: `Continue` provisions an empty volume when no snapshot
-exists yet, which is what lets a first deploy of a brand-new app work at all.
-The trade-off is that a restore finding nothing yields an empty volume silently.
+It is **fail-closed**: `policy.onMissingSnapshot: Fail`, the CRD default. Only
+claims that already have history consume it (new apps use a chart-owned PVC and
+never do), so `Continue`'s empty-volume fallback served no one and hid the one
+case that matters: after a full-cluster loss the rebuilt `ceph` repository is
+empty, and `Continue` brought every claim back empty with every signal green,
+then backed that emptiness up to r2 as the newest snapshot. With `Fail` the
+`Restore` goes `Failed`, the claim stays unbound and `KopiurRestoreFailed` fires.
+The `r2` `ClusterRepository` is connect-only (`create.enabled: false`) for the
+same reason. A full rebuild restores from r2 through a DR-mode commit:
+[`docs/backups/full-cluster-restore-from-r2.md`](../../../docs/backups/full-cluster-restore-from-r2.md).
+Standing Restores created before this change keep `Continue` until deleted and
+recreated (see the `IfNotPresent` note below).
 
 **Never use it for a drill.** Per
 [`docs/backups/restore-drill-2026-08-23.md`](../../../docs/backups/restore-drill-2026-08-23.md)

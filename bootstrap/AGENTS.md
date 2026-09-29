@@ -82,6 +82,10 @@ is annotated `kustomize.toolkit.fluxcd.io/prune: disabled` so Flux will not prun
 after bootstrap (ESO cannot recreate it — circular dependency). Everything else is
 seeded post-bootstrap by ESO and must NOT be added here.
 
+## AFTER FLUX TAKES OVER: DATA
+
+A rebuild after Ceph data loss restores **no** volume on its own (the kopiur populators read the new, empty `ceph` repository and fail closed): land the DR-mode commit **before** bootstrapping and follow [`docs/backups/full-cluster-restore-from-r2.md`](../docs/backups/full-cluster-restore-from-r2.md).
+
 ## ANTI-PATTERNS
 
 - **NEVER** run `just bootstrap cluster` / `apps` against a healthy cluster.
