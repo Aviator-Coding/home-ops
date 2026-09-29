@@ -21,7 +21,7 @@ spec:
 # deepseek AgentgatewayBackend (OpenAI-compatible). Reached ONLY via the
 # unified /v1 router (../httproute-unified.yaml) by model name
 # (deepseek-chat/reasoner - bare deepseek-v4-* is OpenCode Go, deepseek/...
-# slugs are OpenRouter). No per-provider path route exists anymore.
+# slugs are OpenRouter).
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:

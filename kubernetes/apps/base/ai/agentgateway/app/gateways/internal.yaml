@@ -4,7 +4,7 @@ metadata:
   name: internal
 spec:
   # Pin the LB IP Cilium originally auto-allocated, so the Service keeps it
-  # across recreation (e.g. the planned ai-system -> ai namespace move).
+  # across recreation.
   infrastructure:
     annotations:
       lbipam.cilium.io/ips: 10.50.0.27

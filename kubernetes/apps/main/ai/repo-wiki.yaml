@@ -26,9 +26,6 @@ spec:
       namespace: security
     - name: litellm
       namespace: *namespace
-    # kopiur is the sole backup engine on this claim since 2026-09-01. See the
-    # components block. There is no `volsync` dependency to drop here - this
-    # overlay never carried one.
     - name: kopiur-repository
       namespace: system
   interval: 1h

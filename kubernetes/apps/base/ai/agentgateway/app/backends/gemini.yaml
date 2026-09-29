@@ -19,7 +19,7 @@ spec:
         key: ai-keys
 ---
 # Reached ONLY via the unified /v1 router (../httproute-unified.yaml) by model
-# name (gemini-*). No per-provider path route exists anymore.
+# name (gemini-*).
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:

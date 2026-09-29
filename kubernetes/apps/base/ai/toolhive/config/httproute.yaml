@@ -11,14 +11,12 @@ metadata:
     gethomepage.dev/description: "Aggregated MCP tool gateway"
     # / is the MCP JSON-RPC endpoint (streamable HTTP transport) and correctly
     # 406s a plain GET missing `Accept: text/event-stream` - proof the vmcp
-    # protocol layer is enforced, not a fault. Verified live 2026-09-12:
-    # unannotated auto-discovery defaulted to `[STATUS] == 200` against `/`,
+    # protocol layer is enforced, not a fault. Unannotated auto-discovery defaulted to `[STATUS] == 200` against `/`,
     # sitting permanently red. /health is vmcp's real liveness path
     # ({"status":"ok"}, 200 unauthenticated), same pattern as every other
     # app-template route in this repo (readarr/ping, litellm/health/readiness).
-    # /health only proves the vmcp process and this route are up: it stayed
-    # 200 through the 2026-09-14..27 outage in which no MCP session could
-    # open. Session health is the separate "ToolHive MCP Session" check in
+    # /health only proves the vmcp process and this route are up: it can stay
+    # 200 while no MCP session can open. Session health is the separate "ToolHive MCP Session" check in
     # monitoring/gatus config.yaml.
     gatus.home-operations.com/endpoint: |-
       url: https://mcp.${SECRET_DOMAIN}/health

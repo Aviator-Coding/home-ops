@@ -12,13 +12,10 @@ spec:
   targetNamespace: *namespace
   interval: 30m
   retryInterval: 1m
-  # Raised from 3m: with wait:false (before this change) this timeout only bounded the manifest-apply step, which finishes in seconds regardless of pod readiness.
-  # Skill `ai-stack`.
   timeout: 5m
   path: "./kubernetes/apps/base/ai/agentgateway/app"
   prune: true
-  # Deployment-level, not HelmRelease: HelmRelease.
-  # Skill `ai-stack`.
+  # Deployment-level, not HelmRelease. Skill `ai-stack`.
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment

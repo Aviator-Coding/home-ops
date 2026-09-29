@@ -18,8 +18,7 @@ spec:
     - name: public
   rules:
     # ================= embeddings (model-aware) =================
-    # Vendor-slug embedding ids (e.g. openai/text-embedding-3-small, used by
-    # agentmemory) -> OpenRouter. Exact path match, so ReplaceFullPath.
+    # Vendor-slug embedding ids (e.g. openai/text-embedding-3-small) -> OpenRouter. Exact path match, so ReplaceFullPath.
     - matches:
         - path:
             type: Exact

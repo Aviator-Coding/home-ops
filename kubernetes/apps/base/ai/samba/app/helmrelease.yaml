@@ -119,11 +119,8 @@ spec:
     service:
       app:
         controller: samba
-        # LAN-only, on a free address in the Cilium BGP pool (10.50.0.0/24).
-        # Deliberately NOT behind envoy-internal/-external: SMB is not HTTP and
-        # these shares must never be publicly reachable. One address serves both
-        # ([xml] and [files]) - a share is a section in smb.conf, not a
-        # listener, so adding one never needs another IP.
+        # LAN-only, Cilium BGP pool address. Never behind envoy: SMB is not HTTP and
+        # must not be publicly reachable. One IP serves every share section.
         type: LoadBalancer
         annotations:
           lbipam.cilium.io/ips: 10.50.0.55
@@ -132,10 +129,8 @@ spec:
             port: *smb
             protocol: TCP
     persistence:
-      # The shared XML corpus, exported as [xml]. Same claim hermes mounts at
-      # /opt/xml. The path /shared is not free-choice: dockur/samba's entrypoint
-      # hardcodes it (see chown-share above), so the primary share must live
-      # there.
+      # [xml] share, same claim hermes mounts at /opt/xml. /shared is fixed by the
+      # dockur/samba entrypoint.
       shared-xml:
         existingClaim: shared-xml
         advancedMounts:
@@ -144,11 +139,8 @@ spec:
               - path: /shared
             app:
               - path: /shared
-      # The general-purpose folder, exported as [files] (smb://10.50.0.55/files)
-      # and mounted by hermes at /opt/files. Second share section on THIS
-      # server, deliberately not a second Samba app: one smbd, one LoadBalancer,
-      # one account, one forced identity. chown-share needs the same mount so it
-      # can pin the root before smbd starts.
+      # [files] share, mounted by hermes at /opt/files. A second section on this
+      # server, not a second Samba app. chown-share needs the mount to pin the root.
       shared-files:
         existingClaim: shared-files
         advancedMounts:

@@ -21,7 +21,7 @@ spec:
 # Groq AgentgatewayBackend (OpenAI-compatible). Reached ONLY via the unified
 # /v1 router (../httproute-unified.yaml) by model name (llama*/mixtral*/
 # gemma*/moonshotai*/...); the unified groq rule prepends /openai (Groq serves
-# at api.groq.com/openai/v1). No per-provider path route exists anymore.
+# at api.groq.com/openai/v1).
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:

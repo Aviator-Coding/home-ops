@@ -2,7 +2,6 @@
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
 # Tier A (indydevdan-model-stack). Registration only - no key is entitled by this file.
 # Id resolved on the live Z.ai catalog; no info.extra prices (cost map is the invoice).
-# Z.ai answered 'Insufficient balance' when added: an unfunded account, not a bad route.
 # See skill litellm-proxy (references/model-catalog.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel

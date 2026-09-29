@@ -9,9 +9,7 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  # healthChecks targets the Deployment, not the HelmRelease: a HelmRelease
-  # healthCheck only reports that `helm upgrade` succeeded and stays Ready
-  # through a crashloop (AGENTS.md / verified live 2026-08-22 on ai/hermes).
+  # Deployment, not HelmRelease: an HR healthCheck stays Ready through a crashloop.
   # wait stays false so this list is actually consulted.
   healthChecks:
     - apiVersion: apps/v1

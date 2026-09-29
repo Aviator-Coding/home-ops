@@ -23,7 +23,6 @@ spec:
 # (../httproute-unified.yaml) by bare Go model ids (kimi-*/glm-*/minimax-*/
 # mimo-*/hy3-*/deepseek-v4-*/qwen3.x-max|plus - the unified rule prepends
 # /zen/go). Also the failover leg of llm-chat-failover (backends/vllm.yaml).
-# No per-provider path route exists anymore.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:

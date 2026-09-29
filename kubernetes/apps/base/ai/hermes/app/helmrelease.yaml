@@ -30,12 +30,8 @@ spec:
         serviceAccount:
           identifier: hermes
         initContainers:
-          # Copy the Git-managed config.yaml into /opt/data on EVERY start, so the
-          # `hermes-configmap` ConfigMap is the source of truth (reloader restarts
-          # the pod on change). Any in-pod `hermes model` / `config edit` write is
-          # overwritten on the next restart -> change models in Git, not in-pod.
-          # Runs as root (pod default) so it can chown the file to the dropped
-          # 10000 user.
+          # Copies config.yaml into /opt/data on EVERY start, so in-pod config edits are
+          # lost: change models in Git. Runs as root to chown to the dropped 10000 user.
           copy-config:
             image:
               repository: docker.io/library/alpine
@@ -87,27 +83,18 @@ spec:
             env:
               # Never set OPENAI_BASE_URL. It overrides every provider. Routing is config.yaml.
               # See skill hermes-agent references/llm-routing.md.
-              # --- Web dashboard (chat / management UI) on :9119 ---
               HERMES_DASHBOARD: "1"
               HERMES_DASHBOARD_HOST: 0.0.0.0
               HERMES_DASHBOARD_PORT: "9119"
-              # --- OpenAI-compatible API server on :8642 (API_SERVER_KEY from the
-              # `hermes` secret via envFrom). Lets other in-cluster apps call
-              # Hermes programmatically. ---
+              # OpenAI-compatible API server on :8642; API_SERVER_KEY comes via envFrom.
               API_SERVER_ENABLED: "true"
               API_SERVER_HOST: 0.0.0.0
               API_SERVER_PORT: "8642"
-              # --- Web search backend (config.yaml sets web.search_backend:
-              # searxng); point Hermes at the SearXNG already running in ns ai. ---
               SEARXNG_URL: http://searxng.ai.svc.cluster.local:8080
-              # --- homelab-commit-watcher skill (GitOps-managed, copied to
-              # /opt/data/skills by seed-skills). HOMELAB_GH_TOKEN + DISCORD_WEBHOOK
-              # arrive via envFrom (the hermes secret); these point its per-repo
-              # digest LLM at the internal gateway. ---
+              # homelab-commit-watcher: points its per-repo digest LLM at the internal gateway.
               SUMMARY_LLM_URL: http://internal-noauth.ai.svc.cluster.local/v1
               SUMMARY_LLM_MODEL: kimi-k2.6
-              # --- Run as the image's default `hermes` user. The s6 init starts
-              # as root, chowns /opt/data, then drops to UID 10000. ---
+              # s6 init starts as root, chowns /opt/data, then drops to this uid.
               HERMES_UID: "10000"
               HERMES_GID: "10000"
               # 900. Runway is 4x because the integrity check burns CPU and earns extensions.
@@ -116,12 +103,8 @@ spec:
               # uid 10000 is not detected as Docker, so the sandbox does not auto-disable.
               # There is no browser.launch_args key. See skill hermes-agent.
               AGENT_BROWSER_ARGS: "--no-sandbox,--disable-dev-shm-usage,--disable-gpu"
-              # --- Git access (single private repo). Inject a global git config
-              # via env (no writable $HOME needed): the `store` helper reads the
-              # token from the mounted `.git-credentials` file (see persistence
-              # below), and a commit identity is set for write access. The token
-              # is a fine-grained PAT scoped to ONE repo (hermes-git secret), so
-              # this grants no access to any other repo. ---
+              # Global git config via env (no writable $HOME): the `store` helper reads the
+              # single-repo PAT from the mounted `.git-credentials` file.
               GIT_CONFIG_COUNT: "3"
               GIT_CONFIG_KEY_0: credential.helper
               GIT_CONFIG_VALUE_0: store --file=/secrets/git/.git-credentials
@@ -209,10 +192,8 @@ spec:
             resources:
               requests:
                 cpu: 10m
-                # 14d peak 117Mi over 23,985 samples. 256Mi is 2.2x it.
-                # Limit unchanged at 1Gi - this is the code-server sidecar,
-                # not hermes itself, and an editor opening a large tree can
-                # spike well above its idle footprint.
+                # code-server sidecar: an editor opening a large tree spikes well above idle,
+                # hence the 1Gi limit.
                 memory: 256Mi
               limits:
                 memory: 1Gi
@@ -230,10 +211,8 @@ spec:
         ports:
           http:
             port: *dash
-          # OpenAI-compatible API server (API_SERVER_ENABLED above).
           agent:
             port: 8642
-          # code-server IDE sidecar.
           codeserver:
             port: 12321
     route:
@@ -252,8 +231,7 @@ spec:
             namespace: network
             sectionName: https
         rules:
-          # Pin the public hostname to the basic-auth dashboard (now that the
-          # service exposes multiple ports).
+          # Pin the hostname to the basic-auth dashboard port (service has several).
           - backendRefs:
               - name: *app
                 port: *dash
@@ -331,10 +309,8 @@ spec:
             seed-skills:
               - path: /run/skills/homelab-commit-watcher
                 readOnly: true
-    # Cluster-operator access for the agent. Read-all everywhere (inspect/diagnose)
-    # plus a narrow self-heal write surface: delete a stuck pod, exec for
-    # diagnostics, and patch/restart deployments in ns ai. Hermes already has a
-    # terminal + kubectl; this formalises and bounds what it can mutate.
+    # Read-all everywhere plus a narrow self-heal write surface: delete a stuck pod,
+    # exec for diagnostics, patch/restart deployments in ns ai.
     serviceAccount:
       hermes: {}
     rbac:

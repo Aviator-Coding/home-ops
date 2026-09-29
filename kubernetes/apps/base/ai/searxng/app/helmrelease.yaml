@@ -67,14 +67,6 @@ spec:
                 memory: 512Mi
               limits:
                 memory: 2Gi
-    # TODO: Add defaultPodOptions for pod-level security
-    # defaultPodOptions:
-    #   securityContext:
-    #     runAsNonRoot: true
-    #     runAsUser: 568
-    #     runAsGroup: 568
-    #     fsGroup: 568
-    #     fsGroupChangePolicy: OnRootMismatch
     service:
       app:
         ports:

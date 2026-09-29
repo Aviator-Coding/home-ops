@@ -19,8 +19,7 @@ spec:
         key: ai-keys
 ---
 # Reached ONLY via the unified /v1 router (../httproute-unified.yaml) by model
-# name (gpt-*/o[0-9]*/chatgpt* + the unmatched-model default). No per-provider
-# path route exists anymore.
+# name (gpt-*/o[0-9]*/chatgpt* + the unmatched-model default).
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
