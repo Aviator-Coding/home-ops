@@ -44,3 +44,12 @@ attempt the same way. See [arc-runners.md](arc-runners.md).
 
 Same-repo `if:` on `validate.yaml`, `image-pull.yaml`, `flate.yaml`,
 `labeler.yaml` and `terraform-diff.yaml`. Add it to any new job on this runner.
+
+## validate.yaml timeouts
+
+Measured on PR #1481: the mise-action jobs (talos, versions, bootstrap, terraform)
+take 15-31s uncontended, but one was cancelled at 602s inside Setup Tools when
+eight jobs fanned out onto the runner pool, so they carry `timeout-minutes: 25`.
+python-tests takes ~96s alone and 469s contended (the `uv pip` install of
+`litellm[proxy]` went from 33s to 416s), so it carries 20 and is ordered after the
+light jobs.

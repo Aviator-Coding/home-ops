@@ -15,12 +15,7 @@ tasks:
     dir: '{{.ROOT_DIR}}'
     vars:
       NAMESPACE: '{{.NAMESPACE | default "flux-system"}}'
-    # Two runs on purpose. flate always reconciles the entire tree, but --namespace
-    # filters the RESULT as well as the output: measured 2026-08-29, a broken
-    # Kustomization in `network` still exits 0 under `-n monitoring`. That is the
-    # same false-green this task had under flux-local, so the scoped run is for
-    # readable output only and the unscoped run below is the authoritative gate.
-    # A full run is ~0.3s warm, so there is no longer a speed reason to scope.
+    # Two runs on purpose: --namespace filters the exit code too, so the scoped run is readable output only and the unscoped run is the gate. Skill `flux-gitops`.
     cmds:
       - flate test all --path kubernetes/clusters/main --namespace {{.NAMESPACE}}
       - flate test all --path kubernetes/clusters/main

@@ -11,12 +11,9 @@ spec:
     # Odd hours 01,05,09,13,17,21 so VolSync's even-hour ceph jobs stay one hour away. Do not hand-assign the H minute.
     # Skill `kopiur-backups`.
     cron: "${KOPIUR_SCHEDULE_CEPH:-H 1-23/4 * * *}"
-    # Deterministic, derived from (scheduleUID, slot) - decorrelates the actual
-    # firing instant on top of the hashed minute.
     jitter: 5m
     # kopiur evaluates cron as UTC unless timezone is set, and the odd/even stagger then collides at EST.
     # Skill `kopiur-backups`.
     timezone: "${KOPIUR_SCHEDULE_TIMEZONE:-America/New_York}"
-  # See ../ceph/snapshotpolicy.yaml for why this is pinned rather than defaulted.
   deletion:
     onScheduleDelete: Retain

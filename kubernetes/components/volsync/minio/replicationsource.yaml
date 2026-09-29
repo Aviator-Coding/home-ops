@@ -7,9 +7,9 @@ metadata:
 spec:
   sourcePVC: "${VOLSYNC_CLAIM:-${APP}}"
   trigger:
-    schedule: "${VOLSYNC_SCHEDULE_MINIO:-30 */6 * * *}"  # Every 6 hours default - customizable per-app
+    schedule: "${VOLSYNC_SCHEDULE_MINIO:-30 */6 * * *}"
   restic:
-    unlock: "true"  # Automatically clear stale locks from interrupted backups
+    unlock: "true"
     pruneIntervalDays: 14
     repository: "${APP}-volsync-minio-secret"
     copyMethod: "${VOLSYNC_COPYMETHOD:-Snapshot}"
@@ -22,6 +22,6 @@ spec:
       runAsGroup: ${VOLSYNC_PGID:-1000}
       fsGroup: ${VOLSYNC_PGID:-1000}
     retain:
-      daily: 14    # Keep 14 daily snapshots (2 weeks)
-      weekly: 8    # Keep 8 weekly snapshots (2 months)
-      monthly: 6   # Keep 6 monthly snapshots
+      daily: 14
+      weekly: 8
+      monthly: 6

@@ -115,9 +115,7 @@ jobs:
     needs: filter
     name: talos
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    # Uncontended: 17-24s (Setup Tools 12-19s). Contended lower bound: cancelled
-    # at 602s inside Setup Tools (PR #1481 run 33233099018 attempt 1); same
-    # head passed in 17s alone (attempt 2). 25m is 2.5x that kill.
+    # 25m: contention can stall Setup Tools past 10m. Skill `github-ci` references/workflows.md.
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -140,8 +138,6 @@ jobs:
     needs: filter
     name: versions
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    # Uncontended: 18-20s (Setup Tools 13-16s). Same mise-action class as talos;
-    # the old 5m ceiling is below the 10m kill measured on talos.
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -162,7 +158,6 @@ jobs:
     needs: filter
     name: bootstrap
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    # Uncontended: 15-18s (Setup Tools 10-13s). Same mise-action class as talos.
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -212,7 +207,6 @@ jobs:
     needs: filter
     name: terraform
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    # Uncontended: 17-31s (Setup Tools 11-23s). Same mise-action class as talos.
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -274,10 +268,7 @@ jobs:
     # failed talos/versions/bootstrap/terraform/renovate-config must not hide
     # a python-tests failure. !cancelled() avoids work on a superseded run.
     if: ${{ always() && !cancelled() && needs.filter.result == 'success' && github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.pythontests != '[]' }}
-    # After the light mise-action jobs so litellm[proxy] pip (measured 33s on
-    # a lucky 8-way fan-out, 416s on the unlucky one that cancelled talos)
-    # does not overlap their Setup Tools. Skipped predecessors complete
-    # immediately, so a scripts/ci-only PR is not delayed.
+    # After the light mise-action jobs so the litellm[proxy] pip install does not overlap their Setup Tools.
     needs:
       - filter
       - talos
@@ -288,9 +279,7 @@ jobs:
       - docs-guards
     name: python-tests
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    # Uncontended-ish: 96s (pip 33s). Contended success: 469s (pip 416s,
-    # PR #1481 run 33233099018). 20m is ~2.5x that success; this job was
-    # the load, not the victim, so it stays at 20.
+    # 20m is ~2.5x the contended success time (469s). Skill `github-ci` references/workflows.md.
     timeout-minutes: 20
     steps:
       - name: Checkout

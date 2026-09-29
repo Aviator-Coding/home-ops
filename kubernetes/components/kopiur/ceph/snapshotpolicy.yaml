@@ -7,10 +7,7 @@ kind: SnapshotPolicy
 metadata:
   name: "${APP}-ceph"
 spec:
-  # Explicit, though it is also the CRD default. Same value VolSync uses: the
-  # mover reads a temporary PVC restored from a CSI VolumeSnapshot and never
-  # mounts the live claim, which is what makes running both backup systems
-  # against one PVC safe. sources[].readOnly likewise defaults to true.
+  # Pinned though it is the CRD default. Skill `kopiur-backups` references/onboarding.md.
   copyMethod: Snapshot
   volumeSnapshotClassName: "${KOPIUR_SNAPSHOTCLASS:-csi-ceph-blockpool}"
   repository:
@@ -25,22 +22,15 @@ spec:
         name: "${KOPIUR_CLAIM:-${APP}}"
   mover:
     cache:
-      # Ephemeral (also the CRD default, pinned because it is load-bearing):
-      # the kopia cache lives only for the run and is discarded, so running
-      # kopiur alongside VolSync adds NO standing cache PVCs. VolSync already
-      # holds 105 cache PVCs / 324 GiB of ceph-block; Persistent here would
-      # start a second such set.
+      # Ephemeral is load-bearing: Persistent would add standing cache PVCs.
       mode: Ephemeral
       capacity: "${KOPIUR_CACHE_CAPACITY:-2Gi}"
-    # Mirrors VolSync's moverSecurityContext {runAsUser, runAsGroup, fsGroup}
-    # so both engines read the claim as the same identity and a kopiur restore
-    # reproduces the ownership a VolSync restore would.
+    # Same identity as VolSync's moverSecurityContext.
     podSecurityContext:
       runAsUser: ${KOPIUR_PUID:-1000}
       runAsGroup: ${KOPIUR_PGID:-1000}
       fsGroup: ${KOPIUR_PGID:-1000}
-  # Matched to ../../volsync/ceph/replicationsource.yaml's retain block so the
-  # two systems are directly comparable during the parallel run.
+  # Matches ../../volsync/ceph/replicationsource.yaml's retain block.
   retention:
     keepHourly: 6
     keepDaily: 14
