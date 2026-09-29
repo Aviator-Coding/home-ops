@@ -87,8 +87,8 @@ spec:
             resources:
               requests:
                 cpu: 20m
-                # Working set 2026-09-06 while HTTP-hung: 653Mi. Sibling *arr
-                # requests of 384Mi would under-size this process.
+                # Working set while HTTP-hung was 653Mi. Sibling *arr requests of 384Mi
+                # would under-size this process.
                 memory: 768Mi
               limits:
                 memory: 2Gi
@@ -123,8 +123,7 @@ spec:
                 cpu: 10m
                 memory: 32Mi
               limits:
-                # 64Mi was a real cgroup OOM (anon-rss 56.6Mi twice on
-                # 2026-09-06). Working set after those restarts: 44Mi.
+                # 64Mi was a real cgroup OOM (anon-rss 56.6Mi). Working set after restarts: 44Mi.
                 memory: 128Mi
             securityContext:
               allowPrivilegeEscalation: false
@@ -156,7 +155,6 @@ spec:
           gethomepage.dev/group: Downloads
           gethomepage.dev/name: *app
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/readarr.svg
-          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Readarr is a book and audiobook collection manager for Usenet and BitTorrent users."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=readarr
           gatus.home-operations.com/endpoint: |-

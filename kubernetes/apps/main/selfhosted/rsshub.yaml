@@ -43,11 +43,7 @@ metadata:
   name: &app rsshub-playwright
   namespace: &namespace selfhosted
 spec:
-  # No components: browserless is stateless, so /config is an emptyDir in the
-  # HelmRelease and there is nothing for volsync to protect. Dropping the
-  # component prunes the 5Gi claim, its 3 ReplicationSources, the -dst
-  # ReplicationDestination and the 3 mover credential ExternalSecrets; volsync
-  # then GCs the 3 cache PVCs it owns. Captain decision 2026-08-30.
+  # No components: browserless is stateless (/config is an emptyDir), so there is no claim to back up.
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app

@@ -91,7 +91,6 @@ spec:
           gethomepage.dev/group: Downloads
           gethomepage.dev/name: *app
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/prowlarr.svg
-          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Prowlarr is a Usenet and BitTorrent indexer manager/proxy built on the popular Radarr/Sonarr/NzbGet/Lidarr stack."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=prowlarr
         hostnames:

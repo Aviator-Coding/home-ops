@@ -39,9 +39,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # The claim is `radarr-config` while the app is `radarr`. This drove the
-      # retired VOLSYNC_CLAIM and now also drives the pvc Component's PVC name,
-      # so it is load-bearing in a second place after retirement.
+      # Claim name differs from the app. The pvc component names the PVC from this. Skill `kopiur-backups`.
       KOPIUR_CLAIM: radarr-config
       # Create-time only under ssa IfNotPresent. A rebuild provisions this size, not the component default.
       # Skill `kopiur-backups`.

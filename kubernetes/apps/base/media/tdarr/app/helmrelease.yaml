@@ -98,13 +98,9 @@ spec:
       tdarr-node:
         replicas: 1
         pod:
-          # talos-3 carries a home-operations.com/dedicated taint
-          # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26
-          # (a scheduler score penalty, not a filter -
-          # .agents/skills/node-scheduling/references/talos-3-ledger.md) - this pod is pinned
-          # to that node by devic.es/b70-vaapi (comment above), so this
-          # toleration keeps the score penalty from disadvantaging the only
-          # node it can legally run on. See .agents/skills/node-scheduling/references/talos-3-ledger.md.
+          # talos-3 carries a PreferNoSchedule home-operations.com/dedicated taint. This pod
+          # is pinned there by devic.es/b70-vaapi, so the toleration stops the score
+          # penalty from disadvantaging the only node it can run on. Skill node-scheduling.
           tolerations:
             - key: home-operations.com/dedicated
               operator: Exists

@@ -28,14 +28,8 @@ spec:
           labels:
             severity: warning
 
-        # container_spec_memory_limit_bytes does not exist in this Prometheus
-        # (cAdvisor is scraped but the container_spec_* families are absent),
-        # so this alert could never fire. kube-state-metrics'
-        # kube_pod_container_resource_limits is the live substitute and needs
-        # an explicit on(...) join - the two metrics carry different labels.
-        # Worth knowing: with the metric restored, both cainjector replicas
-        # measure 0.63-0.71 of their 256Mi limit, so this alert was blind
-        # while sitting just under its own threshold.
+        # container_spec_memory_limit_bytes is absent in this Prometheus, so an alert on it never fires.
+        # kube_pod_container_resource_limits is the live substitute and needs an explicit on(...) join (different labels).
         - alert: CertManagerCainjectorHighMemory
           expr: |-
             container_memory_working_set_bytes{namespace="cert-manager", container="cert-manager-cainjector"}

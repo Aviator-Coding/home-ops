@@ -66,11 +66,9 @@ spec:
               - secretRef:
                   name: bazarr-secret
             probes:
-              # Moving forward across the accumulated Alembic revision backlog is a
-              # one-time, single-threaded SQLite migration that took ~7 minutes
-              # against this app's real config DB - give it generous room on first
-              # boot via startupProbe, which gates liveness/readiness until it
-              # passes, then fall back to a normal steady-state window.
+              # The Alembic migration backlog is a one-time, single-threaded SQLite migration
+              # that can take minutes on first boot. startupProbe gates liveness/readiness
+              # until it passes, then a normal steady-state window applies.
               startup:
                 enabled: true
                 custom: true
@@ -140,7 +138,6 @@ spec:
           gethomepage.dev/group: Downloads
           gethomepage.dev/name: *app
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/bazarr.svg
-          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Bazarr - Subtitle Management"
           gethomepage.dev/pod-selector: app.kubernetes.io/name=bazarr
           external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"

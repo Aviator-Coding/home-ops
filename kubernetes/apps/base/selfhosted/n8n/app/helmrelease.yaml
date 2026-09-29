@@ -39,7 +39,6 @@ spec:
               N8N_HOST: &hostName "n8n.${SECRET_DOMAIN}"
               WEBHOOK_URL: "https://n8n-webhook.${SECRET_DOMAIN}/"
               N8N_PROXY_HOPS: 1
-              # Logging
               N8N_LOG_LEVEL: info
               N8N_LOG_OUTPUT: console
 
@@ -57,12 +56,10 @@ spec:
               N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: false
               N8N_PROTOCOL: "https"
 
-              # Public API
               N8N_PUBLIC_API_DISABLED: false
               N8N_PUBLIC_API_SWAGGERUI_DISABLED: true
               NODE_FUNCTION_ALLOW_BUILTIN: "*"
               N8N_METRICS: true
-              # NODE_FUNCTION_ALLOW_EXTERNAL: "@databricks/sql"  # Disabled - module not installed
               N8N_USER_FOLDER: /config
               N8N_EMAIL_MODE: smtp
 
@@ -103,17 +100,8 @@ spec:
                 enabled: false
 
     defaultPodOptions:
-      # `affinity` NotIn talos-3 REMOVED 2026-09-26: it is now redundant.
-      # talos-3 carries a home-operations.com/dedicated taint
-      # (talos/nodes/talos-3.yaml.j2) and this app gets no toleration for it.
-      # The taint was NoSchedule (a hard filter, equivalent to the removed
-      # affinity) at the time of this removal; it was switched the same day
-      # to PreferNoSchedule (a scheduler score penalty, not a filter), so
-      # what now keeps this app off talos-3 in normal operation is the
-      # 300-point TaintToleration gap (.agents/skills/node-scheduling/references/talos-3-ledger.md),
-      # not an absolute exclusion - a per-app deny-list entry is
-      # still not reinstated here because it would fail open the same way
-      # the removed one did for anything that forgets to carry it.
+      # `affinity` NotIn talos-3 is not needed: the talos-3 PreferNoSchedule taint (no toleration here)
+      # keeps this app off it via the TaintToleration score. Skill `node-scheduling`, references/talos-3-ledger.md.
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -130,16 +118,8 @@ spec:
     persistence:
       config:
         enabled: true
-        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: volsync was retired from this volume
-        # on 2026-09-04 (Stage 5 wave three), and that overlay now defines no
-        # VOLSYNC_* key. The default is corrected to the literal claim name at
-        # the same time, because the old `:-*app` was a DANGLING YAML ALIAS,
-        # not an anchor reference - kustomize emits the token verbatim, so the
-        # moment VOLSYNC_CLAIM stopped being defined the render became
-        # `existingClaim: *app` and flate failed the whole Kustomization with
-        # `unknown anchor 'app' referenced`. The trap was recorded in
-        # .agents/skills/kopiur-backups/references/retirement-and-removal.md and never
-        # fired, because the overlay always set VOLSYNC_CLAIM until now.
+        # KOPIUR_CLAIM, not VOLSYNC_CLAIM: the overlay defines no VOLSYNC_* key any more.
+        # Skill `kopiur-backups`, references/onboarding.md (dangling VolSync aliases).
         existingClaim: ${KOPIUR_CLAIM:-n8n}
 
     route:
@@ -150,11 +130,8 @@ spec:
           gethomepage.dev/name: N8N
           gethomepage.dev/icon: n8n.svg
           external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
-          # /healthz/readiness, NOT /healthz - see the probes block above.
-          # /healthz is unconditional `{status:'ok'}` upstream, so this check
-          # reported 200/green for the entire 4-day outage in which n8n
-          # answered 503 "Database is not ready!" to every real request. The
-          # sibling n8n-webhooks check below was the only one that went red.
+          # /healthz/readiness, NOT /healthz: /healthz is an unconditional 200 upstream and stayed green
+          # through a database outage. See the probes block above.
           gatus.home-operations.com/endpoint: |-
             url: https://n8n.${SECRET_DOMAIN}/healthz/readiness
             conditions:
@@ -199,7 +176,6 @@ spec:
             backendRefs:
               - name: n8n
                 port: 80
-                # NEW: OAuth callback rule
           - matches:
               - path:
                   type: PathPrefix

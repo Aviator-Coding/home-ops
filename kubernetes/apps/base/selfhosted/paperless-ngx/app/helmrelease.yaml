@@ -34,19 +34,15 @@ spec:
               repository: ghcr.io/paperless-ngx/paperless-ngx
               tag: 3.0.5
             env:
-              # General
               PAPERLESS_URL: "https://docs.${SECRET_DOMAIN}"
               PAPERLESS_PORT: &port 8000
               PAPERLESS_TIME_ZONE: Pacific/Auckland
-              # Redis (via Dragonfly)
               PAPERLESS_REDIS: "redis://paperless-ngx-dragonfly.selfhosted.svc.cluster.local:6379"
-              # OCR
               PAPERLESS_OCR_LANGUAGE: eng
               # Consumer (polling required on Ceph -- no inotify support)
               PAPERLESS_CONSUMER_POLLING: "60"
               PAPERLESS_CONSUMER_RECURSIVE: "true"
               PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"
-              # Workers
               PAPERLESS_TASK_WORKERS: "2"
               PAPERLESS_WEBSERVER_WORKERS: "2"
             envFrom: *envFrom

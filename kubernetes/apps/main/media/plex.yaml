@@ -21,9 +21,6 @@ spec:
       namespace: system
     - name: rook-ceph-cluster
       namespace: rook-ceph
-    # This Kustomization never carried a `volsync` (system) dependency - the
-    # volsync Component it used to include is gone, and nothing here renders a
-    # VolSync object any more. kopiur is the sole backup engine on this claim.
     - name: kopiur-repository
       namespace: system
   interval: 30m

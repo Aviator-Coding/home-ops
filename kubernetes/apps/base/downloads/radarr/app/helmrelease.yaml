@@ -75,17 +75,11 @@ spec:
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
 
-    # `defaultPodOptions.affinity` NotIn talos-3 REMOVED 2026-09-26: it is now
-    # redundant. talos-3 carries a home-operations.com/dedicated taint
-    # (talos/nodes/talos-3.yaml.j2) and this app gets no toleration for it.
-    # The taint was NoSchedule (a hard filter, equivalent to the removed
-    # affinity) at the time of this removal; it was switched the same day to
-    # PreferNoSchedule (a scheduler score penalty, not a filter), so what now
-    # keeps this app off talos-3 in normal operation is the 300-point
-    # TaintToleration gap (.agents/skills/node-scheduling/references/talos-3-ledger.md), not
-    # an absolute exclusion - a per-app deny-list entry is still not
-    # reinstated here because it would fail open the same way the removed
-    # one did for anything that forgets to carry it.
+    # No node affinity against talos-3: it carries a PreferNoSchedule
+    # home-operations.com/dedicated taint (talos/nodes/talos-3.yaml.j2) and this app
+    # has no toleration, so the TaintToleration score gap keeps it off talos-3. That is
+    # not an absolute exclusion, but a per-app deny-list would fail open for anything
+    # that forgets to carry it. Skill node-scheduling.
     service:
       app:
         controller: *app
@@ -118,7 +112,6 @@ spec:
           gethomepage.dev/group: Downloads
           gethomepage.dev/name: *app
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/radarr.svg
-          # gethomepage.dev/siteMonitor: coder.${SECRET_DOMAIN}
           gethomepage.dev/description: "Radarr is a PVR for Usenet and BitTorrent users to manage and download movies."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=radarr
         hostnames:

@@ -1,12 +1,11 @@
 ---
-# SABnzbd article-assembly scratch (the "incomplete"/download_dir). Lives on
-# `ceph-block` (RWO, block) NOT CephFS RWX on purpose: during assembly SABnzbd
-# writes thousands of tiny `SABnzbd_article_*` files, which storm the CephFS MDS
-# metadata journal and can stall the entire filesystem (2026-06-14 incident).
-# Block keeps that tiny-file churn inside the RBD ext4/xfs — Ceph only ever sees
-# 4MB RBD objects, never MDS metadata ops. The finished media is moved to
-# `complete` on `shared-downloads` (CephFS RWX) so the *arr hardlink/atomic-import
-# flow is unchanged. Disposable scratch → no volsync backup.
+# SABnzbd article-assembly scratch (the "incomplete"/download_dir). On
+# `ceph-block` (RWO), NOT CephFS RWX, on purpose: assembly writes thousands of
+# tiny `SABnzbd_article_*` files that storm the CephFS MDS metadata journal and
+# can stall the whole filesystem. Block keeps that churn inside the RBD; Ceph
+# only sees 4MB objects. Finished media moves to `complete` on `shared-downloads`
+# (CephFS RWX) so the *arr hardlink/atomic-import flow is unchanged.
+# Disposable scratch, no backup.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -16,8 +15,8 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      # 1.5Ti: 500Gi filled during large UHD batches (par2 + multi-file assembly),
-      # pausing downloads on low free space. ceph-blockpool has the headroom and the
-      # scratch is transient, so the reservation only consumes space when actually used.
+      # 1.5Ti: 500Gi filled during large UHD batches (par2 + multi-file assembly) and
+      # paused downloads on low free space. The scratch is transient, so the
+      # reservation only consumes space when used.
       storage: 1500Gi
   storageClassName: ceph-block

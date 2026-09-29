@@ -20,11 +20,7 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
-    # The `volsync` (system) dependency went with the volsync Component below -
-    # nothing in THIS Kustomization renders a VolSync object any more. Note the
-    # `syncthing-data` Kustomization further down still needs it and keeps it:
-    # that second claim was assessed in wave two and found NOT ready, so it
-    # stays dual-engine.
+    # The `volsync` dependency left with the volsync component; `syncthing-data` below still needs it (dual-engine).
     - name: kopiur-repository
       namespace: system
   components:
@@ -46,9 +42,8 @@ spec:
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Second volume: the volsync component above only protects the single ${VOLSYNC_CLAIM}
-# (`syncthing`, the config PVC). `syncthing-data` holds the synced files and needs its
-# own Kustomization, because Flux allows exactly one postBuild.substitute map each.
+# Second volume: `syncthing-data` (the synced files) needs its own Kustomization, because Flux allows
+# exactly one postBuild.substitute map each.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -80,11 +75,8 @@ spec:
     substitute:
       APP: *app
       VOLSYNC_CLAIM: *app
-      # Matches the syncthing-data PVC's real size (kubernetes/apps/base/selfhosted/syncthing/app/pvc.yaml).
-      # Right-sized 2026-08-31 from 100Gi (28 KB actually used) down to 15Gi -
-      # see that file for the per-folder sizing reasoning. This value sizes the
-      # ReplicationDestination's restic destination volume, so it must track
-      # the claim size for a future restore to have room.
+      # Matches the syncthing-data PVC size (base/selfhosted/syncthing/app/pvc.yaml). It sizes the
+      # ReplicationDestination restic volume, so it must track the claim for a restore to have room.
       VOLSYNC_CAPACITY: 15Gi
       VOLSYNC_CACHE_CAPACITY: 5Gi
       VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
@@ -92,11 +84,8 @@ spec:
       VOLSYNC_SCHEDULE_R2: "45 4 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# kopiur backup for the SECOND volume, `syncthing-data` (the synced files).
-# Needs its own Kustomization for the same reason the volsync one above does:
-# Flux allows one postBuild.substitute map per Kustomization and every kopiur
-# object is named from ${APP}. The volsync Kustomization above is untouched,
-# and syncthing's own folder configuration is not touched at all.
+# kopiur backup for the SECOND volume, `syncthing-data` (the synced files). Own Kustomization for the same
+# reason as above: one postBuild.substitute map each, and every kopiur object is named from the APP key.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

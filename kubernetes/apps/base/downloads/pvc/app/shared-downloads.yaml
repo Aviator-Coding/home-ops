@@ -1,9 +1,8 @@
 ---
-# Shared download scratch (RWX), migrated off the broken default `csi`
-# subvolumegroup onto `ceph-filesystem-rwx` (group `csi-rwx`) after the Ceph
-# Tentacle v20.2.1 subvolume corruption. Old PVC `shared-downloads-pvc` (group
-# `csi`) was orphaned (Retain) during migration; its leaked subvolume waits for
-# a fixed Ceph release. Repoint back to `ceph-filesystem` once that lands.
+# Shared download scratch (RWX) on `ceph-filesystem-rwx` (group `csi-rwx`): the
+# default `csi` subvolumegroup is broken by Ceph Tentacle v20.2.1 subvolume
+# corruption. Repoint to `ceph-filesystem` once a fixed Ceph release lands.
+# Skill rook-ceph.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

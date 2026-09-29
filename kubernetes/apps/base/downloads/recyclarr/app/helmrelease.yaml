@@ -24,16 +24,11 @@ spec:
           backoffLimit: 0
           concurrencyPolicy: Forbid
           failedJobsHistory: 1
-          # Was 0, which made a healthy CronJob read as permanently broken: with
-          # no successful Job retained, the only Job object left was the last
-          # FAILED one, so KubeJobFailed latched on a 2026-08-24 failure and had
-          # been firing ever since while recyclarr succeeded every single day.
-          # Keeping one success means the retained Jobs reflect current reality.
+          # Keep one success: with none retained, the last FAILED Job is the only Job
+          # object left and KubeJobFailed latches on it forever.
           successfulJobsHistory: 1
-          # Backstop so a failed Job ages out on its own instead of pinning
-          # KubeJobFailed forever, matching renovate's HelmRelease. A genuinely
-          # recurring failure still re-fires the alert daily; only the stale
-          # artefact disappears. 24h is well clear of the alert's for: window.
+          # Backstop so a failed Job ages out instead of pinning KubeJobFailed. A recurring
+          # failure still re-fires the alert daily. 24h is well clear of the alert for: window.
           ttlSecondsAfterFinished: 86400
 
         pod:

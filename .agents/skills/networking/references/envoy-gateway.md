@@ -56,3 +56,14 @@ a Service path is the backend's own config (LiteLLM
 
 agentgateway uses `AgentgatewayPolicy.spec.traffic.directResponse` on
 `agentgateway.dev` routes. An Envoy `HTTPRouteFilter` does not apply there.
+
+## Envoy preStop patch
+
+The gateway-helm CRD does not expose `envoyDeployment.container.lifecycle`
+or `pod.terminationGracePeriodSeconds`, so `app/envoy.yaml` carries a
+strategic-merge `patch` that replaces the chart-injected envoy `preStop`
+(`httpGet :19002/shutdown/ready`). That probe polls the shutdown-manager
+sidecar; once the sidecar finishes its own drain (`--drain-timeout=180s`)
+and exits, port 19002 disappears and kubelet records `FailedPreStopHook`.
+A passive sleep lets the shutdown-manager drain run uninterrupted, and envoy
+still drains via `spec.shutdown.drainTimeout`.

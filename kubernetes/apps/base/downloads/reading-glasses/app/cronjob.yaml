@@ -2,10 +2,8 @@
 # Daily prune of expired rows in rreading-glasses' single cache table.
 #
 # rreading-glasses caches book metadata lookups (Amazon ASINs, ISBNs, OpenLibrary
-# work IDs, Goodreads book IDs) with a 7-day TTL but never deletes expired rows.
-# An audit on 2026-04-26 found 60% of 9.64 M rows expired and the database at
-# 20 GiB; after a one-shot prune the table dropped to ~640 MiB. This CronJob
-# keeps it that way.
+# work IDs, Goodreads book IDs) with a 7-day TTL but never deletes expired rows,
+# so the cache table grows without bound. This CronJob prunes them.
 #
 # Uses the rreading-glasses POSTGRES__USER role (owner of public.cache) — no
 # postgres superuser needed. Credentials come from the same reading-glasses-secret
