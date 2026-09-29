@@ -110,5 +110,8 @@ stores share one table, so one model and width.
   `.github/docker/litellm-pgvector/`, set the HelmRelease tag to
   `python3 scripts/ci/litellm-pgvector-test.py --print-tag`. Never edit files
   there casually (a comment changes the hash).
+- The `vector` extension exists only because the shared postgres-17 image
+  (`tensorchord/cloudnative-pgvecto.rs`) ships pgvector; an image swap there
+  breaks the next db-init.
 - The server's `/health` is static (process up, not DB up). A DB problem shows
   as 500s on search, logged by the proxy as failed `avector_store_search`.

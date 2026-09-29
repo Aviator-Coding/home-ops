@@ -28,9 +28,9 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
    bills the household or restarts phantom spend.
    [claude-code-subscription.md](references/claude-code-subscription.md)
 3. **Metered cloud models carry no `info.extra` prices** (the cost map is the
-   invoice); local models carry none (sunk hardware). Only the
-   `qwen3.6-35b-a3b` demo fixture has synthetic prices, and `demo` is its only
-   consumer. [model-catalog.md](references/model-catalog.md)
+   invoice), except `qwen/qwen3-embedding-8b`, whose real price is declared
+   because the cost map lacks it. Local models carry none (sunk hardware); only
+   the `qwen3.6-35b-a3b` demo fixture has synthetic prices (`demo` only). [model-catalog.md](references/model-catalog.md)
 4. **Registration is not entitlement.** A new CR is reachable only once a key
    allow-lists it; allow-list changes are captain decisions. `models: []`
    means all models.

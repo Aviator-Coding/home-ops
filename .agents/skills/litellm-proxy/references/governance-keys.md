@@ -21,8 +21,9 @@ Secret**, never on an alias lookup:
 - CR deleted: a finalizer deletes the remote key.
 
 The `PushSecret` mirrors the key to 1Password item
-`litellm-consumer-<name>` (property `key`), refresh 5m. These items are
-written, never read by the proxy, so they need not pre-exist.
+`litellm-consumer-<name>` (property `key`), refresh 5m. The proxy never reads
+them, but `ai/litellm-pgvector`, `ai/repo-wiki` and `ai/opencode` read their
+item back in their own ExternalSecrets, so never rename a `remoteKey` casually.
 
 Watch a change land: `kubectl -n ai get litellmvirtualkey -o wide`, and
 `describe` for the failing condition (`AdminClientFailed`, `GenerateFailed`,

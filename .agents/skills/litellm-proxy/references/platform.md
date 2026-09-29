@@ -32,7 +32,8 @@ Scope rules (captain decisions B4/D4, still binding):
   on change (its own `config-hash` pod annotation). `api` mode would turn
   `store_model_in_db` on and make the running DB, not Git, the source of truth.
 - `generalSettings.store_model_in_db: false`, explicitly. Side effects: the
-  Admin UI cannot edit models or keys, and UI "make public" returns 500
+  Admin UI cannot edit models (keys are DB rows; UI/API edits to them are
+  reverted by the operator), and UI "make public" returns 500
   (see [model-catalog.md](model-catalog.md), AI Hub).
 - `llmkube.autoRegister: false` on the operator: LLMKube is not installed here,
   and a chart-default flip must not start minting undeclared `LiteLLMModel`s.
@@ -93,7 +94,8 @@ crashloop for a few seconds until the Job finishes.
   so on the next reconcile, so the route works at first and vanishes later.
 - **Never set `spec.route`.** The operator's route schema is
   `{hostnames, parentRefs, filters}` with no annotations, so it cannot carry
-  the Gatus/Homepage/external-dns annotations. It would also create a second,
+  the Gatus/Homepage annotations (DNS is not the reason: external-dns takes
+  the target from the parent Gateway). It would also create a second,
   competing route.
 - The Gatus check targets `/health/readiness`, which returns
   `{"status":"healthy","db":"connected"}` and so covers Postgres too.
