@@ -543,7 +543,6 @@ def test_workload_declares_2000() -> None:
     for doc in yaml.safe_load_all(text):
         if not isinstance(doc, dict):
             continue
-        blob = yaml.dump(doc)
 
         def walk(obj: Any) -> None:
             nonlocal found_user, found_group
