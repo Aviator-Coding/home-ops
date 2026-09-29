@@ -19,7 +19,7 @@ This test does not grep source text. It:
      (policyAuditMode false with hostFirewall still enabled).
 
 Live BPF verification (cilium-dbg bpf policy get) remains the post-merge gate in
-docs/ceph/lan-isolation-audit-plan.md §2c; this test catches the silent-open
+.agents/skills/cilium-host-policy/references/gates.md; this test catches the silent-open
 selector class of failure offline.
 """
 

@@ -18,7 +18,7 @@ wave-two record still documents autobrr's retirement, because it happened.
   chosen for regenerable or reconstructible content and clean restore proofs.
   Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md (all 30
   claims restore-proven on both destinations). Record:
-  docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md.
+  .agents/skills/kopiur-backups/references/retirement-and-removal.md.
 
   wave two, 2026-09-02: `downloads/prowlarr-config`, `selfhosted/ntfy`,
   `downloads/autobrr` (app since removed, see above),
@@ -29,7 +29,7 @@ wave-two record still documents autobrr's retirement, because it happened.
   content, destination-identical in content AND metadata) plus, for the two
   2Gi `selfhosted` claims, a PVC that cannot outgrow its restore cache.
   Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
-  part 4. Record: docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+  part 4.
 
   wave three, 2026-09-04: the remaining 19 eligible claims, on the same fleet
   restore proof (every one of them a destination-identical PASS row) plus a
@@ -39,7 +39,6 @@ wave-two record still documents autobrr's retirement, because it happened.
   zigbee2mqtt}`, `media/tdarr`, `selfhosted/changedetection`; tier B
   `ai/{hermes,opencode}`, `media/{plex,calibre-web-automated}`; tier C
   `home-automation/home-assistant`, `selfhosted/{n8n,linkwarden,syncthing}`.
-  Record: docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
 
 `selfhosted/paperless-ngx` stays dual-engine permanently by captain carve-out,
 and `selfhosted/syncthing-data` / `selfhosted/paperless-ngx-media` were
@@ -140,7 +139,7 @@ RETIRED: dict[str, Retired] = {
     # fail on a missing file - the retired-app/CI-gate trap this repo documents
     # in AGENTS.md. Removed rather than retained because this map is keyed by
     # live overlay, not by history; the retirement itself stays recorded in
-    # docs/backups/kopiur-wave-two-retirement-2026-09-02.md.
+    # .agents/skills/kopiur-backups/references/retirement-and-removal.md.
     "downloads/prowlarr": Retired("downloads/prowlarr.yaml", "prowlarr", "prowlarr-config", "5Gi"),
     "selfhosted/ntfy": Retired("selfhosted/ntfy.yaml", "ntfy", "ntfy", "2Gi"),
     "selfhosted/obsidian-livesync": Retired(
@@ -237,7 +236,7 @@ RAISED_CACHE: dict[str, str] = {
     #
     # The predecessor 16Gi is still the only value in this table proven end to
     # end - an r2 restore of 65,978 files / 10,419,954,664 bytes completed at
-    # exactly that capacity (kopiur-r2-restore-cache-gate-2026-09-02.md) - and
+    # exactly that capacity (.agents/skills/kopiur-backups/references/restore-and-cache.md) - and
     # it was NOT inadequate when it was replaced. Required cache is
     # min(snapshot, ~6.2 GiB), so at the current 19.44 GiB snapshot the
     # requirement is the plateau, which 16Gi's 15.58 GiB usable clears by 2.5x.

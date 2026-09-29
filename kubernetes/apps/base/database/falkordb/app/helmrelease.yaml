@@ -264,7 +264,7 @@ spec:
     # Pod-level security, spelled exactly "defaultPodOptions" and a sibling of
     # controllers:/service:/persistence:. A wrong key or wrong nesting here is
     # silently DISCARDED by Helm - no flate warning, no Flux error, just a pod
-    # that runs with defaults (docs/app-structure.md, and the live
+    # that runs with defaults (.agents/skills/flux-gitops/references/app-shapes.md, and the live
     # selfhosted/rsshub-playwright empty-volume outage).
     #
     # The image declares no USER and therefore runs as root out of the box;

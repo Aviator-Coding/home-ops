@@ -17,7 +17,7 @@ two runs only at the same --min-new, and only medians with a reasonable n.
 
 Written to measure the prefill cost of GGML_SYCL_FA_ONEDNN=0 (2026-09-22) at
 this server's real depths, against the pre-change baseline recorded in
-docs/ai/vllm-onednn-sdpa-leak.md. It works for any before/after comparison.
+.agents/skills/b70-llm-serving/references/memory.md. It works for any before/after comparison.
 
 Usage:
     # full pod history from Loki (kubectl logs keeps only the last few hours)

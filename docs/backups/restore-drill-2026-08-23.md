@@ -12,7 +12,7 @@ mechanism had ever been exercised from the Ceph destination**, and no VolSync-me
 had run from any destination since 2026-04-14. The only prior restore-shaped events on record
 were: the automatic single run every `ReplicationDestination` performs once at creation against
 an empty repo (not a real restore); a MinIO-sourced batch restore from 2025-10-05/06; and, one
-day before this drill, `docs/backups/volsync-coverage-2026-08-22.md` section 5 proving the
+day before this drill, the VolSync coverage census (skill `volsync-carveouts`) proving the
 Ceph-backed restic repositories for `paperless-ngx` and `syncthing` were intact and restorable,
 via a local restic CLI restore over a `kubectl port-forward` with `--no-lock`, checksummed
 against the live PVCs. That proved the repository contents were sound, but not the in-cluster

@@ -36,8 +36,8 @@ gate to land an edit removes the canary.
 
 ## Docs and comments
 
-- `docs-budget-test.py` ratchets sizes. `--update` lowers or drops a baseline.
-  It never raises one. Shrink the file and the baseline in the same change.
+- `docs-budget-test.py` enforces absolute size budgets (no baseline). A genuine
+  exception needs an allowlist entry with a reason in `docs-budget.json`.
 - `doc-links-test.py` resolves Markdown links, `docs/…md`, skill paths,
   `references/<file>.md`, and a backtick skill-name pointer. Do not pin skill prose in a test.
 - `functional-comments-guard-test.py` fails if a surviving file drops or

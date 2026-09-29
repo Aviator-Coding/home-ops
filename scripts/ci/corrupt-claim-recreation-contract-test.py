@@ -53,7 +53,7 @@ RUNBOOK = ROOT / "docs/backups/corrupt-claim-recreation-runbook.md"
 # skill (planned: volsync-carveouts) is a one-line change here.
 FINDINGS_DOC = ROOT / ".agents/skills/volsync-carveouts/SKILL.md"
 VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
-KOPIUR_DRILL = ROOT / "docs/backups/kopiur-restore-drill-2026-08-30.md"
+KOPIUR_DRILL = ROOT / "docs/backups/kopiur-restore-runbook.md"
 
 # Live opencode overlay pins (source of truth at render time). VolSync retired
 # 2026-09-04, so the VOLSYNC_* schedule pins went with the Component that read

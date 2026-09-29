@@ -247,7 +247,7 @@ def test_requests_and_priority_keep_the_llm_safe(docs: list[dict[str, Any]]) -> 
     assert_true(
         "memory" in requests,
         "ai/embedding-gpu must declare requests.memory - it drives talos-3's "
-        "scheduling arithmetic (docs/talos-3-scheduling-truth.md).",
+        "scheduling arithmetic (.agents/skills/node-scheduling/references/talos-3-ledger.md).",
     )
 
     assert_true(

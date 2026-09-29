@@ -92,7 +92,7 @@ spec:
         # moment VOLSYNC_CLAIM stopped being defined the render became
         # `existingClaim: *app` and flate failed the whole Kustomization with
         # `unknown anchor 'app' referenced`. The trap was recorded in
-        # docs/backups/kopiur-wave-two-retirement-2026-09-02.md and never
+        # .agents/skills/kopiur-backups/references/retirement-and-removal.md and never
         # fired, because the overlay always set VOLSYNC_CLAIM until now.
         existingClaim: ${KOPIUR_CLAIM:-syncthing}
         globalMounts:

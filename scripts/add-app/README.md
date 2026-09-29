@@ -2,7 +2,7 @@
 
 Scaffolds a new app's manifests to match this repo's app-structure convention (single-component
 `app/`, multi-component family, or CRD-split). Read
-[`docs/app-structure.md`](../../docs/app-structure.md) first - it explains the three shapes and
+[`.agents/skills/flux-gitops/references/app-shapes.md`](../../.agents/skills/flux-gitops/references/app-shapes.md) first - it explains the three shapes and
 the traps this scaffold encodes by construction (correct `# yaml-language-server: $schema=`
 headers, `healthChecks` on the workload with `wait: false`, the correctly-computed `components:`
 relative-path depth, `defaultPodOptions` spelled and nested correctly).

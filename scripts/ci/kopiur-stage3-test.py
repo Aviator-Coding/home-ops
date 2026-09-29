@@ -143,12 +143,12 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 # Wave one - the pilot four, retired 2026-09-01. Each was restore-proven on
 # BOTH destinations first (.agents/skills/kopiur-backups/references/proof-ledger.md) and
 # re-proven after retirement
-# (docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md). They were chosen
+# (.agents/skills/kopiur-backups/references/retirement-and-removal.md). They were chosen
 # for regenerable/reconstructible content and clean, unambiguous proofs.
 #
 # Wave two - four more, retired 2026-09-02 on the deeper proofs in
 # .agents/skills/kopiur-backups/references/proof-ledger.md part 4, recorded in
-# docs/backups/kopiur-wave-two-retirement-2026-09-02.md. Unlike wave one these
+# .agents/skills/kopiur-backups/references/retirement-and-removal.md. Unlike wave one these
 # are NOT all regenerable: `ntfy` holds real auth state and
 # `obsidian-livesync` is a genuine Obsidian vault, escalated to the captain and
 # retired on an explicit decision after an objection. What authorises them is
@@ -158,7 +158,7 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 #
 # Wave three - the remaining 19 eligible claims, retired 2026-09-04, on the
 # same fleet restore proof plus a re-measured restore-cache audit. Recorded in
-# docs/backups/kopiur-wave-three-retirement-2026-09-04.md. Shipped in three
+# that file. Shipped in three
 # risk-tiered commits (11 ordinary config volumes, 4 large claims, 4 carrying
 # real user-authored state) so a revert stays surgical; the tiering is a
 # sequencing device, not three different evidence standards - every row cleared
@@ -654,7 +654,7 @@ def test_volsync_still_on_every_unretired_claim() -> None:
             f"is in neither RETIRED_CLAIMS nor NEVER_VOLSYNC - a pre-existing volume must "
             f"keep both engines until it has been through a Stage 5 retirement with its "
             f"own restore proof "
-            f"(docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md). If this is a "
+            f"(.agents/skills/kopiur-backups/references/retirement-and-removal.md). If this is a "
             f"brand-new app that never had VolSync, add it to NEVER_VOLSYNC - NOT to "
             f"RETIRED_CLAIMS, which asserts a retirement and a restore proof.",
         )

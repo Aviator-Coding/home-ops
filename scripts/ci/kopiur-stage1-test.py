@@ -130,7 +130,7 @@ PILOT_NS = "downloads"
 PILOT_SUBSTITUTE: dict[str, str]
 
 # The VolSync schedules autobrr carried until VolSync was RETIRED from it on
-# 2026-09-02 (Stage 5 wave two - docs/backups/kopiur-wave-two-retirement-2026-09-02.md).
+# 2026-09-02 (Stage 5 wave two - .agents/skills/kopiur-backups/references/retirement-and-removal.md).
 # They are kept, as HISTORICAL values rather than a live overlay pin, because
 # they are what kopiur's own slots were designed around: the odd 4-hour ceph
 # offset and the r2 hour-11 assignment below only mean anything against them.

@@ -26,7 +26,7 @@ spec:
     # affinity) at the time of this removal; it was switched the same day to
     # PreferNoSchedule (a scheduler score penalty, not a filter), so what now
     # keeps this app off talos-3 in normal operation is the 300-point
-    # TaintToleration gap (docs/talos-3-scheduling-truth.md section 9), not
+    # TaintToleration gap (.agents/skills/node-scheduling/references/talos-3-ledger.md), not
     # an absolute exclusion - a per-app deny-list entry is still not
     # reinstated here because it would fail open the same way the removed
     # one did for anything that forgets to carry it.

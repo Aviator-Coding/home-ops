@@ -2,12 +2,12 @@
 
 Review standards for the automated reviewer in `.github/workflows/ai-pr-review.yaml`.
 
-**Why this file exists instead of `AGENTS.md`.** The reviewer inlines its standards file whole
-and then hard-truncates it to the first 16000 bytes. `AGENTS.md` is far larger than that, so
-handing it over would silently deliver an arbitrary head-slice, cut mid-sentence, that drops most
-of its tripwires and its skill index. This file is the
-review-relevant distillation, kept under that cap on purpose. `AGENTS.md` remains authoritative
-for humans and for agents doing the work; if the two disagree, `AGENTS.md` wins.
+**Why this file exists next to `AGENTS.md`.** The reviewer inlines its standards file whole
+and hard-truncates it to the first 16000 bytes. `AGENTS.md` is an always-loaded index (conventions,
+tripwires, skill index) whose size is bounded only by the docs budget gate, not by this cap, so
+this file is the review-relevant distillation, kept under 16000 bytes on purpose. `AGENTS.md`
+remains authoritative; if the two disagree, `AGENTS.md` wins. Subsystem detail lives in
+`.agents/skills/<name>/SKILL.md`, listed in the `AGENTS.md` SKILL INDEX.
 
 This repo is a GitOps home cluster: Talos Linux + Flux v2 + Cilium + Rook-Ceph + External Secrets
 (1Password) + Gateway API. Almost every file is a Kubernetes manifest that Flux applies to a live

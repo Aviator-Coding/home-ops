@@ -1,15 +1,10 @@
 {
-  "allowlist": [],
-  "baseline": {
-    "agents_md_bytes": {
-      "AGENTS.md": 32505
-    },
-    "comment_block_lines": {
-      "kubernetes/apps/base/ai/hermes/app/resources/config.yaml": 24,
-      "kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/cronjob.yaml": 16,
-      "kubernetes/apps/base/selfhosted/homepage/app/configmap.yaml": 16,
-      "kubernetes/apps/base/system/pvc-writable-check/app/cronjob.yaml": 16,
-      "kubernetes/apps/base/system/volsync/app/mutatingadmissionpolicy.yaml": 46
+  "allowlist": [
+    {
+      "path": "kubernetes/apps/base/ai/hermes/app/resources/config.yaml",
+      "metric": "comment_block_lines",
+      "limit": 24,
+      "reason": "Hermes config payload read at runtime via a reloader-driven ConfigMap: any byte change restarts Hermes uncleanly, so its comments change only together with a real config change (skill hermes-agent)."
     }
-  }
+  ]
 }

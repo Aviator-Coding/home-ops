@@ -24,7 +24,7 @@ an identity, and `KOPIUR_PUID/PGID: 0` plus the namespace-wide privileged-mover
 annotation are exactly as load-bearing on one engine as on two - more so, since
 there is no longer a second engine to notice if the mover stops being able to
 read the fabric credentials. Retirement record:
-docs/backups/kopiur-wave-three-retirement-2026-09-04.md; the authoritative
+.agents/skills/kopiur-backups/references/retirement-and-removal.md; the authoritative
 single-engine set is RETIRED_CLAIMS in kopiur-stage3-test.py.
 """
 

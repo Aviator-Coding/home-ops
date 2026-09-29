@@ -110,8 +110,8 @@ spec:
       # affinity) at the time of this removal; it was switched the same day
       # to PreferNoSchedule (a scheduler score penalty, not a filter), so
       # what now keeps this app off talos-3 in normal operation is the
-      # 300-point TaintToleration gap (docs/talos-3-scheduling-truth.md
-      # section 9), not an absolute exclusion - a per-app deny-list entry is
+      # 300-point TaintToleration gap (.agents/skills/node-scheduling/references/talos-3-ledger.md),
+      # not an absolute exclusion - a per-app deny-list entry is
       # still not reinstated here because it would fail open the same way
       # the removed one did for anything that forgets to carry it.
       securityContext:
@@ -138,7 +138,7 @@ spec:
         # moment VOLSYNC_CLAIM stopped being defined the render became
         # `existingClaim: *app` and flate failed the whole Kustomization with
         # `unknown anchor 'app' referenced`. The trap was recorded in
-        # docs/backups/kopiur-wave-two-retirement-2026-09-02.md and never
+        # .agents/skills/kopiur-backups/references/retirement-and-removal.md and never
         # fired, because the overlay always set VOLSYNC_CLAIM until now.
         existingClaim: ${KOPIUR_CLAIM:-n8n}
 

@@ -45,7 +45,7 @@ spec:
           # PreferNoSchedule, so it no longer excludes talos-3 from the
           # spread domains; the TaintToleration score penalty keeps this
           # workload off talos-3 under normal conditions instead
-          # (docs/talos-3-scheduling-truth.md section 9).
+          # (.agents/skills/node-scheduling/references/talos-3-ledger.md).
           topologySpreadConstraints:
             - maxSkew: 1
               topologyKey: kubernetes.io/hostname

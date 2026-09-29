@@ -15,15 +15,11 @@ rule did not hold, so this gate enforces the budgets instead:
 Functional comment lines (`yaml-language-server:`, `renovate:`) and blank lines
 end a comment block and are not counted.
 
-scripts/ci/docs-budget.json holds two lists:
-
-  baseline   Values over budget when the gate landed. A no-growth ratchet: the
-             value may not grow, and when a file shrinks its baseline must be
-             lowered to match (a stale-high baseline would let it regrow), and
-             removed once it is within budget. `--update` does exactly that
-             and can never raise or add an entry.
-  allowlist  The escape hatch: {path, metric, limit, reason} raises one item's
-             limit above its budget. The reason is required.
+scripts/ci/docs-budget.json holds only an allowlist of {path, metric, limit, reason} entries.
+An entry raises one item's limit above its budget for a genuine exception (for example a
+ConfigMap payload a workload reads at runtime). The reason is required, the limit
+must exceed the budget, and an entry whose path is gone or now within budget is
+itself a failure. There is no baseline: every other item must meet its budget.
 
 The same file carries the skill consistency checks: every skill directory has
 a SKILL.md whose frontmatter name matches it, is listed in AGENTS.md's SKILL
@@ -134,17 +130,9 @@ def load_config() -> dict:
     return json.loads(CONFIG.read_text())
 
 
-def write_config(cfg: dict) -> None:
-    cfg["baseline"] = {
-        metric: dict(sorted(entries.items()))
-        for metric, entries in sorted(cfg["baseline"].items())
-        if entries
-    }
-    CONFIG.write_text(json.dumps(cfg, indent=2) + "\n")
-
-
 def check_budgets(values: dict[str, dict[str, int]], cfg: dict) -> None:
-    baseline: dict[str, dict[str, int]] = cfg.get("baseline", {})
+    unknown = set(cfg) - {"allowlist"}
+    record(not unknown, f"docs-budget.json: only an allowlist is allowed, found {sorted(unknown)}")
     allow: dict[tuple[str, str], int] = {}
     for entry in cfg.get("allowlist", []):
         key = (entry.get("metric", ""), entry.get("path", ""))
@@ -155,30 +143,22 @@ def check_budgets(values: dict[str, dict[str, int]], cfg: dict) -> None:
             isinstance(limit, int) and limit > BUDGETS.get(key[0], 0),
             f"allowlist {key}: limit must be an integer above the budget",
         )
-        record(key[1] in values.get(key[0], {}), f"allowlist {key}: path is not measured any more")
+        measured = values.get(key[0], {}).get(key[1])
+        record(measured is not None, f"allowlist {key}: path is not measured any more")
+        if measured is not None:
+            record(
+                measured > BUDGETS[key[0]],
+                f"allowlist {key}: {measured} is within budget {BUDGETS[key[0]]} - remove the entry",
+            )
         allow[key] = limit if isinstance(limit, int) else 0
 
     for metric, budget in BUDGETS.items():
-        base = baseline.get(metric, {})
         for path, value in values[metric].items():
             if (metric, path) in allow:
                 limit = allow[(metric, path)]
                 record(value <= limit, f"{metric} {path}: {value} > allowlisted {limit}")
-            elif path in base:
-                limit = base[path]
-                record(
-                    value <= limit,
-                    f"{metric} {path}: grew to {value}, baseline {limit}, budget {budget}",
-                )
-                if value < limit:
-                    fix = "remove the entry" if value <= budget else f"lower it to {value}"
-                    record(False, f"{metric} {path}: shrank to {value}; baseline says {limit} - {fix} (--update)")
             else:
                 record(value <= budget, f"{metric} {path}: {value} > budget {budget}")
-        for path in base:
-            record(path in values[metric], f"baseline {metric} {path}: no longer exists - remove it (--update)")
-        for metric_name in baseline:
-            record(metric_name in BUDGETS, f"baseline metric {metric_name} is unknown")
 
 
 def check_skills() -> None:
@@ -207,49 +187,18 @@ def check_skills() -> None:
         record(False, f"AGENTS.md SKILL INDEX lists `{name}`, which has no skill directory")
 
 
-def update(values: dict[str, dict[str, int]], cfg: dict) -> None:
-    """Lower or drop baseline entries; never raise or add one."""
-    for metric, entries in cfg.get("baseline", {}).items():
-        for path in list(entries):
-            current = values.get(metric, {}).get(path)
-            if current is None or current <= BUDGETS[metric]:
-                del entries[path]
-            elif current < entries[path]:
-                entries[path] = current
-    write_config(cfg)
-
-
-def init(values: dict[str, dict[str, int]]) -> None:
-    """Create the first baseline from today's over-budget values."""
-    if CONFIG.exists() and load_config().get("baseline"):
-        sys.exit("refusing --init: a baseline already exists; use --update")
-    cfg = {"allowlist": [], "baseline": {}}
-    for metric, entries in values.items():
-        cfg["baseline"][metric] = {
-            path: value for path, value in entries.items() if value > BUDGETS[metric]
-        }
-    write_config(cfg)
-
-
-def main(argv: list[str]) -> int:
+def main() -> int:
     values = measure()
-    if "--init" in argv:
-        init(values)
-        return 0
     cfg = load_config()
-    if "--update" in argv:
-        update(values, cfg)
-        cfg = load_config()
     check_budgets(values, cfg)
     check_skills()
-    over = sum(len(v) for v in cfg.get("baseline", {}).values())
     print(
         f"measured {sum(len(v) for v in values.values())} items; "
-        f"{over} grandfathered over budget; {len(cfg.get('allowlist', []))} allowlisted"
+        f"{len(cfg.get('allowlist', []))} allowlisted"
     )
     print(f"Summary: {passed} passed, {failed} failed")
     return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())

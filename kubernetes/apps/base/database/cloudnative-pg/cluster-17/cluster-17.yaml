@@ -21,8 +21,8 @@ spec:
       kubernetes.io/os: linux
     # talos-3 carries a home-operations.com/dedicated taint
     # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
-    # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
-    # section 9). instances: 3 + required podAntiAffinity on hostname means
+    # scheduler score penalty, not a filter - .agents/skills/node-scheduling/references/talos-3-ledger.md).
+    # instances: 3 + required podAntiAffinity on hostname means
     # one instance must be able to land on talos-3; this toleration keeps
     # the score penalty from disadvantaging it there.
     tolerations:
