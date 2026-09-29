@@ -5,41 +5,8 @@ metadata:
   name: pvc-writable-check
   namespace: system
 ---
-# Split-role design (captain decision after review of the first cut's
-# cluster-wide pods/exec grant):
-#
-# (a) pvc-writable-check-read  - pods get/list, ClusterRoleBinding, cluster-wide.
-#     Low-risk discovery only; same shape as ai/toolhive/mcp-servers/kubectl-mcp.
-# (b) pvc-writable-check-exec  - pods/exec create, ClusterRole that is NEVER
-#     bound via a ClusterRoleBinding. Instead one namespaced RoleBinding per
-#     covered namespace (below) points at this ClusterRole. The three excluded
-#     namespaces - rook-ceph, database, security - have no RoleBinding at all,
-#     so the API server itself returns 403 for pods/exec there
-#     (`kubectl auth can-i create pods --subresource=exec
-#     --as=system:serviceaccount:system:pvc-writable-check -n rook-ceph` -> no;
-#     a live kubectl exec against a real database pod returns
-#     "is forbidden ... cannot create resource pods/exec ... in the namespace
-#     database"). The script also short-circuits those namespaces before any
-#     exec attempt so logs don't mislabel a permanent policy exclusion as a
-#     transient skip.
-#
-# Why exclude those three: an unrestricted pods/exec grant would turn a
-# compromise of this one ServiceAccount into arbitrary command execution
-# inside Ceph, the databases, and the secret plumbing (1Password Connect /
-# External Secrets). The bug class this check exists to catch lives in
-# ordinary app workloads on the app-template/fsGroup pattern, not in those
-# three namespaces - storage there is owned by Rook/CloudNativePG and secrets
-# by 1Password Connect - so the excluded coverage is close to worthless while
-# the excluded risk is the worst of it.
-#
-# CRITICAL Flux gotcha: the overlay Kustomization CR MUST NOT set
-# targetNamespace. Flux's targetNamespace unconditionally overwrites
-# metadata.namespace on every namespaced resource in the build output, even
-# ones that already declare their own - so per-namespace RoleBindings all
-# collapse onto system and collide by name (namespace-transformation ID
-# conflict). That is why ServiceAccount/CronJob/PrometheusRule declare
-# namespace: system explicitly, and each RoleBinding keeps its own target
-# namespace. Do not reintroduce targetNamespace on the overlay.
+# Split-role design (captain decision after review of the first cut's cluster-wide pods/exec grant): (a) pvc-writable-check-read - pods get/list, ClusterRoleBinding, cluster-wide.
+# Skill `pvc-integrity-checks`.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

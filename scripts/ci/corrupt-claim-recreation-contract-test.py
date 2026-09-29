@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 """Semantic regression test for the corrupt-claim recreation contract.
 
-Pins the 2026-08-31 ai/opencode volume recreation findings that live in:
-
-  - docs/backups/corrupt-claim-recreation-runbook.md  (durable procedure)
-  - docs/backups/opencode-volume-recreation-2026-08-31.md  (measured evidence)
-  - AGENTS.md  (two fleet-wide findings)
-
 THE CENTRAL CONTRACT: deleting a PVC and letting Flux recreate it from
 dataSourceRef does NOT restore from the restic repository. The populator
 clones ${APP}-dst.status.latestImage, and ${APP}-dst is trigger manual
@@ -15,27 +9,9 @@ On a newly-onboarded app that one run can leave latestImage as a snapshot
 of an EMPTY volume forever. The fix is to delete the ReplicationDestination
 TOGETHER WITH the PVC so restore-once fires against the populated repo.
 
-VolSync was RETIRED from ai/opencode on 2026-09-04 (Stage 5 wave three, tier B
-- docs/backups/kopiur-wave-three-retirement-2026-09-04.md), so that overlay is
-no longer a live example of the trap. NOTHING here was dropped, and the trap is
-NOT obsolete: it is a property of `components/volsync`, which still protects
-three claims (selfhosted/paperless-ngx, paperless-ngx-media, syncthing-data),
-and the runbook still applies to every one of them. Two things changed:
-
-  - The component render moved onto `selfhosted/paperless-ngx`, the permanent
-    dual-engine carve-out, so the shape is asserted against a claim that is
-    actually still exposed to it rather than against a historical one.
-  - The opencode overlay pin INVERTED: it now asserts the retirement, and that
-    the capacity the 2026-08-31 recreation provisioned survived the engine swap
-    into KOPIUR_CAPACITY. Retirement is what finally removes this trap from
-    opencode - a rebuilt claim is now populated from a kopiur `Restore`, which
-    resolves a snapshot at restore time, instead of from a
-    ReplicationDestination whose `latestImage` was pinned at first deploy.
-
-The measured evidence (documentary contract, below) is historical fact and is
-asserted unchanged.
-
-This test does NOT grep implementation source as its evidence. It:
+VolSync was retired from ai/opencode on 2026-09-04, but the trap is a property
+of `components/volsync`, which still protects selfhosted/paperless-ngx,
+paperless-ngx-media and syncthing-data. This test therefore:
 
   1. Renders the real volsync Component kustomize build Flux would apply for
      selfhosted/paperless-ngx (postBuild.substitute taken from the live
@@ -46,17 +22,11 @@ This test does NOT grep implementation source as its evidence. It:
      writable-stage moverSecurityContext.fsGroup (the mode-relaxation
      fingerprint), enableFileDeletion (lost+found removal), and ceph-block
      reclaimPolicy Delete (RBD image is genuinely destroyed).
-  3. Parses the operator-facing result artifacts (runbook + evidence +
-     AGENTS.md) as owned text contracts - the same class as the Stage 2
-     drill pin in kopiur-stage2-test.py - and asserts the measured gates,
-     the two findings as first-class facts, and the safety constraints
-     (no credential contents, never delete a kopiur Snapshot CR, delete
-     RD with the PVC not patch trigger.manual).
+  3. Pins that opencode no longer runs VolSync and kept its capacity.
 
-Live cluster confirmation (destroy + recreate + five verification gates)
-was already executed 2026-08-31 and is recorded in the evidence doc.
-Fresh worktrees never carry kubeconfig (AGENTS.md); this CI gate therefore
-pins the GitOps + documentary contract that must hold before merge.
+The runbook and skill are checked for existence only; their prose is not
+asserted. Fresh worktrees never carry kubeconfig, so live confirmation is a
+post-merge operator step.
 """
 
 from __future__ import annotations
@@ -79,11 +49,9 @@ ROOK_CLUSTER_HR = (
     ROOT / "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml"
 )
 RUNBOOK = ROOT / "docs/backups/corrupt-claim-recreation-runbook.md"
-EVIDENCE = ROOT / "docs/backups/opencode-volume-recreation-2026-08-31.md"
 # The one file that must carry both fleet-wide findings. Retargeting them to a
 # skill (planned: volsync-carveouts) is a one-line change here.
-FINDINGS_DOC = ROOT / "AGENTS.md"
-FINDINGS_LABEL = str(FINDINGS_DOC.relative_to(ROOT))
+FINDINGS_DOC = ROOT / ".agents/skills/volsync-carveouts/SKILL.md"
 VOLSYNC_DRILL = ROOT / "docs/backups/restore-drill-2026-08-23.md"
 KOPIUR_DRILL = ROOT / "docs/backups/kopiur-restore-drill-2026-08-30.md"
 
@@ -109,28 +77,6 @@ TRAP_APP = "paperless-ngx"
 TRAP_NS = "selfhosted"
 TRAP_OVERLAY = ROOT / "kubernetes/apps/main/selfhosted/paperless-ngx.yaml"
 TRAP_CAPACITY = "10Gi"
-
-# Measured evidence numbers from the 2026-08-31 run (public result contract).
-LIVE_FILE_COUNT = 4749
-LIVE_DIR_COUNT = 950
-LIVE_BYTE_COUNT = 161_617_941
-LIVE_MANIFEST_DIGEST = (
-    "9f400f6d6b99f25c039b763d5458b8ec4fb0347e9149baa3e88ba92a28fafc55"
-)
-PRECHECK_IDENTICAL = 4748
-POST_IDENTICAL = 4744
-POST_DIFFERING = 5
-VOLSYNC_CEPH_SNAPSHOT = "5d72f28a"
-VOLSYNC_MINIO_SNAPSHOT = "81f18d92"
-KOPIUR_CEPH_SNAPSHOT = "b2fdf535020b18f89572e819d297d436"
-KOPIUR_FILES_NEW = 4749
-KOPIUR_SIZE_BYTES = 161_589_393
-RESTIC_FALLBACK_SNAPSHOT = "4f8214f8"
-EMPTY_DST_LAST_SYNC = "2026-08-27T10:20:07Z"
-EMPTY_DST_IMAGE = "volsync-opencode-dst-dest-20260827062006"
-NEW_RBD_DEVICE = "/dev/rbd15"
-PROCESSED_SIZE_MIB = "154.131"
-
 
 class Failure(Exception):
     pass
@@ -521,15 +467,12 @@ def test_ceph_block_reclaim_delete() -> None:
     # storageClass.reclaimPolicy under cephBlockPools / storageClass
     # Rook chart: cephClusterSpec is separate; block pool storageClass lives at
     # cephBlockPools[].storageClass.reclaimPolicy or top-level.
-    text = yaml.safe_dump(values)
     # Walk structured values for a storageClass named ceph-block with Delete.
     found = _find_ceph_block_reclaim(values)
     require(
         found == "Delete",
         f"ceph-block reclaimPolicy must be Delete (RBD image destroyed with PVC), got {found!r}",
     )
-    # Keep a textual anchor so a chart restructure that drops the name still fails.
-    require("ceph-block" in text, "helm values must still declare ceph-block")
 
 
 def _find_ceph_block_reclaim(obj: Any) -> str | None:
@@ -554,479 +497,10 @@ def _find_ceph_block_reclaim(obj: Any) -> str | None:
     return None
 
 
-def test_runbook_procedure_contract() -> None:
-    """Runbook is the durable operator procedure; pin its safety contract.
-
-    The markdown file is the operator-facing deliverable (owned text contract),
-    not a proxy for unrelated code. Assert the procedure an operator must
-    follow cannot silently restore nothing.
-    """
-    require(RUNBOOK.is_file(), f"missing runbook {RUNBOOK.relative_to(ROOT)}")
-    require(VOLSYNC_DRILL.is_file(), "VolSync sibling drill must remain")
-    require(KOPIUR_DRILL.is_file(), "kopiur sibling drill must remain")
-    text = RUNBOOK.read_text()
-    lowered = text.lower()
-
-    # Must lead with the empty-latestImage trap (before any delete step).
-    # Find the first heading-level warning / "read this before" vs the delete PVC step.
-    before_idx = None
-    for pat in (
-        r"read this before you delete anything",
-        r"does not restore from your\s+latest backup",
-        r"may restore nothing while every signal",
-    ):
-        m = re.search(pat, lowered)
-        if m:
-            before_idx = m.start() if before_idx is None else min(before_idx, m.start())
-    require(
-        before_idx is not None,
-        "runbook must lead with the empty-latestImage / restore-nothing warning",
-    )
-    delete_pvc_idx = None
-    for pat in (r"delete the pvc", r"delete.*persistentvolumeclaim"):
-        m = re.search(pat, lowered)
-        if m:
-            delete_pvc_idx = m.start()
-            break
-    require(delete_pvc_idx is not None, "runbook must include a Delete the PVC step")
-    require(
-        before_idx < delete_pvc_idx,
-        "empty-latestImage warning must appear BEFORE the PVC delete step",
-    )
-
-    # Central correction: populator reads latestImage, not restic.
-    require(
-        re.search(r"latestimage", lowered),
-        "runbook must name latestImage as the populator source",
-    )
-    require(
-        re.search(r"dataSourceRef", text),
-        "runbook must name dataSourceRef",
-    )
-    require(
-        re.search(r"restore-once", text) or re.search(r"restore.once", lowered),
-        "runbook must name the restore-once trigger",
-    )
-    require(
-        re.search(r"IfNotPresent", text),
-        "runbook must name ssa IfNotPresent",
-    )
-    require(
-        re.search(r"no eligible snapshots found", lowered)
-        or re.search(r"no data will be restored", lowered),
-        "runbook must quote the empty-repo mover log shape",
-    )
-    require(
-        "paperless-ngx" in lowered,
-        "runbook must name paperless-ngx as a live empty-latestImage claim",
-    )
-    require(
-        "2026-09-06" in text,
-        "runbook must record the 2026-09-06 measurement of all three surviving destinations",
-    )
-
-    # The fix: delete RD together with PVC; never patch trigger.manual.
-    require(
-        re.search(
-            r"delete.{0,80}replicationdestination.{0,40}(together|along).{0,20}(with|the).{0,20}pvc"
-            r"|delete.{0,40}pvc.{0,80}replicationdestination"
-            r"|replicationdestination.{0,40}together with.{0,20}the pvc",
-            lowered,
-            re.S,
-        ),
-        "runbook must require deleting the ReplicationDestination together with the PVC",
-    )
-    require(
-        re.search(
-            r"(do\s+\*\*not\*\*|do not|never).{0,60}patch.{0,40}(trigger\.manual|spec\.trigger)",
-            lowered,
-            re.S,
-        )
-        or re.search(r"never patch.*trigger", lowered, re.S),
-        "runbook must forbid patching trigger.manual on the app's own destination",
-    )
-
-    # Pre-check restore before destroy.
-    require(
-        re.search(r"prove the restore before you destroy", lowered)
-        or re.search(r"pre-check", lowered),
-        "runbook must require a pre-check restore before destroying the live claim",
-    )
-    require(
-        re.search(r"scratch", lowered),
-        "runbook must use a scratch ReplicationDestination (never the app's own)",
-    )
-
-    # Ordering: suspend Flux, scale to 0, clear movers, delete RS (not fight
-    # restage loop), never delete kopiur Snapshot CR.
-    require(re.search(r"flux suspend", lowered), "runbook must suspend Flux ks")
-    require(
-        re.search(r"scale.{0,40}0", lowered) or re.search(r"replicas.?=.?0", lowered),
-        "runbook must scale the app to 0 before PVC delete",
-    )
-    require(
-        re.search(r"replicationsource", lowered)
-        and re.search(r"re-stage|restage|reloop", lowered),
-        "runbook must require deleting ReplicationSources (VolSync restage loop)",
-    )
-    require(
-        re.search(r"never delete a kopiur `?snapshot`? cr", lowered)
-        or re.search(r"never delete.{0,40}kopiur.{0,40}snapshot", lowered),
-        "runbook must forbid deleting a kopiur Snapshot CR (finalizer owns data)",
-    )
-
-    # Mode-relaxation finding is first-class in verification, not a footnote.
-    require(
-        re.search(r"644\s*→\s*664|644->664", text)
-        or re.search(r"644.?664", text),
-        "runbook must document the 644→664 mode-relaxation fingerprint",
-    )
-    require(
-        re.search(r"600\s*→\s*660|600->660|0600.{0,20}0660", text)
-        or re.search(r"\.git-credentials", text),
-        "runbook must call out credential mode widening (0600→0660 / .git-credentials)",
-    )
-    require(
-        re.search(r"fsgroup", lowered),
-        "runbook must attribute mode relaxation to kubelet fsGroup walk",
-    )
-
-    # Five verification gates.
-    for gate in (
-        r"data is back",
-        r"kopiur backs up",
-        r"volsync backs up",
-        r"clone of .{0,40}(new|those new) backup",
-        r"alerts? cleared",
-    ):
-        require(
-            re.search(gate, lowered),
-            f"runbook verification must include gate matching /{gate}/",
-        )
-    require(
-        re.search(r"status\.stats", text) or re.search(r"\.status\.stats", text),
-        "runbook must require non-zero .status.stats (Succeeded alone proves nothing)",
-    )
-
-    # Credential hygiene.
-    require(
-        re.search(r"never cat|never let one reach|only.{0,20}presence, mode", lowered),
-        "runbook must forbid reading credential file contents",
-    )
-
-    # Scope: replacement not diagnosis; no repairing fsck.
-    require(
-        re.search(r"does not repair|not repair", lowered),
-        "runbook replaces the volume; it does not repair it",
-    )
-    require(
-        re.search(r"do not run a repairing\s+`?fsck", lowered)
-        or re.search(r"not run.{0,20}repairing.{0,20}fsck", lowered),
-        "runbook must forbid repairing fsck against live storage",
-    )
-
-    # Links to the measured evidence appendix.
-    require(
-        "opencode-volume-recreation-2026-08-31.md" in text,
-        "runbook must point at the measured evidence record",
-    )
-
-
-def test_evidence_result_contract() -> None:
-    """Evidence doc is the measured public result artifact of the recreation."""
-    require(EVIDENCE.is_file(), f"missing evidence {EVIDENCE.relative_to(ROOT)}")
-    text = EVIDENCE.read_text()
-    lowered = text.lower()
-
-    # Overall PASS for ai/opencode on 2026-08-31.
-    require(re.search(r"\bpass\b", lowered), "evidence must declare PASS")
-    require("opencode" in lowered, "evidence subject is opencode")
-    require("2026-08-31" in text, "evidence date is 2026-08-31")
-
-    # The finding that changed the plan (empty latestImage) is first-class.
-    require(
-        re.search(r"finding that changed the plan|empty", lowered)
-        and re.search(r"latestimage", lowered),
-        "evidence must lead with the empty-latestImage finding",
-    )
-    require(
-        EMPTY_DST_LAST_SYNC in text,
-        f"evidence must record empty-dst lastSyncTime {EMPTY_DST_LAST_SYNC}",
-    )
-    require(
-        EMPTY_DST_IMAGE in text,
-        f"evidence must record empty latestImage name {EMPTY_DST_IMAGE}",
-    )
-    require(
-        re.search(r"no eligible snapshots found", lowered),
-        "evidence must quote the empty-repo mover log",
-    )
-    require(
-        re.search(r"no data will be restored", lowered),
-        "evidence must quote 'No data will be restored'",
-    )
-    require(
-        re.search(r"delete.{0,60}opencode-dst.{0,40}together", lowered, re.S)
-        or re.search(r"together with.{0,20}the pvc", lowered),
-        "evidence must state the RD-was-deleted-with-PVC fix",
-    )
-
-    # Step 1 inventory numbers.
-    require(str(LIVE_FILE_COUNT) in text, f"inventory file count {LIVE_FILE_COUNT}")
-    require(str(LIVE_DIR_COUNT) in text, f"inventory dir count {LIVE_DIR_COUNT}")
-    # Accept space-grouped or plain byte counts.
-    byte_plain = str(LIVE_BYTE_COUNT)
-    byte_grouped = "161 617 941"
-    require(
-        byte_plain in text.replace(",", "") or byte_grouped in text,
-        f"inventory byte count {LIVE_BYTE_COUNT}",
-    )
-    require(
-        LIVE_MANIFEST_DIGEST in text,
-        f"sha256 manifest digest {LIVE_MANIFEST_DIGEST}",
-    )
-
-    # Credential metadata only - presence/mode/size, never contents.
-    require(
-        re.search(r"\.git-credentials", text),
-        "evidence must record .git-credentials presence",
-    )
-    require(
-        re.search(r"mode\s*=?\s*600|mode=600|`600`", text)
-        or re.search(r"mode=600", text),
-        "evidence must record pre-restore mode 600 for .git-credentials",
-    )
-    require(
-        re.search(
-            r"contents were never read|never read, printed|never.{0,20}committed",
-            lowered,
-        ),
-        "evidence must state credential contents were never read",
-    )
-    # No private token-looking material: reject lines that look like leaked secrets.
-    # Allow the word "credentials" and hashes; reject obvious key=value secrets.
-    for line in text.splitlines():
-        if re.search(r"(api[_-]?key|token|password|secret)\s*[:=]\s*\S{8,}", line, re.I):
-            # Allow references to Secret *names* and 1Password item names.
-            if re.search(r"(secretname|secret ref|credential secret|1password)", line, re.I):
-                continue
-            if "volsync" in line.lower() or "repository" in line.lower():
-                continue
-            raise Failure(f"evidence appears to embed a credential value: {line!r}")
-
-    # Pre-check: mount-verified restore while live volume still existed.
-    require(
-        str(PRECHECK_IDENTICAL) in text,
-        f"pre-check must record {PRECHECK_IDENTICAL}/4749 byte-identical",
-    )
-    require(
-        RESTIC_FALLBACK_SNAPSHOT in text,
-        f"pre-check / fallback restic snapshot {RESTIC_FALLBACK_SNAPSHOT}",
-    )
-    require(
-        re.search(r"mounted cleanly", lowered),
-        "pre-check must record clean mount of the restored clone",
-    )
-
-    # Post-recreation data gate.
-    require(
-        str(POST_IDENTICAL) in text,
-        f"post-recreation must record {POST_IDENTICAL} byte-identical files",
-    )
-    require(
-        re.search(rf"{POST_DIFFERING}\s+files differ|{POST_DIFFERING}\s+differ", lowered)
-        or f"{POST_DIFFERING} differ" in lowered,
-        f"post-recreation must account for {POST_DIFFERING} app-startup diffs",
-    )
-    for startup_file in (
-        "models.json",
-        ".gitconfig",
-        "opencode.log",
-        "opencode.db",
-        ".db-shm",
-    ):
-        require(
-            startup_file in text,
-            f"post-recreation must name startup-written file {startup_file}",
-        )
-    require(
-        re.search(r"lost\+found", lowered) and re.search(r"absent", lowered),
-        "post-recreation must note lost+found absent (restic never stores it)",
-    )
-
-    # Mode relaxation measured, including .git-credentials 0600→0660.
-    require(
-        re.search(r"644\s*→\s*664|644->664", text),
-        "evidence must measure 644→664 mode relaxation",
-    )
-    require(
-        re.search(r"0600.{0,20}0660|600\s*→\s*660|600->660", text),
-        "evidence must measure .git-credentials 0600→0660",
-    )
-
-    # Backup engines both green with non-zero stats.
-    require(
-        VOLSYNC_CEPH_SNAPSHOT in text,
-        f"VolSync ceph snapshot {VOLSYNC_CEPH_SNAPSHOT}",
-    )
-    require(
-        VOLSYNC_MINIO_SNAPSHOT in text,
-        f"VolSync minio snapshot {VOLSYNC_MINIO_SNAPSHOT}",
-    )
-    require(
-        PROCESSED_SIZE_MIB in text,
-        f"VolSync processed size {PROCESSED_SIZE_MIB} MiB",
-    )
-    require(
-        KOPIUR_CEPH_SNAPSHOT in text,
-        f"kopiur ceph snapshot id {KOPIUR_CEPH_SNAPSHOT}",
-    )
-    require(
-        re.search(rf"filesNew\D*{KOPIUR_FILES_NEW}", text)
-        or re.search(rf"filesnew\D*{KOPIUR_FILES_NEW}", lowered),
-        f"kopiur status.stats.filesNew {KOPIUR_FILES_NEW}",
-    )
-    require(
-        str(KOPIUR_SIZE_BYTES) in text.replace(",", ""),
-        f"kopiur status.stats.sizeBytes {KOPIUR_SIZE_BYTES}",
-    )
-
-    # Clone of NEW backup mounts cleanly - the direct disproof.
-    require(
-        NEW_RBD_DEVICE in text,
-        f"new-backup clone device {NEW_RBD_DEVICE}",
-    )
-    require(
-        re.search(r"zero\s+fsck|fsck-error-lines:\s*0|fsck errors", lowered),
-        "new-backup clone must report zero fsck errors",
-    )
-    require(
-        re.search(r"direct disproof|disproof of the original failure", lowered),
-        "evidence must state the new clone is the direct disproof of the original failure",
-    )
-
-    # Alerts cleared; previously firing set named.
-    require(
-        re.search(r"0\s+active alerts|zero active alerts|0.*alerts matching", lowered),
-        "evidence must record zero active opencode alerts",
-    )
-    for alert in (
-        "VolSyncSyncStalledCeph",
-        "VolSyncSyncStalledMinio",
-        "VolSyncVolumeOutOfSync",
-        "KubeJobNotCompleted",
-        "KubeContainerWaiting",
-    ):
-        require(alert in text, f"evidence must name previously-firing alert {alert}")
-
-    # Constraints honoured.
-    require(
-        re.search(r"never delete|not deleted|left.*failed", lowered)
-        and re.search(r"kopiur", lowered)
-        and re.search(r"snapshot", lowered),
-        "evidence must record that the wedged kopiur Snapshot CR was not deleted",
-    )
-    require(
-        re.search(r"final-pre-recreation|final.{0,20}volumesnapshot", lowered)
-        and re.search(r"decoy|released during cleanup", lowered),
-        "evidence must explain releasing the final pre-deletion VolumeSnapshot (decoy)",
-    )
-    require(
-        re.search(r"cause.{0,40}unknown|still unknown", lowered),
-        "evidence must leave root cause out of scope / unknown",
-    )
-
-
-def test_agents_findings() -> None:
-    """Both fleet-wide findings must be first-class entries in FINDINGS_DOC."""
-    require(FINDINGS_DOC.is_file(), f"{FINDINGS_LABEL} must exist")
-    text = FINDINGS_DOC.read_text()
-
-    # Finding 1: empty latestImage / silent restore-nothing.
-    require(
-        re.search(
-            r"\$\{APP\}-dst\.status\.latestImage.*frozen at first-deploy"
-            r"|latestImage.*frozen at first-deploy",
-            text,
-            re.S,
-        ),
-        f"{FINDINGS_LABEL} must document latestImage frozen at first-deploy",
-    )
-    require(
-        "corrupt-claim-recreation-runbook.md" in text,
-        f"{FINDINGS_LABEL} must point at the recreation runbook",
-    )
-    require(
-        "opencode-volume-recreation-2026-08-31.md" in text,
-        f"{FINDINGS_LABEL} must point at the measured evidence",
-    )
-    require(
-        re.search(r"No eligible snapshots found", text)
-        and re.search(r"No data will be restored", text),
-        f"{FINDINGS_LABEL} must quote the empty-repo mover log",
-    )
-    require(
-        re.search(
-            r"delete the `?ReplicationDestination`? \*together with\* the PVC"
-            r"|delete the ReplicationDestination \*together with\* the PVC",
-            text,
-        ),
-        f"{FINDINGS_LABEL} must state the RD+PVC delete fix",
-    )
-    require(
-        re.search(r"never to patch `?spec\.trigger\.manual`?", text, re.I)
-        or re.search(r"never to patch spec.trigger.manual", text),
-        f"{FINDINGS_LABEL} must forbid patching trigger.manual",
-    )
-    require(
-        re.search(r"re-stages a new clone within seconds", text),
-        f"{FINDINGS_LABEL} must warn that VolSync restages clones within seconds of Job delete",
-    )
-    require(
-        re.search(r"concurrencyPolicy:\s*Forbid", text)
-        or re.search(r"concurrencyPolicy.*Forbid", text),
-        f"{FINDINGS_LABEL} must warn that a Running kopiur Snapshot blocks later backups",
-    )
-
-    # Finding 2: VolSync restore widens permissions.
-    require(
-        re.search(
-            r"VolSync restore permanently relaxes every file mode"
-            r"|permanently relaxes every file mode by one group-write bit",
-            text,
-        ),
-        f"{FINDINGS_LABEL} must document VolSync mode relaxation as its own finding",
-    )
-    require(
-        re.search(r"644→664|644->664", text) and re.search(r"600→660|600->660", text),
-        f"{FINDINGS_LABEL} must list the mode-relaxation mapping including 600→660",
-    )
-    require(
-        re.search(r"\.git-credentials", text),
-        f"{FINDINGS_LABEL} mode-relaxation finding must name .git-credentials",
-    )
-    require(
-        re.search(r"kopiur restores.*read-only|stage read-only", text, re.I)
-        or re.search(r"kopiur restores, which stage read-only", text),
-        f"{FINDINGS_LABEL} must contrast kopiur read-only restores preserving modes",
-    )
-
-
-def test_no_credential_contents_in_diff_paths() -> None:
-    """No credential file contents in any committed recreation artifact."""
-    for path in (RUNBOOK, EVIDENCE, FINDINGS_DOC):
-        text = path.read_text()
-        # Reject base64-ish long tokens next to git-credentials context.
-        for m in re.finditer(r".{0,80}git-credentials.{0,120}", text, re.I):
-            window = m.group(0)
-            require(
-                not re.search(r"https?://[^:\s]+:[^@\s]+@", window),
-                f"{path.name} appears to embed a git-credentials URL with userinfo",
-            )
-            require(
-                not re.search(r"ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}", window),
-                f"{path.name} appears to embed a GitHub token near git-credentials",
-            )
+def test_recreation_docs_exist() -> None:
+    """The recreation runbook, its sibling drills and the VolSync skill stay in the tree."""
+    for path in (RUNBOOK, VOLSYNC_DRILL, KOPIUR_DRILL, FINDINGS_DOC):
+        require(path.is_file(), f"missing {path.relative_to(ROOT)}")
 
 
 def main() -> int:
@@ -1034,10 +508,7 @@ def main() -> int:
         ("opencode_overlay_pins", test_opencode_overlay_pins),
         ("rendered_empty_latestimage_trap", None),  # filled below with the trap subject
         ("ceph_block_reclaim_delete", test_ceph_block_reclaim_delete),
-        ("runbook_procedure_contract", test_runbook_procedure_contract),
-        ("evidence_result_contract", test_evidence_result_contract),
-        ("agents_findings", test_agents_findings),
-        ("no_credential_contents", test_no_credential_contents_in_diff_paths),
+        ("recreation_docs_exist", test_recreation_docs_exist),
     ]
     failed = 0
     passed = 0

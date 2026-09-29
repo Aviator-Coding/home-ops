@@ -47,8 +47,6 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "scheduling bullet is the node-scheduling domain; prompt-cache facts moved to skill b70-llm-serving",
     ("AGENTS.md", "docs/ai/vllm-onednn-sdpa-leak.md"):
         "scheduling bullet is the node-scheduling domain; oneDNN facts moved to skill b70-llm-serving",
-    ("kubernetes/components/volsync/Readme.md", "docs/ai-system/retired-2026-08-22.md"):
-        "other domain; retirement facts moved to skill ai-stack",
     ("kubernetes/apps/base/ai/hermes/app/resources/config.yaml", "docs/ai-system/agentmemory-retirement-2026-08-31.md"):
         "config.yaml is a pod payload; a comment edit restarts Hermes. Facts live in skill ai-stack",
     ("scripts/bench/b70-serving-harness.py", "docs/ai/b70-llm-serving-tuning.md"):
@@ -59,8 +57,6 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "dated report records which docs it edited",
     ("docs/grafana-operator-removal.md", "docs/reference.md"):
         "records which docs mentioned grafana-operator at the time",
-    ("kubernetes/apps/base/system/kopiur/README.md", "docs/upgrade.md"):
-        "upstream kopiur repository's doc, not a path in this repo",
     ("kubernetes/apps/base/rook-ceph/rook-ceph/operator/csi-driver-tolerations.yaml",
      "docs/spec/v1/kustomizations.md"):
         "upstream Flux kustomize-controller doc, not a path in this repo",
