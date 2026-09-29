@@ -2,22 +2,14 @@
 -- Idempotent: every statement is IF NOT EXISTS / ON CONFLICT DO NOTHING.
 --
 -- Why this file exists at all: the server image never creates its own tables
--- (upstream's Dockerfile only runs `prisma generate`; `prisma db push` is a
--- manual step in its README), and upstream's prisma/schema.prisma hardcodes
--- `vector(1536)`. This store's width is chosen, not inherited - see below. The
--- server only ever talks to
--- these tables through raw SQL (`db.query_raw`), so declaring them here with
--- the right width is sufficient - the generated Prisma models are unused.
+-- (upstream only runs `prisma generate`; `prisma db push` is a manual step), and
+-- upstream's prisma/schema.prisma hardcodes `vector(1536)`. The server only ever
+-- talks to these tables through raw SQL (`db.query_raw`), so declaring them here
+-- with the right width is sufficient - the generated Prisma models are unused.
 --
--- WIDTH 2000, deliberately. The embedding model is OpenRouter's
--- qwen/qwen3-embedding-8b (captain decision 2026-09-27), native width 4096.
--- pgvector's HNSW and IVFFlat indexes cap `vector` at 2000 dims and `halfvec`
--- at 4000, so the native width cannot be indexed at all; the model is
--- Matryoshka-trained and honours `dimensions`, so every vector is requested at
--- 2000 - the widest a plain `vector` column still indexes (halfvec would also
--- need every `::vector` cast in upstream's SQL patched, for no gain below
--- 2000). Measured 2026-09-27: the 2000-d answer is the renormalised prefix of
--- the 4096-d one (cosine 0.99995).
+-- WIDTH 2000, deliberately: pgvector's HNSW index caps `vector` at 2000 dims and
+-- the embedding model's native 4096 cannot be indexed. Why 2000 (and not
+-- halfvec): skill `litellm-proxy`, references/vector-store.md.
 --
 -- The width MUST match EMBEDDING__DIMENSIONS in ../helmrelease.yaml and stay
 -- <= 2000 while the HNSW index exists (scripts/ci/litellm-pgvector-test.py).
