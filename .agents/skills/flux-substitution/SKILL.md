@@ -5,15 +5,44 @@ description: "Read before adding or editing any Flux-reconciled file that can ca
 
 # Flux postBuild.substitute and literal ${...} tokens
 
-Relocated verbatim from `AGENTS.md` on 2026-09-01 so it loads only when this subsystem is in play.
-The text below is unchanged; only line breaks were inserted. `AGENTS.md` keeps a one-sentence pointer.
-Add new findings here or to the owning document, not back into `AGENTS.md` - see its
-"Maintaining this file" section for the rule.
+Flux strict-mode envsubst runs over the entire built Kustomization, not
+one resource. A literal `${...}` that is not a substitution variable fails
+that whole Kustomization. Flux reports the first failure only, so fixing
+one collision can reveal the next.
 
-- **`postBuild.substitute` collision (literal `${...}` tokens)**: Flux's strict-mode envsubst runs over the *entire* built Kustomization output, so any literal `${...}` token that isn't a Flux substitution variable - a Grafana dashboard variable like `${__url_time_range}`/`${datasource}`, or an app's own unresolved var like `${TIMEZONE}` - gets treated as a missing Flux variable and fails the **whole Kustomization**, not just the offending resource. Flux only reports the first failure per Kustomization, so fixing one collision can reveal another underneath it. This caused a 44-day, 4-app outage (coder, grafana, rsshub, rsshub-playwright frozen at once commit) before being fixed in #1371 - see `git show e5a43b1b`. `task flux:test:*` / CI's `flate` do **not** catch this, and the 2026-08-29 flux-local -> flate migration did **not** change that - do not let flate's use of Flux's own libraries suggest otherwise. flux-local never ran a real envsubst pass at all (`postbuild_substitute` only fed Helm values). flate *does* call `fluxcd/pkg/envsubst`, the exact engine kustomize-controller uses, and honours `kustomize.toolkit.fluxcd.io/substitute: disabled` - but only in **lenient** mode, with no strict flag: `Substitute` (`pkg/kustomize/substitute.go`) returns `exists=true` for every lookup, so an undefined `${VAR}` expands to empty rather than failing. Our cluster runs `StrictPostBuildSubstitutions=true` (opt-out since kustomize-controller v1.9). Measured on this repo against flate v0.6.1: injecting a literal `${UNDEFINED_COLLISION_TOKEN}` renders it as empty and still reports `299 passed`, exit 0. So a PR can go green and still freeze the cluster. Detect it live with `flux get ks -A --status-selector ready=false` (message names the offending variable, e.g. `envsubst error: variable not set (strict mode): "datasource"`). Three fixes, pick by situation:
+`postBuild.substituteFrom` reads the `cluster-secrets` Secret. Inline
+`postBuild.substitute` on the overlay is the per-app map. One map per
+Kustomization.
 
-  - Annotate the specific resource `kustomize.toolkit.fluxcd.io/substitute: disabled` when it's a whole resource full of non-Flux tokens (e.g. a Grafana dashboard ConfigMap) - `kubernetes/apps/base/coder/app/kustomization.yaml` (`coder-dashboards` configMapGenerator).
+## Tripwires
 
-  - Escape with `$${...}` when the same resource legitimately mixes real Flux variables with literal ones - `kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml` (`$${datasource}` next to real `${SECRET_DOMAIN}` substitution).
+1. **Neither flate nor `task flux:test:all` catches this.** The cluster
+   runs `StrictPostBuildSubstitutions=true` (opt-out since
+   kustomize-controller v1.9). flate calls the same `fluxcd/pkg/envsubst`
+   in lenient mode: an undefined `${VAR}` expands to empty and the run
+   still passes. A green PR can freeze the Kustomization on the next
+   reconcile. Detect live with
+   `flux get ks -A --status-selector ready=false` (the message names the
+   variable).
+2. **Three fixes, pick by what the token is.** Do not escape a real
+   missing variable, and do not disable substitution on a resource that
+   needs `${SECRET_DOMAIN}`.
+   [fixes.md](references/fixes.md)
+3. **A declared substitute key that no manifest reads is not
+   documentation.** Delete it. Only `KOPIUR_*` and `VOLSYNC_*` identity
+   variables drive movers. Skill `flux-gitops`.
 
-  - Define the variable properly when it's a genuinely missing Flux var, not a false-positive match - `kubernetes/apps/base/selfhosted/rsshub/playwright/helmrelease.yaml` renamed `${TIMEZONE}` to `${CONFIG_TIMEZONE}`, defined in `kubernetes/apps/main/selfhosted/rsshub.yaml`'s `substitute` map.
+## Where things live
+
+| What | Path |
+|---|---|
+| Per-app substitute map | `kubernetes/apps/main/<ns>/<app>.yaml` `postBuild.substitute` |
+| Cluster secrets | `cluster-secrets` Secret, referenced by `substituteFrom` |
+| Disable on one resource | annotation `kustomize.toolkit.fluxcd.io/substitute: disabled` |
+| Escape a literal | `$${...}` in the manifest |
+
+## Verify
+
+- After a dashboard, ConfigMap, or env edit, search the built output for
+  `${` that is not a known Flux variable.
+- Live: `flux get ks -A --status-selector ready=false`.

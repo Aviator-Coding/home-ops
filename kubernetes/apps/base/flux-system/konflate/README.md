@@ -12,7 +12,7 @@ pilot on 2026-08-29.
 - **Internal only.** `HTTPRoute` attaches to `envoy-internal` and publishes
   only the internal DNS record.
 - **Flux entry point** is `kubernetes/clusters/main` (`config.clusterPath`),
-  matching `FluxInstance` `sync.path` and `flux-local --path`.
+  matching the flux-instance HelmRelease `sync.path`.
 
 The chart is single-replica with a Recreate strategy and a RWO cache PVC.
 Do not raise `replicaCount`.

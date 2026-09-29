@@ -56,7 +56,7 @@ task setup-dev-env          # pre-commit hooks
 ```bash
 # Flux
 task reconcile
-task flux:test:ns NAMESPACE=monitoring
+task flux:test:all               # unscoped; a namespace filter can hide a broken app
 
 # Talos (node names, not IPs: talos-1|talos-2|talos-3)
 just talos render-config talos-1

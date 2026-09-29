@@ -272,7 +272,7 @@ if [ ! -f secrets-ci.vals.yaml ]; then
   echo "file=" >> "$OUT"
   echo "mode=schema_only" >> "$OUT"
 elif [ -z "${OP_CONNECT_TOKEN:-}" ]; then
-  echo "::warning::terraform/authentik opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See docs/authentik/terraform.md section 9 for what to create and why."
+  echo "::warning::terraform/authentik opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See .agents/skills/authentik-terraform/references/ci-plan.md for what to create and why."
   echo "file=" >> "$OUT"
   echo "mode=schema_only_missing_secret" >> "$OUT"
 else

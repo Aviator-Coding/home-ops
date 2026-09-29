@@ -2,10 +2,7 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
-      // Upstream dropped main-vX.Y.Z-stable after v1.81.x; tags are plain vX.Y.Z.
-      // Floor at v1.93.0: below that classifier_type: llm is silently ignored
-      // (ComplexityRouterConfig extra="allow") and the router falls back to the
-      // 25%-accurate rule-based scorer. See docs/ai-system/litellm/auto-router.md.
+      // Floor >=1.93.0 or classifier_type llm is ignored. Skill `litellm-proxy` references/auto-router.md.
       description: "LiteLLM plain vX.Y.Z tags; floor >=1.93.0 for LLM classifier",
       matchDatasources: ["docker"],
       matchPackageNames: ["ghcr.io/berriai/litellm-non_root"],
@@ -19,26 +16,7 @@
       overrideDepName: "{{packageName}}",
     },
     {
-      // mise's short name `1password-cli` extracts as github-tags on
-      // `1password/cli`, and that GitHub repository does not exist (404), so
-      // every run logged `Failed to look up github-tags package
-      // 1password/cli: no-result` and the pin sat at 2.30.3 while upstream
-      // reached 2.39.0. Switching .mise.toml to the explicit `aqua:` backend
-      // does NOT fix it: mise/backends.ts createAquaToolConfig maps aqua to
-      // GithubTagsDatasource too, and aqua's own pkgs/1password/cli is an
-      // `http` package pulling cache.agilebits.com - there is no GitHub repo
-      // behind this tool at all.
-      //
-      // docker.io/1password/op is 1Password's official CLI image and its tags
-      // are the CLI versions (2.39.0, 2.38.1, ... - 166 tags), so the docker
-      // datasource resolves where github-tags cannot.
-      //
-      // `versioning: semver` is load-bearing, not decoration: the image also
-      // publishes `-beta` tags, and docker versioning's isStable() keeps only
-      // the part before the first `-`, so it would rank 2.39.1-beta.01 as a
-      // STABLE release and propose it. That is the same trap AGENTS.md records
-      // for the Talos installer pin. Under semver the betas are prereleases and
-      // ignoreUnstable (default true) filters them.
+      // No GitHub repo. Resolve via docker 1password/op with semver, or a -beta tag ranks as stable. Skill `renovate` references/versioning-traps.md.
       description: "1Password CLI has no GitHub repo; resolve via the official docker image",
       matchManagers: ["mise"],
       matchDepNames: ["1password-cli"],
@@ -68,72 +46,7 @@
       allowedVersions: "<5.9.0",
     },
     {
-      // v1.13.3 upgrade failed permanently on talos-1 (tuppr TalosUpgrade
-      // stuck Failed, nodes stranded on v1.12.6). Pinned to v1.13.2 in #867.
-      // "ghcr.io/siderolabs/talosctl" (the CLI image used by
-      // .github/docker/talosctl-busybox/Dockerfile) was missing from
-      // matchPackageNames, so this pin never actually caught it: five PRs
-      // (#1023-#1291) already carried it to v1.13.8 unblocked, and a sixth
-      // (v1.13.9) was sitting on an open Renovate branch. Added below to
-      // close the gap.
-      //
-      // DO NOT go back to a `<1.13.3` (or any bare `<X.Y.Z`) ceiling here.
-      // That form reads as "block only 1.13.3" but actually blocks every
-      // version above it too: once the tracked value passes the ceiling
-      // (it did - all four matched deps sit at v1.13.8/v1.13.9 today),
-      // there is no candidate simultaneously greater than current and less
-      // than the ceiling, so Renovate silently proposes NOTHING for Talos
-      // - not v1.13.10, not v1.14.x, nothing. This sat unnoticed for
-      // months: zero open/recent Renovate Talos PRs, and
-      // .github/docker/talosctl-busybox/Dockerfile stuck at v1.13.8 while
-      // the cluster ran v1.13.9. Root-cause and decision record:
-      // data/homeops-talos-pin-root-cause/report.md and
-      // data/decisions-2026-08-31/talos-1133-pin-scope.md (firstmate-local,
-      // not in this repo).
-      //
-      // All three contributing causes of the original failure are
-      // independently resolved: the upstream k8s.RenderConfigsStaticPodController
-      // "cannot deep copy int" panic is fixed in Talos v1.13.4+
-      // (siderolabs/talos#13445/#13454, commit 5ed296b76); talos-1's faulty
-      // DDR5 SODIMM that caused the underlying instability was RMA'd
-      // (closed 2026-08-21, see docs/hardware-incidents.md); and tuppr's
-      // reboot-vs-terminal-failure misclassification and status-truthfulness
-      // bugs are fixed between the chart version live at the incident
-      // (0.1.36) and today's deployed 0.5.0. So the exclusion below exists
-      // purely as institutional memory - v1.13.3 itself has never been
-      // retried since the one attempt that failed (the cluster jumped
-      // v1.13.2 -> v1.13.9 directly in PR #1383, skipping it) - not as an
-      // active guard against a live, unfixed defect.
-      //
-      // Negated-regex form excludes exactly v1.13.3 and nothing else, and
-      // keeps working regardless of how far the tracked value moves past
-      // it. Renovate's regex allowedVersions is a plain RegExp.test against
-      // each release's raw, unnormalized version string (matches
-      // getRegexPredicate/filterVersions in Renovate's own source - verified
-      // against the installed renovate@44.52.1 package, not just the docs).
-      // `v?` covers both prefix styles: verified live 2026-08-31 that all
-      // three real registries behind these four matchPackageNames
-      // (ghcr.io/siderolabs/installer, ghcr.io/siderolabs/talosctl, and the
-      // factory.talos.dev-backed "siderolabs/talos" custom datasource) only
-      // ever publish "v"-prefixed tags (e.g. "v1.13.3", never bare
-      // "1.13.3") - but the four matched packages don't all share one
-      // extraction path, so the pattern stays defensive rather than
-      // assuming that holds forever.
-      //
-      // This rule only controls which versions Renovate is allowed to
-      // PROPOSE - it says nothing about auto-merge. See the matching "Never
-      // auto merge Talos" rule in .renovate/autoMerge.json5: unfreezing
-      // proposals here also exposes that ghcr.io/siderolabs/installer and
-      // ghcr.io/siderolabs/talosctl use the "docker" versioning scheme,
-      // whose isStable() does not treat Talos's "-alpha.N"/"-beta.N"/
-      // "-rc.N" suffixes as unstable (verified against installed
-      // renovate@44.52.1) - so ignoreUnstable alone would NOT have kept a
-      // prerelease (a real one, v1.14.0-alpha.0, is live on the registry
-      // today) out of the repo-wide "auto merge minor updates" rule. That
-      // autoMerge.json5 entry blocks automerge for all four packages here,
-      // not just prereleases, because any Talos bump - stable or not -
-      // triggers tuppr's live, unattended, powercycle node reboot and must
-      // stay an attended captain operation regardless of update type.
+      // Negated regex excludes exactly v1.13.3 (PR #867). A bare <X.Y.Z ceiling goes silent once the tracked value passes it. This rule proposes; automerge is the separate rule in autoMerge.json5. Skill `renovate` references/versioning-traps.md.
       description: "Exclude Talos v1.13.3 only (permanent upgrade failure on talos-1, see #867) - not a version ceiling",
       matchPackageNames: [
         "ghcr.io/siderolabs/installer",
@@ -144,13 +57,7 @@
       allowedVersions: "!/^v?1\\.13\\.3$/",
     },
     {
-      // This registry hosts TWO distinct lineages under the same repo, and
-      // Renovate's OCI datasource picks the numerically-highest tag across both:
-      //   - standalone agentgateway (1.x, agentgateway.dev/v1alpha1 CRDs) -> what we run
-      //   - kgateway-bundled distribution (v2.2.x) -> different control plane,
-      //     namespace agentgateway-system, requires a full TrafficPolicy migration.
-      // The v2.2.x bump (#946/#947) would swap out the whole gateway. Stay on the
-      // standalone 1.x line (latest v1.3.0); upgrade across lineages by hand only.
+      // Same OCI repo publishes a v2 kgateway lineage. Stay on standalone 1.x. Skill `renovate` references/versioning-traps.md.
       description: "Pin agentgateway to the standalone 1.x lineage (<2.0.0)",
       matchPackageNames: [
         "ghcr.io/agentgateway/charts/agentgateway",
@@ -162,18 +69,7 @@
       allowedVersions: "<2.0.0",
     },
     {
-      // The `goauthentik/authentik` OpenTofu provider is generated from the
-      // Authentik SERVER's OpenAPI schema, so the two are coupled: a provider
-      // ahead of the running server can send fields the API rejects, and a
-      // provider behind it silently cannot express newer ones. The server tag
-      // lives in kubernetes/apps/base/security/authentik/app/helmrelease.yaml
-      // (OCIRepository `ref.tag`); the provider is pinned to the matching release
-      // line in terraform/authentik/main.tofu. Bump them in the same change.
-      //
-      // Nothing in .renovate/autoMerge.json5 matches the `terraform-provider`
-      // datasource today, so these already arrive as reviewable PRs. This entry
-      // states the coupling and keeps it true if those rules ever widen - an
-      // auto-merged provider bump here lands untested against the live SSO stack.
+      // Provider is generated from the server OpenAPI schema. Bump it with the server tag. automerge stays false. Skill `renovate` references/versioning-traps.md.
       description: "Keep the Authentik OpenTofu provider aligned with the server release line",
       matchDatasources: ["terraform-provider"],
       matchPackageNames: ["goauthentik/authentik"],
@@ -191,39 +87,7 @@
       allowedVersions: "/^v?\\d+\\.2\\.\\d+$/",
     },
     {
-      // Plex tags are X.Y.Z.BUILD-HASH (e.g. 1.43.1.10611-1e34174b1), where
-      // HASH is a per-release git commit shortref that never repeats. Under
-      // the default "docker" versioning scheme this is not a prerelease
-      // problem (isStable/isGreaterThan both already agree a newer tag is
-      // newer and stable) - it is a *compatibility* problem: "docker"
-      // versioning treats the dash-suffix as a compatibility qualifier that
-      // must match the currently-installed tag's suffix exactly (the same
-      // mechanism that keeps e.g. an "-alpine" image from being "compatible"
-      // with a "-slim" one of the same version). Since the hash differs on
-      // every single release, isCompatible(candidate, current) is false for
-      // every candidate except the currently-installed tag itself, so
-      // Renovate's lookup filters out every real update before it ever gets
-      // to ranking them - confirmed directly against the installed
-      // renovate@44.52.1 package's modules/versioning docker.isCompatible().
-      // This is why the dependency dashboard (#489) lists the image but has
-      // never shown an "Updates:" line and no Renovate PR has ever opened
-      // for it, despite 1.43.2/1.43.3/1.43.4 all being live upstream.
-      //
-      // The fix is a regex versioning scheme that captures major/minor/patch/
-      // build as named groups Renovate actually supports, but leaves the
-      // trailing commit hash UNCAPTURED - critically, NOT as a
-      // "compatibility" named group. Naming it "compatibility" reproduces the
-      // exact same bug (isCompatible again requires an exact hash match,
-      // verified against the same renovate package); leaving it unnamed
-      // means every tag is "compatible" with every other tag, matching how
-      // these images actually relate on Docker Hub.
-      //
-      // Under this versioning, 1.43.1 -> 1.43.4 classifies as an ordinary
-      // "patch" update (major/minor both unchanged) - see the repo-wide
-      // "Auto merge all container and helm patch updates" rule in
-      // .renovate/autoMerge.json5, which automerges patch updates on the
-      // "docker" datasource with no minimumReleaseAge delay. No automerge
-      // rule is added or changed here.
+      // Docker compatibility treats the per-release hash as a qualifier, so leave it uncaptured. Do not name the group compatibility. Skill `renovate` references/versioning-traps.md.
       description: "Plex uses X.Y.Z.BUILD-HASH tags; regex-version them so Renovate can see updates past the per-release commit hash",
       matchDatasources: ["docker"],
       matchPackageNames: ["docker.io/plexinc/pms-docker"],

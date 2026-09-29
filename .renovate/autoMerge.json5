@@ -29,28 +29,7 @@
       ignoreTests: false,
     },
     {
-      // Must sit after the three blanket automerge rules above (same reasoning
-      // as the kopiur/Talos rules below): Renovate evaluates packageRules in
-      // order and a later matching rule overrides an earlier one. Sibling
-      // never-auto-merge rules may share this trailing block; their relative
-      // order to each other does not matter because they match disjoint
-      // dependencies, and none may re-enable automerge for these paths.
-      //
-      // This is Renovate's own chart-pin exclusion, the condition the
-      // 2026-08-22 in-cluster-Renovate decision called non-negotiable.
-      // Matched by file path rather than package name because the tracked
-      // dependency is the chart OCIRepository
-      // (ghcr.io/renovatebot/charts/renovate, kubernetes/apps/base/renovate/app/ocirepository.yaml)
-      // - a path match also covers the CronJob's own image tag if Renovate's
-      // helm-values manager ever starts tracking it too.
-      //
-      // Verified live 2026-08-31: this repo's branch protection requires 0
-      // approving reviews and only the "Labeler" status check, so with no
-      // exclusion a matching patch/minor/digest update to Renovate's own
-      // chart automerges with zero human review - confirmed via the pending
-      // ghcr.io/renovatebot/charts/renovate 46.255.0 -> 46.265.0 minor update
-      // sitting in the dependency dashboard, unexcluded, at the moment this
-      // rule was added.
+      // MUST stay after the three blanket automerge rules. Path match, not package name: a chart self-update must stay a reviewed PR. Skill `renovate`.
       description: "Never auto merge Renovate's own chart/image - self-update must be reviewed",
       matchFileNames: ["kubernetes/apps/base/renovate/**"],
       automerge: false,
@@ -68,49 +47,11 @@
         "ghcr.io/home-operations/kopiur-mover",
         "home-operations/kopiur",
       ],
-      // kopiur broke its user-visible API roughly once a fortnight through July
-      // 2026, and Helm's crds/ directory is install-only, so an unattended
-      // patch that crosses a CRD change can silently refuse every backup
-      // policy. Renovate still PROPOSES bumps as PRs - only the merge is
-      // withheld. Read upstream docs/upgrade.md before taking one.
+      // Proposals stay PRs. An unattended CRD change can refuse every backup. Read upstream upgrade notes before taking one. Skill `renovate`.
       automerge: false,
     },
     {
-      // MUST stay AFTER the three blanket automerge rules above (same reasoning
-      // as kopiur): overrides them for these four packages specifically.
-      // Sibling never-auto-merge rules may share this trailing block; none may
-      // re-enable automerge for these names.
-      //
-      // `ghcr.io/siderolabs/installer` feeds the live `TalosUpgrade` CR
-      // (kubernetes/apps/base/system-upgrade/tuppr/upgrades/talosupgrade.yaml),
-      // which tuppr applies directly with rebootMode: powercycle - no
-      // apply-node/human step between a merge and a real node reboot. Talos
-      // node upgrades are attended captain operations (see the pin comment in
-      // .renovate/overrides.json5 and the AGENTS.md NOTES entry on this CR);
-      // they must never auto-merge, patch or otherwise.
-      //
-      // This is not hypothetical: verified live 2026-08-31 that
-      // ghcr.io/siderolabs/installer already carries a real, currently
-      // published prerelease tag (v1.14.0-alpha.0, published 2026-04-29 per
-      // `gh api repos/siderolabs/talos/releases/tags/v1.14.0-alpha.0` - so
-      // already well past the "minor" rule's 3-day minimumReleaseAge). Talos's
-      // "-alpha.N"/"-beta.N"/"-rc.N" suffixed tags are NOT filtered by
-      // Renovate's `ignoreUnstable` default for these packages: confirmed by
-      // exercising the installed renovate@44.52.1 package's own
-      // modules/versioning/docker `isStable()` directly - it parses only the
-      // dash-separated prefix ("1.14.0") for its version/prerelease groups and
-      // discards the "-alpha.0" suffix entirely, so isStable("v1.14.0-alpha.0")
-      // returns true for the "docker" versioning scheme used by
-      // ghcr.io/siderolabs/installer and ghcr.io/siderolabs/talosctl. Its own
-      // getUpdateType (workers/repository/process/lookup/update-type.js)
-      // therefore classifies v1.13.9 -> v1.14.0-alpha.0 as an ordinary
-      // "minor" update, which without this rule would be eligible for the
-      // unattended "Auto merge all container and helm minor updates" rule
-      // above. (The "siderolabs/talos" custom-datasource package is
-      // unaffected by this specific quirk - its factory.talos.dev
-      // customManager declares versioningTemplate: "semver", which correctly
-      // treats a dash suffix as an unstable prerelease - but is included here
-      // anyway since it feeds the same installer image by a different route.)
+      // MUST stay after the three blanket automerge rules. A merge of talosupgrade.yaml powercycles nodes, and docker isStable treats -alpha as a minor. Skill `renovate` references/versioning-traps.md.
       description: "Never auto merge Talos - node upgrades are attended captain operations, and ghcr.io/siderolabs/installer's docker versioning does not treat -alpha/-beta/-rc suffixes as unstable",
       matchPackageNames: [
         "ghcr.io/siderolabs/installer",
@@ -121,23 +62,7 @@
       automerge: false,
     },
     {
-      // MUST stay AFTER the three blanket automerge rules above (same
-      // last-match-wins reasoning as kopiur and Talos). Sibling
-      // never-auto-merge rules may share this trailing block; none may
-      // re-enable automerge for these names.
-      //
-      // ghcr.io/siderolabs/kubelet's version pin feeds the live
-      // `KubernetesUpgrade` CR directly
-      // (kubernetes/apps/base/system-upgrade/tuppr/upgrades/kubernetesupgrade.yaml),
-      // which tuppr applies across all 3 Talos nodes with no manual
-      // apply-node/human step between a merge and a real cluster upgrade -
-      // gated only by two healthChecks. This is the exact same shape as the
-      // Talos/tuppr exclusion above, so it gets the same treatment: these
-      // packages must never auto-merge, patch or otherwise. The other four
-      // packages are grouped with kubelet (see the "Kubernetes" group in
-      // .renovate/groups.json5) because scripts/ci/version-consistency.sh
-      // requires all five to match the KubernetesUpgrade version in the same
-      // PR - grouping them does not make an unattended merge any safer.
+      // MUST stay after the blanket rules. kubelet feeds KubernetesUpgrade, which upgrades the live cluster with no human apply step. Skill `renovate`.
       description: "Never auto merge Kubernetes control-plane/kubelet - kubelet feeds tuppr's KubernetesUpgrade CR, which upgrades the live cluster with no human apply step",
       matchPackageNames: [
         "ghcr.io/siderolabs/kubelet",
@@ -149,42 +74,14 @@
       automerge: false,
     },
     {
-      // MUST stay AFTER the blanket minor automerge rule above (same
-      // last-match-wins reasoning as kopiur and Talos). Sibling
-      // never-auto-merge rules share this trailing block; none may
-      // re-enable automerge for this package.
-      //
-      // GHCR docker tags carry no releaseTimestamp (Renovate's docker
-      // datasource only sets one for Docker Hub). The minor rule's 3-day
-      // minimumReleaseAge therefore stays pending forever under the default
-      // minimumReleaseAgeBehaviour "timestamp-required", and the in-cluster
-      // CronJob's internalChecksFilter "strict" never opens the branch.
-      // timestamp-optional still honors an age when a timestamp exists, and
-      // treats a missing one as old enough. Do not widen this to other GHCR
-      // images, and do not change internalChecksFilter: the other pending
-      // feat(container) rows are a separate decision.
-      // automerge stays false because a proxy minor can change OAuth header
-      // scope, spend-log writers, key-update null handling, and the
-      // auto-router. Those need a human look, the same way this bump did.
+      // MUST stay after the blanket minor rule. GHCR has no releaseTimestamp, so timestamp-optional is what opens the PR. automerge stays false. Do not widen this. Skill `renovate` references/versioning-traps.md.
       description: "LiteLLM proxy: GHCR has no release timestamp, so open minor PRs but never automerge them",
       matchPackageNames: ["ghcr.io/berriai/litellm-non_root"],
       minimumReleaseAgeBehaviour: "timestamp-optional",
       automerge: false,
     },
     {
-      // MUST stay AFTER the blanket digest automerge rule above (same
-      // last-match-wins reasoning as kopiur/Talos/kubelet): narrows its
-      // schedule for this one package without disabling automerge.
-      //
-      // ghcr.io/diygod/rsshub is pinned `latest@sha256:...`
-      // (kubernetes/apps/base/selfhosted/rsshub/app/helmrelease.yaml) and
-      // upstream rebuilds `latest` many times a day. With no schedule the
-      // blanket digest rule above merged 33 rsshub digest PRs between
-      // 2026-09-07 and 2026-09-27, often two or three a day - each one
-      // restarting the pod (deploymentStrategy: Recreate). automerge stays
-      // true; `schedule` only throttles how often Renovate opens (and
-      // therefore merges) a new digest PR for this package, to once a week.
-      // No repo-wide timezone is configured, so this schedule runs in UTC.
+      // MUST stay after the blanket digest rule. automerge stays true; the schedule only throttles the rolling latest tag to once a week, UTC. Skill `renovate`.
       description: "rsshub tracks a rolling `latest` tag that rebuilds many times a day - limit its digest updates to once a week instead of every rebuild",
       matchPackageNames: ["ghcr.io/diygod/rsshub"],
       matchUpdateTypes: ["digest"],

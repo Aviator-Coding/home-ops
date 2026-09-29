@@ -43,15 +43,10 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "dated report records the state of the retired index",
     ("docs/ai-system/agentmemory-retirement-2026-08-31.md", "docs/ai-system/litellm/fallbacks.md"):
         "dated report records which docs it edited; that doc moved into skill litellm-proxy",
-    (".renovate/overrides.json5", "docs/ai-system/litellm/auto-router.md"):
-        "editing .renovate/** fires renovate.yaml's push trigger on merge (AGENTS.md NOTES); "
-        "retarget to skill litellm-proxy references/auto-router.md with the next deliberate .renovate change",
     ("docs/backups/autobrr-removal-2026-09-02.md", "docs/reference.md"):
         "dated report records which docs it edited",
     ("docs/grafana-operator-removal.md", "docs/reference.md"):
         "records which docs mentioned grafana-operator at the time",
-    (".renovate/autoMerge.json5", "docs/upgrade.md"):
-        "upstream kopiur repository's doc, not a path in this repo",
     ("kubernetes/apps/base/system/kopiur/README.md", "docs/upgrade.md"):
         "upstream kopiur repository's doc, not a path in this repo",
     ("kubernetes/apps/base/rook-ceph/rook-ceph/operator/csi-driver-tolerations.yaml",

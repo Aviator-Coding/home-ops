@@ -81,29 +81,7 @@ spec:
           labels:
             severity: critical
 
-        # Replaces CertManagerHittingRateLimits, which matched
-        # certmanager_http_acme_client_request_count{status="429"}. That metric
-        # does not exist: no ACME or HTTP-client counter is emitted by the
-        # deployed cert-manager at all, verified both by enumerating all 5,750
-        # metric names in Prometheus (zero acme matches) and by reading
-        # /metrics off each cert-manager pod directly. The rule was a critical
-        # alert that could never fire, so there was no rate-limit coverage.
-        #
-        # Renamed rather than patched because the available signal is broader
-        # and it would be wrong to keep claiming this detects 429s specifically.
-        # A blocked renewal is what rate limiting actually looks like from the
-        # metrics that DO exist: cert-manager recomputes the renewal timestamp
-        # only after a successful renewal, so when issuance is being refused
-        # the timestamp stays in the past and keeps receding, while the
-        # existing certificate is still valid and still reports Ready. That
-        # makes this fire well before CertManagerCertNotReady (which needs the
-        # cert to actually go bad) and long before CertManagerCertExpirySoon.
-        # It also covers the other causes of a stuck renewal - a DNS-01
-        # failure, an ACME outage, a broken issuer.
-        #
-        # 6h of overdue plus for: 1h leaves cert-manager's own retry backoff
-        # room to succeed normally; renewal is scheduled at two-thirds of the
-        # certificate lifetime, so a healthy cert is never briefly overdue.
+        # The ACME 429 counter is not emitted. A blocked renewal leaves renewal_timestamp in the past while the cert stays Ready. 6h overdue plus for: 1h covers retry backoff. Skill `observability`.
         - alert: CertManagerRenewalOverdue
           expr: |-
             (time() - certmanager_certificate_renewal_timestamp_seconds) > 6 * 3600

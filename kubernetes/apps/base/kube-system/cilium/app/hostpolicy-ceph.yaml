@@ -1,82 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumclusterwidenetworkpolicy_v2.json
-#
-# Ceph LAN isolation - host firewall policy.
-#
-# WHY THIS EXISTS
-# CephCluster sets `spec.network.provider: host`, so every Ceph daemon runs in
-# the host netns and binds 0.0.0.0. That makes mon (3300), RGW (80, cleartext),
-# and the unauthenticated metrics endpoints (9283 mgr-prometheus, 9926
-# ceph-exporter) answerable from any device on the LAN, routed across subnets -
-# verified reachable from 10.0.0.150, a different subnet than the 10.10.10.0/24
-# node VLAN. A pod-level NetworkPolicy structurally cannot reach a host-netns
-# listener, which is why this is a host-firewall CiliumClusterwideNetworkPolicy
-# and not a NetworkPolicy in rook-ceph. Requires `hostFirewall.enabled: true`
-# in ./helmrelease.yaml; the two are deliberately in the same Kustomization so
-# they apply and revert atomically.
-#
-# WHY THIS CANNOT LOCK THE NODES OUT  (Talos has no SSH; this is the failure
-# mode the whole staged rollout exists to prevent.)
-# `enableDefaultDeny: {ingress: false, egress: false}` is the load-bearing line
-# in this file. Do not remove it. The CiliumClusterwideNetworkPolicy CRD shipped
-# with Cilium 1.18.6 states:
-#
-#   "If not specified, the default is true for each traffic direction that has
-#    rules, and false otherwise. For example, if a policy only has Ingress or
-#    IngressDeny rules, then the default for ingress is true and egress is
-#    false."
-#
-# So an ingressDeny-only host policy would, by default, put the host endpoint
-# into ingress default-deny - dropping every port not explicitly allowed,
-# including the Talos API (50000/50001), the Kubernetes API (6443), kubelet
-# (10250), etcd (2379/2380), Cilium health (4240) and BGP (179). Setting
-# enableDefaultDeny false for both directions keeps this policy purely
-# subtractive: the ONLY packets it can ever affect are the exact
-# (source=world, port) pairs enumerated below. Every carve-out the design
-# requires is therefore satisfied structurally, by the host endpoint never
-# entering default-deny at all, rather than by enumerating an allowlist that
-# could be incomplete.
-#
-# HAZARD for future edits: default-deny is OR-ed across policies - "If multiple
-# policies apply to an endpoint, that endpoint's default deny will be enabled if
-# any policy requests it." Adding any other CiliumClusterwideNetworkPolicy that
-# carries a nodeSelector and an `ingress:` allow section will flip the host
-# endpoint into default-deny cluster-wide and can black-hole the nodes. There
-# are currently no other CCNPs in this cluster.
-#
-# WHY `fromEntities: [world]` RATHER THAN A CIDR BLOCK
-# `world` is the reserved identity for anything that is not part of this
-# cluster. It cannot match the `host` identity (the node itself), the
-# `remote-node` identity (the other two nodes), or any pod identity, so
-# intra-cluster Ceph traffic - mon quorum, OSD replication, MDS, CSI, VolSync
-# backups, Prometheus scrapes - is outside this rule's reach by construction.
-# It also survives a CIDR renumber. Note that with `bpf.masquerade: true` and
-# `ipv4NativeRoutingCIDR: 10.42.0.0/16`, in-cluster traffic addressed to a node
-# IP (10.10.10.0/24, outside the native routing CIDR) is SNAT'd to the node IP
-# and so arrives as host/remote-node, never as world - a CIDR-except list would
-# have been matching on the wrong thing.
-#
-# Legitimate S3 reaches RGW via the rook-ceph/rook-ceph-s3 HTTPRoute
-# (s3.sklab.dev) -> rook-ceph-rgw-ceph-objectstore:80 ClusterIP -> host RGW.
-# That path is in-cluster and unaffected; only direct http://10.10.10.x:80 is
-# closed, which is the exposure being removed.
-#
-# THIS POLICY IS ENFORCING (since 2026-08-25, stage 2).
-# `policyAuditMode: false` in ./helmrelease.yaml means matching traffic is now
-# DROPPED, not merely reported. It was proved non-disruptive first by a 25h
-# audit-mode window: deny-counter delta was 0 packets on talos-1/talos-3 and 4
-# on talos-2 (one deliberate probe), all 99 VolSync ReplicationSources
-# completed, all 4 Prometheus Ceph targets stayed up, and LoadBalancer traffic
-# on port 80 was proved not to traverse this policy.
-# Evidence: docs/ceph/lan-isolation-audit-results.md
-# Staging, gates and rollback: docs/ceph/lan-isolation-audit-plan.md
-#
-# To make this non-enforcing again in a hurry, set `policyAuditMode: true` in
-# ./helmrelease.yaml, or delete this policy outright.
-#
-# Port set verified against the live cluster on 2026-08-23; every port below is
-# owned exclusively by rook-ceph (no other host-network pod in the cluster
-# declares any of them - cilium-agent uses 4244/9962/9964, node-exporter 9100).
+# Subtractive host firewall for Ceph's host-netns ports. enableDefaultDeny stays false in both directions. Removing it, or adding another nodeSelector CCNP that defaults deny on, locks the nodes out: default-deny is OR-ed across policies.
+# fromEntities world does not match host, remote-node, or pods. Enforcing while policyAuditMode is false. Rollback: set policyAuditMode true, or delete this policy.
+# Skill `cilium-host-policy`.
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
@@ -86,33 +12,8 @@ spec:
     Deny non-cluster (world) access to host-network Ceph daemon ports.
     Subtractive only - enableDefaultDeny is false in both directions so the
     host endpoint never enters default-deny and management access cannot break.
-  # Selects the host endpoint on every control-plane node (see coverage assumption).
-  #
-  # This MUST use a label that survives into the *host endpoint's* label set,
-  # which is NOT the same as the node's label set. Cilium's default label filter
-  # drops the well-known non-security-relevant node labels, and an unmatched
-  # nodeSelector fails SILENTLY: the policy is accepted (`VALID: True`) and the
-  # host endpoint just reports `policy-enabled: none`, so the daemons stay
-  # exposed while everything looks healthy.
-  #
-  # Measured on this cluster 2026-08-24 (identical on talos-1/2/3) - node labels
-  # dropped from the host endpoint:
-  #   beta.kubernetes.io/arch, beta.kubernetes.io/os,
-  #   kubernetes.io/arch, kubernetes.io/hostname, kubernetes.io/os
-  # and node labels that survive:
-  #   node-role.kubernetes.io/control-plane, topology.kubernetes.io/{region,zone},
-  #   extensions.talos.dev/*, intel.feature.node.kubernetes.io/gpu
-  #
-  # `kubernetes.io/os: linux` was the original selector and matched nothing.
-  # Note the upstream host-policy docs' `kubernetes.io/hostname` example is
-  # subject to the same filter. Verify any change to this selector with
-  # `cilium-dbg bpf policy get <host-endpoint-id>` before trusting it - see
-  # docs/ceph/lan-isolation-audit-plan.md §2c.
-  #
-  # COVERAGE ASSUMPTION: all three nodes are control-plane, so this covers the
-  # whole cluster. If a non-control-plane node is ever added it will NOT be
-  # covered and its Ceph daemons will stay LAN-exposed - re-check this selector
-  # as part of adding one.
+  # Host-endpoint labels are not node labels. kubernetes.io/os and kubernetes.io/hostname are stripped, so a selector on them is accepted and matches nothing. control-plane covers all three nodes today.
+  # Verify a selector change with cilium-dbg bpf policy get. Skill `cilium-host-policy`.
   nodeSelector:
     matchExpressions:
       - key: node-role.kubernetes.io/control-plane
