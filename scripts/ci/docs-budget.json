@@ -114,9 +114,6 @@
       "terraform/authentik/secrets-apply.vals.yaml": 24,
       "terraform/authentik/secrets-ci.vals.yaml": 34,
       "terraform/authentik/secrets.vals.yaml": 21
-    },
-    "skill_description_chars": {
-      ".agents/skills/kopiur-backups/SKILL.md": 520
     }
   }
 }
