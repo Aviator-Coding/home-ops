@@ -52,6 +52,14 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
     `flux_resource_info` is the only live suspended signal. kube-state-metrics
     has no Flux CRD state. The metric's `namespace` label is always
     `flux-system`, because it is a metric on the operator.
+11. **`FluxResourceNotReadyTooLong` is the state alert for a stuck release.**
+    A HelmRelease that fails its first install goes `Stalled`
+    (`MissingRollbackTarget`) and emits no further events, so the one-shot
+    Flux Alert event is the only other signal. The rule fires when
+    a HelmRelease or Kustomization is not `Ready=True` for 30m, aggregated
+    over kind, namespace and name so retries flipping False/Unknown and
+    changing `reason` do not reset the timer; fix the cause,
+    then `flux reconcile hr <name> -n <ns> --reset`.
 
 ## Where things live
 
