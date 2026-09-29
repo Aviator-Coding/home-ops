@@ -27,8 +27,8 @@ Two halves, both pinned, because shipping half the fix is the expected mistake:
      sibling `ai/embedding-gpu` correctly pins `--cache-ram 0` because ITS cache
      is write-only (the read path is gated on SERVER_TASK_TYPE_COMPLETION), and
      copying that value here would trade an OOM for a large permanent prefill
-     regression. AGENTS.md states this directly: vllm "must not get the same
-     fix... it needs a bounded non-zero value".
+     regression. Skill `b70-llm-serving`: chat must not copy the embedding
+     `--cache-ram 0`; it needs a bounded non-zero value.
   2. `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=` (or the older
      `MALLOC_MMAP_THRESHOLD_`) pinning the threshold low. The process overshot
      its own declared 8192 MiB bound by 4.7x into a single brk()-grown `[heap]`,
@@ -183,7 +183,7 @@ def test_cache_ram_is_bounded_non_zero_and_below_the_limit(docs: list[dict[str, 
         "write-only) and the wrong one here. This is a chat server with mean "
         "f_keep = 0.975 across 1560 slot selections on a workload that is 88% "
         "prefill tokens, so 0 trades an OOM for a large permanent prefill "
-        "regression. AGENTS.md: vllm 'must not get the same fix'.",
+        "regression. Skill `b70-llm-serving`: chat must not copy --cache-ram 0.",
     )
 
     limits = (container.get("resources") or {}).get("limits") or {}
