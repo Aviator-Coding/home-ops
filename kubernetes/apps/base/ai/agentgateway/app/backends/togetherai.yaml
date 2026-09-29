@@ -20,7 +20,7 @@ spec:
 ---
 # togetherai AgentgatewayBackend (OpenAI-compatible). DORMANT: no model in
 # use, so the unified /v1 router (../httproute-unified.yaml) has no rule for
-# it — re-enabling is one routing rule there. Backend + secret kept so the
+# it - re-enabling is one routing rule there. Backend + secret kept so the
 # credential path stays wired.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend

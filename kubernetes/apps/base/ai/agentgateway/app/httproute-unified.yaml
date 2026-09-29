@@ -1,42 +1,15 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
-# THE single LLM entry point. One unified OpenAI-style endpoint — in-cluster
-# http://internal-noauth.ai.svc.cluster.local/v1, plus the same /v1 on the
-# `internal` (Authentik) and `public` (llm-api.*, Bearer key) listeners — that
-# fans out to the right provider backend by the request-body `model` field.
-# The `model-routing` AgentgatewayPolicy extracts model -> x-model (PreRouting);
-# the rules below match x-model. Model ids are provider-native and pass through
-# UNCHANGED, so the cost metering in rules/cost.yaml keys on exactly what
-# clients send. Model→backend wiring lives ONLY in this table — consumers never
-# pick a provider path.
-#
-# Rule design: the regexes are mutually exclusive by construction, so ordering
-# is not load-bearing — with ONE exception: groq's family regex also matches
-# OpenRouter `moonshotai/...` slugs, so the groq rule must stay ABOVE the
-# vendor-slug catch-all (Gateway API ties break to the earlier rule).
-# Aggregator upstream base paths are injected per-rule via URLRewrite
-# (openrouter serves under /api, opencode-go under /zen/go, groq under
-# /openai) — the same rewrites the retired per-provider path routes applied,
-# so the upstream-visible request is identical.
-# zai / togetherai / opencodeai backends are currently DORMANT (defined in
-# backends/, but no model in use → no rule here). Re-enabling one is a single
-# new rule.
+# The single LLM entry point. Rules match x-model. Groq's family regex also matches
+# OpenRouter moonshotai slugs, so that rule stays above the vendor-slug catch-all.
+# zai, togetherai and opencodeai have no rule. See skill agentgateway references/routing-backends.md.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: llm-unified
   annotations:
-    # Guard, not a cure. This route declares no `spec.hostnames`, so
-    # external-dns's gateway-httproute source would fall back to the parent
-    # listener hostname - the `*.${SECRET_DOMAIN}` wildcard - and publish it
-    # against the Gateway LB IP. Same opt-out the equivalent envoy catch-all
-    # uses (network/envoy-gateway/app/envoy.yaml `https-redirect`).
-    # NOTE the live LAN record `*.${SECRET_DOMAIN} -> 10.50.0.27` is NOT
-    # external-dns's: every record it manages has a `k8s.main.<type>-<name>`
-    # registry TXT twin and the wildcard has none (measured 2026-09-06 against
-    # the unifi webhook's own /records: 71 TXT twins, zero for the wildcard).
-    # It is a hand-made UniFi record, so external-dns will never delete it and
-    # removing it is a UniFi-side change, not a repo change.
+    # No hostname, so gateway-httproute would publish the wildcard. The live LAN wildcard
+    # is a hand-made UniFi record. See skill networking.
     external-dns.alpha.kubernetes.io/controller: none
 spec:
   parentRefs:
@@ -79,17 +52,8 @@ spec:
         - name: openai
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # Default embeddings -> the local embedder (backends/embedding-local.yaml),
-    # which since 2026-09-15 is `embedding-gpu` on the B70 rather than the CPU
-    # TEI pod. Until 2026-09-13 this fell through to `vllm-embed`, the B70's
-    # llm-scaler embedding deployment - scaled to 0 and 0/0 with no endpoints
-    # for 94 days, so every request landing here 503'd. A route whose default
-    # backend has no endpoints fails at request time, not deploy time.
-    # NOTE this rule routes on "not a vendor slug and not a bare
-    # `text-embedding-*`", NOT on an exact model id, so the 2026-09-15 rename
-    # of the LiteLLM alias embedding-local-cpu -> embedding-local does not
-    # change what lands here: both ids still route to this backend. Send
-    # `model: embedding-local` (or any such id) to land here.
+    # Default embeddings go to embedding-gpu. vllm-embed is replicas 0, so a default there 503s.
+    # The match is "not a vendor slug", not an exact model id. See skill agentgateway references/routing-backends.md.
     - matches:
         - path:
             type: Exact
@@ -114,7 +78,7 @@ spec:
         - name: llm-chat-failover
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # OpenCode Go bare ids (flat-rate $10/mo sub — authoritative list =
+    # OpenCode Go bare ids (flat-rate $10/mo sub - authoritative list =
     # rules/cost.yaml). Includes bare qwen3.x-max/plus, which must NOT hit the
     # local backend; the local id has "-35b" after the version so the regexes
     # are disjoint. deepseek-v4-* (bare, Go) is disjoint from both

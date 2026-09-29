@@ -20,32 +20,18 @@ spec:
   uninstall:
     keepHistory: false
   values:
-    # Placement is enforced by devic.es/b70 (generic-device-plugin on the
-    # discrete Arc Pro B70 at talos-3 PCI 0000:03:00.0), not hostname affinity.
-    # plex/playwright stay on gpu.intel.com/xe; the 35B chat server
-    # (20.1GiB weights + 2.66GiB KV @262k q8_0 + 0.25GiB recurrent state +
-    # 1.73GiB compute buffer @ -ub 2048 = ~24.7GiB of 31.9GiB) must not consume
-    # that pool. KV is far smaller than the "~5.2GiB" once assumed here: only
-    # 10 of 40 layers are full-attention (the rest are linear/recurrent), so
-    # 262144 cells cost 2720 MiB, not ~5.2GiB. Measured 2026-09-07 from the
-    # startup banner at `-lv 6` - see docs/ai/b70-llm-serving-tuning.md section 6.
+    # Placement is the devic.es/b70 request, not hostname affinity. KV at ctx
+    # 262144 q8_0 is 2720 MiB (10 of 40 layers are full attention), not ~5.2 GiB.
+    # See skill b70-llm-serving references/flags.md.
     controllers:
-      # Main chat model runs on llama.cpp SYCL, not vLLM: Qwen3.6-35B-A3B GPTQ
-      # cannot complete vLLM warmup on a single 32GB B70 (21.4GiB weights +
-      # IPEX MoE marlin-shuffle transients OOM the card even with nothing else
-      # resident) — open bug intel/llm-scaler#382. Controller keeps the vllm
-      # name so the service (vllm-app) and gateway backend stay stable.
+      # Chat stays llama.cpp SYCL. This GPTQ cannot finish vLLM warmup on one B70
+      # (intel/llm-scaler#382). The controller name stays vllm so the Service does not move.
       vllm:
         strategy: Recreate
         pod:
           terminationGracePeriodSeconds: 60
-          # talos-3 carries a home-operations.com/dedicated taint
-          # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26
-          # (a scheduler score penalty, not a filter -
-          # docs/talos-3-scheduling-truth.md section 9) - this pod is pinned
-          # to that node by devic.es/b70 (comment above), so this toleration
-          # keeps the score penalty from disadvantaging the only node it can
-          # legally run on. See docs/talos-3-scheduling-truth.md.
+          # talos-3 PreferNoSchedule: this pod can only land there, so it tolerates the penalty.
+          # See skill node-scheduling.
           tolerations:
             - key: home-operations.com/dedicated
               operator: Exists
@@ -54,24 +40,8 @@ spec:
           app:
             image:
               repository: ghcr.io/ggml-org/llama.cpp
-              # b9592 (2026-06-10) -> b10820 (2026-09-06). Not a routine bump:
-              # measured 2026-09-07 as the single largest serving win available
-              # on this card, and it COMPOUNDS with -ub 2048 below rather than
-              # overlapping it. On the production-shaped concurrent benchmark
-              # (4 clients x 16k prompt + 256 completion) wall time went
-              # 129.3s (b9592, -ub default) -> 113.6s (b10820 alone)
-              #         -> 113.9s (b9592 + -ub 2048) -> 52.5s (BOTH).
-              # Either lever alone buys ~12%; together they buy 59%. Aggregate
-              # prefill 506 -> 1246 t/s, aggregate decode 7.9 -> 19.5 t/s.
-              # Re-verified on b10820 before shipping (all read back off the
-              # running server, not assumed): auto n_parallel=4 + kv_unified=true
-              # still selected, n_ctx 262144 honoured, flash_attn enabled, KV
-              # 2720 MiB, compute buffer 1776 MiB, ~7.2GiB VRAM still free;
-              # multimodal mmproj loads; tool calls and multi-turn both correct;
-              # 5/6 greedy prompts byte-identical to b9592 (the 6th is an
-              # open-ended summarisation where both builds hallucinate different
-              # specs - a near-tie broken differently, not a regression).
-              # b10830 exists upstream but has no server-intel build yet.
+              # Re-measure the next tag with -ub 2048 before bumping. The two compound.
+              # See skill b70-llm-serving references/flags.md.
               tag: server-intel-b10820
             args:
               - -hf
@@ -83,24 +53,8 @@ spec:
               - --port
               - "8000"
               - --ctx-size
-              # Native window is 262144 (no yarn) — set to the model's max. Hybrid
-              # arch (only 10/40 layers full-attention) → KV is 2720 MiB @262k
-              # q8_0/q8_0, not the ~5.2 GiB earlier comments assumed (measured
-              # 2026-09-07). The server auto-selects n_parallel=4 +
-              # kv_unified=true: the pool is shared across up to 4 slots and a
-              # single request can address all of it (verified 2026-07-08: loads
-              # clean, 0 restarts, 68 t/s decode — see
-              # docs/ai/b70-llm-serving-tuning.md). DO NOT pin --parallel/--kv-unified
-              # explicitly: on b9592 that overcommits the KV allocation and thrashes
-              # VRAM, collapsing decode to ~0.5 t/s (verified 2026-06-27). The auto
-              # path sizes the shared cache correctly - leave it auto.
-              # VRAM is not the binding constraint at 262144 (~7.2 GiB free on
-              # b10820/-ub 2048; see header). vllm-embed stays replicas: 0 for
-              # compute isolation (38x decode collapse under embeddings flood),
-              # not because the window cannot fit. Re-enabling it still needs a
-              # live re-test; do not assume a context shrink is required up
-              # front. (comfyui was the other B70 co-tenant this applied to
-              # until it was removed 2026-09-15.)
+              # Model max. Do not pin --parallel or --kv-unified: an explicit pin collapses decode.
+              # vllm-embed stays at replicas 0. See skill b70-llm-serving references/flags.md.
               - "262144"
               - -ngl
               - "99"
@@ -113,77 +67,17 @@ spec:
               - --cache-type-v
               - q8_0
               - --cache-reuse
-              # NO-OP on this deployment, kept only to document that: the server
-              # logs `cache_reuse is not supported by multimodal, it will be
-              # disabled` at every boot because the mmproj is loaded. Ordinary
-              # prefix prompt-caching + context checkpoints still work and are
-              # what production actually benefits from. Do not "fix" this by
-              # dropping the mmproj without a decision - that removes vision.
+              # No-op while mmproj is loaded. Dropping mmproj removes vision.
+              # See skill b70-llm-serving references/flags.md.
               - "256"
               - --cache-ram
-              # HOST-RAM prompt cache. Its absence is SILENT and means llama.cpp's
-              # 8192 MiB default - there is no log line at a level we keep, no
-              # warning, and no CI signal, which is why this is gated by
-              # scripts/ci/vllm-prompt-cache-test.py rather than left to a comment.
-              #
-              # This server was leaking on the default: host working set climbed
-              # monotonically from a 1232 MiB post-load baseline at +5622 to
-              # +6485 MiB/day and never plateaued, reaching 39531 MiB over 6.6
-              # days on the pod before this one (rescued only by the 2026-09-15
-              # talos-3 reboot, not by anything working as designed) and 26760
-              # MiB by 2026-09-19T19:12Z on the current one - on track to cross
-              # the 39Gi request ~2026-09-21 and OOMKill at the 48Gi limit
-              # ~2026-09-23. The limit is NOT a backstop here: llama.cpp's only
-              # self-limiting guard is a bad_alloc handler inside
-              # server_prompt_cache::alloc that a cgroup limit makes structurally
-              # unreachable, because the kernel SIGKILLs at page-fault time so
-              # malloc never fails. That is why ai/embedding-gpu OOMKilled 18x at
-              # 2Gi and again at 4Gi before the cause was found.
-              #
-              # 2026-09-22: most of that climb was a second, independent leak,
-              # the oneDNN SDPA partition cache (see GGML_SYCL_FA_ONEDNN in env).
-              # This cache bound is still correct and still needed: without it
-              # the default 8192 MiB would come back on top.
-              #
-              # The weights are NOT the cause and --no-mmap is not the suspect:
-              # measured at load, RSS stays at 635 MiB while 22502 MiB of
-              # file-backed page cache appears, so the GGUF is already
-              # reclaimable and excluded from working set. The resident growth is
-              # one brk()-grown [heap] of 17107 MiB (1 mapping) against
-              # ai/embedding-gpu's 317 MiB on the same image with --cache-ram 0,
-              # a 54x heap and ~700x slope difference whose only structurally
-              # relevant delta is this flag.
-              #
-              # 4096, NOT 0. ai/embedding-gpu pins 0 because its cache is
-              # write-only (the read path is gated on SERVER_TASK_TYPE_COMPLETION)
-              # - do not copy that value here. This is a CHAT server where prefix
-              # reuse is real and earning its keep: mean f_keep = 0.975 across
-              # 1560 slot selections, i.e. 97.5% of prompt KV is reused, and
-              # prefill is 88% of this workload's tokens (see -ub 2048 below). 0
-              # would trade an OOM for a large, permanent prefill regression.
-              #
-              # Pairs with GLIBC_TUNABLES below and does not work alone - see
-              # that comment. Full evidence: docs/ai/vllm-host-prompt-cache.md.
+              # Absence restores the silent 8192 MiB default. A memory limit cannot stop that leak
+              # (kernel SIGKILL at page fault). 4096, not 0. Pairs with GLIBC_TUNABLES. --no-mmap is not this fix.
+              # See skill b70-llm-serving references/memory.md. Gate: scripts/ci/vllm-prompt-cache-test.py.
               - "4096"
               - --no-mmap
-              # Physical batch. -ub defaults to 512 while -b defaults to 2048, so
-              # a 2048-token prefill chunk ran as FOUR GPU passes. That matters
-              # far more than it looks on this model: Qwen3.6-35B-A3B is hybrid
-              # (only 10/40 layers are full-attention), so llama.cpp takes the
-              # `llama_memory_hybrid` path, which splits ubatches with
-              # `split_equal` - every sequence in a ubatch must contribute an
-              # EQUAL token count, and the ubatch ends as soon as the shortest
-              # sequence runs out. One decode token joining a 2047-token prefill
-              # therefore fragments the whole chunk. Measured on live production
-              # traffic 2026-09-07: prefill chunks sharing a batch with any decode
-              # token ran 200 t/s vs 543 t/s unshared (n=702, a 2.71x penalty),
-              # and 85% of production chunks are shared. At -ub 2048 the same
-              # comparison is 401 vs 649 t/s - penalty 1.62x, shared-chunk prefill
-              # 2.0x faster. Prefill is 88% of this workload's tokens (7.5:1
-              # prompt:completion lifetime), so this is the dominant lever.
-              # -ub 4096 was tested and REJECTED: best idle prefill (1334 t/s) but
-              # worst under concurrency (P4 wall 207.6s vs 113.9s at 2048).
-              # Full matrix + method: docs/ai/b70-llm-serving-tuning.md section 6.
+              # -ub must match -b at 2048. -ub 4096 was rejected under concurrency.
+              # See skill b70-llm-serving references/flags.md.
               - -b
               - "2048"
               - -ub
@@ -194,73 +88,12 @@ spec:
               ZES_ENABLE_SYSMAN: "1"
               UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS: "1"
               SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS: "1"
-              # The SECOND HALF of the --cache-ram fix above, and it carries
-              # comparable weight - do not ship one without the other.
-              #
-              # --cache-ram alone bounds the cache LOGICALLY but need not shrink
-              # RSS, because the growth is driven by allocator churn as much as
-              # by cache size, and a smaller cache churns MORE often. The proof
-              # that the logical bound is not what is being honoured: the process
-              # reached 39531 MiB against a 1232 MiB baseline while its declared
-              # bound was 8192 MiB - a 4.7x overshoot - with the excess sitting
-              # in a single brk()-grown [heap] region.
-              #
-              # Mechanism: glibc's main arena grows via brk() and can only be
-              # trimmed FROM THE TOP, so any live allocation near the top pins
-              # everything below it. glibc also RAISES its dynamic mmap_threshold
-              # up to 32 MiB the first time an mmap'd block is freed; after that
-              # the sub-32 MiB per-layer KV chunks composing a cache entry come
-              # from the heap and are never returned to the OS. The server log
-              # shows exactly that pattern - 80 `making room for prompt cache
-              # entry` evictions of 191..1886 MiB (mean 860 MiB, 67.2 GiB total)
-              # in one retained window. Freeing an 1886 MiB entry and allocating
-              # a 200 MiB one strands the difference; repeat and you get a 17 GiB
-              # heap.
-              #
-              # Setting the tunable explicitly DISABLES that dynamic raise and
-              # pins the threshold at 128 KiB, so the large chunks are served by
-              # mmap - which IS returned to the OS on free. MALLOC_MMAP_THRESHOLD_
-              # is the equivalent older spelling; either works, GLIBC_TUNABLES is
-              # the supported modern one. Do not remove this when tuning
-              # --cache-ram: a future value change does not make the allocator
-              # behaviour go away.
-              #
-              # Correction (2026-09-22): most of that 17 GiB heap was NOT cache
-              # churn. It was the oneDNN SDPA leak disabled just below, whose
-              # sub-32 MiB allocations were landing in the heap. The pin still
-              # earns its place. It keeps [heap] at ~1.7 GiB. It also gives every
-              # large live allocation its own mapping (munmap'd on free), and that
-              # made the second leak visible in /proc/1/smaps at all.
+              # Second half of --cache-ram. Pins mmap_threshold so glibc returns large chunks.
+              # Do not ship one without the other. See skill b70-llm-serving references/memory.md.
               GLIBC_TUNABLES: glibc.malloc.mmap_threshold=131072
-              # Disables llama.cpp's oneDNN Graph SDPA flash-attention path. On
-              # this workload it leaks host memory without bound. It is the cause
-              # of the growth that came back after PR #1731, with --cache-ram and
-              # the malloc pin above both live and working. Full evidence:
-              # docs/ai/vllm-onednn-sdpa-leak.md.
-              #
-              # ggml/src/ggml-sycl/fattn-onednn.cpp compiles one SDPA partition
-              # per (ubatch query length, current KV length) and keeps it in a
-              # function-static std::unordered_map that is never evicted. With
-              # q8_0 KV, every prefill ubatch of >= 32 tokens over n_kv >= 1024
-              # takes that path. Upstream #25874 enabled q8_0 on 2026-08-04:
-              # b9592 predates it, b10820 has it. So every new prompt shape pins
-              # another compiled kernel set for the life of the process. Measured
-              # 2026-09-22: ~1 GiB of retained anonymous memory per million
-              # prompt tokens, ~+3.5 GiB/day at real traffic, as thousands of
-              # fixed-size 0.4-8 MiB live mappings. Upstream master is still
-              # unbounded as of 2026-09-22.
-              #
-              # Cost, accepted by the captain 2026-09-22: long prefills fall back
-              # to the MKL XMX flash-attention path (GGML_SYCL_ENABLE_MKL_FA,
-              # default on), which keeps no per-shape cache. Upstream measured
-              # this model and KV type on a B70 at 32K prefill: 1184 t/s with
-              # oneDNN vs 834 t/s without (-30%). Decode is unchanged, because the
-              # oneDNN path never runs below 32 query tokens.
-              #
-              # The value must be numeric. ggml reads it with sscanf(" %u"), so
-              # "false" or "off" fail to parse and SILENTLY keep the default (1,
-              # on). Remove this only when the pinned tag bounds that cache - gate:
-              # scripts/ci/vllm-fa-onednn-test.py.
+              # Numeric only. "false" or "off" parse as the default and leave the leak on.
+              # Lift only when this tag bounds fattn-onednn.cpp. Gate: scripts/ci/vllm-fa-onednn-test.py.
+              # See skill b70-llm-serving references/memory.md.
               GGML_SYCL_FA_ONEDNN: "0"
             envFrom: &envFrom
               - secretRef:
@@ -268,73 +101,14 @@ spec:
             resources:
               requests:
                 cpu: "2"
-                # 12Gi, cut from 39Gi on 2026-09-20 against the measured
-                # post-fix steady state. The 39Gi that stood here was sized for
-                # the unbounded host prompt-cache leak, which PR #1731 closed on
-                # 2026-09-19 with --cache-ram 4096 + GLIBC_TUNABLES (see the env
-                # and args above). The limit comment below asked for exactly this
-                # follow-up and set the bar for it: a measured steady state, not
-                # a reading taken shortly after a roll. That bar is now met.
-                #
-                # Why the request matters at all (unchanged, and the reason this
-                # is not cut to the peak): the kubelet ranks node-pressure
-                # eviction first by whether a pod's usage EXCEEDS its request. At
-                # 16Gi this server sat 21230Mi over its request and any spike on
-                # talos-3 killed the LLM first. A request that covers the real
-                # peak keeps the pod out of the exceeds-set entirely.
-                #
-                # The measurement. Pod vllm-5cb8f5f6f4-zmvqq, started
-                # 2026-09-19T19:40:40Z, zero restarts, 17h of post-fix history
-                # (all pre-fix history is deliberately excluded - it is the leak
-                # climbing to 39531Mi and would defeat the exercise):
-                #
-                #   peak working set              5750 Mi
-                #   current                       5132 Mi
-                #   trajectory     oscillates 4577-5750 Mi, does NOT climb
-                #
-                # The oscillation is the point: the pre-fix pod rose monotonically
-                # at +6485Mi/day and never plateaued. This one does not.
-                #
-                # The arithmetic, sized on the mechanism rather than on the 17h
-                # peak, because prefill is 88% of this workload's tokens - its
-                # peak arrives with prompt volume, not with time, and 17h need not
-                # contain the busiest hour it will ever see:
-                #
-                #   post-load baseline                        1232 Mi
-                #   + --cache-ram bound, fully cold-filled    4096 Mi
-                #   = nominal ceiling                         5328 Mi
-                #   measured 17h peak                         5750 Mi  (1.08x it)
-                #   request: baseline + 2.7x the cache bound 12288 Mi
-                #
-                # 12Gi is 2.14x the measured peak and leaves room for the bounded
-                # cache to cold-fill plus allocator slack well past the 1.08x
-                # overshoot actually observed. It is the bottom of the 12-20 GiB
-                # band the fleet memory analysis predicted; the real data came in
-                # below that band, and the value is deliberately NOT cut to just
-                # above 5750Mi. Returns 27648Mi to talos-3, which was the point.
-                #
-                # If this is wrong, VLLMMemoryExceedsRequest (prometheusrule.yaml)
-                # is the detector - it was added with this cut for that purpose.
-                # Do not raise or lower this without re-measuring live:
-                # docs/talos-3-scheduling-truth.md, docs/ai/vllm-host-prompt-cache.md.
+                # 12Gi = ~1232 MiB baseline + 2.7x the 4096 MiB cache. Below the working set this
+                # pod is evicted first. Do not raise it to silence VLLMMemoryRetainedAboveBound.
+                # See skill b70-llm-serving references/memory.md.
                 memory: 12Gi
                 devic.es/b70: 1
               limits:
-                # Growth is now bounded at the source, by --cache-ram 4096 +
-                # GLIBC_TUNABLES above - NOT by this limit, which cannot serve as
-                # a backstop (llama.cpp's bad_alloc guard is unreachable under a
-                # cgroup; see the --cache-ram comment).
-                #
-                # The request above has since been right-sized to 12Gi against
-                # the measured post-fix steady state (2026-09-20). This limit is
-                # deliberately NOT cut with it. It costs nothing to leave high -
-                # a limit reserves no memory - and it is the remaining headroom
-                # that lets the pod survive an unobserved prefill spike instead of
-                # being OOMKilled by one, which matters precisely because only 17h
-                # of post-fix history exists. Lower it only once a much longer
-                # steady state is in hand, and never below the --cache-ram bound
-                # plus baseline (scripts/ci/vllm-prompt-cache-test.py enforces the
-                # cache-below-limit half of that).
+                # A limit cannot stop the host leak. Leave it above the request so a prefill
+                # spike is not an OOMKill. See skill b70-llm-serving references/memory.md.
                 memory: 48Gi
                 devic.es/b70: 1
             probes:
@@ -362,10 +136,8 @@ spec:
               liveness: *probe
 
       vllm-embed:
-        # Scaled to 0: agentmemory (its only consumer) moved to OpenRouter
-        # embeddings (text-embedding-3-small, 1536-dim) on 2026-06-28, freeing
-        # this B70 devic.es/b70 slot + ~5GB VRAM. Controller + PVC kept so
-        # restoring local embeddings is a one-line revert (replicas: 0 -> 1).
+        # replicas 0. No live consumer, and it shares the one B70 with chat.
+        # --gpu-memory-utilization belongs only on this controller. See skill b70-llm-serving.
         replicas: 0
         strategy: Recreate
         containers:
