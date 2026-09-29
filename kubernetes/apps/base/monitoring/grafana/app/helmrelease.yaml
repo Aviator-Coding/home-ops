@@ -322,7 +322,7 @@ spec:
         k8s-views-pods:
           # renovate: depName="Kubernetes / Views / Pods"
           gnetId: 15760
-          revision: 36
+          revision: 41
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
