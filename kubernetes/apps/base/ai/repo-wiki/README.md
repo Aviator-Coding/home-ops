@@ -1,79 +1,23 @@
-# Repo Wiki
+# Repo wiki
 
-[mkdocs-material](https://squidfunk.github.io/mkdocs-material/) serving
-AI-generated per-repo documentation, adapted 2026-08-26 from
-`joryirving/home-ops` `kubernetes/apps/base/llm/repo-wiki/` (commit `3d3b700`)
-per captain request. A 12-hourly CronJob (`generate.py`) walks the repos in
-[`app/resources/repos.txt`](app/resources/repos.txt), plans a small set of
-wiki pages per repo, and writes each page through our in-cluster LiteLLM
-governance proxy (`http://litellm.ai.svc.cluster.local:4000/v1`) - never a
-direct model provider key. Generated pages are committed into a local git
-repo on the app's PVC, which mkdocs serves `--dirty` (incremental rebuild).
+mkdocs of generated pages. A CronJob writes them through LiteLLM
+(`chat-local` on virtual key `repo-wiki`) and commits them onto the PVC.
+Skill `ai-stack` references/consumers.md. The repo list is only
+`app/resources/repos.txt`.
 
-## What changed vs the reference
+Those resource files are `configMapGenerator` input. A byte change rolls
+the pod.
 
-- **Namespace/path**: reference ships under its own `llm` namespace at
-  `kubernetes/apps/base/llm/repo-wiki/`; this repo's convention is one
-  namespace directory per app, so this lives at `kubernetes/apps/base/ai/repo-wiki/`
-  in the existing `ai` namespace instead.
-- **Chart source**: reference pins its own per-app `OCIRepository` for
-  `app-template`; this repo already shares one pinned `app-template`
-  `OCIRepository` (`kubernetes/components/common/repos/app-template/`) via
-  `chartRef`, so no per-app `OCIRepository` was added.
-- **Config delivery**: reference inlines `repos.txt`/`mkdocs.yml`/`generate.py`
-  as a hand-written `ConfigMap` resource; this repo's convention
-  (`kustomization.yaml`'s `configMapGenerator`, e.g. `ai/hermes`,
-  `monitoring/kromgo`) generates the `ConfigMap` from real files under
-  `app/resources/`, which is what's used here.
-- **`repos.txt`**: replaced the reference's own repo list. The live set is
-  only [`app/resources/repos.txt`](app/resources/repos.txt) (do not restate it
-  here) - currently this account's repos plus selected upstream public repos
-  under `joryirving` and `misospace`.
-- **GITHUB_TOKEN**: reference uses its own `github-miso` 1Password item.
-  No existing 1Password-sourced GitHub credential in this repo is read-only:
-  `hermes`'s `HOMELAB_GH_TOKEN` is `public_repo` scope (read **and** write),
-  Renovate/actions-runner use GitHub App credentials (broad, wrong shape). A
-  new item is required - see Prerequisites below.
-- **LiteLLM key**: reference reads a static `LITELLM_REPO_WIKI_API_KEY`
-  property from 1Password item `litellm`. This repo mints the key from a
-  `LiteLLMVirtualKey` CR (`kubernetes/apps/base/ai/litellm/app/virtualkeys/repo-wiki.yaml`,
-  captain decision D4's pattern), the same mechanism `demo`/`router-demo` use
-  post-migration (#1455) - no manual key material to create.
-- **Model**: `chat-local` (zero-priced terminal local alias on the B70). Must
-  stay in lockstep with the `repo-wiki` `LiteLLMVirtualKey` allow-list, because
-  the proxy checks the model the CALLER asks for - changing only one side fails
-  every generation call. This consumer now spends $0 (verified over a full
-  8-page generation); its `maxBudget` is inert, and the real bounds are
-  `rpmLimit` 12 / `tpmLimit` 200000 plus `MAX_REPOS_PER_RUN=1`.
-- **Volume / context knobs tightened**: `MAX_REPOS_PER_RUN` 2->1 and
-  `MAX_PAGES_PER_REPO` 20->8, `PAGE_CTX_CHARS` 120000->60000, as context-size
-  and volume controls against the current `repos.txt` length - not dollar
-  spend, which no longer accrues on this path.
-- **Timezone**: `America/New_York` (this cluster's convention, e.g.
-  `ai/hermes`'s `CONFIG_TIMEZONE`), not the reference's `America/Edmonton`.
-- **Persistence**: reference has no backup for this PVC. This repo backs up
-  stateful app data; added here even though the wiki content is regenerable, so
-  a wipe does not force a full multi-hour regeneration to restore served pages.
-  Originally VolSync, then VolSync + kopiur in parallel from 2026-08-31. VolSync
-  was **retired from this claim on 2026-09-01** (migration Stage 5, pilot volume
-  1 of 4) and kopiur is now the sole engine - selected precisely *because* the
-  content is regenerable. Evidence and rationale:
-  [`docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md`](../../../../../docs/backups/kopiur-stage5-pilot-retirement-2026-09-01.md).
+## Prerequisites
 
-## Prerequisites (before first sync)
+1Password item `repo-wiki`, field `GITHUB_TOKEN`: a fine-grained PAT with
+account access "Public Repositories (read-only)". Do not reuse
+`HOMELAB_GH_TOKEN`. That token can push.
 
-1Password item **`repo-wiki`** (`onepassword` ClusterSecretStore vault):
+Until the item exists, the ExternalSecret reports `SecretSyncedError`
+and the generator sits in `CreateContainerConfigError`. mkdocs still
+serves, with an empty site.
 
-| Field | How to generate |
-| --- | --- |
-| `GITHUB_TOKEN` | A GitHub fine-grained PAT with **"Public Repositories (read-only)"** account access - no repository selection needed, since it never grants access beyond what's already public, and it raises the GitHub API rate limit for `generate.py`'s repo listing/tarball fetches. Do **not** reuse `hermes`'s `HOMELAB_GH_TOKEN` (that PAT is `public_repo` scope - read **and** write - a broader grant than this read-only generator needs). |
-
-> Until the `repo-wiki` item exists, this app's `ExternalSecret` reports
-> `SecretSyncedError` and the generator CronJob's pods fail at
-> `Init:CreateContainerConfigError`. mkdocs itself starts fine either way -
-> it just serves an empty wiki until the first successful generation run.
-
-No 1Password item is needed for the LiteLLM key: `litellm-consumer-repo-wiki`
-is created automatically by the `PushSecret` paired with this app's
-`LiteLLMVirtualKey` CR the same way `litellm-consumer-demo` and
-`litellm-consumer-router-demo` already are.
+The LiteLLM key is minted by the `repo-wiki` `LiteLLMVirtualKey` and its
+PushSecret. No key material to paste. The model string and that key's
+allow-list have to move together.
