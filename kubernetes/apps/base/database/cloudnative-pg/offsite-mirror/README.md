@@ -14,8 +14,8 @@ the cluster's only Postgres backup copy stops being a single LAN target. Every o
 fleet's file volumes already has both a Ceph copy and an off-site copy; Postgres was the
 outlier.
 
-Design, evidence and the rejected alternatives:
-[`docs/backups/postgres-offsite-destination-design-2026-09-12.md`](../../../../../../docs/backups/postgres-offsite-destination-design-2026-09-12.md).
+Why a mirror and not a second destination is below; CNPG backup rules are skill `databases`,
+[`references/cnpg.md`](../../../../../../.agents/skills/databases/references/cnpg.md).
 
 ## Why a mirror and not a second CNPG destination
 

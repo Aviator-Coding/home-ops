@@ -23,7 +23,7 @@ Usage:
     python3 scripts/bench/b70-serving-harness.py --phases 1234 --reps 2 \
         --prompt-tokens 16384 --concurrency 4 --out result.json
 
-Evidence trail and the matrix this produced: docs/ai/b70-llm-serving-tuning.md
+Evidence trail and the matrix this produced: .agents/skills/b70-llm-serving/references/flags.md
 """
 import argparse, json, random, statistics as st, string, sys, threading, time
 import urllib.request

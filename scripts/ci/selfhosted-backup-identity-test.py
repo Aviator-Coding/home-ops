@@ -20,9 +20,9 @@ changedetection which established the precedent (PR #1512):
      0600.
 
 VolSync was RETIRED from `obsidian-livesync` and `ntfy` on 2026-09-02 (Stage 5
-wave two - docs/backups/kopiur-wave-two-retirement-2026-09-02.md) and from
+wave two - .agents/skills/kopiur-backups/references/retirement-and-removal.md) and from
 `changedetection` on 2026-09-04 (wave three, tier A -
-docs/backups/kopiur-wave-three-retirement-2026-09-04.md), so those have no
+.agents/skills/kopiur-backups/references/retirement-and-removal.md), so those have no
 VolSync mover left to assert on. Neither pin was dropped: the identity
 check moved to the kopiur mover, where it binds harder (kopiur stages its source
 read-only, gets no kubelet fsGroup fixup and fails CLOSED on the first
@@ -74,8 +74,8 @@ DUAL_ENGINE_APPS: list[tuple[str, str, str, str]] = [
 # kubelet fsGroup fixup, and fails CLOSED on the first unreadable file where
 # VolSync silently survived. The authoritative retired set is RETIRED_CLAIMS in
 # kopiur-stage3-test.py; the retirement records are
-# docs/backups/kopiur-wave-two-retirement-2026-09-02.md and
-# docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
+# .agents/skills/kopiur-backups/references/retirement-and-removal.md and
+# .agents/skills/kopiur-backups/references/retirement-and-removal.md.
 RETIRED_APPS: list[tuple[str, str, str, str]] = [
     # wave two, 2026-09-02
     ("obsidian-livesync", "obsidian-livesync", "5984", "5984"),
@@ -308,7 +308,7 @@ def test_obsidian_mover_is_not_the_component_default() -> None:
     require(
         not leftover,
         f"obsidian-livesync is VolSync-retired; {leftover} must not survive (see "
-        f"docs/backups/kopiur-wave-two-retirement-2026-09-02.md)",
+        f".agents/skills/kopiur-backups/references/retirement-and-removal.md)",
     )
     require(sub.get("KOPIUR_PUID") == "5984", "obsidian-livesync KOPIUR_PUID must be 5984")
     require(sub.get("KOPIUR_PGID") == "5984", "obsidian-livesync KOPIUR_PGID must be 5984")

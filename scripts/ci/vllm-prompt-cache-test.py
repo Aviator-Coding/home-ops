@@ -66,7 +66,7 @@ What this does not catch
     in the server log, which is immediate and unambiguous.
   - whether the request/limit are right-sized afterwards. They are deliberately
     left at their pre-fix values here; that is a follow-up needing a measured
-    steady state (docs/talos-3-scheduling-truth.md).
+    steady state (.agents/skills/node-scheduling/references/talos-3-ledger.md).
   - any OTHER host-memory growth path in llama.cpp.
 """
 

@@ -173,7 +173,7 @@ Nothing in that exercise deleted a `Snapshot`, `SnapshotPolicy`,
 5. **`ai/hermes` `plc_code_graph/.venv` is not cache-excluded.** It has no
    `CACHEDIR.TAG`, hardlinks the uv cache, and added about 6 GB to snapshots.
    A `SnapshotPolicy` `ignoreRules` change was left for its own PR. Detail:
-   `docs/ai-system/hermes-state-db-growth.md`.
+   `.agents/skills/hermes-agent/references/state-db.md`.
 
 ## Crash-consistent databases
 

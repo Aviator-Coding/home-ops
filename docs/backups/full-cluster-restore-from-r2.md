@@ -252,7 +252,7 @@ Do **not** use `just kube restore`: it is VolSync-only, clones `${APP}-dst`, and
 3. The standing Restores are still r2-pointed (`IfNotPresent`). Delete every `*-kopiur-dst` and
    `flux reconcile ks` each app so they come back ceph-pointed. Deleting a `Restore` whose claim
    is bound does not touch the volume; they carry no finalizers and own no data
-   ([`kopiur-populator-drift-2026-09-02.md`](kopiur-populator-drift-2026-09-02.md)).
+   ([skill `kopiur-backups`, `references/restore-and-cache.md`](../../.agents/skills/kopiur-backups/references/restore-and-cache.md)).
 4. Check adoption: each r2 policy's `status.adoption` covers its pre-disaster history.
 5. Record the event, and the next rebuild's Postgres `serverName`, in `docs/`.
 

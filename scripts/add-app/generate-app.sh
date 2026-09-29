@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scaffold a new app's manifests to match this repo's app-structure convention.
-# See docs/app-structure.md for the three shapes this generates and the traps
+# See .agents/skills/flux-gitops/references/app-shapes.md for the three shapes this generates and the traps
 # it encodes by construction. Run from the repo root.
 set -euo pipefail
 
@@ -34,7 +34,7 @@ Examples:
   # add a second family member ("playwright") to an existing app ("rsshub")
   scripts/add-app/generate-app.sh selfhosted rsshub --shape=family --piece=playwright
 
-  # parameterized instance (rare - see docs/app-structure.md "Parameterized instance")
+  # parameterized instance (rare - see .agents/skills/flux-gitops/references/app-shapes.md "Parameterized instance")
   scripts/add-app/generate-app.sh actions-runner-system gha-runner-scale-set \
     --shape=parameterized --key=aviator-coding --instance=home-ops
 EOF
@@ -124,7 +124,7 @@ append_file() {
 }
 
 # Compute the relative-path depth from a base kustomize directory up to
-# kubernetes/, matching the trap documented in docs/app-structure.md: a
+# kubernetes/, matching the trap documented in .agents/skills/flux-gitops/references/app-shapes.md: a
 # components: include's ../ count depends on how deep the base path is, and
 # this is the exact bug the searxng app/ rename hit on 2026-09-01.
 components_relpath() {
@@ -211,7 +211,7 @@ spec:
     # Pod-level security lives here, spelled exactly "defaultPodOptions" and
     # a sibling of controllers:/service: - not nested inside controllers:.
     # A wrong key or wrong nesting here is silently dropped by Helm (no
-    # warning from flate, no error from Flux; see docs/app-structure.md "A
+    # warning from flate, no error from Flux; see .agents/skills/flux-gitops/references/app-shapes.md "A
     # pod-options key the chart doesn't recognize is silently discarded").
     # Fill in the real uid/gid this image runs as.
     defaultPodOptions:
@@ -392,7 +392,7 @@ $components_block  commonMetadata:
   prune: true
   # healthChecks target the rendered workload, not the HelmRelease - a
   # HelmRelease-kind check stays Ready through a live crashloop (see
-  # docs/app-structure.md). wait: false so Flux uses this list instead of
+  # .agents/skills/flux-gitops/references/app-shapes.md). wait: false so Flux uses this list instead of
   # assessing the whole inventory.
   healthChecks:
     - apiVersion: apps/v1
@@ -553,7 +553,7 @@ resources: entry into an existing, possibly hand-edited kustomization.yaml
 safely is not something this script attempts. Add manually:
   $base_dir/kustomization.yaml (resources: [./helmrelease.yaml])
   a resources: entry for it in $BASE_NS_DIR/$APP/app/kustomization.yaml
-See docs/app-structure.md "Parameterized instance" before using this shape -
+See .agents/skills/flux-gitops/references/app-shapes.md "Parameterized instance" before using this shape -
 in almost every case shape=app or shape=family is the better fit.
 EOF
     ;;
@@ -574,6 +574,6 @@ Next steps:
     ownership after first deploy, so it is deliberately not auto-generated;
     see kubernetes/components/volsync/Readme.md and
     kubernetes/components/kopiur/Readme.md, and the "one component include
-    covers one volume" trap in docs/app-structure.md
+    covers one volume" trap in .agents/skills/flux-gitops/references/app-shapes.md
   - validate: mise exec -- task flux:test:all
 EOF

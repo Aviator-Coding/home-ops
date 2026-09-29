@@ -3,7 +3,7 @@
 
 `KOPIUR_CACHE_CAPACITY` looks like a tuning knob and is actually a correctness
 constraint on the RESTORE path. Measured on `ai/hermes` from r2 on 2026-09-02
-(docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md): during a restore the
+(.agents/skills/kopiur-backups/references/restore-and-cache.md): during a restore the
 kopia cache grows ~1:1 with the bytes written into the restore target until it
 reaches kopia's own internal budget - observed as a ~6.2 GiB plateau - and only
 then holds flat. So:

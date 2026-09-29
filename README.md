@@ -73,7 +73,7 @@ Do not pass the control-plane VIP `10.10.10.10` as a node target. Node addresses
 
 ## Adding an app
 
-Directory shapes and authoring traps: [`docs/app-structure.md`](docs/app-structure.md). Prefer the scaffold over hand-copying a sibling:
+Directory shapes and authoring traps: [`.agents/skills/flux-gitops/references/app-shapes.md`](.agents/skills/flux-gitops/references/app-shapes.md). Prefer the scaffold over hand-copying a sibling:
 
 ```bash
 scripts/add-app/generate-app.sh <namespace> <app> [--shape=app|family|crd-split|parameterized] [--secrets] [--dragonfly] [--dry-run]
