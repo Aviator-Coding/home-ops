@@ -65,6 +65,7 @@ Host firewall policy is skill `cilium-host-policy`. ExtAuth ownership is skill
 - Gateway, filter, chart path: [envoy-gateway.md](references/envoy-gateway.md).
 - DNS ownership and the reply-port rule: [dns-ownership.md](references/dns-ownership.md).
 - BGP, FRR, pinned LB IPs: [bgp-unifi.md](references/bgp-unifi.md).
+- Plex ingress CiliumNetworkPolicy: [plex-ingress-policy.md](references/plex-ingress-policy.md).
 - `task network:*`: [diagnostics.md](references/diagnostics.md).
 
 ## Verify
