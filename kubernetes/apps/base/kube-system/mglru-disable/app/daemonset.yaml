@@ -17,13 +17,8 @@ spec:
       labels:
         app.kubernetes.io/name: mglru-disable
     spec:
-      # Node-level kernel tuning: disable Multi-Gen LRU (MGLRU) to avoid the
-      # kernel-6.18.3 MGLRU OOM-kill regression (false OOM with reclaimable memory
-      # free) that took down talos-3's OSDs on 2026-06-17 under the B70/vLLM host-RAM
-      # load. /sys/kernel/mm/lru_gen/enabled is sysfs (not a sysctl), so it must be
-      # written from a privileged pod; the loop re-applies on boot + periodically.
-      # Remove this once on a kernel that carries the MGLRU fix (post 6.18.3).
-      # See docs/ceph-cluster-changelog.md [2026-06-17].
+      # Reasserts kernel/mm/lru_gen/enabled=0. machine.sysfs sets the same key. Do not delete this until a reboot proves sysfs alone holds.
+      # See skill talos-nodes.
       priorityClassName: system-node-critical
       automountServiceAccountToken: false
       hostPID: false

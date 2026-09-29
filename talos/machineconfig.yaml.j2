@@ -74,28 +74,7 @@ machine:
     extraConfig:
       serializeImagePulls: false
       maxPods: 250
-      # Reclaim accumulated container-image layers. The kubelet prunes unused
-      # images when the imagefs (/var) hits 60% full, down to 45%. Default is
-      # 85/80, which let ~600G of old image versions pile up on this
-      # image-churn-heavy cluster (Renovate bumps + redeploys); a first
-      # tightening pass to 70/55 (2026-06) wasn't enough headroom on its own -
-      # as of 2026-08-20 talos-1 (the busiest node) already sits at 42%
-      # imagefs / 51% total disk, well above the other two nodes (~29-30%
-      # imagefs), with the same Renovate-churn trend that forced both prior
-      # interventions still ongoing. 60/45 keeps the prior pair's 15-point
-      # high/low gap but moves the ceiling down another 10 points (~100G on
-      # a 997G disk): meaningful headroom above today's 42% high-water mark
-      # without sitting so close to it that GC thrashes against Spegel's
-      # kept-layer cache, and a lower low-water mark so each GC pass reclaims
-      # down to a deeper floor, keeping normal reclaim events smaller and
-      # more frequent instead of one large, IO-heavy purge - a factor in the
-      # 2026-06-14 mon-corruption incident on this same disk (PR #979's
-      # ~370G GC delete under a firmware bug that has since been fixed by an
-      # SN770M firmware update, but heavy, bursty /var IO is still worth
-      # avoiding on general principle). This also lets standing kubelet GC
-      # reclaim the ~173G of verified cluster-wide-orphaned image digests
-      # identified in the 2026-08-20 image audit, without a one-off manual
-      # `talosctl image remove` pass.
+      # imagefs GC 60/45. The 85/80 default let unused layers fill /var. See skill talos-nodes.
       imageGCHighThresholdPercent: 60
       imageGCLowThresholdPercent: 45
       featureGates:
@@ -137,14 +116,8 @@ machine:
     vm.swappiness: "1"
     vm.vfs_cache_pressure: "50"
   sysfs:
-    # Disable MGLRU (multi-gen LRU). On kernel 6.18 the MGLRU reclaim path fails to
-    # reclaim page cache fast enough under heavy file I/O on these no-swap nodes, so
-    # the OOM-killer / Talos runtime.OOMController fires during transcode/backup/model
-    # bursts and SIGKILLs burstable pods even with reclaimable memory (talos-3 node-wide
-    # OOM on 2026-06-27 took out sabnzbd + vllm + tdarr). Writing 0 reverts to the
-    # classic active/inactive LRU. There is NO kernel cmdline arg for MGLRU — sysfs is
-    # the control; Talos applies machine.sysfs immediately (no reboot). See
-    # docs/hardware-incidents.md and reference_ceph_cascade_rootcause.
+    # MGLRU stays off. machine.sysfs applies immediately; kube-system/mglru-disable reasserts the same key.
+    # Do not delete either until a reboot proves the other holds. See skill talos-nodes.
     kernel/mm/lru_gen/enabled: "0"
   udev:
     rules:
@@ -260,33 +233,14 @@ cluster:
   allowSchedulingOnControlPlanes: true
   {% endif %}
 ---
-# Raise the Talos runtime.OOMController PSI trigger. The default
-# (memory_full_avg10 > 12.0 && ... time_since_trigger > 500ms) is far too
-# aggressive for a Ceph-hosting cluster: memory-PSI spikes are NORMAL here
-# (OSD peering/backfill, BlueStore cache churn, recovery I/O) and the
-# controller answered them by SIGKILLing the heaviest *burstable* cgroups —
-# cilium-agent, ceph-osd pods, kube-apiserver, mon pods — causing the
-# 2026-06-30 4-OSD outage (100% PGs inactive for ~2 days) and repeated
-# cilium/mon kills through 2026-07-03. Note the victim ranking never selects
-# Guaranteed-QoS cgroups, so critical pods with requests==limits are safe
-# regardless of this trigger. Codifies the imperative patch applied live on
-# all 3 nodes on 2026-07-03 (~15:04 UTC); see docs/hardware-incidents.md.
+# Codified PSI trigger. OOMController never selects Guaranteed cgroups. A live patch does not survive the next render.
+# See skill talos-nodes.
 apiVersion: v1alpha1
 kind: OOMConfig
 triggerExpression: memory_full_avg10 > 50.0 && d_memory_full_avg10 > 0.0 && time_since_trigger > duration("30s")
 ---
-# DNS resolvers and search domains. Talos 1.14 started copying the DHCP
-# lease's domain (option 15/119, `sklab.dev`) into the node's search domains,
-# which v1alpha1 `disableSearchDomain: true` does not suppress (it only covers
-# the hostname-derived domain). Every pod inherits the node search list, and
-# Cloudflare's DNSSEC answers NOERROR/NODATA for any nonexistent
-# `<name>.sklab.dev`, so musl clients stop their search walk there and fail
-# to resolve service FQDNs and external names (2026-09-26 roll incident).
-# An explicitly empty `domains: []` replaces the DHCP search domains (a nil
-# list would inherit them), restoring the pre-1.14 state of no search domain.
-# `disableDefault` carries over the old v1alpha1 `disableSearchDomain: true`.
-# hostDNS stays in v1alpha1 `machine.features.hostDNS`: Talos only takes it
-# from this document when enabled here.
+# domains must stay an empty list. Omitting it keeps the DHCP search domain and musl stops resolving.
+# See skill talos-nodes.
 apiVersion: v1alpha1
 kind: ResolverConfig
 nameservers:

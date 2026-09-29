@@ -49,9 +49,6 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "records which docs mentioned grafana-operator at the time",
     ("kubernetes/apps/base/system/kopiur/README.md", "docs/upgrade.md"):
         "upstream kopiur repository's doc, not a path in this repo",
-    ("kubernetes/apps/base/rook-ceph/rook-ceph/operator/csi-driver-tolerations.yaml",
-     "docs/spec/v1/kustomizations.md"):
-        "upstream Flux kustomize-controller doc, not a path in this repo",
 }
 
 # Files whose Markdown is runtime payload rather than repo documentation.

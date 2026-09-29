@@ -65,6 +65,7 @@ Substitute dummy base64 for any unresolved `ref+op://` before validate. `just` i
 - `machine.network.searchDomains` equivalent: an explicit empty `domains: []` replaces DHCP search domains. Omitting the key keeps `sklab.dev` in the search list.
 - `allowedKubernetesNamespaces`: `actions-runner-system` (`os:operator`) and `system-upgrade` (`os:admin` for tuppr). Adding a namespace here is a node apply, not a Flux change.
 - `OOMConfig` in this file is the codified PSI killer. A live `talosctl patch mc` does not survive the next render. Edit the template.
+- `imageGCHighThresholdPercent` / `imageGCLowThresholdPercent` stay 60 / 45. The kubelet defaults (85 / 80) let unused image layers fill `/var` on the mon disk.
 - Bonds: 802.3ad, MTU 9000, VLANs 3 and 90. Install disks are per-node in `nodes/`. Link names that must survive `pci=assign-busses` use `LinkAliasConfig`, not a guessed `ethN`.
 - talos-3 taint `home-operations.com/dedicated: PreferNoSchedule` is in `nodes/talos-3.yaml.j2` and is inert until `apply-node talos-3`. Scheduling meaning: skill `node-scheduling`.
 
