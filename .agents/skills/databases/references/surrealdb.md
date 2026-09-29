@@ -36,7 +36,6 @@ Skill `observability`.
 
 ## Dead route block
 
-The commented `route:` block in the HelmRelease (`@TODO seems not to work`,
-homepage and `sdb.${SECRET_DOMAIN}`) is not a route. Turning it into YAML
-does not by itself create a working HTTPRoute. Leave it commented until a
-route is designed as its own manifest.
+The chart `route:` key does not produce a working HTTPRoute. Leave it unset.
+A real route is its own manifest. Do not paste the old homepage / `sdb`
+block back in.

@@ -1,30 +1,7 @@
 ---
-# Severity-aware Pushover delivery.
-#
-# Before 2026-09-15 there was exactly one receiver and every firing alert was
-# sent at Pushover priority 1, so an `info` CPU-throttle notice and a Ceph
-# outage were indistinguishable on the phone. Measured over the 7 days to
-# 2026-09-15: 591 Pushover notifications, 84/day, one every 17 minutes, with
-# zero delivery failures and zero silences - i.e. the channel was saturated,
-# not broken.
-#
-# Priority is a Pushover concept, not an Alertmanager one:
-#   -2  no notification at all; the message only appears in the app's history
-#   -1  notification shown, no sound or vibration
-#    0  normal; respects the user's Pushover quiet hours
-#    1  high; bypasses quiet hours, highlighted red
-#    2  emergency; repeats every `retry` until acknowledged, or until `expire`
-# `retry`/`expire` are always sent by the Alertmanager notifier and ignored by
-# Pushover below priority 2. `ttl` auto-deletes a delivered message and is
-# ignored for priority 2. All of priority/sound/retry/expire/ttl/html are
-# supported by the pinned Alertmanager v0.34.0 (see the pushover notifier and
-# config.PushoverConfig in that release); Alertmanager's own built-in default
-# for `priority` is this same `2 when firing, 0 otherwise` template, so the
-# critical receiver below is upstream's default applied selectively rather
-# than a novel escalation.
-#
-# Resolved notifications are deliberately quieter than the firing ones: a
-# resolution should be visible, never audible.
+# critical is Pushover priority 2, warning 0, info -2. retry/expire
+# apply only at priority 2; ttl does not. Resolved notifications stay
+# quieter than firing ones. Skill observability.
 receivers:
   - name: "null"
 
@@ -110,39 +87,9 @@ receivers:
         title: *alert_title
         message: *alert_message
 
-  # External dead-man's switch (added 2026-09-15). Every Pushover receiver
-  # above depends on Alertmanager itself being alive to send it, so a total
-  # failure of Prometheus + Alertmanager together pages no one - the one
-  # monitoring failure mode nothing inside this cluster can report. The
-  # `Watchdog` route below (split out of the null route further down) sends
-  # this receiver a webhook on every cycle Watchdog fires; Healthchecks.io
-  # expects that ping on a fixed schedule and raises its own, independent
-  # alert the moment the pings stop, which is exactly the case a live-inside
-  # Pushover receiver cannot cover.
-  #
-  # The check itself is a captain-owned Healthchecks.io account, not
-  # something this repo can create: see externalsecret.yaml's
-  # healthchecks_ping_url entry for the exact 1Password item/property the
-  # ping URL must be stored under, and the Watchdog route below for the
-  # Period/Grace values the Healthchecks.io check must be configured with to
-  # match this route's repeat_interval. `url_file` is read fresh on every
-  # notification attempt (unlike `url`, which is fixed at config parse time),
-  # so populating that 1Password property is a live-effect change with no
-  # Alertmanager restart needed.
-  #
-  # Proven, not assumed, at the level that matters (the rendered config, not
-  # just the notifier source): with the secret key entirely absent - not
-  # empty, genuinely missing, as ExternalSecret's default deletionPolicy
-  # produces when the 1Password item does not exist yet (see
-  # externalsecret.yaml) - `amtool check-config` against this exact file
-  # still succeeds, and a live pinned-v0.34.0 Alertmanager started fresh
-  # against it (no prior good config to fall back on) comes up healthy.
-  # Firing a synthetic Watchdog alert against that instance produced one
-  # isolated dispatcher error ("read url_file: ... no such file or
-  # directory") while critical/warning/info test alerts fired and routed
-  # normally in the same run. So a not-yet-populated secret costs exactly
-  # this receiver's own sends (logged, retried next cycle) - never config
-  # parsing, never Alertmanager startup, never any other receiver.
+  # Watchdog heartbeat. url_file is read per send. A missing file fails
+  # only this receiver; Alertmanager still starts and Pushover still routes.
+  # Period 5m, grace >= 15m. Skill observability.
   - name: "healthchecks-io"
     webhook_configs:
       - url_file: /etc/secrets/healthchecks_ping_url
@@ -174,23 +121,9 @@ route:
       matchers:
         - alertname = "InfoInhibitor"
 
-    # The dead-man's-switch heartbeat (see the healthchecks-io receiver
-    # above). Both severity: none, so matched by name for the same
-    # fail-loud reason as InfoInhibitor above.
-    #
-    # group_wait/group_interval/repeat_interval are set explicitly here
-    # rather than left to inherit from the root route (which would currently
-    # be 30s/5m/12h) because this cadence is a deliberate contract with an
-    # external system: Healthchecks.io must be configured with Period 5m and
-    # a Grace Time of at least 15m (3x the period, enough to absorb ordinary
-    # notification jitter without false alarms) - a shorter grace than this
-    # repeat_interval false-alarms on ordinary jitter, a much longer one
-    # leaves a real failure undetected for hours before Healthchecks.io
-    # itself pages. Watchdog is a single always-firing alert with no
-    # siblings, so in practice group_interval never matters (nothing ever
-    # joins the group) and every re-notification is paced by repeat_interval
-    # alone; group_wait: 0s just means the very first ping after a config
-    # reload goes out immediately rather than waiting 30s for no reason.
+    # Watchdog is matched by name (severity none). repeat_interval 5m is
+    # the Healthchecks.io period; grace >= 15m. Do not inherit the root
+    # route's 12h repeat. Skill observability.
     - receiver: "healthchecks-io"
       matchers:
         - alertname = "Watchdog"
@@ -221,23 +154,9 @@ route:
       group_interval: 30m
       repeat_interval: 24h
 
-# The first two are the upstream kube-prometheus-stack defaults and were only
-# half-present here: the `critical -> warning` rule existed but `equal` on
-# both alertname AND namespace means it only triggers when the same alert name
-# fires at two severities, which essentially never happens. They are kept
-# because they are harmless and correct, not because they do much.
-#
-# The third is the one that matters. kube-prometheus-stack ships the
-# `InfoInhibitor` alert *specifically* to be this rule's source - it fires for
-# any namespace that has an `info` alert and no warning/critical - and without
-# the rule that consumes it, every `info` alert paged. Measured over the 7 days
-# to 2026-09-15: 11,639 of 11,677 info namespace-minutes (99.7%) had a
-# co-firing InfoInhibitor and would have been inhibited here.
-#
-# This is inhibition, not silencing: nothing is muted at the source. An `info`
-# alert accompanied by a real warning/critical in the same namespace is NOT
-# inhibited (InfoInhibitor stops firing for that namespace), so context still
-# reaches the phone when there is something to give context to.
+# InfoInhibitor suppresses info only while the namespace has no warning
+# or critical. The same-alertname inhibit rules stay and almost never
+# match. Skill observability.
 inhibit_rules:
   - source_matchers:
       - severity = "critical"

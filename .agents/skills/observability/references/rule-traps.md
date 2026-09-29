@@ -68,6 +68,55 @@ are unmanaged. Do not delete them as cleanup.
 they key on. Add probes before adding a duplicate rule. The probe path must be
 able to return non-200. See [gatus.md](gatus.md).
 
+## Rules that look dead and are not
+
+`CoderdWorkspaceBuildFailures` stays on `coderd_workspace_builds_total`. That
+series is a labeled counter from provisionerd `NewMetrics()`, registered on
+the scraped registry unconditionally. It emits nothing until a build
+completes. The unlabeled sibling `coderd_provisionerd_num_daemons` having
+data is the proof the constructor ran. Do not rewire the rule because an
+inventory query shows no series.
+
+`KubeContainerWaiting` in `kubernetes-apps-recency.yaml` excludes terminal
+Failed and Succeeded pods, because kube-state-metrics keeps their last
+waiting reason. A container that is actually waiting on a live pod still
+fires. A pile of terminal Failed pods is not this alert. It needs its own
+rule if it should page.
+
+`node-memory-pressure.yaml` has two tiers, both PSI, not `MemAvailable`.
+Talos triggers while available memory is still high. The warning tier is
+`for: 10m`. The acute tier is `node_pressure_memory_stalled` (PSI full) with
+a `[3m]` rate, because `[1m]` returns no series. Do not lengthen either
+`for` without remeasuring the contiguous burst: 15m on the warning tier and
+5m on the acute tier each missed a real burst. The Talos trigger threshold
+lives in `talos/machineconfig.yaml.j2`.
+
+A third rule in that file fires on exit code 137 AND `reason="Error"`
+together. That pair is the Talos OOMController. 137 alone is also a cgroup
+OOMKilled, which the stock rule already owns. `reason="Error"` alone is an
+ordinary non-zero exit. `last_terminated_exitcode` is the exit code itself,
+so do not wrap it in `min_over_time`. The reason series is a 0/1 flag and
+may use `min_over_time`. AND a restart increase so the gauge clears. Talos
+`OOMActions` is not a Prometheus metric.
+
+`node-network.yaml` is the packet-drop alert. The rook chart's drop and
+error rules use `rate(...[1m])` and cannot fire, and that chart has no
+per-rule disable. Do not edit them in place. Transmit and receive errors
+are already `NodeNetworkReceiveErrs` and `NodeNetworkTransmitErrs`. The
+drop ratio needs an absolute `>= 10` packets/s or an idle interface divides
+to +Inf. There is no `for:`.
+
+Loki's recording rules and the alerts built on them use `[5m]`. A `[1m]`
+window returns nothing at this scrape interval. Series from
+`job="promtail-metrics"` are the Promtail client, not the Loki server.
+`LokiRequestPanics` already uses `increase(...[10m])`. The server series
+exist because `monitoring.serviceMonitor.enabled` is true on the Loki
+HelmRelease.
+
+`KubeAggregatedAPIErrors` in `apiserver-aggregation.yaml` is the chart rule
+with the window widened to `[5m]`. The chart copy stays disabled in
+`defaultRules.disabled`.
+
 ## Worked rule files
 
 - `kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/node-memory-pressure.yaml`

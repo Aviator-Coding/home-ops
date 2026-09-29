@@ -48,7 +48,6 @@
       "kubernetes/apps/base/rook-ceph/rook-ceph/operator/csi-driver-tolerations.yaml": 96,
       "kubernetes/apps/base/rook-ceph/rook-ceph/operator/helmrelease.yaml": 26,
       "kubernetes/apps/base/selfhosted/homepage/app/configmap.yaml": 16,
-      "kubernetes/apps/base/selfhosted/n8n/app/helmrelease.yaml": 31,
       "kubernetes/apps/base/system-controller/k8tz/app/helmrelease.yaml": 32,
       "kubernetes/apps/base/system/fstrim/app/helmrelease.yaml": 21,
       "kubernetes/apps/base/system/generic-device-plugin/app/config/config.yaml": 23,

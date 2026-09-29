@@ -14,6 +14,11 @@ with the image's stock RDB-only settings. Both starts looked healthy.
 `--save 300 10`, and `--save 60 1000` stay as a second dump. A torn AOF tail
 is Redis's `aof-load-truncated yes` default.
 
+The server is authenticated because the `database` namespace has no
+default-deny NetworkPolicy and its consumers are in other namespaces.
+Dragonfly can stay unauthenticated: it is per-namespace and the operator
+NetworkPolicy limits port 6379 to that namespace.
+
 ## Process command
 
 Bypass `run.sh` and `exec redis-server` so it is PID 1. `run.sh` expands
@@ -40,7 +45,11 @@ password.
 | `--maxmemory` | `12gb` (1024^3) | 0.75 of the limit |
 | `maxmemory-policy` | `noeviction` | the graph is one key; eviction deletes it |
 
-Move the limit, `--maxmemory`, and the alert ratios together. The ceiling
+Move the limit, `--maxmemory`, and the alert ratios together. The 7Gi
+request is the resting set. A request far below the working set lets the
+scheduler place the pod where it does not fit. Do not raise
+`auto-aof-rewrite-percentage` to avoid the AOF-rewrite fork. The fork is
+the trigger; a rarer rewrite grows the AOF and lengthens replay. The ceiling
 must stay above `used_memory` of the loaded graph. `used_memory` includes
 the GraphBLAS matrices. Below the dataset, `noeviction` refuses every write
 from the moment the AOF finishes loading, while the pod looks healthy.
@@ -84,3 +93,23 @@ does not delete the volume. `forceRename: falkordb` so a second persistence
 key cannot rename this claim to `falkordb-data` and orphan the
 SnapshotPolicy. Mount with `advancedMounts` on the database container only.
 The browser reaches data over Redis.
+
+## Browser
+
+`AUTH_SECRET` and `ENCRYPTION_KEY` are sha256 of the database password plus
+two distinct salts, not extra 1Password fields. They must stay stable across
+restarts. The image ships public placeholders and, when `ENCRYPTION_KEY` is
+unset, generates a throwaway key. `sha256sum` is 64 lowercase hex, which the
+entrypoint's length check requires. Rotating the password rotates both.
+
+`BROWSER=0` stays. It is inert while the command bypasses `run.sh`. Reverting
+to the image command without it starts a second browser on port 3000.
+
+The browser HTTPRoute hostname is `falkordb-browser`. The LoadBalancer
+`falkordb-lb` already owns `falkordb.${SECRET_DOMAIN}` at `10.50.0.24`.
+unifi-dns `policy: sync` writes both, so one name with two targets flaps.
+Public external-dns does not read Services. Do not front Redis with a Gateway.
+
+`SecurityPolicy/falkordb-browser-auth` is the page boundary. The browser login
+is a connection dialog. `database` must remain on the Authentik ReferenceGrant
+or the ext_authz backend resolves to nothing.

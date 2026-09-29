@@ -46,6 +46,13 @@ and locked Grafana's sidecar out of writes.
 The `gatus.io/enabled` ConfigMap under `cluster-17/` is not loaded by Gatus.
 Skill `observability`. Do not treat that file as a live check.
 
+Backup-age rules in `cluster-17/prometheusrule.yaml`: standbys export
+`cnpg_collector_last_available_backup_timestamp` as 0, so require
+`timestamp > 0` joined to `cnpg_pg_replication_in_recovery == 0`. A primary
+that reports 0 or drops the series is the `*TimestampAbsent` pair
+(`in_recovery == 0` unless a positive timestamp on the same pod). The
+archiver series is primary-only.
+
 ## Restore shape
 
 1. Manual `Backup` (`method: barmanObjectStore`) against the running cluster.
