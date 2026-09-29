@@ -44,8 +44,9 @@ what a retirement must not destroy.
    (kopia `b383822fe09da5adeaf99997bc977845`).
    [retirement.md](references/retirement.md)
 8. **The MCP gateway's bearer token is enforced by Envoy on the LAN route
-   only.** vmcp has no static-token mode, so the in-cluster Service stays
-   open. Token: 1Password `mcp-gateway`, generated and pushed by
+   only.** vmcp has no static-token mode, so a NetworkPolicy closes the
+   in-cluster Service to all but envoy-internal. Consumers use
+   `https://mcp.${SECRET_DOMAIN}/mcp`. Token: 1Password `mcp-gateway`, generated and pushed by
    `toolhive/config`. [toolhive.md](references/toolhive.md)
 9. **opencode and repo-wiki call LiteLLM**, never a provider key.
    `http://litellm.ai.svc.cluster.local:4000/v1` via a

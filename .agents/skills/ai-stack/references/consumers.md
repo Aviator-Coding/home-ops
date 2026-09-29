@@ -15,11 +15,10 @@ the proxy checks the model the caller asks for.
   (`app/securitypolicy.yaml`). No second basic-auth API route.
 - `GITHUB_TOKEN` is the existing `hermes` 1Password item field
   `HOMELAB_GH_TOKEN` (`public_repo`, read and write). No new item.
-- ToolHive MCP stays:
-  `http://vmcp-mcp-gateway-internal.ai.svc.cluster.local:4483/mcp`.
-  It sends no token: that Service does not check one. Moving it to the
-  LAN route needs `MCP_GATEWAY_TOKEN` from 1Password `mcp-gateway` and an
-  `Authorization` header. [toolhive.md](toolhive.md) "Gateway auth".
+- ToolHive MCP goes through the LAN route `mcp.${SECRET_DOMAIN}/mcp` with
+  `Authorization: Bearer {env:MCP_GATEWAY_TOKEN}`. URL and token come from
+  the `opencode` Secret (1Password `mcp-gateway`). The vmcp Service is closed
+  to it by NetworkPolicy. [toolhive.md](toolhive.md) "Gateway auth".
 - The memory plugin and Context7 were not carried over. `agentmemory` is
   retired, so a future memory backend is new work.
   [retirement.md](retirement.md)
