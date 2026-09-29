@@ -52,7 +52,6 @@
       "kubernetes/apps/base/system/volsync/app/mutatingadmissionpolicy.yaml": 46,
       "kubernetes/apps/base/system/volsync/app/prometheusrule.yaml": 132,
       "kubernetes/apps/main/ai/hermes.yaml": 77,
-      "kubernetes/apps/main/ai/kustomization.yaml": 21,
       "kubernetes/apps/main/ai/opencode.yaml": 28,
       "kubernetes/apps/main/database/cloudnative-pg.yaml": 26,
       "kubernetes/apps/main/database/falkordb.yaml": 29,

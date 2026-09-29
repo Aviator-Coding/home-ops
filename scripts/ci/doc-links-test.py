@@ -49,12 +49,6 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {
         "scheduling bullet is the node-scheduling domain; oneDNN facts moved to skill b70-llm-serving",
     ("kubernetes/components/volsync/Readme.md", "docs/ai-system/retired-2026-08-22.md"):
         "other domain; retirement facts moved to skill ai-stack",
-    ("kubernetes/apps/main/ai/kustomization.yaml", "docs/ai-system/retired-2026-08-22.md"):
-        "overlay comments are the parallel apps PR; facts live in skill ai-stack",
-    ("kubernetes/apps/main/ai/kustomization.yaml", "docs/ai-system/agentmemory-retirement-2026-08-31.md"):
-        "overlay comments are the parallel apps PR; facts live in skill ai-stack",
-    ("kubernetes/apps/main/ai/kustomization.yaml", "docs/ai-system/comfyui-retirement-2026-09-15.md"):
-        "overlay comments are the parallel apps PR; facts live in skill ai-stack",
     ("kubernetes/apps/base/ai/hermes/app/resources/config.yaml", "docs/ai-system/agentmemory-retirement-2026-08-31.md"):
         "config.yaml is a pod payload; a comment edit restarts Hermes. Facts live in skill ai-stack",
     ("scripts/bench/b70-serving-harness.py", "docs/ai/b70-llm-serving-tuning.md"):
