@@ -1,9 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
-# Guardrail alerts from the 2026-06-30 OOMController cascade (4 OSDs down,
-# 100% PGs inactive for ~2 days, fully undetected — nothing alerted on node
-# memory pressure or on OSD pods sitting in terminal Error state).
-# Requires node-exporter (re-enabled in the kube-prometheus-stack HR).
+# Guardrail alerts from the 2026-06-30 OOMController cascade: nothing alerted on node
+# memory pressure or on OSD pods sitting in terminal Error state.
+# Requires node-exporter (enabled in the kube-prometheus-stack HR).
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -65,10 +64,8 @@ spec:
             severity: critical
     - name: rook-ceph-pod-health.rules
       rules:
-        # On 2026-06-30 OOMController-killed OSD containers sat in terminal
-        # Error/Failed state for 2d19h (kubelet never restarted them) with
-        # 100% of PGs inactive and zero alerts. A rook-ceph pod that stays
-        # Failed or crash-looping for 15m is always an incident.
+        # OOMController-killed OSD containers sit in terminal Error/Failed (kubelet never
+        # restarts them). A rook-ceph pod Failed or crash-looping for 15m is always an incident.
         - alert: CephOsdPodTerminalError
           expr: kube_pod_status_phase{namespace="rook-ceph", phase="Failed"} > 0
           for: 15m

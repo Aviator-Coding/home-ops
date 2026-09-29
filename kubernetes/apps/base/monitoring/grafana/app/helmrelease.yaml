@@ -236,26 +236,10 @@ spec:
               "weekStart": ""
             }
 
-      # victoriametrics:
-      #   victoriametrics:
-      #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/victoriametrics.json
-      #   vmagent:
-      #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/vmagent.json
-      #   vmlogs:
-      #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/victorialogs.json
-      #   vmalert:
-      #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/vmalert.json
-      #   vmoperator:
-      #     url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/refs/heads/master/dashboards/operator.json
-
       infrastructure:
-        # The Cilium dashboard is provisioned by the cilium HelmRelease
-        # (kube-system/cilium-dashboard ConfigMap, title "Cilium Metrics").
-        # gnetId 16611 was mislabeled here as "Hubble Overview" but actually
-        # pulls "Cilium v1.12 Agent Metrics" with the same UID 'vtuWtdumz',
-        # which collided with the operator's dashboard and locked
-        # sidecarProvider out of all writes (preventing CNPG/Dragonfly
-        # dashboard updates from applying).
+        # The Cilium dashboard comes from the cilium HelmRelease (kube-system/cilium-dashboard).
+        # Do not re-add gnetId 16611: same UID as the operator's and it locks sidecarProvider
+        # out of writes. Skill observability.
 
         kube-state-metrics:
           # renovate: depName="Kube-State-Metrics"
@@ -340,15 +324,9 @@ spec:
           datasource: Prometheus
 
       databases:
-        # CloudNativePG dashboard is provisioned by the cloudnative-pg-dashboard
-        # OCI helm chart (kubernetes/apps/base/database/cloudnative-pg/dashboard/);
-        # do not duplicate it here — same UID 'cloudnative-pg' would collide
-        # and Grafana refuses to save either copy.
-
-        # The dragonfly-* dashboards (gnetIds 15944, 15945, 21053, 21054) are
-        # for D7Y / Dragonfly P2P file distribution — a CNCF project
-        # unrelated to our Dragonfly DB (Redis-compatible KV). The Dragonfly
-        # operator installs its own dashboard via grafanaDashboard.enabled.
+        # CloudNativePG (cloudnative-pg-dashboard chart) and the Dragonfly operator install their
+        # own dashboards; gnetIds 15944/15945/21053/21054 are the unrelated Dragonfly P2P project.
+        # Do not duplicate them here (UID collision). Skill observability.
 
         emqx-authentication:
           url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/authentication.json
@@ -378,12 +356,8 @@ spec:
           url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/rule-engine-rate.json
           datasource: Prometheus
 
-      # NOTE: agentgateway + llm-cost dashboards are sidecar-discovered
-      # ConfigMaps (kubernetes/apps/base/ai/agentgateway-dashboards/), vendored
-      # from the official chart - the old gnetId 24590/24965 entries are gone
-      # (unified-proxy LiteLLM dashboard retired with #941; kgateway-org
-      # dashboard superseded). Governance-only LiteLLM uses its own
-      # ServiceMonitor, not a gnet dashboard.
+      # agentgateway + llm-cost dashboards are sidecar ConfigMaps
+      # (kubernetes/apps/base/ai/agentgateway-dashboards/), not gnet entries.
 
         qdrant-observatory:
           # renovate: depName="Qdrant Observatory"
@@ -424,7 +398,7 @@ spec:
               value: Prometheus
 
       downloads:
-        # No official grafana.com exportarr dashboards exist for Lidarr, Readarr, or Prowlarr as of 2026-04-17.
+        # No official grafana.com exportarr dashboards exist for Lidarr, Readarr or Prowlarr.
         sonarr-v3:
           # renovate: depName="Sonarr v3"
           gnetId: 12530
@@ -694,12 +668,9 @@ spec:
     testFramework:
       enabled: false
 
-    # nodeTaintsPolicy: Honor - this workload has no toleration for the
-    # talos-3 home-operations.com/dedicated taint, but Honor only filters
-    # NoSchedule/NoExecute taints and the taint is now PreferNoSchedule, so
-    # it no longer excludes talos-3 from the spread domains; the
-    # TaintToleration score penalty keeps this workload off talos-3 under
-    # normal conditions instead (.agents/skills/node-scheduling/references/talos-3-ledger.md).
+    # nodeTaintsPolicy: Honor - no toleration for the talos-3 taint, which is PreferNoSchedule,
+    # so Honor does not exclude talos-3 from the spread domains; the TaintToleration score
+    # penalty keeps this workload off it (.agents/skills/node-scheduling/references/talos-3-ledger.md).
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname

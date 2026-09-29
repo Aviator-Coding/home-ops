@@ -23,6 +23,15 @@ duplicate `storageClassName` key when the value is set, and Helm template
 rendering breaks. The cluster default StorageClass is `ceph-block`. Size
 20Gi, mount `/data`.
 
+## CPU request and Gatus
+
+Measure CPU at `[14d:30s]` before trimming the request: `[14d:1h]` and
+`[14d:5m]` read the same peak several times low.
+
+The Gatus check targets `/health`, not `/`. Bare `/` 307-redirects to a
+surrealdb.com page that Gatus follows, so the check would depend on a host this
+repo does not control.
+
 ## Alerts
 
 `SurrealDBReplicasUnavailable` is

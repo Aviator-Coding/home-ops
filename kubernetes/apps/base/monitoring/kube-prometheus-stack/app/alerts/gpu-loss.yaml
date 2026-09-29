@@ -1,14 +1,10 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
-# Both prior B70 losses (2026-06 bus-number exhaustion, 2026-08 D3hot
-# enumeration race) were discovered late by a human noticing something else
-# — nothing alerted (.agents/skills/talos-nodes/references/hardware.md). kube-state-metrics already
-# emits kube_node_status_allocatable per extended resource with no allowlist
-# extension needed (verified live 2026-08-26 against the running cluster):
-# resource="devic_es_b70" on all 3 nodes (0 on talos-1/2, 99 on talos-3) and
-# resource="gpu_intel_com_xe" on all 3 nodes (iGPU-only via allowIDs 0xa7a0;
-# 99 each). Resource names are ksm's sanitized form of
-# devic.es/b70 and gpu.intel.com/xe (non-alnum -> "_").
+# Both prior B70 losses (2026-06, 2026-08) went unnoticed (.agents/skills/talos-nodes/references/hardware.md).
+# kube-state-metrics already emits kube_node_status_allocatable per extended resource,
+# no allowlist change needed: resource="devic_es_b70" (99 on talos-3 only) and
+# resource="gpu_intel_com_xe" (99 per node, iGPU via allowIDs 0xa7a0). Names are ksm's
+# sanitized form of devic.es/b70 and gpu.intel.com/xe (non-alnum -> "_").
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

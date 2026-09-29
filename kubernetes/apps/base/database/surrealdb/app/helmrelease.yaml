@@ -24,27 +24,20 @@ spec:
     cleanupOnFail: true
     remediation:
       retries: 3
-      # Re-install from scratch on failure rather than rolling back. The
-      # last successful release (v3) was the pre-RocksDB TiKV config; a
-      # rollback would resurrect SURREAL_PATH=tikv://... against a
-      # cluster where TiKV no longer exists, so every rollback fails
-      # and the release wedges.
+      # Never roll back: the last good release points at TiKV, which is gone.
+      # Skill `databases`.
       strategy: uninstall
   uninstall:
     keepHistory: false
   values:
-    # Single replica is required for the RocksDB backend: only one writer
-    # can hold the data dir lock. Ceph RBD provides the HA we used to get
-    # from TiKV's Raft replication, with much less storage amplification.
+    # Single replica: RocksDB allows one writer on the data dir lock.
     replicaCount: 1
 
     # RWO PV must detach the old pod before the new one mounts it on rollout.
     strategy:
       type: Recreate
 
-    # SurrealDB image runs as UID 65532 (Chainguard/distroless nonroot).
-    # Ceph RBD mounts as root:root by default; fsGroup makes K8s chown
-    # the volume to GID 65532 so the container can mkdir + write data.
+    # Image runs as UID 65532; fsGroup makes the root-owned Ceph mount writable.
     podSecurityContext:
       fsGroup: 65532
 
@@ -55,29 +48,21 @@ spec:
 
     # SurrealDB configuration
     surrealdb:
-      # RocksDB backend on the persistent volume mounted at /data (see
-      # persistence: block below). Migrated off tikv:// to drop the
-      # 9x storage amplification (TiKV Raft 3x x Ceph CRUSH 3x).
       path: "rocksdb:///data/surrealdb"
 
-      # Authentication (from ExternalSecret)
-      unauthenticated: false  # Enable auth (replaces deprecated "auth: true")
+      unauthenticated: false
 
-      # Logging
       log: info
 
-      # Additional args
       extraArgs:
-        - "--allow-all"  # Adjust based on security requirements
+        - "--allow-all"
         - "--allow-funcs"
 
-    # Service configuration
     service:
       type: ClusterIP
       port: 8000
       annotations: {}
 
-    # This ensures credentials persist after bootstrap
     podExtraEnv:
       - name: SURREAL_USER
         valueFrom:
@@ -90,20 +75,13 @@ spec:
             name: surrealdb-secret
             key: password
 
-    # Ingress (disabled - using HTTPRoute instead)
     ingress:
       enabled: false
 
-    # Resources
     resources:
       requests:
-        # cpu 500m -> 100m (2026-09-20 fleet CPU right-sizing). 14d peak at
-        # 30-second resolution is 25m, so 100m clears it 4.0x; 500m reserved
-        # 20x it. The resolution matters: the same peak reads 10m at [14d:1h]
-        # and 13m at [14d:5m], so any coarse-sampled figure is a lower bound -
-        # re-measure at [14d:30s] before trimming this further. Runs on
-        # talos-1, not the contended node. memory untouched (PR #1738 owns
-        # that).
+        # Re-measure at [14d:30s] before trimming cpu: coarser sampling under-reads
+        # the peak. Skill `databases`.
         cpu: 100m
         memory: 512Mi
       limits:
@@ -120,13 +98,8 @@ spec:
                   app.kubernetes.io/name: surrealdb
               topologyKey: kubernetes.io/hostname
 
-    # Topology spread
-    # nodeTaintsPolicy: Honor - this workload has no toleration for the
-    # talos-3 home-operations.com/dedicated taint, but Honor only filters
-    # NoSchedule/NoExecute taints and the taint is now PreferNoSchedule, so
-    # it no longer excludes talos-3 from the spread domains; the
-    # TaintToleration score penalty keeps this workload off talos-3 under
-    # normal conditions instead (.agents/skills/node-scheduling/references/talos-3-ledger.md).
+    # nodeTaintsPolicy: Honor only filters NoSchedule/NoExecute; talos-3 is
+    # PreferNoSchedule, so the score penalty keeps this off talos-3. Skill `node-scheduling`.
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
@@ -152,16 +125,10 @@ spec:
       initialDelaySeconds: 10
       periodSeconds: 5
 
-    # Service monitor for Prometheus
     serviceMonitor:
       enabled: true
 
-    # RocksDB data directory backed by Ceph (ceph-block is the cluster
-    # default StorageClass). Single Ceph-replicated PVC; SurrealDB no
-    # longer needs internal replication via TiKV.
-    # NOTE: storageClassName intentionally omitted to work around a bug
-    # in surrealdb chart 0.4.0 templates/pvc.yaml (duplicate
-    # storageClassName: line breaks Helm template rendering when set).
+    # storageClassName omitted on purpose: chart 0.4.0 renders it twice. Skill `databases`.
     persistence:
       enabled: true
       accessModes:

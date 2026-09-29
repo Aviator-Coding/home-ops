@@ -47,6 +47,15 @@ Global scrape interval is 1 minute.
    exporter that publishes nothing is genuinely dead. Chart-owned rules
    (kopiur-controller, authentik) cannot be edited per alert.
 
+`or vector(0)` does not substitute for an absent series. It unions by label
+set, `vector(0)` has no labels, so both series survive and a `time() - 0`
+comparison is true forever. Use `absent()`, which only returns a series when
+the metric is truly absent (`grafana-sa-provisioner/app/prometheusrule.yaml`).
+
+A CronJob with `failedJobsHistory: 3` keeps a one-off failed Job until three
+more failures evict it, latching `KubeJobFailed` for days. Set
+`ttlSecondsAfterFinished` on the Job template.
+
 ## Recency and orphans
 
 A comparison against a kube-state-metrics gauge that cannot clear becomes a

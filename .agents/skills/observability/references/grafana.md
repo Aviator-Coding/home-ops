@@ -24,6 +24,18 @@ Do not reintroduce `kind: GrafanaDashboard` or a grafana-operator HelmRelease.
 Dashboards that Grafana actually loads are sidecar ConfigMaps (label
 `grafana_dashboard: "1"`) or `url:` entries on the Grafana HelmRelease.
 
+## Dashboard collisions
+
+Grafana refuses to save two dashboards with one UID, and a collision can lock
+the sidecar provider out of all writes. Do not import these on the HelmRelease:
+
+- gnetId 16611 (pulls "Cilium v1.12 Agent Metrics", UID `vtuWtdumz`, same as
+  the operator's). The Cilium dashboard is the `kube-system/cilium-dashboard`
+  ConfigMap from the cilium HelmRelease.
+- CloudNativePG and the Dragonfly operator install their own dashboards.
+  gnetIds 15944, 15945, 21053, 21054 are the unrelated Dragonfly P2P project.
+- PDU Insights (23027): no `unpoller_device_outlet_*` series exist here.
+
 ## CRDs still installed
 
 The operator workload is gone. The `grafana.integreatly.org` CRDs are still

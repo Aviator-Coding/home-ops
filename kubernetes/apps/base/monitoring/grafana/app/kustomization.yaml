@@ -9,6 +9,5 @@ resources:
   - ./networkpolicy-image-renderer-dns.yaml
   - ./dashboards/ceph
   - ./dashboards/litellm
-  # ./dashboard is an old sidecar home.json with a stale datasource uid.
+  # Do not add ./dashboard: an old sidecar home.json with a stale datasource uid.
   # The landing dashboard is dashboards.default.home-dashboard in the HelmRelease.
-  # - ./dashboard

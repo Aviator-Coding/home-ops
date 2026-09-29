@@ -1,20 +1,9 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
-#
-# PromtailRequestErrors used rate(...[1m]) against a 1m scrape interval, so the
-# window could never hold the two samples a rate needs and the rule returned
-# nothing at all. Widened to [5m] on 2026-09-15. Measured before and after:
-#
-#   count(sum(rate(promtail_request_duration_seconds_count[1m])) by (namespace, pod))
-#     -> 0 series
-#   count(sum(rate(promtail_request_duration_seconds_count[5m])) by (namespace, pod))
-#     -> 3 series
-#
-# The full expression at [5m] with its real `> 10` threshold is silent (no
-# promtail pod is erroring), and with the threshold relaxed to `>= 0` it returns
-# a value per pod - so the silence is the absence of errors, not the absence of
-# data. [5m] rather than the [3m] floor so a single missed scrape cannot empty
-# the window.
+# PromtailRequestErrors needs [5m]: a rate over [1m] at a 1m scrape can never hold two
+# samples and returns nothing. [5m] rather than the [3m] floor so one missed scrape
+# cannot empty the window. Silence at the real `> 10` threshold means no errors, not
+# no data. Skill observability.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
