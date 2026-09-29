@@ -5,13 +5,59 @@ description: "Read before changing anything in the Tdarr transcoding stack: libr
 
 # Tdarr libraries, flows and flow nodes
 
-Relocated verbatim from `AGENTS.md` on 2026-09-01 so it loads only when this subsystem is in play.
-The text below is unchanged; only line breaks were inserted. `AGENTS.md` keeps a one-sentence pointer.
-Add new findings here or to the owning document, not back into `AGENTS.md` - see its
-"Maintaining this file" section for the rule.
+The HelmRelease owns the container, the `devic.es/b70-vaapi` device, worker
+counts and the node memory limit. What gets transcoded, and how, lives in
+Tdarr's SQLite database on the `tdarr-config` PVC. A rebuild of that volume
+reverts those rows to defaults while the pod stays green.
 
-- **Tdarr's `librariesToNotProcess` is a Tdarr Pro feature and is a silent no-op on this unlicensed install - never use it as a scope boundary.** It is stored in `NodeJSONDB`, rendered in the UI and returned by `GET /api/v2/get-nodes`, so it looks live; `talos-3` carried it for Series and still transcoded a TV-Shows file on 2026-08-31. Both queue readers gate it on `auth` (`getQueuedFiles.js`: `if (auth && librariesToNotProcess.length > 0)`; `getStagedFiles.js`: the same conjunction), and `auth` is `authStatus(false)` from `Tdarr_Server/srcug/server/auth.js`, which is a **licence** check that POSTs `tdarrKey` to tdarr.io - not a login. `tdarrKey` is empty here and `POST /api/v2/auth-status {"data":{"saU":false}}` returns `false`, which is the exact call the dispatcher makes. This also refutes any "the server pushes work past a node-side accept filter" theory: `get-new-task` is a **node poll** (the `Server relay sending job to Node relay: <node>` line is the *reply*), and there is no node-side accept filter at all. What does hold, with no `auth` check anywhere in `qb/qbUtils.js` + `plugins/queueQueryFuncs.js`, is the **library-level** toggles - `processLibrary`, `processTranscodes`, `processHealthChecks` and the per-hour `schedule` - which build the `db NOT IN (...)` clause for `table1`. Series is scoped out with `processTranscodes: false` (2026-08-31), which leaves health checks and scanning on. Proof method, and why the same file is simultaneously accepted by `table4` and refused by `table1`: `docs/tdarr-errored-remuxes.md` §1.
+## Tripwires
 
-- **A Tdarr flow's `customFunction` node reads `args.inputs.code`; a node whose `inputsDB` key is `function` silently runs Tdarr's default stub, which returns `outputNumber: 1` unconditionally.** `lib.loadDefaultValues` fills the missing `code` with the built-in example, so the node is green, the job report even prints your real source (under `"function"`, next to the stub under `"code"`), and nothing anywhere reports an error. All five customFunction nodes in `movies_av1_nvenc_v1` were in this state - including the three guards that were supposed to reject a bad encode before `Replace Original File` - so **every transcode replaced its source with zero verification**, across all 6514 job reports. Confirm execution behaviourally, never by reading the flow: grep a job report for a string only your code can emit (`Size check: <digit>`), or check that a node returned an output number the stub cannot produce. Fixed by rekeying to `code`; mechanism, evidence and the still-open `e_dv_bypass` / `br_*_bypass` edges that make the DV and bitrate checks inert: `docs/tdarr-errored-remuxes.md` §2 and §3.6. Reviewable node sources and a read-only unit harness that runs them against the parked masters' real ffProbeData are in `docs/tdarr/flow-nodes/`.
+1. **`librariesToNotProcess` is not a scope boundary.** It is a Tdarr Pro
+   feature. This install has no licence, so the check never runs. Scope is
+   the library toggle `processTranscodes`. [mechanisms.md](references/mechanisms.md)
+2. **A `customFunction` node reads `inputsDB.code`.** A node whose key is
+   `function` runs Tdarr's default stub, which returns `outputNumber: 1`
+   unconditionally, prints your source in the job report, and reports no
+   error. Confirm a guard by a string only its code can emit.
+   [mechanisms.md](references/mechanisms.md)
+3. **Never enable `forceConform` on `Set Container`.** It sets
+   `stream.removed` on `mov_text` and other non-mkv codecs and deletes those
+   tracks in place. Convert `mov_text` to `srt`. [mechanisms.md](references/mechanisms.md)
+4. **Never set `transcodecpuWorkers` to 0.** A GPU-only node turns a VA-API
+   failure into a total outage (PR #1443). A 4K `libsvtav1` job at the node's
+   4Gi limit OOM-kills the container, so the flow routes 4K work to
+   `av1_qsv`. [mechanisms.md](references/mechanisms.md)
+5. **Dolby Vision on 4K is an open captain choice.** `e_dv_bypass` still
+   encodes DV files. `av1_qsv` drops the RPU; the encoder that keeps it is
+   the one the 4K guard refuses. Do not close that edge while editing the
+   flow. [masters.md](references/masters.md)
+6. **Never bulk-requeue.** Tdarr rewrites the source in place. The flow
+   restore input is `docs/tdarr/flow-movies_av1_nvenc_v1.after.json`, never a
+   `before.json`. Node sources under `docs/tdarr/flow-nodes/` are not restore
+   inputs. Do not edit that directory; CI byte-checks it.
 
-- **Never enable `forceConform` on Tdarr's `Set Container` node - it deletes streams rather than converting them.** `ffmpegCommandSetContainer/1.0.0/index.js` sets `stream.removed = true` for `mov_text`/`eia_608`/`timed_id3`/`data` when targeting mkv, which on the parked 4K masters is 1-46 subtitle tracks destroyed per file in an irreversible in-place rewrite, with no guard in the flow noticing. The supported path is to convert: a `customFunction` between `Set Container` and `Set Video Encoder` that pushes `['-c:{outputIndex}', 'srt']` onto each `mov_text` stream's `outputArgs`, and marks `removed` only for `data`/`bin_data` and zero-dimension `mjpeg` cover art (the separate cause of Amelie's `dimensions not set`). Encoder-specific output arguments have the same shape of trap: `-preset medium`/`-global_quality`/`-look_ahead` are `av1_qsv`-only and made `libsvtav1` fail at init on 88/88 CPU jobs, so `cargs*` now reads back the chosen encoder from the video stream's `outputArgs` and branches. Both proven live: `docs/tdarr-errored-remuxes.md` §3.
+## Where things live
+
+| What | Path |
+|---|---|
+| Server and node | `kubernetes/apps/base/media/tdarr/app/helmrelease.yaml` |
+| Human rebuild runbook | `docs/tdarr/README.md` |
+| Flow restore document | `docs/tdarr/flow-movies_av1_nvenc_v1.after.json` |
+| Node sources and harness | `docs/tdarr/flow-nodes/` (do not edit the harness) |
+| Parked masters and the DV choice | [masters.md](references/masters.md) and `docs/tdarr-errored-remuxes.md` |
+| VA-API check | `docs/media-stack.md` "Verifying VA-API after a GPU change"; mechanism is skill `intel-gpu` |
+
+## Procedures
+
+- Why a guard looks enabled and is not: [mechanisms.md](references/mechanisms.md).
+- Parked files, the canary rollback path, and the open edges: [masters.md](references/masters.md).
+- Restore library scope, then the flow: `docs/tdarr/README.md`.
+
+## Verify
+
+- `python3 scripts/ci/tdarr-flow-nodes-test.py` (runs `docs/tdarr/flow-nodes/behavior-test.js`).
+- Behavioural, not by reading the flow: a job report must contain
+  `Scope guard: library=`, `Stream conform: in v=`, `AV1 tuning: encoder="`,
+  and `Size check:` / `Duration check:` / `HDR survival:`.
+- Library rows: Series `j5g_Es7sD` has `processTranscodes` false; Movies AV1
+  `gEUZf7Nx6` has it true. Health checks and scanning stay on for Series.
