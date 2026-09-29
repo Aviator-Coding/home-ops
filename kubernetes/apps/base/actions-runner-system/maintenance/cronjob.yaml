@@ -46,7 +46,6 @@ spec:
                   echo "Started at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
                   echo "=========================================="
 
-                  # Configuration
                   REPO="${REPO_OWNER}/${REPO_NAME}"
                   STUCK_THRESHOLD_SECONDS=$((STUCK_RUN_MINUTES * 60))
                   CURRENT_TIME=$(date +%s)
@@ -57,9 +56,6 @@ spec:
                   echo "  Stuck run threshold: ${STUCK_RUN_MINUTES} minutes"
                   echo ""
 
-                  # ==========================================
-                  # STEP 1: Clean up stale/offline runners
-                  # ==========================================
                   # The GitHub API's /actions/runners endpoint carries no
                   # last_connected_at (or any other) timestamp, so elapsed-time
                   # staleness cannot be computed from it. ARC (gha-runner-scale-set)
@@ -115,13 +111,11 @@ spec:
                     RUNNER_STATUS=$(echo "${runner}" | jq -r '.status')
                     RUNNER_BUSY=$(echo "${runner}" | jq -r '.busy')
 
-                    # Skip busy runners
                     if [[ "${RUNNER_BUSY}" == "true" ]]; then
                       echo "  [SKIP] ${RUNNER_NAME} (id=${RUNNER_ID}): busy"
                       continue
                     fi
 
-                    # Only check offline runners
                     if [[ "${RUNNER_STATUS}" == "offline" ]]; then
                       if [[ "${PODS_LOOKUP_OK}" != "true" ]]; then
                         echo "  [SKIP] ${RUNNER_NAME} (id=${RUNNER_ID}): offline, but pod-backed staleness check unavailable this run"
@@ -150,12 +144,8 @@ spec:
                   echo "Deleted ${DELETED_COUNT} stale runners"
                   echo ""
 
-                  # ==========================================
-                  # STEP 2: Cancel stuck workflow runs
-                  # ==========================================
                   echo "--- Step 2: Checking for stuck workflow runs ---"
 
-                  # Get queued runs
                   QUEUED_RUNS=$(gh run list --repo "${REPO}" --status queued --json databaseId,createdAt,name,status --limit 100 2>/dev/null || echo "[]")
                   QUEUED_COUNT=$(echo "${QUEUED_RUNS}" | jq 'length')
                   echo "Found ${QUEUED_COUNT} queued workflow runs"
@@ -168,7 +158,6 @@ spec:
                     RUN_NAME=$(echo "${run}" | jq -r '.name')
                     CREATED_AT=$(echo "${run}" | jq -r '.createdAt')
 
-                    # Parse ISO 8601 date and calculate age
                     CREATED_EPOCH=$(date -d "${CREATED_AT}" +%s 2>/dev/null || echo "0")
                     if [[ "${CREATED_EPOCH}" == "0" ]]; then
                       # Try alternate date format
@@ -201,9 +190,6 @@ spec:
                   echo "Cancelled ${CANCELLED_COUNT} stuck workflow runs"
                   echo ""
 
-                  # ==========================================
-                  # STEP 3: Check for in_progress runs that may be stuck
-                  # ==========================================
                   echo "--- Step 3: Checking for long-running in_progress runs ---"
 
                   IN_PROGRESS_RUNS=$(gh run list --repo "${REPO}" --status in_progress --json databaseId,createdAt,name,status --limit 50 2>/dev/null || echo "[]")

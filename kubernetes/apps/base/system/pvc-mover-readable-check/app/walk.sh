@@ -16,12 +16,10 @@
 # Traversable (directories) additionally requires the matching execute bit.
 # A directory is evaluated for BOTH read and execute because one untraversable
 # directory hides its entire subtree from the mover - a far larger failure
-# than a single unreadable file (ai/hermes's volume root is 0700 10000:10000,
-# so at uid 1000 the whole 89k-file volume is invisible behind one entry).
+# than a single unreadable file.
 #
 # The four traps below each produce a SILENT FALSE-CLEAN ZERO: the check
-# reports "all clear" while having measured nothing. All four were hit for
-# real while building the 2026-08-31 fleet audit this check generalises.
+# reports "all clear" while having measured nothing.
 #
 #  1. busybox `find` has no -uid/-gid. It prints usage text to stderr and
 #     exits, so a `find -uid` pipeline yields 0, which reads as clean.

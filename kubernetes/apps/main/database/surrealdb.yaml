@@ -71,9 +71,8 @@ spec:
           value:
             beforeSnapshot:
               # The real data. No continueOnFailure: if this export fails, the
-              # whole snapshot should fail rather than silently falling back to
-              # a bare crash-consistent one - that fallback is exactly what
-              # this change exists to avoid.
+              # whole snapshot fails rather than silently falling back to a
+              # bare crash-consistent one.
               - workloadExec:
                   podSelector:
                     matchLabels:

@@ -46,7 +46,9 @@ enforceable on this LiteLLM/operator version; revisit at LiteLLM v1.104.0.
 
 Why 2000: the model's native 4096 cannot be indexed (pgvector HNSW/IVFFlat cap
 `vector` at 2000, `halfvec` at 4000). The model is Matryoshka-trained and
-OpenRouter honours `dimensions`, returning the renormalised prefix. Changing
+OpenRouter honours `dimensions`, returning the renormalised prefix. `halfvec`
+would also need every `::vector` cast in upstream's SQL patched, for no gain
+below 2000 dims. Changing
 the model or width means re-embedding every row (truncate `embeddings` before
 altering the column).
 
