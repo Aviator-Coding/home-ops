@@ -1,16 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
-# Same alert path as pvc-writable-check: no custom metric or exporter is
-# needed, because kube-state-metrics already exposes kube_job_status_failed
-# for every Job it sees, including CronJob-created ones, with zero extra
-# config. The sweep's own exit code (1 = at least one kopiur finding or one
-# INCONCLUSIVE claim, 0 = everything measurable is readable) becomes the Job's
-# status, which becomes this metric.
-#
-# Deliberately NOT alerted on: VolSync unreadable counts (report-only, see
-# cronjob.yaml and README.md) and structurally UNMEASURED claims (unmounted,
-# subPath-only, RBAC-excluded), which are permanent known conditions and would
-# otherwise fire on every single run forever.
+# Fires on kube_job_status_failed. VolSync unreadable counts stay report-only.
+# Skill `pvc-integrity-checks`.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -21,24 +12,8 @@ spec:
     - name: pvc-mover-readable-check.rules
       rules:
         - alert: PVCMoverCannotReadVolume
-          # reason!="" matches every real terminal-failure series from
-          # kube-state-metrics v2.20.0 and by construction excludes the
-          # bare-gauge / empty-reason failed-pod-count series. The mechanics
-          # are identical to PVCVolumeNotWritable; that rule's comment carries
-          # the measured detail on each ksm series shape.
-          # Recency bound added 2026-09-15. Without it this latches: a failed
-          # Job object lives on under the CronJob's failedJobsHistoryLimit, so
-          # the alert kept firing long after the run it describes - live, the
-          # pvc-mover-readable-check failure had been paging for 43.8h and its
-          # pod had already been garbage-collected, so the log the summary below
-          # tells you to read no longer existed. 12h is longer than the 6h cron
-          # period, so a genuinely persistent failure never gaps: each new
-          # failed run brings its own fresh start_time. Written as
-          # `unless ... >= 43200` rather than `and ... < 43200` so it fails
-          # OPEN - if kube_job_status_start_time were ever missing, `unless`
-          # removes nothing and the alert still fires. Same shape and same
-          # reasoning as KubeJobFailed in
-          # kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/kubernetes-apps-recency.yaml.
+          # reason!="" matches every real terminal-failure series from kube-state-metrics v2.
+          # Skill `pvc-integrity-checks`.
           expr: |-
             kube_job_status_failed{namespace="system", job_name=~"^pvc-mover-readable-check-.+", reason!=""} > 0
               unless on (namespace, job_name)

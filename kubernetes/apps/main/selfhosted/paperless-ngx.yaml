@@ -53,23 +53,8 @@ spec:
       VOLSYNC_CLAIM: paperless-ngx
       VOLSYNC_CAPACITY: 10Gi
       GATUS_GROUP: *namespace
-      # APP_UID/APP_GID deliberately absent - see changedetection.yaml for the
-      # precedent. No manifest in this repo reads either variable, so a second,
-      # unenforced identity declaration is a liability, not documentation.
-      # Identity left at the component default of 1000:1000, and that is a
-      # MEASURED result rather than an assumption: live measurement 2026-08-30
-      # (reconfirmed 2026-08-31, workload `id`, mover moverSecurityContext/
-      # podSecurityContext) found every entry owned 1000:1000 (pod
-      # securityContext 1000:1000:1000) and nothing unreadable at 1000 - the
-      # only exceptions are ext4's own root:1000 `lost+found` directories and
-      # two 0600 search-index files, all still readable by the 1000:1000 mover
-      # since it owns them.
-      # Namespace r2 hour. The component default (`H 4 * * *`) is especially
-      # wrong for `selfhosted`: EVERY claim in this namespace already runs its
-      # volsync r2 job in the 04:00 hour, so the default would stack both
-      # systems into one hour for every one of them. Hour 14 carries no volsync
-      # destination and no kopiur ceph slot (01/05/09/13/17/21). Ceph stays on
-      # the component default, which is already structurally offset.
+      # Namespace r2 hour. The H 4 default would pile every r2 policy into 04:00. Ceph stays on the
+      # component default. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
@@ -116,12 +101,8 @@ spec:
       VOLSYNC_SCHEDULE_R2: "50 4 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# kopiur backup for the SECOND volume, `paperless-ngx-media` - the scanned
-# originals and their archived PDFs, which are not reconstructible from the
-# database. It needs its own Kustomization for exactly the reason the volsync
-# one above does: Flux allows one postBuild.substitute map per Kustomization,
-# and every kopiur object is named from ${APP}. Same claim, second engine; the
-# volsync Kustomization above is untouched.
+# kopiur backup for the SECOND volume, `paperless-ngx-media` - the scanned originals and their archived PDFs, which are not reconstructible from the database.
+# Skill `kopiur-backups`.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -153,14 +134,7 @@ spec:
     substitute:
       APP: paperless-ngx-media
       KOPIUR_CLAIM: paperless-ngx-media
-      # Identity left at the component default of 1000:1000, measured rather
-      # than assumed: the 5 entries present are owned 1000:1000 / 0:1000 and
-      # the pod runs 1000:1000:1000, with nothing unreadable at 1000.
-      #
-      # This volume is EMPTY today (1 file, 0 B). It is onboarded anyway so the
-      # first document scanned into it is protected by both systems from its
-      # first backup window - but a Succeeded snapshot of an empty volume is
-      # not evidence of anything, and .status.stats must be checked before this
-      # claim is treated as proven.
+      # Sized for the restore cliff: min(snapshot sizeBytes, ~6.2 GiB). A raise does not update the standing
+      # Restore. Skill `kopiur-backups`.
       KOPIUR_CACHE_CAPACITY: 5Gi
       KOPIUR_SCHEDULE_R2: "H 14 * * *"

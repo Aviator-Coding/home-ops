@@ -8,13 +8,8 @@ spec:
   groups:
     - name: kopiur-absent.rules
       rules:
-        # The chart's own 12 alerts (group kopiur.rules) are all evaluated over
-        # kopiur_* series, so every one of them goes SILENT rather than firing
-        # when the operator itself disappears. This is the same absent() guard
-        # we keep for VolSync, carried over deliberately.
-        #
-        # job label = the metrics Service name (verified live: VolSync's
-        # Service is volsync-metrics and its series carry job="volsync-metrics").
+        # The chart's own 12 alerts (group kopiur.rules) are all evaluated over kopiur_* series, so every one of them goes SILENT rather than firing when the operator itself disappears.
+        # Skill `kopiur-backups`.
         - alert: KopiurComponentAbsent
           expr: |
             absent(up{job="kopiur-controller-metrics"})
@@ -39,155 +34,8 @@ spec:
           labels:
             severity: critical
 
-        # CREDENTIAL-PROJECTION LEAK. Captain decision `credential-scope`
-        # (2026-08-30) accepts unscoped Secret create/patch/delete for the
-        # operator on the explicit grounds that the resulting exposure is
-        # BOUNDED TO ONE MOVER RUN and that the leak is OBSERVABLE. Nothing in
-        # the chart's 12 alerts watches this series, so this rule is what makes
-        # that second half true - without it a projected credential left behind
-        # in an app namespace is silent, and the decision's stated mitigation is
-        # only a claim. An alert that goes quiet while credentials sit
-        # permanently at rest would be worse than no alert, because it reads as
-        # proof of safety.
-        #
-        # `kopiur_projected_secrets_live` is a POPULATION gauge, and the
-        # original `for: 1h` level alert below fired for hours on 2026-08-31
-        # while zero projected Secrets existed anywhere in the cluster - traced
-        # to source (ghcr.io/home-operations/kopiur-controller, cloned at
-        # crates/controller/src/sweep.rs `spawn_sweep`/`run_sweep`) and
-        # confirmed live. Three findings, in order:
-        #
-        # (a) NOT a per-replica artefact. Both controller replicas were queried
-        # directly on their :8081/metrics: the non-leader
-        # (kopiur-controller-...-9pqvv, confirmed non-leader via `kubectl get
-        # lease kopiur -n system`) exports NO `kopiur_projected_secrets_live`
-        # series at all - only leader-election bookkeeping
-        # (`kopiur_leader_is_leader 0` and the coordination-lease client-request
-        # counter). `spawn_sweep` runs "ONLY after leader election is won" per
-        # its own doc comment, so exactly one series exists cluster-wide, from
-        # whichever pod holds the Lease. There is no split/aggregation bug to
-        # correct for here.
-        #
-        # (b) The gauge is a PERIODIC CENSUS, not a live signal.
-        # `run_sweep` calls `metrics.set_projected_secrets_live(...)` exactly
-        # once per pass, gated by `KOPIUR_WORK_SPEC_SWEEP_INTERVAL_SECS`
-        # (default 6h, unset - so default - in this repo's HelmRelease).
-        # Confirmed from the leader's own logs: sweep passes landed at
-        # 2026-08-31T09:29:44Z and 15:29:44Z, exactly 6h apart and aligned to
-        # the pod's 2026-08-30T15:28:41Z start. Between passes the exported
-        # value is frozen - every 30s scrape returns the byte-identical number
-        # no matter what happens to real Secrets in that window.
-        #
-        # (c) Caught the exact transition live in Prometheus's stored series:
-        # the gauge stepped 0->4 at the 09:29:44 pass and 4->0 at the 15:29:44
-        # pass - a full 6h plateau at 4, bracketed by genuinely zero live
-        # Secrets on both sides. The 4 was real but momentary and entirely
-        # legitimate: this fleet runs dozens of ceph/r2 backups on staggered
-        # per-namespace hours (Readme.md "Timezone: kopiur vs VolSync") and
-        # frequently has several movers mid-run at once, each holding a
-        # projected credential Secret for ~12-90s (this file's own
-        # measurements below) before the reconciler's fast path (`by=terminal`
-        # in `kopiur_creds_secrets_reaped_total`) reaps it - confirmed by dozens
-        # of `reaped projected credentials copy ... what="run finished"` log
-        # lines every few minutes through this exact window. The 09:29:44
-        # `List()` simply caught 4 such Secrets in flight; ordinary operation,
-        # not a leak.
-        #
-        # So: yes, the gauge self-corrects on its own (demonstrated above), but
-        # only at the NEXT sweep pass - up to a full sweep interval (6h by
-        # default) later. A `for: 1h` duration is far shorter than that refresh
-        # cadence, so any pass that happens to catch a benign nonzero
-        # population (routine, given this fleet's overlapping schedule) freezes
-        # the gauge above zero for hours after the real Secrets are gone,
-        # guaranteeing the alert fires - the exact 2026-08-31 incident.
-        #
-        # THE FIX distinguishes "one census caught a legitimate momentary
-        # population" from "the population stayed elevated across a sweep
-        # boundary that would otherwise have cleared it": require the gauge to
-        # read positive across at least two sweep passes, not just "some
-        # evaluation window over one frozen post-pass value". `min_over_time`
-        # over a span comfortably longer than 2x the sweep interval requires
-        # exactly that - the value must never have touched zero at any sample
-        # across the whole span, i.e. it survived a pass that had every
-        # opportunity to reset it. 13h (>2x the 6h default, with slack for
-        # scheduling jitter or a missed pass across a controller restart) is
-        # used instead of the bare interval for that margin. A genuine one-shot
-        # leak (the scenario this rule exists for) is unaffected: an un-reaped
-        # Secret is rediscovered by every subsequent `List()` forever, so it
-        # reads positive at every sample across any window, however long - the
-        # upstream `deriv()`-over-a-day gap this rule was written to close
-        # (documented below) still does not reopen. The honest cost, stated
-        # plainly: detection latency for a genuine leak grows from the old
-        # (already-fictional, since the metric was never live) ~1h to roughly
-        # one-to-two sweep intervals (~6-13h worst case) - inherent to this
-        # being a periodic, not continuous, signal. No configuration of this
-        # alert can detect a leak faster than the operator's own sweep
-        # discovers one; only lowering `KOPIUR_WORK_SPEC_SWEEP_INTERVAL_SECS`
-        # (a settled operator-config decision, out of scope here) would.
-        #
-        # Why the underlying `for: 1h` reasoning below is kept verbatim: it
-        # measured real single-run credential lifetimes and is still the
-        # correct floor for `CREDS_MIN_AGE_FLOOR_SECS`-style reasoning; it was
-        # simply built on the wrong assumption that the gauge reflected live
-        # state continuously rather than once per sweep pass.
-        #
-        # Why `for: 1h` and not 15m (original reasoning, still valid for how
-        # long a single legitimate run may hold a copy). Measured 2026-08-31 on
-        # this cluster: a projected credential Secret for one real backup lived
-        # ~90s end to end (CSI VolumeSnapshot staging + staged PVC bind + mover
-        # Job); mover Jobs themselves completed in 12-23s. Longest VolSync sync
-        # in downloads is ~2m17s, so 15m already carries roughly a 10x margin
-        # over anything observed. 1h was chosen instead because those runs were
-        # all on volumes of at most 2.06 GiB, kopiur takes no
-        # activeDeadlineSeconds in this repo so a run is not bounded from
-        # above, and Stage 3 onboarded larger claims whose FIRST full kopia
-        # snapshot can legitimately run far longer than any incremental
-        # measured here.
-        #
-        # Upstream's HELP text still prescribes `deriv() > 0 over a day`. We
-        # deliberately do NOT follow that: a one-shot leak that steps 0 to N and
-        # stays flat leaves deriv ~0 once older zeros age out of the window, so
-        # a deriv rule goes quiet exactly when credentials are permanently at
-        # rest. `min_over_time` above zero over a span spanning multiple sweep
-        # passes catches that same case (the value never returns to zero) while
-        # ALSO closing the periodic-census gap deriv shares with the plain
-        # level check.
-        #
-        # Per-run evidence, when you need it, is the operator's own log line
-        # (`reaped projected credentials copy secret=<snapshot>-creds-N`) and
-        # the `kopiur_secrets_projected_total` / `kopiur_creds_secrets_reaped_total`
-        # counters - not this gauge.
-        #
-        # LEADER-CHANGE REGRESSION (2026-09-26). The `min_over_time(...[13h])`
-        # form above is per-series, and `kopiur_projected_secrets_live` is
-        # leader-only (finding (a) above) - its `pod`/`instance` labels change
-        # every time the Lease changes hands, which starts a brand-new
-        # Prometheus series with NO history. A fresh series' own
-        # `min_over_time` is the min of only ITS OWN samples, so a new
-        # leader's first (startup) sweep reading alone determines the result:
-        # if it catches an ordinary in-flight population (routine, per finding
-        # (c)), the new series has literally never stored a 0 and the alert
-        # fires immediately - unrelated to whether any credential is actually
-        # at rest. Measured live: the new leader took over at 17:25Z, its
-        # startup sweep published 8, and the alert paged critical for hours
-        # while zero credential Secrets existed anywhere in the cluster; the
-        # previous leader's own series had shown the identical benign 6->0
-        # shape across one sweep interval moments before the handover.
-        #
-        # Fix: aggregate away `pod`/`instance` with `max without (...)` BEFORE
-        # applying `min_over_time`, via a subquery. Prometheus's staleness
-        # handling means the outgoing leader's series and the incoming
-        # leader's series never overlap but also never gap (the old series'
-        # last sample stands until the new one reports), so the aggregated
-        # series is continuous straight through a leader change - a stale
-        # zero from the outgoing pod remains inside the window exactly as if
-        # no handover had happened, and a genuine leak (never zero on either
-        # pod) still requires the full multi-pass span to clear. This is
-        # strictly a continuity fix: the multi-pass persistence requirement
-        # (13h > 2x the 6h default sweep) is unchanged, and a real leak still
-        # fires - including one that started under the old leader and is
-        # still live when the new leader takes over, since the aggregated
-        # series was never at zero across the transition.
+        # Projected credential Secrets still present across two sweeps. Aggregate before min_over_time.
+        # Skill `kopiur-backups`.
         - alert: KopiurProjectedCredentialsLeaking
           expr: |
             min_over_time(
@@ -202,61 +50,8 @@ spec:
           labels:
             severity: critical
 
-        # MOVER-READABILITY, PART 2: a snapshot that succeeded while moving
-        # nothing. Snapshot CRs carry a positive-only SecurityContextCompatible
-        # condition ("the mover's uid exactly matches every workload writing
-        # the source PVC") - but it is NOT exported to Prometheus at all
-        # (checked: kopiur_resource_phase and every other kopiur_* series
-        # carry no condition/message detail, only kind/name/phase). That is
-        # the finding for that half of the ask.
-        #
-        # It is a smaller gap than it looks, though: kopiur "fails closed
-        # rather than writing a partial snapshot" (kubernetes/components/
-        # kopiur/Readme.md) - a real uid mismatch does not slip through as a
-        # quiet Succeeded/SecurityContextCompatible=absent snapshot, it
-        # drives the Snapshot CR to phase=Failed. That consequence is
-        # already caught by three alerts the kopiur chart itself ships in
-        # the SAME "kopiur.rules" group this file supplements
-        # (kubernetes/apps/base/system/kopiur/app/helmrelease.yaml,
-        # monitoring.prometheusRule.enabled: true): KopiurSnapshotFailed
-        # (kopiur_resource_phase{kind="Snapshot",phase="Failed"}==1, 10m),
-        # KopiurLastBackupFailed (kopiur_snapshotpolicy_last_backup_success
-        # ==0, 10m), and KopiurBackupConsecutiveFailures
-        # (kopiur_snapshot_consecutive_failures>=3, 15m). Confirmed against
-        # real history: downloads/sabnzbd-ceph's uid mismatch (fixed
-        # 2026-08-30, see CLAUDE.md Stage 3 trap 0) left exactly one
-        # kopiur_snapshots_completed_total{result="failed"} sample, i.e. it
-        # would have tripped KopiurLastBackupFailed at the time. So no new
-        # rule was added for "SecurityContextCompatible==False or absent" -
-        # it would duplicate coverage that already exists and already routes
-        # the same way as every other backup alert.
-        #
-        # What genuinely was not covered: a Succeeded snapshot that moved
-        # zero files - the exact downloads/autobrr Stage 1 shape (a passing
-        # gate on an empty volume). kopiur exports only a CUMULATIVE file
-        # count per snapshot (new+modified+unchanged combined,
-        # kopiur_policy_last_backup_files/kopiur_snapshot_files; no
-        # filesNew/bytesNew delta breakdown exists to alert on "moved
-        # nothing new" specifically), so this alerts on the narrower but
-        # unambiguous case below instead.
-        #
-        # Zero is published, not omitted: the historical empty-volume CR
-        # (`kubectl get snapshot.kopiur.home-operations.com -n downloads
-        # autobrr-ceph-stage1-verify -o jsonpath='{.status.stats}'`) returns
-        # literally {"filesNew":0,"sizeBytes":0}, and fleet-wide the
-        # (namespace,policy) set of kopiur_snapshotpolicy_last_backup_success
-        # equals the set of kopiur_policy_last_backup_files exactly (27==27,
-        # zero set difference either direction) - there is no live or
-        # historical case where a policy has a terminal backup but no files
-        # count. So `== 0` is the correct formulation; an absent-safe
-        # wrapper is not needed.
-        #
-        # Verified live 2026-08-31 against kube-prometheus-stack-prometheus
-        # (port-forwarded): all policies with a completed backup currently
-        # report > 0 files (autobrr-ceph was 1 after its write-access fix; that
-        # app was removed on 2026-09-02), so this rule is silent on the fleet -
-        # no live/historical case exists where a completed backup lacks a
-        # files count (success metric set == files metric set, 27==27).
+        # Succeeded snapshot with zero files. SecurityContextCompatible is not a Prometheus series.
+        # Skill `kopiur-backups`.
         - alert: KopiurBackupEmpty
           expr: |
             kopiur_policy_last_backup_files == 0
@@ -271,24 +66,8 @@ spec:
           labels:
             severity: warning
 
-        # DESTINATION-SPLIT STALENESS (2026-09-06). The chart's KopiurBackupStale
-        # (PrometheusRule/kopiur-controller) fires at
-        # backupStaleAfterSeconds=172800 (48h) / warning for every policy.
-        # kopiur ceph is 4-hourly (`H 1-23/4 * * *`), so that is 12 missed
-        # runs before a warning, while kopiur is the sole engine on 26 of
-        # 30 claims. The chart exposes one threshold
-        # (`monitoring.prometheusRule.backupStaleAfterSeconds`) and cannot
-        # split ceph from r2. The live metric also has no `repository`
-        # label on this fleet - policies are named <claim>-ceph / <claim>-r2
-        # (verified 2026-09-06: kopiur_policy_last_backup_success_timestamp_seconds
-        # labels are namespace/policy/pod/job, not repository). Split like
-        # the VolSync stall rules, selecting on the policy suffix:
-        #   ceph: 6h (1.5x of 4h) critical
-        #   r2:   48h (2x of daily) warning
-        # The chart rule stays enabled: it still covers the never-succeeded /
-        # all-Succeeded-CRs-pruned branch (the `or` on consecutive_failures)
-        # which these two rules do not duplicate, and it remains a 48h
-        # backstop for both destinations.
+        # Chart KopiurBackupStale waits 48h for every policy. Ceph fires here at 6h; r2 stays at 48h.
+        # Skill `kopiur-backups`.
         - alert: KopiurBackupStaleCeph
           expr: |
             time() - kopiur_policy_last_backup_success_timestamp_seconds{policy=~".+-ceph$"} > 21600
@@ -313,26 +92,8 @@ spec:
           labels:
             severity: warning
 
-        # POLICY VANISHING. The staleness rules above compare time() against
-        # each series that still exists. Removing a SnapshotPolicy (an
-        # accidental prune, or Flux prune: true against a manifest that no
-        # longer emits it) drops that series and every per-policy alert goes
-        # silent while that claim's backups stop. A hardcoded count < 62
-        # rots the next time a claim is added or retired. This keeps each
-        # (namespace, policy) that had a last-success series 24h ago and
-        # does not have one now, so one removal is still named when another
-        # policy is added the same day.
-        #
-        # up{job="kopiur-controller-metrics"} == 1 keeps an exporter outage
-        # from paging once per policy; KopiurComponentAbsent already covers
-        # that. for: 30m absorbs leader election and a missed scrape. A
-        # deliberate retirement looks the same and pages at warning until
-        # the 24h offset forgets the series.
-        #
-        # Live 2026-09-26: count was 62 now, at offset 24h, and across 7d
-        # (min = max = 62). The expression returned no series. Restricting
-        # the right-hand set to drop ai/repo-wiki-ceph returned exactly that
-        # one series, so the empty result is the healthy case.
+        # Staleness cannot see a series that has disappeared. This fires when a policy's last-success series vanishes while the controller is up.
+        # Skill `kopiur-backups`.
         - alert: KopiurPolicyVanished
           expr: |
             (

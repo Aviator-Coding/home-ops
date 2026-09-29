@@ -10,24 +10,8 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier A
-    # (ordinary config volumes). kopiur is now the ONLY backup engine on this
-    # claim.
-    #
-    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
-    # row 10 - 4197/4197 files restored from BOTH destinations into a scratch
-    # PVC with an identical per-file manifest digest (`30b6a67c5a35`), no
-    # markers and no caveats. Content class: *arr book-library configuration;
-    # its relational state lives in postgres-17 (see the dependsOn below), not
-    # on this claim. Captain decision 2026-09-04; retirement record:
-    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
-    #
-    # The second include is what keeps the PVC alive, and it is not optional.
-    # The volsync Component was the only manifest emitting this claim, and this
-    # overlay runs prune: true - so removing it without a replacement makes
-    # Flux DELETE the app's data volume for a change that was only ever meant
-    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
-    # why that file must carry `ssa: IfNotPresent`.
+    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
+    # Proof: proof-ledger.md row 10. Skill `kopiur-backups`.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
   dependsOn:
@@ -35,10 +19,8 @@ spec:
       namespace: downloads
     - name: onepassword-store
       namespace: security
-    # The `volsync` (system) dependency went with the volsync Component above -
-    # nothing in this Kustomization renders a VolSync object any more, so
-    # waiting on the VolSync operator would be a dependency on an unrelated app.
-    # kopiur is the sole backup engine on this claim.
+    # kopiur is the only engine on this claim. Do not depend on the VolSync operator. Skill
+    # `kopiur-backups`.
     - name: kopiur-repository
       namespace: system
     - name: postgres-cluster-17
@@ -55,26 +37,15 @@ spec:
       # the retired VOLSYNC_CLAIM and now also drives the pvc Component's PVC
       # name, so it is load-bearing in a second place after retirement.
       KOPIUR_CLAIM: readarr-config
-      # Inherited from the retired VOLSYNC_CAPACITY default and matched to the
-      # LIVE claim (5Gi, holding 305 MiB - measured 2026-09-04). Under the pvc
-      # Component's `ssa: IfNotPresent` this is create-time-only for the claim
-      # that already exists, but it is exactly what a REBUILD would provision -
-      # so it is stated rather than left to the component default.
+      # Create-time only under ssa IfNotPresent. A rebuild provisions this size, not the component default.
+      # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 5Gi
-      # KOPIUR_CACHE_CAPACITY deliberately left at the 2Gi component default.
-      # Measured 2026-09-04: 0.30 GiB snapshot against ~1.95 GiB of usable
-      # cache (15%) - docs/backups/kopiur-r2-restore-cache-gate-2026-09-02.md.
-      # LOAD-BEARING, measured 2026-08-30: 3 files are unreadable at the
-      # component default of 1000 - fatal to kopia, so BOTH destinations would
-      # fail closed. The pod runs 2000:2000:2000; 7062 of 7074 entries are
-      # owned 2000:2000.
+      # 2Gi default clears this snapshot. This mover uid is measured from the files; default 1000 fails closed.
+      # Skill `kopiur-backups`.
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
-      # Namespace r2 hour. The component default (`H 4 * * *`) would put every
-      # kopiur r2 policy in the fleet into the single 04:00 hour, already the
-      # busiest. Hour 11 carries no volsync destination and no kopiur ceph slot
-      # (01/05/09/13/17/21). Ceph stays on the component default, which is
-      # already structurally offset onto the odd 4-hour slots.
+      # Namespace r2 hour. The H 4 default would pile every r2 policy into 04:00. Ceph stays on the
+      # component default. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 11 * * *"
   prune: true
   sourceRef:

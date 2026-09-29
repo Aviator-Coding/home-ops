@@ -11,25 +11,8 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   components:
-    # VOLSYNC RETIRED 2026-09-04 - migration Stage 5, wave three, tier A
-    # (ordinary config volumes). kopiur is now the ONLY backup engine on this
-    # claim.
-    #
-    # Authorising evidence: .agents/skills/kopiur-backups/references/proof-ledger.md
-    # row 16 - 161/161 files restored from BOTH destinations into a scratch PVC
-    # with an identical per-file manifest digest (`364f08cdd3bb`), including
-    # the five 0600 fabric-credential files that a uid-1000 mover cannot open.
-    # That is exactly what the root mover below exists for, and it is the whole
-    # reason this claim can be single-engine at all. Captain decision
-    # 2026-09-04; retirement record:
-    # docs/backups/kopiur-wave-three-retirement-2026-09-04.md.
-    #
-    # The second include is what keeps the PVC alive, and it is not optional.
-    # The volsync Component was the only manifest emitting this claim, and this
-    # overlay runs prune: true - so removing it without a replacement makes
-    # Flux DELETE the app's data volume for a change that was only ever meant
-    # to remove a backup engine. components/kopiur/pvc/pvc.yaml also explains
-    # why that file must carry `ssa: IfNotPresent`.
+    # VolSync is retired. The pvc component keeps the claim: ssa IfNotPresent, never force: enabled.
+    # Proof: proof-ledger.md row 16. Skill `kopiur-backups`.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
   interval: 10m
@@ -38,10 +21,8 @@ spec:
   dependsOn:
     - name: multus-networks
       namespace: kube-system
-    # The `volsync` (system) dependency went with the volsync Component above -
-    # nothing in this Kustomization renders a VolSync object any more, so
-    # waiting on the VolSync operator would be a dependency on an unrelated app.
-    # kopiur is the sole backup engine on this claim.
+    # kopiur is the only engine on this claim. Do not depend on the VolSync operator. Skill
+    # `kopiur-backups`.
     - name: kopiur-repository
       namespace: system
   sourceRef:
@@ -55,46 +36,12 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      # The claim name matches the app name, so KOPIUR_CLAIM is not needed -
-      # components/kopiur/pvc renders ${KOPIUR_CLAIM:-${APP}}.
-      #
-      # Inherited from the retired VOLSYNC_CAPACITY - NOT the component's 5Gi
-      # default, which would provision a rebuilt claim at 5x the live one.
-      # Matched to the LIVE claim (1Gi, holding 1.5 MiB - measured 2026-09-04).
-      # Under the pvc Component's `ssa: IfNotPresent` this is create-time-only
-      # for the claim that already exists, but it is exactly what a REBUILD
-      # would provision.
+      # Claim name matches the app, so KOPIUR_CLAIM is omitted. Capacity is create-time only (ssa IfNotPresent).
+      # Skill `kopiur-backups`.
       KOPIUR_CAPACITY: 1Gi
-      # KOPIUR_CACHE_CAPACITY deliberately left at the 2Gi component default,
-      # and here that is STRUCTURAL rather than a judgement call: a 1Gi claim
-      # cannot hold more than the 2Gi cache covers, so this volume can never
-      # reach the restore-cache cliff - the same argument that authorised
-      # selfhosted/ntfy and obsidian-livesync in wave two.
-      # LOAD-BEARING, measured live 2026-08-31: 163 entries / 161 files /
-      # 1,548,374 bytes on the claim. 12 entries are 0:0 (including five 0600
-      # fabric-credential files that a uid-1000 mover cannot open) and 151 are
-      # 1000:0. kopia treats an unreadable file as fatal, so the default 1000
-      # mover would fail closed on the least-replaceable data in this
-      # namespace. Explicit 0:0 matches the workload (runAsUser/Group/fsGroup
-      # 0) and needs no component change - inheritSecurityContextFrom would
-      # only cover SnapshotPolicy, not the standing Restore, which uses the
-      # same KOPIUR_PUID/PGID substitutions.
-      #
-      # A root mover also trips kopiur's privileged-mover gate, which is
-      # namespace-wide and lives on the overlay kustomization.yaml, not here.
+      # 2Gi default clears this snapshot. Root mover needs privileged-movers. Skill `kopiur-backups`.
       KOPIUR_PUID: "0"
       KOPIUR_PGID: "0"
-      # Namespace r2 hour, America/New_York (the component default after
-      # #1509). The component default cron (`H 4 * * *`) would put every
-      # kopiur r2 policy into the single 04:00 hour. Hour 10 is the
-      # home-automation assignment: free of this claim's VolSync destinations
-      # (ceph 00/04/08/12/16/20, minio 00/06/12/18, r2 01:20) and of kopiur
-      # ceph's odd 4-hour slots (01/05/09/13/17/21). Nearest own-VolSync
-      # neighbours in both DST seasons are minio 12:15 (~2h later) and ceph
-      # 08:20 (~1h52m earlier). Do not keep evaluating this as UTC: live
-      # gen=1 schedules were UTC and put r2 10:12Z against minio 10:15Z
-      # (2.2 min). Flux applying timezone: America/New_York shifts the same
-      # cron to 10:12 local (14:12Z EDT / 15:12Z EST), matching the other
-      # three home-automation claims. Ceph stays on the component default,
-      # which is already structurally offset.
+      # Namespace r2 hour. The H 4 default would pile every r2 policy into 04:00. Ceph stays on the
+      # component default. Skill `kopiur-backups`.
       KOPIUR_SCHEDULE_R2: "H 10 * * *"

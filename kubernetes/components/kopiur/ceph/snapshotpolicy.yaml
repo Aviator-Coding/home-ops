@@ -1,25 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotpolicy_v1alpha1.json
-#
 # The CEPH (local, in-cluster RGW) destination for ${KOPIUR_CLAIM:-${APP}}.
-# Sibling of ../../volsync/ceph/replicationsource.yaml - same claim, same
-# snapshot class, same retention, a different backup engine.
-#
-# ONE single-repository policy per claim per destination (the 1:1 shape), NOT
-# spec.repositories fan-out. Fan-out was measured and rejected: `retention` is a
-# single block on the policy and one SnapshotSchedule fires the whole fan-out,
-# so ceph and r2 could not keep the differing schedules and retention they have
-# today (ceph 4-hourly with an hourly tier, r2 daily with a year of monthlies).
-# Fan-out also cannot be combined with `hooks` - NOT a reason this shape was
-# ever a blocker for hooks, since it was never going to use fan-out anyway.
-# This comment used to say hooks were unavailable and "wanted for
-# database/surrealdb later" (written 2026-08-30 against kopiur 0.10.5); that
-# was already wrong when written - hooks existed by 0.8.1 (2026-07-24) - and
-# database/surrealdb now uses them via this exact per-repository shape, layered
-# on with spec.patches rather than a substitution here (hooks is not something
-# every claim needs, so it is not templated in this shared file). See
-# kubernetes/apps/main/database/surrealdb.yaml's `surrealdb-kopiur`
-# Kustomization for the worked example and the full evidence trail.
+# Skill `kopiur-backups`.
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: SnapshotPolicy
 metadata:
@@ -34,22 +16,8 @@ spec:
   repository:
     kind: ClusterRepository
     name: ceph
-  # --- credential projection (captain decision `credential-scope`, 2026-08-30) ---
-  # The CONSUMER half of the gate, and the leg that is easiest to forget: the
-  # repository's `credentialProjection.allowed` only permits projection, it does
-  # not request it. Without this the mover Job gets no credentials in its own
-  # namespace, every CR still reconciles perfectly clean, and the run fails at
-  # mover time - the exact shape of the Stage 1 gap.
-  #
-  # With it on, the operator SSA-copies the `ceph` repository's credential
-  # Secrets into this policy's namespace for the life of the run and reaps them
-  # afterwards. NOTHING is left at rest, which is the whole point: there are
-  # no standing repository credentials in any app namespace. Per-run evidence
-  # projection actually ran is the operator log line `reaped projected
-  # credentials copy secret=<snapshot>-creds-N` plus the
-  # `kopiur_secrets_projected_total` counter - NOT
-  # `Snapshot.status.cleanup.credsReapedAt`, which is set on every run whether
-  # projection is on or off.
+  # Consumer half of credential projection. enabled stays true.
+  # Skill `kopiur-backups`.
   credentialProjection:
     enabled: true
   sources:
@@ -78,19 +46,7 @@ spec:
     keepDaily: 14
     keepWeekly: 10
     keepMonthly: 6
-  # --- deletion protection (upstream ADR-0006), pinned, not defaulted ---
-  # A kopiur Snapshot CR OWNS its kopia snapshot through a finalizer, so
-  # deleting CRs can delete BACKUP DATA - unlike a VolSync ReplicationSource,
-  # which never touches the restic repository. ADR-0006 records a real incident
-  # where ownerReference GC fired 600-700 concurrent snapshot deletions at one
-  # repository. We run Flux with prune: true, which is exactly that shape.
-  # Retain is the current default; pinning it means a future default change, or
-  # a careless edit, cannot quietly arm the cascade.
-  #
-  # spec.defaultDeletionPolicy is deliberately left at its `Delete` default:
-  # that is the policy governing RETENTION pruning, and it has to be Delete or
-  # expired snapshots would never reclaim space. The blast radius that matters
-  # here is bounded by these deletion.* fields plus the repository-level
-  # deletionProtection.threshold already pinned in Stage 0.
+  # onPolicyDelete Retain. Prune drops the CRs and keeps the kopia data.
+  # Skill `kopiur-backups`.
   deletion:
     onPolicyDelete: Retain

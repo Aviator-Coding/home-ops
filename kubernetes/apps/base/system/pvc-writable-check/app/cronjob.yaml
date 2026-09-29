@@ -1,12 +1,6 @@
 ---
-# Catches the bug class the 2026-08-30 empty-volume audit uncovered: an app
-# whose pod securityContext/fsGroup doesn't match its volume's ownership can
-# run Ready, pass every probe, stay Gatus-green, and get backed up on schedule
-# while never actually writing a byte - because nothing checks that the
-# container can *write* to the volume it mounts. VolSync backed up two such
-# volumes (downloads/autobrr, selfhosted/rsshub-playwright) for months before
-# it was noticed by chance. Design rationale, RBAC tradeoff, and the awkward
-# cases this deliberately does NOT alert on: README.md (same directory).
+# An app can be Ready, probed, and backed up while unable to write its volume.
+# Skill `pvc-integrity-checks`.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -307,46 +301,7 @@ spec:
                   cpu: 20m
                   memory: 64Mi
                 limits:
-                  # 200m -> 1000m (2026-09-20). A CPU limit is an ABSOLUTE CFS
-                  # quota per 100ms period, not a share of the node: at 200m
-                  # this container got 20ms of CPU per 100ms regardless of the
-                  # node sitting at 15% busy. It spent every run pinned to that
-                  # quota - measured 0.196 cores mean across all 58 runs in 14d,
-                  # with 79-96% of CFS periods throttled, every run, no
-                  # exceptions.
-                  #
-                  # Measured 2026-09-20 by running this exact script (pulled
-                  # from the live CronJob, so byte-identical) as a one-off Job
-                  # at four limits. All four returned identical results
-                  # (candidates=77 checked=56 writable=49), so the work is the
-                  # same and only the limit differs:
-                  #
-                  #   limit | wall | cpu used | throttled periods | time STOPPED
-                  #   200m  |  92s | 16.23s   | 744/835 (89.1%)   | 43.40s
-                  #   500m  |  36s | 11.44s   | 180/272 (66.2%)   |  8.66s
-                  #   1000m |  22s |  7.27s   |  10/141 ( 7.1%)   |  0.08s
-                  #   none  |  22s | 11.47s   |   0/0             |  0
-                  #
-                  # 1000m is where it saturates - identical wall time to no
-                  # limit at all - so this is the smallest value that buys the
-                  # full 4.2x speedup. Note throttling also made the job cost
-                  # MORE total CPU (16.2s vs 7.3s), not just take longer:
-                  # scheduler and Go-runtime overhead from being stopped and
-                  # resumed ~744 times.
-                  #
-                  # Why this matters more than the latency: this CronJob is the
-                  # guard added after downloads/autobrr and
-                  # selfhosted/rsshub-playwright sat with unwritable volumes for
-                  # months while every other signal stayed green (README.md). A
-                  # degraded guard is the exact failure shape it exists to catch.
-                  # It was NOT failing - no run failed in 14d and the worst wall
-                  # time (111s) is well inside activeDeadlineSeconds: 900 - but
-                  # CPU limits throttle rather than kill, so a guard running 4x
-                  # slow produces no alert, no restart and no OOMKill. Nothing
-                  # would have reported this.
-                  #
-                  # Do not "reclaim" this back to 200m on the grounds that mean
-                  # usage is low: mean usage is low BECAUSE the quota caps it.
-                  # Re-measure with the probe method above before changing it.
+                  # 1000m. A tight CFS quota throttled every run while the node was idle.
+                  # Skill `pvc-integrity-checks`.
                   cpu: 1000m
                   memory: 256Mi
