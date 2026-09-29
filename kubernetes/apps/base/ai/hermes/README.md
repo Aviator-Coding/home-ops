@@ -8,7 +8,7 @@ routing, and Samba. This page is the human setup.
 | Container | URL |
 | --- | --- |
 | `app` (dashboard, basic auth) | `https://hermes.${SECRET_DOMAIN}` |
-| `codeserver` (no auth of its own, internal gateway only) | `https://hermes-code.${SECRET_DOMAIN}` |
+| `codeserver` (no auth of its own, Authentik SSO at Envoy) | `https://hermes-code.${SECRET_DOMAIN}` |
 
 Ports: `9119` dashboard, `8642` API, `12321` code-server. Mounts:
 `/opt/data` (RWO, single writer), `/opt/xml`, `/opt/files`.
