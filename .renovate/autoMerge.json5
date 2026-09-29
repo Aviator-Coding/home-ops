@@ -67,6 +67,15 @@
       automerge: false,
     },
     {
+      // MUST stay after the three blanket automerge rules. Exact package names only, so ghcr.io/cloudnative-pg/postgresql stays automerged. Skill `renovate`.
+      description: "Never auto merge CloudNativePG operator - 1.31.0 removes the in-tree barman backup the Postgres clusters use",
+      matchPackageNames: [
+        "ghcr.io/cloudnative-pg/charts/cloudnative-pg",
+        "ghcr.io/cloudnative-pg/cloudnative-pg",
+      ],
+      automerge: false,
+    },
+    {
       // MUST stay after the blanket minor rule. GHCR has no releaseTimestamp, so timestamp-optional is what opens the PR. automerge stays false. Do not widen this. Skill `renovate` references/versioning-traps.md.
       description: "LiteLLM proxy: GHCR has no release timestamp, so open minor PRs but never automerge them",
       matchPackageNames: ["ghcr.io/berriai/litellm-non_root"],
