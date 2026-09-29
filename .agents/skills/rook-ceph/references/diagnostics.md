@@ -33,6 +33,10 @@ All three mons corrupted: the supported recovery rebuilds the mon store from cur
 
 A block-pool `min_size=1` window has been used, twice, to break an RBD-activate deadlock when PGs were inactive. It is blockpool only, brief, and both times it was put back to `min_size=2` before the cluster was called healthy. It is not a standing setting. `size` stays 3.
 
+## Disk prediction
+
+`device_failure_prediction_mode` is `local` and SMART samples exist, but `diskprediction_local` has no NVMe model. `ceph device predict-life-expectancy` returns unknown for every OSD, and no `ceph_device_life_expectancy_*` series is emitted. Do not re-add a life-expectancy PrometheusRule. Wear percentage is not in Prometheus. A SMART exporter would be new machinery.
+
 ## What not to use
 
 - Plain `rbd du` for free-space or fstrim proof. Use `rbd du --exact`.

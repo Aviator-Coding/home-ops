@@ -42,16 +42,8 @@
       "kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/node-memory-pressure.yaml": 28,
       "kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/node-network.yaml": 40,
       "kubernetes/apps/base/monitoring/loki/app/prometheus-rule.yaml": 20,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/cephfs-rwx-subvolumegroup.yaml": 20,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml": 46,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/prometheusrules.yaml": 34,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/operator/csi-driver-tolerations.yaml": 96,
-      "kubernetes/apps/base/rook-ceph/rook-ceph/operator/helmrelease.yaml": 26,
       "kubernetes/apps/base/selfhosted/homepage/app/configmap.yaml": 16,
       "kubernetes/apps/base/selfhosted/n8n/app/helmrelease.yaml": 31,
-      "kubernetes/apps/base/system-controller/k8tz/app/helmrelease.yaml": 32,
-      "kubernetes/apps/base/system/fstrim/app/helmrelease.yaml": 21,
-      "kubernetes/apps/base/system/generic-device-plugin/app/config/config.yaml": 23,
       "kubernetes/apps/base/system/kopiur/app/helmrelease.yaml": 42,
       "kubernetes/apps/base/system/kopiur/app/prometheusrule.yaml": 149,
       "kubernetes/apps/base/system/kopiur/repository/clusterrepository.yaml": 48,
@@ -96,9 +88,7 @@
       "kubernetes/components/kopiur/ceph/restore.yaml": 25,
       "kubernetes/components/kopiur/ceph/snapshotpolicy.yaml": 20,
       "kubernetes/components/kopiur/pvc/pvc.yaml": 49,
-      "scripts/volsync-retired-expiry/ledger.yaml": 31,
-      "talos/machineconfig.yaml.j2": 22,
-      "talos/nodes/talos-3.yaml.j2": 28
+      "scripts/volsync-retired-expiry/ledger.yaml": 31
     },
     "skill_description_chars": {
       ".agents/skills/kopiur-backups/SKILL.md": 520

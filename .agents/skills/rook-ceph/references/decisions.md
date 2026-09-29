@@ -33,13 +33,15 @@ The flag also disables the `x-amz-*` check that is the real CVE mitigation. Remo
 
 ## Modules, pools, classes
 
-- Mgr modules `rook` and `nfs` stay disabled. `rook` crash-looped and blocked tuppr. `nfs` has no consumer.
+- Mgr modules `rook` and `nfs` stay disabled. `rook` crash-loops through the Tentacle prometheus mgr module (`rook/rook#18124`, `ceph/ceph#71041`, `ceph/ceph#71180`). Re-enable it only when a Tentacle release ships those fixes. `nfs` crash-reports through that same orchestrator and has no consumer. Re-enable `nfs` only together with `rook`.
 - The mgr dashboard stays removed (PR #1394). Do not re-enable it to satisfy a Gatus check that was pointed at a dead Service.
-- No `deviceClass` on pool `data0`. Adding one rewrites CRUSH.
-- StorageClass parameters are immutable. Changing one means a new class and a migrate, not a helm values edit.
+- No `deviceClass` on pool `data0`. All OSDs are one class. A deviceClass put data0 on a shadow CRUSH root while every other pool used the default root, and the autoscaler then skipped every pool.
+- StorageClass parameters are immutable. Changing one means a new class and a migrate, not a helm values edit. `ceph-block` still says `compression_mode: aggressive`. That tags new RBD images only. The pool's `compression_mode: none` is what governs. Do not edit the class to match the pool.
 - `osdMaxUpdatesInParallel` is `spec.storage.osdMaxUpdatesInParallel`. A key at `spec.osdMaxUpdatesInParallel` is pruned. It is pinned to 1 (CRD default 20).
 - Ceph PrometheusRules that count events use `increase()`. A raw counter compare (`> 5`) latches after the fifth event ever.
 - The cluster overlay Kustomization keeps `prune: false` where it is set so Flux cannot delete a Ceph CR that still owns disks.
+- CSI controller-plugin affinity is not settable from this chart. ceph-csi-operator owns the Driver CRs through an internal `ceph-csi-drivers` Helm release. Do not hunt for a values key, and do not apply a second Driver that owns more than `spec.nodePlugin.tolerations`.
+- `csi.serviceMonitor.enabled` stays false. After the operator move no pod carries `app=csi-metrics`, and the Driver CRD has no metrics field. Turning it on selects zero targets.
 
 ## PG notes worth keeping
 

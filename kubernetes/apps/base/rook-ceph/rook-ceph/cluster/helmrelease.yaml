@@ -35,12 +35,8 @@ spec:
     cephClusterSpec:
       csi:
         cephfs:
-          # Effective kernel CephFS mount option (CephCluster CR spec.csi.cephfs).
-          # The cluster requires msgr2; ms_mode=prefer-crc pins CRC mode so the kernel
-          # client connects on mon port 3300. Verified live in /proc/mounts.
-          # NOTE: CephFS already uses the kernel client (ceph-csi Driver cephFsClientType
-          # autodetect -> kernel on Talos 6.x); the legacy chart forceCephFSKernelClient
-          # value is inert under Rook v1.20 csi-operator mode. See docs/ceph-cluster-changelog.md.
+          # ms_mode=prefer-crc so the kernel client uses msgr2. forceCephFSKernelClient is inert and stays deleted.
+          # See skill rook-ceph.
           kernelMountOptions: "ms_mode=prefer-crc"
       cephConfig:
         global:
@@ -54,82 +50,31 @@ spec:
           auth_cluster_required: "cephx"
           auth_service_required: "cephx"
 
-          # Compression intentionally disabled: the dominant data is already
-          # compressed media (video) + RBD images, which never meets the
-          # required ratio, so aggressive zstd only burned CPU and added
-          # write-path latency on no-PLP consumer NVMe. Per-pool settings below
-          # are also set to none. See docs/ceph-performance-review.md.
+          # Compression stays off. Media and RBD never hit the ratio, and zstd added write latency on these drives.
+          # See skill rook-ceph.
 
         mgr:
           mgr/crash/warn_recent_interval: "7200"
 
         osd:
-          # Let osd_memory_target manage BlueStore cache (was overridden by a
-          # hard bluestore_cache_size=2GB, which disabled autotuning and capped
-          # each OSD at 2GB. Nodes have ~94GiB RAM at <30% use with only 2 OSDs
-          # each, so give BlueStore a bigger cache (more onode/metadata hits ->
-          # fewer disk reads). NOTE: read-cache optimization, NOT a fix for the
-          # write-latency slow-ops storm (that's the no-PLP consumer drives).
+          # 10 GiB is the BlueStore cache target, not OSD RSS. Do not cut the 12Gi request to match it.
+          # See skill rook-ceph.
           osd_memory_target: "10737418240" # 10 GiB (pod limit raised to 14Gi)
           osd_recovery_max_active: "3" # Don't overwhelm homelab hardware
-          # Gentler, off-peak scrubbing for the consumer NVMe: 1 scrub per OSD
-          # at a time (was 3 -> ~23 concurrent deep-scrubs cluster-wide), and
-          # confine to 01:00-07:00. See docs/ceph-performance-review.md.
+          # One scrub per OSD, window 01:00-07:00. See skill rook-ceph.
           osd_max_scrubs: "1"
           osd_scrub_begin_hour: "1"
           osd_scrub_end_hour: "7"
           # Prioritise client I/O over background work on latency-sensitive drives.
           osd_mclock_profile: high_client_ops
 
-          # bluestore_slow_ops_warn_threshold: raised from the Ceph default of 1.
-          # THIS ALONE DOES NOT FIX THE INCIDENT IT CITES: on 2026-09-11, osd.4 on
-          # the no-PLP consumer NVMe logged 51 individual "slow operation observed"
-          # log lines within under a second (one root-cause stall, not a sustained
-          # problem, and the only such event across any OSD in the trailing 7
-          # days). 51 >= 5, so threshold=5 still trips BLUESTORE_SLOW_OP_ALERT and
-          # still latches it. What actually held HEALTH_WARN for a full day and
-          # blocked every `task rook:check-osd-device-paths`-gated reboot
-          # (docs/ceph/osd-device-path-recovery.md) is
-          # bluestore_slow_ops_warn_lifetime below, not this threshold. Ceph's own
-          # help text for that option: "the time period during which a BlueStore
-          # slow ops warning will be raised when the
-          # bluestore_slow_ops_warn_threshold is exceeded." Live evidence of the
-          # pure latch: checked 2026-09-12T12:20Z, ~19h after the last event
-          # (2026-09-11T17:25:34Z) - zero new slow-op events on osd.4 in that
-          # window, and Ceph was still HEALTH_WARN with no current fault behind it.
-          #
-          # 5 is not an arbitrary round number: it's Ceph's own illustrative
-          # non-default in doc/rados/operations/health-checks.rst's
-          # BLUESTORE_SLOW_OP_ALERT section (`ceph config set global
-          # bluestore_slow_ops_warn_threshold 5`). It clears literal one-off
-          # single-op noise (threshold=1's failure mode) while a genuine stall
-          # storm - like the 51-event burst above - still trips it with wide
-          # margin. This deliberately loosens a real tripwire: a lone
-          # 2nd-4th slow op that would have warned before now won't. It does
-          # not address the likely root cause (osd.4 runs measurably hotter
-          # than every peer NVMe) - that's a hands-in-the-case hardware fix,
-          # tracked separately, not a config change.
+          # Threshold 5 is Ceph's own non-default and still trips a real stall. Lifetime 3600 is what stops one stall latching HEALTH_WARN for a day and blocking the reboot gate.
+          # See skill rook-ceph. (PR #1665)
           bluestore_slow_ops_warn_threshold: "5"
-          # bluestore_slow_ops_warn_lifetime: cut from the Ceph default of
-          # 86400s/24h to 3600s/1h. This is the change that actually addresses
-          # the day-long reboot block, since threshold=5 alone (above) does not
-          # stop a >=5-event burst from latching. Accepted trade: a sustained
-          # problem now warns in 1-hour windows instead of one 24-hour block, and
-          # re-trips on every fresh burst, so a genuinely sick drive keeps
-          # warning. What stops is one transient stall (like 2026-09-11's)
-          # blocking every node reboot for a full day.
           bluestore_slow_ops_warn_lifetime: "3600"
 
-        # --- P2: pin realistic per-OSD mClock IOPS (override inflated auto-bench).
-        # The startup auto-bench reported 49k-61k IOPS for EVERY OSD (config source
-        # "basic" = auto-written): ~3-4x too high for the no-PLP Samsungs and ~8-12x
-        # too high for the DRAM-less Lexar NM790s (osd.3/4/5) on the 4K sync-write path
-        # Ceph actually uses. The three identical NM790s even benched 52.7k/55.4k/60.9k
-        # (16% spread) = bench caught SLC-cache burst, not steady state. Inflated
-        # capacity mis-allocates client vs background IO and feeds the slow-ops/laggy-PG
-        # cascade. Values below are conservative 4K randwrite estimates per drive model
-        # (NOT fio-measured); setting them persists in the mon config DB so the OSD logs
-        # "Skip OSD benchmark test" and never re-benches. See docs/ceph-cluster-changelog.md P2.
+        # Literature caps, not fio: Samsung 15000, Lexar 7000. A set cap makes the OSD skip re-bench. No osd.1.
+        # See skill rook-ceph. (PR #981)
         "osd.0":
           osd_mclock_max_capacity_iops_ssd: "15000" # Samsung 980 PRO 2TB
         "osd.2":
@@ -152,75 +97,20 @@ spec:
           # Explicitly set realm to prevent orphan default zone/zonegroup creation
           rgw_realm: ceph-objectstore
 
-          # TEMPORARY - remove when a Tentacle release carrying ceph/ceph#71192 ships.
-          #
-          # Ceph v20.2.4 is the CVE-2026-54330 release: RGW's SigV4 verifier used to
-          # ignore headers that were sent but not listed in SignedHeaders, so anyone
-          # holding a signed/presigned request could bolt on arbitrary `x-amz-*`
-          # headers (e.g. x-amz-acl) that RGW would honour. The fix rejects any
-          # request carrying an unsigned `host` or `x-amz-*` header.
-          #
-          # That fix also required `content-type` to be signed, which is wrong: AWS
-          # only requires `host` + `x-amz-*`, and minio-go's streaming signer always
-          # drops content-type from SignedHeaders. Every minio-go PutObject over
-          # plain HTTP therefore 403s - which is the whole restic/VolSync write path.
-          # Live break 2026-08-23T12:15:27Z when Rook rolled RGW to v20.2.4; 30 of 33
-          # *-ceph ReplicationSources failed on "client.PutObject: Access Denied"
-          # while GET/HEAD kept working. Proven live: PUT with content-type unsigned
-          # 403, same PUT with it signed 200. Upstream agrees this was a bug and
-          # reverted the content-type requirement on main in ceph/ceph#71192
-          # ("broke Mimir, Loki, Thanos and basically everything else built on
-          # thanos-io/objstore"), keeping the `host` + `x-amz-*` checks that are the
-          # actual CVE mitigation. #71192 merged to main 2026-08-21, after the
-          # v20.2.4 build (v20.2.4-20260818), and has no Tentacle backport yet.
-          #
-          # v20.2.4 ships no knob that relaxes only the content-type check, so this
-          # is the sole forward option (rollback to v20.2.3 is ruled out). Cost,
-          # measured live: it disables the whole block, so unsigned `x-amz-*` headers
-          # are accepted again - CVE-2026-54330 is reopened for as long as this is
-          # true. Bounded by the S3 endpoint being on envoy-internal (LAN only, no
-          # public route) and no presigned URLs being issued. Runtime-settable, so it
-          # applies with no RGW restart.
-          #
-          # REVERT: when a Tentacle release carrying #71192 exists, bump cephImage.tag
-          # to it and set this back to "false" (or delete this key), then re-verify a
-          # PUT with an unsigned content-type still succeeds.
+          # Keep true until a Tentacle image carrying ceph/ceph#71192 lands in the same commit, then prove unsigned content-type PUT 200 and unsigned x-amz-* 403.
+          # See skill rook-ceph. (PR #1401)
           rgw_sigv4_insecure: "true"
       security:
         cephx:
-          # Rotate the Rook-managed *daemon* keys (mon/mgr/osd/crash collector/
-          # ceph-exporter/rbd-mirror-peer) onto the aes256k cipher. Ceph v20.2.4
-          # raises AUTH_INSECURE_SERVICE_KEY_TYPE + AUTH_INSECURE_SERVICE_TICKETS
-          # (both ERR, CVE-2025-30156) for keys still on the legacy `aes` cipher.
-          # Requires Rook >= 1.20.5 (keyType/aes256k were added there).
-          # keyGeneration is the *target* generation: live daemon generation is 1
-          # (kubectl -n rook-ceph get cephcluster rook-ceph -o jsonpath='{.status.cephx}'),
-          # so 2 triggers exactly one rotation. Rotation is a no-op once status
-          # reaches this generation; bump it again for any future rotation.
+          # Daemon keys are aes256k at generation 2. Next rotation sets keyGeneration to current+1. csi stays aes (kernel < 7.0).
+          # See skill rook-ceph. (PR #1398)
           daemon:
             keyType: aes256k
             keyRotationPolicy: KeyGeneration
             keyGeneration: 2
-          # NOTE: `csi` is deliberately left at its default (aes). The csi-* client
-          # keys are consumed by the krbd / CephFS *kernel* clients, and aes256k
-          # needs Linux >= 7.0. Talos ships 6.18.x, so rotating client keys would
-          # break every RBD map and CephFS mount. Revisit only after Talos ships
-          # a kernel 7 release.
-      # talos-3 carries a home-operations.com/dedicated taint
-      # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
-      # scheduler score penalty, not a filter - docs/talos-3-scheduling-truth.md
-      # section 9); this toleration keeps that penalty from disadvantaging the
-      # pods that belong there. `all` is merged
-      # into every Rook daemon type's own placement (mon, osd, mgr,
-      # crashcollector, exporter) rather than replacing it, so this alone
-      # covers every CephCluster-managed pod that belongs on talos-3 (the 2
-      # OSDs pinned there via storage.nodes, and mon-h). It deliberately does
-      # NOT cover mds/rgw below, which are kept off talos-3 on purpose - see
-      # their own placement blocks - nor the rbd/cephfs CSI nodeplugin
-      # DaemonSets, which are owned by ceph-csi-operator's `Driver` CRs via an
-      # internal `ceph-csi-drivers` Helm release this repo does not manage
-      # (same structural gap as the ctrlplugin note above). See
-      # docs/talos-3-scheduling-truth.md.
+          # csi stays aes. Kernel clients need Linux >= 7.0. These nodes run 6.18.x. See skill rook-ceph.
+      # Effect must match PreferNoSchedule. `all` covers mon, osd, and mgr. It does not cover mds or rgw.
+      # CSI nodeplugins are operator/csi-driver-tolerations.yaml. See skill node-scheduling. (PR #1798)
       placement:
         all:
           tolerations:
@@ -237,21 +127,10 @@ spec:
             enabled: true
           - name: pg_autoscaler
             enabled: true
-          # Disabled: on Ceph Tentacle, the rook orchestrator backend triggers a
-          # crash storm via prometheus mgr module's node_proxy_fullreport() calls
-          # (NotImplementedError, unimplemented outside cephadm), which in turn
-          # races the crash module's unlocked do_post() into HEALTH_ERR.
-          # Upstream: rook/rook#18124, ceph/ceph#71041, ceph/ceph#71180 (all open).
-          # Revert once a tentacle point release ships both fixes.
+          # Stays off until a Tentacle release ships rook/rook#18124 and ceph/ceph#71041 plus #71180. See skill rook-ceph.
           - name: rook
             enabled: false
-          # Disabled: the nfs module dispatches into `orchestrator`, and the rook
-          # orchestrator backend is off (above), so every `nfs cluster_ls` call
-          # raises ImportError and files a crash report. That produced 2,447
-          # archived crash reports at ~15s intervals over 2026-08-22/23. Nothing
-          # uses it - `ceph nfs cluster ls` returns [] and there are no CephNFS
-          # CRs - and a fresh burst would raise RECENT_CRASH and mask a real
-          # crash. Re-enable only alongside the rook orchestrator backend.
+          # Stays off. It crash-reports through the disabled rook orchestrator. Re-enable only with that module. See skill rook-ceph.
           - name: nfs
             enabled: false
           - name: rgw
@@ -277,11 +156,8 @@ spec:
             memory: 512Mi
           limits:
             memory: 2Gi
-        # mon + logcollector requests==limits => Guaranteed QoS: the Talos
-        # OOMController ranking never selects Guaranteed cgroups, so mon quorum
-        # can't be OOM-killed again (2026-06-30 incident). Live mon usage ~410Mi.
-        # TODO: mds still needs a mds_cache_memory_limit rethink before it can be
-        # promoted to Guaranteed the same way.
+        # requests==limits keeps mon and logcollector Guaranteed, so OOMController skips them. Do not copy this onto MDS.
+        # See skill rook-ceph.
         mon:
           requests:
             cpu: 500m
@@ -297,23 +173,8 @@ spec:
             cpu: 100m
             memory: 256Mi
         osd:
-          # Request is DELIBERATELY below the limit: reserve the steady state, keep
-          # the burst headroom available but unreserved. 2026-09-20 fleet memory
-          # analysis - 6 OSDs x 14Gi reserved 12,288 MiB more than they can defend,
-          # 4,096 MiB of it on talos-3 at 99% committed (docs/talos-3-scheduling-truth.md).
-          #
-          # Why 12Gi and not 10Gi: `osd_memory_target` (10Gi, below) sizes the BlueStore
-          # cache, NOT total RSS, and real usage legitimately exceeds it. The highest OSD
-          # working set on record is 9,317 MiB, measured 2026-09-05 during a real
-          # 128-of-393-PG degradation - exactly when you least want an OSD constrained.
-          # 12Gi clears that by 2,971 MiB. Do NOT "simplify" the request down to match
-          # osd_memory_target. (That 09-05 sample is past the 14d Prometheus retention;
-          # the max still retained on 2026-09-20 is 7,539 MiB, which 12Gi clears by 4,749.)
-          #
-          # QoS is unchanged by this: these pods are Burstable and always have been -
-          # Guaranteed needs every container to cap BOTH cpu and memory, and the `osd`
-          # container requests cpu with no cpu limit. The 2026-08-22 changelog entry
-          # claiming Guaranteed QoS was never true live; verified 2026-09-20.
+          # Request 12Gi is above the 9317 Mi peak. osd_memory_target is cache, not RSS. Limit 14Gi stays so a spike can burst. OSDs stay Burstable.
+          # See skill rook-ceph. (PR #1736)
           requests:
             cpu: 500m
             memory: 12Gi # > observed 9,317 MiB peak; frees 2Gi/OSD of dead reservation
@@ -328,24 +189,14 @@ spec:
       storage:
         useAllNodes: false
         useAllDevices: false
-        # Roll operator-driven OSD updates ONE AT A TIME (CRD default 20 = effectively all
-        # 6 OSDs at once). This field lives under `storage` (spec.storage.osdMaxUpdatesInParallel),
-        # NOT spec-level. Limits blast radius if the #17224 device-path drift bites during a
-        # Ceph/Rook upgrade; on v1.20.0 `ok-to-stop` gating is the core safety. Operator-
-        # orchestration only -- applied live, no OSD restart. See docs/ceph/osd-device-path-recovery.md.
+        # Under storage, not the spec root. Pinned to 1 (CRD default 20). See skill rook-ceph.
         osdMaxUpdatesInParallel: 1
         nodes:
           - name: "talos-1"
             devices:
               - name: "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_NME714W100393P2202"
-              # osd.0 (Samsung 980 PRO S6B0NL0W412707M): RE-ADDED 2026-06-16 as a deliberate
-              # STOPGAP despite a known silent-write-corruption fault (RAM cleared via in-band ECC;
-              # the drive or its talos-1 M.2 slot/PCIe lane is the suspect). Rationale: running
-              # osd.0-OUT left talos-1 with only the fragile DRAM-less Lexar osd.3, causing repeated
-              # CephFS-metadata slow-op wedges / cluster stalls. Corruption is contained by BlueStore
-              # checksums + replica-3 (bad reads fail csum -> served from good replicas; deep-scrub
-              # repairs), so the failure mode is osd.0 CRASHING, not data loss. NOT A FIX — swap the
-              # drive/slot. See docs/ceph-cluster-changelog.md [2026-06-16] + docs/ceph/osd-store-corruption-recovery.md
+              # osd.0 is a stopgap with a known silent-write fault. Checksums and size 3 contain a bad read. Do not mark it out.
+              # See skill rook-ceph.
               - name: "/dev/disk/by-id/nvme-Samsung_SSD_980_PRO_2TB_S6B0NL0W412707M"
           - name: "talos-2"
             devices:
@@ -383,13 +234,11 @@ spec:
           failureDomain: host
           replicated:
             size: 3
-          # Compression disabled (see docs/ceph-performance-review.md).
+          # Compression stays off. See skill rook-ceph.
           compressionMode: none
           parameters:
             compression_mode: none
-            # bulk=true: let the PG autoscaler provision a full PG complement for
-            # this large data pool and scale it up gradually (gentle backfill vs a
-            # hard pg_num jump). See docs/ceph-performance-review.md.
+            # bulk lets the autoscaler grow PGs. Do not hand-set pg_num. See skill rook-ceph.
             bulk: "true"
         storageClass:
           enabled: true
@@ -399,10 +248,8 @@ spec:
           allowVolumeExpansion: true
           volumeBindingMode: Immediate
           parameters:
-            # StorageClass parameters are IMMUTABLE — these must match the live SC
-            # or the Helm upgrade fails ("field is immutable") and rolls back the
-            # whole release. Compression is controlled at the pool level (above);
-            # this only tags new RBD images and the pool 'none' setting governs.
+            # Immutable. aggressive only tags new images; the pool's none governs. Do not edit this to match the pool.
+            # See skill rook-ceph.
             compression_mode: aggressive
             compression_algorithm: zstd
             imageFormat: "2"
@@ -433,12 +280,7 @@ spec:
             parameters:
               compression_mode: none
           dataPools:
-            # Single pool for all data - identical performance on all-NVMe.
-            # No deviceClass: all OSDs are one class, so pinning data0 to the
-            # nvme shadow root made it the ONLY pool on root -2 while every other
-            # pool uses root -1 (default) -> "overlapping roots" -> the PG
-            # autoscaler skipped ALL pools. Using the default root fixes that.
-            # See docs/ceph-performance-review.md.
+            # No deviceClass. A shadow CRUSH root made the autoscaler skip every pool. See skill rook-ceph.
             - name: data0
               failureDomain: host
               replicated:
@@ -452,52 +294,8 @@ spec:
             activeStandby: true
             priorityClassName: system-cluster-critical
             placement:
-              # Rook applies this one placement block identically to all 4 mds pods
-              # (a,b = rank0/rank1 primaries, c,d = their dedicated standby-replay) -
-              # there is no per-rank or active/standby-aware placement key in the CRD,
-              # and pods carry no label grouping them by rank pair, so a generic
-              # podAntiAffinity/topologySpreadConstraint can't target "whichever two
-              # are ACTIVE right now" (that's Ceph-internal runtime state, invisible
-              # to the scheduler). The topologySpreadConstraint below only bounds the
-              # skew across all 4 pods (maxSkew 1 = up to 2 per node), which is why
-              # rank0 (a) and rank1 (b) - the two primaries, active by default with no
-              # failover - both landed on talos-3 (evidence: live `ceph fs status`
-              # output confirming ceph-filesystem-a/-b as the two ACTIVE daemons).
-              # The podAntiAffinity below is intentionally PREFERRED, not required:
-              # a required rule would apply identically to c and d (the shared
-              # placement block above), so during a single-node drain/maintenance
-              # window - including the talos-3 upgrade this is a prerequisite for -
-              # both standby-replay pods would be unable to schedule onto either
-              # remaining node once a and b occupy them, leaving the filesystem with
-              # zero standby-replay coverage for the whole window. A high-weight
-              # preferred term keeps a and b apart under normal scheduling (the
-              # actual observed problem) while still letting them - and c/d - land
-              # on an already-occupied node under pressure, e.g. a 2-node window.
-              # It also does not follow an active rank across a failover to its
-              # standby-replay (e.g. b colocating with c after a fails over to c),
-              # since that pairing is Ceph state, not a Kubernetes label.
-              # ceph-filesystem-b held ACTIVE rank 1 on talos-3 (measured
-              # 2026-09-14 - `ceph fs status`: rank 0 active on -a, rank 1
-              # active on -b, -c and -d standby-replay, 7 clients, 4468 DNS /
-              # 469 caps), so historically excluding talos-3 here forced a
-              # rank failover to standby-replay -d on every reconcile. That was
-              # a routine, designed Ceph operation, but a different class of
-              # action from RGW's relocation above.
-              #
-              # REMOVED 2026-09-26: the explicit `NotIn talos-3` nodeAffinity
-              # that used to live here is now redundant. talos-3 carries a
-              # home-operations.com/dedicated taint (talos/nodes/talos-3.yaml.j2)
-              # and mds gets no toleration for it (mds is deliberately not a
-              # belongs-there workload - docs/talos-3-scheduling-truth.md).
-              # The taint was NoSchedule (a hard filter, equivalent to the
-              # removed affinity) at the time of this removal; it was
-              # switched the same day to PreferNoSchedule (a scheduler score
-              # penalty, not a filter), so what now keeps mds off talos-3 in
-              # normal operation is the 300-point TaintToleration gap
-              # (docs/talos-3-scheduling-truth.md section 9), not an absolute
-              # exclusion - a per-app deny-list entry is still not reinstated
-              # here because it would fail open the same way the removed one
-              # did for anything that forgets to carry it.
+              # Preferred anti-affinity only. Required would leave standby-replay unschedulable during a drain.
+              # MDS has no talos-3 toleration. Do not add a NotIn deny-list. See skill rook-ceph and skill node-scheduling.
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -510,18 +308,8 @@ spec:
                             values:
                               - ceph-filesystem-a
                               - ceph-filesystem-b
-              # nodeTaintsPolicy: Honor - mds gets no toleration for the
-              # talos-3 home-operations.com/dedicated taint (see the
-              # REMOVED note above). Live 2026-09-26: without this, the
-              # default Ignore counted the tainted node as a spread domain
-              # and DoNotSchedule refused to place ceph-filesystem-a
-              # anywhere at all (0/3 nodes available) once talos-1/talos-2
-              # already held their share, during the talos-1.14.1 roll - the
-              # taint was NoSchedule at the time. Honor only filters
-              # NoSchedule/NoExecute taints, so now that the taint is
-              # PreferNoSchedule this dead-end can no longer recur here
-              # either way; kept as hygiene against a future hard taint. See
-              # docs/talos-3-scheduling-truth.md sections 9-10.
+              # Honor ignores PreferNoSchedule. Kept so a future hard taint cannot make DoNotSchedule refuse every node.
+              # See skill node-scheduling.
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname
@@ -591,33 +379,8 @@ spec:
             instances: 2
             priorityClassName: system-cluster-critical
             placement:
-              # RGW runs `instances: 2` behind one service, both actively
-              # serving - unlike metadataServer above, losing either is not a
-              # failover.
-              #
-              # REMOVED 2026-09-26: the explicit `NotIn talos-3` nodeAffinity
-              # that used to live here is now redundant. talos-3 carries a
-              # home-operations.com/dedicated taint (talos/nodes/talos-3.yaml.j2)
-              # and rgw gets no toleration for it (rgw is deliberately not a
-              # belongs-there workload - docs/talos-3-scheduling-truth.md).
-              # The taint was NoSchedule (a hard filter, equivalent to the
-              # removed affinity) at the time of this removal; it was
-              # switched the same day to PreferNoSchedule (a scheduler score
-              # penalty, not a filter), so what now keeps rgw off talos-3 in
-              # normal operation is the 300-point TaintToleration gap
-              # (docs/talos-3-scheduling-truth.md section 9), not an absolute
-              # exclusion - a per-app deny-list entry is still not reinstated
-              # here because it would fail open the same way the removed one
-              # did for anything that forgets to carry it.
-              # nodeTaintsPolicy: Honor - same reasoning as mds above: rgw
-              # gets no toleration for the talos-3 taint, so without this the
-              # default Ignore counted the tainted node as a spread domain
-              # and DoNotSchedule could refuse to place a pod anywhere at
-              # all. Honor only filters NoSchedule/NoExecute taints, so now
-              # that the taint is PreferNoSchedule this dead-end can no
-              # longer recur here either way; kept as hygiene against a
-              # future hard taint (docs/talos-3-scheduling-truth.md sections
-              # 9-10).
+              # RGW has no talos-3 toleration. Honor ignores PreferNoSchedule and stays as hygiene for a future hard taint.
+              # See skill node-scheduling.
               topologySpreadConstraints:
                 - maxSkew: 1
                   topologyKey: kubernetes.io/hostname

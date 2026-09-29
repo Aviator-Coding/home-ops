@@ -26,16 +26,8 @@ spec:
         pod:
           hostNetwork: true
           hostPID: true
-          # nodeTaintsPolicy: Honor - this workload has no toleration for
-          # the talos-3 home-operations.com/dedicated taint, but Honor only
-          # filters NoSchedule/NoExecute taints and the taint is now
-          # PreferNoSchedule, so it no longer excludes talos-3 from the
-          # spread domains; the TaintToleration score penalty keeps this
-          # workload off talos-3 under normal conditions instead
-          # (docs/talos-3-scheduling-truth.md section 9). With
-          # parallelism: 3 across a 3-node cluster this is the same shape as
-          # the mds/rgw/dragonfly regression: without Honor, DoNotSchedule
-          # can leave a pod unable to schedule anywhere against a hard taint.
+          # Honor ignores PreferNoSchedule. Kept so a future hard taint cannot make DoNotSchedule refuse a pod.
+          # See skill node-scheduling.
           topologySpreadConstraints:
             - maxSkew: 1
               topologyKey: kubernetes.io/hostname
@@ -59,27 +51,8 @@ spec:
                 KUBELET_PID="$(pidof /usr/local/bin/kubelet)"
                 NS="--mount=/host/proc/${KUBELET_PID}/ns/mnt --net=/host/proc/${KUBELET_PID}/ns/net"
 
-                # Select exactly one mount per block device from the kubelet's mount
-                # namespace.
-                #
-                # This job started life as the common upstream node-fstrim recipe,
-                # whose "cat /proc/self/mountinfo | grep -v kubelet" filter is aimed
-                # at node filesystems. On this cluster every Ceph PV is mounted under
-                # /var/lib/kubelet, so that filter excluded 100% of PersistentVolumes
-                # and left no working discard path anywhere (it also selected the
-                # read-only /var/mnt and the regular file /etc/nfsmount.conf, both of
-                # which FITRIM rejects, and trimmed the one node partition 6x).
-                #
-                # Rank each candidate mount, lowest wins:
-                #   0  a CSI .../globalmount/... path - the staging mount, exactly one
-                #      per PV and always rw
-                #   1  any other whole-filesystem mount (mountinfo root "/")
-                #   2  a bind mount of a subtree - how the Talos EPHEMERAL xfs
-                #      partition appears here; its own "/var" mount exists only in the
-                #      host namespace, not in the kubelet one
-                # Ties break toward the mount closest to the filesystem root. Read-only
-                # mounts are skipped because FITRIM fails on them. De-duplication is on
-                # major:minor, so each device is trimmed once, not once per bind mount.
+                # One mount per device. Never grep -v kubelet: every Ceph PV is under /var/lib/kubelet.
+                # Rank 0 globalmount, 1 whole filesystem, 2 bind. Skip read-only. Dedupe on major:minor.
                 nsenter $NS -- awk '
                   { sep = 0
                     for (i = 7; i <= NF; i++) if ($i == "-") { sep = i; break }

@@ -30,6 +30,8 @@ Caps are GitOps `cephConfig` per-daemon keys. Live `ceph config dump` matches. S
 
 There is no osd.1 (`ceph osd find 1` is `ENOENT`). No drive has power-loss protection. Mon stores sit on each node's SN770M system disk (firmware 731150WD; the 731100WD HMB corruption is closed). The three Lexar OSDs are the fragile ones.
 
+osd.0 (Samsung 980 PRO on talos-1, by-id suffix `S6B0NL0W412707M`) stays in the map as a stopgap. It has a known silent-write fault; the drive or that M.2 slot is the suspect. Marking it out left talos-1 with only the DRAM-less Lexar and wedged CephFS metadata. BlueStore checksums plus replica size 3 contain a bad read (checksum fail, served from a peer, deep-scrub repairs). If it fails, the OSD crashes. That is not silent data loss. Do not mark it out, and do not treat the stopgap as a repaired drive.
+
 Once a cap is set the OSD logs `Skip OSD benchmark test` and will not re-bench until the key is removed. Rook does not `ceph config rm` a key you delete from Git. Removal is a toolbox `ceph config rm osd.N osd_mclock_max_capacity_iops_ssd` plus an OSD restart.
 
 ## Mon-DB drift

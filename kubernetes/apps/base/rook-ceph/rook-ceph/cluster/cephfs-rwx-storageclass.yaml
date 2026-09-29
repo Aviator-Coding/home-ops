@@ -1,15 +1,6 @@
 ---
-# CephFS RWX StorageClass backed by the healthy `csi-rwx` subvolumegroup
-# (see cephfs-rwx-subvolumegroup.yaml). Use this INSTEAD of `ceph-filesystem`
-# for any ReadWriteMany workload while the default `csi` subvolumegroup is broken
-# by the Ceph Tentacle MDS `ceph.dir.subvolume` vxattr regression (v20.2.1;
-# still broken on live v20.2.3, see docs/ceph-cluster-changelog.md 2026-08-21).
-#
-# `clusterID` MUST match the `csi-rwx` group's generated CSI clusterID
-# (`.status.info.clusterID` of CephFilesystemSubVolumeGroup/ceph-filesystem-csi-rwx).
-# ceph-csi resolves the subvolumegroup name (`csi-rwx`) from the ceph-csi-config
-# entry keyed by this clusterID. Identical to the chart's `ceph-filesystem` SC
-# except for clusterID.
+# RWX class for group csi-rwx. clusterID must match that group's status.info.clusterID.
+# Do not point a new RWX claim at ceph-filesystem. See skill rook-ceph.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:

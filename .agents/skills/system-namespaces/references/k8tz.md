@@ -33,7 +33,7 @@ Neither order is safe for backups.
 
 `failurePolicy: Fail` and `timeoutSeconds: 10` sit on pod CREATE. Keep request equal to limit on the webhook container, the cert-watcher sidecar (the chart's `resources` do not cover it; a patch does), and `initContainerResources`. The init container is what keeps an otherwise Guaranteed pod Guaranteed. Talos `OOMController` skips Guaranteed cgroups and kills BestEffort and Burstable on a PSI spike.
 
-CPU request and limit were raised together (50m to 250m, PR-era measurement in the HelmRelease comment). Memory is 64Mi on the controller containers and 100m / 128Mi on the init container. Do not raise the limit alone.
+The webhook container is cpu 250m and memory 64Mi, request equal to limit (raised together from 50m). The cert-watcher patch is cpu 50m and memory 64Mi, also request equal to limit: chart `resources` do not apply to that sidecar. Init is cpu 100m and memory 128Mi, request equal to limit. Do not raise a limit alone.
 
 `replicaCount: 2`, preferred anti-affinity, plus a `DoNotSchedule` topology spread and a PDB. Preferred anti-affinity alone can co-locate both replicas. `nodeTaintsPolicy: Honor` on that spread does not see the current talos-3 taint (skill `node-scheduling`).
 

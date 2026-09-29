@@ -1,24 +1,7 @@
 ---
-# Clean CephFS subvolumegroup created on Ceph Tentacle v20.2.1.
-#
-# The default `csi` subvolumegroup (Rook CR `ceph-filesystem-csi`, created under
-# Squid 250+ days ago) was corrupted by the v20.2.1 upgrade: every
-# `ceph fs subvolume create/getpath/info/rm` against it now returns
-# `EINVAL: invalid value specified for ceph.dir.subvolume` (Tentacle PRs #65779 +
-# #65564 made the MDS serve/validate the `ceph.dir.subvolume` vxattr on a code
-# path that rejects the migrated group's state). That breaks ALL ceph-csi
-# provision/expand/snapshot/delete on the `csi` group. The documented `setfattr`
-# repair is blocked on Tentacle (mgr-only write). Verified empirically that a
-# FRESH subvolumegroup is unaffected — create + getpath + info all succeed.
-#
-# This `csi-rwx` group backs the `ceph-filesystem-rwx` StorageClass. Keep RWX
-# workloads on `ceph-filesystem-rwx` while the default `csi` group is broken.
-# v20.2.3 did not fix it (live create/getpath still EINVAL; see
-# docs/ceph-cluster-changelog.md 2026-08-21). Do not delete this CR because
-# the image tag is past v20.2.2. Re-test create/getpath against group `csi`
-# before anyone migrates the 3 RWX PVCs back to `ceph-filesystem`
-# (shared-downloads, tdarr-temp, shared-xml). comfyui-output was a fourth
-# until comfyui was removed 2026-09-15.
+# Group csi-rwx is the working CephFS group. Default group csi still returns EINVAL.
+# Four RWX claims use it (shared-downloads, tdarr, shared-xml, shared-files). Do not delete this CR.
+# See skill rook-ceph.
 apiVersion: ceph.rook.io/v1
 kind: CephFilesystemSubVolumeGroup
 metadata:
