@@ -18,6 +18,9 @@ This test does not grep source text as its evidence. It:
        - exactly two ClusterRepositories (ceph, r2) - no MinIO - each on a NEW
          `kopiur` bucket with allowedNamespaces.all and explicit deletion
          protection (threshold + onNamespaceDelete: Orphan)
+       - create.enabled true on ceph (a rebuild needs a new local repository)
+         and false on r2 (the surviving copy: connect-only, see
+         docs/backups/full-cluster-restore-from-r2.md)
        - no SnapshotPolicy / SnapshotSchedule / ReplicationSource objects
        - credentials use explicit remoteRef.property (no dataFrom.extract) and
          never embed secret values
@@ -76,6 +79,7 @@ STAGE0_FORBIDDEN_KINDS = frozenset(
 )
 
 EXPECTED_REPOS = frozenset({"ceph", "r2"})
+EXPECTED_CREATE = {"ceph": True, "r2": False}
 FORBIDDEN_REPO_NAMES = frozenset({"minio", "MinIO"})
 EXPECTED_BUCKET = "kopiur"
 
@@ -366,9 +370,14 @@ def test_kustomize_repository_contract(repo_docs: list[dict[str, Any]]) -> None:
             spec.get("onNamespaceDelete") == "Orphan",
             f"{name}: onNamespaceDelete must be Orphan (ADR-0005), got {spec.get('onNamespaceDelete')!r}",
         )
+        # ceph must bootstrap a fresh repository after a full rebuild (its bucket
+        # is gone); r2 is the surviving copy and must only ever be connected to,
+        # so a wrong endpoint fails loudly instead of creating an empty "r2".
+        want_create = EXPECTED_CREATE[name]
         require(
-            (spec.get("create") or {}).get("enabled") is True,
-            f"{name}: create.enabled must be true (bootstrap empty repo)",
+            (spec.get("create") or {}).get("enabled") is want_create,
+            f"{name}: create.enabled must be {str(want_create).lower()} "
+            f"({'bootstrap empty repo' if want_create else 'connect-only, never create'})",
         )
         require(spec.get("mode") == "ReadWrite", f"{name}: mode must be ReadWrite")
         enc = (spec.get("encryption") or {}).get("passwordSecretRef") or {}

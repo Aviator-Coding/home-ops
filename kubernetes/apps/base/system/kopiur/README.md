@@ -35,8 +35,9 @@ successful backup is `KopiurBackupEmpty` in `app/prometheusrule.yaml`
 
 **Stage 0 rollback** (operator/repos only): delete the `kopiur` and
 `kopiur-repository` Flux Kustomizations. That removes the control plane; it does
-not touch VolSync. The repositories themselves are `create.enabled: true` and
-idempotent - re-applying reconnects rather than re-creating. For the pilot's
+not touch VolSync. The `ceph` repository is `create.enabled: true` and idempotent (`r2` is
+connect-only, `create.enabled: false`) - re-applying reconnects rather than
+re-creating. For the pilot's
 policies/schedules, use the component Readme's Rollback section instead.
 
 ## Layout
