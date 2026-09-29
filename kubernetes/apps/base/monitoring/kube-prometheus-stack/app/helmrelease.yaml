@@ -22,35 +22,24 @@ spec:
       enabled: false
     cleanPrometheusOperatorObjectNames: true
 
-    ###
-    ### Default rule overrides
-    ###
-    # A chart-shipped rule cannot be edited from Git, but `defaultRules.disabled`
-    # (a per-alert-name map, present in this chart version's rule templates) can
-    # switch one off so a home-ops replacement under ./alerts/ owns the name
-    # instead. Each replacement keeps upstream's alert name, severity, `for` and
-    # runbook_url, and changes exactly one thing; the rationale and the live
-    # before/after measurement live in the replacement file itself.
+    # `defaultRules.disabled` switches a chart rule off so a replacement under ./alerts/
+    # owns the name. Each keeps upstream's name, severity, `for` and runbook_url and
+    # changes exactly one thing.
     defaultRules:
       disabled:
-        # Latched with no recency bound: fires for as long as the failed Job
-        # object is retained, which was 13-44h on four dead Jobs. Replaced by
-        # ./alerts/kubernetes-apps-recency.yaml.
+        # Latched with no recency bound while the failed Job object is retained.
+        # Replaced by ./alerts/kubernetes-apps-recency.yaml.
         KubeJobFailed: true
-        # Fires on containers of terminal (phase=Failed) pods, which are not
-        # waiting for anything. Two 10-day-old UnexpectedAdmissionError zombies
-        # were paging. Replaced by ./alerts/kubernetes-apps-recency.yaml.
+        # Fires on containers of terminal (phase=Failed) pods, which wait on nothing.
+        # Replaced by ./alerts/kubernetes-apps-recency.yaml.
         KubeContainerWaiting: true
         # rate()/increase() over [1m] with a 1m scrape interval returns no
         # series at all. Replaced by ./alerts/apiserver-aggregation.yaml.
         KubeAggregatedAPIErrors: true
 
-      # PrometheusDuplicateTimestamps is the alert that correctly reported
-      # ~5,000,000 silently discarded samples over 8 days (two episodes in 30
-      # days) and was never acted on, because at the time every alert arrived at
-      # the same urgency. Discarded samples degrade every alert computed over the
-      # affected target, so this is a failure of the monitoring system itself,
-      # not of one workload - critical, and now Pushover priority 2.
+      # Reported ~5M silently discarded samples over 8 days and was ignored while every alert
+      # had the same urgency. Discarded samples degrade every alert over the target, so this is
+      # a monitoring-system failure: critical, Pushover priority 2.
       additionalRuleAnnotations:
         PrometheusDuplicateTimestamps:
           # The counter is global and unlabelled, so the offending target can
@@ -69,9 +58,6 @@ spec:
       PrometheusDuplicateTimestamps:
         severity: critical
 
-    ###
-    ### Component values
-    ###
     alertmanager:
       enabled: false
 
@@ -115,11 +101,8 @@ spec:
     kubeStateMetrics:
       enabled: false
 
-    # Re-enabled 2026-07-03: with the victoria-metrics stack disabled (see
-    # monitoring/kustomization.yaml) NOTHING scraped node-level metrics — no
-    # node_memory_* / node_pressure_* series existed, which is one reason the
-    # 2026-06-30 OOMController cascade ran 2 days undetected. The alerts in
-    # ./alerts/node-memory-pressure.yaml depend on these metrics.
+    # node_memory_* / node_pressure_* come from here (the victoria-metrics stack is off).
+    # The alerts in ./alerts/node-memory-pressure.yaml depend on them.
     nodeExporter:
       enabled: true
 
@@ -150,9 +133,6 @@ spec:
           annotations:
             grafana_folder: Kubernetes
 
-    ###
-    ### Prometheus operator values
-    ###
     prometheusOperator:
       resources:
         requests:
@@ -170,9 +150,6 @@ spec:
           limits:
             memory: 32M
 
-    ###
-    ### Prometheus instance values
-    ###
     prometheus:
       prometheusSpec:
         alertingEndpoints:

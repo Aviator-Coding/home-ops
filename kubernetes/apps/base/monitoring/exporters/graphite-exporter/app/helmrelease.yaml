@@ -30,7 +30,6 @@ spec:
             args:
               - "--graphite.mapping-config=/tmp/graphite_mapping.conf"
               - "--graphite.listen-address=:2003"
-              # - "--log.level=debug"
             image:
               repository: docker.io/prom/graphite-exporter
               tag: v0.17.0@sha256:c1a266f63a84fd11048ab6ad1552a4c497b14522d02823925247698e41eeac2b
@@ -44,8 +43,7 @@ spec:
                 memory: 128Mi
               requests:
                 cpu: 10m
-                # 14d peak 14.6Mi over 48,220 samples, x2 replicas. 48Mi is
-                # 3.3x it. Limit unchanged at 128Mi.
+                # ~3x the 14d peak (x2 replicas). Limit 128Mi.
                 memory: 48Mi
             securityContext:
               allowPrivilegeEscalation: false
@@ -71,7 +69,6 @@ spec:
         controller: graphite-exporter
         type: LoadBalancer
         annotations:
-          # io.cilium/lb-ipam-ips: 10.10.0.190
         ports:
           graphite-tcp:
             protocol: TCP

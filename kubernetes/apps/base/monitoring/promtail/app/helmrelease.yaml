@@ -12,13 +12,10 @@ spec:
   values:
     fullnameOverride: promtail
 
-    # talos-3 carries a home-operations.com/dedicated taint
-    # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
-    # scheduler score penalty, not a filter - .agents/skills/node-scheduling/references/talos-3-ledger.md).
-    # This chart's own tolerations default (control-plane/master
-    # only) would otherwise be REPLACED wholesale by this values block (Helm
-    # does not merge lists), so both defaults are restated here alongside the
-    # new one. See .agents/skills/node-scheduling/references/talos-3-ledger.md.
+    # talos-3 carries a home-operations.com/dedicated taint (PreferNoSchedule, a score
+    # penalty not a filter - .agents/skills/node-scheduling/references/talos-3-ledger.md).
+    # Helm does not merge lists, so this block replaces the chart's default tolerations
+    # (control-plane/master) wholesale; both defaults are restated alongside the new one.
     tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
@@ -50,14 +47,10 @@ spec:
             max_retries: 10
 
       snippets:
-        # Tempo 3.0's backend-worker logs its idle "no jobs found" poll result
-        # at error level every backend_scheduler.job_timeout (15s default) -
-        # grafana/tempo#7403 / #7666, open upstream, no per-component log
-        # level or config knob exists to suppress it at the source (checked
-        # 2026-09-22: tempo's `server.log_level` is the only log level and is
-        # global, and neither the backend_scheduler nor backend_worker config
-        # blocks expose logging options). Drop only this exact message so
-        # real Tempo errors still ship to Loki.
+        # Tempo 3.0's backend-worker logs its idle "no jobs found" poll at error level every
+        # backend_scheduler.job_timeout - grafana/tempo#7403 / #7666, open upstream, no log-level
+        # knob short of the global server.log_level. Drop only this exact message so real
+        # Tempo errors still ship to Loki.
         pipelineStages:
           - cri: {}
           - match:
@@ -66,23 +59,17 @@ spec:
                 - drop:
                     expression: 'msg="error calling scheduler" err="rpc error: code = NotFound desc = no jobs found"'
                     drop_counter_reason: tempo_idle_scheduler_noise
-        # Add relabel configs to properly label Ceph logs for dashboard compatibility
         extraRelabelConfigs:
-          # Add ceph_daemon_type label for Ceph dashboard compatibility
           - source_labels: [__meta_kubernetes_pod_label_ceph_daemon_type]
             target_label: ceph_daemon_type
-          # Add ceph_daemon_id label
           - source_labels: [__meta_kubernetes_pod_label_ceph_daemon_id]
             target_label: ceph_daemon_id
-          # Add ceph_cluster_id label
           - source_labels: [__meta_kubernetes_namespace]
             regex: rook-ceph
             target_label: ceph_cluster_id
             replacement: rook-ceph
-          # Add hostname label
           - source_labels: [__meta_kubernetes_pod_node_name]
             target_label: hostname
-          # Identify log type based on container
           - source_labels: [__meta_kubernetes_container_name]
             regex: "(mgr|mon|osd|mds|rgw)"
             target_label: log_type

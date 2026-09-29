@@ -17,14 +17,8 @@ spec:
         enabled: true
         honorLabels: true
 
-    # KSM's own health (list/watch errors, sharding) is a SEPARATE telemetry
-    # port (8081) from the main kube_state_metrics.* endpoint (8080, port
-    # name "http", already scraped above). Without this the container only
-    # ever exposed 8080 via the Service, so KubeStateMetricsListErrors,
-    # KubeStateMetricsWatchErrors, KubeStateMetricsShardingMismatch and
-    # KubeStateMetricsShardsMissing were structurally dead - zero
-    # kube_state_metrics_* families existed under any condition. This adds
-    # the 8081 container port, exposes it on the Service, and adds a second
-    # ServiceMonitor endpoint for it.
+    # KSM's own health (list/watch errors, sharding) is a separate telemetry port (8081),
+    # not the 8080 "http" port. Without the container port, Service port and second
+    # ServiceMonitor endpoint the KubeStateMetrics* rules can never fire.
     selfMonitor:
       enabled: true

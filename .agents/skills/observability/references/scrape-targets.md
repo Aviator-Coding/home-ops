@@ -21,3 +21,9 @@ Alertmanager's job relabel is separate and load-bearing. See
 
 Before trusting a new monitor, check the live object's labels and that the
 scrape target is up. Git is not the label set Flux applies.
+
+kube-state-metrics' own health series (`KubeStateMetricsListErrors` and
+siblings) come from a second telemetry port, 8081, not the 8080 `http` port.
+It needs the container port, a Service port and its own ServiceMonitor
+endpoint or those rules can never fire. Loki likewise needs its chart
+`monitoring.serviceMonitor.enabled`.

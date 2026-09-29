@@ -11,7 +11,7 @@ spec:
     matchLabels:
       app: emqx-exporter
   endpoints:
-    # /metrics — aggregated EMQX cluster metrics derived by the exporter
+    # /metrics - aggregated EMQX cluster metrics derived by the exporter
     # via the dashboard API. Relabelings here are required by the bundled
     # dashboards (cluster + from + instance labels are joined on by panels).
     - port: metrics

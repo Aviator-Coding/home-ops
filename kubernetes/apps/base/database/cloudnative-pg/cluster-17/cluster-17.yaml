@@ -7,52 +7,40 @@ metadata:
   labels:
     pgadmin: enabled
 spec:
-  # Three instances across talos-1/2/3 (talos-3 BIOS issue resolved 2026-04-26).
   instances: 3
   # renovate: datasource=docker depName=ghcr.io/tensorchord/cloudnative-pgvecto.rs versioning=docker
   imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:17.5-v0.4.0
 
-  # Pod and node affinity rules
   affinity:
     enablePodAntiAffinity: true
     topologyKey: kubernetes.io/hostname
     podAntiAffinityType: required
     nodeSelector:
       kubernetes.io/os: linux
-    # talos-3 carries a home-operations.com/dedicated taint
-    # (talos/nodes/talos-3.yaml.j2), PreferNoSchedule since 2026-09-26 (a
-    # scheduler score penalty, not a filter - .agents/skills/node-scheduling/references/talos-3-ledger.md).
-    # instances: 3 + required podAntiAffinity on hostname means
-    # one instance must be able to land on talos-3; this toleration keeps
-    # the score penalty from disadvantaging it there.
+    # instances: 3 + required hostname anti-affinity means one instance must land
+    # on talos-3 (PreferNoSchedule taint); this toleration removes the score penalty.
+    # Skill `node-scheduling`.
     tolerations:
       - key: home-operations.com/dedicated
         operator: Exists
         effect: PreferNoSchedule
 
-  # - unsupervised: automated update of the primary once all
-  #                 replicas have been upgraded (default)
-  # - supervised: requires manual supervision to perform
-  #               the switchover of the primary
   primaryUpdateStrategy: unsupervised
   primaryUpdateMethod: switchover
 
-  # Storage configuration
   storage:
     size: 100Gi
     storageClass: ceph-block
 
-  # Superuser configuration
   superuserSecret:
     name: cloudnative-pg-secret
   enableSuperuserAccess: true
 
-  # Bootstrap from postgres17-v4 archive (canonical-name restore after the v3->v4 rebuild).
+  # Bootstrap from the previous serverName archive. Skill `databases`.
   bootstrap:
     recovery:
       source: &previousCluster postgres17-v4
 
-  # Configuration of the PostgreSQL server
   postgresql:
     shared_preload_libraries: ["vectors.so"]
     parameters:
@@ -60,20 +48,15 @@ spec:
       work_mem: 64MB
       shared_buffers: 128MB
 
-  # Pod resource boundaries
   resources:
     requests:
       cpu: 500m
     limits:
       memory: 4Gi
 
-  # Prometheus Exporter
   monitoring:
     enablePodMonitor: true
-    # Keep both 'cluster' (original) and 'cnpg_cluster' (renamed copy) labels.
-    # The CNPG-bundled Grafana dashboard's Cluster dropdown extracts the
-    # 'cluster' label (regex /\bcluster\b="[^"]+"/), so dropping it leaves
-    # every panel "No data". Other consumers can use 'cnpg_cluster'.
+    # Keep the original `cluster` label: the bundled dashboard reads it. Skill `databases`.
     podMonitorMetricRelabelings:
       - {
           sourceLabels: ["cluster"],
@@ -81,7 +64,7 @@ spec:
           action: replace,
         }
 
-  # Backup serverName postgres17-v5 (incremented from v3, v4 to keep archives distinct).
+  # Increment serverName on a restore so archives stay distinct. Skill `databases`.
   backup:
     retentionPolicy: 30d
     barmanObjectStore: &barmanObjectStore
@@ -101,7 +84,6 @@ spec:
           name: cloudnative-pg-secret
           key: aws-secret-access-key
 
-  # External cluster reference: bootstrap.recovery reads from this archive.
   externalClusters:
     - name: *previousCluster
       barmanObjectStore:

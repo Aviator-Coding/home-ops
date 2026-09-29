@@ -5,7 +5,7 @@ kind: NetworkPolicy
 metadata:
   name: emqx-allow-monitoring
 spec:
-  # The first NP applied to a pod converts it to default-deny — so any rule
+  # The first NP applied to a pod converts it to default-deny - so any rule
   # this policy doesn't enumerate gets blocked. We must list every port the
   # cluster needs (gossip + MQTT + dashboard).
   podSelector:
@@ -34,7 +34,7 @@ spec:
         - { port: 8883, protocol: TCP }   # MQTTS
         - { port: 8083, protocol: TCP }   # WebSocket
         - { port: 8084, protocol: TCP }   # WebSocket Secure
-    # Dashboard + native Prometheus metrics on :18083 — open to any
+    # Dashboard + native Prometheus metrics on :18083 - open to any
     # in-cluster pod. EMQX :18083 is dual-purpose (web UI + /api/v5/* +
     # /api/v5/prometheus/*), and many cluster components legitimately
     # need to reach it: Prometheus, the emqx-exporter, the EMQX operator
@@ -48,7 +48,7 @@ spec:
     # Allow DNS replies from CoreDNS in kube-system. No ports restriction here
     # on purpose: NetworkPolicy `ports` matches the DESTINATION port on this
     # pod, and a DNS reply arrives on emqx's ephemeral source port, never 53
-    # - a port:53 restriction (as added in #1800) can never match a reply and
+    # - a port:53 restriction can never match a reply and
     # silently drops every DNS response. See loki-ingress and AGENTS.md for
     # the full mechanism (Cilium reply-conntrack fails to correlate a DNS
     # reply back to its request when the client pod's node also hosts a

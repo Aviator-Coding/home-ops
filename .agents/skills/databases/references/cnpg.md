@@ -18,7 +18,8 @@ follow-up, not a side effect of editing the cluster.
 Current archive: `destinationPath: s3://home-ops-postgres-cluster/`,
 `serverName: postgres17-v5`, endpoint the NAS MinIO URL, retention `30d`.
 Bootstrap recovery source is the previous server name (`postgres17-v4`).
-Increment `serverName` on a restore so the new archive does not collide.
+Increment `serverName` on a restore so the new archive does not collide
+(archives so far: v3, v4, v5).
 
 Apps use `postgres-17-rw.database.svc.cluster.local:5432`, hardcoded in each
 app's ExternalSecret. A cutover updates those strings. It is not a

@@ -23,18 +23,9 @@ spec:
               drifted from live Grafana state and needs a Grafana pod restart to
               clear (see kubernetes/apps/base/monitoring/grafana-sa-provisioner/README.md).
             summary: Grafana Viewer service account reconciler has been failing for over an hour.
-          # Verified live against the running cluster (2026-08-26): an earlier
-          # `... or vector(0)` version of this expression never cleared, even
-          # with the CronJob succeeding every 5 minutes. `or` unions series by
-          # label set rather than substituting only when the LHS is absent -
-          # `vector(0)` has no labels at all, so it never matches the real
-          # metric's label set and both series survive the union. `time() -
-          # 0 > 3600` is then permanently true, so a second, phantom,
-          # zero-label series stays in the result forever regardless of the
-          # real metric. `absent()` doesn't have that problem: it special-cases
-          # the equality matchers in its argument into the labels of its (single)
-          # result series, and only produces a result at all when the metric is
-          # truly absent - confirmed empty-vs-populated against live Prometheus.
+          # Not `or vector(0)`: vector(0) has no labels, so it survives the union and the
+          # alert never clears. absent() only returns a series when the metric is truly
+          # absent. Skill observability.
           expr: |-
             absent(kube_cronjob_status_last_successful_time{namespace="monitoring", cronjob="grafana-sa-provisioner"})
             or

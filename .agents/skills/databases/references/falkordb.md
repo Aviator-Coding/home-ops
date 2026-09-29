@@ -90,9 +90,10 @@ init. Absence is not a failure. Skill `kopiur-backups`.
 Chart-owned PVC, not `components/kopiur/pvc` (that shape is the
 VolSync-retirement takeover). `retain: true` so a failed-install uninstall
 does not delete the volume. `forceRename: falkordb` so a second persistence
-key cannot rename this claim to `falkordb-data` and orphan the
-SnapshotPolicy. Mount with `advancedMounts` on the database container only.
-The browser reaches data over Redis.
+key cannot rename this claim to `falkordb-data` (app-template appends the key
+only when more than one PVC renders) and orphan the SnapshotPolicy. Mount with
+`advancedMounts` on the database container only. The browser reaches data over
+Redis.
 
 ## Browser
 
@@ -101,6 +102,18 @@ two distinct salts, not extra 1Password fields. They must stay stable across
 restarts. The image ships public placeholders and, when `ENCRYPTION_KEY` is
 unset, generates a throwaway key. `sha256sum` is 64 lowercase hex, which the
 entrypoint's length check requires. Rotating the password rotates both.
+
+The browser container shares the database image, mounts no data volume and
+reaches the database over loopback. Its workingDir is
+`/var/lib/falkordb/browser` because `API_TOKEN_STORAGE_PATH` (`.data/...`)
+resolves relative to it. Two emptyDirs are needed and no others (`/tmp` and
+`.next/cache` were measured unnecessary): `/app/.data` (the entrypoint exits 1
+if it is unwritable) and `<workingDir>/.data`. Missing the second leaves the pod
+Ready while every login fails with `EROFS: chmod '.data'`. Tokens die on
+restart by design. Run the image entrypoint with `exec`, not `node server.js`.
+`AUTH_URL` and `ALLOWED_ORIGINS` override the image's localhost `.env.local`;
+without `AUTH_URL` a successful login redirects to `http://localhost:3000`.
+`HOSTNAME=0.0.0.0` is needed because Next.js binds localhost by default.
 
 `BROWSER=0` stays. It is inert while the command bypasses `run.sh`. Reverting
 to the image command without it starts a second browser on port 3000.
