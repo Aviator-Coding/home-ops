@@ -24,6 +24,17 @@ Do not reintroduce `kind: GrafanaDashboard` or a grafana-operator HelmRelease.
 Dashboards that Grafana actually loads are sidecar ConfigMaps (label
 `grafana_dashboard: "1"`) or `url:` entries on the Grafana HelmRelease.
 
+## Datasource and chart-entry traps
+
+- The Prometheus datasource carries `timeInterval: 1m`, matching the 1m
+  scrapeInterval. Without it `$__rate_interval` is one scrape and every
+  `rate()` panel is empty on 1h to 6h views.
+- A chart entry with `datasource: Prometheus` (string mode) rewrites every
+  single-line `datasource` key, including Loki ones. Use the list form with
+  one `name`/`value` pair per placeholder (`DS_LOKI: Loki` for flux-logs).
+- Old Angular plugins are not installed; dashboards using them migrate to core
+  panels. Do not re-add them or `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS`.
+
 ## Dashboard collisions
 
 Grafana refuses to save two dashboards with one UID, and a collision can lock

@@ -105,6 +105,12 @@ spec:
     # The alerts in ./alerts/node-memory-pressure.yaml depend on them.
     nodeExporter:
       enabled: true
+      # Only gates the AIX and macOS dashboard ConfigMaps (no such nodes); the DaemonSet is unchanged.
+      operatingSystems:
+        aix:
+          enabled: false
+        darwin:
+          enabled: false
 
     prometheus-node-exporter:
       prometheus:

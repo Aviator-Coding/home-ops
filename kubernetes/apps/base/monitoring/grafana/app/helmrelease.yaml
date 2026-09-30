@@ -136,7 +136,9 @@ spec:
 
         node-feature-discovery:
           url: https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/master/examples/grafana-dashboard.json
-          datasource: Prometheus
+          datasource:
+            - name: DS_PROMETHEUS
+              value: Prometheus
 
         home-dashboard:
           json: |
@@ -175,7 +177,7 @@ spec:
                   "id": 2,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/cilium-agent)\n- [Kubernetes](/d/k8s-views-global)\n- [Cert-manager](/d/cert-manager)\n- [Ceph Cluster](/d/tbO9LAiZK)\n- [Ceph Usage](/d/ceph-usage)\n- [Ceph Hosts](/d/ceph-hosts-overview)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/emqx-overview)",
+                    "content": "## 🖥️ Infrastructure\n- [Cilium](/d/vtuWtdumz)\n- [Kubernetes](/d/k8s_views_global)\n- [Cert-manager](/d/cdhrcds8aosg0c)\n- [Ceph Cluster](/d/tbO9LAiZK)\n- [Ceph Usage](/d/ceph-usage)\n- [Ceph Hosts](/d/ceph-hosts-overview)\n\n## 🗄️ Databases\n- [CloudNativePG](/d/cloudnative-pg)\n- [Dragonfly](/d/xDLNRKUWl)\n- [EMQX](/d/overview)",
                     "mode": "markdown"
                   },
                   "title": "Infrastructure & Databases",
@@ -187,7 +189,7 @@ spec:
                   "id": 3,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LiteLLM](/d/litellm)\n- [LiteLLM Routing](/d/llm-routing)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-observatory)\n- [Ollama](/d/ollama-llm-inference)\n\n## 🎬 Media\n- [Plex](/d/plex-media-server-exporter)\n- [Tdarr](/d/tdarr)",
+                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LiteLLM](/d/litellm)\n- [LiteLLM Routing](/d/llm-routing)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-overview)\n- [Ollama](/d/ollama-inference-v1)\n\n## 🎬 Media\n- [Plex](/d/TPZ6-zT4z)\n- [Tdarr](/d/7d103297-1876-4d26-8e2a-a02e119fb36e)",
                     "mode": "markdown"
                   },
                   "title": "AI/ML & Media",
@@ -199,7 +201,7 @@ spec:
                   "id": 4,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 📥 Downloads\n- [Sonarr](/d/sonarr-v3)\n- [Radarr](/d/radarr-v3)\n- [Lidarr](/d/lidarr)\n- [Prowlarr](/d/prowlarr)\n\n## 🔒 Security\n- [Authentik](/d/authentik-overview)\n\n## 📊 Monitoring\n- [Prometheus](/d/prometheus-stats)\n- [Gatus](/d/gatus)\n- [UniFi Sites](/d/9WaGWZaZk)\n- [UniFi Clients](/d/jMfvAjxWz)",
+                    "content": "## 📥 Downloads\n- [Sonarr](/d/vGjT_QWMk)\n- [Radarr](/d/F2vfZUNGz)\n\n## 🔒 Security\n- [Authentik](/d/authentik)\n\n## 📊 Monitoring\n- [Gatus](/d/KPI7Qj1Wk)\n- [UniFi Sites](/d/9WaGWZaZk)\n- [UniFi Clients](/d/jMfvAjxWz)",
                     "mode": "markdown"
                   },
                   "title": "Downloads, Security & Monitoring",
@@ -248,6 +250,8 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+            - name: VAR_DATASOURCE
+              value: Prometheus
 
         volsync:
           # renovate: depName="VolSync Dashboard"
@@ -269,7 +273,10 @@ spec:
 
         flux-logs:
           url: https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/main/monitoring/configs/dashboards/logs.json
-          datasource: Prometheus
+          # LogQL dashboard: string mode would rewrite the Loki datasource to Prometheus.
+          datasource:
+            - name: DS_LOKI
+              value: Loki
 
         k8s-system-api-server:
           # renovate: depName="Kubernetes / System / API Server"
@@ -414,6 +421,8 @@ spec:
           datasource:
             - name: DS_PROMETHEUS
               value: Prometheus
+            - name: DS_RANCHER_MONITORING
+              value: Prometheus
 
       networking:
         cloudflare-tunnels:
@@ -431,14 +440,6 @@ spec:
           datasource: Prometheus
 
       monitoring:
-        prometheus-stats:
-          # renovate: depName="Prometheus Stats"
-          gnetId: 2
-          revision: 2
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
         gatus:
           # renovate: depName="Gatus"
           gnetId: 24379
@@ -536,6 +537,9 @@ spec:
             isDefault: true
             jsonData:
               prometheusType: Prometheus
+              # Must match scrapeInterval in kube-prometheus-stack. Unset, Grafana assumes 15s and
+              # $__rate_interval resolves to 1m, one scrape, so rate() panels are empty.
+              timeInterval: 1m
           - access: proxy
             name: Loki
             type: loki
@@ -581,7 +585,6 @@ spec:
       GF_FEATURE_TOGGLES_ENABLE: publicDashboards
       GF_LOG_MODE: console
       GF_NEWS_NEWS_FEED_ENABLED: false
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: natel-discrete-panel,pr0ps-trackmap-panel,panodata-map-panel
       GF_SECURITY_COOKIE_SAMESITE: grafana
       GF_SERVER_ROOT_URL: "https://{{ .Release.Name }}.${SECRET_DOMAIN}"
 
@@ -607,13 +610,6 @@ spec:
 
     plugins:
       - grafana-clock-panel
-      - grafana-piechart-panel
-      - grafana-worldmap-panel
-      - natel-discrete-panel
-      - pr0ps-trackmap-panel
-      - vonage-status-panel
-      - victoriametrics-logs-datasource
-      - victoriametrics-metrics-datasource
 
     rbac:
       pspEnabled: false
