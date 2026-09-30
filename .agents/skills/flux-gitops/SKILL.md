@@ -12,12 +12,22 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
 
 ## Tripwires
 
-1. **`healthChecks` target the workload, and `wait` stays false.** A
-   `HelmRelease`-kind check stays `Ready` through a crashloop. Point the list
-   at the Deployment, StatefulSet, DaemonSet, CronJob, or the CR whose status
-   is the real signal. Flux ignores `spec.healthChecks` when `spec.wait: true`
-   and assesses the whole inventory instead (usually just the HelmRelease).
+1. **`healthChecks` target the workload, and a Kustomization that owns a
+   kopiur or VolSync claim keeps `wait` false.** A `HelmRelease`-kind check
+   stays `Ready` through a crashloop. Point the list at the Deployment,
+   StatefulSet, DaemonSet, CronJob, or the CR whose status is the real
+   signal. Flux ignores `spec.healthChecks` when `spec.wait: true` and
+   assesses the whole inventory instead (usually just the HelmRelease).
    `healthCheckExprs` run only for objects already in that assessment set.
+   `wait: true` is correct for a pure dependency gate that others `dependsOn`
+   (checked 2026-09-30, 20 live): CRDs (`agentgateway-crds`, `toolhive-crds`),
+   operators and clusters (`cloudnative-pg`, `postgres-cluster-17`,
+   `dragonfly-operator`, `emqx-*`, `surrealdb`, `keda`), secret stores
+   (`external-secrets`, `onepassword-store`, `database-secrets`), `cluster-meta`,
+   `multus-networks`, `certificates-import`, `cloudflare-dns`, `coder`,
+   `calibre-downloader`. None of them includes `components/kopiur` or
+   `components/volsync`, which deadlocks `wait: true`. Recount with
+   `kubectl get ks -A -o json | jq '[.items[]|select(.spec.wait==true)]|length'`.
 2. **Suspend the Kustomization before a live HelmRelease edit.** Its interval
    (or any `flux reconcile ks`) reapplies `main` and drops the experiment.
    `flux resume` itself reconciles back to `main`.

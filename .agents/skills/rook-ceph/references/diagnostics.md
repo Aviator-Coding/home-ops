@@ -23,6 +23,39 @@ kubectl exec -n rook-ceph deploy/rook-ceph-tools -- ceph osd down osd.N
 
 `waiting for readable` in the blocked-op dump is the laggy-PG lease, not a client bug. Remove the sustained writer (a backup or an unpack queue) before declaring the OSD bad.
 
+## Verifying CephFS CSI subvolumes
+
+Rook's default `csi` subvolumegroup is broken on Tentacle (MDS
+`ceph.dir.subvolume` vxattr regression), so RWX uses group `csi-rwx` and
+StorageClass `ceph-filesystem-rwx`. Retire that only when this probe passes
+against group `csi`. Read-only checks first:
+
+```bash
+T="kubectl --kubeconfig ./kubeconfig -n rook-ceph exec deploy/rook-ceph-tools --"
+$T ceph fs subvolumegroup ls ceph-filesystem
+$T ceph fs subvolume ls ceph-filesystem --group-name csi-rwx
+$T ceph fs subvolume getpath ceph-filesystem <csi-vol-name> --group-name csi-rwx
+```
+
+Broken group symptom: `Error EINVAL: invalid value specified for
+ceph.dir.subvolume`, and a failed `create` still leaves an empty directory
+that cannot be removed. Never `rm -rf` under `/volumes/csi/csi-vol-*`. A
+throwaway write probe (a deliberate exception, only when deciding to retire
+the workaround) uses a unique name and removes it:
+
+```bash
+$T ceph fs subvolume create ceph-filesystem fm-verify-csi-$(date +%s) --group-name csi-rwx --size 1048576
+$T ceph fs subvolume getpath ceph-filesystem <that name> --group-name csi-rwx
+$T ceph fs subvolume rm ceph-filesystem <that name> --group-name csi-rwx
+```
+
+Do not run it against `csi`, it leaves debris. For the kernel-client question,
+check that the node exposes CephFS (built in, so no module is listed):
+
+```bash
+talosctl --talosconfig talos/talosconfig -n 10.10.10.11 read /proc/filesystems | grep ceph   # expect "nodev	ceph"
+```
+
 ## Mon store
 
 One mon crash-looping on RocksDB `Corruption` / `missing files` / `block checksum mismatch`: delete that mon's deployment and its PVC. Rook recreates it from quorum. Do not restore an old mon store over a live quorum.

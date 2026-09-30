@@ -56,6 +56,74 @@ Secret `authentik-terraform-credentials` into `Automation/authentik-terraform`.
 Authentik stores tokens in Postgres, so this is not a restart-wiped Grafana
 style provisioner.
 
+## Mint or rotate the read-only token
+
+Authentik has no CLI subcommand for this and hand-written Postgres rows skip
+the ORM's key generation. Use the `ak` management shell on the worker. The
+script is idempotent: a re-run returns the existing account and token. Mint
+only under an explicit go-ahead for a read-only token.
+
+```bash
+kubectl --kubeconfig ./kubeconfig -n security exec deploy/authentik-worker -c worker -- ak shell -c "
+from authentik.core.models import User, UserTypes, Token, TokenIntents, Group
+g = Group.objects.get(name='authentik Read-only')
+u, cu = User.objects.get_or_create(
+    username='tofu-readonly',
+    defaults={'name': 'OpenTofu read-only', 'type': UserTypes.SERVICE_ACCOUNT,
+              'path': 'goauthentik.io/service-accounts'},
+)
+assert u.type == UserTypes.SERVICE_ACCOUNT
+u.groups.set([g])
+u.save()
+t, ct = Token.objects.get_or_create(
+    identifier='tofu-readonly-api',
+    defaults={'user': u, 'intent': TokenIntents.INTENT_API, 'expiring': False,
+              'description': 'OpenTofu read-only plan credential'},
+)
+u.refresh_from_db()
+assert u.is_superuser is False
+assert [x.name for x in u.groups.all()] == ['authentik Read-only']
+print(t.key)
+" 2>&1 | grep -v '^{'
+```
+
+Authentik 2026.8.3 deprecates `User.ak_groups`, so the script uses `groups`
+(the old name still works but logs a JSON deprecation line, hence the
+`grep -v '^{'`). Rotate by deleting the `Token` row and re-running.
+
+The `authentik Read-only` group's role holds only `view_*` model permissions
+(104 measured 2026-08-26), no object permissions, not superuser. Proof: `GET
+/api/v3/core/applications/` is 200, `POST /api/v3/core/groups/` and `PATCH
+/api/v3/providers/oauth2/4/` are 403. It can plan and never apply.
+
+Put the key into the source Secret without echoing it. Patch, do not
+`create --dry-run | apply`: the live Secret also carries the `*_CLIENT_ID` and
+`TF_STATE_*` keys, and a full replace drops them.
+
+```bash
+kubectl -n security patch secret authentik-terraform-credentials --type merge \
+  -p "{\"stringData\":{\"AUTHENTIK_TOKEN\":\"$KEY\"}}"
+```
+
+For a first-ever mint the Secret does not exist yet: `kubectl -n security
+create secret generic authentik-terraform-credentials
+--from-literal=AUTHENTIK_TOKEN="$KEY"` (plus the client-id keys). It is
+deliberately never committed. The PushSecret then writes it to
+`Automation/authentik-terraform`.
+
+## Discovering import IDs
+
+The import blocks need exact primary keys, which only the database gives.
+Read-only `SELECT`s against Authentik's Postgres, never selecting
+`client_secret`:
+
+```bash
+PRIMARY=$(kubectl --kubeconfig ./kubeconfig -n database get pods \
+  -l 'cnpg.io/cluster=postgres-17,role=primary' -o jsonpath='{.items[0].metadata.name}')
+kubectl --kubeconfig ./kubeconfig -n database exec "$PRIMARY" -c postgres -- \
+  psql -d authentik -A -F'|' -c "select id, name from authentik_core_provider order by id;"
+```
+
 ## Bootstrap (already done)
 
 One-time: `radosgw-admin user create --uid=terraform`, bucket

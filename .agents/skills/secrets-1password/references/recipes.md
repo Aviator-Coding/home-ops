@@ -54,6 +54,48 @@ Generate passwords with `openssl rand`. Put them in 1Password, then let
 ESO project them. Never commit them, and never `kubectl apply` a
 client-side Secret manifest that contains them.
 
+## Creating the per-app items
+
+Items live in vault `Homelab` (Connect-visible), titled exactly the ExternalSecret
+`dataFrom.extract.key`. Field names must match the ExternalSecret template
+keys, or the app fails while `SecretSynced` stays true. Generate values into
+shell variables, never into a file or a commit. `POSTGRES_SUPER_PASS` is not
+in these items (shared `cloudnative-pg` item). Item and field names below match
+the live ExternalSecrets in `selfhosted`.
+
+```bash
+# linkwarden (NEXTAUTH_URL is a HelmRelease value, not a field)
+op item create --category=login --title=linkwarden --vault=Homelab \
+  "NEXTAUTH_SECRET=$(openssl rand -hex 32)" \
+  "POSTGRES_DB_NAME=linkwarden" "POSTGRES_DB_USER_NAME=linkwarden" \
+  "POSTGRES_DB_USER_PASSWORD=$(openssl rand -base64 24)"
+
+# paperless-ngx
+op item create --category=login --title=paperless-ngx --vault=Homelab \
+  "PAPERLESS_SECRET_KEY=$(openssl rand -hex 32)" \
+  "PAPERLESS_ADMIN_USER=admin" "PAPERLESS_ADMIN_PASSWORD=$(openssl rand -base64 18)" \
+  "POSTGRES_DB_NAME=paperless" "POSTGRES_DB_USER_NAME=paperless" \
+  "POSTGRES_DB_USER_PASSWORD=$(openssl rand -base64 24)"
+
+# obsidian-livesync (CouchDB, no POSTGRES_* fields)
+op item create --category=login --title=obsidian-livesync --vault=Homelab \
+  "COUCHDB_USER=admin" "COUCHDB_PASSWORD=$(openssl rand -base64 24)" \
+  "COUCHDB_SECRET=$(uuidgen)"
+```
+
+`ntfy` has no item: its auth is a ConfigMap and there is no ExternalSecret.
+
+Check the result by key name, then by length (above):
+
+```bash
+kubectl -n selfhosted get externalsecret
+kubectl -n selfhosted get secret <app>-secret -o jsonpath='{.data}' | jq 'keys'
+```
+
+Failure map: `SecretSyncedError` is a title or field-name mismatch;
+`READY False` is the `onepassword` store or Connect pods; a pod stuck in
+`postgres-init` is usually a wrong `POSTGRES_SUPER_PASS`.
+
 ## Seeding a one-off Secret
 
 `kubectl apply -f` of a Secret (including `kubectl create --dry-run=client -o yaml | kubectl apply -f -`)

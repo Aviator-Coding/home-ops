@@ -71,7 +71,7 @@ Each is a warning needed before deciding to touch the subsystem; detail is in th
 - **NEVER run `just bootstrap cluster` / `apps` against a healthy cluster** (DR and first-time only; `bootstrap/AGENTS.md`).
 - **A literal `${...}` that is not a Flux variable fails the whole Kustomization, and neither `flate` nor `task flux:test:all` catches it.** Skill `flux-substitution`.
 - **`flate -n` filters the exit code; `task flux:test:all` is the gate.** Skill `flux-gitops`.
-- **`healthChecks` target the workload, never the HelmRelease, and `wait` stays false.** Suspend a Kustomization before a live HelmRelease edit. `flux-system` is exempt from `cluster-apps`, so a git-only change to it never lands. Skill `flux-gitops`.
+- **`healthChecks` target the workload, never the HelmRelease, and a Kustomization that owns a kopiur or VolSync claim keeps `wait` false (dependency gates like CRDs, operators and secret stores set `wait: true`).** Suspend a Kustomization before a live HelmRelease edit. `flux-system` is exempt from `cluster-apps`, so a git-only change to it never lands. Skill `flux-gitops`.
 - **Never add a helm `postRenderer: bash`** (breaks on Helm 4).
 - **Retiring an app or changing a pinned value can break a `scripts/ci` gate `flate` does not run.** Grep `scripts/ci/` first. `validate.yaml` is the only CI signal for `talos/`, `bootstrap/`, `.renovate/` and `terraform/`. Skill `github-ci`.
 - **Merging `.renovaterc.json5` or `.renovate/**` fires the renovate workflow.** Suspend it first. A Renovate bump of `talosupgrade.yaml` is an unattended node upgrade. Skill `renovate`.
