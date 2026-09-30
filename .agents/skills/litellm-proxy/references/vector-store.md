@@ -102,6 +102,21 @@ bearer key) and add a second registry entry, or seed it in `schema.sql`.
 Creating through LiteLLM would need `PG_VECTOR_API_KEY` (never set). All
 stores share one table, so one model and width.
 
+## Deleting rows
+
+The server has no delete endpoint: its OpenAPI lists only create/list store,
+search, `embeddings` and `embeddings/batch`. Remove a test or wrong row with
+psql on the CNPG primary (`kubectl -n database get cluster postgres-17` shows
+it; it moved to `postgres-17-5` during the live proof and moves on failover):
+
+```bash
+kubectl -n database exec -it <primary-pod> -c postgres -- psql -d litellm_pgvector
+delete from embeddings where id='<id>' and metadata->>'source'='<source>';
+select count(*) from embeddings;
+```
+
+Match the `metadata->>'source'` too, so a wrong id cannot delete another row.
+
 ## Data, credentials, health
 
 - Every ingested chunk and search query is sent to OpenRouter (Nebius or
