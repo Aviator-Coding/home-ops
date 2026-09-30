@@ -175,6 +175,16 @@ spec:
     fallbacks:
       - chat-ha: ["claude-sonnet-5-metered"]
       - auto: ["claude-sonnet-5-metered"]
+    # Retry-only for the vector store's embedding model: OpenRouter returns
+    # transient HTTP 400 (code 20015) and the router never retries a 400 unless a
+    # policy names it. NEVER add a fallback embedding model: a second model writes
+    # vectors incompatible with the pgvector index. references/vector-store.md.
+    model_group_retry_policy:
+      qwen/qwen3-embedding-8b:
+        BadRequestErrorRetries: 3
+        InternalServerErrorRetries: 3
+        TimeoutErrorRetries: 3
+        RateLimitErrorRetries: 3
     # Separate axis: local 262k window -> cloud 1M; no reverse entry.
     context_window_fallbacks:
       - chat-ha: ["claude-sonnet-5-metered"]
