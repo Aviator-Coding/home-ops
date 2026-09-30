@@ -2,7 +2,9 @@
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
 # Local embedder on the shared B70 (ai/embedding-gpu, Qwen3-Embedding-0.6B, 1024 dims).
 # INVARIANT: no prices, no cloud fallback; params.model must name what the backend serves.
-# See skill litellm-proxy (references/model-catalog.md); B70 contention: skill b70-llm-serving.
+# Load caps for the shared B70 (rpm, in-flight, timeout) only work together with routerSettings
+# optional_pre_call_checks and this alias's model_group_retry_policy. Skill b70-llm-serving
+# references/contention.md; CR catalog: skill litellm-proxy references/model-catalog.md.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
@@ -14,6 +16,14 @@ spec:
     model: openai/Qwen/Qwen3-Embedding-0.6B
     apiBase: http://embedding-gpu.ai.svc.cluster.local:8080/v1
     apiKey: "not-needed" # llama-server runs with no --api-key
+    # Hard request-rate cap for every key together (1 req/s, about 6% of the measured ~1000/min
+    # saturation point); excess gets an immediate 429.
+    rpm: 60
+    additional:
+      # In-flight cap; excess gets an immediate 429 instead of queueing on the backend.
+      max_parallel_requests: 8
+      # Per attempt; the openai client retries twice, so a wedged backend holds a caller for ~3x + 1.5s.
+      timeout: 5
   info:
     mode: embedding
     # Backend --ctx-size; over-length input fails loud (400). Hub metadata only.

@@ -169,6 +169,10 @@ spec:
     redis_port: 6379
     # Pinned so least-busy cannot creep in.
     routing_strategy: simple-shuffle
+    # Makes a deployment's rpm a hard limit (429 before the backend); without it rpm only weights
+    # routing. Only embedding-local sets rpm today. references/model-catalog.md.
+    optional_pre_call_checks:
+      - enforce_model_rate_limits
     # INVARIANT: a config fallback bypasses the caller's allow-list, so only
     # cloud-entitled aliases may appear here, targeting the -metered CR (never a
     # terminal local alias). references/fallbacks.md.
@@ -180,6 +184,11 @@ spec:
     # policy names it. NEVER add a fallback embedding model: a second model writes
     # vectors incompatible with the pgvector index. references/vector-store.md.
     model_group_retry_policy:
+      # embedding-local: never retry a 429 or timeout. The router sleeps to the end of the rpm
+      # window (~60s) and retries a 429, and multiplies the timeout by 3.
+      embedding-local:
+        RateLimitErrorRetries: 0
+        TimeoutErrorRetries: 0
       qwen/qwen3-embedding-8b:
         BadRequestErrorRetries: 3
         InternalServerErrorRetries: 3
