@@ -73,8 +73,13 @@ spec:
                 echo "$(hostname): trimming $(wc -l < /tmp/fstrim-targets) device(s)"
 
                 # Report per-device and fail the run if any device could not be trimmed.
+                # A mount that unmounted after discovery (pod moved mid-run) is skipped, not a failure.
                 rc=0
                 while read -r target; do
+                  if ! nsenter $NS -- test -e "$target"; then
+                    echo "$target: unmounted since discovery, skipping"
+                    continue
+                  fi
                   nsenter $NS -- fstrim -v "$target" || rc=1
                 done < /tmp/fstrim-targets
                 exit "$rc"

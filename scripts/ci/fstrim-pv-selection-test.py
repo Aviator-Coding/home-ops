@@ -170,6 +170,7 @@ def run_shipped_script(
     mountinfo: str,
     fail_mountinfo: bool = False,
     fail_fstrim_target: str | None = None,
+    gone_target: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     """Run the HelmRelease args[0] script with pidof/nsenter/fstrim stubs.
 
@@ -232,6 +233,9 @@ def run_shipped_script(
                 ]
                 if not filtered:
                     sys.exit(0)
+                if filtered[:2] == ["test", "-e"]:
+                    gone = os.environ.get("FSTRIM_TEST_GONE_TARGET", "")
+                    sys.exit(1 if gone and filtered[2] == gone else 0)
                 sys.exit(subprocess.call(filtered))
                 """
             ),
@@ -270,6 +274,10 @@ def run_shipped_script(
             env["FSTRIM_TEST_FAIL_TARGET"] = fail_fstrim_target
         else:
             env.pop("FSTRIM_TEST_FAIL_TARGET", None)
+        if gone_target is not None:
+            env["FSTRIM_TEST_GONE_TARGET"] = gone_target
+        else:
+            env.pop("FSTRIM_TEST_GONE_TARGET", None)
 
         result = subprocess.run(
             ["/bin/sh", "-c", script],
@@ -457,6 +465,20 @@ def test_trim_loop_fails_closed() -> None:
         f"all-success targets mismatch: {sorted(attempted_ok)}",
     )
     print("[PASS] trim loop attempts every target and fails closed on fstrim error")
+
+    gone = sorted(EXPECTED_TARGETS)[-1]
+    res, attempted_gone = run_shipped_script(
+        script, mountinfo=FIXTURE_MOUNTINFO, gone_target=gone
+    )
+    require(
+        res.returncode == 0,
+        f"a mount unmounted after discovery must be skipped, not fail the run (rc={res.returncode})",
+    )
+    require(
+        sorted(attempted_gone) == sorted(EXPECTED_TARGETS - {gone}),
+        f"vanished target must not be trimmed, the rest must be: {sorted(attempted_gone)}",
+    )
+    print("[PASS] trim loop skips a mount that vanished after discovery")
 
 
 def test_cronjob_safety_knobs() -> None:
