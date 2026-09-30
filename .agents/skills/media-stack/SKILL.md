@@ -38,9 +38,9 @@ which movie sits on which profile are application database state, not Git.
    on the library is the scope gate. `librariesToNotProcess` is a Tdarr Pro
    feature and a no-op on this unlicensed install. Skill `tdarr-transcoding`.
    Keep `transcodecpuWorkers` at least 1.
-9. **Sonarr, Radarr and Readarr run an exportarr sidecar** (metrics port 9707,
-   one ServiceMonitor each). The gnet Radarr v3 queue panel queries the typo
-   `radrr_queue_total`, so it stays at 0; the real series is `radarr_queue_total`.
+9. **Only Readarr runs an exportarr sidecar (metrics port 9707).** Sonarr and Radarr have none:
+   exportarr v2.3.0 rejects any API key that is not 20-32 alphanumeric characters, and
+   their current keys contain symbols. Rotate to alphanumeric keys before retrying.
 
 ## Where things live
 
