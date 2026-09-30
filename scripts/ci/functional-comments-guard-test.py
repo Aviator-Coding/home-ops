@@ -65,7 +65,12 @@ KNOWN_UNCAPTURED: dict[str, str] = {
 }
 
 # (path at HEAD, stripped functional line) -> reason. Scoped to one PR.
-ALLOWED_REMOVALS: dict[tuple[str, str], str] = {}
+ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
+    (
+        "kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml",
+        '# renovate: depName="Prometheus Stats"',
+    ): "Prometheus Stats (gnet 2) chart entry deleted: 2014 dashboard duplicated by Prometheus / Overview.",
+}
 
 passed = 0
 failed = 0
