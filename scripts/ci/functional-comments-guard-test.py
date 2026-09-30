@@ -104,6 +104,22 @@ def functional_lines(text: str) -> list[str]:
     return [ln.strip() for ln in text.splitlines() if FUNCTIONAL.search(ln)]
 
 
+def annotation_pairs(text: str) -> list[tuple[str, str]]:
+    """(renovate annotation, key of the line right below it), in file order.
+
+    The customManager captures the value from the very next line, so an
+    annotation that ends up above a different key silently tracks the wrong
+    value while every annotation line is still present and in order.
+    """
+    lines = text.splitlines()
+    pairs = []
+    for i, ln in enumerate(lines):
+        if RENOVATE_ANNOTATION.search(ln):
+            below = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            pairs.append((ln.strip(), re.split(r"[:=]", below, maxsplit=1)[0].strip()))
+    return pairs
+
+
 def is_subsequence(needle: list[str], hay: list[str]) -> bool:
     it = iter(hay)
     return all(any(h == n for h in it) for n in needle)
@@ -156,6 +172,14 @@ def test_diff_guard() -> None:
         after = functional_lines(head_path.read_text())
         checked += 1
         if is_subsequence(before, after):
+            head_pairs = annotation_pairs(head_path.read_text())
+            moved = [
+                p for p in annotation_pairs(git("show", f"{base}:{old}"))
+                if p not in head_pairs and (new, p[0]) not in ALLOWED_REMOVALS
+            ]
+            if moved:
+                record(False, f"{new}: renovate annotation no longer above its original key {moved}")
+                violations += 1
             continue
         missing = [ln for ln in before if ln not in after]
         unexplained = [ln for ln in missing if (new, ln) not in ALLOWED_REMOVALS]
@@ -203,9 +227,20 @@ def test_next_line_contract() -> None:
     record(not bad, f"{total} renovate annotations are captured by the customManager; bad={bad}")
 
 
+def test_swap_is_detected() -> None:
+    """Regression for the #1834 gap: an annotation swapped with its value line."""
+    ann = "# renovate: datasource=docker depName=ghcr.io/example/app"
+    good = f"env:\n  {ann}\n  APP_VERSION: v1.0.0\n  OTHER: x\n"
+    swapped = f"env:\n  APP_VERSION: v1.0.0\n  {ann}\n  OTHER: x\n"
+    bumped = good.replace("v1.0.0", "v1.0.1")
+    record(annotation_pairs(good) != annotation_pairs(swapped), "swapped annotation changes its next-line key")
+    record(annotation_pairs(good) == annotation_pairs(bumped), "a value bump keeps the next-line key")
+
+
 def main() -> int:
     for key, reason in ALLOWED_REMOVALS.items():
         record(bool(reason.strip()), f"ALLOWED_REMOVALS {key} has a reason")
+    test_swap_is_detected()
     test_diff_guard()
     test_next_line_contract()
     print(f"Summary: {passed} passed, {failed} failed")

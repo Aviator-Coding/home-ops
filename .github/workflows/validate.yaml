@@ -103,8 +103,7 @@ jobs:
             .claude/skills/**
             .github/*.md
             kubernetes/components/**
-            kubernetes/apps/base/ai/**
-            kubernetes/apps/base/system/**
+            kubernetes/apps/base/**
             kubernetes/apps/main/**
             .github/docker/litellm-pgvector/**
             .github/workflows/validate.yaml
