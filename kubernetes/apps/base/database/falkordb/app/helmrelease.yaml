@@ -55,7 +55,7 @@ spec:
           app:
             image:
               repository: docker.io/falkordb/falkordb
-              tag: v4.20.7@sha256:13996aa523f0dd283f6bd6df6620b094dcea525452417c4d6ef9bef15dc9998d
+              tag: 6.0.0@sha256:92fbda814970a648b1fd80835bff221766bccd0f0ce958bc58a62976fea06620
 
             # AOF is load-bearing: a crash-consistent snapshot restores only
             # fsynced writes. --maxmemory 12gb, the 16Gi limit, and the alert
@@ -142,7 +142,7 @@ spec:
           browser:
             image:
               repository: docker.io/falkordb/falkordb
-              tag: v4.20.7@sha256:13996aa523f0dd283f6bd6df6620b094dcea525452417c4d6ef9bef15dc9998d
+              tag: 6.0.0@sha256:92fbda814970a648b1fd80835bff221766bccd0f0ce958bc58a62976fea06620
 
             # cwd matters: API_TOKEN_STORAGE_PATH resolves relative to it. Skill `databases`.
             workingDir: /var/lib/falkordb/browser
