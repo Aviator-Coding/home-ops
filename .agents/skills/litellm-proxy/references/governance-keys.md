@@ -151,7 +151,7 @@ reason:
 | `agent-swarm-captain`, `agent-swarm-network-broker` | `chat-local` | off-cluster agent-swarm runs; the broker's $1 is a lifetime cap (no `budgetDuration`, on purpose) |
 | `agent-swarm-paid` | `[]` (all) | off-cluster, $25 hard cap |
 | `mac-gnhf` | `chat-local` | captain's Mac loop, off-cluster |
-| `embedding-external` | `embedding-local` | external embedding callers; rpm also protects chat on the shared B70 (tune once a real consumer exists) |
+| `embedding-external` | `embedding-local` | external embedding callers; its rpm is per key, the model-level `rpm` on `embedding-local` (model-catalog.md) caps every key together to protect chat on the shared B70 |
 | `litellm-pgvector` | `qwen/qwen3-embedding-8b` only | vector store ([vector-store.md](vector-store.md)); deliberately no `embedding-local` |
 | `jev-decisions` | `typesafe/jev-1.13` | decision door, $1/30d ([passthrough-lockdown.md](passthrough-lockdown.md)); no `embedding-local` |
 

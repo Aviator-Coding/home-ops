@@ -38,7 +38,7 @@ server.
 | `--cache-ram` | `0` | Write-only cache, 112 KiB/token, default ceiling 8192 MiB. `0` also disables the idle-slot writer. A small non-zero cap still allocates |
 | `--ctx-size`, `-b`, `-ub` | `512`, `512`, `512` | One decision. Embedding mode forces `n_batch = n_ubatch`. 2048 fits but spends VRAM the chat restart needs |
 | `--no-cont-batching` | on | Continuous batching is what steals the card from chat. Slot count does not do this |
-| `--timeout` | `30` | Image default is 3600. This is the hang backstop |
+| `--timeout` | `30` | Image default is 3600. A socket timeout only: a queued request made no socket IO and is never cut (live: 1042 requests at 28-31 s, all 200). Not a request bound; LiteLLM's `timeout` and caps are (contention.md) |
 | `<|endoftext|>` added by the caller | do not | llama.cpp already applies EOS for last-token pooling. Hand-appended EOS measured worse agreement with the CPU server |
 
 There is a real KV pool on the embedding server (56 MiB, 112 KiB/token
