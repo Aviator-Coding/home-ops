@@ -25,7 +25,9 @@ never merge. Trigger-level `paths:` filters did that. `flate.yaml`,
 `image-pull.yaml` and `validate.yaml` now start on every PR and post an
 aggregate Success job (success, success-via-skip, or failure). A skipped job
 still counts as a posted check. That is what makes those aggregates safe to
-require.
+require. Each Success job must also `needs:` its `filter` job, or a failed
+filter skips everything behind it and the aggregate goes green
+(`workflow-hardening-test.py` enforces this).
 
 They are still not in the ruleset. Adding them is a live mutation
 (`gh api -X PUT .../rulesets/21250320`) and needs an explicit go-ahead after

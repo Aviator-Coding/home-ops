@@ -385,6 +385,28 @@ def test_all_pr_workflows_have_concurrency(f: Failures) -> dict[str, Any]:
     return {"pr_workflow_concurrency": present}
 
 
+def test_success_gates(f: Failures) -> dict[str, Any]:
+    """Each Success job is a required-check context: pinned name, and it must
+    need its filter job so a failed filter cannot leave it green-by-skip."""
+    expected = {
+        "validate.yaml": "Validate - Success",
+        "flate.yaml": "Flate - Success",
+        "image-pull.yaml": "Image Pull - Success",
+    }
+    found: dict[str, Any] = {}
+    for fname, name in expected.items():
+        data, _ = load_workflow(WF / fname)
+        job = (data.get("jobs") or {}).get("success") or {}
+        needs = job.get("needs") or []
+        if isinstance(needs, str):
+            needs = [needs]
+        f.check(job.get("name") == name, f"{fname}: success job name must be {name!r}")
+        f.check("filter" in needs, f"{fname}: success job must need filter")
+        f.check("!cancelled()" in str(job.get("if")), f"{fname}: success job must run with !cancelled()")
+        found[fname] = {"name": job.get("name"), "needs": needs}
+    return {"success_gates": found}
+
+
 def main() -> int:
     failures = Failures()
     report: dict[str, Any] = {}
@@ -394,6 +416,7 @@ def main() -> int:
     report["build_talosctl"] = test_build_talosctl(failures)
     report["image_pull"] = test_image_pull(failures)
     report["pr_concurrency"] = test_all_pr_workflows_have_concurrency(failures)
+    report["success_gates"] = test_success_gates(failures)
 
     # Parseability of every changed workflow (consumer can load)
     for path in (LABELER, TAG, BUILD, IMAGE_PULL):
