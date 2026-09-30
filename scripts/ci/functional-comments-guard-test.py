@@ -70,6 +70,14 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml",
         '# renovate: depName="Prometheus Stats"',
     ): "Prometheus Stats (gnet 2) chart entry deleted: 2014 dashboard duplicated by Prometheus / Overview.",
+    (
+        "kubernetes/apps/base/downloads/sonarr/app/helmrelease.yaml",
+        "# renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr",
+    ): "exportarr sidecar removed: the API key is not 20-32 alphanumeric, so it crash-looped.",
+    (
+        "kubernetes/apps/base/downloads/radarr/app/helmrelease.yaml",
+        "# renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr",
+    ): "exportarr sidecar removed: the API key is not 20-32 alphanumeric, so it crash-looped.",
 }
 
 passed = 0
