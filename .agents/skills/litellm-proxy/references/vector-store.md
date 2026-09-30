@@ -52,6 +52,13 @@ below 2000 dims. Changing
 the model or width means re-embedding every row (truncate `embeddings` before
 altering the column).
 
+Retries, never a fallback: OpenRouter returns transient HTTP 400s (code 20015)
+for this model, and the router does not retry a 400 unless a policy names it.
+`routerSettings.model_group_retry_policy` in `litellmproxy.yaml` gives only
+`qwen/qwen3-embedding-8b` `BadRequestErrorRetries: 3` (plain `num_retries`
+skips 400s). Never add a fallback embedding model: another model's vectors are
+incompatible with the one pgvector index. `litellm-pgvector-test.py` guards it.
+
 ## Search (any virtual key)
 
 ```bash

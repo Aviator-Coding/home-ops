@@ -94,6 +94,12 @@ rpm 30, tpm 50000, **no `spec.metadata`**. The grant is one out-of-Git admin
   naming any other model gets the model 403 (OpenRouter requires a string
   `model` on decisions, so that check always fires).
 
+Budget caveat: the `$1`/30d cap is enforced from recorded spend, so rows
+logged at zero cost (no price on the cost map, or a failed pricing hook) add
+nothing and the cap can under-count. Treat it as a soft guard, not a hard
+ceiling. The grant also lives only in LiteLLM's DB, never in Git, so a DB
+restore or key recreation loses it and the grant runbook must be re-run.
+
 Apply the grant once after first mint and after any recreation, with the
 script in `kubernetes/apps/base/ai/litellm/README.md` ("Granting the
 jev-decisions key"). It must print

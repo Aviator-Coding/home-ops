@@ -335,6 +335,60 @@ def test_embedding_checker_refuses_upstream_width() -> dict[str, Any]:
     return {"refused": sorted(refusals)}
 
 
+# --- embedding retry ----------------------------------------------------
+
+
+def check_embedding_retry(proxy: dict[str, Any], model: str) -> dict[str, Any]:
+    """OpenRouter answers the embedding model with transient HTTP 400s, which the
+    router only retries when a model-group policy names BadRequestErrorRetries.
+    Retry only: a fallback embedding model would write vectors of another space
+    into the one pgvector index."""
+    rs = proxy["spec"]["routerSettings"]
+    policy = (rs.get("model_group_retry_policy") or {}).get(model)
+    require(isinstance(policy, dict), f"no model_group_retry_policy for {model!r}")
+    retries = policy.get("BadRequestErrorRetries")
+    require(isinstance(retries, int) and retries >= 1, f"{model!r} BadRequestErrorRetries must be >= 1, got {retries!r}")
+    others = set(rs["model_group_retry_policy"]) - {model}
+    require(not others, f"retry policy must stay narrow to {model!r}, also names {sorted(others)}")
+    for key in ("fallbacks", "context_window_fallbacks"):
+        for entry in rs.get(key) or []:
+            require(model not in entry, f"{key} names embedding model {model!r}; retry only, no fallback")
+            require(all(model not in v for v in entry.values()), f"{key} targets embedding model {model!r}")
+    return {"model": model, "BadRequestErrorRetries": retries}
+
+
+def test_embedding_model_retries_transient_400s() -> dict[str, Any]:
+    key = one_doc(VIRTUAL_KEY, "LiteLLMVirtualKey")
+    return check_embedding_retry(one_doc(PROXY, "LiteLLMProxy"), key["spec"]["models"][0])
+
+
+def test_embedding_retry_checker_refuses_drift() -> dict[str, Any]:
+    proxy = one_doc(PROXY, "LiteLLMProxy")
+    model = one_doc(VIRTUAL_KEY, "LiteLLMVirtualKey")["spec"]["models"][0]
+    cases: dict[str, dict[str, Any]] = {}
+    gone = copy.deepcopy(proxy)
+    del gone["spec"]["routerSettings"]["model_group_retry_policy"]
+    cases["no policy"] = gone
+    no400 = copy.deepcopy(proxy)
+    del no400["spec"]["routerSettings"]["model_group_retry_policy"][model]["BadRequestErrorRetries"]
+    cases["no 400 retries"] = no400
+    wide = copy.deepcopy(proxy)
+    wide["spec"]["routerSettings"]["model_group_retry_policy"]["chat-local"] = {"BadRequestErrorRetries": 1}
+    cases["widened to another model"] = wide
+    fb = copy.deepcopy(proxy)
+    fb["spec"]["routerSettings"]["fallbacks"].append({model: ["embedding-local"]})
+    cases["embedding fallback"] = fb
+    refusals = []
+    for label, mutated in cases.items():
+        try:
+            check_embedding_retry(mutated, model)
+        except Failure:
+            refusals.append(label)
+        else:
+            raise Failure(f"checker accepted {label}")
+    return {"refused": sorted(refusals)}
+
+
 # --- registry -----------------------------------------------------------
 
 
@@ -506,6 +560,8 @@ def main() -> int:
         test_build_workflow_checker_refuses_wrong_wiring,
         test_embedding_width_and_model_agree,
         test_embedding_checker_refuses_upstream_width,
+        test_embedding_model_retries_transient_400s,
+        test_embedding_retry_checker_refuses_drift,
         test_registry_is_private_seeded_and_reachable,
         test_registry_checker_refuses_fallback_name,
         test_overlay_is_wired,
