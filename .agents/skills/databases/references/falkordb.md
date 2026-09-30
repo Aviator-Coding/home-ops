@@ -85,6 +85,12 @@ Any other spelling is discarded by Helm with no `flate` error. `runAsUser`
 chmods. kopiur `SecurityContextCompatible` will be absent because of that
 init. Absence is not a failure. Skill `kopiur-backups`.
 
+## Temp dir
+
+6.0.0's module aborts startup with `TEMP_FOLDER '/tmp' is not writable` when
+the read-only rootfs has no writable `/tmp`. The database container mounts an
+`emptyDir` at `/tmp`. 4.x never wrote there.
+
 ## Claim name
 
 Chart-owned PVC, not `components/kopiur/pvc` (that shape is the
