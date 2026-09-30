@@ -67,14 +67,6 @@ spec:
             editable: true
             options:
               path: /var/lib/grafana/dashboards/media
-          - name: downloads
-            orgId: 1
-            folder: Downloads
-            type: file
-            disableDeletion: false
-            editable: true
-            options:
-              path: /var/lib/grafana/dashboards/downloads
           - name: networking
             orgId: 1
             folder: Networking
@@ -134,12 +126,6 @@ spec:
             - name: DS_PROMETHEUS
               value: Prometheus
 
-        node-feature-discovery:
-          url: https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/master/examples/grafana-dashboard.json
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
         home-dashboard:
           json: |
             {
@@ -189,7 +175,7 @@ spec:
                   "id": 3,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LiteLLM](/d/litellm)\n- [LiteLLM Routing](/d/llm-routing)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-overview)\n- [Ollama](/d/ollama-inference-v1)\n\n## 🎬 Media\n- [Plex](/d/TPZ6-zT4z)\n- [Tdarr](/d/7d103297-1876-4d26-8e2a-a02e119fb36e)",
+                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LiteLLM](/d/litellm)\n- [LiteLLM Routing](/d/llm-routing)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-overview)\n- [Ollama](/d/ollama-inference-v1)\n\n## 🎬 Media\n- [Plex](/d/TPZ6-zT4z)",
                     "mode": "markdown"
                   },
                   "title": "AI/ML & Media",
@@ -201,10 +187,10 @@ spec:
                   "id": 4,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 📥 Downloads\n- [Sonarr](/d/vGjT_QWMk)\n- [Radarr](/d/F2vfZUNGz)\n\n## 🔒 Security\n- [Authentik](/d/authentik)\n\n## 📊 Monitoring\n- [Gatus](/d/KPI7Qj1Wk)\n- [UniFi Sites](/d/9WaGWZaZk)\n- [UniFi Clients](/d/jMfvAjxWz)",
+                    "content": "## 🔒 Security\n- [Authentik](/d/authentik)\n\n## 📊 Monitoring\n- [Gatus](/d/KPI7Qj1Wk)\n- [UniFi Sites](/d/9WaGWZaZk)\n- [UniFi Clients](/d/jMfvAjxWz)",
                     "mode": "markdown"
                   },
-                  "title": "Downloads, Security & Monitoring",
+                  "title": "Security & Monitoring",
                   "type": "text"
                 }
               ],
@@ -394,34 +380,6 @@ spec:
           revision: 1
           datasource:
             - name: DS_PROMETHEUS
-              value: Prometheus
-
-        tdarr:
-          # renovate: depName="Tdarr"
-          gnetId: 20388
-          revision: 6
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-      downloads:
-        # No official grafana.com exportarr dashboards exist for Lidarr, Readarr or Prowlarr.
-        sonarr-v3:
-          # renovate: depName="Sonarr v3"
-          gnetId: 12530
-          revision: 2
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-
-        radarr-v3:
-          # renovate: depName="Radarr v3"
-          gnetId: 12896
-          revision: 1
-          datasource:
-            - name: DS_PROMETHEUS
-              value: Prometheus
-            - name: DS_RANCHER_MONITORING
               value: Prometheus
 
       networking:

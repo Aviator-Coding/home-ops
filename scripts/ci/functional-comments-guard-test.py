@@ -73,6 +73,18 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         '# renovate: depName="Prometheus Stats"',
     ): "Prometheus Stats (gnet 2) chart entry deleted: 2014 dashboard duplicated by Prometheus / Overview.",
     (
+        "kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml",
+        '# renovate: depName="Tdarr"',
+    ): "Tdarr dashboard removed: no Tdarr exporter exists, so it can never show data.",
+    (
+        "kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml",
+        '# renovate: depName="Sonarr v3"',
+    ): "Sonarr v3 dashboard removed: the exportarr sidecar was removed, so it has no data.",
+    (
+        "kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml",
+        '# renovate: depName="Radarr v3"',
+    ): "Radarr v3 dashboard removed: the exportarr sidecar was removed, so it has no data.",
+    (
         "kubernetes/apps/base/downloads/sonarr/app/helmrelease.yaml",
         "# renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr",
     ): "exportarr sidecar removed: the API key is not 20-32 alphanumeric, so it crash-looped.",
