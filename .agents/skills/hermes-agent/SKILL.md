@@ -64,6 +64,7 @@ uncleanly, so batch them and never pair one with an unrelated rollout.
 - Why vacuum stays off, and how retention is shaped: [state-db.md](references/state-db.md).
 - What a restart actually does, and how to tell the gateway is wedged: [restarts.md](references/restarts.md).
 - Model, fallback, and auxiliary routing: [llm-routing.md](references/llm-routing.md).
+- MCP gateway `${VAR}` refs under multiplexing: [mcp-gateway.md](references/mcp-gateway.md).
 - Samba identity, setgid, and the unbacked `shared-files` claim: [shared-storage.md](references/shared-storage.md).
 - First-sync secrets and the single-repo PAT: the README, not this skill.
 
