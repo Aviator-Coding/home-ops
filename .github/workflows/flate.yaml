@@ -147,7 +147,10 @@ jobs:
     # `!cancelled()` alone would still schedule this job onto the self-hosted runner
     # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
     if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
+    # Need filter too: when it fails, test and diff are skipped, and a Success job
+    # without it would see only "skipped" and green-check a red run.
     needs:
+      - filter
       - test
       - diff
     name: Flate - Success

@@ -151,9 +151,10 @@ jobs:
     # `!cancelled()` alone would still schedule this job onto the self-hosted runner
     # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
     if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
-    # Need images as well as pull: when images fails, pull is skipped, and a
-    # needs:pull-only Success job would see only "skipped" and green-check a red run.
+    # Need filter and images as well as pull: when either fails, the jobs behind it are
+    # skipped, and a pull-only Success job would see only "skipped" and green-check a red run.
     needs:
+      - filter
       - images
       - pull
     name: Image Pull - Success
