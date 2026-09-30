@@ -14,7 +14,9 @@ reorder these. This test enforces:
   1. Diff guard: for every non-Markdown file that exists both at the merge base
      and at HEAD (renames followed), the base's functional lines must still
      appear at HEAD, in the same order. Deleting a whole file is allowed
-     (retiring an app removes its manifests); adding lines is allowed.
+     (retiring an app removes its manifests); adding lines is allowed. Each
+     base annotation must also still sit directly above a line with the same
+     key, so swapping an annotation with its value line fails.
   2. Capture contract, at HEAD, for every file the customManager scans
      (*.env, *.sh, *.yaml, *.yml, *.yaml.j2): each `renovate: datasource=`
      annotation must be captured by one of the customManager's matchStrings,
