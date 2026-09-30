@@ -171,15 +171,16 @@ def test_diff_guard() -> None:
             continue
         after = functional_lines(head_path.read_text())
         checked += 1
+        head_pairs = annotation_pairs(head_path.read_text())
+        moved = [
+            p for p in annotation_pairs(git("show", f"{base}:{old}"))
+            if p not in head_pairs and (new, p[0]) not in ALLOWED_REMOVALS
+        ]
+        if moved:
+            record(False, f"{new}: renovate annotation no longer above its original key {moved}")
+            violations += 1
+            continue
         if is_subsequence(before, after):
-            head_pairs = annotation_pairs(head_path.read_text())
-            moved = [
-                p for p in annotation_pairs(git("show", f"{base}:{old}"))
-                if p not in head_pairs and (new, p[0]) not in ALLOWED_REMOVALS
-            ]
-            if moved:
-                record(False, f"{new}: renovate annotation no longer above its original key {moved}")
-                violations += 1
             continue
         missing = [ln for ln in before if ln not in after]
         unexplained = [ln for ln in missing if (new, ln) not in ALLOWED_REMOVALS]
