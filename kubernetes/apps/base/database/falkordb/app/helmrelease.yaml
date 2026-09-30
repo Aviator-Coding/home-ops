@@ -286,3 +286,12 @@ spec:
               - path: /var/lib/falkordb/browser/.data
             browser:
               - path: /var/lib/falkordb/browser/.data
+
+      # 6.0.0's module refuses to load when TEMP_FOLDER (/tmp) is not writable,
+      # and the rootfs is read-only. 4.x never wrote there. Skill `databases`.
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          falkordb:
+            app:
+              - path: /tmp
