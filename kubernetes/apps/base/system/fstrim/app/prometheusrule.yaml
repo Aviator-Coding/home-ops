@@ -1,0 +1,38 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# The fstrim CronJob has no metrics endpoint; failed or missing runs are read
+# from kube-state-metrics CronJob timestamps (same shape as renovate-rules).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fstrim-rules
+spec:
+  groups:
+    - name: fstrim.rules
+      rules:
+        - alert: FstrimJobFailed
+          # Not kube_job_status_failed > 0: the failed Job stays in the CronJob's
+          # failedJobsHistoryLimit, so that would latch until it is pruned. This compares
+          # the latest schedule with the latest success, so a later successful run
+          # clears it on its own. First arm: the latest run failed. Second arm: no
+          # success for 8 days (weekly schedule plus a day), which also covers a
+          # suspended CronJob or missed schedules. `for: 3h` outlasts an in-flight run,
+          # during which schedule is briefly ahead of success.
+          expr: |-
+            (
+              kube_cronjob_status_last_schedule_time{namespace="system", cronjob="fstrim"}
+              - kube_cronjob_status_last_successful_time{namespace="system", cronjob="fstrim"}
+            ) > 60
+            or
+            (time() - kube_cronjob_status_last_successful_time{namespace="system", cronjob="fstrim"}) > 691200
+          for: 3h
+          annotations:
+            summary: >-
+              The system/fstrim CronJob's latest run failed or has not succeeded
+              in over 8 days, so Ceph blocks are not being discarded. On
+              2026-09-28 Job fstrim-29842800 failed unnoticed for 2 days (fixed
+              by PR 1892). Check `kubectl -n system logs -l
+              app.kubernetes.io/name=fstrim --tail=100`. Runbook: skill
+              `system-namespaces` (fstrim tripwire 6).
+          labels:
+            severity: warning
