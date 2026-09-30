@@ -2,7 +2,9 @@
 # yaml-language-server: $schema=https://k8s-schemas.home-operations.com/networking.k8s.io/networkpolicy_v1.json
 # vmcp has no static-token mode, so this policy is the only thing keeping the bearer token on the
 # `mcp` route from being bypassed through the Service. Only envoy-internal and Prometheus (for
-# /metrics) reach 4483. Skill ai-stack references/toolhive.md.
+# /metrics) reach 4483. Ingress default-deny also drops the REPLIES to vmcp's own outbound calls
+# (DNS, backend proxies, embedding server) on this cluster, so those sources are admitted with no
+# `ports:` (a reply arrives on an ephemeral port). Skill ai-stack references/toolhive.md.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -36,3 +38,17 @@ spec:
       ports:
         - port: 4483
           protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+    - from:
+        - podSelector:
+            matchLabels:
+              toolhive: "true"
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: embeddingserver

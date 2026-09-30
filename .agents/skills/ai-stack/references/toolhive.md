@@ -42,6 +42,11 @@ closes the in-cluster Service `vmcp-mcp-gateway-internal:4483`: it admits
 4483 only from the `envoy-internal` proxy pods (label
 `gateway.envoyproxy.io/owning-gateway-name`) and from Prometheus, which
 scrapes `/metrics` there (nothing listens on 8080).
+Ingress default-deny also drops the replies to vmcp's own outbound calls,
+so CoreDNS, the `toolhive: "true"` backend proxies and the `embeddingserver`
+pod are admitted with no `ports:` (a reply arrives on an ephemeral port);
+without them every backend goes unavailable. Those sources can therefore
+also reach 4483; Hermes and opencode are not among them.
 A new in-cluster consumer must use the LAN route with the token, not the
 Service. Removing the policy reopens the token bypass.
 
