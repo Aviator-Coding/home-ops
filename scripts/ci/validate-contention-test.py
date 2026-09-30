@@ -105,7 +105,7 @@ PYTHONTESTS_REQUIRED_PATTERNS = (
     ".claude/skills/**",
     ".github/*.md",
     "kubernetes/components/**",
-    "kubernetes/apps/base/system/**",
+    "kubernetes/apps/base/**",
     "kubernetes/apps/main/**",
 )
 
