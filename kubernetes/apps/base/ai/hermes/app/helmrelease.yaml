@@ -288,6 +288,21 @@ spec:
           - path: /secrets/git/.git-credentials
             subPath: .git-credentials
             readOnly: true
+      # Two keys of the hermes Secret as files, read by the `secrets.command` helper in
+      # config.yaml (multiplexed MCP ${VAR} refs cannot see the container env).
+      # Skill hermes-agent references/mcp-gateway.md.
+      mcp-gateway:
+        type: secret
+        name: *app
+        advancedMounts:
+          hermes:
+            app:
+              - path: /secrets/mcp/MCP_GATEWAY_URL
+                subPath: MCP_GATEWAY_URL
+                readOnly: true
+              - path: /secrets/mcp/MCP_GATEWAY_TOKEN
+                subPath: MCP_GATEWAY_TOKEN
+                readOnly: true
       # config.yaml mounted into the copy-config initContainer, which copies it to
       # /opt/data/config.yaml on every start. The PVC `data` advancedMount gives
       # that init container /opt/data so it can write the file.

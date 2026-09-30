@@ -86,6 +86,18 @@ web:
 # a bearer token (MCP_GATEWAY_URL, MCP_GATEWAY_TOKEN, both from the hermes Secret);
 # a NetworkPolicy closes the vmcp Service to everything but envoy-internal. Tool
 # names are prefixed per backend ({workload}_); LiteLLM is not an MCP gateway here.
+#
+# The gateway runs with gateway.multiplex_profiles, and under multiplexing a ${VAR}
+# in mcp_servers resolves only from the profile secret scope (/opt/data/.env plus
+# `secrets:` sources), never from the container env. The `command` source below
+# hydrates both vars from the hermes Secret, mounted as files at /secrets/mcp
+# (helmrelease.yaml), because the helper sees the profile scope, not the container env.
+secrets:
+  command:
+    enabled: true
+    command: |-
+      for k in MCP_GATEWAY_URL MCP_GATEWAY_TOKEN; do printf '%s=%s\n' "$k" "$(cat "/secrets/mcp/$k")"; done
+
 mcp_servers:
   toolhive:
     url: ${MCP_GATEWAY_URL}

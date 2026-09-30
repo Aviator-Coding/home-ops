@@ -65,7 +65,8 @@ MCP is one endpoint: the ToolHive VirtualMCPServer `mcp-gateway-internal` at
 `/mcp`, reached via the LAN route with a bearer token (`MCP_GATEWAY_URL`,
 `MCP_GATEWAY_TOKEN` in the hermes Secret); a NetworkPolicy closes the vmcp
 Service to everything but envoy-internal. Tools are prefixed `{workload}_`.
-LiteLLM is not an MCP gateway here.
+LiteLLM is not an MCP gateway here. The `${VAR}` refs only expand through a
+`secrets:` source under multiplexing: [mcp-gateway.md](mcp-gateway.md).
 
 ## Web search
 
