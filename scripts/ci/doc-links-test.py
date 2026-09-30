@@ -39,12 +39,7 @@ TEXT_SUFFIXES = {
 TEXT_NAMES = {"Taskfile.yaml", ".justfile", "Dockerfile", ".mise.toml", ".gitignore"}
 
 # (path of the file carrying the mention, mentioned path) -> reason.
-KNOWN_DANGLING: dict[tuple[str, str], str] = {
-    ("kubernetes/apps/base/ai/hermes/app/resources/config.yaml", "docs/ai-system/hermes-state-db-growth.md"):
-        "config.yaml is a pod payload; a comment edit restarts Hermes. The measurements live in skill hermes-agent references/state-db.md",
-    ("kubernetes/apps/base/ai/hermes/app/resources/config.yaml", "docs/ai-system/agentmemory-retirement-2026-08-31.md"):
-        "config.yaml is a pod payload; a comment edit restarts Hermes. Facts live in skill ai-stack",
-}
+KNOWN_DANGLING: dict[tuple[str, str], str] = {}
 
 # docs/ paths a skill may still mention: the tdarr harness reads these files,
 # so they stay in docs/ and the tdarr skills point at them.

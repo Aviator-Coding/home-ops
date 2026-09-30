@@ -10,8 +10,8 @@ runtime-skill byte, a Reloader rollout, and a node drain.
 - `reloader.stakater.com/auto: "true"` on the controller. Secrets projected
   into env are read at process start. Without this annotation a rotated
   token stays stale until something else restarts the pod. Do not remove it.
-- The runtime skill is excluded from comment-only cleanup for this reason.
-  So is `resources/config.yaml`.
+- A comment-only edit to either payload rolls the pod like any other change:
+  batch such edits and land them alone.
 
 ## Why the exit is unclean
 

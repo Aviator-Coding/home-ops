@@ -6,19 +6,15 @@ receivers:
   - name: "null"
 
   # severity: critical -> emergency. Sirens every 5 minutes for up to 30
-  # minutes, or until the captain acknowledges it in the Pushover app. This is
-  # the only class that may wake someone.
+  # minutes, or until it is acknowledged in the Pushover app. This is the only
+  # class that may wake someone.
   #
   # `expire` is deliberately 30m rather than Alertmanager's 1h default, and the
   # critical route below repeats at 6h rather than 4h, because a critical CAN
-  # sit true for days on this cluster: over the 30 days to 2026-09-15,
-  # VolSyncSyncStalledR2 fired for 21,437 minutes (14.9 days),
-  # KubeClientCertificateExpiration for 11,957 and ExternalDNSStale for 9,372.
-  # None is firing now, and each is a real condition rather than a latch of the
-  # KubeJobFailed kind, but at priority 2 a sustained critical costs 4
-  # acknowledgement-required pages a day (6 siren repeats each) - so the
-  # exposure is bounded here on purpose. If that still proves too much, the
-  # single dial is `repeat_interval` on the critical route.
+  # sit true for days on this cluster and at priority 2 a sustained critical
+  # costs 4 acknowledgement-required pages a day (6 siren repeats each). The
+  # exposure is bounded here on purpose; the single dial is `repeat_interval` on
+  # the critical route.
   - name: "pushover-critical"
     pushover_configs:
       - html: true
@@ -106,9 +102,9 @@ route:
   group_by: ["alertname", "namespace"]
   group_wait: 30s
   group_interval: 5m
-  # Was 6h. Re-notification of a still-true alert is a large share of the
-  # volume; warning-class repetition every 12h is enough to keep something
-  # unresolved visible without retraining the captain to ignore the channel.
+  # Re-notification of a still-true alert is a large share of the volume;
+  # warning-class repetition every 12h keeps something unresolved visible
+  # without training anyone to ignore the channel.
   repeat_interval: 12h
   # Fail loud: an alert carrying no severity label at all still pages.
   receiver: "pushover-warning"
