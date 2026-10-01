@@ -89,7 +89,14 @@ init. Absence is not a failure. Skill `kopiur-backups`.
 
 6.0.0's module aborts startup with `TEMP_FOLDER '/tmp' is not writable` when
 the read-only rootfs has no writable `/tmp`. The database container mounts an
-`emptyDir` at `/tmp`. 4.x never wrote there.
+`emptyDir` at `/tmp`. 4.x never wrote there; the mount stays harmless on 4.x.
+
+## Major bumps
+
+6.0.0 cannot replay an AOF written by 4.x: it loads the RDB base, then aborts
+on `Diverged applying GRAPH.EFFECT ... effects buffer is version 2, this build
+reads 3` and crash-loops. Do not bump the major version in place (Renovate
+will propose it); the image tag stays on 4.x until the AOF format is handled.
 
 ## Claim name
 
