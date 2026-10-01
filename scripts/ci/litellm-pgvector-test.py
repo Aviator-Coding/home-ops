@@ -348,8 +348,13 @@ def check_embedding_retry(proxy: dict[str, Any], model: str) -> dict[str, Any]:
     require(isinstance(policy, dict), f"no model_group_retry_policy for {model!r}")
     retries = policy.get("BadRequestErrorRetries")
     require(isinstance(retries, int) and retries >= 1, f"{model!r} BadRequestErrorRetries must be >= 1, got {retries!r}")
-    others = set(rs["model_group_retry_policy"]) - {model}
-    require(not others, f"retry policy must stay narrow to {model!r}, also names {sorted(others)}")
+    # A policy of only zeros (embedding-local: never retry a 429 or timeout) is a cap, not a retry.
+    others = {
+        name
+        for name, other in rs["model_group_retry_policy"].items()
+        if name != model and any(isinstance(n, int) and n > 0 for n in other.values())
+    }
+    require(not others, f"retry policy must stay narrow to {model!r}, also retries {sorted(others)}")
     for key in ("fallbacks", "context_window_fallbacks"):
         for entry in rs.get(key) or []:
             require(model not in entry, f"{key} names embedding model {model!r}; retry only, no fallback")

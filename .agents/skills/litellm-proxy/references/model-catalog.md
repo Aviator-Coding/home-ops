@@ -158,21 +158,32 @@ route is LAN-only.
   only through the `/openrouter/alpha/decisions` pass-through
   ([passthrough-lockdown.md](passthrough-lockdown.md)).
 
-## Do not rate-limit a shared GPU deployment in LiteLLM
+## Rate-limiting the shared GPU deployment (`embedding-local`)
 
-`LiteLLMModel.spec.params.rpm`/`tpm` looked like the way to bound
-`embedding-local` load. Enforcing both needs
-`routing_strategy: usage-based-routing-v2` (`simple-shuffle` with pre-call
-checks is rpm-only and per-worker). Unit tests against `litellm.Router()` got
-clean 429s, but the live proxy **hung callers 45s+ with no response** once
-the cap was exceeded; root cause unattributed. The captain reverted it and
-load is bounded in the backend server instead (see
-`ai/embedding-gpu`'s `--no-cont-batching`/`--timeout` and
-`scripts/ci/embedding-gpu-prompt-cache-test.py`). Reproduce against a live
-proxy before trusting any deployment-level LiteLLM rate limit again.
-Keep `routing_strategy: simple-shuffle`; never `least-busy` (it updates
-in-flight counters after the routing decision, so bursts pile on one
-deployment).
+`embedding-local` carries `params.rpm: 60`, `additional.max_parallel_requests: 8`
+and `additional.timeout: 5`. Three things make them behave, and dropping any
+one brings back a failure that was measured:
+
+1. `routerSettings.optional_pre_call_checks: [enforce_model_rate_limits]`.
+   Without it `rpm` only weights routing and nothing is refused.
+2. `model_group_retry_policy.embedding-local` with `RateLimitErrorRetries: 0`
+   and `TimeoutErrorRetries: 0`. Without it the router holds a refused caller
+   (seconds under a burst, about 60 s on the proxy: the first, rpm-only attempt
+   at this hung callers 45 s+, and the captain reverted it) and multiplies the
+   timeout by 3.
+3. `routing_strategy: simple-shuffle`, never `least-busy` (it updates in-flight
+   counters after the routing decision, so bursts pile on one deployment) and
+   never `usage-based-routing-v2` (the reverted attempt).
+
+`rpm` is one counter for every key, which is the point (one heavy consumer
+cannot slow chat); per-key `rpmLimit` still applies on top. Enforcement is
+router-wide: a new `rpm` or `tpm` on another model becomes a hard limit too
+(`scripts/ci/litellm-embedding-limit-test.py` expects only `embedding-local`).
+`additional` is the only way to set `max_parallel_requests` and `timeout`
+through the operator. Numbers and evidence: skill `b70-llm-serving`,
+`references/contention.md`. The CI test drives the real Router; verify the
+rendered `litellm-config` after a merge (the test assumes the operator renders
+typed `rpm` into `litellm_params`).
 
 ## Adding a new metered model (procedure)
 

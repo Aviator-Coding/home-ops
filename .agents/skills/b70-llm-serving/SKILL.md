@@ -54,7 +54,10 @@ below are invisible when a rename drops them.
    batch at this endpoint. Skill `ai-stack` for why vmcp stays on CPU.
 7. **Throttle embeddings by request rate, not concurrency.** 0.5 req/s
    leaves chat near idle; 4 req/s costs most of chat decode; a full
-   queue collapses it. `devic.es/b70` `count: 99` is a share token, not
+   queue collapses it. The cap is the `embedding-local` LiteLLMModel
+   (`rpm`, `max_parallel_requests`, `timeout`) plus two router settings;
+   [contention.md](references/contention.md) says which and why.
+   `--timeout 30` on the server does not bound a request. `devic.es/b70` `count: 99` is a share token, not
    a fence. Card memory is held by the chat weights. There is no
    `--gpu-memory-utilization` on llama.cpp. [contention.md](references/contention.md)
 8. **`vllm-embed` stays `replicas: 0`.** It is `intel/llm-scaler-vllm`,

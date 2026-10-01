@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Behavioral contract for ai/embedding-gpu: the host prompt-cache bound, and
-(added 2026-09-27) the --no-cont-batching/--timeout load bound that replaced a
-reverted LiteLLM-side rpm/tpm cap - see test_load_bound_never_hangs_indefinitely.
+(added 2026-09-27) the --no-cont-batching/--timeout flags - see
+test_load_bound_never_hangs_indefinitely. --timeout is only a socket timeout
+(live 2026-09-30: 1042 of 1529 requests took 28-31 s, all HTTP 200), so the real
+load caps are LiteLLM's, pinned by litellm-embedding-limit-test.py.
 
 Pins the 2026-09-16 (second) OOM fix. `ai/embedding-gpu` was OOMKilled 18 times
 against a 2Gi limit, then 5 more times in 30 minutes against the raised 4Gi one.
@@ -176,14 +178,14 @@ def test_cache_ram_is_bounded_below_the_container_limit(docs: list[dict[str, Any
 def test_load_bound_never_hangs_indefinitely(docs: list[dict[str, Any]]) -> None:
     """--no-cont-batching + a bounded --timeout, added 2026-09-27.
 
-    Captain decision after a LiteLLM-side rpm/tpm cap (routerSettings.routing_strategy:
-    usage-based-routing-v2 on the embedding-local LiteLLMModel) was live-tested and found
-    to make a caller HANG 45s+ with no response once the cap was exceeded, instead of a
-    clean HTTP 429 - see the removed change's history. Bound load HERE instead: continuous
-    batching (enabled by default on this image) is what lets a concurrent embedding burst
-    starve ai/vllm of GPU cycles - independent of the --parallel=2 slot count above, which
-    bounds memory, not scheduling aggressiveness - and this image's own --timeout default
-    (3600s) is far too generous to guarantee "never hangs" on its own.
+    Continuous batching (enabled by default on this image) is what lets a concurrent
+    embedding burst starve ai/vllm of GPU cycles, independent of the --parallel=2 slot
+    count above, which bounds memory, not scheduling aggressiveness. --timeout replaces
+    the image's 3600s default, but it is ONLY the HTTP socket timeout: a request waiting
+    for a slot does no socket IO and is never cut, so it is not a request or queue
+    deadline (live 2026-09-30, 500 workers: 1042 requests took 28-31 s and all returned
+    200). Admission and time bounds live at LiteLLM instead: rpm, max_parallel_requests
+    and timeout on the embedding-local model, pinned by litellm-embedding-limit-test.py.
 
     What this catches
       - `--no-cont-batching` removed (continuous batching silently re-enables, restoring
@@ -195,9 +197,7 @@ def test_load_bound_never_hangs_indefinitely(docs: list[dict[str, Any]]) -> None
         deliberate bound
 
     What this does not catch
-      - whether 30s is the right value under real production traffic (only a live
-        sustained run proves that - the 100-concurrent stress test that produced this
-        value maxed at 6.47s, ~4.5x headroom)
+      - whether --timeout bounds anything under load (it does not; see above)
       - any OTHER llama.cpp scheduling change that could reintroduce chat contention
     """
     container = _container(_helmrelease(docs))
@@ -219,7 +219,7 @@ def test_load_bound_never_hangs_indefinitely(docs: list[dict[str, Any]]) -> None
     assert_true(
         "--timeout" in args or "-to" in args,
         "ai/embedding-gpu args must set --timeout. Without it this image defaults to "
-        "3600s, which is not a meaningful backstop against an indefinite-looking hang.",
+        "3600s, which leaves even a dead connection open for an hour.",
     )
     flag = "--timeout" if "--timeout" in args else "-to"
     idx = args.index(flag)

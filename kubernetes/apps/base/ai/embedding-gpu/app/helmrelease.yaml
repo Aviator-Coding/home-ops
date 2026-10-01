@@ -74,8 +74,9 @@ spec:
               - "512"
               - -ub
               - "512"
-              # Bound load here. A LiteLLM rpm cap was live-tested and hung; it was never committed.
-              # --timeout 30 replaces the image default of 3600. See skill b70-llm-serving references/contention.md.
+              # --timeout 30 replaces the image default of 3600 but is only a socket timeout: it does not
+              # bound a queued request (live: 28-31 s, all 200). Load is capped at LiteLLM on the embedding-local
+              # model. See skill b70-llm-serving references/contention.md.
               - --no-cont-batching
               - --timeout
               - "30"
