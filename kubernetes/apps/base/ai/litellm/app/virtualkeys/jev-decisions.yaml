@@ -18,8 +18,8 @@ spec:
   # Priced natively from the cost map; $1/30d stops a runaway loop.
   maxBudget: "1.00"
   budgetDuration: 30d
-  rpmLimit: 30
-  tpmLimit: 50000
+  rpmLimit: 300
+  tpmLimit: 1000000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 # Mirrors the key to 1Password litellm-consumer-jev-decisions, where the decision skill reads it.
