@@ -78,7 +78,7 @@ only at `POST /openrouter/alpha/decisions`, priced natively by
 `TypeSafePassthroughLoggingHandler` from the cost map (spend is recorded).
 
 `virtualkeys/jev-decisions.yaml`: `models: [typesafe/jev-1.13]`, `$1`/30d,
-rpm 30, tpm 50000, **no `spec.metadata`**. The grant is one out-of-Git admin
+rpm 300, tpm 1000000, **no `spec.metadata`**. The grant is one out-of-Git admin
 `/key/update` stored only in LiteLLM's DB:
 
 - It survives every operator reconcile only while the CR declares no
