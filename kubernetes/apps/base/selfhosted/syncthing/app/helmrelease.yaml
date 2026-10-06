@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: docker.io/syncthing/syncthing
-              tag: 2.1.5
+              tag: 2.1.6
             env:
               TZ: America/New_York
               STHOMEDIR: /var/syncthing/config
