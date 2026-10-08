@@ -40,6 +40,8 @@ CONFIG_PATH = RECYCLARR_APP / "config/recyclarr.yml"
 # Independently verified against TRaSH-Guides (docs/json/radarr|sonarr/quality-profiles).
 RADARR_SQP_2160P = "5128baeb2b081b72126bc8482b2a86a0"
 RADARR_SQP_1080P = "0896c29d74de619df168d23b98104b22"
+RADARR_HD_BLURAY_WEB = "d1d67249d3890e49bc12e275d989a7e9"
+RADARR_UHD_BLURAY_WEB = "64fb5f9858489bdac2af690e27c8f42f"
 SONARR_WEB_1080P = "72dae194fc92bf828f32cde7744e51a1"
 SONARR_WEB_2160P = "d1498e7d189fbe6c7110ceaabb7473e6"
 
@@ -51,6 +53,14 @@ TRASH_PROFILE_URLS = {
     RADARR_SQP_1080P: (
         "https://raw.githubusercontent.com/TRaSH-Guides/Guides/master/"
         "docs/json/radarr/quality-profiles/sqp-1-1080p.json"
+    ),
+    RADARR_HD_BLURAY_WEB: (
+        "https://raw.githubusercontent.com/TRaSH-Guides/Guides/master/"
+        "docs/json/radarr/quality-profiles/hd-bluray-web.json"
+    ),
+    RADARR_UHD_BLURAY_WEB: (
+        "https://raw.githubusercontent.com/TRaSH-Guides/Guides/master/"
+        "docs/json/radarr/quality-profiles/uhd-bluray-web.json"
     ),
     SONARR_WEB_1080P: (
         "https://raw.githubusercontent.com/TRaSH-Guides/Guides/master/"
@@ -278,6 +288,53 @@ def assert_radarr_sqp_fix(cfg: dict[str, Any], *, require_guide_fetch: bool = Fa
     return evidence
 
 
+def assert_radarr_rescue_profiles(cfg: dict[str, Any]) -> None:
+    """The HD/UHD Bluray + WEB profiles take the SQP residue (min score 0, language Original).
+
+    SQP-1 keeps its guide minimum of 1000 for new releases; catalogue titles that no tier
+    group ever released move to these profiles instead of lowering SQP-1.
+    """
+    radarr = (cfg.get("radarr") or {}).get("radarr_main")
+    assert_true(isinstance(radarr, dict), "radarr.radarr_main missing")
+    declared = {qp.get("trash_id") for qp in quality_profiles(radarr)}
+    rescue = (RADARR_HD_BLURAY_WEB, RADARR_UHD_BLURAY_WEB)
+    for tid in rescue:
+        assert_true(tid in declared, f"Radarr must declare rescue profile {tid}")
+
+    # The guide profiles carry only tier scores, so the unwanted formats (LQ, BR-DISK,
+    # x265 (HD), AV1, ...) must be assigned explicitly or min score 0 accepts them.
+    for tid in rescue:
+        unwanted = [
+            group
+            for group in custom_format_groups(radarr)
+            if tid in {e.get("trash_id") for e in group.get("assign_scores_to") or []}
+            and "score" not in group
+        ]
+        ids = {cf for group in unwanted for cf in group.get("trash_ids") or []}
+        for required, label in (
+            ("90a6f9a284dff5103f6346090e6280c8", "LQ"),
+            ("ed38b889b31be83fda192888e2286d83", "BR-DISK"),
+            ("dc98083c8c6b34cc9ab94e6c4a45b18c", "x265 (HD)"),
+            ("cae4ca30163749b891686f95532519bd", "AV1"),
+        ):
+            assert_true(required in ids, f"rescue profile {tid} must score {label} ({required})")
+
+    for tid in rescue:
+        guide = fetch_trash_profile(tid)
+        if guide is None:
+            continue
+        assert_true(guide.get("trash_id") == tid, f"TRaSH document trash_id mismatch for {tid}")
+        assert_true(
+            guide.get("minFormatScore") == 0,
+            f"{guide.get('name')!r} minFormatScore changed to {guide.get('minFormatScore')!r}; "
+            "the rescue plan assumes 0",
+        )
+        assert_true(
+            guide.get("language") == "Original",
+            f"{guide.get('name')!r} language changed to {guide.get('language')!r}",
+        )
+
+
 def assert_sonarr_trash_id_matching(cfg: dict[str, Any]) -> None:
     sonarr = (cfg.get("sonarr") or {}).get("sonarr_main")
     assert_true(isinstance(sonarr, dict), "sonarr.sonarr_main missing")
@@ -344,11 +401,13 @@ def main() -> int:
 
     def t_file() -> None:
         evidence["from_file"] = assert_radarr_sqp_fix(file_cfg)
+        assert_radarr_rescue_profiles(file_cfg)
         assert_sonarr_trash_id_matching(file_cfg)
 
     def t_cm() -> None:
         cm_cfg = kustomize_built_config()
         evidence["from_configmap"] = assert_radarr_sqp_fix(cm_cfg)
+        assert_radarr_rescue_profiles(cm_cfg)
         assert_sonarr_trash_id_matching(cm_cfg)
         # Delivered ConfigMap must declare the same Radarr profile set as the source file.
         assert_true(
