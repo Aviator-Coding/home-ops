@@ -162,6 +162,21 @@ async function testSubconform() {
         { codec_type: 'video', codec_name: 'mjpeg', width: 1719, height: 2023 },
       ],
     },
+    // What the node really receives: ffmpegCommandStart rewrites attached_pic
+    // video streams to codec_type 'attachment', so the eight cover-art mjpeg
+    // streams are counted as `other` (job log: in v=1 a=3 s=19 other=8) and the
+    // 0x0 ones used to survive into the muxer ("dimensions not set").
+    'Amelie (as ffmpegCommandStart builds it)': {
+      expectSubs: 19, expectConv: 0, expectAudio: 3, expectDropped: 7,
+      expectLog: 'in v=1 a=3 s=19 other=8',
+      streams: [
+        { codec_type: 'video', codec_name: 'hevc', width: 3840, height: 2160 },
+        ...Array(3).fill(0).map(() => ({ codec_type: 'audio', codec_name: 'ac3' })),
+        ...Array(19).fill(0).map(() => ({ codec_type: 'subtitle', codec_name: 'subrip' })),
+        ...Array(7).fill(0).map(() => ({ codec_type: 'attachment', codec_name: 'mjpeg', width: 0, height: 0 })),
+        { codec_type: 'attachment', codec_name: 'mjpeg', width: 1719, height: 2023 },
+      ],
+    },
     'Wake Up Dead Man': {
       expectSubs: 46, expectConv: 46, expectAudio: 8, expectDropped: 1,
       streams: [
@@ -210,7 +225,8 @@ async function testSubconform() {
     assert.strictEqual(cnt(kept, 'audio'), m.expectAudio, name + ' audio');
     assert.strictEqual(dropped.length, m.expectDropped, name + ' dropped');
     // Amelie keeps valid cover art
-    if (name === 'Amelie') {
+    if (m.expectLog) assert.ok(logs[0].includes(m.expectLog), name + ' census: ' + logs[0]);
+    if (name.startsWith('Amelie')) {
       const validArt = kept.filter(s => s.codec_name === 'mjpeg' && s.width === 1719);
       assert.strictEqual(validArt.length, 1, 'Amelie keeps 1719x2023 art');
       const zeroArt = dropped.filter(s => s.codec_name === 'mjpeg');
@@ -222,6 +238,31 @@ async function testSubconform() {
 // --- 3. cargs encoder-aware ---
 async function testCargs() {
   log('\n== cargs (template + after-flow embedded) ==');
+  const template = fs.readFileSync(path.join(NODES, 'cargs_template.js'), 'utf8');
+
+  // The VA-API probe shells out to `vainfo`. Put a fake one first on PATH so
+  // the real node code runs end to end; FAKE_VAINFO picks ok / fail / noav1.
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-vainfo-'));
+  fs.writeFileSync(path.join(fakeBin, 'vainfo'), [
+    '#!/bin/sh',
+    'case "$FAKE_VAINFO" in',
+    '  fail) echo "error: failed to initialize display" >&2; exit 1 ;;',
+    '  noav1) echo "      VAProfileHEVCMain               : VAEntrypointEncSlice"; exit 0 ;;',
+    '  *) echo "      VAProfileAV1Profile0            : VAEntrypointVLD"; echo "      VAProfileAV1Profile0            : VAEntrypointEncSlice"; exit 0 ;;',
+    'esac',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const savedPath = process.env.PATH;
+  process.env.PATH = fakeBin + path.delimiter + savedPath;
+  try {
+    await testCargsBody();
+  } finally {
+    process.env.PATH = savedPath;
+    delete process.env.FAKE_VAINFO;
+  }
+}
+
+async function testCargsBody() {
   const template = fs.readFileSync(path.join(NODES, 'cargs_template.js'), 'utf8');
 
   function instantiate(quality, hdr) {
@@ -327,6 +368,45 @@ async function testCargs() {
     assert.ok(overall.includes('bt2020'));
     assert.ok(overall.includes('-global_quality'));
     assert.ok(overall.includes('24'));
+  }
+
+  // VA-API probe: a dead GPU path must fail the job fast with a distinct
+  // verdict, not reach ffmpeg init (exit 187), and must not block libsvtav1.
+  {
+    const code = instantiate(28, false);
+    const mk = () => [{ codec_type: 'video', codec_name: 'h264', width: 3840, height: 2160, outputArgs: ['-c:{outputIndex}', 'av1_qsv'] }];
+
+    process.env.FAKE_VAINFO = 'ok';
+    let { r, logs } = await runCargs(code, 'av1_qsv', 28, false);
+    assert.strictEqual(r.outputNumber, 1);
+    assert.ok(logs.some(l => l.includes('VA-API probe: ok')), 'healthy probe must log ok');
+
+    for (const mode of ['fail', 'noav1']) {
+      process.env.FAKE_VAINFO = mode;
+      const logs2 = [];
+      const overall = [];
+      await assert.rejects(
+        runNode(loadCodeString(code, 'cargs'), {
+          inputFileObj: { _id: 'x' },
+          variables: { ffmpegCommand: { streams: mkStreams(mk()), overallOuputArguments: overall } },
+          jobLog: (m) => logs2.push(m),
+        }),
+        /VA-API probe FAILED/,
+        'dead VA-API (' + mode + ') must throw the distinct verdict',
+      );
+      assert.deepStrictEqual(overall, [], 'no encoder args may be emitted when the probe fails');
+      assert.ok(logs2.some(l => l.includes('VA-API probe FAILED')), 'failure must be logged');
+      log(`  VA-API probe ${mode}: throws, nothing emitted`);
+    }
+
+    // 4K libsvtav1 is rewritten to av1_qsv, so it needs the device too.
+    process.env.FAKE_VAINFO = 'fail';
+    await assert.rejects(runCargs(code, 'libsvtav1', 28, false, 3840, 2160), /VA-API probe FAILED/);
+
+    // The CPU fallback is untouched by a dead GPU path.
+    const cpu = await runCargs(code, 'libsvtav1', 28, false, 1920, 1080);
+    assert.strictEqual(cpu.r.outputNumber, 1, 'libsvtav1 1080p must not depend on VA-API');
+    delete process.env.FAKE_VAINFO;
   }
 
   // HDR CPU

@@ -409,8 +409,19 @@ def main() -> int:
             f"transcodecpuWorkers must be 1 (CPU fallback), got {node_env.get('transcodecpuWorkers')!r}",
         )
         assert_true(
-            node_env.get("transcodegpuWorkers") == "1",
-            f"transcodegpuWorkers must stay 1, got {node_env.get('transcodegpuWorkers')!r}",
+            node_env.get("transcodegpuWorkers") == "2",
+            f"transcodegpuWorkers must be 2, got {node_env.get('transcodegpuWorkers')!r}",
+        )
+        # The node's /app/configs is an emptyDir, so these env values reseed the
+        # worker limits on every pod start. A cuda-only GPU health check can
+        # never work on Intel, so it must stay 0.
+        assert_true(
+            node_env.get("healthcheckgpuWorkers") == "0",
+            f"healthcheckgpuWorkers must be 0 (cuda-only), got {node_env.get('healthcheckgpuWorkers')!r}",
+        )
+        assert_true(
+            node_env.get("healthcheckcpuWorkers") == "1",
+            f"healthcheckcpuWorkers must be 1, got {node_env.get('healthcheckcpuWorkers')!r}",
         )
 
         # --- libdrm A-B-A mechanism simulation ---
