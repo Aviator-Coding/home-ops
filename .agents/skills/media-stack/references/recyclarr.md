@@ -29,3 +29,9 @@ Manual sync:
 
 Import lists are not in the Recyclarr file. `searchOnAdd` is Radarr
 Settings, Lists. See [backlog-search.md](backlog-search.md).
+
+`HD Bluray + WEB` (`d1d67249...`) and `UHD Bluray + WEB` (`64fb5f9a...`) are
+declared for the catalogue titles no TRaSH tier group ever released. Their
+guide `minFormatScore` is 0 and language Original, so the unwanted formats
+(LQ, BR-DISK, x265 (HD), AV1) are assigned to them explicitly. SQP-1 keeps
+its minimum of 1000; never lower it to rescue old titles, move them instead.
