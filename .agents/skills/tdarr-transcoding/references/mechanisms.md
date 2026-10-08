@@ -65,6 +65,11 @@ GPU worker included. The same `cargs*` nodes refuse `libsvtav1` above that
 budget and send 4K to `av1_qsv`. Do not set the CPU worker count to 0, and
 do not remove the guard to "let the CPU encode 4K".
 
+The four worker limits live in the node HelmRelease env, not the Tdarr UI:
+`/app/configs` is an emptyDir, so every pod start reseeds them. Keep
+`healthcheckgpuWorkers` at `"0"` (its command is cuda-only and fails every
+hevc/av1 file on Intel) and `transcodegpuWorkers` at `"2"`.
+
 `enc2X` stays `hardwareType: qsv`. `guard_home` stays `codec: av1` (already
 AV1, skip).
 
