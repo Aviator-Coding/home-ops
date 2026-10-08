@@ -35,6 +35,32 @@
 // need, never on filename, library or path, so 4K arriving by ANY route is
 // covered.
 
+// VA-API PROBE. Whenever the encoder that will actually run is av1_qsv (a GPU
+// job, or a 4K job rewritten from libsvtav1 above), open the VA-API device
+// first. A dead B70 path (late-trained dock, renamed DRM node) otherwise only
+// shows at ffmpeg init, "Failed to create a VAAPI device", exit 187, and the
+// queue chews through every movie in ~25 s each (35 on 2026-10-06). The probe
+// throws instead of returning an edge: a dead-end output finalises the job
+// "Not required" and drops the file from the queue, while a throw leaves a
+// retryable transcode error with a distinct "VA-API probe FAILED" report line.
+// libsvtav1 jobs never reach it, so the CPU worker keeps working.
+const VAAPI_DEVICE = '/dev/dri/renderD129';
+
+function probeVaapi() {
+  const { execFileSync } = require('child_process');
+  try {
+    const out = execFileSync('vainfo', ['--display', 'drm', '--device', VAAPI_DEVICE], {
+      timeout: 15000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).toString();
+    if (/AV1Profile0\s*:\s*VAEntrypointEncSlice/.test(out)) return { ok: true, detail: 'AV1 EncSlice present' };
+    return { ok: false, detail: 'vainfo ran but lists no AV1 encode entrypoint' };
+  } catch (e) {
+    const msg = String((e && (e.stderr || e.message)) || e).trim().split('\n')[0];
+    return { ok: false, detail: msg };
+  }
+}
+
 module.exports = async (args) => {
   const QUALITY = __QUALITY__;   // av1_qsv -global_quality, libsvtav1 -crf
   const SVT_PRESET = '8';        // libsvtav1 -preset, 0-13, lower = slower/better.
@@ -99,6 +125,17 @@ module.exports = async (args) => {
                   'MiB -> libsvtav1 would OOM this container, encoding av1_qsv instead');
       encoder = 'av1_qsv';
     }
+  }
+
+  if (encoder === 'av1_qsv') {
+    const probe = probeVaapi();
+    if (!probe.ok) {
+      const msg = 'VA-API probe FAILED on ' + VAAPI_DEVICE + ': ' + probe.detail +
+                  ' - not encoding; GPU path is dead, see skill intel-gpu vaapi-check.md';
+      args.jobLog(msg);
+      throw new Error(msg);
+    }
+    args.jobLog('VA-API probe: ok (' + VAAPI_DEVICE + ', ' + probe.detail + ')');
   }
 
   const out = [];

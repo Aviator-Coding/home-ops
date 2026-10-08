@@ -133,18 +133,25 @@ spec:
                 value: mapped
               - name: ffmpegVersion
                 value: "7"
-              # The B70 runs GPU transcode workers (AV1 decode/encode via QSV);
-              # the external Windows GPU node (see tdarr-node-lb) still helps out.
+              # These four values are the source of truth for the worker limits.
+              # The node's /app/configs is an emptyDir, so every pod start
+              # reseeds them and UI toggles do not survive a restart.
+              # Two GPU transcode workers share the B70 (AV1 via QSV); the
+              # external Windows GPU node (see tdarr-node-lb) still helps out.
               - name: transcodegpuWorkers
-                value: "1"
+                value: "2"
               # Keep at least one CPU transcode worker. A GPU-only node turns any
               # VA-API regression into a silent, total transcoding outage: every job
               # the GPU worker picks up fails with transcodeError and nothing else
               # can take it. Cost is speed, not correctness. See .agents/skills/intel-gpu/references/vaapi-check.md.
               - name: transcodecpuWorkers
                 value: "1"
+              # Must stay 0. Tdarr builds the GPU health-check command with
+              # -hwaccel nvdec -hwaccel_output_format cuda, which can never work
+              # on Intel: every hevc or av1 file fails "device type cuda needed".
+              # The CPU health-check worker does the same job.
               - name: healthcheckgpuWorkers
-                value: "1"
+                value: "0"
               - name: healthcheckcpuWorkers
                 value: "1"
             securityContext:

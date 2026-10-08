@@ -45,7 +45,10 @@ module.exports = async (args) => {
 
     // Cover art with no dimensions -> matroska "dimensions not set".
     // Drop only the broken art stream; valid art (e.g. 600x900) is kept.
-    if (type === 'video' && name === 'mjpeg') {
+    // ffmpegCommandStart rewrites attached_pic streams to codec_type
+    // 'attachment', so cover art arrives as 'attachment', not 'video'
+    // (Amelie: eight 0x0 mjpeg counted as other=8, none dropped).
+    if ((type === 'video' || type === 'attachment') && name === 'mjpeg') {
       const w = Number(s.width || 0);
       const h = Number(s.height || 0);
       if (!w || !h) {

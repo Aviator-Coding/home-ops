@@ -95,6 +95,13 @@ substituting `__LABEL__` / `__QUALITY__` / `__HDR__`:
 
 The three `sub2X` bodies are byte-identical to `subconform.js`.
 
+`cargs2X` also carries the VA-API probe: when the chosen encoder is `av1_qsv`
+it runs `vainfo` on `/dev/dri/renderD129` and throws `VA-API probe FAILED`
+(a retryable transcode error, seconds after start) instead of letting ffmpeg die
+with exit 187. A healthy job report contains `VA-API probe: ok`. It cannot pause
+the queue, only fail each job fast with a distinct reason. A throw is used rather
+than a dead-end output because a dead end finalises the job "Not required".
+
 ### Non-customFunction nodes
 
 These carry no code, only settings, and a rebuild resets them to plugin
