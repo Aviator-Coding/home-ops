@@ -1,0 +1,77 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/batch/cronjob_v1.json
+# Weekly DuckLake maintenance (CHECKPOINT). Skill `databases` references/ducklake.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ducklake-maintenance
+spec:
+  # SHIPS SUSPENDED. Do not unsuspend until the image below is 2.0.0 and the lake has been recreated on 2.0.0:
+  # a catalog created by a DuckDB 2.0 alpha is not readable by 1.5. CHECKPOINT deletes data files for good.
+  suspend: true
+  schedule: "30 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 7200
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: maintenance
+              # renovate: datasource=docker depName=docker.io/duckdb/duckdb
+              image: docker.io/duckdb/duckdb:1.5.6
+              command: ["/duckdb", "-bail", "-f", "/scripts/maintenance.sql"]
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: S3_ENDPOINT
+                  value: rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: ducklake
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: ducklake
+                      key: AWS_SECRET_ACCESS_KEY
+              envFrom:
+                - secretRef:
+                    name: ducklake-secret
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  memory: 2Gi
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: scripts
+              configMap:
+                name: ducklake-maintenance
+            - name: tmp
+              emptyDir: {}

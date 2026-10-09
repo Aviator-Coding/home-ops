@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./password.yaml
+  - ./pushsecret-db.yaml
+  - ./externalsecret.yaml
+  - ./dbinit.yaml
+  - ./bucketclaim.yaml
+  - ./pushsecret-bucket.yaml
+  - ./cronjob.yaml
+configMapGenerator:
+  - name: ducklake-maintenance
+    files:
+      - maintenance.sql
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

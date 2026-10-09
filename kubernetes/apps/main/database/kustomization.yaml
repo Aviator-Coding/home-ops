@@ -11,6 +11,7 @@ components:
 resources:
   - ./cloudnative-pg.yaml
   - ./dragonfly.yaml
+  - ./ducklake.yaml
   - ./emqx.yaml
   - ./surrealdb.yaml
   - ./falkordb.yaml
