@@ -51,7 +51,7 @@ spec:
           containers:
             - name: mirror
               # renovate: datasource=docker depName=rclone/rclone
-              image: rclone/rclone:1.75.1
+              image: rclone/rclone:1.75.2
               imagePullPolicy: IfNotPresent
               securityContext:
                 allowPrivilegeEscalation: false
