@@ -41,6 +41,12 @@ spec:
     recovery:
       source: &previousCluster postgres17-v4
 
+  # Adds the LAN name of postgres-17-lb to the CNPG-issued server certificate (for DuckLake clients). A cert-manager
+  # sklab.dev certificate as serverTLSSecret was rejected. Skill `databases` references/ducklake.md.
+  certificates:
+    serverAltDNSNames:
+      - postgres-17.${SECRET_DOMAIN}
+
   postgresql:
     shared_preload_libraries: ["vectors.so"]
     parameters:

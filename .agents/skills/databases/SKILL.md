@@ -44,6 +44,7 @@ image, scrape-target count).
 | CNPG operator, cluster, pgAdmin | `kubernetes/apps/base/database/cloudnative-pg/` |
 | Barman offsite mirror (Backups owns the README) | `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/` |
 | EMQX | `kubernetes/apps/base/database/emqx/` |
+| DuckLake (catalog db, bucket, maintenance CronJob) | `kubernetes/apps/base/database/ducklake/` |
 | Dragonfly operator | `kubernetes/apps/base/database/dragonfly/` |
 | Per-app Dragonfly clusters | `kubernetes/components/dragonfly/` |
 | CNPG health gate | `kubernetes/apps/main/database/cloudnative-pg.yaml` (do not edit from this skill's PR; the gate is stated in [cnpg.md](references/cnpg.md)) |
@@ -55,6 +56,7 @@ image, scrape-target count).
 - CNPG backup, restore, labels: [cnpg.md](references/cnpg.md).
 - EMQX pin and clients: [emqx.md](references/emqx.md).
 - Dragonfly consumers and cache policy: [dragonfly.md](references/dragonfly.md).
+- DuckLake client ATTACH string, credentials, TLS, bucket protection: [ducklake.md](references/ducklake.md).
 
 ## Verify
 
