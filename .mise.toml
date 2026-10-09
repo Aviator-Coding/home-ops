@@ -15,7 +15,7 @@ JUST_UNSTABLE = "1"
 MISE_LIST_ALL_VERSIONS = "false"
 
 [tools]
-"python" = "3.14.7"
+"python" = "3.14.8"
 "pipx:pre-commit" = "4.6.2"
 # Not in the mise or aqua registries, so installed via the ubi backend from GitHub releases.
 "ubi:home-operations/flate" = "0.6.5"
