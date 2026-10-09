@@ -8,7 +8,7 @@
 # .github/workflows/build-litellm-pgvector.yaml): it changes whenever this
 # directory changes, and scripts/ci/litellm-pgvector-test.py fails if the
 # HelmRelease does not reference the tag this directory builds to.
-FROM python:3.11-slim-bookworm@sha256:a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b AS build
+FROM python:3.11-slim-bookworm@sha256:0a310eeecf4e1f5a0743f9a6520c90c88d089c903ca5fd283f501e3a805f5f89 AS build
 
 # Upstream main as of 2025-12-22 (the merge of BerriAI/litellm-pgvector#2,
 # which also carries the #7 file_counts fix). A git ADD pinned to a full commit
@@ -53,7 +53,7 @@ RUN python -m venv /opt/venv \
     && install -D -m 0755 "$1" /opt/prisma/query-engine
 
 # Same base as the build stage (the venv is not relocatable across Pythons).
-FROM python:3.11-slim-bookworm@sha256:a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b
+FROM python:3.11-slim-bookworm@sha256:0a310eeecf4e1f5a0743f9a6520c90c88d089c903ca5fd283f501e3a805f5f89
 
 LABEL org.opencontainers.image.source="https://github.com/aviator-coding/home-ops"
 LABEL org.opencontainers.image.description="BerriAI/litellm-pgvector (OpenAI-compatible vector store API on PGVector)"
