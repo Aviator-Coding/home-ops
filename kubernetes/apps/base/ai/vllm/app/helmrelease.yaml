@@ -45,7 +45,9 @@ spec:
               tag: server-intel-b10820
             args:
               - -hf
-              - unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M
+              # No quant tag. The repo default is the IQ3_XXS GGUF; mmproj auto-loads.
+              # Alias stays qwen3.6-35b-a3b. See skill b70-llm-serving references/flags.md.
+              - IsValorum/Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated-GGUF
               - --alias
               - qwen3.6-35b-a3b
               - --host
@@ -112,7 +114,7 @@ spec:
                 memory: 48Gi
                 devic.es/b70: 1
             probes:
-              # First boot downloads ~21GB GGUF; allow 30 min
+              # First boot downloads ~15GB (default GGUF + mmproj); allow 30 min
               startup:
                 enabled: true
                 custom: true
