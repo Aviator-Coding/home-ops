@@ -6,7 +6,8 @@ A tag bump is one evaluation for both. Re-read the banner after it.
 fragmenting when one decode token shares a batch). `-ub 4096` was
 rejected: better idle prefill, worse under concurrency.
 
-Chat model: `unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M`, alias
+Chat model: `IsValorum/Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated-GGUF`
+with no quant tag (default file is IQ3_XXS; mmproj auto-loads). Alias stays
 `qwen3.6-35b-a3b`. Embedding model: `Qwen/Qwen3-Embedding-0.6B-GGUF:f16`.
 
 ## Chat (`vllm` controller)
