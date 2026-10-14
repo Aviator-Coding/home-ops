@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Aviator Anthropic org route. The v1.103.1 cost map has no anthropic/claude-opus-5-5
+# entry, so these are the published rates ($4/$20 per 1M, cache read $0.20). Cache
+# writes are the standard 1.25x (5m) and 2x (1h) of input. Single rate at every length.
+# See skill litellm-proxy (references/model-catalog.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: claude-opus-5-5
+spec:
+  modelName: claude-opus-5-5
+  proxyRef: litellm
+  params:
+    model: anthropic/claude-opus-5-5
+    apiKey: os.environ/ANTHROPIC_API_KEY
+  info:
+    extra:
+      input_cost_per_token: 0.000004
+      output_cost_per_token: 0.00002
+      input_cost_per_token_above_200k_tokens: 0.000004
+      output_cost_per_token_above_200k_tokens: 0.00002
+      cache_read_input_token_cost: 0.0000002
+      cache_read_input_token_cost_above_200k_tokens: 0.0000002
+      cache_creation_input_token_cost: 0.000005
+      cache_creation_input_token_cost_above_1hr: 0.000008
+      cache_creation_input_token_cost_above_200k_tokens: 0.000005

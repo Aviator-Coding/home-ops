@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Aviator Anthropic org route. Registration only; the consume-projects key allow-lists it.
+# No info.extra prices: the v1.103.1 cost map already prices this id.
+# See skill litellm-proxy (references/model-catalog.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: claude-sonnet-4-5-20250929
+spec:
+  modelName: claude-sonnet-4-5-20250929
+  proxyRef: litellm
+  params:
+    model: anthropic/claude-sonnet-4-5-20250929
+    apiKey: os.environ/ANTHROPIC_API_KEY

@@ -119,6 +119,13 @@ Spend accrues from the model's price (built-in cost map for cloud models,
 - On `chat-ha` keys (`ha-demo`) the budget measures only cloud fallback spend.
 - A budget on a key whose models are all zero-priced is inert; it is kept
   only as a guard (see above).
+- `litellm-consume-projects` at $100/30d counts every model that key holds,
+  OpenRouter included. The org ceiling is separate:
+  `routerSettings.provider_budget_config.anthropic` is $100/30d and filters
+  every `anthropic/` deployment once recorded Anthropic spend hits it.
+  Subscription pass-throughs share that provider name, record $0, and are
+  filtered only after the cap. The key's `typesafe/jev-1.13` entry does not
+  open `/openrouter/alpha/decisions`.
 
 ## Budgetless keys (CI-asserted exact set)
 
@@ -154,6 +161,7 @@ reason:
 | `embedding-external` | `embedding-local` | external embedding callers; its rpm is per key, the model-level `rpm` on `embedding-local` (model-catalog.md) caps every key together to protect chat on the shared B70 |
 | `litellm-pgvector` | `qwen/qwen3-embedding-8b` only | vector store ([vector-store.md](vector-store.md)); deliberately no `embedding-local` |
 | `jev-decisions` | `typesafe/jev-1.13` | decision door, $1/30d ([passthrough-lockdown.md](passthrough-lockdown.md)); no `embedding-local` |
+| `litellm-consume-projects` | metered Anthropic org routes, `gpt-*`, `gpt-oss-20b`, `typesafe/jev-1.13`, `auto`, `embedding-local` | Aviator org consumer, $100/30d on this key's own spend. No `spec.metadata`: the Jev id is allow-listed but the passthrough grant is not in Git |
 
 Every other key also allow-lists `embedding-local` (captain intent: every key
 may use the local embedder). It is credential-less and zero-priced, so it

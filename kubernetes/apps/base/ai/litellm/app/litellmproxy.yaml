@@ -126,11 +126,21 @@ spec:
       - chat-local
       - claude-fable-5
       - claude-fable-5-1
+      - claude-fable-5-1-metered
       - claude-haiku-4-5-20251001
+      - claude-haiku-4-5-20251001-metered
+      - claude-haiku-5-5
+      - claude-opus-4-5-20251101
+      - claude-opus-4-6
+      - claude-opus-4-7
       - claude-opus-4-8
       - claude-opus-5
+      - claude-opus-5-5
       - claude-opus-5-metered
+      - claude-sonnet-4-5-20250929
+      - claude-sonnet-4-6
       - claude-sonnet-5
+      - claude-sonnet-5-5
       - claude-sonnet-5-metered
       - deepseek-v4-flash
       - deepseek-v4-flash-0731
@@ -169,6 +179,14 @@ spec:
     redis_port: 6379
     # Pinned so least-busy cannot creep in.
     routing_strategy: simple-shuffle
+    # Aviator Anthropic org allowance: $100 / 30d for every anthropic/ deployment.
+    # The $0 subscription pass-throughs share that provider name, so once metered
+    # spend hits the cap they are filtered too. They record $0 and do not consume it.
+    # Redis above is what makes the counter one number. v1.103.1 RouterBudgetLimiting.
+    provider_budget_config:
+      anthropic:
+        budget_limit: 100.0
+        time_period: 30d
     # Makes a deployment's rpm a hard limit (429 before the backend); without it rpm only weights
     # routing. Only embedding-local sets rpm today. references/model-catalog.md.
     optional_pre_call_checks:

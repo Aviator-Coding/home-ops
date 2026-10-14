@@ -656,7 +656,13 @@ def test_local_pricing_split(cfg: dict) -> None:
     # cloud model the bundled cost map does not know, whose declared price IS
     # the invoice (without it LiteLLM would record $0 for real spend). Such a
     # model must route to a cloud provider, never a local backend.
-    invoice_priced = {"qwen/qwen3-embedding-8b"}  # OpenRouter, $0.01/1M input (2026-09-27)
+    # OpenRouter embedding, plus the Anthropic 5.5 ids absent from the v1.103.1 cost map.
+    invoice_priced = {
+        "qwen/qwen3-embedding-8b",  # OpenRouter, $0.01/1M input (2026-09-27)
+        "claude-haiku-5-5",
+        "claude-sonnet-5-5",
+        "claude-opus-5-5",
+    }
     record(
         "only_the_demo_alias_carries_synthetic_prices",
         priced - invoice_priced == {"qwen3.6-35b-a3b"},
@@ -675,7 +681,9 @@ def test_local_pricing_split(cfg: dict) -> None:
     record(
         "invoice_priced_models_are_cloud_routed",
         all(
-            by_name(model_list, name)["litellm_params"].get("model", "").startswith("openrouter/")
+            by_name(model_list, name)["litellm_params"].get("model", "").startswith(
+                ("openrouter/", "anthropic/")
+            )
             for name in invoice_priced & registered
         ),
         f"invoice_priced={sorted(invoice_priced & registered)}",

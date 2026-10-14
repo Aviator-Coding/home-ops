@@ -326,6 +326,15 @@ def test_router_settings_entitlement_boundary(cfg: dict) -> None:
             ctx.get(primary) == ["claude-sonnet-5-metered"],
             f"got={ctx.get(primary)!r}",
         )
+    # Aviator org allowance. One provider, $100 / 30d. A float 100.0 compares equal to 100.
+    anthropic_budget = (rs.get("provider_budget_config") or {}).get("anthropic") or {}
+    record(
+        "anthropic_provider_budget_is_100_usd_per_30d",
+        set(rs.get("provider_budget_config") or {}) == {"anthropic"}
+        and anthropic_budget.get("budget_limit") == 100
+        and anthropic_budget.get("time_period") == "30d",
+        f"provider_budget_config={rs.get('provider_budget_config')!r}",
+    )
     # No reverse cloud->local context chain (1M cannot overflow into 262k).
     cloud_reverse = [k for k in ctx if k.startswith("claude-")]
     record(
