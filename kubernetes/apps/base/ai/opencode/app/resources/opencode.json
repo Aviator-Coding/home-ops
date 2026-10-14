@@ -12,7 +12,8 @@
     "max_bytes": 16384
   },
   "enabled_providers": [
-    "litellm"
+    "litellm",
+    "litellm-projects"
   ],
   "provider": {
     "litellm": {
@@ -28,6 +29,157 @@
           "name": "Auto (complexity router)",
           "limit": {
             "context": 140000,
+            "output": 16384
+          }
+        }
+      }
+    },
+    "litellm-projects": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LiteLLM projects",
+      "options": {
+        "baseURL": "http://litellm.ai.svc.cluster.local:4000/v1",
+        "apiKey": "{env:LITELLM_PROJECTS_API_KEY}",
+        "timeout": 1800000
+      },
+      "models": {
+        "claude-fable-5": {
+          "name": "claude-fable-5",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-fable-5-1-metered": {
+          "name": "claude-fable-5-1-metered",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-haiku-4-5-20251001-metered": {
+          "name": "claude-haiku-4-5-20251001-metered",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-haiku-5-5": {
+          "name": "claude-haiku-5-5",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-opus-4-5-20251101": {
+          "name": "claude-opus-4-5-20251101",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-opus-4-6": {
+          "name": "claude-opus-4-6",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-opus-4-7": {
+          "name": "claude-opus-4-7",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-opus-4-8": {
+          "name": "claude-opus-4-8",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-opus-5-5": {
+          "name": "claude-opus-5-5",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-opus-5-metered": {
+          "name": "claude-opus-5-metered",
+          "limit": {
+            "context": 1000000,
+            "output": 16384
+          }
+        },
+        "claude-sonnet-4-5-20250929": {
+          "name": "claude-sonnet-4-5-20250929",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-sonnet-4-6": {
+          "name": "claude-sonnet-4-6",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-sonnet-5-5": {
+          "name": "claude-sonnet-5-5",
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-sonnet-5-metered": {
+          "name": "claude-sonnet-5-metered",
+          "limit": {
+            "context": 1000000,
+            "output": 16384
+          }
+        },
+        "gpt-5.6-luna": {
+          "name": "gpt-5.6-luna",
+          "limit": {
+            "context": 272000,
+            "output": 16384
+          }
+        },
+        "gpt-5.6-sol": {
+          "name": "gpt-5.6-sol",
+          "limit": {
+            "context": 272000,
+            "output": 16384
+          }
+        },
+        "gpt-5.6-terra": {
+          "name": "gpt-5.6-terra",
+          "limit": {
+            "context": 272000,
+            "output": 16384
+          }
+        },
+        "gpt-6-astra": {
+          "name": "gpt-6-astra",
+          "limit": {
+            "context": 272000,
+            "output": 16384
+          }
+        },
+        "gpt-6-astra-pro": {
+          "name": "gpt-6-astra-pro",
+          "limit": {
+            "context": 272000,
+            "output": 16384
+          }
+        },
+        "gpt-oss-20b": {
+          "name": "gpt-oss-20b",
+          "limit": {
+            "context": 131072,
             "output": 16384
           }
         }

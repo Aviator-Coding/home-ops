@@ -9,7 +9,12 @@ the proxy checks the model the caller asks for.
 
 ## OpenCode
 
-- Default model `litellm/auto`. This cluster has one local chat model.
+- Default model `litellm/auto` on provider `litellm` (virtual key
+  `litellm-consumer-opencode`). Leave that provider and that default.
+  Provider `litellm-projects` is the additional key
+  `litellm-consumer-litellm-consume-projects` and lists only that key's
+  Anthropic and OpenAI chat models. The key's $100/30d budget is shared
+  with Hermes. This cluster has one local chat model.
   Do not copy a reference layout of per-GPU subagent roles onto it.
 - UI route is Authentik ext-auth on `envoy-internal` only
   (`app/securitypolicy.yaml`). No second basic-auth API route.

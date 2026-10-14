@@ -28,8 +28,9 @@ uncleanly, so batch them and never pair one with an unrelated rollout.
    `.get("auto_prune", False)`, so an upstream default flip silently stops
    pruning. Gate: `scripts/ci/hermes-state-db-retention-test.py`.
 5. **Never set `OPENAI_BASE_URL`.** It is a global OpenAI-SDK override. The
-   only provider is `custom:gateway`. A dummy `OPENAI_API_KEY` is the only
-   env to re-add if boot demands an OpenAI key. [llm-routing.md](references/llm-routing.md)
+   default provider stays `custom:gateway`. `providers.litellm` is only a
+   selectable second provider. A dummy `OPENAI_API_KEY` is the only env to
+   re-add if boot demands an OpenAI key. [llm-routing.md](references/llm-routing.md)
 6. **Keep the image on the `-desktop` tag.** The plain tag has no Chromium
    or VNC stack, and the process cannot `apt install` after it drops to uid
    10000. Renovate is pinned to the suffix so it cannot drift back.
@@ -45,7 +46,7 @@ uncleanly, so batch them and never pair one with an unrelated rollout.
    rollout.
 10. **Do not name the custom provider after a built-in id** (`openrouter`,
     `openai`, ...). Hermes then treats it as the native integration and
-    skips the gateway `base_url`. The name `gateway` is the safe one.
+    skips that entry's `base_url`. `gateway` and `litellm` are the safe names.
 
 ## Where things live
 
