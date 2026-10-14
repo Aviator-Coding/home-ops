@@ -326,6 +326,13 @@ def test_router_settings_entitlement_boundary(cfg: dict) -> None:
             ctx.get(primary) == ["claude-sonnet-5-metered"],
             f"got={ctx.get(primary)!r}",
         )
+    # The $100 / 30d Aviator limit is the key budget; a provider-wide cap would also filter
+    # the subscription pass-throughs.
+    record(
+        "no_provider_wide_budget",
+        not rs.get("provider_budget_config"),
+        f"provider_budget_config={rs.get('provider_budget_config')!r}",
+    )
     # No reverse cloud->local context chain (1M cannot overflow into 262k).
     cloud_reverse = [k for k in ctx if k.startswith("claude-")]
     record(

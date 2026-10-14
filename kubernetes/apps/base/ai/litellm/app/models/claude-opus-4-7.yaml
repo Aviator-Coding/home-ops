@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Aviator Anthropic org route. Registration only; the consume-projects key allow-lists it.
+# No info.extra prices: the v1.103.1 cost map already prices this id.
+# See skill litellm-proxy (references/model-catalog.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: claude-opus-4-7
+spec:
+  modelName: claude-opus-4-7
+  proxyRef: litellm
+  params:
+    model: anthropic/claude-opus-4-7
+    apiKey: os.environ/ANTHROPIC_API_KEY

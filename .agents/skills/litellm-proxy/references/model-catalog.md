@@ -70,6 +70,11 @@ models first, then the key from `app/externalsecret.yaml`.
     ($0.01 per 1M input tokens) because the bundled map has no
     `openrouter/qwen/qwen3-embedding-8b` entry and would record $0.
     Re-check it if OpenRouter reprices.
+  - `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`: the
+    v1.103.1 map has no entry. The CRs declare the published rates
+    (Haiku's over-100k tier is on the above-200k fields; prompts from
+    100k to 200k count at the sticker rate). Drop the block when a
+    cost-map bump covers the ids.
 - **Local models: no prices** (sunk hardware), so recorded spend on them is
   $0 and a budget that trips means real money moved.
 - An explicit `0` is honoured, not read as unset
@@ -157,6 +162,13 @@ route is LAN-only.
   catalog has it), so do not treat it as unmatched. It is reached
   only through the `/openrouter/alpha/decisions` pass-through
   ([passthrough-lockdown.md](passthrough-lockdown.md)).
+- Aviator org catalog, listed 2026-10-13 (14 ids): every id is callable on
+  `ANTHROPIC_API_KEY`. Ids that already had a metered CR were left alone.
+  `claude-fable-5-1` and `claude-haiku-4-5-20251001` keep the subscription
+  natural name; their org routes are the `-metered` siblings. The $100 / 30d
+  limit is the `litellm-consume-projects` key budget only; never add a
+  `provider_budget_config.anthropic`, which would filter the subscription
+  pass-throughs too.
 
 ## Rate-limiting the shared GPU deployment (`embedding-local`)
 

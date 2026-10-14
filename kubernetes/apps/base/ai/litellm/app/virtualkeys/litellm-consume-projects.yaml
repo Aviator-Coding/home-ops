@@ -1,0 +1,63 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# Explicit allow-list (never []). Anthropic entries are the household-metered org routes only:
+# the four subscription pass-throughs stay off this key. typesafe/jev-1.13 is the decision id;
+# no spec.metadata, so a later hand-applied passthrough grant is not wiped. The grant is not
+# in Git. $100/30d is this key's spend on every model below and the only cap on the Aviator
+# route: there is no provider-wide router budget, so subscription pass-throughs and other keys
+# are unaffected. See skill litellm-proxy (references/governance-keys.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: litellm-consume-projects
+spec:
+  proxyRef: litellm
+  keyAlias: litellm-consume-projects
+  secretName: litellm-key-litellm-consume-projects
+  secretKey: key
+  models:
+    - claude-fable-5
+    - claude-fable-5-1-metered
+    - claude-haiku-4-5-20251001-metered
+    - claude-haiku-5-5
+    - claude-opus-4-5-20251101
+    - claude-opus-4-6
+    - claude-opus-4-7
+    - claude-opus-4-8
+    - claude-opus-5-5
+    - claude-opus-5-metered
+    - claude-sonnet-4-5-20250929
+    - claude-sonnet-4-6
+    - claude-sonnet-5-5
+    - claude-sonnet-5-metered
+    - gpt-5.6-luna
+    - gpt-5.6-sol
+    - gpt-5.6-terra
+    - gpt-6-astra
+    - gpt-6-astra-pro
+    - gpt-oss-20b
+    - typesafe/jev-1.13
+    - auto
+    - embedding-local
+  maxBudget: "100.00"
+  budgetDuration: 30d
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-litellm-consume-projects
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-litellm-consume-projects
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-litellm-consume-projects
+          property: key
