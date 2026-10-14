@@ -7,20 +7,71 @@
 _config_version: 46
 
 providers:
-  # THE one LLM provider: agentgateway's unified /v1 endpoint. The gateway routes
+  # Default LLM provider: agentgateway's unified /v1 endpoint. The gateway routes
   # by model id and injects the real provider keys (agentgateway/app/httproute-unified.yaml),
   # so `api_key` is a dummy that is never sent on the wire. It exists only so the
   # auxiliary client resolves a credential (else "no resolvable api_key" warnings).
   # It must NOT be `no-key-required`/`no-key`/``: Hermes treats those as "no credential".
   #
-  # Never name a custom provider after a built-in id (`openrouter`, ...): the
-  # auxiliary-client resolver then routes into the native integration and bypasses
-  # this base_url. `gateway` is safe. Referenced everywhere as `custom:gateway`.
+  # Never name a custom provider after a built-in id (`openrouter`, `openai`, ...):
+  # the auxiliary-client resolver then routes into the native integration and bypasses
+  # this base_url. `gateway` and `litellm` are safe. Default stays `custom:gateway`.
   gateway:
     api: http://internal-noauth.ai.svc.cluster.local/v1
     name: gateway
     api_key: no-auth
     transport: chat_completions
+  # Selectable second provider. key_env is the real virtual key from the hermes
+  # Secret. A dummy (`no-auth`, `no-key`, empty) is not sent and LiteLLM would 401.
+  # Do not move model.default, fallback_providers, or auxiliary onto this provider.
+  # discover_models stays off so embedding-local and typesafe/jev-1.13 stay unlisted.
+  litellm:
+    api: http://litellm.ai.svc.cluster.local:4000/v1
+    name: LiteLLM
+    key_env: LITELLM_PROJECTS_API_KEY
+    transport: chat_completions
+    discover_models: false
+    models:
+      claude-fable-5:
+        context_length: 200000
+      claude-fable-5-1-metered:
+        context_length: 200000
+      claude-haiku-4-5-20251001-metered:
+        context_length: 200000
+      claude-haiku-5-5:
+        context_length: 200000
+      claude-opus-4-5-20251101:
+        context_length: 200000
+      claude-opus-4-6:
+        context_length: 200000
+      claude-opus-4-7:
+        context_length: 200000
+      claude-opus-4-8:
+        context_length: 200000
+      claude-opus-5-5:
+        context_length: 200000
+      claude-opus-5-metered:
+        context_length: 1000000
+      claude-sonnet-4-5-20250929:
+        context_length: 200000
+      claude-sonnet-4-6:
+        context_length: 200000
+      claude-sonnet-5-5:
+        context_length: 200000
+      claude-sonnet-5-metered:
+        context_length: 1000000
+      gpt-5.6-luna:
+        context_length: 272000
+      gpt-5.6-sol:
+        context_length: 272000
+      gpt-5.6-terra:
+        context_length: 272000
+      gpt-6-astra:
+        context_length: 272000
+      gpt-6-astra-pro:
+        context_length: 272000
+      gpt-oss-20b:
+        context_length: 131072
 
 # Default serving model: the local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL).
 # llama-server auto-selects n_parallel=4 + kv_unified=true (do not pin those

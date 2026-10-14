@@ -3,20 +3,28 @@
 Read the live model ids from `app/resources/config.yaml`. This page is the
 invariants. The ids move; the shape does not.
 
-## One provider
+## Providers
 
-`providers.gateway` (`custom:gateway`) is the only LLM provider. Its base
+`providers.gateway` (`custom:gateway`) is the default LLM provider. Its base
 URL is agentgateway's keyless ClusterIP,
 `http://internal-noauth.ai.svc.cluster.local/v1`. The gateway routes by
 model id and injects the real provider keys. `api_key: no-auth` is a
 sentinel so Hermes does not log "no resolvable api_key". It is never sent
-on the wire.
+on the wire. Do not use that sentinel on a provider that must authenticate.
+
+`providers.litellm` (`custom:litellm`) is a second named custom provider for
+selectable chat models. Its `key_env` is `LITELLM_PROJECTS_API_KEY` from the
+hermes Secret (1Password `litellm-consumer-litellm-consume-projects`). That
+name is not a built-in provider credential, which Hermes scrubs. Do not move
+`model.default`, `fallback_providers`, or `auxiliary` onto it. The key's
+$100/30d budget is one pool shared with OpenCode.
 
 Never set `OPENAI_BASE_URL`. It overrides every provider. Per-provider
 `api` in the `providers:` dict is the layer that matters.
 
-Never rename `gateway` to a built-in provider id. Hermes' auxiliary-client
-resolver then uses the native integration and silently skips this base URL.
+Never rename `gateway` or `litellm` to a built-in provider id. Hermes'
+auxiliary-client resolver then uses the native integration and silently
+skips that entry's base URL.
 
 The default model is the local B70 chat id (`qwen3.6-35b-a3b` at last
 read). Fan-out above 4 concurrent calls queues on that server's unified KV.
@@ -33,8 +41,8 @@ the next two tiers, both still `custom:gateway`:
    exhaustion still has a last resort)
 
 Effective order: local, then kimi (gateway), then glm-5.1, then
-deepseek-v4-flash. Do not point Hermes at a provider directly. Cost
-metering and Tempo only see traffic that enters the unified `/v1`.
+deepseek-v4-flash. Keep that chain on `custom:gateway`. An explicit
+`custom:litellm` selection is metered by LiteLLM, not by agentgateway.
 
 ## Auxiliary tasks
 
