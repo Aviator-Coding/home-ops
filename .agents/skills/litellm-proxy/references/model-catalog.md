@@ -165,9 +165,10 @@ route is LAN-only.
 - Aviator org catalog, listed 2026-10-13 (14 ids): every id is callable on
   `ANTHROPIC_API_KEY`. Ids that already had a metered CR were left alone.
   `claude-fable-5-1` and `claude-haiku-4-5-20251001` keep the subscription
-  natural name; their org routes are the `-metered` siblings. The org cap is
-  `routerSettings.provider_budget_config.anthropic` at $100 / 30d, which
-  filters every `anthropic/` deployment, subscription pass-throughs included.
+  natural name; their org routes are the `-metered` siblings. The $100 / 30d
+  limit is the `litellm-consume-projects` key budget only; never add a
+  `provider_budget_config.anthropic`, which would filter the subscription
+  pass-throughs too.
 
 ## Rate-limiting the shared GPU deployment (`embedding-local`)
 

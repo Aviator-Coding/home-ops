@@ -3,8 +3,9 @@
 # Explicit allow-list (never []). Anthropic entries are the household-metered org routes only:
 # the four subscription pass-throughs stay off this key. typesafe/jev-1.13 is the decision id;
 # no spec.metadata, so a later hand-applied passthrough grant is not wiped. The grant is not
-# in Git. $100/30d is this key's spend on every model below, not the org cap (that is
-# routerSettings.provider_budget_config). See skill litellm-proxy (references/governance-keys.md).
+# in Git. $100/30d is this key's spend on every model below and the only cap on the Aviator
+# route: there is no provider-wide router budget, so subscription pass-throughs and other keys
+# are unaffected. See skill litellm-proxy (references/governance-keys.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:

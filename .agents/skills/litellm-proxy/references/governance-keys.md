@@ -120,12 +120,11 @@ Spend accrues from the model's price (built-in cost map for cloud models,
 - A budget on a key whose models are all zero-priced is inert; it is kept
   only as a guard (see above).
 - `litellm-consume-projects` at $100/30d counts every model that key holds,
-  OpenRouter included. The org ceiling is separate:
-  `routerSettings.provider_budget_config.anthropic` is $100/30d and filters
-  every `anthropic/` deployment once recorded Anthropic spend hits it.
-  Subscription pass-throughs share that provider name, record $0, and are
-  filtered only after the cap. The key's `typesafe/jev-1.13` entry does not
-  open `/openrouter/alpha/decisions`.
+  OpenRouter included. It is the only cap on the Aviator org route: there is
+  deliberately no `routerSettings.provider_budget_config`, which is keyed on the
+  provider name and would also filter the subscription pass-throughs and every
+  other key. The key's `typesafe/jev-1.13` entry does not open
+  `/openrouter/alpha/decisions`.
 
 ## Budgetless keys (CI-asserted exact set)
 
