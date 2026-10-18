@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app cleanuparr
+  namespace: &namespace downloads
+spec:
+  targetNamespace: *namespace
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  interval: 30m
+  timeout: 5m
+  path: "./kubernetes/apps/base/downloads/cleanuparr/app"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: false
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
+    - name: kopiur-repository
+      namespace: system
+  components:
+    - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app
+      KOPIUR_CLAIM: cleanuparr-config
+      KOPIUR_CAPACITY: 1Gi
+      KOPIUR_PUID: "2000"
+      KOPIUR_PGID: "2000"
+      KOPIUR_SCHEDULE_R2: "H 12 * * *"

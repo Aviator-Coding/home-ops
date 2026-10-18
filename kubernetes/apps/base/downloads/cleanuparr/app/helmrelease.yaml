@@ -1,0 +1,131 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app cleanuparr
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  dependsOn:
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+  values:
+    controllers:
+      cleanuparr:
+        annotations:
+          reloader.stakater.com/auto: "true"
+
+        # Single replica with an RWO config PVC: Recreate avoids a Multi-Attach
+        # deadlock during rollouts.
+        strategy: Recreate
+
+        pod:
+          securityContext:
+            runAsUser: 2000
+            runAsGroup: 2000
+            runAsNonRoot: true
+            fsGroup: 2000
+            fsGroupChangePolicy: OnRootMismatch
+
+        containers:
+          app:
+            image:
+              repository: ghcr.io/cleanuparr/cleanuparr
+              tag: 2.10.11
+            env:
+              PORT: &port 11011
+              # Radarr/Sonarr instances come from env; the Lidarr and SABnzbd
+              # connections live in Cleanuparr's own database (UI/API), see
+              # .agents/skills/media-stack/references/stuck-downloads.md.
+              DOWNLOAD_CLIENT: disabled
+              QUEUECLEANER__ENABLED: "true"
+              QUEUECLEANER__IMPORT_FAILED_MAX_STRIKES: "3"
+              QUEUECLEANER__STALLED_MAX_STRIKES: "3"
+              QUEUECLEANER__DOWNLOADING_METADATA_MAX_STRIKES: "3"
+              QUEUECLEANER__STALLED_RESET_STRIKES_ON_PROGRESS: "true"
+              RADARR__ENABLED: "true"
+              RADARR__INSTANCES__0__URL: http://radarr.downloads.svc.cluster.local:7878
+              SONARR__ENABLED: "true"
+              SONARR__INSTANCES__0__URL: http://sonarr.downloads.svc.cluster.local:8989
+            envFrom:
+              - secretRef:
+                  name: cleanuparr-secret
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: *port
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 5
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: *port
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+            resources:
+              requests:
+                cpu: 15m
+                memory: 256Mi
+              limits:
+                memory: 512Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+
+    service:
+      app:
+        controller: cleanuparr
+        ports:
+          http:
+            port: *port
+
+    persistence:
+      config:
+        existingClaim: cleanuparr-config
+        advancedMounts:
+          cleanuparr:
+            app:
+              - path: /config
+
+      temp:
+        type: emptyDir
+        advancedMounts:
+          cleanuparr:
+            app:
+              - path: /tmp
+
+    route:
+      app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/group: Downloads
+          gethomepage.dev/name: *app
+          gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/cleanuparr.svg
+          gethomepage.dev/description: "Removes stalled and failed downloads from the arr queues so they are searched again."
+          gethomepage.dev/pod-selector: app.kubernetes.io/name=cleanuparr
+        hostnames:
+          - cleanuparr.${SECRET_DOMAIN}
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: cleanuparr
+                port: *port

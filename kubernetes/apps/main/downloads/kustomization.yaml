@@ -11,10 +11,12 @@ components:
 resources:
   # Flux-Kustomizations
   - ./bazarr.yaml
+  - ./cleanuparr.yaml
   - ./lidarr.yaml
   - ./maintenance.yaml
   - ./prowlarr.yaml
   - ./pvc.yaml
+  - ./queue-watchdog.yaml
   - ./radarr.yaml
   - ./readarr.yaml
   - ./reading-glasses.yaml
