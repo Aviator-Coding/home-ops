@@ -103,7 +103,7 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     # the image ships no shell/coreutils to run one with.
     ("database", "surrealdb"): ("65532", "65532"),
     ("downloads", "bazarr-config"): ("2000", "2000"),
-    ("downloads", "cleanuparr-config"): ("2000", "2000"),
+    ("downloads", "cleanuparr"): ("2000", "2000"),
     ("downloads", "lidarr-config"): ("2000", "2000"),
     ("downloads", "prowlarr-config"): ("3002", "3000"),
     ("downloads", "radarr-config"): ("2000", "2000"),
@@ -262,7 +262,7 @@ NEVER_VOLSYNC: set[tuple[str, str]] = {
     ("database", "surrealdb"),
     # downloads/cleanuparr, added 2026-10-18. New app; its claim comes from its own
     # HelmRelease and kopiur is its only engine.
-    ("downloads", "cleanuparr-config"),
+    ("downloads", "cleanuparr"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of
