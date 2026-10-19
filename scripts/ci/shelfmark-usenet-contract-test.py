@@ -39,8 +39,15 @@ def check_image() -> None:
     bc.assert_true(img["tag"].startswith("v1.4.0@sha256:") and bc.DIGEST_TAG.match(img["tag"]), "tag must be v1.4.0@sha256:<64 hex>")
 
 
+def env_map() -> dict:
+    raw = container()["env"]
+    return {e["name"]: e["value"] for e in raw} if isinstance(raw, list) else raw
+
+
 def check_env() -> None:
-    env = container()["env"]
+    env = env_map()
+    for key in ("PUID", "PGID"):
+        bc.assert_true(str(env.get(key)) == "2000", f"{key} must be 2000")
     want = {
         "SABNZBD_URL": "http://sabnzbd.downloads.svc.cluster.local:8080",
         "SABNZBD_CATEGORY": "books",
@@ -56,7 +63,7 @@ def check_env() -> None:
 
 
 def check_no_torrent_and_secrets() -> None:
-    env = container()["env"]
+    env = env_map()
     for key in env:
         bc.assert_true(not any(f in key.upper() for f in FORBIDDEN_ENV), f"forbidden env key {key}")
     for key in ("SABNZBD_API_KEY", "PROWLARR_API_KEY"):
@@ -76,9 +83,9 @@ def check_mounts() -> None:
     paths = {m["path"] for m in dl.get("globalMounts", [])}
     bc.assert_true("/data/downloads" in paths, "shared-downloads must mount at /data/downloads")
     mounted = {m["path"] for p in persistence.values() for m in p.get("globalMounts", [])}
-    for need in ("/tmp", "/var/log/shelfmark", "/cwa-book-ingest"):
+    for need in ("/tmp", "/var/log/shelfmark", "/config", "/cwa-book-ingest"):
         bc.assert_true(need in mounted, f"missing writable mount {need}")
-    bc.assert_true("config" not in persistence, "env-only config: no /config PVC")
+    bc.assert_true(all("existingClaim" not in p or p["existingClaim"] == "shared-downloads" for p in persistence.values()) and "config" not in persistence, "env-only config: /config is scratch, not a claim")
 
 
 def check_hardening_and_route() -> None:

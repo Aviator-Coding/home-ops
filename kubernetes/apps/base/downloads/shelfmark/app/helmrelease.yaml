@@ -34,26 +34,44 @@ spec:
               repository: ghcr.io/calibrain/shelfmark-lite
               tag: v1.4.0@sha256:edc889c12c4e54076432e5377b674fed4a1aaa934890f8a678bc5b38e5088a75
             env:
-              UID: "2000"
-              GID: "2000"
-              FLASK_PORT: &port 8084
-              INGEST_DIR: /cwa-book-ingest
-              LOG_ROOT: /var/log
-              LOG_LEVEL: info
-              BOOK_LANGUAGE: en
-              USE_BOOK_TITLE: "true"
+              # List form: app-template mangles bare PUID/PGID map keys (see the CWA release).
+              - name: PUID
+                value: "2000"
+              - name: PGID
+                value: "2000"
+              - name: FLASK_PORT
+                value: "8084"
+              - name: INGEST_DIR
+                value: /cwa-book-ingest
+              - name: LOG_ROOT
+                value: /var/log
+              - name: LOG_LEVEL
+                value: info
+              - name: BOOK_LANGUAGE
+                value: en
+              - name: USE_BOOK_TITLE
+                value: "true"
               # Usenet only: Prowlarr finds releases, SABnzbd downloads them to the shared
               # volume at the same path SABnzbd reports.
-              PROWLARR_ENABLED: "true"
-              PROWLARR_URL: http://prowlarr.downloads.svc.cluster.local:9696
-              PROWLARR_USENET_CLIENT: sabnzbd
-              SABNZBD_URL: http://sabnzbd.downloads.svc.cluster.local:8080
-              SABNZBD_CATEGORY: books
+              - name: PROWLARR_ENABLED
+                value: "true"
+              - name: PROWLARR_URL
+                value: http://prowlarr.downloads.svc.cluster.local:9696
+              - name: PROWLARR_USENET_CLIENT
+                value: sabnzbd
+              - name: SABNZBD_URL
+                value: http://sabnzbd.downloads.svc.cluster.local:8080
+              - name: SABNZBD_CATEGORY
+                value: books
               # Lite image has no Chromium; Cloudflare challenges go to FlareSolverr.
-              USING_EXTERNAL_BYPASSER: "true"
-              EXT_BYPASSER_URL: http://flaresolverr.network.svc.cluster.local:8191
-              EXT_BYPASSER_PATH: /v1
-              EXT_BYPASSER_TIMEOUT: 60000
+              - name: USING_EXTERNAL_BYPASSER
+                value: "true"
+              - name: EXT_BYPASSER_URL
+                value: http://flaresolverr.network.svc.cluster.local:8191
+              - name: EXT_BYPASSER_PATH
+                value: /v1
+              - name: EXT_BYPASSER_TIMEOUT
+                value: 60000
             envFrom:
               - secretRef:
                   name: shelfmark-secret
@@ -64,7 +82,7 @@ spec:
                 spec:
                   httpGet:
                     path: /request/api/status
-                    port: *port
+                    port: 8084
                   initialDelaySeconds: 30
                   periodSeconds: 10
                   timeoutSeconds: 5
@@ -75,7 +93,7 @@ spec:
                 spec:
                   httpGet:
                     path: /request/api/status
-                    port: *port
+                    port: 8084
                   initialDelaySeconds: 10
                   periodSeconds: 10
                   timeoutSeconds: 5
@@ -97,7 +115,7 @@ spec:
         controller: *app
         ports:
           http:
-            port: *port
+            port: 8084
     route:
       app:
         annotations:
@@ -118,7 +136,7 @@ spec:
         rules:
           - backendRefs:
               - name: *app
-                port: *port
+                port: 8084
             timeouts:
               request: 0s
     persistence:
@@ -131,6 +149,10 @@ spec:
             subPath: downloads
           - path: /var/log/shelfmark
             subPath: logs
+          # Writable scratch for the app's own state; settings come from env, so nothing here
+          # needs to survive a restart (the old release failed on a missing /config).
+          - path: /config
+            subPath: config
       downloads:
         existingClaim: shared-downloads
         globalMounts:
