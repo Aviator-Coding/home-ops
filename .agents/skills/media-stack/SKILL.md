@@ -41,8 +41,8 @@ which movie sits on which profile are application database state, not Git.
 9. **Only Readarr runs an exportarr sidecar (metrics port 9707).** Sonarr and Radarr have none:
    exportarr v2.3.0 rejects any API key that is not 20-32 alphanumeric characters, and
    their current keys contain symbols. Rotate to alphanumeric keys before retrying.
-10. **Cleanuparr only gets Radarr and Sonarr from Git.** The Lidarr instance and
-    the SABnzbd client are app state in its config PVC. The `queue-watchdog`
+10. **Git defines only the Cleanuparr pod.** Instances, the SABnzbd client and the
+    rules are app state in its config PVC (it ignores env vars). The `queue-watchdog`
     CronJob exits non-zero for any queue item older than 24h or an unreadable
     queue. Huntarr is not used (alleged API-key exposure).
     [stuck-downloads.md](references/stuck-downloads.md)

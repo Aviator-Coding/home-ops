@@ -2,15 +2,15 @@
 """Contract test for the Cleanuparr deployment in the downloads namespace.
 
 Cleanuparr removes and blocklists stalled/failed queue items so the *arr apps
-re-search. It holds API keys for Radarr, Sonarr, Lidarr and SABnzbd, so the
-invariants are about blast radius and secret handling:
+re-search. It stores API keys for Radarr, Sonarr, Lidarr and SABnzbd in its own
+database, so the invariants are about blast radius and honest configuration:
 
   1. Hardened pod: non-root, read-only rootfs, no privilege escalation, all
      capabilities dropped, image tag pinned (never ``latest``).
-  2. API keys arrive only through an ExternalSecret backed by 1Password - no
-     literal key in the HelmRelease env.
+  2. Settings live in the app (UI/REST API), backed up by kopiur: Git sets no
+     env vars Cleanuparr ignores and injects no secret.
   3. Reachable from the internal gateway only, never ``envoy-external``.
-  4. The Flux Kustomization waits for ``onepassword-store`` and is registered
+  4. The Flux Kustomization waits for ``kopiur-repository`` and is registered
      in ``kubernetes/apps/main/downloads/kustomization.yaml``.
 
 It parses YAML into structures; it does not grep source strings.
@@ -29,10 +29,7 @@ APP = ROOT / "kubernetes/apps/base/downloads/cleanuparr/app"
 WRAPPER = ROOT / "kubernetes/apps/main/downloads/cleanuparr.yaml"
 MAIN_KUSTOMIZATION = ROOT / "kubernetes/apps/main/downloads/kustomization.yaml"
 
-# Only the keys Cleanuparr reads from env. Lidarr and SABnzbd connections live in
-# Cleanuparr's own database (UI/API), so their keys are not injected into the pod.
-REQUIRED_SECRET_KEYS = {"RADARR_API_KEY", "SONARR_API_KEY"}
-FORBIDDEN_SECRET_KEYS = {"LIDARR_API_KEY", "SABNZBD_API_KEY"}
+DEAD_ENV_PREFIXES = ("QUEUECLEANER__", "RADARR__", "SONARR__", "LIDARR__", "DOWNLOAD_CLIENT")
 
 
 class Failure(Exception):
@@ -83,21 +80,22 @@ def test_route_is_internal_only() -> None:
         assert_true(gateways == {"envoy-internal"}, f"route {name} must attach to envoy-internal only, got {gateways}")
 
 
-def test_secret_wiring() -> None:
-    secret = load_yaml(APP / "externalsecret.yaml")
-    assert_true(secret["kind"] == "ExternalSecret", "expected an ExternalSecret")
-    assert_true(secret["spec"]["secretStoreRef"]["name"] == "onepassword", "keys must come from 1Password")
-    exposed = {item["secretKey"] for item in secret["spec"]["data"]}
-    missing = REQUIRED_SECRET_KEYS - exposed
-    assert_true(not missing, f"ExternalSecret is missing {sorted(missing)}")
-    extra = FORBIDDEN_SECRET_KEYS & exposed
-    assert_true(not extra, f"ExternalSecret must not inject keys Cleanuparr does not read from env: {sorted(extra)}")
+def test_settings_live_in_the_app() -> None:
+    # Cleanuparr 2.10 stores instances, clients and rules in its own database (UI/REST API)
+    # and ignores these env vars, so Git must not pretend to define them.
+    release = load_yaml(APP / "helmrelease.yaml")
+    container = release["spec"]["values"]["controllers"]["cleanuparr"]["containers"]["app"]
+    dead = [name for name in (container.get("env") or {}) if name.startswith(DEAD_ENV_PREFIXES)]
+    assert_true(not dead, f"env vars Cleanuparr ignores must not be set: {dead}")
+    assert_true(not container.get("envFrom"), "no secret is injected: API keys are stored in the app")
+    assert_true(not (APP / "externalsecret.yaml").exists(), "unused ExternalSecret must be removed")
 
 
 def test_flux_wiring() -> None:
     wrapper = load_yaml(WRAPPER)
     deps = {dep["name"] for dep in wrapper["spec"]["dependsOn"]}
-    assert_true("onepassword-store" in deps, "Flux wrapper must depend on onepassword-store")
+    assert_true("kopiur-repository" in deps, "Flux wrapper must depend on kopiur-repository for its backups")
+    assert_true("onepassword-store" not in deps, "no secret is used, so no onepassword-store dependency")
     assert_true(
         wrapper["spec"]["path"] == "./kubernetes/apps/base/downloads/cleanuparr/app",
         "Flux wrapper must point at the cleanuparr app directory",
@@ -107,7 +105,7 @@ def test_flux_wiring() -> None:
 
 
 def main() -> int:
-    for check in (test_workload, test_route_is_internal_only, test_secret_wiring, test_flux_wiring):
+    for check in (test_workload, test_route_is_internal_only, test_settings_live_in_the_app, test_flux_wiring):
         check()
     print("cleanuparr-contract-test: ok")
     return 0
