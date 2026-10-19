@@ -35,7 +35,7 @@ spec:
           app:
             image:
               repository: ghcr.io/cleanuparr/cleanuparr
-              tag: 2.10.11
+              tag: 2.10.12
             env:
               PORT: &port 11011
               # Radarr/Sonarr instances come from env; the Lidarr and SABnzbd
