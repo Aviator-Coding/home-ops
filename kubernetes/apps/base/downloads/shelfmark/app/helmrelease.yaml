@@ -168,3 +168,11 @@ spec:
         path: /mnt/storage/Media/ebooks/calibre/ingest
         globalMounts:
           - path: /cwa-book-ingest
+      # Read-only view of the CWA library so Shelfmark can see which books already exist.
+      library:
+        type: nfs
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media/ebooks/calibre/library
+        globalMounts:
+          - path: /calibre-library
+            readOnly: true
