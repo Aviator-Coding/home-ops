@@ -3,25 +3,30 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app reading-glasses
+  name: &app shelfmark
   namespace: &namespace downloads
 spec:
   targetNamespace: *namespace
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  dependsOn:
-    - name: onepassword-store
-      namespace: security
-    - name: volsync
-      namespace: system
-    - name: postgres-cluster-17
-      namespace: database
-  interval: 1h
-  path: ./kubernetes/apps/base/downloads/reading-glasses/app
+  interval: 30m
+  timeout: 5m
+  path: ./kubernetes/apps/base/downloads/shelfmark/app
   prune: true
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
   wait: false
+  dependsOn:
+    - name: downloads-pvc
+      namespace: downloads
+    - name: onepassword-store
+      namespace: security
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+    substitute:
+      APP: *app

@@ -24,8 +24,7 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
    operators and clusters (`cloudnative-pg`, `postgres-cluster-17`,
    `dragonfly-operator`, `emqx-*`, `surrealdb`, `keda`), secret stores
    (`external-secrets`, `onepassword-store`, `database-secrets`), `cluster-meta`,
-   `multus-networks`, `certificates-import`, `cloudflare-dns`, `coder`,
-   `calibre-downloader`. None of them includes `components/kopiur` or
+   `multus-networks`, `certificates-import`, `cloudflare-dns`, `coder`. None of them includes `components/kopiur` or
    `components/volsync`, which deadlocks `wait: true`. Recount with
    `kubectl get ks -A -o json | jq '[.items[]|select(.spec.wait==true)]|length'`.
 2. **Suspend the Kustomization before a live HelmRelease edit.** Its interval

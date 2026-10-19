@@ -38,9 +38,12 @@ which movie sits on which profile are application database state, not Git.
    on the library is the scope gate. `librariesToNotProcess` is a Tdarr Pro
    feature and a no-op on this unlicensed install. Skill `tdarr-transcoding`.
    Keep `transcodecpuWorkers` at least 1.
-9. **Only Readarr runs an exportarr sidecar (metrics port 9707).** Sonarr and Radarr have none:
-   exportarr v2.3.0 rejects any API key that is not 20-32 alphanumeric characters, and
-   their current keys contain symbols. Rotate to alphanumeric keys before retrying.
+9. **Books run Shelfmark -> Calibre-Web-Automated, Usenet only.** Shelfmark
+   (`downloads/shelfmark`, env-only config) searches through Prowlarr, SABnzbd saves to
+   the `books` category on `shared-downloads`, and the file lands in the CWA NFS ingest
+   folder. Readarr was removed (its kopiur snapshots, Postgres databases and NAS files
+   were kept). Sonarr and Radarr run no exportarr sidecar: exportarr v2.3.0 rejects any
+   API key that is not 20-32 alphanumeric characters.
 10. **Git defines only the Cleanuparr pod.** Instances, the SABnzbd client and the
     rules are app state in its config PVC (it ignores env vars). The `queue-watchdog`
     CronJob exits non-zero for any queue item older than 24h or an unreadable
