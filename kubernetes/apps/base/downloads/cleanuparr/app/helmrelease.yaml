@@ -37,23 +37,10 @@ spec:
               repository: ghcr.io/cleanuparr/cleanuparr
               tag: 2.10.11
             env:
-              PORT: &port 11011
-              # Radarr/Sonarr instances come from env; the Lidarr and SABnzbd
-              # connections live in Cleanuparr's own database (UI/API), see
+              # Only the port is set here. Instances, the SABnzbd client and the queue rules
+              # live in Cleanuparr's own database (UI/REST API), backed up by kopiur, see
               # .agents/skills/media-stack/references/stuck-downloads.md.
-              DOWNLOAD_CLIENT: disabled
-              QUEUECLEANER__ENABLED: "true"
-              QUEUECLEANER__IMPORT_FAILED_MAX_STRIKES: "3"
-              QUEUECLEANER__STALLED_MAX_STRIKES: "3"
-              QUEUECLEANER__DOWNLOADING_METADATA_MAX_STRIKES: "3"
-              QUEUECLEANER__STALLED_RESET_STRIKES_ON_PROGRESS: "true"
-              RADARR__ENABLED: "true"
-              RADARR__INSTANCES__0__URL: http://radarr.downloads.svc.cluster.local:7878
-              SONARR__ENABLED: "true"
-              SONARR__INSTANCES__0__URL: http://sonarr.downloads.svc.cluster.local:8989
-            envFrom:
-              - secretRef:
-                  name: cleanuparr-secret
+              PORT: &port 11011
             probes:
               liveness:
                 enabled: true
