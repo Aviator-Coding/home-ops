@@ -93,7 +93,12 @@ def check_hardening_and_route() -> None:
     bc.assert_true(sc.get("readOnlyRootFilesystem") is True, "readOnlyRootFilesystem")
     bc.assert_true(sc.get("allowPrivilegeEscalation") is False, "allowPrivilegeEscalation")
     bc.assert_true(sc.get("capabilities", {}).get("drop") == ["ALL"], "drop ALL")
+    probes = container()["probes"]
+    for kind in ("liveness", "readiness"):
+        path = probes[kind]["spec"]["httpGet"]["path"]
+        bc.assert_true(path == "/api/health", f"{kind} probe path {path}, upstream healthcheck is /api/health")
     route = release()["spec"]["values"]["route"]["app"]
+    bc.assert_true("/api/health" in route["annotations"]["gatus.home-operations.com/endpoint"], "gatus endpoint path")
     names = {p["name"] for p in route["parentRefs"]}
     bc.assert_true(names == {"envoy-internal"}, f"route parentRefs {names}")
     bc.assert_true(route["hostnames"] == ["books.${SECRET_DOMAIN}"], "hostname")
