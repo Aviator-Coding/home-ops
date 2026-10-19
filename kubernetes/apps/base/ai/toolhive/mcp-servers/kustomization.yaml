@@ -8,7 +8,8 @@ resources:
   - ./grafana-mcp
   - ./kubectl-mcp
   - ./kubesearch-mcp
-  # Off until 1Password has the fields: garmin username+password, ha-mcp HOMEASSISTANT_TOKEN,
-  # seerr SEERR_API_KEY. talos-mcp needs namespace ai and role os:reader in machineconfig, then apply-node.
+  - ./seerr-mcp
+  # Off until 1Password has the fields: garmin username+password, ha-mcp HOMEASSISTANT_TOKEN.
+  # seerr-mcp needs the `seerr` item to carry SEERR_API_KEY before it becomes Ready. talos-mcp needs namespace ai and role os:reader in machineconfig, then apply-node.
   # See skill ai-stack references/toolhive.md.
   # - ./talos-mcp
