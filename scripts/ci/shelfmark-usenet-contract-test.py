@@ -88,6 +88,16 @@ def check_mounts() -> None:
     bc.assert_true(all("existingClaim" not in p or p["existingClaim"] == "shared-downloads" for p in persistence.values()) and "config" not in persistence, "env-only config: /config is scratch, not a claim")
 
 
+def check_scratch_dirs_are_writable_as_non_root() -> None:
+    """subPath dirs on an emptyDir are created root-owned and ignore fsGroup (shelfmark crash-looped)."""
+    persistence = release()["spec"]["values"]["persistence"]
+    for name, vol in persistence.items():
+        if vol.get("type") != "emptyDir":
+            continue
+        for mount in vol.get("globalMounts", []):
+            bc.assert_true("subPath" not in mount, f"emptyDir {name} mount {mount['path']} must not use subPath")
+
+
 def check_hardening_and_route() -> None:
     sc = container()["securityContext"]
     bc.assert_true(sc.get("readOnlyRootFilesystem") is True, "readOnlyRootFilesystem")
@@ -110,5 +120,6 @@ if __name__ == "__main__":
         ("Usenet + bypasser env", check_env),
         ("no torrent env; keys via secret only", check_no_torrent_and_secrets),
         ("shared-downloads and writable mounts", check_mounts),
+        ("scratch dirs writable as uid 2000", check_scratch_dirs_are_writable_as_non_root),
         ("hardened, internal route", check_hardening_and_route),
     ]))

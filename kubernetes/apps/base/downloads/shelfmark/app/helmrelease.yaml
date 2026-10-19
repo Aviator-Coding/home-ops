@@ -140,19 +140,26 @@ spec:
             timeouts:
               request: 0s
     persistence:
-      tmpfs:
+      # One emptyDir per path: subPath directories are created root-owned and ignore fsGroup,
+      # which left the non-root entrypoint unable to write /tmp/shelfmark.
+      tmp:
         type: emptyDir
         globalMounts:
           - path: /tmp
-            subPath: tmp
+      staging:
+        type: emptyDir
+        globalMounts:
           - path: /app/downloaded_files
-            subPath: downloads
+      logs:
+        type: emptyDir
+        globalMounts:
           - path: /var/log/shelfmark
-            subPath: logs
-          # Writable scratch for the app's own state; settings come from env, so nothing here
-          # needs to survive a restart (the old release failed on a missing /config).
+      # Writable scratch for the app's own state; settings come from env, so nothing here
+      # needs to survive a restart (the old release failed on a missing /config).
+      app-state:
+        type: emptyDir
+        globalMounts:
           - path: /config
-            subPath: config
       downloads:
         existingClaim: shared-downloads
         globalMounts:
