@@ -34,7 +34,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      KOPIUR_CLAIM: cleanuparr-config
+      # KOPIUR_CLAIM is omitted: app-template names the claim after the release, so it is the app.
       KOPIUR_CAPACITY: 1Gi
       KOPIUR_PUID: "2000"
       KOPIUR_PGID: "2000"
