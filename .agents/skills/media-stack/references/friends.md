@@ -12,6 +12,11 @@ copy a token or key into Git.
   `scripts/ci/wizarr-contract-test.py`; a new invite-flow path needs a route entry.
 - `wizarr.${SECRET_DOMAIN}`: `envoy-internal`, the admin UI, LAN or VPN only.
 
+## Current policy (owner, 2026-10-19)
+Seerr request quotas and Plex remote limits are unlimited for now: leave quotas unset and do
+not set a remote bandwidth cap or stream limit. Revisit when friends are consuming noticeable
+bandwidth or storage.
+
 ## One-time setup (owner, in the apps)
 1. **Wizarr** admin: add the Plex server (`http://plex.media.svc.cluster.local:32400`, token
    from the `plex` 1Password item; decoded length must be non-zero), choose the libraries an
