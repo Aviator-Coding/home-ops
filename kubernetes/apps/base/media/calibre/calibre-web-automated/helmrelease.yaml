@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: ghcr.io/crocodilestick/calibre-web-automated
-              tag: V3.1.4@sha256:577e846f104fd21453ef306eefb4a95dd95b3b9ddd2463a150944494284da0fd
+              tag: V4.0.8@sha256:5e00373854247750cc3e4479b492ae09293ff5e06ed10177f226634d97888679
             env:
               # LinuxServer.io requires PUID/PGID, not UID/GID
               # Note: app-template may strip 'P' prefix, so we need explicit list format

@@ -156,7 +156,6 @@ RETIRED: dict[str, Retired] = {
     "downloads/bazarr": Retired("downloads/bazarr.yaml", "bazarr", "bazarr-config", "5Gi"),
     "downloads/lidarr": Retired("downloads/lidarr.yaml", "lidarr", "lidarr-config", "8Gi"),
     "downloads/radarr": Retired("downloads/radarr.yaml", "radarr", "radarr-config", "5Gi"),
-    "downloads/readarr": Retired("downloads/readarr.yaml", "readarr", "readarr-config", "5Gi"),
     "downloads/sonarr": Retired("downloads/sonarr.yaml", "sonarr", "sonarr-config", "5Gi"),
     "home-automation/esphome": Retired(
         "home-automation/esphome.yaml", "esphome", "esphome-config", "5Gi"
@@ -282,7 +281,7 @@ RAISED_CACHE: dict[str, str] = {
 # wave two and the APP ITSELF removed on 2026-09-02, leaving no overlay to hold
 # a retirement contract against. Wave three adds 11 (tier A) + 4 (tier B) + 4
 # (tier C) = 19, which is every remaining eligible claim in the fleet.
-EXPECTED_RETIRED_COUNT = 26
+EXPECTED_RETIRED_COUNT = 25
 
 
 class Failure(Exception):
@@ -689,7 +688,7 @@ def test_retired_set_matches_stage3() -> None:
     require(
         len(here) == EXPECTED_RETIRED_COUNT,
         f"expected {EXPECTED_RETIRED_COUNT} retired volumes still in the fleet "
-        f"(4 pilot + 4 wave two, less autobrr whose app was removed, + wave three); "
+        f"(4 pilot + 4 wave two, less autobrr and readarr whose apps were removed, + wave three); "
         f"got {len(here)}",
     )
 

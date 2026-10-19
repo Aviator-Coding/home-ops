@@ -3,8 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app calibre-downloader
-  namespace: default
+  name: &app shelfmark
 spec:
   interval: 1h
   chartRef:
@@ -28,38 +27,62 @@ spec:
         runAsNonRoot: false
         seccompProfile: { type: RuntimeDefault }
     controllers:
-      calibre-downloader:
+      shelfmark:
         containers:
           app:
             image:
-              repository: ghcr.io/calibrain/calibre-web-automated-book-downloader-extbp
-              tag: v1.3.15@sha256:1f80174eb7e271a0fde8fa483b221e0478e9ff5788e104c3d934774c40fdb6e6
+              repository: ghcr.io/calibrain/shelfmark-lite
+              tag: v1.4.0@sha256:edc889c12c4e54076432e5377b674fed4a1aaa934890f8a678bc5b38e5088a75
             env:
-              UID: "2000"
-              GID: "2000"
-              FLASK_PORT: &port 8084
-              INGEST_DIR: &ingest /cwa-book-ingest
-              BOOK_LANGUAGE: en
-              DEFAULT_SLEEP: 15
-              USE_BOOK_TITLE: true
-              LOG_LEVEL: info
-              AA_BASE_URL: https://annas-archive.li
-              EXT_BYPASSER_URL: "http://flaresolverr.network.svc.cluster.local:8191" # external Cloudflare bypass via FlareSolverr
-              EXT_BYPASSER_PATH: "/v1"
-              EXT_BYPASSER_TIMEOUT: 60000
-            command:
-              - /bin/sh
-              - -c
-              - |
-                gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker --workers 1 -t 300 -b 0.0.0.0:8084 shelfmark.main:app
+              # List form: app-template mangles bare PUID/PGID map keys (see the CWA release).
+              - name: PUID
+                value: "2000"
+              - name: PGID
+                value: "2000"
+              - name: FLASK_PORT
+                value: "8084"
+              - name: INGEST_DIR
+                value: /cwa-book-ingest
+              - name: LOG_ROOT
+                value: /var/log
+              - name: LOG_LEVEL
+                value: info
+              - name: BOOK_LANGUAGE
+                value: en
+              - name: USE_BOOK_TITLE
+                value: "true"
+              # Usenet only: Prowlarr finds releases, SABnzbd downloads them to the shared
+              # volume at the same path SABnzbd reports.
+              - name: PROWLARR_ENABLED
+                value: "true"
+              - name: PROWLARR_URL
+                value: http://prowlarr.downloads.svc.cluster.local:9696
+              - name: PROWLARR_USENET_CLIENT
+                value: sabnzbd
+              - name: SABNZBD_URL
+                value: http://sabnzbd.downloads.svc.cluster.local:8080
+              - name: SABNZBD_CATEGORY
+                value: books
+              # Lite image has no Chromium; Cloudflare challenges go to FlareSolverr.
+              - name: USING_EXTERNAL_BYPASSER
+                value: "true"
+              - name: EXT_BYPASSER_URL
+                value: http://flaresolverr.network.svc.cluster.local:8191
+              - name: EXT_BYPASSER_PATH
+                value: /v1
+              - name: EXT_BYPASSER_TIMEOUT
+                value: 60000
+            envFrom:
+              - secretRef:
+                  name: shelfmark-secret
             probes:
               liveness:
                 enabled: true
                 custom: true
                 spec:
                   httpGet:
-                    path: /request/api/status
-                    port: *port
+                    path: /api/health
+                    port: 8084
                   initialDelaySeconds: 30
                   periodSeconds: 10
                   timeoutSeconds: 5
@@ -69,8 +92,8 @@ spec:
                 custom: true
                 spec:
                   httpGet:
-                    path: /request/api/status
-                    port: *port
+                    path: /api/health
+                    port: 8084
                   initialDelaySeconds: 10
                   periodSeconds: 10
                   timeoutSeconds: 5
@@ -92,7 +115,7 @@ spec:
         controller: *app
         ports:
           http:
-            port: *port
+            port: 8084
     route:
       app:
         annotations:
@@ -101,7 +124,7 @@ spec:
           gethomepage.dev/name: *app
           gethomepage.dev/group: media
           gatus.home-operations.com/endpoint: |-
-            url: https://books.${SECRET_DOMAIN}/request/api/status
+            url: https://books.${SECRET_DOMAIN}/api/health
             conditions:
               - "[STATUS] == 200"
             group: media
@@ -113,7 +136,7 @@ spec:
         rules:
           - backendRefs:
               - name: *app
-                port: *port
+                port: 8084
             timeouts:
               request: 0s
     persistence:
@@ -124,12 +147,19 @@ spec:
             subPath: tmp
           - path: /app/downloaded_files
             subPath: downloads
-          - path: /var/log/cwa-book-downloader/
+          - path: /var/log/shelfmark
             subPath: logs
-
+          # Writable scratch for the app's own state; settings come from env, so nothing here
+          # needs to survive a restart (the old release failed on a missing /config).
+          - path: /config
+            subPath: config
+      downloads:
+        existingClaim: shared-downloads
+        globalMounts:
+          - path: /data/downloads
       ingest:
         type: nfs
-        server: &nas nas.${SECRET_DOMAIN}
+        server: nas.${SECRET_DOMAIN}
         path: /mnt/storage/Media/ebooks/calibre/ingest
         globalMounts:
-          - path: *ingest
+          - path: /cwa-book-ingest

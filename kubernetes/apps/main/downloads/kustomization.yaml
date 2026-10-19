@@ -18,8 +18,7 @@ resources:
   - ./pvc.yaml
   - ./queue-watchdog.yaml
   - ./radarr.yaml
-  - ./readarr.yaml
-  - ./reading-glasses.yaml
   - ./recyclarr.yaml
   - ./sabnzbd.yaml
+  - ./shelfmark.yaml
   - ./sonarr.yaml

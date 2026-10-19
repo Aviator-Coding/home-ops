@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections import Counter
 import subprocess
 import sys
 from pathlib import Path
@@ -92,6 +93,10 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "kubernetes/apps/base/downloads/radarr/app/helmrelease.yaml",
         "# renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr",
     ): "exportarr sidecar removed: the API key is not 20-32 alphanumeric, so it crash-looped.",
+    (
+        "kubernetes/apps/main/media/calibre.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json",
+    ): "calibre-downloader Kustomization document deleted: Shelfmark moved to downloads/shelfmark.",
 }
 
 passed = 0
@@ -196,7 +201,10 @@ def test_diff_guard() -> None:
             continue
         if is_subsequence(before, after):
             continue
-        missing = [ln for ln in before if ln not in after]
+        # Count-aware: dropping one copy of a line that appears several times (a YAML
+        # document header) is a removal too, and needs an ALLOWED_REMOVALS entry.
+        surplus = Counter(before) - Counter(after)
+        missing = [ln for ln in dict.fromkeys(before) if surplus[ln]]
         unexplained = [ln for ln in missing if (new, ln) not in ALLOWED_REMOVALS]
         if missing and not unexplained:
             continue
