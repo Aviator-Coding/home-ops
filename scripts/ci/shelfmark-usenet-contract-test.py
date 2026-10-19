@@ -106,6 +106,16 @@ def check_no_mount_on_symlinked_staging_dir() -> None:
     bc.assert_true("/app/downloaded_files" not in mounted, "do not mount /app/downloaded_files (symlink into /tmp)")
 
 
+def check_calibre_library_read_only() -> None:
+    """Shelfmark's "Test Calibre library" reads /calibre-library/metadata.db to skip books we have."""
+    lib = release()["spec"]["values"]["persistence"].get("library", {})
+    bc.assert_true(lib.get("type") == "nfs" and lib.get("path") == "/mnt/storage/Media/ebooks/calibre/library",
+                   "library must be the CWA NFS library")
+    mounts = lib.get("globalMounts", [])
+    bc.assert_true(any(m["path"] == "/calibre-library" and m.get("readOnly") is True for m in mounts),
+                   "library must be mounted read-only at /calibre-library")
+
+
 def check_hardening_and_route() -> None:
     sc = container()["securityContext"]
     bc.assert_true(sc.get("readOnlyRootFilesystem") is True, "readOnlyRootFilesystem")
@@ -130,5 +140,6 @@ if __name__ == "__main__":
         ("shared-downloads and writable mounts", check_mounts),
         ("scratch dirs writable as uid 2000", check_scratch_dirs_are_writable_as_non_root),
         ("no mount on the symlinked staging dir", check_no_mount_on_symlinked_staging_dir),
+        ("Calibre library mounted read-only", check_calibre_library_read_only),
         ("hardened, internal route", check_hardening_and_route),
     ]))
