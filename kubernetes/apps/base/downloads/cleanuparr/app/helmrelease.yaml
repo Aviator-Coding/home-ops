@@ -35,7 +35,7 @@ spec:
           app:
             image:
               repository: ghcr.io/cleanuparr/cleanuparr
-              tag: 2.10.11
+              tag: 2.10.12
             env:
               # Only the port is set here. Instances, the SABnzbd client and the queue rules
               # live in Cleanuparr's own database (UI/REST API), backed up by kopiur, see
