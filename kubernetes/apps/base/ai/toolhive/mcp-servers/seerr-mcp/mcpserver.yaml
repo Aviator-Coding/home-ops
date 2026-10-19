@@ -14,7 +14,7 @@ spec:
     - name: NPM_CONFIG_CACHE
       value: /tmp/.npm
     - name: SEERR_URL
-      value: http://seerr.media
+      value: http://seerr.media.svc.cluster.local:5055
   secrets:
     - name: toolhive-seerr
       key: SEERR_API_KEY
@@ -41,5 +41,7 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+  toolConfigRef:
+    name: seerr-request-only
   groupRef:
     name: mcp-tools

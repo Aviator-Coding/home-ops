@@ -91,7 +91,6 @@ Commented out of `mcp-servers/kustomization.yaml`. Files stay.
 |---|---|
 | `garmin-connect-mcp` | 1Password item `garmin`, fields `username` and `password` |
 | `ha-mcp` | item `home-assistant`, field `HOMEASSISTANT_TOKEN` |
-| `seerr-mcp` | item `seerr`, field `SEERR_API_KEY` |
 | `talos-mcp` | Talos API allowlist. See below |
 
 Uncommenting a row before the secret exists leaves the server unable to
@@ -155,3 +154,15 @@ selected by
 `rbac.home-operations.com/aggregate-to-kubectl-mcp-readonly: "true"`.
 The binding targets `kubectl-mcp-readonly`, not the base. Core `secrets`
 and exec/proxy subresources stay off the list.
+
+## Media tool policy (Hermes)
+
+`arr` and `seerr-mcp` carry an `MCPToolConfig` allow-list, pinned by
+`scripts/ci/hermes-media-mcp-test.py`. `arr` is read-only (queues, calendars, library
+lookups); Hermes queues a title with `seerr-mcp` `request_media`, and
+`manage_media_requests` (approve, decline, delete in one tool) is never exposed.
+`mcp-arr-server` has no delete tool at all. `seerr-mcp` needs the 1Password item `seerr` to
+carry `SEERR_API_KEY` (Seerr Settings > General) before it becomes Ready. The key is the
+Seerr admin's, so a Hermes request is auto-approved: the guard is the allow-list, not Seerr.
+Service URLs must carry the Service port (radarr 7878, sonarr 8989, prowlarr 9696, lidarr
+8080, seerr 5055). There is no Plex MCP in the stack.

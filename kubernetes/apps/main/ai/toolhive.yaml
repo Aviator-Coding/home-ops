@@ -159,6 +159,14 @@ spec:
       kind: StatefulSet
       name: kubesearch
       namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: seerr-mcp
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: seerr-mcp
+      namespace: *namespace
   dependsOn:
     - name: toolhive-config
       namespace: *namespace
