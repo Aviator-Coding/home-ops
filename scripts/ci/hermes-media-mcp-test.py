@@ -74,9 +74,34 @@ def check_seerr() -> None:
     bc.assert_true(env.get("SEERR_URL") == "http://seerr.media.svc.cluster.local:5055", f"SEERR_URL {env.get('SEERR_URL')!r}")
 
 
+def check_seerr_key_chain() -> None:
+    """Seerr takes its API key from API_KEY; a generated Secret is pushed to 1Password for the MCP."""
+    app = bc.ROOT / "kubernetes/apps/base/media/seerr/app"
+    kz = bc.load_kind(app / "kustomization.yaml", "Kustomization")
+    for res in ("./password.yaml", "./externalsecret-api-key.yaml", "./pushsecret-api-key.yaml"):
+        bc.assert_true(res in kz["resources"], f"seerr kustomization must include {res}")
+    gen = bc.load_kind(app / "password.yaml", "Password")
+    bc.assert_true(gen["spec"]["secretKeys"] == ["SEERR_API_KEY"], "generator must emit SEERR_API_KEY")
+    bc.assert_true(gen["spec"].get("symbols", 0) == 0, "API key must be alphanumeric (it travels in a header)")
+    es = bc.load_kind(app / "externalsecret-api-key.yaml", "ExternalSecret")
+    bc.assert_true(es["spec"].get("refreshPolicy") == "CreatedOnce", "generated key must be minted once, not refreshed")
+    push = bc.load_kind(app / "pushsecret-api-key.yaml", "PushSecret")
+    bc.assert_true(push["spec"].get("deletionPolicy") == "None", "pruning the PushSecret must not delete the item")
+    ref = push["spec"]["data"][0]["match"]["remoteRef"]
+    bc.assert_true((ref["remoteKey"], ref["property"]) == ("seerr-api", "SEERR_API_KEY"), f"push target {ref}")
+    hr = bc.load_kind(app / "helmrelease.yaml", "HelmRelease")
+    env = hr["spec"]["values"]["controllers"]["seerr"]["containers"]["app"]["env"]
+    src = env.get("API_KEY", {}).get("valueFrom", {}).get("secretKeyRef", {})
+    bc.assert_true(src.get("key") == "SEERR_API_KEY", f"Seerr API_KEY must come from the generated secret, got {env.get('API_KEY')!r}")
+    mcp = bc.load_kind(MCP / "seerr-mcp/externalsecret.yaml", "ExternalSecret")
+    bc.assert_true(mcp["spec"]["secretStoreRef"]["name"] == "onepassword-automation", "MCP must read the pushed item's vault")
+    bc.assert_true(mcp["spec"]["dataFrom"][0]["extract"]["key"] == "seerr-api", "MCP must extract item seerr-api")
+
+
 if __name__ == "__main__":
     sys.exit(bc.run([
         ("arr MCP is a read-only allow-list", check_arr_allow_list),
         ("arr MCP ports and Lidarr wiring", check_arr_wiring),
         ("seerr MCP enabled, request-only", check_seerr),
+        ("seerr API key generated, pushed, consumed", check_seerr_key_chain),
     ]))

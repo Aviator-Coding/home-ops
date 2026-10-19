@@ -45,6 +45,11 @@ spec:
               TZ: America/New_York
               LOG_LEVEL: info
               PORT: &port 5055
+              API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: seerr-api-key
+                    key: SEERR_API_KEY
             envFrom: *envFrom
             probes:
               liveness: &probes
