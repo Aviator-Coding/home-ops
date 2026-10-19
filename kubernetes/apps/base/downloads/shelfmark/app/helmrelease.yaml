@@ -140,16 +140,14 @@ spec:
             timeouts:
               request: 0s
     persistence:
+      # /app/downloaded_files is a symlink into /tmp/shelfmark, so it is deliberately not mounted:
+      # a mount there makes the runtime create /tmp/shelfmark root-owned.
       # One emptyDir per path: subPath directories are created root-owned and ignore fsGroup,
       # which left the non-root entrypoint unable to write /tmp/shelfmark.
       tmp:
         type: emptyDir
         globalMounts:
           - path: /tmp
-      staging:
-        type: emptyDir
-        globalMounts:
-          - path: /app/downloaded_files
       logs:
         type: emptyDir
         globalMounts:

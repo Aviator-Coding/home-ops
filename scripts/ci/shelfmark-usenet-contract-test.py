@@ -98,6 +98,14 @@ def check_scratch_dirs_are_writable_as_non_root() -> None:
             bc.assert_true("subPath" not in mount, f"emptyDir {name} mount {mount['path']} must not use subPath")
 
 
+def check_no_mount_on_symlinked_staging_dir() -> None:
+    """/app/downloaded_files is a symlink into /tmp/shelfmark. A mount there makes the runtime
+    create /tmp/shelfmark root-owned and the non-root entrypoint then cannot write to it."""
+    persistence = release()["spec"]["values"]["persistence"]
+    mounted = {m["path"] for p in persistence.values() for m in p.get("globalMounts", [])}
+    bc.assert_true("/app/downloaded_files" not in mounted, "do not mount /app/downloaded_files (symlink into /tmp)")
+
+
 def check_hardening_and_route() -> None:
     sc = container()["securityContext"]
     bc.assert_true(sc.get("readOnlyRootFilesystem") is True, "readOnlyRootFilesystem")
@@ -121,5 +129,6 @@ if __name__ == "__main__":
         ("no torrent env; keys via secret only", check_no_torrent_and_secrets),
         ("shared-downloads and writable mounts", check_mounts),
         ("scratch dirs writable as uid 2000", check_scratch_dirs_are_writable_as_non_root),
+        ("no mount on the symlinked staging dir", check_no_mount_on_symlinked_staging_dir),
         ("hardened, internal route", check_hardening_and_route),
     ]))
