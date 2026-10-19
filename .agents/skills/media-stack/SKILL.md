@@ -46,6 +46,9 @@ which movie sits on which profile are application database state, not Git.
     CronJob exits non-zero for any queue item older than 24h or an unreadable
     queue. Huntarr is not used (alleged API-key exposure).
     [stuck-downloads.md](references/stuck-downloads.md)
+11. **Friend access is Wizarr + Seerr, set up in the apps, not in Git.** Only the routes
+    and backups are declared; invite, approval, quota and Plex limits are app state.
+    [friends.md](references/friends.md)
 
 ## Where things live
 
