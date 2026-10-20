@@ -30,3 +30,11 @@ spec:
               memory: 256Mi
             limits:
               memory: 2Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # The optimizer (find_tool) builds a SQLite FTS5 index per session; the root
+        # filesystem is read-only, so without this it fails with "disk I/O error".
+        - name: tmp
+          emptyDir: {}
