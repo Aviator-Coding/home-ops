@@ -82,9 +82,14 @@ def check_routes() -> None:
 
 
 def check_no_inline_secret() -> None:
-    text = (APP / "helmrelease.yaml").read_text().lower()
-    for word in ("token", "apikey", "password"):
-        bc.assert_true(f"{word}:" not in text, f"inline {word} in HelmRelease")
+    ctrl = release()["controllers"]["wizarr"]
+    containers = {**ctrl.get("initContainers", {}), **ctrl["containers"]}
+    for cname, container in containers.items():
+        env = container.get("env", {})
+        for name, value in (env.items() if isinstance(env, dict) else [(e["name"], e) for e in env]):
+            if any(word in name.lower() for word in ("token", "key", "password", "secret")):
+                from_secret = isinstance(value, dict) and "secretKeyRef" in value.get("valueFrom", {})
+                bc.assert_true(from_secret, f"{cname}: {name} must come from a Secret, not a literal")
 
 
 if __name__ == "__main__":
