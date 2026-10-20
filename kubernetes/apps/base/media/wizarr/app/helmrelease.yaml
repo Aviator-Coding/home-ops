@@ -30,11 +30,55 @@ spec:
             fsGroup: 2000
             fsGroupChangePolicy: OnRootMismatch
 
-        containers:
-          app:
-            image:
+        initContainers:
+          # Writes the admin, Plex server, Seerr link and Hermes API key rows that Wizarr's setup wizard would. Skill
+          # media-stack references/friends.md. Runs on the exact app image so it always matches the DB schema.
+          seed:
+            image: &image
               repository: ghcr.io/wizarrrr/wizarr
               tag: v2026.10.1@sha256:08f2c6de534ec7d36d39a4f55b7c5c379021ca881dc519c702aad0ddafbdc67a
+            command: ["/bin/sh", "-c"]
+            args:
+              - >-
+                uv run --frozen --no-dev flask db upgrade &&
+                uv run --frozen --no-dev python /seed/seed.py
+            env:
+              TZ: America/New_York
+              FLASK_SKIP_SCHEDULER: "true"
+              PYTHONPATH: /app
+              WIZARR_ADMIN_USERNAME: admin
+              PLEX_URL: http://plex.media.svc.cluster.local:32400
+              SEERR_URL: http://seerr.media.svc.cluster.local:5055
+              PLEX_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: wizarr-seed-secret
+                    key: PLEX_TOKEN
+              SEERR_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: seerr-api-key
+                    key: SEERR_API_KEY
+              WIZARR_ADMIN_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: wizarr-generated
+                    key: WIZARR_ADMIN_PASSWORD
+              WIZARR_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: wizarr-generated
+                    key: WIZARR_API_KEY
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+
+        containers:
+          app:
+            image: *image
             env:
               TZ: America/New_York
               PORT: &port 5690
@@ -85,6 +129,8 @@ spec:
           wizarr:
             app:
               - path: /data/database
+            seed:
+              - path: /data/database
       temp:
         type: emptyDir
         advancedMounts:
@@ -92,6 +138,17 @@ spec:
             app:
               - path: /tmp
               - path: /.cache
+            seed:
+              - path: /tmp
+              - path: /.cache
+      seed:
+        type: configMap
+        name: wizarr-seed
+        advancedMounts:
+          wizarr:
+            seed:
+              - path: /seed
+                readOnly: true
 
     route:
       # Admin UI: LAN/VPN only.
