@@ -53,7 +53,7 @@ PEER_CONCURRENCY_GROUP = (
     "${{ github.workflow }}-${{ github.event.number || github.ref }}"
 )
 PINNED_ACTION_PREFIX = "misospace/pr-reviewer-action@"
-PINNED_SHA = "54dfb1aac20e1e410ad8f71dc3681b888500a1ec"
+PINNED_SHA = "a962cdfc21c378a3b8cf2d8b194c787408e60e6b"
 ACTION_YML_URL = (
     "https://raw.githubusercontent.com/misospace/pr-reviewer-action/"
     f"{PINNED_SHA}/action.yml"
