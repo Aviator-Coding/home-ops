@@ -1,0 +1,178 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app shelfmark
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 2000
+        runAsGroup: 2000
+        fsGroup: 2000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsNonRoot: false
+        seccompProfile: { type: RuntimeDefault }
+    controllers:
+      shelfmark:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/calibrain/shelfmark-lite
+              tag: v1.4.0@sha256:edc889c12c4e54076432e5377b674fed4a1aaa934890f8a678bc5b38e5088a75
+            env:
+              # List form: app-template mangles bare PUID/PGID map keys (see the CWA release).
+              - name: PUID
+                value: "2000"
+              - name: PGID
+                value: "2000"
+              - name: FLASK_PORT
+                value: "8084"
+              - name: INGEST_DIR
+                value: /cwa-book-ingest
+              - name: LOG_ROOT
+                value: /var/log
+              - name: LOG_LEVEL
+                value: info
+              - name: BOOK_LANGUAGE
+                value: en
+              - name: USE_BOOK_TITLE
+                value: "true"
+              # Usenet only: Prowlarr finds releases, SABnzbd downloads them to the shared
+              # volume at the same path SABnzbd reports.
+              - name: PROWLARR_ENABLED
+                value: "true"
+              - name: PROWLARR_URL
+                value: http://prowlarr.downloads.svc.cluster.local:9696
+              - name: PROWLARR_USENET_CLIENT
+                value: sabnzbd
+              - name: SABNZBD_URL
+                value: http://sabnzbd.downloads.svc.cluster.local:8080
+              - name: SABNZBD_CATEGORY
+                value: books
+              # Lite image has no Chromium; Cloudflare challenges go to FlareSolverr.
+              - name: USING_EXTERNAL_BYPASSER
+                value: "true"
+              - name: EXT_BYPASSER_URL
+                value: http://flaresolverr.network.svc.cluster.local:8191
+              - name: EXT_BYPASSER_PATH
+                value: /v1
+              - name: EXT_BYPASSER_TIMEOUT
+                value: 60000
+            envFrom:
+              - secretRef:
+                  name: shelfmark-secret
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: 8084
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: 8084
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+            resources:
+              requests:
+                cpu: 10m
+                memory: 150Mi
+              limits:
+                memory: 500Mi
+            securityContext:
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+              allowPrivilegeEscalation: false
+    service:
+      app:
+        controller: *app
+        ports:
+          http:
+            port: 8084
+    route:
+      app:
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/icon: calibre-web.png
+          gethomepage.dev/name: *app
+          gethomepage.dev/group: media
+          gatus.home-operations.com/endpoint: |-
+            url: https://books.${SECRET_DOMAIN}/api/health
+            conditions:
+              - "[STATUS] == 200"
+            group: media
+        hostnames: ["books.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: *app
+                port: 8084
+            timeouts:
+              request: 0s
+    persistence:
+      # /app/downloaded_files is a symlink into /tmp/shelfmark, so it is deliberately not mounted:
+      # a mount there makes the runtime create /tmp/shelfmark root-owned.
+      # One emptyDir per path: subPath directories are created root-owned and ignore fsGroup,
+      # which left the non-root entrypoint unable to write /tmp/shelfmark.
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+      logs:
+        type: emptyDir
+        globalMounts:
+          - path: /var/log/shelfmark
+      # Writable scratch for the app's own state; settings come from env, so nothing here
+      # needs to survive a restart (the old release failed on a missing /config).
+      app-state:
+        type: emptyDir
+        globalMounts:
+          - path: /config
+      downloads:
+        existingClaim: shared-downloads
+        globalMounts:
+          - path: /data/downloads
+      ingest:
+        type: nfs
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media/ebooks/calibre/ingest
+        globalMounts:
+          - path: /cwa-book-ingest
+      # Read-only view of the CWA library so Shelfmark can see which books already exist.
+      library:
+        type: nfs
+        server: nas.${SECRET_DOMAIN}
+        path: /mnt/storage/Media/ebooks/calibre/library
+        globalMounts:
+          - path: /calibre-library
+            readOnly: true

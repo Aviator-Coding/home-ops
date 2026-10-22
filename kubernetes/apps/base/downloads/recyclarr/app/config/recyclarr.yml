@@ -140,19 +140,39 @@ radarr:
         assign_scores_to:
           - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
 
-      # Language / naming risk - deprioritize (not block) releases whose title format is more
-      # likely to defeat Radarr's import parser and trigger the "matched movie by ID, Manual
-      # Import required" stuck-queue state. Scores are intentionally small (well under
-      # min_format_score) so a foreign-audio or MULTi release is still grabbed when it's the
-      # best/only match - this only nudges Radarr toward a cleaner-named English release when
-      # more than one candidate is available.
+      # Language policy: every movie carries an English audio track (owner decision
+      # 2026-10-18). A release without English audio is hard-rejected on every profile; a
+      # German dual-audio release lists English too, so it still passes. German alone never
+      # rescues a release, so no German-only format is scored. Which movie sits on which
+      # profile is Radarr state, see media-stack/references/recyclarr.md.
       - trash_ids:
           - 0dc8aec3bd1c47cd6c40c46ecd27e846 # Language: Not English
-        score: -25
+          - 263943bc5d99550c68aad0c4278ba1c7 # German LQ
+        score: -35000
         assign_scores_to:
           - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
+          - trash_id: 0896c29d74de619df168d23b98104b22 # [SQP] SQP-1 (1080p)
+          - trash_id: d1d67249d3890e49bc12e275d989a7e9 # HD Bluray + WEB
+          - trash_id: 64fb5f9858489bdac2af690e27c8f42f # UHD Bluray + WEB
+      # Dual audio (German + original English) is a small preference over a single track.
+      - trash_ids:
+          - f845be10da4f442654c13e1f2c3d6cd5 # German DL
+        score: 100
+        assign_scores_to:
+          - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
+          - trash_id: 0896c29d74de619df168d23b98104b22 # [SQP] SQP-1 (1080p)
+          - trash_id: d1d67249d3890e49bc12e275d989a7e9 # HD Bluray + WEB
+          - trash_id: 64fb5f9858489bdac2af690e27c8f42f # UHD Bluray + WEB
+
+      # Naming risk - deprioritize (not block) MULTi releases, whose title format is more
+      # likely to defeat Radarr's import parser and trigger the "matched movie by ID, Manual
+      # Import required" stuck-queue state. The score is intentionally small (well under
+      # min_format_score) so a MULTi release is still grabbed when it's the best/only match.
       - trash_ids:
           - 4b900e171accbfb172729b63323ea8ca # MULTi
         score: -25
         assign_scores_to:
           - trash_id: 5128baeb2b081b72126bc8482b2a86a0 # [SQP] SQP-1 (2160p)
+          - trash_id: 0896c29d74de619df168d23b98104b22 # [SQP] SQP-1 (1080p)
+          - trash_id: d1d67249d3890e49bc12e275d989a7e9 # HD Bluray + WEB
+          - trash_id: 64fb5f9858489bdac2af690e27c8f42f # UHD Bluray + WEB

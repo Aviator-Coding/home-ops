@@ -38,9 +38,20 @@ which movie sits on which profile are application database state, not Git.
    on the library is the scope gate. `librariesToNotProcess` is a Tdarr Pro
    feature and a no-op on this unlicensed install. Skill `tdarr-transcoding`.
    Keep `transcodecpuWorkers` at least 1.
-9. **Only Readarr runs an exportarr sidecar (metrics port 9707).** Sonarr and Radarr have none:
-   exportarr v2.3.0 rejects any API key that is not 20-32 alphanumeric characters, and
-   their current keys contain symbols. Rotate to alphanumeric keys before retrying.
+9. **Books run Shelfmark -> Calibre-Web-Automated, Usenet only.** Shelfmark
+   (`downloads/shelfmark`, env-only config) searches through Prowlarr, SABnzbd saves to
+   the `books` category on `shared-downloads`, and the file lands in the CWA NFS ingest
+   folder. Readarr was removed (its kopiur snapshots, Postgres databases and NAS files
+   were kept). Sonarr and Radarr run no exportarr sidecar: exportarr v2.3.0 rejects any
+   API key that is not 20-32 alphanumeric characters.
+10. **Git defines only the Cleanuparr pod.** Instances, the SABnzbd client and the
+    rules are app state in its config PVC (it ignores env vars). The `queue-watchdog`
+    CronJob exits non-zero for any queue item older than 24h or an unreadable
+    queue. Huntarr is not used (alleged API-key exposure).
+    [stuck-downloads.md](references/stuck-downloads.md)
+11. **Friend access is Wizarr + Seerr, set up in the apps, not in Git.** Only the routes
+    and backups are declared; invite, approval, quota and Plex limits are app state.
+    [friends.md](references/friends.md)
 
 ## Where things live
 
@@ -61,6 +72,7 @@ which movie sits on which profile are application database state, not Git.
 - Plex scans and the token: [plex.md](references/plex.md).
 - Paths, categories, hardlinks: [arr-settings.md](references/arr-settings.md).
 - SABnzbd out of disk, ghost tree, janitor: [sabnzbd-disk-space.md](references/sabnzbd-disk-space.md).
+- Stalled or stuck queue items, Cleanuparr, watchdog alert: [stuck-downloads.md](references/stuck-downloads.md).
 
 ## Verify
 

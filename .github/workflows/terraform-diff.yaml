@@ -41,7 +41,7 @@ jobs:
 
       - name: Get Changed Terraform Stack Directories
         id: changed-dirs
-        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           patterns: terraform/**/*
           include_only_directories: true
@@ -91,7 +91,7 @@ jobs:
       # opentofu and vals come from .mise.toml so this plans with the same
       # versions the runbook tells an operator to use locally.
       - name: Setup Tools
-        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           install_args: opentofu vals
 
@@ -128,7 +128,7 @@ jobs:
 
       - name: Generate Token
         if: steps.ci-secrets.outputs.file != ''
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: app-token
         with:
           app-id: ${{ secrets.BOT_APP_ID }}

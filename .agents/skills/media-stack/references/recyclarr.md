@@ -35,3 +35,20 @@ declared for the catalogue titles no TRaSH tier group ever released. Their
 guide `minFormatScore` is 0 and language Original, so the unwanted formats
 (LQ, BR-DISK, x265 (HD), AV1) are assigned to them explicitly. SQP-1 keeps
 its minimum of 1000; never lower it to rescue old titles, move them instead.
+
+## Language policy: English audio is required
+
+Every movie must contain an English audio track. `Language: Not English` and
+`German LQ` score -35000 on all four Radarr profiles, so a release without English
+is rejected even when German. A German dual-audio release lists English too and
+passes (`German DL` +100). No German-only format is scored. Test:
+`scripts/ci/recyclarr-language-policy-test.py`.
+
+- All four managed profiles have language `Original`. Verify live that an English
+  dub of a foreign film is not rejected before scoring.
+- Profile assignment is Radarr state. The stock `Any` profile is unmanaged; the
+  one-off `scripts/media/profile_migration.py` (dry run by default, writes a
+  before-state file) moves its movies to `HD`/`UHD Bluray + WEB`.
+- Audit existing files: `scripts/media/language_audit.py` through a
+  `port-forward`, key from 1Password. It reports, it never deletes. Mediainfo
+  codes are ISO (`eng`, `ger`).

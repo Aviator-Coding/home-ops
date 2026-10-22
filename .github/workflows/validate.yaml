@@ -42,7 +42,7 @@ jobs:
     steps:
       - name: Talos Changes
         id: talos
-        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           patterns: |-
             talos/**
@@ -52,7 +52,7 @@ jobs:
 
       - name: Version Pin Changes
         id: versions
-        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           patterns: |-
             talos/**
@@ -64,7 +64,7 @@ jobs:
 
       - name: Bootstrap Changes
         id: bootstrap
-        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           patterns: |-
             bootstrap/**
@@ -73,7 +73,7 @@ jobs:
 
       - name: Renovate Config Changes
         id: renovate
-        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           patterns: |-
             .renovaterc.json5
@@ -82,7 +82,7 @@ jobs:
 
       - name: Terraform Changes
         id: terraform
-        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           patterns: |-
             terraform/**
@@ -92,7 +92,7 @@ jobs:
 
       - name: Python Regression Test Changes
         id: pythontests
-        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
         with:
           patterns: |-
             scripts/ci/**
@@ -125,7 +125,7 @@ jobs:
       # minijinja-cli and talosctl come from .mise.toml so CI renders with the same
       # versions `just talos render-config` uses locally.
       - name: Setup Tools
-        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           install_args: aqua:mitsuhiko/minijinja aqua:siderolabs/talos aqua:mikefarah/yq
 
@@ -145,7 +145,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           install_args: aqua:mikefarah/yq
 
@@ -165,7 +165,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           install_args: aqua:kubernetes-sigs/kustomize aqua:yannh/kubeconform
 
@@ -191,7 +191,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
 
@@ -216,7 +216,7 @@ jobs:
       # opentofu comes from .mise.toml so CI validates with the same version the
       # runbook tells an operator to plan with.
       - name: Setup Tools
-        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           install_args: opentofu
 
@@ -244,7 +244,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           install_args: python uv
 
@@ -290,7 +290,7 @@ jobs:
       # scripts/ci/tdarr-flow-nodes-test.py (Tdarr safe-transcode recovery harness).
       # Same setup-node pin as renovate-config; the ARC runner has no system Node.
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
 
@@ -307,7 +307,7 @@ jobs:
       # which failed python-tests on every PR with "No version is set for shim:
       # promtool"). Pinned by scripts/ci/mise-install-args-test.py.
       - name: Setup Tools
-        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
 
@@ -316,7 +316,7 @@ jobs:
       # Same setup-node pin as renovate-config; the package is pinned to the version that
       # test was verified against so CI does not drift onto a different compiled API.
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
 

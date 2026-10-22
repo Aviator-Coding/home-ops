@@ -13,3 +13,4 @@ resources:
   - ./plex.yaml
   - ./seerr.yaml
   - ./tdarr.yaml
+  - ./wizarr.yaml

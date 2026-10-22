@@ -89,7 +89,7 @@ spec:
           app:
             image:
               repository: python
-              tag: 3.14@sha256:12d187a59ecdeb95df0a78cd6107a84398455365a66cc2183db2be42b6067d33
+              tag: 3.14@sha256:c3b74edefb6f38bc35b435895ce357bc707d6570e1cf109a4877503e0426c3f9
             command: ["python3", "/config/generate.py"]
             env:
               # In-cluster LiteLLM governance proxy (captain decisions B4/D4) -

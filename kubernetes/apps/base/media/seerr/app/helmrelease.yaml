@@ -31,7 +31,7 @@ spec:
           init-db:
             image:
               repository: ghcr.io/home-operations/postgres-init
-              tag: 18.6@sha256:b6d3af974df781c673d37e49bdddfa14a6f5be28b18d2cb7713f0449bea4057b
+              tag: 18.6@sha256:87627baaddb0cabed4ebe033e75038e5c7b6b081c18e86514c99067179a90719
             envFrom: &envFrom
               - secretRef:
                   name: seerr-secret
@@ -40,11 +40,16 @@ spec:
           app:
             image:
               repository: docker.io/seerr/seerr
-              tag: v3.5.0
+              tag: v3.5.1
             env:
               TZ: America/New_York
               LOG_LEVEL: info
               PORT: &port 5055
+              API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: seerr-api-key
+                    key: SEERR_API_KEY
             envFrom: *envFrom
             probes:
               liveness: &probes
@@ -100,7 +105,7 @@ spec:
         hostnames:
           - seerr.${SECRET_DOMAIN}
         parentRefs:
-          - name: envoy-internal
+          - name: envoy-external
             namespace: network
             sectionName: https
         rules:
