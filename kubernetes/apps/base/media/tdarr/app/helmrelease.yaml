@@ -219,7 +219,7 @@ spec:
                 memory: 512Mi
               limits:
                 devic.es/b70-vaapi: 1
-                memory: 4Gi
+                memory: 12Gi
 
     service:
       app:
