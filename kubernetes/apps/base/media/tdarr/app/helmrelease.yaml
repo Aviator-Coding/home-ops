@@ -6,6 +6,9 @@ metadata:
   name: &app tdarr
 spec:
   interval: 30m
+  # The node Deployment's startup probe allows up to 5 min for the server heartbeat; the
+  # default 5m Helm timeout rolled the 3.x upgrade back mid-start.
+  timeout: 15m
   chartRef:
     kind: OCIRepository
     name: app-template
