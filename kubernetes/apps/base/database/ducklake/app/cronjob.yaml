@@ -32,7 +32,7 @@ spec:
           containers:
             - name: maintenance
               # renovate: datasource=docker depName=docker.io/duckdb/duckdb
-              image: docker.io/duckdb/duckdb:1.5.6
+              image: docker.io/duckdb/duckdb:2.0.0
               command: ["/duckdb", "-bail", "-f", "/scripts/maintenance.sql"]
               env:
                 - name: HOME

@@ -86,15 +86,15 @@ PACKAGE = "docker.io/plexinc/pms-docker"
 UNRELATED_PACKAGE = "quay.io/ceph/ceph"
 
 # The tag actually deployed today (kubernetes/apps/base/media/plex/app/helmrelease.yaml).
-CURRENT_TAG = "1.43.4.10903-e5521bd8c"
+CURRENT_TAG = "1.43.5.11029-6bf8af3f0"
 # A later, format-correct release used to prove the fix against (hash value
 # is illustrative - only the shape and distinctness of the hash matters).
-TARGET_TAG = "1.43.7.11200-e5521bd9c"
+TARGET_TAG = "1.43.8.11300-e5521bd9c"
 # Format-correct intermediate releases (hash values are illustrative - only
 # the shape and distinctness of the hash matters for this rule).
 CANDIDATE_TAGS = [
-    "1.43.5.11000-aaaaaaaaa",
-    "1.43.6.11100-bbbbbbbbb",
+    "1.43.6.11100-aaaaaaaaa",
+    "1.43.7.11200-bbbbbbbbb",
     TARGET_TAG,
 ]
 

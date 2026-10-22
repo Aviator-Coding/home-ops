@@ -53,7 +53,7 @@ PEER_CONCURRENCY_GROUP = (
     "${{ github.workflow }}-${{ github.event.number || github.ref }}"
 )
 PINNED_ACTION_PREFIX = "misospace/pr-reviewer-action@"
-PINNED_SHA = "a962cdfc21c378a3b8cf2d8b194c787408e60e6b"
+PINNED_SHA = "5b1839535748f3afd1bd3ef04e8009302cba9aa6"
 ACTION_YML_URL = (
     "https://raw.githubusercontent.com/misospace/pr-reviewer-action/"
     f"{PINNED_SHA}/action.yml"
@@ -375,7 +375,8 @@ def test_workflow_contracts() -> dict[str, Any]:
     evidence["with"] = {k: with_[k] for k in sorted(with_)}
 
     def w(key: str) -> Any:
-        return with_.get(key)
+        # v3 inputs are kebab-case; checks below keep the v2 snake_case names.
+        return with_.get(key.replace("_", "-"))
 
     # Endpoint + model
     record(
@@ -461,10 +462,27 @@ def test_workflow_contracts() -> dict[str, Any]:
         str(w("publish_review_comment")).lower() in ("true", "1"),
         f"got={w('publish_review_comment')!r}",
     )
+    # allow-approve is deprecated and inert in v3 (approval follows the
+    # verdict, and publish-mode comment never approves), so it must stay unset.
     record(
-        "allow_approve_false",
-        str(w("allow_approve")).lower() in ("false", "0"),
+        "allow_approve_not_enabled",
+        str(w("allow_approve")).lower() not in ("true", "1"),
         f"got={w('allow_approve')!r}",
+    )
+    record(
+        "verdict_policy_model_keeps_v2_passthrough",
+        w("verdict_policy") == "model",
+        f"got={w('verdict_policy')!r}",
+    )
+    record(
+        "deep_review_false",
+        str(w("deep_review")).lower() in ("false", "0"),
+        f"got={w('deep_review')!r}",
+    )
+    record(
+        "ci_status_check_false",
+        str(w("ci_status_check")).lower() in ("false", "0"),
+        f"got={w('ci_status_check')!r}",
     )
     record(
         "approve_forks_false",

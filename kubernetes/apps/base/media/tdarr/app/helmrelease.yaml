@@ -31,7 +31,7 @@ spec:
           app:
             image:
               repository: ghcr.io/haveagitgat/tdarr
-              tag: 2.86.01
+              tag: 3.01.00
             env:
               - name: TZ
                 value: America/New_York
@@ -109,7 +109,7 @@ spec:
           app:
             image:
               repository: ghcr.io/haveagitgat/tdarr_node
-              tag: 2.86.01
+              tag: 3.01.00
             env:
               - name: TZ
                 value: America/New_York
@@ -215,11 +215,14 @@ spec:
                   failureThreshold: 30
             resources:
               requests:
-                cpu: 100m
-                memory: 512Mi
+                cpu: 2
+                memory: 2Gi
               limits:
                 devic.es/b70-vaapi: 1
-                memory: 4Gi
+                # Unbounded, the CPU worker held ~15 of talos-3's 20 cores and
+                # starved the control plane (kube-apiserver-talos-3 restart loop).
+                cpu: 12
+                memory: 12Gi
 
     service:
       app:
