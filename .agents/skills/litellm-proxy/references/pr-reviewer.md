@@ -8,31 +8,32 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
 
 ## Advisory only, by construction (captain decision)
 
-- `publish_mode: comment` publishes with `gh pr comment`; the action reaches
+- `publish-mode: comment` publishes with `gh pr comment`; the action reaches
   `gh pr review` only in `review_comment`/`review_verdict` modes, so it cannot
   approve or request changes.
-- `allow_approve`, `approve_forks`, `fail_on_request_changes` stay false.
+- `approve-forks`, `fail-on-request-changes` stay false; `allow-approve` is deprecated and inert in v3 and stays unset.
+- v3 flipped several defaults. The workflow pins the v2 advisory posture: `verdict-policy: model`, `deep-review: "false"`, `ci-status-check: "false"`, `tool-mode: "off"`, `inline-findings: "false"`.
 - **Never a required status check** (branch protection:
   skill `github-ci`, `references/branch-protection.md`), and "Allow GitHub Actions to create and approve
   pull requests" stays off.
-- `on_model_failure: notice`: a GPU outage posts "AI review could not run"
+- `on-model-failure: notice`: a GPU outage posts "AI review could not run"
   instead of a red check. That notice carries a `request_changes` verdict, so
-  it stays green only while `fail_on_request_changes` is false.
+  it stays green only while `fail-on-request-changes` is false.
 
 ## Cannot spend money
 
-- `ai_model: pr-review-local`: zero-priced, no cloud fallback, thinking off.
+- `ai-model: pr-review-local`: zero-priced, no cloud fallback, thinking off.
   The key allow-lists only it and `embedding-local`; anything else is 403
   (verified). Never give this key `auto`: it fires unattended on every PR,
   including heavy Renovate traffic.
-- `review_routing_mode: "off"` (no smart-model escalation). All outward
-  features (`tool_mode`, evidence, Linear, search, `*_enable_for_forks`) are
+- `review-routing-mode: "off"` (no smart-model escalation). All outward
+  features (`tool-mode`, evidence, Linear, search, `*_enable_for_forks`) are
   pinned off explicitly so an upstream default flip cannot widen a job that
   holds `pull-requests: write`.
-- `ai_fallback_model: pr-review-local`, an availability retry on the same free
+- `ai-fallback-model: pr-review-local`, an availability retry on the same free
   alias. Never point it anywhere but the local
   alias, and do not clear it: the pinned action exports
-  `AI_FALLBACK_BASE_URL = ai_fallback_base_url || ai_base_url` and refuses to
+  `AI_FALLBACK_BASE_URL = ai-fallback-base-url || ai-base-url` and refuses to
   run when that is set and the fallback model is empty.
 
 ## Why a dedicated non-thinking alias
@@ -46,17 +47,17 @@ it carries `num_retries: 0` and its metrics series feeds the router alerts.
 
 ## Sizing (shared B70)
 
-- `model_context_tokens: "65536"`, not the served 262144: the action budgets
+- `model-context-tokens: "65536"`, not the served 262144: the action budgets
   `(ctx - reserve) * 3` bytes, and 262144 would authorize ~14 minutes of
   prefill at ~310-350 tok/s. 65536 reviews ~85% of PRs untruncated and bounds
   one review to ~6.5 minutes of GPU. Undershooting is safe (the action
   truncates and says so).
-- Decode (~11 tok/s) is the bottleneck: `ai_max_tokens: "2048"`; if reviews
-  feel slow, `review_verbosity: concise` helps more than a smaller prompt.
-- `ai_response_format: json_object` (upstream advice for LiteLLM; json_schema
+- Decode (~11 tok/s) is the bottleneck: `ai-max-tokens: "2048"`; if reviews
+  feel slow, `review-verbosity: concise` helps more than a smaller prompt.
+- `ai-response-format: json_object` (upstream advice for LiteLLM; json_schema
   makes some models emit one-line walls).
 - Timeouts: 10s connect, 600s request, one retry; job `timeout-minutes: 25`.
-- `skip_if_diff_unchanged` and `review_scope: auto` keep re-runs cheap; the
+- `skip-if-diff-unchanged` keeps re-runs cheap (v3 has no incremental review: an unchanged diff skips the model, any change gets a full review); the
   concurrency group cancels superseded runs of the same PR. Key limits
   (rpm 10, tpm 200000) allow a few concurrent Renovate reviews.
 
@@ -74,7 +75,7 @@ are reviewed when marked ready.
 
 The action hard-truncates the standards file to its first 16000 bytes
 (`STANDARDS_HARD_TRUNC_BYTES` in the CI test). `AGENTS.md` is far over that,
-so it would arrive as a mid-sentence head-slice. `standards_file` names
+so it would arrive as a mid-sentence head-slice. `standards-file` names
 `.github/ai-review-rules.md` explicitly (the default candidate order picks
 `AGENTS.md` first). Keep that file under the cap; CI asserts it. When the two
 disagree, `AGENTS.md` wins and the rules file is corrected.
