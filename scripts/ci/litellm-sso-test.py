@@ -59,6 +59,16 @@ class Failure(Exception):
     pass
 
 
+class EdgeBlocked(Exception):
+    """Cloudflare refused this runner's request before Authentik/LiteLLM saw it.
+
+    HTTP 403 with body ``error code: 10xx`` is a Cloudflare edge block (e.g.
+    1010, browser-signature ban) that depends on the runner's egress IP, not on
+    the manifests under test. The live probes cannot say anything then, so they
+    are reported as skipped instead of failing every PR; the static checks still run.
+    """
+
+
 def _http(
     url: str,
     *,
@@ -82,6 +92,8 @@ def _http(
     except urllib.error.HTTPError as exc:
         headers = {k.lower(): v for k, v in exc.headers.items()}
         body = exc.read() if exc.fp else b""
+        if exc.code == 403 and body.strip().startswith(b"error code: 10"):
+            raise EdgeBlocked(f"HTTP 403 {body.strip().decode(errors='replace')} from {url}") from exc
         return exc.code, headers, body
 
 
@@ -558,6 +570,9 @@ def main() -> int:
         try:
             report["results"][name] = {"status": "pass", "detail": fn()}
             print(f"PASS  {name}")
+        except EdgeBlocked as exc:
+            report["results"][name] = {"status": "skip", "reason": str(exc)}
+            print(f"SKIP  {name}: Cloudflare edge block, live probe inconclusive ({exc})")
         except Failure as exc:
             report["results"][name] = {"status": "fail", "error": str(exc)}
             report["ok"] = False
