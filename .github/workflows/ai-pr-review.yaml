@@ -59,7 +59,7 @@ jobs:
 
       - name: AI Review
         if: steps.cred.outputs.mode == 'review'
-        uses: misospace/pr-reviewer-action@a962cdfc21c378a3b8cf2d8b194c787408e60e6b # v2.5.0
+        uses: misospace/pr-reviewer-action@5b1839535748f3afd1bd3ef04e8009302cba9aa6 # v3.7.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
