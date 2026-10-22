@@ -215,10 +215,13 @@ spec:
                   failureThreshold: 30
             resources:
               requests:
-                cpu: 100m
-                memory: 512Mi
+                cpu: 2
+                memory: 2Gi
               limits:
                 devic.es/b70-vaapi: 1
+                # Unbounded, the CPU worker held ~15 of talos-3's 20 cores and
+                # starved the control plane (kube-apiserver-talos-3 restart loop).
+                cpu: 12
                 memory: 12Gi
 
     service:
