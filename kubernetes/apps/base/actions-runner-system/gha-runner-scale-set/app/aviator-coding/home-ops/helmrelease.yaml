@@ -24,7 +24,9 @@ spec:
     githubConfigUrl: https://github.com/aviator-coding/home-ops
     githubConfigSecret: *secret
     minRunners: 1
-    maxRunners: 15  # leaves headroom for other workloads
+    # Each runner may burn 2 CPU and they tolerate control-plane taints; 15 at once starved
+    # kube-apiserver and made an OSD miss its heartbeat on talos-1.
+    maxRunners: 6
     listenerMetrics:
       counters:
         gha_started_jobs_total:
@@ -140,7 +142,7 @@ spec:
                 value: "1"
             resources:
               requests:
-                cpu: "200m"
+                cpu: "1"
                 memory: "512Mi"
               limits:
                 cpu: "2"
