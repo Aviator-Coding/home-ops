@@ -39,7 +39,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history for incremental reviews against the last reviewed SHA.
+          # Full history so the reviewer can diff against the base.
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
@@ -59,55 +59,58 @@ jobs:
 
       - name: AI Review
         if: steps.cred.outputs.mode == 'review'
-        uses: misospace/pr-reviewer-action@a962cdfc21c378a3b8cf2d8b194c787408e60e6b # v2.5.0
+        uses: misospace/pr-reviewer-action@5b1839535748f3afd1bd3ef04e8009302cba9aa6 # v3.7.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
           # Cluster-internal DNS; LiteLLM is never reached over the public listener. /v1 is required.
-          ai_base_url: http://litellm.ai.svc.cluster.local:4000/v1
-          ai_api_format: openai
-          ai_model: pr-review-local
-          ai_api_key: ${{ secrets.LITELLM_PR_REVIEW_KEY }}
+          ai-base-url: http://litellm.ai.svc.cluster.local:4000/v1
+          ai-api-format: openai
+          ai-model: pr-review-local
+          ai-api-key: ${{ secrets.LITELLM_PR_REVIEW_KEY }}
           # Availability retry on the same free alias; the pinned action refuses to run if blank.
-          ai_fallback_model: pr-review-local
+          ai-fallback-model: pr-review-local
 
           # Far below the served 262144 on purpose: bounds one review to ~6.5 min of shared GPU.
-          model_context_tokens: "65536"
-          ai_max_tokens: "2048"
+          model-context-tokens: "65536"
+          ai-max-tokens: "2048"
 
           # Upstream advice for LiteLLM endpoints (json_schema makes some models emit one-line walls).
-          ai_response_format: json_object
+          ai-response-format: json_object
 
           # Homelab profile: fail fast on a dead B70, one retry for a blip.
-          ai_connect_timeout_sec: "10"
-          ai_request_timeout_sec: "600"
-          ai_primary_retries: "1"
-          ai_primary_retry_delay_sec: "10"
+          ai-connect-timeout-sec: "10"
+          ai-request-timeout-sec: "600"
+          ai-primary-retries: "1"
+          ai-primary-retry-delay-sec: "10"
           # A GPU outage posts a notice comment instead of a red check.
-          on_model_failure: notice
+          on-model-failure: notice
 
           # Explicit: the default picks AGENTS.md, which the action would truncate at 16000 bytes.
-          standards_file: .github/ai-review-rules.md
+          standards-file: .github/ai-review-rules.md
 
           # Advisory only (see header).
-          publish_review_comment: "true"
-          publish_mode: comment
-          allow_approve: "false"
-          approve_forks: "false"
-          fail_on_request_changes: "false"
-          inline_findings: "false"
+          publish-review-comment: "true"
+          publish-mode: comment
+          approve-forks: "false"
+          fail-on-request-changes: "false"
+          inline-findings: "false"
 
           # Everything that could reach outward or escalate, pinned off against upstream default flips.
-          review_routing_mode: "off"
-          tool_mode: "off"
-          evidence_providers_file: ""
-          linear_api_key: ""
-          search_url: ""
-          tool_enable_for_forks: "false"
-          evidence_enable_for_forks: "false"
-          linear_enable_for_forks: "false"
+          review-routing-mode: "off"
+          tool-mode: "off"
+          evidence-providers-file: ""
+          linear-api-key: ""
+          search-url: ""
+          tool-enable-for-forks: "false"
+          evidence-enable-for-forks: "false"
+          linear-enable-for-forks: "false"
 
-          # Cost containment: unchanged diffs skip the model call; later pushes review only the delta.
-          skip_if_diff_unchanged: "true"
-          force_review: "false"
-          review_scope: auto
+          # Cost containment: unchanged diffs skip the model call (v3 reviews every changed push in full).
+          skip-if-diff-unchanged: "true"
+          force-review: "false"
+
+          # v3 flipped these defaults; pinned back to the v2 advisory posture.
+          verdict-policy: model
+          deep-review: "false"
+          ci-status-check: "false"

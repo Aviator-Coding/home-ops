@@ -41,7 +41,7 @@ spec:
           app:
             image:
               repository: docker.io/plexinc/pms-docker
-              tag: 1.43.4.10903-e5521bd8c
+              tag: 1.43.5.11029-6bf8af3f0
             env:
               TZ: America/New_York
               PLEX_UID: "2000"
