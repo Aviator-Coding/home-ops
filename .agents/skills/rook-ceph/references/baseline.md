@@ -8,7 +8,7 @@ Re-read the HelmRelease and `ceph config dump` before quoting a number. The old 
 |---|---|---|
 | Rook operator | `ghcr.io/rook/ceph:v1.20.7` | operator deploy image; chart tag in `operator/ocirepository.yaml` |
 | Ceph | `quay.io/ceph/ceph:v20.2.4` (20.2.4 tentacle) | `cephImage.tag`; toolbox image matches |
-| Talos | v1.14.1, kernel `6.18.51-talos` | `kubectl get nodes`; tuppr `TalosUpgrade` and `machineconfig.yaml.j2` installer pin match |
+| Talos | v1.14.4, kernel `6.18.51-talos` | `kubectl get nodes`; tuppr `TalosUpgrade` and `machineconfig.yaml.j2` installer pin match |
 | Kubernetes | v1.36.5 | kubelet and control-plane images in `machineconfig.yaml.j2` |
 
 `CONFIG_CEPH_FS`, `CONFIG_BLK_DEV_RBD` and `CONFIG_CEPH_LIB` are built-in on this kernel. Do not add a `machine.kernel.modules` entry for `rbd`.
