@@ -42,7 +42,7 @@ MISE_LIST_ALL_VERSIONS = "false"
 # promtool for scripts/ci/grafana-sa-provisioner-test.py PromQL rule evaluation.
 # CI python-tests installs this via unversioned mise-action install_args so this
 # pin is the single source of truth (scripts/ci/mise-install-args-test.py).
-"aqua:prometheus/prometheus" = "3.14.0"
+"aqua:prometheus/prometheus" = "3.15.0"
 uv = "0.12.9"
 1password-cli = "2.30.3"
 krew = "0.5.0"
