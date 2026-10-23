@@ -69,7 +69,7 @@ object present. PITR needs an unbroken chain.
 |---|---|
 | 1Password item | `cloudflare-r2` |
 | Vault | `Homelab` (any Connect-visible vault works - `Homelab`, `Automation`, `Services` - but **never** the hyphenated `Home-Lab`, which Connect cannot see at all) |
-| Fields | `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` |
+| Fields | `R2_K8S_ENDPOINT_URL`, `R2_K8S_ACCESS_KEY_ID`, `R2_K8S_SECRET_ACCESS_KEY` (mapped to the unprefixed keys in `cloudnative-pg-r2-secret`) |
 | R2 bucket | `home-ops-postgres-cluster` (same name as the LAN bucket, on purpose) |
 
 The endpoint lives in the item rather than in git because it embeds the Cloudflare account
