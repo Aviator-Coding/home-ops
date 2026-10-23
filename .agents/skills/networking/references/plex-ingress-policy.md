@@ -24,6 +24,10 @@ it. This closes the unauthenticated pod-network path and changes no Plex auth.
   from its own pod IP.
 - **`plex-exporter`** (same namespace). It authenticates with its own
   `PLEX_TOKEN`, so it does not rely on the bypass this policy closes.
+- **`wizarr`** (same namespace), TCP 32400 only. Its `PLEX_URL` is the in-cluster
+  service, and it authenticates with the `PLEX_TOKEN` the seed writes, so it does
+  not rely on the bypass this policy closes. Without this entry wizarr's Plex polling
+  fails whenever the two pods share a node.
 - **CoreDNS replies** (`kube-system`, `k8s-app: kube-dns`), with no `ports:`
   restriction on purpose: see tripwire 3 in `SKILL.md`. Cilium reply-conntrack
   also fails to match a DNS reply to its request when the client pod's node
