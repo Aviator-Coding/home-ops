@@ -180,6 +180,13 @@ spec:
       join:
         annotations:
           external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+          # "/" is not routed on this host, so the default probe of the bare hostname always 404s.
+          # /favicon.ico is an Exact route straight to the app.
+          gatus.home-operations.com/endpoint: |-
+            url: https://join.${SECRET_DOMAIN}/favicon.ico
+            conditions:
+              - "[STATUS] == 200"
+            group: media
         hostnames:
           - join.${SECRET_DOMAIN}
         parentRefs:
