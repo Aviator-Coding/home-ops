@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# Two failures that ran for days with no page (2026-10 review): tdarr-node and
+# kube-apiserver-talos-3 restarted for 13 and 7 days (KubePodCrashLooping needs 15m of
+# continuous CrashLoopBackOff, a ~12 min restart cycle never gets there), and an
+# ExternalSecret failed for 13 days (no rule read its metric). Skill observability.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: silent-failure-gaps
+spec:
+  groups:
+    - name: silent-failure-gaps.rules
+      rules:
+        # 24h >= 20 is slow-loop shaped. A node reboot moves controllers by about 6 and
+        # stays silent. 1h >= 1 clears the alert once the loop stops. Replayed over 14d
+        # against live Prometheus: tdarr-node, kube-apiserver, hermes, no reboot noise.
+        - alert: ContainerRestartingChronically
+          expr: >-
+            (increase(kube_pod_container_status_restarts_total[24h]) >= 20)
+            and
+            (increase(kube_pod_container_status_restarts_total[1h]) >= 1)
+          for: 15m
+          annotations:
+            summary: >-
+              Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }}
+              has restarted 20 or more times in 24h and is still restarting.
+          labels:
+            severity: warning
+        # The metric is exported by the external-secrets pod, so `namespace` is
+        # `security` and the ExternalSecret's own namespace is `exported_namespace`.
+        - alert: ExternalSecretNotReady
+          expr: externalsecret_status_condition{condition="Ready",status="False"} == 1
+          for: 30m
+          annotations:
+            summary: >-
+              ExternalSecret {{ $labels.exported_namespace }}/{{ $labels.name }} has not been
+              Ready for 30m, so its Secret is stale or missing.
+          labels:
+            severity: warning

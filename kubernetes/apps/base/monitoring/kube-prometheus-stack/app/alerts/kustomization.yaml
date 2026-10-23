@@ -9,3 +9,4 @@ resources:
   - ./node-memory-pressure.yaml
   - ./node-network.yaml
   - ./oomkilled.yaml
+  - ./silent-failure-gaps.yaml
