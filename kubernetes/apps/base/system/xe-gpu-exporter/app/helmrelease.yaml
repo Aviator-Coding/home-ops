@@ -1,0 +1,103 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+#
+# xe publishes no VRAM counters in sysfs, so this reads DRM fdinfo of every process holding a DRM node.
+# Needs hostPID plus CAP_SYS_PTRACE to read other pods' fd links. Read-only, no host mounts.
+# See skill intel-gpu references/telemetry.md. Contract: scripts/ci/xe-gpu-exporter-test.py.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: xe-gpu-exporter
+spec:
+  interval: 30m
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+    namespace: flux-system
+  maxHistory: 2
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  values:
+    defaultPodOptions:
+      hostPID: true
+      automountServiceAccountToken: false
+      # Toleration is hygiene. PreferNoSchedule does not filter, and talos-3 is the only node with the B70.
+      # See skill node-scheduling.
+      tolerations:
+        - key: home-operations.com/dedicated
+          operator: Exists
+          effect: PreferNoSchedule
+
+    controllers:
+      xe-gpu-exporter:
+        type: daemonset
+        strategy: RollingUpdate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/library/python
+              tag: 3.14-alpine@sha256:601e99e090cb08c2784a42395487709500bc39930307fe72f3f11a8f3c430762
+            command: ["python3", "-u", "/scripts/exporter.py"]
+            env:
+              PORT: "9105"
+              # Capacity per PCI address in MiB. xe exposes no total, so this is the Level Zero figure
+              # for the B70 (32656 MiB), not the BAR size, which is 256 MiB without Resizable BAR.
+              # Add a second card here when it exists. Skill intel-gpu references/second-card.md.
+              XE_VRAM_TOTALS_MIB: "0000:03:00.0=32656"
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: { path: /healthz, port: 9105 }
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+              readiness: *probe
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+            securityContext:
+              # Root + SYS_PTRACE is what lets readlink on /proc/<pid>/fd cross pod boundaries.
+              runAsUser: 0
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+                add: ["SYS_PTRACE"]
+
+    service:
+      app:
+        controller: xe-gpu-exporter
+        ports:
+          metrics:
+            port: 9105
+
+    serviceMonitor:
+      app:
+        serviceName: xe-gpu-exporter
+        endpoints:
+          - port: metrics
+            scheme: http
+            path: /metrics
+            interval: 30s
+            scrapeTimeout: 10s
+
+    persistence:
+      scripts:
+        type: configMap
+        name: xe-gpu-exporter-scripts
+        globalMounts:
+          - path: /scripts
+            readOnly: true

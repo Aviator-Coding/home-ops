@@ -3,9 +3,10 @@
 
 Intent: ship a node-level GPU dashboard for the Arc B70 (talos-3,
 devic.es/b70) and fleet iGPUs (gpu.intel.com/xe) from metrics that already
-exist in Prometheus - no new exporter workload - following the
-agentgateway-dashboards house pattern and avoiding Flux postBuild.substitute
-collision risk.
+exist in Prometheus - including the VRAM series from system/xe-gpu-exporter -
+following the agentgateway-dashboards house pattern and avoiding Flux
+postBuild.substitute collision risk. The dashboard app itself stays a
+ConfigMap; the exporter is a separate workload.
 
 This test does not grep source as a proxy for behavior. It:
   1. Renders kubernetes/apps/base/ai/gpu-node-dashboard/app via kubectl
@@ -13,8 +14,8 @@ This test does not grep source as a proxy for behavior. It:
   2. Renders kubernetes/apps/main/ai and inspects the gpu-node-dashboard
      Flux Kustomization contract.
   3. Parses the dashboard JSON out of the generated ConfigMap and asserts
-     panel semantics (required hwmon + device-plugin PromQL, no invented
-     exporter metrics, no per-engine/VRAM-util/clock panels).
+     panel semantics (required hwmon, device-plugin and xe-gpu-exporter VRAM
+     PromQL, no invented exporter metrics, no per-engine/clock panels).
   4. Asserts the delivery surface: grafana_dashboard label, AI/ML folder,
      no postBuild.substituteFrom, and only a ConfigMap (no new workload).
 """
@@ -53,6 +54,9 @@ REQUIRED_EXPR_FRAGMENTS = (
     "kube_pod_container_resource_requests",
     "devic_es_b70",
     "gpu_intel_com_xe",
+    "xe_gpu_vram_used_bytes",
+    "xe_gpu_vram_total_bytes",
+    "xe_gpu_process_vram_bytes",
     EXPECTED_INSTANCE,
     EXPECTED_CHIP,
 )
@@ -76,8 +80,6 @@ FORBIDDEN_EXPR_FRAGMENTS = (
 FORBIDDEN_TITLE_FRAGMENTS = (
     "engine busy",
     "per-engine",
-    "vram util",
-    "vram usage",
     "clock",
     "sm %",
     "graphics engine",
