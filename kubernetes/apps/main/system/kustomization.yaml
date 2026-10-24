@@ -17,3 +17,4 @@ resources:
   - ./openebs-hostpath.yaml
   - ./pvc-mover-readable-check.yaml
   - ./pvc-writable-check.yaml
+  - ./xe-gpu-exporter.yaml
