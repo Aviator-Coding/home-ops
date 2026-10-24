@@ -15,4 +15,5 @@ resources:
   - ./echo.yaml
   - ./envoy-gateway.yaml
   - ./flaresolverr.yaml
+  - ./tailscale-operator.yaml
   - ./unifi-dns.yaml

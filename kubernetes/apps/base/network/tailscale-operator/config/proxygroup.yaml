@@ -1,0 +1,11 @@
+---
+# Shared proxy pods for Ingress and Tailscale Services. Opt in per object with
+# the annotation tailscale.com/proxy-group: ts-ingress.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: ts-ingress
+spec:
+  type: ingress
+  replicas: 2
+  tags: ["tag:k8s"]
