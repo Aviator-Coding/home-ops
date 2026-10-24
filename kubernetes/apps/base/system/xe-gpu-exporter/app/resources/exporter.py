@@ -17,6 +17,7 @@ LOG = logging.getLogger("xe-gpu-exporter")
 
 DEFAULT_PORT = 9105
 DEFAULT_PROC_ROOT = "/proc"
+PCI_ROOT = "/sys/bus/pci/devices"
 SIZE_UNITS = {"": 1, "B": 1, "KiB": 1024, "MiB": 1024**2, "GiB": 1024**3}
 SIZE_PATTERN = re.compile(r"^\s*(\d+)\s*([KMG]iB|B)?\s*$")
 # cgroupfs: .../pod<uid>/...   systemd: ...-pod<uid_with_underscores>.slice
@@ -50,6 +51,21 @@ def parse_vram_totals(spec: str) -> dict[str, int]:
         if pdev and mib.strip().isdigit():
             totals[pdev.strip()] = int(mib) * 1024**2
     return totals
+
+
+def installed_totals(totals: dict[str, int], pci_root: str = PCI_ROOT) -> dict[str, int]:
+    """Configured capacities for cards on this node. Every DaemonSet pod gets the same config."""
+    return {pdev: total for pdev, total in totals.items() if os.path.exists(os.path.join(pci_root, pdev))}
+
+
+def with_idle_cards(cards: dict[str, dict[str, Any]], installed: dict[str, int]) -> dict[str, dict[str, Any]]:
+    """An installed card with no clients is 0 bytes used, not a missing series."""
+    idle = {
+        pdev: {"vram_used": 0, "gtt_used": 0, "clients": 0, "processes": []}
+        for pdev in installed
+        if pdev not in cards
+    }
+    return {**cards, **idle}
 
 
 def read_text(path: str) -> str:
@@ -156,11 +172,13 @@ def make_handler(proc_root: str, totals: dict[str, int]) -> type[BaseHTTPRequest
             if self.path == "/healthz":
                 body, status = b"ok\n", 200
             elif self.path == "/metrics":
+                installed = installed_totals(totals)
                 try:
-                    body, status = render(scan(proc_root), totals, up=True).encode(), 200
+                    cards = with_idle_cards(scan(proc_root), installed)
+                    body, status = render(cards, installed, up=True).encode(), 200
                 except OSError:
                     LOG.exception("fdinfo scan failed")
-                    body, status = render({}, totals, up=False).encode(), 200
+                    body, status = render({}, installed, up=False).encode(), 200
             else:
                 body, status = b"not found\n", 404
             self.send_response(status)
