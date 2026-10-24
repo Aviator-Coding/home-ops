@@ -171,6 +171,24 @@ def check_render(exporter, scan: dict) -> None:
     check("down state rendered", "xe_gpu_exporter_up 0" in exporter.render({}, {}, up=False))
 
 
+def check_node_scoping(exporter) -> None:
+    """Every DaemonSet pod gets the same totals map; only the node with the card may report it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        pci = pathlib.Path(tmp)
+        (pci / B70).mkdir()
+        configured = {B70: 100, "0000:04:00.0": 200}
+        installed = exporter.installed_totals(configured, str(pci))
+        check("only installed cards keep a total", installed == {B70: 100}, str(installed))
+        check("node without the card reports no total", exporter.installed_totals(configured, str(pci / "none")) == {})
+
+    idle = exporter.with_idle_cards({}, {B70: 100})
+    check("idle card reports zero used", idle.get(B70, {}).get("vram_used") == 0 and idle[B70]["clients"] == 0, str(idle))
+    busy = {B70: {"vram_used": 5, "gtt_used": 0, "clients": 1, "processes": []}}
+    check("busy card is not overwritten", exporter.with_idle_cards(busy, {B70: 100}) == busy)
+    text = exporter.render(exporter.with_idle_cards({}, {}), {}, up=True)
+    check("no card, no total or used series", "xe_gpu_vram_total_bytes{" not in text and "xe_gpu_vram_used_bytes{" not in text, text)
+
+
 def main() -> int:
     if not EXPORTER.exists():
         print(f"FAIL: {EXPORTER.relative_to(ROOT)} does not exist")
@@ -179,6 +197,7 @@ def main() -> int:
     check_parsing(exporter)
     scan = check_scan(exporter)
     check_render(exporter, scan)
+    check_node_scoping(exporter)
 
     if failures:
         print("FAIL: system/xe-gpu-exporter contract violated:")
