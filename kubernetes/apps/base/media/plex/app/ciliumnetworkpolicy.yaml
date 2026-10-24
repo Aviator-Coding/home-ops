@@ -19,6 +19,16 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: network
             gateway.envoyproxy.io/owning-gateway-name: envoy-external
+    # Tailscale ProxyGroup pods (tailnet Ingress plex-tailscale), TCP 32400 only.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            tailscale.com/parent-resource-type: proxygroup
+            tailscale.com/parent-resource: ts-ingress
+      toPorts:
+        - ports:
+            - port: "32400"
+              protocol: TCP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: media
