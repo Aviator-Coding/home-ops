@@ -15,6 +15,11 @@ spec:
     model: openai/glm-5.1
     apiBase: https://opencode.ai/zen/go/v1
     apiKey: os.environ/OPENCODE_GO_API_KEY
+    additional:
+      # Go wants a client-named user agent, not the generic OpenAI SDK one. The per-conversation
+      # x-opencode-session is forwarded from the caller (litellmproxy.yaml model_group_settings).
+      extra_headers:
+        User-Agent: home-ops-litellm/1.0
   info:
     mode: chat
     supportsFunctionCalling: true

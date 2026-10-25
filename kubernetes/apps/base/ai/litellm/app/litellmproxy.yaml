@@ -117,6 +117,15 @@ spec:
       host: litellm-dragonfly.ai.svc.cluster.local
       port: 6379
       ttl: 300
+    # OpenCode Go rejects any request without x-opencode-session (HTTP 400 MissingSessionID) and
+    # wants one stable value per conversation. Forward the caller's x-* headers for these model
+    # groups ONLY (never general_settings: that would forward to every provider). The caller (Hermes,
+    # providers.litellm-go.session_affinity_header) supplies the value. references/model-catalog.md.
+    model_group_settings:
+      forward_client_headers_to_llm_api:
+        - go-deepseek-v4-flash
+        - go-glm-5.1
+        - go-kimi-k2.6
     # The ONLY way a model reaches the AI Hub (UI "make public" 500s here). A new
     # model is unpublished until added; discovery only, grants nothing.
     # references/model-catalog.md.
