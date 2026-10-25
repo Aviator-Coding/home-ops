@@ -21,6 +21,11 @@ required_environment_variables:
       prompt: "Model alias as exposed by SUMMARY_LLM_URL"
       help: "Example: kimi-k2.6. Must match an alias the endpoint advertises via /v1/models."
       required_for: "Same as SUMMARY_LLM_URL — without it, digest generation is skipped."
+    - name: SUMMARY_LLM_API_KEY
+      optional: true
+      prompt: "Bearer key for SUMMARY_LLM_URL"
+      help: "LiteLLM virtual key. Optional: a keyless endpoint needs none. Declared so it passes through to the script."
+      required_for: "Authenticating the per-repo digest calls (the script sends it as a Bearer token)."
 metadata:
     hermes:
         tags: [homelab, gitops, github, kubernetes, discord, digest]
