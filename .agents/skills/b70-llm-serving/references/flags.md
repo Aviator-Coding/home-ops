@@ -16,7 +16,7 @@ with no quant tag (default file is IQ3_XXS; mmproj auto-loads). Alias stays
 |---|---|---|
 | `--ctx-size` | `262144` (native window, no yarn) | KV was measured 2720 MiB at this window with q8_0, not the older ~5.2 GiB estimate |
 | `--flash-attn` | `on` | Serving shape changes; re-measure |
-| `--cache-type-k/v` | `q8_0` / `q8_0` | f16 KV is the path that does not need the oneDNN pin; changing this re-opens [memory.md](memory.md) |
+| `--cache-type-k/v` | `f16` / `f16` | q8_0 loses 4% decode at 2K and 16% at 64K against f16 (bench in `scripts/bench/results/`). The oneDNN pin stays until its own 48 h check; changing this re-opens [memory.md](memory.md). Keep the servicemonitor `kv` label equal to it |
 | `--cache-ram` | `4096` | Silent 8192 MiB host cache |
 | `GLIBC_TUNABLES` | `glibc.malloc.mmap_threshold=131072` | Logical cache bound does not return RSS. Do not remove when retuning `--cache-ram` |
 | `GGML_SYCL_FA_ONEDNN` | `"0"` | Unbounded oneDNN SDPA partition cache. Must be numeric |

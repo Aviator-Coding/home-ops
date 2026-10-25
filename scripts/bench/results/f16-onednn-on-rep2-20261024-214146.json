@@ -1,0 +1,56 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P5_depth_sweep": [
+      {
+        "depth": 2048,
+        "n": 3,
+        "prefill_median": 1986.023482037249,
+        "decode_median": 57.83587272282636
+      },
+      {
+        "depth": 8192,
+        "n": 3,
+        "prefill_median": 1883.8812243682469,
+        "decode_median": 58.77229760810632
+      },
+      {
+        "depth": 16384,
+        "n": 3,
+        "prefill_median": 1854.6610273351434,
+        "decode_median": 49.140828715578685
+      },
+      {
+        "depth": 32768,
+        "n": 3,
+        "prefill_median": 1720.6770408688672,
+        "decode_median": 52.36370593202449
+      },
+      {
+        "depth": 65536,
+        "n": 3,
+        "prefill_median": 1631.6122018283552,
+        "decode_median": 44.97906171552266
+      }
+    ]
+  },
+  "ambient": {
+    "P5-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P5-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    }
+  },
+  "label": "f16-onednn-on-rep2",
+  "date": "2026-10-24T21:41:46"
+}

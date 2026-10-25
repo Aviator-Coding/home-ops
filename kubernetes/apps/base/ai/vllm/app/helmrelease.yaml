@@ -21,7 +21,7 @@ spec:
     keepHistory: false
   values:
     # Placement is the devic.es/b70 request, not hostname affinity. KV at ctx
-    # 262144 q8_0 is 2720 MiB (10 of 40 layers are full attention), not ~5.2 GiB.
+    # 262144 is 2720 MiB at q8_0 (10 of 40 layers are full attention), about twice that at f16.
     # See skill b70-llm-serving references/flags.md.
     controllers:
       # Chat stays llama.cpp SYCL. This GPTQ cannot finish vLLM warmup on one B70
@@ -64,10 +64,13 @@ spec:
               - --metrics
               - --flash-attn
               - "on"
+              # f16, not q8_0: decode is +12-16% at 16K+ context and VRAM stays ~9 GiB free.
+              # The oneDNN pin below stays. The servicemonitor kv label must match.
+              # See skill b70-llm-serving references/flags.md.
               - --cache-type-k
-              - q8_0
+              - f16
               - --cache-type-v
-              - q8_0
+              - f16
               - --cache-reuse
               # No-op while mmproj is loaded. Dropping mmproj removes vision.
               # See skill b70-llm-serving references/flags.md.
