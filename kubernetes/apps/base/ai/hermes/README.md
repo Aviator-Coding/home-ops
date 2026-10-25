@@ -77,7 +77,8 @@ DM the bot from an allowed user. `TELEGRAM_BOT_TOKEN` and
 | `HERMES_DASHBOARD_SECRET` | `openssl rand -hex 32` |
 | `GITHUB_LLM_WIKI_TOKEN` | Fine-grained PAT, one repo, Contents read and write. Not a classic PAT |
 | `API_SERVER_KEY` | `openssl rand -hex 32` for the `:8642` API |
-| `HOMELAB_GH_TOKEN` | Classic PAT, `public_repo` only. Commit-watcher. Distinct from the wiki token. OpenCode reuses this field |
+| `HOMELAB_GH_READ_TOKEN` | Fine-grained PAT, **read-only** (issue and file writes answer 403). Hermes' `HOMELAB_GH_TOKEN` env (commit-watcher) and the GitHub MCP render from it. Distinct from the wiki token |
+| `HOMELAB_GH_TOKEN` | Fine-grained PAT that **can write** to home-ops. OpenCode's `GITHUB_TOKEN` only. Hermes must never render from it (`hermes-secret-scope-test.py`) |
 | `DISCORD_WEBHOOK` | Channel webhook for the commit digest |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | BotFather token and numeric user ids |
 

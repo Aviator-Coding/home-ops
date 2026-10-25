@@ -13,6 +13,10 @@ spec:
       value: https://api.github.com
     - name: LOG_LEVEL
       value: info
+    # Only the read tools are registered. The token is read-only too (HOMELAB_GH_READ_TOKEN); this is the
+    # second layer, so a future token swap cannot silently turn Hermes' MCP into a write path.
+    - name: GITHUB_READ_ONLY
+      value: "1"
   secrets:
     - name: toolhive-github
       key: token
