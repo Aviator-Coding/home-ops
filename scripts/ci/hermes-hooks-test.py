@@ -172,6 +172,12 @@ def test_wiring() -> None:
     require("hermes-hooks" in gens, "kustomization.yaml must generate ConfigMap hermes-hooks")
     require(f"{SCRIPT.name}=./hooks/{SCRIPT.name}" in gens["hermes-hooks"]["files"],
             f"hermes-hooks must ship hooks/{SCRIPT.name}")
+    # The script carries `$HOME` path strings. Flux's post-build envsubst would rewrite them (to empty) in
+    # any ConfigMap that is not annotated; the generator-wide annotation is what keeps them literal.
+    annotations = (kustomization.get("generatorOptions") or {}).get("annotations") or {}
+    require(annotations.get("kustomize.toolkit.fluxcd.io/substitute") == "disabled",
+            "generatorOptions must keep kustomize.toolkit.fluxcd.io/substitute: disabled so Flux envsubst "
+            "leaves `$HOME` in the hook script (and ${VAR} in config.yaml) untouched")
 
 
 def main() -> int:
