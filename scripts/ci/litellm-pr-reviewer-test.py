@@ -643,7 +643,7 @@ def test_model_cr() -> dict[str, Any]:
     )
     record(
         "model_backend_is_local_qwen_openai_compatible",
-        params.get("model") == "openai/qwen3.6-35b-a3b",
+        params.get("model") == "openai/${CHAT_MODEL_ID}",
         f"got={params.get('model')!r}",
     )
     record(

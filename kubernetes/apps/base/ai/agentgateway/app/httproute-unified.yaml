@@ -62,9 +62,10 @@ spec:
           group: agentgateway.dev
           kind: AgentgatewayBackend
     # ================= chat completions, most-specific first =================
-    # The ONE local model (exact id) -> local B70 llama.cpp with cloud
-    # failover to kimi-k2.6 on OpenCode Go (see backends/vllm.yaml). Any
-    # client asking for the local model transparently gains that failover.
+    # The local chat ROLE alias (exact id), not a model name: the loaded model's real name is
+    # ConfigMap chat-model and is applied at the backend (backends/vllm.yaml). -> local B70
+    # llama.cpp with cloud failover to kimi-k2.6 on OpenCode Go. Any client asking for the
+    # local model transparently gains that failover.
     - matches:
         - path:
             type: PathPrefix
@@ -72,15 +73,15 @@ spec:
           headers:
             - type: Exact
               name: x-model
-              value: qwen3.6-35b-a3b
+              value: chat-local
       backendRefs:
         - name: llm-chat-failover
           group: agentgateway.dev
           kind: AgentgatewayBackend
     # OpenCode Go bare ids (flat-rate $10/mo sub - authoritative list =
     # rules/cost.yaml). Includes bare qwen3.x-max/plus, which must NOT hit the
-    # local backend; the local id has "-35b" after the version so the regexes
-    # are disjoint. deepseek-v4-* (bare, Go) is disjoint from both
+    # local backend; the local role id chat-local starts with neither prefix, and the
+    # exact rule above wins anyway. deepseek-v4-* (bare, Go) is disjoint from both
     # deepseek-(chat|reasoner) (native) and deepseek/... (OpenRouter slug).
     - matches:
         - path:

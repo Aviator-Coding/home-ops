@@ -48,7 +48,7 @@ EOF
 
 ```bash
 kubectl -n ai patch litellmproxy litellm --type=merge -p \
-  '{"spec":{"routerSettings":{"routing_strategy":"simple-shuffle","fallbacks":[{"fallback-probe":["qwen3.6-35b-a3b"]}]}}}'
+  '{"spec":{"routerSettings":{"routing_strategy":"simple-shuffle","fallbacks":[{"fallback-probe":["chat-local"]}]}}}'
 kubectl -n ai rollout status deploy/litellm --timeout=180s
 ```
 
@@ -66,12 +66,14 @@ for i in $(seq 1 8); do
 done
 ```
 
-Expect `served by: qwen3.6-35b-a3b`, HTTP 200, every time.
+Expect HTTP 200 and a local answer every time (`served by:` shows the loaded
+model's real name or `chat-local`, depending on what the backend echoes; either
+proves the local target answered).
 
 **3b. The `auto` leg (optional).** Clone `auto` as `auto-probe` with
 `complexity_router_default_model`, all four `tiers`, the classifier model and
 `default_model` all set to `fallback-probe`; patch
-`routerSettings.fallbacks` to `[{"auto-probe":["qwen3.6-35b-a3b"]}]`; add
+`routerSettings.fallbacks` to `[{"auto-probe":["chat-local"]}]`; add
 `auto-probe` to the probe key's `models`; call `model: auto-probe`. A local
 answer proves auto-router failures reach the fallback layer. An HTTP 500
 would mean the `auto:` chain entries are decorative and should be removed.
@@ -82,7 +84,7 @@ Send a prompt comfortably over 262,144 tokens to the real local alias with the
 master key; it is refused in about a second:
 
 ```bash
-python3 -c 'import json;json.dump({"model":"qwen3.6-35b-a3b","messages":[{"role":"user","content":"alpha "*400000}],"max_tokens":1},open("/tmp/big.json","w"))'
+python3 -c 'import json;json.dump({"model":"chat-local","messages":[{"role":"user","content":"alpha "*400000}],"max_tokens":1},open("/tmp/big.json","w"))'
 MK=$(kubectl -n ai get secret litellm-secret -o jsonpath='{.data.LITELLM_MASTER_KEY}' | base64 -d)
 curl -s -m 900 localhost:4000/v1/chat/completions -H "Authorization: Bearer $MK" \
   -H 'Content-Type: application/json' --data-binary @/tmp/big.json | head -c 400

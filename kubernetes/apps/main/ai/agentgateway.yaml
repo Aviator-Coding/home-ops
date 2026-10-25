@@ -48,6 +48,9 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+      # CHAT_MODEL_ID: the loaded model's name, defined once in chat-model.yaml.
+      - name: chat-model
+        kind: ConfigMap
     substitute:
       APP: *app
 ---

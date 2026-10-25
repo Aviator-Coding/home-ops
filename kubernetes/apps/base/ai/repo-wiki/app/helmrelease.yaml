@@ -100,7 +100,7 @@ spec:
               # (kubernetes/apps/base/ai/litellm/app/virtualkeys/repo-wiki.yaml):
               # the proxy checks the model the caller ASKS for, so pointing this
               # at any name that key does not list fails every generation call.
-              # Deliberately not `qwen3.6-35b-a3b` - same B70, same weights, but
+              # Deliberately not `demo-priced-local` - same B70, same weights, but
               # that alias carries synthetic per-token prices that exist purely
               # so a $0.05 demo budget can be exhausted by a smoke test, and
               # billing this cron against them made a free batch job look like

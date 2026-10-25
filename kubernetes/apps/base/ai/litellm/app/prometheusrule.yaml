@@ -165,9 +165,9 @@ spec:
               slow rather than broken.
             summary: LiteLLM auto-router classifier is failing open to the local tier.
           expr: |-
-            sum(rate(litellm_deployment_failure_responses_total{requested_model="qwen3.6-35b-a3b-classifier"}[15m]))
+            sum(rate(litellm_deployment_failure_responses_total{requested_model="chat-local-classifier"}[15m]))
               /
-            clamp_min(sum(rate(litellm_deployment_total_requests_total{requested_model="qwen3.6-35b-a3b-classifier"}[15m])), 0.001)
+            clamp_min(sum(rate(litellm_deployment_total_requests_total{requested_model="chat-local-classifier"}[15m])), 0.001)
               > 0.2
           for: 15m
           labels:
@@ -182,9 +182,9 @@ spec:
               B70 is p50 3.0s / p95 4.6s.
             summary: LiteLLM auto-router classifier is slow enough to threaten the timeout.
           expr: |-
-            sum(rate(litellm_llm_api_latency_metric_sum{requested_model="qwen3.6-35b-a3b-classifier"}[30m]))
+            sum(rate(litellm_llm_api_latency_metric_sum{requested_model="chat-local-classifier"}[30m]))
               /
-            clamp_min(sum(rate(litellm_llm_api_latency_metric_count{requested_model="qwen3.6-35b-a3b-classifier"}[30m])), 0.001)
+            clamp_min(sum(rate(litellm_llm_api_latency_metric_count{requested_model="chat-local-classifier"}[30m])), 0.001)
               > 6
           for: 30m
           labels:

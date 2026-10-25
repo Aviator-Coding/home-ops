@@ -47,7 +47,7 @@ spec:
               # ignored by the keyless LAN gateway, but the OpenAI SDK still requires
               # a non-empty value to be present.
               CUSTOM_OPENAI_BASE_URL: "http://internal-noauth.ai.svc.cluster.local/v1"
-              OPENAI_MODEL: "qwen3.6-35b-a3b"
+              OPENAI_MODEL: "chat-local"
             envFrom: *envFrom
             ports:
               - name: http

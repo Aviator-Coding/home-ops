@@ -4,7 +4,7 @@ One additive alias. A request to `auto` is classified by a local LLM into one
 of four tiers and dispatched to that tier's backend. Nothing is forced
 through it: direct model names keep working, and consumers opt in by asking
 for `auto`. Config: `models/auto.yaml` (the whole router block rides
-`spec.params.additional`) and `models/qwen3.6-35b-a3b-classifier.yaml`.
+`spec.params.additional`) and `models/chat-local-classifier.yaml`.
 
 ## Tiers
 
@@ -17,7 +17,7 @@ for `auto`. Config: `models/auto.yaml` (the whole router block rides
 
 - The local/cloud line between MEDIUM and COMPLEX is the whole cost policy.
   Move it by re-pointing a tier, not by editing the rubric.
-- Tiers target `chat-local` (zero-priced), never `qwen3.6-35b-a3b`, whose
+- Tiers target `chat-local` (zero-priced), never `demo-priced-local`, whose
   synthetic demo prices would make free compute show up as real-looking spend.
 - Cloud tiers target the **`-metered`** CRs. The natural `claude-*-5` names are
   credential-less subscription pass-through CRs and would 401.
@@ -36,7 +36,7 @@ litellm_params:
   complexity_router_config:
     classifier_type: llm
     classifier_llm_config:
-      model: qwen3.6-35b-a3b-classifier          # LOCAL, never a cloud model
+      model: chat-local-classifier          # LOCAL, never a cloud model
       timeout_ms: 8000
       classification_rubric: agentic
     classifier_fallback: default_model
@@ -95,7 +95,7 @@ contention sets the spread, and grammar-constrained JSON adds ~1s.
 - `LiteLLMRouterClassifierFailingOpen` (>20% over 15m) can fire once after a
   `litellm` or `vllm` restart on a quiet cluster, because one cold miss out of
   fewer than five calls clears 20%. Check
-  `litellm_deployment_total_requests_total{requested_model="qwen3.6-35b-a3b-classifier"}`
+  `litellm_deployment_total_requests_total{requested_model="chat-local-classifier"}`
   before treating it as real. No minimum-count guard on purpose: on a quiet
   router a classifier failing every call must still alert.
 - `auto` is the wrong alias for latency-sensitive, obviously simple traffic;
@@ -108,7 +108,7 @@ the local tiers and the classifier at $0, an `auto` key's `maxBudget`
 measures only real USD on COMPLEX/REASONING, so a budget alert on `opencode`
 or `router-demo` always means real money. `rpmLimit`/`tpmLimit` are the only
 bound on local routed volume. Prove the 429 path with a COMPLEX request, or
-with `demo` on `qwen3.6-35b-a3b`; local routed traffic never moves a budget.
+with `demo` on `demo-priced-local`; local routed traffic never moves a budget.
 
 The allow-list is checked against what the caller asked for, so a key holding
 only `auto` reaches every tier but cannot call a tier backend directly.
@@ -128,11 +128,11 @@ sum by (litellm_model_name) (rate(litellm_deployment_success_responses_total{req
 sum(rate(litellm_deployment_success_responses_total{requested_model="auto",litellm_model_name=~"claude-.*"}[1h]))
   / sum(rate(litellm_deployment_success_responses_total{requested_model="auto"}[1h]))
 # mean classifier latency, seconds
-sum(rate(litellm_llm_api_latency_metric_sum{requested_model="qwen3.6-35b-a3b-classifier"}[5m]))
-  / sum(rate(litellm_llm_api_latency_metric_count{requested_model="qwen3.6-35b-a3b-classifier"}[5m]))
+sum(rate(litellm_llm_api_latency_metric_sum{requested_model="chat-local-classifier"}[5m]))
+  / sum(rate(litellm_llm_api_latency_metric_count{requested_model="chat-local-classifier"}[5m]))
 # fail-open rate
-sum(rate(litellm_deployment_failure_responses_total{requested_model="qwen3.6-35b-a3b-classifier"}[15m]))
-  / sum(rate(litellm_deployment_total_requests_total{requested_model="qwen3.6-35b-a3b-classifier"}[15m]))
+sum(rate(litellm_deployment_failure_responses_total{requested_model="chat-local-classifier"}[15m]))
+  / sum(rate(litellm_deployment_total_requests_total{requested_model="chat-local-classifier"}[15m]))
 ```
 
 Alerts: `LiteLLMRouterClassifierFailingOpen`, `LiteLLMRouterClassifierSlow`

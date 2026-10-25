@@ -7,8 +7,35 @@ fragmenting when one decode token shares a batch). `-ub 4096` was
 rejected: better idle prefill, worse under concurrency.
 
 Chat model: `IsValorum/Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated-GGUF`
-with no quant tag (default file is IQ3_XXS; mmproj auto-loads). Alias stays
-`qwen3.6-35b-a3b`. Embedding model: `Qwen/Qwen3-Embedding-0.6B-GGUF:f16`.
+with no quant tag (default file is IQ3_XXS; mmproj auto-loads). Its served name
+is `CHAT_MODEL_ID` (below), not a hardcoded alias. Embedding model:
+`Qwen/Qwen3-Embedding-0.6B-GGUF:f16`.
+
+## Model naming: one real name, stable roles
+
+- The loaded model's real name is written once: `CHAT_MODEL_ID` in
+  `kubernetes/apps/main/ai/chat-model.yaml`. Flux substitutes it (the `vllm`,
+  `litellm` and `agentgateway` Kustomizations list the ConfigMap in
+  `substituteFrom`) into the llama-server `--alias`, the `params.model` of the
+  local LiteLLM CRs, the agentgateway failover provider, and the `model` label
+  on the chat metrics.
+- Consumers use roles, never the model name: `chat-local` (agentgateway, so
+  Hermes and Linkwarden; LiteLLM keys and repo-wiki), `chat-ha`, `auto`.
+  `GET /v1/models` on the gateway lists `chat-local` with the real name as
+  `root`.
+- The value is one token with no `/` (a slash matches the OpenRouter route).
+- Gate: `scripts/ci/chat-model-id-test.py` (no stale literal, wiring intact);
+  `litellm-fallback-chain-test.py` renders the CRs the way Flux does.
+
+### Swapping the chat model
+
+1. Change the `-hf` repo in `kubernetes/apps/base/ai/vllm/app/helmrelease.yaml`.
+2. Change `CHAT_MODEL_ID` in `chat-model.yaml` to the new repo's model name.
+3. Re-measure (`scripts/bench/b70-serving-harness.py --label <name>`), check
+   VRAM headroom, and update the `ctx-size`/KV rows below if they moved.
+4. Nothing else is renamed: Hermes, Linkwarden, LiteLLM keys and the dashboards
+   follow. The new `model` label starts a fresh series, which is intended.
+5. The chat pod restarts on merge (Recreate strategy).
 
 ## Chat (`vllm` controller)
 

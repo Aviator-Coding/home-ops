@@ -48,7 +48,7 @@ APP_DIR = REPO / "kubernetes" / "apps" / "base" / "ai" / "litellm" / "app"
 MODELS_DIR = APP_DIR / "models"
 PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 
-UNPUBLISHED = frozenset({"qwen3.6-35b-a3b-classifier", "pr-review-local", "qwen3.6-35b-a3b"})
+UNPUBLISHED = frozenset({"chat-local-classifier", "pr-review-local", "demo-priced-local"})
 
 # The operator's typed LiteLLMModel.spec.info fields and the model_info keys
 # they render to; `extra` is merged under them (typed fields win on conflict).
@@ -177,7 +177,7 @@ def main() -> int:
     )
     record(
         "mutation_plumbing_published_is_caught",
-        bool(membership_findings([*public, "qwen3.6-35b-a3b-classifier"], registered)),
+        bool(membership_findings([*public, "chat-local-classifier"], registered)),
     )
     record(
         "mutation_unpublished_new_model_is_caught",

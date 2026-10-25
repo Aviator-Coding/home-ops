@@ -111,7 +111,7 @@ Spend accrues from the model's price (built-in cost map for cloud models,
 `info.extra` for declared ones). On a zero-priced model spend stays $0 and a
 `maxBudget` can never trip. Consequences:
 
-- `demo` is the budget-path fixture: `qwen3.6-35b-a3b` carries synthetic
+- `demo` is the budget-path fixture: `demo-priced-local` carries synthetic
   prices (`5e-05`/`1e-04` per token) so the `$0.05` cap is exhaustible by one
   smoke test. `demo` must remain that alias's only consumer.
 - On `auto` keys (`router-demo`, `opencode`) the budget measures only real USD
@@ -149,7 +149,7 @@ reason:
 
 | Key | Models | Consumer / note |
 |---|---|---|
-| `demo` | `qwen3.6-35b-a3b` | budget-path smoke test, rpm 2 / tpm 2000 |
+| `demo` | `demo-priced-local` | budget-path smoke test, rpm 2 / tpm 2000 |
 | `ha-demo` | `chat-ha` | cloud-entitled failover demo, real-USD cap |
 | `router-demo` | `auto` | routed-consumer smoke test |
 | `opencode` | `auto` | ai/opencode workspace |
@@ -195,7 +195,7 @@ kubectl -n ai port-forward svc/litellm 4000:4000 &
 # allowed model -> completion; another model -> 403; repeat until $0.05 -> 429
 curl -s localhost:4000/v1/chat/completions -H "Authorization: Bearer $DEMO_KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3.6-35b-a3b","messages":[{"role":"user","content":"say ok"}]}'
+  -d '{"model":"demo-priced-local","messages":[{"role":"user","content":"say ok"}]}'
 ```
 
 `litellm_remaining_api_key_budget_metric` shows the balance and

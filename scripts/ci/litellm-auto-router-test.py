@@ -34,9 +34,9 @@ MODELS_DIR = APP_DIR / "models"
 VIRTUALKEYS_DIR = APP_DIR / "virtualkeys"
 PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 BASELINE_QWEN = {
-    "model_name": "qwen3.6-35b-a3b",
+    "model_name": "demo-priced-local",
     "litellm_params": {
-        "model": "openai/qwen3.6-35b-a3b",
+        "model": "openai/${CHAT_MODEL_ID}",
         "api_base": "http://vllm-app.ai.svc.cluster.local:8000/v1",
         "api_key": "not-needed",
     },
@@ -463,8 +463,8 @@ def test_config_semantics(cfg: dict) -> dict:
     record(
         "model_list_contains_required_aliases",
         set(names) >= {
-            "qwen3.6-35b-a3b",
-            "qwen3.6-35b-a3b-classifier",
+            "demo-priced-local",
+            "chat-local-classifier",
             "chat-local",
             "claude-sonnet-5-metered",
             "claude-opus-5-metered",
@@ -475,7 +475,7 @@ def test_config_semantics(cfg: dict) -> dict:
     )
 
     # Additive: direct qwen entry matches pre-D3 definition (byte-level fields)
-    qwen = by_name(model_list, "qwen3.6-35b-a3b")
+    qwen = by_name(model_list, "demo-priced-local")
     qwen_cmp = {
         "model_name": qwen["model_name"],
         "litellm_params": {
@@ -491,7 +491,7 @@ def test_config_semantics(cfg: dict) -> dict:
         f"got={qwen_cmp}",
     )
 
-    classifier = by_name(model_list, "qwen3.6-35b-a3b-classifier")
+    classifier = by_name(model_list, "chat-local-classifier")
     lp = classifier["litellm_params"]
     record(
         "classifier_points_at_same_backend_as_qwen",
@@ -584,7 +584,7 @@ def test_config_semantics(cfg: dict) -> dict:
     assert llm_cfg is not None
     record(
         "classifier_uses_local_classifier_deployment",
-        llm_cfg.model == "qwen3.6-35b-a3b-classifier",
+        llm_cfg.model == "chat-local-classifier",
         f"model={llm_cfg.model!r}",
     )
     record(
@@ -624,7 +624,7 @@ def test_config_semantics(cfg: dict) -> dict:
 def test_local_pricing_split(cfg: dict) -> None:
     """The pricing split that keeps recorded spend honest.
 
-    `qwen3.6-35b-a3b` carries deliberately synthetic per-token prices so the
+    `demo-priced-local` carries deliberately synthetic per-token prices so the
     `demo` key's $0.05 cap can be exhausted by one smoke test. That is a
     captain-approved test design and it stays. What must NOT happen is real
     production traffic running on a priced local alias: before 2026-08-27 the
@@ -665,7 +665,7 @@ def test_local_pricing_split(cfg: dict) -> None:
     }
     record(
         "only_the_demo_alias_carries_synthetic_prices",
-        priced - invoice_priced == {"qwen3.6-35b-a3b"},
+        priced - invoice_priced == {"demo-priced-local"},
         f"priced={sorted(priced)}",
     )
     # Non-vacuous by construction: invoice_priced <= priced fails the moment a
@@ -689,7 +689,7 @@ def test_local_pricing_split(cfg: dict) -> None:
         f"invoice_priced={sorted(invoice_priced & registered)}",
     )
 
-    classifier = by_name(model_list, "qwen3.6-35b-a3b-classifier")
+    classifier = by_name(model_list, "chat-local-classifier")
     record(
         "classifier_has_no_prices",
         not non_hub_model_info(classifier.get("model_info")),
@@ -697,7 +697,7 @@ def test_local_pricing_split(cfg: dict) -> None:
     )
 
     local = by_name(model_list, "chat-local")
-    qwen = by_name(model_list, "qwen3.6-35b-a3b")
+    qwen = by_name(model_list, "demo-priced-local")
     record(
         "chat_local_is_the_same_backend_as_qwen",
         local["litellm_params"].get("model") == qwen["litellm_params"].get("model")
@@ -716,7 +716,7 @@ def test_local_pricing_split(cfg: dict) -> None:
     keys = {k["metadata"]["name"]: k["spec"] for k in _load_crs(VIRTUALKEYS_DIR, "LiteLLMVirtualKey")}
     priced_holders = sorted(
         name for name, spec in keys.items()
-        if "qwen3.6-35b-a3b" in (spec.get("models") or [])
+        if "demo-priced-local" in (spec.get("models") or [])
     )
     record(
         "demo_is_the_only_consumer_of_the_priced_alias",
@@ -728,7 +728,7 @@ def test_local_pricing_split(cfg: dict) -> None:
     # allow-list (skill litellm-proxy, references/fallbacks.md), so an alias listed in
     # either fallback map IS a cloud entitlement regardless of who holds it.
     # `chat-local` must appear in neither, which is what makes it structurally
-    # incapable of reaching a paid API - the same property `qwen3.6-35b-a3b`
+    # incapable of reaching a paid API - the same property `demo-priced-local`
     # has, and the reason `chat-ha` exists separately for consumers that do
     # want cloud failover.
     try:
@@ -749,7 +749,7 @@ def test_local_pricing_split(cfg: dict) -> None:
     )
     record(
         "priced_demo_alias_also_has_no_cloud_fallback",
-        "qwen3.6-35b-a3b" not in entitled,
+        "demo-priced-local" not in entitled,
         f"cloud_entitled_aliases={sorted(entitled)}",
     )
 
@@ -759,7 +759,7 @@ def test_repo_wiki_consumer_matches_generator() -> None:
 
     The proxy checks the model the caller ASKS for, not what it resolves to, so
     a key scoped to `chat-local` while the generator still requests
-    `qwen3.6-35b-a3b` fails every generation call on the allow-list. These two
+    `demo-priced-local` fails every generation call on the allow-list. These two
     values live in different apps, which is exactly why this is asserted.
     """
     try:
@@ -816,7 +816,7 @@ def test_consumers() -> None:
     # "scoped only to" invariants below, not a relaxation of them.
     record(
         "demo_consumer_still_direct_only",
-        sorted(keys["demo"]["models"]) == sorted(["qwen3.6-35b-a3b", "embedding-local"]),
+        sorted(keys["demo"]["models"]) == sorted(["demo-priced-local", "embedding-local"]),
     )
     record(
         "router_demo_scoped_to_auto_only",
@@ -890,11 +890,11 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
         m = json.loads(json.dumps(m))  # deep copy
         name = m["model_name"]
         lp = m["litellm_params"]
-        if name in ("qwen3.6-35b-a3b", "chat-local"):
+        if name in ("demo-priced-local", "chat-local"):
             lp["model"] = "openai/qwen-local"
             lp["api_base"] = bases["local"]
             lp["api_key"] = "mock"
-        elif name == "qwen3.6-35b-a3b-classifier":
+        elif name == "chat-local-classifier":
             lp["model"] = "openai/qwen-classifier"
             lp["api_base"] = bases["classifier"]
             lp["api_key"] = "mock"
@@ -1089,7 +1089,7 @@ async def test_routing_behavior(cfg: dict, bases: dict[str, str]) -> None:
     STATE.calls.clear()
     try:
         resp = await router.acompletion(
-            model="qwen3.6-35b-a3b",
+            model="demo-priced-local",
             messages=[{"role": "user", "content": "ping"}],
             max_tokens=8,
         )

@@ -17,9 +17,9 @@ then:
 Governance rule under test (measured live, see skill litellm-proxy
 references/fallbacks.md): config-declared fallbacks BYPASS virtual-key allow-lists, so a
 cloud fallback may only sit on aliases whose every consumer is already
-cloud-entitled. qwen3.6-35b-a3b and chat-local stay terminal; chat-ha carries
+cloud-entitled. demo-priced-local and chat-local stay terminal; chat-ha carries
 the chain. chat-local is the zero-priced alias real traffic runs on (added
-2026-08-27), and it is terminal for the same D4 reason qwen3.6-35b-a3b is:
+2026-08-27), and it is terminal for the same D4 reason demo-priced-local is:
 holding it must never become a cloud entitlement by the back door.
 """
 from __future__ import annotations
@@ -294,8 +294,8 @@ def test_router_settings_entitlement_boundary(cfg: dict) -> None:
     # zero-priced, non-thinking, and must stay terminal so an unattended reviewer on
     # every PR cannot spend money via a config-declared fallback bypass.
     terminal_local = (
-        "qwen3.6-35b-a3b",
-        "qwen3.6-35b-a3b-classifier",
+        "demo-priced-local",
+        "chat-local-classifier",
         "chat-local",
         "pr-review-local",
     )
@@ -347,7 +347,7 @@ def test_chat_ha_model_shape(cfg: dict) -> None:
     record("chat_ha_model_cr_present", "chat-ha" in names, f"names={names}")
     if "chat-ha" not in names:
         return
-    qwen = by_name(cfg["model_list"], "qwen3.6-35b-a3b")
+    qwen = by_name(cfg["model_list"], "demo-priced-local")
     ha = by_name(cfg["model_list"], "chat-ha")
     record(
         "chat_ha_shares_qwen_backend",
@@ -386,7 +386,7 @@ def test_virtualkey_entitlement_split() -> None:
     record(
         "demo_is_terminal_local_only",
         sorted(keys.get("demo", {}).get("models") or [])
-        == sorted(["qwen3.6-35b-a3b", "embedding-local"]),
+        == sorted(["demo-priced-local", "embedding-local"]),
         f"demo.models={keys.get('demo', {}).get('models')!r}",
     )
     record(
@@ -401,7 +401,7 @@ def test_virtualkey_entitlement_split() -> None:
     record(
         "ha_demo_does_not_hold_terminal_qwen_or_direct_cloud",
         ha_models.isdisjoint(
-            {"qwen3.6-35b-a3b", "claude-sonnet-5-metered", "claude-opus-5-metered"}
+            {"demo-priced-local", "claude-sonnet-5-metered", "claude-opus-5-metered"}
         ),
         f"ha_models={sorted(ha_models)}",
     )
@@ -421,7 +421,7 @@ def test_virtualkey_entitlement_split() -> None:
     local_only = {
         name
         for name, spec in keys.items()
-        if set(spec.get("models") or []) <= {"qwen3.6-35b-a3b", "chat-local"}
+        if set(spec.get("models") or []) <= {"demo-priced-local", "chat-local"}
     }
     leak = sorted(set(chat_ha_holders) & local_only)
     record(
@@ -522,6 +522,13 @@ def test_flux_substitute_reaches_route() -> None:
         ),
         f"from={(ks.get('spec') or {}).get('postBuild', {}).get('substituteFrom')}",
     )
+    record(
+        "flux_ks_declares_substituteFrom_chat_model",
+        {"name": "chat-model", "kind": "ConfigMap"}
+        in ((ks.get("spec") or {}).get("postBuild", {}).get("substituteFrom") or []),
+        "the local CRs' ${CHAT_MODEL_ID} would render empty without it",
+    )
+    chat_model_id = load_yaml(MAIN_KS_PATH.parent / "chat-model.yaml")["data"]["CHAT_MODEL_ID"]
 
     if not _have_kubectl():
         # Containerized Router proof path - host run already covered kustomize.
@@ -551,6 +558,7 @@ def test_flux_substitute_reaches_route() -> None:
         "SECRET_DOMAIN": "example.test",
         "GATUS_GROUP": sub.get("GATUS_GROUP", "ai"),
         "APP": sub.get("APP", "litellm"),
+        "CHAT_MODEL_ID": chat_model_id,
     }
 
     def envsubst(text: str) -> str:
@@ -589,6 +597,16 @@ def test_flux_substitute_reaches_route() -> None:
         "substituted_hostname_is_litellm_example_test",
         route["spec"]["hostnames"] == ["litellm.example.test"],
         f"hostnames={route['spec']['hostnames']}",
+    )
+    local_models = {
+        d["metadata"]["name"]: d["spec"]["params"]["model"]
+        for d in docs
+        if d.get("kind") == "LiteLLMModel" and d["metadata"]["name"] in ("chat-local", "chat-ha")
+    }
+    record(
+        "substituted_local_models_point_at_loaded_model",
+        local_models == {"chat-local": f"openai/{chat_model_id}", "chat-ha": f"openai/{chat_model_id}"},
+        f"local_models={local_models}",
     )
     gatus = route["metadata"]["annotations"]["gatus.home-operations.com/endpoint"]
     record(
@@ -761,7 +779,7 @@ async def test_router_availability_fallback(cfg: dict, bases: dict[str, str]) ->
         m = json.loads(json.dumps(m))
         name = m["model_name"]
         lp = m["litellm_params"]
-        if name in ("qwen3.6-35b-a3b", "chat-ha", "chat-local"):
+        if name in ("demo-priced-local", "chat-ha", "chat-local"):
             lp["model"] = "openai/local-primary"
             lp["api_base"] = bases["primary"]
             lp["api_key"] = "mock"
@@ -781,7 +799,7 @@ async def test_router_availability_fallback(cfg: dict, bases: dict[str, str]) ->
             lp["model"] = "openai/claude-opus-5"
             lp["api_base"] = bases["opus"]
             lp["api_key"] = "mock"
-        elif name == "qwen3.6-35b-a3b-classifier":
+        elif name == "chat-local-classifier":
             lp["model"] = "openai/classifier"
             lp["api_base"] = bases["primary"]
             lp["api_key"] = "mock"
@@ -846,7 +864,7 @@ async def test_router_availability_fallback(cfg: dict, bases: dict[str, str]) ->
     STATE.calls.clear()
     try:
         resp = await router.acompletion(
-            model="qwen3.6-35b-a3b",
+            model="demo-priced-local",
             messages=[{"role": "user", "content": "ping terminal"}],
             max_tokens=4,
         )
@@ -868,7 +886,7 @@ async def test_router_availability_fallback(cfg: dict, bases: dict[str, str]) ->
     # 4) Same proof for chat-local, the zero-priced alias that real production
     #    traffic actually runs on (auto's SIMPLE/MEDIUM tiers and fail-open
     #    target, plus repo-wiki's cron). This is the one that matters most in
-    #    practice: qwen3.6-35b-a3b is now reached only by the demo budget test,
+    #    practice: demo-priced-local is now reached only by the demo budget test,
     #    while chat-local carries the daily load. Proving it terminal here -
     #    against the real Router with a dead primary, not by reading the config -
     #    is what makes "structurally incapable of reaching a paid API" a

@@ -26,8 +26,10 @@ Never rename `gateway` or `litellm` to a built-in provider id. Hermes'
 auxiliary-client resolver then uses the native integration and silently
 skips that entry's base URL.
 
-The default model is the local B70 chat id (`qwen3.6-35b-a3b` at last
-read). Fan-out above 4 concurrent calls queues on that server's unified KV.
+The default model is the local chat role alias `chat-local`, never a model
+name. The gateway maps it to the loaded model, whose real name is `CHAT_MODEL_ID`
+in ConfigMap `chat-model` (shown as `root` in `/v1/models`), so a model swap does
+not touch Hermes. Fan-out above 4 concurrent calls queues on that server's unified KV.
 Skill `b70-llm-serving`.
 
 ## Fallback shape

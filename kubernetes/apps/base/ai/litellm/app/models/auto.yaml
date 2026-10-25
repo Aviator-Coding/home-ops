@@ -27,7 +27,7 @@ spec:
         classifier_type: llm
         classifier_llm_config:
           # LOCAL, thinking-off classifier; never a cloud model.
-          model: qwen3.6-35b-a3b-classifier
+          model: chat-local-classifier
           timeout_ms: 8000
           # `legacy` (the default) grades routine work as top tier.
           classification_rubric: agentic
