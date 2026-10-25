@@ -24,7 +24,9 @@ Client setup for a workstation: [Client setup](#client-setup) at the bottom.
   upstream tutorial says. If header forwarding is ever needed, use the
   per-model list form
   `litellm_settings.model_group_settings.forward_client_headers_to_llm_api`.
-  CI asserts the global flag stays off.
+  That list exists today for the `go-*` OpenCode Go groups only (they need
+  the caller's `x-opencode-session`); CI asserts it names nothing else and
+  never a subscription model, and that the global flag stays off.
 - The virtual key must go in `x-litellm-api-key` (`ANTHROPIC_CUSTOM_HEADERS`),
   never `Authorization`: a virtual key in `Authorization` is treated as proxy
   auth and not forwarded, and the pass-through silently stops working.
