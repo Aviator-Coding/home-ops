@@ -149,14 +149,15 @@ web:
 #
 # The gateway runs with gateway.multiplex_profiles, and under multiplexing a ${VAR}
 # in mcp_servers resolves only from the profile secret scope (/opt/data/.env plus
-# `secrets:` sources), never from the container env. The `command` source below
-# hydrates both vars from the hermes Secret, mounted as files at /secrets/mcp
+# `secrets:` sources), never from the container env; so does a provider `key_env`
+# (LITELLM_HERMES_API_KEY, else 401 with a "variable is empty/unset" warning). The `command`
+# source below hydrates all three from the hermes Secret, mounted as files at /secrets/mcp
 # (helmrelease.yaml), because the helper sees the profile scope, not the container env.
 secrets:
   command:
     enabled: true
     command: |-
-      for k in MCP_GATEWAY_URL MCP_GATEWAY_TOKEN; do printf '%s=%s\n' "$k" "$(cat "/secrets/mcp/$k")"; done
+      for k in MCP_GATEWAY_URL MCP_GATEWAY_TOKEN LITELLM_HERMES_API_KEY; do printf '%s=%s\n' "$k" "$(cat "/secrets/mcp/$k")"; done
 
 mcp_servers:
   toolhive:
