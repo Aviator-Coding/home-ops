@@ -81,8 +81,6 @@ ACTIVE_SERVERS = frozenset(
 )
 DEACTIVATED_SERVERS = frozenset(
     {
-        "garmin-connect",
-        "garmin-connect-mcp",
         "ha",
         "ha-mcp",
         "seerr",

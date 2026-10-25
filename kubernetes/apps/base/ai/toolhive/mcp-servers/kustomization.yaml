@@ -9,7 +9,8 @@ resources:
   - ./kubectl-mcp
   - ./kubesearch-mcp
   - ./seerr-mcp
-  # Off until 1Password has the fields: garmin username+password, ha-mcp HOMEASSISTANT_TOKEN.
+  # ha-mcp is off until 1Password has HOMEASSISTANT_TOKEN, and belongs in its own Hermes profile and
+  # ToolHive group, not the shared mcp-tools endpoint. garmin-connect-mcp was removed (never used).
   # seerr-mcp needs the `seerr` item to carry SEERR_API_KEY before it becomes Ready. talos-mcp needs namespace ai and role os:reader in machineconfig, then apply-node.
   # See skill ai-stack references/toolhive.md.
   # - ./talos-mcp
