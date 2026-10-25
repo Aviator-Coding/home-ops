@@ -1,33 +1,30 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
-# ai/hermes's OpenCode Go key: the flat-rate `go-*` models only, kept off litellm-consume-projects so
-# the $100/30d metered pool and the Go subscription cannot leak into each other. Go models are
-# priced $0, so maxBudget is an inert guard (same reasoning as repo-wiki); rpm/tpm are the real
-# bound. See skill litellm-proxy (references/governance-keys.md).
+# selfhosted/linkwarden's key (AI tagging on the local model). chat-local only, so spend is $0 by
+# construction and maxBudget is an inert guard (same reasoning as repo-wiki); rpm/tpm are the real
+# bound on the shared B70. See skill litellm-proxy (references/governance-keys.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
-  name: hermes-go
+  name: linkwarden
 spec:
   proxyRef: litellm
-  keyAlias: hermes-go
-  secretName: litellm-key-hermes-go
+  keyAlias: linkwarden
+  secretName: litellm-key-linkwarden
   secretKey: key
   models:
-    - go-deepseek-v4-flash
-    - go-glm-5.1
-    - go-kimi-k2.6
+    - chat-local
     - embedding-local
-  maxBudget: "5.00"
+  maxBudget: "1.00"
   budgetDuration: 30d
-  rpmLimit: 60
-  tpmLimit: 2000000
+  rpmLimit: 30
+  tpmLimit: 200000
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
 apiVersion: external-secrets.io/v1alpha1
 kind: PushSecret
 metadata:
-  name: litellm-key-hermes-go
+  name: litellm-key-linkwarden
 spec:
   refreshInterval: 5m
   secretStoreRefs:
@@ -35,10 +32,10 @@ spec:
       kind: ClusterSecretStore
   selector:
     secret:
-      name: litellm-key-hermes-go
+      name: litellm-key-linkwarden
   data:
     - match:
         secretKey: key
         remoteRef:
-          remoteKey: litellm-consumer-hermes-go
+          remoteKey: litellm-consumer-linkwarden
           property: key

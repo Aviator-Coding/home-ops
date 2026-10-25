@@ -1,0 +1,68 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# ai/hermes's one key, so its spend and traffic are attributable to Hermes alone (it no longer shares
+# litellm-consume-projects with OpenCode). Explicit allow-list (never []):
+#   - chat-local: the default model, zero-priced, terminal (no cloud fallback).
+#   - go-*: the OpenCode Go flat-rate models, zero-priced (caller must send x-opencode-session).
+#   - the metered Claude/GPT routes Hermes offers as selectable models. maxBudget is a real cap
+#     for these; the local and Go models are $0 so only rpm/tpm bound them.
+# No spec.metadata. See skill litellm-proxy (references/governance-keys.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: hermes
+spec:
+  proxyRef: litellm
+  keyAlias: hermes
+  secretName: litellm-key-hermes
+  secretKey: key
+  models:
+    - chat-local
+    - claude-fable-5
+    - claude-fable-5-1-metered
+    - claude-haiku-4-5-20251001-metered
+    - claude-haiku-5-5
+    - claude-opus-4-5-20251101
+    - claude-opus-4-6
+    - claude-opus-4-7
+    - claude-opus-4-8
+    - claude-opus-5-5
+    - claude-opus-5-metered
+    - claude-sonnet-4-5-20250929
+    - claude-sonnet-4-6
+    - claude-sonnet-5-5
+    - claude-sonnet-5-metered
+    - embedding-local
+    - go-deepseek-v4-flash
+    - go-glm-5.1
+    - go-kimi-k2.6
+    - gpt-5.6-luna
+    - gpt-5.6-sol
+    - gpt-5.6-terra
+    - gpt-6-astra
+    - gpt-6-astra-pro
+    - gpt-oss-20b
+  maxBudget: "50.00"
+  budgetDuration: 30d
+  rpmLimit: 120
+  tpmLimit: 4000000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-hermes
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-hermes
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-hermes
+          property: key
