@@ -7,23 +7,20 @@
 _config_version: 46
 
 providers:
-  # The one LLM provider: LiteLLM, with Hermes' own virtual key (`hermes`, 1Password
-  # `litellm-consumer-hermes`) so its spend and traffic are attributable to it alone.
-  # key_env is the real key; a dummy (`no-auth`, `no-key`, empty) is not sent and LiteLLM
-  # would 401. The env var is deliberately not OPENAI_API_KEY / GH_TOKEN / LITELLM_API_KEY:
-  # Hermes scrubs built-in provider credential names.
+  # The one LLM provider: LiteLLM, on Hermes' own virtual key (`hermes`, 1Password
+  # `litellm-consumer-hermes`) so spend and traffic are attributable to it alone.
+  # key_env is the real key: a dummy (`no-auth`, empty) is not sent and LiteLLM 401s. The env
+  # name is not OPENAI_API_KEY / GH_TOKEN / LITELLM_API_KEY: Hermes scrubs built-in names.
   #
-  # Never name a custom provider after a built-in id (`openrouter`, `openai`, ...):
-  # the auxiliary-client resolver then routes into the native integration and bypasses
-  # this base_url. `litellm` is safe.
+  # Never name a custom provider after a built-in id (`openrouter`, `openai`, ...): the
+  # auxiliary-client resolver then routes into the native integration and skips this base_url.
   #
-  # session_affinity_header: OpenCode Go (the go-* models) rejects any request without
-  # x-opencode-session (HTTP 400 MissingSessionID) and wants one stable value per
-  # conversation. Hermes sends a conversation-stable id on main AND auxiliary calls; LiteLLM
-  # forwards it upstream for the go-* groups only (litellmproxy.yaml model_group_settings).
-  # For every other model it is ignored.
+  # session_affinity_header: OpenCode Go (the go-* models) answers HTTP 400 MissingSessionID
+  # without x-opencode-session and wants one stable value per conversation. Hermes sends it
+  # on main AND auxiliary calls; LiteLLM forwards it for the go-* groups only
+  # (litellmproxy.yaml model_group_settings) and other models ignore it.
   #
-  # discover_models stays off so embedding-local and the other keys' models stay unlisted.
+  # discover_models stays off so embedding-local and other keys' models stay unlisted.
   litellm:
     api: http://litellm.ai.svc.cluster.local:4000/v1
     name: LiteLLM
