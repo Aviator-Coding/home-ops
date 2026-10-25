@@ -314,6 +314,12 @@ spec:
               - path: /secrets/mcp/LITELLM_HERMES_API_KEY
                 subPath: LITELLM_HERMES_API_KEY
                 readOnly: true
+              - path: /secrets/mcp/DISCORD_BOT_TOKEN
+                subPath: DISCORD_BOT_TOKEN
+                readOnly: true
+              - path: /secrets/mcp/DISCORD_ALLOWED_USERS
+                subPath: DISCORD_ALLOWED_USERS
+                readOnly: true
               - path: /secrets/mcp/HOMELAB_GH_TOKEN
                 subPath: HOMELAB_GH_TOKEN
                 readOnly: true
