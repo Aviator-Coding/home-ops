@@ -91,9 +91,15 @@ spec:
               API_SERVER_HOST: 0.0.0.0
               API_SERVER_PORT: "8642"
               SEARXNG_URL: http://searxng.ai.svc.cluster.local:8080
-              # homelab-commit-watcher: points its per-repo digest LLM at the internal gateway.
-              SUMMARY_LLM_URL: http://internal-noauth.ai.svc.cluster.local/v1
-              SUMMARY_LLM_MODEL: kimi-k2.6
+              # homelab-commit-watcher: its per-repo digest LLM goes through LiteLLM with Hermes'
+              # own key. The script sends x-opencode-session itself (go-* models need it).
+              SUMMARY_LLM_URL: http://litellm.ai.svc.cluster.local:4000/v1
+              SUMMARY_LLM_MODEL: go-kimi-k2.6
+              SUMMARY_LLM_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: *app
+                    key: LITELLM_HERMES_API_KEY
               # s6 init starts as root, chowns /opt/data, then drops to this uid.
               HERMES_UID: "10000"
               HERMES_GID: "10000"

@@ -86,15 +86,17 @@ DM the bot from an allowed user. `TELEGRAM_BOT_TOKEN` and
 It comes from 1Password item `mcp-gateway`, which
 `ai/toolhive`'s PushSecret writes.
 
-`LITELLM_PROJECTS_API_KEY` is not a prerequisite either. It is
-1Password item `litellm-consumer-litellm-consume-projects`, field
-`key`, written by the `litellm-consume-projects` PushSecret. Hermes
-exposes it as custom provider `litellm` (`/model custom:litellm:<model>`).
-The default model, fallback chain, and auxiliary tasks stay on
-`custom:gateway`. The key's $100 per 30 days is one pool shared by
-every caller, including OpenCode's `litellm-projects` provider. Do not
-name that env var `OPENAI_API_KEY` or `GH_TOKEN`: Hermes scrubs built-in
-provider credential names. Skill `hermes-agent`.
+`LITELLM_HERMES_API_KEY` is not a prerequisite either. It is
+1Password item `litellm-consumer-hermes`, field `key`, written by the
+`hermes` LiteLLMVirtualKey's PushSecret (`ai/litellm`). Hermes' one
+LLM provider is `litellm` (`/model custom:litellm:<model>`): default
+model `chat-local`, the fallback chain and every auxiliary task all use
+it. The key is Hermes' alone, so its spend is attributable; its $50 per
+30 days covers only the metered Claude/GPT routes (`chat-local` and the
+OpenCode Go `go-*` models are $0). Hermes sends `x-opencode-session` for
+the `go-*` models (`session_affinity_header`). Do not name that env var
+`OPENAI_API_KEY` or `GH_TOKEN`: Hermes scrubs built-in provider
+credential names. Skill `hermes-agent`.
 
 Git access is that one repo-scoped fine-grained PAT, rendered to
 `/secrets/git/.git-credentials`. GitHub rejects it for every other repo.

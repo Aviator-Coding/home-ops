@@ -120,7 +120,7 @@ spec:
     # OpenCode Go rejects any request without x-opencode-session (HTTP 400 MissingSessionID) and
     # wants one stable value per conversation. Forward the caller's x-* headers for these model
     # groups ONLY (never general_settings: that would forward to every provider). The caller (Hermes,
-    # providers.litellm-go.session_affinity_header) supplies the value. references/model-catalog.md.
+    # providers.litellm.session_affinity_header) supplies the value. references/model-catalog.md.
     model_group_settings:
       forward_client_headers_to_llm_api:
         - go-deepseek-v4-flash
