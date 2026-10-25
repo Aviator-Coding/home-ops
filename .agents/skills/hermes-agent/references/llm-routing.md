@@ -20,9 +20,15 @@ used in `config.yaml` that is not on the `hermes` key is a 403.
 (the gateway runs with `multiplex_profiles`). The key reaches Hermes through
 the `secrets.command` source, which reads
 `/secrets/mcp/LITELLM_HERMES_API_KEY` (a file mount of that Secret key in
-`helmrelease.yaml`), next to the two MCP vars. Env injection alone gives
+`helmrelease.yaml`), next to the MCP vars. Env injection alone gives
 "key_env ... is set but the variable is empty/unset" in `errors.log` and a
-401 on every call. [mcp-gateway.md](mcp-gateway.md)
+401 on every call. The same scope decides a skill's required env: when the
+commit-watcher's `HOMELAB_GH_TOKEN`, `DISCORD_WEBHOOK` and `SUMMARY_LLM_*` were
+only container env, every cron run was blocked at preflight ("missing env",
+`hermes cron doctor`) and nothing was delivered. A skill's optional vars must
+also be declared (`optional: true`) to reach its script.
+`scripts/ci/hermes-secret-scope-test.py` guards all of it.
+[mcp-gateway.md](mcp-gateway.md)
 
 `session_affinity_header: x-opencode-session` is load-bearing for the `go-*`
 models. OpenCode Go answers HTTP 400 `MissingSessionID` to any request
@@ -60,7 +66,7 @@ Effective order: local, kimi, glm-5.1, haiku.
 
 ## Auxiliary tasks
 
-`web_extract`, `session_search`, and `title_generator` run on a cloud model,
+`web_extract`, `session_search`, and `title_generation` run on a cloud model,
 not the local one. `web_extract` fires one call per page; that fan-out
 exceeds the 4-slot local server.
 

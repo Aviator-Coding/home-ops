@@ -128,7 +128,7 @@ auxiliary:
   session_search:
     provider: custom:litellm
     model: go-kimi-k2.6
-  title_generator:
+  title_generation:
     provider: custom:litellm
     model: go-kimi-k2.6
   # Vision-capable cloud model, pinned here (not kimi) because the local 35B is text-only.
@@ -147,17 +147,19 @@ web:
 # a NetworkPolicy closes the vmcp Service to everything but envoy-internal. Tool
 # names are prefixed per backend ({workload}_); LiteLLM is not an MCP gateway here.
 #
-# The gateway runs with gateway.multiplex_profiles, and under multiplexing a ${VAR}
-# in mcp_servers resolves only from the profile secret scope (/opt/data/.env plus
-# `secrets:` sources), never from the container env; so does a provider `key_env`
-# (LITELLM_HERMES_API_KEY, else 401 with a "variable is empty/unset" warning). The `command`
-# source below hydrates all three from the hermes Secret, mounted as files at /secrets/mcp
-# (helmrelease.yaml), because the helper sees the profile scope, not the container env.
+# The gateway runs with gateway.multiplex_profiles, so a mcp_servers ${VAR}, a provider
+# `key_env` and a skill's required env resolve only from the profile secret scope
+# (/opt/data/.env plus `secrets:` sources), never from the container env (else a 401, or a
+# cron job blocked at preflight with "missing env"). The `command` source below hydrates them
+# from the hermes Secret, mounted as files at /secrets/mcp (helmrelease.yaml); the SUMMARY_LLM_*
+# lines serve the commit-watcher skill. scripts/ci/hermes-secret-scope-test.py guards the wiring.
 secrets:
   command:
     enabled: true
     command: |-
-      for k in MCP_GATEWAY_URL MCP_GATEWAY_TOKEN LITELLM_HERMES_API_KEY; do printf '%s=%s\n' "$k" "$(cat "/secrets/mcp/$k")"; done
+      for k in MCP_GATEWAY_URL MCP_GATEWAY_TOKEN LITELLM_HERMES_API_KEY HOMELAB_GH_TOKEN DISCORD_WEBHOOK; do printf '%s=%s\n' "$k" "$(cat "/secrets/mcp/$k")"; done
+      printf 'SUMMARY_LLM_API_KEY=%s\n' "$(cat /secrets/mcp/LITELLM_HERMES_API_KEY)"
+      printf 'SUMMARY_LLM_URL=%s\nSUMMARY_LLM_MODEL=%s\n' http://litellm.ai.svc.cluster.local:4000/v1 go-kimi-k2.6
 
 mcp_servers:
   toolhive:
