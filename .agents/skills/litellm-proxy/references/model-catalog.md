@@ -20,7 +20,7 @@ bypasses allow-lists ([fallbacks.md](fallbacks.md)).
 ## Rule 2: route by the credential you hold
 
 Exactly five provider keys, all fields of the one 1Password `ai-keys` item
-(the same item and field names the agentgateway backends read):
+(the shared item; the retired agentgateway backends read the same fields):
 
 | Prefix | Env var | Reaches |
 |---|---|---|

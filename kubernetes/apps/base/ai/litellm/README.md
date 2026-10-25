@@ -12,8 +12,7 @@ rendered `config.yaml`; nothing here renders a Deployment. Agent knowledge
 **Scope (captain decision B4):** internal route only - `litellm-internal` on
 `envoy-internal` at `litellm.${SECRET_DOMAIN}`, plus
 `http://litellm.ai.svc.cluster.local:4000` in-cluster. It never fronts the
-public listener: no `envoy-external` parentRef and no `AgentgatewayBackend`,
-ever.
+public listener: no `envoy-external` parentRef, ever.
 
 | File | Declares |
 | --- | --- |
@@ -41,7 +40,7 @@ the only item created by hand:
 
 Already existing and reused: `cloudnative-pg` (`POSTGRES_SUPER_PASS`) and
 `ai-keys` (`ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`,
-`OPENROUTER_API_KEY`, the same fields agentgateway reads). Written by
+`OPENROUTER_API_KEY`, `OPENCODE_GO_API_KEY`). Written by
 PushSecrets, not by hand: `Automation/litellm-sso` (from OpenTofu,
 `.agents/skills/authentik-terraform/references/apply-runbook.md`), `litellm-pgvector` (seed command in
 `app/pushsecret-pgvector.yaml`) and every `litellm-consumer-*` item.

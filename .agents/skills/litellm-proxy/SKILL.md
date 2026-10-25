@@ -5,8 +5,8 @@ description: "Read before touching ai/litellm, ai/litellm-operator or ai/litellm
 
 # LiteLLM proxy, operator CRs, keys and models
 
-LiteLLM is a narrow governance layer beside agentgateway: per-consumer virtual
-keys with allow-lists and budgets, fallback chains, an auto-router, and a
+LiteLLM is the cluster's only LLM gateway (agentgateway was retired 2026-10-25):
+per-consumer virtual keys with allow-lists and budgets, fallback chains, an auto-router, and a
 Claude Code subscription pass-through. Delivered as
 `litellm.home-operations.com/v1alpha1` CRs reconciled by the home-operations
 litellm-operator. Internal route only; never the public listener.

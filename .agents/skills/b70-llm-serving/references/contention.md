@@ -49,8 +49,8 @@ a refused caller, which is how an earlier rpm-only cap hung callers 45 s+).
 - A wedged backend holds a caller about 3x `timeout` + 1.5 s: the openai
   client inside LiteLLM retries a timed-out embedding twice and ignores
   `max_retries` on that path (v1.103.1).
-- Not covered: anything that reaches embedding-gpu without LiteLLM, for example
-  the agentgateway `embedding-local` backend. Cap the client there.
+- Not covered: anything that reaches embedding-gpu without LiteLLM (a direct
+  in-cluster caller). Cap the client there.
 - Model `rpm` is router-wide enforcement: any other deployment that sets `rpm` or
   `tpm` becomes a hard limit too.
 - The pgvector store and `embeddings/batch` use `qwen/qwen3-embedding-8b` on

@@ -1,6 +1,6 @@
 # AI stack: model naming
 
-Subsystem detail lives in skills `ai-stack`, `litellm-proxy`, `hermes-agent`, `agentgateway` and `b70-llm-serving` (`.agents/skills/<name>/SKILL.md`). This page is the naming rule only.
+Subsystem detail lives in skills `ai-stack`, `litellm-proxy`, `hermes-agent` and `b70-llm-serving` (`.agents/skills/<name>/SKILL.md`). This page is the naming rule only.
 
 ## Two kinds of name
 
@@ -9,16 +9,15 @@ Subsystem detail lives in skills `ai-stack`, `litellm-proxy`, `hermes-agent`, `a
 | **Real model name** | `Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated` | Only as `${CHAT_MODEL_ID}`. Never typed literally. |
 | **Role alias** | `chat-local` | Everywhere a consumer picks a model. |
 
-The real name is defined once: ConfigMap `chat-model`, key `CHAT_MODEL_ID` (`kubernetes/apps/main/ai/chat-model.yaml`). Flux substitutes it (`postBuild.substituteFrom`) into the `vllm`, `litellm` and `agentgateway` Kustomizations:
+The real name is defined once: ConfigMap `chat-model`, key `CHAT_MODEL_ID` (`kubernetes/apps/main/ai/chat-model.yaml`). Flux substitutes it (`postBuild.substituteFrom`) into the `vllm` and `litellm` Kustomizations:
 
 - the llama-server `--alias` (vllm HelmRelease) and the ServiceMonitor `model` label
 - `params.model: openai/${CHAT_MODEL_ID}` in the local LiteLLM CRs
-- the agentgateway `vllm` backend provider model and the `root` field of the `chat-local` entry in `/v1/models`
 
 ## Rules
 
-1. **Consumers use `chat-local`, never the real name.** Hermes `model.default`, Linkwarden `OPENAI_MODEL`, agentgateway local routes, LiteLLM tiers and fallbacks. A model swap must not touch them.
-2. **`CHAT_MODEL_ID` is one token with no `/`.** A slash matches agentgateway's OpenRouter vendor-slug route and misroutes the request. No `org/` prefix, no `-GGUF` suffix.
+1. **Consumers use `chat-local`, never the real name.** Hermes `model.default`, Linkwarden `OPENAI_MODEL`, LiteLLM tiers and fallbacks. A model swap must not touch them.
+2. **`CHAT_MODEL_ID` is one path-safe token with no `/`.** No `org/` prefix, no `-GGUF` suffix.
 3. **Do not add a literal model name to a new file.** Use `${CHAT_MODEL_ID}` where the real name is needed, `chat-local` everywhere else. `scripts/ci/chat-model-id-test.py` guards the wiring.
 4. **The five local LiteLLM aliases share one backend**, each with one distinct property: `chat-local` (zero price, no cloud fallback), `chat-ha` (cloud fallback), `chat-local-classifier` and `pr-review-local` (thinking off), `demo-priced-local` (synthetic prices, `demo` key only). Detail: skill `litellm-proxy`, `references/model-catalog.md`.
 
@@ -41,7 +40,7 @@ Full steps and the verification list: skill `b70-llm-serving`, `references/flags
 ```bash
 kubectl -n ai get cm chat-model -o jsonpath='{.data.CHAT_MODEL_ID}'
 kubectl -n ai get deploy vllm -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -A1 alias
-# gateway: chat-local with root = real name
-kubectl -n ai port-forward svc/internal-noauth 18080:80 &
-curl -s localhost:18080/v1/models | jq '.data[] | select(.id=="chat-local")'
+# the backend serves the real name (consumers reach it as chat-local through LiteLLM)
+kubectl -n ai port-forward svc/vllm-app 18080:8000 &
+curl -s localhost:18080/v1/models | jq '.data[].id'
 ```

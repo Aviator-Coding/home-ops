@@ -15,15 +15,13 @@ is `CHAT_MODEL_ID` (below), not a hardcoded alias. Embedding model:
 
 - The loaded model's real name is written once: `CHAT_MODEL_ID` in
   `kubernetes/apps/main/ai/chat-model.yaml`. Flux substitutes it (the `vllm`,
-  `litellm` and `agentgateway` Kustomizations list the ConfigMap in
+  `litellm` Kustomizations list the ConfigMap in
   `substituteFrom`) into the llama-server `--alias`, the `params.model` of the
-  local LiteLLM CRs, the agentgateway failover provider, and the `model` label
-  on the chat metrics.
-- Consumers use roles, never the model name: `chat-local` (agentgateway, so
-  Hermes and Linkwarden; LiteLLM keys and repo-wiki), `chat-ha`, `auto`.
-  `GET /v1/models` on the gateway lists `chat-local` with the real name as
-  `root`.
-- The value is one token with no `/` (a slash matches the OpenRouter route).
+  local LiteLLM CRs, and the `model` label on the chat metrics.
+- Consumers use roles, never the model name: `chat-local` (Hermes, Linkwarden,
+  LiteLLM keys and repo-wiki), `chat-ha`, `auto`. `GET /v1/models` on the
+  backend (`vllm-app`) lists the real name.
+- The value is one path-safe token with no `/`.
 - Gate: `scripts/ci/chat-model-id-test.py` (no stale literal, wiring intact);
   `litellm-fallback-chain-test.py` renders the CRs the way Flux does.
 

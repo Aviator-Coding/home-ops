@@ -96,7 +96,7 @@ spec:
         controller: opencode
         # Service is opencode-app, never `opencode`: in ns ai, the DNS search path turns the
         # provider host opencode.ai into opencode.ai.svc.cluster.local, which would be this
-        # Service and black-holes every OpenCode Go call (LiteLLM, agentgateway).
+        # Service and black-holes every OpenCode Go call from LiteLLM.
         suffix: app
         ports:
           http:
