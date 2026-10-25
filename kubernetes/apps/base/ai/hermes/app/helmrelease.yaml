@@ -94,7 +94,9 @@ spec:
               # homelab-commit-watcher: its per-repo digest LLM goes through LiteLLM with Hermes'
               # own key. The script sends x-opencode-session itself (go-* models need it).
               SUMMARY_LLM_URL: http://litellm.ai.svc.cluster.local:4000/v1
-              SUMMARY_LLM_MODEL: go-kimi-k2.6
+              # go-glm-5.1, not go-kimi-k2.6: kimi thinks past the script's token budget and returns empty
+              # content (every digest "unavailable", 43 s per batch). Same value as secrets.command.
+              SUMMARY_LLM_MODEL: go-glm-5.1
               SUMMARY_LLM_API_KEY:
                 valueFrom:
                   secretKeyRef:
@@ -317,6 +319,16 @@ spec:
                 readOnly: true
               - path: /secrets/mcp/DISCORD_WEBHOOK
                 subPath: DISCORD_WEBHOOK
+                readOnly: true
+      # Terminal guard hook script (hooks: in config.yaml runs it). Read-only; a byte change rolls
+      # the pod via reloader like config.yaml. Skill hermes-agent.
+      hooks:
+        type: configMap
+        name: hermes-hooks
+        advancedMounts:
+          hermes:
+            app:
+              - path: /etc/hermes-hooks
                 readOnly: true
       # config.yaml mounted into the copy-config initContainer, which copies it to
       # /opt/data/config.yaml on every start. The PVC `data` advancedMount gives

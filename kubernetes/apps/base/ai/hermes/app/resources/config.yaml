@@ -159,7 +159,7 @@ secrets:
     command: |-
       for k in MCP_GATEWAY_URL MCP_GATEWAY_TOKEN LITELLM_HERMES_API_KEY HOMELAB_GH_TOKEN DISCORD_WEBHOOK; do printf '%s=%s\n' "$k" "$(cat "/secrets/mcp/$k")"; done
       printf 'SUMMARY_LLM_API_KEY=%s\n' "$(cat /secrets/mcp/LITELLM_HERMES_API_KEY)"
-      printf 'SUMMARY_LLM_URL=%s\nSUMMARY_LLM_MODEL=%s\n' http://litellm.ai.svc.cluster.local:4000/v1 go-kimi-k2.6
+      printf 'SUMMARY_LLM_URL=%s\nSUMMARY_LLM_MODEL=%s\n' http://litellm.ai.svc.cluster.local:4000/v1 go-glm-5.1
 
 mcp_servers:
   toolhive:
@@ -221,3 +221,25 @@ approvals:
   deny: []
   mcp_reload_confirm: true
   destructive_slash_confirm: true
+
+# Deterministic seatbelt in front of the terminal tool (hooks/guard-terminal.py, mounted at
+# /etc/hermes-hooks). It blocks the catastrophic, escalates "ask first" commands to the approval gate and
+# allows the rest; scripts/ci/hermes-hooks-test.py pins it. Skill hermes-agent.
+# hooks_auto_accept: a gateway has no TTY for the first-use consent prompt, so without it the hook would
+# silently stay unregistered. fail_closed: a crashed or timed-out guard refuses the command. The interpreter
+# is absolute because the hook's PATH is not the shell's.
+hooks_auto_accept: true
+hooks:
+  pre_tool_call:
+    - matcher: "terminal"
+      command: "/opt/hermes/.venv/bin/python3 /etc/hermes-hooks/guard-terminal.py"
+      timeout: 5
+      fail_closed: true
+
+# Subagents (delegate_task) run on a fast Go-subscription model through LiteLLM instead of inheriting the
+# local chat-local: each child is its own session, and fan-out above the local server's 4 slots queues.
+# go-glm-5.1 is the tool-calling tier (kimi thinks too long for a worker loop). The parent keeps
+# chat-local and synthesises. Concurrency and depth stay at upstream's defaults (3 children, flat).
+delegation:
+  provider: custom:litellm
+  model: go-glm-5.1
