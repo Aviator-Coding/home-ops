@@ -28,9 +28,10 @@ uncleanly, so batch them and never pair one with an unrelated rollout.
    `.get("auto_prune", False)`, so an upstream default flip silently stops
    pruning. Gate: `scripts/ci/hermes-state-db-retention-test.py`.
 5. **Never set `OPENAI_BASE_URL`.** It is a global OpenAI-SDK override. The
-   default provider stays `custom:gateway`. `providers.litellm` is only a
-   selectable second provider. A dummy `OPENAI_API_KEY` is the only env to
-   re-add if boot demands an OpenAI key. [llm-routing.md](references/llm-routing.md)
+   one provider, `custom:litellm`, carries everything (default model,
+   fallbacks, auxiliary) with Hermes' own virtual key, and sends
+   `x-opencode-session` for the `go-*` models. A dummy `OPENAI_API_KEY` is the
+   only env to re-add if boot demands an OpenAI key. [llm-routing.md](references/llm-routing.md)
 6. **Keep the image on the `-desktop` tag.** The plain tag has no Chromium
    or VNC stack, and the process cannot `apt install` after it drops to uid
    10000. Renovate is pinned to the suffix so it cannot drift back.

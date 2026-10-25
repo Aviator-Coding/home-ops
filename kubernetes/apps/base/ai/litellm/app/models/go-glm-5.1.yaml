@@ -1,7 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
 # OpenCode Go flat-rate subscription (OpenAI-compatible, /zen/go). Registration only: held by the
-# hermes-go key. The `go-` prefix keeps it distinct from the metered OpenRouter/Z.ai routes.
+# hermes key. The `go-` prefix keeps it distinct from the metered OpenRouter/Z.ai routes.
 # INVARIANT: explicit $0 on every price field. The invoice is flat, so any non-zero cost-map hit
 # would be phantom spend. See skill litellm-proxy (references/model-catalog.md).
 apiVersion: litellm.home-operations.com/v1alpha1

@@ -164,7 +164,7 @@ reason:
 | `jev-decisions` | `typesafe/jev-1.13` | decision door, $1/30d ([passthrough-lockdown.md](passthrough-lockdown.md)); no `embedding-local` |
 | `hermes` | `chat-local`, the three `go-*` OpenCode Go models, the metered Claude/GPT routes Hermes offers, `embedding-local` | ai/hermes, its only key (provider `custom:litellm`). Own $50/30d budget covers the metered routes; `chat-local` and the flat-rate `go-*` models are $0, so `rpmLimit`/`tpmLimit` bound those. Replaces `hermes-go` and ends Hermes' sharing of `litellm-consume-projects` with OpenCode |
 | `linkwarden` | `chat-local`, `embedding-local` | selfhosted/linkwarden AI tagging. $0 by construction, so `maxBudget` is an inert guard; rpm 30 / tpm 200000 protect the shared B70. Per-app keys exist so spend and traffic are attributable to one app |
-| `litellm-consume-projects` | metered Anthropic org routes, `gpt-*`, `gpt-oss-20b`, `typesafe/jev-1.13`, `auto`, `embedding-local` | Aviator org consumer. $100/30d is one pool shared by every caller, including ai/opencode provider `litellm-projects` and ai/hermes provider `custom:litellm`. No `spec.metadata`: the Jev id is allow-listed but the passthrough grant is not in Git |
+| `litellm-consume-projects` | metered Anthropic org routes, `gpt-*`, `gpt-oss-20b`, `typesafe/jev-1.13`, `auto`, `embedding-local` | Aviator org consumer. $100/30d is one pool for ai/opencode provider `litellm-projects` (Hermes has its own `hermes` key now). No `spec.metadata`: the Jev id is allow-listed but the passthrough grant is not in Git |
 
 Every other key also allow-lists `embedding-local` (captain intent: every key
 may use the local embedder). It is credential-less and zero-priced, so it

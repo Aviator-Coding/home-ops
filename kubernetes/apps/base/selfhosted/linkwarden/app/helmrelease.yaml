@@ -41,12 +41,10 @@ spec:
               # Full-page Monolith archive: raise output buffer above the 100MB
               # default (one image-heavy page overflowed it -> partial archive).
               MONOLITH_MAX_BUFFER: "256"
-              # AI auto-tagging via the agentgateway unified /v1: the model id below
-              # routes to the local B70 llama.cpp (with cloud kimi failover when the
-              # local server is down). OPENAI_API_KEY is a dummy from the secret -
-              # ignored by the keyless LAN gateway, but the OpenAI SDK still requires
-              # a non-empty value to be present.
-              CUSTOM_OPENAI_BASE_URL: "http://internal-noauth.ai.svc.cluster.local/v1"
+              # AI auto-tagging via LiteLLM with Linkwarden's own virtual key (OPENAI_API_KEY from
+              # the secret; chat-local only, rpm 30). chat-local is the local B70 llama.cpp and a
+              # terminal alias with no cloud fallback: when the B70 is down tagging just fails.
+              CUSTOM_OPENAI_BASE_URL: "http://litellm.ai.svc.cluster.local:4000/v1"
               OPENAI_MODEL: "chat-local"
             envFrom: *envFrom
             ports:

@@ -25,8 +25,9 @@ spec:
       namespace: *namespace
     - name: onepassword-store
       namespace: security
-    # Hermes routes all LLM traffic through the internal agentgateway.
-    - name: agentgateway
+    # Hermes routes all LLM traffic through LiteLLM with its own `hermes` virtual key
+    # (litellm owns the key CR and the PushSecret that writes litellm-consumer-hermes).
+    - name: litellm
       namespace: *namespace
     - name: kopiur-repository
       namespace: system

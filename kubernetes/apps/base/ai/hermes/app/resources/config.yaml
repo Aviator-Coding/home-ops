@@ -7,31 +7,36 @@
 _config_version: 46
 
 providers:
-  # Default LLM provider: agentgateway's unified /v1 endpoint. The gateway routes
-  # by model id and injects the real provider keys (agentgateway/app/httproute-unified.yaml),
-  # so `api_key` is a dummy that is never sent on the wire. It exists only so the
-  # auxiliary client resolves a credential (else "no resolvable api_key" warnings).
-  # It must NOT be `no-key-required`/`no-key`/``: Hermes treats those as "no credential".
+  # The one LLM provider: LiteLLM, on Hermes' own virtual key (`hermes`, 1Password
+  # `litellm-consumer-hermes`) so spend and traffic are attributable to it alone.
+  # key_env is the real key: a dummy (`no-auth`, empty) is not sent and LiteLLM 401s. The env
+  # name is not OPENAI_API_KEY / GH_TOKEN / LITELLM_API_KEY: Hermes scrubs built-in names.
   #
-  # Never name a custom provider after a built-in id (`openrouter`, `openai`, ...):
-  # the auxiliary-client resolver then routes into the native integration and bypasses
-  # this base_url. `gateway` and `litellm` are safe. Default stays `custom:gateway`.
-  gateway:
-    api: http://internal-noauth.ai.svc.cluster.local/v1
-    name: gateway
-    api_key: no-auth
-    transport: chat_completions
-  # Selectable second provider. key_env is the real virtual key from the hermes
-  # Secret. A dummy (`no-auth`, `no-key`, empty) is not sent and LiteLLM would 401.
-  # Do not move model.default, fallback_providers, or auxiliary onto this provider.
-  # discover_models stays off so embedding-local and typesafe/jev-1.13 stay unlisted.
+  # Never name a custom provider after a built-in id (`openrouter`, `openai`, ...): the
+  # auxiliary-client resolver then routes into the native integration and skips this base_url.
+  #
+  # session_affinity_header: OpenCode Go (the go-* models) answers HTTP 400 MissingSessionID
+  # without x-opencode-session and wants one stable value per conversation. Hermes sends it
+  # on main AND auxiliary calls; LiteLLM forwards it for the go-* groups only
+  # (litellmproxy.yaml model_group_settings) and other models ignore it.
+  #
+  # discover_models stays off so embedding-local and other keys' models stay unlisted.
   litellm:
     api: http://litellm.ai.svc.cluster.local:4000/v1
     name: LiteLLM
-    key_env: LITELLM_PROJECTS_API_KEY
+    key_env: LITELLM_HERMES_API_KEY
     transport: chat_completions
+    session_affinity_header: x-opencode-session
     discover_models: false
     models:
+      chat-local:
+        context_length: 262144
+      go-deepseek-v4-flash:
+        context_length: 128000
+      go-glm-5.1:
+        context_length: 200000
+      go-kimi-k2.6:
+        context_length: 200000
       claude-fable-5:
         context_length: 200000
       claude-fable-5-1-metered:
@@ -77,57 +82,59 @@ providers:
 # llama.cpp SYCL). Never put the loaded model's name here: it lives once, in ConfigMap
 # chat-model, so a swap does not touch Hermes. List /v1/models to see it (`root`).
 # llama-server auto-selects n_parallel=4 + kv_unified=true (do not pin those
-# flags); fan-out above 4 queues. The gateway fails the local model over to
-# kimi-k2.6 before `fallback_providers` below ever fires.
+# flags); fan-out above 4 queues. `chat-local` is a terminal alias in LiteLLM (no cloud
+# fallback, by design), so the failover when the B70 is down is `fallback_providers` below.
 # To serve a cloud model instead, set e.g.
-# model: { default: x-ai/grok-4.3, provider: custom:gateway }.
+# model: { default: claude-sonnet-5-5, provider: custom:litellm }.
 model:
   default: chat-local
-  provider: custom:gateway
+  provider: custom:litellm
 
-# Fail-over chain for the MAIN agentic loop (fires only if the gateway's own
-# local->kimi failover also fails): glm-5.1 on the flat-rate OpenCode Go sub, then
-# deepseek-v4-flash via OpenRouter (PAYG, deliberately NOT on the Go sub: this
-# tier exists for Go-quota exhaustion). This chain runs the full tool-calling
-# loop, unlike the aux chores below.
+# Fail-over chain for the MAIN agentic loop (fires when the local model errors): kimi-k2.6,
+# then glm-5.1 (both the flat-rate OpenCode Go sub), then claude-haiku-5-5 (metered, deliberately
+# NOT on the Go sub: this tier exists for Go-quota exhaustion, and it spends the hermes key's
+# own $50/30d). This chain runs the full tool-calling loop, unlike the aux chores below.
 fallback_providers:
-  - provider: custom:gateway
-    model: glm-5.1
-  - provider: custom:gateway
-    model: deepseek/deepseek-v4-flash
+  - provider: custom:litellm
+    model: go-kimi-k2.6
+  - provider: custom:litellm
+    model: go-glm-5.1
+  - provider: custom:litellm
+    model: claude-haiku-5-5
 
-# Auxiliary chores run mostly on kimi via the gateway, NOT the local model:
+# Auxiliary chores run on cloud models via LiteLLM, NOT the local model:
 # web_extract fires N parallel calls (one per page) and the 4-slot local
 # llama-server queues / times out past 4.
 # IMPORTANT: aux fallback uses the PER-TASK `fallback_chain`, NOT the global
 # `fallback_providers` above; without it Hermes falls back to the main model
 # (the local qwen) and re-times-out. `vision` needs a vision-capable cloud slug
-# (the local 35B is text-only). `compression` is pinned to a cloud primary, see below.
+# (the local 35B is text-only). `compression` is pinned to an off-Go primary, see below.
 auxiliary:
   web_extract:
-    provider: custom:gateway
-    model: kimi-k2.6
+    provider: custom:litellm
+    model: go-kimi-k2.6
     fallback_chain:
-      - provider: custom:gateway
-        model: openai/gpt-oss-120b
-  # Cloud primary, NOT kimi: on a provider error hermes-agent's compressor falls
-  # back to the MAIN model (it does not consult this task's fallback_chain), which
-  # is the local llama-server already serving the live session and queues /
-  # times out under contention.
+      - provider: custom:litellm
+        model: go-glm-5.1
+      - provider: custom:litellm
+        model: gpt-oss-20b
+  # Off-Go (metered, cheap) primary, NOT a go-* model: on a provider error hermes-agent's
+  # compressor falls back to the MAIN model (it does not consult this task's fallback_chain),
+  # which is the local llama-server already serving the live session and queues / times out
+  # under contention. A Go-quota failure must not dump compression onto the local server.
   compression:
-    provider: custom:gateway
-    model: openai/gpt-oss-120b
+    provider: custom:litellm
+    model: gpt-oss-20b
   session_search:
-    provider: custom:gateway
-    model: kimi-k2.6
+    provider: custom:litellm
+    model: go-kimi-k2.6
   title_generator:
-    provider: custom:gateway
-    model: kimi-k2.6
-  # Dedicated vision-language model, pinned here (not kimi) because the local 35B
-  # is text-only.
+    provider: custom:litellm
+    model: go-kimi-k2.6
+  # Vision-capable cloud model, pinned here (not kimi) because the local 35B is text-only.
   vision:
-    provider: custom:gateway
-    model: qwen/qwen3-vl-32b-instruct
+    provider: custom:litellm
+    model: claude-haiku-5-5
 
 # Web search via the SearXNG instance already running in ns ai.
 web:
