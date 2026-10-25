@@ -10,6 +10,15 @@ spec:
       path: /metrics
       interval: 30s
       scrapeTimeout: 10s
+      # llama-server series have no model label. The gpu-node dashboard groups t/s by
+      # these two, so a variant ships with its own label and history stays separable.
+      # Change them with the -hf and --cache-type-k/v args in helmrelease.yaml.
+      # Gate: scripts/ci/gpu-node-dashboard-test.py.
+      relabelings:
+        - targetLabel: model
+          replacement: qwen3.8-35b-a3b-apex-iq3xxs
+        - targetLabel: kv
+          replacement: q8_0
   selector:
     matchLabels:
       app.kubernetes.io/name: vllm
