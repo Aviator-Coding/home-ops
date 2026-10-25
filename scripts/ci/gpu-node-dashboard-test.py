@@ -4,7 +4,7 @@
 Intent: ship a node-level GPU dashboard for the Arc B70 (talos-3,
 devic.es/b70) and fleet iGPUs (gpu.intel.com/xe) from metrics that already
 exist in Prometheus - including the VRAM series from system/xe-gpu-exporter -
-following the agentgateway-dashboards house pattern and avoiding Flux
+following the sidecar-ConfigMap dashboard house pattern and avoiding Flux
 postBuild.substitute collision risk. The dashboard app itself stays a
 ConfigMap; the exporter is a separate workload.
 

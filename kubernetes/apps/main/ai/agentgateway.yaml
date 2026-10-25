@@ -1,59 +1,7 @@
 ---
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: &app agentgateway
-  namespace: &namespace ai
-spec:
-  commonMetadata:
-    labels:
-      app.kubernetes.io/name: *app
-  targetNamespace: *namespace
-  interval: 30m
-  retryInterval: 1m
-  timeout: 5m
-  path: "./kubernetes/apps/base/ai/agentgateway/app"
-  prune: true
-  # Deployment-level, not HelmRelease. Skill `ai-stack`.
-  healthChecks:
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: *app
-      namespace: *namespace
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: internal
-      namespace: *namespace
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: internal-noauth
-      namespace: *namespace
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: public
-      namespace: *namespace
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-    namespace: flux-system
-  dependsOn:
-    - name: agentgateway-crds
-      namespace: *namespace
-    - name: onepassword-store
-      namespace: security
-    - name: certificates-import
-      namespace: network
-  postBuild:
-    substituteFrom:
-      - name: cluster-secrets
-        kind: Secret
-      # CHAT_MODEL_ID: the loaded model's name, defined once in chat-model.yaml.
-      - name: chat-model
-        kind: ConfigMap
-    substitute:
-      APP: *app
----
+# The agentgateway app is retired (LiteLLM is the only LLM gateway). Only the CRDs stay for one
+# more reconcile so the controller can finish cleaning up its own custom resources; a follow-up
+# change removes this Kustomization and the crds/ directory. Skill ai-stack, references/retirement.md.
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

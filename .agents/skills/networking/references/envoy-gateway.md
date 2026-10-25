@@ -61,9 +61,6 @@ rule, so a health path can stay open. The same outer-layer limit applies:
 callers of the Service bypass it. Example: `ai/toolhive/config`
 (skill `ai-stack`).
 
-agentgateway uses `AgentgatewayPolicy.spec.traffic.directResponse` on
-`agentgateway.dev` routes. An Envoy `HTTPRouteFilter` does not apply there.
-
 ## Envoy preStop patch
 
 The gateway-helm CRD does not expose `envoyDeployment.container.lifecycle`

@@ -40,11 +40,6 @@ The outpost's pre-auth check returns 302 to login for a Host that maps to no
 route. Coverage of a new hostname is an authenticated login after merge, not
 a curl.
 
-agentgateway's Authentik policy
-(`kubernetes/apps/base/ai/agentgateway/app/policies/authentik-policy.yaml`)
-sits on the `internal` and `public` listeners. A diff on the proxy provider
-covers that path too.
-
 ## Created vs imported
 
 | Field | Imported provider | Created provider |

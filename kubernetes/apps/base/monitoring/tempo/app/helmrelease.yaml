@@ -1,7 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
-# Grafana Tempo (single binary) - OTLP trace backend for the AI model
-# gateway (agentgateway exports gen_ai spans via OTLP/gRPC :4317).
+# Grafana Tempo (single binary) - OTLP trace backend (gRPC :4317). Its only producer, the
+# agentgateway AI gateway, is retired (2026-10-25); it has no producer until another app exports.
 # Traces are ephemeral (7d retention, no volsync).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease

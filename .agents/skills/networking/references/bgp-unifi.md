@@ -60,8 +60,6 @@ FRR commands, not Cisco: `show bgp summary`, `show bgp ipv4 unicast`,
 | `10.50.0.21` | envoy-external |
 | `10.50.0.24` | falkordb |
 | `10.50.0.26` | envoy-internal |
-| `10.50.0.27` | agentgateway internal (also the hand-made wildcard target) |
-| `10.50.0.29` | agentgateway public |
 | `10.50.0.30` | emqx |
 | `10.50.0.51` | syncthing |
 | `10.50.0.52` | plex |
@@ -69,8 +67,10 @@ FRR commands, not Cisco: `show bgp summary`, `show bgp ipv4 unicast`,
 | `10.50.0.55` | samba |
 | `10.50.0.121` | kube-api |
 
-`10.50.0.28` is not pinned. `internal-noauth` is ClusterIP. A LoadBalancer
-on that Gateway exposes keyless paid-provider routes to the LAN.
+`10.50.0.27` and `10.50.0.29` were agentgateway's and are free since it was
+retired (2026-10-25). The hand-made UniFi wildcard `*.${SECRET_DOMAIN}` that
+targeted `10.50.0.27` now points at an unassigned address; repoint it to
+`envoy-internal` (`10.50.0.26`) or remove it. `10.50.0.28` is not pinned.
 
 Node underlay (Talos, not this skill's files): `bond0` 802.3ad MTU 9000,
 DHCP on `10.10.10.0/24`, `bond0.3` and `bond0.90` present with no node

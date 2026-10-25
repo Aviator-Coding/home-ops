@@ -7,7 +7,7 @@ description: "Read before adding or editing an HTTPRoute, Gateway, HTTPRouteFilt
 
 Cilium is the CNI: BGP LoadBalancer, kube-proxy replacement, no L2
 announcements. Gateways are Envoy Gateway (`gatewayClassName: envoy`) for
-`envoy-internal` / `envoy-external`, and agentgateway for its own listeners.
+`envoy-internal` / `envoy-external`.
 Host firewall policy is skill `cilium-host-policy`. ExtAuth ownership is skill
 `authentik-terraform`.
 
@@ -43,8 +43,7 @@ Host firewall policy is skill `cilium-host-policy`. ExtAuth ownership is skill
    short names (NXDOMAIN). musl and glibc `getent hosts` do. Pods use
    nameserver `10.43.0.10` and `ndots:5`.
 8. **LoadBalancer IPs are pinned with `lbipam.cilium.io/ips`.** The pool is
-   `10.50.0.0/24`. `internal-noauth` stays ClusterIP. Do not put it back on
-   the pool. [bgp-unifi.md](references/bgp-unifi.md)
+   `10.50.0.0/24`. [bgp-unifi.md](references/bgp-unifi.md)
 9. **Every browser terminal is behind Authentik SSO.** `hermes-code` and
    `hass-code` run code-server with `--auth none`, so the SecurityPolicy
    (`hermes-code-auth`, `hass-code-auth`) is the only gate on the route. A new

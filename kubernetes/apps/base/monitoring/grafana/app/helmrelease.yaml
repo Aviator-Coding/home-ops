@@ -175,7 +175,7 @@ spec:
                   "id": 3,
                   "options": {
                     "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
-                    "content": "## 🤖 AI/ML\n- [AgentGateway](/d/agentgateway)\n- [LiteLLM](/d/litellm)\n- [LiteLLM Routing](/d/llm-routing)\n- [LLM Cost](/d/ai-llm-cost)\n- [Qdrant](/d/qdrant-overview)\n- [Ollama](/d/ollama-inference-v1)\n\n## 🎬 Media\n- [Plex](/d/TPZ6-zT4z)",
+                    "content": "## 🤖 AI/ML\n- [LiteLLM](/d/litellm)\n- [LiteLLM Routing](/d/llm-routing)\n- [Qdrant](/d/qdrant-overview)\n- [Ollama](/d/ollama-inference-v1)\n\n## 🎬 Media\n- [Plex](/d/TPZ6-zT4z)",
                     "mode": "markdown"
                   },
                   "title": "AI/ML & Media",
@@ -348,9 +348,6 @@ spec:
         emqx-rule-engine-rate:
           url: https://raw.githubusercontent.com/emqx/emqx-exporter/main/grafana-dashboard/template/emqx-5/rule-engine-rate.json
           datasource: Prometheus
-
-      # agentgateway + llm-cost dashboards are sidecar ConfigMaps
-      # (kubernetes/apps/base/ai/agentgateway-dashboards/), not gnet entries.
 
         qdrant-observatory:
           # renovate: depName="Qdrant Observatory"

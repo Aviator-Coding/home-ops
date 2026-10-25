@@ -8,8 +8,7 @@ consumer. The contract now has two layers:
   1. The REAL loaded name is the Flux variable CHAT_MODEL_ID, defined once in the
      ConfigMap `chat-model` (kubernetes/apps/main/ai/chat-model.yaml). Only the
      places that talk to the backend use it: the llama-server --alias, the
-     LiteLLM `params.model` of the local CRs, the agentgateway failover provider,
-     and the ServiceMonitor `model` label.
+     LiteLLM `params.model` of the local CRs and the ServiceMonitor `model` label.
   2. Consumers use the stable ROLE alias `chat-local` and never a model name, so a
      swap changes one value and renames nothing.
 
@@ -18,7 +17,7 @@ What this catches
   - a Flux Kustomization using ${CHAT_MODEL_ID} without substituteFrom (the
     variable would render as an empty string and the alias would be blank)
   - a local LiteLLM CR pointing at a hardcoded model instead of the variable
-  - Hermes, Linkwarden or the agentgateway route moving back to a raw name
+  - Hermes or Linkwarden moving back to a raw name, or Hermes leaving LiteLLM
   - the ServiceMonitor label drifting from the variable
 
 Run: python3 scripts/ci/chat-model-id-test.py
@@ -74,15 +73,14 @@ def test_config_map() -> None:
     value = (cm.get("data") or {}).get("CHAT_MODEL_ID", "")
     require(bool(value), "CHAT_MODEL_ID must be set")
     require(re.fullmatch(r"[A-Za-z0-9._-]+", value) is not None,
-            f"CHAT_MODEL_ID {value!r} must be one path-safe token (no '/', no spaces): "
-            "a '/' would match agentgateway's OpenRouter vendor-slug rule")
+            f"CHAT_MODEL_ID {value!r} must be one path-safe token (no '/', no spaces)")
     require(value != OLD_NAME, "CHAT_MODEL_ID must be the loaded model, not the stale alias")
     resources = load_one(AI_APPS / "kustomization.yaml")["resources"]
     require("./chat-model.yaml" in resources, "kustomization.yaml must list ./chat-model.yaml")
 
 
 def test_substitute_from() -> None:
-    for app in ("vllm", "litellm", "agentgateway"):
+    for app in ("vllm", "litellm"):
         ks = next(d for d in load_all(AI_APPS / f"{app}.yaml") if d.get("kind") == "Kustomization")
         sources = ks["spec"]["postBuild"]["substituteFrom"]
         require({"name": "chat-model", "kind": "ConfigMap"} in sources,
@@ -112,26 +110,10 @@ def test_litellm_crs() -> None:
     require(llm["model"] == "chat-local-classifier", "auto router classifier must be chat-local-classifier")
 
 
-def test_agentgateway() -> None:
-    routes = load_all(AI_BASE / "agentgateway/app/httproute-unified.yaml")[0]["spec"]["rules"]
-    local = [r for r in routes
-             if r["backendRefs"][0]["name"] == "llm-chat-failover"]
-    require(len(local) == 1, "exactly one route must target llm-chat-failover")
-    header = local[0]["matches"][0]["headers"][0]
-    require(header["type"] == "Exact" and header["value"] == ROLE,
-            f"local chat route must match x-model Exact {ROLE}")
-    backend = next(d for d in load_all(AI_BASE / "agentgateway/app/backends/vllm.yaml")
-                   if d.get("metadata", {}).get("name") == "llm-chat-failover")
-    provider = backend["spec"]["ai"]["groups"][0]["providers"][0]
-    require(provider["openai"]["model"] == VARIABLE, f"local provider model must be {VARIABLE}")
-    catalog = (AI_BASE / "agentgateway/app/httproute-models.yaml").read_text()
-    require(f'"id":"{ROLE}"' in catalog and f'"root":"{VARIABLE}"' in catalog,
-            "models catalog must list the role id and expose the real name as root")
-
-
 def test_consumers() -> None:
     hermes = load_one(AI_BASE / "hermes/app/resources/config.yaml")
     require(hermes["model"]["default"] == ROLE, f"Hermes default model must be {ROLE}")
+    require(hermes["model"]["provider"] == "custom:litellm", "Hermes must serve the default model via LiteLLM")
     lw = (ROOT / "kubernetes/apps/base/selfhosted/linkwarden/app/helmrelease.yaml").read_text()
     require(re.search(rf'OPENAI_MODEL:\s*"{ROLE}"', lw) is not None, f"Linkwarden OPENAI_MODEL must be {ROLE}")
 
@@ -146,7 +128,7 @@ def test_no_stale_name() -> None:
 
 def main() -> int:
     for fn in (test_config_map, test_substitute_from, test_llama_server, test_litellm_crs,
-               test_agentgateway, test_consumers, test_no_stale_name):
+               test_consumers, test_no_stale_name):
         print(f"==> {fn.__name__}")
         fn()
     print("PASS: chat model name is defined once; consumers use the role alias")
