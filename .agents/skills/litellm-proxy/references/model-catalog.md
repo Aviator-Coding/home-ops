@@ -19,7 +19,7 @@ bypasses allow-lists ([fallbacks.md](fallbacks.md)).
 
 ## Rule 2: route by the credential you hold
 
-Exactly four provider keys, all fields of the one 1Password `ai-keys` item
+Exactly five provider keys, all fields of the one 1Password `ai-keys` item
 (the same item and field names the agentgateway backends read):
 
 | Prefix | Env var | Reaches |
@@ -28,6 +28,7 @@ Exactly four provider keys, all fields of the one 1Password `ai-keys` item
 | `xai/` | `XAI_API_KEY` | Grok |
 | `zai/` | `ZAI_API_KEY` | GLM (native provider, resolves to `https://api.z.ai/api/paas/v4`; no `apiBase`, no `openai/` shim) |
 | `openrouter/` | `OPENROUTER_API_KEY` | every other vendor (OpenAI, Gemini/Gemma, DeepSeek, Kimi, cloud Qwen, Nemotron, MiniMax, Meta Muse) |
+| `openai/` + `apiBase: https://opencode.ai/zen/go/v1` | `OPENCODE_GO_API_KEY` | the OpenCode Go flat-rate subscription: the `go-*` CRs (`go-glm-5.1`, `go-kimi-k2.6`, `go-deepseek-v4-flash`). `params.model` is the bare Go id; resolve it on `/zen/go/v1/models`. Prefixed `go-` so it never collides with the metered OpenRouter/Z.ai names. Explicit `$0` on all seven price fields (flat invoice), held only by `hermes-go` |
 
 Use a literal `apiKey: os.environ/<VAR>`, not `apiKeyRef` (that would inject a
 second env var for the same value).

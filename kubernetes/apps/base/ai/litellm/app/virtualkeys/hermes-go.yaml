@@ -1,0 +1,44 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# ai/hermes's OpenCode Go key: the flat-rate `go-*` models only, kept off litellm-consume-projects so
+# the $100/30d metered pool and the Go subscription cannot leak into each other. Go models are
+# priced $0, so maxBudget is an inert guard (same reasoning as repo-wiki); rpm/tpm are the real
+# bound. See skill litellm-proxy (references/governance-keys.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: hermes-go
+spec:
+  proxyRef: litellm
+  keyAlias: hermes-go
+  secretName: litellm-key-hermes-go
+  secretKey: key
+  models:
+    - go-deepseek-v4-flash
+    - go-glm-5.1
+    - go-kimi-k2.6
+    - embedding-local
+  maxBudget: "5.00"
+  budgetDuration: 30d
+  rpmLimit: 60
+  tpmLimit: 2000000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-hermes-go
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-hermes-go
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-hermes-go
+          property: key
