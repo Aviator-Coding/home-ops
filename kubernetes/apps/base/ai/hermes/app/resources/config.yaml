@@ -157,7 +157,7 @@ secrets:
   command:
     enabled: true
     command: |-
-      for k in MCP_GATEWAY_URL MCP_GATEWAY_TOKEN LITELLM_HERMES_API_KEY HOMELAB_GH_TOKEN DISCORD_WEBHOOK; do printf '%s=%s\n' "$k" "$(cat "/secrets/mcp/$k")"; done
+      for k in MCP_GATEWAY_URL MCP_GATEWAY_TOKEN LITELLM_HERMES_API_KEY HOMELAB_GH_TOKEN DISCORD_WEBHOOK DISCORD_BOT_TOKEN DISCORD_ALLOWED_USERS; do printf '%s=%s\n' "$k" "$(cat "/secrets/mcp/$k")"; done
       printf 'SUMMARY_LLM_API_KEY=%s\n' "$(cat /secrets/mcp/LITELLM_HERMES_API_KEY)"
       printf 'SUMMARY_LLM_URL=%s\nSUMMARY_LLM_MODEL=%s\n' http://litellm.ai.svc.cluster.local:4000/v1 go-glm-5.1
 
@@ -183,6 +183,16 @@ platform_toolsets:
     - hermes-cli
   telegram:
     - hermes-telegram
+  discord:
+    - hermes-discord
+# Discord: ONE dedicated channel in ONE server. allowed_channels is a whitelist (the bot ignores everywhere
+# else), free_response_channels answers there without an @mention, and only DISCORD_ALLOWED_USERS may
+# command it. The default profile answers for now; a `gateway.profile_routes` entry (platform discord, chat_id
+# below) moves the channel to another profile later. Server 1507870874752127226. Skill hermes-agent discord.md.
+discord:
+  allowed_channels: "1564049687051370687"
+  free_response_channels: "1564049687051370687"
+  auto_thread: false
 telegram:
   require_mention: false
 
