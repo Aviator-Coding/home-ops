@@ -25,6 +25,25 @@ report 0 VRAM (shared memory). `xe_gpu_exporter_up 1` with
 `xe_gpu_clients 0` while chat is serving means the scan lost `hostPID` or
 `SYS_PTRACE`. Gate: `scripts/ci/xe-gpu-exporter-test.py`.
 
+## Chat throughput, `ai/vllm` llama-server
+
+The dashboard's last row reads llama-server's own `/metrics`, scraped by the
+`vllm` ServiceMonitor. Those series carry no model label: the ServiceMonitor
+`relabelings` add `model` and `kv`, and the panels group by them so each
+shipped variant is its own line. Change the labels with the `-hf` and
+`--cache-type-k/v` args; `scripts/ci/gpu-node-dashboard-test.py` fails when
+`kv` drifts from `--cache-type-k`.
+
+| Panel | Series |
+|---|---|
+| Decode / prefill t/s | `llamacpp:tokens_predicted_total` over `..._seconds_total`, `llamacpp:prompt_tokens_total` over `llamacpp:prompt_seconds_total` |
+| Slots busy / queued | `llamacpp:requests_processing`, `llamacpp:requests_deferred` |
+| Draft acceptance | `llamacpp:spec_decode_num_accepted_tokens_total` over `..._draft_tokens_total`. Empty while MTP is off |
+
+t/s is tokens over busy seconds, so an idle server shows no data, not a low
+number. It is a live-traffic mix, not a benchmark: compare variants with
+`scripts/bench/b70-serving-harness.py`, not by eye.
+
 ## B70, talos-3 only
 
 `xe` hwmon chip `0000:02:01_0_0000:03:00_0`.

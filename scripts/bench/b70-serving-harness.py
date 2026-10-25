@@ -25,10 +25,39 @@ Usage:
 
 Evidence trail and the matrix this produced: .agents/skills/b70-llm-serving/references/flags.md
 """
-import argparse, json, random, statistics as st, string, sys, threading, time
+import argparse, json, random, re, statistics as st, string, sys, threading, time
 import urllib.request
+from datetime import datetime
+from pathlib import Path
 
 BASE = "http://127.0.0.1:18000"  # overridden by --base
+DEFAULT_DEPTHS = "2048,8192,16384,32768,65536"
+DEFAULT_OUT_DIR = Path(__file__).resolve().parent / "results"
+LABEL_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
+
+def parse_depths(spec):
+    """'2048,8192' -> [2048, 8192]. Raises ValueError on junk or non-positive."""
+    try:
+        depths = [int(x) for x in spec.split(",")]
+    except ValueError:
+        raise ValueError(f"depths must be comma-separated integers, got {spec!r}") from None
+    if any(d <= 0 for d in depths):
+        raise ValueError(f"depths must be positive, got {spec!r}")
+    return depths
+
+def result_path(label, out_dir, now):
+    """<out_dir>/<label>-<YYYYMMDD-HHMMSS>.json. The label must not escape out_dir."""
+    if not LABEL_RE.match(label):
+        raise ValueError(f"label must match {LABEL_RE.pattern}, got {label!r}")
+    return Path(out_dir) / f"{label}-{now:%Y%m%d-%H%M%S}.json"
+
+def summarize_depth(depth, runs):
+    """Median prefill and decode t/s for requests whose prompt was ~depth tokens."""
+    def med(key):
+        vals = [r[key] for r in runs if r.get(key)]
+        return st.median(vals) if vals else None
+    return {"depth": depth, "n": len(runs),
+            "prefill_median": med("prompt_ps"), "decode_median": med("pred_ps")}
 
 def post(path, payload, timeout=1800):
     req = urllib.request.Request(BASE + path,
@@ -222,10 +251,34 @@ def run(args):
         }
         note("P4-end")
 
+    # P5: cold prefill and decode at context depth (quantized KV decays here)
+    if "5" in args.phases:
+        note("P5-start")
+        sweep = []
+        for depth in parse_depths(args.depths):
+            runs = []
+            for i in range(args.reps):
+                r = completion(make_prompt(depth, rng), args.decode_tokens)
+                runs.append(r)
+                print(f"P5 depth={depth} rep{i}: prompt_n={r['prompt_n']} "
+                      f"prefill={r['prompt_ps']:.1f} decode={r['pred_ps']:.2f} t/s", flush=True)
+            sweep.append(summarize_depth(depth, runs))
+        res["phases"]["P5_depth_sweep"] = sweep
+        note("P5-end")
+
+    if args.label:
+        res["label"] = args.label
+        res["date"] = datetime.now().isoformat(timespec="seconds")
+
     print("\n===JSON===")
     print(json.dumps(res, indent=2))
-    if args.out:
-        open(args.out, "w").write(json.dumps(res, indent=2))
+    out = args.out
+    if args.label and not out:
+        out = result_path(args.label, args.out_dir, datetime.now())
+        out.parent.mkdir(parents=True, exist_ok=True)
+    if out:
+        Path(out).write_text(json.dumps(res, indent=2))
+        print(f"# wrote {out}", flush=True)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -243,6 +296,11 @@ if __name__ == "__main__":
                     help="discard one request first: the first prefill after a restart is cold")
     ap.add_argument("--base", default=BASE, help="server base URL (port-forward target)")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--depths", default=DEFAULT_DEPTHS,
+                    help="P5 context depths in tokens, comma-separated")
+    ap.add_argument("--label", default=None,
+                    help="variant name (e.g. q8_0, f16); writes <out-dir>/<label>-<timestamp>.json")
+    ap.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
     _a = ap.parse_args()
     BASE = _a.base
     run(_a)

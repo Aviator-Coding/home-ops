@@ -85,6 +85,8 @@ below are invisible when a rename drops them.
 | Chat alerts | `kubernetes/apps/base/ai/vllm/app/prometheusrule.yaml` |
 | Embedding HelmRelease | `kubernetes/apps/base/ai/embedding-gpu/app/helmrelease.yaml` |
 | Prefill-by-depth bench (read-only) | `scripts/bench/vllm-prefill-by-depth.py` |
+| Active A/B harness (P1-P5, P5 = decode and prefill at depth) | `scripts/bench/b70-serving-harness.py --label <variant>` |
+| Side-by-side table of labelled harness results | `scripts/bench/b70-compare.py <result.json>...` |
 
 ## Procedures
 
@@ -101,6 +103,9 @@ below are invisible when a rename drops them.
 - `python3 scripts/ci/vllm-memory-alert-test.py`
 - `python3 scripts/ci/embedding-gpu-prompt-cache-test.py`
 - `python3 scripts/ci/embedding-values-test.py`
+- `python3 scripts/ci/b70-bench-harness-test.py`
+- `python3 scripts/ci/gpu-node-dashboard-test.py` (the ServiceMonitor `model`
+  and `kv` labels must move with `-hf` and `--cache-type-k/v`)
 - After any embedding arg change, read the startup banner
   (`n_slots`, `n_ctx_slot`, `kv_unified`) rather than deriving it.
 - An embedding check that cannot return non-200 or non-finite is not a
