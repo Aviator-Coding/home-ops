@@ -1,0 +1,44 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# ai/hermes' `home-assistant` profile (its own Discord channel, its own MCP group). One key per app so its
+# traffic is attributable and can be cut off alone. chat-local plus the flat-rate go-* models only: no metered
+# route, so spend is $0 by construction and maxBudget is an inert guard (same reasoning as linkwarden);
+# rpm/tpm are the real bound. No spec.metadata. See skill litellm-proxy (references/governance-keys.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: hermes-ha
+spec:
+  proxyRef: litellm
+  keyAlias: hermes-ha
+  secretName: litellm-key-hermes-ha
+  secretKey: key
+  models:
+    - chat-local
+    - embedding-local
+    - go-glm-5.1
+    - go-kimi-k2.6
+  maxBudget: "1.00"
+  budgetDuration: 30d
+  rpmLimit: 60
+  tpmLimit: 1000000
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-hermes-ha
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-hermes-ha
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-hermes-ha
+          property: key

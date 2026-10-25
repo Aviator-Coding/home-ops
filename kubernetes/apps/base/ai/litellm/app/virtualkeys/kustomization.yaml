@@ -22,4 +22,5 @@ resources:
   - ./jev-decisions.yaml
   - ./litellm-consume-projects.yaml
   - ./hermes.yaml
+  - ./hermes-ha.yaml
   - ./linkwarden.yaml
