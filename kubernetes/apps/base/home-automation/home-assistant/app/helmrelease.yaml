@@ -30,6 +30,40 @@ spec:
                 "namespace": "kube-system",
                 "ips": ["10.40.0.100/16"]
               }]
+        initContainers:
+          # Installs the hass-oidc-auth custom component into /config. The zip is verified against
+          # OIDC_SHA256 (GitHub release asset digest); bump both together. A failed download or
+          # checksum keeps the installed copy so HA still boots, and fails the pod on a fresh PVC.
+          # Skill home-automation.
+          install-oidc:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
+            env:
+              # renovate: datasource=github-releases depName=christiaangoossens/hass-oidc-auth
+              OIDC_VERSION: v1.2.1
+              OIDC_SHA256: e5badaaacaa63cfd6fe733924a05e76d75058836190398598fb24de57cd47ccd
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                dest=/config/custom_components/auth_oidc
+                [ "$(cat $dest/.version 2>/dev/null)" = "$OIDC_VERSION" ] && exit 0
+                keep_or_fail() { echo "install-oidc: $1" >&2; [ -d "$dest" ] && exit 0; exit 1; }
+                wget -q -T 30 -O /tmp/oidc.zip "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/$OIDC_VERSION/hass-oidc-auth.zip" || keep_or_fail "download failed"
+                echo "$OIDC_SHA256  /tmp/oidc.zip" | sha256sum -c - >/dev/null || keep_or_fail "checksum mismatch"
+                rm -rf "$dest.new"
+                mkdir -p "$dest.new"
+                unzip -q /tmp/oidc.zip -d "$dest.new"
+                echo "$OIDC_VERSION" > "$dest.new/.version"
+                rm -rf "$dest"
+                mv "$dest.new" "$dest"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+
         containers:
           app:
             image:
@@ -185,6 +219,16 @@ spec:
         existingClaim: ${KOPIUR_CLAIM:-home-assistant}
         globalMounts:
           - path: /config
+      # Non-secret auth_oidc settings; configuration.yaml pulls them in with `!include`.
+      oidc-config:
+        type: configMap
+        name: home-assistant-oidc
+        advancedMounts:
+          home-assistant:
+            app:
+              - path: /config/auth_oidc.yaml
+                subPath: auth_oidc.yaml
+                readOnly: true
       logs:
         type: emptyDir
         globalMounts:

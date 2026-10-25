@@ -1,36 +1,7 @@
 ---
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: SecurityPolicy
-metadata:
-  name: home-assistant-auth
-spec:
-  targetRefs:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: home-assistant-app
-  extAuth:
-    headersToExtAuth:
-      - cookie
-      - authorization
-      - x-forwarded-for
-      - x-forwarded-host
-      - x-forwarded-proto
-      - x-forwarded-uri
-    http:
-      backendRefs:
-        - name: ak-outpost-authentik-embedded-outpost
-          namespace: security
-          port: 9000
-      path: /outpost.goauthentik.io/auth/envoy
-      headersToBackend:
-        - set-cookie
-        - authorization
-        - x-authentik-username
-        - x-authentik-email
-        - x-authentik-name
-        - x-authentik-uid
----
+# Only the code-server route is gated by Authentik ExtAuth. The Home Assistant route is not:
+# the companion app, Google and /auth/token cannot follow a browser SSO redirect, so
+# Authentik signs in inside Home Assistant (auth_oidc, resources/auth_oidc.yaml). Skill home-automation.
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
