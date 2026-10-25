@@ -73,6 +73,14 @@ uncleanly, so batch them and never pair one with an unrelated rollout.
     "unavailable". `go-glm-5.1` answers in seconds. Set it in both
     `helmrelease.yaml` and `secrets.command`; the secret-scope test keeps them equal.
 
+16. **Hermes holds no write-capable GitHub credential.** The agent's terminal
+    sees `HOMELAB_GH_TOKEN`, and it reaches the GitHub MCP. Both render from
+    the read-only `HOMELAB_GH_READ_TOKEN`; the old `HOMELAB_GH_TOKEN` field can
+    create issues and commit files to home-ops (the repo ruleset lets the admin
+    role bypass the PR rule), so it stays OpenCode's. Hermes made zero GitHub
+    MCP calls in its history; the exposure was the env var. Gate:
+    `scripts/ci/hermes-secret-scope-test.py`.
+
 ## Where things live
 
 | What | Path |

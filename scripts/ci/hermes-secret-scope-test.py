@@ -140,6 +140,22 @@ def test_auxiliary_slots_are_real(config: dict) -> None:
             "falls back to the main model (add to KNOWN_AUX_SLOTS only after checking Hermes)")
 
 
+def test_github_credentials_are_read_only() -> None:
+    """The agent's terminal sees HOMELAB_GH_TOKEN, and Hermes reaches the GitHub MCP. Neither may hold the
+    write-capable field (it can create issues and commit files to home-ops; measured with invalid-body probes)."""
+    docs = [d for d in yaml.safe_load_all((APP / "externalsecret.yaml").read_text()) if d]
+    hermes = next(d for d in docs if d["metadata"]["name"] == "hermes")
+    rendered = hermes["spec"]["target"]["template"]["data"]["HOMELAB_GH_TOKEN"]
+    require("HOMELAB_GH_READ_TOKEN" in rendered and ".HOMELAB_GH_TOKEN" not in rendered,
+            f"Hermes' HOMELAB_GH_TOKEN must render from HOMELAB_GH_READ_TOKEN, got {rendered!r}")
+    mcp = ROOT / "kubernetes/apps/base/ai/toolhive/mcp-servers/github-mcp"
+    token = yaml.safe_load((mcp / "externalsecret.yaml").read_text())["spec"]["target"]["template"]["data"]["token"]
+    require("HOMELAB_GH_READ_TOKEN" in token and ".HOMELAB_GH_TOKEN" not in token,
+            f"the GitHub MCP token must render from HOMELAB_GH_READ_TOKEN, got {token!r}")
+    env = {e["name"]: e.get("value") for e in yaml.safe_load((mcp / "mcpserver.yaml").read_text())["spec"]["env"]}
+    require(env.get("GITHUB_READ_ONLY") == "1", "the GitHub MCP must run with GITHUB_READ_ONLY=1")
+
+
 def main() -> int:
     config = load_yaml(APP / "resources/config.yaml")
     hr = load_yaml(APP / "helmrelease.yaml")
@@ -151,6 +167,7 @@ def main() -> int:
         ("script env declared", lambda: test_script_env_is_declared(emitted)),
         ("summary literals match env", lambda: test_summary_literals_match_container_env(command, hr)),
         ("auxiliary slots real", lambda: test_auxiliary_slots_are_real(config)),
+        ("github credentials read-only", test_github_credentials_are_read_only),
     ):
         print(f"==> {name}")
         fn()
