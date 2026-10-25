@@ -16,6 +16,14 @@ which Hermes scrubs. A dummy (`no-auth`, empty) is not sent and LiteLLM
 answers 401. Skill `litellm-proxy` owns the key and its allow-list: a model
 used in `config.yaml` that is not on the `hermes` key is a 403.
 
+`key_env` resolves from the profile secret scope, not the container env
+(the gateway runs with `multiplex_profiles`). The key reaches Hermes through
+the `secrets.command` source, which reads
+`/secrets/mcp/LITELLM_HERMES_API_KEY` (a file mount of that Secret key in
+`helmrelease.yaml`), next to the two MCP vars. Env injection alone gives
+"key_env ... is set but the variable is empty/unset" in `errors.log` and a
+401 on every call. [mcp-gateway.md](mcp-gateway.md)
+
 `session_affinity_header: x-opencode-session` is load-bearing for the `go-*`
 models. OpenCode Go answers HTTP 400 `MissingSessionID` to any request
 without it and wants one stable value per conversation. Hermes sends a
