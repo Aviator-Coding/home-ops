@@ -73,14 +73,16 @@ providers:
       gpt-oss-20b:
         context_length: 131072
 
-# Default serving model: the local Qwen3.6-35B-A3B on the B70 (llama.cpp SYCL).
+# Default serving model: the local chat role alias `chat-local` (the model loaded on the B70,
+# llama.cpp SYCL). Never put the loaded model's name here: it lives once, in ConfigMap
+# chat-model, so a swap does not touch Hermes. List /v1/models to see it (`root`).
 # llama-server auto-selects n_parallel=4 + kv_unified=true (do not pin those
 # flags); fan-out above 4 queues. The gateway fails the local model over to
 # kimi-k2.6 before `fallback_providers` below ever fires.
 # To serve a cloud model instead, set e.g.
 # model: { default: x-ai/grok-4.3, provider: custom:gateway }.
 model:
-  default: qwen3.6-35b-a3b
+  default: chat-local
   provider: custom:gateway
 
 # Fail-over chain for the MAIN agentic loop (fires only if the gateway's own

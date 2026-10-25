@@ -19,7 +19,7 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
    cloud fallback may only sit on an alias every holder is already
    cloud-entitled to (today `chat-ha` and `auto`, both to
    `claude-sonnet-5-metered`). Never add one to `chat-local`,
-   `qwen3.6-35b-a3b`, the classifier, `pr-review-local`, `embedding-local` or a
+   `demo-priced-local`, the classifier, `pr-review-local`, `embedding-local` or a
    pass-through model. [fallbacks.md](references/fallbacks.md)
 2. **A `LiteLLMModel` with no `apiKey` is not credential-less.** It falls back
    to the pod's metered `ANTHROPIC_API_KEY`. The four subscription
@@ -30,7 +30,7 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 3. **Metered cloud models carry no `info.extra` prices** (the cost map is the
    invoice), except `qwen/qwen3-embedding-8b`, whose real price is declared
    because the cost map lacks it. Local models carry none (sunk hardware); only
-   the `qwen3.6-35b-a3b` demo fixture has synthetic prices (`demo` only). [model-catalog.md](references/model-catalog.md)
+   the `demo-priced-local` demo fixture has synthetic prices (`demo` only). [model-catalog.md](references/model-catalog.md)
 4. **Registration is not entitlement.** A new CR is reachable only once a key
    allow-lists it; allow-list changes are captain decisions. `models: []`
    means all models.

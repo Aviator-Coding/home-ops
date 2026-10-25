@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/configmap-v1.json
+# The ONE place the loaded chat model's name is written. Flux substitutes
+# ${CHAT_MODEL_ID} into the vllm, litellm and agentgateway Kustomizations
+# (postBuild.substituteFrom). Consumers use the role alias `chat-local`, never this
+# value, so a model swap is this one line plus the -hf repo in vllm's helmrelease.
+# Keep it the loaded repo's model name without the -GGUF suffix and without the owner:
+# a '/' would match agentgateway's OpenRouter vendor-slug route.
+# Swap procedure and gate: skill b70-llm-serving (references/flags.md),
+# scripts/ci/chat-model-id-test.py.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chat-model
+data:
+  CHAT_MODEL_ID: Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated

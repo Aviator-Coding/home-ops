@@ -30,8 +30,8 @@ Otherwise one B70 hiccup turns every local-only key into a cloud spender.
 | `auto` | `claude-sonnet-5-metered` | `claude-sonnet-5-metered` |
 
 Terminal, and must stay so (CI: `scripts/ci/litellm-fallback-chain-test.py`,
-and `chat_local_has_no_cloud_fallback` in `litellm-auto-router-test.py`): `qwen3.6-35b-a3b`, `chat-local`,
-`qwen3.6-35b-a3b-classifier`, `pr-review-local`, `embedding-local`, and the
+and `chat_local_has_no_cloud_fallback` in `litellm-auto-router-test.py`): `demo-priced-local`, `chat-local`,
+`chat-local-classifier`, `pr-review-local`, `embedding-local`, and the
 four subscription pass-through models.
 
 - Targets must be the **`-metered`** CRs. The natural `claude-sonnet-5` is the

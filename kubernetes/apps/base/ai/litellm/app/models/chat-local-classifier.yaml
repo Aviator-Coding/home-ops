@@ -6,12 +6,13 @@
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
-  name: qwen3.6-35b-a3b-classifier
+  name: chat-local-classifier
 spec:
-  modelName: qwen3.6-35b-a3b-classifier
+  modelName: chat-local-classifier
   proxyRef: litellm
   params:
-    model: openai/qwen3.6-35b-a3b
+    # The loaded model's real name, from ConfigMap chat-model. Never type it here.
+    model: openai/${CHAT_MODEL_ID}
     apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
     apiKey: "not-needed"
     additional:

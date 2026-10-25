@@ -27,9 +27,10 @@ spec:
 # Local-first chat with subscription failover: group 1 = llama.cpp 35B on the
 # B70, group 2 = OpenCode Go (kimi-k2.6, flat subscription; reuses
 # opencodego-secret from backends/opencodego.yaml). The unified router
-# (../httproute-unified.yaml) resolves the exact model id qwen3.6-35b-a3b
+# (../httproute-unified.yaml) resolves the exact role id chat-local
 # through this backend, so EVERY client of the local model transparently
-# gains the cloud failover. Embeddings are deliberately excluded: a fallback
+# gains the cloud failover. The model sent upstream is the loaded model's real name
+# (${CHAT_MODEL_ID}, ConfigMap chat-model). Embeddings are deliberately excluded: a fallback
 # embedder at different dimensions would corrupt a consumer's vector index.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
@@ -41,7 +42,7 @@ spec:
       - providers:
           - name: local-qwen
             openai:
-              model: qwen3.6-35b-a3b
+              model: ${CHAT_MODEL_ID}
             host: vllm-app.ai.svc.cluster.local
             port: 8000
       - providers:

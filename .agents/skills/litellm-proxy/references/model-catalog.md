@@ -64,7 +64,7 @@ models first, then the key from `app/externalsecret.yaml`.
   - The four Claude Code subscription pass-through CRs: explicit `$0` on
     input, output **and all five prompt-cache fields**
     ([claude-code-subscription.md](claude-code-subscription.md)).
-  - `qwen3.6-35b-a3b`: synthetic governance prices, `demo` fixture only
+  - `demo-priced-local`: synthetic governance prices, `demo` fixture only
     ([governance-keys.md](governance-keys.md)).
   - `qwen/qwen3-embedding-8b`: its real OpenRouter price
     ($0.01 per 1M input tokens) because the bundled map has no
@@ -82,20 +82,21 @@ models first, then the key from `app/externalsecret.yaml`.
 
 ## The five aliases of the one local chat backend
 
-`openai/qwen3.6-35b-a3b` at `http://vllm-app.ai.svc.cluster.local:8000/v1`
+`openai/${CHAT_MODEL_ID}` (the loaded model's real name, ConfigMap `chat-model`)
+at `http://vllm-app.ai.svc.cluster.local:8000/v1`
 (B70 llama.cpp, `apiKey: "not-needed"`). Same weights and GPU; each alias
 carries exactly one property the others must not:
 
 | Alias | Prices | Cloud fallback | Thinking | Held by |
 |---|---|---|---|---|
-| `qwen3.6-35b-a3b` | synthetic | none | on | `demo` only, never production |
+| `demo-priced-local` | synthetic | none | on | `demo` only, never production |
 | `chat-local` | zero | **none (terminal)** | on | real local traffic: auto SIMPLE/MEDIUM, fail-open pin, repo-wiki, local-only keys |
 | `chat-ha` | zero | `claude-sonnet-5-metered` | on | cloud-entitled keys that must survive a B70 outage |
-| `qwen3.6-35b-a3b-classifier` | zero | none | **off** | the auto-router only |
+| `chat-local-classifier` | zero | none | **off** | the auto-router only |
 | `pr-review-local` | zero | none | **off** | the AI PR reviewer only |
 
 - Never add prices to `chat-local`, `chat-ha`, the classifier or
-  `pr-review-local`. Put any bigger synthetic budget on `qwen3.6-35b-a3b`.
+  `pr-review-local`. Put any bigger synthetic budget on `demo-priced-local`.
 - Never add a cloud fallback to anything but `chat-ha`/`auto`.
 - Thinking-off (`additional.extra_body.chat_template_kwargs.enable_thinking:
   false`) is required wherever a consumer parses `content`: a reasoning model
@@ -130,7 +131,7 @@ The Hub lists exactly `litellmSettings.public_model_groups` on
 is not on the Hub until its `modelName` is added there**, and
 `scripts/ci/litellm-ai-hub-test.py` fails until you do. Only three aliases
 stay unpublished (the test's `UNPUBLISHED` set): the classifier,
-`pr-review-local` and `qwen3.6-35b-a3b` (its synthetic price would display as
+`pr-review-local` and `demo-priced-local` (its synthetic price would display as
 real). Publishing grants no access. `/public/*` is unauthenticated, but the
 route is LAN-only.
 

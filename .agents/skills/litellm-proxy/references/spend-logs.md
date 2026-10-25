@@ -72,7 +72,7 @@ and response bodies in `LiteLLM_SpendLogs` (`store_prompts_in_spend_logs` on
   Top keys/providers: `/global/spend/keys`, `/global/spend/provider` (30-day views).
 - Prometheus: `litellm_spend_metric_total`, `litellm_{input,output,total}_tokens_metric_total`;
   these series appear only after the first request since the last restart.
-- Local spend is not money: only `qwen3.6-35b-a3b` is priced (the demo
+- Local spend is not money: only `demo-priced-local` is priced (the demo
   fixture), and its rows dominate the headline total. Old rows keep the
   prices they were written with. For real money filter
   `custom_llm_provider IN ('anthropic','openrouter','xai','zai')`.

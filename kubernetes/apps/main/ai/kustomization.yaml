@@ -16,6 +16,7 @@ components:
 resources:
   - ./agentgateway.yaml
   - ./agentgateway-dashboards.yaml
+  - ./chat-model.yaml
   - ./embedding-gpu.yaml
   - ./gpu-node-dashboard.yaml
   - ./hermes.yaml

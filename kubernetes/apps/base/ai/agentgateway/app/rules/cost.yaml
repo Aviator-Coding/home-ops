@@ -216,7 +216,7 @@ spec:
           labels: { gen_ai_request_model: qwen/qwen3-vl-32b-instruct, gen_ai_token_type: input_cache_write }
           expr: vector(0.1)
         # OpenCode Go is a flat subscription, so marginal cost is 0. Zen stays unpriced on purpose.
-        # qwen3.6-35b-a3b is local hardware, also 0. See skill agentgateway references/routing-backends.md.
+        # chat-local (the local model's role alias) is local hardware, also 0. See skill agentgateway references/routing-backends.md.
         - record: *price
           labels: { gen_ai_request_model: minimax-m3, gen_ai_token_type: input }
           expr: &free vector(0)
@@ -362,16 +362,16 @@ spec:
           labels: { gen_ai_request_model: qwen3.6-plus, gen_ai_token_type: input_cache_write }
           expr: *free
         - record: *price
-          labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: input }
+          labels: { gen_ai_request_model: chat-local, gen_ai_token_type: input }
           expr: *free
         - record: *price
-          labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: output }
+          labels: { gen_ai_request_model: chat-local, gen_ai_token_type: output }
           expr: *free
         - record: *price
-          labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: input_cache_read }
+          labels: { gen_ai_request_model: chat-local, gen_ai_token_type: input_cache_read }
           expr: *free
         - record: *price
-          labels: { gen_ai_request_model: qwen3.6-35b-a3b, gen_ai_token_type: input_cache_write }
+          labels: { gen_ai_request_model: chat-local, gen_ai_token_type: input_cache_write }
           expr: *free
         # embedding-local (../httproute-unified.yaml default /v1/embeddings
         # rule, backends/embedding-local.yaml) - local inference, sunk hardware
