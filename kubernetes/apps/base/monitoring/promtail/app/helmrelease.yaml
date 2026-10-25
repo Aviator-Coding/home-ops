@@ -47,18 +47,8 @@ spec:
             max_retries: 10
 
       snippets:
-        # Tempo 3.0's backend-worker logs its idle "no jobs found" poll at error level every
-        # backend_scheduler.job_timeout - grafana/tempo#7403 / #7666, open upstream, no log-level
-        # knob short of the global server.log_level. Drop only this exact message so real
-        # Tempo errors still ship to Loki.
         pipelineStages:
           - cri: {}
-          - match:
-              selector: '{namespace="monitoring", container="tempo"}'
-              stages:
-                - drop:
-                    expression: 'msg="error calling scheduler" err="rpc error: code = NotFound desc = no jobs found"'
-                    drop_counter_reason: tempo_idle_scheduler_noise
         extraRelabelConfigs:
           - source_labels: [__meta_kubernetes_pod_label_ceph_daemon_type]
             target_label: ceph_daemon_type
