@@ -434,12 +434,15 @@ def test_no_global_forward_headers_flag(cfg: dict) -> None:
         not bool(gs.get("forward_client_headers_to_llm_api")),
         f"general_settings.forward={gs.get('forward_client_headers_to_llm_api')!r}",
     )
-    # Narrow per-model form is allowed in principle but deliberately unset today.
+    # Narrow per-model form: allowed only for the OpenCode Go flat-rate groups, which need the
+    # caller's x-opencode-session. It must never name a subscription pass-through model (their
+    # per-request OAuth header must not be mixed with other forwarded client headers).
     mgs = ls.get("model_group_settings") or {}
-    fwd_list = mgs.get("forward_client_headers_to_llm_api")
+    fwd_list = list(mgs.get("forward_client_headers_to_llm_api") or [])
     record(
-        "litellm_settings_has_no_model_group_forward_headers_list",
-        not fwd_list,
+        "model_group_forward_headers_list_is_go_only_and_excludes_subscription_models",
+        all(str(m).startswith("go-") for m in fwd_list)
+        and not set(fwd_list) & set(SUBSCRIPTION_MODELS),
         f"model_group_settings.forward={fwd_list!r}",
     )
     # Proxy CR surface (pre-render) must match.
