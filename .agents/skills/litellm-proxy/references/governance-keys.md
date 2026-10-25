@@ -162,6 +162,7 @@ reason:
 | `embedding-external` | `embedding-local` | external embedding callers; its rpm is per key, the model-level `rpm` on `embedding-local` (model-catalog.md) caps every key together to protect chat on the shared B70 |
 | `litellm-pgvector` | `qwen/qwen3-embedding-8b` only | vector store ([vector-store.md](vector-store.md)); deliberately no `embedding-local` |
 | `jev-decisions` | `typesafe/jev-1.13` | decision door, $1/30d ([passthrough-lockdown.md](passthrough-lockdown.md)); no `embedding-local` |
+| `hermes-go` | the three `go-*` OpenCode Go models | ai/hermes provider `custom:litellm-go`. Flat-rate subscription, so models are priced $0 and `maxBudget` is an inert guard; `rpmLimit`/`tpmLimit` are the real bound. Deliberately separate from `litellm-consume-projects` so the $100 metered pool and the Go subscription cannot leak into each other |
 | `litellm-consume-projects` | metered Anthropic org routes, `gpt-*`, `gpt-oss-20b`, `typesafe/jev-1.13`, `auto`, `embedding-local` | Aviator org consumer. $100/30d is one pool shared by every caller, including ai/opencode provider `litellm-projects` and ai/hermes provider `custom:litellm`. No `spec.metadata`: the Jev id is allow-listed but the passthrough grant is not in Git |
 
 Every other key also allow-lists `embedding-local` (captain intent: every key

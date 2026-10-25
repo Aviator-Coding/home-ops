@@ -154,6 +154,9 @@ spec:
       - gemma-4-31b
       - glm-5.2
       - glm-5.3
+      - go-deepseek-v4-flash
+      - go-glm-5.1
+      - go-kimi-k2.6
       - gpt-5.6-luna
       - gpt-5.6-sol
       - gpt-5.6-terra
