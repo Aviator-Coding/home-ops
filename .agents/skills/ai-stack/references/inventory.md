@@ -31,7 +31,8 @@ closed by NetworkPolicy to everything but envoy-internal.
 - kagent, kmcp (PR #941, PR #942). Do not install their charts or
   `kagent.dev` CRDs.
 - kgateway and agentgateway. agentgateway was retired 2026-10-25 (stateless, no
-  volumes; its CRDs go in a follow-up). LiteLLM is the only LLM gateway.
+  volumes; app, dashboards and CRDs removed). LiteLLM is the only LLM gateway.
+  Do not install the `agentgateway.dev` CRDs.
 - `open-webui`, `kokoro`, `miso-gallery`, `open-notebook`, `perplexica`,
   `qdrant` (retired together). `agentmemory`. `comfyui` and `comfyui-mcp`.
   Revival is [retirement.md](retirement.md), not a compatibility check

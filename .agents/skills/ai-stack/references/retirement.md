@@ -41,6 +41,14 @@ as well.
    for a root mover (`hermes` 10000, `opencode` and `repo-wiki` 1000).
    `home-automation` keeps its own grant.
 
+7. An app with a CRD split (`<app>/crds/` plus its own Kustomization) retires in
+   two merges, not one. First remove the app Kustomization and let its controller
+   delete its own custom resources (a CRD deleted first strands their finalizers).
+   Confirm `kubectl get <kind> -A` is empty, then remove the CRD Kustomization.
+   The chart keeps its CRDs on uninstall, so finish with `kubectl delete crd` for
+   the group by hand. agentgateway (2026-10-25) went this way with no stuck
+   finalizers; the app was stateless, so no volume decision was needed.
+
 ## Do not edit on the way out
 
 `kubernetes/apps/base/system/generic-device-plugin/app/config/config.yaml`
