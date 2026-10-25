@@ -32,7 +32,7 @@ Flux path. Files that belong to the same deployable go in subdirectories
    `<app>/crds/` and a second overlay Kustomization. The workload
    `dependsOn` the CRDs Kustomization. The CRDs one may set `wait: true`
    with a short timeout so registration finishes first. Do not split CRDs
-   for tidiness. Worked example: `kubernetes/apps/main/ai/agentgateway.yaml`.
+   for tidiness. Worked example: `kubernetes/apps/main/ai/toolhive.yaml`.
 2. **Family.** Several independently deployable pieces under one product
    (`operator/`, `cluster/`, `exporter/`). Each piece gets its own overlay
    Kustomization and `dependsOn` where one piece must precede another.

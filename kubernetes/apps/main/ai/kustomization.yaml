@@ -10,12 +10,11 @@ components:
 
 # Retired: kokoro, miso-gallery, open-notebook, open-webui, perplexica, qdrant
 # (2026-08-22), agentmemory (2026-08-31), comfyui and comfyui-mcp (2026-09-15),
-# agentgateway app and dashboards (2026-10-25; stateless, its CRDs go in a follow-up).
+# agentgateway app, dashboards and CRDs (2026-10-25; stateless).
 # Flux prunes their workloads and PVCs; comfyui's five PVCs are deleted with
 # their RBD images. Retained data and revival: skill ai-stack, references/retirement.md.
 
 resources:
-  - ./agentgateway.yaml
   - ./chat-model.yaml
   - ./embedding-gpu.yaml
   - ./gpu-node-dashboard.yaml
