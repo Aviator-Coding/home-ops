@@ -17,3 +17,4 @@ has the measurements.
 - Host prompt cache bounded with `--cache-ram 4096` and `GLIBC_TUNABLES` (PR #1731). Embeddings use `--cache-ram 0` (PR #1710).
 - `GGML_SYCL_FA_ONEDNN: "0"` stops the oneDNN SDPA host leak (PR #1754). Numeric only. Post-merge checks are skill `b70-llm-serving` references/memory.md §8a and §8b.
 - `VLLMMemoryRetainedAboveBound` ANDs its 8Gi floor with the live series so a terminated pod does not page (PR #1756).
+- Chat KV moved q8_0 to f16 with the oneDNN pin kept: decode +4% at 2K, +14% at 16K, +16% at 64K, prefill unchanged, VRAM 23.5 of 32.6 GiB (bench: `scripts/bench/results/`, depth sweep from PR #2056). Lifting the pin gave +20% prefill at 32K and +40% at 64K with no leak in a 0.8M-token census, but §8a needs 48 h of real traffic first, so the pin is still on.

@@ -18,7 +18,7 @@ spec:
         - targetLabel: model
           replacement: qwen3.8-35b-a3b-apex-iq3xxs
         - targetLabel: kv
-          replacement: q8_0
+          replacement: f16
   selector:
     matchLabels:
       app.kubernetes.io/name: vllm

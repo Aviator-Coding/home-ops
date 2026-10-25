@@ -1,0 +1,56 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P5_depth_sweep": [
+      {
+        "depth": 2048,
+        "n": 3,
+        "prefill_median": 1720.0605664676311,
+        "decode_median": 56.911676662806826
+      },
+      {
+        "depth": 8192,
+        "n": 3,
+        "prefill_median": 1890.1058338700846,
+        "decode_median": 55.37156500098535
+      },
+      {
+        "depth": 16384,
+        "n": 3,
+        "prefill_median": 1637.0995772028075,
+        "decode_median": 46.9351529882725
+      },
+      {
+        "depth": 32768,
+        "n": 3,
+        "prefill_median": 1396.0310972770208,
+        "decode_median": 44.02590942102463
+      },
+      {
+        "depth": 65536,
+        "n": 3,
+        "prefill_median": 1135.9768922149037,
+        "decode_median": 38.150213310759625
+      }
+    ]
+  },
+  "ambient": {
+    "P5-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P5-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    }
+  },
+  "label": "q8_0-base-rep2",
+  "date": "2026-10-24T21:27:53"
+}

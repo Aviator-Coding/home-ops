@@ -1,0 +1,56 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P5_depth_sweep": [
+      {
+        "depth": 2048,
+        "n": 3,
+        "prefill_median": 1807.4322678047583,
+        "decode_median": 55.91230836826752
+      },
+      {
+        "depth": 8192,
+        "n": 3,
+        "prefill_median": 1811.6315753164697,
+        "decode_median": 56.54159547026135
+      },
+      {
+        "depth": 16384,
+        "n": 3,
+        "prefill_median": 1554.9542761242594,
+        "decode_median": 52.38405181978896
+      },
+      {
+        "depth": 32768,
+        "n": 3,
+        "prefill_median": 1465.3855516908302,
+        "decode_median": 50.5606257733387
+      },
+      {
+        "depth": 65536,
+        "n": 3,
+        "prefill_median": 1165.9488869786924,
+        "decode_median": 44.962214038548545
+      }
+    ]
+  },
+  "ambient": {
+    "P5-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.24765
+    },
+    "P5-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.15309
+    }
+  },
+  "label": "f16-kv-rep2",
+  "date": "2026-10-24T21:19:45"
+}
