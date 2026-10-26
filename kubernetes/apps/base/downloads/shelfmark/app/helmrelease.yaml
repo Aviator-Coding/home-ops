@@ -72,6 +72,35 @@ spec:
                 value: /v1
               - name: EXT_BYPASSER_TIMEOUT
                 value: 60000
+              - name: USE_CF_BYPASS
+                value: "true"
+              # Direct download via Anna's Archive. annas-archive.is is deliberately absent: it is
+              # an impostor that answers 200 with a different page layout, so the parser finds no
+              # results. The real mirrors sit behind Cloudflare and go through FlareSolverr.
+              - name: DIRECT_DOWNLOAD_ENABLED
+                value: "true"
+              - name: AA_BASE_URL
+                value: auto
+              - name: AA_MIRROR_URLS
+                value: https://annas-archive.gl,https://annas-archive.pk,https://annas-archive.gd
+              - name: LIBGEN_SEARCH_ENABLED
+                value: "true"
+              # Metadata providers; their API keys must come from the secret, not from here.
+              - name: HARDCOVER_ENABLED
+                value: "true"
+              - name: GOOGLEBOOKS_ENABLED
+                value: "true"
+              - name: MOLY_ENABLED
+                value: "true"
+              # Output: renamed files into the CWA ingest folder.
+              - name: BOOKS_OUTPUT_MODE
+                value: folder
+              - name: DESTINATION
+                value: /cwa-book-ingest
+              - name: FILE_ORGANIZATION
+                value: rename
+              - name: TEMPLATE_RENAME
+                value: "{Author} - {Title} ({Year})"
             envFrom:
               - secretRef:
                   name: shelfmark-secret
