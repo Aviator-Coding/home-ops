@@ -7,7 +7,6 @@ listed only so a retirement does not treat them as unused.
 | Kustomization | Role | Skill |
 |---|---|---|
 | `hermes` | Operator agent | `hermes-agent` |
-| `agentgateway`, `agentgateway-crds`, `agentgateway-dashboards` | OpenAI-compatible gateway | `agentgateway` |
 | `litellm`, `litellm-operator`, `litellm-pgvector` | Governance, keys, vector store | `litellm-proxy` |
 | `toolhive-crds`, `toolhive`, `toolhive-config`, `toolhive-mcp-servers` | MCP CRDs, operator, vmcp, servers | this skill |
 | `vllm` | Chat llama.cpp on the B70. The Service name stays `vllm` | `b70-llm-serving` |
@@ -31,8 +30,9 @@ closed by NetworkPolicy to everything but envoy-internal.
 
 - kagent, kmcp (PR #941, PR #942). Do not install their charts or
   `kagent.dev` CRDs.
-- kgateway. AgentGateway is the standalone chart at
-  `oci://ghcr.io/agentgateway/charts/agentgateway`. Skill `agentgateway`.
+- kgateway and agentgateway. agentgateway was retired 2026-10-25 (stateless, no
+  volumes; app, dashboards and CRDs removed). LiteLLM is the only LLM gateway.
+  Do not install the `agentgateway.dev` CRDs.
 - `open-webui`, `kokoro`, `miso-gallery`, `open-notebook`, `perplexica`,
   `qdrant` (retired together). `agentmemory`. `comfyui` and `comfyui-mcp`.
   Revival is [retirement.md](retirement.md), not a compatibility check

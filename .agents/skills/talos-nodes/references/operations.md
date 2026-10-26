@@ -16,14 +16,14 @@ Always `--dry-run` an apply first. One node at a time.
 
 `machineconfig.yaml.j2` pins, all Renovate-managed and independent of tuppr:
 
-- `factory.talos.dev/installer/…:v1.14.1`
+- `factory.talos.dev/installer/…:v1.14.4`
 - `ghcr.io/siderolabs/kubelet:v1.36.5`
 - `registry.k8s.io/kube-apiserver:v1.36.5`
 - `registry.k8s.io/kube-controller-manager:v1.36.5`
 - `registry.k8s.io/kube-proxy:v1.36.5`
 - `registry.k8s.io/kube-scheduler:v1.36.5`
 
-Live nodes at the last check: Talos v1.14.1, kubelet v1.36.5, matching `TalosUpgrade` `spec.talos.version: v1.14.1`. Re-check both sides before every apply. `version-consistency.sh` greps for exactly these six image lines. A seventh image-looking string in a comment fails the gate.
+Live nodes at the last check: Talos v1.14.4, kubelet v1.36.5, matching `TalosUpgrade` `spec.talos.version: v1.14.4`. Re-check both sides before every apply. `version-consistency.sh` greps for exactly these six image lines. A seventh image-looking string in a comment fails the gate.
 
 `TalosUpgrade` `healthChecks`:
 

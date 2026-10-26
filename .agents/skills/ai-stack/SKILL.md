@@ -63,7 +63,7 @@ what a retirement must not destroy.
 | SearxNG | `kubernetes/apps/base/ai/searxng/` |
 | Session probe gate | `scripts/ci/toolhive-session-probe-test.py` |
 
-Hermes, agentgateway, LiteLLM, vllm, and embedding-gpu each have their
+Hermes, LiteLLM, vllm, and embedding-gpu each have their
 own skill. Do not restate their pins here.
 
 ## Procedures

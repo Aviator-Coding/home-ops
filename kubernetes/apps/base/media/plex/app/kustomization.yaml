@@ -10,3 +10,4 @@ resources:
   - ./pushsecret.yaml
   - ./service.yaml
   - ./servicemonitor.yaml
+  - ./tailscale-ingress.yaml

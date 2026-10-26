@@ -1,7 +1,48 @@
 # What Prometheus has
 
 No xpu-smi, Level Zero, or DCGM-style exporter. Per-engine busy
-percent, VRAM utilization, and clocks are not queryable for either GPU.
+percent and clocks are not queryable for either GPU. VRAM is: see
+`system/xe-gpu-exporter` below.
+
+## VRAM, `system/xe-gpu-exporter`
+
+DaemonSet that sums `drm-total-vram0` from `/proc/<pid>/fdinfo` per card
+and per pod. `hostPID` plus `CAP_SYS_PTRACE`; no host mounts. It counts
+everything the client holds in VRAM: weights, KV cache, compute buffers.
+
+| Metric | Labels |
+|---|---|
+| `xe_gpu_vram_used_bytes`, `xe_gpu_gtt_used_bytes`, `xe_gpu_clients` | `pdev` |
+| `xe_gpu_vram_total_bytes` | `pdev`; from `XE_VRAM_TOTALS_MIB` in the HelmRelease |
+| `xe_gpu_process_vram_bytes`, `xe_gpu_process_gtt_bytes` | `pdev`, `pod_uid`, `comm` |
+| `xe_gpu_exporter_up` | none |
+
+The total is configured, not read: xe exposes none, and the BAR is 256 MiB
+without Resizable BAR. B70 `0000:03:00.0` is 32656 MiB (Level Zero). A pod
+name needs a join: `... * on(pod_uid) group_left(namespace, pod)
+label_replace(kube_pod_info, "pod_uid", "$1", "uid", "(.*)")`. iGPU clients
+report 0 VRAM (shared memory). `xe_gpu_exporter_up 1` with
+`xe_gpu_clients 0` while chat is serving means the scan lost `hostPID` or
+`SYS_PTRACE`. Gate: `scripts/ci/xe-gpu-exporter-test.py`.
+
+## Chat throughput, `ai/vllm` llama-server
+
+The dashboard's last row reads llama-server's own `/metrics`, scraped by the
+`vllm` ServiceMonitor. Those series carry no model label: the ServiceMonitor
+`relabelings` add `model` and `kv`, and the panels group by them so each
+shipped variant is its own line. Change the labels with the `-hf` and
+`--cache-type-k/v` args; `scripts/ci/gpu-node-dashboard-test.py` fails when
+`kv` drifts from `--cache-type-k`.
+
+| Panel | Series |
+|---|---|
+| Decode / prefill t/s | `llamacpp:tokens_predicted_total` over `..._seconds_total`, `llamacpp:prompt_tokens_total` over `llamacpp:prompt_seconds_total` |
+| Slots busy / queued | `llamacpp:requests_processing`, `llamacpp:requests_deferred` |
+| Draft acceptance | `llamacpp:spec_decode_num_accepted_tokens_total` over `..._draft_tokens_total`. Empty while MTP is off |
+
+t/s is tokens over busy seconds, so an idle server shows no data, not a low
+number. It is a live-traffic mix, not a benchmark: compare variants with
+`scripts/bench/b70-serving-harness.py`, not by eye.
 
 ## B70, talos-3 only
 
@@ -17,9 +58,8 @@ percent, VRAM utilization, and clocks are not queryable for either GPU.
 
 Filter `instance="talos-3"` and that chip. Dashboard:
 `kubernetes/apps/base/ai/gpu-node-dashboard/app/gpu-node.json`.
-The `xe` driver publishes no VRAM used/total counters in sysfs, so a
-panel cannot show the 26909 / 32656 MiB split. That figure is from a
-one-shot read during serving work (skill `b70-llm-serving`).
+The `xe` driver publishes no VRAM used/total counters in sysfs; the
+exporter above is the source for those. The dashboard's VRAM row uses it.
 
 ## iGPU, all three nodes
 

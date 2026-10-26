@@ -140,7 +140,9 @@ spec:
                 value: "1"
             resources:
               requests:
-                cpu: "200m"
+                # 1 CPU, not 200m: runners tolerate control-plane taints, and a low request let
+                # the scheduler pack them onto one node, starving kube-apiserver and an OSD there.
+                cpu: "1"
                 memory: "512Mi"
               limits:
                 cpu: "2"

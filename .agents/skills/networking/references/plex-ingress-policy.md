@@ -22,8 +22,18 @@ it. This closes the unauthenticated pod-network path and changes no Plex auth.
   `gateway.envoyproxy.io/owning-gateway-name: envoy-external`). It is the only
   Gateway the plex HTTPRoute attaches to, and it proxies as a new connection
   from its own pod IP.
+- **Tailscale ProxyGroup `ts-ingress` pods** (`network` namespace, labels
+  `tailscale.com/parent-resource-type: proxygroup`, `parent-resource: ts-ingress`),
+  TCP 32400 only. They serve the `plex-tailscale` Ingress and reach Plex from a pod
+  IP inside `ALLOWED_NETWORKS`, so every tailnet user the ACL lets reach `tag:k8s`
+  gets Plex's unauthenticated local-network access. Keep the tailnet grant on
+  `tag:k8s` narrow (`tcp:443`) and see `network/tailscale-operator/README.md`.
 - **`plex-exporter`** (same namespace). It authenticates with its own
   `PLEX_TOKEN`, so it does not rely on the bypass this policy closes.
+- **`wizarr`** (same namespace), TCP 32400 only. Its `PLEX_URL` is the in-cluster
+  service, and it authenticates with the `PLEX_TOKEN` the seed writes, so it does
+  not rely on the bypass this policy closes. Without this entry wizarr's Plex polling
+  fails whenever the two pods share a node.
 - **CoreDNS replies** (`kube-system`, `k8s-app: kube-dns`), with no `ports:`
   restriction on purpose: see tripwire 3 in `SKILL.md`. Cilium reply-conntrack
   also fails to match a DNS reply to its request when the client pod's node

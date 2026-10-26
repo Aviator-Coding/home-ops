@@ -3,9 +3,10 @@
 
 Intent: ship a node-level GPU dashboard for the Arc B70 (talos-3,
 devic.es/b70) and fleet iGPUs (gpu.intel.com/xe) from metrics that already
-exist in Prometheus - no new exporter workload - following the
-agentgateway-dashboards house pattern and avoiding Flux postBuild.substitute
-collision risk.
+exist in Prometheus - including the VRAM series from system/xe-gpu-exporter -
+following the sidecar-ConfigMap dashboard house pattern and avoiding Flux
+postBuild.substitute collision risk. The dashboard app itself stays a
+ConfigMap; the exporter is a separate workload.
 
 This test does not grep source as a proxy for behavior. It:
   1. Renders kubernetes/apps/base/ai/gpu-node-dashboard/app via kubectl
@@ -13,8 +14,8 @@ This test does not grep source as a proxy for behavior. It:
   2. Renders kubernetes/apps/main/ai and inspects the gpu-node-dashboard
      Flux Kustomization contract.
   3. Parses the dashboard JSON out of the generated ConfigMap and asserts
-     panel semantics (required hwmon + device-plugin PromQL, no invented
-     exporter metrics, no per-engine/VRAM-util/clock panels).
+     panel semantics (required hwmon, device-plugin and xe-gpu-exporter VRAM
+     PromQL, no invented exporter metrics, no per-engine/clock panels).
   4. Asserts the delivery surface: grafana_dashboard label, AI/ML folder,
      no postBuild.substituteFrom, and only a ConfigMap (no new workload).
 """
@@ -53,6 +54,9 @@ REQUIRED_EXPR_FRAGMENTS = (
     "kube_pod_container_resource_requests",
     "devic_es_b70",
     "gpu_intel_com_xe",
+    "xe_gpu_vram_used_bytes",
+    "xe_gpu_vram_total_bytes",
+    "xe_gpu_process_vram_bytes",
     EXPECTED_INSTANCE,
     EXPECTED_CHIP,
 )
@@ -76,12 +80,23 @@ FORBIDDEN_EXPR_FRAGMENTS = (
 FORBIDDEN_TITLE_FRAGMENTS = (
     "engine busy",
     "per-engine",
-    "vram util",
-    "vram usage",
     "clock",
     "sm %",
     "graphics engine",
     "video enhance",
+)
+
+
+VLLM_APP_PATH = ROOT / "kubernetes/apps/base/ai/vllm/app"
+
+# llama-server /metrics series the chat throughput row is built from. They
+# carry no model label of their own: the ServiceMonitor adds `model` and `kv`.
+THROUGHPUT_FRAGMENTS = (
+    "llamacpp:tokens_predicted_total",
+    "llamacpp:tokens_predicted_seconds_total",
+    "llamacpp:prompt_tokens_total",
+    "llamacpp:prompt_seconds_total",
+    "llamacpp:requests_processing",
 )
 
 
@@ -230,6 +245,69 @@ def assert_dashboard(cm: dict[str, Any]) -> dict[str, Any]:
     return dash
 
 
+def assert_throughput_row(dash: dict[str, Any]) -> None:
+    panels = walk_panels(dash.get("panels") or [])
+    rows = [(p.get("title") or "").lower() for p in panels if p.get("type") == "row"]
+    require(any("throughput" in r for r in rows), f"missing chat throughput row, rows={rows}")
+
+    exprs = all_exprs(panels)
+    blob = "\n".join(exprs)
+    missing = [f for f in THROUGHPUT_FRAGMENTS if f not in blob]
+    require(not missing, f"throughput PromQL missing series: {missing}")
+
+    # t/s is tokens over busy seconds, not tokens over wall time: an idle
+    # server must not read as slow. Both sides must be rate()'d or increase()'d.
+    decode = [e for e in exprs if "tokens_predicted_total" in e and "tokens_predicted_seconds_total" in e]
+    require(decode, "no decode t/s expr dividing tokens_predicted_total by tokens_predicted_seconds_total")
+    require(
+        all(("rate(" in e or "increase(" in e) and "/" in e for e in decode),
+        "decode t/s must be a rate()/increase() ratio of tokens over busy seconds",
+    )
+    require(
+        all("by (model" in e for e in decode),
+        "decode t/s must aggregate by (model, kv) so variants stay separable",
+    )
+    legends = [
+        t.get("legendFormat", "")
+        for p in panels
+        for t in p.get("targets") or []
+        if t.get("expr") in decode
+    ]
+    require(
+        all("{{model}}" in lg for lg in legends),
+        f"decode t/s legends must name the model, got {legends}",
+    )
+
+
+def container_arg(args: list[str], flag: str) -> str:
+    require(flag in args, f"vllm chat args missing {flag}")
+    return str(args[args.index(flag) + 1])
+
+
+def assert_servicemonitor_labels() -> None:
+    """The dashboard groups by model/kv, so the scrape must set them, and kv
+    must not drift from the flag the pod actually runs."""
+    sm = yaml.safe_load((VLLM_APP_PATH / "servicemonitor.yaml").read_text())
+    endpoints = sm["spec"]["endpoints"]
+    require(len(endpoints) == 1, f"expected one ServiceMonitor endpoint, got {len(endpoints)}")
+    labels = {
+        r["targetLabel"]: r.get("replacement", "")
+        for r in endpoints[0].get("relabelings") or []
+        if r.get("targetLabel")
+    }
+    for name in ("model", "kv"):
+        require(labels.get(name), f"ServiceMonitor must relabel a non-empty {name!r}, got {labels}")
+
+    hr = yaml.safe_load((VLLM_APP_PATH / "helmrelease.yaml").read_text())
+    args = hr["spec"]["values"]["controllers"]["vllm"]["containers"]["app"]["args"]
+    k, v = container_arg(args, "--cache-type-k"), container_arg(args, "--cache-type-v")
+    require(k == v, f"K and V cache types differ ({k} vs {v}); the kv label has one value")
+    require(
+        labels["kv"] == k,
+        f"ServiceMonitor kv label {labels['kv']!r} != --cache-type-k {k!r}: update both together",
+    )
+
+
 def assert_flux_kustomization(docs: list[dict[str, Any]]) -> dict[str, Any]:
     ks = [
         d
@@ -270,6 +348,14 @@ def main() -> int:
     dash = assert_dashboard(cm)
     panels = [p for p in walk_panels(dash.get("panels") or []) if p.get("type") != "row"]
     print(f"    title={dash.get('title')!r} uid={dash.get('uid')!r} content_panels={len(panels)}")
+
+    print("==> assert chat throughput row")
+    assert_throughput_row(dash)
+    print("    decode/prefill t/s by (model, kv) OK")
+
+    print("==> assert ServiceMonitor model/kv labels")
+    assert_servicemonitor_labels()
+    print("    labels set and kv matches --cache-type-k")
 
     print("==> kustomize build apps/main/ai")
     main_docs = kustomize_build(MAIN_AI_PATH)

@@ -6,3 +6,11 @@ resources:
   - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./securitypolicy.yaml
+configMapGenerator:
+  - name: home-assistant-oidc
+    files:
+      - resources/auth_oidc.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

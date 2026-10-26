@@ -17,7 +17,7 @@ another `barmanObjectName` is accepted, runs, reports completed, and writes
 to the original store (cloudnative-pg#7778, closed as not planned). The
 off-site copy is a mirror of the archive, not a second destination:
 `offsite-mirror/README.md`. That CronJob ships `suspend: true` until the
-`cloudnative-pg-r2` 1Password item exists. Un-suspending it is a deliberate
+`cloudflare-r2` 1Password item exists. Un-suspending it is a deliberate
 follow-up, not a side effect of editing the cluster.
 
 Current archive: `destinationPath: s3://home-ops-postgres-cluster/`,

@@ -1,13 +1,13 @@
 # The forward-auth proxy provider behind the cluster's ExtAuth.
 #
-# THIS IS THE HIGHEST-BLAST-RADIUS OBJECT IN THE STACK. Two Envoy Gateway
-# SecurityPolicies send every request on their listeners to the Authentik embedded
-# outpost that this provider is bound to:
+# THIS IS THE HIGHEST-BLAST-RADIUS OBJECT IN THE STACK. The Envoy Gateway
+# SecurityPolicies send every request on their routes to the Authentik embedded
+# outpost that this provider is bound to, for example:
 #
 #   kubernetes/apps/base/network/echo/app/securitypolicy.yaml
-#   kubernetes/apps/base/ai/agentgateway/app/policies/authentik-policy.yaml
+#   kubernetes/apps/base/ai/opencode/app/securitypolicy.yaml
 #
-# The second one covers the agentgateway `internal` AND `public` https listeners.
+# (The agentgateway `internal`/`public` listener policy was removed with that app.)
 # A wrong change to `mode`, `external_host`, `cookie_domain` or `skip_path_regex`
 # does not degrade one app - it locks or unlocks every SSO-gated surface at once.
 # Treat any plan diff on this resource as a stop-and-review, not a routine update.

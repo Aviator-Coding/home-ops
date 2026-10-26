@@ -111,7 +111,7 @@ Spend accrues from the model's price (built-in cost map for cloud models,
 `info.extra` for declared ones). On a zero-priced model spend stays $0 and a
 `maxBudget` can never trip. Consequences:
 
-- `demo` is the budget-path fixture: `qwen3.6-35b-a3b` carries synthetic
+- `demo` is the budget-path fixture: `demo-priced-local` carries synthetic
   prices (`5e-05`/`1e-04` per token) so the `$0.05` cap is exhaustible by one
   smoke test. `demo` must remain that alias's only consumer.
 - On `auto` keys (`router-demo`, `opencode`) the budget measures only real USD
@@ -149,7 +149,7 @@ reason:
 
 | Key | Models | Consumer / note |
 |---|---|---|
-| `demo` | `qwen3.6-35b-a3b` | budget-path smoke test, rpm 2 / tpm 2000 |
+| `demo` | `demo-priced-local` | budget-path smoke test, rpm 2 / tpm 2000 |
 | `ha-demo` | `chat-ha` | cloud-entitled failover demo, real-USD cap |
 | `router-demo` | `auto` | routed-consumer smoke test |
 | `opencode` | `auto` | ai/opencode workspace |
@@ -162,7 +162,10 @@ reason:
 | `embedding-external` | `embedding-local` | external embedding callers; its rpm is per key, the model-level `rpm` on `embedding-local` (model-catalog.md) caps every key together to protect chat on the shared B70 |
 | `litellm-pgvector` | `qwen/qwen3-embedding-8b` only | vector store ([vector-store.md](vector-store.md)); deliberately no `embedding-local` |
 | `jev-decisions` | `typesafe/jev-1.13` | decision door, $1/30d ([passthrough-lockdown.md](passthrough-lockdown.md)); no `embedding-local` |
-| `litellm-consume-projects` | metered Anthropic org routes, `gpt-*`, `gpt-oss-20b`, `typesafe/jev-1.13`, `auto`, `embedding-local` | Aviator org consumer. $100/30d is one pool shared by every caller, including ai/opencode provider `litellm-projects` and ai/hermes provider `custom:litellm`. No `spec.metadata`: the Jev id is allow-listed but the passthrough grant is not in Git |
+| `hermes` | `chat-local`, the three `go-*` OpenCode Go models, the metered Claude/GPT routes Hermes offers, `embedding-local` | ai/hermes, its only key (provider `custom:litellm`). Own $50/30d budget covers the metered routes; `chat-local` and the flat-rate `go-*` models are $0, so `rpmLimit`/`tpmLimit` bound those. Replaces `hermes-go` and ends Hermes' sharing of `litellm-consume-projects` with OpenCode |
+| `hermes-ha` | `chat-local`, `embedding-local`, `go-glm-5.1`, `go-kimi-k2.6` | ai/hermes `home-assistant` profile (own Discord channel and MCP group). No metered route, so $0 by construction and `maxBudget` is an inert guard; rpm 60 / tpm 1000000 bound it. A separate key from `hermes` so the home-automation agent's traffic is attributable and revocable alone |
+| `linkwarden` | `chat-local`, `embedding-local` | selfhosted/linkwarden AI tagging. $0 by construction, so `maxBudget` is an inert guard; rpm 30 / tpm 200000 protect the shared B70. Per-app keys exist so spend and traffic are attributable to one app |
+| `litellm-consume-projects` | metered Anthropic org routes, `gpt-*`, `gpt-oss-20b`, `typesafe/jev-1.13`, `auto`, `embedding-local` | Aviator org consumer. $100/30d is one pool for ai/opencode provider `litellm-projects` (Hermes has its own `hermes` key now). No `spec.metadata`: the Jev id is allow-listed but the passthrough grant is not in Git |
 
 Every other key also allow-lists `embedding-local` (captain intent: every key
 may use the local embedder). It is credential-less and zero-priced, so it
@@ -195,7 +198,7 @@ kubectl -n ai port-forward svc/litellm 4000:4000 &
 # allowed model -> completion; another model -> 403; repeat until $0.05 -> 429
 curl -s localhost:4000/v1/chat/completions -H "Authorization: Bearer $DEMO_KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3.6-35b-a3b","messages":[{"role":"user","content":"say ok"}]}'
+  -d '{"model":"demo-priced-local","messages":[{"role":"user","content":"say ok"}]}'
 ```
 
 `litellm_remaining_api_key_budget_metric` shows the balance and

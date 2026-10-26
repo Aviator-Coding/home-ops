@@ -2,18 +2,16 @@
 
 ## What LiteLLM is here
 
-A narrow governance layer beside `agentgateway`, not the cluster's unified LLM
-proxy (that role was removed in #941 and agentgateway's own `/v1` replaced it).
-It adds per-consumer virtual keys, budgets, fallback chains and an auto-router.
-It never replaces agentgateway, and no agentgateway traffic is routed through it.
+The cluster's only LLM gateway. agentgateway, which used to sit beside it, was
+retired 2026-10-25. It adds per-consumer virtual keys, budgets, fallback chains
+and an auto-router, and every app has its own key so spend is attributable.
 
 Scope rules (captain decisions B4/D4, still binding):
 
-- **Never the public listener.** No `envoy-external` parentRef and no
-  `AgentgatewayBackend`. The only route is the internal one
+- **Never the public listener.** No `envoy-external` parentRef. The only route is the internal one
   (`litellm.${SECRET_DOMAIN}` on `envoy-internal`). In-cluster callers use
   `http://litellm.ai.svc.cluster.local:4000`.
-- No changes to `ai/agentgateway` or `ai/vllm`. LiteLLM only reads
+- No changes to `ai/vllm`. LiteLLM only reads
   `vllm-app`'s `/v1` as a backend.
 - D4: every consumer gets a model allow-list and a spend/rate budget
   ([governance-keys.md](governance-keys.md)).

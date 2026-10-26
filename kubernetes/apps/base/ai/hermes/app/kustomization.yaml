@@ -45,6 +45,11 @@ configMapGenerator:
     files:
       - skills/homelab-commit-watcher/SKILL.md
       - skills/homelab-commit-watcher/fetch_k8s_repos.py
+  # Terminal guard hook, mounted read-only at /etc/hermes-hooks and registered under `hooks:` in
+  # config.yaml. No shebang: it is run as `python3 <path>`, so it needs no exec bit. Skill hermes-agent.
+  - name: hermes-hooks
+    files:
+      - guard-terminal.py=./hooks/guard-terminal.py
 generatorOptions:
   disableNameSuffixHash: true
   annotations:

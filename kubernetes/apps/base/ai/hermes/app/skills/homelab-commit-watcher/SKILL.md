@@ -15,12 +15,17 @@ required_environment_variables:
       required_for: "Posting the rendered digest to Discord."
     - name: SUMMARY_LLM_URL
       prompt: "OpenAI-compatible chat completions base URL"
-      help: "Example: http://internal-noauth.ai.svc.cluster.local/v1 - the script POSTs to <URL>/chat/completions. Leave unset to skip per-repo digests (the feed will contain only headlines, no today:/week: lines)."
+      help: "Example: http://litellm.ai.svc.cluster.local:4000/v1 - the script POSTs to <URL>/chat/completions. Leave unset to skip per-repo digests (the feed will contain only headlines, no today:/week: lines)."
       required_for: "Generating per-repo today:/week: digests, used by Phase B as paraphrase input. Also used by the PER_COMMIT_SUMMARIES=true fallback path for per-commit summaries."
     - name: SUMMARY_LLM_MODEL
       prompt: "Model alias as exposed by SUMMARY_LLM_URL"
       help: "Example: kimi-k2.6. Must match an alias the endpoint advertises via /v1/models."
       required_for: "Same as SUMMARY_LLM_URL — without it, digest generation is skipped."
+    - name: SUMMARY_LLM_API_KEY
+      optional: true
+      prompt: "Bearer key for SUMMARY_LLM_URL"
+      help: "LiteLLM virtual key. Optional: a keyless endpoint needs none. Declared so it passes through to the script."
+      required_for: "Authenticating the per-repo digest calls (the script sends it as a Bearer token)."
 metadata:
     hermes:
         tags: [homelab, gitops, github, kubernetes, discord, digest]

@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# The auto-router's classifier: zero-priced (billed to the caller), terminal, own metrics series.
+# INVARIANT: enable_thinking false (else empty content, 100% silent fail-open) and num_retries 0.
+# See skill litellm-proxy (references/auto-router.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: chat-local-classifier
+spec:
+  modelName: chat-local-classifier
+  proxyRef: litellm
+  params:
+    # The loaded model's real name, from ConfigMap chat-model. Never type it here.
+    model: openai/${CHAT_MODEL_ID}
+    apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
+    apiKey: "not-needed"
+    additional:
+      num_retries: 0
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+  # Hub metadata only; keep identical on all five aliases.
+  info:
+    mode: chat
+    maxInputTokens: 262144
+    supportsFunctionCalling: true
+    supportsVision: true
+    extra:
+      supports_reasoning: false

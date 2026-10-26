@@ -10,6 +10,7 @@ OpenTofu resources:
 | Applications `coder`, `pg-admin`, `echo` and their providers | `import` blocks. Omit `client_secret`. Declare `property_mappings` |
 | Proxy provider `sklab-externel-auth-provider` | imported. Live spelling is `externel`. Renaming it is a live rename of the ExtAuth provider. `mode = forward_domain`, `skip_path_regex = ""` |
 | LiteLLM provider, application, `litellm_role` scope mapping, LiteLLM-only invalidation flow | created in `litellm.tofu`. `client_secret` is generated. `grant_types = ["authorization_code"]` |
+| Home Assistant provider and application | created in `home-assistant.tofu`. Public client + PKCE, no secret, literal `client_id = home-assistant` repeated in the HA ConfigMap |
 
 `open-webui` was removed from Authentik and from the stack (`tofu state rm`).
 Do not re-import it.
@@ -24,7 +25,8 @@ One provider, `forward_domain`, `external_host` `https://auth.${SECRET_DOMAIN}`,
 `cookie_domain` `.${SECRET_DOMAIN}`. SecurityPolicies in git:
 
 - `network/echo`
-- `home-automation/home-assistant` (app route and the `hass-code` browser terminal)
+- `home-automation/home-assistant` (the `hass-code` browser terminal only; the Home Assistant
+  route is not ExtAuth-gated, it signs in through the OIDC provider above)
 - `monitoring/kromgo`
 - `ai/opencode`
 - `ai/hermes` (the `hermes-code` browser terminal)
@@ -39,11 +41,6 @@ grant lists that namespace.
 The outpost's pre-auth check returns 302 to login for a Host that maps to no
 route. Coverage of a new hostname is an authenticated login after merge, not
 a curl.
-
-agentgateway's Authentik policy
-(`kubernetes/apps/base/ai/agentgateway/app/policies/authentik-policy.yaml`)
-sits on the `internal` and `public` listeners. A diff on the proxy provider
-covers that path too.
 
 ## Created vs imported
 

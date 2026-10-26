@@ -19,10 +19,29 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: network
             gateway.envoyproxy.io/owning-gateway-name: envoy-external
+    # Tailscale ProxyGroup pods (tailnet Ingress plex-tailscale), TCP 32400 only.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            tailscale.com/parent-resource-type: proxygroup
+            tailscale.com/parent-resource: ts-ingress
+      toPorts:
+        - ports:
+            - port: "32400"
+              protocol: TCP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: media
             app.kubernetes.io/name: plex-exporter
+    # Wizarr polls and shares libraries over http://plex.media.svc:32400 with its own PLEX_TOKEN.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: media
+            app.kubernetes.io/name: wizarr
+      toPorts:
+        - ports:
+            - port: "32400"
+              protocol: TCP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system

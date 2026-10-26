@@ -2,8 +2,8 @@
 
 Both are internal-only app-template workloads. Both call LiteLLM at
 `http://litellm.ai.svc.cluster.local:4000/v1` with a
-`LiteLLMVirtualKey`. Never a provider API key, and never agentgateway's
-`/v1` for governance. Skill `litellm-proxy` owns the key, the allow-list,
+`LiteLLMVirtualKey`. Never a provider API key. Every app has its own key so
+spend is attributable. Skill `litellm-proxy` owns the key, the allow-list,
 and the budget. Changing the model on one side only fails every call:
 the proxy checks the model the caller asks for.
 

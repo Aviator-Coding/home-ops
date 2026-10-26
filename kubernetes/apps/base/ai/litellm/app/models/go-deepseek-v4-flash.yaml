@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# OpenCode Go flat-rate subscription (OpenAI-compatible, /zen/go). Registration only: held by the
+# hermes key. Distinct from `deepseek-v4-flash`, which is the metered OpenRouter route.
+# INVARIANT: explicit $0 on every price field. The invoice is flat, so any non-zero cost-map hit
+# would be phantom spend. See skill litellm-proxy (references/model-catalog.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: go-deepseek-v4-flash
+spec:
+  modelName: go-deepseek-v4-flash
+  proxyRef: litellm
+  params:
+    model: openai/deepseek-v4-flash
+    apiBase: https://opencode.ai/zen/go/v1
+    apiKey: os.environ/OPENCODE_GO_API_KEY
+    additional:
+      # Go wants a client-named user agent, not the generic OpenAI SDK one. The per-conversation
+      # x-opencode-session is forwarded from the caller (litellmproxy.yaml model_group_settings).
+      extra_headers:
+        User-Agent: home-ops-litellm/1.0
+  info:
+    mode: chat
+    supportsFunctionCalling: true
+    extra:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      cache_read_input_token_cost: 0
+      cache_read_input_token_cost_above_200k_tokens: 0
+      cache_creation_input_token_cost: 0
+      cache_creation_input_token_cost_above_1hr: 0
+      cache_creation_input_token_cost_above_200k_tokens: 0

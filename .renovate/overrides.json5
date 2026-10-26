@@ -55,18 +55,6 @@
       allowedVersions: "!/^v?1\\.13\\.3$/",
     },
     {
-      // Same OCI repo publishes a v2 kgateway lineage. Stay on standalone 1.x. Skill `renovate` references/versioning-traps.md.
-      description: "Pin agentgateway to the standalone 1.x lineage (<2.0.0)",
-      matchPackageNames: [
-        "ghcr.io/agentgateway/charts/agentgateway",
-        "ghcr.io/agentgateway/charts/agentgateway-crds",
-        // Keep the old host so any leftover refs still get the lineage pin.
-        "cr.agentgateway.dev/charts/agentgateway",
-        "cr.agentgateway.dev/charts/agentgateway-crds",
-      ],
-      allowedVersions: "<2.0.0",
-    },
-    {
       // Provider is generated from the server OpenAPI schema. Bump it with the server tag. automerge stays false. Skill `renovate` references/versioning-traps.md.
       description: "Keep the Authentik OpenTofu provider aligned with the server release line",
       matchDatasources: ["terraform-provider"],

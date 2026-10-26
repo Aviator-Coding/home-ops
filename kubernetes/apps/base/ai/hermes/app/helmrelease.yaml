@@ -91,9 +91,17 @@ spec:
               API_SERVER_HOST: 0.0.0.0
               API_SERVER_PORT: "8642"
               SEARXNG_URL: http://searxng.ai.svc.cluster.local:8080
-              # homelab-commit-watcher: points its per-repo digest LLM at the internal gateway.
-              SUMMARY_LLM_URL: http://internal-noauth.ai.svc.cluster.local/v1
-              SUMMARY_LLM_MODEL: kimi-k2.6
+              # homelab-commit-watcher: its per-repo digest LLM goes through LiteLLM with Hermes'
+              # own key. The script sends x-opencode-session itself (go-* models need it).
+              SUMMARY_LLM_URL: http://litellm.ai.svc.cluster.local:4000/v1
+              # go-glm-5.1, not go-kimi-k2.6: kimi thinks past the script's token budget and returns empty
+              # content (every digest "unavailable", 43 s per batch). Same value as secrets.command.
+              SUMMARY_LLM_MODEL: go-glm-5.1
+              SUMMARY_LLM_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: *app
+                    key: LITELLM_HERMES_API_KEY
               # s6 init starts as root, chowns /opt/data, then drops to this uid.
               HERMES_UID: "10000"
               HERMES_GID: "10000"
@@ -288,9 +296,9 @@ spec:
           - path: /secrets/git/.git-credentials
             subPath: .git-credentials
             readOnly: true
-      # Two keys of the hermes Secret as files, read by the `secrets.command` helper in
-      # config.yaml (multiplexed MCP ${VAR} refs cannot see the container env).
-      # Skill hermes-agent references/mcp-gateway.md.
+      # Keys of the hermes Secret as files, read by the `secrets.command` helper in
+      # config.yaml (multiplexed MCP ${VAR} refs, the provider key_env and a skill's required
+      # env cannot see the container env). Skill hermes-agent references/mcp-gateway.md.
       mcp-gateway:
         type: secret
         name: *app
@@ -302,6 +310,31 @@ spec:
                 readOnly: true
               - path: /secrets/mcp/MCP_GATEWAY_TOKEN
                 subPath: MCP_GATEWAY_TOKEN
+                readOnly: true
+              - path: /secrets/mcp/LITELLM_HERMES_API_KEY
+                subPath: LITELLM_HERMES_API_KEY
+                readOnly: true
+              - path: /secrets/mcp/DISCORD_BOT_TOKEN
+                subPath: DISCORD_BOT_TOKEN
+                readOnly: true
+              - path: /secrets/mcp/DISCORD_ALLOWED_USERS
+                subPath: DISCORD_ALLOWED_USERS
+                readOnly: true
+              - path: /secrets/mcp/HOMELAB_GH_TOKEN
+                subPath: HOMELAB_GH_TOKEN
+                readOnly: true
+              - path: /secrets/mcp/DISCORD_WEBHOOK
+                subPath: DISCORD_WEBHOOK
+                readOnly: true
+      # Terminal guard hook script (hooks: in config.yaml runs it). Read-only; a byte change rolls
+      # the pod via reloader like config.yaml. Skill hermes-agent.
+      hooks:
+        type: configMap
+        name: hermes-hooks
+        advancedMounts:
+          hermes:
+            app:
+              - path: /etc/hermes-hooks
                 readOnly: true
       # config.yaml mounted into the copy-config initContainer, which copies it to
       # /opt/data/config.yaml on every start. The PVC `data` advancedMount gives

@@ -21,3 +21,6 @@ resources:
   - ./litellm-pgvector.yaml
   - ./jev-decisions.yaml
   - ./litellm-consume-projects.yaml
+  - ./hermes.yaml
+  - ./hermes-ha.yaml
+  - ./linkwarden.yaml

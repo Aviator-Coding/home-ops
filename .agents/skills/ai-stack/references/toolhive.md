@@ -89,8 +89,6 @@ Commented out of `mcp-servers/kustomization.yaml`. Files stay.
 
 | Server | Blocker |
 |---|---|
-| `garmin-connect-mcp` | 1Password item `garmin`, fields `username` and `password` |
-| `ha-mcp` | item `home-assistant`, field `HOMEASSISTANT_TOKEN` |
 | `talos-mcp` | Talos API allowlist. See below |
 
 Uncommenting a row before the secret exists leaves the server unable to

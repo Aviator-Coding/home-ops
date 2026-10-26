@@ -25,8 +25,8 @@ controls that prove the router settings are load-bearing.
 What this does not catch: whether the operator renders `params.rpm` the way
 this test assumes (check `kubectl -n ai get cm litellm-config` after a merge),
 the Redis-backed counters on the live proxy, and traffic that reaches
-embedding-gpu without passing through LiteLLM (the agentgateway
-`embedding-local` backend).
+embedding-gpu without passing through LiteLLM (a direct in-cluster caller; the
+retired agentgateway `embedding-local` backend was the one such path).
 """
 
 from __future__ import annotations

@@ -97,6 +97,10 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "kubernetes/apps/main/media/calibre.yaml",
         "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json",
     ): "calibre-downloader Kustomization document deleted: Shelfmark moved to downloads/shelfmark.",
+    (
+        "kubernetes/apps/base/home-automation/home-assistant/app/securitypolicy.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json",
+    ): "home-assistant-auth SecurityPolicy document deleted: the ExtAuth gate broke HA's own /auth/token OAuth; Authentik signs in via auth_oidc instead.",
 }
 
 passed = 0

@@ -19,8 +19,8 @@ bypasses allow-lists ([fallbacks.md](fallbacks.md)).
 
 ## Rule 2: route by the credential you hold
 
-Exactly four provider keys, all fields of the one 1Password `ai-keys` item
-(the same item and field names the agentgateway backends read):
+Exactly five provider keys, all fields of the one 1Password `ai-keys` item
+(the shared item; the retired agentgateway backends read the same fields):
 
 | Prefix | Env var | Reaches |
 |---|---|---|
@@ -28,6 +28,7 @@ Exactly four provider keys, all fields of the one 1Password `ai-keys` item
 | `xai/` | `XAI_API_KEY` | Grok |
 | `zai/` | `ZAI_API_KEY` | GLM (native provider, resolves to `https://api.z.ai/api/paas/v4`; no `apiBase`, no `openai/` shim) |
 | `openrouter/` | `OPENROUTER_API_KEY` | every other vendor (OpenAI, Gemini/Gemma, DeepSeek, Kimi, cloud Qwen, Nemotron, MiniMax, Meta Muse) |
+| `openai/` + `apiBase: https://opencode.ai/zen/go/v1` | `OPENCODE_GO_API_KEY` | the OpenCode Go flat-rate subscription: the `go-*` CRs (`go-glm-5.1`, `go-kimi-k2.6`, `go-deepseek-v4-flash`). `params.model` is the bare Go id; resolve it on `/zen/go/v1/models`. Prefixed `go-` so it never collides with the metered OpenRouter/Z.ai names. Go returns HTTP 400 `MissingSessionID` without `x-opencode-session` (one stable value per conversation), so the caller must send it (Hermes: `providers.litellm.session_affinity_header`) and `model_group_settings.forward_client_headers_to_llm_api` lists exactly the `go-*` groups; the CRs also set a client-named `User-Agent` (vendor rule: not a generic SDK name). **No Service named `opencode` may exist in ns `ai`**: pod DNS (`ndots:5`, search `svc.cluster.local`) resolves `opencode.ai` to `opencode.ai.svc.cluster.local`, i.e. that Service, and every Go call times out (the app's Service is `opencode-app` for this reason). Explicit `$0` on all seven price fields (flat invoice), held only by `hermes` |
 
 Use a literal `apiKey: os.environ/<VAR>`, not `apiKeyRef` (that would inject a
 second env var for the same value).
@@ -64,7 +65,7 @@ models first, then the key from `app/externalsecret.yaml`.
   - The four Claude Code subscription pass-through CRs: explicit `$0` on
     input, output **and all five prompt-cache fields**
     ([claude-code-subscription.md](claude-code-subscription.md)).
-  - `qwen3.6-35b-a3b`: synthetic governance prices, `demo` fixture only
+  - `demo-priced-local`: synthetic governance prices, `demo` fixture only
     ([governance-keys.md](governance-keys.md)).
   - `qwen/qwen3-embedding-8b`: its real OpenRouter price
     ($0.01 per 1M input tokens) because the bundled map has no
@@ -82,20 +83,21 @@ models first, then the key from `app/externalsecret.yaml`.
 
 ## The five aliases of the one local chat backend
 
-`openai/qwen3.6-35b-a3b` at `http://vllm-app.ai.svc.cluster.local:8000/v1`
+`openai/${CHAT_MODEL_ID}` (the loaded model's real name, ConfigMap `chat-model`)
+at `http://vllm-app.ai.svc.cluster.local:8000/v1`
 (B70 llama.cpp, `apiKey: "not-needed"`). Same weights and GPU; each alias
 carries exactly one property the others must not:
 
 | Alias | Prices | Cloud fallback | Thinking | Held by |
 |---|---|---|---|---|
-| `qwen3.6-35b-a3b` | synthetic | none | on | `demo` only, never production |
+| `demo-priced-local` | synthetic | none | on | `demo` only, never production |
 | `chat-local` | zero | **none (terminal)** | on | real local traffic: auto SIMPLE/MEDIUM, fail-open pin, repo-wiki, local-only keys |
 | `chat-ha` | zero | `claude-sonnet-5-metered` | on | cloud-entitled keys that must survive a B70 outage |
-| `qwen3.6-35b-a3b-classifier` | zero | none | **off** | the auto-router only |
+| `chat-local-classifier` | zero | none | **off** | the auto-router only |
 | `pr-review-local` | zero | none | **off** | the AI PR reviewer only |
 
 - Never add prices to `chat-local`, `chat-ha`, the classifier or
-  `pr-review-local`. Put any bigger synthetic budget on `qwen3.6-35b-a3b`.
+  `pr-review-local`. Put any bigger synthetic budget on `demo-priced-local`.
 - Never add a cloud fallback to anything but `chat-ha`/`auto`.
 - Thinking-off (`additional.extra_body.chat_template_kwargs.enable_thinking:
   false`) is required wherever a consumer parses `content`: a reasoning model
@@ -130,7 +132,7 @@ The Hub lists exactly `litellmSettings.public_model_groups` on
 is not on the Hub until its `modelName` is added there**, and
 `scripts/ci/litellm-ai-hub-test.py` fails until you do. Only three aliases
 stay unpublished (the test's `UNPUBLISHED` set): the classifier,
-`pr-review-local` and `qwen3.6-35b-a3b` (its synthetic price would display as
+`pr-review-local` and `demo-priced-local` (its synthetic price would display as
 real). Publishing grants no access. `/public/*` is unauthenticated, but the
 route is LAN-only.
 

@@ -5,48 +5,68 @@ invariants. The ids move; the shape does not.
 
 ## Providers
 
-`providers.gateway` (`custom:gateway`) is the default LLM provider. Its base
-URL is agentgateway's keyless ClusterIP,
-`http://internal-noauth.ai.svc.cluster.local/v1`. The gateway routes by
-model id and injects the real provider keys. `api_key: no-auth` is a
-sentinel so Hermes does not log "no resolvable api_key". It is never sent
-on the wire. Do not use that sentinel on a provider that must authenticate.
+`providers.litellm` (`custom:litellm`) is the only LLM provider. Its base URL
+is `http://litellm.ai.svc.cluster.local:4000/v1` and its `key_env` is
+`LITELLM_HERMES_API_KEY` from the hermes Secret (1Password
+`litellm-consumer-hermes`, written by the `hermes` LiteLLMVirtualKey
+PushSecret). The key is Hermes' alone, so LiteLLM spend and traffic are
+attributable to it ($50/30d covers the metered routes; `chat-local` and the
+`go-*` models are $0). The env name is not a built-in provider credential,
+which Hermes scrubs. A dummy (`no-auth`, empty) is not sent and LiteLLM
+answers 401. Skill `litellm-proxy` owns the key and its allow-list: a model
+used in `config.yaml` that is not on the `hermes` key is a 403.
 
-`providers.litellm` (`custom:litellm`) is a second named custom provider for
-selectable chat models. Its `key_env` is `LITELLM_PROJECTS_API_KEY` from the
-hermes Secret (1Password `litellm-consumer-litellm-consume-projects`). That
-name is not a built-in provider credential, which Hermes scrubs. Do not move
-`model.default`, `fallback_providers`, or `auxiliary` onto it. The key's
-$100/30d budget is one pool shared with OpenCode.
+`key_env` resolves from the profile secret scope, not the container env
+(the gateway runs with `multiplex_profiles`). The key reaches Hermes through
+the `secrets.command` source, which reads
+`/secrets/mcp/LITELLM_HERMES_API_KEY` (a file mount of that Secret key in
+`helmrelease.yaml`), next to the MCP vars. Env injection alone gives
+"key_env ... is set but the variable is empty/unset" in `errors.log` and a
+401 on every call. The same scope decides a skill's required env: when the
+commit-watcher's `HOMELAB_GH_TOKEN`, `DISCORD_WEBHOOK` and `SUMMARY_LLM_*` were
+only container env, every cron run was blocked at preflight ("missing env",
+`hermes cron doctor`) and nothing was delivered. A skill's optional vars must
+also be declared (`optional: true`) to reach its script.
+`scripts/ci/hermes-secret-scope-test.py` guards all of it.
+[mcp-gateway.md](mcp-gateway.md)
+
+`session_affinity_header: x-opencode-session` is load-bearing for the `go-*`
+models. OpenCode Go answers HTTP 400 `MissingSessionID` to any request
+without it and wants one stable value per conversation. Hermes sends a
+conversation-stable id on main and auxiliary calls; LiteLLM forwards it
+upstream for the `go-*` model groups only
+(`litellmSettings.model_group_settings`). Other models ignore it. The
+commit-watcher script sends its own per run. A stateless call with no
+conversation id gets no header and Go would answer 400.
 
 Never set `OPENAI_BASE_URL`. It overrides every provider. Per-provider
 `api` in the `providers:` dict is the layer that matters.
 
-Never rename `gateway` or `litellm` to a built-in provider id. Hermes'
-auxiliary-client resolver then uses the native integration and silently
-skips that entry's base URL.
+Never rename `litellm` to a built-in provider id. Hermes' auxiliary-client
+resolver then uses the native integration and silently skips that entry's
+base URL.
 
-The default model is the local B70 chat id (`qwen3.6-35b-a3b` at last
-read). Fan-out above 4 concurrent calls queues on that server's unified KV.
-Skill `b70-llm-serving`.
+The default model is the local chat role alias `chat-local`, never a model
+name. LiteLLM maps it to the loaded model, whose real name is `CHAT_MODEL_ID`
+in ConfigMap `chat-model`, so a model swap does not touch Hermes. Fan-out
+above 4 concurrent calls queues on that server's unified KV. Skill
+`b70-llm-serving`.
 
 ## Fallback shape
 
-The gateway's own `llm-chat-failover` backend fails the local model over
-to `kimi-k2.6` before Hermes' `fallback_providers` runs. Hermes' chain is
-the next two tiers, both still `custom:gateway`:
+`chat-local` is a terminal alias in LiteLLM (no cloud fallback, by design),
+so the whole failover is Hermes' `fallback_providers`, all `custom:litellm`:
 
-1. `glm-5.1` (OpenCode Go, the tool-calling tier)
-2. `deepseek/deepseek-v4-flash` (off the Go subscription, so Go-quota
-   exhaustion still has a last resort)
+1. `go-kimi-k2.6` (OpenCode Go)
+2. `go-glm-5.1` (OpenCode Go, the tool-calling tier)
+3. `claude-haiku-5-5` (metered, off the Go subscription, so Go-quota
+   exhaustion still has a last resort; spends the hermes key's $50/30d)
 
-Effective order: local, then kimi (gateway), then glm-5.1, then
-deepseek-v4-flash. Keep that chain on `custom:gateway`. An explicit
-`custom:litellm` selection is metered by LiteLLM, not by agentgateway.
+Effective order: local, kimi, glm-5.1, haiku.
 
 ## Auxiliary tasks
 
-`web_extract`, `session_search`, and `title_generator` run on a cloud model,
+`web_extract`, `session_search`, and `title_generation` run on a cloud model,
 not the local one. `web_extract` fires one call per page; that fan-out
 exceeds the 4-slot local server.
 
@@ -54,13 +74,14 @@ Auxiliary fallback is the per-task `fallback_chain`, not the global
 `fallback_providers`. Without the per-task chain, Hermes falls back to the
 main model and re-queues on the live session.
 
-`compression` is the exception: its **primary** is a cloud model
-(`openai/gpt-oss-120b` at last read), not kimi. On a provider error the
+`compression` is the exception: its **primary** is an off-Go metered model
+(`gpt-oss-20b` at last read), not a `go-*` model. On a provider error the
 compressor falls back to the main model, not to that task's
-`fallback_chain`. A kimi primary would dump a quota failure onto the local
+`fallback_chain`. A Go primary would dump a quota failure onto the local
 server that is already serving the session.
 
-`vision` stays on a vision-capable cloud model. The local 35B is text-only.
+`vision` is `claude-haiku-5-5`, a vision-capable cloud model. The local 35B
+is text-only.
 
 ## Memory and MCP
 

@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
-# D4 budget-path smoke test: the only consumer of the synthetically priced qwen3.6-35b-a3b.
+# D4 budget-path smoke test: the only consumer of the synthetically priced demo-priced-local.
 # Never give it auto or a cloud model.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
@@ -12,7 +12,7 @@ spec:
   secretName: litellm-key-demo
   secretKey: key
   models:
-    - qwen3.6-35b-a3b
+    - demo-priced-local
     - embedding-local
   # Decimal STRING (CRD type); exhaustible by one smoke test.
   maxBudget: "0.05"

@@ -1,8 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux v2. `CLAUDE.md` is a symlink to this file. Subsystem knowledge lives in skills (SKILL INDEX below); operator detail also in [`talos/AGENTS.md`](talos/AGENTS.md), [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md) and the runbooks in skill references (SKILL INDEX below; [`docs/README.md`](docs/README.md) lists the few that live elsewhere).
+Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux v2. `CLAUDE.md` is a symlink to this file. Subsystem knowledge lives in skills (SKILL INDEX below); operator detail also in [`talos/AGENTS.md`](talos/AGENTS.md), [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md), [`kubernetes/apps/base/ai/AGENTS.md`](kubernetes/apps/base/ai/AGENTS.md) (chat model naming) and the runbooks in skill references (SKILL INDEX below; [`docs/README.md`](docs/README.md) lists the few that live elsewhere).
 
-**Core stack**: Talos Linux + Flux v2 + Cilium (CNI, BGP LoadBalancer, kube-proxy replacement, no L2 announcements) + Rook-Ceph + External Secrets Operator/1Password + Cloudflare Tunnel + External-DNS (split: `network/cloudflare-dns` public, `network/unifi-dns` internal) + kopiur (primary backup; VolSync only on 3 carve-outs) + Gateway API (`envoy-internal`/`envoy-external` in `network`) + kube-prometheus-stack/Loki/Tempo/Grafana/Gatus in `monitoring`.
+**Core stack**: Talos Linux + Flux v2 + Cilium (CNI, BGP LoadBalancer, kube-proxy replacement, no L2 announcements) + Rook-Ceph + External Secrets Operator/1Password + Cloudflare Tunnel + External-DNS (split: `network/cloudflare-dns` public, `network/unifi-dns` internal) + kopiur (primary backup; VolSync only on 3 carve-outs) + Gateway API (`envoy-internal`/`envoy-external` in `network`) + kube-prometheus-stack/Loki/Grafana/Gatus in `monitoring`.
 
 ## STRUCTURE
 
@@ -37,7 +37,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 | CI, branch protection | `.github/workflows/`; ruleset on `main` is applied via `gh api`, not in Git (skill `github-ci`) |
 | Renovate | `.renovaterc.json5` + `.renovate/`; in-cluster CronJob is the writer (skill `renovate`) |
 | Authentik SSO | `terraform/authentik/` (skill `authentik-terraform`) |
-| AI stack | `kubernetes/apps/{main,base}/ai/` (skills `ai-stack`, `litellm-proxy`, `hermes-agent`, `agentgateway`) |
+| AI stack | `kubernetes/apps/{main,base}/ai/` (skills `ai-stack`, `litellm-proxy`, `hermes-agent`) |
 | Gatus | `monitoring/gatus`; endpoints come from the `gatus.home-operations.com/endpoint` HTTPRoute annotation (skill `observability`) |
 | konflate | `flux-system/konflate`, read-only PR-review UI, internal route only; its README owns the write-back-off invariant |
 | Tool versions | `.mise.toml`; resolve CLIs with `mise which <cli>` / `mise exec -- <cli>` |
@@ -142,7 +142,6 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 | `pvc-integrity-checks` | pvc-writable-check, pvc-mover-readable-check, their RBAC and alerts |
 | `litellm-proxy` | LiteLLM proxy/operator CRs, models, keys, fallbacks, PR reviewer |
 | `hermes-agent` | Hermes config, restarts, state.db, LLM/MCP routing, samba |
-| `agentgateway` | agentgateway routes, listeners, backends, API keys, cost table |
 | `ai-stack` | ai namespace apps, ToolHive, opencode/repo-wiki, AI app retirement |
 | `b70-llm-serving` | vllm and embedding-gpu flags, memory, alerts, embedding checks |
 | `intel-gpu` | GPU device plugins, `devic.es/b70*`, VA-API, GPU telemetry |

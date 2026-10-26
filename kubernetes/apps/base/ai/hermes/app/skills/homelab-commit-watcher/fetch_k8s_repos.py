@@ -560,6 +560,10 @@ async def run_digests(feed: list[dict], summary_url: str, summary_model: str) ->
         "Accept": "application/json",
         "Content-Type": "application/json",
         "User-Agent": "k8s-at-home-feed/1.0 (digest)",
+        # OpenCode Go (the go-* models behind LiteLLM) rejects requests without a session id and
+        # wants one stable value per conversation. LiteLLM forwards it for go-* only; one id per
+        # run keeps the whole digest on one backend.
+        "x-opencode-session": f"homelab-commit-watcher-{int(time.time())}",
     }
     llm_api_key = (
         os.environ.get("SUMMARY_LLM_API_KEY") or os.environ.get("LLAMA_API_KEY") or ""

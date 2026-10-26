@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/networking.k8s.io/ingress_v1.json
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plex-tailscale
+  namespace: media
+  annotations:
+    tailscale.com/proxy-group: ts-ingress
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: plex
+      port:
+        number: 32400
+  tls:
+    - hosts:
+        - plex

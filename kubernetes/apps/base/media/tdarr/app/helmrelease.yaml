@@ -6,6 +6,9 @@ metadata:
   name: &app tdarr
 spec:
   interval: 30m
+  # The node Deployment's startup probe allows up to 5 min for the server heartbeat; the
+  # default 5m Helm timeout rolled the 3.x upgrade back mid-start.
+  timeout: 15m
   chartRef:
     kind: OCIRepository
     name: app-template
@@ -45,6 +48,11 @@ spec:
                 value: 0.0.0.0
               - name: serverPort
                 value: "8266"
+              # 3.x defaults auth to true and 401s every node without an API key. The service
+              # is internal-only and the external Windows GPU node (tdarr-node-lb) cannot take
+              # a key from Git, so keep the 2.x open behavior.
+              - name: auth
+                value: "false"
               - name: webUIPort
                 value: "8265"
               - name: internalNode
