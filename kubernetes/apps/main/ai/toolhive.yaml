@@ -145,6 +145,14 @@ spec:
       namespace: *namespace
     - apiVersion: apps/v1
       kind: Deployment
+      name: ha-mcp
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      name: ha-mcp
+      namespace: *namespace
+    - apiVersion: apps/v1
+      kind: Deployment
       name: kubectl
       namespace: *namespace
     - apiVersion: apps/v1

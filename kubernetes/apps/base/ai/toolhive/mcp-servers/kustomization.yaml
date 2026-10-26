@@ -6,11 +6,12 @@ resources:
   - ./flux-mcp
   - ./github-mcp
   - ./grafana-mcp
+  - ./ha-mcp
   - ./kubectl-mcp
   - ./kubesearch-mcp
   - ./seerr-mcp
-  # ha-mcp is off until 1Password has HOMEASSISTANT_TOKEN, and belongs in its own Hermes profile and
-  # ToolHive group, not the shared mcp-tools endpoint. garmin-connect-mcp was removed (never used).
+  # ha-mcp sits in the shared mcp-tools group for now; it should move to its own Hermes profile and
+  # ToolHive group. garmin-connect-mcp was removed (never used).
   # seerr-mcp needs the `seerr` item to carry SEERR_API_KEY before it becomes Ready. talos-mcp needs namespace ai and role os:reader in machineconfig, then apply-node.
   # See skill ai-stack references/toolhive.md.
   # - ./talos-mcp
