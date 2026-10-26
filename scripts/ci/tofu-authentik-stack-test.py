@@ -130,6 +130,8 @@ CREATED_RESOURCE_ADDRS = frozenset(
         "authentik_flow_stage_binding.litellm_logout",
         "random_string.litellm_client_id",
         "random_password.litellm_client_secret",
+        "authentik_provider_oauth2.home_assistant",
+        "authentik_application.home_assistant",
     }
 )
 
@@ -520,6 +522,13 @@ def test_stack_hcl_model() -> dict[str, Any]:
                     raise Failure(
                         f"litellm redirect URI must target litellm host: {uris!r}"
                     )
+            continue
+        if name == "home_assistant":
+            # Created public client (PKCE): no secret, grant_types explicit.
+            if "client_secret" in block:
+                raise Failure("home_assistant is a public client; no client_secret")
+            if "grant_types" not in block:
+                raise Failure("created home_assistant provider must declare grant_types")
             continue
         if "client_secret" in block:
             raise Failure(
