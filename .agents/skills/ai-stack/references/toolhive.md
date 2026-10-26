@@ -89,7 +89,6 @@ Commented out of `mcp-servers/kustomization.yaml`. Files stay.
 
 | Server | Blocker |
 |---|---|
-| `ha-mcp` | item `home-assistant`, field `HOMEASSISTANT_TOKEN` |
 | `talos-mcp` | Talos API allowlist. See below |
 
 Uncommenting a row before the secret exists leaves the server unable to
