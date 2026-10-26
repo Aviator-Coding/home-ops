@@ -130,6 +130,9 @@ CREATED_RESOURCE_ADDRS = frozenset(
         "authentik_flow_stage_binding.litellm_logout",
         "random_string.litellm_client_id",
         "random_password.litellm_client_secret",
+        # Home Assistant: public client, created in home-assistant.tofu, no import and no secret.
+        "authentik_provider_oauth2.home_assistant",
+        "authentik_application.home_assistant",
     }
 )
 
@@ -520,6 +523,24 @@ def test_stack_hcl_model() -> dict[str, Any]:
                     raise Failure(
                         f"litellm redirect URI must target litellm host: {uris!r}"
                     )
+            continue
+        if name == "home_assistant":
+            # Created public client (PKCE): no secret exists anywhere, the client_id is a
+            # literal repeated in the HA ConfigMap, and grant_types is required like litellm's.
+            if "client_secret" in block:
+                raise Failure("home_assistant is a public client and must not declare client_secret")
+            if _strip_quotes(str(block.get("client_type"))) != "public":
+                raise Failure("home_assistant provider must be client_type = public")
+            if "client_id" not in block:
+                raise Failure("home_assistant provider must declare client_id")
+            grants = block.get("grant_types")
+            if not isinstance(grants, list) or "authorization_code" not in [
+                _strip_quotes(str(g)) for g in grants
+            ]:
+                raise Failure(
+                    "created home_assistant provider must declare "
+                    f"grant_types including authorization_code, got {grants!r}"
+                )
             continue
         if "client_secret" in block:
             raise Failure(
