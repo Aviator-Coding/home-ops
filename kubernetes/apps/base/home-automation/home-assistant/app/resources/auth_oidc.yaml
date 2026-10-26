@@ -1,0 +1,15 @@
+# hass-oidc-auth settings, included from /config/configuration.yaml as
+#   auth_oidc: !include auth_oidc.yaml
+# Public client + PKCE, so there is no secret here. The Authentik side is
+# terraform/authentik/home-assistant.tofu; client_id must match it.
+client_id: home-assistant
+discovery_url: https://auth.sklab.dev/application/o/home-assistant/.well-known/openid-configuration
+display_name: Authentik
+features:
+  # Authentik has no standalone `groups` scope; the groups claim comes with `profile`.
+  include_groups_scope: false
+roles:
+  # Authentik's built-in admin group. Setting `user` to the same group means any other
+  # Authentik account is rejected instead of landing as a plain HA user.
+  admin: authentik Admins
+  user: authentik Admins

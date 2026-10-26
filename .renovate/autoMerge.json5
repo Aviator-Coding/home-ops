@@ -76,6 +76,12 @@
       automerge: false,
     },
     {
+      // MUST stay after the three blanket automerge rules. Third-party code that runs inside Home Assistant's login path, installed by the install-oidc init container. Each bump needs a new OIDC_SHA256. Skill `home-automation`.
+      description: "Never auto merge hass-oidc-auth - it is Home Assistant's login provider and each bump needs a new pinned checksum",
+      matchPackageNames: ["christiaangoossens/hass-oidc-auth"],
+      automerge: false,
+    },
+    {
       // MUST stay after the blanket minor rule. GHCR has no releaseTimestamp, so timestamp-optional is what opens the PR. automerge stays false. Do not widen this. Skill `renovate` references/versioning-traps.md.
       description: "LiteLLM proxy: GHCR has no release timestamp, so open minor PRs but never automerge them",
       matchPackageNames: ["ghcr.io/berriai/litellm-non_root"],
