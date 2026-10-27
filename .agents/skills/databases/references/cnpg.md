@@ -43,7 +43,9 @@ binaries, so ContinuousArchiving fails). pgvector arrives as an ImageVolume (`po
 databases made later have it. Archive `serverName: postgres18-v1` in the same bucket.
 No LB service, Gatus ConfigMap or own PrometheusRule: the `cluster-17` rules match by
 metric, not cluster. An extension image bump needs `ALTER EXTENSION vector UPDATE` per
-database. No app uses it yet; consumers still point at `postgres-17-rw`.
+database. `timescaledb-oss` (Apache-2 edition: no compression or continuous aggregates) is
+preloaded but not created anywhere; each database runs `CREATE EXTENSION timescaledb`.
+No pg_cron: it has no official extension image. No app uses it yet; consumers still point at `postgres-17-rw`.
 
 ## Health and metrics
 
