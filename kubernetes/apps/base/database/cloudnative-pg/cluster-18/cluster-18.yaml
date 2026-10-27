@@ -51,17 +51,20 @@ spec:
         image:
           # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/pgvector
           reference: ghcr.io/cloudnative-pg/pgvector:0.8.7-18-trixie@sha256:bc9da05b09950b5beca1ce77c9903432b666a6cb527e60c78c7943ebf328e3cb
-      # Apache-2 edition only: no compression, continuous aggregates or policy jobs (TSL features).
+      # TimescaleDB Community Edition (Timescale License: compression, continuous aggregates,
+      # policy jobs), built by .github/workflows/build-timescaledb-community.yaml. Content-addressed
+      # tag: after ANY edit in .github/docker/timescaledb-community set it to
+      # `python3 scripts/ci/timescaledb-community-test.py --print-tag`.
       # Not created in template1: each database that wants it runs CREATE EXTENSION timescaledb.
-      - name: timescaledb-oss
+      - name: timescaledb
         image:
-          # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/timescaledb-oss
-          reference: ghcr.io/cloudnative-pg/timescaledb-oss:2.30.2-18-trixie@sha256:7c18caffbc9bbb991569a4c657e67743bcc60a5aa2c7677831f8552437d27fd1
+          reference: ghcr.io/aviator-coding/timescaledb-community:2.31.0-6648c17deb05
     shared_preload_libraries:
       - timescaledb
     parameters:
       max_connections: "300"
       work_mem: 64MB
+      timescaledb.telemetry_level: "off"
       shared_buffers: 128MB
 
   resources:
