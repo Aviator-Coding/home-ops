@@ -1,22 +1,18 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-# Builds ghcr.io/aviator-coding/timescaledb-community (TimescaleDB Community
-# Edition as a CloudNativePG ImageVolume extension; the official CNPG image is
-# Apache-2 only) from .github/docker/timescaledb-community for postgres-18 in
-# kubernetes/apps/base/database/cloudnative-pg/cluster-18.
+# Builds ghcr.io/aviator-coding/timescaledb-community (TimescaleDB Community Edition
+# as a CloudNativePG ImageVolume extension; the official CNPG image is Apache-2 only)
+# from .github/docker/timescaledb-community for postgres-18 (cloudnative-pg/cluster-18).
 #
-# The tag is CONTENT-ADDRESSED - `scripts/ci/timescaledb-community-test.py
-# --print-tag`, i.e. TimescaleDB version + a hash of the build directory - so a
-# tag is never rebuilt with different contents, and a build is skipped when its
-# tag already exists. The same script's test asserts cluster-18 names exactly
-# this tag (validate.yaml python-tests), so the two cannot drift.
+# The tag is CONTENT-ADDRESSED (`scripts/ci/timescaledb-community-test.py --print-tag`:
+# TimescaleDB version + a hash of the build directory), so a tag is never rebuilt with
+# different contents and an existing tag is skipped. The same script asserts cluster-18
+# names exactly this tag (validate.yaml python-tests).
 #
-# Why it also runs on pull_request, and pushes from it: image-pull.yaml pulls
-# every image a PR introduces onto a node, so the image has to exist BEFORE
-# merge or that check fails. Content addressing is what makes pushing from an
-# unmerged branch safe - an abandoned PR can only ever leave behind an unused
-# tag, never overwrite one a merged manifest points at. If image-pull ran
-# before this build finished on a PR's first push, re-run it once this is green.
+# It also runs on pull_request and pushes from it: image-pull.yaml pulls every image a PR
+# adds, so the image must exist BEFORE merge. Content addressing makes that safe: an
+# abandoned PR only leaves an unused tag. If image-pull ran before the build finished,
+# re-run it once this is green.
 name: Build timescaledb-community
 
 on:

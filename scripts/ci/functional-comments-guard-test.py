@@ -101,6 +101,10 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "kubernetes/apps/base/home-automation/home-assistant/app/securitypolicy.yaml",
         "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json",
     ): "home-assistant-auth SecurityPolicy document deleted: the ExtAuth gate broke HA's own /auth/token OAuth; Authentik signs in via auth_oidc instead.",
+    (
+        "kubernetes/apps/base/database/cloudnative-pg/cluster-18/cluster-18.yaml",
+        "# renovate: datasource=docker depName=ghcr.io/cloudnative-pg/timescaledb-oss",
+    ): "timescaledb-oss (Apache-2) replaced by our own timescaledb-community image: its content-addressed tag is bumped by scripts/ci/timescaledb-community-test.py, not Renovate.",
 }
 
 passed = 0
