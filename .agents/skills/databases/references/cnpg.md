@@ -36,8 +36,8 @@ each. One instance must tolerate `home-operations.com/dedicated`
 
 ## postgres-18 (pgvector)
 
-`cluster-18/` is a second, empty Cluster on the stock `postgresql:18-standard-trixie`
-image. pgvector arrives as an ImageVolume (`postgresql.extensions`, image
+`cluster-18/` is a second, empty Cluster on the `postgresql:18-system-trixie` image (`standard` has no barman-cloud
+binaries, so ContinuousArchiving fails). pgvector arrives as an ImageVolume (`postgresql.extensions`, image
 `ghcr.io/cloudnative-pg/pgvector`), which needs the `ImageVolume` feature gate in
 `talos/machineconfig.yaml.j2`. `postInitTemplateSQL` creates `vector` in `template1`, so
 databases made later have it. Archive `serverName: postgres18-v1` in the same bucket.
