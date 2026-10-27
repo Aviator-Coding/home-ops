@@ -40,7 +40,7 @@ spec:
           app:
             image:
               repository: ghcr.io/ggml-org/llama.cpp
-              # Re-measure the next tag with -ub 2048 before bumping. The two compound.
+              # Re-measure the next tag with -ub 4096 before bumping. The two compound.
               # See skill b70-llm-serving references/flags.md.
               tag: server-intel-b10820
             args:
@@ -83,12 +83,20 @@ spec:
               # See skill b70-llm-serving references/memory.md. Gate: scripts/ci/vllm-prompt-cache-test.py.
               - "4096"
               - --no-mmap
-              # -ub must match -b at 2048. -ub 4096 was rejected under concurrency.
+              # -ub 4096 with -b 8192: prefill +14% at 16K and +11% at 64K, decode unchanged, and
+              # 4 concurrent 16K requests finished 6% sooner with per-request decode 10.4 vs 6.7 t/s
+              # (scripts/bench/results/day-ub4096-*.json). The earlier rejection did not reproduce.
               # See skill b70-llm-serving references/flags.md.
               - -b
-              - "2048"
+              - "8192"
               - -ub
-              - "2048"
+              - "4096"
+              # Drafts from n-grams already in the context, so there is no draft model and no VRAM cost.
+              # Neutral on novel text (64.4 vs 64.3 t/s), faster only when the output copies the prompt.
+              # draft-mtp was slower at short context and worse under concurrency. Do not swap it in
+              # without re-running day-mtp3-*.json. See skill b70-llm-serving references/flags.md.
+              - --spec-type
+              - ngram-mod
               # Unset, llama.cpp spawns one thread per hardware thread (20 on talos-3) and the
               # spin-waiting extras thrash when tdarr holds cores. Matches the cpu request below.
               # See skill b70-llm-serving references/contention.md.

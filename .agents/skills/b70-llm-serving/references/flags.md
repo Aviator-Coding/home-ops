@@ -2,9 +2,12 @@
 
 Image for both live controllers: `ghcr.io/ggml-org/llama.cpp:server-intel-b10820`.
 A tag bump is one evaluation for both. Re-read the banner after it.
-`b10820` with `-ub 2048` is the chat serving shape (prefill chunks stop
-fragmenting when one decode token shares a batch). `-ub 4096` was
-rejected: better idle prefill, worse under concurrency.
+`b10820` with `-b 8192 -ub 4096` is the chat serving shape. It measured prefill
++14% at 16K and +11% at 64K over `-ub 2048`, with decode unchanged, and under 4
+concurrent 16K requests the wall time fell 6% and per-request decode rose from
+6.7 to 10.4 t/s (`scripts/bench/results/day-ub4096-*` against `day-control-*`).
+An earlier single run rejected `-ub 4096` as worse under concurrency; that did
+not reproduce, so re-measure rather than trust either result.
 
 Chat model: `IsValorum/Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated-GGUF`
 with no quant tag (default file is IQ3_XXS; mmproj auto-loads). Its served name
@@ -45,7 +48,8 @@ is `CHAT_MODEL_ID` (below), not a hardcoded alias. Embedding model:
 | `--cache-ram` | `4096` | Silent 8192 MiB host cache |
 | `GLIBC_TUNABLES` | `glibc.malloc.mmap_threshold=131072` | Logical cache bound does not return RSS. Do not remove when retuning `--cache-ram` |
 | `GGML_SYCL_FA_ONEDNN` | `"0"` | Unbounded oneDNN SDPA partition cache. Must be numeric |
-| `-b` / `-ub` | `2048` / `2048` | Default `-ub 512` splits a 2048 prefill into four passes |
+| `-b` / `-ub` | `8192` / `4096` | Prefill is 11-14% slower at 16K-64K with `2048`/`2048`; default `-ub 512` splits a 2048 prefill into four passes |
+| `--spec-type` | `ngram-mod` | No draft model, no VRAM. Neutral on novel text, faster when output copies the prompt. `draft-mtp` (draft 3) measured 55.5 against 64.3 t/s at short context, +16% decode but -12% prefill at 64K, worse under concurrency (`day-mtp3-*`). Untested: `--spec-draft-n-max 2` |
 | `-t` | `8`, with `cpu: "8"` requested | Auto uses all 20 hardware threads of talos-3. With tdarr busy that measured 40 t/s decode against 64 idle. See [contention.md](contention.md) |
 | `--parallel`, `--kv-unified` | unset (auto) | Explicit pin overcommits KV and collapses decode |
 | `--no-mmap` | set | Not the host-leak fix. Weights are file-backed and reclaimable. Do not treat adding or removing it as the memory remedy |
