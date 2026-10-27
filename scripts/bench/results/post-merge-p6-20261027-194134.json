@@ -1,0 +1,40 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P6_realistic_decode": {
+      "decode_ps": [
+        54.84453617222991,
+        54.13312800956309,
+        54.19257106983786,
+        55.13910515070598,
+        83.0769621719641,
+        55.290054880258,
+        79.19630963831511,
+        56.419099657370126
+      ],
+      "median": 55.214580015481985,
+      "draft_n": 768,
+      "draft_n_accepted": 492,
+      "acceptance": 0.640625
+    }
+  },
+  "ambient": {
+    "P6-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P6-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    }
+  },
+  "label": "post-merge-p6",
+  "date": "2026-10-27T19:41:34"
+}
