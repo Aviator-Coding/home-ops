@@ -46,6 +46,7 @@ is `CHAT_MODEL_ID` (below), not a hardcoded alias. Embedding model:
 | `GLIBC_TUNABLES` | `glibc.malloc.mmap_threshold=131072` | Logical cache bound does not return RSS. Do not remove when retuning `--cache-ram` |
 | `GGML_SYCL_FA_ONEDNN` | `"0"` | Unbounded oneDNN SDPA partition cache. Must be numeric |
 | `-b` / `-ub` | `2048` / `2048` | Default `-ub 512` splits a 2048 prefill into four passes |
+| `-t` | `8`, with `cpu: "8"` requested | Auto uses all 20 hardware threads of talos-3. With tdarr busy that measured 40 t/s decode against 64 idle. See [contention.md](contention.md) |
 | `--parallel`, `--kv-unified` | unset (auto) | Explicit pin overcommits KV and collapses decode |
 | `--no-mmap` | set | Not the host-leak fix. Weights are file-backed and reclaimable. Do not treat adding or removing it as the memory remedy |
 | `--cache-reuse` | `256` | No-op while the mmproj is loaded (multimodal disables it). Dropping the mmproj removes vision |

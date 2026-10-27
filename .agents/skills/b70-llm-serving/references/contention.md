@@ -12,6 +12,26 @@ a few GiB free. `--ub 2048` on the embedder fits and spends that margin.
 There is no llama.cpp flag that reserves a fraction of the card.
 `--gpu-memory-utilization` is the parked `vllm-embed` controller.
 
+## CPU on talos-3
+
+llama.cpp SYCL launches GPU work from CPU threads, so a starved host slows
+decode and prefill together. Measured 2026-10-26 on a quiet server
+(`scripts/bench/results/*-f16-ub2048-*.json`, `requests_processing` 0):
+
+| talos-3 state | Decode t/s | Prefill t/s |
+|---|---|---|
+| tdarr-node busy (12 cores) | 39-42 | 1250-1290 |
+| tdarr-node stopped | 64 | 1815 |
+
+Pod uptime made no difference (fresh restart gave the same 42 t/s). The
+Grafana "Decode t/s" panel reads about 22 t/s over 24 h because real traffic is
+also 3-4 overlapping 30-65K prompts, where a 65K prefill took 181 s and starved
+the other slots' decode to under 1 t/s.
+
+The fix is three numbers that must stay consistent: chat `-t 8` with
+`cpu: "8"` requested, and `tdarr-node` limited to `cpu: 6`. Re-measure with
+the harness after changing any of them, with tdarr running.
+
 ## Rate, not concurrency
 
 Idle chat decode on this card is the reference the curve was measured
