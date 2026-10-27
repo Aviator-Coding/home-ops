@@ -89,6 +89,11 @@ spec:
               - "2048"
               - -ub
               - "2048"
+              # Unset, llama.cpp spawns one thread per hardware thread (20 on talos-3) and the
+              # spin-waiting extras thrash when tdarr holds cores. Matches the cpu request below.
+              # See skill b70-llm-serving references/contention.md.
+              - -t
+              - "8"
             env:
               LLAMA_CACHE: /models/llama
               ONEAPI_DEVICE_SELECTOR: level_zero:0
@@ -107,7 +112,9 @@ spec:
                   name: vllm-secret
             resources:
               requests:
-                cpu: "2"
+                # Equal to -t. The request is the CFS weight against tdarr on the same node.
+                # See skill b70-llm-serving references/contention.md.
+                cpu: "8"
                 # 12Gi = ~1232 MiB baseline + 2.7x the 4096 MiB cache. Below the working set this
                 # pod is evicted first. Do not raise it to silence VLLMMemoryRetainedAboveBound.
                 # See skill b70-llm-serving references/memory.md.

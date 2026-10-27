@@ -1,0 +1,82 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P1_pure_prefill": {
+      "prefill_ps": [
+        520.9240820785219,
+        494.45860465121893
+      ],
+      "median": 507.6913433648704,
+      "prompt_n": [
+        16309,
+        16382
+      ]
+    },
+    "P2_pure_decode": {
+      "decode_ps": [
+        10.363336961861288,
+        10.609520281768809
+      ],
+      "median": 10.486428621815048
+    },
+    "P5_depth_sweep": [
+      {
+        "depth": 2048,
+        "n": 2,
+        "prefill_median": 468.3754531228408,
+        "decode_median": 11.468708014589437
+      },
+      {
+        "depth": 16384,
+        "n": 2,
+        "prefill_median": 512.0975441115266,
+        "decode_median": 11.545779027694529
+      },
+      {
+        "depth": 65536,
+        "n": 2,
+        "prefill_median": 401.1731217536042,
+        "decode_median": 5.744202308379864
+      }
+    ]
+  },
+  "ambient": {
+    "P1-start": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.09402
+    },
+    "P1-end": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.09413
+    },
+    "P2-start": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.09413
+    },
+    "P2-end": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.09548
+    },
+    "P5-start": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.09548
+    },
+    "P5-end": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.09998
+    }
+  },
+  "label": "now-f16-ub2048",
+  "date": "2026-10-26T21:22:12"
+}
