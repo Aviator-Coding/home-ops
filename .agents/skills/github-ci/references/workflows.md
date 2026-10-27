@@ -15,6 +15,7 @@ Runner below is the `runs-on` value in the file. The table in
 | `renovate.yaml` | `ubuntu-latest` | Rollback writer. Schedule commented out. `push` on Renovate config still fires. Skill `renovate` |
 | `build-talosctl-busybox.yaml` | `ubuntu-latest` | `docker buildx` of the talosctl image. Needs Docker |
 | `build-litellm-pgvector.yaml` | `ubuntu-latest` | Vector-store image. Skill `litellm-proxy` |
+| `build-timescaledb-community.yaml` | `ubuntu-latest` | TimescaleDB Community extension image for postgres-18. Skill `databases` |
 | `ai-pr-review.yaml` | home-ops scale set | Advisory comment. Never a required check. Skill `litellm-proxy` |
 | `codeql.yml` | home-ops scale set | Actions-language analysis |
 | `tag.yaml` | home-ops scale set | Monthly CalVer tags |
