@@ -1,0 +1,82 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P1_pure_prefill": {
+      "prefill_ps": [
+        1823.3443303427237,
+        1813.6903173050214
+      ],
+      "median": 1818.5173238238726,
+      "prompt_n": [
+        16309,
+        16382
+      ]
+    },
+    "P2_pure_decode": {
+      "decode_ps": [
+        61.52343655383495,
+        64.48441914263141
+      ],
+      "median": 63.003927848233175
+    },
+    "P5_depth_sweep": [
+      {
+        "depth": 2048,
+        "n": 2,
+        "prefill_median": 1995.967081049974,
+        "decode_median": 62.985119859807995
+      },
+      {
+        "depth": 16384,
+        "n": 2,
+        "prefill_median": 1786.6297053999697,
+        "decode_median": 58.59877233188419
+      },
+      {
+        "depth": 65536,
+        "n": 2,
+        "prefill_median": 829.4000435384412,
+        "decode_median": 3.2859161590476047
+      }
+    ]
+  },
+  "ambient": {
+    "P1-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P1-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P2-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P2-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P5-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P5-end": {
+      "requests_processing": 4.0,
+      "requests_deferred": 1.0,
+      "n_busy_slots_per_decode": 1.50785
+    }
+  },
+  "label": "night-control-b",
+  "date": "2026-10-27T00:03:57"
+}
