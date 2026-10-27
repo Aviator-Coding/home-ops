@@ -34,6 +34,17 @@ Three instances, required pod anti-affinity on hostname, 100Gi `ceph-block`
 each. One instance must tolerate `home-operations.com/dedicated`
 `PreferNoSchedule` or the spread cannot place the third pod.
 
+## postgres-18 (pgvector)
+
+`cluster-18/` is a second, empty Cluster on the stock `postgresql:18-standard-trixie`
+image. pgvector arrives as an ImageVolume (`postgresql.extensions`, image
+`ghcr.io/cloudnative-pg/pgvector`), which needs the `ImageVolume` feature gate in
+`talos/machineconfig.yaml.j2`. `postInitTemplateSQL` creates `vector` in `template1`, so
+databases made later have it. Archive `serverName: postgres18-v1` in the same bucket.
+No LB service, Gatus ConfigMap or own PrometheusRule: the `cluster-17` rules match by
+metric, not cluster. An extension image bump needs `ALTER EXTENSION vector UPDATE` per
+database. No app uses it yet; consumers still point at `postgres-17-rw`.
+
 ## Health and metrics
 
 The Flux health gate is `status.readyInstances >= 1` and
