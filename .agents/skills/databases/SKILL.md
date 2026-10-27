@@ -41,7 +41,7 @@ image, scrape-target count).
 |---|---|
 | FalkorDB | `kubernetes/apps/base/database/falkordb/` |
 | SurrealDB | `kubernetes/apps/base/database/surrealdb/` |
-| CNPG operator, cluster, pgAdmin | `kubernetes/apps/base/database/cloudnative-pg/` |
+| CNPG operator, clusters (`cluster-17`, `cluster-18`), pgAdmin | `kubernetes/apps/base/database/cloudnative-pg/` |
 | Barman offsite mirror (Backups owns the README) | `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/` |
 | EMQX | `kubernetes/apps/base/database/emqx/` |
 | DuckLake (catalog db, bucket, maintenance CronJob) | `kubernetes/apps/base/database/ducklake/` |
@@ -64,7 +64,7 @@ image, scrape-target count).
 - FalkorDB: `redis-cli -e GRAPH.LIST` exits 0 authenticated and 1 on NOAUTH
   or a bad command. `maxmemory`, the 16Gi limit, and the 0.60/0.70 alert
   ratios still describe one ceiling.
-- CNPG: `kubectl -n database get cluster postgres-17` shows
+- CNPG: `kubectl -n database get cluster postgres-17 postgres-18` shows
   `readyInstances` and `ContinuousArchiving`, not only `Ready`.
 - Dragonfly: `up{job=~".*dragonfly.*"}` returns 10 series.
 - EMQX operator chart is still a 2.2.x tag.
