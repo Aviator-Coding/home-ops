@@ -115,7 +115,18 @@ def completion(prompt, n_predict, cache=False):
         "pred_n": t.get("predicted_n"),
         "pred_ps": t.get("predicted_per_second"),
         "pred_ms": t.get("predicted_ms"),
+        "draft_n": t.get("draft_n"),
+        "draft_n_accepted": t.get("draft_n_accepted"),
     }
+
+# Realistic decode prompts. Speculative decoding only pays on text the draft can predict,
+# so P2's "Once upon a time" says nothing about it.
+REALISTIC_PROMPTS = [
+    "Write a Python function that parses an nginx access log line into a dict, with type hints and a docstring.",
+    "Explain in plain English why a Kubernetes pod stays Pending when a node has free memory but its CPU requests are fully allocated.",
+    "Summarize the trade-offs between Ceph RBD and NFS for a single-writer database volume in a home lab, as a bulleted list.",
+    "Convert this YAML to JSON and explain each key: apiVersion: apps/v1, kind: Deployment, metadata: {name: web}, spec: {replicas: 2}.",
+]
 
 def ambient():
     """Sample production load on the shared server."""
@@ -265,6 +276,26 @@ def run(args):
             sweep.append(summarize_depth(depth, runs))
         res["phases"]["P5_depth_sweep"] = sweep
         note("P5-end")
+
+    # P6: decode on realistic prompts, with speculative-decoding acceptance when the server drafts
+    if "6" in args.phases:
+        note("P6-start")
+        runs = []
+        for i in range(args.reps):
+            for prompt in REALISTIC_PROMPTS:
+                r = completion(prompt, 256)
+                runs.append(r)
+                print(f"P6 rep{i}: pred_n={r['pred_n']} decode={r['pred_ps']:.2f} t/s "
+                      f"draft={r['draft_n']} accepted={r['draft_n_accepted']}", flush=True)
+        drafted = sum(r["draft_n"] or 0 for r in runs)
+        accepted = sum(r["draft_n_accepted"] or 0 for r in runs)
+        res["phases"]["P6_realistic_decode"] = {
+            "decode_ps": [r["pred_ps"] for r in runs],
+            "median": st.median([r["pred_ps"] for r in runs]),
+            "draft_n": drafted, "draft_n_accepted": accepted,
+            "acceptance": accepted / drafted if drafted else None,
+        }
+        note("P6-end")
 
     if args.label:
         res["label"] = args.label
