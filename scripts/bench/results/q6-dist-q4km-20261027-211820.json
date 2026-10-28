@@ -1,0 +1,36 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P6_realistic_decode": {
+      "decode_ps": [
+        81.75146912198922,
+        100.08446343737931,
+        99.95449130807502,
+        99.01305341501845
+      ],
+      "median": 99.48377236154673,
+      "draft_n": 0,
+      "draft_n_accepted": 0,
+      "acceptance": null
+    }
+  },
+  "ambient": {
+    "P6-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P6-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    }
+  },
+  "label": "q6-dist-q4km",
+  "date": "2026-10-27T21:18:20"
+}

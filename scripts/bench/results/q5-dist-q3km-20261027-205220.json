@@ -1,0 +1,103 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P1_pure_prefill": {
+      "prefill_ps": [
+        2071.7496878211505,
+        2075.759520560625
+      ],
+      "median": 2073.7546041908877,
+      "prompt_n": [
+        16309,
+        16382
+      ]
+    },
+    "P2_pure_decode": {
+      "decode_ps": [
+        71.94819276903667,
+        119.87566910917275
+      ],
+      "median": 95.9119309391047
+    },
+    "P4_concurrent": {
+      "concurrency": 4,
+      "requests": 4,
+      "wall_s": 68.13753986358643,
+      "prompt_tokens": 65385,
+      "decode_tokens": 1024,
+      "aggregate_prefill_ps": 959.6031810203729,
+      "aggregate_decode_ps": 15.028426357189904,
+      "per_req_prefill_median": 548.4245150591573,
+      "per_req_decode_median": 16.963916483698636
+    },
+    "P5_depth_sweep": [
+      {
+        "depth": 2048,
+        "n": 2,
+        "prefill_median": 1969.0094617787263,
+        "decode_median": 178.48233544477782
+      },
+      {
+        "depth": 16384,
+        "n": 2,
+        "prefill_median": 2025.7824564225148,
+        "decode_median": 97.16516504686405
+      },
+      {
+        "depth": 65536,
+        "n": 2,
+        "prefill_median": 1335.7866495540816,
+        "decode_median": 78.7818493223476
+      }
+    ]
+  },
+  "ambient": {
+    "P1-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P1-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P2-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P2-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P4-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P4-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.5434
+    },
+    "P5-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.5434
+    },
+    "P5-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.2293
+    }
+  },
+  "label": "q5-dist-q3km",
+  "date": "2026-10-27T20:52:20"
+}
