@@ -29,8 +29,23 @@ also 3-4 overlapping 30-65K prompts, where a 65K prefill took 181 s and starved
 the other slots' decode to under 1 t/s.
 
 The fix is three numbers that must stay consistent: chat `-t 8` with
-`cpu: "8"` requested, and `tdarr-node` limited to `cpu: 6`. Re-measure with
+`cpu: "8"` requested, and `tdarr-node` limited to `cpu: 4`. Re-measure with
 the harness after changing any of them, with tdarr running.
+
+With chat on `-ub 4096` and tdarr saturating its cap (`kubectl top` showing the full limit),
+16K prefill measured 1853 t/s at `cpu: 6`, 1951 at `cpu: 4` and 2079 with tdarr stopped
+(`scripts/bench/results/tdarr-cap*-live-p1-*`, `day-ub4096-*`). The remaining 6% is not cores,
+so shared memory bandwidth or cache is the likely cause. Judge contention by prefill here: with
+`--spec-type ngram-mod` a repeated prompt decodes faster the second time, so decode runs
+are not comparable.
+
+## Scheduling on talos-3
+
+Chat requests 8 CPUs on the only B70 node (20 CPUs) and uses the Recreate strategy, so a restart
+during a CI burst can sit Pending. `PriorityClass chat-gpu-high` (1100000, above the runners'
+1000000) lets a Pending chat pod displace a runner or `tdarr-node`, and stops a runner from
+preempting chat. The cost is a CI job losing its runner when that happens. `embedding-gpu-low`
+(-10, `Never`) is the opposite end and never displaces anything.
 
 ## Rate, not concurrency
 

@@ -30,6 +30,9 @@ spec:
         strategy: Recreate
         pod:
           terminationGracePeriodSeconds: 60
+          # Outranks the CI runners (1000000) so the 8-CPU request below is always schedulable on
+          # talos-3 and a runner burst cannot preempt chat. See skill b70-llm-serving references/contention.md.
+          priorityClassName: chat-gpu-high
           # talos-3 PreferNoSchedule: this pod can only land there, so it tolerates the penalty.
           # See skill node-scheduling.
           tolerations:

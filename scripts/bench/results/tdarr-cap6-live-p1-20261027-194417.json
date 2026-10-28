@@ -1,0 +1,37 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P1_pure_prefill": {
+      "prefill_ps": [
+        1864.7872057005843,
+        1865.0183040924755,
+        1826.8155678006497
+      ],
+      "median": 1864.7872057005843,
+      "prompt_n": [
+        16309,
+        16382,
+        16404
+      ]
+    }
+  },
+  "ambient": {
+    "P1-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    },
+    "P1-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.0
+    }
+  },
+  "label": "tdarr-cap6-live-p1",
+  "date": "2026-10-27T19:44:17"
+}
