@@ -1,0 +1,129 @@
+{
+  "props": {
+    "n_ctx": 262144,
+    "total_slots": 4,
+    "build": "b10820-74a7c897f",
+    "spec": "none"
+  },
+  "phases": {
+    "P1_pure_prefill": {
+      "prefill_ps": [
+        906.8461742784973,
+        859.4937570228672
+      ],
+      "median": 883.1699656506822,
+      "prompt_n": [
+        16309,
+        16382
+      ]
+    },
+    "P2_pure_decode": {
+      "decode_ps": [
+        18.62490425406012,
+        25.456840032424395
+      ],
+      "median": 22.040872143242257
+    },
+    "P4_concurrent": {
+      "concurrency": 4,
+      "requests": 4,
+      "wall_s": 111.5391149520874,
+      "prompt_tokens": 65385,
+      "decode_tokens": 1024,
+      "aggregate_prefill_ps": 586.2069107154624,
+      "aggregate_decode_ps": 9.180635873252788,
+      "per_req_prefill_median": 503.17536235653245,
+      "per_req_decode_median": 17.405702560898785
+    },
+    "P5_depth_sweep": [
+      {
+        "depth": 2048,
+        "n": 2,
+        "prefill_median": 625.4888311195407,
+        "decode_median": 34.75628644157866
+      },
+      {
+        "depth": 16384,
+        "n": 2,
+        "prefill_median": 1343.5783721063556,
+        "decode_median": 77.77311983026587
+      },
+      {
+        "depth": 65536,
+        "n": 2,
+        "prefill_median": 1318.4323207387552,
+        "decode_median": 75.20574489537898
+      }
+    ],
+    "P6_realistic_decode": {
+      "decode_ps": [
+        52.89748570989981,
+        61.35828473997803,
+        63.54935878696984,
+        62.20659223993498,
+        60.67119472051159,
+        57.673465953656766,
+        140.89183982089608,
+        72.24655624748554
+      ],
+      "median": 61.782438489956505,
+      "draft_n": 801,
+      "draft_n_accepted": 584,
+      "acceptance": 0.7290886392009988
+    }
+  },
+  "ambient": {
+    "P1-start": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.04178
+    },
+    "P1-end": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.04307
+    },
+    "P2-start": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.04307
+    },
+    "P2-end": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.06726
+    },
+    "P4-start": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.06726
+    },
+    "P4-end": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.11058
+    },
+    "P5-start": {
+      "requests_processing": 2.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.11064
+    },
+    "P5-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.12574
+    },
+    "P6-start": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.12574
+    },
+    "P6-end": {
+      "requests_processing": 0.0,
+      "requests_deferred": 0.0,
+      "n_busy_slots_per_decode": 1.11549
+    }
+  },
+  "label": "q4-control-new",
+  "date": "2026-10-27T20:08:35"
+}
