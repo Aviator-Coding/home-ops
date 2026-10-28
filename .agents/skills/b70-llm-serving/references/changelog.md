@@ -5,7 +5,7 @@ the DRA stop live in skills `b70-llm-serving` and `intel-gpu`. Git history
 has the measurements.
 
 - Chat is llama.cpp SYCL on `server-intel-b10820`, not vLLM (intel/llm-scaler#382 OOMs MoE warmup). Context 32k (PR #982) then 128k then 262144 (direct commit `07fe6828`, no PR). Flash-attn and q8_0 KV are on (direct commit `5d99d64f`, no PR).
-- Chat weights are `IsValorum/Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated-GGUF` with no quant tag (IQ3_XXS, mmproj auto-loaded). The served name is `CHAT_MODEL_ID` (see the naming entry at the end).
+- Chat weights are `empero-ai/Qwen3.8-35B-A3B-Distill-GGUF:Q3_K_M` (mmproj auto-loaded), moved from IsValorum's abliterated IQ3_XXS APEX build: decode 63 to 81 t/s, about 25-35% fewer thinking tokens, VRAM 24.1 to 26.4 GiB at 262K, and no loss on the graded suite. Abliteration is gone. Reason and numbers in references/flags.md. The served name is `CHAT_MODEL_ID` (see the naming entry at the end).
 - `vllm-embed` scaled to 0 (PR #1098). Serving shape validated (PR #1092); an explicit `--parallel` pin was reverted (PR #1093).
 - B70 split onto `devic.es/b70`; iGPUs force-probed (PR #1443). `siderolabs/i915` restored so `0xa7a0` firmware loads (PR #1444). `allowIDs: "0xa7a0"` scopes `gpu.intel.com/xe` to the iGPU (PR #1447).
 - `devic.es/b70-vaapi` added after the PR #1443 rename killed VA-API while Level Zero stayed green (fix PR #1490). `tdarr-node` must request that resource.
