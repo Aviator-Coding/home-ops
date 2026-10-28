@@ -44,7 +44,9 @@ abliterated option and ships no source weights. The official distill is not abli
    VRAM headroom, and update the `ctx-size`/KV rows below if they moved.
 4. Nothing else is renamed: Hermes, Linkwarden, LiteLLM keys and the dashboards
    follow. The new `model` label starts a fresh series, which is intended.
-5. The chat pod restarts on merge (Recreate strategy).
+5. The chat pod restarts on merge (Recreate strategy) and downloads the new GGUF first. The
+   HelmRelease `timeout: 30m` covers that; with the default 5m, Helm rolls the swap back
+   mid-download and then retries (the cached file makes the retry succeed).
 
 ## Chat (`vllm` controller)
 
