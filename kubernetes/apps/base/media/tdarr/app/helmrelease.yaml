@@ -230,9 +230,10 @@ spec:
                 # Unbounded, the CPU worker held ~15 of talos-3's 20 cores and
                 # starved the control plane (kube-apiserver-talos-3 restart loop).
                 # At 12 it still cut chat decode 64 -> 40 t/s and prefill 1815 -> 1290 t/s
-                # (llama.cpp launches SYCL work from CPU threads). 6 leaves chat its 8.
+                # (llama.cpp launches SYCL work from CPU threads). At 6, with chat on -ub 4096,
+                # prefill was 1853 t/s against 2079 with tdarr stopped; at 4 it was 1951 (+5%).
                 # See skill b70-llm-serving references/contention.md.
-                cpu: 6
+                cpu: 4
                 memory: 12Gi
 
     service:

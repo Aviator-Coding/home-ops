@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/_definitions.json#/definitions/io.k8s.api.scheduling.v1.PriorityClass
+#
+# Above gha-runner-infrastructure (1000000) so a CI burst cannot preempt chat and a Pending chat
+# pod can displace a runner or tdarr-node. Chat requests 8 CPUs on talos-3, the only B70 node, and
+# the Recreate strategy means a restart during a burst would otherwise sit Pending.
+# Below the system classes. See skill b70-llm-serving references/contention.md.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: chat-gpu-high
+value: 1100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "ai/vllm chat on the B70: outranks CI runners and tdarr-node so its 8 CPU request is always schedulable."
