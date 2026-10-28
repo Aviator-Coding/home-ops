@@ -13,4 +13,4 @@ kind: ConfigMap
 metadata:
   name: chat-model
 data:
-  CHAT_MODEL_ID: Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated
+  CHAT_MODEL_ID: Qwen3.8-35B-A3B-Distill

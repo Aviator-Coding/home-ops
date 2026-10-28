@@ -9,10 +9,18 @@ concurrent 16K requests the wall time fell 6% and per-request decode rose from
 An earlier single run rejected `-ub 4096` as worse under concurrency; that did
 not reproduce, so re-measure rather than trust either result.
 
-Chat model: `IsValorum/Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated-GGUF`
-with no quant tag (default file is IQ3_XXS; mmproj auto-loads). Its served name
-is `CHAT_MODEL_ID` (below), not a hardcoded alias. Embedding model:
+Chat model: `empero-ai/Qwen3.8-35B-A3B-Distill-GGUF:Q3_K_M` (mmproj auto-loads). Its
+served name is `CHAT_MODEL_ID` (below), not a hardcoded alias. Embedding model:
 `Qwen/Qwen3-Embedding-0.6B-GGUF:f16`.
+
+Why this quant: on SYCL the K-quants decode much faster than IQ-quants of the same model.
+Realistic-prompt decode with tdarr and Hermes stopped: IQ3_XXS APEX 63 t/s, Q3_K_M 81, Q4_K_M
+99.5, IQ3_M 49 (`scripts/bench/results/q6-*`, `q5-*`). Q4_K_M is not used: 30.4 of 31.89 GiB of
+VRAM at 262K, and at 131K four parallel 30-60K prompts returned HTTP 500 (the unified KV is shared).
+The graded suite (`quality-*`, `b70-quality-eval.py`) was saturated for all three, so it shows no loss
+on math, code and tool calls, not equality. The previous model, IsValorum's abliterated APEX build
+(`IsValorum/Qwen3.8-35B-A3B-Distill-MTP-APEX-I-MiniPlus-V2.1-Abliterated-GGUF`, IQ3_XXS), is the only
+abliterated option and ships no source weights. The official distill is not abliterated.
 
 ## Model naming: one real name, stable roles
 
@@ -54,6 +62,7 @@ is `CHAT_MODEL_ID` (below), not a hardcoded alias. Embedding model:
 | `--parallel`, `--kv-unified` | unset (auto) | Explicit pin overcommits KV and collapses decode |
 | `--no-mmap` | set | Not the host-leak fix. Weights are file-backed and reclaimable. Do not treat adding or removing it as the memory remedy |
 | `--cache-reuse` | `256` | No-op while the mmproj is loaded (multimodal disables it). Dropping the mmproj removes vision |
+| `-hf` | `empero-ai/...Distill-GGUF:Q3_K_M` | Needs the quant tag: the repo ships ten quants and a 66 GiB BF16, so no tag fetches the wrong file |
 
 `n_parallel=4` and `kv_unified=true` must still appear in the banner
 after a tag bump. Do not "make them explicit" to match the embedding
