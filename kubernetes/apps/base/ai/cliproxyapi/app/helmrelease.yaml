@@ -34,8 +34,8 @@ spec:
         # Single replica with an RWO auth PVC: Recreate avoids a Multi-Attach deadlock.
         strategy: Recreate
         initContainers:
-          # First start only: copies the locally-created OAuth file onto the PVC. After that the
-          # app owns the file (it rewrites refreshed tokens), so the seed never overwrites it.
+          # Copies each locally-created OAuth file onto the PVC only if that name is missing. After that
+          # the app owns the file (it rewrites refreshed tokens), so the seed never overwrites it.
           seed:
             image: &image
               repository: docker.io/eceasy/cli-proxy-api
@@ -44,9 +44,12 @@ spec:
             args:
               - |
                 mkdir -p /data/auths
-                if ls /data/auths/*.json >/dev/null 2>&1; then exit 0; fi
-                cp /seed/claude.json /data/auths/claude.json
-                chmod 600 /data/auths/claude.json
+                for f in /seed/*.json; do
+                  dest=/data/auths/$(basename "$f")
+                  [ -e "$dest" ] && continue
+                  cp "$f" "$dest"
+                  chmod 600 "$dest"
+                done
             securityContext: &securityContext
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
