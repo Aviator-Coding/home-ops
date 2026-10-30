@@ -91,6 +91,7 @@ VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 # (namespace, claim) -> (uid, gid), measured live 2026-08-30.
 EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("ai", "hermes"): ("10000", "10000"),
+    ("ai", "cliproxyapi"): ("1000", "1000"),
     ("ai", "opencode"): ("1000", "1000"),
     ("ai", "repo-wiki"): ("1000", "1000"),
     ("database", "falkordb"): ("1000", "1000"),
@@ -264,6 +265,8 @@ NEVER_VOLSYNC: set[tuple[str, str]] = {
     ("downloads", "cleanuparr"),
     # media/wizarr, added 2026-10-18. New app; its claim comes from its own persistence block.
     ("media", "wizarr"),
+    # ai/cliproxyapi, added 2026-10-30. New app; its claim comes from its own persistence block.
+    ("ai", "cliproxyapi"),
 }
 
 # One free hour per namespace: free of every VolSync destination and of
