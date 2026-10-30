@@ -66,6 +66,8 @@ spec:
             args: ["--config", "/config/config.yaml"]
             env:
               TZ: America/New_York
+              # /config is a read-only Secret mount; the management panel assets download here.
+              WRITABLE_PATH: /tmp
             probes:
               liveness: &probes
                 enabled: true
