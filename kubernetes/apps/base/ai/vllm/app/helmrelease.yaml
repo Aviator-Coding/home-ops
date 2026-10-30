@@ -5,6 +5,10 @@ metadata:
   name: vllm
 spec:
   interval: 1h
+  # The chat pod downloads its GGUF on first start (about 16 GiB, over 5 minutes) and the startup
+  # probe allows 30. The default 5m Helm timeout rolled the Q3_K_M swap back mid-download, so
+  # this matches the probe. See skill b70-llm-serving references/flags.md.
+  timeout: 30m
   chartRef:
     kind: OCIRepository
     name: app-template
