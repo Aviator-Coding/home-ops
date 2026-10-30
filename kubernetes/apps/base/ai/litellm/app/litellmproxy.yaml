@@ -151,6 +151,7 @@ spec:
       - claude-sonnet-5
       - claude-sonnet-5-5
       - claude-sonnet-5-metered
+      - cliproxy-claude
       - deepseek-v4-flash
       - deepseek-v4-flash-0731
       - deepseek-v4-pro

@@ -10,6 +10,7 @@ GitOps for this cluster's AI stack. Flux overlays: `kubernetes/apps/main/ai/`.
 | Local chat and embeddings | `vllm/`, `embedding-gpu/` | `b70-llm-serving` |
 | GPU devices and telemetry | `gpu-node-dashboard/` plus the device plugins under `system/` | `intel-gpu` |
 | Coding consumers | `opencode/`, `repo-wiki/` | `ai-stack` |
+| Subscription proxy | `cliproxyapi/` | `ai-stack`, `litellm-proxy` |
 | Web search | `searxng/` | `hermes-agent` (URL pin), `ai-stack` (deploy) |
 | Shared files | `samba/`, `pvc/` | `hermes-agent` |
 
