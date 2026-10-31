@@ -9,10 +9,11 @@ Validate PR runs before 2026-10-31 failed on brittle tests, not real catches).
 Only files carrying the exact line `# ci: gate` right after the shebang block
 PRs. Every other test runs in the advisory job, which never blocks. Asserts:
 
-  1. At most MAX_GATE files are gated, and each gate file's docstring has a
-     `Prevents:` line naming the data loss or outage it guards.
-  2. validate.yaml's `python-tests` job runs only gate files, and is in the
-     `success` job's needs.
+  1. The gated files are exactly EXPECTED_GATE (owner-approved 2026-10-31;
+     changing it is an owner decision), at most MAX_GATE, and each docstring
+     has a `Prevents:` line naming the data loss or outage it guards.
+  2. validate.yaml's `python-tests` job runs only gate files, fails when it
+     finds none, has no continue-on-error, and is in `success` needs.
   3. `python-tests-advisory` runs only non-gate files, has
      `continue-on-error: true`, and is NOT in `success` needs.
 """
@@ -30,6 +31,21 @@ CI = ROOT / "scripts" / "ci"
 VALIDATE = ROOT / ".github" / "workflows" / "validate.yaml"
 MARKER = "# ci: gate"
 MAX_GATE = 15
+EXPECTED_GATE = {
+    "alert-coverage-gaps-test.py",
+    "backup-silent-failure-alerting-test.py",
+    "ci-test-gate-test.py",
+    "corrupt-claim-recreation-contract-test.py",
+    "flux-annotation-values-test.py",
+    "hostpolicy-ceph-selector-test.py",
+    "kopiur-stage0-test.py",
+    "kopiur-stage1-test.py",
+    "kopiur-stage3-test.py",
+    "kopiur-stage5-test.py",
+    "pvc-mover-readable-check-test.py",
+    "pvc-writable-check-test.py",
+    "volsync-retired-expiry-test.py",
+}
 
 failures: list[str] = []
 
@@ -43,7 +59,12 @@ def check(cond: bool, msg: str) -> None:
 def gate_files() -> list[Path]:
     out = []
     for path in sorted(CI.glob("*-test.py")):
-        lines = path.read_text().splitlines()
+        raw = path.read_bytes()
+        second_line = raw.split(b"\n", 2)[1] if raw.count(b"\n") >= 2 else b""
+        if second_line.endswith(b"\r"):
+            failures.append(f"{path.name}: CRLF line 2 is invisible to `grep -x`")
+            print(f"[FAIL] {path.name}: CRLF line 2 is invisible to `grep -x`")
+        lines = raw.decode().splitlines()
         if len(lines) > 1 and lines[0].startswith("#!") and lines[1] == MARKER:
             out.append(path)
         elif MARKER in lines:
@@ -58,7 +79,11 @@ def run_script(job: dict) -> str:
 
 def main() -> int:
     gates = gate_files()
-    check(0 < len(gates) <= MAX_GATE, f"{len(gates)} gate files (1..{MAX_GATE})")
+    names = {p.name for p in gates}
+    check(len(gates) <= MAX_GATE, f"{len(gates)} gate files (<= {MAX_GATE})")
+    check(names == EXPECTED_GATE,
+          f"gate set matches the approved list (missing {sorted(EXPECTED_GATE - names)}, "
+          f"unexpected {sorted(names - EXPECTED_GATE)})")
     for path in gates:
         doc = ast.get_docstring(ast.parse(path.read_text())) or ""
         check(
@@ -73,6 +98,8 @@ def main() -> int:
 
     gate_run = run_script(gate_job)
     check(f"grep -lx '{MARKER}'" in gate_run, "python-tests selects files by the gate marker")
+    check("${#gates[@]} == 0" in gate_run, "python-tests fails when it selects no gate files")
+    check("continue-on-error" not in gate_job, "python-tests has no continue-on-error")
     check("python-tests" in success_needs, "python-tests is in success.needs")
 
     adv_run = run_script(advisory)

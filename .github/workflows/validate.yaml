@@ -270,35 +270,45 @@ jobs:
       - filter
     name: python-tests
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    timeout-minutes: 10
+    # Its Setup Tools fans out beside the other mise jobs, so it takes their 25m floor
+    # (Setup Tools was cancelled at 602s under this fan-out on PR #1481).
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # Same tool set as the advisory job (kubectl kustomize, promtool), from .mise.toml.
-      # Do not add @version here (scripts/ci/mise-install-args-test.py).
+      # Only what gate files call: kubectl/kustomize, promtool, jq (pvc-mover-readable-check
+      # SKIPs its CronJob-script cases without jq). Versions from .mise.toml; do not add
+      # @version here (scripts/ci/mise-install-args-test.py).
       - name: Setup Tools
         uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
-          install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
+          install_args: python uv kubectl aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:jqlang/jq
 
       # Gate tests are offline; boto3 is for volsync-retired-expiry-test.py.
       - name: Install Python Test Dependencies
         run: uv pip install --system pyyaml boto3
 
+      # mapfile + count check: a process substitution's exit status is ignored, so an
+      # empty or failed grep would otherwise run zero tests and pass.
       - name: Run gate scripts/ci tests
         run: |
+          mapfile -t gates < <(grep -lx '# ci: gate' scripts/ci/*-test.py)
+          if (( ${#gates[@]} == 0 )); then
+            echo "FAILED: no '# ci: gate' files found"
+            exit 1
+          fi
           fail=0
-          while IFS= read -r f; do
+          for f in "${gates[@]}"; do
             echo "::group::${f}"
             if ! python3 "${f}" </dev/null; then
               echo "FAILED: ${f}"
               fail=1
             fi
             echo "::endgroup::"
-          done < <(grep -lx '# ci: gate' scripts/ci/*-test.py)
+          done
           exit "${fail}"
 
   python-tests-advisory:

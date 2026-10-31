@@ -76,7 +76,8 @@ PYTHON_TIMEOUT_FLOOR_MIN = 20  # ~2.5x the 469s contended success
 FILTER_TIMEOUT_MAX_MIN = 5
 RENOVATE_TIMEOUT_MAX_MIN = 10
 
-MISE_HEAVY_JOBS = ("talos", "versions", "bootstrap", "terraform", "docs-guards")
+# python-tests (the scripts/ci gate) fans out beside these since 2026-10-31.
+MISE_HEAVY_JOBS = ("talos", "versions", "bootstrap", "terraform", "docs-guards", "python-tests")
 LIGHT_PREDECESSORS = (
     "filter",
     "talos",
