@@ -64,7 +64,7 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 13. **`litellm-dragonfly` is required**: without it limits and budgets are
     per worker and overshoot, even with `replicas: 1`.
 14. **The AI PR reviewer is advisory** (never a required check, never
-    `auto`; its own check fails only on a rules-file blocker), and rotating its key has a second, silent GitHub-secret step.
+    `auto`; its own check fails only when the Jev gate finds a blocker), and rotating its key has a second, silent GitHub-secret step.
     [pr-reviewer.md](references/pr-reviewer.md)
 15. **Never call `GET /spend/logs` without a filter** (it OOM-killed the
     proxy), and never zero historical spend to make a number look clean.

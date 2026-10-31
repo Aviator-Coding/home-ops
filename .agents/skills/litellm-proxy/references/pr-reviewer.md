@@ -12,9 +12,13 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
   `gh pr review` only in `review_comment`/`review_verdict` modes, so it cannot
   approve or request changes.
 - `approve-forks` stays false; `allow-approve` is deprecated and inert in v3 and stays unset.
-- `fail-on-request-changes: "true"` (goal task 2.4): the AI PR Review check goes red on a
-  `request_changes` verdict, which `.github/ai-review-rules.md` reserves for named blockers. It
-  is still not part of `CI Success`, so it never blocks a merge.
+- The check is decided by the **Jev gate** step (`scripts/ci/ai_review_gate.py`, goal task 2.4):
+  one `predicate` per blocker rule on `POST /v1/decisions` (key allow-lists `jev`), with a
+  regex's unmatched `${NAME}` tokens as hints; red at probability >= 0.6. The workflow runs
+  main's copy of the script. Jev and the local model share the key's $5/30d budget: if Jev
+  ever exhausts it, the local review falls back to its outage notice too. The local model only writes the text (`fail-on-request-changes`
+  false); it caught 2 of 5 seeded blockers, Jev 5 of 5 with no false failures (goal §8, D6).
+  Jev unreachable = a notice and a pass. Never part of `CI Success`.
 - v3 flipped several defaults. The workflow pins the v2 advisory posture: `verdict-policy: model`, `deep-review: "false"`, `ci-status-check: "false"`, `tool-mode: "off"`, `inline-findings: "false"`.
 - **Never a required status check** (branch protection:
   skill `github-ci`, `references/branch-protection.md`), and "Allow GitHub Actions to create and approve
@@ -23,11 +27,11 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
   instead of a red check. The action exempts that notice from the
   `fail-on-request-changes` gate (`fail-on-degraded-review` stays false).
 
-## Cannot spend money
+## Spend is bounded
 
 - `ai-model: pr-review-local`: zero-priced, no cloud fallback, thinking off.
-  The key allow-lists only it and `embedding-local`; anything else is 403
-  (verified). Never give this key `auto`: it fires unattended on every PR,
+  The key allow-lists it, `embedding-local` and `jev` (the gate, a fraction of a cent per
+  PR); anything else is 403 (verified). Never give this key `auto`: it fires unattended on every PR,
   including heavy Renovate traffic.
 - `review-routing-mode: "off"` (no smart-model escalation). All outward
   features (`tool-mode`, evidence, Linear, search, `*_enable_for_forks`) are

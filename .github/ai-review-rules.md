@@ -24,8 +24,9 @@ do not invent problems to fill space.
 `request_changes` only when the diff breaks a rule marked *blocker* in this file (the hard rules
 below and the blockers in each section): give that finding `severity: blocker` and name the rule.
 Everything else - style, naming, missing docs, a judgement call, a risk you are unsure of - is a
-finding under `approve`. `request_changes` fails this check, so a false blocker costs the owner
-time and teaches them to ignore you; when unsure, it is not a blocker. Anchor every blocker to a
+finding under `approve`. A separate decision model gates the check; your verdict and findings
+are the explanation the owner reads, so a false blocker still costs them time; when unsure, it is
+not a blocker. Anchor every blocker to a
 changed line in this diff, not to pre-existing code.
 
 Renovate opens a large share of this repo's pull requests and they otherwise get no human review.

@@ -4,8 +4,8 @@
 
 Parses the GitHub Actions workflow and the LiteLLM operator CR surface into
 semantic models, then asserts the captain decisions that make the reviewer
-advisory (never in CI Success; its own check fails only on a blocker verdict), free
-(local model only), fork-safe, and parse-reliable.
+advisory (never in CI Success; its own check fails only when the Jev gate finds a blocker),
+spend bounded to Jev decisions, fork-safe, and parse-reliable.
 
 This is not a source-grep test: every check operates on the parsed workflow
 graph (triggers, permissions inheritance, job condition, step inputs) or on
@@ -491,11 +491,17 @@ def test_workflow_contracts() -> dict[str, Any]:
         str(w("approve_forks")).lower() in ("false", "0"),
         f"got={w('approve_forks')!r}",
     )
-    # Goal task 2.4: the check fails on a blocker verdict, still not part of CI Success.
+    # Goal task 2.4: the local model writes text only; the Jev gate step decides the check.
     record(
-        "fail_on_request_changes_true",
-        str(w("fail_on_request_changes")).lower() in ("true", "1"),
+        "fail_on_request_changes_false",
+        str(w("fail_on_request_changes")).lower() in ("false", "0"),
         f"got={w('fail_on_request_changes')!r}",
+    )
+    gate_runs = "\n".join(str(st.get("run", "")) for st in steps)
+    record(
+        "jev_gate_runs_mains_script",
+        "ai_review_gate.py" in gate_runs and "origin/main:scripts/ci/ai_review_gate.py" in gate_runs,
+        "the gate step must run main's copy of scripts/ci/ai_review_gate.py, never the PR's",
     )
     # An outage notice must keep passing the gate.
     record(
@@ -728,9 +734,10 @@ def test_virtualkey_cr() -> dict[str, Any]:
     # 2026-09-27 (captain intent: "all keys should be able to access this
     # local embedding model") - a credential-less, zero-priced sunk-hardware
     # model, not a chat/review backend, so it is an explicit exception here.
+    # `jev`: the blocking decision gate (owner decision 2026-10-31, goal task 2.4).
     record(
-        "virtualkey_allowlist_exactly_pr_review_local",
-        sorted(models) == sorted(["pr-review-local", "embedding-local"]),
+        "virtualkey_allowlist_exactly_pr_review_local_and_jev",
+        sorted(models) == sorted(["pr-review-local", "embedding-local", "jev"]),
         f"got={models}",
     )
     # Must not hold auto or any cloud alias. Names are the METERED CRs

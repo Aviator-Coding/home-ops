@@ -3,8 +3,8 @@
 #
 # Advisory AI PR review (misospace/pr-reviewer-action) on the in-cluster ARC runner against this
 # cluster's LiteLLM proxy. INVARIANTS: advisory (comment mode, no approve, never a required check;
-# its own check fails on REQUEST_CHANGES, which .github/ai-review-rules.md reserves for blockers);
-# cannot spend money (zero-priced local pr-review-local, no routing escalation); fork PRs
+# its own check fails only when the Jev gate step finds a blocker); spend is bounded to Jev
+# decisions (fractions of a cent per PR, key budget $5/30d); the review text cannot spend money (zero-priced local pr-review-local, no routing escalation); fork PRs
 # never run it. Key rotation has a second GitHub-secret step. See skill litellm-proxy
 # (.agents/skills/litellm-proxy/references/pr-reviewer.md).
 name: AI PR Review
@@ -100,9 +100,9 @@ jobs:
           publish-review-comment: "true"
           publish-mode: comment
           approve-forks: "false"
-          # Fails this check on REQUEST_CHANGES, which the rules file reserves for blockers
-          # (goal task 2.4). Still advisory: not part of CI Success.
-          fail-on-request-changes: "true"
+          # The local model writes the review text only; the Jev gate step below decides
+          # the check (goal task 2.4: the local model missed 3 of 5 seeded blockers).
+          fail-on-request-changes: "false"
           inline-findings: "false"
 
           # Everything that could reach outward or escalate, pinned off against upstream default flips.
@@ -123,3 +123,28 @@ jobs:
           verdict-policy: model
           deep-review: "false"
           ci-status-check: "false"
+
+      # Blocking gate: Jev (decision model) answers one yes/no question per blocker rule. It runs
+      # main's copy of the script, not the PR's (a PR can still edit this workflow file; the check
+      # is advisory and .github/workflows/** is risk:high). Exit 2 (could not decide) passes with a
+      # notice, like the local model's outage notice. Calibration: goal §8 (D6).
+      - name: Blocking gate (Jev)
+        if: ${{ !cancelled() && steps.cred.outputs.mode == 'review' }}
+        env:
+          LITELLM_KEY: ${{ secrets.LITELLM_PR_REVIEW_KEY }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if ! git show "origin/main:scripts/ci/ai_review_gate.py" > "${RUNNER_TEMP}/ai_review_gate.py" 2>/dev/null; then
+            echo "::notice::main has no scripts/ci/ai_review_gate.py yet; the AI review passes without the gate."
+            exit 0
+          fi
+          rc=0
+          python3 "${RUNNER_TEMP}/ai_review_gate.py" --base "${BASE}" --head "${HEAD}" > gate.txt || rc=$?
+          { echo '```'; cat gate.txt; echo '```'; } >> "${GITHUB_STEP_SUMMARY}"
+          cat gate.txt
+          if [ "${rc}" = 2 ]; then
+            echo "::notice::The Jev gate could not decide; the AI review passes without it."
+            exit 0
+          fi
+          exit "${rc}"
