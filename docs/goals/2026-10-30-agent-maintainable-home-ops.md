@@ -133,9 +133,14 @@ its own PR. The highest-tier path in a PR wins.
 | `risk:normal` | everything else under `kubernetes/**`, `scripts/**`, `.taskfiles/**`, `.justfile`, `*/mod.just`, `.mise.toml` | the owner merges the PR |
 | `risk:low` | `docs/**`, `.agents/**`, `*.md` outside `kubernetes/**`, plus Renovate digest and patch updates outside the `risk:high` paths | merges itself once `CI Success` is green |
 
-Agents never merge. The 0.4 controls block `gh pr merge` outright. A `risk:low` PR merges
+Agents never run `gh pr merge`; the 0.4 controls block it outright. A `risk:low` PR merges
 because the `risk-tier` job turns on GitHub auto-merge for it, and GitHub merges once
-`CI Success` is green. Every other PR is merged by the owner. Agents use the owner's
+`CI Success` is green. Since 2026-10-31 (owner decision) an agent may also merge a
+`risk:low` or `risk:normal` PR through `scripts/agent_merge.py` and nothing else: it re-reads
+the PR and merges only when the risk-tier bot's label is low or normal, no path is `risk:high`
+or agent-steering, a Renovate PR is digest or patch, `CI Success` and the AI review are green,
+and the Jev blocker gate is clear. `risk:high` PRs, Renovate minor and major bumps, and
+agent-steering changes are merged by the owner. Agents use the owner's
 GitHub token, so the owner cannot formally approve an agent's PR yet. Task 2.6 moves
 agent PRs to a separate bot identity. `CI Success` then requires an approving review
 from `Aviator-Coding` on `risk:normal` and `risk:high` PRs.
@@ -300,6 +305,7 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-31 | 0.4 (RBAC) | #2154 merged and reconciled. Impersonating `kube-system:agent-readonly`: create pods no, get secrets no, create pods/exec no, list helmreleases yes, list nodes yes. Still open: the owner's credential migration and mint, then the guard denial in a live session | #2154 |
 | 2026-10-31 | Plan change / 3.1 | Owner decision: start P3.1 (inventory) and P4.2 (Renovate triage comments) early; both delete and merge nothing. 3.1 done: the ledger lists 98 tests, 121 skill sections, 235 skill tripwires, 114 reference files and 31 AGENTS.md tripwires (599 rows; 87 data loss, 24 outage), with verdicts empty for 3.2 | this PR |
 | 2026-10-31 | 4.2 (triage, early) | All 31 open Renovate PRs have one recommendation comment (renovate-review format): 24 merge (some after a pre-flight), 7 hold, 0 close. Major bumps each have an issue: #2188 node 26 (PRs 2115, 2116), #2189 ceph v21 (needs Rook 1.21 first, one-way), #2190 n8n 3.0 (pre-release), #2191 ha-mcp 9, #2192 Node Exporter dashboard 46. Holds also cover #2114 and #2087 (each an unattended tuppr roll) and #1991 (python 3.15, no fastuuid wheel). The owner merges | #2188-#2192 |
+| 2026-10-31 | Plan change | Owner decision: agents may merge `risk:low` and `risk:normal` PRs through `scripts/agent_merge.py` (CI Success and AI review green, Jev blocker gate clear, no risk:high or agent-steering paths, Renovate digest or patch only). Direct `gh pr merge` stays blocked. New skill `jev-decisions` (JSONL in, JSONL out) | this PR |
 | 2026-10-31 | 1.3 / 1.5 | Linters gate `CI Success` (#2162: actionlint 132→0, zizmor 21→0, yamllint 18→0, shellcheck 6→0); repo-wide yamlfmt with empty `flate diff` (#2163). Daily metrics in issue #2161 (first row: 75.0%, 4 runs, 28 open Renovate PRs) | #2162, #2163, #2157 |
 | 2026-10-31 | 2.1-2.3 | Issue form and `risk:*` labels (#2164); `risk-tier.yaml` labels PRs from paths with main's classifier, auto-merge only for risk:low once `CI Success` is required (#2165; first live run labelled #2166 risk:normal); four workflow skills (#2166) | #2164, #2165, #2166 |
 | 2026-10-31 | D6 baseline (local model) | `pr-review-local` with the blocker rules (#2167): **2 of 5 bad caught, 1 of 5 good falsely failed: D6 not met.** Caught: healthChecks on a HelmRelease (#2172), CCNP default-deny (#2177). Missed: kopiur `wait: true` (#2168, include outside the diff), literal `${HOME}` (#2175, model called it a Flux variable), no fork guard on an in-cluster workflow (#2179, explicit rule). False failure: subtractive CCNP (#2178, invented selector). Good passes: #2169, #2173, #2176, #2180. Next: a stronger decision model (owner choosing Jev or Claude) | #2168-#2180 |
