@@ -92,11 +92,11 @@ spec:
           value: "false"
 
       service:
-          enabled: true
-          ports:
-            http:
-              port: 8080
-          type: ClusterIP
+        enabled: true
+        ports:
+          http:
+            port: 8080
+        type: ClusterIP
   postRenderers:
     - kustomize:
         patches:

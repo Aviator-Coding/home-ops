@@ -4,7 +4,13 @@ name: Flate
 
 # Called by ci.yaml, which owns the trigger and concurrency; its `CI Success` is the required check.
 on:
-  workflow_call: {}
+  workflow_call:
+    # Explicit, not `secrets: inherit`: the caller (ci.yaml) passes only these two.
+    secrets:
+      BOT_APP_ID:
+        required: true
+      BOT_APP_PRIVATE_KEY:
+        required: true
 
 permissions:
   contents: read
@@ -46,6 +52,8 @@ jobs:
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          # Only used as the checkout token below, which reads repository contents.
+          permission-contents: read
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -89,6 +97,9 @@ jobs:
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          # Checkout reads contents; the sticky comment step posts the diff on the PR.
+          permission-contents: read
+          permission-pull-requests: write
 
       # fetch-depth: 0 makes origin/<default> resolvable for --base.
       - name: Checkout Pull Request
@@ -106,10 +117,13 @@ jobs:
 
       # --strip-attr is omitted on purpose: passing any value REPLACES flate's default set.
       - name: Run flate diff
+        env:
+          RESOURCE: ${{ matrix.resource }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          flate diff ${{ matrix.resource }} \
+          flate diff "${RESOURCE}" \
             --path kubernetes/clusters/main \
-            --base "origin/${{ github.event.repository.default_branch }}" \
+            --base "origin/${DEFAULT_BRANCH}" \
             --no-progress \
             --output diff > diff.patch
 

@@ -137,11 +137,18 @@ components_relpath() {
   echo "${dots}components/${name}"
 }
 
+# `$schema` is literal text written into the generated manifests, so the single quotes are intentional.
+# shellcheck disable=SC2016
 kustomization_yaml_header='# yaml-language-server: $schema=https://json.schemastore.org/kustomization'
+# shellcheck disable=SC2016
 helmrelease_schema='# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json'
+# shellcheck disable=SC2016
 flux_helmrelease_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json'
+# shellcheck disable=SC2016
 externalsecret_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json'
+# shellcheck disable=SC2016
 overlay_ks_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json'
+# shellcheck disable=SC2016
 ocirepository_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json'
 
 # Renders base/<piece>/helmrelease.yaml - app-template chartRef, TODOs pointing

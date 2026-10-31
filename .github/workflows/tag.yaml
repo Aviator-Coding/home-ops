@@ -26,6 +26,8 @@ jobs:
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          # Creates the tag object, the ref and the release.
+          permission-contents: write
 
       - name: Get Previous Tag and Determine Next Tag
         id: determine-next-tag

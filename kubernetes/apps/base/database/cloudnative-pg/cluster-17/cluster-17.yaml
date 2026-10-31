@@ -64,11 +64,9 @@ spec:
     enablePodMonitor: true
     # Keep the original `cluster` label: the bundled dashboard reads it. Skill `databases`.
     podMonitorMetricRelabelings:
-      - {
-          sourceLabels: ["cluster"],
-          targetLabel: cnpg_cluster,
-          action: replace,
-        }
+      - sourceLabels: ["cluster"]
+        targetLabel: cnpg_cluster
+        action: replace
 
   # Increment serverName on a restore so archives stay distinct. Skill `databases`.
   backup:
