@@ -23,7 +23,6 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: intel
-        namespace: system
   install:
     crds: CreateReplace
     remediation:
