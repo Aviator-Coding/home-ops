@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Semantic regression test for scoping gpu.intel.com/xe to the iGPU.
 
 PR #1443 deferred `allowIDs: "0xa7a0"` on the Intel GpuDevicePlugin until the

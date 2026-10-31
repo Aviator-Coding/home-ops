@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Behavioral checks for LiteLLM UI SSO through Authentik.
 
 This is the seam between the already-applied Authentik half and the still-pending

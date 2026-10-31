@@ -14,8 +14,10 @@ PRs. Every other test runs in the advisory job, which never blocks. Asserts:
      has a `Prevents:` line naming the data loss or outage it guards.
   2. validate.yaml's `python-tests` job runs only gate files, fails when it
      finds none, has no continue-on-error, and is in `success` needs.
-  3. `python-tests-advisory` runs only non-gate files, has
+  3. `python-tests-advisory` runs only files with neither marker, has
      `continue-on-error: true`, and is NOT in `success` needs.
+  4. `# ci: nightly` files (network-calling, goal D2) run only in
+     nightly-tests.yaml, on a schedule; no file carries both markers.
 """
 
 from __future__ import annotations
@@ -30,6 +32,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CI = ROOT / "scripts" / "ci"
 VALIDATE = ROOT / ".github" / "workflows" / "validate.yaml"
 MARKER = "# ci: gate"
+NIGHTLY = "# ci: nightly"
+NIGHTLY_WF = ROOT / ".github" / "workflows" / "nightly-tests.yaml"
 MAX_GATE = 15
 EXPECTED_GATE = {
     "alert-coverage-gaps-test.py",
@@ -104,9 +108,20 @@ def main() -> int:
     check("python-tests" in success_needs, "python-tests is in success.needs")
 
     adv_run = run_script(advisory)
-    check(f"grep -Lx '{MARKER}'" in adv_run, "python-tests-advisory selects the non-gate files")
+    check("grep -LxE '# ci: (gate|nightly)'" in adv_run,
+          "python-tests-advisory selects files with neither marker")
     check(advisory.get("continue-on-error") is True, "python-tests-advisory has continue-on-error: true")
     check("python-tests-advisory" not in success_needs, "python-tests-advisory is not in success.needs")
+
+    nightly = sorted(p.name for p in CI.glob("*-test.py") if p.read_text().split("\n")[1:2] == [NIGHTLY])
+    check(bool(nightly), f"{len(nightly)} nightly files")
+    check(not set(nightly) & names, "no file is both gate and nightly")
+    wf = yaml.safe_load(NIGHTLY_WF.read_text()) if NIGHTLY_WF.is_file() else {}
+    on = wf.get(True) or wf.get("on") or {}
+    check("schedule" in on, "nightly-tests.yaml runs on a schedule")
+    nightly_run = "\n".join(run_script(j) for j in (wf.get("jobs") or {}).values())
+    check(f"grep -lx '{NIGHTLY}'" in nightly_run, "nightly-tests.yaml runs the nightly files")
+    check("gh issue" in nightly_run, "nightly-tests.yaml reports failures in an issue")
 
     print(f"Summary: {len(failures)} failed")
     return 1 if failures else 0

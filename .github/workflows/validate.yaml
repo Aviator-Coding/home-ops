@@ -399,6 +399,7 @@ jobs:
       # test_* functions and prints [PASS]/[FAIL] lines itself. See scripts/ci/README.md.
       # MINIJINJA_CONFIG_FILE is set by .mise.toml via mise-action env; schematic render
       # needs it the same way just talos / talos-validate.sh do.
+      # `# ci: nightly` files call the network; they run in nightly-tests.yaml, not on PRs (goal D2).
       - name: Run advisory scripts/ci tests
         run: |
           fail=0
@@ -409,7 +410,7 @@ jobs:
               fail=1
             fi
             echo "::endgroup::"
-          done < <(grep -Lx '# ci: gate' scripts/ci/*-test.py)
+          done < <(grep -LxE '# ci: (gate|nightly)' scripts/ci/*-test.py)
           exit "${fail}"
 
   success:

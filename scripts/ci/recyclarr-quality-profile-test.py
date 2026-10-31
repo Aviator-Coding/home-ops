@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Semantic regression test for the Radarr SQP-1 recyclarr quality-profile fix.
 
 2026-08-29 outage: 240 movies on ``[SQP] SQP-1 (2160p)`` accepted zero releases

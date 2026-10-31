@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Behavioral contract tests for terraform-diff / terraform-publish CI.
 
 These workflows are the public, machine-consumed interface for terraform/*
