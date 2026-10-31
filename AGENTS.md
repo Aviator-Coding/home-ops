@@ -126,6 +126,10 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 
 | Skill | Load when touching |
 |---|---|
+| `plan-task` | starting any issue or owner request: tier, PR limit, plan comment, owner approval |
+| `implement-task` | building an approved plan: worktree, gates, PR body, never merge, post-merge watch |
+| `review-pr` | reviewing a PR before it opens: fresh reviewer, issue + diff only |
+| `renovate-review` | a Renovate PR that did not merge itself (minor, major, risk:high) |
 | `flux-gitops` | apps, overlays, Flux healthChecks/wait/dependsOn, live HelmRelease tests |
 | `flux-substitution` | literal `${...}` in Flux-reconciled files, envsubst failures |
 | `app-workloads` | pod securityContext, fsGroup, probes, PVC mounts, linuxserver images |
