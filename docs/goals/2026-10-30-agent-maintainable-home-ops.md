@@ -180,7 +180,7 @@ row in §8 and a new date, not silent drift.
 
 ### P0 Stabilise (target 2026-11-06)
 
-- [ ] 0.0 Merge or drop `d2fa343c` (the image script's OpenRouter key-limit note, on
+- [x] 0.0 Merge or drop `d2fa343c` (the image script's OpenRouter key-limit note, on
       `feat/image-generation-skill` but not on `main`), so P0 starts from a clean `main`.
 - [ ] 0.1 Point the cilium, openebs and both intel-device-plugins OCIRepositories at
       their upstream OCI registries (onedr0p uses `oci://quay.io/cilium/charts/cilium`;
@@ -281,3 +281,4 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-30 | Goal approved | owner approved this file in-session; P0 started | this file |
 | 2026-10-30 | 0.2 | `core.symlinks = true`; `.claude/skills -> ../.agents/skills` and `CLAUDE.md -> AGENTS.md` restored in both worktrees; `docs-budget-test.py` 1148 passed, 0 failed; a live session's skill list shows the 27 repo skills | local only |
 | 2026-10-30 | 0.3 | Root cause: `.git/config` held `core.symlinks = false` and `core.filemode = false`, the defaults of a clone made on Windows (`settings.local.json` still has a `PowerShell(...)` rule), so `.claude/skills` checked out as a 17-byte text file. The owner's shell removed it (`rm skills` in zsh history), and the directory with a copy of `image-generation` appeared at 22:39:40–44 outside any agent: no tool call in any session transcript between 22:37:09 (session `c082f6f6`) and 22:40:24 (session `f0936570`, slash commands only). Recurrence is stopped by `core.symlinks = true`, and `docs-budget-test.py` fails if the symlink regresses. No `AGENTS.md` change | local only |
+| 2026-10-31 | 0.0 | `d2fa343c` landed on `main` as #2146 | #2146 |

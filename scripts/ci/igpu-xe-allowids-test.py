@@ -40,7 +40,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 GPU_APP = ROOT / "kubernetes/apps/base/system/intel-device-plugin-operator/gpu"
 HR_PATH = GPU_APP / "helmrelease.yaml"
-CHART_OCI = "oci://ghcr.io/home-operations/charts-mirror/intel-device-plugins-gpu"
+CHART_REPO = "https://intel.github.io/helm-charts"
+CHART_NAME = "intel-device-plugins-gpu"
 CHART_VERSION = "0.34.1"
 
 # Raptor Lake iGPU PCI device ID (hex, as the Intel plugin expects).
@@ -127,7 +128,9 @@ def helm_template_gpudeviceplugin(values: dict[str, Any]) -> dict[str, Any]:
             [
                 "helm",
                 "pull",
-                CHART_OCI,
+                CHART_NAME,
+                "--repo",
+                CHART_REPO,
                 "--version",
                 CHART_VERSION,
                 "--destination",
@@ -138,7 +141,7 @@ def helm_template_gpudeviceplugin(values: dict[str, Any]) -> dict[str, Any]:
         )
         if pull.returncode != 0:
             raise Failure(
-                f"helm pull {CHART_OCI}:{CHART_VERSION} failed: {pull.stderr.strip()}"
+                f"helm pull {CHART_REPO} {CHART_NAME}:{CHART_VERSION} failed: {pull.stderr.strip()}"
             )
         charts = list(tmp_path.glob("*.tgz"))
         assert_true(len(charts) == 1, f"expected one chart tgz, got {charts}")
