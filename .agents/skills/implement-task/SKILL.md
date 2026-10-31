@@ -35,8 +35,8 @@ A harness without subagents does the work itself at the strongest model it has.
   tests get `# ci: nightly`.
 - **Byte-sensitive files.** configMapGenerator/secretGenerator inputs (`resources/`,
   `config/`) are embedded byte-for-byte: any change restarts the app (Hermes uncleanly).
-- **Executable files:** `core.filemode` is on; new scripts need
-  `git update-index --chmod=+x <file>`.
+- **Executable files:** `chmod +x <file>` before `git add`; for a file already staged without
+  the bit, `git update-index --chmod=+x <file>` (it fails on an untracked file).
 - **Commits** follow `.commitlintrc.yaml`; pre-commit hooks always run (never `--no-verify`).
 - **Deleting a test or skill text:** ledger row first (`plan-task`, step 4).
 
@@ -70,7 +70,8 @@ advisory tests your paths touch too. Put the result summary in the PR body.
 4. **Never run `gh pr merge`** (the Claude Code guard blocks it; other harnesses must not
    either). The tier decides who merges.
 5. Need to prove CI goes red? Use a separate draft PR titled "DO NOT MERGE" and close it
-   yourself; never push a breaking commit to a PR the owner may merge.
+   yourself; never push a breaking commit to a PR the owner may merge. The draft counts toward
+   the 2-open-PR limit.
 6. Update a pushed branch with `git merge origin/main`, never rebase plus force-push.
 
 ## After merge

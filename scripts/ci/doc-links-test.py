@@ -14,8 +14,9 @@ references that no gate reports. This test fails on any of:
   3. A `references/<file>.md` path mentioned anywhere that no skill carries.
   4. A "skill `<name>`" pointer naming a skill that does not exist.
   5. A skill file (SKILL.md or references/*.md) that mentions any path under
-     docs/ other than the SKILL_DOCS_ALLOWED tdarr files. Runbooks live in the
-     skills; docs/ keeps only what the tdarr node harness reads.
+     docs/ other than SKILL_DOCS_ALLOWED: the tdarr files the node harness reads,
+     and docs/goals/ (the governing spec the workflow skills implement). Runbooks
+     live in the skills.
 
 KNOWN_DANGLING lists mentions that are deliberately left unresolved (history
 recorded in a dated report). Each entry needs a reason; an entry that stops

@@ -124,7 +124,7 @@ Debugging: `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide
 
 Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink). Harnesses that do not auto-load them: read the matching `SKILL.md` before touching its subsystem.
 
-| Skill | Load when touching |
+| Skill | Load when touching (workflow skills: load at that step of every task) |
 |---|---|
 | `plan-task` | starting any issue or owner request: tier, PR limit, plan comment, owner approval |
 | `implement-task` | building an approved plan: worktree, gates, PR body, never merge, post-merge watch |
