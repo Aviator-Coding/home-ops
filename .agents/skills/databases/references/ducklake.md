@@ -15,6 +15,7 @@ Both items are in the 1Password vault `Automation`, written by PushSecrets on
 | `ducklake` | `POSTGRES_DB_USER_PASSWORD` | role `ducklake` on database `ducklake` |
 | `ducklake-ceph-bucket` | `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY` | bucket `ducklake` on `ceph-objectstore` |
 
+The bucket PushSecret reads the Secret `ducklake` that the bucket claim creates.
 One read-write identity. DuckLake has no permission layer of its own.
 
 ## Client

@@ -122,6 +122,7 @@ Ready while every login fails with `EROFS: chmod '.data'`. Tokens die on
 restart by design. Run the image entrypoint with `exec`, not `node server.js`.
 `AUTH_URL` and `ALLOWED_ORIGINS` override the image's localhost `.env.local`;
 without `AUTH_URL` a successful login redirects to `http://localhost:3000`.
+`AUTH_TRUST_HOST=true` lets the browser trust the forwarded host behind Envoy.
 `HOSTNAME=0.0.0.0` is needed because Next.js binds localhost by default.
 
 `BROWSER=0` stays. It is inert while the command bypasses `run.sh`. Reverting
