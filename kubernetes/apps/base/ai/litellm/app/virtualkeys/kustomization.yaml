@@ -20,6 +20,7 @@ resources:
   - ./mac-gnhf.yaml
   - ./litellm-pgvector.yaml
   - ./jev-decisions.yaml
+  - ./image-generation.yaml
   - ./litellm-consume-projects.yaml
   - ./hermes.yaml
   - ./hermes-ha.yaml

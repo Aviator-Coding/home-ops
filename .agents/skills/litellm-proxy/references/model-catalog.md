@@ -187,6 +187,14 @@ route is LAN-only.
   cliproxyapi is down these routes fail with no metered fallback, so the
   `litellm-consume-projects` $100 cap now guards only the remaining metered
   and OpenAI routes.
+- Image generation (`POST /v1/images/generations`, `mode: image_generation`, key
+  `image-generation`, $10/30d, 1Password `litellm-consumer-image-generation`):
+  `grok-imagine-image` (cliproxyapi, $0), `gpt-image-2` and
+  `gemini-3.1-flash-image` (OpenRouter). `gpt-image-2` must use
+  `openai/openai/gpt-image-2` with `apiBase https://openrouter.ai/api/v1`: the
+  `openrouter/` prefix calls chat/completions, which OpenRouter refuses for it.
+  LiteLLM does not read OpenRouter's `usage.cost` on that route, so a flat
+  `output_cost_per_image` keeps the budget honest. None are Hub-published.
 
 ## Rate-limiting the shared GPU deployment (`embedding-local`)
 

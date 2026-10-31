@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Image generation (POST /v1/images/generations) on OpenRouter's dedicated /images endpoint: the
+# openrouter/ provider prefix calls chat/completions, which OpenRouter refuses for this model, so this
+# uses the OpenAI-compatible route against the OpenRouter base. LiteLLM does not read OpenRouter's
+# usage.cost here, so output_cost_per_image is a flat guard so the key budget counts spend (measured
+# 2026-10-31: $0.006 low quality 1024x1024; medium/high cost more). Only the image-generation key allow-lists it.
+# See skill litellm-proxy (references/model-catalog.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: gpt-image-2
+spec:
+  modelName: gpt-image-2
+  proxyRef: litellm
+  params:
+    model: openai/openai/gpt-image-2
+    apiBase: https://openrouter.ai/api/v1
+    apiKey: os.environ/OPENROUTER_API_KEY
+  info:
+    mode: image_generation
+    extra:
+      output_cost_per_image: 0.05

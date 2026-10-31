@@ -34,6 +34,7 @@ resources:
   - ./deepseek-v4-pro-0813.yaml
   - ./deepseek-v4-pro.yaml
   - ./embedding-local.yaml
+  - ./gemini-3.1-flash-image.yaml
   - ./gemini-3.1-pro.yaml
   - ./gemini-3.5-flash-lite.yaml
   - ./gemini-3.6-flash.yaml
@@ -49,9 +50,11 @@ resources:
   - ./gpt-5.6-terra.yaml
   - ./gpt-6-astra-pro.yaml
   - ./gpt-6-astra.yaml
+  - ./gpt-image-2.yaml
   - ./gpt-oss-20b.yaml
   - ./grok-4.5.yaml
   - ./grok-4.6.yaml
+  - ./grok-imagine-image.yaml
   - ./jev.yaml
   - ./kimi-k3.yaml
   - ./minimax-m3.yaml
