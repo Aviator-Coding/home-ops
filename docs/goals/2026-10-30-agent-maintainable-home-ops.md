@@ -28,7 +28,7 @@ What a normal week looks like when this is done:
 | Required checks on `main` | `Labeler - Labeler` only; ruleset bypass `RepositoryRole 5` (admin), mode `always` |
 | CI health, October PR runs | Validate failed 111/192, Flate failed 48/192; 12 of 83 owner PRs merged with a failing check |
 | Current red cause | `ghcr.io/home-operations/charts-mirror` returns 403 for cilium, openebs, intel-device-plugins-gpu, intel-device-plugins-operator; the same four OCIRepositories are not Ready in the cluster |
-| Custom tests | 92 `scripts/ci/*-test.py`, ~41k lines; 11 pin a finished migration or a retired app; 13 call the network |
+| Custom tests | 92 `scripts/ci/*-test.py`, ~41k lines; 11 pin a finished migration or a retired app; 13 match a network-call grep, an overcount (only `igpu-xe-allowids` and `samba-shared-xml` are confirmed; task 1.2 measures the real number) |
 | Renovate | 26 open PRs (oldest 2026-10-18); the owner hand-merged 47 of 131 in October |
 | Agent docs | `AGENTS.md` 159 lines; 27 skills, ~11.5k lines with references; 46 `PR #` citations inside skills |
 | Skills loading | `.git/config` has `core.symlinks = false`, so `.claude/skills` checks out as a text file; in the main checkout it was replaced by a directory holding only `image-generation` |
