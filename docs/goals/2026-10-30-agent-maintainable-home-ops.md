@@ -248,7 +248,7 @@ Exit: D5 and D6 hold.
 
 ### P3 Lean knowledge (target 2026-12-20, test triage 2026-12-06; each task runs through the P2 loop)
 
-- [ ] 3.1 Inventory every skill section and every `scripts/ci` test into
+- [x] 3.1 Inventory every skill section and every `scripts/ci` test into
       [`knowledge-ledger.md`](knowledge-ledger.md) (Haiku).
 - [ ] 3.2 Assign every ledger row a verdict (Opus). Work one skill per PR: its ledger
       rows, its rewrite and its test changes together, so each owner review of
@@ -298,6 +298,7 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-31 | 1.1 red proof | Draft #2158 removed `kind: DaemonSet` from mglru-disable: `Flate - Test` failed and `CI Success` went red. Closed, branch deleted | #2158 |
 | 2026-10-31 | 1.2 | First manual `nightly-tests.yaml` run: only `litellm-sso-test.py` failed (live Authentik), and the workflow opened #2159 with the `ci-nightly` label | #2159 |
 | 2026-10-31 | 0.4 (RBAC) | #2154 merged and reconciled. Impersonating `kube-system:agent-readonly`: create pods no, get secrets no, create pods/exec no, list helmreleases yes, list nodes yes. Still open: the owner's credential migration and mint, then the guard denial in a live session | #2154 |
+| 2026-10-31 | Plan change / 3.1 | Owner decision: start P3.1 (inventory) and P4.2 (Renovate triage comments) early; both delete and merge nothing. 3.1 done: the ledger lists 98 tests, 121 skill sections, 235 skill tripwires, 114 reference files and 31 AGENTS.md tripwires (599 rows; 87 data loss, 24 outage), with verdicts empty for 3.2 | this PR |
 | 2026-10-31 | 1.3 / 1.5 | Linters gate `CI Success` (#2162: actionlint 132→0, zizmor 21→0, yamllint 18→0, shellcheck 6→0); repo-wide yamlfmt with empty `flate diff` (#2163). Daily metrics in issue #2161 (first row: 75.0%, 4 runs, 28 open Renovate PRs) | #2162, #2163, #2157 |
 | 2026-10-31 | 2.1-2.3 | Issue form and `risk:*` labels (#2164); `risk-tier.yaml` labels PRs from paths with main's classifier, auto-merge only for risk:low once `CI Success` is required (#2165; first live run labelled #2166 risk:normal); four workflow skills (#2166) | #2164, #2165, #2166 |
 | 2026-10-31 | D6 baseline (local model) | `pr-review-local` with the blocker rules (#2167): **2 of 5 bad caught, 1 of 5 good falsely failed: D6 not met.** Caught: healthChecks on a HelmRelease (#2172), CCNP default-deny (#2177). Missed: kopiur `wait: true` (#2168, include outside the diff), literal `${HOME}` (#2175, model called it a Flux variable), no fork guard on an in-cluster workflow (#2179, explicit rule). False failure: subtractive CCNP (#2178, invented selector). Good passes: #2169, #2173, #2176, #2180. Next: a stronger decision model (owner choosing Jev or Claude) | #2168-#2180 |
