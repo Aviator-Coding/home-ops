@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Language policy: every Radarr movie must carry an English audio track.
 
 Policy (owner decision 2026-10-18): releases without English audio are hard-rejected on

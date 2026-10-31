@@ -43,3 +43,6 @@
   color: "370fb2"
 - name: hold
   color: "ee0701"
+- name: ci-nightly
+  color: "d93f0b"
+  description: Nightly network scripts/ci tests failed (nightly-tests.yaml)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Behavioral contract tests for the AI PR reviewer (misospace/pr-reviewer-action).
 
 Parses the GitHub Actions workflow and the LiteLLM operator CR surface into

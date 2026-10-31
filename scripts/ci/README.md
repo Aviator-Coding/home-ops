@@ -6,8 +6,10 @@ pins. CI globs the directory, so a new file needs no workflow edit.
 Only files with the line `# ci: gate` right after the shebang block a PR
 (`python-tests`). There are at most 15, and each docstring has a `Prevents:` line naming
 the data loss or outage it guards. Every other file runs in
-`python-tests-advisory`, which never blocks. `ci-test-gate-test.py` enforces
-this. A new test is advisory unless it guards data loss or an outage.
+`python-tests-advisory`, which never blocks, except files marked `# ci: nightly`
+(they call the network), which run only in `nightly-tests.yaml` and report to a
+`ci-nightly` issue. `ci-test-gate-test.py` enforces this. A new test is advisory
+unless it guards data loss or an outage; mark it nightly if it touches the network.
 
 ```bash
 python3 scripts/ci/<name>-test.py

@@ -1,0 +1,134 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# Network-calling scripts/ci tests (`# ci: nightly` on line 2) run here, never on PRs, so
+# no PR check depends on a registry or upstream API (goal D2). A failure opens or updates
+# one issue labelled `ci-nightly`. Setup steps are copied from validate.yaml's
+# python-tests-advisory job; keep the pins in step. Pin: scripts/ci/ci-test-gate-test.py.
+name: Nightly Tests
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  nightly:
+    name: Nightly network tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Node runs docs/tdarr/flow-nodes/behavior-test.js via
+      # scripts/ci/tdarr-flow-nodes-test.py (Tdarr safe-transcode recovery harness).
+      # Same setup-node pin as renovate-config; pinned rather than the runner image's Node.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      # kubectl/kustomize/helm/opentofu are what the tests shell out to (kubectl kustomize,
+      # helm template) to render the real manifests they assert on; python/uv provision the
+      # interpreter and the two extra libraries these tests need beyond the stdlib.
+      # promtool (from aqua:prometheus/prometheus) runs real PromQL rule-evaluation for
+      # grafana-sa-provisioner-test.py - this runner has no podman/container runtime.
+      # minijinja-cli renders talos/schematic.yaml.j2 for schematic-pcie-port-pm-test.py the
+      # same way the talos job / just recipes do (extraKernelArgs are Image Factory input).
+      # Versions come from .mise.toml, same pattern as the talos/terraform jobs.
+      # Do not add @version here: mise-action then installs a different copy than
+      # the shim looks up (Renovate PR #1601: prometheus 3.14.0 vs leftover @3.2.1,
+      # which failed python-tests on every PR with "No version is set for shim:
+      # promtool"). Pinned by scripts/ci/mise-install-args-test.py.
+      - name: Setup Tools
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        with:
+          install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
+
+      # Node is required by talos-renovate-pin-test.py, which drives renovate@44.52.1's own
+      # getRegexPredicate/filterVersions/isStable/applyPackageRules (not a source grep).
+      # Same setup-node pin as renovate-config; the package is pinned to the version that
+      # test was verified against so CI does not drift onto a different compiled API.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Install renovate for pin tests
+        run: |
+          mkdir -p /tmp/renovate-ci
+          npm install --prefix /tmp/renovate-ci --no-save --no-package-lock renovate@44.52.1
+          echo "RENOVATE_NODE_PATH=/tmp/renovate-ci/node_modules/renovate" >> "${GITHUB_ENV}"
+
+      # litellm[proxy] matches the pinned cluster image
+      # (ghcr.io/berriai/litellm-non_root, see
+      # kubernetes/apps/base/ai/litellm/app/litellmproxy.yaml) so the auto-router and
+      # request-logs tests exercise the real library the proxy runs, not a stub. This makes
+      # the job slower than the others here on purpose - do not soft-skip it to save time.
+      #
+      # The customManager regex only captures a value on the line after a
+      # `datasource=` comment when that line contains `: ` or `=`, and this
+      # package's docker versioning regex requires a vX.Y.Z tag. A pip
+      # `litellm[proxy]==<version>` line cannot be that capture (no `v`, and the
+      # quotes stick to the value), so the tracked tag lives in LITELLM_VERSION
+      # and the install strips the leading v. Do not edit the customManager to
+      # special-case this line.
+      - name: Install Python Test Dependencies
+        env:
+          # renovate: datasource=docker depName=ghcr.io/berriai/litellm-non_root
+          LITELLM_VERSION: v1.106.6
+        run: |
+          uv pip install --system python-hcl2 "litellm[proxy]==${LITELLM_VERSION#v}"
+
+      # Each file is a standalone script, not a pytest module: main() calls its own
+      # test_* functions and prints [PASS]/[FAIL] lines itself. See scripts/ci/README.md.
+      # MINIJINJA_CONFIG_FILE is set by .mise.toml via mise-action env; schematic render
+      # needs it the same way just talos / talos-validate.sh do.
+      - name: Run nightly scripts/ci tests
+        id: run
+        run: |
+          mapfile -t files < <(grep -lx '# ci: nightly' scripts/ci/*-test.py)
+          if (( ${#files[@]} == 0 )); then
+            echo "FAILED: no '# ci: nightly' files found"
+            exit 1
+          fi
+          failed=()
+          for f in "${files[@]}"; do
+            echo "::group::${f}"
+            if ! python3 "${f}" </dev/null; then
+              echo "FAILED: ${f}"
+              failed+=("${f}")
+            fi
+            echo "::endgroup::"
+          done
+          printf '%s\n' "${failed[@]}" | sed '/^$/d' > failed.txt
+          (( ${#failed[@]} == 0 ))
+
+      - name: Open or update the ci-nightly issue
+        # failure() alone: a failed setup step (mise, npm, pip) also reports.
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly network tests failed"
+          if [[ -s failed.txt ]]; then
+            failed="$(sed 's/^/- /' failed.txt)"
+          else
+            failed="- (setup failed before the tests ran; see the run)"
+          fi
+          body="$(printf '%s: %s\n\nFailed:\n%s\n' "$(date -I)" "${RUN_URL}" "${failed}")"
+          # One open issue: match the fixed title too, in case the label is missing.
+          existing="$(gh issue list --state open --search "in:title \"${title}\"" --json number,title \
+            --jq "map(select(.title == \"${title}\")) | .[0].number // empty")"
+          if [[ -n "${existing}" ]]; then
+            gh issue comment "${existing}" --body "${body}"
+          elif ! gh issue create --title "${title}" --label ci-nightly --body "${body}"; then
+            gh issue create --title "${title}" --body "${body}"
+          fi
