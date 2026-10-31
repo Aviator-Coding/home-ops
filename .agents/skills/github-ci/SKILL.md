@@ -28,8 +28,10 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
    the home-ops Talos `ServiceAccount` at `os:operator`. `docker://` actions
    and `docker run` fail on `gha-runner-scale-set-aviator-coding-home-ops`.
    [arc-runners.md](references/arc-runners.md)
-4. **A red ARC check (`image-pull`, AI review) that passes on rerun is pool
-   contention.** Each runner provisions a Ceph PVC first (50-95s, measured 2026-10-31). Rerun. Do not
+4. **A red `image-pull` that passes on rerun is ARC pool contention.** Each runner
+   provisions a Ceph PVC first (50-95s, measured 2026-10-31). Rerun. A red **AI review** means
+   it found a named blocker; a rerun replays the same verdict, so fix the line or push a
+   commit. Do not
    move Flate or Validate back onto ARC: `CI Success` must report while the
    cluster is down (`ci-success-workflow-test.py`).
 5. **`jdx/mise-action` `install_args` names the tool only.** A `@version` pin

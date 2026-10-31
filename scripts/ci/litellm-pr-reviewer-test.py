@@ -4,7 +4,8 @@
 
 Parses the GitHub Actions workflow and the LiteLLM operator CR surface into
 semantic models, then asserts the captain decisions that make the reviewer
-advisory-only, free (local model only), fork-safe, and parse-reliable.
+advisory (never in CI Success; its own check fails only on a blocker verdict), free
+(local model only), fork-safe, and parse-reliable.
 
 This is not a source-grep test: every check operates on the parsed workflow
 graph (triggers, permissions inheritance, job condition, step inputs) or on
@@ -490,10 +491,17 @@ def test_workflow_contracts() -> dict[str, Any]:
         str(w("approve_forks")).lower() in ("false", "0"),
         f"got={w('approve_forks')!r}",
     )
+    # Goal task 2.4: the check fails on a blocker verdict, still not part of CI Success.
     record(
-        "fail_on_request_changes_false",
-        str(w("fail_on_request_changes")).lower() in ("false", "0"),
+        "fail_on_request_changes_true",
+        str(w("fail_on_request_changes")).lower() in ("true", "1"),
         f"got={w('fail_on_request_changes')!r}",
+    )
+    # An outage notice must keep passing the gate.
+    record(
+        "fail_on_degraded_review_unset_or_false",
+        str(w("fail_on_degraded_review") or "false").lower() in ("false", "0"),
+        f"got={w('fail_on_degraded_review')!r}",
     )
     record(
         "inline_findings_false",
