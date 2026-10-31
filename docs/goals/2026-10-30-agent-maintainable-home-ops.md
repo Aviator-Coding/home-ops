@@ -187,10 +187,10 @@ row in §8 and a new date, not silent drift.
       confirm each tag exists upstream before switching). Tier `risk:high`. In the same
       issue, list every remaining `home-operations/charts-mirror` source and Renovate
       community preset, and switch each one with an official registry.
-- [ ] 0.2 Set `core.symlinks = true` in the main checkout and restore the
+- [x] 0.2 Set `core.symlinks = true` in the main checkout and restore the
       `.claude/skills` symlink there. The stray directory matches
       `.agents/skills/image-generation` exactly.
-- [ ] 0.3 Find what wrote the stray `image-generation` directory under `.claude/skills` on
+- [x] 0.3 Find what wrote the stray `image-generation` directory under `.claude/skills` on
       2026-10-30 at 22:39, and stop it from recurring.
 - [ ] 0.4 Put the §3 technical controls in place: an agent kubeconfig bound to `view`,
       read-only `gh` allow rules replacing `Bash(gh api *)` and `Bash(gh pr *)` in
@@ -279,3 +279,5 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 |---|---|---|---|
 | 2026-10-30 | Baseline | §2 | this file |
 | 2026-10-30 | Goal approved | owner approved this file in-session; P0 started | this file |
+| 2026-10-30 | 0.2 | `core.symlinks = true`; `.claude/skills -> ../.agents/skills` and `CLAUDE.md -> AGENTS.md` restored in both worktrees; `docs-budget-test.py` 1148 passed, 0 failed; a live session's skill list shows the 27 repo skills | local only |
+| 2026-10-30 | 0.3 | Root cause: `.git/config` held `core.symlinks = false` and `core.filemode = false`, the defaults of a clone made on Windows (`settings.local.json` still has a `PowerShell(...)` rule), so `.claude/skills` checked out as a 17-byte text file. The owner's shell removed it (`rm skills` in zsh history), and the directory with a copy of `image-generation` appeared at 22:39:40–44 outside any agent: no tool call in any session transcript between 22:37:09 (session `c082f6f6`) and 22:40:24 (session `f0936570`, slash commands only). Recurrence is stopped by `core.symlinks = true`, and `docs-budget-test.py` fails if the symlink regresses. No `AGENTS.md` change | local only |
