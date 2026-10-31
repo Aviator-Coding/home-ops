@@ -193,8 +193,8 @@ route is LAN-only.
   `gemini-3.1-flash-image` (OpenRouter). `gpt-image-2` must use
   `openai/openai/gpt-image-2` with `apiBase https://openrouter.ai/api/v1`: the
   `openrouter/` prefix calls chat/completions, which OpenRouter refuses for it.
-  LiteLLM does not read OpenRouter's `usage.cost` on that route, so a flat
-  `output_cost_per_image` keeps the budget honest. None are Hub-published.
+  LiteLLM prices that route by tokens and ignores `output_cost_per_image`
+  (spend logged $0), so the CR declares OpenRouter's per-token rates. None are Hub-published.
 
 ## Rate-limiting the shared GPU deployment (`embedding-local`)
 
