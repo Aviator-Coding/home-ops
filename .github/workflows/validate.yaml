@@ -274,7 +274,7 @@ jobs:
       - name: Setup Tools
         uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
-          install_args: aqua:rhysd/actionlint pipx:zizmor aqua:koalaman/shellcheck pipx:yamllint aqua:google/yamlfmt
+          install_args: uv aqua:rhysd/actionlint pipx:zizmor aqua:koalaman/shellcheck pipx:yamllint
 
       - name: yamllint
         run: yamllint -s .

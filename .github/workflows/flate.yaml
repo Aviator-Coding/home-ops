@@ -6,11 +6,13 @@ name: Flate
 on:
   workflow_call:
     # Explicit, not `secrets: inherit`: the caller (ci.yaml) passes only these two.
+    # required: false so a fork PR (no secrets) still starts and ci.yaml's CI Success can
+    # report the fork message; the jobs that read them are fork-guarded.
     secrets:
       BOT_APP_ID:
-        required: true
+        required: false
       BOT_APP_PRIVATE_KEY:
-        required: true
+        required: false
 
 permissions:
   contents: read
