@@ -236,9 +236,9 @@ Exit: D1 holds, and `CI Success` passes on at least 95% of PR runs for 7 days.
       auto-merge only for `risk:low`.
 - [x] 2.3 Write four workflow skills, `plan-task`, `implement-task`, `review-pr` and
       `renovate-review`, which encode §5 and §6.
-- [ ] 2.4 Rebuild the AI review so it reports specific findings and fails its check on a
+- [x] 2.4 Rebuild the AI review so it reports specific findings and fails its check on a
       blocking one. Seed 5 known-bad and 5 known-good PRs and record the results in §8.
-- [ ] 2.5 Triage `.claude/PRPs` and `.claude/tasks` with the owner. Live plans become a
+- [x] 2.5 Triage `.claude/PRPs` and `.claude/tasks` with the owner. Live plans become a
       tracked `docs/goals/` file, or stay local in `.private/` if they must not be
       public. Stale plans are deleted.
 - [ ] 2.6 Give agent PRs a bot identity and require the owner's approval on
@@ -301,3 +301,6 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-31 | 1.3 / 1.5 | Linters gate `CI Success` (#2162: actionlint 132→0, zizmor 21→0, yamllint 18→0, shellcheck 6→0); repo-wide yamlfmt with empty `flate diff` (#2163). Daily metrics in issue #2161 (first row: 75.0%, 4 runs, 28 open Renovate PRs) | #2162, #2163, #2157 |
 | 2026-10-31 | 2.1-2.3 | Issue form and `risk:*` labels (#2164); `risk-tier.yaml` labels PRs from paths with main's classifier, auto-merge only for risk:low once `CI Success` is required (#2165; first live run labelled #2166 risk:normal); four workflow skills (#2166) | #2164, #2165, #2166 |
 | 2026-10-31 | D6 baseline (local model) | `pr-review-local` with the blocker rules (#2167): **2 of 5 bad caught, 1 of 5 good falsely failed: D6 not met.** Caught: healthChecks on a HelmRelease (#2172), CCNP default-deny (#2177). Missed: kopiur `wait: true` (#2168, include outside the diff), literal `${HOME}` (#2175, model called it a Flux variable), no fork guard on an in-cluster workflow (#2179, explicit rule). False failure: subtractive CCNP (#2178, invented selector). Good passes: #2169, #2173, #2176, #2180. Next: a stronger decision model (owner choosing Jev or Claude) | #2168-#2180 |
+| 2026-10-31 | D6 | **Holds.** The local model failed (2 of 5, 1 false), so the owner chose Jev as a decision gate (#2183): one predicate per blocker rule on LiteLLM `/v1/decisions`, with the full changed files, the defined Flux variables and unmatched `${NAME}` hints. Offline on the 10 seed diffs (two runs, +-0.03): bad 0.98 / 0.97 / 0.82 / 0.91 / 0.93, good at most 0.21, threshold 0.6, so **5 of 5 caught, 0 of 5 false**. Live after merge: #2184 (bad-1) BLOCKED at 0.98, #2185 (good-4, the local model's false failure) passed at 0.20 | #2183, #2184, #2185 |
+| 2026-10-31 | 2.5 / D5 | Owner triage: the 12 finished or stale files under `.claude/PRPs` and `.claude/tasks` were deleted; the live media-platform PRD and the open Phase 5/6 plans moved to the local-only `.private/media-platform/`. Both directories are gone. With the issue form and `risk:*` labels (#2164), **D5 holds** | local only |
+| 2026-10-31 | P2 exit | D5 and D6 hold. Open: 2.6 (bot identity, owner) | this file |
