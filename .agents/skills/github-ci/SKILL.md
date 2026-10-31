@@ -5,9 +5,11 @@ description: "Read before editing .github/workflows/**, scripts/ci/**, the ARC r
 
 # GitHub CI: workflows, scripts/ci gates and ARC runners
 
-`validate.yaml` is the only CI signal for `talos/`, `bootstrap/`, `.renovate/`
-and credential-less `terraform/`. `flate` and `image-pull` only see
-`kubernetes/**`. A green schema check is not permission to `just talos apply-node`.
+`CI Success` (`ci.yaml`) is the one gate: it calls `flate.yaml` and `validate.yaml`
+on GitHub-hosted `ubuntu-latest`, so it reports while the cluster is down. Only
+`image-pull` and the AI review use the ARC scale set. `validate.yaml` is the only
+CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
+`terraform/`. `flate` and `image-pull` only see `kubernetes/**`. A green schema check is not permission to `just talos apply-node`.
 
 ## Tripwires
 
@@ -24,11 +26,10 @@ and credential-less `terraform/`. `flate` and `image-pull` only see
    the home-ops Talos `ServiceAccount` at `os:operator`. `docker://` actions
    and `docker run` fail on `gha-runner-scale-set-aviator-coding-home-ops`.
    [arc-runners.md](references/arc-runners.md)
-4. **A red `validate.yaml` check that passes on rerun is pool contention.**
-   Editing the workflow matches every per-job filter, so the set launches at
-   once. `maxRunners: 15` was not the ceiling (PR #1481). Rerun. Do not raise
-   `maxRunners`, drop the workflow from its own filters, or serialize jobs
-   (concurrency wait counts toward `timeout-minutes`).
+4. **A red ARC check (`image-pull`, AI review) that passes on rerun is pool
+   contention.** Each runner provisions a Ceph PVC first (50-95s). Rerun. Do not
+   move Flate or Validate back onto ARC: `CI Success` must report while the
+   cluster is down (`ci-success-workflow-test.py`).
 5. **`jdx/mise-action` `install_args` names the tool only.** A `@version` pin
    installs a different copy than the `.mise.toml` shim. Gate:
    `scripts/ci/mise-install-args-test.py`.

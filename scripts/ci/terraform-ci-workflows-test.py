@@ -435,12 +435,12 @@ def test_flate_untouched() -> dict[str, Any]:
     """
     data, _text = load_workflow(FLATE)
     on = on_block(data)
-    assert "pull_request" in on, on
-    # Path filtering moved from the trigger down into the `filter` job (see
-    # skill github-ci references/branch-protection.md) so the workflow always starts and its check
-    # run always posts; the trigger itself now carries no paths at all.
-    paths = list(on["pull_request"].get("paths") or [])
-    assert not paths, f"flate must not trigger-level path-filter anymore; got {paths}"
+    # Since 2026-10-31 ci.yaml triggers Flate (workflow_call) and owns the PR trigger.
+    # Path filtering lives in the `filter` job, so neither trigger carries paths.
+    assert set(on) == {"workflow_call"}, on
+    ci_on = on_block(load_workflow(FLATE.parent / "ci.yaml")[0])
+    paths = list((ci_on.get("pull_request") or {}).get("paths") or [])
+    assert not paths, f"ci.yaml must not trigger-level path-filter; got {paths}"
 
     jobs = data["jobs"]
     assert "filter" in jobs and "test" in jobs, sorted(jobs)

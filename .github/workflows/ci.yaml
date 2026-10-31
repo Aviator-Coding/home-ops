@@ -1,0 +1,51 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# The one required PR check: `CI Success` (goal D1). It calls Flate and Validate on
+# GitHub-hosted runners, so it reports while the cluster and its ARC runners are down.
+# Image Pull and the AI review stay on ARC and stay advisory. Pin:
+# scripts/ci/ci-success-workflow-test.py. Skill `github-ci`.
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  flate:
+    uses: ./.github/workflows/flate.yaml
+    secrets: inherit
+
+  validate:
+    uses: ./.github/workflows/validate.yaml
+    secrets: inherit
+
+  success:
+    # Runs after a failed or skipped workflow too; only a cancelled run skips it.
+    # A skipped workflow (path filters found nothing) passes; failed or cancelled fails.
+    if: ${{ !cancelled() }}
+    needs:
+      - flate
+      - validate
+    name: CI Success
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Any workflow failed or cancelled?
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo '${{ toJSON(needs.*.result) }}'
+          exit 1
+
+      - name: All workflows passed or skipped
+        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+        run: echo '${{ toJSON(needs.*.result) }}'
