@@ -1,0 +1,96 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# Labels every PR risk:low|normal|high from its changed paths (goal §5, task 2.2), so an
+# agent cannot mislabel its own PR, and turns on auto-merge only for risk:low.
+#
+# pull_request_target on purpose: it runs main's copy of this workflow and checks out
+# main's classifier, never the PR's code, so a PR cannot edit either to label itself low.
+# Auto-merge is enabled only while main's rules require `CI Success`; before the ruleset
+# switch (goal task 1.4) this job only labels. Pin: scripts/ci/risk-tier-test.py.
+name: Risk Tier
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+
+concurrency:
+  group: risk-tier-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tier:
+    name: Risk Tier
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # enable or disable auto-merge
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout main's classifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts/ci/risk_tier.py
+          sparse-checkout-cone-mode: false
+
+      - name: Classify
+        id: classify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          # previous_filename too: a rename out of a risk:high path keeps that path's tier.
+          gh api --paginate "repos/${REPO}/pulls/${PR}/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > files.txt
+          update=""
+          # Only Renovate's own labels count; anyone else adding type/patch changes nothing.
+          if [[ "${AUTHOR}" == "mortyops[bot]" ]]; then
+            labels="$(gh pr view "${PR}" --repo "${REPO}" --json labels --jq '.labels[].name')"
+            if grep -qx 'type/digest' <<< "${labels}"; then update="digest"
+            elif grep -qx 'type/patch' <<< "${labels}"; then update="patch"
+            fi
+          fi
+          tier="$(python3 scripts/ci/risk_tier.py --update "${update}" < files.txt)"
+          echo "tier=${tier}" >> "${GITHUB_OUTPUT}"
+          { echo "Risk tier: \`${tier}\` ($(wc -l < files.txt) files, renovate update: ${update:-none})"; } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          TIER: ${{ steps.classify.outputs.tier }}
+        run: |
+          remove=()
+          for t in risk:low risk:normal risk:high; do
+            [[ "${t}" != "${TIER}" ]] && remove+=(--remove-label "${t}")
+          done
+          gh pr edit "${PR}" --repo "${REPO}" --add-label "${TIER}" "${remove[@]}"
+
+      - name: Auto-merge risk:low only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          TIER: ${{ steps.classify.outputs.tier }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          required="$(gh api "repos/${REPO}/rules/branches/main" \
+            --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | index("CI Success") != null')"
+          if [[ "${TIER}" == "risk:low" && "${required}" == "true" && "${DRAFT}" != "true" && "${FORK}" != "true" ]]; then
+            gh pr merge "${PR}" --repo "${REPO}" --auto --squash
+          else
+            # A later push can raise the tier: never leave auto-merge on for a non-low PR.
+            gh pr merge "${PR}" --repo "${REPO}" --disable-auto 2>/dev/null || true
+            echo "No auto-merge: tier=${TIER} ci-success-required=${required} draft=${DRAFT} fork=${FORK}"
+          fi

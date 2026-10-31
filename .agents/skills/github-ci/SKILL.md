@@ -71,6 +71,7 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
 - Which workflow posts what, and where it runs: [workflows.md](references/workflows.md).
 - Adding or retargeting a gate: [scripts-ci.md](references/scripts-ci.md).
 - Required checks and the ruleset payload: [branch-protection.md](references/branch-protection.md).
+- PR risk tier (`risk:low|normal|high`, goal §5): `risk-tier.yaml` labels every PR from its paths with main's `scripts/ci/risk_tier.py`, and enables auto-merge only for `risk:low` while `CI Success` is required.
 
 ## Verify
 
