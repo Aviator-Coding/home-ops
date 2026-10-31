@@ -317,11 +317,11 @@ def test_build_talosctl(f: Failures) -> dict[str, Any]:
 
 def test_image_pull(f: Failures) -> dict[str, Any]:
     data, text = load_workflow(IMAGE_PULL)
-    flate_wf, _ = load_workflow(CI)
+    ci_wf, _ = load_workflow(CI)
     evidence: dict[str, Any] = {"workflow": "image-pull.yaml"}
 
     conc = data.get("concurrency") or {}
-    flate_conc = flate_wf.get("concurrency") or {}
+    flate_conc = ci_wf.get("concurrency") or {}
     evidence["concurrency"] = conc
     evidence["flate_concurrency"] = flate_conc
 

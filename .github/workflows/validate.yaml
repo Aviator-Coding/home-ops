@@ -9,7 +9,6 @@ name: Validate
 on:
   workflow_call: {}
 
-
 permissions:
   contents: read
 
@@ -100,6 +99,8 @@ jobs:
             kubernetes/apps/main/**
             .github/docker/litellm-pgvector/**
             .github/workflows/validate.yaml
+            .github/workflows/ci.yaml
+            .github/workflows/flate.yaml
             .mise.toml
 
   talos:
@@ -107,7 +108,7 @@ jobs:
     needs: filter
     name: talos
     runs-on: ubuntu-latest
-    # 25m: contention can stall Setup Tools past 10m. Skill `github-ci` references/workflows.md.
+    # 25m: sized for ARC contention (Setup Tools stalled past 10m, PR #1481); kept as headroom.
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -263,8 +264,7 @@ jobs:
       - filter
     name: python-tests
     runs-on: ubuntu-latest
-    # Its Setup Tools fans out beside the other mise jobs, so it takes their 25m floor
-    # (Setup Tools was cancelled at 602s under this fan-out on PR #1481).
+    # Same 25m floor as the other mise jobs (sized on ARC, PR #1481; kept as headroom).
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -325,7 +325,7 @@ jobs:
     # (docs/goals/2026-10-30-agent-maintainable-home-ops.md). P3 keeps or deletes each test.
     continue-on-error: true
     runs-on: ubuntu-latest
-    # 20m is ~2.5x the contended success time (469s). Skill `github-ci` references/workflows.md.
+    # 20m is ~2.5x the ARC contended success time (469s, PR #1481); kept as headroom.
     timeout-minutes: 20
     steps:
       - name: Checkout

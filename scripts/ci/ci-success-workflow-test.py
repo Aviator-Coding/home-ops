@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: gate
 """Contract for the single required PR check, `CI Success` (.github/workflows/ci.yaml).
 
 Prevents: the required gate going green while Flate or Validate failed, or
@@ -8,9 +9,10 @@ block the owner from merging the fix for a broken cluster.
 Asserts:
 
   1. ci.yaml calls flate.yaml and validate.yaml with `secrets: inherit`.
-  2. Its `success` job is named `CI Success`, needs both, runs unless the run
-     was cancelled, and fails when any needed workflow failed or was cancelled
-     (a skipped workflow passes).
+  2. Its `success` job is named `CI Success`, needs both, runs with always()
+     (a skipped required check counts as passing), fails when any needed
+     workflow failed or was cancelled (a skipped workflow passes), and fails a
+     fork PR, whose jobs all skip.
   3. flate.yaml and validate.yaml are call-only (`workflow_call`) and carry no
      top-level `concurrency` (the caller owns it).
   4. Every job in ci, flate and validate runs on `ubuntu-latest`, never ARC.
@@ -61,11 +63,14 @@ def test_success_job(ci: dict) -> None:
     job = (ci.get("jobs") or {}).get("success") or {}
     check(job.get("name") == "CI Success", "success job is named `CI Success`")
     check(sorted(job.get("needs") or []) == ["flate", "validate"], "CI Success needs flate and validate")
-    check("!cancelled()" in str(job.get("if", "")), "CI Success runs unless cancelled")
+    check("always()" in str(job.get("if", "")) and "!cancelled()" not in str(job.get("if", "")),
+          "CI Success runs with always() (a skipped required check counts as passing)")
     check(job.get("runs-on") == "ubuntu-latest", "CI Success runs on ubuntu-latest")
     step_ifs = [str(step.get("if", "")) for step in job.get("steps") or []]
     check(any("'failure'" in s and "'cancelled'" in s for s in step_ifs),
           "CI Success fails on a failed or cancelled workflow")
+    check(any("head.repo.full_name != github.repository" in s for s in step_ifs),
+          "CI Success fails a fork PR instead of passing with nothing run")
 
 
 def test_called_workflows_are_call_only(flate: dict, validate: dict) -> None:

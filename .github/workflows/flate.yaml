@@ -6,7 +6,6 @@ name: Flate
 on:
   workflow_call: {}
 
-
 permissions:
   contents: read
 
@@ -38,7 +37,7 @@ jobs:
     needs: filter
     name: Flate - Test
     runs-on: ubuntu-latest
-    # Headroom is for CPU contention on the shared runner pool, not render time.
+    # Headroom sized on the old ARC pool (CPU contention), kept on ubuntu-latest.
     timeout-minutes: 15
     steps:
       - name: Generate Token
@@ -114,7 +113,7 @@ jobs:
             --no-progress \
             --output diff > diff.patch
 
-      # 60000 bytes stays under GitHub's 65536-character comment limit. `head -c`, not `truncate`: the ARC image lacks full coreutils.
+      # 60000 bytes stays under GitHub's 65536-character comment limit. `head -c` (portable).
       - name: Truncate Diff
         id: diff
         run: |-

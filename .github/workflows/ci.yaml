@@ -30,9 +30,10 @@ jobs:
     secrets: inherit
 
   success:
-    # Runs after a failed or skipped workflow too; only a cancelled run skips it.
-    # A skipped workflow (path filters found nothing) passes; failed or cancelled fails.
-    if: ${{ !cancelled() }}
+    # always(), not !cancelled(): GitHub counts a skipped required check as passing, so a
+    # cancelled or superseded run must post red here, never skip. A skipped workflow (path
+    # filters found nothing) passes; failed or cancelled fails.
+    if: ${{ always() }}
     needs:
       - flate
       - validate
@@ -40,6 +41,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Fork PRs skip every job (fork guard), so a green result would mean nothing ran.
+      # Re-run the change from a same-repo branch (skill `github-ci`).
+      - name: Fork PR?
+        if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          echo "Fork PRs are not tested here; push the branch to this repo to run CI."
+          exit 1
+
       - name: Any workflow failed or cancelled?
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |

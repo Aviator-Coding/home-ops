@@ -6,8 +6,10 @@ description: "Read before editing .github/workflows/**, scripts/ci/**, the ARC r
 # GitHub CI: workflows, scripts/ci gates and ARC runners
 
 `CI Success` (`ci.yaml`) is the one gate: it calls `flate.yaml` and `validate.yaml`
-on GitHub-hosted `ubuntu-latest`, so it reports while the cluster is down. Only
-`image-pull` and the AI review use the ARC scale set. `validate.yaml` is the only
+on GitHub-hosted `ubuntu-latest`, so it reports while the cluster is down (a fork
+PR fails it: re-run from a same-repo branch). Of the PR checks, only `image-pull`,
+the AI review and `labeler` still use the ARC scale set; terraform-diff, codeql,
+label-sync, tag and test-runner do too. `validate.yaml` is the only
 CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
 `terraform/`. `flate` and `image-pull` only see `kubernetes/**`. A green schema check is not permission to `just talos apply-node`.
 
@@ -27,7 +29,7 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
    and `docker run` fail on `gha-runner-scale-set-aviator-coding-home-ops`.
    [arc-runners.md](references/arc-runners.md)
 4. **A red ARC check (`image-pull`, AI review) that passes on rerun is pool
-   contention.** Each runner provisions a Ceph PVC first (50-95s). Rerun. Do not
+   contention.** Each runner provisions a Ceph PVC first (50-95s, measured 2026-10-31). Rerun. Do not
    move Flate or Validate back onto ARC: `CI Success` must report while the
    cluster is down (`ci-success-workflow-test.py`).
 5. **`jdx/mise-action` `install_args` names the tool only.** A `@version` pin

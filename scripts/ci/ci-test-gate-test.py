@@ -35,6 +35,7 @@ EXPECTED_GATE = {
     "alert-coverage-gaps-test.py",
     "backup-silent-failure-alerting-test.py",
     "ci-test-gate-test.py",
+    "ci-success-workflow-test.py",
     "corrupt-claim-recreation-contract-test.py",
     "flux-annotation-values-test.py",
     "hostpolicy-ceph-selector-test.py",
