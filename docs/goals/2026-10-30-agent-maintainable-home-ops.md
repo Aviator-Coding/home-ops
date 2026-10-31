@@ -174,7 +174,8 @@ only for independent Haiku inventory work.
 
 ## 7. Phases
 
-Each phase starts once the previous phase's exit check holds, except P2, which the owner started early on 2026-10-31. P4's Renovate work, and
+Each phase starts once the previous phase's exit check holds, except P2, which the
+owner started early on 2026-10-31. P4's Renovate work, and
 P3's `scripts/ci` test triage (3.1 to 3.3 for tests), can start once P1's exit check
 holds. Target dates are for planning; a missed date gets a dated
 row in §8 and a new date, not silent drift.
