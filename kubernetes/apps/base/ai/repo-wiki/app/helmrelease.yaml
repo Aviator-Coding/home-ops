@@ -28,7 +28,7 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
 
     controllers:
       # mkdocs-material serving whatever generate.py has committed so far.
@@ -52,7 +52,7 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
-              capabilities: { drop: ["ALL"] }
+              capabilities: {drop: ["ALL"]}
             resources:
               requests:
                 cpu: 25m
@@ -115,7 +115,7 @@ spec:
                   name: repo-wiki
             securityContext:
               allowPrivilegeEscalation: false
-              capabilities: { drop: ["ALL"] }
+              capabilities: {drop: ["ALL"]}
             resources:
               requests:
                 cpu: 100m

@@ -1,3 +1,4 @@
+---
 repos:
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v9.27.0
@@ -54,7 +55,7 @@ repos:
 
   # Standard linters, resolved through mise (`mise exec`) so hooks use the .mise.toml pins
   # and match the validate.yaml `lint` job. `language: system` keeps them out of pre-commit's
-  # own env management. yamlfmt stays manual until the repo-wide format PR merges.
+  # own env management. yamlfmt runs on commit (active since the repo-wide format PR).
   - repo: local
     hooks:
       - id: yamllint
@@ -84,4 +85,3 @@ repos:
         entry: mise exec -- yamlfmt
         language: system
         types: [yaml]
-        stages: [manual]

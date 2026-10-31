@@ -195,16 +195,16 @@ spec:
             sectionName: https
         rules:
           - matches:
-              - path: { type: PathPrefix, value: /j }
-              - path: { type: PathPrefix, value: /join }
-              - path: { type: PathPrefix, value: /invitation }
-              - path: { type: PathPrefix, value: /wizard }
-              - path: { type: PathPrefix, value: /static }
-              - path: { type: PathPrefix, value: /image-proxy }
-              - path: { type: PathPrefix, value: /cinema-posters }
-              - path: { type: PathPrefix, value: /reset }
-              - path: { type: Exact, value: /favicon.ico }
-              - path: { type: Exact, value: /plex/callback }
+              - path: {type: PathPrefix, value: /j}
+              - path: {type: PathPrefix, value: /join}
+              - path: {type: PathPrefix, value: /invitation}
+              - path: {type: PathPrefix, value: /wizard}
+              - path: {type: PathPrefix, value: /static}
+              - path: {type: PathPrefix, value: /image-proxy}
+              - path: {type: PathPrefix, value: /cinema-posters}
+              - path: {type: PathPrefix, value: /reset}
+              - path: {type: Exact, value: /favicon.ico}
+              - path: {type: Exact, value: /plex/callback}
             backendRefs:
               - name: wizarr
                 port: *port

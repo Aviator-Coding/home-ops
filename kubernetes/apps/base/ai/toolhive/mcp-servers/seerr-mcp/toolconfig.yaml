@@ -1,3 +1,4 @@
+---
 # yaml-language-server: $schema=https://k8s-schemas.home-operations.com/toolhive.stacklok.dev/mcptoolconfig_v1alpha1.json
 # Search, details and request only. manage_media_requests can approve, decline and delete in one
 # tool, so it is never exposed; approving a request stays with the owner in Seerr.

@@ -25,7 +25,7 @@ spec:
         fsGroup: 2000
         fsGroupChangePolicy: OnRootMismatch
         runAsNonRoot: false
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
     controllers:
       shelfmark:
         containers:

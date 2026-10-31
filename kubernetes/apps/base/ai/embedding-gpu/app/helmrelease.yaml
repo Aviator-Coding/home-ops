@@ -106,7 +106,7 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet: { path: /health, port: 8080 }
+                  httpGet: {path: /health, port: 8080}
                   periodSeconds: 15
                   timeoutSeconds: 5
                   failureThreshold: 40
@@ -129,7 +129,7 @@ spec:
                   timeoutSeconds: 15
                   failureThreshold: 5
               liveness:
-                <<: *probe
+                !!merge <<: *probe
                 spec:
                   exec:
                     command:

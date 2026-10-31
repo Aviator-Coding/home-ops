@@ -23,7 +23,7 @@ spec:
         runAsGroup: 100
         fsGroup: 100
         fsGroupChangePolicy: OnRootMismatch
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
       initContainers:
         - name: init-db
           image: ghcr.io/home-operations/postgres-init:18.6@sha256:87627baaddb0cabed4ebe033e75038e5c7b6b081c18e86514c99067179a90719
@@ -33,7 +33,7 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
           resources:
             requests:
               cpu: 10m
@@ -58,14 +58,14 @@ spec:
             - name: PGDATABASE
               value: $(INIT_POSTGRES_DBNAME)
             - name: PGUSER
-            # postgres-init's own default superuser name.
+              # postgres-init's own default superuser name.
               value: postgres
             - name: PGPASSWORD
               value: $(INIT_POSTGRES_SUPER_PASS)
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            capabilities: { drop: ["ALL"] }
+            capabilities: {drop: ["ALL"]}
           volumeMounts:
             - name: schema
               mountPath: /sql

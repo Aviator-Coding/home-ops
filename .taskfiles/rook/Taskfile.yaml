@@ -68,7 +68,7 @@ tasks:
     desc: Check disk status on all nodes
     cmds:
       - echo "🔍 Checking disk status on all nodes..."
-      - for: { var: TALOS_NODE_NAMES }
+      - for: {var: TALOS_NODE_NAMES}
         task: check-node-disks
         vars:
           node: "{{.ITEM}}"
@@ -91,7 +91,7 @@ tasks:
     desc: Check disk status using Talos CLI
     cmds:
       - echo "🔍 Checking disk status using Talos..."
-      - for: { var: TALOS_NODE_IPS }
+      - for: {var: TALOS_NODE_IPS}
         task: check-node-disks-talos
         vars:
           node_ip: "{{.ITEM}}"
@@ -119,7 +119,7 @@ tasks:
     cmds:
       - echo "🔍 Validating disk wipe results..."
       - echo "📋 Checking for any remaining filesystem signatures..."
-      - for: { var: TALOS_NODE_NAMES }
+      - for: {var: TALOS_NODE_NAMES}
         task: check-wipe-node
         vars:
           node: "{{.ITEM}}"
@@ -147,10 +147,10 @@ tasks:
       disk: "{{.cephdisk}}"
       node: "{{.ITEM}}"
     cmds:
-      - for: { var: cephnodes }
+      - for: {var: cephnodes}
         task: reset-data
         vars: *vars
-      - for: { var: cephnodes }
+      - for: {var: cephnodes}
         task: reset-disk
         vars: *vars
     requires:
@@ -227,7 +227,7 @@ tasks:
     desc: Reset rook data on all nodes
     cmds:
       - echo "🔄 Resetting rook data on all nodes..."
-      - for: { var: TALOS_NODE_NAMES }
+      - for: {var: TALOS_NODE_NAMES}
         task: reset-data
         vars:
           node: "{{.ITEM}}"
@@ -237,7 +237,7 @@ tasks:
     desc: Wipe all disks on talos-1
     cmds:
       - echo "🔄 Wiping disks on talos-1..."
-      - for: { var: TALOS_1_DISKS }
+      - for: {var: TALOS_1_DISKS}
         task: reset-disk
         vars:
           node: talos-1
@@ -248,7 +248,7 @@ tasks:
     desc: Wipe all disks on talos-2
     cmds:
       - echo "🔄 Wiping disks on talos-2..."
-      - for: { var: TALOS_2_DISKS }
+      - for: {var: TALOS_2_DISKS}
         task: reset-disk
         vars:
           node: talos-2
@@ -259,7 +259,7 @@ tasks:
     desc: Wipe all disks on talos-3
     cmds:
       - echo "🔄 Wiping disks on talos-3..."
-      - for: { var: TALOS_3_DISKS }
+      - for: {var: TALOS_3_DISKS}
         task: reset-disk
         vars:
           node: talos-3

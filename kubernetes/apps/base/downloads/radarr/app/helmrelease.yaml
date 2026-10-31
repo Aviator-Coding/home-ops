@@ -73,7 +73,7 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
+              capabilities: {drop: ["ALL"]}
 
     # No node affinity against talos-3: it carries a PreferNoSchedule
     # home-operations.com/dedicated taint (talos/nodes/talos-3.yaml.j2) and this app

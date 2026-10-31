@@ -1,5 +1,5 @@
 ---
-# Formatter, pre-commit only (stage `manual` until the repo-wide format PR lands).
+# Formatter, pre-commit only (active since the repo-wide format PR).
 # Not run in CI: formatting there would fail every Renovate PR that touches an unformatted file.
 formatter:
   type: basic
@@ -7,10 +7,17 @@ formatter:
   include_document_start: true
   scan_folded_as_literal: true
 
-# Same excludes as .yamllint.yaml, plus rendered-resource payloads.
+# `**` patterns only match with doublestar on; without it every exclude below is ignored.
+doublestar: true
+# Same excludes as .yamllint.yaml, plus payloads that kustomize embeds byte-for-byte
+# (configMapGenerator/secretGenerator inputs under resources/ and config/): reformatting
+# them changes the ConfigMap hash and restarts the app (Hermes restarts uncleanly).
 exclude:
   - "**/*.j2"
   - "**/*.gotmpl"
   - "**/templates/**"
   - ".github/docker/**"
   - "kubernetes/**/resources/**"
+  # Broad on purpose: it also skips 14 plain manifests (toolhive, tailscale-operator config/),
+  # so a future generator input under config/ is safe by default.
+  - "kubernetes/**/config/**"
