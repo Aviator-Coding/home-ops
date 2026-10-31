@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumclusterwidenetworkpolicy_v2.json
+# Subtractive, like hostpolicy-ceph.yaml: enableDefaultDeny stays false so the host endpoint never enters default-deny.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: node-exporter-lan
+spec:
+  description: Deny world access to node-exporter on the hosts.
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingressDeny:
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "9100"
+              protocol: TCP
