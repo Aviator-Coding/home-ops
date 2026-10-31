@@ -48,7 +48,7 @@ check(not ok(base(files=["talos/machineconfig.yaml.j2"])), "a high path never me
 check(not ok(base(labels=[])), "no risk label, no merge")
 check(not ok(base(risk_labeler="Aviator-Coding")), "a risk label not set by the risk-tier bot is not trusted")
 check(not ok(base(files=["AGENTS.md"])), "agent-steering files need the owner")
-check(not ok(base(files=[".agents/skills/x/scripts/y.py"])), "skill scripts need the owner")
+check(not ok(base(files=[".agents/skills/jev-decisions/scripts/jev_decide.py"])), "skill scripts need the owner")
 check(not ok(base(author="mortyops[bot]", labels=["risk:normal", "type/minor"])), "Renovate minor needs the owner")
 check(not ok(base(author="mortyops[bot]", labels=["risk:normal", "type/major"])), "Renovate major needs the owner")
 check(ok(base(author="mortyops[bot]", labels=["risk:low", "type/patch"],
