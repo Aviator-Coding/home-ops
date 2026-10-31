@@ -24,7 +24,7 @@ pins, and `PATH` with `mise bin-paths` plus the venv `bin` first.
    digest present, and read the cross-check tag from the manifest
    (`grafana-mcp-deploy-test.py`, `samba-shared-xml-test.py`).
 3. **Frozen literal that pins no invariant.** Assert the relationship
-   (`falkordb-lan-browser-access-test.py`: `--maxmemory` exists, sits under the
+   (`falkordb-durability-test.py`: `--maxmemory` exists, sits under the
    cgroup limit, no eviction policy). `request == limit` is allowed where there
    is no headroom (`memory-request-declared-test.py`).
 

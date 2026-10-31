@@ -3,8 +3,9 @@
 """Semantic regression test for kopiur Stage 0 (operator + repositories only).
 
 Prevents: kopiur operator CRDs not CreateReplace, operator bumps auto-merging, the r2
-repository being re-created, credentials embedded in Git, or a pruned PushSecret deleting
-the only copy of a generated credential from 1Password.
+repository being re-created, credentials embedded in Git, a pruned PushSecret deleting
+the only copy of a generated credential from 1Password, or a generated password re-minted
+on every refresh.
 
 Stage 0 is additive by design: install the kopiur operator and declare WHERE
 backups could go, without changing a single existing VolSync backup and without
@@ -651,6 +652,35 @@ def test_no_pushsecret_deletes_its_item() -> None:
     require(not offenders, f"PushSecrets that delete their 1Password item: {offenders}")
 
 
+def test_generated_passwords_are_created_once() -> None:
+    """Every ExternalSecret sourced from a Password generator sets refreshPolicy: CreatedOnce.
+
+    ESO's default is Periodic (1h): the generator would mint a new value every refresh, and
+    the PushSecret beside it overwrites the only copy in 1Password while the database role or
+    app state keeps the old one (ducklake's role password, wizarr's admin password, the seerr
+    API key, the ToolHive gateway token).
+    """
+    offenders = []
+    for path in sorted((ROOT / "kubernetes").rglob("*.yaml")):
+        text = path.read_text()
+        if "generatorRef" not in text:
+            continue
+        for doc in load_multi(path):
+            if doc.get("kind") != "ExternalSecret":
+                continue
+            spec = doc.get("spec") or {}
+            entries = list(spec.get("dataFrom") or []) + list(spec.get("data") or [])
+            kinds = {
+                ((e.get("sourceRef") or {}).get("generatorRef") or {}).get("kind")
+                for e in entries
+                if isinstance(e, dict)
+            }
+            if "Password" in kinds and spec.get("refreshPolicy") != "CreatedOnce":
+                name = (doc.get("metadata") or {}).get("name")
+                offenders.append(f"{path.relative_to(ROOT)}: {name} refreshPolicy {spec.get('refreshPolicy')!r}")
+    require(not offenders, f"generated passwords that are re-minted on refresh: {offenders}")
+
+
 def main() -> int:
     tests = []
     failures: list[str] = []
@@ -706,6 +736,7 @@ def main() -> int:
 
     run("volsync_tree_intact", volsync_still_present)
     run("no_pushsecret_deletes_its_item", test_no_pushsecret_deletes_its_item)
+    run("generated_passwords_are_created_once", test_generated_passwords_are_created_once)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")

@@ -70,7 +70,8 @@ joined `on (namespace, pod, container)`:
 
 ## Probe and pod
 
-Liveness is TCP 6379. Readiness is `redis-cli -e GRAPH.LIST`. Without `-e`,
+Liveness is TCP 6379. Readiness is `redis-cli -e GRAPH.LIST`, authenticated by
+`REDISCLI_AUTH` from `falkordb-secret`. Without `-e`,
 redis-cli exits 0 on NOAUTH and on ERR, so a bad credential rotation leaves
 the pod Ready. Readiness only; a failure removes endpoints and does not
 restart the pod. Startup covers a long AOF replay.
@@ -103,6 +104,8 @@ Redis.
 
 ## Browser
 
+The browser takes only `AUTH_SECRET` and `ENCRYPTION_KEY` from `falkordb-secret`
+by `secretKeyRef`, never the whole Secret by `envFrom`.
 `AUTH_SECRET` and `ENCRYPTION_KEY` are sha256 of the database password plus
 two distinct salts, not extra 1Password fields. They must stay stable across
 restarts. The image ships public placeholders and, when `ENCRYPTION_KEY` is
@@ -128,6 +131,7 @@ The browser HTTPRoute hostname is `falkordb-browser`. The LoadBalancer
 `falkordb-lb` already owns `falkordb.${SECRET_DOMAIN}` at `10.50.0.24`.
 unifi-dns `policy: sync` writes both, so one name with two targets flaps.
 Public external-dns does not read Services. Do not front Redis with a Gateway.
+`falkordb-lb` carries port 6379 only; the browser is reached through the route.
 
 `SecurityPolicy/falkordb-browser-auth` is the page boundary. The browser login
 is a connection dialog. `database` must remain on the Authentik ReferenceGrant
