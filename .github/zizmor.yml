@@ -7,3 +7,8 @@ rules:
       # workflows/contents across the repo, so it needs the app's full permission set;
       # scoping `permission-*` here would break it silently. Keep this token unscoped on purpose.
       - renovate.yaml
+  dangerous-triggers:
+    ignore:
+      # pull_request_target on purpose: the job checks out main's classifier only (base.sha,
+      # sparse) and never runs PR code, so a PR cannot edit the classifier to label itself low.
+      - risk-tier.yaml
