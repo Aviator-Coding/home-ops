@@ -31,6 +31,9 @@ HIGH = [
     ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5",
     ".github/renovate.json", ".github/renovate.json5", ".gitlab/renovate.json",
     ".claude/hooks/**", ".claude/settings.json",
+    # The agent merge gate and everything it trusts: an agent must not merge a change to it.
+    "scripts/agent_merge.py", "scripts/ci/risk_tier.py", "scripts/ci/risk-tier-test.py",
+    "scripts/ci/ai_review_gate.py", "scripts/ci/agent-merge-test.py",
 ]
 # Files that steer agents or the AI reviewer: never low, so the owner merges them.
 STEERING = [

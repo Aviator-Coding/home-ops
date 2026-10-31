@@ -136,11 +136,14 @@ its own PR. The highest-tier path in a PR wins.
 Agents never run `gh pr merge`; the 0.4 controls block it outright. A `risk:low` PR merges
 because the `risk-tier` job turns on GitHub auto-merge for it, and GitHub merges once
 `CI Success` is green. Since 2026-10-31 (owner decision) an agent may also merge a
-`risk:low` or `risk:normal` PR through `scripts/agent_merge.py` and nothing else: it re-reads
-the PR and merges only when the risk-tier bot's label is low or normal, no path is `risk:high`
-or agent-steering, a Renovate PR is digest or patch, `CI Success` and the AI review are green,
-and the Jev blocker gate is clear. `risk:high` PRs, Renovate minor and major bumps, and
-agent-steering changes are merged by the owner. Agents use the owner's
+`risk:low` or `risk:normal` PR through `scripts/agent_merge.py`: it re-reads the PR and
+merges only when the risk-tier bot's label is low or normal and matches `main`'s classifier
+over the full file list, no path is `risk:high`, agent-steering or part of the merge gate, a
+Renovate PR is digest or patch, `CI Success` and the AI review are green from GitHub Actions,
+and the Jev blocker gate is clear. `risk:high` PRs, Renovate minor and major bumps,
+agent-steering changes and changes to the gate are merged by the owner. The wrapper is a
+policy check on the agent's machine, not a security boundary: an agent with the owner's token
+could bypass it. Task 2.6 (a bot identity) plus the ruleset is the boundary. Agents use the owner's
 GitHub token, so the owner cannot formally approve an agent's PR yet. Task 2.6 moves
 agent PRs to a separate bot identity. `CI Success` then requires an approving review
 from `Aviator-Coding` on `risk:normal` and `risk:high` PRs.

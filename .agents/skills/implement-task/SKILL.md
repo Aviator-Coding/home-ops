@@ -70,7 +70,7 @@ advisory tests your paths touch too. Put the result summary in the PR body.
 4. **Never run `gh pr merge`** (the Claude Code guard blocks it; other harnesses must not
    either). A `risk:low` or `risk:normal` PR may be merged with `scripts/agent_merge.py <n>`
    (run `--dry-run` first): it merges only when every check holds and says why when not.
-   `risk:high`, Renovate minor/major and agent-steering changes are the owner's.
+   `risk:high`, Renovate minor/major, agent-steering and merge-gate changes are the owner's.
 5. Need to prove CI goes red? Use a separate draft PR titled "DO NOT MERGE" and close it
    yourself; never push a breaking commit to a PR the owner may merge. The draft counts toward
    the 2-open-PR limit.
