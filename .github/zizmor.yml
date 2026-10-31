@@ -1,0 +1,8 @@
+# zizmor config (`zizmor --offline --min-severity medium .github/workflows`).
+rules:
+  github-app:
+    ignore:
+      # The in-cluster rollback Renovate writer. It opens PRs, pushes branches and edits
+      # workflows/contents across the repo, so it needs the app's full permission set;
+      # scoping `permission-*` here would break it silently. Keep this token unscoped on purpose.
+      - renovate.yaml

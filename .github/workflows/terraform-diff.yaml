@@ -73,6 +73,7 @@ jobs:
         working-directory: ${{ matrix.stack }}
         env:
           OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+          STACK: ${{ matrix.stack }}
         run: |
           if [ ! -f secrets-ci.vals.yaml ]; then
             echo "file=" >> "$GITHUB_OUTPUT"
@@ -80,7 +81,7 @@ jobs:
             exit 0
           fi
           if [ -z "${OP_CONNECT_TOKEN}" ]; then
-            echo "::warning::${{ matrix.stack }} opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See .agents/skills/authentik-terraform/references/ci-plan.md for what to create and why."
+            echo "::warning::${STACK} opts into a live plan (secrets-ci.vals.yaml present) but the OP_CONNECT_TOKEN repository secret is not set. Skipping live plan and falling back to schema-only checks rather than half-running vals/tofu without credentials. See .agents/skills/authentik-terraform/references/ci-plan.md for what to create and why."
             echo "file=" >> "$GITHUB_OUTPUT"
             echo "mode=schema_only_missing_secret" >> "$GITHUB_OUTPUT"
             exit 0
@@ -108,9 +109,10 @@ jobs:
         working-directory: ${{ matrix.stack }}
         env:
           OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+          CI_SECRETS_FILE: ${{ steps.ci-secrets.outputs.file }}
         run: |
-          if [ -n "${{ steps.ci-secrets.outputs.file }}" ]; then
-            vals exec -i -f "${{ steps.ci-secrets.outputs.file }}" -- tofu init -input=false -no-color
+          if [ -n "${CI_SECRETS_FILE}" ]; then
+            vals exec -i -f "${CI_SECRETS_FILE}" -- tofu init -input=false -no-color
           else
             tofu init -backend=false -input=false -no-color
           fi
@@ -124,7 +126,8 @@ jobs:
         working-directory: ${{ matrix.stack }}
         env:
           OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
-        run: vals exec -i -f "${{ steps.ci-secrets.outputs.file }}" -- tofu plan -lock=false -no-color -out=.planfile
+          CI_SECRETS_FILE: ${{ steps.ci-secrets.outputs.file }}
+        run: vals exec -i -f "${CI_SECRETS_FILE}" -- tofu plan -lock=false -no-color -out=.planfile
 
       - name: Generate Token
         if: steps.ci-secrets.outputs.file != ''
@@ -133,6 +136,8 @@ jobs:
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          # Only used by the plan-comment step below, which posts the PR comment.
+          permission-pull-requests: write
 
       - name: Post Plan Comment
         if: steps.ci-secrets.outputs.file != ''

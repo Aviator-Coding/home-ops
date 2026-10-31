@@ -63,12 +63,17 @@ jobs:
           echo "artifact=ghcr.io/aviator-coding/manifests/terraform:$(git rev-parse --short HEAD)" >> "${GITHUB_OUTPUT}"
 
       - name: Publish OCI Artifact
+        env:
+          ARTIFACT: ${{ steps.tag.outputs.artifact }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          flux push artifact "oci://${{ steps.tag.outputs.artifact }}" \
+          flux push artifact "oci://${ARTIFACT}" \
             --path="./terraform" \
             --source="$(git config --get remote.origin.url)" \
-            --revision="${{ github.ref_name }}/$(git rev-parse HEAD)"
+            --revision="${REF_NAME}/$(git rev-parse HEAD)"
 
       - name: Tag OCI Artifact
+        env:
+          ARTIFACT: ${{ steps.tag.outputs.artifact }}
         run: |
-          flux tag artifact "oci://${{ steps.tag.outputs.artifact }}" --tag main
+          flux tag artifact "oci://${ARTIFACT}" --tag main

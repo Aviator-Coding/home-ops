@@ -51,3 +51,37 @@ repos:
         name: Detect private keys
       - id: check-merge-conflict
         name: Check merge conflicts
+
+  # Standard linters, resolved through mise (`mise exec`) so hooks use the .mise.toml pins
+  # and match the validate.yaml `lint` job. `language: system` keeps them out of pre-commit's
+  # own env management. yamlfmt stays manual until the repo-wide format PR merges.
+  - repo: local
+    hooks:
+      - id: yamllint
+        name: Lint YAML
+        entry: mise exec -- yamllint -s
+        language: system
+        types: [yaml]
+      - id: actionlint
+        name: Lint GitHub workflows
+        entry: mise exec -- actionlint
+        language: system
+        types: [yaml]
+        files: ^\.github/workflows/
+      - id: zizmor
+        name: Audit GitHub workflows
+        entry: mise exec -- zizmor --offline --min-severity medium .github/workflows
+        language: system
+        files: ^\.github/(workflows|zizmor\.yml)
+        pass_filenames: false
+      - id: shellcheck
+        name: Lint shell scripts
+        entry: mise exec -- shellcheck
+        language: system
+        types: [shell]
+      - id: yamlfmt
+        name: Format YAML
+        entry: mise exec -- yamlfmt
+        language: system
+        types: [yaml]
+        stages: [manual]

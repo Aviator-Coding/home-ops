@@ -256,6 +256,39 @@ jobs:
           done
           exit "${fail}"
 
+  # Standard linters over the whole tree (no path filter, like docs-guards): yamllint,
+  # actionlint, zizmor and shellcheck. Tool versions come from .mise.toml, so install_args
+  # names the tools only (scripts/ci/mise-install-args-test.py). yamlfmt is pre-commit only.
+  lint:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    needs: filter
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        with:
+          install_args: python uv aqua:rhysd/actionlint pipx:zizmor aqua:koalaman/shellcheck pipx:yamllint
+
+      - name: yamllint
+        run: yamllint -s .
+
+      - name: actionlint
+        run: actionlint
+
+      - name: zizmor
+        run: zizmor --offline --min-severity medium .github/workflows
+
+      # xargs -0 instead of `shellcheck $(git ls-files ...)`: unquoted expansion is itself SC2046.
+      - name: shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck
+
   python-tests:
     # The PR gate: only scripts/ci files marked `# ci: gate` (at most 15, each naming
     # the data loss or outage it prevents; scripts/ci/ci-test-gate-test.py enforces it).
@@ -426,6 +459,7 @@ jobs:
       - renovate-config
       - terraform
       - docs-guards
+      - lint
       - python-tests
     name: Validate - Success
     runs-on: ubuntu-latest

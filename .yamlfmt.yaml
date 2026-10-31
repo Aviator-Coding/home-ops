@@ -1,0 +1,16 @@
+---
+# Formatter, pre-commit only (stage `manual` until the repo-wide format PR lands).
+# Not run in CI: formatting there would fail every Renovate PR that touches an unformatted file.
+formatter:
+  type: basic
+  retain_line_breaks_single: true
+  include_document_start: true
+  scan_folded_as_literal: true
+
+# Same excludes as .yamllint.yaml, plus rendered-resource payloads.
+exclude:
+  - "**/*.j2"
+  - "**/*.gotmpl"
+  - "**/templates/**"
+  - ".github/docker/**"
+  - "kubernetes/**/resources/**"
