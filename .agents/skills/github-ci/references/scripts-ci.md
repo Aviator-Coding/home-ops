@@ -19,7 +19,7 @@ pins, and `PATH` with `mise bin-paths` plus the venv `bin` first.
 `grep -rn '<app-or-field>' scripts/ci/`. Three shapes:
 
 1. **Hardcoded path.** Retiring the app fails `path.is_file()` on a missing
-   file. `igpu-xe-allowids-test.py` maps GPU consumers by path.
+   file. `b70-vaapi-tdarr-test.py` reads tdarr's HelmRelease by path.
 2. **Hardcoded tag.** A Renovate bump goes red. Assert repository, tag present,
    digest present, and read the cross-check tag from the manifest
    (`grafana-mcp-deploy-test.py`, `samba-shared-xml-test.py`).

@@ -3,7 +3,7 @@
 #
 # xe publishes no VRAM counters in sysfs, so this reads DRM fdinfo of every process holding a DRM node.
 # Needs hostPID plus CAP_SYS_PTRACE to read other pods' fd links. Read-only, no host mounts.
-# See skill intel-gpu references/telemetry.md. Contract: scripts/ci/xe-gpu-exporter-test.py.
+# See skill intel-gpu references/telemetry.md.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

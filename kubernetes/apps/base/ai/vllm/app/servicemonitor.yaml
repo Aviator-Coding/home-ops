@@ -13,8 +13,7 @@ spec:
       # llama-server series have no model label. The gpu-node dashboard groups t/s by
       # these two, so a variant ships with its own label and history stays separable.
       # model is ${CHAT_MODEL_ID} (ConfigMap chat-model); kv follows --cache-type-k/v
-      # in helmrelease.yaml.
-      # Gate: scripts/ci/gpu-node-dashboard-test.py.
+      # in helmrelease.yaml. Nothing checks that; change them together.
       relabelings:
         - targetLabel: model
           replacement: ${CHAT_MODEL_ID}

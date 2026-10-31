@@ -21,16 +21,15 @@ below are invisible when a rename drops them.
    Embeddings are `"0"` (the cache is write-only there). Do not copy
    either value onto the other workload. No `limits.memory` can bound
    the default: the kernel SIGKILLs at page fault, so llama.cpp's
-   `bad_alloc` handler never runs. Gates:
-   `scripts/ci/vllm-prompt-cache-test.py`,
-   `scripts/ci/embedding-gpu-prompt-cache-test.py`.
+   `bad_alloc` handler never runs. Gate:
+   `scripts/ci/vllm-prompt-cache-test.py` (every llama.cpp container).
    [memory.md](references/memory.md)
 2. **Chat pins `GGML_SYCL_FA_ONEDNN: "0"`. The value must be numeric.**
    ggml parses it with `sscanf(" %u")`. `"false"` and `"off"` leave the
    leak on. Embeddings do not need the pin (F16 KV, ctx 512, measured
    flat). Lift it only when the pinned tag bounds the oneDNN partition
    cache, and recheck the env name on every image bump. Gate:
-   `scripts/ci/vllm-fa-onednn-test.py`. Post-merge checks are §8a and
+   `scripts/ci/vllm-prompt-cache-test.py`. Post-merge checks are §8a and
    §8b in [memory.md](references/memory.md).
 3. **Do not pin `--parallel` or `--kv-unified` on chat.** Auto selects
    `n_parallel=4` and `kv_unified=true`. Pinning overcommits KV and
@@ -67,8 +66,8 @@ below are invisible when a rename drops them.
    reservation (baseline plus the cache bound). The limit cannot stop a
    host leak. `VLLMMemoryRetainedAboveBound` floors at 8Gi **and** the
    live instant series, `for: 1h`. `VLLMMemoryExceedsRequest` is ratio
-   > 1 for 30m. Raising `--cache-ram` without the floor fails CI
-   (`scripts/ci/vllm-memory-alert-test.py`). Do not raise the request to
+   > 1 for 30m. Raise the floor with `--cache-ram` in the same change;
+   no CI checks it. Do not raise the request to
    silence the retained-memory alert.
 10. **Inside a `devic.es/b70` container, `/sys/class/drm/card0` is the
     iGPU `0xa7a0`.** The device node is the B70. Read
@@ -99,13 +98,11 @@ below are invisible when a rename drops them.
 ## Verify
 
 - `python3 scripts/ci/vllm-prompt-cache-test.py`
-- `python3 scripts/ci/vllm-fa-onednn-test.py`
-- `python3 scripts/ci/vllm-memory-alert-test.py`
-- `python3 scripts/ci/embedding-gpu-prompt-cache-test.py`
 - `python3 scripts/ci/embedding-values-test.py`
-- `python3 scripts/ci/b70-bench-harness-test.py`
-- `python3 scripts/ci/gpu-node-dashboard-test.py` (the ServiceMonitor `model`
-  and `kv` labels must move with `-hf` and `--cache-type-k/v`)
+- The ServiceMonitor `model` and `kv` labels move with `-hf` and
+  `--cache-type-k/v`. No test checks it.
+- After a PrometheusRule edit, prove each alert both ways with `promtool
+  test rules` (skill `observability`).
 - After any embedding arg change, read the startup banner
   (`n_slots`, `n_ctx_slot`, `kv_unified`) rather than deriving it.
 - An embedding check that cannot return non-200 or non-finite is not a

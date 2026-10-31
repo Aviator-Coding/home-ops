@@ -50,8 +50,8 @@ days). No pin there.
 
 The pinned tag bounds `cache` in `fattn-onednn.cpp` (a capacity or LRU,
 or keys that no longer include KV length). Confirm in that tag's
-source. Then remove the env var and the requirement in
-`scripts/ci/vllm-fa-onednn-test.py` in one change, and repeat §8a.
+source. Then remove the env var and rule 3 in
+`scripts/ci/vllm-prompt-cache-test.py` in one change, and repeat §8a.
 On every image bump, confirm `ggml-sycl` still reads
 `GGML_SYCL_FA_ONEDNN`. A rename leaves the leak on with CI still green.
 `VLLMMemoryRetainedAboveBound` is the detector for that blind spot.
@@ -64,8 +64,8 @@ for **1h**, AND the live instant series on
 
 Retained ceiling is ~7338 MiB: baseline ~1232 + `--cache-ram` 4096 + one
 slot's checkpoints ~2010 (32 x 62.8 MiB). The 8 GiB floor sits above
-that ceiling. `scripts/ci/vllm-memory-alert-test.py` fails if
-`--cache-ram` is raised without the threshold. A range selector keeps
+that ceiling and below the 48Gi limit. Raising `--cache-ram` means
+raising the threshold in the same change; no CI checks it. A range selector keeps
 samples after the pod is gone, so the live-series `and` is required.
 Without it a terminated pod pages for up to 3h. After an in-place
 container restart the still-live pod keeps its pre-restart floor for
@@ -80,9 +80,14 @@ buys time.
 see a prefill spike. `VLLMMemoryCriticalLimit` is a static ratio > 0.85
 for 15m. Do not replace the retained-memory rule with either.
 
-Alert annotations name this file. A path change here has to update
-`scripts/ci/vllm-memory-alert-test.py` in the same commit. The rendered
-PrometheusRule diff should show only that annotation text.
+`VLLMMemoryApproachingLimit` projects 24h ahead, `for: 1h`, and also
+needs the current ratio above 0.6, so a fresh pod's ramp does not page.
+Every rule excludes `vllm-vllm-embed-.*` and takes its denominator from
+`kube_pod_container_resource_*` (`container_spec_*` is absent here). All are
+`severity: warning` except `VLLMMemoryCriticalLimit` (`critical`).
+
+Alert annotations name this file. A path change here updates them in the
+same commit.
 
 ## §8a. The leak has stopped
 

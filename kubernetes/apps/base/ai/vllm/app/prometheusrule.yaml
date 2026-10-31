@@ -72,7 +72,7 @@ spec:
 
         # 3h floor above 8GiB, AND the live instant series. A range selector alone pages a
         # terminated pod for up to 3h. Move the 8GiB threshold with --cache-ram.
-        # Gate: scripts/ci/vllm-memory-alert-test.py. See skill b70-llm-serving references/memory.md.
+        # See skill b70-llm-serving references/memory.md.
         - alert: VLLMMemoryRetainedAboveBound
           annotations:
             summary: vllm is retaining more host memory than its bounded caches can hold

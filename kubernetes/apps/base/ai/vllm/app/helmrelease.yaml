@@ -122,7 +122,7 @@ spec:
               # Do not ship one without the other. See skill b70-llm-serving references/memory.md.
               GLIBC_TUNABLES: glibc.malloc.mmap_threshold=131072
               # Numeric only. "false" or "off" parse as the default and leave the leak on.
-              # Lift only when this tag bounds fattn-onednn.cpp. Gate: scripts/ci/vllm-fa-onednn-test.py.
+              # Lift only when this tag bounds fattn-onednn.cpp. Gate: scripts/ci/vllm-prompt-cache-test.py.
               # See skill b70-llm-serving references/memory.md.
               GGML_SYCL_FA_ONEDNN: "0"
             envFrom: &envFrom
