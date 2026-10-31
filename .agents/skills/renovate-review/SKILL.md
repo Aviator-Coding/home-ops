@@ -5,8 +5,11 @@ description: "Read before acting on a Renovate PR that did not merge itself (min
 
 # Review a Renovate PR
 
-Digest and patch updates outside risk:high paths merge themselves (`risk-tier.yaml`). The
-rest wait for the owner; this skill prepares the decision. Skill `renovate` covers the
+Two mechanisms merge Renovate PRs without the owner: `risk-tier.yaml` auto-merges digest
+and patch updates outside risk:high paths once `CI Success` is required, and Renovate's own
+`.renovate/autoMerge.json5` merges digest, patch and (after 3 days) minor updates except the
+never-merge packages. Narrowing the second to match goal D3 is goal task 4.1. Everything
+else waits for the owner; this skill prepares the decision. Skill `renovate` covers the
 config and its tripwires.
 
 ## Triage

@@ -43,7 +43,9 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {}
 
 # docs/ paths a skill may still mention: the tdarr harness reads these files,
 # so they stay in docs/ and the tdarr skills point at them.
-SKILL_DOCS_ALLOWED = ("docs/tdarr/", "docs/tdarr-errored-remuxes.md")
+# docs/goals/ is the governing spec the workflow skills implement (plan-task, implement-task),
+# not a runbook, so skills may point at it.
+SKILL_DOCS_ALLOWED = ("docs/tdarr/", "docs/tdarr-errored-remuxes.md", "docs/goals/")
 
 # Files whose Markdown is runtime payload rather than repo documentation.
 EXCLUDED = {
