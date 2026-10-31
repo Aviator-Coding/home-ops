@@ -7,10 +7,10 @@ metadata:
 spec:
   targetNamespace: system-upgrade
   healthChecks:
-  - apiVersion: apps/v1
-    kind: Deployment
-    name: tuppr
-    namespace: system-upgrade
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: tuppr
+      namespace: system-upgrade
   interval: 1h
   path: ./kubernetes/apps/base/system-upgrade/tuppr/app
   prune: true
@@ -26,8 +26,8 @@ metadata:
 spec:
   targetNamespace: system-upgrade
   dependsOn:
-  - name: tuppr
-    namespace: system-upgrade
+    - name: tuppr
+      namespace: system-upgrade
   interval: 1h
   path: ./kubernetes/apps/base/system-upgrade/tuppr/upgrades
   prune: true

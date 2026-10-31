@@ -1,3 +1,4 @@
+---
 # yaml-language-server: $schema=https://k8s-schemas.home-operations.com/toolhive.stacklok.dev/mcptoolconfig_v1alpha1.json
 # Read-only. Hermes queues titles through Seerr (one audited path), so no add_*, no
 # search_missing/indexer-search triggers and nothing that deletes. mcp-arr-server has no delete tool.

@@ -91,5 +91,5 @@ spec:
   externalClusters:
     - name: *previousCluster
       barmanObjectStore:
-        <<: *barmanObjectStore
+        !!merge <<: *barmanObjectStore
         serverName: *previousCluster

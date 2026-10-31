@@ -106,7 +106,7 @@ spec:
             keyType: aes256k
             keyRotationPolicy: KeyGeneration
             keyGeneration: 2
-          # csi stays aes. Kernel clients need Linux >= 7.0. These nodes run 6.18.x. See skill rook-ceph.
+            # csi stays aes. Kernel clients need Linux >= 7.0. These nodes run 6.18.x. See skill rook-ceph.
       # Effect must match PreferNoSchedule. `all` covers mon, osd, and mgr. It does not cover mds or rgw.
       # CSI nodeplugins are operator/csi-driver-tolerations.yaml. See skill node-scheduling.
       placement:

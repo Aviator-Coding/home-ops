@@ -1,3 +1,4 @@
+---
 # actionlint config. Labels of the self-hosted ARC runner scale sets (kubernetes/apps/base/actions-runner-system),
 # which actionlint cannot know about.
 self-hosted-runner:

@@ -7,10 +7,15 @@ formatter:
   include_document_start: true
   scan_folded_as_literal: true
 
-# Same excludes as .yamllint.yaml, plus rendered-resource payloads.
+# `**` patterns only match with doublestar on; without it every exclude below is ignored.
+doublestar: true
+# Same excludes as .yamllint.yaml, plus payloads that kustomize embeds byte-for-byte
+# (configMapGenerator/secretGenerator inputs under resources/ and config/): reformatting
+# them changes the ConfigMap hash and restarts the app (Hermes restarts uncleanly).
 exclude:
   - "**/*.j2"
   - "**/*.gotmpl"
   - "**/templates/**"
   - ".github/docker/**"
   - "kubernetes/**/resources/**"
+  - "kubernetes/**/config/**"

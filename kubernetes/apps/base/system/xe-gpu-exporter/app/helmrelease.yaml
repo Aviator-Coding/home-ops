@@ -58,7 +58,7 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet: { path: /healthz, port: 9105 }
+                  httpGet: {path: /healthz, port: 9105}
                   periodSeconds: 30
                   timeoutSeconds: 5
               readiness: *probe
