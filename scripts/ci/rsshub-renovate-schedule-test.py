@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ci: nightly
 """Behavioral regression test for the rsshub digest-update throttle.
 
 Pins the 2026-09-27 fix in `.renovate/autoMerge.json5` (see AGENTS.md

@@ -107,19 +107,28 @@ jobs:
             fi
             echo "::endgroup::"
           done
-          printf '%s\n' "${failed[@]}" > failed.txt
+          printf '%s\n' "${failed[@]}" | sed '/^$/d' > failed.txt
           (( ${#failed[@]} == 0 ))
 
       - name: Open or update the ci-nightly issue
-        if: ${{ failure() && steps.run.outcome == 'failure' }}
+        # failure() alone: a failed setup step (mise, npm, pip) also reports.
+        if: ${{ failure() }}
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          body="$(printf 'Run: %s\n\nFailed:\n%s\n' "${RUN_URL}" "$(sed 's/^/- /' failed.txt 2>/dev/null)")"
-          existing="$(gh issue list --state open --label ci-nightly --json number --jq '.[0].number' 2>/dev/null || true)"
+          title="Nightly network tests failed"
+          if [[ -s failed.txt ]]; then
+            failed="$(sed 's/^/- /' failed.txt)"
+          else
+            failed="- (setup failed before the tests ran; see the run)"
+          fi
+          body="$(printf '%s: %s\n\nFailed:\n%s\n' "$(date -I)" "${RUN_URL}" "${failed}")"
+          # One open issue: match the fixed title too, in case the label is missing.
+          existing="$(gh issue list --state open --search "in:title \"${title}\"" --json number,title \
+            --jq "map(select(.title == \"${title}\")) | .[0].number // empty")"
           if [[ -n "${existing}" ]]; then
             gh issue comment "${existing}" --body "${body}"
-          elif ! gh issue create --title "Nightly network tests failed $(date -I)" --label ci-nightly --body "${body}"; then
-            gh issue create --title "Nightly network tests failed $(date -I)" --body "${body}"
+          elif ! gh issue create --title "${title}" --label ci-nightly --body "${body}"; then
+            gh issue create --title "${title}" --body "${body}"
           fi
