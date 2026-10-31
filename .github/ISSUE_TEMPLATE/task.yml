@@ -1,0 +1,52 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-issue-forms.json
+# One task for an agent or the owner (goal §5). The agent posts its plan as a comment;
+# risk:high waits for the owner's approval of that plan. The PR's tier will be set from its
+# paths by CI (goal task 2.2), so the tier chosen here is a forecast, not an override.
+name: Task
+description: One change, one branch, one PR, with a risk tier, rollback and verification.
+title: "<type>(<scope>): <what changes>"
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What is true when this is done, and why it matters.
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk tier
+      description: >-
+        The highest tier of any path the change touches (goal §5). risk:high covers talos/,
+        bootstrap/, terraform/, kubernetes/clusters/, the flux-system, kube-system, rook-ceph,
+        network, security, cert-manager, system-upgrade and renovate namespaces, the kopiur
+        and volsync components, the kopiur app dir, .github/workflows/ and Renovate config.
+      options:
+        - "risk:low (docs/, .agents/, *.md outside kubernetes/)"
+        - "risk:normal (other kubernetes/, scripts/, task and just files, .mise.toml)"
+        - "risk:high (owner approves the plan, then the PR)"
+    validations:
+      required: true
+  - type: textarea
+    id: paths
+    attributes:
+      label: Paths it will touch
+      placeholder: kubernetes/apps/base/<ns>/<app>/...
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback
+      description: How to undo it. Usually "revert the PR"; say what else is needed (state, data, a manual step).
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: The commands that prove it worked, before merge (local gates) and after (Flux, workload health).
+    validations:
+      required: true
