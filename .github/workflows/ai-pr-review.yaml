@@ -23,11 +23,17 @@ permissions:
   contents: read
 
 jobs:
-  # Fork guard plus draft skip (drafts are reviewed once marked ready).
+  # Fork guard plus draft skip (drafts are reviewed once marked ready). Renovate's own digest and
+  # patch PRs are skipped too: they were most of the jobs holding ARC runners while they waited
+  # for the single local model (2026-10-31: 106 Renovate runs in one hour, reviews up to 20 min),
+  # and the risk tier and CI Success already gate them. Minor and major bumps are still reviewed.
   review:
     if: >-
       ${{ github.event.pull_request.head.repo.full_name == github.repository
-      && !github.event.pull_request.draft }}
+      && !github.event.pull_request.draft
+      && !(github.event.pull_request.user.login == 'mortyops[bot]'
+           && (contains(github.event.pull_request.labels.*.name, 'type/digest')
+               || contains(github.event.pull_request.labels.*.name, 'type/patch'))) }}
     name: AI PR Review
     runs-on: gha-runner-scale-set-aviator-coding-home-ops
     # Worst case ~385s per review (prefill + 2048 decode on the shared B70) plus one retry.
