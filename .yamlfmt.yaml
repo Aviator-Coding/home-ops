@@ -18,4 +18,6 @@ exclude:
   - "**/templates/**"
   - ".github/docker/**"
   - "kubernetes/**/resources/**"
+  # Broad on purpose: it also skips 14 plain manifests (toolhive, tailscale-operator config/),
+  # so a future generator input under config/ is safe by default.
   - "kubernetes/**/config/**"
