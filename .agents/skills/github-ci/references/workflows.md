@@ -5,8 +5,9 @@ Runner below is the `runs-on` value in the file. The table in
 
 | Workflow | Runner | Role |
 |---|---|---|
-| `validate.yaml` | home-ops scale set | Schema and `scripts/ci/*-test.py` for paths flate never sees |
-| `flate.yaml` | home-ops scale set | `flate test` / diff. Lenient envsubst: skill `flux-substitution` |
+| `ci.yaml` | `ubuntu-latest` | `CI Success`, the one gate: calls `flate.yaml` and `validate.yaml` |
+| `validate.yaml` | `ubuntu-latest` (called by `ci.yaml`) | Schema and the `# ci: gate` `scripts/ci` tests for paths flate never sees; the rest run advisory |
+| `flate.yaml` | `ubuntu-latest` (called by `ci.yaml`) | `flate test` / diff. Lenient envsubst: skill `flux-substitution` |
 | `image-pull.yaml` | home-ops scale set | `talosctl image pull` of images the PR adds, plus a recovery pass for bare Docker Hub refs flate misses |
 | `terraform-diff.yaml` | home-ops scale set | Read-only `tofu plan` when `secrets-ci.vals.yaml` exists. Skill `authentik-terraform` |
 | `terraform-publish.yaml` | `ubuntu-latest` | Publish `terraform/` as an OCI artifact on push to `main` |
@@ -29,9 +30,8 @@ safe to require later. A trigger-level filter leaves the check `Expected` foreve
 on PRs outside the path list.
 
 Jobs: `talos`, `versions`, `bootstrap`, `renovate-config`, `terraform`,
-`python-tests`, plus the aggregate. `python-tests` `needs:` the lighter jobs so
-`uv pip install litellm[proxy]` does not overlap their `jdx/mise-action` Setup
-Tools, and uses `always()` so a skipped predecessor does not skip the tests.
+`docs-guards`, `python-tests` (the `# ci: gate` files), `python-tests-advisory`
+(the rest, never blocks), plus the aggregate that `ci.yaml`'s `CI Success` reads.
 
 `terraform` here is `tofu fmt` + `tofu validate -backend=false`. It cannot see a
 destructive plan.

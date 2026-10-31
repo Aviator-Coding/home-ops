@@ -13,3 +13,5 @@ Verdicts:
 
 | Source | Fact or invariant | Prevents | Verdict | Lands in |
 |---|---|---|---|---|
+| `scripts/ci/validate-contention-test.py` `jobs_still_on_home_ops_runner` | every validate.yaml job runs on the ARC scale set | neither (runner placement) | archive | — (inverted by `ci-success-workflow-test.py`: the gate runs on `ubuntu-latest`) |
+| `scripts/ci/validate-contention-test.py` concurrency part of `no_workflow_level_job_serialization` | validate.yaml's own concurrency cancels in progress | neither | enforce | `workflow-hardening-test.py` (now checks `ci.yaml`, which owns concurrency) |

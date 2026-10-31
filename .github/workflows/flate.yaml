@@ -2,15 +2,9 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Flate
 
+# Called by ci.yaml, which owns the trigger and concurrency; its `CI Success` is the required check.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
-  cancel-in-progress: true
+  workflow_call: {}
 
 permissions:
   contents: read
@@ -24,10 +18,10 @@ env:
 
 jobs:
   filter:
-    # Fork guard, mirrors labeler.yaml: every job here runs on the self-hosted runner.
+    # Fork guard, mirrors labeler.yaml: fork PRs skip Flate (the diff job needs the bot app secret).
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Flate - Filter
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
@@ -42,8 +36,8 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Flate - Test
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    # Headroom is for CPU contention on the shared runner pool, not render time.
+    runs-on: ubuntu-latest
+    # Headroom sized on the old ARC pool (CPU contention), kept on ubuntu-latest.
     timeout-minutes: 15
     steps:
       - name: Generate Token
@@ -77,7 +71,7 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Flate - Diff
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -119,7 +113,7 @@ jobs:
             --no-progress \
             --output diff > diff.patch
 
-      # 60000 bytes stays under GitHub's 65536-character comment limit. `head -c`, not `truncate`: the ARC image lacks full coreutils.
+      # 60000 bytes stays under GitHub's 65536-character comment limit. `head -c` (portable).
       - name: Truncate Diff
         id: diff
         run: |-
@@ -144,8 +138,7 @@ jobs:
             ```
 
   success:
-    # `!cancelled()` alone would still schedule this job onto the self-hosted runner
-    # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
+    # The fork guard is repeated so a fork PR whose upstream jobs all skipped does not run this.
     if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
     # Need filter too: when it fails, test and diff are skipped, and a Success job
     # without it would see only "skipped" and green-check a red run.
@@ -154,7 +147,7 @@ jobs:
       - test
       - diff
     name: Flate - Success
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Any jobs failed?
