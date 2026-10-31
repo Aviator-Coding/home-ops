@@ -14,8 +14,9 @@ references that no gate reports. This test fails on any of:
   3. A `references/<file>.md` path mentioned anywhere that no skill carries.
   4. A "skill `<name>`" pointer naming a skill that does not exist.
   5. A skill file (SKILL.md or references/*.md) that mentions any path under
-     docs/ other than the SKILL_DOCS_ALLOWED tdarr files. Runbooks live in the
-     skills; docs/ keeps only what the tdarr node harness reads.
+     docs/ other than SKILL_DOCS_ALLOWED: the tdarr files the node harness reads,
+     and docs/goals/ (the governing spec the workflow skills implement). Runbooks
+     live in the skills.
 
 KNOWN_DANGLING lists mentions that are deliberately left unresolved (history
 recorded in a dated report). Each entry needs a reason; an entry that stops
@@ -43,7 +44,9 @@ KNOWN_DANGLING: dict[tuple[str, str], str] = {}
 
 # docs/ paths a skill may still mention: the tdarr harness reads these files,
 # so they stay in docs/ and the tdarr skills point at them.
-SKILL_DOCS_ALLOWED = ("docs/tdarr/", "docs/tdarr-errored-remuxes.md")
+# docs/goals/ is the governing spec the workflow skills implement (plan-task, implement-task),
+# not a runbook, so skills may point at it.
+SKILL_DOCS_ALLOWED = ("docs/tdarr/", "docs/tdarr-errored-remuxes.md", "docs/goals/")
 
 # Files whose Markdown is runtime payload rather than repo documentation.
 EXCLUDED = {
