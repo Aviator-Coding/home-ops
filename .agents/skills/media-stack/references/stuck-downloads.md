@@ -11,6 +11,11 @@ Radarr's `RadarrImportQueueBlocked` Gatus alert still pages on warnings and
 errors after 30 minutes. The watchdog adds the age-based 24h limit and covers
 Sonarr and Lidarr.
 
+Keep the CronJob's `activeDeadlineSeconds` (a pod that never starts would
+otherwise block every later run under `Forbid`, so `KubeJobFailed` never fires)
+and `successfulJobsHistory: 1` (with none kept, `KubeJobFailed` latches on the
+last failed Job).
+
 ## Cleanuparr settings (app state, not Git)
 
 Cleanuparr 2.10 ignores env vars for instances and rules. Every setting lives in
@@ -36,8 +41,9 @@ pod. After a rebuild without a backup, redo this by hand in the UI
 ## Reading a watchdog failure
 
 `kubectl -n downloads logs job/<queue-watchdog job>` prints one line per
-service: queued count, stale count and the stale ids. Exit 2 means the queue
-could not be read (service down or API key rotated), not that it is healthy.
+service: queued count, stale count and the stale ids, never an API key or
+error text. Exit 2 means the queue could not be read (service down or API key
+rotated), not that it is healthy.
 
 Stale items are usually one of:
 

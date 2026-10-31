@@ -22,7 +22,9 @@ restructure needs a one-off Radarr API pass after the config sync:
 `min_format_score` on a profile is a hard reject. An override that sits above
 every release's score makes the profile accept nothing, which looks like
 "indexers are down" (`Reports grabbed: 0`). Read the score on a rejected
-release before changing indexers.
+release before changing indexers. Radarr profiles carry no `min_format_score`
+override: the 2026-08-29 stop, 240 SQP-1 movies grabbing nothing, came from an
+override of 2000, double the guide's 1000.
 
 Manual sync:
 `kubectl -n downloads create job --from=cronjob/recyclarr recyclarr-manual-$(date +%s)`.
@@ -41,8 +43,7 @@ its minimum of 1000; never lower it to rescue old titles, move them instead.
 Every movie must contain an English audio track. `Language: Not English` and
 `German LQ` score -35000 on all four Radarr profiles, so a release without English
 is rejected even when German. A German dual-audio release lists English too and
-passes (`German DL` +100). No German-only format is scored. Test:
-`scripts/ci/recyclarr-language-policy-test.py`.
+passes (`German DL` +100). No German-only format is scored.
 
 - All four managed profiles have language `Original`. Verify live that an English
   dub of a foreign film is not rejected before scoring.
