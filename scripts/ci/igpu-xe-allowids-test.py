@@ -40,8 +40,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 GPU_APP = ROOT / "kubernetes/apps/base/system/intel-device-plugin-operator/gpu"
 HR_PATH = GPU_APP / "helmrelease.yaml"
-CHART_OCI = "oci://ghcr.io/home-operations/charts-mirror/intel-device-plugins-gpu"
-CHART_VERSION = "0.34.1"
+CHART_REPO = "https://intel.github.io/helm-charts"
+CHART_NAME = "intel-device-plugins-gpu"
 
 # Raptor Lake iGPU PCI device ID (hex, as the Intel plugin expects).
 IGPU_ALLOW_ID = "0xa7a0"
@@ -119,7 +119,7 @@ def load_gpu_helmrelease() -> dict[str, Any]:
     raise Failure(f"could not load HelmRelease from {HR_PATH}")
 
 
-def helm_template_gpudeviceplugin(values: dict[str, Any]) -> dict[str, Any]:
+def helm_template_gpudeviceplugin(values: dict[str, Any], chart_version: str) -> dict[str, Any]:
     """Render the published chart with the HelmRelease values and return the CR."""
     with tempfile.TemporaryDirectory(prefix="igpu-xe-chart-") as tmp:
         tmp_path = Path(tmp)
@@ -127,9 +127,11 @@ def helm_template_gpudeviceplugin(values: dict[str, Any]) -> dict[str, Any]:
             [
                 "helm",
                 "pull",
-                CHART_OCI,
+                CHART_NAME,
+                "--repo",
+                CHART_REPO,
                 "--version",
-                CHART_VERSION,
+                chart_version,
                 "--destination",
                 str(tmp_path),
             ],
@@ -138,7 +140,7 @@ def helm_template_gpudeviceplugin(values: dict[str, Any]) -> dict[str, Any]:
         )
         if pull.returncode != 0:
             raise Failure(
-                f"helm pull {CHART_OCI}:{CHART_VERSION} failed: {pull.stderr.strip()}"
+                f"helm pull {CHART_REPO} {CHART_NAME}:{chart_version} failed: {pull.stderr.strip()}"
             )
         charts = list(tmp_path.glob("*.tgz"))
         assert_true(len(charts) == 1, f"expected one chart tgz, got {charts}")
@@ -271,7 +273,11 @@ def main() -> int:
             f"allowIDs must be {IGPU_ALLOW_ID!r}, got {values.get('allowIDs')!r}",
         )
 
-        cr = helm_template_gpudeviceplugin(values)
+        # Render the chart version the HelmRelease pins, so a bump is tested too.
+        chart_version = str((((hr.get("spec") or {}).get("chart") or {}).get("spec") or {}).get("version") or "")
+        assert_true(bool(chart_version), "HelmRelease spec.chart.spec.version is missing")
+        evidence["helmrelease"]["chartVersion"] = chart_version
+        cr = helm_template_gpudeviceplugin(values, chart_version)
         cr_spec = cr.get("spec") or {}
         evidence["gpuDevicePlugin"] = {
             "apiVersion": cr.get("apiVersion"),

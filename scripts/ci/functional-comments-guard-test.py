@@ -105,6 +105,14 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "kubernetes/apps/base/database/cloudnative-pg/cluster-18/cluster-18.yaml",
         "# renovate: datasource=docker depName=ghcr.io/cloudnative-pg/timescaledb-oss",
     ): "timescaledb-oss (Apache-2) replaced by our own timescaledb-community image: its content-addressed tag is bumped by scripts/ci/timescaledb-community-test.py, not Renovate.",
+    (
+        "kubernetes/apps/base/system/intel-device-plugin-operator/app/helmrelease.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1beta2.json",
+    ): "intel-device-plugins-operator OCIRepository replaced by the `intel` HelmRepository: the charts-mirror copy returns 403 and Intel publishes no OCI chart.",
+    (
+        "kubernetes/apps/base/system/intel-device-plugin-operator/gpu/helmrelease.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1beta2.json",
+    ): "intel-device-plugins-gpu OCIRepository deleted: the gpu HelmRelease now uses the `intel` HelmRepository defined in ../app.",
 }
 
 passed = 0
