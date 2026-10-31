@@ -1,8 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# Tier S (indydevdan-model-stack). Registration only - no key is entitled by this file.
-# No info.extra prices (cost map is the invoice).
-# See skill litellm-proxy (references/model-catalog.md).
+# xAI SuperGrok subscription via the in-cluster cliproxyapi (OpenAI-compatible, OAuth held there), not XAI_API_KEY.
+# Registration only: no key is entitled by this file.
+# INVARIANT: explicit $0 on every price field (flat-rate subscription). Skill litellm-proxy.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
@@ -11,5 +11,15 @@ spec:
   modelName: grok-4.6
   proxyRef: litellm
   params:
-    model: xai/grok-4.6
-    apiKey: os.environ/XAI_API_KEY
+    model: openai/grok-4.6
+    apiBase: http://cliproxyapi.ai.svc.cluster.local:8317/v1
+    apiKey: os.environ/CLIPROXYAPI_API_KEY
+  info:
+    mode: chat
+    maxInputTokens: 500000
+    maxOutputTokens: 500000
+    supportsFunctionCalling: true
+    extra:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      cache_read_input_token_cost: 0

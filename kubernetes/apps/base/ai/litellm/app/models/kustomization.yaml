@@ -10,7 +10,6 @@ resources:
   - ./chat-local-classifier.yaml
   - ./chat-local.yaml
   - ./cliproxy-claude.yaml
-  - ./cliproxy-grok.yaml
   - ./claude-fable-5-1.yaml
   - ./claude-fable-5-1-metered.yaml
   - ./claude-fable-5.yaml

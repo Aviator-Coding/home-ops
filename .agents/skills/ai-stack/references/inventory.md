@@ -12,7 +12,7 @@ listed only so a retirement does not treat them as unused.
 | `vllm` | Chat llama.cpp on the B70. The Service name stays `vllm` | `b70-llm-serving` |
 | `embedding-gpu` | Embedding llama.cpp on the same card | `b70-llm-serving` |
 | `opencode`, `repo-wiki` | LiteLLM consumers | this skill |
-| `cliproxyapi` | Claude Max + xAI OAuth to OpenAI API; LiteLLM models `cliproxy-claude`, `cliproxy-grok`, internal route + management UI | this skill |
+| `cliproxyapi` | Claude Max + xAI OAuth to OpenAI API; LiteLLM models `cliproxy-claude`, the org-key `claude-*` routes and `grok-4.5`/`grok-4.6`, internal route + management UI | this skill |
 | `searxng` | Web search backend Hermes calls | this skill (URL pin is `hermes-agent`) |
 | `samba`, `ai-pvc` | Shared storage | `hermes-agent` |
 | `gpu-node-dashboard` | B70 hwmon panels | `intel-gpu` |
