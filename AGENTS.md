@@ -145,6 +145,7 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 | `authentik-terraform` | `terraform/**`, Authentik SSO apps/providers, ExtAuth routes |
 | `kopiur-backups` | any kopiur component, CR, restore, alert or backup failure |
 | `image-generation` | generating images, the `image-generation` LiteLLM key, `/v1/images/generations` |
+| `jev-decisions` | asking Jev yes/no rule checks, choices or scores (JSONL in/out), second-opinion gates |
 | `volsync-carveouts` | the 3 VolSync carve-out claims, RS/RD, restores, retired repos |
 | `pvc-integrity-checks` | pvc-writable-check, pvc-mover-readable-check, their RBAC and alerts |
 | `litellm-proxy` | LiteLLM proxy/operator CRs, models, keys, fallbacks, PR reviewer |

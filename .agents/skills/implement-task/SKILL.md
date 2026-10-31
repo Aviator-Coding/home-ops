@@ -68,7 +68,9 @@ advisory tests your paths touch too. Put the result summary in the PR body.
 3. **Wait for checks.** `gh pr checks <n>` until `CI Success` and the AI review report. A red
    check is yours to fix (skill `github-ci`); a flaky ARC check gets one rerun.
 4. **Never run `gh pr merge`** (the Claude Code guard blocks it; other harnesses must not
-   either). The tier decides who merges.
+   either). A `risk:low` or `risk:normal` PR may be merged with `scripts/agent_merge.py <n>`
+   (run `--dry-run` first): it merges only when every check holds and says why when not.
+   `risk:high`, Renovate minor/major, agent-steering and merge-gate changes are the owner's.
 5. Need to prove CI goes red? Use a separate draft PR titled "DO NOT MERGE" and close it
    yourself; never push a breaking commit to a PR the owner may merge. The draft counts toward
    the 2-open-PR limit.

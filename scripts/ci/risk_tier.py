@@ -31,11 +31,17 @@ HIGH = [
     ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5",
     ".github/renovate.json", ".github/renovate.json5", ".gitlab/renovate.json",
     ".claude/hooks/**", ".claude/settings.json",
+    # The agent merge gate and everything it trusts: an agent must not merge a change to it.
+    "scripts/agent_merge.py", "scripts/ci/risk_tier.py", "scripts/ci/risk-tier-test.py",
+    "scripts/ci/ai_review_gate.py", "scripts/ci/agent-merge-test.py",
 ]
 # Files that steer agents or the AI reviewer: never low, so the owner merges them.
 STEERING = [
     "AGENTS.md", "CLAUDE.md", "**/AGENTS.md", ".github/ai-review-rules.md", ".claude/**",
     ".agents/**/scripts/**",
+    # Skills that state the merge policy: an agent must not rewrite it and merge that itself.
+    ".agents/skills/implement-task/**", ".agents/skills/plan-task/**", ".agents/skills/review-pr/**",
+    ".agents/skills/renovate-review/**", ".agents/skills/jev-decisions/**",
 ]
 # Cluster-wide paths a Renovate patch must not auto-merge into (they keep their path tier).
 RENOVATE_NOT_LOW = [
