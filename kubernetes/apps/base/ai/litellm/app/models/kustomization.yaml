@@ -10,6 +10,7 @@ resources:
   - ./chat-local-classifier.yaml
   - ./chat-local.yaml
   - ./cliproxy-claude.yaml
+  - ./cliproxy-grok.yaml
   - ./claude-fable-5-1.yaml
   - ./claude-fable-5-1-metered.yaml
   - ./claude-fable-5.yaml
@@ -52,6 +53,7 @@ resources:
   - ./gpt-oss-20b.yaml
   - ./grok-4.5.yaml
   - ./grok-4.6.yaml
+  - ./jev.yaml
   - ./kimi-k3.yaml
   - ./minimax-m3.yaml
   - ./muse-glimmer-30b.yaml

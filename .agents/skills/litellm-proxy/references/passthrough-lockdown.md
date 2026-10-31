@@ -1,4 +1,4 @@
-# Provider pass-through lockdown (`/openrouter`, `/anthropic`) and the Jev door
+# Provider pass-through lockdown (`/openrouter`, `/anthropic`)
 
 ## The hole
 
@@ -28,18 +28,17 @@ The native handler still serves the request but takes its **target and
 headers from the first matching registry entry** and drops the subpath, so
 **entry order is load-bearing**:
 
-1. `POST /openrouter/alpha/decisions` -> real target, `Authorization: Bearer
-   os.environ/OPENROUTER_API_KEY`.
-2. `/openrouter` catch-all (`include_subpath: true`) -> dead loopback
-   `http://127.0.0.1:9/...`, no headers.
-3. `POST /anthropic/v1/messages` and `POST /anthropic/v1/messages/count_tokens`
+1. `/openrouter` catch-all (`include_subpath: true`) -> dead loopback
+   `http://127.0.0.1:9/...`, no headers. No exact `/openrouter` entry exists:
+   Jev decisions are served natively on `/v1/decisions` (below).
+2. `POST /anthropic/v1/messages` and `POST /anthropic/v1/messages/count_tokens`
    -> real targets with `x-api-key: os.environ/ANTHROPIC_API_KEY` and
    `anthropic-version`.
-4. `/anthropic` catch-all -> dead loopback, no headers.
+3. `/anthropic` catch-all -> dead loopback, no headers.
 
 Every other path fails closed (500, connection refused, nothing sent), even
 for the master key. Exact entries must stay **above** their catch-all, or
-Jev's door and the admin Anthropic paths break for everyone.
+the admin Anthropic paths break for everyone.
 
 - **Never set `forward_headers`** on an entry. The native handler forwards
   every client header upstream, the caller's own LiteLLM key included; an
@@ -53,7 +52,7 @@ Jev's door and the admin Anthropic paths break for everyone.
   `RouteChecks` against these entries (mutation-proven), including the order;
   `scripts/ci/litellm-anthropic-passthrough-test.py` pins the gateway layer.
 
-Re-opening: granting a virtual key needs a declarative list-valued
+Re-opening: granting a virtual key needs a list-valued
 `allowed_passthrough_routes` (see below) and a captain decision. Giving the
 master key another path is a new exact entry above the catch-all. Removing
 the gateway rule alone reopens nothing; removing the config entries reopens
@@ -70,48 +69,17 @@ Enterprise-gated on this OSS image. The same list inside `metadata` is not
 gated, but only a proxy admin can set it. A granted key also needs the target
 model on its `models` list, because the model check still applies.
 
-## The one exception: `jev-decisions` (captain decision `jev-door-grant`)
+## Jev decisions are not a pass-through
 
-`typesafe/jev-1.13` is a decisions model: OpenRouter refuses it on chat
-completions, so it has no `LiteLLMModel` and must not get one. It is reached
-only at `POST /openrouter/alpha/decisions`, priced natively by
-`TypeSafePassthroughLoggingHandler` from the cost map (spend is recorded).
-
-`virtualkeys/jev-decisions.yaml`: `models: [typesafe/jev-1.13]`, `$1`/30d,
-rpm 300, tpm 1000000, **no `spec.metadata`**. The grant is one out-of-Git admin
-`/key/update` stored only in LiteLLM's DB:
-
-- It survives every operator reconcile only while the CR declares no
-  `spec.metadata` (the operator then sends no metadata and LiteLLM keeps it).
-  Declaring `spec.metadata` makes LiteLLM replace the whole object and delete
-  the grant. CI refuses `spec.metadata` on this CR.
-- Recreating the key (deleting the CR, its `litellm-key-jev-decisions` Secret,
-  or the key in LiteLLM) mints a key **without** the grant: `403 Key/team not
-  allowed to access passthrough route` until the grant is re-applied. That is
-  fail-closed; the decision skill treats any non-200 as inconclusive.
-- The grant is prefix-matched and method-blind, so the key is route-allowed on
-  subpaths and other methods too, but those land on the dead catch-all. A body
-  naming any other model gets the model 403 (OpenRouter requires a string
-  `model` on decisions, so that check always fires).
-
-Budget caveat: the `$1`/30d cap is enforced from recorded spend, so rows
-logged at zero cost (no price on the cost map, or a failed pricing hook) add
-nothing and the cap can under-count. Treat it as a soft guard, not a hard
-ceiling. The grant also lives only in LiteLLM's DB, never in Git, so a DB
-restore or key recreation loses it and the grant runbook must be re-run.
-
-Apply the grant once after first mint and after any recreation, with the
-script in `kubernetes/apps/base/ai/litellm/README.md` ("Granting the
-jev-decisions key"). It must print
-`{'allowed_passthrough_routes': ['/openrouter/alpha/decisions']}`. Grant that
-one path and nothing wider.
-
-Decision endpoint contract for callers: `POST
-https://litellm.${SECRET_DOMAIN}/openrouter/alpha/decisions` (LAN) or the
-Service DNS equivalent, `Authorization: Bearer <jev-decisions key>`
-(1Password `litellm-consumer-jev-decisions`, field `key`), body
-`{"model": "typesafe/jev-1.13", "state": "...", "questions": {...}}`.
-Results: 200 decision; 403 "passthrough route" = grant missing; 403 "not
-allowed to access model" = wrong model; 400 = malformed body; 429/budget =
-the key's limits. `typesafe/jev-router` is an unrelated chat model; reaching
-it would need its own `LiteLLMModel`.
+`typesafe/jev-*` is a decisions model that OpenRouter refuses on chat
+completions. It is the `jev` `LiteLLMModel` (upstream
+`openrouter/typesafe/jev-1.14`) served by LiteLLM's native
+`POST /v1/decisions` and `/v1/systemone` (1.104.2+). A key reaches it through
+a normal `models: [jev]` allow-list, so nothing is hand-applied in LiteLLM's
+DB and recreating a key loses nothing. The former `/openrouter/alpha/decisions`
+exact entry and the `jev-door-grant` are gone; CI refuses a reopened exact
+`/openrouter` entry, any declared `allowed_passthrough_routes`, and raw
+`typesafe/` ids in `models`. Contract: [model-catalog.md](model-catalog.md).
+Call it with the `jev-decisions` key (1Password `litellm-consumer-jev-decisions`,
+field `key`) at `https://litellm.${SECRET_DOMAIN}/v1/decisions` or the Service
+DNS equivalent.
