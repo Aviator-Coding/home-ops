@@ -144,6 +144,9 @@ def http(method: str, url: str, key: str, body: dict | None, timeout: float):
 
 def http_hint(status: int, message: str) -> str:
     low = message.lower()
+    if "key limit exceeded" in low or "monthly limit" in low or "insufficient credits" in low:
+        return ("The upstream OpenRouter key hit its own spend limit (shared by every OpenRouter model, not this "
+                "key's budget). Use grok ($0) until it resets, or raise the limit in OpenRouter.")
     if status == 401:
         return "Key rejected. Re-run with --refresh-key; confirm the Secret/1Password item matches the live key."
     if status == 403 or "not allowed to access model" in low:

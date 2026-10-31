@@ -46,6 +46,7 @@ Workflow: explore the idea with `grok` (free), compare a photoreal take with `ge
 | 3 | key / 1Password | `op signin`; item may be in another vault: `--op-ref`; or set `IMAGEGEN_API_KEY` |
 | 4 | network | be on the LAN/VPN, or fix `--base-url` |
 | 5 | HTTP error from LiteLLM (`status` in the JSON) | 401 refresh key, 403 model not allowed, 429 rpm or budget, 400 prompt rejected |
+|   | `Key limit exceeded (monthly limit)` in the message | the shared OpenRouter key's own cap (all OpenRouter models fail, `gpt`/`gemini`); `grok` still works |
 | 6 | empty or malformed response | retry; try another model |
 
 ## Taste: how to get professional images
