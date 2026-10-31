@@ -9,6 +9,7 @@ components:
   - ../../../components/alerts
 
 resources:
+  - ./agent-readonly.yaml
   - ./cilium.yaml
   - ./coredns.yaml
   - ./descheduler.yaml
