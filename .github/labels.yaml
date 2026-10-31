@@ -46,3 +46,12 @@
 - name: ci-nightly
   color: "d93f0b"
   description: Nightly network scripts/ci tests failed (nightly-tests.yaml)
+- name: risk:low
+  color: "0e8a16"
+  description: Docs and agent notes; merges itself once CI Success is green (goal §5)
+- name: risk:normal
+  color: "fbca04"
+  description: Kubernetes apps, scripts, task files; the owner merges (goal §5)
+- name: risk:high
+  color: "b60205"
+  description: Cluster core, CI, Renovate; the owner approves the plan, then the PR (goal §5)
