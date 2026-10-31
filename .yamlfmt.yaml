@@ -1,5 +1,5 @@
 ---
-# Formatter, pre-commit only (stage `manual` until the repo-wide format PR lands).
+# Formatter, pre-commit only (active since the repo-wide format PR).
 # Not run in CI: formatting there would fail every Renovate PR that touches an unformatted file.
 formatter:
   type: basic
