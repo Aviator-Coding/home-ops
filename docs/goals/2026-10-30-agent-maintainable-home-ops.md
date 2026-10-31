@@ -216,13 +216,13 @@ sources not Ready. The 0.4 denials and a 0.5 test alert are recorded in §8.
 - [x] 1.2 Every unmarked test leaves the PR gate. Network-calling tests run nightly and
       open an issue on failure. The rest run in an advisory PR job that never blocks,
       until P3 keeps (`enforce`) or deletes each one.
-- [ ] 1.3 Add `.editorconfig`, a YAML formatter, and yamllint, actionlint, zizmor and
+- [x] 1.3 Add `.editorconfig`, a YAML formatter, and yamllint, actionlint, zizmor and
       shellcheck to pre-commit and to `CI Success`. Fix or explicitly ignore the
       existing findings.
 - [ ] 1.4 With the owner's go-ahead, replace `Labeler - Labeler` with `CI Success` as the
       required check and empty the bypass list. Before enabling it, the owner does one
       dry run of the §3 break-glass procedure.
-- [ ] 1.5 Add a daily scheduled workflow that records the D2 pass rate and the D3
+- [x] 1.5 Add a daily scheduled workflow that records the D2 pass rate and the D3
       open-Renovate count in a pinned issue or a committed CSV, so the 14-day windows
       measure themselves.
 
@@ -230,11 +230,11 @@ Exit: D1 holds, and `CI Success` passes on at least 95% of PR runs for 7 days.
 
 ### P2 Workflow (target 2026-11-30)
 
-- [ ] 2.1 Add an issue template (goal, risk tier, rollback, verification) and the three
+- [x] 2.1 Add an issue template (goal, risk tier, rollback, verification) and the three
       `risk:*` labels.
-- [ ] 2.2 Add the `risk-tier` CI job from §5. It labels the PR with its tier and turns on
+- [x] 2.2 Add the `risk-tier` CI job from §5. It labels the PR with its tier and turns on
       auto-merge only for `risk:low`.
-- [ ] 2.3 Write four workflow skills, `plan-task`, `implement-task`, `review-pr` and
+- [x] 2.3 Write four workflow skills, `plan-task`, `implement-task`, `review-pr` and
       `renovate-review`, which encode §5 and §6.
 - [ ] 2.4 Rebuild the AI review so it reports specific findings and fails its check on a
       blocking one. Seed 5 known-bad and 5 known-good PRs and record the results in §8.
@@ -298,3 +298,6 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-31 | 1.1 red proof | Draft #2158 removed `kind: DaemonSet` from mglru-disable: `Flate - Test` failed and `CI Success` went red. Closed, branch deleted | #2158 |
 | 2026-10-31 | 1.2 | First manual `nightly-tests.yaml` run: only `litellm-sso-test.py` failed (live Authentik), and the workflow opened #2159 with the `ci-nightly` label | #2159 |
 | 2026-10-31 | 0.4 (RBAC) | #2154 merged and reconciled. Impersonating `kube-system:agent-readonly`: create pods no, get secrets no, create pods/exec no, list helmreleases yes, list nodes yes. Still open: the owner's credential migration and mint, then the guard denial in a live session | #2154 |
+| 2026-10-31 | 1.3 / 1.5 | Linters gate `CI Success` (#2162: actionlint 132→0, zizmor 21→0, yamllint 18→0, shellcheck 6→0); repo-wide yamlfmt with empty `flate diff` (#2163). Daily metrics in issue #2161 (first row: 75.0%, 4 runs, 28 open Renovate PRs) | #2162, #2163, #2157 |
+| 2026-10-31 | 2.1-2.3 | Issue form and `risk:*` labels (#2164); `risk-tier.yaml` labels PRs from paths with main's classifier, auto-merge only for risk:low once `CI Success` is required (#2165; first live run labelled #2166 risk:normal); four workflow skills (#2166) | #2164, #2165, #2166 |
+| 2026-10-31 | D6 baseline (local model) | `pr-review-local` with the blocker rules (#2167): **2 of 5 bad caught, 1 of 5 good falsely failed: D6 not met.** Caught: healthChecks on a HelmRelease (#2172), CCNP default-deny (#2177). Missed: kopiur `wait: true` (#2168, include outside the diff), literal `${HOME}` (#2175, model called it a Flux variable), no fork guard on an in-cluster workflow (#2179, explicit rule). False failure: subtractive CCNP (#2178, invented selector). Good passes: #2169, #2173, #2176, #2180. Next: a stronger decision model (owner choosing Jev or Claude) | #2168-#2180 |
