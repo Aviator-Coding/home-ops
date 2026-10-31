@@ -22,6 +22,9 @@ Live: `kubernetes/apps/main/selfhosted/syncthing.yaml` (`syncthing-data`) and
 claim. They are not prefixes of each other for expiry purposes either; see
 [retired-repo-expiry.md](retired-repo-expiry.md). `syncthing` (config) is
 kopiur-only. `syncthing-data` is still dual-engine.
+`syncthing-data` is 15Gi on `ceph-block`, from the app's own `pvc.yaml` (no
+`dataSourceRef`); `VOLSYNC_CAPACITY: 15Gi` on its backup Kustomization sizes
+only the restore destination, so keep the two equal.
 
 ## Schedules
 

@@ -8,8 +8,8 @@ Prevents: the kopiur backup component every claim inherits losing fail-closed re
 Stage 1 is the first LIVE use of kopiur: a reusable backup component that
 mirrors components/volsync, onboarded first on downloads/autobrr ALONGSIDE its
 existing VolSync backups. MinIO is not a kopiur destination. Stage 2 later
-added sabnzbd-config as a second volume (see kopiur-stage2-test.py for the
-two-volume set and the PUID/claim contracts). This file still pins the Stage 1
+added sabnzbd-config as a second volume (its claim, identity and cache are
+now pinned by kopiur-stage3-test.py and kopiur-stage5-test.py). This file still pins the Stage 1
 component + historical autobrr contract via recorded substitute maps.
 
 THE PILOT APP IS GONE. VolSync was first retired from autobrr (2026-09-02,
@@ -66,9 +66,8 @@ This test does not grep source text as its evidence. It:
        - downloads/autobrr is fully absent (overlay, app directory and
          namespace-kustomization entry), and no other overlay picked up its
          claim; components/volsync itself still renders 3 sources + 1
-         destination for its 22 remaining users. The onboarded set is owned by
-         kopiur-stage2-test.py and the authoritative retired set by
-         kopiur-stage3-test.py.
+         destination for its 22 remaining users. The onboarded set and the
+         authoritative retired set are owned by kopiur-stage3-test.py.
        - credentials: ALL THREE projection legs wired (chart feature flag,
          `allowed` on both ClusterRepositories, `enabled` on every consuming
          SnapshotPolicy/Restore), every repository secretRef carrying an

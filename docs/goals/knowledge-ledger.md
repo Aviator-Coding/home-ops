@@ -26,7 +26,7 @@ Verdicts:
 | `scripts/ci/b70-bench-harness-test.py` | The B70 depth sweep and compare helpers produce labelled, side-by-side results. | neither |  |  |
 | `scripts/ci/b70-vaapi-tdarr-test.py` | The B70 VA-API restore through tdarr and generic-device-plugin stays wired to the renamed DRM nodes. | neither |  |  |
 | `scripts/ci/backup-silent-failure-alerting-test.py` (# ci: gate) | Stalled VolSync movers and empty or stale kopiur backups raise alerts. | data loss |  |  |
-| `scripts/ci/books-namespace-move-test.py` | Shelfmark lives in downloads, where its RWX claim is. | neither |  |  |
+| `scripts/ci/books-namespace-move-test.py` | Shelfmark lives in downloads, where its RWX claim is. | neither | keep | `.agents/skills/media-stack/SKILL.md` §Tripwires 9 (sentence added) |
 | `scripts/ci/chat-model-id-test.py` | The loaded chat model's name is defined in one place. | neither |  |  |
 | `scripts/ci/ci-success-workflow-test.py` (# ci: gate) | The single required CI Success check reflects Flate and Validate and still reports while the cluster is down. | neither |  |  |
 | `scripts/ci/ci-test-gate-test.py` (# ci: gate) | Only tests marked ci: gate block PRs, and the python-tests job keeps the data-loss and outage tests. | neither |  |  |
@@ -63,9 +63,10 @@ Verdicts:
 | `scripts/ci/kopiur-restore-cache-sizing-test.py` | KOPIUR_CACHE_CAPACITY is sized as a restore correctness constraint, not a tuning knob. | data loss |  |  |
 | `scripts/ci/kopiur-stage0-test.py` (# ci: gate) | Stage 0 keeps the kopiur operator CRDs non-replacing and the r2 repository from being re-created. | data loss |  |  |
 | `scripts/ci/kopiur-stage1-test.py` (# ci: gate) | The shared kopiur backup component keeps fail-closed restores, ssa IfNotPresent and credential-free mounts. | data loss |  |  |
-| `scripts/ci/kopiur-stage2-test.py` | A restore from both kopiur destinations is proven on a volume that holds data, with VolSync retired there. | data loss |  |  |
+| `scripts/ci/kopiur-stage2-test.py` | A restore from both kopiur destinations is proven on a volume that holds data, with VolSync retired there. | data loss | enforce | `kopiur-stage3-test.py`: `EXPECTED_IDENTITY` sabnzbd-config 2000:2000, `test_schedules` r2 hour 11, `test_every_onboarded_kustomization_depends_on_repository`; `kopiur-stage5-test.py` `RETIRED["downloads/sabnzbd"]`: kopiur then kopiur/pvc, no VolSync, `ssa: IfNotPresent`, no `force`, `dataSourceRef` Restore, 5Gi, `RAISED_CACHE` 10Gi; `kopiur-stage1-test.py` `test_component_defaults_without_override`, `test_restore_passive_contract`. Workload uid vs mover: the `pvc-mover-readable-check` CronJob |
 | `scripts/ci/kopiur-stage3-test.py` (# ci: gate) | Every VolSync-protected claim stays in kopiur coverage under the correct mover identity. | data loss |  |  |
-| `scripts/ci/kopiur-stage4-test.py` | The matter-server root-mover kopiur onboarding carries no VolSync component and restores correctly. | data loss |  |  |
+| `scripts/ci/kopiur-stage4-test.py` | The matter-server root-mover kopiur onboarding carries no VolSync component and restores correctly. | data loss | enforce | `kopiur-stage3-test.py` `EXPECTED_IDENTITY` (matter-server 0:0, esphome/zigbee2mqtt 2000, home-assistant 1000) and `EXPECTED_R2_HOUR` home-automation 10; `kopiur-stage5-test.py` `RETIRED["home-automation/matter-server"]` (no VolSync, kopiur/pvc kept) and `test_retired_backup_shape_is_complete` (Restore identity equals policy identity) |
+| `scripts/ci/kopiur-stage4-test.py` `test_privileged_mover_annotation_is_gitops` | The home-automation Namespace gets `kopiur.home-operations.com/privileged-movers=true` from a patch on `not-used` in the main overlay. | data loss | keep | `.agents/skills/kopiur-backups/references/onboarding.md` §Root movers (already stated); a missing annotation stalls snapshots and fires `KopiurBackupStaleCeph` (`backup-silent-failure-alerting-test.py`) |
 | `scripts/ci/kopiur-stage5-test.py` (# ci: gate) | Retired VolSync overlays keep the kopiur pvc Component and no-force rule so live volumes are not replaced. | data loss |  |  |
 | `scripts/ci/kopiur-timezone-test.py` | kopiur and VolSync cron schedules carry aligned timezones so DST does not collide dual-engine backups. | data loss |  |  |
 | `scripts/ci/kubernetes-renovate-group-test.py` | The Kubernetes Renovate group and its auto-merge guard behave as specified. | neither |  |  |
@@ -81,15 +82,16 @@ Verdicts:
 | `scripts/ci/litellm-request-logs-test.py` | Full prompt and response capture in LiteLLM spend logs validates. | neither |  |  |
 | `scripts/ci/litellm-sso-test.py` (# ci: nightly) | LiteLLM UI SSO through Authentik behaves as specified. | neither |  |  |
 | `scripts/ci/media-language-audit-test.py` | classify() decides whether a Radarr movie satisfies the English-audio policy. | neither |  |  |
-| `scripts/ci/media-profile-migration-test.py` | plan_moves() maps movies on the unmanaged profile to the managed catalogue profiles. | neither |  |  |
+| `scripts/ci/media-profile-migration-test.py` | plan_moves() maps movies on the unmanaged profile to the managed catalogue profiles. | neither | keep | `.agents/skills/media-stack/references/recyclarr.md` (already states the one-off `profile_migration.py` moves `Any` movies to `HD`/`UHD`, dry run by default, with a before-state file) |
 | `scripts/ci/media-queue-watchdog-test.py` | The media-queue-watchdog CronJob matches its contract. | neither |  |  |
 | `scripts/ci/memory-request-declared-test.py` | No container declares limits.memory without requests.memory, which would reserve the whole limit. | neither |  |  |
 | `scripts/ci/mise-install-args-test.py` | mise-action install_args do not re-pin tools that .mise.toml already declares. | neither |  |  |
 | `scripts/ci/plex-renovate-versioning-test.py` | The Plex regex-versioning Renovate rule behaves as specified. | neither |  |  |
 | `scripts/ci/pvc-mover-readable-check-test.py` (# ci: gate) | The backup mover uid can read each claim it backs up, or the check reports failure. | data loss |  |  |
 | `scripts/ci/pvc-writable-check-test.py` (# ci: gate) | An app that cannot write its own claim is caught even while Ready. | data loss |  |  |
-| `scripts/ci/readarr-removal-test.py` | Readarr and reading-glasses are gone from Git while their data and databases are kept. | data loss |  |  |
-| `scripts/ci/recyclarr-config-readable-check-test.py` | The recyclarr-config readable check runs on a snapshot scratch copy and never touches the live claim. | data loss |  |  |
+| `scripts/ci/readarr-removal-test.py` | Readarr and reading-glasses are gone from Git while their data and databases are kept. | data loss | enforce | Kept data: `kopiur-stage3-test.py` `test_rendered_objects_hold_the_contract` (`onPolicyDelete`/`onScheduleDelete: Retain` on every policy) and `kopiur-stage1-test.py` `test_policies_contract`; a stale readarr-config pin fails `kopiur-stage3` `test_coverage_is_exact`. The removal itself is prose in `.agents/skills/media-stack/SKILL.md` §Tripwires 9 |
+| `scripts/ci/recyclarr-config-readable-check-test.py` | The recyclarr-config readable check runs on a snapshot scratch copy and never touches the live claim. | neither (corrected from data loss: the test runs the classifier on fixtures and cannot see the live claim; a wrong one-off verdict leaves kopiur failing closed and `KopiurBackupStaleCeph` firing) | keep | `.agents/skills/pvc-integrity-checks/references/mover-readable.md` §Schedules and identity source (sentence added); the fixture `scripts/ci/fixtures/recyclarr-measure.sh` stays because that doc runs it |
+| `scripts/ci/recyclarr-config-readable-check-test.py` `test_overlay_identity_and_doc_pointer` | The recyclarr-config kopiur mover is 2000:2000. | data loss | enforce | `kopiur-stage3-test.py` `EXPECTED_IDENTITY` and `test_rendered_objects_hold_the_contract`; the walker traps the classifier shared are pinned on `walk.sh` by `pvc-mover-readable-check-test.py` |
 | `scripts/ci/recyclarr-language-policy-test.py` (# ci: nightly) | Every Radarr movie carries an English audio track. | neither |  |  |
 | `scripts/ci/recyclarr-quality-profile-test.py` (# ci: nightly) | The Radarr SQP-1 recyclarr quality-profile fix holds. | neither |  |  |
 | `scripts/ci/renovate-binding-conditions-test.py` | Keep-in-cluster Renovate binding conditions evaluate under last-match-wins. | neither |  |  |
@@ -98,10 +100,11 @@ Verdicts:
 | `scripts/ci/samba-shared-xml-test.py` (# ci: nightly) | Each LAN Samba share sits on its own ceph-filesystem-rwx claim, not the default csi class. | neither |  |  |
 | `scripts/ci/schematic-pcie-port-pm-test.py` (# ci: nightly) | The talos-3 B70 PCIe runtime-PM mitigation is in the schematic. | neither |  |  |
 | `scripts/ci/seerr-friends-contract-test.py` | Seerr is reachable by friends from outside the LAN. | neither |  |  |
-| `scripts/ci/selfhosted-backup-identity-test.py` | The selfhosted backup identity stays pinned so the mover uid matches the claim's file modes. | data loss |  |  |
+| `scripts/ci/selfhosted-backup-identity-test.py` | The selfhosted backup identity stays pinned so the mover uid matches the claim's file modes. | data loss | enforce | `kopiur-stage3-test.py` `EXPECTED_IDENTITY` and `test_rendered_objects_hold_the_contract` (obsidian-livesync 5984:5984, the other selfhosted claims 1000:1000); `kopiur-stage5-test.py` `test_retired_overlays_dropped_volsync` (no `VOLSYNC_*` key on a retired overlay); `corrupt-claim-recreation-contract-test.py` `test_rendered_empty_latestimage_trap` (paperless-ngx VolSync mover 1000:1000) |
+| `scripts/ci/selfhosted-backup-identity-test.py` `test_dead_app_uid_gid_absent` | `APP_UID`/`APP_GID` stay out of the selfhosted substitute maps. | neither (nothing reads them) | archive | — |
 | `scripts/ci/shelfmark-usenet-contract-test.py` | Shelfmark runs the upstream lite image, Usenet only, in downloads. | neither |  |  |
 | `scripts/ci/silent-failure-gaps-alert-test.py` | ContainerRestartingChronically and ExternalSecretNotReady alerts fire. | neither |  |  |
-| `scripts/ci/syncthing-data-capacity-test.py` | The syncthing-data 15Gi right-size contract holds. | neither |  |  |
+| `scripts/ci/syncthing-data-capacity-test.py` | The syncthing-data 15Gi right-size contract holds. | neither | keep | `.agents/skills/volsync-carveouts/references/multi-volume.md` (sentence added; the separate 1Gi config claim was already stated there and its size is `kopiur-stage5-test.py` `RETIRED["selfhosted/syncthing"]`) |
 | `scripts/ci/talos-renovate-pin-test.py` | The Talos Renovate pin excludes exactly v1.13.3 and the auto-merge guard holds. | neither |  |  |
 | `scripts/ci/tdarr-flow-nodes-test.py` | CI runs the Tdarr safe-transcode Node harness and fails closed if it or Node is missing. | neither |  |  |
 | `scripts/ci/terraform-ci-workflows-test.py` (# ci: nightly) | The terraform-diff and terraform-publish CI workflows meet their behavioral contract. | neither |  |  |
