@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Semantic regression test for the VolSync retired-repository expiry ledger.
+
+Prevents: a retired-repository expiry prefix (`syncthing`) also selecting and expiring
+the live `syncthing-data` repository.
 
 Pins the 2026-09-12 captain decision to put an EXPIRY DATE on the retired
 pre-kopiur VolSync restic repositories - not delete them now, not keep them

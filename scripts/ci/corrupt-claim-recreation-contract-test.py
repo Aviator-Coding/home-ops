@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Semantic regression test for the corrupt-claim recreation contract.
+
+Prevents: recreating a claim from a frozen `latestImage` that restores nothing while
+every status stays green.
 
 THE CENTRAL CONTRACT: deleting a PVC and letting Flux recreate it from
 dataSourceRef does NOT restore from the restic repository. The populator

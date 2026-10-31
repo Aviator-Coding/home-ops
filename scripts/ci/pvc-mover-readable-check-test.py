@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Behavioral regression test for system/pvc-mover-readable-check.
+
+Prevents: a backup mover uid that cannot read its claim while every backup status
+reports success.
 
 Pins the backup-mover readability check (2026-08-31): a CronJob that resolves
 each engine's mover uid/gid from the LIVE ReplicationSource / SnapshotPolicy

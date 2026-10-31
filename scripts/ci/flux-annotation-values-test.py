@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Guard: every kustomize.toolkit.fluxcd.io/* annotation carries a value Flux honours.
+
+Prevents: a kustomize.toolkit.fluxcd.io/* annotation with a value Flux ignores (for
+example `prune: "false"`), which silently removes prune or SSA protection.
 
 Measured 2026-09-28 on ai/litellm-pgvector: its db-init Job carried
 `kustomize.toolkit.fluxcd.io/force: "true"`. kustomize-controller (v1.9.4,

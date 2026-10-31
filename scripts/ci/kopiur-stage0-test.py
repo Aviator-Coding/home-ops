@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Semantic regression test for kopiur Stage 0 (operator + repositories only).
+
+Prevents: kopiur operator CRDs not CreateReplace, operator bumps auto-merging, the r2
+repository being re-created, or credentials embedded in Git.
 
 Stage 0 is additive by design: install the kopiur operator and declare WHERE
 backups could go, without changing a single existing VolSync backup and without

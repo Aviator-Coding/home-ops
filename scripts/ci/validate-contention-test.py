@@ -484,8 +484,9 @@ def test_timeouts_meet_measured_floors(model: WorkflowModel) -> dict[str, Any]:
             failures,
         )
 
-    pt = model.jobs["python-tests"]
-    evidence["timeouts"]["python-tests"] = pt.timeout_minutes
+    # The heavy litellm[proxy] install moved to python-tests-advisory on 2026-10-31.
+    pt = model.jobs["python-tests-advisory"]
+    evidence["timeouts"]["python-tests-advisory"] = pt.timeout_minutes
     _check(
         pt.timeout_minutes is not None
         and pt.timeout_minutes >= PYTHON_TIMEOUT_FLOOR_MIN,
@@ -538,7 +539,7 @@ def test_timeouts_meet_measured_floors(model: WorkflowModel) -> dict[str, Any]:
 
 
 def test_python_tests_ordered_after_light_jobs(model: WorkflowModel) -> dict[str, Any]:
-    pt = model.jobs["python-tests"]
+    pt = model.jobs["python-tests-advisory"]
     needs = set(pt.needs)
     missing = [j for j in LIGHT_PREDECESSORS if j not in needs]
     if missing:

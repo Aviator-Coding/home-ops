@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Behavioral regression test for backup silent-failure alerting.
+
+Prevents: stalled VolSync movers and empty or stale kopiur backups never raising an
+alert.
 
 Pins the 2026-08-31 monitoring blind-spot close:
 

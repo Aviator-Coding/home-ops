@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Semantic regression test for kopiur Stage 1 (backup component + one pilot).
+
+Prevents: the kopiur backup component every claim inherits losing fail-closed restores,
+`ssa: IfNotPresent`, passive Restore or credential-free mounts.
 
 Stage 1 is the first LIVE use of kopiur: a reusable backup component that
 mirrors components/volsync, onboarded first on downloads/autobrr ALONGSIDE its

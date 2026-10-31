@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Semantic regression test for kopiur Stage 5 (the VolSync retirements).
+
+Prevents: a retired-VolSync overlay losing the kopiur pvc Component, `ssa: IfNotPresent`
+or the no-force rule, so Flux prunes or replaces a live data volume.
 
 Stage 5 is the IRREVERSIBLE step of the VolSync -> kopiur migration: it removes
 a volume's second backup engine. 27 of the fleet's 30 claims have now gone

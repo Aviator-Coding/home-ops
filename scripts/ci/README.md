@@ -3,6 +3,12 @@
 Each `*-test.py` is a standalone script. The docstring is the invariant it
 pins. CI globs the directory, so a new file needs no workflow edit.
 
+Only files with the line `# ci: gate` right after the shebang block a PR
+(`python-tests`). There are at most 15, and each docstring has a `Prevents:` line naming
+the data loss or outage it guards. Every other file runs in
+`python-tests-advisory`, which never blocks. `ci-test-gate-test.py` enforces
+this. A new test is advisory unless it guards data loss or an outage.
+
 ```bash
 python3 scripts/ci/<name>-test.py
 ```
