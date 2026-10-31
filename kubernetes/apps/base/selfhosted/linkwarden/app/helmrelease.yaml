@@ -41,6 +41,7 @@ spec:
               # Full-page Monolith archive: raise output buffer above the 100MB
               # default (one image-heavy page overflowed it -> partial archive).
               MONOLITH_MAX_BUFFER: "256"
+              ARCHIVE_DIR: "${HOME}/archives"
               # AI auto-tagging via LiteLLM with Linkwarden's own virtual key (OPENAI_API_KEY from
               # the secret; chat-local only, rpm 30). chat-local is the local B70 llama.cpp and a
               # terminal alias with no cloud fallback: when the B70 is down tagging just fails.
