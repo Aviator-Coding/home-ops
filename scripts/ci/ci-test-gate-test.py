@@ -39,8 +39,6 @@ EXPECTED_NIGHTLY = {
     "grafana-mcp-deploy-test.py",
     "litellm-pr-reviewer-test.py",
     "litellm-sso-test.py",
-    "recyclarr-language-policy-test.py",
-    "recyclarr-quality-profile-test.py",
     "samba-shared-xml-test.py",
     "schematic-pcie-port-pm-test.py",
     "terraform-ci-workflows-test.py",

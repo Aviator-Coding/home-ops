@@ -65,9 +65,6 @@ exporter.
 
 - `python3 scripts/ci/pvc-writable-check-test.py`
 - `python3 scripts/ci/pvc-mover-readable-check-test.py`
-- `python3 scripts/ci/recyclarr-config-readable-check-test.py` (the CronJob
-  claim whose pod is usually absent; the measure script is
-  `scripts/ci/fixtures/recyclarr-measure.sh`)
 
 CPU: both jobs were heavily CFS-throttled when their limits were tight, and
 nothing pages on throttling. Sizing is skill `node-scheduling`. Do not drop a

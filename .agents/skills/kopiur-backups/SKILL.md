@@ -113,7 +113,7 @@ Comments that name an older tag are stale.
 
 ## Verify
 
-- `python3 scripts/ci/kopiur-stage0-test.py` through `stage5`, plus
+- `python3 scripts/ci/kopiur-stage0-test.py`, `stage1`, `stage3` and `stage5`, plus
   `kopiur-timezone-test.py`, `kopiur-epoch-tuning-test.py`,
   `kopiur-restore-cache-sizing-test.py`,
   `kopiur-projected-secrets-leak-alert-test.py`.

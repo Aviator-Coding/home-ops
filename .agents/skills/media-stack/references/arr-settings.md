@@ -43,3 +43,17 @@ rejection, or Radarr's `importBlocked` parse failure (common on MULTi names)
 all show up in Activity, not in Git. `RadarrImportQueueBlocked` in the Gatus
 config is the page for a stuck queue. Recyclarr deprioritises parse-risky
 releases. It does not block them.
+
+## Books
+
+Shelfmark runs the `shelfmark-lite` image, which has no Chromium, so
+Cloudflare challenges go to FlareSolverr; besides Usenet it also downloads
+directly from Anna's Archive and LibGen, and no torrent client is configured.
+It mounts `shared-downloads` at `/data/downloads` (the path SABnzbd reports)
+and the CWA library read-only at `/calibre-library`. Give each Shelfmark
+scratch path its own `emptyDir` without `subPath`, and never mount
+`/app/downloaded_files` (a symlink into `/tmp/shelfmark`): either leaves a
+root-owned directory the non-root app cannot write, and it crash-loops.
+Shelfmark and Calibre-Web-Automated stay on `envoy-internal`. CWA keeps
+`NETWORK_SHARE_MODE: true` on its NFS mounts, and its OPDS, Kobo and KOReader
+sync use CWA's own accounts, so no reader credential goes into its ExternalSecret.

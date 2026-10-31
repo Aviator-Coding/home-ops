@@ -84,3 +84,6 @@ will actually run read the volume?
 `recyclarr-config` has no long-lived pod. The one-off measure script used
 when that claim is up is `scripts/ci/fixtures/recyclarr-measure.sh`. The
 CronJob will report it unmeasured most of the day. That is not a failure.
+Run that script as root with `MOVER_UID=2000 MOVER_GID=2000` against a scratch
+PVC restored from a CSI `VolumeSnapshot` of the claim, never against the live
+RWO claim; exit 2 is `INCONCLUSIVE`, not a clean pass.

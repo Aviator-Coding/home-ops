@@ -76,5 +76,4 @@ every 4 hours). `.github/workflows/renovate.yaml` is the rollback path: its
 - `python3 scripts/ci/talos-renovate-pin-test.py` (needs node and renovate; the
   test installs it or uses `RENOVATE_NODE_PATH`).
 - Sibling harnesses: `kubernetes-renovate-group-test.py`,
-  `plex-renovate-versioning-test.py`, `rsshub-renovate-schedule-test.py`,
-  `renovate-binding-conditions-test.py`.
+  `rsshub-renovate-schedule-test.py`, `renovate-binding-conditions-test.py`.
