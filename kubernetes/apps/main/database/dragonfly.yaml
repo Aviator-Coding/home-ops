@@ -20,6 +20,7 @@ spec:
     substitute:
       APP: *app
   targetNamespace: *namespace
+  # Dependency gate: dependents need the operator's CRDs and webhook Ready first.
   wait: true
 # Per-cluster Dragonfly instances are provisioned by consuming apps via the
 # components/dragonfly Kustomize component (one cluster per consumer namespace).
