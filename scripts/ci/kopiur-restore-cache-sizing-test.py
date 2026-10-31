@@ -26,8 +26,8 @@ not on source text, so a reformat or a move within the file still passes and a
 real value change still fails.
 
 Scope note: `downloads/sabnzbd` is deliberately NOT re-asserted here. It is
-already pinned by kopiur-stage2-test.py and kopiur-stage5-test.py as part of the
-retirement pilot, and duplicating it across three files is exactly the drift
+already pinned by kopiur-stage5-test.py as part of the retirement pilot, and
+duplicating it across files is exactly the drift
 this repo has been bitten by before.
 """
 
