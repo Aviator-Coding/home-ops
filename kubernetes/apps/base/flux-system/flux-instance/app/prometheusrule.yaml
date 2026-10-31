@@ -54,21 +54,19 @@ spec:
         - alert: FluxResourceNotReadyTooLong
           expr: |
             max by (kind, exported_namespace, name) (
-              flux_resource_info{ready!="True", suspended!="True", kind=~"HelmRelease|Kustomization"}
+              flux_resource_info{ready!="True", suspended!="True", kind=~"HelmRelease|Kustomization|GitRepository|OCIRepository|HelmRepository|HelmChart|Bucket"}
             ) == 1
           for: 30m
           annotations:
             summary: >-
               Flux {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been not Ready for over 30m
+            # Kept short: Pushover cuts at 1024 runes and every object lands in one notification group. Background lives in the runbook.
             description: >-
-              {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }}
-              has not been Ready for more than 30 minutes, including while it
-              retries and flips between False and Unknown. A HelmRelease whose first install failed goes
-              Stalled (MissingRollbackTarget) and Flux stops reconciling it
-              while its Kustomization can still report Ready. Inspect it with
-              flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}
-              (or flux get ks for a Kustomization). If it is Stalled, once
-              the cause is fixed run flux reconcile hr {{ $labels.name }}
-              -n {{ $labels.exported_namespace }} --reset.
+              {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }}:
+              flux get all -n {{ $labels.exported_namespace }}. A Stalled
+              HelmRelease needs flux reconcile hr {{ $labels.name }} -n
+              {{ $labels.exported_namespace }} --reset once fixed; a source on
+              an auth or 404 error blocks every upgrade it serves.
+            runbook_url: https://github.com/Aviator-Coding/home-ops/blob/main/.agents/skills/flux-gitops/SKILL.md
           labels:
             severity: warning

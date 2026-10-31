@@ -41,13 +41,14 @@
 | 5 | 0.3 stray-dir root cause | local only | Haiku | coordinator |
 | 6 | 0.4 agent credentials + guard | high | Sonnet | Opus |
 | 7 | 0.5 Flux alert covers sources | high | Sonnet | Opus |
+| 7b | 1.1 gate tests (owner decision 2026-10-31) | high (touches workflows) | Opus (classify) + Sonnet | Opus |
 | 8 | 1.1 `CI Success` | high | Sonnet | Opus |
 | 9 | 1.2 nightly network tests | normal | Haiku (classify) + Sonnet | Sonnet |
 | 10 | 1.3 linters + formatter | high (touches workflows) | Sonnet | Opus |
 | 11 | 1.5 daily metrics | high (new workflow) | Sonnet | Sonnet |
 | 12 | 1.4 ruleset + break-glass | OWNER | coordinator with owner | none |
 
-Order: 1, 4, 5 → 2 → 3, 6, 7 → 8 → 9, 10, 11 → 12. Task 12 waits until Tasks 8–11 are merged and `CI Success` has been green on PRs for 3 days.
+Order: 1, 4, 5 → 2 → 3, 6, 7 → 7b → 8 → 9, 10, 11 → 12. Task 12 waits until Tasks 8–11 are merged and `CI Success` has been green on PRs for 3 days.
 
 ## Review Focus
 
@@ -192,6 +193,29 @@ Order: 1, 4, 5 → 2 → 3, 6, 7 → 8 → 9, 10, 11 → 12. Task 12 waits until
 - [ ] **Step 5:** Grep for the old kind list in skill text: `grep -rn 'HelmRelease|Kustomization' .agents/skills/observability .agents/skills/flux-gitops`. Update any sentence claiming that sources are excluded.
 - [ ] **Step 6:** Commit `fix(flux): alert on not-Ready Flux sources`, then open the PR (tier high).
 - [ ] **Step 7 (OWNER, D9 proof):** After merge, have the owner create a throwaway `OCIRepository` named `alert-probe` in `flux-system` with url `oci://ghcr.io/home-operations/does-not-exist`, wait 35m, confirm the notification arrived, then delete it. Record it in §8. This is a cluster write, so only the owner does it.
+
+### Task 7b: Gate on a few tests (spec 1.1 and 1.2, owner decision 2026-10-31)
+
+In 59 of the last 60 Validate PR runs, `python-tests` was the only failing job, so the whole suite is not gated. Only a few tests are.
+
+**Files:** the chosen `scripts/ci/*-test.py` (marker line), `.github/workflows/validate.yaml`, `scripts/ci/ci-test-gate-test.py` (new).
+
+- [ ] **Step 1 (Opus, classify):** Read each of the 92 tests' docstring and assertions. Put each in one bucket:
+  - `gate`: it guards silent data loss or a cluster outage, it is offline, and it is deterministic. At most 15.
+  - `nightly`: it needs the network.
+  - `advisory`: everything else.
+
+  Output a table with test, bucket, and the data loss or outage it prevents. It goes in the PR body for the owner to approve.
+- [ ] **Step 2: Write the failing test** `ci-test-gate-test.py`:
+  - at most 15 files carry the exact line `# ci: gate` after the shebang;
+  - each gate file's docstring names what it prevents;
+  - validate's required `python-tests` loop runs only gate files;
+  - an advisory job runs the rest with `continue-on-error: true` and is not in `success.needs`.
+- [ ] **Step 3:** Add the markers and the two jobs. The advisory job keeps today's dependency setup.
+- [ ] **Step 4:** Run the gate test (PASS) and every gate file locally (PASS).
+- [ ] **Step 5:** Commit `ci(github-action): gate PRs on the data-loss and outage tests only`, then open the PR (tier high).
+
+Task 9 then classifies only the advisory tests: gate tests are offline by construction. Advisory tests are deleted or promoted in P3, ledger row first.
 
 ### Task 8: One GitHub-hosted `CI Success` check (spec 1.1, D1 prerequisite)
 

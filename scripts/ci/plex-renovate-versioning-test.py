@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Behavioral regression test for the Plex regex-versioning Renovate rule.
 
-media/plex runs docker.io/plexinc/pms-docker:1.43.1.10611-1e34174b1
+At the time of the original investigation media/plex ran
+docker.io/plexinc/pms-docker:1.43.1.10611-1e34174b1
 (kubernetes/apps/base/media/plex/app/helmrelease.yaml) and zero Renovate PRs
-have ever opened for it, despite 1.43.2/1.43.3/1.43.4 all being live upstream
+had ever opened for it, despite 1.43.2/1.43.3/1.43.4 all being live upstream
 since 2026-09-10 - the dependency dashboard (#489) lists the image but has
 never shown an "Updates:" line for it.
 
@@ -51,12 +52,10 @@ not a source grep:
      only three numeric components) - the fix is not simply "accept
      everything".
 
-CURRENT_TAG tracks the live helmrelease.yaml tag and is a deliberate canary
-(see test_live_tag_matches_investigation): a Renovate-driven bump moves it,
-and this test's own failure message says to update it here. It last moved on
-2026-09-27 when a Renovate PR (docker.io/plexinc/pms-docker 1.43.1.10611-
-1e34174b1 -> 1.43.4.10903-e5521bd8c) landed - proof the regex-versioning fix
-is working, so the rule is still needed for the next such bump.
+CURRENT_TAG is read from the live helmrelease.yaml, and the newer candidate
+tags are derived from it, so a Renovate bump of Plex (#1806, #2014, #2085 -
+each one proof the regex-versioning fix works) no longer turns this test red.
+It used to be a hard-coded canary that failed Validate on every bump.
 
 Requires a local `renovate` install (RENOVATE_NODE_PATH) or network access to
 `npm install renovate@44.52.1` - same harness as talos-renovate-pin-test.py /
@@ -85,18 +84,30 @@ PACKAGE = "docker.io/plexinc/pms-docker"
 # rule in the same file, which must NOT pick up the Plex regex scheme.
 UNRELATED_PACKAGE = "quay.io/ceph/ceph"
 
-# The tag actually deployed today (kubernetes/apps/base/media/plex/app/helmrelease.yaml).
-CURRENT_TAG = "1.43.5.11029-6bf8af3f0"
-# A later, format-correct release used to prove the fix against (hash value
-# is illustrative - only the shape and distinctness of the hash matters).
-TARGET_TAG = "1.43.8.11300-e5521bd9c"
-# Format-correct intermediate releases (hash values are illustrative - only
-# the shape and distinctness of the hash matters for this rule).
+PLEX_TAG = re.compile(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)-([a-f0-9]+)$")
+
+
+def _live_tag() -> str:
+    """The tag deployed today, read from the HelmRelease rather than pinned here."""
+    match = re.search(
+        rf"repository: {re.escape(PACKAGE)}\s*\n\s*tag: (\S+)", PLEX_HELMRELEASE.read_text()
+    )
+    if not match:
+        raise SystemExit(f"FAIL: {PLEX_HELMRELEASE} has no `tag:` right after `repository: {PACKAGE}`")
+    return match.group(1)
+
+
+CURRENT_TAG = _live_tag()
+_m = PLEX_TAG.match(CURRENT_TAG)
+_major, _minor, _patch, _build = (int(_m.group(i)) for i in range(1, 5)) if _m else (0, 0, 0, 0)
+# Later, format-correct releases derived from the live tag (patch +1..+3, so
+# the jump stays a "patch" update). Hash values are illustrative - only the
+# shape and distinctness of the hash matters for this rule.
 CANDIDATE_TAGS = [
-    "1.43.6.11100-aaaaaaaaa",
-    "1.43.7.11200-bbbbbbbbb",
-    TARGET_TAG,
+    f"{_major}.{_minor}.{_patch + step}.{_build + 100 * step}-{h}"
+    for step, h in ((1, "aaaaaaaaa"), (2, "bbbbbbbbb"), (3, "e5521bd9c"))
 ]
+TARGET_TAG = CANDIDATE_TAGS[-1]
 
 MALFORMED_TAGS = [
     "latest",
@@ -303,15 +314,15 @@ def test_plex_rule_shape(package_rules: list[dict[str, Any]]) -> None:
     )
 
 
-def test_live_tag_matches_investigation() -> None:
-    """The tag this test proves the fix against must be the one actually deployed,
-    not a stale figure from the investigation report."""
+def test_live_tag_has_plex_shape() -> None:
+    """The deployed tag must keep the X.Y.Z.BUILD-HASH shape this rule exists for;
+    if Plex changes its tag scheme, re-check whether the rule is still needed."""
     text = PLEX_HELMRELEASE.read_text()
     require(f"repository: {PACKAGE}" in text, f"{PLEX_HELMRELEASE} no longer references {PACKAGE}")
     require(
-        f"tag: {CURRENT_TAG}" in text,
-        f"{PLEX_HELMRELEASE} tag no longer matches investigated {CURRENT_TAG!r} - "
-        "update CURRENT_TAG (and re-check whether the rule is still needed) before trusting this test",
+        PLEX_TAG.match(CURRENT_TAG) is not None,
+        f"{PLEX_HELMRELEASE} tag {CURRENT_TAG!r} is not X.Y.Z.BUILD-HASH - "
+        "re-check whether the regex-versioning rule is still needed",
     )
 
 
@@ -514,7 +525,7 @@ def main() -> int:
     package_rules = load_overrides_package_rules()
 
     run("Plex packageRule shape (docker datasource, regex versioning, no compatibility group, no automerge)", lambda: test_plex_rule_shape(package_rules))
-    run("live helmrelease tag matches the tag this test proves the fix against", test_live_tag_matches_investigation)
+    run("live helmrelease tag has the X.Y.Z.BUILD-HASH shape the rule exists for", test_live_tag_has_plex_shape)
 
     probe_holder: dict[str, Any] = {}
 

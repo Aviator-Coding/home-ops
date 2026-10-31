@@ -174,8 +174,9 @@ only for independent Haiku inventory work.
 
 ## 7. Phases
 
-Each phase starts once the previous phase's exit check holds. P4's Renovate work can start
-once P1's exit check holds. Target dates are for planning; a missed date gets a dated
+Each phase starts once the previous phase's exit check holds. P4's Renovate work, and
+P3's `scripts/ci` test triage (3.1 to 3.3 for tests), can start once P1's exit check
+holds. Target dates are for planning; a missed date gets a dated
 row in §8 and a new date, not silent drift.
 
 ### P0 Stabilise (target 2026-11-06)
@@ -208,9 +209,12 @@ sources not Ready. The 0.4 denials and a 0.5 test alert are recorded in §8.
 - [ ] 1.1 Add a `CI Success` workflow job that `needs` Flate and Validate and fails if any
       of them failed. Skipped jobs pass. `CI Success`, Flate and Validate move to
       `ubuntu-latest` so they run when the cluster is down. Image Pull and the AI review
-      stay on the cluster runner and stay advisory.
-- [ ] 1.2 Move the 13 network-calling tests into a nightly workflow that opens an issue
-      on failure.
+      stay on the cluster runner and stay advisory. Validate's required `python-tests`
+      runs only the tests marked `# ci: gate`: at most 15, each guarding data loss or an
+      outage and naming it in its docstring (Opus picks the set, the owner approves it).
+- [ ] 1.2 Every unmarked test leaves the PR gate. Network-calling tests run nightly and
+      open an issue on failure. The rest run in an advisory PR job that never blocks,
+      until P3 keeps (`enforce`) or deletes each one.
 - [ ] 1.3 Add `.editorconfig`, a YAML formatter, and yamllint, actionlint, zizmor and
       shellcheck to pre-commit and to `CI Success`. Fix or explicitly ignore the
       existing findings.
@@ -241,7 +245,7 @@ Exit: D1 holds, and `CI Success` passes on at least 95% of PR runs for 7 days.
 
 Exit: D5 and D6 hold.
 
-### P3 Lean knowledge (target 2026-12-20; each task runs through the P2 loop)
+### P3 Lean knowledge (target 2026-12-20, test triage 2026-12-06; each task runs through the P2 loop)
 
 - [ ] 3.1 Inventory every skill section and every `scripts/ci` test into
       [`knowledge-ledger.md`](knowledge-ledger.md) (Haiku).
@@ -283,3 +287,4 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-30 | 0.3 | Root cause: `.git/config` held `core.symlinks = false` and `core.filemode = false`, the defaults of a clone made on Windows (`settings.local.json` still has a `PowerShell(...)` rule), so `.claude/skills` checked out as a 17-byte text file. The owner's shell removed it (`rm skills` in zsh history), and the directory with a copy of `image-generation` appeared at 22:39:40–44 outside any agent: no tool call in any session transcript between 22:37:09 (session `c082f6f6`) and 22:40:24 (session `f0936570`, slash commands only). Recurrence is stopped by `core.symlinks = true`, and `docs-budget-test.py` fails if the symlink regresses. No `AGENTS.md` change | local only |
 | 2026-10-31 | 0.0 | `d2fa343c` landed on `main` as #2146 | #2146 |
 | 2026-10-31 | 0.1 (remaining sources) | The 8 other `charts-mirror` sources (headlamp, external-dns ×2, tailscale-operator, volsync, descheduler, metrics-server, keda) all pull fine from the mirror. None has an anonymously pullable official OCI chart: ghcr.io and quay.io return 403, and registry.k8s.io returns not found. Each has an official HTTPS Helm repo (kubernetes-sigs.github.io/{headlamp,external-dns,descheduler,metrics-server}, pkgs.tailscale.com/helmcharts, backube.github.io/helm-charts, kedacore.github.io/charts). Per the plan they stay on the mirror; `FluxResourceNotReadyTooLong` (task 0.5) will catch the next 403. Renovate presets (`Aviator-Coding/mortyops`, local `.renovate/`) are not community presets: no change | fix/upstream-charts PR |
+| 2026-10-31 | Plan change | Owner decision: gate on a few tests now. Evidence: in 59 of the last 60 Validate PR runs, `python-tests` was the only failing job (talos, bootstrap, terraform, renovate-config and docs-guards never failed). Recent causes were brittleness, not catches: the plex tag canary (#2149), the charts-mirror 403 and a factory.talos.dev SSL error. Tasks 1.1 and 1.2 now gate only `# ci: gate` tests; P3 test triage moves up to follow P1 | this file |
