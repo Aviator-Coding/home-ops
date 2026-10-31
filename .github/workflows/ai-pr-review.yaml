@@ -2,8 +2,9 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 #
 # Advisory AI PR review (misospace/pr-reviewer-action) on the in-cluster ARC runner against this
-# cluster's LiteLLM proxy. INVARIANTS: advisory only (comment mode, no approve, never a required
-# check); cannot spend money (zero-priced local pr-review-local, no routing escalation); fork PRs
+# cluster's LiteLLM proxy. INVARIANTS: advisory (comment mode, no approve, never a required check;
+# its own check fails on REQUEST_CHANGES, which .github/ai-review-rules.md reserves for blockers);
+# cannot spend money (zero-priced local pr-review-local, no routing escalation); fork PRs
 # never run it. Key rotation has a second GitHub-secret step. See skill litellm-proxy
 # (.agents/skills/litellm-proxy/references/pr-reviewer.md).
 name: AI PR Review
@@ -93,7 +94,9 @@ jobs:
           publish-review-comment: "true"
           publish-mode: comment
           approve-forks: "false"
-          fail-on-request-changes: "false"
+          # Fails this check on REQUEST_CHANGES, which the rules file reserves for blockers
+          # (goal task 2.4). Still advisory: not part of CI Success.
+          fail-on-request-changes: "true"
           inline-findings: "false"
 
           # Everything that could reach outward or escalate, pinned off against upstream default flips.
