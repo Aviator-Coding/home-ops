@@ -72,7 +72,8 @@ and credential-less `terraform/`. `flate` and `image-pull` only see
 ## Verify
 
 - One gate: `python3 scripts/ci/<name>-test.py`.
-- The set: `for f in scripts/ci/*-test.py; do python3 "$f" || echo "FAILED: $f"; done`.
+- The PR gate: `for f in $(grep -lx '# ci: gate' scripts/ci/*-test.py); do python3 "$f" || echo "FAILED: $f"; done`.
+  The rest run in the non-blocking `python-tests-advisory` job ([scripts/ci/README.md](../../../scripts/ci/README.md)).
 - Docs gates (`docs-budget`, `doc-links`, `functional-comments-guard`) run in
   the `docs-guards` job. `functional-comments-guard` needs `DIFF_GUARD_BASE`.
 - Live ruleset: `gh api repos/Aviator-Coding/home-ops/rulesets/21250320`.

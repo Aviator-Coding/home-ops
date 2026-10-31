@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Semantic regression test for kopiur Stage 3 (fleet-wide parallel run).
+
+Prevents: a claim silently falling out of kopiur backup coverage, or backing up under
+the wrong mover identity.
 
 Stage 3 onboarded every remaining VolSync-protected claim onto kopiur ALONGSIDE
 VolSync, namespace by namespace, one commit each. The safety property of the
