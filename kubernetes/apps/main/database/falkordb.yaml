@@ -18,8 +18,8 @@ spec:
   # healthChecks target the rendered workload, not the HelmRelease - a HelmRelease-kind check reads Ready straight through a live crashloop (AGENTS.
   # Skill `databases`.
   healthChecks:
-    - apiVersion: apps/v1
-      kind: Deployment
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
       name: *app
       namespace: *namespace
   wait: false
