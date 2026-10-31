@@ -6,19 +6,22 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
 `.github/ai-review-rules.md`. Model: `models/pr-review-local.yaml`. Key:
 `virtualkeys/ai-pr-review.yaml`. CI: `scripts/ci/litellm-pr-reviewer-test.py`.
 
-## Advisory only, by construction (captain decision)
+## Advisory, by construction (captain decision); fails its own check on a blocker
 
 - `publish-mode: comment` publishes with `gh pr comment`; the action reaches
   `gh pr review` only in `review_comment`/`review_verdict` modes, so it cannot
   approve or request changes.
-- `approve-forks`, `fail-on-request-changes` stay false; `allow-approve` is deprecated and inert in v3 and stays unset.
+- `approve-forks` stays false; `allow-approve` is deprecated and inert in v3 and stays unset.
+- `fail-on-request-changes: "true"` (goal task 2.4): the AI PR Review check goes red on a
+  `request_changes` verdict, which `.github/ai-review-rules.md` reserves for named blockers. It
+  is still not part of `CI Success`, so it never blocks a merge.
 - v3 flipped several defaults. The workflow pins the v2 advisory posture: `verdict-policy: model`, `deep-review: "false"`, `ci-status-check: "false"`, `tool-mode: "off"`, `inline-findings: "false"`.
 - **Never a required status check** (branch protection:
   skill `github-ci`, `references/branch-protection.md`), and "Allow GitHub Actions to create and approve
   pull requests" stays off.
 - `on-model-failure: notice`: a GPU outage posts "AI review could not run"
-  instead of a red check. That notice carries a `request_changes` verdict, so
-  it stays green only while `fail-on-request-changes` is false.
+  instead of a red check. The action exempts that notice from the
+  `fail-on-request-changes` gate (`fail-on-degraded-review` stays false).
 
 ## Cannot spend money
 

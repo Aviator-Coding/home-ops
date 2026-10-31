@@ -18,8 +18,15 @@ mistake.
 
 Prefer a small number of specific, actionable findings over broad commentary. Anchor each finding
 to a file and, where possible, quote the offending line. Say plainly when a diff looks fine -
-do not invent problems to fill space. You are advisory: you cannot block a merge, so flag risk
-clearly rather than hedging.
+do not invent problems to fill space.
+
+**Verdict.** The verdict is `approve` or `request_changes`, nothing else. Use
+`request_changes` only when the diff breaks a rule marked *blocker* in this file (the hard rules
+below and the blockers in each section): give that finding `severity: blocker` and name the rule.
+Everything else - style, naming, missing docs, a judgement call, a risk you are unsure of - is a
+finding under `approve`. `request_changes` fails this check, so a false blocker costs the owner
+time and teaches them to ignore you; when unsure, it is not a blocker. Anchor every blocker to a
+changed line in this diff, not to pre-existing code.
 
 Renovate opens a large share of this repo's pull requests and they otherwise get no human review.
 Treat them as first-class: check that the bump is in scope for its constraint, that it does not
@@ -41,6 +48,19 @@ agree. A pure digest or patch bump with nothing else in the diff is normally fin
   automatically.
 - **Do not enable "Allow GitHub Actions to create and approve pull requests"**, and do not add a
   workflow that approves PRs.
+- **Silent data loss and outages are blockers** (`AGENTS.md` TRIPWIRES):
+  - a kopiur PVC component or overlay that sets `force: enabled`, drops `ssa: IfNotPresent`, or a
+    Kustomization owning a kopiur/VolSync claim with `wait: true`;
+  - deleting a kopiur `Snapshot` CR, or patching an app's `<app>-dst` `ReplicationDestination`
+    to trigger a restore;
+  - a Flux `healthChecks` entry targeting a `HelmRelease` instead of the workload;
+  - a literal `${...}` in a Flux-reconciled file that is not a Flux substitution variable;
+  - a `CiliumClusterwideNetworkPolicy` with a `nodeSelector` and ingress rules while
+    `enableDefaultDeny.ingress` is not false;
+  - `sessions.vacuum_after_prune: true` on `ai/hermes`;
+  - a `generic-device-plugin` `mountPath` that renames a DRM device node;
+  - a key-changing `ceph auth` command (`get-or-create`, `caps`, `del`, `import`, `rotate`) run by
+    hand, `security.cephx.csi: aes256k`, or a decreasing `keyGeneration`.
 
 ## Flux and Kustomize
 
@@ -65,8 +85,10 @@ agree. A pure digest or patch bump with nothing else in the diff is normally fin
   in the overlay's `substitute` map.
 - **`healthChecks:` must target the rendered workload** (`Deployment`/`StatefulSet`/`DaemonSet`/
   `CronJob`, or a CR whose status is the real signal) - never the `HelmRelease`, whose `Ready` stays
-  `True` straight through a pod crashloop. `wait:` must be `false` or omitted, because `wait: true`
-  makes Flux ignore `spec.healthChecks` entirely. `healthCheckExprs` only runs against objects
+  `True` straight through a pod crashloop. A Kustomization with `healthChecks`, or one that owns a
+  kopiur/VolSync claim, must have `wait:` `false` or omitted, because `wait: true` makes Flux
+  ignore `spec.healthChecks`. Dependency gates (CRDs, operators, secret stores) correctly set
+  `wait: true` - do not flag those. `healthCheckExprs` only runs against objects
   already in the assessment set.
 - VolSync: **one component include covers exactly one volume.** A second PVC needs its own Flux
   Kustomization with `path: ./kubernetes/components/volsync/backup` and `APP` set to the claim name.
@@ -103,7 +125,10 @@ agree. A pure digest or patch bump with nothing else in the diff is normally fin
 - **This repo is public, and jobs on `gha-runner-scale-set-aviator-coding-home-ops` run inside the
   cluster.** Every `pull_request`-reachable job on that runner must carry
   `if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}`. A missing fork
-  guard on an in-cluster job is a blocker. Do not add a `pull_request_target` trigger.
+  guard on an in-cluster job is a blocker. A `pull_request_target` trigger is a blocker unless
+  the job runs on `ubuntu-latest`, checks out only the base (`github.sha` or `base.sha`), never
+  runs PR code, and passes PR-controlled values (`github.event.pull_request.*`) to `run:` only
+  through `env:`, as `risk-tier.yaml` does.
 - The in-cluster runner has no Docker daemon and no Kubernetes API access (`automountServiceAccountToken:
   false`, no ServiceAccount). Anything needing `docker run`, a `docker://` action, or `kubectl` will
   fail there.
