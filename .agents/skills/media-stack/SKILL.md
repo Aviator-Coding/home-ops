@@ -41,7 +41,8 @@ which movie sits on which profile are application database state, not Git.
 9. **Books run Shelfmark -> Calibre-Web-Automated, Usenet only.** Shelfmark
    (`downloads/shelfmark`, env-only config) searches through Prowlarr, SABnzbd saves to
    the `books` category on `shared-downloads`, and the file lands in the CWA NFS ingest
-   folder. Readarr was removed (its kopiur snapshots, Postgres databases and NAS files
+   folder. Shelfmark stays in `downloads` because its RWX claim `shared-downloads` lives
+   there. Readarr was removed (its kopiur snapshots, Postgres databases and NAS files
    were kept). Sonarr and Radarr run no exportarr sidecar: exportarr v2.3.0 rejects any
    API key that is not 20-32 alphanumeric characters.
 10. **Git defines only the Cleanuparr pod.** Instances, the SABnzbd client and the

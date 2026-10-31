@@ -26,8 +26,10 @@ overlay and therefore its kopiur onboarding with it. That is a different event
 from a Stage 5 retirement, which only removes an ENGINE and always leaves the
 claim in this set - see RETIRED_CLAIMS below. autobrr's kopia snapshots were
 deliberately kept. This test pins the fleet coverage set and measured mover
-identities; Stage 4 root-mover / GitOps annotation specifics for
-`home-automation/matter-server` live in `kopiur-stage4-test.py`.
+identities. The privileged-movers namespace annotation that the
+`home-automation/matter-server` root mover needs is skill `kopiur-backups`,
+references/onboarding.md (a missing one stalls the snapshot and fires
+KopiurBackupStaleCeph).
 
 `selfhosted/changedetection-config` (Stage 4, 2026-08-31) never actually needed
 a root mover: the app had NO securityContext at all, so it ran as the image
@@ -56,9 +58,9 @@ This test does not grep source text as its evidence. It:
 Note: EXPECTED_IDENTITY pins the kopiur mover (and the files on disk). VolSync
 often rides a different mover identity because it stages a writable clone and
 kubelet's fsGroup walk rewrites group bits before restic reads - so this file
-does NOT require VOLSYNC_PUID == KOPIUR_PUID fleet-wide. The
-selfhosted/obsidian-livesync VolSync alignment is pinned in
-`selfhosted-backup-identity-test.py`.
+does NOT require VOLSYNC_PUID == KOPIUR_PUID fleet-wide. The VolSync mover
+identity of the paperless-ngx carve-out is pinned in
+`corrupt-claim-recreation-contract-test.py`.
 
 The identity table below is the measured result of execing into every running
 pod on 2026-08-30 and reading uid/gid/mode of every file - NOT the pods'
@@ -480,7 +482,7 @@ _RAW_BUILD: str | None = None
 def _kustomize_build(path: Path) -> str:
     """Build once and memoise - the path is the same for every onboarded claim.
 
-    Mirrors kopiur-stage2-test.py: prefer `kustomize`, fall back to
+    Prefer `kustomize`, fall back to
     `kubectl kustomize`, and surface a build failure as a Failure rather than
     an unhandled CalledProcessError.
     """
