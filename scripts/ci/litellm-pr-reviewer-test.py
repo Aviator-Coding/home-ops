@@ -500,8 +500,8 @@ def test_workflow_contracts() -> dict[str, Any]:
     gate_runs = "\n".join(str(st.get("run", "")) for st in steps)
     record(
         "jev_gate_runs_mains_script",
-        "ai_review_gate.py" in gate_runs and '${BASE}:scripts/ci/ai_review_gate.py' in gate_runs,
-        "the gate step must run the base branch's copy of scripts/ci/ai_review_gate.py",
+        "ai_review_gate.py" in gate_runs and "origin/main:scripts/ci/ai_review_gate.py" in gate_runs,
+        "the gate step must run main's copy of scripts/ci/ai_review_gate.py, never the PR's",
     )
     # An outage notice must keep passing the gate.
     record(

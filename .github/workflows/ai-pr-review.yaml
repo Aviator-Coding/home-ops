@@ -124,19 +124,21 @@ jobs:
           deep-review: "false"
           ci-status-check: "false"
 
-      # Blocking gate: Jev (decision model) answers one yes/no question per blocker rule, plus a
-      # deterministic undefined-Flux-variable check. main's copy of the script runs, never the
-      # PR's, so a PR cannot edit the gate to pass itself. Exit 2 (Jev unreachable) passes with a
+      # Blocking gate: Jev (decision model) answers one yes/no question per blocker rule. It runs
+      # main's copy of the script, not the PR's (a PR can still edit this workflow file; the check
+      # is advisory and .github/workflows/** is risk:high). Exit 2 (could not decide) passes with a
       # notice, like the local model's outage notice. Calibration: goal §8 (D6).
       - name: Blocking gate (Jev)
-        if: steps.cred.outputs.mode == 'review'
+        if: ${{ !cancelled() && steps.cred.outputs.mode == 'review' }}
         env:
           LITELLM_KEY: ${{ secrets.LITELLM_PR_REVIEW_KEY }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          git show "${BASE}:scripts/ci/ai_review_gate.py" > "${RUNNER_TEMP}/ai_review_gate.py" 2>/dev/null \
-            || cp scripts/ci/ai_review_gate.py "${RUNNER_TEMP}/ai_review_gate.py"
+          if ! git show "origin/main:scripts/ci/ai_review_gate.py" > "${RUNNER_TEMP}/ai_review_gate.py" 2>/dev/null; then
+            echo "::notice::main has no scripts/ci/ai_review_gate.py yet; the AI review passes without the gate."
+            exit 0
+          fi
           rc=0
           python3 "${RUNNER_TEMP}/ai_review_gate.py" --base "${BASE}" --head "${HEAD}" > gate.txt || rc=$?
           { echo '```'; cat gate.txt; echo '```'; } >> "${GITHUB_STEP_SUMMARY}"
