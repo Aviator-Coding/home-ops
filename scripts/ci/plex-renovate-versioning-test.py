@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Behavioral regression test for the Plex regex-versioning Renovate rule.
 
-media/plex runs docker.io/plexinc/pms-docker:1.43.1.10611-1e34174b1
+At the time of the original investigation media/plex ran
+docker.io/plexinc/pms-docker:1.43.1.10611-1e34174b1
 (kubernetes/apps/base/media/plex/app/helmrelease.yaml) and zero Renovate PRs
-have ever opened for it, despite 1.43.2/1.43.3/1.43.4 all being live upstream
+had ever opened for it, despite 1.43.2/1.43.3/1.43.4 all being live upstream
 since 2026-09-10 - the dependency dashboard (#489) lists the image but has
 never shown an "Updates:" line for it.
 
@@ -313,7 +314,7 @@ def test_plex_rule_shape(package_rules: list[dict[str, Any]]) -> None:
     )
 
 
-def test_live_tag_matches_investigation() -> None:
+def test_live_tag_has_plex_shape() -> None:
     """The deployed tag must keep the X.Y.Z.BUILD-HASH shape this rule exists for;
     if Plex changes its tag scheme, re-check whether the rule is still needed."""
     text = PLEX_HELMRELEASE.read_text()
@@ -524,7 +525,7 @@ def main() -> int:
     package_rules = load_overrides_package_rules()
 
     run("Plex packageRule shape (docker datasource, regex versioning, no compatibility group, no automerge)", lambda: test_plex_rule_shape(package_rules))
-    run("live helmrelease tag has the X.Y.Z.BUILD-HASH shape the rule exists for", test_live_tag_matches_investigation)
+    run("live helmrelease tag has the X.Y.Z.BUILD-HASH shape the rule exists for", test_live_tag_has_plex_shape)
 
     probe_holder: dict[str, Any] = {}
 
