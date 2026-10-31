@@ -40,7 +40,7 @@ MISE_LIST_ALL_VERSIONS = "false"
 "kubectl" = "1.37.1"
 "aqua:mikefarah/yq" = "4.54.1"
 "opentofu" = "1.13.1"
-"aqua:siderolabs/talos" = "1.14.4"
+"aqua:siderolabs/talos" = "1.14.5"
 "aqua:yannh/kubeconform" = "0.8.0"
 "aqua:nektos/act" = "0.2.89"
 # Standard linters: pre-commit hooks and the validate.yaml `lint` job. CI installs them via
