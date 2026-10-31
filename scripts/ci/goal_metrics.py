@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
+import os
 import subprocess
 import sys
 
@@ -34,16 +36,33 @@ def pass_rate(conclusions: list[str]) -> float:
 
 
 def render_row(day: str, rate: float, runs: int, open_renovate: int) -> str:
-    return f"| {day} | {rate:.1%} | {runs} | {open_renovate} |"
+    """One table row. The rate is floored, so 94.99% never displays as 95.0%."""
+    shown = "n/a" if runs == 0 else f"{math.floor(rate * 1000) / 10:.1f}%"
+    return f"| {day} | {shown} | {runs} | {open_renovate} |"
+
+
+class TableMissing(Exception):
+    """The issue body has text but no metrics table; refuse to overwrite it."""
 
 
 def append_row(body: str | None, row: str) -> str:
-    """Add `row` to the issue body's table, replacing a row for the same day."""
+    """Add `row` after the table's last row, replacing a row for the same day."""
     day = row.split("|")[1].strip()
-    if not body or HEADER not in body:
+    body = (body or "").replace("\r\n", "\n")
+    if not body.strip():
         body = INTRO + HEADER
+    elif HEADER not in body:
+        raise TableMissing("issue body has no metrics table; fix it by hand, history is not overwritten")
     lines = [line for line in body.rstrip("\n").split("\n") if not line.startswith(f"| {day} |")]
-    return "\n".join(lines) + "\n" + row + "\n"
+    header_end = lines.index(HEADER.rstrip("\n").split("\n")[1])
+    last = header_end
+    for i in range(header_end + 1, len(lines)):
+        if lines[i].startswith("| 20"):
+            last = i
+        elif lines[i].strip():
+            break
+    lines.insert(last + 1, row)
+    return "\n".join(lines) + "\n"
 
 
 def gh(*args: str) -> str:
@@ -52,7 +71,7 @@ def gh(*args: str) -> str:
 
 def main() -> int:
     today = dt.date.today()
-    since = (today - dt.timedelta(days=14)).isoformat()
+    since = (today - dt.timedelta(days=13)).isoformat()  # 14 calendar days, today included
     runs = json.loads(gh(
         "run", "list", "--workflow", "ci.yaml", "--event", "pull_request",
         "--created", f">={since}", "--json", "conclusion", "--limit", "1000",
@@ -62,12 +81,21 @@ def main() -> int:
                              "--json", "number", "--limit", "200"))
     row = render_row(today.isoformat(), pass_rate(conclusions),
                      sum(c in {"success", "failure"} for c in conclusions), len(renovate))
-    issues = json.loads(gh("issue", "list", "--state", "open", "--search", f'in:title "{TITLE}"',
-                           "--json", "number,title,body", "--limit", "20"))
+    # Only the workflow's own issue: the repo is public, so a same-titled issue by
+    # anyone else must not be edited. Any state, so a closed issue is reopened, not duplicated.
+    issues = json.loads(gh("issue", "list", "--state", "all", "--author", "app/github-actions",
+                           "--search", f'in:title "{TITLE}"', "--json", "number,title,body,state",
+                           "--limit", "20"))
     issue = next((i for i in issues if i["title"] == TITLE), None)
-    body = append_row(issue["body"] if issue else None, row)
+    try:
+        body = append_row(issue["body"] if issue else None, row)
+    except TableMissing as exc:
+        print(f"FAIL: issue #{issue['number']}: {exc}", file=sys.stderr)
+        return 1
     if issue:
-        gh("issue", "edit", str(issue["number"]), "--body", body)
+        repo = os.environ.get("GH_REPO", "")
+        gh("api", "--method", "PATCH", f"repos/{repo}/issues/{issue['number']}",
+           "-f", f"body={body}", "-f", "state=open")
     else:
         gh("issue", "create", "--title", TITLE, "--body", body)
     print(row)
