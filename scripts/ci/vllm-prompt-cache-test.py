@@ -27,7 +27,8 @@ this file. For each one:
 Values (4096, 0, 128 KiB) are not pinned; relationships are. Why each pin
 exists and when the oneDNN pin may be lifted: skill b70-llm-serving
 (references/memory.md). Not caught: llama.cpp renaming the env var in a new
-image (VLLMMemoryRetainedAboveBound is the runtime detector).
+image (VLLMMemoryRetainedAboveBound is the runtime detector, proven by
+vllm-memory-alert-test.py).
 """
 
 from __future__ import annotations

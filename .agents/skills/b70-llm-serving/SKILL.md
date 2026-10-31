@@ -66,8 +66,8 @@ below are invisible when a rename drops them.
    reservation (baseline plus the cache bound). The limit cannot stop a
    host leak. `VLLMMemoryRetainedAboveBound` floors at 8Gi **and** the
    live instant series, `for: 1h`. `VLLMMemoryExceedsRequest` is ratio
-   > 1 for 30m. Raise the floor with `--cache-ram` in the same change;
-   no CI checks it. Do not raise the request to
+   > 1 for 30m. Raise the floor with `--cache-ram` in the same change
+   (`scripts/ci/vllm-memory-alert-test.py`). Do not raise the request to
    silence the retained-memory alert.
 10. **Inside a `devic.es/b70` container, `/sys/class/drm/card0` is the
     iGPU `0xa7a0`.** The device node is the B70. Read
@@ -99,6 +99,7 @@ below are invisible when a rename drops them.
 
 - `python3 scripts/ci/vllm-prompt-cache-test.py`
 - `python3 scripts/ci/embedding-values-test.py`
+- `python3 scripts/ci/vllm-memory-alert-test.py`
 - The ServiceMonitor `model` and `kv` labels move with `-hf` and
   `--cache-type-k/v`. No test checks it.
 - After a PrometheusRule edit, prove each alert both ways with `promtool

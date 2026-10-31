@@ -65,7 +65,10 @@ for **1h**, AND the live instant series on
 Retained ceiling is ~7338 MiB: baseline ~1232 + `--cache-ram` 4096 + one
 slot's checkpoints ~2010 (32 x 62.8 MiB). The 8 GiB floor sits above
 that ceiling and below the 48Gi limit. Raising `--cache-ram` means
-raising the threshold in the same change; no CI checks it. A range selector keeps
+raising the threshold in the same change. This alert is the only detector
+if a new image renames `GGML_SYCL_FA_ONEDNN`, so
+`scripts/ci/vllm-memory-alert-test.py` proves it fires on a leak, resolves
+once the pod is gone, and keeps that threshold order. A range selector keeps
 samples after the pod is gone, so the live-series `and` is required.
 Without it a terminated pod pages for up to 3h. After an in-place
 container restart the still-live pod keeps its pre-restart floor for
@@ -76,15 +79,17 @@ the 3h window on purpose.
 If the retained-memory alert is also firing, raising the request only
 buys time.
 
-`VLLMMemoryApproachingLimit` is `predict_linear` over 6h and does not
-see a prefill spike. `VLLMMemoryCriticalLimit` is a static ratio > 0.85
-for 15m. Do not replace the retained-memory rule with either.
+`VLLMMemoryApproachingLimit` is `predict_linear` over 6h, projected 24h
+ahead, `for: 1h`, and also needs the current ratio above 0.6, so a fresh
+pod's ramp does not page. It does not see a prefill spike.
+`VLLMMemoryCriticalLimit` is a static ratio > 0.85 for 15m. Do not replace
+the retained-memory rule with either.
 
-`VLLMMemoryApproachingLimit` projects 24h ahead, `for: 1h`, and also
-needs the current ratio above 0.6, so a fresh pod's ramp does not page.
-Every rule excludes `vllm-vllm-embed-.*` and takes its denominator from
-`kube_pod_container_resource_*` (`container_spec_*` is absent here). All are
-`severity: warning` except `VLLMMemoryCriticalLimit` (`critical`).
+Every rule excludes `vllm-vllm-embed-.*`. The three ratio rules take their
+denominator from `kube_pod_container_resource_*` (`container_spec_*` is
+absent here); the retained rule compares against an absolute
+`8 * 1024^3`. All are `severity: warning` except `VLLMMemoryCriticalLimit`
+(`critical`).
 
 Alert annotations name this file. A path change here updates them in the
 same commit.
