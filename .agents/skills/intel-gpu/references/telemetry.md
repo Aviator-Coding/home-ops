@@ -23,7 +23,9 @@ name needs a join: `... * on(pod_uid) group_left(namespace, pod)
 label_replace(kube_pod_info, "pod_uid", "$1", "uid", "(.*)")`. iGPU clients
 report 0 VRAM (shared memory). `xe_gpu_exporter_up 1` with
 `xe_gpu_clients 0` while chat is serving means the scan lost `hostPID` or
-`SYS_PTRACE`. Gate: `scripts/ci/xe-gpu-exporter-test.py`.
+`SYS_PTRACE`. A client counts once per `(pdev, drm-client-id)`, so a dup'd fd
+or forked PID does not double VRAM, and a node reports a total only for a card
+it has.
 
 ## Chat throughput, `ai/vllm` llama-server
 
@@ -31,8 +33,7 @@ The dashboard's last row reads llama-server's own `/metrics`, scraped by the
 `vllm` ServiceMonitor. Those series carry no model label: the ServiceMonitor
 `relabelings` add `model` and `kv`, and the panels group by them so each
 shipped variant is its own line. Change the labels with the `-hf` and
-`--cache-type-k/v` args; `scripts/ci/gpu-node-dashboard-test.py` fails when
-`kv` drifts from `--cache-type-k`.
+`--cache-type-k/v` args; no test checks that `kv` matches `--cache-type-k`.
 
 | Panel | Series |
 |---|---|

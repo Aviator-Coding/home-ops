@@ -37,7 +37,6 @@ NIGHTLY_WF = ROOT / ".github" / "workflows" / "nightly-tests.yaml"
 # Measured 2026-10-31 (Opus code read plus a no-network sandbox run): these call out.
 EXPECTED_NIGHTLY = {
     "grafana-mcp-deploy-test.py",
-    "igpu-xe-allowids-test.py",
     "litellm-pr-reviewer-test.py",
     "litellm-sso-test.py",
     "samba-shared-xml-test.py",

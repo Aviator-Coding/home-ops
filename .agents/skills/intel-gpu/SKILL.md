@@ -77,8 +77,9 @@ invariants above are why a comment edit there is not free.
 - After any device-plugin or kernel change, run the VA-API check in
   [vaapi-check.md](references/vaapi-check.md) on `tdarr-node`. `kubectl describe node` showing
   `devic.es/b70` allocatable is the Level Zero path only.
-- `scripts/ci/igpu-xe-allowids-test.py` pins `allowIDs` and the consumer
-  maps. A retired GPU app must leave that map in the same change.
+- `scripts/ci/b70-vaapi-tdarr-test.py` pins both B70 groups' mountPaths, the
+  config hash and tdarr-node on `devic.es/b70-vaapi`. `allowIDs` and the
+  consumer table in [devices.md](references/devices.md) are prose only.
 - Read-only: B70 energy is
   `rate(node_hwmon_energy_joule_total{instance="talos-3", chip="0000:02:01_0_0000:03:00_0", sensor="energy1"}[5m])`.
   Absence of a VRAM gauge is expected.
