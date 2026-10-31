@@ -3,7 +3,8 @@
 """Semantic regression test for kopiur Stage 0 (operator + repositories only).
 
 Prevents: kopiur operator CRDs not CreateReplace, operator bumps auto-merging, the r2
-repository being re-created, or credentials embedded in Git.
+repository being re-created, credentials embedded in Git, or a pruned PushSecret deleting
+the only copy of a generated credential from 1Password.
 
 Stage 0 is additive by design: install the kopiur operator and declare WHERE
 backups could go, without changing a single existing VolSync backup and without
@@ -629,6 +630,27 @@ def test_no_embedded_credentials(app_docs: list[dict[str, Any]], repo_docs: list
     require(not hits, f"rendered manifests appear to embed credentials: {hits}")
 
 
+def test_no_pushsecret_deletes_its_item() -> None:
+    """No PushSecret may set deletionPolicy: Delete (ESO's default is None).
+
+    Several push the only copy of a generated credential (the wizarr admin password is
+    minted CreatedOnce; the kopiur ceph bucket keys). With Delete, pruning or renaming
+    the PushSecret deletes that 1Password item.
+    """
+    offenders = []
+    for path in sorted((ROOT / "kubernetes").rglob("*.yaml")):
+        text = path.read_text()
+        if "kind: PushSecret" not in text:
+            continue
+        for doc in load_multi(path):
+            if doc.get("kind") != "PushSecret":
+                continue
+            policy = (doc.get("spec") or {}).get("deletionPolicy", "None")
+            if policy != "None":
+                offenders.append(f"{path.relative_to(ROOT)}: deletionPolicy {policy!r}")
+    require(not offenders, f"PushSecrets that delete their 1Password item: {offenders}")
+
+
 def main() -> int:
     tests = []
     failures: list[str] = []
@@ -683,6 +705,7 @@ def main() -> int:
         )
 
     run("volsync_tree_intact", volsync_still_present)
+    run("no_pushsecret_deletes_its_item", test_no_pushsecret_deletes_its_item)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")
