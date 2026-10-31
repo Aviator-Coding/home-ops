@@ -206,13 +206,13 @@ sources not Ready. The 0.4 denials and a 0.5 test alert are recorded in §8.
 
 ### P1 Enforce (target 2026-11-15)
 
-- [ ] 1.1 Add a `CI Success` workflow job that `needs` Flate and Validate and fails if any
+- [x] 1.1 Add a `CI Success` workflow job that `needs` Flate and Validate and fails if any
       of them failed. Skipped jobs pass. `CI Success`, Flate and Validate move to
       `ubuntu-latest` so they run when the cluster is down. Image Pull and the AI review
       stay on the cluster runner and stay advisory. Validate's required `python-tests`
       runs only the tests marked `# ci: gate`: at most 15, each guarding data loss or an
       outage and naming it in its docstring (Opus picks the set, the owner approves it).
-- [ ] 1.2 Every unmarked test leaves the PR gate. Network-calling tests run nightly and
+- [x] 1.2 Every unmarked test leaves the PR gate. Network-calling tests run nightly and
       open an issue on failure. The rest run in an advisory PR job that never blocks,
       until P3 keeps (`enforce`) or deletes each one.
 - [ ] 1.3 Add `.editorconfig`, a YAML formatter, and yamllint, actionlint, zizmor and
@@ -292,3 +292,7 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-31 | 0.5 / D9 | #2148 merged first, so the 4 real charts-mirror OCIRepositories became the test alert: `FluxResourceNotReadyTooLong` pending at 00:37, firing at 01:07 for all 4, resolved after #2147. Alertmanager routes it to `pushover-warning`; Pushover sent 17 notifications in the last 90m with 0 failures. Still open: the owner's confirmation that the notification arrived | #2148 |
 | 2026-10-31 | 1.1 gate set | The owner approved the 12-test gate list from the Opus classification (gate 12, nightly 11, advisory 69). With the network denied, 11 of 12 pass offline locally (`volsync-retired-expiry` needs `boto3`, which the gate job installs) | Task 7b PR |
 | 2026-10-31 | 1.2 | 10 network-calling tests marked `# ci: nightly` and moved to `nightly-tests.yaml`; a sandbox calibration (`igpu-xe-allowids` fails offline, `docs-budget` passes) found no other locally passing advisory test that needs the network | Task 9 PR |
+| 2026-10-31 | 1.1 / P0 exit | First `CI Success` run (#2155, GitHub-hosted): Flate - Success and Validate - Success green, the 14-file gate green. `python-tests-advisory` failed while `Validate - Success` and `CI Success` stayed green, which proves `continue-on-error` inside a called workflow | #2155 |
+| 2026-10-31 | 1.1 red proof | Draft #2158 removed `kind: DaemonSet` from mglru-disable: `Flate - Test` failed and `CI Success` went red. Closed, branch deleted | #2158 |
+| 2026-10-31 | 1.2 | First manual `nightly-tests.yaml` run: only `litellm-sso-test.py` failed (live Authentik), and the workflow opened #2159 with the `ci-nightly` label | #2159 |
+| 2026-10-31 | 0.4 (RBAC) | #2154 merged and reconciled. Impersonating `kube-system:agent-readonly`: create pods no, get secrets no, create pods/exec no, list helmreleases yes, list nodes yes. Still open: the owner's credential migration and mint, then the guard denial in a live session | #2154 |
