@@ -12,9 +12,12 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
   `gh pr review` only in `review_comment`/`review_verdict` modes, so it cannot
   approve or request changes.
 - `approve-forks` stays false; `allow-approve` is deprecated and inert in v3 and stays unset.
-- `fail-on-request-changes: "true"` (goal task 2.4): the AI PR Review check goes red on a
-  `request_changes` verdict, which `.github/ai-review-rules.md` reserves for named blockers. It
-  is still not part of `CI Success`, so it never blocks a merge.
+- The check is decided by the **Jev gate** step (`scripts/ci/ai_review_gate.py`, goal task 2.4):
+  one `predicate` per blocker rule on `POST /v1/decisions` (key allow-lists `jev`), plus a
+  deterministic undefined-Flux-variable check; red at probability >= 0.6. The workflow runs
+  main's copy of the script. The local model only writes the text (`fail-on-request-changes`
+  false); it caught 2 of 5 seeded blockers, Jev 5 of 5 with no false failures (goal §8, D6).
+  Jev unreachable = a notice and a pass. Never part of `CI Success`.
 - v3 flipped several defaults. The workflow pins the v2 advisory posture: `verdict-policy: model`, `deep-review: "false"`, `ci-status-check: "false"`, `tool-mode: "off"`, `inline-findings: "false"`.
 - **Never a required status check** (branch protection:
   skill `github-ci`, `references/branch-protection.md`), and "Allow GitHub Actions to create and approve
