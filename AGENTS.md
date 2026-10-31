@@ -63,7 +63,7 @@ Each is a warning needed before deciding to touch the subsystem; detail is in th
 - **NEVER put plaintext secrets in Git.** App secrets are ExternalSecret + 1Password; bootstrap/Talos secrets are `ref+op://Home-Lab/...` via `vals`. Never seed a Secret with client-side `kubectl apply`. There is no SOPS/age path. Do not store secrets in `**/resources/**` (Renovate ignores it).
 - **`Home-Lab` and `Homelab` are different vaults; Connect cannot see `Home-Lab`, and `SecretSynced` does not mean a non-empty value.** Skill `secrets-1password`.
 - **NEVER run `find /Users/coder`, `find $HOME` or any unbounded home search.** Tools are mise-managed; `kubeconfig` and `talosconfig` are absent in fresh worktrees and that is normal - report and continue.
-- **A `kubectl` on the mise shims silently uses `.mise.toml`'s KUBECONFIG (localhost).** Pass `--kubeconfig`; empty output is the symptom.
+- **A `kubectl` on the mise shims silently uses `.mise.toml`'s KUBECONFIG (read-only `kubeconfig-agent`), which overrides a `KUBECONFIG=` prefix.** Pass `--kubeconfig`; empty output or `Forbidden` is the symptom.
 - **NEVER run `tofu apply` or `tofu destroy` in `terraform/authentik/` without an explicit, current go-ahead.** A green PR is not approval. Skill `authentik-terraform`.
 - **NEVER commit without the pre-commit hooks** (`task setup-dev-env`).
 
@@ -115,6 +115,8 @@ just talos render-config talos-1   # Render a node's machine config
 just talos apply-node talos-1      # Apply config (node names, not IPs)
 for t in scripts/ci/*-test.py; do python3 "$t"; done   # CI gates, including docs-budget
 ```
+
+Default credentials are read-only (`kubeconfig-agent`, `talos/talosconfig-agent`, minted by the owner with `scripts/agent-credentials.sh`), and `.claude/hooks/guard.py` blocks owner-only commands (`is_blocked()` is reusable by other harnesses). Owner writes: `export HOME_OPS_KUBECONFIG=~/.kube/home-ops-admin HOME_OPS_TALOSCONFIG=~/.talos/home-ops-admin`.
 
 Debugging: `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide`, `kubectl get replicationsource,replicationdestination -A`. `kubeconfig` and `talos/talosconfig` are gitignored; `.private/` is local-only.
 

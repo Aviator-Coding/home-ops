@@ -6,8 +6,11 @@ _.python.venv = { path = "{{config_root}}/.venv", create = true, uv_create_args 
 # Optional env file holding the 1Password service-account token for vals/op
 # (e.g. OP_SERVICE_ACCOUNT_TOKEN). Gitignored; see .secrets.env.example.
 _.file = ["{{config_root}}/.secrets.env"]
-KUBECONFIG = "{{config_root}}/kubeconfig"
-TALOSCONFIG = "{{config_root}}/talos/talosconfig"
+# Agent sessions default to read-only credentials (scripts/agent-credentials.sh, goal §3).
+# Owner writes: export HOME_OPS_KUBECONFIG=~/.kube/home-ops-admin HOME_OPS_TALOSCONFIG=~/.talos/home-ops-admin.
+# A plain KUBECONFIG=... prefix does not work here: mise [env] overrides it.
+KUBECONFIG = "{{ get_env(name='HOME_OPS_KUBECONFIG', default=config_root ~ '/kubeconfig-agent') }}"
+TALOSCONFIG = "{{ get_env(name='HOME_OPS_TALOSCONFIG', default=config_root ~ '/talos/talosconfig-agent') }}"
 # minijinja-cli config used by the `just` render path (talos/*.j2 templates)
 MINIJINJA_CONFIG_FILE = "{{config_root}}/.minijinja.toml"
 # `mod` imports in the root .justfile require unstable features on older `just`

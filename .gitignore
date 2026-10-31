@@ -12,9 +12,11 @@
 # Template config files
 /cluster.yaml
 /nodes.yaml
-# Kubernetes
+# Kubernetes (the -agent files are read-only creds from scripts/agent-credentials.sh)
 kubeconfig
 talosconfig
+kubeconfig-agent
+talosconfig-agent
 # Misc.
 .private/
 .task/
@@ -31,6 +33,8 @@ Thumbs.db
 # Claude Code artifacts
 .claude/*
 !.claude/skills
+!.claude/settings.json
+!.claude/hooks/
 logs/
 specs/
 reports/

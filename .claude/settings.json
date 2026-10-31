@@ -1,0 +1,43 @@
+{
+  "enabledPlugins": {
+    "superpowers@anthropic-plugin-directory": true,
+    "exa-deep-research@anthropic-plugin-directory": true
+  },
+  "permissions": {
+    "deny": [
+      "Bash(gh pr merge *)",
+      "Bash(gh api *-X*)",
+      "Bash(gh api *--method*)",
+      "Bash(git push *--force*)",
+      "Bash(git push * -f*)",
+      "Bash(talosctl apply-config *)",
+      "Bash(talosctl upgrade *)",
+      "Bash(talosctl reboot *)",
+      "Bash(talosctl reset *)",
+      "Bash(tofu apply *)",
+      "Bash(tofu destroy *)",
+      "Bash(kubectl apply *)",
+      "Bash(kubectl delete *)",
+      "Bash(kubectl patch *)",
+      "Bash(kubectl edit *)",
+      "Bash(kubectl replace *)",
+      "Read(~/.kube/home-ops-admin)",
+      "Read(~/.talos/home-ops-admin)",
+      "Read(/kubeconfig)",
+      "Read(/talos/talosconfig)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
