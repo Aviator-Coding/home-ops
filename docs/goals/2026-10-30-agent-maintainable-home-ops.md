@@ -1,6 +1,6 @@
 # Goal: agent-maintainable home-ops
 
-Status: **draft, awaiting owner review** · Started 2026-10-30 · Tracking: the checklists in this file
+Status: **approved by the owner 2026-10-30** · Started 2026-10-30 · Tracking: the checklists in this file
 
 ## 1. Task
 
@@ -278,3 +278,4 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | Date | Criterion | Result | Link |
 |---|---|---|---|
 | 2026-10-30 | Baseline | §2 | this file |
+| 2026-10-30 | Goal approved | owner approved this file in-session; P0 started | this file |
