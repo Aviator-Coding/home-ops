@@ -4,9 +4,10 @@
 # agent cannot mislabel its own PR, and turns on auto-merge only for risk:low.
 #
 # pull_request_target on purpose: it runs main's copy of this workflow and checks out
-# main's classifier, never the PR's code, so a PR cannot edit either to label itself low.
-# Auto-merge is enabled only while main's rules require `CI Success`; before the ruleset
-# switch (goal task 1.4) this job only labels. Pin: scripts/ci/risk-tier-test.py.
+# main's classifier (github.sha), never the PR's code, so a PR cannot edit either to label
+# itself low. Auto-merge is enabled only while main's rules require `CI Success` from
+# GitHub Actions; before the ruleset switch (goal task 1.4) this job only labels. Any
+# failure or cancellation disables auto-merge. Pin: scripts/ci/risk-tier-test.py.
 name: Risk Tier
 
 on:
@@ -28,14 +29,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write # enable or disable auto-merge
-      issues: write
-      pull-requests: write
+      contents: read
+      pull-requests: write # labels
     steps:
       - name: Checkout main's classifier
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           sparse-checkout: scripts/ci/risk_tier.py
           sparse-checkout-cone-mode: false
@@ -47,21 +47,37 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          CHANGED: ${{ github.event.pull_request.changed_files }}
         run: |
+          gh api --paginate "repos/${REPO}/pulls/${PR}/files" --jq '.[].filename' > files.txt
           # previous_filename too: a rename out of a risk:high path keeps that path's tier.
-          gh api --paginate "repos/${REPO}/pulls/${PR}/files" \
-            --jq '.[] | .filename, (.previous_filename // empty)' > files.txt
+          gh api --paginate "repos/${REPO}/pulls/${PR}/files" --jq '.[].previous_filename // empty' > renamed.txt
+          listed="$(wc -l < files.txt | tr -d ' ')"
           update=""
-          # Only Renovate's own labels count; anyone else adding type/patch changes nothing.
           if [[ "${AUTHOR}" == "mortyops[bot]" ]]; then
-            labels="$(gh pr view "${PR}" --repo "${REPO}" --json labels --jq '.labels[].name')"
-            if grep -qx 'type/digest' <<< "${labels}"; then update="digest"
-            elif grep -qx 'type/patch' <<< "${labels}"; then update="patch"
+            # Trust Renovate's update type only if Renovate wrote every commit and set the label.
+            foreign="$(gh api --paginate "repos/${REPO}/pulls/${PR}/commits" \
+              --jq '.[] | select(.author.login != "mortyops[bot]" or .commit.verification.verified != true) | .sha')"
+            labels="$(gh api --paginate "repos/${REPO}/issues/${PR}/labels" --jq '.[].name')"
+            labelers="$(gh api --paginate "repos/${REPO}/issues/${PR}/events" \
+              --jq '.[] | select(.event == "labeled" and (.label.name | startswith("type/"))) | .actor.login' | sort -u)"
+            if [[ -z "${foreign}" && "${labelers}" == "mortyops[bot]" ]] \
+              && ! grep -qxE 'type/(major|minor)' <<< "${labels}"; then
+              if grep -qx 'type/digest' <<< "${labels}"; then
+                update="digest"
+              elif grep -qx 'type/patch' <<< "${labels}"; then
+                update="patch"
+              fi
             fi
           fi
-          tier="$(python3 scripts/ci/risk_tier.py --update "${update}" < files.txt)"
+          if [[ "${listed}" != "${CHANGED}" || "${listed}" -ge 3000 ]]; then
+            # The files API stops at 3000; an incomplete list must never read as low.
+            tier="risk:high"
+          else
+            tier="$(cat files.txt renamed.txt | python3 scripts/ci/risk_tier.py --update "${update}")"
+          fi
           echo "tier=${tier}" >> "${GITHUB_OUTPUT}"
-          { echo "Risk tier: \`${tier}\` ($(wc -l < files.txt) files, renovate update: ${update:-none})"; } >> "${GITHUB_STEP_SUMMARY}"
+          echo "Risk tier: \`${tier}\` (${listed}/${CHANGED} files, renovate update: ${update:-none})" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Label
         env:
@@ -76,21 +92,43 @@ jobs:
           done
           gh pr edit "${PR}" --repo "${REPO}" --add-label "${TIER}" "${remove[@]}"
 
+      # The bot App merges, not GITHUB_TOKEN, so `push: main` workflows still run after it.
+      - name: Bot token
+        id: app-token
+        if: ${{ !cancelled() }}
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Auto-merge risk:low only
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
           TIER: ${{ steps.classify.outputs.tier }}
           DRAFT: ${{ github.event.pull_request.draft }}
           FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
+          # CI Success must be required from GitHub Actions (app 15368), not from any status poster.
           required="$(gh api "repos/${REPO}/rules/branches/main" \
-            --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | index("CI Success") != null')"
+            --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]
+                   | select(.context == "CI Success" and .integration_id == 15368)] | length > 0')"
           if [[ "${TIER}" == "risk:low" && "${required}" == "true" && "${DRAFT}" != "true" && "${FORK}" != "true" ]]; then
-            gh pr merge "${PR}" --repo "${REPO}" --auto --squash
+            gh pr merge "${PR}" --repo "${REPO}" --auto --squash --match-head-commit "${HEAD}"
           else
             # A later push can raise the tier: never leave auto-merge on for a non-low PR.
             gh pr merge "${PR}" --repo "${REPO}" --disable-auto 2>/dev/null || true
             echo "No auto-merge: tier=${TIER} ci-success-required=${required} draft=${DRAFT} fork=${FORK}"
           fi
+
+      - name: Disable auto-merge on any failure
+        if: ${{ failure() || cancelled() }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr merge "${PR}" --repo "${REPO}" --disable-auto 2>/dev/null || true

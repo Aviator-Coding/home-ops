@@ -6,7 +6,8 @@ highest tier of its paths. A Renovate digest or patch update with no risk:high
 path is risk:low. Unknown paths are risk:normal, never low.
 
 CLI (used by .github/workflows/risk-tier.yaml): changed paths on stdin, one per
-line; optional `--update <renovate update type>`; prints the tier label.
+line; optional `--update <renovate update type>` (the workflow passes it only for a
+verified Renovate PR); prints the tier label.
 Tested by scripts/ci/risk-tier-test.py.
 """
 
@@ -25,8 +26,22 @@ HIGH = [
     "kubernetes/apps/*/system-upgrade/**", "kubernetes/apps/*/renovate/**",
     "kubernetes/components/kopiur/**", "kubernetes/components/volsync/**",
     "kubernetes/apps/base/system/kopiur/**",
-    ".github/workflows/**", ".renovaterc.json5", ".renovate/**",
+    ".github/workflows/**", ".renovate/**",
+    # Every filename Renovate reads its config from (some take precedence over .renovaterc.json5).
+    ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5",
+    ".github/renovate.json", ".github/renovate.json5", ".gitlab/renovate.json",
     ".claude/hooks/**", ".claude/settings.json",
+]
+# Files that steer agents or the AI reviewer: never low, so the owner merges them.
+STEERING = [
+    "AGENTS.md", "CLAUDE.md", "**/AGENTS.md", ".github/ai-review-rules.md", ".claude/**",
+    ".agents/**/scripts/**",
+]
+# Cluster-wide paths a Renovate patch must not auto-merge into (they keep their path tier).
+RENOVATE_NOT_LOW = [
+    "kubernetes/apps/*/kustomization.yaml", "kubernetes/components/**",
+    "kubernetes/apps/*/system/**", "kubernetes/apps/*/system-controller/**",
+    "kubernetes/apps/*/actions-runner-system/**", "kubernetes/apps/*/database/**",
 ]
 NORMAL = [
     "kubernetes/**", "scripts/**", ".taskfiles/**", ".justfile", "*/mod.just", ".mise.toml",
@@ -55,12 +70,14 @@ _HIGH = [_regex(g) for g in HIGH]
 _NORMAL = [_regex(g) for g in NORMAL]
 _LOW = [_regex(g) for g in LOW]
 _LOW_EXCEPT = [_regex(g) for g in LOW_EXCEPT]
+_STEERING = [_regex(g) for g in STEERING]
+_RENOVATE_NOT_LOW = [_regex(g) for g in RENOVATE_NOT_LOW]
 
 
 def path_tier(path: str) -> str:
     if any(r.match(path) for r in _HIGH):
         return "risk:high"
-    if any(r.match(path) for r in _NORMAL):
+    if any(r.match(path) for r in _NORMAL) or any(r.match(path) for r in _STEERING):
         return "risk:normal"
     if any(r.match(path) for r in _LOW) and not any(r.match(path) for r in _LOW_EXCEPT):
         return "risk:low"
@@ -72,7 +89,9 @@ def tier(paths: list[str], renovate_update: str | None = None) -> str:
         return "risk:normal"
     tiers = [path_tier(p) for p in paths]
     highest = max(tiers, key=RANK.__getitem__)
-    if renovate_update in {"digest", "patch"} and highest != "risk:high":
+    if (renovate_update in {"digest", "patch"} and highest != "risk:high"
+            and not any(r.match(p) for p in paths for r in _RENOVATE_NOT_LOW)
+            and not any(r.match(p) for p in paths for r in _STEERING)):
         return "risk:low"
     return highest
 

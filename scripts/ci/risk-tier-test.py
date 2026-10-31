@@ -56,6 +56,9 @@ HIGH = [
     ".renovate/groups.json5",
     ".claude/hooks/guard.py",
     ".claude/settings.json",
+    "renovate.json",
+    ".github/renovate.json5",
+    ".renovaterc",
     "talos/AGENTS.md",
     "talos/mod.just",
 ]
@@ -75,8 +78,16 @@ NORMAL = [
 LOW = [
     "docs/goals/knowledge-ledger.md",
     ".agents/skills/github-ci/SKILL.md",
-    "AGENTS.md",
     "README.md",
+]
+# Agent-steering files: never low, so the owner merges them.
+NORMAL += [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "kubernetes/apps/base/ai/AGENTS.md",
+    ".github/ai-review-rules.md",
+    ".claude/agents/reviewer.md",
+    ".agents/skills/image-generation/scripts/generate_image.py",
 ]
 
 for p in HIGH:
@@ -96,6 +107,13 @@ expect(["kubernetes/apps/base/media/plex/app/helmrelease.yaml"], "risk:normal", 
 expect(["kubernetes/apps/base/media/plex/app/helmrelease.yaml"], "risk:normal", "major")
 expect(["kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml"], "risk:high", "patch")
 expect([".github/workflows/ci.yaml"], "risk:high", "digest")
+# Renovate patches never auto-merge into cluster-wide paths or steering files.
+expect(["kubernetes/apps/main/kustomization.yaml"], "risk:normal", "patch")
+expect(["kubernetes/components/common/namespace.yaml"], "risk:normal", "patch")
+expect(["kubernetes/apps/base/system/openebs-hostpath/app/helmrelease.yaml"], "risk:normal", "digest")
+expect(["kubernetes/apps/base/database/cloudnative-pg/app/helmrelease.yaml"], "risk:normal", "patch")
+expect([".agents/skills/image-generation/scripts/generate_image.py"], "risk:normal", "patch")
+expect([".mise.toml"], "risk:low", "patch")
 # No path tricks: a high directory name deeper in a normal path is not high.
 expect(["kubernetes/apps/base/media/network-tools/app/helmrelease.yaml"], "risk:normal")
 expect(["docs/" + "talos/notes.md"], "risk:low")  # synthetic path; built so doc-links skips it
