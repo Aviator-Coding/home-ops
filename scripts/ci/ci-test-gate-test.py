@@ -62,6 +62,7 @@ EXPECTED_GATE = {
     "kopiur-stage5-test.py",
     "pvc-mover-readable-check-test.py",
     "pvc-writable-check-test.py",
+    "risk-tier-test.py",
     "volsync-retired-expiry-test.py",
 }
 
