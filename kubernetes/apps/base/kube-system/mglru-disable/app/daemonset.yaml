@@ -1,6 +1,5 @@
 ---
 apiVersion: apps/v1
-kind: DaemonSet
 metadata:
   name: mglru-disable
   namespace: kube-system
