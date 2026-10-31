@@ -69,7 +69,10 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
     HelmChart, Bucket) is not `Ready=True` for 30m, aggregated
     over kind, namespace and name so retries flipping False/Unknown and
     changing `reason` do not reset the timer; fix the cause,
-    then `flux reconcile hr <name> -n <ns> --reset`.
+    then `flux reconcile hr <name> -n <ns> --reset` (a source:
+    `flux reconcile source <kind> <name> -n <ns>`). A stuck source blocks
+    every upgrade it serves while its HelmReleases stay Ready on the last
+    artifact. This item is the alert's `runbook_url`.
 
 ## Where things live
 
