@@ -18,16 +18,21 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   flate:
     uses: ./.github/workflows/flate.yaml
-    secrets: inherit
+    # Only the flate diff job comments on the PR; a called workflow cannot exceed the caller's grant.
+    permissions:
+      contents: read
+      pull-requests: write
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
 
+  # validate.yaml reads no secret, so it gets none.
   validate:
     uses: ./.github/workflows/validate.yaml
-    secrets: inherit
 
   success:
     # always(), not !cancelled(): GitHub counts a skipped required check as passing, so a

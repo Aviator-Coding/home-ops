@@ -1,0 +1,16 @@
+---
+# Standard YAML lint, run by the pre-commit `yamllint` hook and the validate.yaml `lint` job
+# (`yamllint -s .`). Tightened only as far as the tree passes.
+extends: relaxed
+
+rules:
+  # Manifests carry long URLs, schema comments and inline scripts.
+  line-length: disable
+  # Most manifests start with a `# yaml-language-server` comment, not `---`.
+  document-start: disable
+
+ignore: |
+  *.j2
+  *.gotmpl
+  **/templates/**
+  .github/docker/**

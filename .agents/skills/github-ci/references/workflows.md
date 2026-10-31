@@ -30,8 +30,14 @@ safe to require later. A trigger-level filter leaves the check `Expected` foreve
 on PRs outside the path list.
 
 Jobs: `talos`, `versions`, `bootstrap`, `renovate-config`, `terraform`,
-`docs-guards`, `python-tests` (the `# ci: gate` files), `python-tests-advisory`
+`docs-guards`, `lint`, `python-tests` (the `# ci: gate` files), `python-tests-advisory`
 (the rest, never blocks), plus the aggregate that `ci.yaml`'s `CI Success` reads.
+
+`lint` runs `yamllint -s .`, `actionlint`, `zizmor --offline --min-severity medium`
+and `shellcheck` over the whole tree (configs: `.yamllint.yaml`, `.github/actionlint.yaml`,
+`.github/zizmor.yml`). The same tools are pre-commit hooks; `yamlfmt` is manual-stage only.
+`ci.yaml` passes `flate.yaml` exactly `BOT_APP_ID` and `BOT_APP_PRIVATE_KEY`, never
+`secrets: inherit`.
 
 `terraform` here is `tofu fmt` + `tofu validate -backend=false`. It cannot see a
 destructive plan.
