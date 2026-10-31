@@ -412,16 +412,15 @@ def test_model_render(cfg: dict) -> None:
             f"model_info={sinfo!r}",
         )
 
-    # claude-fable-5 (the OLDER, unrelated Fable 5 model) must still use the
-    # env credential and stay entirely untouched by this change - proves the
-    # Fable addition above is a distinct new CR, not a rewrite or rename of
-    # the existing metered one.
+    # claude-fable-5 (the OLDER, unrelated Fable 5 model) now rides the cliproxyapi
+    # subscription on the shared CLIPROXYAPI_API_KEY (never the client placeholder, never the
+    # metered ANTHROPIC_API_KEY) - proves the Fable addition above is a distinct new CR.
     old_fable = by_name(cfg["model_list"], "claude-fable-5")
     record(
-        "unrelated_claude_fable_5_metered_still_uses_shared_env_key",
+        "unrelated_claude_fable_5_uses_cliproxyapi_key",
         bool(old_fable)
         and (old_fable.get("litellm_params") or {}).get("api_key")
-        == "os.environ/ANTHROPIC_API_KEY",
+        == "os.environ/CLIPROXYAPI_API_KEY",
         f"api_key={(old_fable or {}).get('litellm_params', {}).get('api_key')!r}",
     )
 

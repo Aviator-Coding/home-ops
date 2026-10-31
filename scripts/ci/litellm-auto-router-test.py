@@ -656,12 +656,10 @@ def test_local_pricing_split(cfg: dict) -> None:
     # cloud model the bundled cost map does not know, whose declared price IS
     # the invoice (without it LiteLLM would record $0 for real spend). Such a
     # model must route to a cloud provider, never a local backend.
-    # OpenRouter embedding, plus the Anthropic 5.5 ids absent from the v1.103.1 cost map.
+    # OpenRouter embedding only: the Anthropic 5.5 org routes moved to the cliproxyapi
+    # subscription ($0, models/cliproxy-*), so they no longer carry invoice prices.
     invoice_priced = {
         "qwen/qwen3-embedding-8b",  # OpenRouter, $0.01/1M input (2026-09-27)
-        "claude-haiku-5-5",
-        "claude-sonnet-5-5",
-        "claude-opus-5-5",
     }
     record(
         "only_the_demo_alias_carries_synthetic_prices",

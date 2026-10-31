@@ -177,6 +177,16 @@ route is LAN-only.
   limit is the `litellm-consume-projects` key budget only; never add a
   `provider_budget_config.anthropic`, which would filter the subscription
   pass-throughs too.
+- Org-key Claude routes on cliproxyapi: `claude-fable-5`, `claude-haiku-5-5`,
+  `claude-opus-4-5-20251101`, `-4-6`, `-4-7`, `-4-8`, `claude-opus-5-5`,
+  `claude-sonnet-4-5-20250929`, `-4-6` and `claude-sonnet-5-5` are
+  `openai/<id>` on `http://cliproxyapi.ai.svc.cluster.local:8317/v1` with
+  `CLIPROXYAPI_API_KEY` and explicit $0 on every price field (Max
+  subscription, no invoice). Only the four `*-metered` CRs still use
+  `ANTHROPIC_API_KEY`, as the auto-router and fallback targets. If
+  cliproxyapi is down these routes fail with no metered fallback, so the
+  `litellm-consume-projects` $100 cap now guards only the remaining metered
+  and OpenAI routes.
 
 ## Rate-limiting the shared GPU deployment (`embedding-local`)
 
