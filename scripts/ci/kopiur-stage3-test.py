@@ -2,8 +2,9 @@
 # ci: gate
 """Semantic regression test for kopiur Stage 3 (fleet-wide parallel run).
 
-Prevents: a claim silently falling out of kopiur backup coverage, or backing up under
-the wrong mover identity.
+Prevents: a claim silently falling out of kopiur backup coverage, backing up under
+the wrong mover identity, or an app and its claim pruned because its overlay file is
+not listed in its namespace kustomization.yaml.
 
 Stage 3 onboarded every remaining VolSync-protected claim onto kopiur ALONGSIDE
 VolSync, namespace by namespace, one commit each. The safety property of the
@@ -680,6 +681,117 @@ def test_volsync_still_on_every_unretired_claim() -> None:
     )
 
 
+def _resources(root: Path) -> list[Path]:
+    """Files (and, recursively, directories) a kustomization.yaml in `root` includes."""
+    kfile = root / "kustomization.yaml"
+    if not kfile.is_file():
+        return []
+    k = yaml.safe_load(kfile.read_text()) or {}
+    out: list[Path] = []
+    for entry in (k.get("resources") or []) + (k.get("components") or []):
+        if not isinstance(entry, str) or "://" in entry:
+            continue
+        target = (root / entry).resolve()
+        if target.is_dir():
+            out.extend(_resources(target))
+        elif target.is_file():
+            out.append(target)
+    return out
+
+
+def test_every_overlay_file_is_listed() -> None:
+    """Every kubernetes/apps/main overlay file is reachable from the root kustomization.
+
+    The namespace Kustomizations run `prune: true`, so dropping an overlay file from its
+    kustomization.yaml prunes the app and its claim. The coverage checks above walk the
+    directory, not the kustomization, and would never notice.
+    """
+    listed = {p for p in _resources(APPS_MAIN.resolve()) if p.suffix == ".yaml"}
+    unlisted = sorted(
+        str(p.relative_to(APPS_MAIN))
+        for p in APPS_MAIN.rglob("*.yaml")
+        if p.name != "kustomization.yaml" and p.resolve() not in listed
+    )
+    require(not unlisted, f"overlay files not listed in their kustomization.yaml: {unlisted}")
+
+
+# Claims created by a chart that is not app-template, so the PVC name cannot be derived
+# from the values here. Each still needs persistence enabled on a release of that name.
+CHART_OWNED_CLAIMS = {
+    # surrealdb chart 0.4.0 names its data PVC after the release.
+    ("database", "surrealdb"),
+}
+
+
+def _is_app_template(release: dict[str, Any]) -> bool:
+    spec = release.get("spec") or {}
+    ref = (spec.get("chartRef") or {}).get("name")
+    chart = (((spec.get("chart") or {}).get("spec")) or {}).get("chart")
+    return "app-template" in (ref, chart)
+
+
+def _app_template_claims(release: dict[str, Any]) -> set[str]:
+    """PVC names app-template creates: forceRename, else the release name for a single
+    claim, else <release>-<identifier> (a second entry renames the first)."""
+    name = (release.get("spec") or {}).get("releaseName") or release["metadata"]["name"]
+    created = {
+        ident: entry
+        for ident, entry in (((release.get("spec") or {}).get("values") or {}).get("persistence") or {}).items()
+        if isinstance(entry, dict)
+        and entry.get("type") == "persistentVolumeClaim"
+        and not entry.get("existingClaim")
+        and entry.get("enabled", True) is not False
+    }
+    single = len(created) == 1
+    return {
+        entry.get("forceRename") or (name if single else f"{name}-{ident}")
+        for ident, entry in created.items()
+    }
+
+
+def provided_claims(overlay: Path) -> set[str]:
+    """Claim names the Kustomizations in one overlay file create, after substitution."""
+    names: set[str] = set()
+    for d in load_multi(overlay):
+        if d.get("kind") != "Kustomization" or str(d.get("apiVersion", "")).startswith("kustomize.config"):
+            continue
+        spec = d.get("spec") or {}
+        sub = {str(k): str(v) for k, v in (((spec.get("postBuild") or {}).get("substitute")) or {}).items()}
+        base = (REPO / str(spec.get("path") or "")).resolve()
+        files = _resources(base)
+        for comp in spec.get("components") or []:
+            target = (base / comp).resolve()
+            files.extend(_resources(target) if target.is_dir() else [target])
+        ns = (d.get("metadata") or {}).get("namespace") or spec.get("targetNamespace")
+        for f in files:
+            if f.suffix not in (".yaml", ".yml"):
+                continue
+            for doc in [x for x in yaml.safe_load_all(_envsubst(f.read_text(), sub)) if isinstance(x, dict)]:
+                if doc.get("kind") == "PersistentVolumeClaim":
+                    names.add(str((doc.get("metadata") or {}).get("name")))
+                elif doc.get("kind") == "HelmRelease":
+                    if _is_app_template(doc):
+                        names |= _app_template_claims(doc)
+                    elif (ns, doc["metadata"]["name"]) in CHART_OWNED_CLAIMS and (
+                        ((doc.get("spec") or {}).get("values") or {}).get("persistence") or {}
+                    ).get("enabled") is True:
+                        names.add(doc["metadata"]["name"])
+    return names
+
+
+def test_every_covered_claim_is_created() -> None:
+    """Each kopiur-covered claim is created by its own overlay file: a PVC object (an app
+    pvc.yaml, components/kopiur/pvc or components/volsync), or an app-template
+    persistence entry. A renamed claim would leave the SnapshotPolicy backing up nothing."""
+    by_file: dict[Path, set[str]] = {}
+    missing = []
+    for ns, claim, _, _, path in onboarded():
+        provided = by_file.setdefault(path, provided_claims(path))
+        if claim not in provided:
+            missing.append(f"{ns}/{claim} ({path.name} creates {sorted(provided)})")
+    require(not missing, f"kopiur claims no overlay creates: {missing}")
+
+
 def main() -> int:
     tests: list[str] = []
     failures: list[str] = []
@@ -704,6 +816,8 @@ def main() -> int:
     run("depends_on_repository", test_every_onboarded_kustomization_depends_on_repository)
     run("rendered_objects_hold_the_contract", test_rendered_objects_hold_the_contract)
     run("volsync_still_on_every_unretired_claim", test_volsync_still_on_every_unretired_claim)
+    run("every_overlay_file_is_listed", test_every_overlay_file_is_listed)
+    run("every_covered_claim_is_created", test_every_covered_claim_is_created)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")

@@ -13,8 +13,8 @@ Sonarr and Lidarr.
 
 Keep the CronJob's `activeDeadlineSeconds` (a pod that never starts would
 otherwise block every later run under `Forbid`, so `KubeJobFailed` never fires)
-and `successfulJobsHistory: 1` (with none kept, `KubeJobFailed` latches on the
-last failed Job).
+and `successfulJobsHistory: 1` with `ttlSecondsAfterFinished` (with no success
+kept and no expiry, `KubeJobFailed` latches on the last failed Job).
 
 ## Cleanuparr settings (app state, not Git)
 

@@ -8,7 +8,8 @@ copy a token or key into Git.
 - `seerr.${SECRET_DOMAIN}`: `envoy-external` (Plex login for friends).
 - `join.${SECRET_DOMAIN}`: `envoy-external`, invite flow paths only (`/j`, `/join`,
   `/invitation`, `/wizard`, `/static`, `/image-proxy`, `/cinema-posters`, `/reset`,
-  `/favicon.ico`, `/plex/callback`). A new invite-flow path needs a route entry; never add
+  `/favicon.ico`, `/plex/callback`). A new invite-flow path needs a route entry and an `ALLOWED` entry in
+  `scripts/ci/external-routes-test.py`; never add
   `/`, `/admin`, `/settings`, `/api`, `/login` or a bare `/plex`, which expose the admin UI.
 - `wizarr.${SECRET_DOMAIN}`: `envoy-internal`, the admin UI, LAN or VPN only.
 
@@ -27,7 +28,8 @@ bandwidth or storage.
    kept. Wizarr has no env provisioning, so the seed writes its tables through its own models:
    re-check `seed.py` against the schema when bumping the image. The seed sets the admin
    password only when the admin is missing, so `wizarr-generated` stays `refreshPolicy:
-   CreatedOnce`: a regenerated password would reach 1Password but not Wizarr. Still
+   CreatedOnce`: a regenerated password would reach 1Password but not Wizarr. A missing env var
+   aborts the seed before it writes any row. Still
    in the UI: choose the libraries an invite grants, set invite expiry and use limit.
 2. **Seerr** Settings > Users: default permissions, request approval mode, movie and series
    quotas (limit and days). Admins bypass quotas.
