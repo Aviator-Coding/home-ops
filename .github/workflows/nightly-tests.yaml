@@ -47,7 +47,7 @@ jobs:
       # which failed python-tests on every PR with "No version is set for shim:
       # promtool"). Pinned by scripts/ci/mise-install-args-test.py.
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
 
