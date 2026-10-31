@@ -12,14 +12,16 @@ see flux-suspended-alert-test.py), whose `ready` label is "True", "False" or
 
 Loads the real PrometheusRule and evaluates it with promtool:
 
-  - a HelmRelease and a Kustomization Ready=False for 30m fire, naming the
-    object.
+  - a HelmRelease, a Kustomization, an OCIRepository and a HelmRepository
+    Ready=False for 30m fire, naming the object (a source stuck on a 403 left
+    four charts un-upgradable for weeks in 2026-10 with nothing firing).
   - Ready=False for 29m stays pending.
   - Ready=False that recovers to True before 30m never fires.
   - a series flapping between False and Unknown with a changing reason for
     over 30m fires (a retrying release keeps its timer).
   - a suspended object (even flapping), an
-    out-of-scope kind and a Ready=True object never fire.
+    out-of-scope kind (notification-controller Alert) and a Ready=True object
+    never fire.
 """
 
 from __future__ import annotations
@@ -70,7 +72,10 @@ def expected(kind: str, name: str, ns: str) -> dict:
                 f"flux get hr -n {ns} {name} "
                 "(or flux get ks for a Kustomization). If it is Stalled, once "
                 f"the cause is fixed run flux reconcile hr {name} "
-                f"-n {ns} --reset."
+                f"-n {ns} --reset. A source (GitRepository, OCIRepository, "
+                "HelmRepository, HelmChart or Bucket) stuck on an auth or 404 "
+                "error blocks every upgrade of what it serves: inspect it with "
+                f"flux get sources all -n {ns}."
             ),
         },
     }
@@ -96,6 +101,9 @@ def contract(alert: dict) -> None:
         "--reset" in alert["annotations"]["description"],
         "description must say how to recover a Stalled release",
     )
+    for kind in ("HelmRelease", "Kustomization", "GitRepository", "OCIRepository",
+                 "HelmRepository", "HelmChart", "Bucket"):
+        base.require(kind in expr, f"expr must cover {kind}: {expr!r}")
 
 
 def run(rule: dict) -> None:
@@ -131,6 +139,8 @@ def run(rule: dict) -> None:
          "values": always_false},
         {"series": info("OCIRepository", "src", "flux-system", ready="False", reason="Failed"),
          "values": always_false},
+        {"series": info("HelmRepository", "intel", "system", ready="False", reason="Failed"),
+         "values": always_false},
         {"series": info("Alert", "an-alert", "flux-system", ready="False", reason="Failed"),
          "values": always_false},
         *recovers,
@@ -140,6 +150,8 @@ def run(rule: dict) -> None:
         expected("Kustomization", "broken-ks", "media"),
         expected("HelmRelease", "retrying", "ai"),
         expected("Kustomization", "retrying-ks", "media"),
+        expected("OCIRepository", "src", "flux-system"),
+        expected("HelmRepository", "intel", "system"),
     ]
     with tempfile.TemporaryDirectory(prefix="flux-not-ready-alert-") as tmp:
         work = Path(tmp)

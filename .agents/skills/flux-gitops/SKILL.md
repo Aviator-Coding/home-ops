@@ -65,7 +65,8 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
     A HelmRelease that fails its first install goes `Stalled`
     (`MissingRollbackTarget`) and emits no further events, so the one-shot
     Flux Alert event is the only other signal. The rule fires when
-    a HelmRelease or Kustomization is not `Ready=True` for 30m, aggregated
+    a HelmRelease, Kustomization or source (Git/OCI/Helm repository,
+    HelmChart, Bucket) is not `Ready=True` for 30m, aggregated
     over kind, namespace and name so retries flipping False/Unknown and
     changing `reason` do not reset the timer; fix the cause,
     then `flux reconcile hr <name> -n <ns> --reset`.

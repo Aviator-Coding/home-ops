@@ -54,7 +54,7 @@ spec:
         - alert: FluxResourceNotReadyTooLong
           expr: |
             max by (kind, exported_namespace, name) (
-              flux_resource_info{ready!="True", suspended!="True", kind=~"HelmRelease|Kustomization"}
+              flux_resource_info{ready!="True", suspended!="True", kind=~"HelmRelease|Kustomization|GitRepository|OCIRepository|HelmRepository|HelmChart|Bucket"}
             ) == 1
           for: 30m
           annotations:
@@ -69,6 +69,10 @@ spec:
               flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}
               (or flux get ks for a Kustomization). If it is Stalled, once
               the cause is fixed run flux reconcile hr {{ $labels.name }}
-              -n {{ $labels.exported_namespace }} --reset.
+              -n {{ $labels.exported_namespace }} --reset. A source
+              (GitRepository, OCIRepository, HelmRepository, HelmChart or
+              Bucket) stuck on an auth or 404 error blocks every upgrade of
+              what it serves: inspect it with flux get sources all -n
+              {{ $labels.exported_namespace }}.
           labels:
             severity: warning
