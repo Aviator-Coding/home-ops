@@ -7,16 +7,20 @@
 #
 # (.mise.toml maps HOME_OPS_* onto KUBECONFIG/TALOSCONFIG; a plain KUBECONFIG= prefix is overridden.)
 #
-# Writes (both gitignored, both picked up by .mise.toml):
-#   kubeconfig-agent          ServiceAccount kube-system/agent-readonly token (view + agent-readonly-extra)
-#   talos/talosconfig-agent   talosctl client certificate with role os:reader
+# Writes (outside the repo, shared by every worktree, picked up by .mise.toml and Taskfile.yaml):
+#   ~/.kube/home-ops-agent    ServiceAccount kube-system/agent-readonly token (view + agent-readonly-extra)
+#   ~/.talos/home-ops-agent   talosctl client certificate with role os:reader
+#
+# One-time migration before the first run (the admin files must not stay in the checkout):
+#   mkdir -p ~/.kube ~/.talos
+#   mv kubeconfig ~/.kube/home-ops-admin && mv talos/talosconfig ~/.talos/home-ops-admin
+#   chmod 600 ~/.kube/home-ops-admin ~/.talos/home-ops-admin
 #
 # Re-run before the printed expiry. Needs kubectl, talosctl, python3.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-AGENT_KUBECONFIG="${ROOT}/kubeconfig-agent"
-AGENT_TALOSCONFIG="${ROOT}/talos/talosconfig-agent"
+AGENT_KUBECONFIG="${HOME}/.kube/home-ops-agent"
+AGENT_TALOSCONFIG="${HOME}/.talos/home-ops-agent"
 DURATION="${AGENT_TOKEN_DURATION:-720h}"
 
 die() { echo "agent-credentials: $*" >&2; exit 1; }
@@ -36,9 +40,17 @@ kubectl -n kube-system get serviceaccount agent-readonly >/dev/null \
 
 server="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
 ca_data="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')"
+if [[ -z "${ca_data}" ]]; then
+  ca_file="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority}')"
+  [[ -n "${ca_file}" && -f "${ca_file}" ]] || die "admin kubeconfig has no certificate-authority(-data)"
+  ca_data="$(base64 < "${ca_file}" | tr -d '\n')"
+fi
 token="$(kubectl -n kube-system create token agent-readonly --duration="${DURATION}")"
 
 umask 077
+mkdir -p "$(dirname "${AGENT_KUBECONFIG}")" "$(dirname "${AGENT_TALOSCONFIG}")"
+# rm first: umask only applies when the file is created.
+rm -f "${AGENT_KUBECONFIG}"
 cat > "${AGENT_KUBECONFIG}" <<EOF
 apiVersion: v1
 kind: Config
@@ -60,13 +72,13 @@ current-context: agent-readonly@home-ops
 EOF
 
 # The API server can cap token lifetime below the request; report the real expiry.
-expiry="$(python3 - "${token}" <<'PY'
+# The token goes in on stdin, not argv, so it never shows in `ps`.
+expiry="$(printf '%s' "${token}" | python3 -c '
 import base64, datetime, json, sys
-payload = sys.argv[1].split(".")[1]
+payload = sys.stdin.read().split(".")[1]
 claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
 print(datetime.datetime.fromtimestamp(claims["exp"], datetime.timezone.utc).isoformat())
-PY
-)"
+')"
 
 rm -f "${AGENT_TALOSCONFIG}"
 talosctl config new "${AGENT_TALOSCONFIG}" --roles os:reader --crt-ttl "${DURATION}"

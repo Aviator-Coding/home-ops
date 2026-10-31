@@ -31,7 +31,7 @@ StorageClass `ceph-filesystem-rwx`. Retire that only when this probe passes
 against group `csi`. Read-only checks first:
 
 ```bash
-T="kubectl --kubeconfig ./kubeconfig -n rook-ceph exec deploy/rook-ceph-tools --"
+T="kubectl -n rook-ceph exec deploy/rook-ceph-tools --"
 $T ceph fs subvolumegroup ls ceph-filesystem
 $T ceph fs subvolume ls ceph-filesystem --group-name csi-rwx
 $T ceph fs subvolume getpath ceph-filesystem <csi-vol-name> --group-name csi-rwx
@@ -53,7 +53,7 @@ Do not run it against `csi`, it leaves debris. For the kernel-client question,
 check that the node exposes CephFS (built in, so no module is listed):
 
 ```bash
-talosctl --talosconfig talos/talosconfig -n 10.10.10.11 read /proc/filesystems | grep ceph   # expect "nodev	ceph"
+talosctl -n 10.10.10.11 read /proc/filesystems | grep ceph   # expect "nodev	ceph"
 ```
 
 ## Mon store

@@ -24,7 +24,9 @@
       "Read(~/.kube/home-ops-admin)",
       "Read(~/.talos/home-ops-admin)",
       "Read(/kubeconfig)",
-      "Read(/talos/talosconfig)"
+      "Read(/talos/talosconfig)",
+      "Edit(/.claude/**)",
+      "Write(/.claude/**)"
     ]
   },
   "hooks": {

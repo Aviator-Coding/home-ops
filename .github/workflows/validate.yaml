@@ -101,6 +101,8 @@ jobs:
             .agents/skills/**
             .claude/skills
             .claude/skills/**
+            .claude/hooks/**
+            .claude/settings.json
             .github/*.md
             kubernetes/components/**
             kubernetes/apps/base/**

@@ -12,11 +12,9 @@
 # Template config files
 /cluster.yaml
 /nodes.yaml
-# Kubernetes (the -agent files are read-only creds from scripts/agent-credentials.sh)
+# Kubernetes
 kubeconfig
 talosconfig
-kubeconfig-agent
-talosconfig-agent
 # Misc.
 .private/
 .task/
