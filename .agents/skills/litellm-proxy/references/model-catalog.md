@@ -159,11 +159,17 @@ route is LAN-only.
 - `claude-fable-5` (metered, older Fable 5) and `claude-fable-5-1`
   (subscription pass-through, Fable 5.1) are distinct catalog models, not a
   rename.
-- `typesafe/jev-1.13` has no `LiteLLMModel` and must not get one: it is a
-  decisions model that OpenRouter refuses on chat completions. It is absent from OpenRouter's `/models` list (only the per-model endpoints
-  catalog has it), so do not treat it as unmatched. It is reached
-  only through the `/openrouter/alpha/decisions` pass-through
-  ([passthrough-lockdown.md](passthrough-lockdown.md)).
+- `jev` (`models/jev.yaml`, upstream `openrouter/typesafe/jev-1.14`) is a
+  decisions model: OpenRouter refuses it on chat completions, so call it only
+  on `POST /v1/decisions` (OpenAI Decisions body) or `/v1/systemone` (System One
+  body) with `"model": "jev"`; LiteLLM 1.104.2+. It is absent from OpenRouter's
+  `/models` list (only the per-model endpoints catalog has it), so do not treat
+  it as unmatched. It is not published to the AI Hub (`UNPUBLISHED` in
+  `scripts/ci/litellm-ai-hub-test.py`) and only the `jev-decisions` and
+  `litellm-consume-projects` keys allow-list it. Spend is OpenRouter's
+  `usage.cost` (v1.104.3+), logged as call type `adecisions`/`asystemone`.
+  Results: 200 decision; 403 "not allowed to access model" = key lacks `jev`;
+  400 = malformed body; 429/budget = the key's limits.
 - Aviator org catalog, listed 2026-10-13 (14 ids): every id is callable on
   `ANTHROPIC_API_KEY`. Ids that already had a metered CR were left alone.
   `claude-fable-5-1` and `claude-haiku-4-5-20251001` keep the subscription

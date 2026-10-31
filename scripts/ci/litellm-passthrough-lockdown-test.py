@@ -7,7 +7,7 @@ side credential (OPENROUTER_API_KEY, and the household METERED
 ANTHROPIC_API_KEY) and are NOT gated by a virtual key's `models` allow-list
 (that check only fires when the body carries a `model` field). So every
 virtual key must be denied each whole prefix by default, and only the master
-key (proxy admin) may reach the few exact paths listed in PREFIXES below.
+key (proxy admin) may reach the exact paths listed in PREFIXES below (none for /openrouter).
 
 The lockdown is a set of `generalSettings.pass_through_endpoints` entries on
 the LiteLLMProxy CR per prefix. Their ORDER is load-bearing, which is why this
@@ -36,28 +36,21 @@ pinned to the cluster image version by validate.yaml). The semantic checks are
 then re-run against mutated copies (auth dropped, order swapped, catch-all
 removed) to prove each one can fail.
 
-The one non-admin door (captain decision `jev-door-grant`, 2026-09-28): the
-operator-minted `jev-decisions` key, granted `POST /openrouter/alpha/decisions`
-by a one-time admin /key/update (kubernetes/apps/base/ai/litellm/README.md,
-"Granting the jev-decisions key"). The grant itself lives in LiteLLM's DB, so
-CI asserts the parts Git owns:
+No non-admin door exists. The Jev decision model is served natively on
+/v1/decisions and /v1/systemone as the `jev` LiteLLMModel, gated by a normal
+`models` allow-list, so there is no pass-through grant (the former out-of-Git
+`jev-door-grant` is gone). CI asserts the parts Git owns:
 
-  6. The CR exists with alias `jev-decisions`, models exactly
-     [typesafe/jev-1.13], a positive budget, a PushSecret to
-     `litellm-consumer-jev-decisions`, and NO `spec.metadata` - the operator
-     would send a declared one on every reconcile and LiteLLM replaces the
-     whole metadata object, deleting the hand-applied grant.
-  7. No LiteLLMVirtualKey or LiteLLMTeam declares a grant at all.
-  8. The grant list the README runbook applies admits POST /openrouter/alpha/decisions to the real target,
-     and every other probe is refused or lands on a dead loopback (the grant
-     is prefix-matched and method-blind, so only the registry order keeps
-     subpaths and other methods off the provider).
+  6. `LiteLLMModel/jev` routes `openrouter/typesafe/*` on OPENROUTER_API_KEY.
+  7. The `jev-decisions` key is aliased so, allow-lists exactly [jev], has a
+     positive budget and a PushSecret to `litellm-consumer-jev-decisions`.
+  8. No LiteLLMVirtualKey or LiteLLMTeam declares `allowed_passthrough_routes`,
+     and no key allow-lists a raw `typesafe/` id.
 
 Each of 6-8 is re-run against mutations to prove it can fail.
 
 Live proof (virtual keys 403 on each prefix, master key served on the exact
-paths, chat and embedding keys unaffected, the granted key served on the door
-only) needs the running proxy and is produced by the live drill, not by CI.
+paths, chat and embedding keys unaffected, /v1/decisions served for the jev key) needs the running proxy and is produced by the live drill, not by CI.
 """
 
 from __future__ import annotations
@@ -107,15 +100,7 @@ class Prefix:
 PREFIXES: tuple[Prefix, ...] = (
     Prefix(
         prefix="/openrouter",
-        admin_paths=(
-            AdminPath(
-                path="/openrouter/alpha/decisions",
-                method="POST",
-                target="https://openrouter.ai/api/alpha/decisions",
-                credential_header="Authorization",
-                credential_ref="os.environ/OPENROUTER_API_KEY",
-            ),
-        ),
+        admin_paths=(),
         # All 403 against the real proxy in the 2026-09-27 lab run.
         deny_probes=(
             ("POST", "/openrouter/alpha/decisions"),
@@ -177,23 +162,15 @@ ALLOW_PROBES: list[tuple[str, str]] = [
     ("POST", "/v1/messages/count_tokens"),
 ]
 
-# The one non-admin door (captain decision `jev-door-grant`, 2026-09-28): the
-# operator-minted `jev-decisions` key, granted by a one-time admin /key/update
-# that puts JEV_GRANT in its metadata (README "Granting the jev-decisions key").
+# The Jev decision model: a native LiteLLMModel behind /v1/decisions (no pass-through door).
 JEV_KEY_NAME = "jev-decisions"
-JEV_MODELS = ["typesafe/jev-1.13"]
+JEV_MODEL = "jev"
+JEV_MODELS = [JEV_MODEL]
 JEV_REMOTE_KEY = "litellm-consumer-jev-decisions"
-JEV_GRANT = ["/openrouter/alpha/decisions"]
-JEV_DOOR = ("POST", "/openrouter/alpha/decisions", "https://openrouter.ai/api/alpha/decisions")
-# Route-allowed for the granted key by prefix match or method-blindness; each
-# must resolve to the dead catch-all, never the provider.
-JEV_EXTRA_PROBES: tuple[tuple[str, str], ...] = (
-    ("GET", "/openrouter/alpha/decisions"),
-    ("PUT", "/openrouter/alpha/decisions"),
-    ("POST", "/openrouter/alpha/decisions/"),
-    ("POST", "/openrouter/alpha/decisions/x"),
-    ("GET", "/openrouter/alpha/decisions/gen-dec-1"),
-)
+JEV_UPSTREAM_PREFIX = "openrouter/typesafe/"
+JEV_CREDENTIAL = "os.environ/OPENROUTER_API_KEY"
+# /v1/decisions must stay a governed route.
+ALLOW_PROBES.extend([("POST", "/v1/decisions"), ("POST", "/v1/systemone")])
 
 RESULTS: list[dict[str, Any]] = []
 
@@ -225,7 +202,7 @@ def load_rendered() -> tuple[list[dict[str, Any]] | None, str]:
             return [d for d in yaml.safe_load_all(built.stdout) if d], "kustomize"
         return None, f"kustomize failed: {built.stderr[-300:]}"
     docs = [d for d in yaml.safe_load_all(PROXY_PATH.read_text()) if d]
-    for f in sorted((APP_DIR / "virtualkeys").glob("*.yaml")):
+    for f in sorted((APP_DIR / "virtualkeys").glob("*.yaml")) + sorted((APP_DIR / "models").glob("*.yaml")):
         docs += [d for d in yaml.safe_load_all(f.read_text()) if d]
     return docs, "files (no kubectl)"
 
@@ -261,6 +238,10 @@ def structural_findings(entries: list[dict[str, Any]], spec: Prefix) -> list[str
             bad.append(f"{p} catch-all target host {host!r} is not a dead loopback")
         if ce.get("headers"):
             bad.append(f"{p} catch-all carries headers (must not send any credential)")
+    allowed = {p, *(ap.path for ap in spec.admin_paths)}
+    for i, e in ours:
+        if e.get("path") not in allowed:
+            bad.append(f"entry {i} ({e.get('path')}) is not a declared admin path (a reopened door)")
     for ap in spec.admin_paths:
         found = [(i, e) for i, e in ours if e.get("path") == ap.path]
         if len(found) != 1:
@@ -373,39 +354,6 @@ def semantic_findings(
     return bad
 
 
-def granted_findings(entries: list[dict[str, Any]], grant: list[str]) -> list[str]:
-    """The jev-decisions grant must open exactly one real door and nothing else.
-
-    A key whose metadata carries `grant` (the list the README runbook applies)
-    must be admitted on POST /openrouter/alpha/decisions and sent to the real
-    target. Every other probe must either be refused or resolve to a dead
-    loopback: `allowed_passthrough_routes` is prefix-matched and method-blind,
-    so a subpath or another method IS route-allowed, and only the registry
-    order (exact POST entry first, dead catch-all last) keeps it off the
-    provider.
-    """
-    _register(entries)
-    bad: list[str] = []
-    md = {"allowed_passthrough_routes": list(grant)}
-    method, path, target = JEV_DOOR
-    if _refused(md, method, path):
-        bad.append(f"granted key refused on {method} {path}")
-    if _target_for(method, path) != target:
-        bad.append(f"granted {method} {path} would be sent to {_target_for(method, path)!r}, not {target!r}")
-    probes = [p for spec in PREFIXES for p in spec.deny_probes] + list(JEV_EXTRA_PROBES)
-    for pm, pp in probes:
-        if (pm, pp) == (method, path) or _refused(md, pm, pp):
-            continue
-        reach = _target_for(pm, pp)
-        if reach is None or urlparse(str(reach)).hostname not in LOOPBACK_HOSTS:
-            bad.append(f"granted key reaches {reach!r} on {pm} {pp}")
-    for pm, pp in ALLOW_PROBES:
-        if _refused(md, pm, pp):
-            bad.append(f"granted key refused on governed route {pm} {pp}")
-    _clear()
-    return bad
-
-
 def _metadata_grants(docs: list[dict[str, Any]]) -> list[str]:
     """Names of key/team CRs whose declared metadata mentions a pass-through grant."""
     out = []
@@ -417,22 +365,39 @@ def _metadata_grants(docs: list[dict[str, Any]]) -> list[str]:
     return out
 
 
-def jev_key_findings(docs: list[dict[str, Any]]) -> list[str]:
-    """The declared half of the jev-decisions door (virtualkeys/jev-decisions.yaml)."""
+def jev_model_findings(docs: list[dict[str, Any]]) -> list[str]:
+    """models/jev.yaml: the decision model routes to OpenRouter's typesafe ids on the shared key."""
+    models = [d for d in docs if d.get("kind") == "LiteLLMModel" and d["metadata"]["name"] == JEV_MODEL]
+    if len(models) != 1:
+        return [f"expected exactly one LiteLLMModel/{JEV_MODEL}, found {len(models)}"]
+    spec = models[0].get("spec") or {}
+    params = spec.get("params") or {}
     bad: list[str] = []
+    if spec.get("modelName") != JEV_MODEL:
+        bad.append(f"modelName {spec.get('modelName')!r} != {JEV_MODEL!r}")
+    if not str(params.get("model", "")).startswith(JEV_UPSTREAM_PREFIX):
+        bad.append(f"params.model {params.get('model')!r} is not an {JEV_UPSTREAM_PREFIX}* id")
+    if params.get("apiKey") != JEV_CREDENTIAL:
+        bad.append(f"params.apiKey {params.get('apiKey')!r} != {JEV_CREDENTIAL!r}")
+    return bad
+
+
+def jev_key_findings(docs: list[dict[str, Any]]) -> list[str]:
+    """The declared key (virtualkeys/jev-decisions.yaml) and that no key names a raw typesafe id."""
+    bad: list[str] = []
+    for d in docs:
+        if d.get("kind") == "LiteLLMVirtualKey":
+            raw = [m for m in (d.get("spec") or {}).get("models") or [] if str(m).startswith("typesafe/")]
+            if raw:
+                bad.append(f"{d['metadata']['name']} allow-lists raw upstream ids {raw} (use the {JEV_MODEL!r} alias)")
     keys = [d for d in docs if d.get("kind") == "LiteLLMVirtualKey" and d["metadata"]["name"] == JEV_KEY_NAME]
     if len(keys) != 1:
-        return [f"expected exactly one LiteLLMVirtualKey/{JEV_KEY_NAME}, found {len(keys)}"]
+        return bad + [f"expected exactly one LiteLLMVirtualKey/{JEV_KEY_NAME}, found {len(keys)}"]
     spec = keys[0].get("spec") or {}
     if spec.get("keyAlias") != JEV_KEY_NAME:
-        bad.append(f"keyAlias {spec.get('keyAlias')!r} != {JEV_KEY_NAME!r} (the runbook looks the key up by alias)")
+        bad.append(f"keyAlias {spec.get('keyAlias')!r} != {JEV_KEY_NAME!r}")
     if spec.get("models") != JEV_MODELS:
         bad.append(f"models {spec.get('models')!r} != {JEV_MODELS!r}")
-    if "metadata" in spec:
-        bad.append(
-            "spec.metadata is declared: the operator would send it on every /key/update and LiteLLM "
-            "replaces the whole metadata object, deleting the hand-applied grant"
-        )
     raw = spec.get("maxBudget")
     if not (isinstance(raw, str) and float(raw) > 0):
         bad.append(f"maxBudget {raw!r} must be a positive decimal string")
@@ -482,7 +447,9 @@ def main() -> int:
     # the skill's "no virtual key can be granted declaratively" claim is stale.
     for spec in PREFIXES:
         g = semantic_findings(
-            entries, (spec,), metadata={"allowed_passthrough_routes": spec.admin_paths[0].path}
+            entries,
+            (spec,),
+            metadata={"allowed_passthrough_routes": (spec.admin_paths or (AdminPath(spec.prefix + "/x", "", "", "", ""),))[0].path},
         )
         record(
             f"operator_string_metadata_grants_nothing{spec.prefix}",
@@ -503,7 +470,8 @@ def main() -> int:
         if len(ours) >= 2:
             a, b = ours[0], ours[-1]
             swapped[a], swapped[b] = swapped[b], swapped[a]
-        mutations["order_swapped"] = swapped
+        if len(ours) >= 2:
+            mutations["order_swapped"] = swapped
         for name, mutated in mutations.items():
             caught_s = bool(structural_findings(mutated, spec))
             caught_m = bool(semantic_findings(mutated, (spec,)))
@@ -520,32 +488,41 @@ def main() -> int:
             bool(structural_findings(forwarding, spec)),
         )
 
-    # The jev-decisions door: the declared key, the grant it gets, and that
-    # no other key or team declares a grant at all.
+    # The native Jev model and key; no key or team declares a pass-through grant.
+    jm = jev_model_findings(docs)
+    record("jev_model_routes_openrouter_typesafe", not jm, "; ".join(jm))
     j = jev_key_findings(docs)
-    record("jev_decisions_key_declared_without_metadata", not j, "; ".join(j))
+    record("jev_decisions_key_allow_lists_only_the_alias", not j, "; ".join(j))
     others = _metadata_grants(docs)
     record("no_declared_passthrough_grant_on_any_key_or_team", not others, ", ".join(others))
-    g = granted_findings(entries, JEV_GRANT)
-    record("jev_grant_opens_exactly_the_decisions_door", not g, "; ".join(g))
 
-    # Mutation proof for the door.
-    jev_mutations: dict[str, list[dict[str, Any]]] = {}
+    # Mutation proof.
     for name, change in (
-        ("metadata_declared", {"metadata": {"purpose": "x"}}),
         ("models_widened", {"models": JEV_MODELS + ["chat-local"]}),
+        ("raw_upstream_id", {"models": ["typesafe/jev-1.14"]}),
         ("alias_renamed", {"keyAlias": "jev"}),
     ):
         mutated = copy.deepcopy(docs)
         for d in mutated:
             if d.get("kind") == "LiteLLMVirtualKey" and d["metadata"]["name"] == JEV_KEY_NAME:
                 d["spec"].update(change)
-        jev_mutations[name] = mutated
-    for name, mutated in jev_mutations.items():
-        record(f"mutation_jev_{name}_is_caught", bool(jev_key_findings(mutated)))
+        record(f"mutation_jev_key_{name}_is_caught", bool(jev_key_findings(mutated)))
     record(
         "mutation_jev_key_removed_is_caught",
         bool(jev_key_findings([d for d in docs if d.get("kind") != "LiteLLMVirtualKey"])),
+    )
+    for name, change in (
+        ("wrong_provider", {"model": "openai/jev"}),
+        ("wrong_credential", {"apiKey": "os.environ/ANTHROPIC_API_KEY"}),
+    ):
+        mutated = copy.deepcopy(docs)
+        for d in mutated:
+            if d.get("kind") == "LiteLLMModel" and d["metadata"]["name"] == JEV_MODEL:
+                d["spec"]["params"].update(change)
+        record(f"mutation_jev_model_{name}_is_caught", bool(jev_model_findings(mutated)))
+    record(
+        "mutation_jev_model_removed_is_caught",
+        bool(jev_model_findings([d for d in docs if d.get("kind") != "LiteLLMModel"])),
     )
     team_grant = copy.deepcopy(docs) + [
         {
@@ -555,18 +532,15 @@ def main() -> int:
         }
     ]
     record("mutation_declared_team_grant_is_caught", bool(_metadata_grants(team_grant)))
-    for name, grant in (("prefix_widened", ["/openrouter", "/anthropic"]), ("anthropic_added", JEV_GRANT + ["/anthropic/v1/messages"])):
-        record(f"mutation_jev_grant_{name}_is_caught", bool(granted_findings(entries, grant)))
-    swapped = copy.deepcopy(entries)
-    ours = [i for i, e in enumerate(entries) if _under("/openrouter", str(e.get("path", "")))]
-    swapped[ours[0]], swapped[ours[-1]] = swapped[ours[-1]], swapped[ours[0]]
-    record("mutation_jev_order_swapped_is_caught", bool(granted_findings(swapped, JEV_GRANT)))
-    wide = copy.deepcopy(entries)
-    for e in wide:
-        if e.get("path") == "/openrouter/alpha/decisions":
-            e["include_subpath"] = True
-            e.pop("methods", None)
-    record("mutation_jev_door_entry_widened_is_caught", bool(granted_findings(wide, JEV_GRANT)))
+    reopened = copy.deepcopy(entries)
+    reopened.insert(0, {
+        "path": "/openrouter/alpha/decisions",
+        "target": "https://openrouter.ai/api/alpha/decisions",
+        "methods": ["POST"],
+        "auth": True,
+        "headers": {"Authorization": "Bearer os.environ/OPENROUTER_API_KEY"},
+    })
+    record("mutation_reopened_decisions_door_is_caught", bool(structural_findings(reopened, PREFIXES[0])))
 
     failed = [r for r in RESULTS if not r["ok"]]
     print(f"\n{len(RESULTS) - len(failed)}/{len(RESULTS)} passed" + (f", {len(failed)} failed" if failed else ""))

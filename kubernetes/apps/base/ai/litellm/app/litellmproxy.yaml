@@ -73,16 +73,9 @@ spec:
 
     # INVARIANT: provider pass-throughs are admin-only (no virtual key may reach
     # a shared credential). ORDER IS LOAD-BEARING: each exact entry above its
-    # dead-loopback catch-all; never set forward_headers. Only jev-decisions holds
-    # a hand-applied grant. references/passthrough-lockdown.md.
+    # dead-loopback catch-all; never set forward_headers. Jev decisions use the
+    # native /v1/decisions route, not a pass-through. references/passthrough-lockdown.md.
     pass_through_endpoints:
-      - path: /openrouter/alpha/decisions
-        target: https://openrouter.ai/api/alpha/decisions
-        methods: ["POST"]
-        auth: true
-        headers:
-          Authorization: "Bearer os.environ/OPENROUTER_API_KEY"
-          Content-Type: application/json
       - path: /openrouter
         target: http://127.0.0.1:9/openrouter-pass-through-locked
         include_subpath: true
@@ -152,6 +145,7 @@ spec:
       - claude-sonnet-5-5
       - claude-sonnet-5-metered
       - cliproxy-claude
+      - cliproxy-grok
       - deepseek-v4-flash
       - deepseek-v4-flash-0731
       - deepseek-v4-pro

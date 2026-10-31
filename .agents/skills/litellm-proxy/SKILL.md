@@ -41,9 +41,11 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 6. **Key aliases are global and there is no adopt-by-alias.** An existing
    alias leaves the CR `GenerateFailed` forever; `/key/delete` first, which is
    a real rotation. Per-key `aliases` grant nothing.
-7. **Never `spec.metadata` on `jev-decisions`**: it silently deletes the
-   hand-applied pass-through grant.
-   [passthrough-lockdown.md](references/passthrough-lockdown.md)
+7. **Jev is a native decisions model, not a pass-through**: alias `jev`
+   (`models/jev.yaml`), called on `POST /v1/decisions` or `/v1/systemone`.
+   Never re-open `/openrouter/alpha/decisions` or grant
+   `allowed_passthrough_routes`; allow-list `jev`, never a raw `typesafe/` id.
+   [model-catalog.md](references/model-catalog.md)
 8. **Pass-through routes are admin-only by config, and entry order is
    load-bearing**: each exact `/openrouter` or `/anthropic` entry sits above
    its dead-loopback catch-all; never set `forward_headers`.
@@ -86,7 +88,7 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 | Flux overlays | `kubernetes/apps/main/ai/litellm{,-operator,-pgvector}.yaml` |
 | Authentik OIDC provider | `terraform/authentik/litellm.tofu` (skill `authentik-terraform`) |
 | AI PR reviewer | `.github/workflows/ai-pr-review.yaml`, `.github/ai-review-rules.md` |
-| Human runbooks | `kubernetes/apps/base/ai/litellm/README.md` (prerequisites, Jev grant), [claude-code-subscription.md](references/claude-code-subscription.md) (client setup), [spend-logs.md](references/spend-logs.md) (reading request logs) |
+| Human runbooks | `kubernetes/apps/base/ai/litellm/README.md` (prerequisites), [claude-code-subscription.md](references/claude-code-subscription.md) (client setup), [spend-logs.md](references/spend-logs.md) (reading request logs) |
 | CI gates | `scripts/ci/litellm-*-test.py` |
 
 ## Procedures
@@ -96,7 +98,7 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 - Change a fallback chain, then prove it: [fallbacks.md](references/fallbacks.md), [failover-drill.md](references/failover-drill.md).
 - Tune or verify the auto-router: [auto-router.md](references/auto-router.md).
 - Add a subscription family or debug a pass-through 401: [claude-code-subscription.md](references/claude-code-subscription.md).
-- Re-apply the Jev grant, reason about `/openrouter` and `/anthropic`: [passthrough-lockdown.md](references/passthrough-lockdown.md).
+- Reason about `/openrouter` and `/anthropic` pass-throughs: [passthrough-lockdown.md](references/passthrough-lockdown.md).
 - Read a request's prompt/response/cost, retention: [spend-logs.md](references/spend-logs.md).
 - Operator, route, SSO, pod posture, DB bootstrap: [platform.md](references/platform.md).
 

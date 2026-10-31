@@ -48,7 +48,8 @@ APP_DIR = REPO / "kubernetes" / "apps" / "base" / "ai" / "litellm" / "app"
 MODELS_DIR = APP_DIR / "models"
 PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 
-UNPUBLISHED = frozenset({"chat-local-classifier", "pr-review-local", "demo-priced-local"})
+# jev is a decisions model (/v1/decisions only), not a chat model the Hub can try.
+UNPUBLISHED = frozenset({"chat-local-classifier", "pr-review-local", "demo-priced-local", "jev"})
 
 # The operator's typed LiteLLMModel.spec.info fields and the model_info keys
 # they render to; `extra` is merged under them (typed fields win on conflict).

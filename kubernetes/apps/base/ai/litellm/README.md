@@ -48,34 +48,3 @@ PushSecrets, not by hand: `Automation/litellm-sso` (from OpenTofu,
 Until `litellm` exists the ExternalSecret reports `SecretSyncedError`, the
 `litellm-db-init` Job cannot start and the proxy sits in
 `CreateContainerConfigError`: an unmet prerequisite, not a manifest bug.
-
-## Granting the jev-decisions key
-
-`app/virtualkeys/jev-decisions.yaml` declares the key; its access to
-`POST /openrouter/alpha/decisions` is one admin `/key/update` stored only in
-LiteLLM's database (no operator field can express it). Apply it once after
-the key is first minted and again after any recreation of the key. It runs in
-the proxy pod with that pod's master key, looks the key up by alias and never
-prints it:
-
-```bash
-kubectl -n ai exec -i deploy/litellm -c litellm -- python3 - <<'PY'
-import json, os, urllib.parse, urllib.request
-BASE, MASTER = "http://127.0.0.1:4000", os.environ["LITELLM_MASTER_KEY"]
-def call(path, body=None, method="POST"):
-    req = urllib.request.Request(BASE + path, method=method,
-        data=None if body is None else json.dumps(body).encode(),
-        headers={"Authorization": "Bearer " + MASTER, "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
-query = urllib.parse.urlencode({"key_alias": "jev-decisions", "return_full_object": "true"})
-(row,) = call("/key/list?" + query, method="GET")["keys"]
-call("/key/update", {"key": row["token"], "metadata": {"allowed_passthrough_routes": ["/openrouter/alpha/decisions"]}})
-print(call("/key/info?key=" + row["token"], method="GET")["info"]["metadata"])
-PY
-```
-
-It must print `{'allowed_passthrough_routes': ['/openrouter/alpha/decisions']}`.
-The body replaces the key's whole metadata, which is safe only because this
-key has no other metadata; grant exactly that one path. Never add
-`spec.metadata` to the CR: the operator would then overwrite the grant.
