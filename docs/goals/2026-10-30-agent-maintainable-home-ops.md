@@ -68,7 +68,36 @@ digests and patches, and keep 1 to 3 skills.
 - Rules live where any agent can read them: `AGENTS.md`, `.agents/`, issue templates,
   labels and CI. Nothing in the workflow depends on Claude-only config, so Hermes can
   run the same loop.
+- At most 2 open agent PRs at a time. The next task starts only after one merges or
+  closes.
 - The running stack stays as it is.
+
+### Enforced, not just written
+
+Every "never" above has a technical control (task 0.4), so a mistaken agent is stopped
+rather than trusted:
+
+- Agents get a read-only kubeconfig: a ServiceAccount bound to `view`. The admin
+  kubeconfig stays with the owner.
+- Agent permissions allow only read-only `gh` commands. A deny rule or hook blocks
+  `gh pr merge`, `gh api -X PUT|PATCH|DELETE`, `git push --force`, `talosctl
+  apply|upgrade|reboot|reset`, `tofu apply|destroy`, and `kubectl
+  apply|delete|patch|edit|replace`.
+- Hermes gets the same limits from its own ServiceAccount and a fine-grained GitHub
+  token.
+
+### Break-glass
+
+The required check must never stop the owner from fixing a broken cluster. When
+`CI Success` cannot report (GitHub outage, broken workflow), the owner:
+
+1. Sets the ruleset to `disabled` (`gh api -X PUT repos/Aviator-Coding/home-ops/rulesets/21250320`
+   with `enforcement: disabled`).
+2. Merges the fix.
+3. Sets enforcement back to `active`.
+4. Adds an evidence-log row (§8) saying why.
+
+Agents never do this.
 
 ### Out of scope
 
@@ -77,7 +106,7 @@ repo ready for Hermes to use.
 
 ## 4. Definition of done
 
-All eight criteria must hold.
+All nine criteria must hold.
 
 | # | Criterion | Check |
 |---|---|---|
@@ -89,6 +118,7 @@ All eight criteria must hold.
 | D6 | The AI review fails its check on at least 4 of 5 seeded known-bad PRs, with no more than 1 false failure on 5 known-good PRs | seeded-PR results recorded in §8 |
 | D7 | Three consecutive non-Renovate issues, at least one `risk:high`, go issue → plan → PR → merge through the workflow with no manual fix-up commits | the issues linked in §8 |
 | D8 | Every skill section and test removed under this goal has a ledger row | ledger rows compared with `git log --diff-filter=D` |
+| D9 | Any Flux object (sources, Kustomizations, HelmReleases) not Ready for over 1h raises an alert that reaches the owner, verified by a deliberately broken test source; `CI Success` and everything it waits for run on GitHub-hosted runners | test-alert notification; `runs-on` grep |
 
 ## 5. Workflow (target)
 
@@ -103,9 +133,10 @@ its own PR. The highest-tier path in a PR wins.
 | `risk:normal` | everything else under `kubernetes/**`, `scripts/**`, `.taskfiles/**`, `.justfile`, `*/mod.just`, `.mise.toml` | the owner merges the PR |
 | `risk:low` | `docs/**`, `.agents/**`, `*.md` outside `kubernetes/**`, plus Renovate digest and patch updates outside the `risk:high` paths | merges itself once `CI Success` is green |
 
-The owner's approval is procedural until P2 task 2.6 lands. Agents use the owner's GitHub
-token, so the owner cannot formally approve an agent's PR. Until then, `AGENTS.md`
-forbids agents from running `gh pr merge` on anything above `risk:low`. Task 2.6 moves
+Agents never merge. The 0.4 controls block `gh pr merge` outright. A `risk:low` PR merges
+because the `risk-tier` job turns on GitHub auto-merge for it, and GitHub merges once
+`CI Success` is green. Every other PR is merged by the owner. Agents use the owner's
+GitHub token, so the owner cannot formally approve an agent's PR yet. Task 2.6 moves
 agent PRs to a separate bot identity. `CI Success` then requires an approving review
 from `Aviator-Coding` on `risk:normal` and `risk:high` PRs.
 
@@ -121,7 +152,12 @@ from `Aviator-Coding` on `risk:normal` and `risk:high` PRs.
    the PR.
 5. Run an independent review subagent that sees only the issue and the diff. Fix what
    it finds.
-6. Open the PR linked to the issue. Merge only within the tier gate.
+6. Open the PR linked to the issue. The tier gate decides who merges; the agent never
+   does.
+7. After the merge, watch the affected Flux Kustomizations and HelmReleases until they
+   reconcile and the workload is healthy. Then tick the task's checkbox and close the
+   issue. If the merge broke something, open a revert PR first; a forward fix waits
+   until the revert has merged.
 
 ## 6. Subagent model selection
 
@@ -139,42 +175,61 @@ only for independent Haiku inventory work.
 ## 7. Phases
 
 Each phase starts once the previous phase's exit check holds. P4's Renovate work can start
-once P1's exit check holds.
+once P1's exit check holds. Target dates are for planning; a missed date gets a dated
+row in §8 and a new date, not silent drift.
 
-### P0 Stabilise
+### P0 Stabilise (target 2026-11-06)
 
+- [ ] 0.0 Merge or drop `d2fa343c` (the image script's OpenRouter key-limit note, on
+      `feat/image-generation-skill` but not on `main`), so P0 starts from a clean `main`.
 - [ ] 0.1 Point the cilium, openebs and both intel-device-plugins OCIRepositories at
       their upstream OCI registries (onedr0p uses `oci://quay.io/cilium/charts/cilium`;
-      confirm each tag exists upstream before switching). Tier `risk:high`.
+      confirm each tag exists upstream before switching). Tier `risk:high`. In the same
+      issue, list every remaining `home-operations/charts-mirror` source and Renovate
+      community preset, and switch each one with an official registry.
 - [ ] 0.2 Set `core.symlinks = true` in the main checkout and restore the
       `.claude/skills` symlink there. The stray directory matches
       `.agents/skills/image-generation` exactly.
-- [ ] 0.3 Find what wrote the stray `.claude/skills/image-generation` directory on
+- [ ] 0.3 Find what wrote the stray `image-generation` directory under `.claude/skills` on
       2026-10-30 at 22:39, and stop it from recurring.
+- [ ] 0.4 Put the §3 technical controls in place: an agent kubeconfig bound to `view`,
+      read-only `gh` allow rules replacing `Bash(gh api *)` and `Bash(gh pr *)` in
+      `.claude/settings.local.json`, and the deny rules or hook. Prove each block with
+      one denied command recorded in §8.
+- [ ] 0.5 Widen `FluxResourceNotReadyTooLong`
+      (`flux-system/flux-instance/app/prometheusrule.yaml`) from `HelmRelease|Kustomization`
+      to every Flux kind, sources included. Confirm the alert reaches the owner.
 
 Exit: Flate and Validate are green on a fresh PR. `flux get sources oci -A` shows 0
-sources not Ready.
+sources not Ready. The 0.4 denials and a 0.5 test alert are recorded in §8.
 
-### P1 Enforce
+### P1 Enforce (target 2026-11-15)
 
-- [ ] 1.1 Add a `CI Success` workflow job that `needs` Flate, Validate and Image Pull and
-      fails if any of them failed. Skipped jobs pass.
+- [ ] 1.1 Add a `CI Success` workflow job that `needs` Flate and Validate and fails if any
+      of them failed. Skipped jobs pass. `CI Success`, Flate and Validate move to
+      `ubuntu-latest` so they run when the cluster is down. Image Pull and the AI review
+      stay on the cluster runner and stay advisory.
 - [ ] 1.2 Move the 13 network-calling tests into a nightly workflow that opens an issue
       on failure.
 - [ ] 1.3 Add `.editorconfig`, a YAML formatter, and yamllint, actionlint, zizmor and
       shellcheck to pre-commit and to `CI Success`. Fix or explicitly ignore the
       existing findings.
 - [ ] 1.4 With the owner's go-ahead, replace `Labeler - Labeler` with `CI Success` as the
-      required check and empty the bypass list.
+      required check and empty the bypass list. Before enabling it, the owner does one
+      dry run of the §3 break-glass procedure.
+- [ ] 1.5 Add a daily scheduled workflow that records the D2 pass rate and the D3
+      open-Renovate count in a pinned issue or a committed CSV, so the 14-day windows
+      measure themselves.
 
 Exit: D1 holds, and `CI Success` passes on at least 95% of PR runs for 7 days.
 
-### P2 Workflow
+### P2 Workflow (target 2026-11-30)
 
 - [ ] 2.1 Add an issue template (goal, risk tier, rollback, verification) and the three
       `risk:*` labels.
-- [ ] 2.2 Add the `risk-tier` CI job from §5.
-- [ ] 2.3 Write the workflow skills `plan-task`, `implement-task`, `review-pr` and
+- [ ] 2.2 Add the `risk-tier` CI job from §5. It labels the PR with its tier and turns on
+      auto-merge only for `risk:low`.
+- [ ] 2.3 Write four workflow skills, `plan-task`, `implement-task`, `review-pr` and
       `renovate-review`, which encode §5 and §6.
 - [ ] 2.4 Rebuild the AI review so it reports specific findings and fails its check on a
       blocking one. Seed 5 known-bad and 5 known-good PRs and record the results in §8.
@@ -186,11 +241,13 @@ Exit: D1 holds, and `CI Success` passes on at least 95% of PR runs for 7 days.
 
 Exit: D5 and D6 hold.
 
-### P3 Lean knowledge (each task runs through the P2 loop)
+### P3 Lean knowledge (target 2026-12-20; each task runs through the P2 loop)
 
 - [ ] 3.1 Inventory every skill section and every `scripts/ci` test into
       [`knowledge-ledger.md`](knowledge-ledger.md) (Haiku).
-- [ ] 3.2 Assign every ledger row a verdict (Opus). The owner reviews the `archive` rows.
+- [ ] 3.2 Assign every ledger row a verdict (Opus). Work one skill per PR: its ledger
+      rows, its rewrite and its test changes together, so each owner review of
+      `archive` rows stays small.
 - [ ] 3.3 Turn the `enforce` rows into linter rules or the ≤ 15 kept tests.
 - [ ] 3.4 Rebuild the skills to ≤ 8 subsystem skills plus the P2 workflow skills, and
       trim `AGENTS.md` to a map plus the data-loss and outage tripwires.
@@ -199,7 +256,7 @@ Exit: D5 and D6 hold.
 
 Exit: D4 and D8 hold.
 
-### P4 Autonomy
+### P4 Autonomy (target 2026-12-31)
 
 - [ ] 4.1 Turn on Renovate automerge for digest and patch updates outside the
       `risk:high` paths, requiring passing checks (`ignoreTests: false`). Group
@@ -212,7 +269,7 @@ Exit: D4 and D8 hold.
       as issues.
 - [ ] 4.5 Run D7: three consecutive issues through the workflow.
 
-Exit: D2, D3 and D7 hold. With all eight criteria holding, this goal is done.
+Exit: D2, D3, D7 and D9 hold. With all nine criteria holding, this goal is done.
 
 ## 8. Evidence log
 
