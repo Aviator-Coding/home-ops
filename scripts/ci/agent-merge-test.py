@@ -61,6 +61,9 @@ check(not ok(base(files=[".agents/skills/jev-decisions/scripts/jev_decide.py"]))
 for gate in ("scripts/agent_merge.py", "scripts/ci/risk_tier.py", "scripts/ci/ai_review_gate.py",
              "scripts/ci/agent-merge-test.py"):
     check(not ok(base(files=[gate])), f"the merge gate cannot merge a change to {gate}")
+check(not ok(base(labels=["risk:low"], files=[".agents/skills/implement-task/SKILL.md"])),
+      "the skill stating the merge policy needs the owner")
+check(ok(base(labels=["risk:low"], files=[".agents/skills/media-stack/SKILL.md"])), "other skill docs stay low")
 check(not ok(base(files_complete=False)), "an incomplete file list is refused")
 check(not ok(base(files=["kubernetes/apps/base/media/plex/app/x.yaml", "talos/old.yaml.j2"])),
       "a rename out of a high path (old path listed) is refused")

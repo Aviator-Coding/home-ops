@@ -33,6 +33,7 @@ import json
 import os
 import subprocess
 import sys
+import shutil
 import tempfile
 import time
 import types
@@ -200,7 +201,8 @@ def jev_gate(number: int, head: str) -> int:
             print("Jev gate: no key (JEV_API_KEY or op signin)")
             return 2
     base = sh("git", "merge-base", "origin/main", head).strip()
-    tree = Path(tempfile.mkdtemp(prefix="agent-merge-")) / "main"
+    tmp = Path(tempfile.mkdtemp(prefix="agent-merge-"))
+    tree = tmp / "main"
     sh("git", "worktree", "add", "-q", "--detach", str(tree), "origin/main")
     try:
         env = dict(os.environ, LITELLM_KEY=key, LITELLM_URL=JEV_URL)
@@ -213,6 +215,7 @@ def jev_gate(number: int, head: str) -> int:
         return res.returncode
     finally:
         subprocess.run(["git", "worktree", "remove", "--force", str(tree)], cwd=ROOT, capture_output=True)
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def main() -> int:
@@ -251,11 +254,14 @@ def main() -> int:
         print(f"agent-merge: gh pr merge failed: {exc.stderr.strip()}")
         return 2
     tier = sorted(set(again["labels"]) & ALLOWED_TIERS)
-    sh("gh", "pr", "comment", str(args.pr), "--body",
-       f"Merged by an agent through `scripts/agent_merge.py` (owner decision 2026-10-31) at "
-       f"`{pr['head'][:8]}`: {tier}, CI Success and AI PR Review green from GitHub Actions, Jev blocker "
-       f"gate clear, no risk:high, steering or merge-gate paths.")
     print(f"merged #{args.pr}")
+    try:
+        sh("gh", "pr", "comment", str(args.pr), "--body",
+           f"Merged by an agent through `scripts/agent_merge.py` (owner decision 2026-10-31) at "
+           f"`{pr['head'][:8]}`: {tier}, CI Success and AI PR Review green from GitHub Actions, Jev blocker "
+           f"gate clear, no risk:high, steering or merge-gate paths.")
+    except subprocess.CalledProcessError as exc:
+        print(f"agent-merge: merged, but the evidence comment failed: {exc.stderr.strip()}")
     return 0
 
 

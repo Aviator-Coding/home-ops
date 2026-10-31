@@ -39,6 +39,9 @@ HIGH = [
 STEERING = [
     "AGENTS.md", "CLAUDE.md", "**/AGENTS.md", ".github/ai-review-rules.md", ".claude/**",
     ".agents/**/scripts/**",
+    # Skills that state the merge policy: an agent must not rewrite it and merge that itself.
+    ".agents/skills/implement-task/**", ".agents/skills/plan-task/**", ".agents/skills/review-pr/**",
+    ".agents/skills/renovate-review/**", ".agents/skills/jev-decisions/**",
 ]
 # Cluster-wide paths a Renovate patch must not auto-merge into (they keep their path tier).
 RENOVATE_NOT_LOW = [
