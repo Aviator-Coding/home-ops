@@ -174,7 +174,7 @@ only for independent Haiku inventory work.
 
 ## 7. Phases
 
-Each phase starts once the previous phase's exit check holds. P4's Renovate work, and
+Each phase starts once the previous phase's exit check holds, except P2, which the owner started early on 2026-10-31. P4's Renovate work, and
 P3's `scripts/ci` test triage (3.1 to 3.3 for tests), can start once P1's exit check
 holds. Target dates are for planning; a missed date gets a dated
 row in §8 and a new date, not silent drift.
@@ -288,6 +288,7 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-31 | 0.0 | `d2fa343c` landed on `main` as #2146 | #2146 |
 | 2026-10-31 | 0.1 (remaining sources) | The 8 other `charts-mirror` sources (headlamp, external-dns ×2, tailscale-operator, volsync, descheduler, metrics-server, keda) all pull fine from the mirror. None has an anonymously pullable official OCI chart: ghcr.io and quay.io return 403, and registry.k8s.io returns not found. Each has an official HTTPS Helm repo (kubernetes-sigs.github.io/{headlamp,external-dns,descheduler,metrics-server}, pkgs.tailscale.com/helmcharts, backube.github.io/helm-charts, kedacore.github.io/charts). Per the plan they stay on the mirror; `FluxResourceNotReadyTooLong` (task 0.5) will catch the next 403. Renovate presets (`Aviator-Coding/mortyops`, local `.renovate/`) are not community presets: no change | fix/upstream-charts PR |
 | 2026-10-31 | Plan change | Owner decision: gate on a few tests now. Evidence: in 59 of the last 60 Validate PR runs, `python-tests` was the only failing job (talos, bootstrap, terraform, renovate-config and docs-guards never failed). Recent causes were brittleness, not catches: the plex tag canary (#2149), the charts-mirror 403 and a factory.talos.dev SSL error. Tasks 1.1 and 1.2 now gate only `# ci: gate` tests; P3 test triage moves up to follow P1 | this file |
+| 2026-10-31 | Plan change | Owner decision: start P2 now, in parallel with the P1 exit window (D1 and 7 days). P3 and P4 stay gated | this file |
 | 2026-10-31 | 0.1 | #2147 merged. `flux get sources oci -A` shows 0 not Ready (cilium `1.18.6@sha256:e6af2ea4`, openebs `4.4.0@sha256:5aaf304b`); HelmRepository `system/intel` Ready; all 4 HelmReleases Ready on the same versions; `kube-system/ds/cilium` generation 13 before and after (3/3 ready); GpuDevicePlugin `xe` 3/3 | #2147 |
 | 2026-10-31 | 0.5 / D9 | #2148 merged first, so the 4 real charts-mirror OCIRepositories became the test alert: `FluxResourceNotReadyTooLong` pending at 00:37, firing at 01:07 for all 4, resolved after #2147. Alertmanager routes it to `pushover-warning`; Pushover sent 17 notifications in the last 90m with 0 failures. Still open: the owner's confirmation that the notification arrived | #2148 |
 | 2026-10-31 | 1.1 gate set | The owner approved the 12-test gate list from the Opus classification (gate 12, nightly 11, advisory 69). With the network denied, 11 of 12 pass offline locally (`volsync-retired-expiry` needs `boto3`, which the gate job installs) | Task 7b PR |
