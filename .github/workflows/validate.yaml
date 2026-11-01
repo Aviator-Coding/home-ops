@@ -121,7 +121,7 @@ jobs:
       # minijinja-cli and talosctl come from .mise.toml so CI renders with the same
       # versions `just talos render-config` uses locally.
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: aqua:mitsuhiko/minijinja aqua:siderolabs/talos aqua:mikefarah/yq
 
@@ -141,7 +141,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: aqua:mikefarah/yq
 
@@ -161,7 +161,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: aqua:kubernetes-sigs/kustomize aqua:yannh/kubeconform
 
@@ -212,7 +212,7 @@ jobs:
       # opentofu comes from .mise.toml so CI validates with the same version the
       # runbook tells an operator to plan with.
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: opentofu
 
@@ -240,7 +240,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: python uv
 
@@ -272,7 +272,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: python uv aqua:rhysd/actionlint pipx:zizmor aqua:koalaman/shellcheck pipx:yamllint
 
@@ -311,7 +311,7 @@ jobs:
       # SKIPs its CronJob-script cases without jq). Versions from .mise.toml; do not add
       # @version here (scripts/ci/mise-install-args-test.py).
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: python uv kubectl aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:jqlang/jq
 
@@ -389,7 +389,7 @@ jobs:
       # which failed python-tests on every PR with "No version is set for shim:
       # promtool"). Pinned by scripts/ci/mise-install-args-test.py.
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
 
