@@ -240,10 +240,12 @@ def _env_effects(prefix: list[str]) -> tuple[bool, set[str], list[str]]:
 
 
 def _env_split(words: list[str]) -> str | None:
-    """The command line `env -S 'str' args...` runs, or None without -S."""
+    """The command line `env -S 'str' args...` runs, or None without -S. It keeps a
+    leading `env` so options inside the -S text (`-S '-i kubectl'`) are parsed again;
+    _walk's depth limit bounds -S inside -S."""
     stripped = _strip_wrappers(words)
     split = _env_effects(words[:len(words) - len(stripped)])[2]
-    return " ".join([*split, *map(shlex.quote, stripped)]) if split else None
+    return " ".join(["env", *split, *map(shlex.quote, stripped)]) if split else None
 
 
 def _unset_reason(words: list[str]) -> str | None:
@@ -261,10 +263,9 @@ def _unset_reason(words: list[str]) -> str | None:
     if hit:
         return f"unsetting {' and '.join(hit)} makes the client fall back to the owner's default config"
     client = None
-    if cleared:
-        inner = _env_split(words)
-        client = _client_var(stripped) or next(
-            (c for w, _ in (_walk(inner) if inner else []) if (c := _client_var(w))), None)
+    if cleared:  # walk what runs under the cleared env, nested shells and eval included
+        inner = _env_split(words) or shlex.join(stripped)
+        client = next((c for w, _ in _walk(inner) if (c := _client_var(w))), None)
     if client:
         return f"env -i clears KUBECONFIG and TALOSCONFIG, so {client[1]} would read the owner's default config"
     return None

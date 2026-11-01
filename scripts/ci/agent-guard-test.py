@@ -127,6 +127,9 @@ BLOCKED = [
     "env -iS 'kubectl get secret -A'",
     "env -S 'KUBECONFIG=/Users/x/.kube/config kubectl get pods'",
     "env -S 'kubectl \"get'",
+    "env -i sh -c 'kubectl get ns'",
+    "env -i bash -c 'talosctl version'",
+    "env -S '-i kubectl get ns'",
 ]
 
 ALLOWED = [
@@ -167,6 +170,7 @@ ALLOWED = [
     "env -S 'kubectl get pods'",
     "env -S 'git status'",
     "env -S'git status'",
+    "env -i sh -c 'git status'",
 ]
 
 AGENT_ENV = {"KUBECONFIG": "/Users/x/.kube/home-ops-agent", "TALOSCONFIG": "/Users/x/.talos/home-ops-agent"}
