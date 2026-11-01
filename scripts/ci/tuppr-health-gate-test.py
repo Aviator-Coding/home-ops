@@ -34,9 +34,13 @@ def checks(name):
 def main():
     failures = []
     for name in FILES:
-        raw = (DIR / name).read_text()
-        if "volsync.backube" in raw:
-            failures.append(f"{name}: still references volsync.backube")
+        has_rs = any(c["kind"] == "ReplicationSource" and c["apiVersion"] == "volsync.backube/v1alpha1" for c in checks(name))
+        operator_present = (ROOT / "kubernetes/apps/base/system/volsync/app").exists()
+        if has_rs != operator_present:
+            failures.append(
+                f"{name}: ReplicationSource check present={has_rs} but VolSync operator present={operator_present}; "
+                "the check stays until the operator is removed and goes in the same PR"
+            )
         found = {}
         for c in checks(name):
             if c["apiVersion"] == KOPIUR:
