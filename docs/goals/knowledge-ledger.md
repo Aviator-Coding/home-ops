@@ -145,7 +145,7 @@ Verdicts:
 | `scripts/ci/fstrim-failed-alert-test.py` | The FstrimJobFailed alert fires when the fstrim CronJob fails. | neither |  |  |
 | `scripts/ci/fstrim-pv-selection-test.py` | The fstrim discard path includes kubelet-mounted Ceph PVs, which the old grep filtered out. | neither |  |  |
 | `scripts/ci/functional-comments-guard-test.py` | Functional comments such as renovate annotations stay captured by their customManager. | neither |  |  |
-| `scripts/ci/goal-metrics-test.py` | The daily goal-metrics recorder behaves as its unit test pins. | neither |  |  |
+| `scripts/ci/goal-metrics-test.py` | The daily goal-metrics recorder behaves as its unit test pins. | neither | archive | Deleted with the workflow and `goal_metrics.py` (2026-11-01: no daily metrics issue) |
 | `scripts/ci/gpu-node-dashboard-test.py` | The Intel GPU node Grafana dashboard matches its semantic contract. | neither | keep | `.agents/skills/intel-gpu/references/telemetry.md` (series, panels and dashboard path already stated) |
 | `scripts/ci/gpu-node-dashboard-test.py` `assert_configmap` | The dashboard is one sidecar ConfigMap (`grafana_dashboard` label, folder `AI/ML`) and adds no workload. | neither | keep | `.agents/skills/observability/references/grafana.md` (sidecar ConfigMaps, already stated); the folder name: archive |
 | `scripts/ci/gpu-node-dashboard-test.py` `assert_dashboard` (series) | Panels use the hwmon, device-plugin and xe-gpu-exporter series, no invented exporter or per-engine and clock panels, and watts are `rate()` of energy counters. | neither | keep | `.agents/skills/intel-gpu/references/telemetry.md` (already stated) and `intel-gpu/SKILL.md` tripwire 4 |
