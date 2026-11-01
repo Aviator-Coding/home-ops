@@ -45,6 +45,11 @@ replace them with a relative keep count. The ledger is the count the apply plan 
 that say four repositories were retired are stale (Stage 5 retired 27 claims, autobrr left
 with its app).
 
+The VolSync operator was removed on 2026-11-01 (issue #2202 PR-6). The ceph bucket stays: Flux
+Kustomization `system/volsync` keeps its name and renders only `backend/` (OBC `volsync` and
+CephObjectStoreUser `volsync`, both `prune: disabled`; pinned by `kopiur-stage0-test.py`). Reading
+a repository without the operator: [retired-restic-read.md](retired-restic-read.md).
+
 ## Why a retention policy cannot empty a frozen repo
 
 Deleting a `ReplicationSource` never touches the restic repository. `restic forget --keep-*` is

@@ -42,7 +42,11 @@ absence of a `Days`-based expiry, which would be a correctness bug rather than a
 preference: `Days` counts from each object's own creation time and would delete
 most of this the moment it was installed.
 
-Owning document: .agents/skills/volsync-carveouts/references/retired-repo-expiry.md
+The repositories outlive the VolSync operator (removed in issue #2202 PR-6): the
+`volsync` bucket stays in the `system/volsync` Flux Kustomization, now rendering
+only backend/, and its OBC Secret is the applier's ceph credential.
+
+Owning document: .agents/skills/kopiur-backups/references/retired-repo-expiry.md
 """
 
 from __future__ import annotations
@@ -59,11 +63,13 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 TOOL_DIR = REPO / "scripts" / "volsync-retired-expiry"
 LEDGER = TOOL_DIR / "ledger.yaml"
-SKILL_REFS = REPO / ".agents" / "skills" / "volsync-carveouts" / "references"
+SKILL_REFS = REPO / ".agents" / "skills" / "kopiur-backups" / "references"
 DOC = SKILL_REFS / "retired-repo-expiry.md"
 APPLY_PLAN = SKILL_REFS / "retired-expiry-apply-plan.md"
 APPLIER = TOOL_DIR / "apply_lifecycle.py"
 APPS_MAIN = REPO / "kubernetes" / "apps" / "main"
+BUCKET_OVERLAY = APPS_MAIN / "system" / "volsync.yaml"
+BUCKET_DIR = REPO / "kubernetes" / "apps" / "base" / "system" / "volsync" / "backend"
 
 sys.path.insert(0, str(TOOL_DIR))
 import render_lifecycle  # noqa: E402
@@ -114,7 +120,9 @@ def live_volsync_apps_from_git() -> set[str]:
     being written to, so the ledger's `protected` list is checked against the
     manifests rather than against a hand-maintained copy that can drift. YAML
     anchors (`APP: *app`) resolve during parsing, so this reads the effective
-    value.
+    value. The operator and component are removed (issue #2202 PR-6), so this is
+    empty and `protected` must be too; a revert that wires a claim back in makes
+    that claim live again, and this is how the ledger finds out.
     """
     live: set[str] = set()
     for path in sorted(APPS_MAIN.rglob("*.yaml")):
@@ -619,6 +627,32 @@ def test_applier_credential_sources_survive_the_volsync_claims_leaving() -> None
         boto3.client = real
 
 
+def test_ceph_credential_source_is_still_declared() -> None:
+    """The applier's ceph credential (Secret system/volsync) comes from the OBC.
+
+    The OBC stays in Flux Kustomization system/volsync after the operator left
+    (issue #2202 PR-6). If it left Git or lost `prune: disabled`, Flux would delete
+    the bucket with every retired repository in it, and the applier would lose its
+    only ceph credential.
+    """
+    ks = [d for d in yaml.safe_load_all(BUCKET_OVERLAY.read_text()) if isinstance(d, dict)]
+    paths = [str((d.get("spec") or {}).get("path") or "") for d in ks if d.get("kind") == "Kustomization"]
+    if paths != ["./kubernetes/apps/base/system/volsync/backend"]:
+        raise Failure(f"{BUCKET_OVERLAY.relative_to(REPO)} must render only the bucket backend, got {paths}")
+    resources = yaml.safe_load((BUCKET_DIR / "kustomization.yaml").read_text()).get("resources") or []
+    obcs = []
+    for res in resources:
+        f = BUCKET_DIR / str(res)
+        if f.is_file():
+            obcs += [d for d in yaml.safe_load_all(f.read_text()) if isinstance(d, dict) and d.get("kind") == "ObjectBucketClaim"]
+    names = [((d.get("metadata") or {}).get("name"), (d.get("spec") or {}).get("bucketName")) for d in obcs]
+    if names != [("volsync", "volsync")]:
+        raise Failure(f"expected one OBC volsync/volsync in {BUCKET_DIR.relative_to(REPO)}, got {names}")
+    ann = (obcs[0].get("metadata") or {}).get("annotations") or {}
+    if ann.get("kustomize.toolkit.fluxcd.io/prune") != "disabled":
+        raise Failure("OBC volsync lost kustomize.toolkit.fluxcd.io/prune: disabled")
+
+
 def main() -> int:
     tests: list[str] = []
     failures: list[str] = []
@@ -655,6 +689,7 @@ def main() -> int:
     run("apply_plan_exists_and_covers_every_destination", test_apply_plan_exists_and_covers_every_destination)
     run("applier_is_dry_run_by_default_and_covers_all_destinations", test_applier_is_dry_run_by_default_and_covers_all_destinations)
     run("applier_credential_sources_survive_the_volsync_claims_leaving", test_applier_credential_sources_survive_the_volsync_claims_leaving)
+    run("ceph_credential_source_is_still_declared", test_ceph_credential_source_is_still_declared)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")

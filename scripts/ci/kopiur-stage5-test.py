@@ -123,7 +123,16 @@ STAGE3_TEST = REPO / "scripts" / "ci" / "kopiur-stage3-test.py"
 
 KOPIUR_COMPONENT = "../../../../../components/kopiur"
 KOPIUR_PVC_COMPONENT = "../../../../../components/kopiur/pvc"
-VOLSYNC_COMPONENT = "../../../../../components/volsync"
+# components/volsync was deleted with the operator (issue #2202 PR-6). Matched as a
+# substring so any relative spelling of it, or of components/volsync/backup, counts.
+VOLSYNC_COMPONENT = "components/volsync"
+
+
+def names_volsync(refs: Any) -> list[str]:
+    """The entries of a components list (or one path) that point into components/volsync."""
+    if isinstance(refs, str):
+        refs = [refs]
+    return [str(r) for r in (refs or []) if VOLSYNC_COMPONENT in str(r)]
 
 # The retired volumes, keyed "<namespace>/<app>".
 #
@@ -454,8 +463,8 @@ def volsync_kustomizations_for(v: Retired) -> list[str]:
     for name, d in kustomizations(v.rel).items():
         spec = d["spec"]
         sub = substitute(d)
-        via_path = str(spec.get("path") or "").rstrip("/").endswith("components/volsync/backup")
-        via_comp = VOLSYNC_COMPONENT in (spec.get("components") or [])
+        via_path = bool(names_volsync(spec.get("path") or ""))
+        via_comp = bool(names_volsync(spec.get("components")))
         if (via_path or via_comp) and sub.get("VOLSYNC_CLAIM", sub.get("APP", name)) == v.claim:
             out.append(name)
     return out
@@ -603,12 +612,12 @@ def test_retired_overlays_dropped_volsync() -> None:
             )
             comps = spec.get("components") or []
             require(
-                VOLSYNC_COMPONENT not in comps,
+                not names_volsync(comps),
                 f"{v.rel}[{d['metadata']['name']}] ({role}): volsync Component is back - "
                 f"{key} is recorded as retired",
             )
             require(
-                not str(spec.get("path") or "").rstrip("/").endswith("components/volsync/backup"),
+                not names_volsync(spec.get("path") or ""),
                 f"{v.rel}[{d['metadata']['name']}] ({role}): path points at the volsync backup "
                 f"bundle, but {key} is recorded as retired",
             )
@@ -884,11 +893,12 @@ def test_retired_set_matches_stage3() -> None:
 
 
 def test_no_other_overlay_uses_the_pvc_component() -> None:
-    """A dual-engine app must NOT add components/kopiur/pvc.
+    """Only a recorded retired volume may carry components/kopiur/pvc.
 
-    It would collide with volsync's pvc.yaml on the same PVC name - the exact
-    kustomize resource collision that is the reason this is a separate
-    Component in the first place.
+    The Component exists to take over a claim that volsync's pvc.yaml used to
+    emit. A born-kopiur claim comes from its own chart. (The old "both volsync and
+    kopiur/pvc" collision branch went with components/volsync in issue #2202 PR-6;
+    kopiur-stage3-test.py `no_overlay_renders_volsync` now fails any volsync use.)
     """
     # (overlay file, Kustomization name) pairs entitled to carry the Component.
     entitled = {(v.rel, v.ks) for v in RETIRED.values() if not v.backup_only}
@@ -901,9 +911,6 @@ def test_no_other_overlay_uses_the_pvc_component() -> None:
             name = (d.get("metadata") or {}).get("name")
             comps = (d.get("spec") or {}).get("components") or []
             has_pvc = KOPIUR_PVC_COMPONENT in comps
-            has_volsync = VOLSYNC_COMPONENT in comps
-            if has_pvc and has_volsync:
-                offenders.append(f"{rel}[{name}]: both volsync and kopiur/pvc (PVC name collision)")
             if has_pvc and (rel, name) not in entitled:
                 offenders.append(
                     f"{rel}[{name}]: uses kopiur/pvc but is not a recorded retired volume"

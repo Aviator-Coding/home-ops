@@ -18,8 +18,8 @@ a captain decision because it was unused. So Stage 1 no longer has a live
 volume to point at, and this file is now the kopiur COMPONENT contract plus the
 Stage 0 and credential invariants - which was always the bulk of it.
 
-Both renders are therefore driven by recorded substitute maps (PILOT_SUBSTITUTE
-and volsync_env in main) rather than by parsing a live overlay. Those maps hold
+The render is therefore driven by a recorded substitute map (PILOT_SUBSTITUTE)
+rather than by parsing a live overlay. That map holds
 autobrr's own values, kept as history, so every component assertion below is
 unchanged in meaning. What that costs is the guarantee that the map still
 matches something live; that guarantee now belongs to kopiur-stage3-test.py,
@@ -39,8 +39,9 @@ and this file now pins that shape instead: all three projection legs present,
 and the pilot's standing credential objects gone.
 
 This test does not grep source text as its evidence. It:
-  1. Renders the real kustomize builds Flux would apply for the kopiur backup
-     component and the volsync backup sibling, then runs a Flux-shaped
+  1. Renders the real kustomize build Flux would apply for the kopiur backup
+     component (components/volsync, its old sibling, was removed in issue
+     #2202 PR-6), then runs a Flux-shaped
      envsubst (including ${VAR:-default} and nested ${A:-${B}}) with the
      recorded pilot substitute map PILOT_SUBSTITUTE (the removed overlay's
      Stage 3 values: KOPIUR_PUID/PGID=2000, KOPIUR_SCHEDULE_R2='H 11 * * *',
@@ -54,7 +55,8 @@ This test does not grep source text as its evidence. It:
          1 Restore; NO MinIO policy/schedule, NO PVC, NO ReplicationSource
        - both policies use ClusterRepository ceph/r2, claim name autobrr
          (default ${KOPIUR_CLAIM:-${APP}}), copyMethod Snapshot, Ephemeral
-         cache, retention matching VolSync for that destination, mover
+         cache, retention equal to the retired VolSync retain block for that
+         destination (recorded in RETIRED_VOLSYNC_RETAIN), mover
          identity 2000:2000 from the recorded PILOT_SUBSTITUTE map, and pinned
          deletion.onPolicyDelete: Retain
        - both schedules pin deletion.onScheduleDelete: Retain, jitter 5m,
@@ -65,8 +67,7 @@ This test does not grep source text as its evidence. It:
        - parent Component resources only ./backup (no pvc.yaml)
        - downloads/autobrr is fully absent (overlay, app directory and
          namespace-kustomization entry), and no other overlay picked up its
-         claim; components/volsync itself still renders 3 sources + 1
-         destination for its 22 remaining users. The onboarded set and the
+         claim; components/volsync stays deleted (issue #2202 PR-6). The onboarded set and the
          authoritative retired set are owned by kopiur-stage3-test.py.
        - credentials: ALL THREE projection legs wired (chart feature flag,
          `allowed` on both ClusterRepositories, `enabled` on every consuming
@@ -94,8 +95,9 @@ ROOT = Path(__file__).resolve().parents[2]
 KOPIUR_COMPONENT = ROOT / "kubernetes/components/kopiur"
 KOPIUR_BACKUP = KOPIUR_COMPONENT / "backup"
 KOPIUR_COMPONENT_KUST = KOPIUR_COMPONENT / "kustomization.yaml"
-VOLSYNC_BACKUP = ROOT / "kubernetes/components/volsync/backup"
-VOLSYNC_COMPONENT_KUST = ROOT / "kubernetes/components/volsync/kustomization.yaml"
+# Removed in issue #2202 PR-6 with the operator. Kept as a path so the test can
+# assert it stays ABSENT.
+VOLSYNC_COMPONENT = ROOT / "kubernetes/components/volsync"
 DOWNLOADS_OVERLAY_KUST = ROOT / "kubernetes/apps/main/downloads/kustomization.yaml"
 # Retired by captain decision `credential-scope` (2026-08-30). Kept as paths so
 # the test can assert they are ABSENT - reintroducing standing credentials is
@@ -120,8 +122,7 @@ PILOT_NS = "downloads"
 # there is no overlay left to parse and the production render below is driven by
 # this recorded map instead of a live file.
 #
-# That is the same treatment this file already gives the VolSync half, and for
-# the same reason: these are autobrr's own values, kept as HISTORY so the
+# These are autobrr's own values, kept as HISTORY so the
 # component contract they pin stays exactly as asserted. What is lost is only
 # the guarantee that the map still matches a live overlay - and that guarantee
 # now belongs to the 29 claims kopiur-stage3-test.py checks, not to this file.
@@ -137,12 +138,20 @@ PILOT_SUBSTITUTE: dict[str, str]
 # They are kept, as HISTORICAL values rather than a live overlay pin, because
 # they are what kopiur's own slots were designed around: the odd 4-hour ceph
 # offset and the r2 hour-11 assignment below only mean anything against them.
-# That structural property still governs the 22 claims that remain dual-engine,
-# so the non-collision assertion is retained rather than deleted with the
-# schedules it was derived from. Do NOT reintroduce these into any overlay.
+# No claim runs VolSync since 2026-11-01 and the operator is removed (issue #2202
+# PR-6); the non-collision assertion stays as a pin on kopiur's slots.
+# Do NOT reintroduce these into any overlay.
 RETIRED_PILOT_VOLSYNC_CEPH = "45 */4 * * *"
-RETIRED_PILOT_VOLSYNC_MINIO = "30 */6 * * *"
 RETIRED_PILOT_VOLSYNC_R2 = "45 3 * * *"
+
+# The retain blocks components/volsync/{ceph,r2}/replicationsource.yaml carried
+# until the component was deleted (issue #2202 PR-6). kopiur's retention was set
+# to match them; the policies are asserted against this record, so a retention
+# change in the kopiur component still fails here.
+RETIRED_VOLSYNC_RETAIN = {
+    "ceph": {"hourly": 6, "daily": 14, "weekly": 10, "monthly": 6},
+    "r2": {"daily": 30, "weekly": 12, "monthly": 12},
+}
 
 # Production pilot kopiur pins (Stage 3). Historical values from the removed
 # autobrr overlay; the component contract they pin stays asserted as recorded.
@@ -393,14 +402,6 @@ def test_component_layout() -> None:
         "components/kopiur/minio must not exist (MinIO out by captain decision)",
     )
 
-    # Sibling shape: volsync parent Component still owns backup+pvc.
-    vs_parent = yaml.safe_load(VOLSYNC_COMPONENT_KUST.read_text())
-    require(vs_parent.get("kind") == "Component", "volsync parent drifted from Component")
-    vs_res = vs_parent.get("resources") or []
-    require(
-        "./backup" in vs_res and "./pvc.yaml" in vs_res,
-        f"volsync parent must still own backup+pvc, got {vs_res}",
-    )
 
 
 def test_rendered_pilot_kinds_and_names(docs: list[dict[str, Any]]) -> None:
@@ -446,15 +447,8 @@ def test_rendered_pilot_kinds_and_names(docs: list[dict[str, Any]]) -> None:
         )
 
 
-def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, Any]]) -> None:
+def test_policies_contract(docs: list[dict[str, Any]]) -> None:
     policies = {p["metadata"]["name"]: p for p in by_kind(docs, "SnapshotPolicy")}
-    vs_sources = {
-        s["metadata"]["name"]: s for s in by_kind(vs_docs, "ReplicationSource")
-    }
-    require(
-        f"{PILOT_APP}-ceph" in vs_sources and f"{PILOT_APP}-r2" in vs_sources,
-        f"volsync render missing pilot sources, got {sorted(vs_sources)}",
-    )
 
     for dest, repo_name in (("ceph", "ceph"), ("r2", "r2")):
         p = policies[f"{PILOT_APP}-{dest}"]
@@ -511,9 +505,9 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
             f"got {spec.get('defaultDeletionPolicy')!r}",
         )
 
-    # Retention must match VolSync for the same destination.
+    # Retention must match the retired VolSync retain block for the same destination.
     ceph_ret = policies[f"{PILOT_APP}-ceph"]["spec"]["retention"]
-    vs_ceph_ret = vs_sources[f"{PILOT_APP}-ceph"]["spec"]["restic"]["retain"]
+    vs_ceph_ret = RETIRED_VOLSYNC_RETAIN["ceph"]
     require(
         ceph_ret.get("keepHourly") == vs_ceph_ret.get("hourly")
         and ceph_ret.get("keepDaily") == vs_ceph_ret.get("daily")
@@ -522,7 +516,7 @@ def test_policies_contract(docs: list[dict[str, Any]], vs_docs: list[dict[str, A
         f"ceph retention mismatch: kopiur={ceph_ret} volsync={vs_ceph_ret}",
     )
     r2_ret = policies[f"{PILOT_APP}-r2"]["spec"]["retention"]
-    vs_r2_ret = vs_sources[f"{PILOT_APP}-r2"]["spec"]["restic"]["retain"]
+    vs_r2_ret = RETIRED_VOLSYNC_RETAIN["r2"]
     require(
         "keepHourly" not in r2_ret and "hourly" not in vs_r2_ret,
         f"r2 must not keep hourly: kopiur={r2_ret} volsync={vs_r2_ret}",
@@ -569,9 +563,8 @@ def test_schedules_non_collision(docs: list[dict[str, Any]]) -> None:
         )
 
     # Structural hour non-overlap with the VolSync schedules kopiur's slots were
-    # designed around. autobrr no longer runs VolSync (retired 2026-09-02), so
-    # these are the recorded historical values - but the property they encode is
-    # what still keeps the two engines apart on all 22 dual-engine claims.
+    # designed around. These are recorded historical values; no claim runs
+    # VolSync any more, so this now pins kopiur's own slots.
     k_ceph_hours = cron_hours(PILOT_KOPIUR_CEPH_CRON)
     # VolSync ceph "45 */4 * * *" -> hours 0,4,8,12,16,20
     v_ceph_hours = cron_hours(RETIRED_PILOT_VOLSYNC_CEPH)
@@ -676,52 +669,22 @@ def test_restore_passive_contract(docs: list[dict[str, Any]]) -> None:
     require(cache.get("mode") == "Ephemeral", f"Restore cache must be Ephemeral, got {cache}")
 
 
-def test_volsync_component_intact(vs_docs: list[dict[str, Any]]) -> None:
-    """components/volsync still renders a complete backup set for its 22 users.
+def test_volsync_component_removed() -> None:
+    """components/volsync stays deleted (issue #2202 PR-6).
 
-    This test has inverted twice. It first asserted that the Stage 1 pilot ran
-    three ReplicationSources and one ReplicationDestination ALONGSIDE kopiur -
-    Stage 1's whole safety property, two independent engines with nothing
-    swapped. When VolSync was retired from that claim (2026-09-02, Stage 5 wave
-    two) it asserted the pilot carried no VolSync anything. The pilot app was
-    then removed outright the same day, so that half has nothing to read and is
-    gone; the pilot-absence assertions live in test_pilot_app_is_fully_gone.
-
-    What survives is the half that always mattered most: the distinction between
-    USE and COMPONENT. Retiring or removing one app must never touch
-    components/volsync itself, which 22 other claims still depend on. Rendered
-    under a SYNTHETIC env carrying the pilot's own historical VOLSYNC_* values,
-    so the schedule contract stays exactly as pinned.
+    This test has inverted three times. It first asserted that the Stage 1 pilot
+    ran three ReplicationSources and one ReplicationDestination ALONGSIDE kopiur;
+    then that the pilot carried no VolSync; then that retiring one app never
+    touched components/volsync, which other claims still used. The last claim left
+    VolSync on 2026-11-01 and PR-6 deleted the component and the operator. A
+    half-revert that restores the directory would put back objects whose CRDs and
+    controller are gone. The kopiur half it was compared against (retention,
+    schedule slots) is pinned against recorded values above.
     """
-    sources = by_kind(vs_docs, "ReplicationSource")
-    dests = by_kind(vs_docs, "ReplicationDestination")
-    names = sorted(x["metadata"]["name"] for x in sources)
     require(
-        names == [f"{PILOT_APP}-ceph", f"{PILOT_APP}-minio", f"{PILOT_APP}-r2"],
-        f"components/volsync must still emit all three sources, got {names}",
-    )
-    require(
-        len(dests) == 1,
-        f"components/volsync must still emit one ReplicationDestination, got {len(dests)}",
-    )
-    require(
-        dests[0]["metadata"]["name"] == f"{PILOT_APP}-dst",
-        f"volsync destination must remain ${{APP}}-dst, got {dests[0]['metadata']['name']}",
-    )
-    by_name = {x["metadata"]["name"]: x for x in sources}
-    require(
-        by_name[f"{PILOT_APP}-ceph"]["spec"]["trigger"]["schedule"]
-        == RETIRED_PILOT_VOLSYNC_CEPH,
-        "volsync component no longer honours VOLSYNC_SCHEDULE_CEPH",
-    )
-    require(
-        by_name[f"{PILOT_APP}-minio"]["spec"]["trigger"]["schedule"]
-        == RETIRED_PILOT_VOLSYNC_MINIO,
-        "volsync component no longer honours VOLSYNC_SCHEDULE_MINIO",
-    )
-    require(
-        by_name[f"{PILOT_APP}-r2"]["spec"]["trigger"]["schedule"] == RETIRED_PILOT_VOLSYNC_R2,
-        "volsync component no longer honours VOLSYNC_SCHEDULE_R2",
+        not VOLSYNC_COMPONENT.exists(),
+        f"{VOLSYNC_COMPONENT.relative_to(ROOT)} is back - removed in issue #2202 PR-6 "
+        "with the VolSync operator; kopiur is the only backup engine",
     )
 
 
@@ -972,29 +935,13 @@ def main() -> int:
     # accommodate a component change.
     pilot_env = {
         **PILOT_SUBSTITUTE,
-        # cluster-secrets keys the volsync ExternalSecrets reference. Value is
-        # a non-secret placeholder - we only need the render to complete so the
-        # ReplicationSource contracts can be asserted.
+        # Non-secret placeholder for the cluster-secrets key; the render only
+        # has to complete.
         "SECRET_DOMAIN": "example.test",
-    }
-
-    # components/volsync is rendered under a SYNTHETIC env for the same reason
-    # the kopiur half now is: VolSync was retired from autobrr on 2026-09-02 and
-    # the app removed, so no live overlay carries these keys. Rendering the
-    # component under a map that lacks them would fall back to defaults
-    # everywhere and quietly assert nothing about the component 22 other claims
-    # still use. The values are autobrr's own, recorded as history.
-    volsync_env = {
-        "APP": PILOT_APP,
-        "SECRET_DOMAIN": "example.test",
-        "VOLSYNC_SCHEDULE_CEPH": RETIRED_PILOT_VOLSYNC_CEPH,
-        "VOLSYNC_SCHEDULE_MINIO": RETIRED_PILOT_VOLSYNC_MINIO,
-        "VOLSYNC_SCHEDULE_R2": RETIRED_PILOT_VOLSYNC_R2,
     }
 
     try:
         kopiur_docs = render_with_substitute(KOPIUR_BACKUP, pilot_env)
-        volsync_docs = render_with_substitute(VOLSYNC_BACKUP, volsync_env)
     except Failure as e:
         print(f"[FAIL] render: {e}")
         print("Summary: 0 passed, 1 failed")
@@ -1002,11 +949,11 @@ def main() -> int:
 
     run("component_layout", test_component_layout)
     run("rendered_pilot_kinds", lambda: test_rendered_pilot_kinds_and_names(kopiur_docs))
-    run("policies_contract", lambda: test_policies_contract(kopiur_docs, volsync_docs))
+    run("policies_contract", lambda: test_policies_contract(kopiur_docs))
     run("schedules_non_collision", lambda: test_schedules_non_collision(kopiur_docs))
     run("component_defaults_without_override", test_component_defaults_without_override)
     run("restore_passive", lambda: test_restore_passive_contract(kopiur_docs))
-    run("volsync_component_intact", lambda: test_volsync_component_intact(volsync_docs))
+    run("volsync_component_removed", test_volsync_component_removed)
     run("pilot_app_is_fully_gone", test_pilot_app_is_fully_gone)
     run(
         "credential_projection_wired",
@@ -1014,7 +961,7 @@ def main() -> int:
     )
     run(
         "no_embedded_credentials",
-        lambda: test_no_embedded_credentials([kopiur_docs, volsync_docs]),
+        lambda: test_no_embedded_credentials([kopiur_docs]),
     )
     run("stage0_tree_policy_free", test_stage0_tree_still_policy_free)
     run("stage0_readme_record_only", test_stage0_readme_record_only_still_true)

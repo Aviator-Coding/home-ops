@@ -23,8 +23,7 @@ placeholders (image/tag, ports, uid/gid, 1Password keys), not a finished app. Af
 2. Decide whether the app needs backups. The normal path for a **new** never-VolSync app is
    kopiur-only with `components/kopiur` alone and a chart-owned PVC (example:
    `downloads/cleanuparr`); `components/kopiur/pvc` is the VolSync-retirement takeover shape only.
-   Do **not** add `components/volsync` to a new
-   app. This is deliberately **not** auto-generated - it requires measuring the app's live file
+   VolSync and `components/volsync` are removed (issue #2202). This is deliberately **not** auto-generated - it requires measuring the app's live file
    ownership after first deploy (see `kubernetes/components/kopiur/Readme.md`), which a template
    can't know in advance.
 3. Validate: `mise exec -- task flux:test:all`.
@@ -34,6 +33,6 @@ placeholders (image/tag, ports, uid/gid, 1Password keys), not a finished app. Af
 - Does not generate the `parameterized instance` shape's parent-directory wiring (one live
   precedent in this repo, its own `resources:` list is hand-maintained - the script writes the
   instance's own files and tells you the one line to add by hand).
-- Does not wire kopiur (VolSync is retired; never add it), ingress auth, Gatus endpoints, or
+- Does not wire kopiur (VolSync is removed; never add it back), ingress auth, Gatus endpoints, or
   Homepage annotations - these are per-app judgment calls, not structural boilerplate.
 - Does not touch any existing app. It refuses to overwrite a file that already exists.

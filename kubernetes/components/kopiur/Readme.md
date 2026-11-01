@@ -10,8 +10,8 @@ in `SKILL.md`. Procedures are in `references/`.
 ## Invariants
 
 - One include protects one volume. A second PVC is a second Flux Kustomization
-  with `APP` set to the claim name. See skill `volsync-carveouts`,
-  `references/multi-volume.md`, for the same shape on the three carve-outs.
+  with `APP` set to the claim name and `path` at `components/kopiur/backup`
+  (`selfhosted/syncthing.yaml` `syncthing-data-kopiur`).
 - `pvc/` carries `ssa: IfNotPresent` and must never carry `force: enabled`.
   `force` deletes the volume.
 - `KOPIUR_PUID` / `KOPIUR_PGID` default to 1000. Measure file ownership. A
@@ -24,4 +24,4 @@ in `SKILL.md`. Procedures are in `references/`.
 Fleet proof rows ("row N") are
 `.agents/skills/kopiur-backups/references/proof-ledger.md`.
 Human restore: `.agents/skills/kopiur-backups/references/kopiur-scratch-drill.md`.
-Corrupt-claim rebuild: `.agents/skills/volsync-carveouts/references/corrupt-claim-recreation.md`.
+Corrupt-claim rebuild: `.agents/skills/kopiur-backups/references/corrupt-claim-recreation.md`.

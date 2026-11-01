@@ -1,8 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/objectbucket.io/objectbucketclaim_v1alpha1.json
-# The ceph-bucket class has reclaimPolicy Delete: deleting this claim deletes the bucket and every object in it (the carve-out and retired VolSync repositories).
+# The ceph-bucket class has reclaimPolicy Delete: deleting this claim deletes the bucket and every object in it (the 51 retired VolSync restic repositories).
 # prune: disabled stops Flux from deleting it when this manifest leaves Git or the Kustomization is removed. It does NOT
-# stop `kubectl delete obc` or a namespace delete. Skill `volsync-carveouts`.
+# stop `kubectl delete obc` or a namespace delete. Skill `kopiur-backups`.
 apiVersion: objectbucket.io/v1alpha1
 kind: ObjectBucketClaim
 metadata:
