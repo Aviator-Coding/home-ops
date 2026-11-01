@@ -59,8 +59,8 @@ failed instead of seeding empty PVCs. Restoring the fleet from r2 is a
 DR-mode commit **before** bootstrap, then
 [full-cluster-restore-r2.md](full-cluster-restore-r2.md).
 
-Five claims have no populator path and are hand-restored. The runbook names
-them: `database/falkordb`, `database/surrealdb`,
+Four claims have no populator path and are hand-restored. The runbook names
+them: `database/surrealdb`,
 `selfhosted/paperless-ngx`, `paperless-ngx-media`, `syncthing-data`.
 
 Do not flip `onMissingSnapshot` to `Continue` to "get the cluster up". That

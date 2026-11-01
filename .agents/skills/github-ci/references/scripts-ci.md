@@ -24,9 +24,8 @@ pins, and `PATH` with `mise bin-paths` plus the venv `bin` first.
    digest present, and read the cross-check tag from the manifest
    (`grafana-mcp-deploy-test.py`, `samba-shared-xml-test.py`).
 3. **Frozen literal that pins no invariant.** Assert the relationship
-   (`falkordb-durability-test.py`: `--maxmemory` exists, sits under the
-   cgroup limit, no eviction policy). `request == limit` is allowed where there
-   is no headroom (`memory-request-declared-test.py`).
+   (`memory-request-declared-test.py`: the request is declared and stays within
+   the limit). `request == limit` is allowed where there is no headroom.
 
 Leave `talos-renovate-pin-test.py::test_no_live_version_bump` as it is. It
 freezes `.github/docker/talosctl-busybox/Dockerfile` and

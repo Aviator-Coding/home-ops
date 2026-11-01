@@ -58,7 +58,6 @@ FRR commands, not Cisco: `show bgp summary`, `show bgp ipv4 unicast`,
 | IP | Service |
 |---|---|
 | `10.50.0.21` | envoy-external |
-| `10.50.0.24` | falkordb |
 | `10.50.0.26` | envoy-internal |
 | `10.50.0.30` | emqx |
 | `10.50.0.51` | syncthing |

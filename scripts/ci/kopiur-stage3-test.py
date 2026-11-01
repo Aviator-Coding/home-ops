@@ -101,7 +101,7 @@ EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("ai", "cliproxyapi"): ("1000", "1000"),
     ("ai", "opencode"): ("1000", "1000"),
     ("ai", "repo-wiki"): ("1000", "1000"),
-    ("database", "falkordb"): ("1000", "1000"),
+    # database/falkordb removed with the app 2026-11-01 (owner); kopia snapshots kept under Retain; do not re-add.
     ("database", "pgadmin"): ("5050", "5050"),
     # Chainguard/distroless nonroot image (surrealdb/surrealdb). Read live
     # 2026-09-12 from the running pod's rendered securityContext
@@ -259,9 +259,8 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
 # test_no_other_overlay_uses_the_pvc_component holds it to exactly the recorded
 # retired volumes. A born-kopiur app's claim comes from its own chart.
 NEVER_VOLSYNC: set[tuple[str, str]] = {
-    # database/falkordb, added 2026-09-04. New app; kopiur is its only engine
-    # because volsync is no longer wired onto new claims.
-    ("database", "falkordb"),
+    # database/falkordb removed with the app 2026-11-01 (owner); kopia snapshots kept under Retain;
+    # do not re-add.
     # Unprotected-volume-coverage onboarding, 2026-09-12 (captain decision).
     # Never had VolSync wired onto it - it simply had NO backup engine at all
     # until that change. The three comfyui claims onboarded alongside it were

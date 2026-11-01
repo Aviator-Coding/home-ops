@@ -116,5 +116,5 @@ spec:
       KOPIUR_PUID: "65532"
       KOPIUR_PGID: "65532"
       # Namespace r2 hour (kubernetes/components/kopiur/Readme.md schedule
-      # table) - same hour database/falkordb already uses.
+      # table).
       KOPIUR_SCHEDULE_R2: "H 7 * * *"
