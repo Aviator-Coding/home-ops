@@ -476,7 +476,7 @@ Verdicts:
 | `.agents/skills/litellm-proxy/SKILL.md` §Tripwires 14 | The AI PR reviewer is advisory and never a required check; rotating its key has a silent second GitHub-secret step. | neither |  |  |
 | `.agents/skills/litellm-proxy/SKILL.md` §Tripwires 15 | Never call GET /spend/logs without a filter (it OOM-killed the proxy), and never zero historical spend. | data loss |  |  |
 | `.agents/skills/litellm-proxy/SKILL.md` §Tripwires 16 | Vector store uses one model and one width, qwen3-embedding-8b at 2000 dims, and PG_VECTOR_API_KEY is never exported. | neither |  |  |
-| `.agents/skills/media-stack/SKILL.md` §Tripwires 1 | Usenet only: the torrent client and torrent indexers were deleted, and re-adding a torrent path is a new decision. | neither |  |  |
+| `.agents/skills/media-stack/SKILL.md` §Tripwires 1 | No torrents, the *arr apps are Usenet only: the torrent client and torrent indexers were deleted, and re-adding a torrent path is a new decision. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 2 | Recyclarr assign_scores_to matches trash_id, never profile name, since a TRaSH rename orphans name-matched scores. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 3 | Radarr never searches for a monitored movie with no file; size a backlog search against free disk first. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 4 | Hardlinks across CephFS and NFS are impossible; imports copy and need double disk for the copy window. | neither |  |  |
@@ -484,7 +484,7 @@ Verdicts:
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 6 | Plex does not see NFS filesystem events; scans come from Radarr/Sonarr Connect and Plex's periodic update. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 7 | The Plex token is a PushSecret into the plex item; an empty PLEX_TOKEN still reports SecretSynced. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 8 | Tdarr library scope and flow state are not in Git; librariesToNotProcess is a no-op here, and transcodecpuWorkers stays at least 1. | neither |  |  |
-| `.agents/skills/media-stack/SKILL.md` §Tripwires 9 | Books run Shelfmark to Calibre-Web-Automated, Usenet only; Readarr was removed and its snapshots, databases and NAS files kept. | neither |  |  |
+| `.agents/skills/media-stack/SKILL.md` §Tripwires 9 | Books run Shelfmark to Calibre-Web-Automated, Usenet plus direct HTTP from Anna's Archive and LibGen, no torrents; Readarr was removed and its snapshots, databases and NAS files kept. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 10 | Git defines only the Cleanuparr pod; the queue-watchdog exits non-zero for queue items older than 24h, and Huntarr is not used. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 11 | Friend access is Wizarr plus Seerr, set up in the apps; Git declares only the routes and backups. | neither |  |  |
 | `.agents/skills/networking/SKILL.md` §Tripwires 1 | The DNS target comes from the parent Gateway; a route-level external-dns target annotation does not decide the record. | neither |  |  |
