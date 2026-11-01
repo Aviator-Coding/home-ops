@@ -26,8 +26,9 @@ Global scrape interval is 1 minute.
    restarts. A crash-loop shape needs
    `kube_pod_container_status_last_terminated_reason` at `for: 0m`, AND-ed with
    `increase(...restarts_total[15m]) > 0` or it latches after one kill. A
-   working-set threshold covers only the slow climb. Worked pair:
-   `kubernetes/apps/base/database/falkordb/app/prometheusrule.yaml`.
+   working-set threshold covers only the slow climb. Shape (both halves joined
+   `on (namespace, pod, container)`):
+   `kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1 and on (namespace, pod, container) increase(kube_pod_container_status_restarts_total[15m]) > 0`.
 6. **A threshold inside the noise floor is permanently true.** Where the metric
    sits elevated on purpose, alert on trajectory:
    `predict_linear(<metric>[6h], <horizon>)` joined to the same limit, with
@@ -130,6 +131,5 @@ with the window widened to `[5m]`. The chart copy stays disabled in
 
 - `kubernetes/apps/base/monitoring/kube-prometheus-stack/app/alerts/node-memory-pressure.yaml`
 - `kubernetes/apps/base/database/surrealdb/app/prometheusrule.yaml`
-- `kubernetes/apps/base/database/falkordb/app/prometheusrule.yaml`
 - `kubernetes/apps/base/flux-system/flux-instance/app/prometheusrule.yaml`
   (`flux_resource_info` uses `exported_namespace`, not `namespace`)

@@ -156,7 +156,7 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 | `observability` | PrometheusRule, Service/PodMonitor, Alertmanager, Gatus, Grafana, probes |
 | `media-stack` | *arr apps, SABnzbd, Recyclarr, Bazarr, Plex, backlog searches |
 | `tdarr-transcoding` | Tdarr libraries, flows, customFunction nodes, errored remuxes |
-| `databases` | FalkorDB, SurrealDB, CloudNativePG, EMQX, Dragonfly |
+| `databases` | SurrealDB, CloudNativePG, EMQX, Dragonfly |
 | `home-automation` | Zigbee2MQTT, Home Assistant, matter-server, esphome |
 
 ## Maintaining this file

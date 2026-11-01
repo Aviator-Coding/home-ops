@@ -187,19 +187,22 @@ If the MinIO NAS is lost too, Postgres has no off-site copy (the offsite mirror 
    safe: the claims are bound (`TargetAlreadyBound`), and the Restores carry no finalizers and own
    no data.
 
-## Phase 4 - Hand restores for the 5 claims without a working populator
+## Phase 4 - Hand restores for the 4 claims without a working populator
 
 These apps start on empty volumes after a rebuild and nothing restores them:
 
 | Claim | Why | r2 policy | Mover uid:gid | Cache |
 |---|---|---|---|---|
-| `database/falkordb` | chart-owned PVC, no populator | `falkordb-r2` | 1000:1000 | 10Gi |
 | `database/surrealdb` | chart-owned PVC, no populator | `surrealdb-r2` | 65532:65532 | 2Gi |
 | `selfhosted/paperless-ngx` | VolSync populator reads an empty rebuilt ceph restic repo | `paperless-ngx-r2` | 1000:1000 | 10Gi |
 | `selfhosted/paperless-ngx-media` | chart-owned PVC, no populator | `paperless-ngx-media-r2` | 1000:1000 | 50Gi |
 | `selfhosted/syncthing-data` | plain PVC, no populator | `syncthing-data-r2` | 1000:1000 | 15Gi |
 
-Identity is the live r2 policy value (2026-09-28) and cache the overlay value (2026-11-01, #2202); re-read both from the overlay
+The retired `database/falkordb` claim is not listed: its r2 snapshots are kept frozen
+(skill `databases` [retired.md](../../databases/references/retired.md)).
+
+Identity is the live r2 policy value (2026-09-28) and cache the overlay value
+(2026-11-01, #2202); re-read both from the overlay
 (`KOPIUR_PUID`/`KOPIUR_PGID`/`KOPIUR_CACHE_CAPACITY`) if they may have changed. For each claim:
 
 1. `flux suspend ks <app> -n <ns>` and `flux suspend hr <app> -n <ns>`, scale the workload to 0
