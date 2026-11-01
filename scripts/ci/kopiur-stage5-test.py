@@ -618,7 +618,7 @@ def test_backup_only_keeps_the_claim(key: str, v: Retired) -> None:
     )
     require(
         "dataSourceRef" not in entry and "existingClaim" not in entry,
-        f"{key}: the owner's persistence.{v.owner_key} must stay a plain chart-created claim",
+        f"{key}: the owner's claim {v.owner_key!r} must stay a plain, directly created claim",
     )
     require(
         entry.get("size") == v.capacity,
@@ -630,7 +630,7 @@ def test_backup_only_keeps_the_claim(key: str, v: Retired) -> None:
         require(
             KOPIUR_PVC_COMPONENT not in (d["spec"].get("components") or [])
             or sub.get("KOPIUR_CLAIM", sub.get("APP")) != v.claim,
-            f"{key}: Kustomization {name!r} adds kopiur/pvc for a chart-owned claim - a second owner",
+            f"{key}: Kustomization {name!r} adds kopiur/pvc for a claim another manifest owns - a second owner",
         )
     bspec = backup_ks(v)["spec"]
     require(

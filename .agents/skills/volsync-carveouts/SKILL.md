@@ -67,7 +67,7 @@ left VolSync on 2026-11-01). It still gets three `ReplicationSource` objects
 |---|---|
 | Component | `kubernetes/components/volsync/` |
 | Operator, admission policy, alerts | `kubernetes/apps/base/system/volsync/` |
-| Carve-out overlays | `kubernetes/apps/main/selfhosted/paperless-ngx.yaml`, `syncthing.yaml` |
+| Carve-out overlays | `kubernetes/apps/main/selfhosted/paperless-ngx.yaml` |
 | Scratch restore drill | [volsync-scratch-drill.md](references/volsync-scratch-drill.md) |
 | Corrupt-claim rebuild | [corrupt-claim-recreation.md](references/corrupt-claim-recreation.md) |
 | Expiry decision (not applied) | [retired-repo-expiry.md](references/retired-repo-expiry.md) |
