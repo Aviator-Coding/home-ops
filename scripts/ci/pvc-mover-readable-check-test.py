@@ -393,20 +393,15 @@ def extract_cronjob_script() -> str:
         f"script must feed the walker from {WALK_MOUNT_PATH}",
     )
     require(
-        "replicationsources" in script and "snapshotpolicies" in script,
-        "script must resolve mover identities from BOTH engines' live CRs",
+        "snapshotpolicies" in script,
+        "script must resolve mover identities from the live SnapshotPolicies",
+    )
+    require(
+        not re.search(r"(?i)volsync|replicationsource", strip_shell_comments(script)),
+        "the VolSync branch is retired: no replicationsources discovery, no volsync "
+        "identity, no report-only block may remain in the script body",
     )
     return script
-
-
-def rs(ns: str, pvc: str, uid: int, gid: int, name: str | None = None) -> dict[str, Any]:
-    return {
-        "metadata": {"namespace": ns, "name": name or f"{pvc}-ceph"},
-        "spec": {
-            "sourcePVC": pvc,
-            "restic": {"moverSecurityContext": {"runAsUser": uid, "runAsGroup": gid}},
-        },
-    }
 
 
 def sp(ns: str, pvcs: list[str], uid: int, gid: int, name: str = "policy") -> dict[str, Any]:
@@ -448,7 +443,6 @@ def pod_obj(
 
 def write_mock_kubectl(
     bin_dir: Path,
-    sources: list[dict[str, Any]],
     policies: list[dict[str, Any]],
     pods: list[dict[str, Any]],
     walk_results: dict[str, str],
@@ -460,8 +454,7 @@ def write_mock_kubectl(
     walk_results maps "ns/pod/container" to the literal text the walker would
     print, or the sentinel "FORBIDDEN" / "NOSHELL" / "TIMEOUT".
 
-    fail_gets is an optional set of resource names (`replicationsources`,
-    `snapshotpolicies`, `pods`) whose `kubectl get` exits non-zero with an
+    fail_gets is an optional set of resource names (`snapshotpolicies`, `pods`) whose `kubectl get` exits non-zero with an
     error on stderr - used to prove discovery failures never report a false
     clean.
     """
@@ -470,7 +463,6 @@ def write_mock_kubectl(
         p.write_text(json.dumps({"apiVersion": "v1", "kind": "List", "items": items}))
         return p
 
-    rs_path = dump("rs.json", sources)
     sp_path = dump("sp.json", policies)
     pods_path = dump("pods.json", pods)
     results_path = bin_dir / "results.json"
@@ -491,7 +483,6 @@ def write_mock_kubectl(
                 exit 1
               fi
               case "$res" in
-                replicationsources) cat {rs_path!s}; exit 0 ;;
                 snapshotpolicies)   cat {sp_path!s}; exit 0 ;;
                 pods)               cat {pods_path!s}; exit 0 ;;
               esac
@@ -544,7 +535,6 @@ def walker_output(files=10, dirs=3, vs=(0, 0), kp=(0, 0), errors=0) -> str:
 
 def run_cronjob_script(
     script: str,
-    sources: list[dict[str, Any]],
     policies: list[dict[str, Any]],
     pods: list[dict[str, Any]],
     walk_results: dict[str, str],
@@ -556,7 +546,7 @@ def run_cronjob_script(
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
         write_mock_kubectl(
-            bin_dir, sources, policies, pods, walk_results, fail_gets=fail_gets
+            bin_dir, policies, pods, walk_results, fail_gets=fail_gets
         )
         # The shipped script reads the walker from its ConfigMap mount. Point
         # that one literal at a harness copy; the literal itself is asserted in
@@ -580,7 +570,6 @@ def run_cronjob_script(
 def test_kopiur_finding_fails_the_job() -> None:
     proc = run_cronjob_script(
         extract_cronjob_script(),
-        [rs("selfhosted", "changedetection-config", 1000, 1000)],
         [sp("selfhosted", ["changedetection-config"], 1000, 1000)],
         [pod_obj("selfhosted", "changedetection-0", "changedetection-config", "/datastore")],
         {"selfhosted/changedetection-0/app": walker_output(files=3058, kp=(2292, 0))},
@@ -593,29 +582,24 @@ def test_kopiur_finding_fails_the_job() -> None:
     )
 
 
-def test_volsync_finding_alone_does_not_fail_the_job() -> None:
-    """VolSync is report-only: its staged clone is writable, so kubelet's
-    fsGroup walk rescues it before restic reads. Collected, never alerted."""
+def test_walker_vs_output_is_ignored() -> None:
+    """The walker still prints VS_* lines (it is shared, byte-pinned by its own
+    tests); the sweep must neither report nor fail on them."""
     proc = run_cronjob_script(
         extract_cronjob_script(),
-        [rs("ai", "hermes", 1000, 1000)],
         [sp("ai", ["hermes"], 10000, 10000)],
         [pod_obj("ai", "hermes-0", "hermes", "/opt/data")],
         {"ai/hermes-0/app": walker_output(files=89343, vs=(1950, 310), kp=(0, 0))},
     )
-    require(
-        proc.returncode == 0,
-        f"VolSync counts must never fail the job: {proc.stdout[-800:]}",
-    )
-    require("VOLSYNC REPORT-ONLY" in proc.stdout, "VolSync counts must be reported")
-    require("1950" in proc.stdout, "the VolSync count must be printed")
+    require(proc.returncode == 0, f"VS counts must not fail the job: {proc.stdout[-800:]}")
+    require("REPORT-ONLY" not in proc.stdout, "no VolSync report block may remain")
+    require("1950" not in proc.stdout, "VS counts must not be printed")
     require("kopiur_findings=0" in proc.stdout, "kopiur must be clean here")
 
 
 def test_walk_errors_are_inconclusive_and_fail() -> None:
     proc = run_cronjob_script(
         extract_cronjob_script(),
-        [rs("media", "plex", 1000, 1000)],
         [sp("media", ["plex"], 2000, 2000)],
         [pod_obj("media", "plex-0", "plex", "/config")],
         {"media/plex-0/app": walker_output(kp=(0, 0), errors=2)},
@@ -636,11 +620,6 @@ def test_unmeasured_claims_are_never_reported_as_passing() -> None:
     script = extract_cronjob_script()
     proc = run_cronjob_script(
         script,
-        [
-            rs("downloads", "recyclarr-config", 1000, 1000),
-            rs("selfhosted", "ntfy", 1000, 1000),
-            rs("database", "pgadmin", 1000, 1000),
-        ],
         [
             sp("downloads", ["recyclarr-config"], 2000, 2000, name="recyclarr"),
             sp("selfhosted", ["ntfy"], 1000, 1000, name="ntfy"),
@@ -685,7 +664,6 @@ def test_exec_failures_are_unmeasured_never_findings() -> None:
     ):
         proc = run_cronjob_script(
             extract_cronjob_script(),
-            [rs("media", "seerr", 1000, 1000)],
             [sp("media", ["seerr"], 2000, 2000)],
             [pod_obj("media", "seerr-0", "seerr", "/app/config")],
             {"media/seerr-0/app": sentinel},
@@ -708,7 +686,6 @@ def test_identity_comes_from_the_live_crs_not_a_default() -> None:
     """The per-claim identity in the log must be the CR's, not 1000:1000."""
     proc = run_cronjob_script(
         extract_cronjob_script(),
-        [rs("downloads", "prowlarr-config", 1000, 1000)],
         [sp("downloads", ["prowlarr-config"], 3002, 3000)],
         [pod_obj("downloads", "prowlarr-0", "prowlarr-config", "/config")],
         {"downloads/prowlarr-0/app": walker_output()},
@@ -718,13 +695,12 @@ def test_identity_comes_from_the_live_crs_not_a_default() -> None:
         "kopiur=3002:3000" in proc.stdout,
         f"the live SnapshotPolicy identity must be used: {proc.stdout[-600:]}",
     )
-    require("volsync=1000:1000" in proc.stdout, "the live ReplicationSource identity must be used")
+    require("volsync" not in proc.stdout, "no VolSync identity may be logged")
 
 
 def test_disagreeing_kopiur_policies_are_a_finding() -> None:
     proc = run_cronjob_script(
         extract_cronjob_script(),
-        [rs("ai", "opencode", 1000, 1000)],
         [
             sp("ai", ["opencode"], 1000, 1000, name="opencode-ceph"),
             sp("ai", ["opencode"], 2000, 2000, name="opencode-r2"),
@@ -741,7 +717,7 @@ def test_disagreeing_kopiur_policies_are_a_finding() -> None:
 
 def test_no_backup_crs_at_all_is_fatal() -> None:
     """An empty scope means discovery broke, not that the fleet is clean."""
-    proc = run_cronjob_script(extract_cronjob_script(), [], [], [], {})
+    proc = run_cronjob_script(extract_cronjob_script(), [], [], {})
     require(
         proc.returncode == 1,
         f"an empty identity map must be fatal, not a clean sweep: {proc.stdout}",
@@ -750,11 +726,10 @@ def test_no_backup_crs_at_all_is_fatal() -> None:
 
 
 def _happy_discovery_fixture() -> tuple[
-    list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, str]
+    list[dict[str, Any]], list[dict[str, Any]], dict[str, str]
 ]:
     """A single claim that would report OK if discovery succeeded."""
     return (
-        [rs("selfhosted", "changedetection-config", 1000, 1000)],
         [sp("selfhosted", ["changedetection-config"], 1000, 1000)],
         [
             pod_obj(
@@ -796,24 +771,26 @@ def _assert_discovery_fatal(proc: subprocess.CompletedProcess[str], named: str) 
     )
 
 
-def test_replicationsources_discovery_failure_is_fatal_not_false_clean() -> None:
-    sources, policies, pods, walks = _happy_discovery_fixture()
-    proc = run_cronjob_script(
-        extract_cronjob_script(),
-        sources,
-        policies,
-        pods,
-        walks,
-        fail_gets={"replicationsources"},
+def test_volsync_crs_are_never_queried() -> None:
+    """The VolSync branch is retired: the sweep must not touch replicationsources
+    (the CRD goes away with VolSync, and the old query would then hit FATAL).
+    The mock kubectl rejects any get it does not serve, so a stray query fails
+    the run; a clean pass here proves the kopiur path stands alone."""
+    policies, pods, walks = _happy_discovery_fixture()
+    proc = run_cronjob_script(extract_cronjob_script(), policies, pods, walks)
+    require(proc.returncode == 0, f"kopiur-only sweep must pass: {proc.stdout[-800:]}{proc.stderr[-400:]}")
+    require("unexpected get" not in proc.stderr, f"unexpected kubectl get: {proc.stderr}")
+    require(
+        not re.search(r"(?i)volsync|replicationsource", proc.stdout + proc.stderr),
+        f"no VolSync output may remain: {proc.stdout}",
     )
-    _assert_discovery_fatal(proc, "replicationsources")
+    require("kopiur_findings=0" in proc.stdout, f"kopiur summary must remain: {proc.stdout}")
 
 
 def test_snapshotpolicies_discovery_failure_is_fatal_not_false_clean() -> None:
-    sources, policies, pods, walks = _happy_discovery_fixture()
+    policies, pods, walks = _happy_discovery_fixture()
     proc = run_cronjob_script(
         extract_cronjob_script(),
-        sources,
         policies,
         pods,
         walks,
@@ -823,10 +800,9 @@ def test_snapshotpolicies_discovery_failure_is_fatal_not_false_clean() -> None:
 
 
 def test_pods_discovery_failure_is_fatal_not_false_clean() -> None:
-    sources, policies, pods, walks = _happy_discovery_fixture()
+    policies, pods, walks = _happy_discovery_fixture()
     proc = run_cronjob_script(
         extract_cronjob_script(),
-        sources,
         policies,
         pods,
         walks,
@@ -837,10 +813,9 @@ def test_pods_discovery_failure_is_fatal_not_false_clean() -> None:
 
 def test_empty_snapshotpolicies_map_is_fatal_not_na_clean() -> None:
     """A successful but empty kopiur query is discovery breakage, not NA."""
-    sources, _policies, pods, walks = _happy_discovery_fixture()
+    _policies, pods, walks = _happy_discovery_fixture()
     proc = run_cronjob_script(
         extract_cronjob_script(),
-        sources,
         [],
         pods,
         walks,
@@ -882,8 +857,12 @@ def test_rbac_split_role_and_narrow_exec_binding() -> None:
     require(verbs <= {"get", "list"}, f"the read role must be read-only, got {verbs}")
     resources = {r for rule in read_role["rules"] for r in rule["resources"]}
     require(
-        resources == {"pods", "replicationsources", "snapshotpolicies"},
+        resources == {"pods", "snapshotpolicies"},
         f"the read role must grant exactly discovery, got {resources}",
+    )
+    require(
+        all(g != "volsync.backube" for rule in read_role["rules"] for g in rule["apiGroups"]),
+        "the volsync.backube RBAC rule is retired with the VolSync branch",
     )
     exec_role = next(
         d for d in docs if d["kind"] == "ClusterRole" and d["metadata"]["name"].endswith("-exec")
@@ -1049,14 +1028,14 @@ def main() -> int:
     ]
     script_tests = [
         test_kopiur_finding_fails_the_job,
-        test_volsync_finding_alone_does_not_fail_the_job,
+        test_walker_vs_output_is_ignored,
         test_walk_errors_are_inconclusive_and_fail,
         test_unmeasured_claims_are_never_reported_as_passing,
         test_exec_failures_are_unmeasured_never_findings,
         test_identity_comes_from_the_live_crs_not_a_default,
         test_disagreeing_kopiur_policies_are_a_finding,
         test_no_backup_crs_at_all_is_fatal,
-        test_replicationsources_discovery_failure_is_fatal_not_false_clean,
+        test_volsync_crs_are_never_queried,
         test_snapshotpolicies_discovery_failure_is_fatal_not_false_clean,
         test_pods_discovery_failure_is_fatal_not_false_clean,
         test_empty_snapshotpolicies_map_is_fatal_not_na_clean,

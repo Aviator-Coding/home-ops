@@ -30,17 +30,18 @@ mount?" Mover-readable answers "can this backup identity read this claim?"
 4. **UNMEASURED is never a pass.** Unmounted claims, subPath-only mounts
    (`ntfy`), RBAC exclusions, and any walk that hit an error are reported,
    not counted as readable. [mover-readable.md](references/mover-readable.md)
-5. **Alert on kopiur. Report-only for VolSync.** VolSync stages its clone
-   writable, so `fsGroup` repairs permissions before restic reads. kopiur
-   stages read-only and fails closed. The same mismatch is invisible to one
-   engine and fatal to the other.
+5. **The check measures kopiur only.** kopiur stages read-only and fails
+   closed on the first unreadable file, so a mover uid that cannot read its
+   claim means no usable backup. The VolSync branch is gone (its writable
+   staging plus `fsGroup` hid the mismatch); the 3 carve-out claims are
+   measured through their kopiur SnapshotPolicies.
 6. **The four walk traps** in `walk.sh` each return a silent false-clean zero
    if reintroduced: busybox `find` has no `-uid`/`-gid`; `/tmp` is read-only
    so there is no temp file; stderr is counted, never discarded; `stat -c %F`
    says `regular empty file`, so match the type by prefix.
    `lost+found` (`0700 root:root`) is pruned from descent and statted aside,
    or every ext4 claim is `INCONCLUSIVE`.
-7. **Identities come from the live `ReplicationSource` / `SnapshotPolicy`**,
+7. **Identities come from the live `SnapshotPolicy`**,
    never from component defaults. Real movers span uid 0 through 10000.
 8. **Expected read-only is `volumeMounts[].readOnly: true`.** The pod
    annotation `pvc-writable-check.home-operations.com/skip` is an unused
