@@ -22,6 +22,8 @@ spec:
     spec:
       containers:
         - name: mcp
+          # 2.0.0 stats ./.env at startup; the image WORKDIR is not readable by uid 1000.
+          workingDir: /tmp
           args:
             - --transport
             - streamable-http
@@ -35,5 +37,11 @@ spec:
               value: in-cluster
             - name: PYTHONUNBUFFERED
               value: "1"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
   groupRef:
     name: mcp-tools
