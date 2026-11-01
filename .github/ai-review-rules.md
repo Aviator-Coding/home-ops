@@ -51,9 +51,11 @@ agree. A pure digest or patch bump with nothing else in the diff is normally fin
   workflow that approves PRs.
 - **Silent data loss and outages are blockers** (`AGENTS.md` TRIPWIRES):
   - a kopiur PVC component or overlay that sets `force: enabled`, drops `ssa: IfNotPresent`, or a
-    Kustomization owning a kopiur/VolSync claim with `wait: true`;
-  - deleting a kopiur `Snapshot` CR, or patching an app's `<app>-dst` `ReplicationDestination`
+    Kustomization owning a kopiur claim with `wait: true`;
+  - deleting a kopiur `Snapshot` CR, or editing an app's standing `<app>-kopiur-dst` `Restore`
     to trigger a restore;
+  - renaming or re-pathing Flux Kustomization `system/volsync`, or dropping `prune: disabled` from
+    its OBC: the bucket holds the 51 retired VolSync restic repositories;
   - a Flux `healthChecks` entry targeting a `HelmRelease` instead of the workload;
   - a literal `${...}` in a Flux-reconciled file that is not a Flux substitution variable;
   - a `CiliumClusterwideNetworkPolicy` with a `nodeSelector` and ingress rules while
@@ -87,16 +89,17 @@ agree. A pure digest or patch bump with nothing else in the diff is normally fin
 - **`healthChecks:` must target the rendered workload** (`Deployment`/`StatefulSet`/`DaemonSet`/
   `CronJob`, or a CR whose status is the real signal) - never the `HelmRelease`, whose `Ready` stays
   `True` straight through a pod crashloop. A Kustomization with `healthChecks`, or one that owns a
-  kopiur/VolSync claim, must have `wait:` `false` or omitted, because `wait: true` makes Flux
+  kopiur claim, must have `wait:` `false` or omitted, because `wait: true` makes Flux
   ignore `spec.healthChecks`. Dependency gates (CRDs, operators, secret stores) correctly set
   `wait: true` - do not flag those. `healthCheckExprs` only runs against objects
   already in the assessment set.
-- VolSync: **one component include covers exactly one volume.** A second PVC needs its own Flux
-  Kustomization with `path: ./kubernetes/components/volsync/backup` and `APP` set to the claim name.
-  `VOLSYNC_CACHE_CAPACITY` must be 20-50% of the PVC size (50-100% for small PVCs).
-- Never patch an app's `<app>-dst` `ReplicationDestination` to trigger a restore - it carries
+- kopiur: **one component include covers exactly one volume.** A second PVC needs its own Flux
+  Kustomization with `path: ./kubernetes/components/kopiur/backup` and `APP` and `KOPIUR_CLAIM` set
+  to the claim name. VolSync and `components/volsync` were removed (issue #2202): flag any change
+  that adds them back.
+- Never edit an app's standing `<app>-kopiur-dst` `Restore` to trigger a restore - it carries
   `ssa: IfNotPresent`, so a manual edit persists forever and silently drifts from Git. Create a
-  uniquely-named scratch `ReplicationDestination` instead.
+  uniquely-named scratch `Restore` with `target.pvc` instead.
 
 ## Networking
 

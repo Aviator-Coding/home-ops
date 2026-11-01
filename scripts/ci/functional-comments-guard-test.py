@@ -106,6 +106,10 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json",
     ): "syncthing-data VolSync Kustomization document deleted: VolSync retired from that claim (issue #2202 PR-3); kopiur backs it up.",
     (
+        "kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml",
+        '# renovate: depName="VolSync Dashboard"',
+    ): "VolSync dashboard (gnet 21356) removed with the VolSync operator (issue #2202 PR-6): no VolSync metrics remain.",
+    (
         "kubernetes/apps/base/home-automation/home-assistant/app/securitypolicy.yaml",
         "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json",
     ): "home-assistant-auth SecurityPolicy document deleted: the ExtAuth gate broke HA's own /auth/token OAuth; Authentik signs in via auth_oidc instead.",

@@ -9,6 +9,10 @@ once per object, and needs all of them true. Zero objects pass vacuously, an
 absent `status` becomes an empty map, and a CEL error or a missing CRD keeps
 retrying until the timeout, which blocks the upgrade. So each expression must
 guard the field with has() and name only a phase that means "mover running".
+
+No check may name a `volsync.backube` kind: issue #2202 PR-6 removed the operator,
+and its CRDs are deleted by hand after that merge. A check on a kind with no CRD
+retries until the timeout and blocks every Talos and Kubernetes upgrade.
 """
 
 import sys
@@ -34,12 +38,11 @@ def checks(name):
 def main():
     failures = []
     for name in FILES:
-        has_rs = any(c["kind"] == "ReplicationSource" and c["apiVersion"] == "volsync.backube/v1alpha1" for c in checks(name))
-        operator_present = (ROOT / "kubernetes/apps/base/system/volsync/app").exists()
-        if has_rs != operator_present:
+        volsync = [f"{c['apiVersion']} {c['kind']}" for c in checks(name) if str(c["apiVersion"]).startswith("volsync.backube/")]
+        if volsync:
             failures.append(
-                f"{name}: ReplicationSource check present={has_rs} but VolSync operator present={operator_present}; "
-                "the check stays until the operator is removed and goes in the same PR"
+                f"{name}: healthChecks still name {volsync}; the VolSync operator is removed "
+                "(issue #2202 PR-6) and a check on a kind with no CRD blocks every upgrade"
             )
         found = {}
         for c in checks(name):

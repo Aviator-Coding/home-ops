@@ -27,10 +27,11 @@ Live nodes at the last check: Talos v1.14.4, kubelet v1.36.5, matching `TalosUpg
 
 `TalosUpgrade` `healthChecks`:
 
-- every VolSync `ReplicationSource` has `Synchronizing=False`
+- no kopiur `Snapshot` in phase `Running` and no `Restore` in phase `Restoring`
 - `CephCluster` `status.ceph.health` is `HEALTH_OK`
 
-No kopiur check. `policy.rebootMode: powercycle` is a hard reset, not a graceful shutdown. A version bump merged to `main` is the upgrade.
+The VolSync `ReplicationSource` check was removed with the operator (issue #2202 PR-6).
+`KubernetesUpgrade` carries the same checks. `policy.rebootMode: powercycle` is a hard reset, not a graceful shutdown. A version bump merged to `main` is the upgrade.
 
 ## Node roll
 

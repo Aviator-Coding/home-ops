@@ -66,13 +66,14 @@ jq '.Rules | length' /tmp/volsync-lifecycle.json                      # 51
 jq -r '.Rules[] | "\(.Filter.Prefix)\t\(.Expiration.Date)"' /tmp/volsync-lifecycle.json | sort
 jq -r '.Rules[].Filter.Prefix' /tmp/volsync-lifecycle.json \
   | grep -vE '/$' && echo "STOP: a prefix does not end in /"
-kubectl get replicationsource -A   # cluster read; expect "No resources found"
+kubectl get crd replicationsources.volsync.backube   # cluster read; expect NotFound (operator removed)
 ```
 
-The grep must print nothing. `kubectl get replicationsource -A` must list nothing: no
-repository is live since 2026-11-01, when `paperless-ngx`, the last, was retired. A source that
-exists again must have its app in `ledger.yaml` `protected` first (the renderer then refuses any
-rule for it); otherwise stop.
+The grep must print nothing. The CRD must be absent (or, if the owner has not yet deleted it,
+`kubectl get replicationsource -A` must list nothing): no repository is live since 2026-11-01,
+when `paperless-ngx`, the last, was retired, and the operator was removed the same day (issue
+#2202 PR-6). A source that exists again must have its app in `ledger.yaml` `protected` first (the
+renderer then refuses any rule for it); otherwise stop.
 
 ## Step 1 - dry run each destination (read-only)
 

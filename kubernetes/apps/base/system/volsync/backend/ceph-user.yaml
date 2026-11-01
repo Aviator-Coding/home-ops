@@ -1,7 +1,13 @@
 ---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/ceph.rook.io/cephobjectstoreuser_v1.json
+# Kept until retired-repository expiry has run (issue #2202 decision 6), then removed in its own PR once
+# `radosgw-admin bucket stats --bucket=volsync | jq -r .owner` shows it does not own the bucket.
+# prune: disabled stops Flux from deleting it when this manifest leaves Git. Skill `kopiur-backups`.
 apiVersion: ceph.rook.io/v1
 kind: CephObjectStoreUser
 metadata:
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
   name: volsync
   namespace: system
 spec:

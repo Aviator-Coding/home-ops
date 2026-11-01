@@ -42,7 +42,7 @@ the `syncthing` Kustomization (not by the deleted one, and not a HelmRelease), s
 the stage 5 row names that file as `owner_hr` and the claim name as `owner_key`.
 Merging it prunes the same 7 VolSync objects plus 3 restic cache PVCs, and never
 touches the PVC. PR-3 also repointed the expiry applier's credentials, because the
-Secrets it read are pruned here ([retired-expiry-apply-plan.md](../../volsync-carveouts/references/retired-expiry-apply-plan.md)).
+Secrets it read are pruned here ([retired-expiry-apply-plan.md](retired-expiry-apply-plan.md)).
 See [restore-and-cache.md](restore-and-cache.md).
 
 `selfhosted/paperless-ngx` (PR-4) closed the wave, 2026-11-01, and is the one
@@ -106,8 +106,9 @@ claim any more. Do not put it back into `RETIRED_CLAIMS`.
 3. Expect the CR count for that claim to hit zero.
 4. Confirm preservation in the repository (kopia snapshots still listed), not
    in the CR list.
-5. Retired VolSync restic repositories are **not** expired by this. Skill
-   `volsync-carveouts`. Deleting a `ReplicationSource` never touches restic.
+5. Retired VolSync restic repositories are **not** expired by this
+   ([retired-repo-expiry.md](retired-repo-expiry.md)). Deleting a
+   `ReplicationSource` never touches restic.
 
 ## Rollback of a retirement commit
 

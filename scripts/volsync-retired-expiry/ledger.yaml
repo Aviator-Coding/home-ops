@@ -1,6 +1,6 @@
 ---
 # Not a Kubernetes manifest and not reconciled by Flux. Expiry is NOT IN FORCE until an operator applies it.
-# Skill `volsync-carveouts`.
+# Skill `kopiur-backups`.
 measured_at: "2026-09-12"
 
 buckets:
@@ -16,19 +16,19 @@ buckets:
     bucket: volsync
 
 # LIVE repositories. These still have ReplicationSources writing to them. Empty since
-# 2026-11-01: the last claim, paperless-ngx, left VolSync (issue #2202 PR-4).
+# 2026-11-01: the last claim, paperless-ngx, left VolSync (issue #2202 PR-4) and PR-6 removed the operator.
 # The renderer fails closed if any rule it is about to emit could touch one.
 # Never move an entry from here into a tier without first deleting its
 # ReplicationSources; a claim put back on VolSync must be listed here first.
 protected: []
 
 # Retired repositories, split by whether anything else still backs the data up.
-# Skill `volsync-carveouts`.
+# Skill `kopiur-backups`.
 tiers:
 
   redundant:
     # Retired from VolSync during the kopiur Stage 5 migration.
-    # Skill `volsync-carveouts`.
+    # Skill `kopiur-backups`.
     expires: "2027-03-31"
     # ~6.5 months out. The last retirement wave landed 2026-09-04; a defect
     # introduced by the migration surfaces in weeks, not quarters, and two
@@ -101,7 +101,7 @@ tiers:
     # the ONLY remaining copy of that data anywhere.
     expires: "2027-09-30"
     # ~12.5 months out, double the redundant tier. This repository is the only remaining copy.
-    # Skill `volsync-carveouts`.
+    # Skill `kopiur-backups`.
     reason: no other copy exists anywhere - app and volume are both gone
     prefixes:
       # ceph: 259673311 B / 297 obj, r2: 240224703 B / 154 obj, minio: 232857904 B / 208 obj; last write 2026-08-31

@@ -13,13 +13,13 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 - **Secrets:** 1Password + External Secrets Operator. Bootstrap and Talos secrets are injected by `vals` from vault `Home-Lab`
 - **Ingress:** Gateway API (`envoy-internal` / `envoy-external` in `network`) plus Cloudflare Tunnel
 - **DNS:** External-DNS to Cloudflare (public) and the Unifi webhook (`network/unifi-dns`, internal)
-- **Backup:** kopiur on every protected claim (ceph + r2), and the only engine since 2026-11-01, when the last three VolSync claims (`selfhosted/paperless-ngx{,-media}`, `syncthing-data`) were retired (issue #2202); the VolSync operator is removed separately
+- **Backup:** kopiur on every protected claim (ceph + r2), and the only engine since 2026-11-01, when the last three VolSync claims (`selfhosted/paperless-ngx{,-media}`, `syncthing-data`) were retired (issue #2202); the VolSync operator was removed the same day and its retired restic repositories are kept
 
 ## Operator docs
 
 | Topic | File |
 |---|---|
-| Day-to-day commands, app layout, secrets, Volsync, agent-facing conventions and anti-patterns | [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` is a symlink to it) |
+| Day-to-day commands, app layout, secrets, backups, agent-facing conventions and anti-patterns | [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` is a symlink to it) |
 | Talos templates, render/apply/upgrade | [`talos/AGENTS.md`](talos/AGENTS.md) |
 | First-time / disaster-recovery bootstrap | [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md) |
 | Runbooks | skill references under [`.agents/skills/`](.agents/skills/); [`docs/README.md`](docs/README.md) for the exceptions |
@@ -32,7 +32,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 ├── kubernetes/
 │   ├── apps/           # Flux apps at apps/base/<ns> + overlay apps/main/<ns>
 │   ├── clusters/main/  # Flux entry point (cluster-meta + cluster-apps)
-│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, kopiur (+ pvc), volsync (no claims left))
+│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, kopiur (+ pvc))
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
 ├── .agents/skills/     # agent skills, one per subsystem (.claude/skills is a symlink)
@@ -83,7 +83,7 @@ Usage and limits: [`scripts/add-app/README.md`](scripts/add-app/README.md). Afte
 
 1. Fill every `TODO` in the generated base manifests and overlay `kubernetes/apps/main/{namespace}/{app}.yaml` (the scaffold also appends the namespace `kustomization.yaml` `resources:` entry).
 2. Secrets go in `externalsecret.yaml` against ClusterSecretStore `onepassword`. Never commit plaintext or SOPS files.
-3. Optional backups are **not** scaffolded. New never-VolSync apps take kopiur-only with `components/kopiur` alone plus a chart-owned PVC (example: `downloads/cleanuparr.yaml`); `components/kopiur/pvc` is the VolSync-retirement takeover shape only (example: `downloads/sonarr.yaml`). Always `dependsOn: kopiur-repository` in namespace `system`, plus measured `KOPIUR_*` keys. Do not add `components/volsync` to a new app; dual-engine survives only on three deliberate carve-outs. Owner: `kubernetes/components/kopiur/Readme.md`.
+3. Optional backups are **not** scaffolded. New never-VolSync apps take kopiur-only with `components/kopiur` alone plus a chart-owned PVC (example: `downloads/cleanuparr.yaml`); `components/kopiur/pvc` is the VolSync-retirement takeover shape only (example: `downloads/sonarr.yaml`). Always `dependsOn: kopiur-repository` in namespace `system`, plus measured `KOPIUR_*` keys. VolSync and `components/volsync` were removed on 2026-11-01 (issue #2202). Owner: `kubernetes/components/kopiur/Readme.md`.
 4. Validate with `mise exec -- task flux:test:all`.
 
 Flux reconciles from Git. After a merge, `task reconcile` forces a sync.

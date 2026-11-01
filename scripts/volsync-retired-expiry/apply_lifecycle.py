@@ -42,7 +42,7 @@ credential Secrets are pruned when the last claim leaves VolSync, so nothing rea
   the `Workers R2 Storage Write` permission group that lifecycle management needs,
   so a dry run with it stops at the lifecycle read, by design.
 
-See .agents/skills/volsync-carveouts/references/retired-expiry-apply-plan.md.
+See .agents/skills/kopiur-backups/references/retired-expiry-apply-plan.md.
 """
 
 from __future__ import annotations

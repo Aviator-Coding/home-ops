@@ -9,7 +9,7 @@ If the OSD disks and FSID survive, use that document instead: Ceph comes back wi
 buckets and the standing populators restore from `ceph` as designed.
 
 To rebuild **one** claim on a healthy cluster, use
-skill `volsync-carveouts`, `references/corrupt-claim-recreation.md`, not this.
+[corrupt-claim-recreation.md](corrupt-claim-recreation.md), not this.
 
 ## Why a plain rebuild is not enough
 
@@ -239,7 +239,8 @@ Identity is the live r2 policy value (2026-09-28) and cache the overlay value
    away (same credential-copy reason as phase 3 step 6), then resume the HelmRelease and
    Kustomization and let the workload scale back up.
 
-Do **not** use `just kube restore`: it is VolSync-only, clones `${APP}-dst`, and reads `ceph`.
+There is no `just` recipe for this: the old `just kube restore` was VolSync-only and was
+removed with the operator (issue #2202 PR-6).
 
 ## Phase 5 - Verify
 

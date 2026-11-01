@@ -34,7 +34,8 @@ as well.
    Deleting that CR deletes the backup. Three VolSync restic repos named
    `volsync/agentmemory` (ceph, minio, r2) also survive, because deleting
    a `ReplicationSource` never touches its repository. Expiring them is
-   skill `volsync-carveouts`, exact path segment, never a prefix.
+   skill `kopiur-backups` (`retired-repo-expiry.md`), exact path segment,
+   never a prefix.
 6. A namespace-wide privilege that existed for the retired app comes off
    with it. `kopiur.home-operations.com/privileged-movers` was on `ai`
    only for comfyui's root-owned claims. No remaining `ai` claim asks
@@ -64,9 +65,9 @@ An inventory comment is not a reason to touch the CR.
 
 Re-add the manifests, then restore into a new PVC from the retained
 snapshot **before** the app writes an empty volume. A fresh claim does
-not populate itself from a retired repo. VolSync `latestImage` frozen at
-first deploy is skill `volsync-carveouts`. kopiur restore cache sizing
-is skill `kopiur-backups`.
+not populate itself from a retired repo. A retired VolSync repository is
+read with `retired-restic-read.md`, and kopiur restore cache sizing is in
+`restore-and-cache.md` (both skill `kopiur-backups`).
 
 `agentmemory` is not a compatibility target. A future memory backend for
 OpenCode or Hermes is a new integration. Hermes' own long-term memory is

@@ -1,17 +1,18 @@
 ---
 name: kopiur-backups
-description: "Read before ANY kopiur change: onboarding or retiring a claim, kubernetes/components/kopiur/** or kubernetes/apps/base/system/kopiur/**, KOPIUR_* overlays, Snapshot/SnapshotPolicy/Restore/ClusterRepository, a restore drill, or a failed backup or IndexBlobHealth alert."
+description: "Read before ANY kopiur change: onboarding or retiring a claim, kubernetes/components/kopiur/** or kubernetes/apps/base/system/kopiur/**, KOPIUR_* overlays, Snapshot/SnapshotPolicy/Restore/ClusterRepository, a restore drill, a failed backup or IndexBlobHealth alert, or the retired VolSync repositories (system/volsync bucket, scripts/volsync-retired-expiry/**)."
 ---
 
 # kopiur backups
 
 kopiur is the only backup engine. The last VolSync claim
-(`selfhosted/paperless-ngx`) left on 2026-11-01; the operator is removed
-separately (issue #2202 PR-6), and its retired repositories are skill
-`volsync-carveouts`. Born-kopiur claims (`database/surrealdb`,
-`downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`) never had VolSync.
-A kopiur overlay never `dependsOn` the VolSync operator; it depends on
-`kopiur-repository` in `system`.
+(`selfhosted/paperless-ngx`) left on 2026-11-01, and the operator and
+`components/volsync` were removed the same day (issue #2202 PR-6). Its 51
+restic repositories stay (tripwire 17). Born-kopiur claims
+(`database/surrealdb`, `downloads/cleanuparr`, `media/wizarr`,
+`ai/cliproxyapi`) never had VolSync. A kopiur overlay depends on
+`kopiur-repository` in `system`, never on `system/volsync` (now only the
+bucket).
 
 The chart tag lives in
 `kubernetes/apps/base/system/kopiur/app/ocirepository.yaml`. Read that file.
@@ -87,6 +88,16 @@ Comments that name an older tag are stale.
     [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md). Do not invent a
     second procedure. Three claims have no populator path and are hand-restored;
     that runbook names them.
+17. **The retired VolSync repositories outlive the operator.** 51 restic
+    repositories sit in the `volsync` buckets (ceph, MinIO, R2). The ceph one is
+    OBC `volsync` on `ceph-bucket` (`reclaimPolicy: Delete`): Flux Kustomization
+    `system/volsync` keeps that name and renders only `backend/`, and the OBC and
+    CephObjectStoreUser stay `prune: disabled`. Renaming or re-pathing that
+    Kustomization lets prune delete every repository. 1Password `volsync-template`
+    holds their only passwords: never delete or rotate it. Expiry is **NOT IN
+    FORCE** and matches the exact segment `<name>/` (`paperless-ngx` is a string
+    prefix of `paperless-ngx-media`). [retired-repo-expiry.md](references/retired-repo-expiry.md),
+    read one: [retired-restic-read.md](references/retired-restic-read.md).
 
 ## Where things live
 
@@ -97,7 +108,9 @@ Comments that name an older tag are stale.
 | Per-claim `KOPIUR_*` | `kubernetes/apps/main/<ns>/<app>.yaml` |
 | Identity, r2 hour, retired vs never-VolSync sets | `scripts/ci/kopiur-stage3-test.py` |
 | Human restore (scratch) | [kopiur-scratch-drill.md](references/kopiur-scratch-drill.md) |
-| Human claim rebuild | skill `volsync-carveouts`, [corrupt-claim-recreation.md](../volsync-carveouts/references/corrupt-claim-recreation.md) |
+| Human claim rebuild | [corrupt-claim-recreation.md](references/corrupt-claim-recreation.md) |
+| Retired VolSync bucket | `kubernetes/apps/base/system/volsync/backend/` (Flux Kustomization `system/volsync`) |
+| Retired-repository expiry (not in force) and its apply plan | `scripts/volsync-retired-expiry/`, [retired-repo-expiry.md](references/retired-repo-expiry.md), [retired-expiry-apply-plan.md](references/retired-expiry-apply-plan.md) |
 | Full-cluster r2 | [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md) |
 | Fleet proof rows (overlay "row N") | [proof-ledger.md](references/proof-ledger.md) |
 | CI | `scripts/ci/kopiur-*.py` |
@@ -111,6 +124,8 @@ Comments that name an older tag are stale.
 - Leak alert or projection: [credentials.md](references/credentials.md), [alerts.md](references/alerts.md).
 - Operator install, buckets, DR-mode commit: [stage0-operator.md](references/stage0-operator.md).
 - Full-cluster loss, restore every volume from r2: [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md).
+- Rebuild one corrupt claim: [corrupt-claim-recreation.md](references/corrupt-claim-recreation.md).
+- Read a retired VolSync restic repository: [retired-restic-read.md](references/retired-restic-read.md).
 
 ## Verify
 
@@ -118,6 +133,8 @@ Comments that name an older tag are stale.
   `kopiur-timezone-test.py`, `kopiur-epoch-tuning-test.py`,
   `kopiur-restore-cache-sizing-test.py`,
   `kopiur-projected-secrets-leak-alert-test.py`.
+- `volsync-retired-expiry-test.py` (needs `boto3`: `uv run --with pyyaml --with boto3 python …`).
+  Do not `kubectl get secret … -o yaml` to check repository access; that prints credentials.
 - `task flux:test:all`.
 - After any `KOPIUR_*` change that the standing `Restore` consumes, read the
   live object. `Ready=True` on the Kustomization does not mean the populator

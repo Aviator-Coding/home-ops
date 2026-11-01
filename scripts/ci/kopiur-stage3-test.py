@@ -16,7 +16,9 @@ UPDATED 2026-09-01 for Stage 5, which began retiring VolSync per volume after
 both destinations. The dual-engine invariant is therefore no longer universal -
 it is now EXACT, against the RETIRED_CLAIMS set below. A claim
 that goes single-engine without being listed there still fails, and so does a
-listed claim that still renders VolSync.
+listed claim that still renders VolSync. Since issue #2202 PR-6 removed the
+operator and component, no overlay may render VolSync at all, and
+RETIRED_CLAIMS | NEVER_VOLSYNC must equal the onboarded fleet exactly.
 
 No remaining deferred claims: Stage 4 onboarded both previously deferred
 volumes, so kopiur went live on 30 of 30 VolSync-protected claims (alongside
@@ -92,8 +94,9 @@ APPS_MAIN = REPO / "kubernetes" / "apps" / "main"
 KOPIUR_BACKUP = REPO / "kubernetes" / "components" / "kopiur" / "backup"
 KOPIUR_COMPONENT_SUFFIX = "components/kopiur"
 KOPIUR_BACKUP_PATH = "kubernetes/components/kopiur/backup"
-VOLSYNC_COMPONENT_SUFFIX = "components/volsync"
-VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
+# Removed with the operator in issue #2202 PR-6. Any Flux Kustomization that still
+# names it (component, path or the old operator app) is a half-revert.
+VOLSYNC_PATHS = ("components/volsync", "kubernetes/apps/base/system/volsync/app")
 
 # (namespace, claim) -> (uid, gid), measured live 2026-08-30.
 EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
@@ -188,8 +191,9 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 # claim name), after ceph, r2 and populator-path drills at a 10Gi cache, recorded in
 # proof-ledger.md row 27. With it the dual-engine fleet is empty.
 #
-# This set is the fleet's legibility record: anything in it has ONE backup
-# engine, and anything not in it must still have two. Adding a row here is an
+# This set is the fleet's legibility record. With NEVER_VOLSYNC it partitions the
+# kopiur fleet exactly (no claim has two engines since 2026-11-01, and the operator
+# is removed, issue #2202 PR-6). Adding a row here is an
 # assertion that a restore proof exists for that volume - do not add one to
 # quiet a failing test.
 RETIRED_CLAIMS: set[tuple[str, str]] = {
@@ -205,7 +209,7 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     # some "formerly retired" list because this set is asserted BOTH ways
     # against the live overlays: in-set means kopiur-only, not-in-set means
     # dual-engine, and a claim with no overlay at all is neither. Leaving the
-    # row behind fails `volsync_still_on_every_unretired_claim`, which reads a
+    # row behind fails `no_overlay_renders_volsync`, which reads a
     # retired-but-unonboarded claim as a volume with NO backup - the exact
     # dangerous state this assertion exists to catch.
     #
@@ -576,63 +580,49 @@ def test_rendered_objects_hold_the_contract() -> None:
             )
 
 
-def volsync_covered() -> set[tuple[str, str]]:
-    """(namespace, claim) pairs protected by VolSync via component or backup path.
+def volsync_wired() -> list[str]:
+    """Every Flux Kustomization that still wires VolSync in, one line each.
 
-    Mirrors onboarded() discovery for kopiur: a Flux Kustomization either lists
-    components/volsync, or points its path at components/volsync/backup (the
-    second-claim / split shape). Claim resolution is VOLSYNC_CLAIM if present,
-    else APP - the same substitute-map rule kopiur uses with KOPIUR_CLAIM.
+    The operator, its CRDs' chart and components/volsync were removed in issue #2202
+    PR-6. A Kustomization that lists a volsync component, points its path at one or at
+    the old operator app, carries a VOLSYNC_* substitute key, or dependsOn
+    system/volsync (which now renders only the bucket) is a half-revert.
     """
-    covered: set[tuple[str, str]] = set()
-    for d, _path in flux_kustomizations():
+    out: list[str] = []
+    for d, path in flux_kustomizations():
         spec = d.get("spec") or {}
-        comps = [c for c in (spec.get("components") or []) if isinstance(c, str)]
-        via_component = any(
-            c.rstrip("/").endswith(VOLSYNC_COMPONENT_SUFFIX) for c in comps
-        )
-        via_path = str(spec.get("path") or "").strip("./") == VOLSYNC_BACKUP_PATH
-        if not (via_component or via_path):
-            continue
-        sub = {
-            str(k): str(v)
-            for k, v in (((spec.get("postBuild") or {}).get("substitute")) or {}).items()
-        }
-        app = sub.get("APP") or d.get("metadata", {}).get("name", "?")
-        claim = sub.get("VOLSYNC_CLAIM", app)
-        ns = d.get("metadata", {}).get("namespace") or spec.get("targetNamespace") or "?"
-        covered.add((ns, claim))
-    return covered
+        name = f"{path.relative_to(APPS_MAIN)}[{(d.get('metadata') or {}).get('name')}]"
+        refs = [str(c) for c in (spec.get("components") or [])] + [str(spec.get("path") or "")]
+        hits = [r for r in refs if any(v in r for v in VOLSYNC_PATHS)]
+        if hits:
+            out.append(f"{name}: renders {hits}")
+        sub = ((spec.get("postBuild") or {}).get("substitute")) or {}
+        keys = sorted(str(k) for k in sub if str(k).startswith("VOLSYNC_"))
+        if keys:
+            out.append(f"{name}: VOLSYNC_* substitute keys {keys}")
+        deps = {(x.get("name"), x.get("namespace")) for x in (spec.get("dependsOn") or [])}
+        if ("volsync", "system") in deps:
+            out.append(f"{name}: dependsOn system/volsync")
+    return out
 
 
-def test_volsync_still_on_every_unretired_claim() -> None:
-    """VolSync still covers every onboarded claim except the two single-engine sets.
+def test_no_overlay_renders_volsync() -> None:
+    """No overlay renders VolSync, and the two single-engine sets cover the fleet exactly.
 
-    Single-engine is allowed for exactly two reasons, and they are tracked
-    separately because they assert different things: RETIRED_CLAIMS (VolSync ran
-    and was removed, which asserts a restore proof) and NEVER_VOLSYNC (the claim
-    was created after the migration and never had VolSync at all). See the
-    comment on NEVER_VOLSYNC for why a new app must not be filed as a retirement.
-
-
-    Stage 3's original invariant was absolute - both engines on every volume,
-    nothing retired. Stage 5 (2026-09-01) began retiring VolSync per volume, so
-    the invariant is now exact rather than universal: the retired set is
-    enumerated in RETIRED_CLAIMS and everything else must still be dual-engine.
-
-    Stating it as an exact set is the point. A blanket "some claims may have no
-    VolSync" would let the next accidental component deletion pass silently,
-    which is precisely the failure this pin exists to catch. Both directions are
-    checked: a claim retired without being listed here fails, and a claim listed
-    here that still renders VolSync fails too (a half-reverted retirement).
-
-    Covers both onboarding shapes: inline components/volsync, and path-based
-    splits (pgadmin, calibre-web-automated, paperless-ngx-media, syncthing-data)
-    whose kopiur half is a separate Kustomization. Building the VolSync-covered
-    set from every Flux Kustomization means dropping volsync from a parent or
-    deleting a second-claim volsync KS fails this pin rather than being skipped.
+    Until 2026-11-01 this was `volsync_still_on_every_unretired_claim`: every onboarded
+    claim outside RETIRED_CLAIMS and NEVER_VOLSYNC had to keep a VolSync sibling. The
+    last claim left VolSync then (issue #2202 PR-4) and PR-6 removed the operator and
+    component, so the invariant is now absolute: nothing wires VolSync in, and every
+    kopiur claim is in exactly one of RETIRED_CLAIMS (VolSync ran and was removed; a
+    restore proof exists) or NEVER_VOLSYNC (born on kopiur). A brand-new app goes in
+    NEVER_VOLSYNC, never in RETIRED_CLAIMS. See the comment on NEVER_VOLSYNC.
     """
-    covered = volsync_covered()
+    wired = volsync_wired()
+    require(
+        not wired,
+        "VolSync is removed (issue #2202 PR-6) but these Flux Kustomizations still wire "
+        f"it in: {wired}",
+    )
     onboarded_claims = {(ns, claim) for ns, claim, _s, _d, _p in onboarded()}
 
     stale = sorted(RETIRED_CLAIMS - onboarded_claims)
@@ -654,43 +644,13 @@ def test_volsync_still_on_every_unretired_claim() -> None:
         f"a claim cannot be both retired-from-VolSync and never-VolSync: {overlap}",
     )
 
-    single_engine_expected = RETIRED_CLAIMS | NEVER_VOLSYNC
-
-    for ns, claim, _sub, _d, path in onboarded():
-        if (ns, claim) in RETIRED_CLAIMS:
-            require(
-                (ns, claim) not in covered,
-                f"{ns}/{claim} ({path.name}): listed in RETIRED_CLAIMS but a VolSync "
-                f"sibling still covers it - either the retirement was half-reverted or "
-                f"the claim should come off RETIRED_CLAIMS.",
-            )
-            continue
-        if (ns, claim) in NEVER_VOLSYNC:
-            require(
-                (ns, claim) not in covered,
-                f"{ns}/{claim} ({path.name}): listed in NEVER_VOLSYNC but a VolSync "
-                f"sibling covers it - volsync is not wired onto new claims, so either "
-                f"the include is a mistake or this claim is not what NEVER_VOLSYNC "
-                f"describes.",
-            )
-            continue
-        require(
-            (ns, claim) in covered,
-            f"{ns}/{claim} ({path.name}): no VolSync sibling covering this claim, and it "
-            f"is in neither RETIRED_CLAIMS nor NEVER_VOLSYNC - a pre-existing volume must "
-            f"keep both engines until it has been through a Stage 5 retirement with its "
-            f"own restore proof "
-            f"(.agents/skills/kopiur-backups/references/retirement-and-removal.md). If this is a "
-            f"brand-new app that never had VolSync, add it to NEVER_VOLSYNC - NOT to "
-            f"RETIRED_CLAIMS, which asserts a retirement and a restore proof.",
-        )
-
-    retired_now = onboarded_claims - covered
+    unfiled = sorted(onboarded_claims - (RETIRED_CLAIMS | NEVER_VOLSYNC))
     require(
-        retired_now == single_engine_expected,
-        f"single-engine set drifted from RETIRED_CLAIMS | NEVER_VOLSYNC: "
-        f"unexpected {sorted(retired_now - single_engine_expected)}, "
-        f"missing {sorted(single_engine_expected - retired_now)}",
+        not unfiled,
+        f"kopiur claims in neither RETIRED_CLAIMS nor NEVER_VOLSYNC: {unfiled}. A brand-new "
+        f"app that never had VolSync goes in NEVER_VOLSYNC - NOT in RETIRED_CLAIMS, which "
+        f"asserts a retirement and a restore proof "
+        f"(.agents/skills/kopiur-backups/references/retirement-and-removal.md).",
     )
 
 
@@ -794,7 +754,7 @@ def provided_claims(overlay: Path) -> set[str]:
 
 def test_every_covered_claim_is_created() -> None:
     """Each kopiur-covered claim is created by its own overlay file: a PVC object (an app
-    pvc.yaml, components/kopiur/pvc or components/volsync), or an app-template
+    pvc.yaml or components/kopiur/pvc), or an app-template
     persistence entry. A renamed claim would leave the SnapshotPolicy backing up nothing."""
     by_file: dict[Path, set[str]] = {}
     missing = []
@@ -828,7 +788,7 @@ def main() -> int:
     run("no_inline_kopiur_is_wait_true", test_no_inline_kopiur_is_wait_true)
     run("depends_on_repository", test_every_onboarded_kustomization_depends_on_repository)
     run("rendered_objects_hold_the_contract", test_rendered_objects_hold_the_contract)
-    run("volsync_still_on_every_unretired_claim", test_volsync_still_on_every_unretired_claim)
+    run("no_overlay_renders_volsync", test_no_overlay_renders_volsync)
     run("every_overlay_file_is_listed", test_every_overlay_file_is_listed)
     run("every_covered_claim_is_created", test_every_covered_claim_is_created)
 
