@@ -195,9 +195,9 @@ These apps start on empty volumes after a rebuild and nothing restores them:
 |---|---|---|---|---|
 | `database/falkordb` | chart-owned PVC, no populator | `falkordb-r2` | 1000:1000 | 10Gi |
 | `database/surrealdb` | chart-owned PVC, no populator | `surrealdb-r2` | 65532:65532 | 2Gi |
-| `selfhosted/paperless-ngx` | VolSync populator reads an empty rebuilt ceph restic repo | `paperless-ngx-r2` | 1000:1000 | 2Gi |
-| `selfhosted/paperless-ngx-media` | chart-owned PVC, no populator | `paperless-ngx-media-r2` | 1000:1000 | 5Gi |
-| `selfhosted/syncthing-data` | plain PVC, no populator | `syncthing-data-r2` | 1000:1000 | 5Gi |
+| `selfhosted/paperless-ngx` | VolSync populator reads an empty rebuilt ceph restic repo | `paperless-ngx-r2` | 1000:1000 | 10Gi |
+| `selfhosted/paperless-ngx-media` | chart-owned PVC, no populator | `paperless-ngx-media-r2` | 1000:1000 | 50Gi |
+| `selfhosted/syncthing-data` | plain PVC, no populator | `syncthing-data-r2` | 1000:1000 | 15Gi |
 
 Identity and cache are the live r2 policy values (2026-09-28); re-read them from the overlay
 (`KOPIUR_PUID`/`KOPIUR_PGID`/`KOPIUR_CACHE_CAPACITY`) if they may have changed. For each claim:

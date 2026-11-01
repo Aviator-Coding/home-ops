@@ -45,13 +45,15 @@ succeeded from ceph at 2Gi and failed from r2 at 2Gi.
 | `downloads/radarr` | 10Gi | Sized only. The demonstration for this size class is tdarr. |
 | `downloads/sabnzbd` | 10Gi | Both destinations byte-identical at the drill's own capacity, not as a standing-populator proof. |
 | `ai/opencode` | 5Gi | Sized only. |
+| `selfhosted/paperless-ngx` | 10Gi | Claim-sized (claim 10Gi). Sized only; its drill is a separate step. |
+| `selfhosted/paperless-ngx-media` | 50Gi | Claim-sized (claim 50Gi). Sized only; its drill is a separate step. |
+| `selfhosted/syncthing-data` | 15Gi | Claim-sized (claim 15Gi). Sized only; its drill is a separate step. |
 | Default | 2Gi | Fine while the snapshot stays under the cache. |
 
-`paperless-ngx-media` (50Gi claim, 5Gi cache) and `syncthing-data` (15Gi claim,
-5Gi cache) cross the plateau the first time they hold real data. They stay
-dual-engine for that reason (skill `volsync-carveouts`). `ntfy` and
-`obsidian-livesync` are structurally safe: cache capacity is at least the
-claim size.
+`paperless-ngx` (10Gi), `paperless-ngx-media` (50Gi) and `syncthing-data`
+(15Gi) have a cache equal to the claim size, so a restore cannot hit the cache
+cliff. `ntfy` and `obsidian-livesync` are structurally safe for the same
+reason: cache capacity is at least the claim size.
 
 ### Plex proof does not cover these
 

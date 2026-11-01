@@ -49,6 +49,7 @@ spec:
       APP: *app
       VOLSYNC_CLAIM: paperless-ngx
       VOLSYNC_CAPACITY: 10Gi
+      KOPIUR_CACHE_CAPACITY: 10Gi
       GATUS_GROUP: *namespace
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
 ---
@@ -128,5 +129,5 @@ spec:
     substitute:
       APP: paperless-ngx-media
       KOPIUR_CLAIM: paperless-ngx-media
-      KOPIUR_CACHE_CAPACITY: 5Gi
+      KOPIUR_CACHE_CAPACITY: 50Gi
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
