@@ -16,15 +16,13 @@ buckets:
     bucket: volsync
 
 # LIVE repositories. These still have ReplicationSources writing to them
-# (`kubectl get replicationsource -A` - 6 sources, 2 claims x 3 destinations).
+# (`kubectl get replicationsource -A` - 3 sources, 1 claim x 3 destinations).
 # The renderer fails closed if any rule it is about to emit could touch one.
 # Never move an entry from here into a tier without first deleting its
 # ReplicationSources.
 protected:
   # ceph: 11900345 B / 232 obj, r2: 1770492224 B / 220 obj, minio: 9913836 B / 154 obj; last write 2026-09-12
   - paperless-ngx
-  # ceph: 203822 B / 107 obj, r2: 64795 B / 70 obj, minio: 136195 B / 75 obj; last write 2026-09-12
-  - syncthing-data
 
 # Retired repositories, split by whether anything else still backs the data up.
 # Skill `volsync-carveouts`.
@@ -90,6 +88,8 @@ tiers:
       - sonarr
       # ceph: 3308871 B / 103 obj, r2: 2775236 B / 65 obj, minio: 2501451 B / 65 obj; last write 2026-09-04
       - syncthing
+      # ceph: 203822 B / 107 obj, r2: 64795 B / 70 obj, minio: 136195 B / 75 obj; last write 2026-11-01 (VolSync retired, #2202; sizes from 2026-09-12)
+      - syncthing-data
       # ceph: 1436033617 B / 279 obj, r2: 1547858304 B / 268 obj, minio: 1359737709 B / 230 obj; last write 2026-09-04
       - tdarr
       # ceph: 1495538 B / 208 obj, r2: 887816 B / 93 obj, minio: 556263 B / 57 obj; last write 2026-09-04

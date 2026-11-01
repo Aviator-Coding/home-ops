@@ -24,19 +24,34 @@ tool: `apply_lifecycle.py` refuses to report success on a write it has not read 
 
 | destination | endpoint | credential | lifecycle-manage permission |
 |---|---|---|---|
-| ceph | `https://s3.${SECRET_DOMAIN}` (the in-cluster RGW URL in the Secret is unreachable from a workstation) | Secret `selfhosted/syncthing-data-volsync-ceph-secret` | Yes: byte-identical to the `volsync` OBC's generated key, i.e. the bucket owner |
-| minio | `https://nas.${SECRET_DOMAIN}:9000` (from the Secret) | Secret `selfhosted/syncthing-data-volsync-minio-secret` | Yes |
-| r2 | `https://<account>.r2.cloudflarestorage.com` (from the Secret) | **NOT the in-cluster token** | **No**: `AccessDenied`. The in-cluster token is object read/write only; lifecycle needs the **`Workers R2 Storage Write`** permission group |
+| ceph | `https://s3.${SECRET_DOMAIN}` (pass `--endpoint` with the resolved host; the in-cluster RGW URL is unreachable from a workstation) | default `--credentials secret`: the ObjectBucketClaim's Secret `system/volsync` (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`). The OBC is `prune: disabled`, so it outlives the operator. The agent role cannot read Secrets, so the owner runs this | Yes: the key is the `volsync` OBC's generated key, i.e. the bucket owner (the OBC ConfigMap `system/volsync` holds `BUCKET_NAME=volsync` and the in-cluster host) |
+| minio | `https://nas.${SECRET_DOMAIN}:9000` (pass `--endpoint`; also `buckets.minio.endpoint` in `ledger.yaml`) | `--credentials env` only (no in-cluster Secret is left). 1Password item `volsync-template`, fields `MINIO_HOME_OPS_ACCESS_KEY` and `MINIO_HOME_OPS_SECRET_KEY`, exported as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` | Yes |
+| r2 | defaults to `buckets.r2.endpoint` in `ledger.yaml` (the item field `R2_HOME_OPS_ENDPOINT_URL` holds the same URL) | `--credentials env` only. A dry run may use `volsync-template` fields `R2_HOME_OPS_ACCESS_KEY` and `R2_HOME_OPS_SECRET_KEY`, exported as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` | **No**: `AccessDenied`. That token is object read/write only; lifecycle needs the **`Workers R2 Storage Write`** permission group |
 
-**R2 needs a credential that does not exist in the cluster.** The owner mints a scoped R2 API
-token with `Workers R2 Storage Write`, it is exported into the shell for the r2 step only, and
-revoked afterwards. Never store it in 1Password or the cluster. R2's limit is 1000 lifecycle
-rules per bucket; this plan installs 49.
+The per-claim `<claim>-volsync-<dest>-secret` Secrets are not a credential source any more: they
+are pruned as each claim leaves VolSync (issue #2202 decision 5). `--credentials secret` for
+minio or r2 exits 2 with a message.
+
+Fill the environment from 1Password without printing it (item `volsync-template` is in the
+Connect-visible `Homelab` vault; the shell's `OP_SERVICE_ACCOUNT_TOKEN` sees only `Home-Lab`, so
+unset it for these reads. Check the field names first with
+`op item get volsync-template --vault Homelab --format json | jq -r '.fields[].label'`):
+
+```sh
+export AWS_ACCESS_KEY_ID="$(env -u OP_SERVICE_ACCOUNT_TOKEN op read 'op://Homelab/volsync-template/MINIO_HOME_OPS_ACCESS_KEY')"
+export AWS_SECRET_ACCESS_KEY="$(env -u OP_SERVICE_ACCOUNT_TOKEN op read 'op://Homelab/volsync-template/MINIO_HOME_OPS_SECRET_KEY')"
+# r2 dry run: R2_HOME_OPS_ACCESS_KEY / R2_HOME_OPS_SECRET_KEY the same way, in a fresh shell
+```
+
+**R2 needs a credential that does not exist in the cluster for the apply.** The owner mints a
+scoped R2 API token with `Workers R2 Storage Write`, it is exported as `AWS_ACCESS_KEY_ID` /
+`AWS_SECRET_ACCESS_KEY` in the shell for the r2 step only, and revoked afterwards. Never store it
+in 1Password or the cluster. R2's limit is 1000 lifecycle rules per bucket; this plan installs 50.
 
 ## What each command changes
 
 One `PutBucketLifecycleConfiguration` per bucket, replacing the whole lifecycle configuration
-with the same 49 rules `{Filter: {Prefix: "<name>/"}, Expiration: {Date: "<tier date>T00:00:00Z"},
+with the same 50 rules `{Filter: {Prefix: "<name>/"}, Expiration: {Date: "<tier date>T00:00:00Z"},
 Status: Enabled}`. No object is deleted at apply time. All three buckets had no lifecycle
 configuration when the plan was written (check again with a dry run: the tool captures the
 prior state to a file first, so undo is exact).
@@ -47,12 +62,12 @@ prior state to a file first, so undo is exact).
 cd <repo>
 eval "$(mise env -s bash)"
 python3 scripts/volsync-retired-expiry/render_lifecycle.py > /tmp/volsync-lifecycle.json
-jq '.Rules | length' /tmp/volsync-lifecycle.json                      # 49
+jq '.Rules | length' /tmp/volsync-lifecycle.json                      # 50
 jq -r '.Rules[] | "\(.Filter.Prefix)\t\(.Expiration.Date)"' /tmp/volsync-lifecycle.json | sort
 jq -r '.Rules[].Filter.Prefix' /tmp/volsync-lifecycle.json \
   | grep -vE '/$' && echo "STOP: a prefix does not end in /"
 jq -r '.Rules[].Filter.Prefix' /tmp/volsync-lifecycle.json \
-  | grep -xE 'paperless-ngx/|syncthing-data/' \
+  | grep -xE 'paperless-ngx/' \
   && echo "STOP: a LIVE repository is in the rule set"
 ```
 
@@ -64,18 +79,18 @@ Dry run is the default; `--confirm` is the only way anything is written. It list
 bucket and re-proves the match against current data.
 
 ```sh
-KC=<path to kubeconfig>   # pass explicitly: mise sets KUBECONFIG and would override yours
+KC=<path to kubeconfig>   # ceph only (reads Secret system/volsync); pass explicitly: mise sets KUBECONFIG and would override yours
 
 uv run --with boto3 python scripts/volsync-retired-expiry/apply_lifecycle.py \
   --destination ceph  --kubeconfig "$KC" --endpoint https://s3.<SECRET_DOMAIN>
 
 uv run --with boto3 python scripts/volsync-retired-expiry/apply_lifecycle.py \
-  --destination minio --kubeconfig "$KC"
+  --destination minio --credentials env --endpoint https://nas.<SECRET_DOMAIN>:9000
 
 # r2 needs the elevated token; without it this stops at the lifecycle read, by design
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...     # scoped R2 token, this shell only
 uv run --with boto3 python scripts/volsync-retired-expiry/apply_lifecycle.py \
-  --destination r2 --kubeconfig "$KC" --credentials env
+  --destination r2 --credentials env
 ```
 
 **Abort the whole plan if any dry run reports a non-zero `live objects matched by these rules`.**
@@ -95,15 +110,15 @@ uv run --with boto3 python scripts/volsync-retired-expiry/apply_lifecycle.py \
   --confirm --save-previous /tmp/volsync-lc-undo/ceph.json
 
 uv run --with boto3 python scripts/volsync-retired-expiry/apply_lifecycle.py \
-  --destination minio --kubeconfig "$KC" \
+  --destination minio --credentials env --endpoint https://nas.<SECRET_DOMAIN>:9000 \
   --confirm --save-previous /tmp/volsync-lc-undo/minio.json
 
 uv run --with boto3 python scripts/volsync-retired-expiry/apply_lifecycle.py \
-  --destination r2 --kubeconfig "$KC" --credentials env \
+  --destination r2 --credentials env \
   --confirm --save-previous /tmp/volsync-lc-undo/r2.json
 ```
 
-Success ends with `VERIFIED: 49 rules stored, all prefixes exact-segment, no rule in range of a
+Success ends with `VERIFIED: 50 rules stored, all prefixes exact-segment, no rule in range of a
 live repository.` and `Earliest deletion: 2027-03-31T00:00:00Z`. Anything else (mismatch,
 missing rule, a prefix the store rewrote) exits non-zero and names the problem. Keep
 `/tmp/volsync-lc-undo/` until all three have verified.
@@ -121,8 +136,9 @@ kubectl --kubeconfig="$KC" -n rook-ceph exec deploy/rook-ceph-tools -- \
   radosgw-admin bucket stats --bucket=volsync | jq '.usage."rgw.main"'
 ```
 
-The invariant is not "49 rules exist" but **no stored rule's prefix is in range of
-`paperless-ngx/` or `syncthing-data/`**. `num_objects` must be unchanged
+The invariant is not "50 rules exist" but **no stored rule's prefix is in range of
+`paperless-ngx/`** (the one live repository; `syncthing/`, `syncthing-data/` and
+`paperless-ngx-media/` are retired and each rule is an exact segment, so none reaches it). `num_objects` must be unchanged
 apart from ongoing live backups; nothing expires until 2027-03-31.
 
 ## Step 4 - undo

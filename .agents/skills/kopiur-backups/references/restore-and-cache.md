@@ -47,7 +47,7 @@ succeeded from ceph at 2Gi and failed from r2 at 2Gi.
 | `ai/opencode` | 5Gi | Sized only. |
 | `selfhosted/paperless-ngx` | 10Gi | Claim-sized (claim 10Gi). Sized only; its drill is a separate step. |
 | `selfhosted/paperless-ngx-media` | 50Gi | Claim-sized (claim 50Gi). Drilled 2026-11-01 from ceph and r2 at exactly 50Gi (both Completed, 1 file / 0 B, content and modes identical to live): near-empty, so the proof is the structural guarantee, owner decision (b). Pinned in `kopiur-restore-cache-sizing-test.py`. |
-| `selfhosted/syncthing-data` | 15Gi | Claim-sized (claim 15Gi). Sized only; its drill is a separate step. |
+| `selfhosted/syncthing-data` | 15Gi | Claim-sized (claim 15Gi). Drilled 2026-11-01 from ceph and r2 at exactly 15Gi (both Completed, 5 files / 531 B, content and modes identical to live): near-empty, so the proof is the structural guarantee, owner decision (b). Pinned in `kopiur-restore-cache-sizing-test.py`. |
 | Default | 2Gi | Fine while the snapshot stays under the cache. |
 
 `paperless-ngx` (10Gi), `paperless-ngx-media` (50Gi) and `syncthing-data`

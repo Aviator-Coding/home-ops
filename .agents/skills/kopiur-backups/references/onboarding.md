@@ -23,8 +23,9 @@ Every object is named from `${APP}`, and Flux allows one `postBuild.substitute`
 map. A second PVC is a second Kustomization with `path:
 ./kubernetes/components/kopiur/backup` (no pvc include; the claim already
 exists) and `APP` set to the claim name. Same rule as VolSync. Live second
-volumes: `syncthing-data`, `paperless-ngx-media` (the latter is backup-only
-kopiur since 2026-11-01; its claim stays chart-owned).
+volumes: `syncthing-data`, `paperless-ngx-media` (both are backup-only
+kopiur since 2026-11-01; their claims stay owned by a plain PVC manifest and a
+HelmRelease respectively).
 
 `syncthing` (config) and `syncthing-data` (files) share one overlay file and
 are different claims. Grep both names before editing either.

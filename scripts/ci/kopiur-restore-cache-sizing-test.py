@@ -109,6 +109,17 @@ PINNED: dict[str, tuple[str, str]] = {
         "identical to the live volume. Near-empty, so the measurement is the structural "
         "guarantee (cache >= claim) rather than a size curve - owner decision (b). Do not lower it",
     ),
+    "selfhosted/syncthing.yaml#syncthing-data-kopiur": (
+        "15Gi",
+        "Claim-sized: the 15Gi `syncthing-data` claim (plain PVC manifest under the `syncthing` "
+        "Kustomization) with a cache equal to it, so the cache can never be smaller than the data "
+        "(raised from 5Gi, PR #2206; VolSync retired on top of it, issue #2202 PR-3). Drilled "
+        "2026-11-01 at exactly this value: scratch Restores from ceph (kopia snapshot "
+        "cd011f03d4ebfaf8382d34c75162a552) and r2 (135b0442adc30085723356860e480efd) both "
+        "Completed, 5 files / 531 B, manifests and modes identical to the live volume. "
+        "Near-empty, so the measurement is the structural guarantee (cache >= claim) rather than "
+        "a size curve - owner decision (b). Do not lower it",
+    ),
     "media/plex.yaml": (
         "10Gi",
         "4.61 GiB snapshot (2026-09-12; was 4.16 GiB when this was first sized). Raised "

@@ -15,18 +15,17 @@ A second PVC is a second document in the app overlay:
 - Schedule minutes chosen so they do not collide with the other
   `ReplicationSource` objects in the namespace.
 
-Live: `kubernetes/apps/main/selfhosted/syncthing.yaml` (`syncthing-data`).
-`paperless-ngx-media` used the same shape in
-`kubernetes/apps/main/selfhosted/paperless-ngx.yaml` until 2026-11-01, when its
-backup-only VolSync Kustomization was deleted (kopiur only now).
+No live example remains. `syncthing-data`
+(`kubernetes/apps/main/selfhosted/syncthing.yaml`) and `paperless-ngx-media`
+(`kubernetes/apps/main/selfhosted/paperless-ngx.yaml`) used this shape until
+2026-11-01, when their backup-only VolSync Kustomizations were deleted (kopiur
+only now).
 
 `syncthing` is the 1Gi config claim. `syncthing-data` is the synced-files
 claim. They are not prefixes of each other for expiry purposes either; see
 [retired-repo-expiry.md](retired-repo-expiry.md). `syncthing` (config) is
-kopiur-only. `syncthing-data` is still dual-engine.
-`syncthing-data` is 15Gi on `ceph-block`, from the app's own `pvc.yaml` (no
-`dataSourceRef`); `VOLSYNC_CAPACITY: 15Gi` on its backup Kustomization sizes
-only the restore destination, so keep the two equal.
+kopiur-only, and so is `syncthing-data` (15Gi on `ceph-block`, from the app's
+own `pvc.yaml`, no `dataSourceRef`).
 
 ## Schedules
 
@@ -55,7 +54,7 @@ is a literal token, not a kustomize anchor. The overlay must keep defining
 `VOLSYNC_CLAIM` for as long as that line exists. The other three apps that
 used to carry it were renamed to `KOPIUR_CLAIM` when VolSync left.
 
-## Do not add a third carve-out
+## Do not add another carve-out
 
 New apps are kopiur-only: `components/kopiur` and a chart-owned PVC. The
 takeover component `components/kopiur/pvc` is only for retiring an existing
