@@ -38,6 +38,10 @@ spec:
             # 2.0.0 also stats $HOME/.config/kubectl-mcp-server/config.toml; /home/mcp is unreadable to uid 1000.
             - name: HOME
               value: /tmp
+            # 2.0.0 refuses a non-loopback bind without auth. The ToolHive proxy reaches the pod IP, so
+            # loopback is not an option; same exposure as 1.24.0: read-only SA, no core Secrets.
+            - name: MCP_ALLOW_UNAUTHENTICATED
+              value: "true"
             - name: PYTHONUNBUFFERED
               value: "1"
           volumeMounts:
