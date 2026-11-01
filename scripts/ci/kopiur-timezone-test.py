@@ -21,18 +21,16 @@ This test does NOT grep source text. It:
      SnapshotSchedule objects carry schedule.timezone with the substitutable
      default America/New_York, and that an explicit KOPIUR_SCHEDULE_TIMEZONE
      override wins.
-  2. Parses every dual-engine (kopiur + VolSync) claim's live substitute maps
-     into structured cron hours, converts those hours to UTC under both DST
-     seasons for the pre-fix model (kopiur=UTC, VolSync=local) and the
-     post-fix model (both=local), and asserts:
-       - pre-fix EST collides on every dual-engine ceph claim (the bug)
-       - post-fix collides on zero claims in either season for ceph and r2
-  3. Separately asserts the timezone pin over the WHOLE kopiur fleet, not just
-     the dual-engine intersection. Stage 5 has retired VolSync from eight claims
-     (2026-09-01 and 2026-09-02), which drops them out of that intersection -
-     and a claim with one engine left has nothing to collide with, so losing its
-     timezone pin would be invisible to every assertion in (2). That gap widens
-     with every retirement, which is why (3) exists separately.
+  2. Asserts the timezone pin over the WHOLE kopiur fleet: kopiur evaluates its
+     own cron, so a claim with one engine still drifts to literal UTC if the
+     pin is dropped.
+  3. Asserts that no claim runs both engines. The cross-engine collision
+     assertions (pre-fix EST collides on every dual-engine ceph claim, post-fix
+     collides on none, a constant 1h ceph stagger) needed a dual-engine claim to
+     mean anything. The last one, `selfhosted/paperless-ngx`, left VolSync on
+     2026-11-01 (issue #2202 PR-4), so they were removed with
+     MIN_DUAL_ENGINE_CLAIMS. If a claim ever runs both engines again, restore
+     them from git history before merging that change.
 
 Live status.nextSchedule.timezone against the running cluster is a separate
 post-merge / operator gate this sandbox cannot reach; the rendered CR field
@@ -58,31 +56,6 @@ KOPIUR_BACKUP_PATH = "kubernetes/components/kopiur/backup"
 VOLSYNC_COMPONENT_SUFFIX = "components/volsync"
 VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 
-# Floor on the dual-engine population, so a discovery bug that finds nothing
-# fails loudly instead of vacuously passing every collision assertion.
-#
-# Was 29 (30 claims, all dual-engine). Stage 5 has retired VolSync in waves:
-# 2026-09-01 - repo-wiki, recyclarr-config, sabnzbd-config, seerr; 2026-09-02 -
-# prowlarr-config, ntfy, autobrr, obsidian-livesync, leaving 22. (`autobrr` was
-# one of those eight, so removing that app on 2026-09-02 took a kopiur-only
-# claim out of the fleet and did not change the dual-engine population.)
-#
-# Wave three (2026-09-04) retires the remaining 19 eligible claims in three
-# risk-tiered commits, so this number steps down with each: 22 -> 11 (tier A)
-# -> 7 (tier B) -> 3 (tier C). Wave four (2026-11-01, issue #2202 PR-2) retires
-# `selfhosted/paperless-ngx-media` and PR-3 `selfhosted/syncthing-data`, leaving 1:
-# `selfhosted/paperless-ngx`.
-#
-# Lower this ONLY alongside a real retirement; the authoritative retired set is
-# RETIRED_CLAIMS in kopiur-stage3-test.py. Note the timezone contract itself is
-# checked over ALL kopiur claims (see kopiur_claims), not just these - so wave
-# three shrinks this floor's sample without weakening that contract. What DOES
-# narrow is the cross-engine collision assertions below, which only have
-# meaning where both engines run: after wave four they cover 1 claim rather
-# than 22, and the reason that is acceptable is that a collision is only
-# possible at all on a dual-engine claim.
-MIN_DUAL_ENGINE_CLAIMS = 1
-
 # The whole kopiur fleet, dual-engine or retired.
 #
 # Retiring a volume NEVER lowers this: retiring VolSync does not remove the
@@ -99,13 +72,6 @@ MIN_KOPIUR_CLAIMS = 29
 DEFAULT_TZ = "America/New_York"
 DEFAULT_KOPIUR_CEPH = "H 1-23/4 * * *"
 DEFAULT_KOPIUR_R2 = "H 4 * * *"
-DEFAULT_VOLSYNC_CEPH = "0 */4 * * *"
-DEFAULT_VOLSYNC_R2 = "0 2 * * *"
-
-# America/New_York offsets from UTC. Positive = local is behind UTC, so
-# utc_hour = (local_hour + offset) % 24.
-EDT_OFFSET = 4  # summer
-EST_OFFSET = 5  # winter after 2026-11-01
 
 
 class Failure(Exception):
@@ -208,42 +174,6 @@ def render_kopiur(env: dict[str, str]) -> list[dict[str, Any]]:
     return docs
 
 
-def cron_hours(expr: str) -> set[int]:
-    """Parse the hour field of a 5-field cron, including kopiur's bare-H form.
-
-    `H` is Jenkins-style hashing of the minute only - the hour field is still
-    a concrete hour or range/step, so `H 1-23/4 * * *` expands to the same
-    hour set as `0 1-23/4 * * *`.
-    """
-    parts = expr.split()
-    require(len(parts) == 5, f"expected 5-field cron, got {expr!r}")
-    hour = parts[1]
-    # Strip a leading bare H used as the minute placeholder on the hour token
-    # is never valid; H only appears in the minute field (parts[0]).
-    out: set[int] = set()
-    if hour == "*":
-        return set(range(24))
-    for piece in hour.split(","):
-        step = 1
-        body = piece
-        if "/" in piece:
-            body, step_s = piece.split("/", 1)
-            step = int(step_s)
-        if body == "*":
-            start, end = 0, 23
-        elif "-" in body:
-            a, b = body.split("-", 1)
-            start, end = int(a), int(b)
-        else:
-            start = end = int(body)
-        out.update(range(start, end + 1, step))
-    return out
-
-
-def to_utc(local_hours: set[int], offset: int) -> set[int]:
-    return {(h + offset) % 24 for h in local_hours}
-
-
 def flux_kustomizations() -> list[tuple[dict[str, Any], Path]]:
     out: list[tuple[dict[str, Any], Path]] = []
     for path in sorted(APPS_MAIN.rglob("*.yaml")):
@@ -317,21 +247,11 @@ def kopiur_claims() -> dict[tuple[str, str], dict[str, str]]:
     )
 
 
-def dual_engine_claims() -> list[tuple[str, str, dict[str, str], dict[str, str]]]:
-    kopiur_raw = kopiur_claims()
-    volsync_raw = _engine_schedules(
-        VOLSYNC_COMPONENT_SUFFIX,
-        VOLSYNC_BACKUP_PATH,
-        "VOLSYNC_CLAIM",
-        {
-            "ceph": ("VOLSYNC_SCHEDULE_CEPH", DEFAULT_VOLSYNC_CEPH),
-            "r2": ("VOLSYNC_SCHEDULE_R2", DEFAULT_VOLSYNC_R2),
-        },
+def volsync_claims() -> set[tuple[str, str]]:
+    """Every (ns, claim) a Flux Kustomization still wires VolSync onto."""
+    return set(
+        _engine_schedules(VOLSYNC_COMPONENT_SUFFIX, VOLSYNC_BACKUP_PATH, "VOLSYNC_CLAIM", {})
     )
-    dual = []
-    for key in sorted(set(kopiur_raw) & set(volsync_raw)):
-        dual.append((key[0], key[1], kopiur_raw[key], volsync_raw[key]))
-    return dual
 
 
 # ---------------------------------------------------------------------------
@@ -391,14 +311,13 @@ def test_rendered_schedules_timezone_override() -> None:
 def test_every_kopiur_claim_pins_the_timezone() -> None:
     """The timezone fix must cover EVERY kopiur claim, retired-from-VolSync or not.
 
-    The collision tests below iterate the dual-engine intersection, because a
-    collision needs two engines. That is the right population for them and the
-    wrong one for this: after Stage 5 retired VolSync from four claims, those
-    four leave the intersection entirely, and dropping
-    KOPIUR_SCHEDULE_TIMEZONE on one of them would sail through every other
-    assertion in this file while the operator silently went back to evaluating
-    its cron as literal UTC - a 4h/5h shift with nothing left to collide with
-    to reveal it.
+    The removed collision tests iterated the dual-engine intersection, because a
+    collision needs two engines. That was the right population for them and the
+    wrong one for this: a claim retired from VolSync leaves the intersection
+    entirely (all of them have since 2026-11-01), and dropping
+    KOPIUR_SCHEDULE_TIMEZONE on one of them would go unnoticed while the
+    operator silently went back to evaluating its cron as literal UTC - a 4h/5h
+    shift with nothing left to collide with to reveal it.
     """
     claims = kopiur_claims()
     require(
@@ -418,136 +337,22 @@ def test_every_kopiur_claim_pins_the_timezone() -> None:
     )
 
 
-def test_pre_fix_est_ceph_collision_is_total() -> None:
-    """Reproduce the bug: with kopiur on UTC and VolSync on local, EST collides everywhere."""
-    dual = dual_engine_claims()
+def test_no_claim_runs_both_engines() -> None:
+    """The dual-engine population is empty, so no cross-engine collision can exist.
+
+    The collision assertions this file used to carry (pre-fix EST collides on
+    every dual-engine ceph claim, post-fix on none, a constant 1h ceph stagger)
+    were removed when the last dual-engine claim, `selfhosted/paperless-ngx`,
+    left VolSync on 2026-11-01 (issue #2202 PR-4). This pins that premise: a
+    claim that runs both engines again would have nothing checking its schedule
+    against VolSync's.
+    """
+    dual = sorted(f"{ns}/{claim}" for ns, claim in set(kopiur_claims()) & volsync_claims())
     require(
-        len(dual) >= MIN_DUAL_ENGINE_CLAIMS,
-        f"expected >={MIN_DUAL_ENGINE_CLAIMS} dual-engine claims, got {len(dual)}",
+        not dual,
+        f"claims run both kopiur and VolSync again: {dual}. Restore the cross-engine "
+        f"collision assertions (and MIN_DUAL_ENGINE_CLAIMS) from git history first",
     )
-    collisions: list[str] = []
-    for ns, claim, ksub, vsub in dual:
-        k_hours = cron_hours(ksub["ceph"])  # literal UTC under the pre-fix model
-        v_local = cron_hours(vsub["ceph"])
-        v_utc_est = to_utc(v_local, EST_OFFSET)
-        if k_hours & v_utc_est:
-            collisions.append(f"{ns}/{claim}")
-    require(
-        len(collisions) == len(dual),
-        f"pre-fix EST should collide on EVERY dual-engine ceph claim "
-        f"({len(dual)}), collided on {len(collisions)}: missing="
-        f"{sorted({f'{n}/{c}' for n, c, _, _ in dual} - set(collisions))}",
-    )
-    # And the same model must stay clean under EDT (the summer coincidence).
-    edt_collisions = []
-    for ns, claim, ksub, vsub in dual:
-        k_hours = cron_hours(ksub["ceph"])
-        v_utc_edt = to_utc(cron_hours(vsub["ceph"]), EDT_OFFSET)
-        if k_hours & v_utc_edt:
-            edt_collisions.append(f"{ns}/{claim}")
-    require(
-        not edt_collisions,
-        f"pre-fix EDT must stay clean (the 4-mod-4 coincidence); collided: {edt_collisions}",
-    )
-
-
-def test_post_fix_no_collision_either_season() -> None:
-    """After aligning zones, no dual-engine claim collides on ceph or r2 in either season."""
-    dual = dual_engine_claims()
-    require(
-        len(dual) >= MIN_DUAL_ENGINE_CLAIMS,
-        f"expected >={MIN_DUAL_ENGINE_CLAIMS} dual-engine claims, got {len(dual)}",
-    )
-
-    # Every onboarded claim must evaluate cron in America/New_York (default or set).
-    bad_tz = [
-        f"{ns}/{claim}={ksub['tz']}"
-        for ns, claim, ksub, _ in dual
-        if ksub["tz"] != DEFAULT_TZ
-    ]
-    require(
-        not bad_tz,
-        f"every dual-engine claim must keep KOPIUR_SCHEDULE_TIMEZONE at "
-        f"{DEFAULT_TZ!r} (or omit it for the component default); drifted: {bad_tz}",
-    )
-
-    report_lines = [
-        "claim | dest | VS local | K local | VS UTC EDT | K UTC EDT | VS UTC EST | K UTC EST | collide?",
-    ]
-    failures: list[str] = []
-    for ns, claim, ksub, vsub in dual:
-        for dest in ("ceph", "r2"):
-            k_local = cron_hours(ksub[dest])
-            v_local = cron_hours(vsub[dest])
-            # Post-fix: both engines evaluate the written hour as America/New_York.
-            k_edt, v_edt = to_utc(k_local, EDT_OFFSET), to_utc(v_local, EDT_OFFSET)
-            k_est, v_est = to_utc(k_local, EST_OFFSET), to_utc(v_local, EST_OFFSET)
-            hit_edt = sorted(k_edt & v_edt)
-            hit_est = sorted(k_est & v_est)
-            collide = bool(hit_edt or hit_est)
-            report_lines.append(
-                f"{ns}/{claim} | {dest} | {sorted(v_local)} | {sorted(k_local)} | "
-                f"{sorted(v_edt)} | {sorted(k_edt)} | {sorted(v_est)} | {sorted(k_est)} | "
-                f"{'YES edt=' + str(hit_edt) + ' est=' + str(hit_est) if collide else 'no'}"
-            )
-            if collide:
-                failures.append(
-                    f"{ns}/{claim} {dest}: EDT hit {hit_edt}, EST hit {hit_est}"
-                )
-
-    # Emit the full hour table so a reviewer (and the evidence artifact) can see
-    # every claim x destination x season without re-deriving it.
-    print("--- post-fix hour table (local = America/New_York) ---")
-    for line in report_lines:
-        print(line)
-    print("--- end hour table ---")
-
-    require(
-        not failures,
-        "post-fix same-hour collisions (engines must stay staggered in both seasons): "
-        + "; ".join(failures),
-    )
-
-
-def test_ceph_stagger_is_exactly_one_hour() -> None:
-    """The structural ODD/EVEN ceph offset must remain a constant 1h in both seasons."""
-    dual = dual_engine_claims()
-    for ns, claim, ksub, vsub in dual:
-        k_local = sorted(cron_hours(ksub["ceph"]))
-        v_local = sorted(cron_hours(vsub["ceph"]))
-        require(
-            len(k_local) == 6 and len(v_local) == 6,
-            f"{ns}/{claim}: expected 6 ceph hours each, got k={k_local} v={v_local}",
-        )
-        # Local-hour difference must be 1 for every paired slot (kopiur is the
-        # odd set 1-23/4, VolSync is the even set */4 - or a per-app minute
-        # variant of the same hour set).
-        for kh in k_local:
-            # The matching VolSync hour is (kh - 1) mod 24 for the standard stagger.
-            expect_v = (kh - 1) % 24
-            require(
-                expect_v in v_local,
-                f"{ns}/{claim}: kopiur local hour {kh} has no VolSync partner at "
-                f"{expect_v} (got VolSync hours {v_local}) - the 1-hour stagger broke",
-            )
-        for offset, season in ((EDT_OFFSET, "EDT"), (EST_OFFSET, "EST")):
-            k_utc = sorted(to_utc(set(k_local), offset))
-            v_utc = sorted(to_utc(set(v_local), offset))
-            # Lengths already equal (both 6); plain zip is enough on py3.9 CI.
-            require(
-                len(k_utc) == len(v_utc),
-                f"{ns}/{claim} {season}: utc hour set length mismatch "
-                f"k={k_utc} v={v_utc}",
-            )
-            for kh, vh in zip(k_utc, v_utc):
-                # After a uniform shift both sets move together, so the sorted
-                # pairing still differs by 1 mod 24.
-                delta = (kh - vh) % 24
-                require(
-                    delta == 1,
-                    f"{ns}/{claim} {season}: expected 1h stagger, got k_utc={k_utc} "
-                    f"v_utc={v_utc} (pair {vh}->{kh} delta={delta})",
-                )
 
 
 def main() -> int:
@@ -569,9 +374,7 @@ def main() -> int:
     run("rendered_schedules_default_timezone", test_rendered_schedules_default_timezone)
     run("rendered_schedules_timezone_override", test_rendered_schedules_timezone_override)
     run("every_kopiur_claim_pins_the_timezone", test_every_kopiur_claim_pins_the_timezone)
-    run("pre_fix_est_ceph_collision_is_total", test_pre_fix_est_ceph_collision_is_total)
-    run("post_fix_no_collision_either_season", test_post_fix_no_collision_either_season)
-    run("ceph_stagger_is_exactly_one_hour", test_ceph_stagger_is_exactly_one_hour)
+    run("no_claim_runs_both_engines", test_no_claim_runs_both_engines)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")

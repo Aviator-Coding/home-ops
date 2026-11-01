@@ -33,8 +33,8 @@ mount?" Mover-readable answers "can this backup identity read this claim?"
 5. **The check measures kopiur only.** kopiur stages read-only and fails
    closed on the first unreadable file, so a mover uid that cannot read its
    claim means no usable backup. The VolSync branch is gone (its writable
-   staging plus `fsGroup` hid the mismatch); the 3 carve-out claims are
-   measured through their kopiur SnapshotPolicies.
+   staging plus `fsGroup` hid the mismatch); no claim runs VolSync since
+   2026-11-01, and every claim is measured through its kopiur SnapshotPolicies.
 6. **The four walk traps** in `walk.sh` each return a silent false-clean zero
    if reintroduced: busybox `find` has no `-uid`/`-gid`; `/tmp` is read-only
    so there is no temp file; stderr is counted, never discarded; `stat -c %F`

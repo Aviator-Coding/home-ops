@@ -39,7 +39,7 @@ Defaults, America/New_York because VolSync honours the k8tz-injected TZ:
 
 Per-app overrides are `VOLSYNC_SCHEDULE_CEPH`, `VOLSYNC_SCHEDULE_MINIO`,
 `VOLSYNC_SCHEDULE_R2`. kopiur's ceph schedules sit on the odd hours so the two
-engines do not share an hour. Do not move a carve-out onto an odd hour without
+engines did not share an hour. Do not put a claim back on VolSync, and never on an odd hour, without
 checking `EXPECTED_R2_HOUR` and the kopiur ceph slots (skill `kopiur-backups`,
 `references/schedules-timezone.md`).
 
@@ -47,12 +47,13 @@ checking `EXPECTED_R2_HOUR` and the kopiur ceph slots (skill `kopiur-backups`,
 small PVCs. It is not the kopiur restore cache and it does not follow the
 ~6.2 GiB plateau rule.
 
-## `paperless-ngx` alias
+## `VOLSYNC_CLAIM` aliases
 
-The HelmRelease still contains `existingClaim: ${VOLSYNC_CLAIM:-*app}`. `*app`
-is a literal token, not a kustomize anchor. The overlay must keep defining
-`VOLSYNC_CLAIM` for as long as that line exists. The other three apps that
-used to carry it were renamed to `KOPIUR_CLAIM` when VolSync left.
+`existingClaim: ${VOLSYNC_CLAIM:-*app}` is a literal token, not a kustomize
+anchor: an overlay that drops `VOLSYNC_CLAIM` while the line exists fails
+`flate`. None is left. `paperless-ngx` was the last; its HelmRelease became
+`${KOPIUR_CLAIM:-paperless-ngx}` when VolSync left it (2026-11-01), as the
+three before it did.
 
 ## Do not add another carve-out
 

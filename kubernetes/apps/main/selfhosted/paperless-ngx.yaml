@@ -27,9 +27,6 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-    - name: volsync
-      namespace: system
-    # kopiur runs ALONGSIDE volsync on this claim. See the components block.
     - name: kopiur-repository
       namespace: system
     - name: cloudnative-pg
@@ -37,9 +34,9 @@ spec:
     - name: dragonfly-operator
       namespace: database
   components:
-    # Dual-engine carve-out: volsync stays until a restore is demonstrated from kopiur. Skill `volsync-carveouts`.
-    - ../../../../../components/volsync
+    # Proof: proof-ledger.md row 27, re-drilled 2026-11-01 from ceph, r2 and the populator path.
     - ../../../../../components/kopiur
+    - ../../../../../components/kopiur/pvc
     - ../../../../../components/dragonfly
   postBuild:
     substituteFrom:
@@ -47,8 +44,7 @@ spec:
         kind: Secret
     substitute:
       APP: *app
-      VOLSYNC_CLAIM: paperless-ngx
-      VOLSYNC_CAPACITY: 10Gi
+      KOPIUR_CAPACITY: 10Gi
       KOPIUR_CACHE_CAPACITY: 10Gi
       GATUS_GROUP: *namespace
       KOPIUR_SCHEDULE_R2: "H 14 * * *"

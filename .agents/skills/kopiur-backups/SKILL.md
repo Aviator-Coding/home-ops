@@ -5,12 +5,13 @@ description: "Read before ANY kopiur change: onboarding or retiring a claim, kub
 
 # kopiur backups
 
-kopiur is the backup engine. VolSync remains only on one carve-out
-(`selfhosted/paperless-ngx`); skill
+kopiur is the only backup engine. The last VolSync claim
+(`selfhosted/paperless-ngx`) left on 2026-11-01; the operator is removed
+separately (issue #2202 PR-6), and its retired repositories are skill
 `volsync-carveouts`. Born-kopiur claims (`database/surrealdb`,
-`downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`) never had VolSync. Assume kopiur-only unless the overlay
-includes `components/volsync`. A kopiur overlay never `dependsOn` the VolSync
-operator; it depends on `kopiur-repository` in `system`.
+`downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`) never had VolSync.
+A kopiur overlay never `dependsOn` the VolSync operator; it depends on
+`kopiur-repository` in `system`.
 
 The chart tag lives in
 `kubernetes/apps/base/system/kopiur/app/ocirepository.yaml`. Read that file.
@@ -84,7 +85,7 @@ Comments that name an older tag are stale.
     `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/README.md`.
 16. **Full-cluster restore from r2** is
     [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md). Do not invent a
-    second procedure. Four claims have no populator path and are hand-restored;
+    second procedure. Three claims have no populator path and are hand-restored;
     that runbook names them.
 
 ## Where things live

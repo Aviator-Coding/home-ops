@@ -5,13 +5,12 @@ description: "Read before editing kubernetes/components/volsync/**, the paperles
 
 # VolSync carve-outs
 
-VolSync is the second engine on one claim, and nowhere else. Do not add
-`components/volsync` to a new app. kopiur is the norm (skill
-`kopiur-backups`). Delete this skill when that claim leaves VolSync.
-
-The one: `selfhosted/paperless-ngx` (`paperless-ngx-media` and `syncthing-data`
-left VolSync on 2026-11-01). It still gets three `ReplicationSource` objects
-(ceph, minio, r2) and one `ReplicationDestination`.
+VolSync protects no claim. The last three (`selfhosted/paperless-ngx`,
+`paperless-ngx-media`, `syncthing-data`) left it on 2026-11-01 (issue #2202);
+kopiur is the only engine (skill `kopiur-backups`). The operator and
+`components/volsync` stay until PR-6 removes them, and this skill goes with
+them. Until then it covers the component, the operator and the retired restic
+repositories. Do not add `components/volsync` to any app.
 
 ## Tripwires
 
@@ -39,16 +38,17 @@ left VolSync on 2026-11-01). It still gets three `ReplicationSource` objects
 4. **Deleting a `ReplicationSource` never touches the restic repository.**
    That is why retirement is survivable, and why a retention policy cannot
    empty a frozen repository.
-5. **`paperless-ngx` still has `${VOLSYNC_CLAIM:-*app}`.** That alias is
-   armed on purpose. Removing `VOLSYNC_CLAIM` makes `flate` fail the
-   Kustomization. `syncthing` and `syncthing-data` are different claims in one
+5. **A `${VOLSYNC_CLAIM:-*app}` alias fails `flate` once `VOLSYNC_CLAIM` is
+   gone.** `*app` is a bare token, not an anchor. Retiring a claim renames it
+   to `${KOPIUR_CLAIM:-<claim>}` in the same change; none is left (paperless-ngx
+   was the last). `syncthing` and `syncthing-data` are different claims in one
    overlay file (both kopiur-only now).
 6. **Retired-repository expiry is NOT IN FORCE.** Nothing in Git applies it.
    Rook's ObjectBucketClaim controller has no update path, so
    `bucketLifecycle` on the `volsync` bucket is a silent no-op. Match a
-   repository by the exact path segment `<name>/`. Live `volsync/paperless-ngx`
-   is a string prefix of retired `volsync/paperless-ngx-media`, and
-   `volsync/syncthing` of `volsync/syncthing-data`.
+   repository by the exact path segment `<name>/`. `volsync/paperless-ngx` is
+   a string prefix of `volsync/paperless-ngx-media`, and `volsync/syncthing`
+   of `volsync/syncthing-data` (all four retired, so each pair is two rules).
    [retired-repo-expiry.md](references/retired-repo-expiry.md)
 7. **A uid mismatch does not mean the restic backup is incomplete.** Writable
    staging lets `fsGroup` add group-read before restic opens the file. Measure
@@ -67,7 +67,7 @@ left VolSync on 2026-11-01). It still gets three `ReplicationSource` objects
 |---|---|
 | Component | `kubernetes/components/volsync/` |
 | Operator, admission policy, alerts | `kubernetes/apps/base/system/volsync/` |
-| Carve-out overlays | `kubernetes/apps/main/selfhosted/paperless-ngx.yaml` |
+| Carve-out overlays | none since 2026-11-01 |
 | Scratch restore drill | [volsync-scratch-drill.md](references/volsync-scratch-drill.md) |
 | Corrupt-claim rebuild | [corrupt-claim-recreation.md](references/corrupt-claim-recreation.md) |
 | Expiry decision (not applied) | [retired-repo-expiry.md](references/retired-repo-expiry.md) |
@@ -78,7 +78,6 @@ left VolSync on 2026-11-01). It still gets three `ReplicationSource` objects
 ## Verify
 
 - `python3 scripts/ci/volsync-retired-expiry-test.py`
-- `python3 scripts/ci/corrupt-claim-recreation-contract-test.py`
 - Do not `kubectl get secret … -o yaml` to "check repository access". That
   prints credentials. Confirm the Secret exists and that a mover Job
   authenticated. Skill `secrets-1password`.

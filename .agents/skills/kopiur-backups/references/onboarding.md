@@ -111,9 +111,11 @@ installed CRD
 `existingClaim: ${VOLSYNC_CLAIM:-*app}` is a bare token, not a YAML anchor.
 Dropping `VOLSYNC_CLAIM` renders `existingClaim: *app` and `flate` fails the
 Kustomization on an unknown anchor. `${VOLSYNC_CLAIM}` with no default renders
-an **empty** claim name. Only `selfhosted/paperless-ngx` still carries
-`${VOLSYNC_CLAIM:-*app}`, because it stays dual-engine. Grep the HelmRelease
-for `VOLSYNC_` before assuming the overlay is the only reader.
+an **empty** claim name. No HelmRelease carries it any more: the last one,
+`selfhosted/paperless-ngx`, became `${KOPIUR_CLAIM:-paperless-ngx}` when it left
+VolSync (2026-11-01). Retiring a claim renames the alias in the same change;
+grep the HelmRelease for `VOLSYNC_` before assuming the overlay is the only
+reader.
 
 ## Variables the component actually reads
 

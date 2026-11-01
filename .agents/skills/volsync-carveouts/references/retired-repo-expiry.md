@@ -18,7 +18,7 @@
 
 **Owner's decision, 2026-09-12: an expiry date.** Not deletion now, not keeping it
 indefinitely. A recovery window is preserved and unbounded growth stops for every future app
-retirement. Scope: **all 50 retired repositories across all three destinations** (ceph, minio,
+retirement. Scope: **all 51 retired repositories across all three destinations** (ceph, minio,
 r2), not the 30 on ceph alone.
 
 `scripts/volsync-retired-expiry/ledger.yaml` is the machine-readable policy (change a date
@@ -31,15 +31,16 @@ and the apply-plan flags.
 
 | Tier | What | Prefixes | Size across 3 destinations | Earliest delete |
 |---|---|---|---|---|
-| `redundant` | Retired from VolSync in the kopiur Stage 5 migration. The claim still exists and kopiur backs it up on both ceph and r2 | 28 | ~96.04 GiB | 2027-03-31 |
+| `redundant` | Retired from VolSync in the kopiur Stage 5 migration. The claim still exists and kopiur backs it up on both ceph and r2 | 29 | ~97.7 GiB | 2027-03-31 |
 | `sole_copy` | App and volume are gone. This restic repository is the only remaining copy | 22 | 30.00 GiB | 2027-09-30 |
 
-50 repositories, ~126 GiB. Nothing is reclaimed before those dates even after the apply. The
+51 repositories, ~128 GiB. Nothing is reclaimed before those dates even after the apply. The
 window is about 6.5 months for data that already has two current backups and about 12.5 months
-for data that has none. Two dates, not 50.
+for data that has none. Two dates, not 51.
 
-`ledger.yaml` marks some prefixes `protected`; those still have a live `ReplicationSource`.
-Delete that source first or the render refuses them. Dates in the ledger are absolute. Do not
+`ledger.yaml` marks a prefix `protected` while it still has a live `ReplicationSource`; the list
+is empty since 2026-11-01 (issue #2202 PR-4), when `paperless-ngx`, the last, moved to
+`redundant`. Delete that source first or the render refuses it. Dates in the ledger are absolute. Do not
 replace them with a relative keep count. The ledger is the count the apply plan uses; comments
 that say four repositories were retired are stale (Stage 5 retired 27 claims, autobrr left
 with its app).
@@ -54,14 +55,16 @@ deletion on an absolute date.
 
 ## Exact segment, never a prefix
 
-Repositories are `<bucket>/<name>/`. `volsync/paperless-ngx` (live) is a string prefix of
-`volsync/paperless-ngx-media` (retired), and `volsync/syncthing` of `volsync/syncthing-data`
-(both retired since 2026-11-01, so both rules are intended and distinct). A `startswith`, glob,
-unanchored regex or bare `Filter.Prefix` of `paperless-ngx` selects the live objects too.
+Repositories are `<bucket>/<name>/`. `volsync/paperless-ngx` is a string prefix of
+`volsync/paperless-ngx-media`, `volsync/syncthing` of `volsync/syncthing-data`, and
+`volsync/calibre-web` of `volsync/calibre-web-automated`. All are retired since 2026-11-01, so
+each pair is two intended, distinct rules. A `startswith`, glob, unanchored regex or bare
+`Filter.Prefix` of `paperless-ngx` selects the sibling's objects too, and would select a live
+repository's if one were ever put back on VolSync.
 
 The ledger stores bare names (`syncthing`, never `syncthing/`). `render_lifecycle.py` appends the
 slash in one place and rejects an entry that already contains one. The emitted match
 `syncthing/` does not match `syncthing-data/` because the strings differ at the character after
-the shared stem; likewise `paperless-ngx-media/` never reaches `paperless-ngx/`. Protected
-prefixes, which must never receive a rule: `paperless-ngx`. The renderer raises `UnsafeLedger` rather than emit a
-rule that can reach one.
+the shared stem; likewise `paperless-ngx/` never reaches `paperless-ngx-media/`. Protected
+prefixes, which must never receive a rule: none since 2026-11-01. The renderer raises
+`UnsafeLedger` rather than emit a rule that can reach one.

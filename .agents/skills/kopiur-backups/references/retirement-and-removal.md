@@ -2,10 +2,11 @@
 
 ## Current fleet
 
-29 VolSync engines were retired across four waves. `downloads/autobrr` then
-left with its app, so **28 claims remain kopiur-only**. One dual-engine
-carve-out remains: `selfhosted/paperless-ngx` (issue #2202 retires the claims
-one at a time). Born-kopiur claims sit outside that set
+30 VolSync engines were retired across four waves. `downloads/autobrr` and
+`downloads/readarr` then left with their apps, so **28 retired claims remain**,
+all kopiur-only. No dual-engine claim remains: the last,
+`selfhosted/paperless-ngx`, left on 2026-11-01 (issue #2202 PR-4), and the
+operator is removed separately (PR-6). Born-kopiur claims sit outside that set
 (`NEVER_VOLSYNC` in `scripts/ci/kopiur-stage3-test.py`).
 
 The machine-readable record is `RETIRED_CLAIMS` in that same test, asserted
@@ -44,14 +45,26 @@ touches the PVC. PR-3 also repointed the expiry applier's credentials, because t
 Secrets it read are pruned here ([retired-expiry-apply-plan.md](../../volsync-carveouts/references/retired-expiry-apply-plan.md)).
 See [restore-and-cache.md](restore-and-cache.md).
 
+`selfhosted/paperless-ngx` (PR-4) closed the wave, 2026-11-01, and is the one
+**PVC takeover** of it: the normal shape below, not backup-only. Its claim came
+from `components/volsync/pvc.yaml` in the `paperless-ngx` Kustomization, and
+`components/kopiur/pvc` replaced it there under the same name (`KOPIUR_CAPACITY:
+10Gi`, equal to the live claim), so the inventory ID never changed and Flux
+skips the live claim. The HelmRelease alias became
+`${KOPIUR_CLAIM:-paperless-ngx}`. Its drill also covered the populator path
+([proof-ledger.md](proof-ledger.md) row 27). Merging it prunes 3 ExternalSecrets,
+3 ReplicationSources, 1 ReplicationDestination and (by owner reference) 3 restic
+cache PVCs. The live claim keeps an inert `dataSourceRef` to the pruned
+`paperless-ngx-dst`.
+
 ## The swap
 
-`components/volsync/pvc.yaml` is what emits the claim on a dual-engine app.
+`components/volsync/pvc.yaml` emitted the claim on a dual-engine app (none is left).
 Every overlay runs `prune: true`. Removing the volsync component without a
 replacement makes Flux **delete the PVC**.
 
-`components/kopiur/pvc` exists as its own component so it does not collide
-with volsync's PVC on apps that are still dual-engine. It must carry
+`components/kopiur/pvc` exists as its own component so it never collided
+with volsync's PVC on apps that were still dual-engine. It must carry
 `kustomize.toolkit.fluxcd.io/ssa: IfNotPresent` and must never carry
 `force: enabled`.
 

@@ -141,6 +141,29 @@ modes. The live PVC uid (`786d4bcf-fc74-4b96-b7a0-f675f917c6dc`) and the
 syncthing pod were unchanged and no drill object was left behind. VolSync was
 retired from this claim in the PR that records this row (issue #2202 PR-3).
 
+| Row | Claim | Mover | Cache | ceph | r2 | live files | restored ceph / r2 | restore manifest sha256 (live-A / ceph / r2 / live-B) | Result |
+|---|---|---|---|---|---|---|---|---|---|
+| 27 | `selfhosted/paperless-ngx` (10Gi) | 1000:1000 | 10Gi | Completed, `paperless-ngx-ceph-20261101142956`, kopia `2a1dd4df2411e907290a9c71e2e2a8ec`, filesNew 32, 22,264,900 B | Completed, `paperless-ngx-r2-20261031182901`, kopia `ca6874779ec6d3143d1d3a82c6fac137`, filesNew 32, 21,932,546 B | 32 | 32 / 32 | `5ab8df795ad0` / `17c5d2b35345` / `38951e827fa6` / `5ab8df795ad0` | **PASS** |
+| 27p | `selfhosted/paperless-ngx`, **populator path** | 1000:1000 | 10Gi | Completed from the same ceph snapshot (`2a1dd4df…`): a scratch PVC whose `dataSourceRef` named a scratch `target.populator` Restore went `Populated` / `RestoreSucceeded` and Bound at 10Gi | - | 32 | 32 / - | `17c5d2b35345` (equal to the ceph side) | **PASS** |
+
+Not near-empty: this claim holds real data (the drill standard was the same,
+decision (b), at a claim-sized cache). Each side had 3 files missing or
+different from live, with 0 mode differences, and every one of them was newer on
+live than that side's snapshot (`live-newer=3`, `not-newer=0`, `absent=0`):
+paperless's index and scheduler files changing after the snapshot. ceph and r2
+differ in content only because their snapshots are about 20 h apart; their
+modes match, and the populator restore equals the ceph one in content and
+modes. Live A and B were identical. The live PVC uid
+(`ede02a1a-bb49-4d86-8dfd-f3157e3e2c9b`) and the paperless-ngx pod were
+unchanged and no drill object was left behind.
+
+This was the first exercise of the standing-populator path anywhere in the
+fleet. The VolSync safety net it replaces was illusory: `paperless-ngx-dst`'s
+`latestImage` was measured empty, so a rebuild through it restored nothing. VolSync was retired
+from this claim, and `components/kopiur/pvc` took the claim over, in the PR that
+records this row (issue #2202 PR-4). A rebuilt claim is now seeded from the
+newest ceph snapshot through `paperless-ngx-kopiur-dst`.
+
 Each of those five restored identically from both destinations in content and
 in mode/uid/gid, and had not grown between the fleet proof and the
 re-measure. The forward risk on the two near-empty claims was cache
