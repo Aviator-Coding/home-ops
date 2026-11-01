@@ -60,7 +60,9 @@ writes. Label every object `fm.homeops/restore-drill` and delete them all afterw
 
 1. A scratch `ExternalSecret` in the drill namespace, from ClusterSecretStore `onepassword`,
    `dataFrom.extract` of `volsync-template`, with the deleted component's template for that
-   destination (inside the cluster the ceph endpoint field works). Never a hand-made Secret.
+   destination (inside the cluster the ceph endpoint field works). Replace its Flux
+   variables by hand (`${APP}` with the retired claim's name, `${SECRET_DOMAIN}` for MinIO):
+   nothing substitutes them in a hand-applied manifest. Never a hand-made Secret.
 2. A scratch PVC on `ceph-block`, at least the repository's restored size.
 3. A throwaway pod with the `restic/restic` image, `envFrom` that Secret, the PVC at
    `/restore`, running `restic --no-lock restore latest --target /restore`.

@@ -112,9 +112,11 @@ claim any more. Do not put it back into `RETIRED_CLAIMS`.
 
 ## Rollback of a retirement commit
 
-Revert the overlay commit. Flux recreates that claim's `ReplicationSource`,
-`ReplicationDestination` and `ExternalSecret` objects. The claim goes back to
-being emitted by `components/volsync/pvc.yaml`, which is the same name and the
-same `dataSourceRef` the live claim already has, so the apply is clean. No
-restic content was deleted, and no `Snapshot` CR is touched by the retirement
-or by reverting it.
+A retirement commit can no longer be reverted on its own. The VolSync operator,
+its CRDs and `components/volsync` were removed (issue #2202 PR-6), so a reverted
+overlay that includes `components/volsync` fails to build or apply and its
+Kustomization goes not-Ready. The live claim is not touched. To bring VolSync back
+for a claim, revert PR-6 first (operator and CRDs), then the claim's retirement
+commit. To recover data, use a kopiur restore
+([restore-and-cache.md](restore-and-cache.md)) instead. No `Snapshot` CR or restic
+content is touched by a retirement or by reverting it.

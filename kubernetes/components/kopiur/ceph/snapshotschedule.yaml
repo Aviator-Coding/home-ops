@@ -8,7 +8,7 @@ spec:
   policyRef:
     name: "${APP}-ceph"
   schedule:
-    # Odd hours 01,05,09,13,17,21 so VolSync's even-hour ceph jobs stay one hour away. Do not hand-assign the H minute.
+    # Odd hours 01,05,09,13,17,21. Do not hand-assign the H minute.
     # Skill `kopiur-backups`.
     cron: "${KOPIUR_SCHEDULE_CEPH:-H 1-23/4 * * *}"
     jitter: 5m
