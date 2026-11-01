@@ -1,18 +1,19 @@
 ---
 name: media-stack
-description: "Read before changing apps in kubernetes/apps/base/downloads/** or media/plex, seerr or calibre: Sonarr, Radarr, SABnzbd, Prowlarr, Recyclarr, Bazarr, Plex settings, or running a backlog search. Covers usenet-only by decision, Recyclarr matching by trash_id, Radarr never searching for missing movies on its own, sizing a search against free disk, and no hardlinks over CephFS/NFS."
+description: "Read before changing apps in kubernetes/apps/base/downloads/** or media/plex, seerr or calibre: Sonarr, Radarr, SABnzbd, Prowlarr, Recyclarr, Bazarr, Plex settings, or running a backlog search. Covers no torrents by decision, Recyclarr matching by trash_id, Radarr never searching for missing movies on its own, sizing a search against free disk, and no hardlinks over CephFS/NFS."
 ---
 
 # Media stack: *arr apps, SABnzbd, Recyclarr and Plex
 
-The downloads namespace has no torrent path (Shelfmark also downloads books over HTTP). Quality profiles, library scans and
-which movie sits on which profile are application database state, not Git.
+The downloads namespace has no torrent path (Shelfmark also downloads books over
+HTTP). Quality profiles, library scans and which movie sits on which profile are
+application database state, not Git.
 
 ## Tripwires
 
-1. **Usenet only.** No torrent client is deployed. Radarr's disabled
-   qBittorrent client and Prowlarr's four definition-less torrent indexers
-   were deleted through the apps' APIs. Re-adding a torrent path is a new
+1. **No torrents; the *arr apps are Usenet only.** No torrent client is deployed.
+   Radarr's disabled qBittorrent client and Prowlarr's four definition-less torrent
+   indexers were deleted through the apps' APIs. Re-adding a torrent path is a new
    decision, not a leftover to "finish". [arr-settings.md](references/arr-settings.md)
 2. **Recyclarr `assign_scores_to` matches `trash_id`, never profile `name`.**
    A TRaSH rename orphans name-matched scores onto the old profile and creates
@@ -41,8 +42,9 @@ which movie sits on which profile are application database state, not Git.
 9. **Books run Shelfmark -> Calibre-Web-Automated: Usenet plus direct HTTP from Anna's
    Archive and LibGen, no torrents.** Shelfmark (`downloads/shelfmark`, env-only config)
    searches through Prowlarr, SABnzbd saves to the `books` category on `shared-downloads`,
-   and the file lands in the CWA NFS ingest folder. Direct downloads go through
-   FlareSolverr; the HelmRelease comments say why `annas-archive.is` is left out. Shelfmark stays in `downloads` because its RWX claim `shared-downloads` lives
+   and the file lands in the CWA NFS ingest folder. Cloudflare-fronted mirrors go
+   through FlareSolverr; the HelmRelease comments say why `annas-archive.is` is left
+   out. Shelfmark stays in `downloads` because its RWX claim `shared-downloads` lives
    there. Readarr was removed (its kopiur snapshots, Postgres databases and NAS files
    were kept). Sonarr and Radarr run no exportarr sidecar: exportarr v2.3.0 rejects any
    API key that is not 20-32 alphanumeric characters.
