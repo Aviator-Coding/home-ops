@@ -34,6 +34,6 @@ placeholders (image/tag, ports, uid/gid, 1Password keys), not a finished app. Af
 - Does not generate the `parameterized instance` shape's parent-directory wiring (one live
   precedent in this repo, its own `resources:` list is hand-maintained - the script writes the
   instance's own files and tells you the one line to add by hand).
-- Does not wire kopiur (or the three VolSync carve-outs), ingress auth, Gatus endpoints, or
+- Does not wire kopiur (VolSync is retired; never add it), ingress auth, Gatus endpoints, or
   Homepage annotations - these are per-app judgment calls, not structural boilerplate.
 - Does not touch any existing app. It refuses to overwrite a file that already exists.

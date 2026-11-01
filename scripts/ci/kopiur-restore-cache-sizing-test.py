@@ -120,6 +120,19 @@ PINNED: dict[str, tuple[str, str]] = {
         "Near-empty, so the measurement is the structural guarantee (cache >= claim) rather than "
         "a size curve - owner decision (b). Do not lower it",
     ),
+    "selfhosted/paperless-ngx.yaml#paperless-ngx": (
+        "10Gi",
+        "Claim-sized: the 10Gi `paperless-ngx` data claim with a cache equal to it, so the cache "
+        "can never be smaller than the data (raised from the 2Gi default, PR #2206; VolSync "
+        "retired and the claim taken over by components/kopiur/pvc on top of it, issue #2202 "
+        "PR-4). This value also sizes the standing populator Restore that seeds a rebuilt claim. "
+        "Drilled 2026-11-01 at exactly this value: scratch Restores from ceph (kopia snapshot "
+        "2a1dd4df2411e907290a9c71e2e2a8ec, 32 files / 22,264,900 B) and r2 "
+        "(ca6874779ec6d3143d1d3a82c6fac137, 32 files / 21,932,546 B) both Completed, and a "
+        "scratch claim whose dataSourceRef named a target.populator Restore was Populated and "
+        "Bound at 10Gi from the same ceph snapshot. Every differing file was newer on live than "
+        "the snapshot. Do not lower it",
+    ),
     "media/plex.yaml": (
         "10Gi",
         "4.61 GiB snapshot (2026-09-12; was 4.16 GiB when this was first sized). Raised "

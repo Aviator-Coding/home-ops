@@ -86,7 +86,7 @@ spec:
     persistence:
       data:
         enabled: true
-        existingClaim: ${VOLSYNC_CLAIM:-*app}
+        existingClaim: ${KOPIUR_CLAIM:-paperless-ngx}
         globalMounts:
           - path: /usr/src/paperless/data
       media:

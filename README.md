@@ -13,7 +13,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 - **Secrets:** 1Password + External Secrets Operator. Bootstrap and Talos secrets are injected by `vals` from vault `Home-Lab`
 - **Ingress:** Gateway API (`envoy-internal` / `envoy-external` in `network`) plus Cloudflare Tunnel
 - **DNS:** External-DNS to Cloudflare (public) and the Unifi webhook (`network/unifi-dns`, internal)
-- **Backup:** kopiur on all 29 protected claims (ceph + r2); kopiur-only is the norm (26 of 29 since Stage 5 completed 2026-09-04). VolSync remains dual-engine on 3 deliberate carve-outs only (`selfhosted/paperless-ngx{,-media}`, `syncthing-data`)
+- **Backup:** kopiur on every protected claim (ceph + r2), and the only engine since 2026-11-01, when the last three VolSync claims (`selfhosted/paperless-ngx{,-media}`, `syncthing-data`) were retired (issue #2202); the VolSync operator is removed separately
 
 ## Operator docs
 
@@ -32,7 +32,7 @@ This is a live cluster, not an upstream template. There is no Makejinja render s
 ├── kubernetes/
 │   ├── apps/           # Flux apps at apps/base/<ns> + overlay apps/main/<ns>
 │   ├── clusters/main/  # Flux entry point (cluster-meta + cluster-apps)
-│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, kopiur (+ pvc), volsync (3 claims left))
+│   └── components/     # Reusable Kustomize components (alerts, common, dragonfly, kopiur (+ pvc), volsync (no claims left))
 ├── talos/              # minijinja machine config, node overlays, factory schematic
 ├── bootstrap/          # just bootstrap stages (nodes, k8s, base, apps)
 ├── .agents/skills/     # agent skills, one per subsystem (.claude/skills is a symlink)

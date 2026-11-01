@@ -58,9 +58,9 @@ This test does not grep source text as its evidence. It:
 Note: EXPECTED_IDENTITY pins the kopiur mover (and the files on disk). VolSync
 often rides a different mover identity because it stages a writable clone and
 kubelet's fsGroup walk rewrites group bits before restic reads - so this file
-does NOT require VOLSYNC_PUID == KOPIUR_PUID fleet-wide. The VolSync mover
-identity of the paperless-ngx carve-out is pinned in
-`corrupt-claim-recreation-contract-test.py`.
+does NOT require VOLSYNC_PUID == KOPIUR_PUID fleet-wide. No claim runs VolSync
+any more (the last, paperless-ngx, left on 2026-11-01, issue #2202 PR-4), so no
+VolSync mover identity is pinned.
 
 The identity table below is the measured result of execing into every running
 pod on 2026-08-30 and reading uid/gid/mode of every file - NOT the pods'
@@ -147,7 +147,8 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 
 # --- Stage 5: claims VolSync has been RETIRED from (kopiur is their only engine) ---
 #
-# 29 claims across four waves. One of the fleet's 30 stays dual-engine.
+# 30 claims across four waves; 28 are still in the fleet (autobrr and readarr left
+# with their apps). None of the fleet stays dual-engine.
 #
 # Wave one - the pilot four, retired 2026-09-01. Each was restore-proven on
 # BOTH destinations first (.agents/skills/kopiur-backups/references/proof-ledger.md) and
@@ -182,9 +183,10 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 # .agents/skills/kopiur-backups/references/proof-ledger.md. Its claim is chart-owned
 # and the VolSync half was a backup-only Kustomization, so no PVC changed hands.
 #
-# Deliberately NOT here, and this is now the WHOLE of the dual-engine fleet:
-# `selfhosted/paperless-ngx` (captain carve-out, stays dual-engine until its
-# own takeover, a separate PR).
+# `selfhosted/paperless-ngx` (PR-4, the former captain carve-out) closed wave four:
+# the one PVC takeover (components/volsync/pvc.yaml -> components/kopiur/pvc, same
+# claim name), after ceph, r2 and populator-path drills at a 10Gi cache, recorded in
+# proof-ledger.md row 27. With it the dual-engine fleet is empty.
 #
 # This set is the fleet's legibility record: anything in it has ONE backup
 # engine, and anything not in it must still have two. Adding a row here is an
@@ -240,6 +242,8 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     ("selfhosted", "paperless-ngx-media"),
     # wave four, 2026-11-01 - the 15Gi files claim, owned by a plain PVC manifest (backup-only shape)
     ("selfhosted", "syncthing-data"),
+    # wave four, 2026-11-01 - the 10Gi data claim, PVC takeover to components/kopiur/pvc (normal shape)
+    ("selfhosted", "paperless-ngx"),
 }
 
 # --- claims that were NEVER VolSync-protected (single-engine from birth) ---

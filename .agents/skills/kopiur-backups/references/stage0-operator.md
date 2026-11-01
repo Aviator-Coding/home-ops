@@ -59,9 +59,9 @@ failed instead of seeding empty PVCs. Restoring the fleet from r2 is a
 DR-mode commit **before** bootstrap, then
 [full-cluster-restore-r2.md](full-cluster-restore-r2.md).
 
-Four claims have no populator path and are hand-restored. The runbook names
-them: `database/surrealdb`,
-`selfhosted/paperless-ngx`, `paperless-ngx-media`, `syncthing-data`.
+Three claims have no populator path and are hand-restored. The runbook names
+them: `database/surrealdb`, `selfhosted/paperless-ngx-media`, `syncthing-data`.
+`selfhosted/paperless-ngx` has had a kopiur populator since 2026-11-01.
 
 Do not flip `onMissingSnapshot` to `Continue` to "get the cluster up". That
 writes emptiness into r2 as the newest snapshot of the same identity, and

@@ -5,12 +5,13 @@ description: "Read before ANY kopiur change: onboarding or retiring a claim, kub
 
 # kopiur backups
 
-kopiur is the backup engine. VolSync remains only on one carve-out
-(`selfhosted/paperless-ngx`); skill
+kopiur is the only backup engine. The last VolSync claim
+(`selfhosted/paperless-ngx`) left on 2026-11-01; the operator is removed
+separately (issue #2202 PR-6), and its retired repositories are skill
 `volsync-carveouts`. Born-kopiur claims (`database/surrealdb`,
-`downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`) never had VolSync. Assume kopiur-only unless the overlay
-includes `components/volsync`. A kopiur overlay never `dependsOn` the VolSync
-operator; it depends on `kopiur-repository` in `system`.
+`downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`) never had VolSync.
+A kopiur overlay never `dependsOn` the VolSync operator; it depends on
+`kopiur-repository` in `system`.
 
 The chart tag lives in
 `kubernetes/apps/base/system/kopiur/app/ocirepository.yaml`. Read that file.

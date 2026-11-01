@@ -6,9 +6,9 @@ Prevents: a retired-VolSync overlay losing the kopiur pvc Component, `ssa: IfNot
 or the no-force rule, so Flux prunes or replaces a live data volume.
 
 Stage 5 is the IRREVERSIBLE step of the VolSync -> kopiur migration: it removes
-a volume's second backup engine. 29 of the fleet's 30 claims have now gone
-through it, in four waves, and 1 remains dual-engine - which is the whole of
-what VolSync still protects.
+a volume's second backup engine. All 30 of the fleet's claims have now gone
+through it, in four waves, and none remains dual-engine: VolSync protects
+nothing. Its operator and component are removed separately (issue #2202 PR-6).
 
 One of those eight, `downloads/autobrr`, is no longer in the fleet at all: the
 APP was removed on 2026-09-02 (captain decision - unused), so its overlay, its
@@ -50,9 +50,12 @@ wave-two record still documents autobrr's retirement, because it happened.
   guarantee cache >= claim. It is the first BACKUP-ONLY retirement: see below.
   `selfhosted/syncthing-data` followed on 2026-11-01 (issue #2202, PR-3) at a
   15Gi cache, same standard (5 files / 531 B, ceph and r2 identical to live).
-
-`selfhosted/paperless-ngx` (captain carve-out) is the entire remaining
-dual-engine fleet; its takeover is a separate PR.
+  `selfhosted/paperless-ngx` (the former captain carve-out) closed the wave on
+  2026-11-01 (issue #2202, PR-4): the one PVC TAKEOVER of the wave, in the
+  normal shape below, after ceph, r2 and populator-path drills at a 10Gi cache
+  (32 files each; the only differences were 3 files written after the
+  snapshot). Its overlay also carries components/dragonfly, which renders no
+  claim and no backup object (NON_BACKUP_COMPONENTS).
 
 THIRD SHAPE, BACKUP-ONLY. `selfhosted/paperless-ngx-media` is a chart-owned
 second volume (HelmRelease `persistence.media`, no `dataSourceRef`). Its VolSync
@@ -257,7 +260,20 @@ RETIRED: dict[str, Retired] = {
         "kubernetes/apps/base/selfhosted/syncthing/app/pvc.yaml",
         "syncthing-data",
     ),
+    # wave four, 2026-11-01 (issue #2202 PR-4) - the PVC TAKEOVER, normal shape.
+    # components/volsync/pvc.yaml emitted this claim; components/kopiur/pvc emits it
+    # now under the same name, so the Flux inventory ID is unchanged and IfNotPresent
+    # skips the live claim (10Gi, measured 2026-11-01). Its second volume
+    # `paperless-ngx-media` is the backup-only row above.
+    "selfhosted/paperless-ngx": Retired(
+        "selfhosted/paperless-ngx.yaml", "paperless-ngx", "paperless-ngx", "10Gi"
+    ),
 }
+
+# Components a retired claim Kustomization may carry besides the backup ones. Each
+# renders neither a PersistentVolumeClaim nor a backup object, so it cannot
+# collide with or replace the claim. paperless-ngx needs its Dragonfly cache.
+NON_BACKUP_COMPONENTS = {"../../../../../components/dragonfly"}
 
 # Restore-proof finding 2 / the 2026-09-02 cache gate: an r2 restore needs
 # materially more kopia cache than the same restore from ceph, required cache is
@@ -332,6 +348,10 @@ RAISED_CACHE: dict[str, str] = {
     # from ceph and r2 at exactly this value (Restore Completed both; 5 files / 531 B,
     # decision (b)).
     "selfhosted/syncthing-data": "15Gi",
+    # paperless-ngx: raised 2Gi -> 10Gi (PR #2206) to the claim size. Drilled 2026-11-01
+    # from ceph, r2 and the populator path at exactly this value (Restore Completed all
+    # three; 32 files, ~21 MiB).
+    "selfhosted/paperless-ngx": "10Gi",
 }
 
 # Stated separately from len(RETIRED) on purpose: this is the number a human
@@ -342,8 +362,9 @@ RAISED_CACHE: dict[str, str] = {
 # wave two and the APP ITSELF removed on 2026-09-02, leaving no overlay to hold
 # a retirement contract against. Wave three adds 11 (tier A) + 4 (tier B) + 4
 # (tier C) = 19, which is every remaining eligible claim in the fleet. Wave four
-# adds paperless-ngx-media and syncthing-data (backup-only shape).
-EXPECTED_RETIRED_COUNT = 27
+# adds paperless-ngx-media and syncthing-data (backup-only shape) and paperless-ngx
+# (the PVC takeover).
+EXPECTED_RETIRED_COUNT = 28
 
 
 class Failure(Exception):
@@ -658,9 +679,11 @@ def test_retired_overlays_keep_the_claim() -> None:
         # retained split shape carries only the pvc one here and the kopiur
         # backup half in its own Kustomization, asserted just below.
         want = [KOPIUR_PVC_COMPONENT] if v.backup_ks else [KOPIUR_COMPONENT, KOPIUR_PVC_COMPONENT]
+        backup_comps = [c for c in comps if c not in NON_BACKUP_COMPONENTS]
         require(
-            comps == want,
-            f"{key}: components must be exactly {want}, got {comps}. The pvc Component is NOT "
+            backup_comps == want,
+            f"{key}: components (less {sorted(NON_BACKUP_COMPONENTS)}) must be exactly {want}, "
+            f"got {comps}. The pvc Component is NOT "
             f"optional: volsync's pvc.yaml was the only manifest emitting this claim and the "
             f"overlay runs prune: true, so dropping both deletes the data volume.",
         )

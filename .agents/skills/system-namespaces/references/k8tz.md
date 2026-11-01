@@ -14,7 +14,7 @@ Putting the release in `system` therefore skips `system`. There is no values key
 
 VolSync's cron reads the process `TZ` k8tz injects into the manager pod. kopiur `SnapshotSchedule`s pin `spec.schedule.timezone` themselves, so they do not move. Stripping TZ from `system` shifts every remaining VolSync schedule by four hours (EDT) or five (EST) relative to kopiur.
 
-VolSync remains on one claim only: `selfhosted/paperless-ngx`. The collision is those claims, not the retired fleet-wide count. The stagger those claims still rely on is PR #1509.
+No claim runs VolSync since 2026-11-01 (issue #2202 PR-4; `selfhosted/paperless-ngx` was the last), so this blocker has no claim left to shift. It ends when the operator is removed (PR-6). The stagger those claims relied on was PR #1509.
 
 The volsync chart exposes no `env` / `extraEnv`. Compensating would be a permanent postRenderer on every workload in `system`, current and future. That is not a fix.
 

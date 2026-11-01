@@ -15,14 +15,12 @@ buckets:
     endpoint: https://nas.${SECRET_DOMAIN}:9000
     bucket: volsync
 
-# LIVE repositories. These still have ReplicationSources writing to them
-# (`kubectl get replicationsource -A` - 3 sources, 1 claim x 3 destinations).
+# LIVE repositories. These still have ReplicationSources writing to them. Empty since
+# 2026-11-01: the last claim, paperless-ngx, left VolSync (issue #2202 PR-4).
 # The renderer fails closed if any rule it is about to emit could touch one.
 # Never move an entry from here into a tier without first deleting its
-# ReplicationSources.
-protected:
-  # ceph: 11900345 B / 232 obj, r2: 1770492224 B / 220 obj, minio: 9913836 B / 154 obj; last write 2026-09-12
-  - paperless-ngx
+# ReplicationSources; a claim put back on VolSync must be listed here first.
+protected: []
 
 # Retired repositories, split by whether anything else still backs the data up.
 # Skill `volsync-carveouts`.
@@ -64,6 +62,8 @@ tiers:
       - obsidian-livesync
       # ceph: 87893520 B / 166 obj, r2: 45996777 B / 39 obj, minio: 71989971 B / 115 obj; last write 2026-09-04
       - opencode
+      # ceph: 11900345 B / 232 obj, r2: 1770492224 B / 220 obj, minio: 9913836 B / 154 obj; last write 2026-11-01 (VolSync retired, #2202; sizes from 2026-09-12)
+      - paperless-ngx
       # ceph: 63827 B / 106 obj, r2: 31211 B / 68 obj, minio: 45347 B / 74 obj; last write 2026-11-01 (VolSync retired, #2202; sizes from 2026-09-12)
       - paperless-ngx-media
       # ceph: 129040801 B / 114 obj, r2: 127232347 B / 94 obj, minio: 126844539 B / 88 obj; last write 2026-09-04

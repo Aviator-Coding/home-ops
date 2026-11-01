@@ -46,32 +46,33 @@ export AWS_SECRET_ACCESS_KEY="$(env -u OP_SERVICE_ACCOUNT_TOKEN op read 'op://Ho
 **R2 needs a credential that does not exist in the cluster for the apply.** The owner mints a
 scoped R2 API token with `Workers R2 Storage Write`, it is exported as `AWS_ACCESS_KEY_ID` /
 `AWS_SECRET_ACCESS_KEY` in the shell for the r2 step only, and revoked afterwards. Never store it
-in 1Password or the cluster. R2's limit is 1000 lifecycle rules per bucket; this plan installs 50.
+in 1Password or the cluster. R2's limit is 1000 lifecycle rules per bucket; this plan installs 51.
 
 ## What each command changes
 
 One `PutBucketLifecycleConfiguration` per bucket, replacing the whole lifecycle configuration
-with the same 50 rules `{Filter: {Prefix: "<name>/"}, Expiration: {Date: "<tier date>T00:00:00Z"},
+with the same 51 rules `{Filter: {Prefix: "<name>/"}, Expiration: {Date: "<tier date>T00:00:00Z"},
 Status: Enabled}`. No object is deleted at apply time. All three buckets had no lifecycle
 configuration when the plan was written (check again with a dry run: the tool captures the
 prior state to a file first, so undo is exact).
 
-## Step 0 - render and eyeball (read-only, no credentials, no network)
+## Step 0 - render and eyeball (read-only, no S3 credentials)
 
 ```sh
 cd <repo>
 eval "$(mise env -s bash)"
 python3 scripts/volsync-retired-expiry/render_lifecycle.py > /tmp/volsync-lifecycle.json
-jq '.Rules | length' /tmp/volsync-lifecycle.json                      # 50
+jq '.Rules | length' /tmp/volsync-lifecycle.json                      # 51
 jq -r '.Rules[] | "\(.Filter.Prefix)\t\(.Expiration.Date)"' /tmp/volsync-lifecycle.json | sort
 jq -r '.Rules[].Filter.Prefix' /tmp/volsync-lifecycle.json \
   | grep -vE '/$' && echo "STOP: a prefix does not end in /"
-jq -r '.Rules[].Filter.Prefix' /tmp/volsync-lifecycle.json \
-  | grep -xE 'paperless-ngx/' \
-  && echo "STOP: a LIVE repository is in the rule set"
+kubectl get replicationsource -A   # cluster read; expect "No resources found"
 ```
 
-Both greps must print nothing.
+The grep must print nothing. `kubectl get replicationsource -A` must list nothing: no
+repository is live since 2026-11-01, when `paperless-ngx`, the last, was retired. A source that
+exists again must have its app in `ledger.yaml` `protected` first (the renderer then refuses any
+rule for it); otherwise stop.
 
 ## Step 1 - dry run each destination (read-only)
 
@@ -118,7 +119,7 @@ uv run --with boto3 python scripts/volsync-retired-expiry/apply_lifecycle.py \
   --confirm --save-previous /tmp/volsync-lc-undo/r2.json
 ```
 
-Success ends with `VERIFIED: 50 rules stored, all prefixes exact-segment, no rule in range of a
+Success ends with `VERIFIED: 51 rules stored, all prefixes exact-segment, no rule in range of a
 live repository.` and `Earliest deletion: 2027-03-31T00:00:00Z`. Anything else (mismatch,
 missing rule, a prefix the store rewrote) exits non-zero and names the problem. Keep
 `/tmp/volsync-lc-undo/` until all three have verified.
@@ -136,10 +137,10 @@ kubectl --kubeconfig="$KC" -n rook-ceph exec deploy/rook-ceph-tools -- \
   radosgw-admin bucket stats --bucket=volsync | jq '.usage."rgw.main"'
 ```
 
-The invariant is not "50 rules exist" but **no stored rule's prefix is in range of
-`paperless-ngx/`** (the one live repository; `syncthing/`, `syncthing-data/` and
-`paperless-ngx-media/` are retired and each rule is an exact segment, so none reaches it). `num_objects` must be unchanged
-apart from ongoing live backups; nothing expires until 2027-03-31.
+The invariant is not "51 rules exist" but **every stored rule's prefix is an exact segment
+that reaches no other repository and no live one** (none is live since 2026-11-01; `paperless-ngx/`
+and `paperless-ngx-media/`, `syncthing/` and `syncthing-data/` are distinct rules). `num_objects`
+must be unchanged; nothing expires until 2027-03-31.
 
 ## Step 4 - undo
 

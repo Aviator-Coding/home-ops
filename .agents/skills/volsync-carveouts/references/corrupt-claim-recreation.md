@@ -3,8 +3,17 @@
 Throwing a live volume away and rebuilding it from its repository. Scratch restores that only
 prove a repository reads back: [volsync-scratch-drill.md](volsync-scratch-drill.md) and skill
 `kopiur-backups`, `references/kopiur-scratch-drill.md`. Their hard constraint (never scale,
-overwrite or write a live claim outside this procedure) binds here too. Contract pinned by
-`scripts/ci/corrupt-claim-recreation-contract-test.py`.
+overwrite or write a live claim outside this procedure) binds here too.
+
+**No claim runs VolSync since 2026-11-01** (issue #2202 PR-4), so the VolSync steps below have no
+live subject; PR-6 rewrites this runbook for kopiur. A claim on `components/kopiur/pvc` is
+rebuilt through its standing `<app>-kopiur-dst` populator `Restore` (`fromPolicy` `offset: 0`, resolved
+when a new PVC claims it), not a `ReplicationDestination`; a claim taken over at retirement keeps
+an inert VolSync `dataSourceRef` until it is rebuilt. Before deleting such a PVC, check that
+`<app>-kopiur-dst` is `Pending` / `AwaitingPvcDataSourceRef`: a `Failed` Restore never retries
+(skill `kopiur-backups`, [full-cluster-restore-r2.md](../../kopiur-backups/references/full-cluster-restore-r2.md)
+phase 3 step 5). The kopiur rebuild contract is pinned by `scripts/ci/kopiur-stage5-test.py`
+(rendered claim) and `kopiur-stage1-test.py` (`test_restore_passive_contract`).
 
 ## Read this before you delete anything
 
@@ -26,11 +35,11 @@ onboarding (VolSync has since been retired from it).
 
 Claims measured empty on 2026-09-06: `selfhosted/paperless-ngx`, `paperless-ngx-media`,
 `syncthing-data`. `syncthing-data-dst` was then deleted and Flux-recreated and its `restore-once`
-succeeded from populated snapshot `9dd34c26`. Only `paperless-ngx` still has a live PVC
-`dataSourceRef` pointing at an empty `paperless-ngx-dst`: rebuilding that volume restores nothing
-unless the ReplicationDestination is deleted **together with** the PVC. `paperless-ngx-media` has
-no `dataSourceRef` consumer now; its empty image is a trap if an overlay re-adds one. Re-measure
-before relying on any of this.
+succeeded from populated snapshot `9dd34c26`. `paperless-ngx` was the last live PVC whose
+`dataSourceRef` named an empty destination (`paperless-ngx-dst`): rebuilding it then restored
+nothing unless the ReplicationDestination was deleted **together with** the PVC. Since
+2026-11-01 that destination is pruned and the claim is owned by `components/kopiur/pvc`, so a
+rebuild is seeded from `paperless-ngx-kopiur-dst` (populator path drilled the same day).
 
 Evidence precision: what was measured is VolSync's mover log (`No data will be restored`) and
 that `latestImage` names the snapshot of that same destination PVC. The empty image was never
