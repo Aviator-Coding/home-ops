@@ -35,6 +35,9 @@ spec:
           env:
             - name: MCP_K8S_PROVIDER
               value: in-cluster
+            # 2.0.0 also stats $HOME/.config/kubectl-mcp-server/config.toml; /home/mcp is unreadable to uid 1000.
+            - name: HOME
+              value: /tmp
             - name: PYTHONUNBUFFERED
               value: "1"
           volumeMounts:
