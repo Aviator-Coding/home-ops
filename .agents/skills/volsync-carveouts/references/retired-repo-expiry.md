@@ -18,7 +18,7 @@
 
 **Owner's decision, 2026-09-12: an expiry date.** Not deletion now, not keeping it
 indefinitely. A recovery window is preserved and unbounded growth stops for every future app
-retirement. Scope: **all 48 retired repositories across all three destinations** (ceph, minio,
+retirement. Scope: **all 49 retired repositories across all three destinations** (ceph, minio,
 r2), not the 30 on ceph alone.
 
 `scripts/volsync-retired-expiry/ledger.yaml` is the machine-readable policy (change a date
@@ -31,12 +31,12 @@ and the apply-plan flags.
 
 | Tier | What | Prefixes | Size across 3 destinations | Earliest delete |
 |---|---|---|---|---|
-| `redundant` | Retired from VolSync in the kopiur Stage 5 migration. The claim still exists and kopiur backs it up on both ceph and r2 | 26 | 96.04 GiB | 2027-03-31 |
+| `redundant` | Retired from VolSync in the kopiur Stage 5 migration. The claim still exists and kopiur backs it up on both ceph and r2 | 27 | ~96.04 GiB | 2027-03-31 |
 | `sole_copy` | App and volume are gone. This restic repository is the only remaining copy | 22 | 30.00 GiB | 2027-09-30 |
 
-48 repositories, 126.03 GiB. Nothing is reclaimed before those dates even after the apply. The
+49 repositories, ~126 GiB. Nothing is reclaimed before those dates even after the apply. The
 window is about 6.5 months for data that already has two current backups and about 12.5 months
-for data that has none. Two dates, not 48.
+for data that has none. Two dates, not 49.
 
 `ledger.yaml` marks some prefixes `protected`; those still have a live `ReplicationSource`.
 Delete that source first or the render refuses them. Dates in the ledger are absolute. Do not
@@ -62,5 +62,5 @@ The ledger stores bare names (`syncthing`, never `syncthing/`). `render_lifecycl
 slash in one place and rejects an entry that already contains one. The emitted match
 `syncthing/` does not match `syncthing-data/` because the strings differ at the character after
 the shared stem. Protected prefixes, which must never receive a rule: `paperless-ngx`,
-`paperless-ngx-media`, `syncthing-data`. The renderer raises `UnsafeLedger` rather than emit a
+`syncthing-data`. The renderer raises `UnsafeLedger` rather than emit a
 rule that can reach one.

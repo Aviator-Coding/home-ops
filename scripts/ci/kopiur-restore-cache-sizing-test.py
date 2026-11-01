@@ -98,6 +98,17 @@ PINNED: dict[str, tuple[str, str]] = {
         "demonstration for this size class was run on media/tdarr, the tighter of the two, "
         "at this same value - as media/plex now is too (2026-09-12). Do not lower it without a drill",
     ),
+    # Key form `<overlay>#<Kustomization name>` selects one document in a multi-Kustomization overlay.
+    "selfhosted/paperless-ngx.yaml#paperless-ngx-media-kopiur": (
+        "50Gi",
+        "Claim-sized: the 50Gi `paperless-ngx-media` claim (chart-owned) with a cache equal to it, "
+        "so the cache can never be smaller than the data (raised from 5Gi, PR #2206; VolSync "
+        "retired on top of it, issue #2202 PR-2). Drilled 2026-11-01 at exactly this value: scratch "
+        "Restores from ceph (kopia snapshot 6409ead13b1f41f00fbddfc685a440e6) and r2 "
+        "(dfd41422fc29e319f63765ee036d2ebf) both Completed, 1 file / 0 B, manifests and modes "
+        "identical to the live volume. Near-empty, so the measurement is the structural "
+        "guarantee (cache >= claim) rather than a size curve - owner decision (b). Do not lower it",
+    ),
     "media/plex.yaml": (
         "10Gi",
         "4.61 GiB snapshot (2026-09-12; was 4.16 GiB when this was first sized). Raised "
@@ -121,6 +132,7 @@ def require(cond: Any, msg: str) -> None:
 
 
 def overlay(rel: str) -> dict[str, Any]:
+    rel, _, ks_name = rel.partition("#")
     path = APPS_MAIN / rel
     require(
         path.is_file(),
@@ -133,6 +145,10 @@ def overlay(rel: str) -> dict[str, Any]:
         for d in yaml.safe_load_all(path.read_text())
         if d and d.get("kind") == "Kustomization"
     ]
+    if ks_name:
+        named = [d for d in docs if d["metadata"]["name"] == ks_name]
+        require(len(named) == 1, f"expected one Flux Kustomization {ks_name!r} in {rel}, got {len(named)}")
+        return named[0]
     require(len(docs) == 1, f"expected exactly 1 Flux Kustomization in {rel}, got {len(docs)}")
     return docs[0]
 

@@ -69,19 +69,19 @@ VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 #
 # Wave three (2026-09-04) retires the remaining 19 eligible claims in three
 # risk-tiered commits, so this number steps down with each: 22 -> 11 (tier A)
-# -> 7 (tier B) -> 3 (tier C). Three is the floor the migration ends on, and
-# they are the deliberate carve-outs: `selfhosted/paperless-ngx`,
-# `selfhosted/paperless-ngx-media` and `selfhosted/syncthing-data`.
+# -> 7 (tier B) -> 3 (tier C). Wave four (2026-11-01, issue #2202 PR-2) retires
+# `selfhosted/paperless-ngx-media`, leaving 2: `selfhosted/paperless-ngx` and
+# `selfhosted/syncthing-data`.
 #
 # Lower this ONLY alongside a real retirement; the authoritative retired set is
 # RETIRED_CLAIMS in kopiur-stage3-test.py. Note the timezone contract itself is
 # checked over ALL kopiur claims (see kopiur_claims), not just these - so wave
 # three shrinks this floor's sample without weakening that contract. What DOES
 # narrow is the cross-engine collision assertions below, which only have
-# meaning where both engines run: after wave three they cover 3 claims rather
+# meaning where both engines run: after wave four they cover 2 claims rather
 # than 22, and the reason that is acceptable is that a collision is only
 # possible at all on a dual-engine claim.
-MIN_DUAL_ENGINE_CLAIMS = 3
+MIN_DUAL_ENGINE_CLAIMS = 2
 
 # The whole kopiur fleet, dual-engine or retired.
 #

@@ -15,8 +15,10 @@ A second PVC is a second document in the app overlay:
 - Schedule minutes chosen so they do not collide with the other
   `ReplicationSource` objects in the namespace.
 
-Live: `kubernetes/apps/main/selfhosted/syncthing.yaml` (`syncthing-data`) and
-`kubernetes/apps/main/selfhosted/paperless-ngx.yaml` (`paperless-ngx-media`).
+Live: `kubernetes/apps/main/selfhosted/syncthing.yaml` (`syncthing-data`).
+`paperless-ngx-media` used the same shape in
+`kubernetes/apps/main/selfhosted/paperless-ngx.yaml` until 2026-11-01, when its
+backup-only VolSync Kustomization was deleted (kopiur only now).
 
 `syncthing` is the 1Gi config claim. `syncthing-data` is the synced-files
 claim. They are not prefixes of each other for expiry purposes either; see
@@ -53,7 +55,7 @@ is a literal token, not a kustomize anchor. The overlay must keep defining
 `VOLSYNC_CLAIM` for as long as that line exists. The other three apps that
 used to carry it were renamed to `KOPIUR_CLAIM` when VolSync left.
 
-## Do not add a fourth carve-out
+## Do not add a third carve-out
 
 New apps are kopiur-only: `components/kopiur` and a chart-owned PVC. The
 takeover component `components/kopiur/pvc` is only for retiring an existing

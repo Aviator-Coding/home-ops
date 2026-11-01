@@ -16,15 +16,13 @@ buckets:
     bucket: volsync
 
 # LIVE repositories. These still have ReplicationSources writing to them
-# (`kubectl get replicationsource -A` - 9 sources, 3 claims x 3 destinations).
+# (`kubectl get replicationsource -A` - 6 sources, 2 claims x 3 destinations).
 # The renderer fails closed if any rule it is about to emit could touch one.
 # Never move an entry from here into a tier without first deleting its
 # ReplicationSources.
 protected:
   # ceph: 11900345 B / 232 obj, r2: 1770492224 B / 220 obj, minio: 9913836 B / 154 obj; last write 2026-09-12
   - paperless-ngx
-  # ceph: 63827 B / 106 obj, r2: 31211 B / 68 obj, minio: 45347 B / 74 obj; last write 2026-09-12
-  - paperless-ngx-media
   # ceph: 203822 B / 107 obj, r2: 64795 B / 70 obj, minio: 136195 B / 75 obj; last write 2026-09-12
   - syncthing-data
 
@@ -68,6 +66,8 @@ tiers:
       - obsidian-livesync
       # ceph: 87893520 B / 166 obj, r2: 45996777 B / 39 obj, minio: 71989971 B / 115 obj; last write 2026-09-04
       - opencode
+      # ceph: 63827 B / 106 obj, r2: 31211 B / 68 obj, minio: 45347 B / 74 obj; last write 2026-11-01 (VolSync retired, #2202; sizes from 2026-09-12)
+      - paperless-ngx-media
       # ceph: 129040801 B / 114 obj, r2: 127232347 B / 94 obj, minio: 126844539 B / 88 obj; last write 2026-09-04
       - pgadmin
       # ceph: 5628782881 B / 498 obj, r2: 5731648609 B / 525 obj, minio: 5462559292 B / 458 obj; last write 2026-09-04

@@ -5,12 +5,12 @@ description: "Read before editing kubernetes/components/volsync/**, the paperles
 
 # VolSync carve-outs
 
-VolSync is the second engine on three claims, and nowhere else. Do not add
+VolSync is the second engine on two claims, and nowhere else. Do not add
 `components/volsync` to a new app. kopiur is the norm (skill
-`kopiur-backups`). Delete this skill when those three claims leave VolSync.
+`kopiur-backups`). Delete this skill when those two claims leave VolSync.
 
-The three: `selfhosted/paperless-ngx` (permanent), `paperless-ngx-media`,
-`syncthing-data`. Each still gets three `ReplicationSource` objects
+The two: `selfhosted/paperless-ngx` (permanent) and `syncthing-data`
+(`paperless-ngx-media` left VolSync on 2026-11-01). Each still gets three `ReplicationSource` objects
 (ceph, minio, r2) and one `ReplicationDestination`.
 
 ## Tripwires

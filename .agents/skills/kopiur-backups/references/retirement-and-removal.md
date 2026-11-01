@@ -2,11 +2,10 @@
 
 ## Current fleet
 
-27 VolSync engines were retired across three waves. `downloads/autobrr` then
-left with its app, so **26 claims remain kopiur-only**. Three dual-engine
-carve-outs are the end state, not a backlog:
-`selfhosted/paperless-ngx` (permanent), `paperless-ngx-media`,
-`syncthing-data`. Born-kopiur claims sit outside that set
+28 VolSync engines were retired across four waves. `downloads/autobrr` then
+left with its app, so **27 claims remain kopiur-only**. Two dual-engine
+carve-outs remain: `selfhosted/paperless-ngx` and `syncthing-data`
+(issue #2202 retires them one claim at a time). Born-kopiur claims sit outside that set
 (`NEVER_VOLSYNC` in `scripts/ci/kopiur-stage3-test.py`).
 
 The machine-readable record is `RETIRED_CLAIMS` in that same test, asserted
@@ -21,9 +20,21 @@ Tiering was sequencing, not a different evidence standard. Every retired claim
 was a destination-identical pass in [proof-ledger.md](proof-ledger.md), with
 the prowlarr caveat closed by the later matched-pair drill recorded there.
 
-`paperless-ngx-media` and `syncthing-data` were re-measured empty of meaningful
-data and left dual-engine because their restore caches do not cover a real
-payload. See [restore-and-cache.md](restore-and-cache.md).
+Wave four, 2026-11-01: `selfhosted/paperless-ngx-media`, the first
+**backup-only** retirement. It had been left dual-engine because its restore
+cache did not cover a real payload. The cache was raised to the claim size
+(50Gi), a scratch drill from ceph and r2 at that cache passed (owner decision
+(b), the `*` near-empty row in [proof-ledger.md](proof-ledger.md)), and then the
+VolSync Kustomization (`path: components/volsync/backup`) was deleted. The claim
+is chart-owned (HelmRelease `persistence.media`), so there is no PVC swap: do
+**not** add `components/kopiur/pvc`, which would give a chart-owned claim a
+second owner. Merging it prunes 3 ExternalSecrets, 3 ReplicationSources and 1
+ReplicationDestination; the restic cache PVCs are owned by their
+ReplicationSource and go with them, and the restic repositories are never
+touched (ledger tier `redundant`, expiry NOT IN FORCE). The test shape is the
+`owner_hr` row in `scripts/ci/kopiur-stage5-test.py`. `syncthing-data` was
+re-measured empty of meaningful data and stays dual-engine until its own drill.
+See [restore-and-cache.md](restore-and-cache.md).
 
 ## The swap
 
