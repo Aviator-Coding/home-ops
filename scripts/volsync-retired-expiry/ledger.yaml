@@ -66,7 +66,7 @@ tiers:
       - obsidian-livesync
       # ceph: 87893520 B / 166 obj, r2: 45996777 B / 39 obj, minio: 71989971 B / 115 obj; last write 2026-09-04
       - opencode
-      # ceph: 63827 B / 106 obj, r2: 31211 B / 68 obj, minio: 45347 B / 74 obj; last write 2026-09-12
+      # ceph: 63827 B / 106 obj, r2: 31211 B / 68 obj, minio: 45347 B / 74 obj; last write 2026-11-01 (VolSync retired, #2202; sizes from 2026-09-12)
       - paperless-ngx-media
       # ceph: 129040801 B / 114 obj, r2: 127232347 B / 94 obj, minio: 126844539 B / 88 obj; last write 2026-09-04
       - pgadmin

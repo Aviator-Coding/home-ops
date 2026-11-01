@@ -28,9 +28,9 @@ cache did not cover a real payload. The cache was raised to the claim size
 VolSync Kustomization (`path: components/volsync/backup`) was deleted. The claim
 is chart-owned (HelmRelease `persistence.media`), so there is no PVC swap: do
 **not** add `components/kopiur/pvc`, which would give a chart-owned claim a
-second owner. Flux pruned 3 ExternalSecrets, 3 ReplicationSources and 1
+second owner. Merging it prunes 3 ExternalSecrets, 3 ReplicationSources and 1
 ReplicationDestination; the restic cache PVCs are owned by their
-ReplicationSource and go with them, and the restic repositories were never
+ReplicationSource and go with them, and the restic repositories are never
 touched (ledger tier `redundant`, expiry NOT IN FORCE). The test shape is the
 `owner_hr` row in `scripts/ci/kopiur-stage5-test.py`. `syncthing-data` was
 re-measured empty of meaningful data and stays dual-engine until its own drill.

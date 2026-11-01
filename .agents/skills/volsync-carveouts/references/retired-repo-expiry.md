@@ -31,7 +31,7 @@ and the apply-plan flags.
 
 | Tier | What | Prefixes | Size across 3 destinations | Earliest delete |
 |---|---|---|---|---|
-| `redundant` | Retired from VolSync in the kopiur Stage 5 migration. The claim still exists and kopiur backs it up on both ceph and r2 | 26 | 96.04 GiB | 2027-03-31 |
+| `redundant` | Retired from VolSync in the kopiur Stage 5 migration. The claim still exists and kopiur backs it up on both ceph and r2 | 27 | ~96.04 GiB | 2027-03-31 |
 | `sole_copy` | App and volume are gone. This restic repository is the only remaining copy | 22 | 30.00 GiB | 2027-09-30 |
 
 49 repositories, ~126 GiB. Nothing is reclaimed before those dates even after the apply. The
