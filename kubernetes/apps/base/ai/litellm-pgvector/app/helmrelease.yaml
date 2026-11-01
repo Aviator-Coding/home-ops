@@ -37,7 +37,7 @@ spec:
               # Content-addressed tag: after ANY edit in .github/docker/litellm-pgvector set it to
               # `python3 scripts/ci/litellm-pgvector-test.py --print-tag` (the test asserts it).
               repository: ghcr.io/aviator-coding/litellm-pgvector
-              tag: b553f84-957ac046b0cb
+              tag: b553f84-324c8c4b2f85
             env:
               # INVARIANT: model, EMBEDDING__DIMENSIONS, schema.sql's vector(N) and the litellm-pgvector
               # key's one-model allow-list move together (CI-enforced); 2000 is pgvector's HNSW limit.
