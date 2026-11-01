@@ -6,8 +6,8 @@ Prevents: a retired-VolSync overlay losing the kopiur pvc Component, `ssa: IfNot
 or the no-force rule, so Flux prunes or replaces a live data volume.
 
 Stage 5 is the IRREVERSIBLE step of the VolSync -> kopiur migration: it removes
-a volume's second backup engine. 27 of the fleet's 30 claims have now gone
-through it, in three waves, and 3 remain dual-engine - which is the whole of
+a volume's second backup engine. 28 of the fleet's 30 claims have now gone
+through it, in four waves, and 2 remain dual-engine - which is the whole of
 what VolSync still protects.
 
 One of those eight, `downloads/autobrr`, is no longer in the fleet at all: the
@@ -44,10 +44,21 @@ wave-two record still documents autobrr's retirement, because it happened.
   `ai/{hermes,opencode}`, `media/{plex,calibre-web-automated}`; tier C
   `home-automation/home-assistant`, `selfhosted/{n8n,linkwarden,syncthing}`.
 
-`selfhosted/paperless-ngx` stays dual-engine permanently by captain carve-out,
-and `selfhosted/syncthing-data` / `selfhosted/paperless-ngx-media` were
-assessed and left dual-engine; any further retirement needs its own decision.
-Those three are now the entire dual-engine fleet.
+  wave four, 2026-11-01 (issue #2202, PR-2): `selfhosted/paperless-ngx-media`,
+  after a kopiur scratch drill from ceph and r2 at a cache raised to the claim
+  size (50Gi), under owner decision (b): current contents plus the structural
+  guarantee cache >= claim. It is the first BACKUP-ONLY retirement: see below.
+
+`selfhosted/paperless-ngx` (captain carve-out) and `selfhosted/syncthing-data`
+are the entire remaining dual-engine fleet; any further retirement needs its
+own decision.
+
+THIRD SHAPE, BACKUP-ONLY. `selfhosted/paperless-ngx-media` is a chart-owned
+second volume (HelmRelease `persistence.media`, no `dataSourceRef`). Its VolSync
+half was a separate backup-only Kustomization, so retiring it deletes that
+Kustomization and nothing else: no `kopiur/pvc` (it would give a chart-owned
+claim a second owner), no claim Kustomization of its own, and the claim size
+stays whatever the owner declares. Retired.owner_hr / owner_key name that owner.
 
 TWO OVERLAY SHAPES. Most retired volumes put both `components/kopiur` and
 `components/kopiur/pvc` on the app's own Flux Kustomization. Two keep a split:
@@ -129,6 +140,15 @@ class Retired(NamedTuple):
     claim: str
     capacity: str
     backup_ks: str | None = None
+    # BACKUP-ONLY shape: the claim is owned by a HelmRelease persistence entry
+    # (repo-relative file, persistence key), not by a Kustomization of this set.
+    # `ks` is then the APP name only and no Flux Kustomization carries it.
+    owner_hr: str | None = None
+    owner_key: str | None = None
+
+    @property
+    def backup_only(self) -> bool:
+        return self.owner_hr is not None
 
 
 RETIRED: dict[str, Retired] = {
@@ -208,6 +228,18 @@ RETIRED: dict[str, Retired] = {
     "selfhosted/syncthing": Retired(
         "selfhosted/syncthing.yaml", "syncthing", "syncthing", "1Gi"
     ),
+    # wave four, 2026-11-01 - BACKUP-ONLY shape (see the module docstring).
+    # The claim is HelmRelease `paperless-ngx` persistence.media (50Gi, owner
+    # unchanged); only the kopiur backup Kustomization remains.
+    "selfhosted/paperless-ngx-media": Retired(
+        "selfhosted/paperless-ngx.yaml",
+        "paperless-ngx-media",
+        "paperless-ngx-media",
+        "50Gi",
+        "paperless-ngx-media-kopiur",
+        "kubernetes/apps/base/selfhosted/paperless-ngx/app/helmrelease.yaml",
+        "media",
+    ),
 }
 
 # Restore-proof finding 2 / the 2026-09-02 cache gate: an r2 restore needs
@@ -275,6 +307,10 @@ RAISED_CACHE: dict[str, str] = {
     # cache is the kind of tidy-up that only shows up as a terminal restore
     # failure during an actual disaster.
     "ai/opencode": "5Gi",
+    # paperless-ngx-media: raised 5Gi -> 50Gi (PR #2206) to the claim size, so the
+    # cache can never be smaller than the data. Drilled 2026-11-01 from ceph and
+    # r2 at exactly this value (Restore Completed both; 1 file / 0 B, decision (b)).
+    "selfhosted/paperless-ngx-media": "50Gi",
 }
 
 # Stated separately from len(RETIRED) on purpose: this is the number a human
@@ -284,8 +320,9 @@ RAISED_CACHE: dict[str, str] = {
 # Was 8 (4 pilot + 4 wave two), then 7 once `downloads/autobrr` was retired in
 # wave two and the APP ITSELF removed on 2026-09-02, leaving no overlay to hold
 # a retirement contract against. Wave three adds 11 (tier A) + 4 (tier B) + 4
-# (tier C) = 19, which is every remaining eligible claim in the fleet.
-EXPECTED_RETIRED_COUNT = 25
+# (tier C) = 19, which is every remaining eligible claim in the fleet. Wave four
+# adds paperless-ngx-media (backup-only shape).
+EXPECTED_RETIRED_COUNT = 26
 
 
 class Failure(Exception):
@@ -334,6 +371,30 @@ def claim_ks(v: Retired) -> dict[str, Any]:
 def backup_ks(v: Retired) -> dict[str, Any]:
     """The Kustomization that owns the kopiur SnapshotPolicy/Schedule/Restore."""
     return overlay(v.rel, v.backup_ks or v.ks)
+
+
+def owner_persistence(v: Retired) -> dict[str, Any]:
+    """The chart's persistence entry that owns a backup-only claim."""
+    require(v.owner_hr and v.owner_key, f"{v.claim}: not a backup-only row")
+    docs = [d for d in load_multi(REPO / str(v.owner_hr)) if d.get("kind") == "HelmRelease"]
+    require(docs, f"{v.owner_hr}: no HelmRelease")
+    persistence = ((docs[0].get("spec") or {}).get("values") or {}).get("persistence") or {}
+    entry = persistence.get(v.owner_key)
+    require(isinstance(entry, dict), f"{v.owner_hr}: no persistence.{v.owner_key}")
+    return entry
+
+
+def volsync_kustomizations_for(v: Retired) -> list[str]:
+    """Names of Kustomizations in the overlay file that still run VolSync on this claim."""
+    out: list[str] = []
+    for name, d in kustomizations(v.rel).items():
+        spec = d["spec"]
+        sub = substitute(d)
+        via_path = str(spec.get("path") or "").rstrip("/").endswith("components/volsync/backup")
+        via_comp = VOLSYNC_COMPONENT in (spec.get("components") or [])
+        if (via_path or via_comp) and sub.get("VOLSYNC_CLAIM", sub.get("APP", name)) == v.claim:
+            out.append(name)
+    return out
 
 
 def substitute(d: dict[str, Any]) -> dict[str, str]:
@@ -456,7 +517,20 @@ def test_retired_overlays_dropped_volsync() -> None:
         ns, app = key.split("/", 1)
         # Both halves are checked, because a half-revert that put volsync back
         # on only the backup Kustomization would otherwise pass.
-        for role, d in (("claim", claim_ks(v)), ("backup", backup_ks(v))):
+        halves = [("backup", backup_ks(v))]
+        if v.backup_only:
+            require(
+                not volsync_kustomizations_for(v),
+                f"{key}: backup-only retirement but a VolSync Kustomization still covers "
+                f"{v.claim!r}: {volsync_kustomizations_for(v)}",
+            )
+            require(
+                v.ks not in kustomizations(v.rel),
+                f"{key}: backup-only retirement must not have a Kustomization named {v.ks!r}",
+            )
+        else:
+            halves.insert(0, ("claim", claim_ks(v)))
+        for role, d in halves:
             spec = d["spec"]
             require(
                 d["metadata"]["namespace"] == ns,
@@ -494,9 +568,50 @@ def test_retired_overlays_dropped_volsync() -> None:
         )
 
 
+def test_backup_only_keeps_the_claim(key: str, v: Retired) -> None:
+    """Backup-only shape: the chart owns the claim and nothing here may take it over."""
+    entry = owner_persistence(v)
+    require(
+        entry.get("type") == "persistentVolumeClaim" and entry.get("enabled") is True,
+        f"{key}: {v.owner_hr} persistence.{v.owner_key} must be an enabled persistentVolumeClaim "
+        f"(the chart owns this claim), got {entry}",
+    )
+    require(
+        "dataSourceRef" not in entry and "existingClaim" not in entry,
+        f"{key}: the owner's persistence.{v.owner_key} must stay a plain chart-created claim",
+    )
+    require(
+        entry.get("size") == v.capacity,
+        f"{key}: the owner's size must stay {v.capacity!r} (unchanged by retirement), got "
+        f"{entry.get('size')!r}",
+    )
+    for name, d in kustomizations(v.rel).items():
+        sub = substitute(d)
+        require(
+            KOPIUR_PVC_COMPONENT not in (d["spec"].get("components") or [])
+            or sub.get("KOPIUR_CLAIM", sub.get("APP")) != v.claim,
+            f"{key}: Kustomization {name!r} adds kopiur/pvc for a chart-owned claim - a second owner",
+        )
+    bspec = backup_ks(v)["spec"]
+    require(
+        str(bspec.get("path") or "").rstrip("/").endswith("components/kopiur/backup"),
+        f"{key}: backup Kustomization {v.backup_ks!r} must point at components/kopiur/backup, "
+        f"got {bspec.get('path')!r}",
+    )
+    require(
+        substitute(backup_ks(v)).get("KOPIUR_CLAIM") == v.claim,
+        f"{key}: backup Kustomization must set KOPIUR_CLAIM: {v.claim}",
+    )
+    require(bspec.get("wait") is not True, f"{key}: the kopiur half must run wait: false")
+    require(bspec.get("prune") is True, f"{key}: prune must stay true on the backup Kustomization")
+
+
 def test_retired_overlays_keep_the_claim() -> None:
     """The kopiur pvc Component is present - without it, prune deletes the volume."""
     for key, v in RETIRED.items():
+        if v.backup_only:
+            test_backup_only_keeps_the_claim(key, v)
+            continue
         spec = claim_ks(v)["spec"]
         comps = spec.get("components") or []
         # Normal shape carries both Components on one Kustomization. The
@@ -570,6 +685,8 @@ def test_retired_overlays_keep_the_claim() -> None:
 def test_rendered_claim_is_correct_per_app() -> None:
     """Render components/kopiur/pvc under each retired overlay's own substitute map."""
     for key, v in RETIRED.items():
+        if v.backup_only:
+            continue  # no kopiur/pvc render: the chart owns the claim (checked above)
         app = v.ks
         claim, cap, rel = v.claim, v.capacity, v.rel
         env = {**substitute(claim_ks(v)), "SECRET_DOMAIN": "example.test"}
@@ -627,6 +744,8 @@ def test_capacity_is_stated_not_defaulted() -> None:
     which apps are the exceptions.
     """
     for key, v in RETIRED.items():
+        if v.backup_only:
+            continue  # the owner's persistence size is pinned instead
         sub = substitute(claim_ks(v))
         require(
             sub.get("KOPIUR_CAPACITY") == v.capacity,
@@ -705,7 +824,7 @@ def test_no_other_overlay_uses_the_pvc_component() -> None:
     Component in the first place.
     """
     # (overlay file, Kustomization name) pairs entitled to carry the Component.
-    entitled = {(v.rel, v.ks) for v in RETIRED.values()}
+    entitled = {(v.rel, v.ks) for v in RETIRED.values() if not v.backup_only}
     offenders: list[str] = []
     for f in sorted(APPS_MAIN.rglob("*.yaml")):
         rel = f"{f.parent.name}/{f.name}"

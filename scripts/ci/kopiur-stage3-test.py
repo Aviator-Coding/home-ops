@@ -147,7 +147,7 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 
 # --- Stage 5: claims VolSync has been RETIRED from (kopiur is their only engine) ---
 #
-# 27 claims across three waves. Three of the fleet's 29 stay dual-engine.
+# 28 claims across four waves. Two of the fleet's 29 stay dual-engine.
 #
 # Wave one - the pilot four, retired 2026-09-01. Each was restore-proven on
 # BOTH destinations first (.agents/skills/kopiur-backups/references/proof-ledger.md) and
@@ -173,13 +173,18 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 # sequencing device, not three different evidence standards - every row cleared
 # the same gate.
 #
+# Wave four - `selfhosted/paperless-ngx-media`, retired 2026-11-01 (issue #2202, PR-2).
+# Its kopiur cache was raised to the claim size (50Gi) and a scratch restore drill
+# from both ceph and r2 passed at that cache under decision (b): the current
+# contents (1 file, 0 B) plus the structural guarantee cache >= claim. Recorded in
+# .agents/skills/kopiur-backups/references/proof-ledger.md. Its claim is chart-owned
+# and the VolSync half was a backup-only Kustomization, so no PVC changed hands.
+#
 # Deliberately NOT here, and this is now the WHOLE of the dual-engine fleet:
-# `selfhosted/paperless-ngx` (captain carve-out, stays dual-engine
-# permanently), `selfhosted/syncthing-data` and
-# `selfhosted/paperless-ngx-media` (wave two found their proofs cover nothing
-# meaningful - 5 files / 531 B and 1 file / 0 B respectively - and both sit
-# behind a restore cache they would cross the first time they hold real data;
-# re-measured 2026-09-04 and both still empty, so both verdicts stand).
+# `selfhosted/paperless-ngx` (captain carve-out, stays dual-engine until its
+# own takeover) and `selfhosted/syncthing-data` (wave two found its proof covers
+# nothing meaningful - 5 files / 531 B - and it sits behind a restore cache it
+# would cross the first time it holds real data; its drill is a separate PR).
 #
 # This set is the fleet's legibility record: anything in it has ONE backup
 # engine, and anything not in it must still have two. Adding a row here is an
@@ -232,6 +237,8 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     # files) is a DIFFERENT claim and is deliberately absent - it stays
     # dual-engine.
     ("selfhosted", "syncthing"),
+    # wave four, 2026-11-01 - the chart-owned second volume of paperless-ngx (backup-only shape)
+    ("selfhosted", "paperless-ngx-media"),
 }
 
 # --- claims that were NEVER VolSync-protected (single-engine from birth) ---

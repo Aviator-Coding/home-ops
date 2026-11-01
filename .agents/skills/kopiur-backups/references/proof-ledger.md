@@ -53,7 +53,7 @@ Markers:
 | 25 | `selfhosted/ntfy` | 1000:1000 | Succeeded | Succeeded | 2 | 2 / 2 | 2 / 2 | `027268e78c5f` / `027268e78c5f` | **PASS** \* |
 | 26 | `selfhosted/obsidian-livesync` | 5984:5984 | Succeeded | Succeeded | 8 | 8 / 8 | 8 / 8 | `88858eb0b4e1` / `88858eb0b4e1` | **PASS** \* |
 | 27 | `selfhosted/paperless-ngx` | 1000:1000 | Succeeded | Succeeded | 32 | 32 / 32 | 32 / 32 | `b7d4afdbcc1e` / `b7d4afdbcc1e` | **PASS** |
-| 28 | `selfhosted/paperless-ngx-media` | 1000:1000 | Succeeded | Succeeded | 1 | 1 / 1 | 1 / 1 | `f6a6a1ecf1b4` / `f6a6a1ecf1b4` | **PASS** \* |
+| 28 | `selfhosted/paperless-ngx-media` | 1000:1000 | Succeeded | Succeeded | 1 | 1 / 1 | 1 / 1 | `f6a6a1ecf1b4` / `f6a6a1ecf1b4` | **PASS** \* (re-drilled at the 50Gi cache, below) |
 | 29 | `selfhosted/syncthing` | 1000:1000 | Succeeded | Succeeded | 21 | 21 / 21 | 21 / 21 | `05d36861232d` / `05d36861232d` | **PASS** |
 | 30 | `selfhosted/syncthing-data` | 1000:1000 | Succeeded | Succeeded | 5 | 5 / 5 | 5 / 5 | `c525096cb0b4` / `c525096cb0b4` | **PASS** \* |
 
@@ -115,9 +115,25 @@ collapse them into one count.
 | `selfhosted/ntfy` | 2 files / 188,416 B, including `auth.db` |
 | `selfhosted/obsidian-livesync` | 8 files / 574,930 B. A real CouchDB vault |
 
+### Drill at the claim-sized cache (issue #2202, 2026-11-01)
+
+Run by the owner under decision (b): the current contents plus the structural
+guarantee that the cache is at least the claim size. No synthetic (c) drill.
+Same columns as the table above; `*` near-empty.
+
+| Row | Claim | Mover | Cache | ceph | r2 | live files | restored ceph / r2 | restore manifest sha256 (live-A / ceph / r2 / live-B) | Result |
+|---|---|---|---|---|---|---|---|---|---|
+| 28 | `selfhosted/paperless-ngx-media` (50Gi) | 1000:1000 | 50Gi | Completed, `paperless-ngx-media-ceph-20261101143602`, kopia `6409ead13b1f41f00fbddfc685a440e6`, filesNew 1, 0 B | Completed, `paperless-ngx-media-r2-20261031184332`, kopia `dfd41422fc29e319f63765ee036d2ebf`, filesNew 1, 0 B | 1 | 1 / 1 | `f6a6a1ecf1b4` x4 | **PASS** \* |
+
+Live census: 4 entries, all 1000:1000, one device. Stable-missing 0,
+diff-vs-live-B 0, mode diffs 0 on both sides, and ceph equals r2 in content and
+modes. The live PVC uid (`cc422856-3bad-4a8f-9975-eb2dd5e65687`) and the
+paperless-ngx pod were unchanged and no drill object was left behind. VolSync
+was retired from this claim in the PR that records this row.
+
 Each of those five restored identically from both destinations in content and
 in mode/uid/gid, and had not grown between the fleet proof and the
-re-measure. The forward risk on the two dual-engine leftovers is cache
+re-measure. The forward risk on the dual-engine leftover (`syncthing-data`) is cache
 capacity, not fidelity. `pgadmin` (row 4) is the opposite edge: 3 files and
 979 MiB, so its restore did move bulk data.
 

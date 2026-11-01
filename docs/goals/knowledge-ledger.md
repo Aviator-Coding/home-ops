@@ -15,6 +15,10 @@ Verdicts:
 |---|---|---|---|---|
 | `scripts/ci/validate-contention-test.py` `jobs_still_on_home_ops_runner` | every validate.yaml job runs on the ARC scale set | neither (runner placement) | archive | — (inverted by `ci-success-workflow-test.py`: the gate runs on `ubuntu-latest`) |
 | `scripts/ci/validate-contention-test.py` concurrency part of `no_workflow_level_job_serialization` | validate.yaml's own concurrency cancels in progress | neither | enforce | `workflow-hardening-test.py` (now checks `ci.yaml`, which owns concurrency) |
+| `scripts/ci/kopiur-stage3-test.py` header comment (dual-engine fleet of three) | `paperless-ngx-media` was left dual-engine because its restore cache did not cover a real payload. | data loss (a restore past the cache is terminal) | keep | Replaced by the wave-four `RETIRED_CLAIMS` row plus `RAISED_CACHE` 50Gi in `kopiur-stage5-test.py` and `PINNED` in `kopiur-restore-cache-sizing-test.py`; the drill is in `proof-ledger.md` |
+| `scripts/ci/kopiur-timezone-test.py` `MIN_DUAL_ENGINE_CLAIMS` comment (3 carve-outs) | The dual-engine floor is the deliberate carve-outs. | neither | keep | Same comment, floor 2 (`paperless-ngx`, `syncthing-data`) |
+| `.agents/skills/kopiur-backups/references/retirement-and-removal.md` "left dual-engine" paragraph | `paperless-ngx-media` and `syncthing-data` stay dual-engine until the cache covers a real payload. | data loss | keep | Same file, wave four paragraph (`paperless-ngx-media` retired, backup-only) and the `syncthing-data` sentence |
+| `.agents/skills/volsync-carveouts/references/retired-expiry-apply-plan.md` grep guard and invariant naming `paperless-ngx-media/` | A live repository must never be in the expiry rule set. | data loss | keep | Same file, guard now `paperless-ngx/` and `syncthing-data/` (`paperless-ngx-media` is in the `redundant` tier of `ledger.yaml`, expiry NOT IN FORCE) |
 
 ## Tests (scripts/ci)
 
