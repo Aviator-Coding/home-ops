@@ -657,7 +657,7 @@ def test_generated_passwords_are_created_once() -> None:
 
     ESO's default is Periodic (1h): the generator would mint a new value every refresh, and
     the PushSecret beside it overwrites the only copy in 1Password while the database role or
-    app state keeps the old one (ducklake's role password, wizarr's admin password, the seerr
+    app state keeps the old one (wizarr's admin password, the seerr
     API key, the ToolHive gateway token).
     """
     offenders = []

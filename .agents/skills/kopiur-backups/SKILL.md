@@ -7,8 +7,8 @@ description: "Read before ANY kopiur change: onboarding or retiring a claim, kub
 
 kopiur is the backup engine. VolSync remains only on three carve-outs
 (`selfhosted/paperless-ngx`, `paperless-ngx-media`, `syncthing-data`); skill
-`volsync-carveouts`. Born-kopiur claims (`database/falkordb`,
-`database/surrealdb`) never had VolSync. Assume kopiur-only unless the overlay
+`volsync-carveouts`. Born-kopiur claims (`database/surrealdb`,
+`downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`) never had VolSync. Assume kopiur-only unless the overlay
 includes `components/volsync`. A kopiur overlay never `dependsOn` the VolSync
 operator; it depends on `kopiur-repository` in `system`.
 
@@ -74,7 +74,7 @@ Comments that name an older tag are stale.
     a failure. [proof-ledger.md](references/proof-ledger.md)
 14. **Both engines snapshot crash-consistently, with no application hook.** A
     database that does not fsync at the durability you want restores a healthy
-    stale copy. FalkorDB on one snapshot: AOF `everysec` recovered 2174 of
+    stale copy. FalkorDB (retired) on one snapshot: AOF `everysec` recovered 2174 of
     2199 nodes; stock RDB-only recovered 200 of 2199. Both startups looked
     healthy.
 15. **CloudNativePG has one live barman destination per `Cluster`.** A second
@@ -84,7 +84,7 @@ Comments that name an older tag are stale.
     `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/README.md`.
 16. **Full-cluster restore from r2** is
     [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md). Do not invent a
-    second procedure. Five claims have no populator path and are hand-restored;
+    second procedure. Four claims have no populator path and are hand-restored;
     that runbook names them.
 
 ## Where things live
