@@ -15,7 +15,9 @@ Imports `is_blocked(command) -> str | None` from the hook file and checks:
   4. the inherited environment (#2208): a KUBECONFIG/TALOSCONFIG entry that is
      not an agent file refuses every command, and an unset one refuses the
      cluster clients that would fall back to the owner's ~/.kube/config or
-     ~/.talos/config. Entrypoint runs pass an explicit env (CI has none).
+     ~/.talos/config. Entrypoint runs pass an explicit env (CI has none),
+     including through the exact .claude/settings.json hook command, whose
+     GUARD_* capture must win over a KUBECONFIG a mise shim rewrote.
 """
 
 from __future__ import annotations
@@ -98,6 +100,25 @@ BLOCKED = [
     "unset KUBECONFIG; kubectl get pods",
     "env -u KUBECONFIG kubectl get pods -A",
     "env --unset=TALOSCONFIG talosctl version",
+    "env -uKUBECONFIG kubectl get pods",
+    "export -n KUBECONFIG; kubectl get pods",
+    "typeset +x KUBECONFIG",
+    "declare +x TALOSCONFIG",
+    # env -i / env - clear both variables (review of #2208).
+    "env -i HOME=/Users/aviator /opt/homebrew/bin/kubectl get secret -A",
+    "env - kubectl get pods",
+    "env --ignore-environment talosctl version",
+    "env -iv flux get ks -A",
+    "timeout 5 env -i helm list -A",
+    # $-values other than the variable itself, lists and += (review of #2208).
+    "KUBECONFIG=$HOME/.kube/config kubectl get pods",
+    "KUBECONFIG=$KUBECONFIG:$HOME/.kube/config kubectl get pods",
+    "kubectl --kubeconfig=$HOME/.kube/config get pods",
+    "kubectl --kubeconfig ${HOME}/.kube/config get pods",
+    "KUBECONFIG+=:/Users/aviator/.kube/config kubectl get pods",
+    "export KUBECONFIG+=:/Users/aviator/.kube/config",
+    "TALOSCONFIG=$KUBECONFIG talosctl version",
+    "KUBECONFIG= kubectl get pods",
 ]
 
 ALLOWED = [
@@ -125,6 +146,16 @@ ALLOWED = [
     "helm template x oci://y --version 1",
     "just talos render-config talos-1",
     "echo 'a && kubectl delete pod x'",
+    "env -i PATH=/usr/bin git status",
+    "env -i python3 x.py",
+    "rg -u KUBECONFIG .",
+    "git log -u KUBECONFIG",
+    "echo unset KUBECONFIG",
+    "KUBECONFIG=$KUBECONFIG kubectl get pods",
+    "KUBECONFIG=${KUBECONFIG} kubectl get pods",
+    "KUBECONFIG=$HOME/.kube/home-ops-agent kubectl get pods",
+    "KUBECONFIG=$KUBECONFIG:$HOME/.kube/home-ops-agent kubectl get pods",
+    "TALOSCONFIG=${TALOSCONFIG} talosctl version",
 ]
 
 AGENT_ENV = {"KUBECONFIG": "/Users/x/.kube/home-ops-agent", "TALOSCONFIG": "/Users/x/.talos/home-ops-agent"}
@@ -261,6 +292,38 @@ def test_hook_entrypoint() -> None:
           f"hook exits 2 for kubectl with KUBECONFIG unset (rc={unset.returncode})")
     unset_git = run("git status", {})
     check(unset_git.returncode == 0, f"hook exits 0 for git status with nothing set (rc={unset_git.returncode})")
+    # A mise shim rewrites KUBECONFIG to the agent path; the GUARD_* capture wins.
+    shimmed = run("git status", {**AGENT_ENV, "GUARD_KUBECONFIG": STALE_KUBECONFIG})
+    check(shimmed.returncode == 2, f"hook prefers GUARD_KUBECONFIG over KUBECONFIG (rc={shimmed.returncode})")
+    shim_unset = run("kubectl get pods", {**AGENT_ENV, "GUARD_KUBECONFIG": "__unset__"})
+    check(shim_unset.returncode == 2, f"hook treats GUARD_KUBECONFIG=__unset__ as unset (rc={shim_unset.returncode})")
+    shim_unset_git = run("git status", {**AGENT_ENV, "GUARD_KUBECONFIG": "__unset__"})
+    check(shim_unset_git.returncode == 0, f"__unset__ still allows git status (rc={shim_unset_git.returncode})")
+
+
+def test_settings_command() -> None:
+    """Drive the hook through the exact settings.json command string, as Claude Code does."""
+    settings = json.loads((ROOT / ".claude" / "settings.json").read_text())
+    commands = [h["command"] for entry in settings["hooks"]["PreToolUse"] if entry.get("matcher") == "Bash"
+                for h in entry["hooks"] if "guard.py" in h.get("command", "")]
+    check(len(commands) == 1, f"settings.json wires guard.py once for Bash (got {len(commands)})")
+    if not commands:
+        return
+    path = os.pathsep.join([str(Path(sys.executable).parent), os.defpath])
+
+    def run(cmd: str, environ: dict[str, str]) -> int:
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
+        env = {"PATH": path, "CLAUDE_PROJECT_DIR": str(ROOT), **environ}
+        return subprocess.run(["sh", "-c", commands[0]], input=payload, capture_output=True,
+                              text=True, env=env).returncode
+
+    check(run("git status", {**AGENT_ENV, "KUBECONFIG": STALE_KUBECONFIG}) == 2,
+          "settings command exits 2 for an inherited stale KUBECONFIG")
+    check(run("kubectl get pods", NO_KUBECONFIG) == 2, "settings command exits 2 for kubectl with KUBECONFIG unset")
+    check(run("kubectl get pods", AGENT_ENV) == 0, "settings command exits 0 for kubectl with the agent env")
+    check(run("git status", {}) == 0, "settings command exits 0 for git status with nothing set")
+    check(run("git status", {**AGENT_ENV, "GUARD_KUBECONFIG": STALE_KUBECONFIG}) == 0,
+          "settings command captures KUBECONFIG itself, ignoring an inherited GUARD_KUBECONFIG")
 
 
 def main() -> int:
@@ -272,6 +335,7 @@ def main() -> int:
     test_allows_reads(guard)
     test_inherited_env(guard)
     test_hook_entrypoint()
+    test_settings_command()
     print(f"Summary: {len(failures)} failed")
     return 1 if failures else 0
 

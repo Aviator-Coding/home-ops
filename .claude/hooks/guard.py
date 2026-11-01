@@ -17,6 +17,11 @@ KUBECONFIG/TALOSCONFIG entry that is not an `*-agent` file refuses every
 command (`env_credential_reason`), and an unset one refuses the cluster clients
 that would fall back to ~/.kube/config or ~/.talos/config
 (`fallback_credential_reason`). `is_blocked` stays a function of the command.
+It checks the environment the hook receives, as the settings.json command
+captures it into GUARD_* before a mise shim can rewrite it; the Bash tool's
+shell profile can still change it later. The unset check is best effort: it
+matches command words, so indirection (`K=kubectl; $K`, aliases,
+`eval "$(...)"`, `npx kubectl`) is not caught.
 
 Stdlib only. Tested by scripts/ci/agent-guard-test.py.
 """
@@ -79,10 +84,13 @@ TALOSCTL_PAIR_WRITES = {
 FLUX_VALUE_FLAGS = {"-n", "--namespace", "--kubeconfig", "--context", "--timeout"}
 
 # Credential files: agents use only the *-agent files; anything else is the owner's.
-CREDENTIAL_FLAGS = {"--kubeconfig", "--talosconfig"}
+CREDENTIAL_FLAGS = {"--kubeconfig": "KUBECONFIG", "--talosconfig": "TALOSCONFIG"}
 CREDENTIAL_VARS = {"KUBECONFIG", "TALOSCONFIG"}
 ADMIN_MARKERS = ("home-ops-admin", "HOME_OPS_KUBECONFIG", "HOME_OPS_TALOSCONFIG")
 UNSET_FLAGS = {"-u", "--unset"}
+ENV_CLEAR_FLAGS = {"-i", "-", "--ignore-environment"}
+# settings.json captures the raw values here before a mise shim can rewrite them.
+GUARD_PREFIX, GUARD_UNSET = "GUARD_", "__unset__"
 
 # Cluster clients and the variable each reads; unset, they fall back to FALLBACK_FILES.
 KUBE_CLIENTS = {"kubectl", "kubecolor", "flux", "helm", "helmfile", "k9s", "stern", "cilium"}
@@ -162,18 +170,65 @@ def _credential_reason(words: list[str]) -> str | None:
         if any(marker in word for marker in ADMIN_MARKERS):
             return "references the owner's admin credentials; agents use ~/.kube/home-ops-agent"
         name, eq, value = word.partition("=")
-        if (eq and name == "--unset" and value in CREDENTIAL_VARS) or (
-                word in CREDENTIAL_VARS and ("unset" in words[:k] or (k and words[k - 1] in UNSET_FLAGS))):
-            return f"unsetting {value or word} makes the client fall back to the owner's default config"
+        name = name.removesuffix("+")  # KUBECONFIG+=:x appends an entry
         if eq and (name in CREDENTIAL_FLAGS or name in CREDENTIAL_VARS):
             candidate = value
         elif word in CREDENTIAL_FLAGS and k + 1 < len(words):
-            candidate = words[k + 1]
+            name, candidate = word, words[k + 1]
         else:
             continue
-        if candidate.startswith("$") or os.path.basename(candidate).endswith("-agent"):
+        # Every list entry is an agent file or the variable itself ($KUBECONFIG); empty means unset.
+        var = CREDENTIAL_FLAGS.get(name, name)
+        entries = [entry for entry in candidate.split(":") if entry]
+        if entries and all(entry in {f"${var}", f"${{{var}}}"} or _basename(entry).endswith("-agent")
+                           for entry in entries):
             continue
-        return f"{name if eq else word} points at {candidate!r}, not an agent credential file"
+        return f"{name} points at {candidate!r}, not an agent credential file"
+    return None
+
+
+def _env_effects(prefix: list[str]) -> tuple[bool, set[str]]:
+    """(environment cleared, variables unset) by `env` in a command's wrapper words."""
+    cleared, unset = False, set()
+    i = 0
+    while i < len(prefix):
+        i += 1
+        if _basename(prefix[i - 1]) != "env":
+            continue
+        while i < len(prefix) and prefix[i].startswith("-"):
+            flag = prefix[i]
+            i += 1
+            if flag in UNSET_FLAGS and i < len(prefix):
+                unset.add(prefix[i])
+                i += 1
+            elif flag.startswith("--unset="):
+                unset.add(flag.partition("=")[2])
+            elif flag.startswith("-u") and not flag.startswith("--"):
+                unset.add(flag[2:])
+            elif flag in ENV_CLEAR_FLAGS or (not flag.startswith("--") and "i" in flag[1:]):
+                cleared = True
+            elif flag in WRAPPERS["env"] and i < len(prefix):
+                i += 1
+    return cleared, unset
+
+
+def _unset_reason(words: list[str]) -> str | None:
+    """Unsetting, un-exporting or clearing a credential variable: the client then reads
+    the owner's default file instead."""
+    stripped = _strip_wrappers(words)
+    cleared, unset = _env_effects(words[:len(words) - len(stripped)])
+    if stripped:
+        prog, args = _basename(stripped[0]), stripped[1:]
+        if (prog == "unset"
+                or (prog == "export" and any(w[:1] == "-" and w[:2] != "--" and "n" in w for w in args))
+                or (prog in {"typeset", "declare"} and any(w[:1] == "+" and "x" in w for w in args))):
+            unset.update(args)
+    hit = sorted(unset & CREDENTIAL_VARS)
+    if hit:
+        return f"unsetting {' and '.join(hit)} makes the client fall back to the owner's default config"
+    client = _client_var(stripped) if cleared else None
+    if client:
+        return f"env -i clears KUBECONFIG and TALOSCONFIG, so {client[1]} would read the owner's default config"
     return None
 
 
@@ -284,7 +339,7 @@ def _walk(command: str, depth: int = 0) -> Iterator[tuple[list[str], str | None]
 
 
 def _check_simple(words: list[str]) -> str | None:
-    reason = _credential_reason(words)
+    reason = _credential_reason(words) or _unset_reason(words)
     if reason:
         return reason
     words = _strip_wrappers(words)
@@ -448,6 +503,19 @@ def fallback_credential_reason(command: str, environ: Mapping[str, str]) -> str 
     return None
 
 
+def hook_environ(environ: Mapping[str, str]) -> dict[str, str]:
+    """`environ` with the GUARD_* values the settings.json command captured before
+    python started (a mise shim rewrites KUBECONFIG/TALOSCONFIG to the agent files)."""
+    out = dict(environ)
+    for var in CREDENTIAL_VARS:
+        raw = environ.get(GUARD_PREFIX + var)
+        if raw == GUARD_UNSET:
+            out.pop(var, None)
+        elif raw is not None:
+            out[var] = raw
+    return out
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -462,8 +530,9 @@ def main() -> int:
               "set (owner admin credentials); start agents from a shell without it", file=sys.stderr)
         return 2
     command = (payload.get("tool_input") or {}).get("command") or ""
-    reason = (env_credential_reason(os.environ) or is_blocked(command)
-              or fallback_credential_reason(command, os.environ))
+    environ = hook_environ(os.environ)
+    reason = (env_credential_reason(environ) or is_blocked(command)
+              or fallback_credential_reason(command, environ))
     if reason:
         print(f"Blocked by .claude/hooks/guard.py: {reason}", file=sys.stderr)
         return 2
