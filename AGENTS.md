@@ -125,7 +125,7 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 
 | Skill | Load when touching (workflow skills: load at that step of every task) |
 |---|---|
-| `plan-task` | starting any issue or owner request: tier, PR limit, plan comment, owner approval |
+| `plan-task` | starting any issue or owner request: tier, PR limit, plan, owner approval |
 | `implement-task` | building an approved plan: worktree, gates, PR body, never merge, post-merge watch |
 | `review-pr` | reviewing a PR before it opens: fresh reviewer, issue + diff only |
 | `renovate-review` | a Renovate PR that did not merge itself (minor, major, risk:high) |

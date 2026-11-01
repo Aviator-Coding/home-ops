@@ -12,7 +12,7 @@ the risk of each change.
 What a normal week looks like when this is done:
 
 1. The owner writes or approves a few GitHub issues.
-2. A local agent session takes one issue and posts a plan as an issue comment.
+2. A local agent session takes one issue and shows the plan in the session.
    `risk:high` work waits for the owner's approval of that plan.
 3. The agent works in its own worktree and opens one small PR.
 4. The required `CI Success` check and the AI review run.
@@ -152,7 +152,7 @@ from `Aviator-Coding` on `risk:normal` and `risk:high` PRs.
 
 1. Read this file and the issue, then classify the risk tier from the paths the issue
    will touch.
-2. Post a plan comment on the issue: approach, files, rollback, verification commands.
+2. Show the plan to the owner in the session (PR body if there is none): approach, files, rollback, verification commands.
    For `risk:high`, stop until the owner approves it.
 3. Create a worktree from `origin/main` and implement with the matching subagent
    model (§6).
@@ -275,7 +275,7 @@ Exit: D4 and D8 hold.
       `risk:high` paths, requiring passing checks (`ignoreTests: false`). Group
       Kubernetes, Talos, Rook-Ceph, Cilium and Flux. Suspend the in-cluster CronJob
       while this merges.
-- [ ] 4.2 Clear the open Renovate backlog. Each major bump gets its own issue.
+- [ ] 4.2 Clear the open Renovate backlog. Each major bump is judged in one comment on its PR (no separate issue; amended 2026-11-01).
 - [ ] 4.3 Delete remote branches older than 14 days that have no open PR. The owner
       approves the list first.
 - [ ] 4.4 Check that Hermes can run the §5 loop from the repo files alone. Record any gaps

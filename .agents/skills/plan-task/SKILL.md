@@ -1,6 +1,6 @@
 ---
 name: plan-task
-description: "Read before starting any GitHub issue or owner request that changes the repo. Covers the risk tier from planned paths, the 2-open-PR limit, the plan comment format, and stopping for owner approval on risk:high. Workflow step 1-2 of docs/goals/2026-10-30-agent-maintainable-home-ops.md §5."
+description: "Read before starting any GitHub issue or owner request that changes the repo. Covers the risk tier from planned paths, the 2-open-PR limit, the plan format, and stopping for owner approval on risk:high. Workflow step 1-2 of docs/goals/2026-10-30-agent-maintainable-home-ops.md §5."
 ---
 
 # Plan a task
@@ -40,9 +40,9 @@ flux-system, kube-system, rook-ceph, network, security, cert-manager, system-upg
 renovate, kopiur/volsync components, `.github/workflows/`, Renovate config and the agent
 guard. Agent-steering files (AGENTS.md, `.claude/**`, skill scripts) are never low.
 
-## The plan comment
+## The plan
 
-Post it on the issue (`gh issue comment <n> --body-file plan.md`):
+Show it to the owner in the session; a run with no live session puts it in the PR body. Do not post it as an issue comment and do not open an issue for it:
 
 ```markdown
 ## Plan
@@ -61,6 +61,6 @@ Post it on the issue (`gh issue comment <n> --body-file plan.md`):
 ## Splitting
 
 One task, one branch, one PR. If the plan needs two tiers or two subsystems that can merge
-independently, split it into two issues. Goal checkbox ticks and §8 evidence rows that can
+independently, split it into two PRs. Goal checkbox ticks and §8 evidence rows that can
 only be written after the merge go in a later `risk:low` docs PR (it counts toward the
 2-PR limit).
