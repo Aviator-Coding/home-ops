@@ -15,6 +15,7 @@ Both items are in the 1Password vault `Automation`, written by PushSecrets on
 | `ducklake` | `POSTGRES_DB_USER_PASSWORD` | role `ducklake` on database `ducklake` |
 | `ducklake-ceph-bucket` | `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY` | bucket `ducklake` on `ceph-objectstore` |
 
+The bucket PushSecret reads the Secret `ducklake` that the bucket claim creates.
 One read-write identity. DuckLake has no permission layer of its own.
 
 ## Client
@@ -56,8 +57,13 @@ copied CA is needed.
 ## Cluster side
 
 - Role and database come from the `ducklake-db-init` Job (idempotent; delete the
-  Job to re-run it after a password change). The password is generated once by
+  Job to re-run it after a password change). The Job carries
+  `kustomize.toolkit.fluxcd.io/force: enabled` because a Job template is immutable.
+  The password is generated once by
   an ESO `Password` generator (`refreshPolicy: CreatedOnce`) and pushed to 1Password.
+  It is alphanumeric (`symbols: 0`) because it travels in libpq env and ATTACH strings.
+- The overlay depends on `postgres-cluster-17`, `rook-ceph-cluster` and
+  `onepassword-store`, and waits (`wait: true`) on the db-init Job.
 - The bucket claim carries `kustomize.toolkit.fluxcd.io/prune: disabled`. The
   `ceph-bucket` class has `reclaimPolicy: Delete`, so deleting the claim deletes
   every Parquet file. The annotation guards a Flux prune (manifest removed from

@@ -23,6 +23,8 @@ image, scrape-target count).
    `ScheduledBackup` with its own `barmanObjectName` still reports completed
    and writes to the first store. Health is `readyInstances` plus
    `ContinuousArchiving`, not `Ready`. Keep the `cluster` metric label.
+   Never give a Cluster `serverTLSSecret` or `serverCASecret`: replication
+   would trust a public chain ([ducklake.md](references/ducklake.md#tls)).
    [cnpg.md](references/cnpg.md)
 4. **EMQX operator stays on 2.2.x.** 2.3.x drops `apps.emqx.io/v2beta1` and
    calls an Enterprise-only API that 404s against this OSS 5.8 broker.
@@ -61,9 +63,10 @@ image, scrape-target count).
 ## Verify
 
 - `task flux:test:all`.
-- FalkorDB: `redis-cli -e GRAPH.LIST` exits 0 authenticated and 1 on NOAUTH
-  or a bad command. `maxmemory`, the 16Gi limit, and the 0.60/0.70 alert
-  ratios still describe one ceiling.
+- FalkorDB: `python3 scripts/ci/falkordb-durability-test.py` (no eviction, ceiling
+  below the limit, AOF on, retained claim). `redis-cli -e GRAPH.LIST` exits 0
+  authenticated and 1 on NOAUTH or a bad command. `maxmemory`, the 16Gi limit,
+  and the 0.60/0.70 alert ratios still describe one ceiling.
 - CNPG: `kubectl -n database get cluster postgres-17 postgres-18` shows
   `readyInstances` and `ContinuousArchiving`, not only `Ready`.
 - Dragonfly: `up{job=~".*dragonfly.*"}` returns 10 series.
