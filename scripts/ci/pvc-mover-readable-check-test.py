@@ -6,8 +6,8 @@ Prevents: a backup mover uid that cannot read its claim while every backup statu
 reports success.
 
 Pins the backup-mover readability check (2026-08-31): a CronJob that resolves
-each engine's mover uid/gid from the LIVE ReplicationSource / SnapshotPolicy
-and walks every backup-covered claim from a container that already mounts it,
+the kopiur mover uid/gid from the LIVE SnapshotPolicy (the VolSync branch was
+removed in the VolSync retirement, #2202) and walks every backup-covered claim from a container that already mounts it,
 so an identity mismatch that would make kopia fail closed is caught while every
 other status surface is still green.
 
@@ -21,8 +21,8 @@ This test does not grep source text as a proxy for behavior. It:
   2. Extracts the real CronJob bash body and runs it under a mock `kubectl`
      serving fixture CRs, pods and walker output, asserting the OK / FINDING /
      INCONCLUSIVE / UNMEASURED classification and the exit codes - in
-     particular that VolSync counts never fail the job and kopiur counts always
-     do.
+     particular that kopiur counts always fail the job and VolSync
+     ReplicationSources are never queried.
   3. Asserts the RBAC split-role contract, the alert regex actually matching
      the CronJob's own Job names, and the Flux overlay wiring.
 
