@@ -8,6 +8,8 @@
    `RETIRED_CLAIMS` in `scripts/ci/kopiur-stage5-test.py`. Record the claim in
    `NEVER_VOLSYNC` in `scripts/ci/kopiur-stage3-test.py`. Live:
    `database/surrealdb`, `downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`.
+   Consider `retain: true` on the chart-owned claim so a failed-install uninstall keeps
+   the volume (it is what kept FalkorDB's PVC through its retirement).
 2. **VolSync retirement takeover.** Include both `components/kopiur` and
    `components/kopiur/pvc`. See [retirement-and-removal.md](retirement-and-removal.md).
 

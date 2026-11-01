@@ -59,7 +59,19 @@ Restore into a new PVC from the retained snapshot (or reattach the kept `falkord
   SecurityPolicy to the Authentik outpost; the LoadBalancer `falkordb-lb` owned
   `falkordb.${SECRET_DOMAIN}` at `10.50.0.24`, port 6379 only. `database` must be on the
   Authentik ReferenceGrant.
-- Add the kopiur component only, never `components/volsync`.
+- Add the kopiur component only, never `components/volsync`. Re-add the claim to
+  `EXPECTED_IDENTITY` and `NEVER_VOLSYNC` in `scripts/ci/kopiur-stage3-test.py` (1000:1000;
+  `test_coverage_is_exact` forces it). Measure the mover identity first.
+- Do not front Redis with a Gateway. The browser hostname differs from `falkordb.${SECRET_DOMAIN}`
+  because unifi-dns `policy: sync` flaps one name with two targets. Run the browser image
+  entrypoint with `exec`, not `node server.js`.
+- Keep the `--save` dumps as a second copy, and do not raise `auto-aof-rewrite-percentage`
+  (the rewrite fork is the trigger; a rarer rewrite lengthens replay). The ceiling must stay above
+  `used_memory` of the loaded graph (GraphBLAS matrices included), or `GRAPH.QUERY` (`denyoom`)
+  refuses every write while the pod looks healthy.
+- The browser `workingDir` is `/var/lib/falkordb/browser` and `PORT` is 3000 (token storage path
+  resolves relative to it). A root `fix-permissions` init chowns the emptyDirs the browser
+  chmods, so kopiur `SecurityContextCompatible` is absent (not a failure).
 
 ## Reviving DuckLake
 
@@ -78,8 +90,12 @@ Parquet files were reproducible test data with no offsite copy.
   1Password item and the role keeps the old password. The db-init Job (carrying
   `kustomize.toolkit.fluxcd.io/force: enabled`, a Job template is immutable) resets the
   role to the stored password, so a revival mints a new one and clients must re-read it.
+- The overlay depended on `postgres-cluster-17`, `rook-ceph-cluster`, `onepassword-store` and
+  waited (`wait: true`) on the db-init Job. The bucket PushSecret reads the OBC Secret `ducklake`.
+  The password has `symbols: 0` because it travels in libpq env and ATTACH strings.
 - The `ducklake-maintenance` CronJob ships `suspend: true` (`CHECKPOINT` deletes data files
-  for good, and the 1.5.6 image does not match a 2.0 catalog). Keep it suspended until the
+  for good; retention was `expire_older_than` 30 days and `delete_older_than` 3 days; run
+  `maintenance.sql` by hand with the catalog's DuckDB version; and the 1.5.6 image does not match a 2.0 catalog). Keep it suspended until the
   image is 2.0.0 and the lake was recreated on 2.0.0.
 - Client:
 
