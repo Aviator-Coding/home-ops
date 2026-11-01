@@ -30,11 +30,17 @@ Safety properties
    to a file BEFORE writing, so the undo is exact rather than assumed.
 4. Post-write read-back and comparison. Mismatch is a non-zero exit.
 
-Credentials are read from a named Kubernetes Secret by default, or from the
-environment (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) for a destination whose
-in-cluster credential is not permitted to manage bucket configuration - which is
-the case for r2, whose token has object read/write but not the
-`Workers R2 Storage Write` permission group that lifecycle management requires.
+Credentials (issue #2202 decision 5; the per-claim VolSync
+credential Secrets are pruned when the last claim leaves VolSync, so nothing reads them):
+
+- ceph: the ObjectBucketClaim's own Secret `system/volsync` (AWS_ACCESS_KEY_ID /
+  AWS_SECRET_ACCESS_KEY), the bucket owner. The OBC is `prune: disabled`, so it
+  outlives the operator.
+- minio and r2: `--credentials env` only, AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+  exported from the 1Password item `volsync-template` (see the apply plan for the
+  exact `op read` invocation). R2's in-cluster token has object read/write but not
+  the `Workers R2 Storage Write` permission group that lifecycle management needs,
+  so a dry run with it stops at the lifecycle read, by design.
 
 See .agents/skills/volsync-carveouts/references/retired-expiry-apply-plan.md.
 """
@@ -51,31 +57,35 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import render_lifecycle  # noqa: E402
 
-# Per destination: the Secret whose RESTIC_REPOSITORY names the endpoint and
-# whose AWS_* keys are the credential, plus the S3 region to sign with.
+# Per destination: where the credential comes from, the S3 region to sign with,
+# and the endpoint. `secret` is the in-cluster Secret (None: env credentials only);
+# `credentials` is the default source.
 #
-# `ceph` is deliberately NOT the in-cluster service URL from the Secret: that
-# resolves only inside the cluster. The external S3 route is used instead, and
-# --endpoint can override it.
+# `ceph` is deliberately NOT the in-cluster service URL: that resolves only inside
+# the cluster. The external S3 route is used instead, and --endpoint must resolve
+# its ${SECRET_DOMAIN}. An endpoint that is None falls back to ledger.yaml `buckets`.
 DESTINATIONS: dict[str, dict[str, Any]] = {
     "ceph": {
-        "secret": ("selfhosted", "syncthing-data-volsync-ceph-secret"),
+        "secret": ("system", "volsync"),
+        "credentials": "secret",
         "region": "us-east-1",
         "endpoint_override": "https://s3.${SECRET_DOMAIN}",
         "note": "credential is the OBC bucket owner, so lifecycle management is authorised",
     },
     "r2": {
-        "secret": ("selfhosted", "syncthing-data-volsync-r2-secret"),
+        "secret": None,
+        "credentials": "env",
         "region": "auto",
         "endpoint_override": None,
         "note": (
             "the in-cluster token CANNOT manage lifecycle (measured: AccessDenied on "
-            "GetBucketLifecycleConfiguration). Use --credentials env with a token in the "
+            "GetBucketLifecycleConfiguration). Use a token in the "
             "'Workers R2 Storage Write' permission group."
         ),
     },
     "minio": {
-        "secret": ("selfhosted", "syncthing-data-volsync-minio-secret"),
+        "secret": None,
+        "credentials": "env",
         "region": "us-east-1",
         "endpoint_override": None,
         "note": "credential permitted (measured: GetBucketLifecycleConfiguration succeeded)",
@@ -101,7 +111,12 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--destination", required=True, choices=sorted(DESTINATIONS))
     ap.add_argument("--confirm", action="store_true", help="actually write (default: dry run)")
-    ap.add_argument("--credentials", choices=["secret", "env"], default="secret")
+    ap.add_argument(
+        "--credentials",
+        choices=["secret", "env"],
+        help="default per destination: ceph reads Secret system/volsync, minio and r2 read "
+        "AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY from the environment",
+    )
     ap.add_argument("--endpoint", help="override the endpoint URL")
     ap.add_argument("--kubeconfig", help="passed to kubectl; avoids mise shim KUBECONFIG surprises")
     ap.add_argument(
@@ -133,19 +148,25 @@ def main(argv: list[str] | None = None) -> int:
               "not assumed.", file=sys.stderr)
         return 2
 
-    # Endpoint: from the Secret's own RESTIC_REPOSITORY unless overridden, so the
-    # bucket we touch is always the one VolSync actually writes to.
-    ns, sname = dest["secret"]
-    repo_url = _kubectl_secret(ns, sname, "RESTIC_REPOSITORY", args.kubeconfig)
-    from_secret = repo_url.removeprefix("s3:").split("/" + BUCKET)[0]
-    endpoint = args.endpoint or dest["endpoint_override"] or from_secret
+    source = args.credentials or dest["credentials"]
+    if source == "secret" and dest["secret"] is None:
+        print(f"\n{args.destination} has no in-cluster credential Secret; use --credentials env "
+              "(AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY from 1Password `volsync-template`).",
+              file=sys.stderr)
+        return 2
+
+    endpoint = (
+        args.endpoint
+        or dest["endpoint_override"]
+        or render_lifecycle.load_ledger()["buckets"][args.destination]["endpoint"]
+    )
     if "${SECRET_DOMAIN}" in endpoint:
         print(f"\nendpoint {endpoint!r} still contains ${{SECRET_DOMAIN}}; pass --endpoint "
               "with the resolved host.", file=sys.stderr)
         return 2
-    print(f"endpoint    : {endpoint}   (VolSync writes to {from_secret})")
+    print(f"endpoint    : {endpoint}")
 
-    if args.credentials == "env":
+    if source == "env":
         ak, sk = os.environ.get("AWS_ACCESS_KEY_ID"), os.environ.get("AWS_SECRET_ACCESS_KEY")
         if not ak or not sk:
             print("\n--credentials env needs AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY "
@@ -153,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print("credential  : from environment")
     else:
+        ns, sname = dest["secret"]
         ak = _kubectl_secret(ns, sname, "AWS_ACCESS_KEY_ID", args.kubeconfig)
         sk = _kubectl_secret(ns, sname, "AWS_SECRET_ACCESS_KEY", args.kubeconfig)
         print(f"credential  : from Secret {ns}/{sname}")

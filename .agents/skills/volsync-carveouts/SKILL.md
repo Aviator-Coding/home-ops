@@ -5,12 +5,12 @@ description: "Read before editing kubernetes/components/volsync/**, the paperles
 
 # VolSync carve-outs
 
-VolSync is the second engine on two claims, and nowhere else. Do not add
+VolSync is the second engine on one claim, and nowhere else. Do not add
 `components/volsync` to a new app. kopiur is the norm (skill
-`kopiur-backups`). Delete this skill when those two claims leave VolSync.
+`kopiur-backups`). Delete this skill when that claim leaves VolSync.
 
-The two: `selfhosted/paperless-ngx` (permanent) and `syncthing-data`
-(`paperless-ngx-media` left VolSync on 2026-11-01). Each still gets three `ReplicationSource` objects
+The one: `selfhosted/paperless-ngx` (`paperless-ngx-media` and `syncthing-data`
+left VolSync on 2026-11-01). It still gets three `ReplicationSource` objects
 (ceph, minio, r2) and one `ReplicationDestination`.
 
 ## Tripwires
@@ -42,12 +42,13 @@ The two: `selfhosted/paperless-ngx` (permanent) and `syncthing-data`
 5. **`paperless-ngx` still has `${VOLSYNC_CLAIM:-*app}`.** That alias is
    armed on purpose. Removing `VOLSYNC_CLAIM` makes `flate` fail the
    Kustomization. `syncthing` and `syncthing-data` are different claims in one
-   overlay file.
+   overlay file (both kopiur-only now).
 6. **Retired-repository expiry is NOT IN FORCE.** Nothing in Git applies it.
    Rook's ObjectBucketClaim controller has no update path, so
    `bucketLifecycle` on the `volsync` bucket is a silent no-op. Match a
-   repository by the exact path segment `<name>/`. `volsync/syncthing` is a
-   string prefix of `volsync/syncthing-data`.
+   repository by the exact path segment `<name>/`. Live `volsync/paperless-ngx`
+   is a string prefix of retired `volsync/paperless-ngx-media`, and
+   `volsync/syncthing` of `volsync/syncthing-data`.
    [retired-repo-expiry.md](references/retired-repo-expiry.md)
 7. **A uid mismatch does not mean the restic backup is incomplete.** Writable
    staging lets `fsGroup` add group-read before restic opens the file. Measure
@@ -66,7 +67,7 @@ The two: `selfhosted/paperless-ngx` (permanent) and `syncthing-data`
 |---|---|
 | Component | `kubernetes/components/volsync/` |
 | Operator, admission policy, alerts | `kubernetes/apps/base/system/volsync/` |
-| Carve-out overlays | `kubernetes/apps/main/selfhosted/paperless-ngx.yaml`, `syncthing.yaml` |
+| Carve-out overlays | `kubernetes/apps/main/selfhosted/paperless-ngx.yaml` |
 | Scratch restore drill | [volsync-scratch-drill.md](references/volsync-scratch-drill.md) |
 | Corrupt-claim rebuild | [corrupt-claim-recreation.md](references/corrupt-claim-recreation.md) |
 | Expiry decision (not applied) | [retired-repo-expiry.md](references/retired-repo-expiry.md) |

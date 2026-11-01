@@ -20,7 +20,6 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
-    # The `volsync` dependency left with the volsync component; `syncthing-data` below still needs it (dual-engine).
     - name: kopiur-repository
       namespace: system
   components:
@@ -37,50 +36,8 @@ spec:
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# Second volume: `syncthing-data` (the synced files) needs its own Kustomization, because Flux allows
-# exactly one postBuild.substitute map each.
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: &app syncthing-data
-  namespace: &namespace selfhosted
-spec:
-  targetNamespace: *namespace
-  commonMetadata:
-    labels:
-      app.kubernetes.io/name: syncthing
-  interval: 30m
-  timeout: 5m
-  path: "./kubernetes/components/volsync/backup"
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-    namespace: flux-system
-  wait: false
-  dependsOn:
-    - name: volsync
-      namespace: system
-    - name: syncthing
-      namespace: *namespace
-  postBuild:
-    substituteFrom:
-      - name: cluster-secrets
-        kind: Secret
-    substitute:
-      APP: *app
-      VOLSYNC_CLAIM: *app
-      # Matches the syncthing-data PVC size (base/selfhosted/syncthing/app/pvc.yaml). It sizes the
-      # ReplicationDestination restic volume, so it must track the claim for a restore to have room.
-      VOLSYNC_CAPACITY: 15Gi
-      VOLSYNC_CACHE_CAPACITY: 5Gi
-      VOLSYNC_SCHEDULE_CEPH: "40 */4 * * *"
-      VOLSYNC_SCHEDULE_MINIO: "15 */6 * * *"
-      VOLSYNC_SCHEDULE_R2: "45 4 * * *"
----
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-# kopiur backup for the SECOND volume, `syncthing-data` (the synced files). Own Kustomization for the same
-# reason as above: one postBuild.substitute map each, and every kopiur object is named from the APP key.
+# kopiur backup for the SECOND volume, `syncthing-data` (the synced files). Own Kustomization because Flux allows
+# exactly one postBuild.substitute map each, and every kopiur object is named from the APP key.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

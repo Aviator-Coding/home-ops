@@ -147,7 +147,7 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 
 # --- Stage 5: claims VolSync has been RETIRED from (kopiur is their only engine) ---
 #
-# 28 claims across four waves. Two of the fleet's 29 stay dual-engine.
+# 29 claims across four waves. One of the fleet's 30 stays dual-engine.
 #
 # Wave one - the pilot four, retired 2026-09-01. Each was restore-proven on
 # BOTH destinations first (.agents/skills/kopiur-backups/references/proof-ledger.md) and
@@ -173,8 +173,10 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 # sequencing device, not three different evidence standards - every row cleared
 # the same gate.
 #
-# Wave four - `selfhosted/paperless-ngx-media`, retired 2026-11-01 (issue #2202, PR-2).
-# Its kopiur cache was raised to the claim size (50Gi) and a scratch restore drill
+# Wave four - `selfhosted/paperless-ngx-media` (PR-2) and `selfhosted/syncthing-data`
+# (PR-3), retired 2026-11-01 (issue #2202). `syncthing-data` was the same story at a
+# 15Gi cache (5 files / 531 B, ceph and r2 identical to live); its claim is a plain
+# PVC manifest under the `syncthing` Kustomization. For paperless-ngx-media, its kopiur cache was raised to the claim size (50Gi) and a scratch restore drill
 # from both ceph and r2 passed at that cache under decision (b): the current
 # contents (1 file, 0 B) plus the structural guarantee cache >= claim. Recorded in
 # .agents/skills/kopiur-backups/references/proof-ledger.md. Its claim is chart-owned
@@ -182,9 +184,7 @@ DEFERRED_CLAIMS: set[tuple[str, str]] = set()
 #
 # Deliberately NOT here, and this is now the WHOLE of the dual-engine fleet:
 # `selfhosted/paperless-ngx` (captain carve-out, stays dual-engine until its
-# own takeover) and `selfhosted/syncthing-data` (wave two found its proof covers
-# nothing meaningful - 5 files / 531 B - and it sits behind a restore cache it
-# would cross the first time it holds real data; its drill is a separate PR).
+# own takeover, a separate PR).
 #
 # This set is the fleet's legibility record: anything in it has ONE backup
 # engine, and anything not in it must still have two. Adding a row here is an
@@ -234,11 +234,12 @@ RETIRED_CLAIMS: set[tuple[str, str]] = {
     ("selfhosted", "linkwarden"),
     ("selfhosted", "n8n"),
     # The 1Gi CONFIG claim. `selfhosted/syncthing-data` (15Gi, the synced
-    # files) is a DIFFERENT claim and is deliberately absent - it stays
-    # dual-engine.
+    # files) is a DIFFERENT claim with its own row below (wave four).
     ("selfhosted", "syncthing"),
     # wave four, 2026-11-01 - the chart-owned second volume of paperless-ngx (backup-only shape)
     ("selfhosted", "paperless-ngx-media"),
+    # wave four, 2026-11-01 - the 15Gi files claim, owned by a plain PVC manifest (backup-only shape)
+    ("selfhosted", "syncthing-data"),
 }
 
 # --- claims that were NEVER VolSync-protected (single-engine from birth) ---

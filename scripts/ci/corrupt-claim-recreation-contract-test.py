@@ -14,8 +14,8 @@ of an EMPTY volume forever. The fix is to delete the ReplicationDestination
 TOGETHER WITH the PVC so restore-once fires against the populated repo.
 
 VolSync was retired from ai/opencode on 2026-09-04, but the trap is a property
-of `components/volsync`, which still protects selfhosted/paperless-ngx,
-paperless-ngx-media and syncthing-data. This test therefore:
+of `components/volsync`, which still protects selfhosted/paperless-ngx
+(paperless-ngx-media and syncthing-data left VolSync on 2026-11-01). This test therefore:
 
   1. Renders the real volsync Component kustomize build Flux would apply for
      selfhosted/paperless-ngx (postBuild.substitute taken from the live
@@ -74,9 +74,8 @@ OPENCODE_KOPIUR_R2 = "H 19 * * *"
 # that STILL runs VolSync, or this test would be asserting the trap on a claim
 # that can no longer hit it. selfhosted/paperless-ngx is the deliberate
 # permanent dual-engine carve-out (irreplaceable scanned documents), so it is
-# the most stable choice in the fleet; the other two survivors
-# (paperless-ngx-media, syncthing-data) are "not ready yet" rather than "never",
-# and could be retired by a later decision.
+# the most stable choice in the fleet; the other two former
+# carve-outs (paperless-ngx-media, syncthing-data) already left VolSync.
 TRAP_APP = "paperless-ngx"
 TRAP_NS = "selfhosted"
 TRAP_OVERLAY = ROOT / "kubernetes/apps/main/selfhosted/paperless-ngx.yaml"

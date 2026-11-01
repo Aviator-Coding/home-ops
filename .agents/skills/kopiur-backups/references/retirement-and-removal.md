@@ -2,10 +2,10 @@
 
 ## Current fleet
 
-28 VolSync engines were retired across four waves. `downloads/autobrr` then
-left with its app, so **27 claims remain kopiur-only**. Two dual-engine
-carve-outs remain: `selfhosted/paperless-ngx` and `syncthing-data`
-(issue #2202 retires them one claim at a time). Born-kopiur claims sit outside that set
+29 VolSync engines were retired across four waves. `downloads/autobrr` then
+left with its app, so **28 claims remain kopiur-only**. One dual-engine
+carve-out remains: `selfhosted/paperless-ngx` (issue #2202 retires the claims
+one at a time). Born-kopiur claims sit outside that set
 (`NEVER_VOLSYNC` in `scripts/ci/kopiur-stage3-test.py`).
 
 The machine-readable record is `RETIRED_CLAIMS` in that same test, asserted
@@ -20,8 +20,8 @@ Tiering was sequencing, not a different evidence standard. Every retired claim
 was a destination-identical pass in [proof-ledger.md](proof-ledger.md), with
 the prowlarr caveat closed by the later matched-pair drill recorded there.
 
-Wave four, 2026-11-01: `selfhosted/paperless-ngx-media`, the first
-**backup-only** retirement. It had been left dual-engine because its restore
+Wave four, 2026-11-01: `selfhosted/paperless-ngx-media` (issue #2202 PR-2), the
+first **backup-only** retirement. It had been left dual-engine because its restore
 cache did not cover a real payload. The cache was raised to the claim size
 (50Gi), a scratch drill from ceph and r2 at that cache passed (owner decision
 (b), the `*` near-empty row in [proof-ledger.md](proof-ledger.md)), and then the
@@ -32,8 +32,16 @@ second owner. Merging it prunes 3 ExternalSecrets, 3 ReplicationSources and 1
 ReplicationDestination; the restic cache PVCs are owned by their
 ReplicationSource and go with them, and the restic repositories are never
 touched (ledger tier `redundant`, expiry NOT IN FORCE). The test shape is the
-`owner_hr` row in `scripts/ci/kopiur-stage5-test.py`. `syncthing-data` was
-re-measured empty of meaningful data and stays dual-engine until its own drill.
+`owner_hr` row in `scripts/ci/kopiur-stage5-test.py`.
+
+`selfhosted/syncthing-data` (PR-3) followed the same way, 2026-11-01, at a 15Gi
+cache (drill in [proof-ledger.md](proof-ledger.md)). Its claim is a plain
+`PersistentVolumeClaim` in `base/selfhosted/syncthing/app/pvc.yaml`, created by
+the `syncthing` Kustomization (not by the deleted one, and not a HelmRelease), so
+the stage 5 row names that file as `owner_hr` and the claim name as `owner_key`.
+Merging it prunes the same 7 VolSync objects plus 3 restic cache PVCs, and never
+touches the PVC. PR-3 also repointed the expiry applier's credentials, because the
+Secrets it read are pruned here ([retired-expiry-apply-plan.md](../../volsync-carveouts/references/retired-expiry-apply-plan.md)).
 See [restore-and-cache.md](restore-and-cache.md).
 
 ## The swap

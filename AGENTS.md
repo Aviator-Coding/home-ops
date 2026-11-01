@@ -2,7 +2,7 @@
 
 Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux v2. `CLAUDE.md` is a symlink to this file. Subsystem knowledge lives in skills (SKILL INDEX below); operator detail also in [`talos/AGENTS.md`](talos/AGENTS.md), [`bootstrap/AGENTS.md`](bootstrap/AGENTS.md), [`kubernetes/apps/base/ai/AGENTS.md`](kubernetes/apps/base/ai/AGENTS.md) (chat model naming) and the runbooks in skill references (SKILL INDEX below; [`docs/README.md`](docs/README.md) lists the few that live elsewhere).
 
-**Core stack**: Talos Linux + Flux v2 + Cilium (CNI, BGP LoadBalancer, kube-proxy replacement, no L2 announcements) + Rook-Ceph + External Secrets Operator/1Password + Cloudflare Tunnel + External-DNS (split: `network/cloudflare-dns` public, `network/unifi-dns` internal) + kopiur (primary backup; VolSync only on 2 carve-outs) + Gateway API (`envoy-internal`/`envoy-external` in `network`) + kube-prometheus-stack/Loki/Grafana/Gatus in `monitoring`.
+**Core stack**: Talos Linux + Flux v2 + Cilium (CNI, BGP LoadBalancer, kube-proxy replacement, no L2 announcements) + Rook-Ceph + External Secrets Operator/1Password + Cloudflare Tunnel + External-DNS (split: `network/cloudflare-dns` public, `network/unifi-dns` internal) + kopiur (primary backup; VolSync only on 1 carve-out) + Gateway API (`envoy-internal`/`envoy-external` in `network`) + kube-prometheus-stack/Loki/Grafana/Gatus in `monitoring`.
 
 ## STRUCTURE
 
@@ -12,7 +12,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 │   ├── apps/base/<ns>/<app>/   # manifests (19 namespaces)
 │   ├── apps/main/<ns>/         # overlay: one Flux Kustomization CR per app + kustomization.yaml
 │   ├── clusters/main/          # Flux entry point: meta.yaml + apps.yaml (cluster-meta -> cluster-apps)
-│   └── components/             # alerts, common, dragonfly, kopiur (+ kopiur/pvc), volsync (2 claims left)
+│   └── components/             # alerts, common, dragonfly, kopiur (+ kopiur/pvc), volsync (1 claim left)
 ├── talos/                      # minijinja templates, rendered by `just talos`, not Flux
 ├── bootstrap/                  # just bootstrap stages
 ├── .agents/skills/             # one skill per subsystem (.claude/skills is a symlink)
@@ -87,7 +87,7 @@ Each is a warning needed before deciding to touch the subsystem; detail is in th
 **Backups (silent data loss)**
 - **Deleting a kopiur Snapshot CR deletes the kopia snapshot.** The PVC component is `ssa: IfNotPresent` and never sets `force: enabled`. Measure mover identity from the files or the backup fails closed. One component include covers one volume. Skill `kopiur-backups`.
 - **`${APP}-dst.status.latestImage` is frozen at first deploy: recreating a claim from `dataSourceRef` can restore nothing while everything stays green.** Delete the ReplicationDestination with the PVC. Never patch `<app>-dst` to trigger a restore. Do not add `components/volsync` to a new app. Skill `volsync-carveouts`.
-- **Retired VolSync repository expiry is NOT IN FORCE; a prefix match on `syncthing` also selects live `syncthing-data`.** Skill `volsync-carveouts`.
+- **Retired VolSync repository expiry is NOT IN FORCE; live `paperless-ngx` is a string prefix of retired `paperless-ngx-media`, so a bare prefix match selects the live repo.** Skill `volsync-carveouts`.
 - **Both engines snapshot crash-consistently, so a database backup is only as durable as its fsync setting.** CNPG takes one barman destination per Cluster. Skill `databases`.
 
 **Network**

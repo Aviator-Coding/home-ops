@@ -131,10 +131,20 @@ modes. The live PVC uid (`cc422856-3bad-4a8f-9975-eb2dd5e65687`) and the
 paperless-ngx pod were unchanged and no drill object was left behind. VolSync
 was retired from this claim in the PR that records this row.
 
+| Row | Claim | Mover | Cache | ceph | r2 | live files | restored ceph / r2 | restore manifest sha256 (live-A / ceph / r2 / live-B) | Result |
+|---|---|---|---|---|---|---|---|---|---|
+| 30 | `selfhosted/syncthing-data` (15Gi) | 1000:1000 | 15Gi | Completed, `syncthing-data-ceph-20261101143410`, kopia `cd011f03d4ebfaf8382d34c75162a552`, filesNew 5, 531 B | Completed, `syncthing-data-r2-20261031181731`, kopia `135b0442adc30085723356860e480efd`, filesNew 5, 531 B | 5 | 5 / 5 | `c525096cb0b4` x4 | **PASS** \* |
+
+Live census: 13 entries, all 1000:1000, one device. Stable-missing 0,
+diff-vs-live-B 0, mode diffs 0 on both sides, and ceph equals r2 in content and
+modes. The live PVC uid (`786d4bcf-fc74-4b96-b7a0-f675f917c6dc`) and the
+syncthing pod were unchanged and no drill object was left behind. VolSync was
+retired from this claim in the PR that records this row (issue #2202 PR-3).
+
 Each of those five restored identically from both destinations in content and
 in mode/uid/gid, and had not grown between the fleet proof and the
-re-measure. The forward risk on the dual-engine leftover (`syncthing-data`) is cache
-capacity, not fidelity. `pgadmin` (row 4) is the opposite edge: 3 files and
+re-measure. The forward risk on the two near-empty claims was cache
+capacity, not fidelity; both are claim-sized now. `pgadmin` (row 4) is the opposite edge: 3 files and
 979 MiB, so its restore did move bulk data.
 
 ## How to read a later backup

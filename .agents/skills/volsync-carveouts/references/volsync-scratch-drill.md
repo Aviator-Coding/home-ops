@@ -2,7 +2,7 @@
 
 Prove the in-cluster VolSync restore path end to end (ReplicationDestination, mover Job, PVC via
 `dataSourceRef`) against both the ceph and MinIO destinations without touching a live app.
-Applies to the two carve-outs that still run `components/volsync`. The last full exercise
+Applies to the one carve-out that still runs `components/volsync`. The last full exercise
 (2026-08-23, `home-automation/esphome`, since retired from VolSync) proved ceph and minio
 restores work after the RGW `v20.2.4` SigV4 fix; re-measure timings before relying on them.
 Rebuilding a claim is [corrupt-claim-recreation.md](corrupt-claim-recreation.md).

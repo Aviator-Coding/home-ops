@@ -5,8 +5,8 @@ description: "Read before ANY kopiur change: onboarding or retiring a claim, kub
 
 # kopiur backups
 
-kopiur is the backup engine. VolSync remains only on two carve-outs
-(`selfhosted/paperless-ngx`, `syncthing-data`); skill
+kopiur is the backup engine. VolSync remains only on one carve-out
+(`selfhosted/paperless-ngx`); skill
 `volsync-carveouts`. Born-kopiur claims (`database/surrealdb`,
 `downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`) never had VolSync. Assume kopiur-only unless the overlay
 includes `components/volsync`. A kopiur overlay never `dependsOn` the VolSync

@@ -6,8 +6,8 @@ Prevents: a retired-VolSync overlay losing the kopiur pvc Component, `ssa: IfNot
 or the no-force rule, so Flux prunes or replaces a live data volume.
 
 Stage 5 is the IRREVERSIBLE step of the VolSync -> kopiur migration: it removes
-a volume's second backup engine. 28 of the fleet's 30 claims have now gone
-through it, in four waves, and 2 remain dual-engine - which is the whole of
+a volume's second backup engine. 29 of the fleet's 30 claims have now gone
+through it, in four waves, and 1 remains dual-engine - which is the whole of
 what VolSync still protects.
 
 One of those eight, `downloads/autobrr`, is no longer in the fleet at all: the
@@ -48,10 +48,11 @@ wave-two record still documents autobrr's retirement, because it happened.
   after a kopiur scratch drill from ceph and r2 at a cache raised to the claim
   size (50Gi), under owner decision (b): current contents plus the structural
   guarantee cache >= claim. It is the first BACKUP-ONLY retirement: see below.
+  `selfhosted/syncthing-data` followed on 2026-11-01 (issue #2202, PR-3) at a
+  15Gi cache, same standard (5 files / 531 B, ceph and r2 identical to live).
 
-`selfhosted/paperless-ngx` (captain carve-out) and `selfhosted/syncthing-data`
-are the entire remaining dual-engine fleet; any further retirement needs its
-own decision.
+`selfhosted/paperless-ngx` (captain carve-out) is the entire remaining
+dual-engine fleet; its takeover is a separate PR.
 
 THIRD SHAPE, BACKUP-ONLY. `selfhosted/paperless-ngx-media` is a chart-owned
 second volume (HelmRelease `persistence.media`, no `dataSourceRef`). Its VolSync
@@ -59,6 +60,9 @@ half was a separate backup-only Kustomization, so retiring it deletes that
 Kustomization and nothing else: no `kopiur/pvc` (it would give a chart-owned
 claim a second owner), no claim Kustomization of its own, and the claim size
 stays whatever the owner declares. Retired.owner_hr / owner_key name that owner.
+The owner is a HelmRelease persistence entry, or (`selfhosted/syncthing-data`) a
+plain PersistentVolumeClaim manifest: owner_hr is then that file and owner_key
+the claim name.
 
 TWO OVERLAY SHAPES. Most retired volumes put both `components/kopiur` and
 `components/kopiur/pvc` on the app's own Flux Kustomization. Two keep a split:
@@ -141,7 +145,8 @@ class Retired(NamedTuple):
     capacity: str
     backup_ks: str | None = None
     # BACKUP-ONLY shape: the claim is owned by a HelmRelease persistence entry
-    # (repo-relative file, persistence key), not by a Kustomization of this set.
+    # (repo-relative file, persistence key) or by a plain PersistentVolumeClaim
+    # manifest (repo-relative file, claim name), not by a Kustomization of this set.
     # `ks` is then the APP name only and no Flux Kustomization carries it.
     owner_hr: str | None = None
     owner_key: str | None = None
@@ -240,6 +245,18 @@ RETIRED: dict[str, Retired] = {
         "kubernetes/apps/base/selfhosted/paperless-ngx/app/helmrelease.yaml",
         "media",
     ),
+    # wave four, 2026-11-01 - BACKUP-ONLY shape, claim owned by a plain PVC manifest:
+    # base/selfhosted/syncthing/app/pvc.yaml (15Gi) in Kustomization `syncthing`,
+    # which keeps the 1Gi config claim's own row above. Only the backup remains here.
+    "selfhosted/syncthing-data": Retired(
+        "selfhosted/syncthing.yaml",
+        "syncthing-data",
+        "syncthing-data",
+        "15Gi",
+        "syncthing-data-kopiur",
+        "kubernetes/apps/base/selfhosted/syncthing/app/pvc.yaml",
+        "syncthing-data",
+    ),
 }
 
 # Restore-proof finding 2 / the 2026-09-02 cache gate: an r2 restore needs
@@ -311,6 +328,10 @@ RAISED_CACHE: dict[str, str] = {
     # cache can never be smaller than the data. Drilled 2026-11-01 from ceph and
     # r2 at exactly this value (Restore Completed both; 1 file / 0 B, decision (b)).
     "selfhosted/paperless-ngx-media": "50Gi",
+    # syncthing-data: raised 5Gi -> 15Gi (PR #2206) to the claim size. Drilled 2026-11-01
+    # from ceph and r2 at exactly this value (Restore Completed both; 5 files / 531 B,
+    # decision (b)).
+    "selfhosted/syncthing-data": "15Gi",
 }
 
 # Stated separately from len(RETIRED) on purpose: this is the number a human
@@ -321,8 +342,8 @@ RAISED_CACHE: dict[str, str] = {
 # wave two and the APP ITSELF removed on 2026-09-02, leaving no overlay to hold
 # a retirement contract against. Wave three adds 11 (tier A) + 4 (tier B) + 4
 # (tier C) = 19, which is every remaining eligible claim in the fleet. Wave four
-# adds paperless-ngx-media (backup-only shape).
-EXPECTED_RETIRED_COUNT = 26
+# adds paperless-ngx-media and syncthing-data (backup-only shape).
+EXPECTED_RETIRED_COUNT = 27
 
 
 class Failure(Exception):
@@ -374,8 +395,27 @@ def backup_ks(v: Retired) -> dict[str, Any]:
 
 
 def owner_persistence(v: Retired) -> dict[str, Any]:
-    """The chart's persistence entry that owns a backup-only claim."""
+    """The persistence entry (or plain PVC manifest) that owns a backup-only claim.
+
+    A plain PersistentVolumeClaim is normalised to the persistence-entry shape the
+    checks read: type, enabled, size, plus its dataSourceRef/existingClaim if any.
+    """
     require(v.owner_hr and v.owner_key, f"{v.claim}: not a backup-only row")
+    pvcs = [
+        d
+        for d in load_multi(REPO / str(v.owner_hr))
+        if d.get("kind") == "PersistentVolumeClaim" and d["metadata"]["name"] == v.owner_key
+    ]
+    if pvcs:
+        spec = pvcs[0].get("spec") or {}
+        entry: dict[str, Any] = {
+            "type": "persistentVolumeClaim",
+            "enabled": True,
+            "size": ((spec.get("resources") or {}).get("requests") or {}).get("storage"),
+        }
+        if "dataSourceRef" in spec or "dataSource" in spec:
+            entry["dataSourceRef"] = spec.get("dataSourceRef") or spec.get("dataSource")
+        return entry
     docs = [d for d in load_multi(REPO / str(v.owner_hr)) if d.get("kind") == "HelmRelease"]
     require(docs, f"{v.owner_hr}: no HelmRelease")
     persistence = ((docs[0].get("spec") or {}).get("values") or {}).get("persistence") or {}
@@ -573,12 +613,12 @@ def test_backup_only_keeps_the_claim(key: str, v: Retired) -> None:
     entry = owner_persistence(v)
     require(
         entry.get("type") == "persistentVolumeClaim" and entry.get("enabled") is True,
-        f"{key}: {v.owner_hr} persistence.{v.owner_key} must be an enabled persistentVolumeClaim "
+        f"{key}: {v.owner_hr} {v.owner_key} must be an enabled persistentVolumeClaim "
         f"(the chart owns this claim), got {entry}",
     )
     require(
         "dataSourceRef" not in entry and "existingClaim" not in entry,
-        f"{key}: the owner's persistence.{v.owner_key} must stay a plain chart-created claim",
+        f"{key}: the owner's claim {v.owner_key!r} must stay a plain, directly created claim",
     )
     require(
         entry.get("size") == v.capacity,
@@ -590,7 +630,7 @@ def test_backup_only_keeps_the_claim(key: str, v: Retired) -> None:
         require(
             KOPIUR_PVC_COMPONENT not in (d["spec"].get("components") or [])
             or sub.get("KOPIUR_CLAIM", sub.get("APP")) != v.claim,
-            f"{key}: Kustomization {name!r} adds kopiur/pvc for a chart-owned claim - a second owner",
+            f"{key}: Kustomization {name!r} adds kopiur/pvc for a claim another manifest owns - a second owner",
         )
     bspec = backup_ks(v)["spec"]
     require(

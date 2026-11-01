@@ -9,10 +9,10 @@ claim.
 | `syncthing` | 1Gi | Config, device identity, pairing. Do not resize or delete. |
 | `syncthing-data` | 15Gi | Synced folder roots under `/var/syncthing/data/`. |
 
-`VOLSYNC_CAPACITY` on the Flux Kustomization sizes the VolSync restore
-volume, not the live PVC. `syncthing-data` is one of the three remaining
-dual-engine claims. Do not delete a kopiur Snapshot CR. Skill
-`kopiur-backups` and skill `volsync-carveouts`.
+Both claims are backed up by kopiur only; `syncthing-data` left VolSync on
+2026-11-01 (issue #2202). Its cache is claim-sized (`KOPIUR_CACHE_CAPACITY`
+15Gi in the `syncthing-data-kopiur` Kustomization) and must stay at least the
+claim size. Do not delete a kopiur Snapshot CR. Skill `kopiur-backups`.
 
 Folder types last recorded in the app database (confirm with
 `GET /rest/config/folders` before changing them): `documents` and `projects`

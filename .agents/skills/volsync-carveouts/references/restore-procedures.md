@@ -17,8 +17,8 @@ PVC `Bound`, app `Running` and Flux `Ready` all succeed.
 Measured on `ai/opencode`: `latestImage` was still the empty image days after
 the repository held 4,749 files. Those files were the app's own first-boot
 writes. The same emptiness was re-measured on the three surviving destinations
-(`paperless-ngx`, `paperless-ngx-media`, `syncthing-data`). `syncthing-data-dst`
-was later deleted and Flux-recreated; `restore-once` then succeeded from
+(`paperless-ngx`, `paperless-ngx-media`, `syncthing-data`; the latter two have since
+left VolSync). `syncthing-data-dst` was later deleted and Flux-recreated; `restore-once` then succeeded from
 snapshot `9dd34c26`. `paperless-ngx` and `paperless-ngx-media` were still empty
 at that measurement, and only `paperless-ngx` still points `dataSourceRef` at
 its destination. Read `status.latestMoverStatus.logs` and
