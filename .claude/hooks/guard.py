@@ -37,9 +37,9 @@ from collections.abc import Iterator, Mapping
 
 SEPARATORS = {"&&", "||", ";", "|", "&", "|&", ";;", "(", ")"}
 
-# Wrappers that run the rest of the words as a command: name -> flags taking a value.
+# Wrappers that run the rest of the words as a command: name -> flags taking a value
+# (`env` has its own parser, _env_options).
 WRAPPERS: dict[str, set[str]] = {
-    "env": {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"},
     "command": set(),
     "builtin": set(),
     "exec": set(),
@@ -187,36 +187,70 @@ def _credential_reason(words: list[str]) -> str | None:
     return None
 
 
-def _env_effects(prefix: list[str]) -> tuple[bool, set[str]]:
-    """(environment cleared, variables unset) by `env` in a command's wrapper words."""
-    cleared, unset = False, set()
+def _env_options(words: list[str], i: int) -> tuple[int, bool, set[str], list[str]]:
+    """Parse `env` options from words[i]: (index after them, environment cleared,
+    variables unset, -S/--split-string command lines)."""
+    cleared, unset, split = False, set(), []
+    while i < len(words) and (words[i].startswith("-") or ASSIGNMENT.match(words[i])):
+        flag = words[i]
+        i += 1
+        if ASSIGNMENT.match(flag):
+            continue
+        if flag.startswith("--"):
+            name, eq, value = flag.partition("=")
+            if name in {"--unset", "--split-string", "--chdir"} and not eq and i < len(words):
+                value = words[i]
+                i += 1
+            if name == "--unset":
+                unset.add(value)
+            elif name == "--split-string":
+                split.append(value)
+            elif name == "--ignore-environment":
+                cleared = True
+            continue
+        if flag == "-":
+            cleared = True
+            continue
+        for j, ch in enumerate(flag[1:], 1):  # clustered short options, e.g. -iS'cmd'
+            if ch == "i":
+                cleared = True
+            elif ch in "uSC":
+                value = flag[j + 1:]
+                if not value and i < len(words):
+                    value = words[i]
+                    i += 1
+                if ch == "u":
+                    unset.add(value)
+                elif ch == "S":
+                    split.append(value)
+                break
+    return i, cleared, unset, split
+
+
+def _env_effects(prefix: list[str]) -> tuple[bool, set[str], list[str]]:
+    """(environment cleared, variables unset, -S command lines) by `env` in wrapper words."""
+    cleared, unset, split = False, set(), []
     i = 0
     while i < len(prefix):
         i += 1
-        if _basename(prefix[i - 1]) != "env":
-            continue
-        while i < len(prefix) and prefix[i].startswith("-"):
-            flag = prefix[i]
-            i += 1
-            if flag in UNSET_FLAGS and i < len(prefix):
-                unset.add(prefix[i])
-                i += 1
-            elif flag.startswith("--unset="):
-                unset.add(flag.partition("=")[2])
-            elif flag.startswith("-u") and not flag.startswith("--"):
-                unset.add(flag[2:])
-            elif flag in ENV_CLEAR_FLAGS or (not flag.startswith("--") and "i" in flag[1:]):
-                cleared = True
-            elif flag in WRAPPERS["env"] and i < len(prefix):
-                i += 1
-    return cleared, unset
+        if _basename(prefix[i - 1]) == "env":
+            i, c, u, sp = _env_options(prefix, i)
+            cleared, unset, split = cleared or c, unset | u, split + sp
+    return cleared, unset, split
+
+
+def _env_split(words: list[str]) -> str | None:
+    """The command line `env -S 'str' args...` runs, or None without -S."""
+    stripped = _strip_wrappers(words)
+    split = _env_effects(words[:len(words) - len(stripped)])[2]
+    return " ".join([*split, *map(shlex.quote, stripped)]) if split else None
 
 
 def _unset_reason(words: list[str]) -> str | None:
     """Unsetting, un-exporting or clearing a credential variable: the client then reads
     the owner's default file instead."""
     stripped = _strip_wrappers(words)
-    cleared, unset = _env_effects(words[:len(words) - len(stripped)])
+    cleared, unset, _ = _env_effects(words[:len(words) - len(stripped)])
     if stripped:
         prog, args = _basename(stripped[0]), stripped[1:]
         if (prog == "unset"
@@ -226,7 +260,11 @@ def _unset_reason(words: list[str]) -> str | None:
     hit = sorted(unset & CREDENTIAL_VARS)
     if hit:
         return f"unsetting {' and '.join(hit)} makes the client fall back to the owner's default config"
-    client = _client_var(stripped) if cleared else None
+    client = None
+    if cleared:
+        inner = _env_split(words)
+        client = _client_var(stripped) or next(
+            (c for w, _ in (_walk(inner) if inner else []) if (c := _client_var(w))), None)
     if client:
         return f"env -i clears KUBECONFIG and TALOSCONFIG, so {client[1]} would read the owner's default config"
     return None
@@ -239,6 +277,8 @@ def _strip_wrappers(words: list[str]) -> list[str]:
         name = _basename(word)
         if ASSIGNMENT.match(word) or word in KEYWORDS:
             i += 1
+        elif name == "env":
+            i = _env_options(words, i + 1)[0]
         elif name in WRAPPERS:
             i += 1
             value_flags = WRAPPERS[name]
@@ -291,7 +331,10 @@ def _gh_api_method(words: list[str]) -> str | None:
 
 
 def _nested(words: list[str]) -> tuple[str | None, str | None]:
-    """For a shell or eval: (the command it runs, None), or (None, why it cannot be read)."""
+    """For a shell, eval or env -S: (the command it runs, None), or (None, why it cannot be read)."""
+    split = _env_split(words)
+    if split is not None:
+        return split, None
     words = _strip_wrappers(words)
     if not words:
         return None, None

@@ -119,6 +119,14 @@ BLOCKED = [
     "export KUBECONFIG+=:/Users/aviator/.kube/config",
     "TALOSCONFIG=$KUBECONFIG talosctl version",
     "KUBECONFIG= kubectl get pods",
+    # env -S/--split-string runs its argument as a command line (review of #2208).
+    "env -S 'kubectl delete ns x'",
+    "env -S'kubectl delete ns x'",
+    "env --split-string='kubectl delete ns x'",
+    "env --split-string 'kubectl delete' ns x",
+    "env -iS 'kubectl get secret -A'",
+    "env -S 'KUBECONFIG=/Users/x/.kube/config kubectl get pods'",
+    "env -S 'kubectl \"get'",
 ]
 
 ALLOWED = [
@@ -156,6 +164,9 @@ ALLOWED = [
     "KUBECONFIG=$HOME/.kube/home-ops-agent kubectl get pods",
     "KUBECONFIG=$KUBECONFIG:$HOME/.kube/home-ops-agent kubectl get pods",
     "TALOSCONFIG=${TALOSCONFIG} talosctl version",
+    "env -S 'kubectl get pods'",
+    "env -S 'git status'",
+    "env -S'git status'",
 ]
 
 AGENT_ENV = {"KUBECONFIG": "/Users/x/.kube/home-ops-agent", "TALOSCONFIG": "/Users/x/.talos/home-ops-agent"}
@@ -198,6 +209,7 @@ FALLBACK_REFUSED = [
     (NO_KUBECONFIG, "env FOO=1 /usr/local/bin/kubectl get ns"),
     (NO_KUBECONFIG, "mise exec -- kubectl get pods"),
     (NO_KUBECONFIG, "echo x | xargs kubectl get"),
+    (NO_KUBECONFIG, "env -S 'kubectl get pods'"),
     (NO_TALOSCONFIG, "talosctl version"),
     ({**NO_TALOSCONFIG, "TALOSCONFIG": ""}, "talosctl -n 10.10.10.11 get members"),
     ({}, "talosctl version"),
@@ -215,6 +227,8 @@ FALLBACK_ACCEPTED = [
     (NO_TALOSCONFIG, "just talos render-config talos-1"),
     (AGENT_ENV, "kubectl get pods -A"),
     (AGENT_ENV, "talosctl version"),
+    (AGENT_ENV, "env -S 'kubectl get pods'"),
+    (NO_KUBECONFIG, "env -S 'git status'"),
 ]
 
 failures: list[str] = []
