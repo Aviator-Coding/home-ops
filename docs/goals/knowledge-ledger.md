@@ -484,7 +484,7 @@ Verdicts:
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 6 | Plex does not see NFS filesystem events; scans come from Radarr/Sonarr Connect and Plex's periodic update. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 7 | The Plex token is a PushSecret into the plex item; an empty PLEX_TOKEN still reports SecretSynced. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 8 | Tdarr library scope and flow state are not in Git; librariesToNotProcess is a no-op here, and transcodecpuWorkers stays at least 1. | neither |  |  |
-| `.agents/skills/media-stack/SKILL.md` §Tripwires 9 | Books run Shelfmark to Calibre-Web-Automated, Usenet only; Readarr was removed and its snapshots, databases and NAS files kept. | neither |  |  |
+| `.agents/skills/media-stack/SKILL.md` §Tripwires 9 | Books run Shelfmark to Calibre-Web-Automated, Usenet plus direct HTTP from Anna's Archive and LibGen, no torrents; Readarr was removed and its snapshots, databases and NAS files kept. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 10 | Git defines only the Cleanuparr pod; the queue-watchdog exits non-zero for queue items older than 24h, and Huntarr is not used. | neither |  |  |
 | `.agents/skills/media-stack/SKILL.md` §Tripwires 11 | Friend access is Wizarr plus Seerr, set up in the apps; Git declares only the routes and backups. | neither |  |  |
 | `.agents/skills/networking/SKILL.md` §Tripwires 1 | The DNS target comes from the parent Gateway; a route-level external-dns target annotation does not decide the record. | neither |  |  |

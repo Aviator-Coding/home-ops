@@ -5,7 +5,7 @@ description: "Read before changing apps in kubernetes/apps/base/downloads/** or 
 
 # Media stack: *arr apps, SABnzbd, Recyclarr and Plex
 
-The downloads namespace is usenet-only. Quality profiles, library scans and
+The downloads namespace has no torrent path (Shelfmark also downloads books over HTTP). Quality profiles, library scans and
 which movie sits on which profile are application database state, not Git.
 
 ## Tripwires
@@ -38,10 +38,11 @@ which movie sits on which profile are application database state, not Git.
    on the library is the scope gate. `librariesToNotProcess` is a Tdarr Pro
    feature and a no-op on this unlicensed install. Skill `tdarr-transcoding`.
    Keep `transcodecpuWorkers` at least 1.
-9. **Books run Shelfmark -> Calibre-Web-Automated, Usenet only.** Shelfmark
-   (`downloads/shelfmark`, env-only config) searches through Prowlarr, SABnzbd saves to
-   the `books` category on `shared-downloads`, and the file lands in the CWA NFS ingest
-   folder. Shelfmark stays in `downloads` because its RWX claim `shared-downloads` lives
+9. **Books run Shelfmark -> Calibre-Web-Automated: Usenet plus direct HTTP from Anna's
+   Archive and LibGen, no torrents.** Shelfmark (`downloads/shelfmark`, env-only config)
+   searches through Prowlarr, SABnzbd saves to the `books` category on `shared-downloads`,
+   and the file lands in the CWA NFS ingest folder. Direct downloads go through
+   FlareSolverr; the HelmRelease comments say why `annas-archive.is` is left out. Shelfmark stays in `downloads` because its RWX claim `shared-downloads` lives
    there. Readarr was removed (its kopiur snapshots, Postgres databases and NAS files
    were kept). Sonarr and Radarr run no exportarr sidecar: exportarr v2.3.0 rejects any
    API key that is not 20-32 alphanumeric characters.
