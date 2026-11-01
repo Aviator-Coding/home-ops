@@ -1,8 +1,8 @@
 # pvc-mover-readable-check
 
 CronJob `system/pvc-mover-readable-check`, every 6 hours at minute 47 so it
-does not overlap `pvc-writable-check`. It resolves each engine's mover uid
-and gid from the **live** `ReplicationSource` or `SnapshotPolicy` (never the
+does not overlap `pvc-writable-check`. It resolves each claim's kopiur mover uid
+and gid from the **live** `SnapshotPolicy` (never the
 component default of 1000), then execs `walk.sh` inside a container that
 already mounts the claim.
 
@@ -11,19 +11,16 @@ Directories also need the matching execute bit. One untraversable directory
 hides the subtree (`ai/hermes` root `0700` `10000:10000` hides the whole
 volume from uid 1000).
 
-Pass `-1` for an engine that does not cover the claim. Those counters are
-`NA`, not a fake 0.
+The walker still takes VolSync uid/gid slots; the CronJob passes `-1`, so those
+counters are `NA`, not a fake 0.
 
 ## Alert versus report
 
 Exit code 1 (the Job fails, the PrometheusRule fires) when a **kopiur**
-identity cannot read, or when a walk is `INCONCLUSIVE`.
-
-VolSync unreadables are printed and do not fail the Job. VolSync's writable
-staging plus `fsGroup` repairs the clone before restic reads, so the same
-mismatch still produces a complete restic backup. kopiur's read-only staging
-does not. Alerting both would page on a condition VolSync survives. Reporting
-neither would hide the condition that fails kopiur.
+identity cannot read, or when a walk is `INCONCLUSIVE`. kopiur's read-only
+staging fails closed on the first unreadable file. VolSync is no longer
+measured (it was report-only: its writable staging plus `fsGroup` repaired the
+clone before restic read).
 
 Structurally unmeasured claims do not fail the Job either: no running pod,
 subPath-only (`ntfy`), RBAC-excluded namespaces. They are logged. They are
@@ -36,7 +33,7 @@ Same split as the writable check, narrower binding.
 
 | Role | Verbs | Binding |
 |---|---|---|
-| `pvc-mover-readable-check-read` | `pods` get/list, plus get/list on `replicationsources` and `snapshotpolicies` | ClusterRoleBinding |
+| `pvc-mover-readable-check-read` | `pods` get/list, plus get/list on `snapshotpolicies` | ClusterRoleBinding |
 | `pvc-mover-readable-check-exec` | `pods/exec` create | RoleBinding in `ai`, `downloads`, `home-automation`, `media`, `selfhosted` only |
 
 `database` is not bound. `database/pgadmin` is kopiur-only and is
@@ -77,7 +74,7 @@ finding.
 
 Component defaults are not the measurement. Per-claim movers in this fleet
 include 0, 1000, 2000, 3002, 5050, 5984 and 10000. The CronJob reads the live
-CR. A Git change to `KOPIUR_PUID` that has not been reconciled yet is
+SnapshotPolicy. A Git change to `KOPIUR_PUID` that has not been reconciled yet is
 invisible to the next run, which is the correct question: can the mover that
 will actually run read the volume?
 

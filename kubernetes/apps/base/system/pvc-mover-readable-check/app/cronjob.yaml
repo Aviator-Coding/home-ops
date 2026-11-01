@@ -83,7 +83,7 @@ spec:
 
                   echo "pvc-mover-readable-check: sweep starting at $(date -u +%FT%TZ)"
 
-                  # Scope and mover identities, resolved from the LIVE CRs, never from the
+                  # Scope and mover identities, resolved from the LIVE SnapshotPolicies, never from the
                   # components' defaults: KOPIUR_PUID/PGID are overridden per claim, so a
                   # default-derived identity would measure the wrong thing and report a false
                   # clean.
@@ -92,19 +92,6 @@ spec:
                   # whole assignment. Never continue with a partial map: an
                   # empty identity list after a failed get is the same green-
                   # while-measuring-nothing failure this check exists to catch.
-                  if ! VS_TSV=$(kubectl get replicationsources -A -o json | jq -r '
-                    .items[]
-                    | select(.spec.sourcePVC != null)
-                    | select(.spec.restic.moverSecurityContext.runAsUser != null)
-                    | select(.spec.restic.moverSecurityContext.runAsGroup != null)
-                    | [ .metadata.namespace, .spec.sourcePVC,
-                        (.spec.restic.moverSecurityContext.runAsUser  | tostring),
-                        (.spec.restic.moverSecurityContext.runAsGroup | tostring) ]
-                    | @tsv' | sort -u); then
-                    echo "FATAL: kubectl get replicationsources discovery failed; no readability conclusion can be drawn" >&2
-                    exit 1
-                  fi
-
                   # A SnapshotPolicy carries one podSecurityContext and may
                   # list several sources; each source names its own claim.
                   if ! KP_TSV=$(kubectl get snapshotpolicies -A -o json | jq -r '
@@ -121,17 +108,10 @@ spec:
                     exit 1
                   fi
 
-                  if [[ -z "${VS_TSV}" && -z "${KP_TSV}" ]]; then
-                    echo "FATAL: no ReplicationSource or SnapshotPolicy mover identities resolved" >&2
-                    exit 1
-                  fi
-
-                  # kopiur is live on every VolSync-protected claim in the
-                  # fleet. A successful query that returns zero rows means
-                  # discovery broke (wrong API group, empty list, filter
-                  # mismatch), not that the fleet is kopiur-free. A per-claim
-                  # missing kopiur identity stays legal and reports NA - only
-                  # a globally empty map is fatal.
+                  # A successful query that returns zero rows means discovery
+                  # broke (wrong API group, empty list, filter mismatch), not
+                  # that the fleet is kopiur-free. Only a globally empty map
+                  # is fatal.
                   if [[ -z "${KP_TSV}" ]]; then
                     echo "FATAL: kubectl get snapshotpolicies returned zero mover identities; no readability conclusion can be drawn" >&2
                     exit 1
@@ -164,41 +144,31 @@ spec:
                     exit 1
                   fi
 
-                  declare -A CLAIMS=() VS_U=() VS_G=() KP_U=() KP_G=()
-                  declare -A VS_CONFLICT=() KP_CONFLICT=()
+                  declare -A CLAIMS=() KP_U=() KP_G=() KP_CONFLICT=()
 
-                  # A claim has 3 ReplicationSources (ceph/minio/r2) and 2
-                  # SnapshotPolicies (ceph/r2). They are expected to agree on
-                  # the mover identity; if they do not, one destination is
-                  # measuring something the other is not, which is itself a
-                  # finding rather than something to silently pick a winner for.
+                  # A claim has 2 SnapshotPolicies (ceph/r2). They are expected
+                  # to agree on the mover identity; if they do not, one
+                  # destination is measuring something the other is not, which
+                  # is itself a finding rather than something to silently pick
+                  # a winner for.
                   load_ids() {
-                    local kind="$1" ns pvc u g key
+                    local ns pvc u g key
                     while IFS=$'\t' read -r ns pvc u g; do
                       [[ -z "${ns}" ]] && continue
                       key="${ns}/${pvc}"
                       CLAIMS["${key}"]=1
-                      if [[ "${kind}" == "vs" ]]; then
-                        if [[ -n "${VS_U[${key}]:-}" ]] &&
-                           { [[ "${VS_U[${key}]}" != "${u}" ]] || [[ "${VS_G[${key}]}" != "${g}" ]]; }; then
-                          VS_CONFLICT["${key}"]=1
-                        fi
-                        VS_U["${key}"]="${u}"; VS_G["${key}"]="${g}"
-                      else
-                        if [[ -n "${KP_U[${key}]:-}" ]] &&
-                           { [[ "${KP_U[${key}]}" != "${u}" ]] || [[ "${KP_G[${key}]}" != "${g}" ]]; }; then
-                          KP_CONFLICT["${key}"]=1
-                        fi
-                        KP_U["${key}"]="${u}"; KP_G["${key}"]="${g}"
+                      if [[ -n "${KP_U[${key}]:-}" ]] &&
+                         { [[ "${KP_U[${key}]}" != "${u}" ]] || [[ "${KP_G[${key}]}" != "${g}" ]]; }; then
+                        KP_CONFLICT["${key}"]=1
                       fi
+                      KP_U["${key}"]="${u}"; KP_G["${key}"]="${g}"
                     # Trailing newline is load-bearing: command substitution
                     # strips every trailing newline, and `while read` then
                     # drops the final row on EOF-without-newline. Same gotcha
                     # pvc-writable-check documents.
-                    done < <(printf '%s\n' "$2")
+                    done < <(printf '%s\n' "$1")
                   }
-                  load_ids vs "${VS_TSV}"
-                  load_ids kp "${KP_TSV}"
+                  load_ids "${KP_TSV}"
 
                   declare -A T_POD=() T_CTR=() T_PATH=() HAS_ROOT_MOUNT=() HAS_SUBPATH=() HAS_POD=()
                   while IFS=$'\t' read -r ns pvc kind running pod ctr mp; do
@@ -247,15 +217,13 @@ spec:
                   UNMEASURED_NS_EXCLUDED=0; UNMEASURED_UNMOUNTED=0; UNMEASURED_SUBPATH=0
                   UNMEASURED_NOT_RUNNING=0; UNMEASURED_NO_TOOLS=0; UNMEASURED_RBAC=0
                   UNMEASURED_TRANSIENT=0
-                  VS_CLAIMS_WITH_UNREADABLE=0; VS_TOTAL_UNREADABLE=0
-                  declare -a FAILURES=() INCONCLUSIVE=() VS_REPORT=() UNMEASURED=()
+                  declare -a FAILURES=() INCONCLUSIVE=() UNMEASURED=()
 
                   for key in $(printf '%s\n' "${!CLAIMS[@]}" | sort); do
                     COVERED=$((COVERED + 1))
                     ns="${key%%/*}"; pvc="${key#*/}"
-                    vsu="${VS_U[${key}]:--1}"; vsg="${VS_G[${key}]:--1}"
                     kpu="${KP_U[${key}]:--1}"; kpg="${KP_G[${key}]:--1}"
-                    ids="volsync=${vsu}:${vsg} kopiur=${kpu}:${kpg}"
+                    ids="kopiur=${kpu}:${kpg}"
 
                     # Disagreeing destinations: report before measuring, and
                     # fail on the kopiur side because one of the two policies
@@ -263,9 +231,6 @@ spec:
                     if [[ -n "${KP_CONFLICT[${key}]:-}" ]]; then
                       echo "FINDING (kopiur mover identity differs between this claim's SnapshotPolicies) ${key}"
                       FAILURES+=("${key} - kopiur SnapshotPolicies disagree on the mover identity")
-                    fi
-                    if [[ -n "${VS_CONFLICT[${key}]:-}" ]]; then
-                      echo "REPORT  (volsync mover identity differs between this claim's ReplicationSources) ${key}"
                     fi
 
                     excluded=false
@@ -299,9 +264,11 @@ spec:
 
                     # walk.sh is read-only (find + stat). The mount path comes
                     # from the cluster's own pod specs and is passed as its own
-                    # argv element, never spliced into a shell string.
+                    # argv element, never spliced into a shell string. The two
+                    # -1 slots are the walker's unused legacy uid/gid arguments;
+                    # -1 switches that measurement off.
                     OUT=$(timeout "${EXEC_TIMEOUT}" kubectl exec -n "${ns}" "${pod}" -c "${ctr}" -i -- \
-                            sh -s -- "${mp}" "${vsu}" "${vsg}" "${kpu}" "${kpg}" < /walk/walk.sh 2>&1)
+                            sh -s -- "${mp}" -1 -1 "${kpu}" "${kpg}" < /walk/walk.sh 2>&1)
                     RC=$?
 
                     # Substring tests use bash `case`, never a `<<<` here-string:
@@ -341,7 +308,6 @@ spec:
 
                     we="${V[WALK_ERRORS]:-}"
                     kpf="${V[KP_UNREADABLE_FILES]:-}"; kpd="${V[KP_UNTRAVERSABLE_DIRS]:-}"
-                    vsf="${V[VS_UNREADABLE_FILES]:-}"; vsd="${V[VS_UNTRAVERSABLE_DIRS]:-}"
                     stats="files=${V[FILES]:-?} dirs=${V[DIRS]:-?} symlinks=${V[SYMLINKS]:-?} other=${V[UNCLASSIFIED]:-?} lost+found=${V[LOST_FOUND]:-?}"
 
                     # A non-zero walk error count means some subtree was not
@@ -356,26 +322,14 @@ spec:
 
                     MEASURED=$((MEASURED + 1))
 
-                    # VolSync is report-only: it stages its clone WRITABLE, so
-                    # kubelet's recursive fsGroup walk rewrites ownership and
-                    # permissions before restic opens anything. A non-zero count
-                    # here is what restic would face WITHOUT that rescue - it
-                    # becomes actionable the moment that mount stops being
-                    # writable, so it is collected and printed, never alerted.
-                    if [[ "${vsf}" != "NA" ]] && { [[ "${vsf}" != "0" ]] || [[ "${vsd}" != "0" ]]; }; then
-                      VS_CLAIMS_WITH_UNREADABLE=$((VS_CLAIMS_WITH_UNREADABLE + 1))
-                      VS_TOTAL_UNREADABLE=$((VS_TOTAL_UNREADABLE + vsf))
-                      VS_REPORT+=("${key} at ${vsu}:${vsg} - ${vsf} unreadable file(s), ${vsd} untraversable dir(s) (masked by VolSync's fsGroup rescue)")
-                    fi
-
                     if [[ "${kpf}" == "NA" ]]; then
-                      echo "OK      (kopiur does not cover this claim) ${key} ${ids} ${stats} volsync_unreadable=${vsf}/${vsd}"
+                      echo "OK      (kopiur does not cover this claim) ${key} ${ids} ${stats}"
                       CLEAN=$((CLEAN + 1))
                     elif [[ "${kpf}" != "0" || "${kpd}" != "0" ]]; then
-                      echo "FINDING (kopiur mover cannot read this volume) ${key} ${ids} ${stats} kopiur_unreadable_files=${kpf} kopiur_untraversable_dirs=${kpd} volsync_unreadable=${vsf}/${vsd}"
+                      echo "FINDING (kopiur mover cannot read this volume) ${key} ${ids} ${stats} kopiur_unreadable_files=${kpf} kopiur_untraversable_dirs=${kpd}"
                       FAILURES+=("${key} - kopiur mover ${kpu}:${kpg} cannot read ${kpf} file(s) and cannot traverse ${kpd} director(y|ies) (pod ${pod}, container ${ctr}, path ${mp})")
                     else
-                      echo "OK      ${key} ${ids} ${stats} volsync_unreadable=${vsf}/${vsd}"
+                      echo "OK      ${key} ${ids} ${stats}"
                       CLEAN=$((CLEAN + 1))
                     fi
                   done
@@ -385,20 +339,11 @@ spec:
                   echo "  claims_covered_by_a_backup_engine=${COVERED} measured=${MEASURED} clean=${CLEAN}"
                   echo "  unmeasured: namespace_excluded=${UNMEASURED_NS_EXCLUDED} unmounted=${UNMEASURED_UNMOUNTED} subpath_only=${UNMEASURED_SUBPATH} no_running_container=${UNMEASURED_NOT_RUNNING} no_tools=${UNMEASURED_NO_TOOLS} rbac=${UNMEASURED_RBAC} transient=${UNMEASURED_TRANSIENT}"
                   echo "  kopiur_findings=${#FAILURES[@]} inconclusive=${#INCONCLUSIVE[@]}"
-                  echo "  volsync (report-only): claims_with_unreadable_entries=${VS_CLAIMS_WITH_UNREADABLE} total_unreadable_files=${VS_TOTAL_UNREADABLE}"
 
                   if [[ ${#UNMEASURED[@]} -gt 0 ]]; then
                     echo ""
                     echo "UNMEASURED - these claims were NOT proven readable and must not be read as passing:"
                     printf '  - %s\n' "${UNMEASURED[@]}"
-                  fi
-
-                  if [[ ${#VS_REPORT[@]} -gt 0 ]]; then
-                    echo ""
-                    echo "VOLSYNC REPORT-ONLY - raw permissions its mover uid cannot read, currently masked by"
-                    echo "the kubelet fsGroup rescue on its writable staged clone. Not a failure today; it"
-                    echo "becomes one the moment that staged mount stops being writable:"
-                    printf '  - %s\n' "${VS_REPORT[@]}"
                   fi
 
                   if [[ ${#INCONCLUSIVE[@]} -gt 0 ]]; then
@@ -412,7 +357,7 @@ spec:
                     echo ""
                     echo "FAILURES - kopiur's mover cannot read data it is configured to back up."
                     echo "kopia fails closed on the first unreadable file, so these claims are at risk of"
-                    echo "having NO usable backup from the engine that survives the VolSync retirement:"
+                    echo "having NO usable backup:"
                     printf '  - %s\n' "${FAILURES[@]}"
                   fi
 
