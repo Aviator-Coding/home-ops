@@ -112,5 +112,5 @@ spec:
     substitute:
       APP: syncthing-data
       KOPIUR_CLAIM: syncthing-data
-      KOPIUR_CACHE_CAPACITY: 5Gi
+      KOPIUR_CACHE_CAPACITY: 15Gi
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
