@@ -272,8 +272,11 @@ RETIRED: dict[str, Retired] = {
 
 # Components a retired claim Kustomization may carry besides the backup ones. Each
 # renders neither a PersistentVolumeClaim nor a backup object, so it cannot
-# collide with or replace the claim. paperless-ngx needs its Dragonfly cache.
-NON_BACKUP_COMPONENTS = {"../../../../../components/dragonfly"}
+# collide with or replace the claim. Keyed by claim so the exemption cannot
+# spread to another overlay: paperless-ngx needs its Dragonfly cache.
+NON_BACKUP_COMPONENTS = {
+    "selfhosted/paperless-ngx": {"../../../../../components/dragonfly"},
+}
 
 # Restore-proof finding 2 / the 2026-09-02 cache gate: an r2 restore needs
 # materially more kopia cache than the same restore from ceph, required cache is
@@ -679,10 +682,11 @@ def test_retired_overlays_keep_the_claim() -> None:
         # retained split shape carries only the pvc one here and the kopiur
         # backup half in its own Kustomization, asserted just below.
         want = [KOPIUR_PVC_COMPONENT] if v.backup_ks else [KOPIUR_COMPONENT, KOPIUR_PVC_COMPONENT]
-        backup_comps = [c for c in comps if c not in NON_BACKUP_COMPONENTS]
+        extra = NON_BACKUP_COMPONENTS.get(key, set())
+        backup_comps = [c for c in comps if c not in extra]
         require(
             backup_comps == want,
-            f"{key}: components (less {sorted(NON_BACKUP_COMPONENTS)}) must be exactly {want}, "
+            f"{key}: components (less {sorted(extra)}) must be exactly {want}, "
             f"got {comps}. The pvc Component is NOT "
             f"optional: volsync's pvc.yaml was the only manifest emitting this claim and the "
             f"overlay runs prune: true, so dropping both deletes the data volume.",
