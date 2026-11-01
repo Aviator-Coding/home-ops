@@ -11,13 +11,18 @@ Imports `is_blocked(command) -> str | None` from the hook file and checks:
   1. every write form in BLOCKED returns a reason;
   2. every read form in ALLOWED returns None;
   3. the hook entrypoint exits 2 with the reason on stderr for a blocked
-     command, and 0 for an allowed one, given Claude Code's hook JSON.
+     command, and 0 for an allowed one, given Claude Code's hook JSON;
+  4. the inherited environment (#2208): a KUBECONFIG/TALOSCONFIG entry that is
+     not an agent file refuses every command, and an unset one refuses the
+     cluster clients that would fall back to the owner's ~/.kube/config or
+     ~/.talos/config. Entrypoint runs pass an explicit env (CI has none).
 """
 
 from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -89,6 +94,10 @@ BLOCKED = [
     "git push origin :feat/x",
     "helm upgrade x oci://y",
     "just talos apply-node talos-1",
+    # Unsetting a credential var makes the client fall back to the owner's default file.
+    "unset KUBECONFIG; kubectl get pods",
+    "env -u KUBECONFIG kubectl get pods -A",
+    "env --unset=TALOSCONFIG talosctl version",
 ]
 
 ALLOWED = [
@@ -116,6 +125,65 @@ ALLOWED = [
     "helm template x oci://y --version 1",
     "just talos render-config talos-1",
     "echo 'a && kubectl delete pod x'",
+]
+
+AGENT_ENV = {"KUBECONFIG": "/Users/x/.kube/home-ops-agent", "TALOSCONFIG": "/Users/x/.talos/home-ops-agent"}
+STALE_KUBECONFIG = "/Users/x/Projects/home-ops/kubeconfig"
+STALE_TALOSCONFIG = "/Users/x/Projects/home-ops/talos/talosconfig"
+
+# Inherited environments env_credential_reason() must refuse (name, environ, variable named).
+ENV_REFUSED = [
+    ("stale repo kubeconfig", {**AGENT_ENV, "KUBECONFIG": STALE_KUBECONFIG}, "KUBECONFIG"),
+    ("stale repo talosconfig", {**AGENT_ENV, "TALOSCONFIG": STALE_TALOSCONFIG}, "TALOSCONFIG"),
+    ("list with one non-agent entry",
+     {**AGENT_ENV, "KUBECONFIG": f"{AGENT_ENV['KUBECONFIG']}{os.pathsep}/Users/x/.kube/config"}, "KUBECONFIG"),
+]
+ENV_ACCEPTED = [
+    ("agent files", AGENT_ENV),
+    ("both unset", {}),
+    ("empty string is unset", {"KUBECONFIG": "", "TALOSCONFIG": ""}),
+    ("empty list entries skipped", {**AGENT_ENV, "KUBECONFIG": f"{os.pathsep}{AGENT_ENV['KUBECONFIG']}{os.pathsep}"}),
+]
+
+NO_KUBECONFIG = {"TALOSCONFIG": AGENT_ENV["TALOSCONFIG"]}
+NO_TALOSCONFIG = {"KUBECONFIG": AGENT_ENV["KUBECONFIG"]}
+# (environ, command) pairs fallback_credential_reason() must refuse: the client
+# would read ~/.kube/config or ~/.talos/config, which hold admin credentials.
+FALLBACK_REFUSED = [
+    (NO_KUBECONFIG, "kubectl get pods"),
+    ({**NO_KUBECONFIG, "KUBECONFIG": ""}, "kubectl get pods"),
+    (NO_KUBECONFIG, "kubectl-rook-ceph ceph status"),
+    (NO_KUBECONFIG, "flux get ks -A"),
+    (NO_KUBECONFIG, "helm list -A"),
+    (NO_KUBECONFIG, "k9s"),
+    (NO_KUBECONFIG, "stern -n ai x"),
+    (NO_KUBECONFIG, "kubecolor get pods"),
+    (NO_KUBECONFIG, "cilium status"),
+    (NO_KUBECONFIG, "helmfile -f x.yaml list"),
+    (NO_KUBECONFIG, "just kube view-secret ai x"),
+    (NO_KUBECONFIG, "git status && kubectl get ns"),
+    (NO_KUBECONFIG, "bash -c 'kubectl get ns'"),
+    (NO_KUBECONFIG, "echo $(kubectl get ns)"),
+    (NO_KUBECONFIG, "env FOO=1 /usr/local/bin/kubectl get ns"),
+    (NO_KUBECONFIG, "mise exec -- kubectl get pods"),
+    (NO_KUBECONFIG, "echo x | xargs kubectl get"),
+    (NO_TALOSCONFIG, "talosctl version"),
+    ({**NO_TALOSCONFIG, "TALOSCONFIG": ""}, "talosctl -n 10.10.10.11 get members"),
+    ({}, "talosctl version"),
+]
+FALLBACK_ACCEPTED = [
+    (NO_KUBECONFIG, "git status"),
+    (NO_KUBECONFIG, "gh pr view 12"),
+    (NO_KUBECONFIG, "python3 scripts/ci/agent-guard-test.py"),
+    (NO_KUBECONFIG, "flate test all --path kubernetes/clusters/main"),
+    (NO_KUBECONFIG, "mise exec -- flate test all --path kubernetes/clusters/main"),
+    (NO_KUBECONFIG, "grep -r kubectl docs/"),
+    (NO_KUBECONFIG, "task flux:test:all"),
+    (NO_KUBECONFIG, "talosctl -n 10.10.10.11 get members"),
+    (NO_TALOSCONFIG, "kubectl get pods -A"),
+    (NO_TALOSCONFIG, "just talos render-config talos-1"),
+    (AGENT_ENV, "kubectl get pods -A"),
+    (AGENT_ENV, "talosctl version"),
 ]
 
 failures: list[str] = []
@@ -147,11 +215,29 @@ def test_allows_reads(guard) -> None:
         check(reason is None, f"allows: {cmd}" + (f" (got {reason!r})" if reason else ""))
 
 
+def test_inherited_env(guard) -> None:
+    for name, environ, var in ENV_REFUSED:
+        reason = guard.env_credential_reason(environ)
+        check(reason is not None and var in reason and "home-ops-agent" in reason,
+              f"env refused: {name} (got {reason!r})")
+    for name, environ in ENV_ACCEPTED:
+        reason = guard.env_credential_reason(environ)
+        check(reason is None, f"env accepted: {name}" + (f" (got {reason!r})" if reason else ""))
+    for environ, cmd in FALLBACK_REFUSED:
+        reason = guard.fallback_credential_reason(cmd, environ)
+        check(reason is not None, f"fallback refused with {sorted(environ)} set: {cmd}")
+    for environ, cmd in FALLBACK_ACCEPTED:
+        reason = guard.fallback_credential_reason(cmd, environ)
+        check(reason is None, f"fallback allowed with {sorted(environ)} set: {cmd}"
+              + (f" (got {reason!r})" if reason else ""))
+
+
 def test_hook_entrypoint() -> None:
-    def run(cmd: str) -> subprocess.CompletedProcess:
+    def run(cmd: str, environ: dict[str, str] = AGENT_ENV) -> subprocess.CompletedProcess:
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
         return subprocess.run(
-            [sys.executable, str(GUARD)], input=payload, capture_output=True, text=True
+            [sys.executable, str(GUARD)], input=payload, capture_output=True, text=True,
+            env={"PATH": os.defpath, **environ},
         )
 
     blocked = run("kubectl -n ai delete pod x")
@@ -162,9 +248,19 @@ def test_hook_entrypoint() -> None:
     other = subprocess.run(
         [sys.executable, str(GUARD)],
         input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "x"}}),
-        capture_output=True, text=True,
+        capture_output=True, text=True, env={"PATH": os.defpath, **AGENT_ENV},
     )
     check(other.returncode == 0, "hook ignores non-Bash tools")
+    stale = run("git status", {**AGENT_ENV, "KUBECONFIG": STALE_KUBECONFIG})
+    check(stale.returncode == 2 and "KUBECONFIG" in stale.stderr,
+          f"hook exits 2 for an inherited non-agent KUBECONFIG (rc={stale.returncode})")
+    admin = run("git status", {**AGENT_ENV, "HOME_OPS_KUBECONFIG": "/Users/x/.kube/home-ops-admin"})
+    check(admin.returncode == 2, f"hook exits 2 when HOME_OPS_KUBECONFIG is set (rc={admin.returncode})")
+    unset = run("kubectl get pods -A", NO_KUBECONFIG)
+    check(unset.returncode == 2 and "KUBECONFIG" in unset.stderr,
+          f"hook exits 2 for kubectl with KUBECONFIG unset (rc={unset.returncode})")
+    unset_git = run("git status", {})
+    check(unset_git.returncode == 0, f"hook exits 0 for git status with nothing set (rc={unset_git.returncode})")
 
 
 def main() -> int:
@@ -174,6 +270,7 @@ def main() -> int:
     guard = load_guard()
     test_blocks_writes(guard)
     test_allows_reads(guard)
+    test_inherited_env(guard)
     test_hook_entrypoint()
     print(f"Summary: {len(failures)} failed")
     return 1 if failures else 0

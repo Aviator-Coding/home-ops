@@ -12,6 +12,12 @@ Claude Code calls it as a PreToolUse hook (`.claude/settings.json`): it reads
 the hook JSON on stdin and exits 2 with the reason on stderr to block. Other
 harnesses (Hermes) can import `is_blocked(command) -> str | None`.
 
+The hook also checks the environment the session inherited (#2208): a
+KUBECONFIG/TALOSCONFIG entry that is not an `*-agent` file refuses every
+command (`env_credential_reason`), and an unset one refuses the cluster clients
+that would fall back to ~/.kube/config or ~/.talos/config
+(`fallback_credential_reason`). `is_blocked` stays a function of the command.
+
 Stdlib only. Tested by scripts/ci/agent-guard-test.py.
 """
 
@@ -22,6 +28,7 @@ import os
 import re
 import shlex
 import sys
+from collections.abc import Iterator, Mapping
 
 SEPARATORS = {"&&", "||", ";", "|", "&", "|&", ";;", "(", ")"}
 
@@ -75,6 +82,13 @@ FLUX_VALUE_FLAGS = {"-n", "--namespace", "--kubeconfig", "--context", "--timeout
 CREDENTIAL_FLAGS = {"--kubeconfig", "--talosconfig"}
 CREDENTIAL_VARS = {"KUBECONFIG", "TALOSCONFIG"}
 ADMIN_MARKERS = ("home-ops-admin", "HOME_OPS_KUBECONFIG", "HOME_OPS_TALOSCONFIG")
+UNSET_FLAGS = {"-u", "--unset"}
+
+# Cluster clients and the variable each reads; unset, they fall back to FALLBACK_FILES.
+KUBE_CLIENTS = {"kubectl", "kubecolor", "flux", "helm", "helmfile", "k9s", "stern", "cilium"}
+FALLBACK_FILES = {"KUBECONFIG": "~/.kube/config", "TALOSCONFIG": "~/.talos/config"}
+FRESH_SHELL = ("start agents from a fresh shell in the repo so mise sets "
+               "~/.kube/home-ops-agent and ~/.talos/home-ops-agent")
 
 GIT_VALUE_FLAGS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 GIT_FORCE_FLAGS = {"--force", "-f", "--force-with-lease", "--force-if-includes", "--delete", "-d", "--mirror", "--prune"}
@@ -148,6 +162,9 @@ def _credential_reason(words: list[str]) -> str | None:
         if any(marker in word for marker in ADMIN_MARKERS):
             return "references the owner's admin credentials; agents use ~/.kube/home-ops-agent"
         name, eq, value = word.partition("=")
+        if (eq and name == "--unset" and value in CREDENTIAL_VARS) or (
+                word in CREDENTIAL_VARS and ("unset" in words[:k] or (k and words[k - 1] in UNSET_FLAGS))):
+            return f"unsetting {value or word} makes the client fall back to the owner's default config"
         if eq and (name in CREDENTIAL_FLAGS or name in CREDENTIAL_VARS):
             candidate = value
         elif word in CREDENTIAL_FLAGS and k + 1 < len(words):
@@ -218,7 +235,55 @@ def _gh_api_method(words: list[str]) -> str | None:
     return None
 
 
-def _check_simple(words: list[str], depth: int) -> str | None:
+def _nested(words: list[str]) -> tuple[str | None, str | None]:
+    """For a shell or eval: (the command it runs, None), or (None, why it cannot be read)."""
+    words = _strip_wrappers(words)
+    if not words:
+        return None, None
+    prog = _basename(words[0])
+    args = words[1:]
+    if prog == "eval":
+        return " ".join(args), None
+    if prog not in SHELLS:
+        return None, None
+    if "<<<" in args:
+        i = args.index("<<<")
+        return (args[i + 1] if i + 1 < len(args) else None), None
+    if any(w in {"<", "<<"} for w in args):
+        return None, f"{prog} reading commands from a redirect cannot be checked; pass them with -c"
+    for i, word in enumerate(args):
+        if word.startswith("-") and not word.startswith("--") and "c" in word[1:]:
+            rest = [w for w in args[i + 1:] if w != "--"]
+            return (rest[0] if rest else None), None
+    if not [w for w in args if not w.startswith("-")]:
+        return None, f"{prog} reading commands from stdin cannot be checked; pass them with -c"
+    return None, None
+
+
+def _walk(command: str, depth: int = 0) -> Iterator[tuple[list[str], str | None]]:
+    """Every simple command, inside shells, eval and $(...) too, as (words, None);
+    ([], reason) where part of the command cannot be read."""
+    if depth > 5:
+        yield [], "command nests shells too deeply to check"
+        return
+    command = _strip_heredocs(command)
+    try:
+        segments = _segments(command)
+    except ValueError:
+        yield [], "command could not be parsed (unbalanced quotes); not run"
+        return
+    for words in segments:
+        yield words, None
+        inner, reason = _nested(words)
+        if reason:
+            yield [], reason
+        elif inner is not None:
+            yield from _walk(inner, depth + 1)
+    for inner in _substitutions(command):
+        yield from _walk(inner, depth + 1)
+
+
+def _check_simple(words: list[str]) -> str | None:
     reason = _credential_reason(words)
     if reason:
         return reason
@@ -226,23 +291,6 @@ def _check_simple(words: list[str], depth: int) -> str | None:
     if not words:
         return None
     prog = _basename(words[0])
-
-    if prog in SHELLS:
-        args = words[1:]
-        if "<<<" in args:
-            i = args.index("<<<")
-            return _check(args[i + 1], depth + 1) if i + 1 < len(args) else None
-        if any(w in {"<", "<<"} for w in args):
-            return f"{prog} reading commands from a redirect cannot be checked; pass them with -c"
-        for i, word in enumerate(args):
-            if word.startswith("-") and not word.startswith("--") and "c" in word[1:]:
-                rest = [w for w in args[i + 1:] if w != "--"]
-                return _check(rest[0], depth + 1) if rest else None
-        if not [w for w in args if not w.startswith("-")]:
-            return f"{prog} reading commands from stdin cannot be checked; pass them with -c"
-        return None
-    if prog == "eval":
-        return _check(" ".join(words[1:]), depth + 1)
 
     if prog == "kubectl":
         pos = _positional(words, KUBECTL_VALUE_FLAGS)
@@ -344,28 +392,60 @@ def _check_simple(words: list[str], depth: int) -> str | None:
     return None
 
 
-def _check(command: str, depth: int = 0) -> str | None:
-    if depth > 5:
-        return "command nests shells too deeply to check"
-    command = _strip_heredocs(command)
-    try:
-        segments = _segments(command)
-    except ValueError:
-        return "command could not be parsed (unbalanced quotes); not run"
-    for words in segments:
-        reason = _check_simple(words, depth)
-        if reason:
-            return reason
-    for inner in _substitutions(command):
-        reason = _check(inner, depth + 1)
+def is_blocked(command: str) -> str | None:
+    """Return why `command` is owner-only, or None when an agent may run it."""
+    for words, reason in _walk(command):
+        reason = reason or _check_simple(words)
         if reason:
             return reason
     return None
 
 
-def is_blocked(command: str) -> str | None:
-    """Return why `command` is owner-only, or None when an agent may run it."""
-    return _check(command)
+def env_credential_reason(environ: Mapping[str, str]) -> str | None:
+    """Why the inherited KUBECONFIG/TALOSCONFIG are not agent files, or None.
+    Empty values and empty list entries count as unset."""
+    stale = sorted(
+        var for var in CREDENTIAL_VARS
+        if any(not _basename(entry).endswith("-agent")
+               for entry in environ.get(var, "").split(os.pathsep) if entry)
+    )
+    if not stale:
+        return None
+    return (f"this session inherited {' and '.join(stale)} naming a file that is not an agent "
+            f"credential (*-agent); {FRESH_SHELL}")
+
+
+def _client_var(words: list[str]) -> tuple[str, str] | None:
+    """(credential variable, program) when `words` runs a cluster client."""
+    words = _strip_wrappers(words)
+    if not words:
+        return None
+    prog = _basename(words[0])
+    if prog in KUBE_CLIENTS or prog.startswith("kubectl-"):
+        return "KUBECONFIG", prog
+    if prog == "talosctl":
+        return "TALOSCONFIG", prog
+    if prog == "just":
+        pos = _positional(words, set())
+        if pos and (pos[0] == "kube" or pos[0].startswith("kube::")):
+            return "KUBECONFIG", "just kube"
+    return None
+
+
+def fallback_credential_reason(command: str, environ: Mapping[str, str]) -> str | None:
+    """Why `command` would run a cluster client whose variable is unset or empty (so it
+    reads the owner's default file), or None. Fails closed on unreadable commands."""
+    missing = {var for var in CREDENTIAL_VARS if not environ.get(var)}
+    if not missing:
+        return None
+    for words, reason in _walk(command):
+        if reason:
+            return reason
+        client = _client_var(words)
+        if client and client[0] in missing:
+            var, prog = client
+            return f"{var} is not set, so {prog} would read {FALLBACK_FILES[var]} (owner credentials); {FRESH_SHELL}"
+    return None
 
 
 def main() -> int:
@@ -382,7 +462,8 @@ def main() -> int:
               "set (owner admin credentials); start agents from a shell without it", file=sys.stderr)
         return 2
     command = (payload.get("tool_input") or {}).get("command") or ""
-    reason = is_blocked(command)
+    reason = (env_credential_reason(os.environ) or is_blocked(command)
+              or fallback_credential_reason(command, os.environ))
     if reason:
         print(f"Blocked by .claude/hooks/guard.py: {reason}", file=sys.stderr)
         return 2
