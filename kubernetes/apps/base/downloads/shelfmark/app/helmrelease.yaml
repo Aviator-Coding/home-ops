@@ -51,8 +51,8 @@ spec:
                 value: en
               - name: USE_BOOK_TITLE
                 value: "true"
-              # Usenet only: Prowlarr finds releases, SABnzbd downloads them to the shared
-              # volume at the same path SABnzbd reports.
+              # Usenet path (no torrents): Prowlarr finds releases, SABnzbd downloads them to the
+              # shared volume at the same path SABnzbd reports. Direct HTTP downloads are below.
               - name: PROWLARR_ENABLED
                 value: "true"
               - name: PROWLARR_URL
