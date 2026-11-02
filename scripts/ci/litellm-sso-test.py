@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Behavioral checks for LiteLLM UI SSO through Authentik.
 
 This is the seam between the already-applied Authentik half and the still-pending
@@ -26,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import urllib.error
@@ -69,6 +71,15 @@ class EdgeBlocked(Exception):
     """
 
 
+class HostUnresolvable(EdgeBlocked):
+    """The runner cannot resolve the host (litellm.<domain> is envoy-internal only).
+
+    Only the litellm host is internal-only; DNS failures on public hosts stay errors.
+    The public CI runner has no route to internal-only names, so a DNS failure
+    says nothing about the manifests under test and is reported as skipped.
+    """
+
+
 def _http(
     url: str,
     *,
@@ -95,6 +106,10 @@ def _http(
         if exc.code == 403 and body.strip().startswith(b"error code: 10"):
             raise EdgeBlocked(f"HTTP 403 {body.strip().decode(errors='replace')} from {url}") from exc
         return exc.code, headers, body
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, socket.gaierror) and urlparse(url).hostname == urlparse(LITELLM_BASE).hostname:
+            raise HostUnresolvable(f"DNS resolution failed for {url}: {exc.reason}") from exc
+        raise
 
 
 def _env_from_proxy_cr() -> dict[str, str]:
@@ -572,7 +587,7 @@ def main() -> int:
             print(f"PASS  {name}")
         except EdgeBlocked as exc:
             report["results"][name] = {"status": "skip", "reason": str(exc)}
-            print(f"SKIP  {name}: Cloudflare edge block, live probe inconclusive ({exc})")
+            print(f"SKIP  {name}: live probe inconclusive ({exc})")
         except Failure as exc:
             report["results"][name] = {"status": "fail", "error": str(exc)}
             report["ok"] = False

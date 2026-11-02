@@ -368,9 +368,20 @@ spec:
           type: ClusterRole
           rules:
             - apiGroups: [""]
-              resources: [pods, pods/log, nodes, services, namespaces, configmaps,
-                persistentvolumes, persistentvolumeclaims, endpoints, resourcequotas,
-                limitranges, serviceaccounts, events]
+              resources:
+                - pods
+                - pods/log
+                - nodes
+                - services
+                - namespaces
+                - configmaps
+                - persistentvolumes
+                - persistentvolumeclaims
+                - endpoints
+                - resourcequotas
+                - limitranges
+                - serviceaccounts
+                - events
               verbs: [get, list, watch]
             - apiGroups: [apps]
               resources: [deployments, daemonsets, statefulsets, replicasets, controllerrevisions]

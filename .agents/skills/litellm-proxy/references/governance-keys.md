@@ -72,14 +72,12 @@ This is also why the "inert" `maxBudget` on `repo-wiki`, `ai-pr-review` and
 `embedding-external` stays: deleting it would not remove the live cap, and it
 is the guard that matters the moment someone widens `models` to a priced alias.
 
-## Trap: never `spec.metadata` on `jev-decisions`
+## Jev keys allow-list the alias
 
-That key's pass-through grant lives only in LiteLLM's DB
-([passthrough-lockdown.md](passthrough-lockdown.md)). The operator re-sends
-the spec on every reconcile; with no `spec.metadata` it sends no metadata and
-LiteLLM keeps the grant. Declaring `spec.metadata` makes LiteLLM replace the
-whole object and silently deletes the grant.
-`scripts/ci/litellm-passthrough-lockdown-test.py` refuses it.
+Keys reach the Jev decision model through the `jev` alias on `/v1/decisions`
+([model-catalog.md](model-catalog.md)). No key carries a pass-through grant;
+`scripts/ci/litellm-passthrough-lockdown-test.py` refuses any
+`allowed_passthrough_routes` and any raw `typesafe/` id in a `models` list.
 
 ## Trap: per-key `aliases` grant nothing
 
@@ -125,8 +123,7 @@ Spend accrues from the model's price (built-in cost map for cloud models,
   OpenRouter included. It is the only cap on the Aviator org route: there is
   deliberately no `routerSettings.provider_budget_config`, which is keyed on the
   provider name and would also filter the subscription pass-throughs and every
-  other key. The key's `typesafe/jev-1.13` entry does not open
-  `/openrouter/alpha/decisions`.
+  other key. Its `jev` entry opens `/v1/decisions` only, never a pass-through.
 
 ## Budgetless keys (CI-asserted exact set)
 
@@ -161,11 +158,11 @@ reason:
 | `mac-gnhf` | `chat-local` | captain's Mac loop, off-cluster |
 | `embedding-external` | `embedding-local` | external embedding callers; its rpm is per key, the model-level `rpm` on `embedding-local` (model-catalog.md) caps every key together to protect chat on the shared B70 |
 | `litellm-pgvector` | `qwen/qwen3-embedding-8b` only | vector store ([vector-store.md](vector-store.md)); deliberately no `embedding-local` |
-| `jev-decisions` | `typesafe/jev-1.13` | decision door, $1/30d ([passthrough-lockdown.md](passthrough-lockdown.md)); no `embedding-local` |
+| `jev-decisions` | `jev` | decision key (`/v1/decisions`), $1/30d ([model-catalog.md](model-catalog.md)); no `embedding-local` |
 | `hermes` | `chat-local`, the three `go-*` OpenCode Go models, the metered Claude/GPT routes Hermes offers, `embedding-local` | ai/hermes, its only key (provider `custom:litellm`). Own $50/30d budget covers the metered routes; `chat-local` and the flat-rate `go-*` models are $0, so `rpmLimit`/`tpmLimit` bound those. Replaces `hermes-go` and ends Hermes' sharing of `litellm-consume-projects` with OpenCode |
 | `hermes-ha` | `chat-local`, `embedding-local`, `go-glm-5.1`, `go-kimi-k2.6` | ai/hermes `home-assistant` profile (own Discord channel and MCP group). No metered route, so $0 by construction and `maxBudget` is an inert guard; rpm 60 / tpm 1000000 bound it. A separate key from `hermes` so the home-automation agent's traffic is attributable and revocable alone |
 | `linkwarden` | `chat-local`, `embedding-local` | selfhosted/linkwarden AI tagging. $0 by construction, so `maxBudget` is an inert guard; rpm 30 / tpm 200000 protect the shared B70. Per-app keys exist so spend and traffic are attributable to one app |
-| `litellm-consume-projects` | metered Anthropic org routes, `gpt-*`, `gpt-oss-20b`, `typesafe/jev-1.13`, `auto`, `embedding-local` | Aviator org consumer. $100/30d is one pool for ai/opencode provider `litellm-projects` (Hermes has its own `hermes` key now). No `spec.metadata`: the Jev id is allow-listed but the passthrough grant is not in Git |
+| `litellm-consume-projects` | metered Anthropic org routes, `gpt-*`, `gpt-oss-20b`, `jev`, `auto`, `embedding-local` | Aviator org consumer. $100/30d is one pool for ai/opencode provider `litellm-projects` (Hermes has its own `hermes` key now). |
 
 Every other key also allow-lists `embedding-local` (captain intent: every key
 may use the local embedder). It is credential-less and zero-priced, so it

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Behavioral regression test for system/pvc-writable-check.
+
+Prevents: an app that cannot write its own claim (data never persisted) while it reports
+Ready.
 
 Pins the empty-volume audit check (2026-08-30): a CronJob that discovers every
 PVC-mounting container from live pod specs and execs `test -w <mountPath>` so

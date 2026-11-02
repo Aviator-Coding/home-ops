@@ -3,7 +3,7 @@
 #
 # xe publishes no VRAM counters in sysfs, so this reads DRM fdinfo of every process holding a DRM node.
 # Needs hostPID plus CAP_SYS_PTRACE to read other pods' fd links. Read-only, no host mounts.
-# See skill intel-gpu references/telemetry.md. Contract: scripts/ci/xe-gpu-exporter-test.py.
+# See skill intel-gpu references/telemetry.md.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -45,7 +45,7 @@ spec:
           app:
             image:
               repository: docker.io/library/python
-              tag: 3.14-alpine@sha256:bc62fbcb684904b1bb81a6240041bb60e9c1ee19ddeaf17a6b4297e1cc9c95d2
+              tag: 3.14-alpine@sha256:eb2c62658b8d51bff0acc408504b76521d02030de56a8a3c1e830083e89b89d2
             command: ["python3", "-u", "/scripts/exporter.py"]
             env:
               PORT: "9105"
@@ -58,7 +58,7 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet: { path: /healthz, port: 9105 }
+                  httpGet: {path: /healthz, port: 9105}
                   periodSeconds: 30
                   timeoutSeconds: 5
               readiness: *probe

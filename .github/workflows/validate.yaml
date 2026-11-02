@@ -1,19 +1,13 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 # CI for talos/, bootstrap/, .renovate/ and terraform/. No trigger-level paths filter, so Validate - Success always posts. talosctl validate and the terraform job are schema-only; live read-only plans are terraform-diff.yaml.
-# A red check that passes on rerun is runner contention (PR #1481), not a slot shortage. Do not raise maxRunners, drop this file from the per-job filters, or serialize the jobs. Pin: scripts/ci/validate-contention-test.py.
+# Runs on GitHub-hosted ubuntu-latest through ci.yaml (since 2026-10-31), so it works while the cluster and its ARC runners are down. Pin: scripts/ci/ci-success-workflow-test.py.
 # Skill `github-ci` references/workflows.md. Apply stays behind an explicit go-ahead. Skill `authentik-terraform` references/apply-runbook.md.
 name: Validate
 
+# Called by ci.yaml, which owns the trigger and concurrency; its `CI Success` is the required check.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
-  cancel-in-progress: true
+  workflow_call: {}
 
 permissions:
   contents: read
@@ -24,13 +18,11 @@ jobs:
   # this a `.renovate/`-only PR would also run the Talos jobs.
   # Same pattern as flate.yaml / image-pull.yaml.
   filter:
-    # Fork guard. Every job in this workflow lands on the self-hosted runner, which
-    # holds node-level Talos credentials, so PR-authored code from a fork must never
-    # execute here. Mirrors labeler.yaml. Same-repo PRs are unaffected; a fork PR
-    # skips this job and, through `needs: filter`, every job below it.
+    # Fork guard, kept from the self-hosted era: a fork PR skips this job and, through
+    # `needs: filter`, every job below it. Same-repo PRs are unaffected. Mirrors labeler.yaml.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Validate - Filter
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       talos: ${{ steps.talos.outputs.changed_files }}
@@ -101,20 +93,24 @@ jobs:
             .agents/skills/**
             .claude/skills
             .claude/skills/**
+            .claude/hooks/**
+            .claude/settings.json
             .github/*.md
             kubernetes/components/**
             kubernetes/apps/base/**
             kubernetes/apps/main/**
             .github/docker/litellm-pgvector/**
             .github/workflows/validate.yaml
+            .github/workflows/ci.yaml
+            .github/workflows/flate.yaml
             .mise.toml
 
   talos:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.talos != '[]' }}
     needs: filter
     name: talos
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    # 25m: contention can stall Setup Tools past 10m. Skill `github-ci` references/workflows.md.
+    runs-on: ubuntu-latest
+    # 25m: sized for ARC contention (Setup Tools stalled past 10m, PR #1481); kept as headroom.
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -125,7 +121,7 @@ jobs:
       # minijinja-cli and talosctl come from .mise.toml so CI renders with the same
       # versions `just talos render-config` uses locally.
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: aqua:mitsuhiko/minijinja aqua:siderolabs/talos aqua:mikefarah/yq
 
@@ -136,7 +132,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.versions != '[]' }}
     needs: filter
     name: versions
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -145,7 +141,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: aqua:mikefarah/yq
 
@@ -156,7 +152,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.bootstrap != '[]' }}
     needs: filter
     name: bootstrap
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -165,7 +161,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: aqua:kubernetes-sigs/kustomize aqua:yannh/kubeconform
 
@@ -182,7 +178,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.renovate != '[]' }}
     needs: filter
     name: renovate-config
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -205,7 +201,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.terraform != '[]' }}
     needs: filter
     name: terraform
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -216,7 +212,7 @@ jobs:
       # opentofu comes from .mise.toml so CI validates with the same version the
       # runbook tells an operator to plan with.
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: opentofu
 
@@ -233,7 +229,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     needs: filter
     name: docs-guards
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     # Same mise-action Setup Tools class as talos (see the header).
     timeout-minutes: 25
     steps:
@@ -244,7 +240,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: python uv
 
@@ -260,7 +256,90 @@ jobs:
           done
           exit "${fail}"
 
+  # Standard linters over the whole tree (no path filter, like docs-guards): yamllint,
+  # actionlint, zizmor and shellcheck. Tool versions come from .mise.toml, so install_args
+  # names the tools only (scripts/ci/mise-install-args-test.py). yamlfmt is pre-commit only.
+  lint:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    needs: filter
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: python uv aqua:rhysd/actionlint pipx:zizmor aqua:koalaman/shellcheck pipx:yamllint
+
+      - name: yamllint
+        run: yamllint -s .
+
+      - name: actionlint
+        run: actionlint
+
+      - name: zizmor
+        run: zizmor --offline --min-severity medium .github/workflows
+
+      # xargs -0 instead of `shellcheck $(git ls-files ...)`: unquoted expansion is itself SC2046.
+      - name: shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck
+
   python-tests:
+    # The PR gate: only scripts/ci files marked `# ci: gate` (at most 15, each naming
+    # the data loss or outage it prevents; scripts/ci/ci-test-gate-test.py enforces it).
+    # Every other test runs in python-tests-advisory. always() keeps this job running
+    # when a sibling is skipped or failed; filter must still have succeeded.
+    if: ${{ always() && !cancelled() && needs.filter.result == 'success' && github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.pythontests != '[]' }}
+    needs:
+      - filter
+    name: python-tests
+    runs-on: ubuntu-latest
+    # Same 25m floor as the other mise jobs (sized on ARC, PR #1481; kept as headroom).
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Only what gate files call: kubectl/kustomize, promtool, jq (pvc-mover-readable-check
+      # SKIPs its CronJob-script cases without jq). Versions from .mise.toml; do not add
+      # @version here (scripts/ci/mise-install-args-test.py).
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: python uv kubectl aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:jqlang/jq
+
+      # Gate tests are offline; boto3 is for volsync-retired-expiry-test.py.
+      - name: Install Python Test Dependencies
+        run: uv pip install --system pyyaml boto3
+
+      # mapfile + count check: a process substitution's exit status is ignored, so an
+      # empty or failed grep would otherwise run zero tests and pass.
+      - name: Run gate scripts/ci tests
+        run: |
+          mapfile -t gates < <(grep -lx '# ci: gate' scripts/ci/*-test.py)
+          if (( ${#gates[@]} == 0 )); then
+            echo "FAILED: no '# ci: gate' files found"
+            exit 1
+          fi
+          fail=0
+          for f in "${gates[@]}"; do
+            echo "::group::${f}"
+            if ! python3 "${f}" </dev/null; then
+              echo "FAILED: ${f}"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "${fail}"
+
+  python-tests-advisory:
     # always() keeps this job running when a sibling is skipped (path-filter
     # miss) or failed; without it, needs: on skipped jobs would skip us too
     # and drop scripts/ci coverage. filter must still have succeeded. A
@@ -276,9 +355,12 @@ jobs:
       - renovate-config
       - terraform
       - docs-guards
-    name: python-tests
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
-    # 20m is ~2.5x the contended success time (469s). Skill `github-ci` references/workflows.md.
+    name: python-tests-advisory
+    # Advisory: never blocks a PR and is not in success.needs. Owner decision 2026-10-31
+    # (docs/goals/2026-10-30-agent-maintainable-home-ops.md). P3 keeps or deletes each test.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    # 20m is ~2.5x the ARC contended success time (469s, PR #1481); kept as headroom.
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -288,7 +370,7 @@ jobs:
 
       # Node runs docs/tdarr/flow-nodes/behavior-test.js via
       # scripts/ci/tdarr-flow-nodes-test.py (Tdarr safe-transcode recovery harness).
-      # Same setup-node pin as renovate-config; the ARC runner has no system Node.
+      # Same setup-node pin as renovate-config; pinned rather than the runner image's Node.
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -307,7 +389,7 @@ jobs:
       # which failed python-tests on every PR with "No version is set for shim:
       # promtool"). Pinned by scripts/ci/mise-install-args-test.py.
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
 
@@ -342,7 +424,7 @@ jobs:
       - name: Install Python Test Dependencies
         env:
           # renovate: datasource=docker depName=ghcr.io/berriai/litellm-non_root
-          LITELLM_VERSION: v1.106.4
+          LITELLM_VERSION: v1.106.6
         run: |
           uv pip install --system python-hcl2 "litellm[proxy]==${LITELLM_VERSION#v}"
 
@@ -350,24 +432,23 @@ jobs:
       # test_* functions and prints [PASS]/[FAIL] lines itself. See scripts/ci/README.md.
       # MINIJINJA_CONFIG_FILE is set by .mise.toml via mise-action env; schematic render
       # needs it the same way just talos / talos-validate.sh do.
-      - name: Run scripts/ci Python Regression Tests
+      # `# ci: nightly` files call the network; they run in nightly-tests.yaml, not on PRs (goal D2).
+      - name: Run advisory scripts/ci tests
         run: |
           fail=0
-          for f in scripts/ci/*-test.py; do
+          while IFS= read -r f; do
             echo "::group::${f}"
-            if ! python3 "${f}"; then
+            if ! python3 "${f}" </dev/null; then
               echo "FAILED: ${f}"
               fail=1
             fi
             echo "::endgroup::"
-          done
+          done < <(grep -LxE '# ci: (gate|nightly)' scripts/ci/*-test.py)
           exit "${fail}"
 
   success:
-    # `!cancelled()` alone would still schedule this job onto the self-hosted runner
-    # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
-    # Same pattern as flate.yaml / image-pull.yaml `success` jobs: this is the single
-    # check context safe to add to branch-protection required_status_checks, since it
+    # The fork guard is repeated so a fork PR whose upstream jobs all skipped does not run
+    # this. ci.yaml's `CI Success` reads this job's result through the workflow call; it
     # always posts (success-via-skip when every per-job filter found nothing relevant).
     if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
     needs:
@@ -378,9 +459,10 @@ jobs:
       - renovate-config
       - terraform
       - docs-guards
+      - lint
       - python-tests
     name: Validate - Success
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Any jobs failed?

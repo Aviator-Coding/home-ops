@@ -1,48 +1,37 @@
 #!/usr/bin/env python3
-"""Semantic regression for the B70 VA-API restore (tdarr + generic-device-plugin).
+"""The B70 stays reachable by VA-API (tdarr) and Level Zero (llama.cpp) at once.
 
-After PR #1443 the Arc B70 was re-exposed via generic-device-plugin under
-renamed DRM nodes (card0/renderD128). That rename is fatal to VA-API: libdrm
-ignores the path it is handed, fstat()s the fd, reads
-/sys/dev/char/<major>:<minor>/uevent, re-derives the canonical DEVNAME, and
-reopens that path. A container that only has the renamed node fails before any
-driver loads. Tdarr had no CPU fallback, so every GPU job failed.
+Prevents: a silent tdarr transcoding outage. libdrm ignores the device path it
+is handed, fstat()s the fd and reopens the kernel's canonical DEVNAME
+(`dri/renderD129`). A container that only has a renamed node fails before a
+driver loads, while Level Zero opens any render node and stays green. That
+split hid a multi-day outage after PR #1443 (fix PR #1490).
 
-This change restores transcoding by:
+Asserts on the kustomize-built generic-device-plugin app and the tdarr values:
 
-  1. Keeping the Level Zero `b70` group byte-identical (renamed paths).
-  2. Adding a SEPARATE `b70-vaapi` group that mounts the same by-path nodes at
-     the kernel's own names (card1/renderD129).
-  3. Pointing tdarr-node at `devic.es/b70-vaapi`.
-  4. Setting `transcodecpuWorkers=1` so a future name drift degrades instead of
-     causing a total outage.
-  5. Enabling the configMapGenerator name-suffix hash so a config-only edit
-     actually rolls the DaemonSet (config is a subPath mount).
+  1. `b70` keeps the renamed Level Zero layout (card0/renderD128). Editing its
+     paths also changes all 99 device IDs and drops live allocations.
+  2. `b70-vaapi` mounts the same by-path nodes at the kernel names
+     (card1/renderD129).
+  3. The config ConfigMap carries a name-suffix hash and is a subPath mount, so
+     a config edit rolls the DaemonSet (kubelet never refreshes subPath).
+  4. The plugin domain stays `devic.es`, so resource names do not change.
+  5. tdarr-node requests `devic.es/b70-vaapi`, never `devic.es/b70`; the tdarr
+     server takes no GPU; `transcodecpuWorkers=1` keeps a CPU fallback so a
+     future name drift degrades instead of failing every job; worker counts
+     match the Intel card (`healthcheckgpuWorkers=0`: the GPU health check is
+     CUDA-only).
 
-This test does not grep source text. It:
-
-  - runs `kustomize build` on the generic-device-plugin app and parses the
-    emitted ConfigMap + HelmRelease as structured objects
-  - walks the tdarr HelmRelease values as nested maps for resource keys and
-    env entries
-  - simulates the libdrm DEVNAME reopen trap against a fake /dev + /sys tree
-    (A-B-A: renamed-only fails, name-faithful succeeds, removing the canonical
-    name fails again)
-
-Live post-merge gates (vainfo / av1_qsv / real library file) remain the
-commands in skill intel-gpu references/vaapi-check.md; offline here we prove the GitOps inputs that
-drive those outcomes cannot silently regress.
+The live check after a GPU change is skill intel-gpu references/vaapi-check.md;
+the mechanism is references/devices.md.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
-import stat
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -68,11 +57,6 @@ B70_NATIVE_MOUNTS = {
     B70_BY_PATH_CARD: "/dev/dri/card1",
     B70_BY_PATH_RENDER: "/dev/dri/renderD129",
 }
-
-# DRM char major used by the kernel for /dev/dri/* on this host.
-DRM_MAJOR = 226
-B70_RENDER_MINOR = 129
-B70_CANONICAL_DEVNAME = "dri/renderD129"
 
 
 class Failure(Exception):
@@ -183,78 +167,6 @@ def controller_extended_resources(values: dict[str, Any], controller: str) -> se
                 if "/" in k or k.startswith("devic."):
                     found.add(k)
     return found
-
-
-def simulate_libdrm_reopen(has_canonical: bool) -> dict[str, Any]:
-    """Reproduce the libdrm name-faithfulness trap against a fake device tree.
-
-    Mirrors the A-B-A proof from the incident: open the RENAMED path, fstat it,
-    read uevent for DEVNAME, and try to reopen the canonical path. When the
-    container only has the renamed node, reopen fails; when the canonical name
-    is also present (even as a hard link / same inode), reopen succeeds.
-    """
-    with tempfile.TemporaryDirectory(prefix="b70-vaapi-libdrm-") as tmp:
-        root = Path(tmp)
-        dri = root / "dev" / "dri"
-        dri.mkdir(parents=True)
-        sysfs = root / "sys" / "dev" / "char" / f"{DRM_MAJOR}:{B70_RENDER_MINOR}"
-        sysfs.mkdir(parents=True)
-
-        renamed = dri / "renderD128"
-        # Regular file standing in for a device node; inode identity is enough.
-        renamed.write_bytes(b"b70-render")
-        os.chmod(renamed, 0o666)
-
-        # uevent reports the kernel-canonical DEVNAME, not the container path.
-        (sysfs / "uevent").write_text(
-            f"MAJOR={DRM_MAJOR}\nMINOR={B70_RENDER_MINOR}\nDEVNAME={B70_CANONICAL_DEVNAME}\n"
-        )
-
-        canonical = root / "dev" / B70_CANONICAL_DEVNAME
-        if has_canonical:
-            # Same inode under the canonical name - what a name-faithful mount does.
-            os.link(renamed, canonical)
-
-        # --- libdrm-shaped sequence ---
-        fd = os.open(renamed, os.O_RDWR)
-        try:
-            st = os.fstat(fd)
-            # Real DRM nodes carry major/minor via st_rdev; our stand-in uses the
-            # known B70 render minor the plugin exposes. The lookup key is what
-            # matters for the trap.
-            major, minor = DRM_MAJOR, B70_RENDER_MINOR
-            assert_true(
-                stat.S_ISREG(st.st_mode) or stat.S_ISCHR(st.st_mode),
-                "fixture node must be openable",
-            )
-            uevent_path = root / "sys" / "dev" / "char" / f"{major}:{minor}" / "uevent"
-            uevent = uevent_path.read_text()
-            match = re.search(r"^DEVNAME=(.+)$", uevent, re.MULTILINE)
-            assert_true(match is not None, "uevent must carry DEVNAME")
-            devname = match.group(1).strip()
-            assert_true(
-                devname == B70_CANONICAL_DEVNAME,
-                f"DEVNAME must be {B70_CANONICAL_DEVNAME}, got {devname}",
-            )
-            reopen_path = root / "dev" / devname
-            reopen_ok = False
-            reopen_error: str | None = None
-            try:
-                fd2 = os.open(reopen_path, os.O_RDWR)
-                os.close(fd2)
-                reopen_ok = True
-            except OSError as exc:
-                reopen_error = f"{type(exc).__name__}: {exc.errno} {exc.strerror}"
-        finally:
-            os.close(fd)
-
-        return {
-            "opened": str(renamed.relative_to(root)),
-            "devname": B70_CANONICAL_DEVNAME,
-            "canonicalPresent": has_canonical,
-            "reopenOk": reopen_ok,
-            "reopenError": reopen_error,
-        }
 
 
 def main() -> int:
@@ -424,28 +336,11 @@ def main() -> int:
             f"healthcheckcpuWorkers must be 1, got {node_env.get('healthcheckcpuWorkers')!r}",
         )
 
-        # --- libdrm A-B-A mechanism simulation ---
-        phase_a = simulate_libdrm_reopen(has_canonical=True)
-        phase_b = simulate_libdrm_reopen(has_canonical=False)
-        phase_a2 = simulate_libdrm_reopen(has_canonical=True)
-        evidence["libdrmTrapSimulation"] = {
-            "A_nameFaithful": phase_a,
-            "B_renamedOnly": phase_b,
-            "A2_restored": phase_a2,
-        }
-        assert_true(phase_a["reopenOk"] is True, f"A (canonical present) must succeed: {phase_a}")
-        assert_true(
-            phase_b["reopenOk"] is False,
-            f"B (renamed only) must fail reopen of {B70_CANONICAL_DEVNAME}: {phase_b}",
-        )
-        assert_true(phase_a2["reopenOk"] is True, f"A2 (restored) must succeed again: {phase_a2}")
-
         evidence["result"] = "PASS"
         print(json.dumps(evidence, indent=2, sort_keys=True))
         print(
             "OK: b70-vaapi native mounts + hashed ConfigMap rollout + "
-            f"tdarr-node on {B70_VAAPI_RESOURCE} with cpu fallback; "
-            "libdrm DEVNAME reopen A-B-A holds",
+            f"tdarr-node on {B70_VAAPI_RESOURCE} with cpu fallback",
             file=sys.stderr,
         )
         return 0

@@ -14,7 +14,10 @@ spec:
   models:
     - pr-review-local
     - embedding-local
-  # Inert (zero-priced models) but kept as the widening guard; removing it would not clear it.
+    # The blocking gate (scripts/ci/ai_review_gate.py) asks Jev on POST /v1/decisions; owner
+    # decision 2026-10-31 (goal task 2.4). Metered via OpenRouter, a fraction of a cent per PR.
+    - jev
+  # Caps Jev spend; the other two models are zero-priced.
   maxBudget: "5.00"
   budgetDuration: 30d
   # The real bound: several concurrent Renovate reviews plus one retry each.

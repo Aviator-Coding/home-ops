@@ -1,9 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
 # Explicit allow-list (never []). Anthropic entries are the household-metered org routes only:
-# the four subscription pass-throughs stay off this key. typesafe/jev-1.13 is the decision id;
-# no spec.metadata, so a later hand-applied passthrough grant is not wiped. The grant is not
-# in Git. $100/30d is this key's spend on every model below and the only cap on the Aviator
+# the four subscription pass-throughs stay off this key. `jev` is the decision model (/v1/decisions).
+# $100/30d is this key's spend on every model below and the only cap on the Aviator
 # route: there is no provider-wide router budget, so subscription pass-throughs and other keys
 # are unaffected. See skill litellm-proxy (references/governance-keys.md).
 apiVersion: litellm.home-operations.com/v1alpha1
@@ -36,7 +35,7 @@ spec:
     - gpt-6-astra
     - gpt-6-astra-pro
     - gpt-oss-20b
-    - typesafe/jev-1.13
+    - jev
     - auto
     - embedding-local
   maxBudget: "100.00"

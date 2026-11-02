@@ -101,7 +101,8 @@
       description: "Intel Device Plugins Group",
       groupName: "Intel-Device-Plugins",
       matchDatasources: [
-        "docker"
+        "docker",
+        "helm"
       ],
       matchPackageNames: [
         "/intel-device-plugins-operator/",

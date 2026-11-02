@@ -137,11 +137,18 @@ components_relpath() {
   echo "${dots}components/${name}"
 }
 
+# `$schema` is literal text written into the generated manifests, so the single quotes are intentional.
+# shellcheck disable=SC2016
 kustomization_yaml_header='# yaml-language-server: $schema=https://json.schemastore.org/kustomization'
+# shellcheck disable=SC2016
 helmrelease_schema='# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json'
+# shellcheck disable=SC2016
 flux_helmrelease_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json'
+# shellcheck disable=SC2016
 externalsecret_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/externalsecret_v1.json'
+# shellcheck disable=SC2016
 overlay_ks_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json'
+# shellcheck disable=SC2016
 ocirepository_schema='# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1.json'
 
 # Renders base/<piece>/helmrelease.yaml - app-template chartRef, TODOs pointing
@@ -568,11 +575,10 @@ cat <<EOF
 Next steps:
   - fill in every TODO left in the generated files (image/tag, ports, uid/gid,
     1Password item keys if --secrets was used)
-  - decide whether this app needs a backup component (components/volsync
-    and/or components/kopiur) - that requires measuring the live file
+  - decide whether this app needs a backup component (components/kopiur;
+    VolSync is removed) - that requires measuring the live file
     ownership after first deploy, so it is deliberately not auto-generated;
-    see kubernetes/components/volsync/Readme.md and
-    kubernetes/components/kopiur/Readme.md, and the "one component include
+    see kubernetes/components/kopiur/Readme.md, and the "one component include
     covers one volume" trap in .agents/skills/flux-gitops/references/app-shapes.md
   - validate: mise exec -- task flux:test:all
 EOF

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Behavioral contract for the ai/embedding-gpu VALUE-asserting health probe.
 
-Pins the 2026-09-16 null-vector incident, and - more importantly - pins the
-reason it went undetected for hours.
+Prevents: a silent embeddings outage. The endpoint returned NaN vectors under
+HTTP 200 with `/health` ok for hours (2026-09-16); only a probe that asserts on
+the returned values takes the pod out of the Service and restarts it, which is
+the known recovery.
 
 WHAT HAPPENED. `ai/embedding-gpu` returned 1024-dimension vectors in which
 every element was `0xFFC00000` (a quiet NaN) on all three request shapes:
@@ -18,8 +20,7 @@ the form `sum(1 for x in v if x != 0)`. In Python `None != 0` is True, so a
 vector of 1024 nulls scored a PERFECT 1024 non-zero and the probe could not
 distinguish total failure from success. A check that cannot fail is worse than
 no check, because it manufactures confidence. That is the defect this file
-exists to prevent, and `test_the_old_probe_could_not_have_failed` below pins
-the trap itself so it cannot be reintroduced as "an equivalent check".
+exists to prevent.
 
 WHAT THIS ASSERTS. The probe shipped in the HelmRelease is extracted from the
 manifest and EXECUTED against canned responses, so this gate tests the real
@@ -238,39 +239,6 @@ def test_probe_fails_when_the_server_errors(docs: list[dict[str, Any]]) -> None:
     assert_true(rc != 0, f"the readiness probe ACCEPTED a refused connection (exit {rc}).")
 
 
-def test_the_old_probe_could_not_have_failed(_docs_unused: list[dict[str, Any]]) -> None:
-    """Pin the trap itself, so it is never reintroduced as 'an equivalent check'.
-
-    `sum(1 for x in v if x != 0)` scores a null-filled vector as fully non-zero,
-    because `None != 0` is True in Python. This test does not check the repo; it
-    documents WHY a shape/length/non-zero-count check is not evidence.
-    """
-    broken_score = sum(1 for x in NULL_VECTOR if x != 0)
-    assert_true(
-        broken_score == N_DIMS,
-        "the historical broken probe no longer scores a null vector as 1024/1024 "
-        "non-zero; if Python's semantics changed, rewrite this note rather than "
-        "deleting it.",
-    )
-
-    def strict_ok(v: list[Any]) -> bool:
-        import math
-
-        return (
-            isinstance(v, list)
-            and len(v) == N_DIMS
-            and not any(x is None for x in v)
-            and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v)
-            and all(math.isfinite(x) for x in v)
-            and any(x != 0 for x in v)
-        )
-
-    assert_true(not strict_ok(NULL_VECTOR), "strict assertion must reject a null vector")
-    assert_true(not strict_ok(ZERO_VECTOR), "strict assertion must reject an all-zero vector")
-    assert_true(not strict_ok(GOOD_VECTOR[:-1]), "strict assertion must reject a short vector")
-    assert_true(strict_ok(GOOD_VECTOR), "strict assertion must accept a real vector")
-
-
 def test_probe_wiring_and_envsubst_safety(docs: list[dict[str, Any]]) -> None:
     """readiness+liveness must use the value probe; startup may keep /health."""
     probes = _probes(docs)
@@ -316,7 +284,6 @@ def main() -> int:
         test_probe_fails_a_null_filled_vector,
         test_probe_fails_an_all_zero_vector,
         test_probe_fails_when_the_server_errors,
-        test_the_old_probe_could_not_have_failed,
         test_probe_wiring_and_envsubst_safety,
     ]
     failed = 0

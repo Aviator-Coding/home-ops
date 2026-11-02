@@ -16,6 +16,7 @@ components:
 
 resources:
   - ./chat-model.yaml
+  - ./cliproxyapi.yaml
   - ./embedding-gpu.yaml
   - ./gpu-node-dashboard.yaml
   - ./hermes.yaml

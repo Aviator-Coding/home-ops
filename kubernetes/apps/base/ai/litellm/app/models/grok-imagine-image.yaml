@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Image generation (POST /v1/images/generations) on the xAI SuperGrok subscription via cliproxyapi.
+# INVARIANT: explicit $0 (flat-rate subscription). Only the image-generation key allow-lists it.
+# See skill litellm-proxy (references/model-catalog.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: grok-imagine-image
+spec:
+  modelName: grok-imagine-image
+  proxyRef: litellm
+  params:
+    model: openai/grok-imagine-image
+    apiBase: http://cliproxyapi.ai.svc.cluster.local:8317/v1
+    apiKey: os.environ/CLIPROXYAPI_API_KEY
+  info:
+    mode: image_generation
+    extra:
+      output_cost_per_image: 0

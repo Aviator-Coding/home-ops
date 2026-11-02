@@ -58,7 +58,6 @@ FRR commands, not Cisco: `show bgp summary`, `show bgp ipv4 unicast`,
 | IP | Service |
 |---|---|
 | `10.50.0.21` | envoy-external |
-| `10.50.0.24` | falkordb |
 | `10.50.0.26` | envoy-internal |
 | `10.50.0.30` | emqx |
 | `10.50.0.51` | syncthing |
@@ -71,6 +70,7 @@ FRR commands, not Cisco: `show bgp summary`, `show bgp ipv4 unicast`,
 retired (2026-10-25). The hand-made UniFi wildcard `*.${SECRET_DOMAIN}` that
 targeted `10.50.0.27` now points at an unassigned address; repoint it to
 `envoy-internal` (`10.50.0.26`) or remove it. `10.50.0.28` is not pinned.
+`10.50.0.24` was falkordb's and is free (retired 2026-11-01).
 
 Node underlay (Talos, not this skill's files): `bond0` 802.3ad MTU 9000,
 DHCP on `10.10.10.0/24`, `bond0.3` and `bond0.90` present with no node

@@ -2,13 +2,13 @@
 
 Every 6 hours, at minute 47, this CronJob checks whether each backup mover
 can read the claim it backs up. Identity comes from the live
-`ReplicationSource` or `SnapshotPolicy`, never from the component default.
+`SnapshotPolicy`, never from the component default.
 
-The Job fails (and the PrometheusRule fires) when a **kopiur** identity
-cannot read, or when a walk is `INCONCLUSIVE`. VolSync unreadables are
-printed and do not fail the Job: VolSync stages writable and `fsGroup`
-repairs the clone before restic reads. kopiur stages read-only and fails
-closed.
+The Job fails (and the PrometheusRule fires) when a kopiur identity
+cannot read, or when a walk is `INCONCLUSIVE`. kopiur stages read-only and
+fails closed. The VolSync branch is gone: VolSync stages writable and
+`fsGroup` repairs the clone before restic reads, so its unreadables were
+only ever printed, never alerted.
 
 Skill `pvc-integrity-checks`, reference `references/mover-readable.md`.
 

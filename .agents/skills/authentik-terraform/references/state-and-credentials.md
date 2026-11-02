@@ -64,7 +64,7 @@ script is idempotent: a re-run returns the existing account and token. Mint
 only under an explicit go-ahead for a read-only token.
 
 ```bash
-kubectl --kubeconfig ./kubeconfig -n security exec deploy/authentik-worker -c worker -- ak shell -c "
+kubectl -n security exec deploy/authentik-worker -c worker -- ak shell -c "
 from authentik.core.models import User, UserTypes, Token, TokenIntents, Group
 g = Group.objects.get(name='authentik Read-only')
 u, cu = User.objects.get_or_create(
@@ -118,9 +118,9 @@ Read-only `SELECT`s against Authentik's Postgres, never selecting
 `client_secret`:
 
 ```bash
-PRIMARY=$(kubectl --kubeconfig ./kubeconfig -n database get pods \
+PRIMARY=$(kubectl -n database get pods \
   -l 'cnpg.io/cluster=postgres-17,role=primary' -o jsonpath='{.items[0].metadata.name}')
-kubectl --kubeconfig ./kubeconfig -n database exec "$PRIMARY" -c postgres -- \
+kubectl -n database exec "$PRIMARY" -c postgres -- \
   psql -d authentik -A -F'|' -c "select id, name from authentik_core_provider order by id;"
 ```
 

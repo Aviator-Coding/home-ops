@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
+# Google image generation (POST /v1/images/generations) via OpenRouter chat/completions image output.
+# Priced from token usage by LiteLLM (measured 2026-10-31: $0.067 per image). Only the image-generation key
+# allow-lists it. See skill litellm-proxy (references/model-catalog.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMModel
+metadata:
+  name: gemini-3.1-flash-image
+spec:
+  modelName: gemini-3.1-flash-image
+  proxyRef: litellm
+  params:
+    model: openrouter/google/gemini-3.1-flash-image
+    apiKey: os.environ/OPENROUTER_API_KEY
+  info:
+    mode: image_generation
