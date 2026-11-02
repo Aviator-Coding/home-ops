@@ -11,17 +11,14 @@ Runner below is the `runs-on` value in the file. The table in
 | `flate.yaml` | `ubuntu-latest` (called by `ci.yaml`) | `flate test` / diff. Lenient envsubst: skill `flux-substitution` |
 | `image-pull.yaml` | `ubuntu-latest`; only `pull` on the home-ops scale set | `talosctl image pull` of images the PR adds, plus a recovery pass for bare Docker Hub refs flate misses |
 | `terraform-diff.yaml` | home-ops scale set | Read-only `tofu plan` when `secrets-ci.vals.yaml` exists. Skill `authentik-terraform` |
-| `terraform-publish.yaml` | `ubuntu-latest` | Publish `terraform/` as an OCI artifact on push to `main` |
 | `labeler.yaml` | `ubuntu-latest` | Path labels. The only required check. Skill [branch-protection.md](branch-protection.md) |
-| `label-sync.yaml` | home-ops scale set | Sync labels from `.github/labels.yaml`. Deletes labels absent from the file |
+| `label-sync.yaml` | `ubuntu-latest` | Sync labels from `.github/labels.yaml`. Deletes labels absent from the file |
 | `renovate.yaml` | `ubuntu-latest` | Rollback writer. Schedule commented out. `push` on Renovate config still fires. Skill `renovate` |
 | `build-talosctl-busybox.yaml` | `ubuntu-latest` | `docker buildx` of the talosctl image. Needs Docker |
 | `build-litellm-pgvector.yaml` | `ubuntu-latest` | Vector-store image. Skill `litellm-proxy` |
 | `build-timescaledb-community.yaml` | `ubuntu-latest` | TimescaleDB Community extension image for postgres-18. Skill `databases` |
 | `ai-pr-review.yaml` | home-ops scale set | Advisory comment. Never a required check. Skill `litellm-proxy` |
-| `codeql.yml` | home-ops scale set | Actions-language analysis |
-| `tag.yaml` | home-ops scale set | Monthly CalVer tags |
-| `test-runner.yaml` | home-ops scale set | Weekly runner smoke |
+| `tag.yaml` | `ubuntu-latest` | Monthly CalVer tag plus release, through the bot App token |
 
 ## validate.yaml
 
@@ -52,7 +49,18 @@ attempt the same way. See [arc-runners.md](arc-runners.md).
 ## Fork guard
 
 Same-repo `if:` on `validate.yaml`, `advisory-tests.yaml`, `image-pull.yaml`, `flate.yaml`,
-`labeler.yaml` and `terraform-diff.yaml`. Add it to any new job on this runner.
+`labeler.yaml` and `terraform-diff.yaml`. One copy on the `filter` job covers every job
+that only `needs: filter`; a job with `always()` or `!cancelled()` carries its own. Add it
+to any new job that runs on ARC or reads a secret.
+
+## App tokens
+
+The bot App token is minted only where a job writes: the flate `diff` sticky comment,
+`labeler`, `tag`. Checkout of this public repo passes no token.
+
+Deleted 2026-11-02 after comparing with onedr0p/home-ops: `test-runner.yaml`, `codeql.yml`,
+`terraform-publish.yaml` (nothing consumed its artifact). GitHub keeps a registration for a
+deleted file; the owner disables those with `gh api` (an owner step, not Git).
 
 ## validate.yaml timeouts
 

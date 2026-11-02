@@ -17,7 +17,7 @@ permissions:
 jobs:
   main:
     name: Tag
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Generate Token

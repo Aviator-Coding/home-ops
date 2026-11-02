@@ -18,8 +18,9 @@ jobs:
   # this a `.renovate/`-only PR would also run the Talos jobs.
   # Same pattern as flate.yaml / image-pull.yaml.
   filter:
-    # Fork guard, kept from the self-hosted era: a fork PR skips this job and, through
-    # `needs: filter`, every job below it. Same-repo PRs are unaffected. Mirrors labeler.yaml.
+    # Fork guard: a fork PR skips this job and, through `needs: filter`, every job below it
+    # that has no `always()`. Only `docs-guards` and `lint` (both pinned by tests), `python-tests`
+    # (`always()`) and `success` (`!cancelled()`) carry their own copy. Same-repo PRs are unaffected. Mirrors labeler.yaml.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Validate - Filter
     runs-on: ubuntu-latest
@@ -106,7 +107,7 @@ jobs:
             .mise.toml
 
   talos:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.talos != '[]' }}
+    if: ${{ needs.filter.outputs.talos != '[]' }}
     needs: filter
     name: talos
     runs-on: ubuntu-latest
@@ -131,7 +132,7 @@ jobs:
         run: ./scripts/ci/talos-validate.sh
 
   versions:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.versions != '[]' }}
+    if: ${{ needs.filter.outputs.versions != '[]' }}
     needs: filter
     name: versions
     runs-on: ubuntu-latest
@@ -152,7 +153,7 @@ jobs:
         run: ./scripts/ci/version-consistency.sh
 
   bootstrap:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.bootstrap != '[]' }}
+    if: ${{ needs.filter.outputs.bootstrap != '[]' }}
     needs: filter
     name: bootstrap
     runs-on: ubuntu-latest
@@ -179,7 +180,7 @@ jobs:
             | kubeconform -strict -summary -schema-location default
 
   renovate-config:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.renovate != '[]' }}
+    if: ${{ needs.filter.outputs.renovate != '[]' }}
     needs: filter
     name: renovate-config
     runs-on: ubuntu-latest
@@ -202,7 +203,7 @@ jobs:
         run: npx --yes --package renovate renovate-config-validator .renovaterc.json5 .renovate/*.json5
 
   terraform:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.terraform != '[]' }}
+    if: ${{ needs.filter.outputs.terraform != '[]' }}
     needs: filter
     name: terraform
     runs-on: ubuntu-latest
@@ -231,6 +232,7 @@ jobs:
   # same-repo PR (stdlib only, no pip). Full history gives the comment guard
   # its merge base. advisory-tests.yaml skips them, so this is their only PR run.
   docs-guards:
+    # Guard kept here: validate-contention-test.py pins it on this job.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     needs: filter
     name: docs-guards
