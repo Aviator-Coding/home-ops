@@ -29,7 +29,7 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
    and `docker run` fail on `gha-runner-scale-set-aviator-coding-home-ops`.
    [arc-runners.md](references/arc-runners.md)
 4. **A red `image-pull` that passes on rerun is ARC pool contention.** Each runner
-   provisions a Ceph PVC first (50-95s, measured 2026-10-31). Rerun. A red **AI review** means
+   gets a 20Gi emptyDir work volume (was a `ceph-block` PVC until 2026-11-02). Rerun. A red **AI review** means
    it found a named blocker; a rerun replays the same verdict, so fix the line or push a
    commit. Do not
    move Flate or Validate back onto ARC: `CI Success` must report while the

@@ -120,14 +120,10 @@ spec:
                 subPath: talosctl
         volumes:
           - name: work
-            ephemeral:
-              volumeClaimTemplate:
-                spec:
-                  accessModes: ["ReadWriteOnce"]
-                  storageClassName: ceph-block
-                  resources:
-                    requests:
-                      storage: 20Gi
+            # Single-use pod, local disk, enforced 20Gi bound (kubelet evicts past it),
+            # no 50-95 s RBD provision per job.
+            emptyDir:
+              sizeLimit: 20Gi
           - name: talos
             secret:
               secretName: actions-runner
