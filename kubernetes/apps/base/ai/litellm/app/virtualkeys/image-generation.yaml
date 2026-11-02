@@ -1,0 +1,42 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
+# Image generation key: POST /v1/images/generations against Grok (cliproxyapi, $0), GPT Image 2 and
+# Gemini image (OpenRouter, metered). Skill litellm-proxy (references/governance-keys.md).
+apiVersion: litellm.home-operations.com/v1alpha1
+kind: LiteLLMVirtualKey
+metadata:
+  name: image-generation
+spec:
+  proxyRef: litellm
+  keyAlias: image-generation
+  secretName: litellm-key-image-generation
+  secretKey: key
+  models:
+    - gemini-3.1-flash-image
+    - gpt-image-2
+    - grok-imagine-image
+  # OpenRouter-metered images; the cap stops a runaway loop.
+  maxBudget: "10.00"
+  budgetDuration: 30d
+  rpmLimit: 30
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/external-secrets.io/pushsecret_v1alpha1.json
+# Mirrors the key to 1Password litellm-consumer-image-generation (field `key`).
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: litellm-key-image-generation
+spec:
+  refreshInterval: 5m
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: litellm-key-image-generation
+  data:
+    - match:
+        secretKey: key
+        remoteRef:
+          remoteKey: litellm-consumer-image-generation
+          property: key

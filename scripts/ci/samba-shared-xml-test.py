@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Semantic regression test for the LAN SMB shares served by ns `ai` app `samba`.
 
 Filename kept for history; this gate covers BOTH shares on that one server.

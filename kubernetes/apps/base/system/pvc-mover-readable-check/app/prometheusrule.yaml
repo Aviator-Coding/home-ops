@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
-# Fires on kube_job_status_failed. VolSync unreadable counts stay report-only.
+# Fires on kube_job_status_failed.
 # Skill `pvc-integrity-checks`.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -25,15 +25,14 @@ spec:
               kopiur mover identity cannot read the volume it is configured to
               back up, or could not enumerate a volume at all. kopia fails
               closed on the first unreadable file, so an affected claim is at
-              risk of having NO usable backup from the engine that survives the
-              VolSync retirement - and nothing else in the cluster shows it:
+              risk of having NO usable backup - and nothing else in the cluster shows it:
               a 2026-08-31 audit found selfhosted/changedetection-config with
               2292 of 3058 files unreadable while every status surface was
               green. Read the failing run's own log for exactly which claim and
               identity: `kubectl -n system logs -l
               app.kubernetes.io/name=pvc-mover-readable-check --tail=300
-              --since=12h | grep -E 'FINDING|INCONCLUSIVE|FAILURES'`. Design,
-              the VolSync report-only rule, and the known coverage gaps:
+              --since=12h | grep -E 'FINDING|INCONCLUSIVE|FAILURES'`. Design
+              and the known coverage gaps:
               kubernetes/apps/base/system/pvc-mover-readable-check/app/README.md.
           labels:
             severity: warning

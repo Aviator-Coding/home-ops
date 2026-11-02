@@ -159,11 +159,17 @@ route is LAN-only.
 - `claude-fable-5` (metered, older Fable 5) and `claude-fable-5-1`
   (subscription pass-through, Fable 5.1) are distinct catalog models, not a
   rename.
-- `typesafe/jev-1.13` has no `LiteLLMModel` and must not get one: it is a
-  decisions model that OpenRouter refuses on chat completions. It is absent from OpenRouter's `/models` list (only the per-model endpoints
-  catalog has it), so do not treat it as unmatched. It is reached
-  only through the `/openrouter/alpha/decisions` pass-through
-  ([passthrough-lockdown.md](passthrough-lockdown.md)).
+- `jev` (`models/jev.yaml`, upstream `openrouter/typesafe/jev-1.14`) is a
+  decisions model: OpenRouter refuses it on chat completions, so call it only
+  on `POST /v1/decisions` (OpenAI Decisions body) or `/v1/systemone` (System One
+  body) with `"model": "jev"`; LiteLLM 1.104.2+. It is absent from OpenRouter's
+  `/models` list (only the per-model endpoints catalog has it), so do not treat
+  it as unmatched. It is not published to the AI Hub (`UNPUBLISHED` in
+  `scripts/ci/litellm-ai-hub-test.py`) and only the `jev-decisions`,
+  `litellm-consume-projects` and `ai-pr-review` (the AI review gate) keys allow-list it. Spend is OpenRouter's
+  `usage.cost` (v1.104.3+), logged as call type `adecisions`/`asystemone`.
+  Results: 200 decision; 403 "not allowed to access model" = key lacks `jev`;
+  400 = malformed body; 429/budget = the key's limits.
 - Aviator org catalog, listed 2026-10-13 (14 ids): every id is callable on
   `ANTHROPIC_API_KEY`. Ids that already had a metered CR were left alone.
   `claude-fable-5-1` and `claude-haiku-4-5-20251001` keep the subscription
@@ -171,6 +177,24 @@ route is LAN-only.
   limit is the `litellm-consume-projects` key budget only; never add a
   `provider_budget_config.anthropic`, which would filter the subscription
   pass-throughs too.
+- Org-key Claude routes on cliproxyapi: `claude-fable-5`, `claude-haiku-5-5`,
+  `claude-opus-4-5-20251101`, `-4-6`, `-4-7`, `-4-8`, `claude-opus-5-5`,
+  `claude-sonnet-4-5-20250929`, `-4-6` and `claude-sonnet-5-5` are
+  `openai/<id>` on `http://cliproxyapi.ai.svc.cluster.local:8317/v1` with
+  `CLIPROXYAPI_API_KEY` and explicit $0 on every price field (Max
+  subscription, no invoice). Only the four `*-metered` CRs still use
+  `ANTHROPIC_API_KEY`, as the auto-router and fallback targets. If
+  cliproxyapi is down these routes fail with no metered fallback, so the
+  `litellm-consume-projects` $100 cap now guards only the remaining metered
+  and OpenAI routes.
+- Image generation (`POST /v1/images/generations`, `mode: image_generation`, key
+  `image-generation`, $10/30d, 1Password `litellm-consumer-image-generation`):
+  `grok-imagine-image` (cliproxyapi, $0), `gpt-image-2` and
+  `gemini-3.1-flash-image` (OpenRouter). `gpt-image-2` must use
+  `openai/openai/gpt-image-2` with `apiBase https://openrouter.ai/api/v1`: the
+  `openrouter/` prefix calls chat/completions, which OpenRouter refuses for it.
+  LiteLLM prices that route by tokens and ignores `output_cost_per_image`
+  (spend logged $0), so the CR declares OpenRouter's per-token rates. None are Hub-published.
 
 ## Rate-limiting the shared GPU deployment (`embedding-local`)
 

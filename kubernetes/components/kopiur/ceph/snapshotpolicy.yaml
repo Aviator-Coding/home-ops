@@ -30,7 +30,7 @@ spec:
       runAsUser: ${KOPIUR_PUID:-1000}
       runAsGroup: ${KOPIUR_PGID:-1000}
       fsGroup: ${KOPIUR_PGID:-1000}
-  # Matches ../../volsync/ceph/replicationsource.yaml's retain block.
+  # Matches the retired VolSync ceph retain block.
   retention:
     keepHourly: 6
     keepDaily: 14

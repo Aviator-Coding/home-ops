@@ -28,7 +28,7 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
 
     controllers:
       # mkdocs-material serving whatever generate.py has committed so far.
@@ -39,7 +39,7 @@ spec:
           app:
             image:
               repository: squidfunk/mkdocs-material
-              tag: 9.7.7@sha256:51b87149d227691486b5f08993d28c65ca7e4990010664b697265b8e6fcd5287
+              tag: 9.8.0@sha256:dc3b5de76c6e30d18dc0922d4c4a7bed817e5e155f9ff0e594a53eb56e537e64
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -52,7 +52,7 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
-              capabilities: { drop: ["ALL"] }
+              capabilities: {drop: ["ALL"]}
             resources:
               requests:
                 cpu: 25m
@@ -89,7 +89,7 @@ spec:
           app:
             image:
               repository: python
-              tag: 3.14@sha256:5512c5ca17a74a6dbca6ac86a9ba407e945b3d37cd2552ca2cbe65ef8c6af488
+              tag: 3.14@sha256:22caa054c0d309b1eee6f448326a8821a674a75b98653247fe706db90491fc87
             command: ["python3", "/config/generate.py"]
             env:
               # In-cluster LiteLLM governance proxy (captain decisions B4/D4) -
@@ -115,7 +115,7 @@ spec:
                   name: repo-wiki
             securityContext:
               allowPrivilegeEscalation: false
-              capabilities: { drop: ["ALL"] }
+              capabilities: {drop: ["ALL"]}
             resources:
               requests:
                 cpu: 100m

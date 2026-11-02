@@ -12,9 +12,10 @@ vars:
   TALOS_DIR: '{{.ROOT_DIR}}/talos'
   PRIVATE_DIR: '{{.ROOT_DIR}}/.private'
 
+# Same defaults as .mise.toml: read-only agent credentials unless the owner sets HOME_OPS_*.
 env:
-  KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
-  TALOSCONFIG: '{{.ROOT_DIR}}/talos/talosconfig'
+  KUBECONFIG: '{{env "HOME_OPS_KUBECONFIG" | default (print (env "HOME") "/.kube/home-ops-agent")}}'
+  TALOSCONFIG: '{{env "HOME_OPS_TALOSCONFIG" | default (print (env "HOME") "/.talos/home-ops-agent")}}'
 
 includes:
   1password: .taskfiles/1password

@@ -18,7 +18,7 @@ The real name is defined once: ConfigMap `chat-model`, key `CHAT_MODEL_ID` (`kub
 
 1. **Consumers use `chat-local`, never the real name.** Hermes `model.default`, Linkwarden `OPENAI_MODEL`, LiteLLM tiers and fallbacks. A model swap must not touch them.
 2. **`CHAT_MODEL_ID` is one path-safe token with no `/`.** No `org/` prefix, no `-GGUF` suffix.
-3. **Do not add a literal model name to a new file.** Use `${CHAT_MODEL_ID}` where the real name is needed, `chat-local` everywhere else. `scripts/ci/chat-model-id-test.py` guards the wiring.
+3. **Do not add a literal model name to a new file.** Use `${CHAT_MODEL_ID}` where the real name is needed, `chat-local` everywhere else. `scripts/ci/litellm-fallback-chain-test.py` checks the LiteLLM side of the wiring.
 4. **The five local LiteLLM aliases share one backend**, each with one distinct property: `chat-local` (zero price, no cloud fallback), `chat-ha` (cloud fallback), `chat-local-classifier` and `pr-review-local` (thinking off), `demo-priced-local` (synthetic prices, `demo` key only). Detail: skill `litellm-proxy`, `references/model-catalog.md`.
 
 ## Swapping the chat model

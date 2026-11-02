@@ -7,7 +7,9 @@
    component stamps a `dataSourceRef` at the standing populator and is only for
    `RETIRED_CLAIMS` in `scripts/ci/kopiur-stage5-test.py`. Record the claim in
    `NEVER_VOLSYNC` in `scripts/ci/kopiur-stage3-test.py`. Live:
-   `database/falkordb`, `database/surrealdb`.
+   `database/surrealdb`, `downloads/cleanuparr`, `media/wizarr`, `ai/cliproxyapi`.
+   Consider `retain: true` on the chart-owned claim so a failed-install uninstall keeps
+   the volume (it is what kept FalkorDB's PVC through its retirement).
 2. **VolSync retirement takeover.** Include both `components/kopiur` and
    `components/kopiur/pvc`. See [retirement-and-removal.md](retirement-and-removal.md).
 
@@ -21,7 +23,9 @@ Every object is named from `${APP}`, and Flux allows one `postBuild.substitute`
 map. A second PVC is a second Kustomization with `path:
 ./kubernetes/components/kopiur/backup` (no pvc include; the claim already
 exists) and `APP` set to the claim name. Same rule as VolSync. Live second
-volumes: `syncthing-data`, `paperless-ngx-media`.
+volumes: `syncthing-data`, `paperless-ngx-media` (both are backup-only
+kopiur since 2026-11-01; their claims stay owned by a plain PVC manifest and a
+HelmRelease respectively).
 
 `syncthing` (config) and `syncthing-data` (files) share one overlay file and
 are different claims. Grep both names before editing either.
@@ -48,7 +52,7 @@ of every pod that mounts the claim, init containers included, even containers
 that mount nothing. It is not reliably emitted. Absence is not a failure.
 `changedetection`'s browserless sidecar is pinned to uid 999 because Chrome
 does not launch as 1000. Root `fix-permissions` init containers
-(`pgadmin`, `falkordb`) also suppress the condition. Proof the identity works:
+(`pgadmin` is the live example) also suppress the condition. Proof the identity works:
 a `Succeeded` snapshot whose `.status.stats` covers the volume, plus a
 read-only mount as the mover uid
 (`find <mount> -type f ! -readable`).
@@ -107,9 +111,11 @@ installed CRD
 `existingClaim: ${VOLSYNC_CLAIM:-*app}` is a bare token, not a YAML anchor.
 Dropping `VOLSYNC_CLAIM` renders `existingClaim: *app` and `flate` fails the
 Kustomization on an unknown anchor. `${VOLSYNC_CLAIM}` with no default renders
-an **empty** claim name. Only `selfhosted/paperless-ngx` still carries
-`${VOLSYNC_CLAIM:-*app}`, because it stays dual-engine. Grep the HelmRelease
-for `VOLSYNC_` before assuming the overlay is the only reader.
+an **empty** claim name. No HelmRelease carries it any more: the last one,
+`selfhosted/paperless-ngx`, became `${KOPIUR_CLAIM:-paperless-ngx}` when it left
+VolSync (2026-11-01). Retiring a claim renames the alias in the same change;
+grep the HelmRelease for `VOLSYNC_` before assuming the overlay is the only
+reader.
 
 ## Variables the component actually reads
 

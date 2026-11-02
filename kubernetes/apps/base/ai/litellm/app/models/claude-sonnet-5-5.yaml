@@ -1,9 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# Aviator Anthropic org route. The v1.103.1 cost map has no anthropic/claude-sonnet-5-5
-# entry, so these are the published rates ($2/$10 per 1M, cache read $0.10, 5m write
-# $2.50, 1h write $4). A single rate: above-200k fields match the base.
-# See skill litellm-proxy (references/model-catalog.md).
+# Claude Max subscription via the in-cluster cliproxyapi (OpenAI-compatible, OAuth held there), not the
+# metered ANTHROPIC_API_KEY. The *-metered routes stay on the API key as the auto-router and fallback targets.
+# INVARIANT: explicit $0 on every price field (flat-rate subscription). Skill litellm-proxy.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
@@ -12,16 +11,17 @@ spec:
   modelName: claude-sonnet-5-5
   proxyRef: litellm
   params:
-    model: anthropic/claude-sonnet-5-5
-    apiKey: os.environ/ANTHROPIC_API_KEY
+    model: openai/claude-sonnet-5-5
+    apiBase: http://cliproxyapi.ai.svc.cluster.local:8317/v1
+    apiKey: os.environ/CLIPROXYAPI_API_KEY
   info:
+    mode: chat
+    supportsFunctionCalling: true
     extra:
-      input_cost_per_token: 0.000002
-      output_cost_per_token: 0.00001
-      input_cost_per_token_above_200k_tokens: 0.000002
-      output_cost_per_token_above_200k_tokens: 0.00001
-      cache_read_input_token_cost: 0.0000001
-      cache_read_input_token_cost_above_200k_tokens: 0.0000001
-      cache_creation_input_token_cost: 0.0000025
-      cache_creation_input_token_cost_above_1hr: 0.000004
-      cache_creation_input_token_cost_above_200k_tokens: 0.0000025
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      cache_read_input_token_cost: 0
+      cache_read_input_token_cost_above_200k_tokens: 0
+      cache_creation_input_token_cost: 0
+      cache_creation_input_token_cost_above_1hr: 0
+      cache_creation_input_token_cost_above_200k_tokens: 0

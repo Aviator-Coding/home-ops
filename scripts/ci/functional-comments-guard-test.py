@@ -98,6 +98,18 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json",
     ): "calibre-downloader Kustomization document deleted: Shelfmark moved to downloads/shelfmark.",
     (
+        "kubernetes/apps/main/selfhosted/paperless-ngx.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json",
+    ): "paperless-ngx-media VolSync Kustomization document deleted: VolSync retired from that claim (issue #2202 PR-2); kopiur backs it up.",
+    (
+        "kubernetes/apps/main/selfhosted/syncthing.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json",
+    ): "syncthing-data VolSync Kustomization document deleted: VolSync retired from that claim (issue #2202 PR-3); kopiur backs it up.",
+    (
+        "kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml",
+        '# renovate: depName="VolSync Dashboard"',
+    ): "VolSync dashboard (gnet 21356) removed with the VolSync operator (issue #2202 PR-6): no VolSync metrics remain.",
+    (
         "kubernetes/apps/base/home-automation/home-assistant/app/securitypolicy.yaml",
         "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.envoyproxy.io/securitypolicy_v1alpha1.json",
     ): "home-assistant-auth SecurityPolicy document deleted: the ExtAuth gate broke HA's own /auth/token OAuth; Authentik signs in via auth_oidc instead.",
@@ -105,6 +117,14 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "kubernetes/apps/base/database/cloudnative-pg/cluster-18/cluster-18.yaml",
         "# renovate: datasource=docker depName=ghcr.io/cloudnative-pg/timescaledb-oss",
     ): "timescaledb-oss (Apache-2) replaced by our own timescaledb-community image: its content-addressed tag is bumped by scripts/ci/timescaledb-community-test.py, not Renovate.",
+    (
+        "kubernetes/apps/base/system/intel-device-plugin-operator/app/helmrelease.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1beta2.json",
+    ): "intel-device-plugins-operator OCIRepository replaced by the `intel` HelmRepository: the charts-mirror copy returns 403 and Intel publishes no OCI chart.",
+    (
+        "kubernetes/apps/base/system/intel-device-plugin-operator/gpu/helmrelease.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1beta2.json",
+    ): "intel-device-plugins-gpu OCIRepository deleted: the gpu HelmRelease now uses the `intel` HelmRepository defined in ../app.",
 }
 
 passed = 0

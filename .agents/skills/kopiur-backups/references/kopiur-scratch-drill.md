@@ -3,16 +3,15 @@
 Prove a claim's ceph and r2 snapshots come back byte-identical, without
 touching the live volume. Full-cluster recovery is
 [full-cluster-restore-r2.md](full-cluster-restore-r2.md). Rebuilding a corrupt
-claim from restic is skill `volsync-carveouts`,
-`references/corrupt-claim-recreation.md`. Why the steps are shaped this way:
+claim is [corrupt-claim-recreation.md](corrupt-claim-recreation.md). Why the steps are shaped this way:
 [restore-and-cache.md](restore-and-cache.md).
 
 ## Hard constraint
 
 Never scale, overwrite, re-provision, or write the live claim.
 
-- Do not run `just kube restore`. It scales the app to zero and restores into
-  the live PVC.
+- Never restore into the live PVC (`target.pvcRef` on the live claim, or the
+  removed VolSync `just kube restore`, which scaled the app to zero first).
 - Do not edit the standing `${APP}-kopiur-dst` `Restore`. It is
   `ssa: IfNotPresent`. A hand edit persists forever.
 - Use `Restore.spec.target.pvc`. It creates a new PVC and cannot address an
@@ -161,7 +160,7 @@ against each restore and the two restores against each other. All three
 diffs empty, and the file count is not zero.
 
 Also compare modes. kopiur restores reproduce the original modes. A VolSync
-restore does not (skill `volsync-carveouts`).
+restore did not ([retired-restic-read.md](retired-restic-read.md)).
 
 ### 9. Live claim untouched
 

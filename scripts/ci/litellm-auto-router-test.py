@@ -656,12 +656,11 @@ def test_local_pricing_split(cfg: dict) -> None:
     # cloud model the bundled cost map does not know, whose declared price IS
     # the invoice (without it LiteLLM would record $0 for real spend). Such a
     # model must route to a cloud provider, never a local backend.
-    # OpenRouter embedding, plus the Anthropic 5.5 ids absent from the v1.103.1 cost map.
+    # OpenRouter embedding and image model only: the Anthropic 5.5 org routes moved to the cliproxyapi
+    # subscription ($0, models/cliproxy-*), so they no longer carry invoice prices.
     invoice_priced = {
         "qwen/qwen3-embedding-8b",  # OpenRouter, $0.01/1M input (2026-09-27)
-        "claude-haiku-5-5",
-        "claude-sonnet-5-5",
-        "claude-opus-5-5",
+        "gpt-image-2",  # OpenRouter /images route via openai/ provider, $5/M in $30/M out (2026-10-31)
     }
     record(
         "only_the_demo_alias_carries_synthetic_prices",
@@ -684,6 +683,7 @@ def test_local_pricing_split(cfg: dict) -> None:
             by_name(model_list, name)["litellm_params"].get("model", "").startswith(
                 ("openrouter/", "anthropic/")
             )
+            or "openrouter.ai" in str(by_name(model_list, name)["litellm_params"].get("api_base", ""))
             for name in invoice_priced & registered
         ),
         f"invoice_priced={sorted(invoice_priced & registered)}",
@@ -862,8 +862,17 @@ def test_externalsecret_no_new_op_item() -> None:
     # d159d7f5 (PR #1473). Its value never lands in git. litellm-pgvector (2026-09-27) is
     # the pgvector vector store's bearer key, written by pushsecret-pgvector.yaml from a
     # hand-seeded Secret, same seam as litellm-sso. This allow-list exists to catch an
-    # UNEXPECTED new secret source; a sixth, unrecognised item must still fail this test.
-    allowed = {"litellm", "cloudnative-pg", "ai-keys", "litellm-sso", "litellm-pgvector"}
+    # UNEXPECTED new secret source; a seventh, unrecognised item must still fail this test.
+    # cliproxyapi (2026-10-30) holds the bearer key LiteLLM sends to the in-cluster cliproxyapi;
+    # the captain creates it by hand and the app's own ExternalSecret reads the same item.
+    allowed = {
+        "litellm",
+        "cloudnative-pg",
+        "ai-keys",
+        "litellm-sso",
+        "litellm-pgvector",
+        "cliproxyapi",
+    }
     record(
         "externalsecret_only_existing_1password_items",
         set(keys) <= allowed and "ai-keys" in keys,

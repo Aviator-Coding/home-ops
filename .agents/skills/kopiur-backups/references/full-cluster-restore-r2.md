@@ -9,7 +9,7 @@ If the OSD disks and FSID survive, use that document instead: Ceph comes back wi
 buckets and the standing populators restore from `ceph` as designed.
 
 To rebuild **one** claim on a healthy cluster, use
-skill `volsync-carveouts`, `references/corrupt-claim-recreation.md`, not this.
+[corrupt-claim-recreation.md](corrupt-claim-recreation.md), not this.
 
 ## Why a plain rebuild is not enough
 
@@ -32,7 +32,7 @@ rebuilt Ceph has a new, empty `kopiur` bucket. The `ceph` `ClusterRepository` ke
 - The `r2` `ClusterRepository` is **connect-only** (`create.enabled: false`). A wrong endpoint,
   bucket or credential shows as `RepositoryNotInitialized` and `KopiurRepositoryNotReady`,
   never as a new, empty "r2".
-- The standing populators exist for the 26 claims on `components/kopiur/pvc` only. **5 more
+- The standing populators exist for the 26 claims on `components/kopiur/pvc` only. **3 more
   claims need a hand restore** (phase 4).
 
 What survives a full loss, off-cluster:
@@ -40,7 +40,7 @@ What survives a full loss, off-cluster:
 | Store | Holds |
 |---|---|
 | Cloudflare R2 bucket `kopiur` | kopiur `r2` repository, all 31 backed-up claims (daily) |
-| LAN TrueNAS MinIO | CNPG barman archive for `database/postgres-17`; VolSync `minio` restic for the 3 carve-outs |
+| LAN TrueNAS MinIO | CNPG barman archive for `database/postgres-17`; the retired VolSync `minio` restic repositories (no live claim since 2026-11-01) |
 | 1Password `Home-Lab` | bootstrap and Talos secrets (`vals`) |
 | 1Password `Homelab` | `kopiur-r2`, `kopiur-ceph`, `cluster`, and every other ExternalSecret source |
 | GitHub | this repo |
@@ -147,10 +147,10 @@ If the MinIO NAS is lost too, Postgres has no off-site copy (the offsite mirror 
 ## Phase 3 - The 26 populator claims restore from r2
 
 `ai/{hermes,opencode,repo-wiki}`, `database/pgadmin`,
-`downloads/{bazarr,lidarr,prowlarr,radarr,readarr,recyclarr,sabnzbd,sonarr}`,
+`downloads/{bazarr,lidarr,prowlarr,radarr,recyclarr,sabnzbd,sonarr}`,
 `home-automation/{esphome,home-assistant,matter-server,zigbee2mqtt}`,
 `media/{calibre-web-automated,plex,seerr,tdarr}`,
-`selfhosted/{changedetection,linkwarden,n8n,ntfy,obsidian-livesync,syncthing}`.
+`selfhosted/{changedetection,linkwarden,n8n,ntfy,obsidian-livesync,paperless-ngx,syncthing}`.
 
 1. Watch them:
 
@@ -187,19 +187,24 @@ If the MinIO NAS is lost too, Postgres has no off-site copy (the offsite mirror 
    safe: the claims are bound (`TargetAlreadyBound`), and the Restores carry no finalizers and own
    no data.
 
-## Phase 4 - Hand restores for the 5 claims without a working populator
+## Phase 4 - Hand restores for the 3 claims without a working populator
 
 These apps start on empty volumes after a rebuild and nothing restores them:
 
 | Claim | Why | r2 policy | Mover uid:gid | Cache |
 |---|---|---|---|---|
-| `database/falkordb` | chart-owned PVC, no populator | `falkordb-r2` | 1000:1000 | 10Gi |
 | `database/surrealdb` | chart-owned PVC, no populator | `surrealdb-r2` | 65532:65532 | 2Gi |
-| `selfhosted/paperless-ngx` | VolSync populator reads an empty rebuilt ceph restic repo | `paperless-ngx-r2` | 1000:1000 | 2Gi |
-| `selfhosted/paperless-ngx-media` | chart-owned PVC, no populator | `paperless-ngx-media-r2` | 1000:1000 | 5Gi |
-| `selfhosted/syncthing-data` | plain PVC, no populator | `syncthing-data-r2` | 1000:1000 | 5Gi |
+| `selfhosted/paperless-ngx-media` | chart-owned PVC, no populator | `paperless-ngx-media-r2` | 1000:1000 | 50Gi |
+| `selfhosted/syncthing-data` | plain PVC, no populator | `syncthing-data-r2` | 1000:1000 | 15Gi |
 
-Identity and cache are the live r2 policy values (2026-09-28); re-read them from the overlay
+The retired `database/falkordb` claim is not listed: its r2 snapshots are kept frozen
+(skill `databases` [retired.md](../../databases/references/retired.md)).
+`selfhosted/paperless-ngx` left this table on 2026-11-01 (issue #2202 PR-4): its claim is on
+`components/kopiur/pvc`, so phase 3 restores it through `paperless-ngx-kopiur-dst` (populator
+path drilled the same day, [proof-ledger.md](proof-ledger.md) row 27).
+
+Identity is the live r2 policy value (2026-09-28) and cache the overlay value
+(2026-11-01, #2202); re-read both from the overlay
 (`KOPIUR_PUID`/`KOPIUR_PGID`/`KOPIUR_CACHE_CAPACITY`) if they may have changed. For each claim:
 
 1. `flux suspend ks <app> -n <ns>` and `flux suspend hr <app> -n <ns>`, scale the workload to 0
@@ -234,7 +239,8 @@ Identity and cache are the live r2 policy values (2026-09-28); re-read them from
    away (same credential-copy reason as phase 3 step 6), then resume the HelmRelease and
    Kustomization and let the workload scale back up.
 
-Do **not** use `just kube restore`: it is VolSync-only, clones `${APP}-dst`, and reads `ceph`.
+There is no `just` recipe for this: the old `just kube restore` was VolSync-only and was
+removed with the operator (issue #2202 PR-6).
 
 ## Phase 5 - Verify
 

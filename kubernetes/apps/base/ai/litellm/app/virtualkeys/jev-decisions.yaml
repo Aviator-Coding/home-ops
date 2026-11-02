@@ -1,8 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
-# The one non-admin key allowed through POST /openrouter/alpha/decisions (captain decision jev-door-grant).
-# The grant is an out-of-Git admin /key/update (../../README.md). NEVER add spec.metadata: the operator
-# would overwrite and delete the grant. Skill litellm-proxy (references/passthrough-lockdown.md).
+# Decision key: calls POST /v1/decisions or /v1/systemone against the `jev` model. No pass-through
+# route, no out-of-Git grant. Skill litellm-proxy (references/model-catalog.md).
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:
@@ -12,10 +11,10 @@ spec:
   keyAlias: jev-decisions
   secretName: litellm-key-jev-decisions
   secretKey: key
-  # The Jev id only; it is not (and must not become) a LiteLLMModel.
+  # The proxy alias (models/jev.yaml), not the upstream typesafe id.
   models:
-    - typesafe/jev-1.13
-  # Priced natively from the cost map; $1/30d stops a runaway loop.
+    - jev
+  # Priced from OpenRouter's usage.cost; $1/30d stops a runaway loop.
   maxBudget: "1.00"
   budgetDuration: 30d
   rpmLimit: 300

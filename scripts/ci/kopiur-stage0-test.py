@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
+# ci: gate
 """Semantic regression test for kopiur Stage 0 (operator + repositories only).
+
+Prevents: kopiur operator CRDs not CreateReplace, operator bumps auto-merging, the r2
+repository being re-created, credentials embedded in Git, a pruned PushSecret deleting
+the only copy of a generated credential from 1Password, a generated password re-minted
+on every refresh, or Flux pruning the bucket that holds the retired VolSync repositories.
 
 Stage 0 is additive by design: install the kopiur operator and declare WHERE
 backups could go, without changing a single existing VolSync backup and without
@@ -28,6 +34,9 @@ This test does not grep source text as its evidence. It:
          sets automerge for those names is false (packageRules are
          last-match-wins; other never-auto-merge rules may follow as long as
          they do not re-enable kopiur)
+       - the VolSync operator and component are gone (issue #2202 PR-6) while
+         system/volsync renders only backend/, and its OBC and
+         CephObjectStoreUser keep `prune: disabled`
 
 Live Ready / `kubectl kopiur doctor` remain post-merge gates; this pins the
 GitOps contract that must hold before merge.
@@ -51,11 +60,18 @@ KOPIUR_REPO = KOPIUR_BASE / "repository"
 KOPIUR_OVERLAY = ROOT / "kubernetes/apps/main/system/kopiur.yaml"
 SYSTEM_OVERLAY_KUST = ROOT / "kubernetes/apps/main/system/kustomization.yaml"
 AUTOMERGE = ROOT / ".renovate/autoMerge.json5"
-VOLSYNC_TREE = [
-    ROOT / "kubernetes/apps/base/system/volsync",
+# The VolSync operator and component were removed in issue #2202 PR-6. What stays is the
+# bucket side: the `volsync` Flux Kustomization keeps its name and now points at backend/,
+# so OBC `volsync` (51 retired restic repositories, reclaimPolicy Delete) never leaves
+# that inventory and is never a prune candidate.
+VOLSYNC_REMOVED = [
+    ROOT / "kubernetes/apps/base/system/volsync/app",
     ROOT / "kubernetes/components/volsync",
-    ROOT / "kubernetes/apps/main/system/volsync.yaml",
 ]
+VOLSYNC_BACKEND = ROOT / "kubernetes/apps/base/system/volsync/backend"
+VOLSYNC_OVERLAY = ROOT / "kubernetes/apps/main/system/volsync.yaml"
+VOLSYNC_BACKEND_KINDS = frozenset({"ObjectBucketClaim", "CephObjectStoreUser", "PushSecret"})
+PRUNE_DISABLED = ("kustomize.toolkit.fluxcd.io/prune", "disabled")
 
 FORBIDDEN_KINDS = frozenset(
     {
@@ -625,6 +641,117 @@ def test_no_embedded_credentials(app_docs: list[dict[str, Any]], repo_docs: list
     require(not hits, f"rendered manifests appear to embed credentials: {hits}")
 
 
+def test_no_pushsecret_deletes_its_item() -> None:
+    """No PushSecret may set deletionPolicy: Delete (ESO's default is None).
+
+    Several push the only copy of a generated credential (the wizarr admin password is
+    minted CreatedOnce; the kopiur ceph bucket keys). With Delete, pruning or renaming
+    the PushSecret deletes that 1Password item.
+    """
+    offenders = []
+    for path in sorted((ROOT / "kubernetes").rglob("*.yaml")):
+        text = path.read_text()
+        if "kind: PushSecret" not in text:
+            continue
+        for doc in load_multi(path):
+            if doc.get("kind") != "PushSecret":
+                continue
+            policy = (doc.get("spec") or {}).get("deletionPolicy", "None")
+            if policy != "None":
+                offenders.append(f"{path.relative_to(ROOT)}: deletionPolicy {policy!r}")
+    require(not offenders, f"PushSecrets that delete their 1Password item: {offenders}")
+
+
+def test_generated_passwords_are_created_once() -> None:
+    """Every ExternalSecret sourced from a Password generator sets refreshPolicy: CreatedOnce.
+
+    ESO's default is Periodic (1h): the generator would mint a new value every refresh, and
+    the PushSecret beside it overwrites the only copy in 1Password while the database role or
+    app state keeps the old one (wizarr's admin password, the seerr
+    API key, the ToolHive gateway token).
+    """
+    offenders = []
+    for path in sorted((ROOT / "kubernetes").rglob("*.yaml")):
+        text = path.read_text()
+        if "generatorRef" not in text:
+            continue
+        for doc in load_multi(path):
+            if doc.get("kind") != "ExternalSecret":
+                continue
+            spec = doc.get("spec") or {}
+            entries = list(spec.get("dataFrom") or []) + list(spec.get("data") or [])
+            kinds = {
+                ((e.get("sourceRef") or {}).get("generatorRef") or {}).get("kind")
+                for e in entries
+                if isinstance(e, dict)
+            }
+            if "Password" in kinds and spec.get("refreshPolicy") != "CreatedOnce":
+                name = (doc.get("metadata") or {}).get("name")
+                offenders.append(f"{path.relative_to(ROOT)}: {name} refreshPolicy {spec.get('refreshPolicy')!r}")
+    require(not offenders, f"generated passwords that are re-minted on refresh: {offenders}")
+
+
+def test_volsync_operator_absent_bucket_kept() -> None:
+    """The VolSync operator is gone and the bucket it wrote to cannot be pruned.
+
+    Stage 0 used to assert the VolSync tree was untouched. Issue #2202 PR-6 removed the
+    operator and component, so this now pins the end state: no operator or component
+    directory, the `volsync` Flux Kustomization renders only backend/, and the OBC
+    (ceph-bucket, reclaimPolicy Delete) and the CephObjectStoreUser both carry
+    `prune: disabled`. A path change that dropped the OBC from the inventory, or a lost
+    annotation, would let Flux delete the bucket and all 51 retired repositories.
+    """
+    present = [str(p.relative_to(ROOT)) for p in VOLSYNC_REMOVED if p.exists()]
+    require(not present, f"VolSync operator/component paths are back: {present}")
+
+    overlay = [d for d in load_multi(VOLSYNC_OVERLAY) if d.get("kind") == "Kustomization"]
+    require(len(overlay) == 1, f"{VOLSYNC_OVERLAY.name}: expected one Kustomization")
+    ks = overlay[0]
+    spec = ks.get("spec") or {}
+    require(
+        (ks.get("metadata") or {}).get("name") == "volsync"
+        and (ks.get("metadata") or {}).get("namespace") == "system",
+        "the bucket's Flux Kustomization must stay system/volsync (a rename re-homes the OBC "
+        "and the old inventory prunes it)",
+    )
+    require(
+        spec.get("path") == "./kubernetes/apps/base/system/volsync/backend",
+        f"system/volsync must render only the backend, got path {spec.get('path')!r}",
+    )
+    require(
+        not spec.get("healthChecks") and not spec.get("dependsOn"),
+        "system/volsync has no workload left: no healthChecks, no dependsOn",
+    )
+    system = yaml.safe_load(SYSTEM_OVERLAY_KUST.read_text())
+    require(
+        "./volsync.yaml" in (system.get("resources") or []),
+        "kubernetes/apps/main/system/kustomization.yaml must keep ./volsync.yaml",
+    )
+
+    docs = kustomize_build(VOLSYNC_BACKEND)
+    kinds = {d.get("kind") for d in docs}
+    require(
+        kinds == VOLSYNC_BACKEND_KINDS,
+        f"backend must render exactly {sorted(VOLSYNC_BACKEND_KINDS)}, got {sorted(kinds)}",
+    )
+    obcs = by_kind(docs, "ObjectBucketClaim")
+    require(len(obcs) == 1, f"expected 1 ObjectBucketClaim in backend, got {len(obcs)}")
+    obc = obcs[0]
+    require(
+        obc["metadata"].get("name") == "volsync"
+        and (obc.get("spec") or {}).get("bucketName") == "volsync"
+        and (obc.get("spec") or {}).get("storageClassName") == "ceph-bucket",
+        f"OBC must stay volsync/volsync on ceph-bucket, got {obc.get('metadata')} {obc.get('spec')}",
+    )
+    for doc in (obc, *by_kind(docs, "CephObjectStoreUser")):
+        ann = (doc.get("metadata") or {}).get("annotations") or {}
+        require(
+            ann.get(PRUNE_DISABLED[0]) == PRUNE_DISABLED[1],
+            f"{doc['kind']}/{doc['metadata'].get('name')}: must carry "
+            f"{PRUNE_DISABLED[0]}: {PRUNE_DISABLED[1]} (decision 6, #2203)",
+        )
+
+
 def main() -> int:
     tests = []
     failures: list[str] = []
@@ -663,22 +790,9 @@ def main() -> int:
         lambda: test_no_embedded_credentials(app_docs, repo_docs),
     )
 
-    # VolSync paths must still exist and be loadable (Stage 0 did not delete them).
-    def volsync_still_present() -> None:
-        missing = [str(p.relative_to(ROOT)) for p in VOLSYNC_TREE if not p.exists()]
-        require(not missing, f"VolSync tree paths missing: {missing}")
-        # Spot-check the operator HelmRelease still has its own CreateReplace CRDs
-        # and was not rewritten into a kopiur reference.
-        vs_hr = ROOT / "kubernetes/apps/base/system/volsync/app/helmrelease.yaml"
-        docs = load_multi(vs_hr)
-        hr = next(d for d in docs if d.get("kind") == "HelmRelease")
-        require(hr["metadata"]["name"] == "volsync", "volsync HelmRelease renamed")
-        require(
-            hr["spec"]["chartRef"]["name"] == "volsync",
-            "volsync HelmRelease chartRef drifted",
-        )
-
-    run("volsync_tree_intact", volsync_still_present)
+    run("volsync_operator_absent_bucket_kept", test_volsync_operator_absent_bucket_kept)
+    run("no_pushsecret_deletes_its_item", test_no_pushsecret_deletes_its_item)
+    run("generated_passwords_are_created_once", test_generated_passwords_are_created_once)
 
     passed = len(tests) - len(failures)
     print(f"Summary: {passed} passed, {len(failures)} failed")

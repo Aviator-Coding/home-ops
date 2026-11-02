@@ -38,6 +38,16 @@ MEASURED_DEFECT_INSTALL_ARGS = (
     "aqua:mitsuhiko/minijinja"
 )
 
+# Per job since 2026-10-31: python-tests runs only the `# ci: gate` files,
+# python-tests-advisory runs the rest with the full tool set.
+GATE_REQUIRED_TOOLS = (
+    "python",
+    "uv",
+    "kubectl",
+    "aqua:kubernetes-sigs/kustomize",
+    "aqua:prometheus/prometheus",
+    "aqua:jqlang/jq",
+)
 PYTHON_TESTS_REQUIRED_TOOLS = (
     "python",
     "uv",
@@ -122,9 +132,9 @@ def mise_action_steps(
     return found
 
 
-def python_tests_install_args(data: dict[str, Any]) -> str:
-    job = (data.get("jobs") or {}).get("python-tests")
-    require(isinstance(job, dict), "validate.yaml missing python-tests job")
+def python_tests_install_args(data: dict[str, Any], job_id: str = "python-tests") -> str:
+    job = (data.get("jobs") or {}).get(job_id)
+    require(isinstance(job, dict), f"validate.yaml missing {job_id} job")
     for step in job.get("steps") or []:
         if not isinstance(step, dict):
             continue
@@ -189,24 +199,30 @@ def test_live_workflows_do_not_repin_mise_tools() -> dict[str, Any]:
 
 def test_python_tests_still_installs_prometheus_from_mise() -> dict[str, Any]:
     data = load_workflow(VALIDATE_WF)
-    raw = python_tests_install_args(data)
-    tokens = install_args_tokens(raw)
-    missing = [t for t in PYTHON_TESTS_REQUIRED_TOOLS if t not in tokens]
-    require(
-        not missing,
-        f"python-tests install_args dropped required tools {missing}; got {tokens}",
-    )
-    require(
-        not any(t.startswith("aqua:prometheus/prometheus@") for t in tokens),
-        f"python-tests still pins prometheus in install_args: {raw}",
-    )
+    found: dict[str, str] = {}
+    for job_id, required in (
+        ("python-tests", GATE_REQUIRED_TOOLS),
+        ("python-tests-advisory", PYTHON_TESTS_REQUIRED_TOOLS),
+    ):
+        raw = python_tests_install_args(data, job_id)
+        found[job_id] = raw
+        tokens = install_args_tokens(raw)
+        missing = [t for t in required if t not in tokens]
+        require(
+            not missing,
+            f"{job_id} install_args dropped required tools {missing}; got {tokens}",
+        )
+        require(
+            not any(t.startswith("aqua:prometheus/prometheus@") for t in tokens),
+            f"{job_id} still pins prometheus in install_args: {raw}",
+        )
     tools = load_mise_tools()
     require(
         "aqua:prometheus/prometheus" in tools,
         ".mise.toml must still declare aqua:prometheus/prometheus",
     )
     return {
-        "install_args": raw,
+        "install_args": found,
         "mise_prometheus": tools["aqua:prometheus/prometheus"],
     }
 

@@ -10,6 +10,10 @@ The Tdarr node harness reads these files, so they stay in this directory:
 - [`tdarr/README.md`](tdarr/README.md): Tdarr rebuild (PVC-only state)
 - [`tdarr-errored-remuxes.md`](tdarr-errored-remuxes.md): open captain decisions the harness pins
 
+## Goals
+
+- [`goals/2026-10-30-agent-maintainable-home-ops.md`](goals/2026-10-30-agent-maintainable-home-ops.md): the agent-maintainable repo goal, with its [knowledge ledger](goals/knowledge-ledger.md)
+
 ## Runbooks outside the skills
 
 | When | Runbook |

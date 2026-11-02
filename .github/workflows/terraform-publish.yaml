@@ -44,12 +44,12 @@ jobs:
       # flux comes from .mise.toml so this publishes with the same CLI version
       # documented for local use.
       - name: Setup Tools
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: aqua:fluxcd/flux2
 
       - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -63,12 +63,17 @@ jobs:
           echo "artifact=ghcr.io/aviator-coding/manifests/terraform:$(git rev-parse --short HEAD)" >> "${GITHUB_OUTPUT}"
 
       - name: Publish OCI Artifact
+        env:
+          ARTIFACT: ${{ steps.tag.outputs.artifact }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          flux push artifact "oci://${{ steps.tag.outputs.artifact }}" \
+          flux push artifact "oci://${ARTIFACT}" \
             --path="./terraform" \
             --source="$(git config --get remote.origin.url)" \
-            --revision="${{ github.ref_name }}/$(git rev-parse HEAD)"
+            --revision="${REF_NAME}/$(git rev-parse HEAD)"
 
       - name: Tag OCI Artifact
+        env:
+          ARTIFACT: ${{ steps.tag.outputs.artifact }}
         run: |
-          flux tag artifact "oci://${{ steps.tag.outputs.artifact }}" --tag main
+          flux tag artifact "oci://${ARTIFACT}" --tag main

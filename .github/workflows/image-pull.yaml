@@ -52,6 +52,8 @@ jobs:
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          # Only used as the checkout token below, which reads repository contents.
+          permission-contents: read
 
       # fetch-depth: 0 makes origin/<default> resolvable for --base.
       - name: Checkout
@@ -69,9 +71,11 @@ jobs:
 
       - name: Resolve New Images
         id: resolve
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          BASE="origin/${{ github.event.repository.default_branch }}"
+          BASE="origin/${DEFAULT_BRANCH}"
 
           # Images this PR adds, as flate reports them.
           flate diff images \
@@ -96,10 +100,12 @@ jobs:
             new-images.json)
           echo "images=${images}" >> "$GITHUB_OUTPUT"
 
-          echo '## New images to pull' >> "$GITHUB_STEP_SUMMARY"
-          echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          echo "${images}" | jq >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '## New images to pull'
+            echo '```json'
+            echo "${images}" | jq
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   pull:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.images.outputs.images != '[]' }}
@@ -132,7 +138,7 @@ jobs:
         run: |
           for attempt in 1 2 3 4; do
             echo "::group::Attempt $attempt/4: talosctl image pull..."
-            if talosctl --nodes $NODE image pull "${MATRIX_IMAGE}"; then
+            if talosctl --nodes "$NODE" image pull "${MATRIX_IMAGE}"; then
               echo "::endgroup::"
               echo "✓ Image pulled successfully"
               exit 0

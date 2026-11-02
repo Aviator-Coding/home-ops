@@ -6,25 +6,32 @@ against `http://litellm.ai.svc.cluster.local:4000/v1`. Standards file:
 `.github/ai-review-rules.md`. Model: `models/pr-review-local.yaml`. Key:
 `virtualkeys/ai-pr-review.yaml`. CI: `scripts/ci/litellm-pr-reviewer-test.py`.
 
-## Advisory only, by construction (captain decision)
+## Advisory, by construction (captain decision); fails its own check on a blocker
 
 - `publish-mode: comment` publishes with `gh pr comment`; the action reaches
   `gh pr review` only in `review_comment`/`review_verdict` modes, so it cannot
   approve or request changes.
-- `approve-forks`, `fail-on-request-changes` stay false; `allow-approve` is deprecated and inert in v3 and stays unset.
+- `approve-forks` stays false; `allow-approve` is deprecated and inert in v3 and stays unset.
+- The check is decided by the **Jev gate** step (`scripts/ci/ai_review_gate.py`, goal task 2.4):
+  one `predicate` per blocker rule on `POST /v1/decisions` (key allow-lists `jev`), with a
+  regex's unmatched `${NAME}` tokens as hints; red at probability >= 0.6. The workflow runs
+  main's copy of the script. Jev and the local model share the key's $5/30d budget: if Jev
+  ever exhausts it, the local review falls back to its outage notice too. The local model only writes the text (`fail-on-request-changes`
+  false); it caught 2 of 5 seeded blockers, Jev 5 of 5 with no false failures (goal §8, D6).
+  Jev unreachable = a notice and a pass. Never part of `CI Success`.
 - v3 flipped several defaults. The workflow pins the v2 advisory posture: `verdict-policy: model`, `deep-review: "false"`, `ci-status-check: "false"`, `tool-mode: "off"`, `inline-findings: "false"`.
 - **Never a required status check** (branch protection:
   skill `github-ci`, `references/branch-protection.md`), and "Allow GitHub Actions to create and approve
   pull requests" stays off.
 - `on-model-failure: notice`: a GPU outage posts "AI review could not run"
-  instead of a red check. That notice carries a `request_changes` verdict, so
-  it stays green only while `fail-on-request-changes` is false.
+  instead of a red check. The action exempts that notice from the
+  `fail-on-request-changes` gate (`fail-on-degraded-review` stays false).
 
-## Cannot spend money
+## Spend is bounded
 
 - `ai-model: pr-review-local`: zero-priced, no cloud fallback, thinking off.
-  The key allow-lists only it and `embedding-local`; anything else is 403
-  (verified). Never give this key `auto`: it fires unattended on every PR,
+  The key allow-lists it, `embedding-local` and `jev` (the gate, a fraction of a cent per
+  PR); anything else is 403 (verified). Never give this key `auto`: it fires unattended on every PR,
   including heavy Renovate traffic.
 - `review-routing-mode: "off"` (no smart-model escalation). All outward
   features (`tool-mode`, evidence, Linear, search, `*_enable_for_forks`) are

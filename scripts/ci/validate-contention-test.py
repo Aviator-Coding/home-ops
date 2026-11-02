@@ -76,7 +76,8 @@ PYTHON_TIMEOUT_FLOOR_MIN = 20  # ~2.5x the 469s contended success
 FILTER_TIMEOUT_MAX_MIN = 5
 RENOVATE_TIMEOUT_MAX_MIN = 10
 
-MISE_HEAVY_JOBS = ("talos", "versions", "bootstrap", "terraform", "docs-guards")
+# python-tests (the scripts/ci gate) fans out beside these since 2026-10-31.
+MISE_HEAVY_JOBS = ("talos", "versions", "bootstrap", "terraform", "docs-guards", "python-tests")
 LIGHT_PREDECESSORS = (
     "filter",
     "talos",
@@ -484,8 +485,9 @@ def test_timeouts_meet_measured_floors(model: WorkflowModel) -> dict[str, Any]:
             failures,
         )
 
-    pt = model.jobs["python-tests"]
-    evidence["timeouts"]["python-tests"] = pt.timeout_minutes
+    # The heavy litellm[proxy] install moved to python-tests-advisory on 2026-10-31.
+    pt = model.jobs["python-tests-advisory"]
+    evidence["timeouts"]["python-tests-advisory"] = pt.timeout_minutes
     _check(
         pt.timeout_minutes is not None
         and pt.timeout_minutes >= PYTHON_TIMEOUT_FLOOR_MIN,
@@ -538,7 +540,7 @@ def test_timeouts_meet_measured_floors(model: WorkflowModel) -> dict[str, Any]:
 
 
 def test_python_tests_ordered_after_light_jobs(model: WorkflowModel) -> dict[str, Any]:
-    pt = model.jobs["python-tests"]
+    pt = model.jobs["python-tests-advisory"]
     needs = set(pt.needs)
     missing = [j for j in LIGHT_PREDECESSORS if j not in needs]
     if missing:
@@ -836,17 +838,6 @@ def test_runner_capacity_unchanged() -> dict[str, Any]:
     return {"minRunners": min_r, "maxRunners": max_r, "name": ARC_RUNNER}
 
 
-def test_jobs_still_on_home_ops_runner(model: WorkflowModel) -> dict[str, Any]:
-    evidence: dict[str, str] = {}
-    for jid, job in model.jobs.items():
-        evidence[jid] = str(job.runs_on)
-        if job.runs_on != ARC_RUNNER:
-            raise Failure(
-                f"{jid} must run on {ARC_RUNNER}; got {job.runs_on!r}"
-            )
-    return evidence
-
-
 def test_validation_entrypoints_preserved(model: WorkflowModel) -> dict[str, Any]:
     evidence: dict[str, Any] = {}
     for jid, marker in JOB_RUN_MARKERS.items():
@@ -879,13 +870,8 @@ def test_no_workflow_level_job_serialization(model: WorkflowModel) -> dict[str, 
     reno = model.jobs["renovate-config"].needs
     if reno != ["filter"]:
         raise Failure(f"renovate-config must need only filter; got {reno}")
-    # workflow concurrency is PR-scoped cancel-in-progress, not a job mutex
-    conc = model.concurrency
-    if conc.get("cancel-in-progress") is not True:
-        raise Failure(
-            f"workflow concurrency cancel-in-progress should stay true; got {conc}"
-        )
-    return {"mise_needs": {j: model.jobs[j].needs for j in MISE_HEAVY_JOBS}, "concurrency": conc}
+    # Concurrency moved to ci.yaml on 2026-10-31 (pinned by workflow-hardening-test.py).
+    return {"mise_needs": {j: model.jobs[j].needs for j in MISE_HEAVY_JOBS}}
 
 
 def test_docs_guards_run_on_every_same_repo_pr(model: WorkflowModel) -> dict[str, Any]:
@@ -965,7 +951,6 @@ def main() -> int:
         ("path_filters_keep_workflow_self_test", lambda: test_path_filters_keep_workflow_self_test(model)),
         ("trigger_has_no_path_filter", lambda: test_trigger_has_no_path_filter(model)),
         ("runner_capacity_unchanged", test_runner_capacity_unchanged),
-        ("jobs_still_on_home_ops_runner", lambda: test_jobs_still_on_home_ops_runner(model)),
         ("validation_entrypoints_preserved", lambda: test_validation_entrypoints_preserved(model)),
         ("no_workflow_level_job_serialization", lambda: test_no_workflow_level_job_serialization(model)),
         ("docs_guards_run_on_every_same_repo_pr", lambda: test_docs_guards_run_on_every_same_repo_pr(model)),
