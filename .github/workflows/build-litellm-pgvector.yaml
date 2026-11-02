@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-# Builds ghcr.io/aviator-coding/litellm-pgvector (BerriAI publishes no image)
+# Builds ghcr.io/skrumbach/litellm-pgvector (BerriAI publishes no image)
 # from .github/docker/litellm-pgvector for kubernetes/apps/base/ai/litellm-pgvector.
 #
 # The tag is CONTENT-ADDRESSED - `scripts/ci/litellm-pgvector-test.py
@@ -44,7 +44,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: aviator-coding/litellm-pgvector
+  IMAGE_NAME: skrumbach/litellm-pgvector
 
 jobs:
   build:

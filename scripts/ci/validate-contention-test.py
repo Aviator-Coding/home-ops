@@ -2,7 +2,7 @@
 """Behavioral contract for validate.yaml runner-pool contention hardening.
 
 Pins the captain decision measured on PR #1481 run 33233099018 (2026-08-29):
-under full fan-out on gha-runner-scale-set-aviator-coding-home-ops, mise-action
+under full fan-out on gha-runner-scale-set-skrumbach-home-ops, mise-action
 Setup Tools can take longer than the old 5–10m job timeouts, cancelling a
 healthy job before it reaches its validator. The fix was larger timeouts on the
 mise-heavy jobs plus ordering python-tests after the lighter ones so the heavy
@@ -62,7 +62,7 @@ HOME_OPS_HR = (
     / "helmrelease.yaml"
 )
 
-ARC_RUNNER = "gha-runner-scale-set-aviator-coding-home-ops"
+ARC_RUNNER = "gha-runner-scale-set-skrumbach-home-ops"
 FORK_GUARD = "github.event.pull_request.head.repo.full_name == github.repository"
 WORKFLOW_SELF = ".github/workflows/validate.yaml"
 

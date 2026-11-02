@@ -62,7 +62,7 @@ LITELLM_ES = LITELLM_DIR / "externalsecret.yaml"
 VIRTUAL_KEY = LITELLM_DIR / "virtualkeys" / "litellm-pgvector.yaml"
 MODELS_DIR = LITELLM_DIR / "models"
 
-IMAGE_REPOSITORY = "ghcr.io/aviator-coding/litellm-pgvector"
+IMAGE_REPOSITORY = "ghcr.io/skrumbach/litellm-pgvector"
 FALLBACK_ENV_NAMES = ("PG_VECTOR_API_KEY", "PG_VECTOR_API_BASE")
 
 

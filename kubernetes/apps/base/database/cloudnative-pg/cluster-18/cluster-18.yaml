@@ -58,7 +58,7 @@ spec:
       # Not created in template1: each database that wants it runs CREATE EXTENSION timescaledb.
       - name: timescaledb
         image:
-          reference: ghcr.io/aviator-coding/timescaledb-community:2.31.0-6648c17deb05
+          reference: ghcr.io/skrumbach/timescaledb-community:2.31.0-6648c17deb05
     shared_preload_libraries:
       - timescaledb
     parameters:

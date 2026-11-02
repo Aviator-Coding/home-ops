@@ -36,7 +36,7 @@ LABELS = ROOT / ".github" / "labels.yaml"
 FORK_GUARD = (
     "github.event.pull_request.head.repo.full_name == github.repository"
 )
-ARC_RUNNER = "gha-runner-scale-set-aviator-coding-home-ops"
+ARC_RUNNER = "gha-runner-scale-set-skrumbach-home-ops"
 SHA_PIN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+@[0-9a-f]{40}$")
 
 

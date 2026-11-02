@@ -101,7 +101,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.images.outputs.images != '[]' }}
     needs: images
     name: Image Pull - Pull Images
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: gha-runner-scale-set-skrumbach-home-ops
     timeout-minutes: 15
     strategy:
       matrix:

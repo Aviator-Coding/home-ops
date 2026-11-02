@@ -64,7 +64,7 @@ No LB service, Gatus ConfigMap or own PrometheusRule: the `cluster-17` rules mat
 metric, not cluster. An extension image bump needs `ALTER EXTENSION vector UPDATE` per
 database. TimescaleDB is the Community Edition (Timescale License: compression, continuous
 aggregates), shipped as our own ImageVolume image
-`ghcr.io/aviator-coding/timescaledb-community` from `.github/docker/timescaledb-community/`.
+`ghcr.io/skrumbach/timescaledb-community` from `.github/docker/timescaledb-community/`.
 Its tag is content-addressed: after any edit there, set the `cluster-18.yaml` reference to
 `python3 scripts/ci/timescaledb-community-test.py --print-tag`. It is preloaded, telemetry
 off, and created per database with `CREATE EXTENSION timescaledb`. The official

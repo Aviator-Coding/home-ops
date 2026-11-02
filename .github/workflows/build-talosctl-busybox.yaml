@@ -26,7 +26,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: aviator-coding/talosctl-busybox
+  IMAGE_NAME: skrumbach/talosctl-busybox
 
 jobs:
   build:

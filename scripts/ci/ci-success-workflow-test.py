@@ -37,7 +37,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WF = ROOT / ".github" / "workflows"
 FORK_GUARD = "github.event.pull_request.head.repo.full_name == github.repository"
-ARC = "gha-runner-scale-set-aviator-coding-home-ops"
+ARC = "gha-runner-scale-set-skrumbach-home-ops"
 
 failures: list[str] = []
 

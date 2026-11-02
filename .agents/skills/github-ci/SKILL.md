@@ -25,7 +25,7 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
    Both scale sets set `automountServiceAccountToken: false` and no
    `serviceAccountName` (chart no-permission SA). The only node credential is
    the home-ops Talos `ServiceAccount` at `os:operator`. `docker://` actions
-   and `docker run` fail on `gha-runner-scale-set-aviator-coding-home-ops`.
+   and `docker run` fail on `gha-runner-scale-set-skrumbach-home-ops`.
    [arc-runners.md](references/arc-runners.md)
 4. **A red `image-pull` that passes on rerun is ARC pool contention.** Each runner
    gets a 20Gi emptyDir work volume (was a `ceph-block` PVC until 2026-11-02). Rerun. A red **AI review** means

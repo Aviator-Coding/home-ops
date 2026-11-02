@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-# Builds ghcr.io/aviator-coding/timescaledb-community (TimescaleDB Community Edition
+# Builds ghcr.io/skrumbach/timescaledb-community (TimescaleDB Community Edition
 # as a CloudNativePG ImageVolume extension; the official CNPG image is Apache-2 only)
 # from .github/docker/timescaledb-community for postgres-18 (cloudnative-pg/cluster-18).
 #
@@ -42,7 +42,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: aviator-coding/timescaledb-community
+  IMAGE_NAME: skrumbach/timescaledb-community
 
 jobs:
   build:

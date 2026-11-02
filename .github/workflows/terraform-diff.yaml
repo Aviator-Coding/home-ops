@@ -29,7 +29,7 @@ jobs:
     # Fork guard - see header.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Terraform Diff - Filter
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: gha-runner-scale-set-skrumbach-home-ops
     timeout-minutes: 5
     outputs:
       changed-dirs: ${{ steps.changed-dirs.outputs.changed_files }}
@@ -52,7 +52,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.changed-dirs != '[]' }}
     needs: filter
     name: Terraform Diff - Plan
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: gha-runner-scale-set-skrumbach-home-ops
     timeout-minutes: 10
     permissions:
       contents: read
@@ -158,7 +158,7 @@ jobs:
       - filter
       - plan
     name: Terraform Diff - Success
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: gha-runner-scale-set-skrumbach-home-ops
     timeout-minutes: 5
     steps:
       - name: Any jobs failed?
