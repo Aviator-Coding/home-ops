@@ -19,6 +19,8 @@ PRs. Every other test runs in advisory-tests.yaml, which never blocks. Asserts:
      neither marker minus the three docs guards (docs-guards owns them), and
      is in neither validate.yaml's nor ci.yaml's `success` needs. A job in a
      called workflow holds CI Success until it finishes, so it lives apart.
+     It fails on an empty selection, both its jobs keep the fork guard, and its
+     path filter is validate.yaml's `pythontests` list plus its own file.
   4. `# ci: nightly` files (network-calling, goal D2) run only in
      nightly-tests.yaml, on a schedule; no file carries both markers.
 """
@@ -36,7 +38,8 @@ CI = ROOT / "scripts" / "ci"
 VALIDATE = ROOT / ".github" / "workflows" / "validate.yaml"
 CI_WF = ROOT / ".github" / "workflows" / "ci.yaml"
 ADVISORY_WF = ROOT / ".github" / "workflows" / "advisory-tests.yaml"
-DOCS_GUARDS = ("docs-budget", "doc-links", "functional-comments-guard")
+DOCS_GUARD_EXCLUDE = "grep -vE '/(docs-budget|doc-links|functional-comments-guard)-test\\.py$'"
+FORK_GUARD = "github.event.pull_request.head.repo.full_name == github.repository"
 MARKER = "# ci: gate"
 NIGHTLY = "# ci: nightly"
 NIGHTLY_WF = ROOT / ".github" / "workflows" / "nightly-tests.yaml"
@@ -94,6 +97,13 @@ def gate_files() -> list[Path]:
     return out
 
 
+def filter_patterns(job: dict, step_id: str) -> set[str]:
+    for step in job.get("steps", []):
+        if step.get("id") == step_id:
+            return {ln.strip() for ln in str((step.get("with") or {}).get("patterns", "")).splitlines() if ln.strip()}
+    return set()
+
+
 def run_script(job: dict) -> str:
     return "\n".join(step.get("run", "") for step in job.get("steps", []))
 
@@ -133,9 +143,17 @@ def main() -> int:
     check(advisory.get("runs-on") == "ubuntu-latest", "python-tests-advisory runs on ubuntu-latest")
     check("grep -LxE '# ci: (gate|nightly)'" in adv_run,
           "python-tests-advisory selects files with neither marker")
-    for guard in DOCS_GUARDS:
-        check(guard in adv_run and "grep -vE" in adv_run,
-              f"python-tests-advisory excludes {guard}-test.py (docs-guards runs it)")
+    check(DOCS_GUARD_EXCLUDE in adv_run,
+          "python-tests-advisory excludes exactly the three docs guards (docs-guards runs them)")
+    check("mapfile -t" in adv_run and "== 0 ))" in adv_run,
+          "python-tests-advisory fails when it selects no files")
+    adv_jobs = adv_wf.get("jobs") or {}
+    for jid in ("filter", "python-tests-advisory"):
+        check(FORK_GUARD in str((adv_jobs.get(jid) or {}).get("if", "")),
+              f"advisory-tests.yaml {jid} keeps the fork guard")
+    check(filter_patterns(adv_jobs.get("filter") or {}, "pythontests")
+          == filter_patterns(jobs.get("filter") or {}, "pythontests") | {".github/workflows/advisory-tests.yaml"},
+          "advisory-tests.yaml path filter is validate.yaml's pythontests list plus its own file")
     check(advisory.get("continue-on-error") is True, "python-tests-advisory has continue-on-error: true")
     check("python-tests-advisory" not in success_needs, "python-tests-advisory is not in validate success.needs")
     check("python-tests-advisory" not in ci_needs and "advisory" not in " ".join(ci_jobs),

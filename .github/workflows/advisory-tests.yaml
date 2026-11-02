@@ -132,16 +132,23 @@ jobs:
       # needs it the same way just talos / talos-validate.sh do.
       # `# ci: nightly` files call the network; they run in nightly-tests.yaml, not on PRs (goal D2).
       # The three docs guards are excluded: validate.yaml's docs-guards job owns them.
+      # mapfile + count check, as in python-tests: a process substitution's exit status is
+      # ignored, so an empty or failed grep would otherwise run zero tests and pass.
       - name: Run advisory scripts/ci tests
         run: |
+          mapfile -t tests < <(grep -LxE '# ci: (gate|nightly)' scripts/ci/*-test.py \
+            | grep -vE '/(docs-budget|doc-links|functional-comments-guard)-test\.py$')
+          if (( ${#tests[@]} == 0 )); then
+            echo "FAILED: no advisory scripts/ci tests selected"
+            exit 1
+          fi
           fail=0
-          while IFS= read -r f; do
+          for f in "${tests[@]}"; do
             echo "::group::${f}"
             if ! python3 "${f}" </dev/null; then
               echo "FAILED: ${f}"
               fail=1
             fi
             echo "::endgroup::"
-          done < <(grep -LxE '# ci: (gate|nightly)' scripts/ci/*-test.py \
-            | grep -vE '/(docs-budget|doc-links|functional-comments-guard)-test\.py$')
+          done
           exit "${fail}"

@@ -22,6 +22,9 @@ Asserts:
      or through a guarded `needs`.
   6. validate.yaml has a `lint` job on `ubuntu-latest` that validate's inner
      `success` job needs, so a lint failure fails `CI Success`.
+  7. Cluster-free PR jobs stay hosted: labeler (today's required check),
+     image-pull's filter/images/success and every advisory-tests.yaml job run on
+     `ubuntu-latest`; only image-pull's `pull` (talosctl to a node) is on ARC.
 """
 
 from __future__ import annotations
@@ -34,6 +37,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WF = ROOT / ".github" / "workflows"
 FORK_GUARD = "github.event.pull_request.head.repo.full_name == github.repository"
+ARC = "gha-runner-scale-set-aviator-coding-home-ops"
 
 failures: list[str] = []
 
@@ -122,6 +126,23 @@ def test_no_arc_in_gate(ci: dict, flate: dict, validate: dict) -> None:
             check(job.get("runs-on") == "ubuntu-latest", f"{name} {jid} runs on ubuntu-latest")
 
 
+def test_runner_placement() -> None:
+    expected = {
+        ("labeler.yaml", "main"): "ubuntu-latest",
+        ("image-pull.yaml", "filter"): "ubuntu-latest",
+        ("image-pull.yaml", "images"): "ubuntu-latest",
+        ("image-pull.yaml", "success"): "ubuntu-latest",
+        ("image-pull.yaml", "pull"): ARC,
+    }
+    for (name, jid), runner in expected.items():
+        job = (load(name).get("jobs") or {}).get(jid) or {}
+        check(job.get("runs-on") == runner, f"{name} {jid} runs on {runner} (got {job.get('runs-on')!r})")
+    advisory = load("advisory-tests.yaml").get("jobs") or {}
+    check(bool(advisory), "advisory-tests.yaml has jobs")
+    for jid, job in advisory.items():
+        check(job.get("runs-on") == "ubuntu-latest", f"advisory-tests.yaml {jid} runs on ubuntu-latest")
+
+
 def _guarded(jobs: dict, jid: str, seen: frozenset = frozenset()) -> bool:
     """A job is guarded by its own `if`, or by needing a guarded job (a skipped need
     skips it, unless its `if` uses always())."""
@@ -154,6 +175,7 @@ def main() -> int:
     test_called_workflows_are_call_only(flate, validate)
     test_no_arc_in_gate(ci, flate, validate)
     test_fork_guard_kept(flate, validate)
+    test_runner_placement()
     print(f"Summary: {len(failures)} failed")
     return 1 if failures else 0
 

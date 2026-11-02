@@ -200,6 +200,29 @@ def test_live_workflows_do_not_repin_mise_tools() -> dict[str, Any]:
     return {"workflows": scanned, "mise_tools": sorted(mise_tools)}
 
 
+def test_mise_action_cache_disabled() -> dict[str, Any]:
+    """Every jdx/mise-action step sets `cache: false`.
+
+    Measured 2026-11-02: 72 caches (10.7 GB), all on refs/pull/*/merge, none
+    on main. PR caches are invisible to other PRs, so they are pure churn, and
+    uncached Setup Tools took 7-11s.
+    """
+    steps: list[str] = []
+    bad: list[str] = []
+    for path in sorted(WF_DIR.glob("*.y*ml")):
+        for jid, job in (load_workflow(path).get("jobs") or {}).items():
+            for step in (job or {}).get("steps") or []:
+                if "jdx/mise-action" not in str(step.get("uses") or ""):
+                    continue
+                label = f"{path.name}:{jid}"
+                steps.append(label)
+                if (step.get("with") or {}).get("cache") is not False:
+                    bad.append(label)
+    require(steps, "no jdx/mise-action steps found")
+    require(not bad, f"mise-action steps without cache: false: {bad}")
+    return {"steps": steps}
+
+
 def test_python_tests_still_installs_prometheus_from_mise() -> dict[str, Any]:
     require(ADVISORY_WF.is_file(), f"missing {ADVISORY_WF}")
     found: dict[str, str] = {}
@@ -335,6 +358,7 @@ def main() -> int:
         test_checker_refuses_measured_defect,
         test_checker_accepts_unversioned_install_args,
         test_live_workflows_do_not_repin_mise_tools,
+        test_mise_action_cache_disabled,
         test_python_tests_still_installs_prometheus_from_mise,
         test_guard_refuses_a_restored_prometheus_pin,
         test_unversioned_install_follows_a_mise_toml_bump,
