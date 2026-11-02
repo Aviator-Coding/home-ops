@@ -232,7 +232,7 @@ Verdicts:
 | `scripts/ci/talos-renovate-pin-test.py` | The Talos Renovate pin excludes exactly v1.13.3 and the auto-merge guard holds. | neither |  |  |
 | `scripts/ci/tdarr-flow-nodes-test.py` | CI runs the Tdarr safe-transcode Node harness and fails closed if it or Node is missing. | neither |  |  |
 | `scripts/ci/terraform-ci-workflows-test.py` (# ci: nightly) | The terraform-diff CI workflow meets its behavioral contract. | neither |  |  |
-| `scripts/ci/terraform-ci-workflows-test.py` `test_publish_workflow_shape` | `terraform-publish.yaml` pushes `terraform/` to `ghcr.io/aviator-coding/manifests/terraform` on push to main. | neither | archive | — (workflow deleted 2026-11-02: no OCIRepository, doc or script consumed the artifact) |
+| `scripts/ci/terraform-ci-workflows-test.py` `test_publish_workflow_shape` | `terraform-publish.yaml` pushes `terraform/` to `ghcr.io/skrumbach/manifests/terraform` on push to main. | neither | archive | — (workflow deleted 2026-11-02: no OCIRepository, doc or script consumed the artifact) |
 | `scripts/ci/timescaledb-community-test.py` | The TimescaleDB Community extension image build for postgres-18 is guarded. | neither |  |  |
 | `scripts/ci/tofu-authentik-stack-test.py` (# ci: nightly) | The Authentik OpenTofu adoption stack passes its behavioral checks. | neither |  |  |
 | `scripts/ci/toolhive-session-probe-test.py` | The ToolHive MCP Session Gatus check is semantically correct. | neither |  |  |

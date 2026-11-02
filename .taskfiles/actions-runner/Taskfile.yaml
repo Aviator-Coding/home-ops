@@ -88,14 +88,14 @@ tasks:
       - echo "All active jobs will be interrupted!"
       - echo ""
       - echo "Suspending HelmReleases..."
-      - flux suspend hr -n {{.NAMESPACE}} gha-runner-scale-set-aviator-coding-home-ops
-      - kubectl delete hr -n {{.NAMESPACE}} gha-runner-scale-set-aviator-coding-home-ops --wait=true
+      - flux suspend hr -n {{.NAMESPACE}} gha-runner-scale-set-skrumbach-home-ops
+      - kubectl delete hr -n {{.NAMESPACE}} gha-runner-scale-set-skrumbach-home-ops --wait=true
       - echo "Waiting for cleanup..."
       - sleep 10
       - echo "Resuming HelmReleases..."
-      - flux resume hr -n {{.NAMESPACE}} gha-runner-scale-set-aviator-coding-home-ops
+      - flux resume hr -n {{.NAMESPACE}} gha-runner-scale-set-skrumbach-home-ops
       - echo "Waiting for reconciliation..."
-      - flux reconcile ks -n flux-system gha-runner-scale-set-aviator-coding-home-ops --with-source
+      - flux reconcile ks -n flux-system gha-runner-scale-set-skrumbach-home-ops --with-source
       - echo "Waiting for listener to be ready..."
       - sleep 10
       - kubectl wait --for=condition=ready pod -n {{.NAMESPACE}} -l app.kubernetes.io/component=listener --timeout=180s

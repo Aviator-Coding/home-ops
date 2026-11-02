@@ -126,7 +126,7 @@ agree. A pure digest or patch bump with nothing else in the diff is normally fin
   finding, and more so on any job holding write permissions.
 - `permissions:` must be the narrowest set the job needs; flag any widening, especially
   `contents: write` or `pull-requests: write` appearing where it was not needed before.
-- **This repo is public, and jobs on `gha-runner-scale-set-aviator-coding-home-ops` run inside the
+- **This repo is public, and jobs on `gha-runner-scale-set-skrumbach-home-ops` run inside the
   cluster.** Every `pull_request`-reachable job on that runner must carry
   `if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}`. A missing fork
   guard on an in-cluster job is a blocker. A `pull_request_target` trigger is a blocker unless

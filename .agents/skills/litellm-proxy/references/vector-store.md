@@ -16,7 +16,7 @@ enforceable on this LiteLLM/operator version; revisit at LiteLLM v1.104.0.
 | Piece | Where |
 |---|---|
 | Server | `kubernetes/apps/base/ai/litellm-pgvector/app/helmrelease.yaml`, ClusterIP `litellm-pgvector.ai.svc.cluster.local:8000`, no HTTPRoute |
-| Image | built from `.github/docker/litellm-pgvector/` (pinned upstream commit + local patches) by `.github/workflows/build-litellm-pgvector.yaml` into `ghcr.io/aviator-coding/litellm-pgvector` |
+| Image | built from `.github/docker/litellm-pgvector/` (pinned upstream commit + local patches) by `.github/workflows/build-litellm-pgvector.yaml` into `ghcr.io/skrumbach/litellm-pgvector` |
 | Role, DB, `vector` extension, tables, seeded `default` store | `litellm-pgvector/app/dbinit.yaml` + `resources/schema.sql` |
 | Registration | `litellmproxy.yaml` `extraConfig.vector_store_registry` |
 | Embedding model | `models/qwen3-embedding-8b.yaml` (`qwen/qwen3-embedding-8b`, OpenRouter, metered) |

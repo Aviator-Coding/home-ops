@@ -245,7 +245,7 @@ def test_workflow_contracts() -> dict[str, Any]:
     )
     record(
         "runs_on_in_cluster_arc_scale_set",
-        job.get("runs-on") == "gha-runner-scale-set-aviator-coding-home-ops",
+        job.get("runs-on") == "gha-runner-scale-set-skrumbach-home-ops",
         f"got={job.get('runs-on')!r}",
     )
 

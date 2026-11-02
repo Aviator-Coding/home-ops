@@ -35,7 +35,7 @@ jobs:
            && (contains(github.event.pull_request.labels.*.name, 'type/digest')
                || contains(github.event.pull_request.labels.*.name, 'type/patch'))) }}
     name: AI PR Review
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: gha-runner-scale-set-skrumbach-home-ops
     # Worst case ~385s per review (prefill + 2048 decode on the shared B70) plus one retry.
     timeout-minutes: 25
     permissions:

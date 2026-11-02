@@ -70,6 +70,10 @@ KNOWN_UNCAPTURED: dict[str, str] = {
 # (path at HEAD, stripped functional line) -> reason. Scoped to one PR.
 ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
     (
+        "kubernetes/apps/base/actions-runner-system/gha-runner-scale-set/app/skrumbach/home-ops/helmrelease.yaml",
+        "# renovate: datasource=docker depName=ghcr.io/aviator-coding/talosctl-busybox",
+    ): "GitHub account renamed aviator-coding to skrumbach; the annotation now names ghcr.io/skrumbach/talosctl-busybox.",
+    (
         "kubernetes/apps/base/monitoring/grafana/app/helmrelease.yaml",
         '# renovate: depName="Prometheus Stats"',
     ): "Prometheus Stats (gnet 2) chart entry deleted: 2014 dashboard duplicated by Prometheus / Overview.",

@@ -2,7 +2,7 @@
 """Guards the TimescaleDB Community extension image build for postgres-18.
 
   1. cluster-18 references the tag the build context produces
-     (ghcr.io/aviator-coding/timescaledb-community:<version>-<hash>), so an edit
+     (ghcr.io/skrumbach/timescaledb-community:<version>-<hash>), so an edit
      under .github/docker/timescaledb-community cannot ship without the manifest
      following it.
   2. The tag changes with any context byte.
@@ -28,7 +28,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = ROOT / ".github" / "docker" / "timescaledb-community"
 CLUSTER = ROOT / "kubernetes/apps/base/database/cloudnative-pg/cluster-18/cluster-18.yaml"
-IMAGE_REPOSITORY = "ghcr.io/aviator-coding/timescaledb-community"
+IMAGE_REPOSITORY = "ghcr.io/skrumbach/timescaledb-community"
 EXTENSION_NAME = "timescaledb"
 
 

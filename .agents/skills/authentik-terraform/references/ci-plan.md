@@ -7,7 +7,7 @@ Two workflows, two strengths.
 | `validate.yaml` terraform job, `scripts/ci/tofu-validate.sh` | `tofu fmt -check` and `tofu validate -backend=false`. No credentials. Cannot tell a destructive plan from a safe one |
 | `terraform-diff.yaml` | On same-repo PRs that touch `terraform/**`: real `tofu init` and `tofu plan -lock=false`, plan posted as a comment |
 
-`terraform-diff` runs on `gha-runner-scale-set-aviator-coding-home-ops` because
+`terraform-diff` runs on `gha-runner-scale-set-skrumbach-home-ops` because
 Connect and RGW are ClusterIP-only. The runner has no Kubernetes API and
 cannot port-forward. `secrets-ci.vals.yaml` is the Connect mirror of
 `secrets.vals.yaml`.
