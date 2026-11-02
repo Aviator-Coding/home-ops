@@ -95,6 +95,8 @@ jobs:
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: opentofu vals
+          # Off: PR caches land per refs/pull/*/merge, are never shared, none exist on main; measured no speedup.
+          cache: false
 
       - name: Tofu Format Check
         working-directory: ${{ matrix.stack }}

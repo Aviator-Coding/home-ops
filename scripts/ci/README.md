@@ -6,7 +6,7 @@ pins. CI globs the directory, so a new file needs no workflow edit.
 Only files with the line `# ci: gate` right after the shebang block a PR
 (`python-tests`). There are at most 15, and each docstring has a `Prevents:` line naming
 the data loss or outage it guards. Every other file runs in
-`python-tests-advisory`, which never blocks, except files marked `# ci: nightly`
+`.github/workflows/advisory-tests.yaml`, which never blocks, except files marked `# ci: nightly`
 (they call the network), which run only in `nightly-tests.yaml` and report to a
 `ci-nightly` issue. `ci-test-gate-test.py` enforces this. A new test is advisory
 unless it guards data loss or an outage; mark it nightly if it touches the network.
@@ -23,5 +23,5 @@ How the gates fail, the three pin shapes, and local setup: skill `github-ci`
 ([scripts-ci.md](../../.agents/skills/github-ci/references/scripts-ci.md)).
 
 `docs-budget-test.py`, `doc-links-test.py` and
-`functional-comments-guard-test.py` also run in the `docs-guards` job.
+`functional-comments-guard-test.py` run only in the `docs-guards` job.
 The functional-comment guard needs `DIFF_GUARD_BASE`.

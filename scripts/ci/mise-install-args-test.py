@@ -30,6 +30,8 @@ ROOT = Path(__file__).resolve().parents[2]
 MISE_TOML = ROOT / ".mise.toml"
 WF_DIR = ROOT / ".github" / "workflows"
 VALIDATE_WF = WF_DIR / "validate.yaml"
+# python-tests-advisory left validate.yaml on 2026-11-02 so it is off the CI Success path.
+ADVISORY_WF = WF_DIR / "advisory-tests.yaml"
 
 # Exact python-tests install_args that broke main after PR #1601.
 MEASURED_DEFECT_INSTALL_ARGS = (
@@ -39,7 +41,7 @@ MEASURED_DEFECT_INSTALL_ARGS = (
 )
 
 # Per job since 2026-10-31: python-tests runs only the `# ci: gate` files,
-# python-tests-advisory runs the rest with the full tool set.
+# python-tests-advisory (advisory-tests.yaml) runs the rest with the full tool set.
 GATE_REQUIRED_TOOLS = (
     "python",
     "uv",
@@ -134,7 +136,7 @@ def mise_action_steps(
 
 def python_tests_install_args(data: dict[str, Any], job_id: str = "python-tests") -> str:
     job = (data.get("jobs") or {}).get(job_id)
-    require(isinstance(job, dict), f"validate.yaml missing {job_id} job")
+    require(isinstance(job, dict), f"workflow missing {job_id} job")
     for step in job.get("steps") or []:
         if not isinstance(step, dict):
             continue
@@ -193,18 +195,42 @@ def test_live_workflows_do_not_repin_mise_tools() -> dict[str, Any]:
         data = load_workflow(path)
         scanned.append(path.name)
         failures.extend(scan_pins(data, mise_tools, path.name))
+    require(ADVISORY_WF.name in scanned, f"scan must cover {ADVISORY_WF.name}; got {scanned}")
     require(not failures, "; ".join(failures))
     return {"workflows": scanned, "mise_tools": sorted(mise_tools)}
 
 
+def test_mise_action_cache_disabled() -> dict[str, Any]:
+    """Every jdx/mise-action step sets `cache: false`.
+
+    Measured 2026-11-02: 72 caches (10.7 GB), all on refs/pull/*/merge, none
+    on main. PR caches are invisible to other PRs, so they are pure churn, and
+    uncached Setup Tools took 7-11s.
+    """
+    steps: list[str] = []
+    bad: list[str] = []
+    for path in sorted(WF_DIR.glob("*.y*ml")):
+        for jid, job in (load_workflow(path).get("jobs") or {}).items():
+            for step in (job or {}).get("steps") or []:
+                if "jdx/mise-action" not in str(step.get("uses") or ""):
+                    continue
+                label = f"{path.name}:{jid}"
+                steps.append(label)
+                if (step.get("with") or {}).get("cache") is not False:
+                    bad.append(label)
+    require(steps, "no jdx/mise-action steps found")
+    require(not bad, f"mise-action steps without cache: false: {bad}")
+    return {"steps": steps}
+
+
 def test_python_tests_still_installs_prometheus_from_mise() -> dict[str, Any]:
-    data = load_workflow(VALIDATE_WF)
+    require(ADVISORY_WF.is_file(), f"missing {ADVISORY_WF}")
     found: dict[str, str] = {}
-    for job_id, required in (
-        ("python-tests", GATE_REQUIRED_TOOLS),
-        ("python-tests-advisory", PYTHON_TESTS_REQUIRED_TOOLS),
+    for path, job_id, required in (
+        (VALIDATE_WF, "python-tests", GATE_REQUIRED_TOOLS),
+        (ADVISORY_WF, "python-tests-advisory", PYTHON_TESTS_REQUIRED_TOOLS),
     ):
-        raw = python_tests_install_args(data, job_id)
+        raw = python_tests_install_args(load_workflow(path), job_id)
         found[job_id] = raw
         tokens = install_args_tokens(raw)
         missing = [t for t in required if t not in tokens]
@@ -332,6 +358,7 @@ def main() -> int:
         test_checker_refuses_measured_defect,
         test_checker_accepts_unversioned_install_args,
         test_live_workflows_do_not_repin_mise_tools,
+        test_mise_action_cache_disabled,
         test_python_tests_still_installs_prometheus_from_mise,
         test_guard_refuses_a_restored_prometheus_pin,
         test_unversioned_install_follows_a_mise_toml_bump,

@@ -7,8 +7,8 @@ description: "Read before editing .github/workflows/**, scripts/ci/**, the ARC r
 
 `CI Success` (`ci.yaml`) is the one gate: it calls `flate.yaml` and `validate.yaml`
 on GitHub-hosted `ubuntu-latest`, so it reports while the cluster is down (a fork
-PR fails it: re-run from a same-repo branch). Of the PR checks, only `image-pull`,
-the AI review and `labeler` still use the ARC scale set; terraform-diff, codeql,
+PR fails it: re-run from a same-repo branch). Of the PR checks, only the `image-pull`
+`pull` job and the AI review still use the ARC scale set; terraform-diff, codeql,
 label-sync, tag and test-runner do too. `validate.yaml` is the only
 CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
 `terraform/`. `flate` and `image-pull` only see `kubernetes/**`. A green schema check is not permission to `just talos apply-node`.
@@ -79,7 +79,7 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
 
 - One gate: `python3 scripts/ci/<name>-test.py`.
 - The PR gate: `for f in $(grep -lx '# ci: gate' scripts/ci/*-test.py); do python3 "$f" || echo "FAILED: $f"; done`.
-  The rest run in the non-blocking `python-tests-advisory` job; `# ci: nightly` files (network) only in `nightly-tests.yaml` ([scripts/ci/README.md](../../../scripts/ci/README.md)).
+  The rest run in the non-blocking `advisory-tests.yaml`; `# ci: nightly` files (network) only in `nightly-tests.yaml` ([scripts/ci/README.md](../../../scripts/ci/README.md)).
 - Docs gates (`docs-budget`, `doc-links`, `functional-comments-guard`) run in
   the `docs-guards` job. `functional-comments-guard` needs `DIFF_GUARD_BASE`.
 - Live ruleset: `gh api repos/Aviator-Coding/home-ops/rulesets/21250320`.

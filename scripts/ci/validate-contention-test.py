@@ -4,9 +4,14 @@
 Pins the captain decision measured on PR #1481 run 33233099018 (2026-08-29):
 under full fan-out on gha-runner-scale-set-aviator-coding-home-ops, mise-action
 Setup Tools can take longer than the old 5–10m job timeouts, cancelling a
-healthy job before it reaches its validator. The fix is larger timeouts on the
+healthy job before it reaches its validator. The fix was larger timeouts on the
 mise-heavy jobs plus ordering python-tests after the lighter ones so the heavy
-litellm[proxy] pip install does not overlap their Setup Tools.
+litellm[proxy] pip install did not overlap their Setup Tools.
+
+Since 2026-11-02 that advisory job (python-tests-advisory) lives in its own
+advisory-tests.yaml on ubuntu-latest: a reusable workflow holds CI Success
+until every job finishes, and hosted runners share no pool, so the ordering
+edge is gone. This test pins that it stays out of validate.yaml.
 
 This is a machine-consumed GitHub Actions workflow contract. Assertions run on
 a parsed YAML job graph and a small scheduler that mirrors Actions' needs/if
@@ -14,7 +19,7 @@ semantics (including always()/cancelled()/needs.*.result), not on source greps.
 
 What this catches
   - mise-heavy job timeouts falling back below the measured contended floor
-  - python-tests losing the ordered needs edge on lighter jobs
+  - python-tests-advisory returning to validate.yaml (the CI Success path)
   - python-tests skipping when a path-filtered sibling is skipped (missing always())
   - python-tests running when filter itself failed or the run was cancelled
   - dropping .github/workflows/validate.yaml from per-job path filters
@@ -42,6 +47,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 VALIDATE_WF = ROOT / ".github" / "workflows" / "validate.yaml"
+ADVISORY_WF = ROOT / ".github" / "workflows" / "advisory-tests.yaml"
+ADVISORY_JOB = "python-tests-advisory"
 HOME_OPS_HR = (
     ROOT
     / "kubernetes"
@@ -78,7 +85,9 @@ RENOVATE_TIMEOUT_MAX_MIN = 10
 
 # python-tests (the scripts/ci gate) fans out beside these since 2026-10-31.
 MISE_HEAVY_JOBS = ("talos", "versions", "bootstrap", "terraform", "docs-guards", "python-tests")
-LIGHT_PREDECESSORS = (
+# Siblings a path filter can skip; the always() regression probe below
+# gives a job these as needs to prove always() is load-bearing.
+SKIPPABLE_SIBLINGS = (
     "filter",
     "talos",
     "versions",
@@ -221,6 +230,15 @@ def load_validate() -> WorkflowModel:
         path_filters=path_filters,
         trigger_paths=trigger_paths,
     )
+
+
+def load_advisory() -> dict[str, Any]:
+    if not ADVISORY_WF.is_file():
+        raise Failure(f"missing {ADVISORY_WF}")
+    data = yaml.safe_load(ADVISORY_WF.read_text())
+    if not isinstance(data, dict):
+        raise Failure(f"advisory-tests.yaml root must be mapping, got {type(data)}")
+    return data
 
 
 def load_home_ops_scale() -> tuple[int, int]:
@@ -485,9 +503,12 @@ def test_timeouts_meet_measured_floors(model: WorkflowModel) -> dict[str, Any]:
             failures,
         )
 
-    # The heavy litellm[proxy] install moved to python-tests-advisory on 2026-10-31.
-    pt = model.jobs["python-tests-advisory"]
-    evidence["timeouts"]["python-tests-advisory"] = pt.timeout_minutes
+    # The heavy litellm[proxy] install moved to python-tests-advisory on 2026-10-31,
+    # and that job to advisory-tests.yaml on 2026-11-02.
+    adv = (load_advisory().get("jobs") or {}).get(ADVISORY_JOB) or {}
+    pt = Job(id=ADVISORY_JOB, name=adv.get("name"), runs_on=adv.get("runs-on"),
+             timeout_minutes=adv.get("timeout-minutes"), needs=[], if_expr="")
+    evidence["timeouts"][ADVISORY_JOB] = pt.timeout_minutes
     _check(
         pt.timeout_minutes is not None
         and pt.timeout_minutes >= PYTHON_TIMEOUT_FLOOR_MIN,
@@ -539,19 +560,20 @@ def test_timeouts_meet_measured_floors(model: WorkflowModel) -> dict[str, Any]:
     return evidence
 
 
-def test_python_tests_ordered_after_light_jobs(model: WorkflowModel) -> dict[str, Any]:
-    pt = model.jobs["python-tests-advisory"]
-    needs = set(pt.needs)
-    missing = [j for j in LIGHT_PREDECESSORS if j not in needs]
-    if missing:
-        raise Failure(
-            f"python-tests must need lighter jobs {list(LIGHT_PREDECESSORS)}; "
-            f"missing {missing}; got {pt.needs}"
-        )
-    # Must not introduce a self-cycle or depend only on filter.
-    if pt.needs == ["filter"]:
-        raise Failure("python-tests must not depend only on filter (fan-out overlap)")
-    return {"python-tests.needs": pt.needs}
+def test_advisory_job_off_ci_success_path(model: WorkflowModel) -> dict[str, Any]:
+    """python-tests-advisory lives in advisory-tests.yaml on ubuntu-latest.
+
+    In validate.yaml it held CI Success for its whole 125-166s run (a called
+    workflow reports only when every job ends), though it never gated.
+    """
+    if ADVISORY_JOB in model.jobs:
+        raise Failure(f"{ADVISORY_JOB} must not be a validate.yaml job (it holds CI Success)")
+    job = (load_advisory().get("jobs") or {}).get(ADVISORY_JOB)
+    if not isinstance(job, dict):
+        raise Failure(f"advisory-tests.yaml must define {ADVISORY_JOB}")
+    if job.get("runs-on") != "ubuntu-latest":
+        raise Failure(f"{ADVISORY_JOB} must run on ubuntu-latest; got {job.get('runs-on')!r}")
+    return {"runs-on": job.get("runs-on"), "needs": job.get("needs")}
 
 
 def test_python_tests_if_preserves_coverage(model: WorkflowModel) -> dict[str, Any]:
@@ -719,7 +741,7 @@ def test_scheduler_scenarios(model: WorkflowModel) -> dict[str, Any]:
         name="python-tests",
         runs_on=ARC_RUNNER,
         timeout_minutes=20,
-        needs=list(LIGHT_PREDECESSORS),
+        needs=list(SKIPPABLE_SIBLINGS),
         if_expr=old_if,
     )
     needs_view = {
@@ -945,7 +967,7 @@ def main() -> int:
 
     tests = [
         ("timeouts_meet_measured_floors", lambda: test_timeouts_meet_measured_floors(model)),
-        ("python_tests_ordered_after_light_jobs", lambda: test_python_tests_ordered_after_light_jobs(model)),
+        ("advisory_job_off_ci_success_path", lambda: test_advisory_job_off_ci_success_path(model)),
         ("python_tests_if_preserves_coverage", lambda: test_python_tests_if_preserves_coverage(model)),
         ("scheduler_scenarios", lambda: test_scheduler_scenarios(model)),
         ("path_filters_keep_workflow_self_test", lambda: test_path_filters_keep_workflow_self_test(model)),

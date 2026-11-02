@@ -125,6 +125,10 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "kubernetes/apps/base/system/intel-device-plugin-operator/gpu/helmrelease.yaml",
         "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/source.toolkit.fluxcd.io/ocirepository_v1beta2.json",
     ): "intel-device-plugins-gpu OCIRepository deleted: the gpu HelmRelease now uses the `intel` HelmRepository defined in ../app.",
+    (
+        ".github/workflows/validate.yaml",
+        "# renovate: datasource=docker depName=ghcr.io/berriai/litellm-non_root",
+    ): "python-tests-advisory moved to advisory-tests.yaml with its LITELLM_VERSION annotation, which the capture contract still checks there.",
 }
 
 passed = 0
