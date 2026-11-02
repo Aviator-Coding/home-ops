@@ -5,7 +5,7 @@ Namespace `actions-runner-system`. Image and chart pins live in the HelmReleases
 
 | HelmRelease | Repo | Extra |
 |---|---|---|
-| `gha-runner-scale-set-aviator-coding-home-ops` | `aviator-coding/home-ops` | talosctl init, 20Gi `ceph-block` work PVC. Runs-on label is this name |
+| `gha-runner-scale-set-aviator-coding-home-ops` | `aviator-coding/home-ops` | talosctl init, 20Gi emptyDir work volume (sizeLimit enforced). Runs-on label is this name |
 | `gha-rs-ac-ai-k8s-sandbox` | `aviator-coding/ai-k8s-sandbox` | privileged `docker` DinD sidecar |
 
 Both: `minRunners: 1`, `maxRunners: 15` (a real queue ceiling, per set).
