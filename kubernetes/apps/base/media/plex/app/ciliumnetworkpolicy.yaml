@@ -42,6 +42,15 @@ spec:
         - ports:
             - port: "32400"
               protocol: TCP
+    # Seerr scans libraries over http://plex.media.svc:32400 with its own Plex token.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: media
+            app.kubernetes.io/name: seerr
+      toPorts:
+        - ports:
+            - port: "32400"
+              protocol: TCP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
