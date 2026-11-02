@@ -20,7 +20,7 @@ permissions:
 jobs:
   label-sync:
     name: Label Sync
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read

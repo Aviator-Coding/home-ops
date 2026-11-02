@@ -8,7 +8,7 @@ the shim then looked up 3.14.0 from .mise.toml and failed with
 "No version is set for shim: promtool", red on every PR that runs python-tests.
 
 The rest of this repo already avoids that class of defect: talos, terraform,
-terraform-diff, and terraform-publish list tool names in install_args and let
+and terraform-diff list tool names in install_args and let
 .mise.toml supply the version. This test makes re-introducing a second pin fail
 closed, and proves the checker by feeding it the measured defect rather than
 trusting a reading of the live file.

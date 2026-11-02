@@ -7,9 +7,8 @@ description: "Read before editing .github/workflows/**, scripts/ci/**, the ARC r
 
 `CI Success` (`ci.yaml`) is the one gate: it calls `flate.yaml` and `validate.yaml`
 on GitHub-hosted `ubuntu-latest`, so it reports while the cluster is down (a fork
-PR fails it: re-run from a same-repo branch). Of the PR checks, only the `image-pull`
-`pull` job and the AI review still use the ARC scale set; terraform-diff, codeql,
-label-sync, tag and test-runner do too. `validate.yaml` is the only
+PR fails it: re-run from a same-repo branch). Only the `image-pull` `pull` job, the AI
+review and terraform-diff still use the ARC scale set. `validate.yaml` is the only
 CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
 `terraform/`. `flate` and `image-pull` only see `kubernetes/**`. A green schema check is not permission to `just talos apply-node`.
 

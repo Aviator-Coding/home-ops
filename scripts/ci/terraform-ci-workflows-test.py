@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # ci: nightly
-"""Behavioral contract tests for terraform-diff / terraform-publish CI.
+"""Behavioral contract tests for terraform-diff CI.
 
-These workflows are the public, machine-consumed interface for terraform/*
-stacks. Assertions operate on a parsed YAML model of the workflows, on the
+The workflow is the public, machine-consumed interface for terraform/*
+stacks. terraform-publish.yaml was retired 2026-11-02: nothing consumed its
+artifact. Assertions operate on a parsed YAML model of the workflows, on the
 real offline tofu schema path, and on an executed copy of the missing-secret
 gate shell - not on raw source greps alone.
 """
@@ -22,7 +23,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 DIFF_WF = ROOT / ".github" / "workflows" / "terraform-diff.yaml"
-PUB_WF = ROOT / ".github" / "workflows" / "terraform-publish.yaml"
 VALIDATE_WF = ROOT / ".github" / "workflows" / "validate.yaml"
 FLATE = ROOT / ".github" / "workflows" / "flate.yaml"
 SECRETS = ROOT / "terraform" / "authentik" / "secrets.vals.yaml"
@@ -177,31 +177,6 @@ def test_diff_workflow_shape() -> dict[str, Any]:
         "runner": ARC_RUNNER,
         "comment_action": comment["uses"],
         "fork_guard": True,
-    }
-
-
-def test_publish_workflow_shape() -> dict[str, Any]:
-    data, text = load_workflow(PUB_WF)
-    on = on_block(data)
-    assert "push" in on
-    assert "terraform/**" in on["push"].get("paths", [])
-    job = data["jobs"]["publish"]
-    assert job["runs-on"] == "ubuntu-latest"
-    assert job["permissions"]["packages"] == "write"
-    runs = "\n".join(step.get("run") or "" for step in job["steps"])
-    assert "flux push artifact" in runs
-    assert "ghcr.io/aviator-coding/manifests/terraform:" in runs
-    assert "flux tag artifact" in runs
-    assert "--tag main" in runs
-    assert "tofu " not in runs and "tofu\n" not in runs
-    for match in re.finditer(r"uses:\s*(\S+)", text):
-        uses = match.group(1)
-        if uses.startswith("./"):
-            continue
-        assert SHA_PIN.match(uses), uses
-    return {
-        "runs-on": job["runs-on"],
-        "artifact_prefix": "ghcr.io/aviator-coding/manifests/terraform:",
     }
 
 
@@ -481,7 +456,6 @@ def test_labeler_and_gitignore() -> dict[str, Any]:
 def main() -> int:
     tests = [
         ("diff_workflow_shape", test_diff_workflow_shape),
-        ("publish_workflow_shape", test_publish_workflow_shape),
         ("decision_tree", test_decision_tree),
         ("missing_secret_gate_executes", test_missing_secret_gate_executes),
         ("secrets_ci_mirrors_readonly", test_secrets_ci_mirrors_readonly),

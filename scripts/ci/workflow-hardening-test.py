@@ -297,8 +297,8 @@ def test_build_talosctl(f: Failures) -> dict[str, Any]:
     ck_token = (checkout[0].get("with") or {}).get("token", "")
     evidence["checkout_token"] = ck_token
     f.check(
-        bool(APP_TOKEN_EXPR.search(str(ck_token))),
-        f"checkout must use App token, got {ck_token!r}",
+        not ck_token,
+        f"checkout must pass no token (public repo, read-only), got {ck_token!r}",
     )
 
     logins = [s for s in steps if uses_action(s, "docker/login-action@")]
