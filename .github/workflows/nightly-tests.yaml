@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 # Network-calling scripts/ci tests (`# ci: nightly` on line 2) run here, never on PRs, so
 # no PR check depends on a registry or upstream API (goal D2). A failure opens or updates
-# one issue labelled `ci-nightly`. Setup steps are copied from validate.yaml's
+# one issue labelled `ci-nightly`. Setup steps are copied from advisory-tests.yaml's
 # python-tests-advisory job; keep the pins in step. Pin: scripts/ci/ci-test-gate-test.py.
 name: Nightly Tests
 
@@ -50,6 +50,8 @@ jobs:
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja
+          # Off, like every mise-action here: uncached Setup Tools measured 7-11s, so a cache buys nothing.
+          cache: false
 
       # Node is required by talos-renovate-pin-test.py, which drives renovate@44.52.1's own
       # getRegexPredicate/filterVersions/isStable/applyPackageRules (not a source grep).

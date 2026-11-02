@@ -47,6 +47,8 @@ jobs:
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           install_args: aqua:fluxcd/flux2
+          # Off, like every mise-action here: uncached Setup Tools measured 7-11s, so a cache buys nothing.
+          cache: false
 
       - name: Log in to GHCR
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0

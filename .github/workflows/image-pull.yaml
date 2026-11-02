@@ -26,7 +26,7 @@ jobs:
     # Fork guard, mirrors labeler.yaml: `pull` runs `talosctl image pull` against a real node with cluster credentials.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     name: Image Pull - Filter
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       changed-files: ${{ steps.changed-files.outputs.changed_files }}
@@ -41,7 +41,7 @@ jobs:
     if: ${{ needs.filter.outputs.changed-files != '[]' }}
     needs: filter
     name: Image Pull - Resolve New Images
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       images: ${{ steps.resolve.outputs.images }}
@@ -154,8 +154,8 @@ jobs:
           exit 1
 
   success:
-    # `!cancelled()` alone would still schedule this job onto the self-hosted runner
-    # for a fork PR whose upstream jobs all skipped, so the fork guard is repeated here.
+    # `!cancelled()` alone would still run this job for a fork PR whose upstream jobs
+    # all skipped (and post a green check), so the fork guard is repeated here.
     if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
     # Need filter and images as well as pull: when either fails, the jobs behind it are
     # skipped, and a pull-only Success job would see only "skipped" and green-check a red run.
@@ -164,7 +164,7 @@ jobs:
       - images
       - pull
     name: Image Pull - Success
-    runs-on: gha-runner-scale-set-aviator-coding-home-ops
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Any jobs failed?

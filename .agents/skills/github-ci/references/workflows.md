@@ -6,12 +6,13 @@ Runner below is the `runs-on` value in the file. The table in
 | Workflow | Runner | Role |
 |---|---|---|
 | `ci.yaml` | `ubuntu-latest` | `CI Success`, the one gate: calls `flate.yaml` and `validate.yaml` |
-| `validate.yaml` | `ubuntu-latest` (called by `ci.yaml`) | Schema and the `# ci: gate` `scripts/ci` tests for paths flate never sees; the rest run advisory |
+| `validate.yaml` | `ubuntu-latest` (called by `ci.yaml`) | Schema and the `# ci: gate` `scripts/ci` tests for paths flate never sees |
+| `advisory-tests.yaml` | `ubuntu-latest` | The other `scripts/ci` tests, minus nightly and docs guards. Never blocks; kept out of `validate.yaml` so it does not hold `CI Success` |
 | `flate.yaml` | `ubuntu-latest` (called by `ci.yaml`) | `flate test` / diff. Lenient envsubst: skill `flux-substitution` |
-| `image-pull.yaml` | home-ops scale set | `talosctl image pull` of images the PR adds, plus a recovery pass for bare Docker Hub refs flate misses |
+| `image-pull.yaml` | `ubuntu-latest`; only `pull` on the home-ops scale set | `talosctl image pull` of images the PR adds, plus a recovery pass for bare Docker Hub refs flate misses |
 | `terraform-diff.yaml` | home-ops scale set | Read-only `tofu plan` when `secrets-ci.vals.yaml` exists. Skill `authentik-terraform` |
 | `terraform-publish.yaml` | `ubuntu-latest` | Publish `terraform/` as an OCI artifact on push to `main` |
-| `labeler.yaml` | home-ops scale set | Path labels. The only required check. Skill [branch-protection.md](branch-protection.md) |
+| `labeler.yaml` | `ubuntu-latest` | Path labels. The only required check. Skill [branch-protection.md](branch-protection.md) |
 | `label-sync.yaml` | home-ops scale set | Sync labels from `.github/labels.yaml`. Deletes labels absent from the file |
 | `renovate.yaml` | `ubuntu-latest` | Rollback writer. Schedule commented out. `push` on Renovate config still fires. Skill `renovate` |
 | `build-talosctl-busybox.yaml` | `ubuntu-latest` | `docker buildx` of the talosctl image. Needs Docker |
@@ -30,8 +31,9 @@ safe to require later. A trigger-level filter leaves the check `Expected` foreve
 on PRs outside the path list.
 
 Jobs: `talos`, `versions`, `bootstrap`, `renovate-config`, `terraform`,
-`docs-guards`, `lint`, `python-tests` (the `# ci: gate` files), `python-tests-advisory`
-(the rest, never blocks), plus the aggregate that `ci.yaml`'s `CI Success` reads.
+`docs-guards`, `lint`, `python-tests` (the `# ci: gate` files), plus the aggregate that
+`ci.yaml`'s `CI Success` reads. A called workflow reports only when every job ends, so
+the advisory tests live in `advisory-tests.yaml`.
 
 `lint` runs `yamllint -s .`, `actionlint`, `zizmor --offline --min-severity medium`
 and `shellcheck` over the whole tree (configs: `.yamllint.yaml`, `.github/actionlint.yaml`,
@@ -49,7 +51,7 @@ attempt the same way. See [arc-runners.md](arc-runners.md).
 
 ## Fork guard
 
-Same-repo `if:` on `validate.yaml`, `image-pull.yaml`, `flate.yaml`,
+Same-repo `if:` on `validate.yaml`, `advisory-tests.yaml`, `image-pull.yaml`, `flate.yaml`,
 `labeler.yaml` and `terraform-diff.yaml`. Add it to any new job on this runner.
 
 ## validate.yaml timeouts
@@ -57,6 +59,6 @@ Same-repo `if:` on `validate.yaml`, `image-pull.yaml`, `flate.yaml`,
 Measured on PR #1481: the mise-action jobs (talos, versions, bootstrap, terraform)
 take 15-31s uncontended, but one was cancelled at 602s inside Setup Tools when
 eight jobs fanned out onto the runner pool, so they carry `timeout-minutes: 25`.
-python-tests takes ~96s alone and 469s contended (the `uv pip` install of
-`litellm[proxy]` went from 33s to 416s), so it carries 20 and is ordered after the
-light jobs.
+The advisory tests took ~96s alone and 469s contended (the `uv pip` install of
+`litellm[proxy]` went from 33s to 416s), so they carry 20. They no longer wait on
+the light jobs: hosted runners share no pool.

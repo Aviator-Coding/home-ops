@@ -7,15 +7,18 @@ outage tests, or growing back into a suite that is red on every PR (59 of 60
 Validate PR runs before 2026-10-31 failed on brittle tests, not real catches).
 
 Only files carrying the exact line `# ci: gate` right after the shebang block
-PRs. Every other test runs in the advisory job, which never blocks. Asserts:
+PRs. Every other test runs in advisory-tests.yaml, which never blocks. Asserts:
 
   1. The gated files are exactly EXPECTED_GATE (owner-approved 2026-10-31;
      changing it is an owner decision), at most MAX_GATE, and each docstring
      has a `Prevents:` line naming the data loss or outage it guards.
   2. validate.yaml's `python-tests` job runs only gate files, fails when it
      finds none, has no continue-on-error, and is in `success` needs.
-  3. `python-tests-advisory` runs only files with neither marker, has
-     `continue-on-error: true`, and is NOT in `success` needs.
+  3. advisory-tests.yaml's `python-tests-advisory` runs on pull_request on
+     ubuntu-latest with `continue-on-error: true`, runs only files with
+     neither marker minus the three docs guards (docs-guards owns them), and
+     is in neither validate.yaml's nor ci.yaml's `success` needs. A job in a
+     called workflow holds CI Success until it finishes, so it lives apart.
   4. `# ci: nightly` files (network-calling, goal D2) run only in
      nightly-tests.yaml, on a schedule; no file carries both markers.
 """
@@ -31,6 +34,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 CI = ROOT / "scripts" / "ci"
 VALIDATE = ROOT / ".github" / "workflows" / "validate.yaml"
+CI_WF = ROOT / ".github" / "workflows" / "ci.yaml"
+ADVISORY_WF = ROOT / ".github" / "workflows" / "advisory-tests.yaml"
+DOCS_GUARDS = ("docs-budget", "doc-links", "functional-comments-guard")
 MARKER = "# ci: gate"
 NIGHTLY = "# ci: nightly"
 NIGHTLY_WF = ROOT / ".github" / "workflows" / "nightly-tests.yaml"
@@ -108,8 +114,12 @@ def main() -> int:
 
     jobs = yaml.safe_load(VALIDATE.read_text())["jobs"]
     gate_job = jobs.get("python-tests") or {}
-    advisory = jobs.get("python-tests-advisory") or {}
     success_needs = (jobs.get("success") or {}).get("needs") or []
+    ci_jobs = yaml.safe_load(CI_WF.read_text())["jobs"]
+    ci_needs = (ci_jobs.get("success") or {}).get("needs") or []
+    adv_wf = yaml.safe_load(ADVISORY_WF.read_text()) if ADVISORY_WF.is_file() else {}
+    adv_on = adv_wf.get(True) or adv_wf.get("on") or {}
+    advisory = (adv_wf.get("jobs") or {}).get("python-tests-advisory") or {}
 
     gate_run = run_script(gate_job)
     check(f"grep -lx '{MARKER}'" in gate_run, "python-tests selects files by the gate marker")
@@ -118,10 +128,18 @@ def main() -> int:
     check("python-tests" in success_needs, "python-tests is in success.needs")
 
     adv_run = run_script(advisory)
+    check("python-tests-advisory" not in jobs, "python-tests-advisory is not a validate.yaml job")
+    check("pull_request" in adv_on, "advisory-tests.yaml runs on pull_request")
+    check(advisory.get("runs-on") == "ubuntu-latest", "python-tests-advisory runs on ubuntu-latest")
     check("grep -LxE '# ci: (gate|nightly)'" in adv_run,
           "python-tests-advisory selects files with neither marker")
+    for guard in DOCS_GUARDS:
+        check(guard in adv_run and "grep -vE" in adv_run,
+              f"python-tests-advisory excludes {guard}-test.py (docs-guards runs it)")
     check(advisory.get("continue-on-error") is True, "python-tests-advisory has continue-on-error: true")
-    check("python-tests-advisory" not in success_needs, "python-tests-advisory is not in success.needs")
+    check("python-tests-advisory" not in success_needs, "python-tests-advisory is not in validate success.needs")
+    check("python-tests-advisory" not in ci_needs and "advisory" not in " ".join(ci_jobs),
+          "advisory tests are not in ci.yaml's CI Success needs")
 
     nightly = sorted(p.name for p in CI.glob("*-test.py") if p.read_text().split("\n")[1:2] == [NIGHTLY])
     check(set(nightly) == EXPECTED_NIGHTLY,
