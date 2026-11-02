@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Promtool and manifest contract for the backup-age, kopiur-policy, and tdarr alerts.
+
+Prevents: CNPG backup-age, WAL-archiver and vanished-kopiur-policy alerts that can never
+fire.
 
 Live Prometheus on 2026-09-26, before these rules existed:
 

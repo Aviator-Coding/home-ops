@@ -9,7 +9,7 @@ LLM calls go to LiteLLM
 that way. Provider `litellm-projects` is the additional key
 `litellm-consumer-litellm-consume-projects`: the Anthropic and OpenAI
 chat models on that key's allow-list (not `embedding-local`, not
-`typesafe/jev-1.13`). Its $100 per 30 days is one pool shared by every
+`jev`). Its $100 per 30 days is one pool shared by every
 caller, including Hermes. Never a provider key. Skill `litellm-proxy`.
 
 `GITHUB_TOKEN` reuses the `hermes` 1Password item field

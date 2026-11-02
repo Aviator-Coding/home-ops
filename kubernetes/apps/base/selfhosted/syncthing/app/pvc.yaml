@@ -9,7 +9,6 @@ spec:
   resources:
     requests:
       # Sized to the synced folders (Documents, Screenshots, Projects, camera-roll headroom) plus buffer.
-      # allowVolumeExpansion permits growing later; a PVC cannot shrink. VOLSYNC_CAPACITY in
-      # kubernetes/apps/main/selfhosted/syncthing.yaml must track this size.
+      # allowVolumeExpansion permits growing later; a PVC cannot shrink.
       storage: 15Gi
   storageClassName: ceph-block

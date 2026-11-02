@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Semantic regression test for the talos-3 Arc Pro B70 PCIe runtime-PM mitigation.
 
 .agents/skills/talos-nodes/references/hardware.md [2026-08-24]: the B70's root port (00:01.0) can

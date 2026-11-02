@@ -33,8 +33,10 @@ abliterated option and ships no source weights. The official distill is not abli
   LiteLLM keys and repo-wiki), `chat-ha`, `auto`. `GET /v1/models` on the
   backend (`vllm-app`) lists the real name.
 - The value is one path-safe token with no `/`.
-- Gate: `scripts/ci/chat-model-id-test.py` (no stale literal, wiring intact);
-  `litellm-fallback-chain-test.py` renders the CRs the way Flux does.
+- Gate: `scripts/ci/litellm-fallback-chain-test.py` renders the LiteLLM CRs the
+  way Flux does (`substituteFrom` present, `chat-local` and `chat-ha` resolve to
+  the loaded name). A missing `substituteFrom` on `vllm` fails that Kustomization
+  under strict substitution; it never applies a blank alias.
 
 ### Swapping the chat model
 
@@ -44,7 +46,9 @@ abliterated option and ships no source weights. The official distill is not abli
    VRAM headroom, and update the `ctx-size`/KV rows below if they moved.
 4. Nothing else is renamed: Hermes, Linkwarden, LiteLLM keys and the dashboards
    follow. The new `model` label starts a fresh series, which is intended.
-5. The chat pod restarts on merge (Recreate strategy).
+5. The chat pod restarts on merge (Recreate strategy) and downloads the new GGUF first. The
+   HelmRelease `timeout: 30m` covers that; with the default 5m, Helm rolls the swap back
+   mid-download and then retries (the cached file makes the retry succeed).
 
 ## Chat (`vllm` controller)
 

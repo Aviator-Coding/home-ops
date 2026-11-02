@@ -25,7 +25,7 @@ spec:
         runAsGroup: 0
         fsGroup: 2000
         runAsNonRoot: false
-        seccompProfile: { type: RuntimeDefault }
+        seccompProfile: {type: RuntimeDefault}
     controllers:
       calibre-web-automated:
         containers:

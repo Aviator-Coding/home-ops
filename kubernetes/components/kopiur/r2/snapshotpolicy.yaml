@@ -26,7 +26,7 @@ spec:
       runAsUser: ${KOPIUR_PUID:-1000}
       runAsGroup: ${KOPIUR_PGID:-1000}
       fsGroup: ${KOPIUR_PGID:-1000}
-  # Matches ../../volsync/r2/replicationsource.yaml. No keepHourly on purpose: one snapshot a day.
+  # Matches the retired VolSync r2 retain block. No keepHourly on purpose: one snapshot a day.
   retention:
     keepDaily: 30
     keepWeekly: 12

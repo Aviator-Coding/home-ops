@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ci: nightly
 """Behavioral checks for the Authentik OpenTofu adoption stack.
 
 Exercises the same offline contract CI and operators rely on:

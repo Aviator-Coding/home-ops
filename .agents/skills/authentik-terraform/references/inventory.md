@@ -30,10 +30,10 @@ One provider, `forward_domain`, `external_host` `https://auth.${SECRET_DOMAIN}`,
 - `monitoring/kromgo`
 - `ai/opencode`
 - `ai/hermes` (the `hermes-code` browser terminal)
-- `database/falkordb`
 - `flux-system/headlamp`
 
-ReferenceGrant `allow-authentik-access` allows `from` those six namespaces to
+ReferenceGrant `allow-authentik-access` allows `from` six namespaces (the five above and
+`database`, which has no consumer since `database/falkordb` was retired, #2201) to
 Service `ak-outpost-authentik-embedded-outpost`. A SecurityPolicy in a new
 namespace is accepted and then resolves its backend to nothing until the
 grant lists that namespace.

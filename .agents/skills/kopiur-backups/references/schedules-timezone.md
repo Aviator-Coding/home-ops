@@ -10,7 +10,8 @@ from the schedule identity, and `jitter: 5m` decorrelates the fire time.
 ## Hours
 
 `KOPIUR_SCHEDULE_CEPH` stays at the component default `H 1-23/4 * * *`: odd
-hours 01, 05, 09, 13, 17, 21. VolSync ceph uses the even hours.
+hours 01, 05, 09, 13, 17, 21. VolSync ceph used the even hours (no claim runs
+VolSync since 2026-11-01).
 
 `KOPIUR_SCHEDULE_R2` must be set per namespace. The component default
 `H 4 * * *` would put every r2 policy in the 04:00 hour. One free hour per

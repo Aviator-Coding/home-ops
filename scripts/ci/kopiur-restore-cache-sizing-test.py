@@ -26,8 +26,8 @@ not on source text, so a reformat or a move within the file still passes and a
 real value change still fails.
 
 Scope note: `downloads/sabnzbd` is deliberately NOT re-asserted here. It is
-already pinned by kopiur-stage2-test.py and kopiur-stage5-test.py as part of the
-retirement pilot, and duplicating it across three files is exactly the drift
+already pinned by kopiur-stage5-test.py as part of the retirement pilot, and
+duplicating it across files is exactly the drift
 this repo has been bitten by before.
 """
 
@@ -98,6 +98,41 @@ PINNED: dict[str, tuple[str, str]] = {
         "demonstration for this size class was run on media/tdarr, the tighter of the two, "
         "at this same value - as media/plex now is too (2026-09-12). Do not lower it without a drill",
     ),
+    # Key form `<overlay>#<Kustomization name>` selects one document in a multi-Kustomization overlay.
+    "selfhosted/paperless-ngx.yaml#paperless-ngx-media-kopiur": (
+        "50Gi",
+        "Claim-sized: the 50Gi `paperless-ngx-media` claim (chart-owned) with a cache equal to it, "
+        "so the cache can never be smaller than the data (raised from 5Gi, PR #2206; VolSync "
+        "retired on top of it, issue #2202 PR-2). Drilled 2026-11-01 at exactly this value: scratch "
+        "Restores from ceph (kopia snapshot 6409ead13b1f41f00fbddfc685a440e6) and r2 "
+        "(dfd41422fc29e319f63765ee036d2ebf) both Completed, 1 file / 0 B, manifests and modes "
+        "identical to the live volume. Near-empty, so the measurement is the structural "
+        "guarantee (cache >= claim) rather than a size curve - owner decision (b). Do not lower it",
+    ),
+    "selfhosted/syncthing.yaml#syncthing-data-kopiur": (
+        "15Gi",
+        "Claim-sized: the 15Gi `syncthing-data` claim (plain PVC manifest under the `syncthing` "
+        "Kustomization) with a cache equal to it, so the cache can never be smaller than the data "
+        "(raised from 5Gi, PR #2206; VolSync retired on top of it, issue #2202 PR-3). Drilled "
+        "2026-11-01 at exactly this value: scratch Restores from ceph (kopia snapshot "
+        "cd011f03d4ebfaf8382d34c75162a552) and r2 (135b0442adc30085723356860e480efd) both "
+        "Completed, 5 files / 531 B, manifests and modes identical to the live volume. "
+        "Near-empty, so the measurement is the structural guarantee (cache >= claim) rather than "
+        "a size curve - owner decision (b). Do not lower it",
+    ),
+    "selfhosted/paperless-ngx.yaml#paperless-ngx": (
+        "10Gi",
+        "Claim-sized: the 10Gi `paperless-ngx` data claim with a cache equal to it, so the cache "
+        "can never be smaller than the data (raised from the 2Gi default, PR #2206; VolSync "
+        "retired and the claim taken over by components/kopiur/pvc on top of it, issue #2202 "
+        "PR-4). This value also sizes the standing populator Restore that seeds a rebuilt claim. "
+        "Drilled 2026-11-01 at exactly this value: scratch Restores from ceph (kopia snapshot "
+        "2a1dd4df2411e907290a9c71e2e2a8ec, 32 files / 22,264,900 B) and r2 "
+        "(ca6874779ec6d3143d1d3a82c6fac137, 32 files / 21,932,546 B) both Completed, and a "
+        "scratch claim whose dataSourceRef named a target.populator Restore was Populated and "
+        "Bound at 10Gi from the same ceph snapshot. Every differing file was newer on live than "
+        "the snapshot. Do not lower it",
+    ),
     "media/plex.yaml": (
         "10Gi",
         "4.61 GiB snapshot (2026-09-12; was 4.16 GiB when this was first sized). Raised "
@@ -121,6 +156,7 @@ def require(cond: Any, msg: str) -> None:
 
 
 def overlay(rel: str) -> dict[str, Any]:
+    rel, _, ks_name = rel.partition("#")
     path = APPS_MAIN / rel
     require(
         path.is_file(),
@@ -133,6 +169,10 @@ def overlay(rel: str) -> dict[str, Any]:
         for d in yaml.safe_load_all(path.read_text())
         if d and d.get("kind") == "Kustomization"
     ]
+    if ks_name:
+        named = [d for d in docs if d["metadata"]["name"] == ks_name]
+        require(len(named) == 1, f"expected one Flux Kustomization {ks_name!r} in {rel}, got {len(named)}")
+        return named[0]
     require(len(docs) == 1, f"expected exactly 1 Flux Kustomization in {rel}, got {len(docs)}")
     return docs[0]
 

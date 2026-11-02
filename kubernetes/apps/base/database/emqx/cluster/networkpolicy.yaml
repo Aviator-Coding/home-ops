@@ -23,17 +23,17 @@ spec:
               apps.emqx.io/instance: emqx
               apps.emqx.io/managed-by: emqx-operator
       ports:
-        - { port: 4370, protocol: TCP }   # erlang distribution
-        - { port: 4369, protocol: TCP }   # epmd
-        - { port: 5369, protocol: TCP }   # cluster discovery
+        - {port: 4370, protocol: TCP} # erlang distribution
+        - {port: 4369, protocol: TCP} # epmd
+        - {port: 5369, protocol: TCP} # cluster discovery
     # MQTT data plane is intentionally reachable from anywhere (the
     # service is a LoadBalancer at 10.50.0.30); access control is
     # enforced by EMQX's own auth + ACL.
     - ports:
-        - { port: 1883, protocol: TCP }   # MQTT
-        - { port: 8883, protocol: TCP }   # MQTTS
-        - { port: 8083, protocol: TCP }   # WebSocket
-        - { port: 8084, protocol: TCP }   # WebSocket Secure
+        - {port: 1883, protocol: TCP} # MQTT
+        - {port: 8883, protocol: TCP} # MQTTS
+        - {port: 8083, protocol: TCP} # WebSocket
+        - {port: 8084, protocol: TCP} # WebSocket Secure
     # Dashboard + native Prometheus metrics on :18083 - open to any
     # in-cluster pod. EMQX :18083 is dual-purpose (web UI + /api/v5/* +
     # /api/v5/prometheus/*), and many cluster components legitimately
@@ -44,7 +44,7 @@ spec:
     # burden that breaks any new consumer; the dashboard's own
     # username/password auth is the real security boundary.
     - ports:
-        - { port: 18083, protocol: TCP }
+        - {port: 18083, protocol: TCP}
     # Allow DNS replies from CoreDNS in kube-system. No ports restriction here
     # on purpose: NetworkPolicy `ports` matches the DESTINATION port on this
     # pod, and a DNS reply arrives on emqx's ephemeral source port, never 53

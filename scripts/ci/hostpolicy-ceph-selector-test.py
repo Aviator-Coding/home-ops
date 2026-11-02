@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# ci: gate
 """Semantic regression test for the Ceph LAN-isolation host CCNP selector.
+
+Prevents: a host-firewall CiliumClusterwideNetworkPolicy that locks out all three nodes
+(default-deny ingress) or never attaches to its host endpoints.
 
 Background (measured 2026-08-24 on talos-1/2/3): Cilium's default label filter
 strips several well-known node labels from the *host endpoint* label set. A
