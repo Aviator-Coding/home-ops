@@ -165,8 +165,8 @@ route is LAN-only.
   body) with `"model": "jev"`; LiteLLM 1.104.2+. It is absent from OpenRouter's
   `/models` list (only the per-model endpoints catalog has it), so do not treat
   it as unmatched. It is not published to the AI Hub (`UNPUBLISHED` in
-  `scripts/ci/litellm-ai-hub-test.py`) and only the `jev-decisions` and
-  `litellm-consume-projects` keys allow-list it. Spend is OpenRouter's
+  `scripts/ci/litellm-ai-hub-test.py`) and only the `jev-decisions`,
+  `litellm-consume-projects` and `ai-pr-review` (the AI review gate) keys allow-list it. Spend is OpenRouter's
   `usage.cost` (v1.104.3+), logged as call type `adecisions`/`asystemone`.
   Results: 200 decision; 403 "not allowed to access model" = key lacks `jev`;
   400 = malformed body; 429/budget = the key's limits.

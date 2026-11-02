@@ -19,5 +19,5 @@ lost to runtime power management. Applying it is `just talos upgrade-node`,
 not a Flux reconcile. Skill `talos-nodes`.
 
 iGPU consumers today are `plex` and `playwright`. jellyfin is retired.
-A new iGPU consumer updates `scripts/ci/igpu-xe-allowids-test.py`'s
-consumer map in the same change.
+A new iGPU consumer requests `gpu.intel.com/xe`, never a `devic.es/b70*`
+resource, and joins the table in [devices.md](devices.md).

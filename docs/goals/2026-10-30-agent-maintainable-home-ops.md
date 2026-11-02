@@ -12,7 +12,7 @@ the risk of each change.
 What a normal week looks like when this is done:
 
 1. The owner writes or approves a few GitHub issues.
-2. A local agent session takes one issue and posts a plan as an issue comment.
+2. A local agent session takes one issue and shows the plan in the session.
    `risk:high` work waits for the owner's approval of that plan.
 3. The agent works in its own worktree and opens one small PR.
 4. The required `CI Success` check and the AI review run.
@@ -133,9 +133,17 @@ its own PR. The highest-tier path in a PR wins.
 | `risk:normal` | everything else under `kubernetes/**`, `scripts/**`, `.taskfiles/**`, `.justfile`, `*/mod.just`, `.mise.toml` | the owner merges the PR |
 | `risk:low` | `docs/**`, `.agents/**`, `*.md` outside `kubernetes/**`, plus Renovate digest and patch updates outside the `risk:high` paths | merges itself once `CI Success` is green |
 
-Agents never merge. The 0.4 controls block `gh pr merge` outright. A `risk:low` PR merges
+Agents never run `gh pr merge`; the 0.4 controls block it outright. A `risk:low` PR merges
 because the `risk-tier` job turns on GitHub auto-merge for it, and GitHub merges once
-`CI Success` is green. Every other PR is merged by the owner. Agents use the owner's
+`CI Success` is green. Since 2026-10-31 (owner decision) an agent may also merge a
+`risk:low` or `risk:normal` PR through `scripts/agent_merge.py`: it re-reads the PR and
+merges only when the risk-tier bot's label is low or normal and matches `main`'s classifier
+over the full file list, no path is `risk:high`, agent-steering or part of the merge gate, a
+Renovate PR is digest or patch, `CI Success` and the AI review are green from GitHub Actions,
+and the Jev blocker gate is clear. `risk:high` PRs, Renovate minor and major bumps,
+agent-steering changes and changes to the gate are merged by the owner. The wrapper is a
+policy check on the agent's machine, not a security boundary: an agent with the owner's token
+could bypass it. Task 2.6 (a bot identity) plus the ruleset is the boundary. Agents use the owner's
 GitHub token, so the owner cannot formally approve an agent's PR yet. Task 2.6 moves
 agent PRs to a separate bot identity. `CI Success` then requires an approving review
 from `Aviator-Coding` on `risk:normal` and `risk:high` PRs.
@@ -144,7 +152,7 @@ from `Aviator-Coding` on `risk:normal` and `risk:high` PRs.
 
 1. Read this file and the issue, then classify the risk tier from the paths the issue
    will touch.
-2. Post a plan comment on the issue: approach, files, rollback, verification commands.
+2. Show the plan to the owner in the session (PR body if there is none): approach, files, rollback, verification commands.
    For `risk:high`, stop until the owner approves it.
 3. Create a worktree from `origin/main` and implement with the matching subagent
    model (§6).
@@ -174,7 +182,8 @@ only for independent Haiku inventory work.
 
 ## 7. Phases
 
-Each phase starts once the previous phase's exit check holds. P4's Renovate work, and
+Each phase starts once the previous phase's exit check holds, except P2, which the
+owner started early on 2026-10-31. P4's Renovate work, and
 P3's `scripts/ci` test triage (3.1 to 3.3 for tests), can start once P1's exit check
 holds. Target dates are for planning; a missed date gets a dated
 row in §8 and a new date, not silent drift.
@@ -215,13 +224,13 @@ sources not Ready. The 0.4 denials and a 0.5 test alert are recorded in §8.
 - [x] 1.2 Every unmarked test leaves the PR gate. Network-calling tests run nightly and
       open an issue on failure. The rest run in an advisory PR job that never blocks,
       until P3 keeps (`enforce`) or deletes each one.
-- [ ] 1.3 Add `.editorconfig`, a YAML formatter, and yamllint, actionlint, zizmor and
+- [x] 1.3 Add `.editorconfig`, a YAML formatter, and yamllint, actionlint, zizmor and
       shellcheck to pre-commit and to `CI Success`. Fix or explicitly ignore the
       existing findings.
 - [ ] 1.4 With the owner's go-ahead, replace `Labeler - Labeler` with `CI Success` as the
       required check and empty the bypass list. Before enabling it, the owner does one
       dry run of the §3 break-glass procedure.
-- [ ] 1.5 Add a daily scheduled workflow that records the D2 pass rate and the D3
+- [x] 1.5 Add a daily scheduled workflow that records the D2 pass rate and the D3
       open-Renovate count in a pinned issue or a committed CSV, so the 14-day windows
       measure themselves.
 
@@ -229,15 +238,15 @@ Exit: D1 holds, and `CI Success` passes on at least 95% of PR runs for 7 days.
 
 ### P2 Workflow (target 2026-11-30)
 
-- [ ] 2.1 Add an issue template (goal, risk tier, rollback, verification) and the three
+- [x] 2.1 Add an issue template (goal, risk tier, rollback, verification) and the three
       `risk:*` labels.
-- [ ] 2.2 Add the `risk-tier` CI job from §5. It labels the PR with its tier and turns on
+- [x] 2.2 Add the `risk-tier` CI job from §5. It labels the PR with its tier and turns on
       auto-merge only for `risk:low`.
-- [ ] 2.3 Write four workflow skills, `plan-task`, `implement-task`, `review-pr` and
+- [x] 2.3 Write four workflow skills, `plan-task`, `implement-task`, `review-pr` and
       `renovate-review`, which encode §5 and §6.
-- [ ] 2.4 Rebuild the AI review so it reports specific findings and fails its check on a
+- [x] 2.4 Rebuild the AI review so it reports specific findings and fails its check on a
       blocking one. Seed 5 known-bad and 5 known-good PRs and record the results in §8.
-- [ ] 2.5 Triage `.claude/PRPs` and `.claude/tasks` with the owner. Live plans become a
+- [x] 2.5 Triage `.claude/PRPs` and `.claude/tasks` with the owner. Live plans become a
       tracked `docs/goals/` file, or stay local in `.private/` if they must not be
       public. Stale plans are deleted.
 - [ ] 2.6 Give agent PRs a bot identity and require the owner's approval on
@@ -247,7 +256,7 @@ Exit: D5 and D6 hold.
 
 ### P3 Lean knowledge (target 2026-12-20, test triage 2026-12-06; each task runs through the P2 loop)
 
-- [ ] 3.1 Inventory every skill section and every `scripts/ci` test into
+- [x] 3.1 Inventory every skill section and every `scripts/ci` test into
       [`knowledge-ledger.md`](knowledge-ledger.md) (Haiku).
 - [ ] 3.2 Assign every ledger row a verdict (Opus). Work one skill per PR: its ledger
       rows, its rewrite and its test changes together, so each owner review of
@@ -266,7 +275,7 @@ Exit: D4 and D8 hold.
       `risk:high` paths, requiring passing checks (`ignoreTests: false`). Group
       Kubernetes, Talos, Rook-Ceph, Cilium and Flux. Suspend the in-cluster CronJob
       while this merges.
-- [ ] 4.2 Clear the open Renovate backlog. Each major bump gets its own issue.
+- [ ] 4.2 Clear the open Renovate backlog. Each major bump is judged in one comment on its PR (no separate issue; amended 2026-11-01).
 - [ ] 4.3 Delete remote branches older than 14 days that have no open PR. The owner
       approves the list first.
 - [ ] 4.4 Check that Hermes can run the §5 loop from the repo files alone. Record any gaps
@@ -288,6 +297,7 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-31 | 0.0 | `d2fa343c` landed on `main` as #2146 | #2146 |
 | 2026-10-31 | 0.1 (remaining sources) | The 8 other `charts-mirror` sources (headlamp, external-dns ×2, tailscale-operator, volsync, descheduler, metrics-server, keda) all pull fine from the mirror. None has an anonymously pullable official OCI chart: ghcr.io and quay.io return 403, and registry.k8s.io returns not found. Each has an official HTTPS Helm repo (kubernetes-sigs.github.io/{headlamp,external-dns,descheduler,metrics-server}, pkgs.tailscale.com/helmcharts, backube.github.io/helm-charts, kedacore.github.io/charts). Per the plan they stay on the mirror; `FluxResourceNotReadyTooLong` (task 0.5) will catch the next 403. Renovate presets (`Aviator-Coding/mortyops`, local `.renovate/`) are not community presets: no change | fix/upstream-charts PR |
 | 2026-10-31 | Plan change | Owner decision: gate on a few tests now. Evidence: in 59 of the last 60 Validate PR runs, `python-tests` was the only failing job (talos, bootstrap, terraform, renovate-config and docs-guards never failed). Recent causes were brittleness, not catches: the plex tag canary (#2149), the charts-mirror 403 and a factory.talos.dev SSL error. Tasks 1.1 and 1.2 now gate only `# ci: gate` tests; P3 test triage moves up to follow P1 | this file |
+| 2026-10-31 | Plan change | Owner decision: start P2 now, in parallel with the P1 exit window (D1 and 7 days). P3 and P4 stay gated | this file |
 | 2026-10-31 | 0.1 | #2147 merged. `flux get sources oci -A` shows 0 not Ready (cilium `1.18.6@sha256:e6af2ea4`, openebs `4.4.0@sha256:5aaf304b`); HelmRepository `system/intel` Ready; all 4 HelmReleases Ready on the same versions; `kube-system/ds/cilium` generation 13 before and after (3/3 ready); GpuDevicePlugin `xe` 3/3 | #2147 |
 | 2026-10-31 | 0.5 / D9 | #2148 merged first, so the 4 real charts-mirror OCIRepositories became the test alert: `FluxResourceNotReadyTooLong` pending at 00:37, firing at 01:07 for all 4, resolved after #2147. Alertmanager routes it to `pushover-warning`; Pushover sent 17 notifications in the last 90m with 0 failures. Still open: the owner's confirmation that the notification arrived | #2148 |
 | 2026-10-31 | 1.1 gate set | The owner approved the 12-test gate list from the Opus classification (gate 12, nightly 11, advisory 69). With the network denied, 11 of 12 pass offline locally (`volsync-retired-expiry` needs `boto3`, which the gate job installs) | Task 7b PR |
@@ -296,3 +306,12 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-31 | 1.1 red proof | Draft #2158 removed `kind: DaemonSet` from mglru-disable: `Flate - Test` failed and `CI Success` went red. Closed, branch deleted | #2158 |
 | 2026-10-31 | 1.2 | First manual `nightly-tests.yaml` run: only `litellm-sso-test.py` failed (live Authentik), and the workflow opened #2159 with the `ci-nightly` label | #2159 |
 | 2026-10-31 | 0.4 (RBAC) | #2154 merged and reconciled. Impersonating `kube-system:agent-readonly`: create pods no, get secrets no, create pods/exec no, list helmreleases yes, list nodes yes. Still open: the owner's credential migration and mint, then the guard denial in a live session | #2154 |
+| 2026-10-31 | Plan change / 3.1 | Owner decision: start P3.1 (inventory) and P4.2 (Renovate triage comments) early; both delete and merge nothing. 3.1 done: the ledger lists 98 tests, 121 skill sections, 235 skill tripwires, 114 reference files and 31 AGENTS.md tripwires (599 rows; 87 data loss, 24 outage), with verdicts empty for 3.2 | this PR |
+| 2026-10-31 | 4.2 (triage, early) | All 31 open Renovate PRs have one recommendation comment (renovate-review format): 24 merge (some after a pre-flight), 7 hold, 0 close. Major bumps each have an issue: #2188 node 26 (PRs 2115, 2116), #2189 ceph v21 (needs Rook 1.21 first, one-way), #2190 n8n 3.0 (pre-release), #2191 ha-mcp 9, #2192 Node Exporter dashboard 46. Holds also cover #2114 and #2087 (each an unattended tuppr roll) and #1991 (python 3.15, no fastuuid wheel). The owner merges | #2188-#2192 |
+| 2026-10-31 | Plan change | Owner decision: agents may merge `risk:low` and `risk:normal` PRs through `scripts/agent_merge.py` (CI Success and AI review green, Jev blocker gate clear, no risk:high or agent-steering paths, Renovate digest or patch only). Direct `gh pr merge` stays blocked. New skill `jev-decisions` (JSONL in, JSONL out) | this PR |
+| 2026-10-31 | 1.3 / 1.5 | Linters gate `CI Success` (#2162: actionlint 132→0, zizmor 21→0, yamllint 18→0, shellcheck 6→0); repo-wide yamlfmt with empty `flate diff` (#2163). Daily metrics in issue #2161 (first row: 75.0%, 4 runs, 28 open Renovate PRs) | #2162, #2163, #2157 |
+| 2026-10-31 | 2.1-2.3 | Issue form and `risk:*` labels (#2164); `risk-tier.yaml` labels PRs from paths with main's classifier, auto-merge only for risk:low once `CI Success` is required (#2165; first live run labelled #2166 risk:normal); four workflow skills (#2166) | #2164, #2165, #2166 |
+| 2026-10-31 | D6 baseline (local model) | `pr-review-local` with the blocker rules (#2167): **2 of 5 bad caught, 1 of 5 good falsely failed: D6 not met.** Caught: healthChecks on a HelmRelease (#2172), CCNP default-deny (#2177). Missed: kopiur `wait: true` (#2168, include outside the diff), literal `${HOME}` (#2175, model called it a Flux variable), no fork guard on an in-cluster workflow (#2179, explicit rule). False failure: subtractive CCNP (#2178, invented selector). Good passes: #2169, #2173, #2176, #2180. Next: a stronger decision model (owner choosing Jev or Claude) | #2168-#2180 |
+| 2026-10-31 | D6 | **Holds.** The local model failed (2 of 5, 1 false), so the owner chose Jev as a decision gate (#2183): one predicate per blocker rule on LiteLLM `/v1/decisions`, with the full changed files, the defined Flux variables and unmatched `${NAME}` hints. Offline on the 10 seed diffs (two runs, +-0.03): bad 0.98 / 0.97 / 0.82 / 0.91 / 0.93, good at most 0.21, threshold 0.6, so **5 of 5 caught, 0 of 5 false**. Live after merge: #2184 (bad-1) BLOCKED at 0.98, #2185 (good-4, the local model's false failure) passed at 0.20 | #2183, #2184, #2185 |
+| 2026-10-31 | 2.5 / D5 | Owner triage: the 12 finished or stale files under `.claude/PRPs` and `.claude/tasks` were deleted; the live media-platform PRD and the open Phase 5/6 plans moved to the local-only `.private/media-platform/`. Both directories are gone. With the issue form and `risk:*` labels (#2164), **D5 holds** | local only |
+| 2026-10-31 | P2 exit | D5 and D6 hold. Open: 2.6 (bot identity, owner) | this file |

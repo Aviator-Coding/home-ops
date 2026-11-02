@@ -21,14 +21,12 @@ Wait out anything already running:
 
 ```sh
 kubectl get snapshot -A -o json | jq -r '.items[] | select(.status.phase=="Running") | "\(.metadata.namespace)/\(.metadata.name)"'
-kubectl get jobs -A -l app.kubernetes.io/created-by=volsync -o json | jq -r '.items[] | select(.status.active>0) | "\(.metadata.namespace)/\(.metadata.name)"'
 ```
 
-To stop a new run from starting, suspend and scale the controllers to zero. This was reasoned from the operator design and has not been executed as a drill:
+To stop a new run from starting, suspend and scale the controller to zero (VolSync was removed in issue #2202 PR-6). This was reasoned from the operator design and has not been executed as a drill:
 
 ```sh
 flux suspend hr kopiur -n system  && kubectl -n system scale deploy/kopiur-controller --replicas=0
-flux suspend hr volsync -n system && kubectl -n system scale deploy/volsync --replicas=0
 ```
 
 If that does not hold, suspend each `SnapshotPolicy` (`spec.suspend: true`). See `kubernetes/components/kopiur/Readme.md`.
@@ -70,7 +68,7 @@ Cut power only after all three calls have returned.
 3. Power talos-3 after the dock wait.
 4. `kubectl get nodes` shows three Ready.
 5. `ceph -s` is `HEALTH_OK`, 6/6 OSDs, 3 mons. Then `ceph osd unset noout`.
-6. `flux resume hr kopiur -n system` and `flux resume hr volsync -n system`. Resume restores the Git replica count.
+6. `flux resume hr kopiur -n system`. Resume restores the Git replica count.
 7. If you set hibernation: `kubectl -n database annotate cluster postgres-17 cnpg.io/hibernation=off --overwrite`. Wait for healthy, 3/3.
 8. `devic.es/b70` allocatable is 99 on talos-3 and 0 on the others.
 

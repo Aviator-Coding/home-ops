@@ -575,11 +575,10 @@ cat <<EOF
 Next steps:
   - fill in every TODO left in the generated files (image/tag, ports, uid/gid,
     1Password item keys if --secrets was used)
-  - decide whether this app needs a backup component (components/volsync
-    and/or components/kopiur) - that requires measuring the live file
+  - decide whether this app needs a backup component (components/kopiur;
+    VolSync is removed) - that requires measuring the live file
     ownership after first deploy, so it is deliberately not auto-generated;
-    see kubernetes/components/volsync/Readme.md and
-    kubernetes/components/kopiur/Readme.md, and the "one component include
+    see kubernetes/components/kopiur/Readme.md, and the "one component include
     covers one volume" trap in .agents/skills/flux-gitops/references/app-shapes.md
   - validate: mise exec -- task flux:test:all
 EOF

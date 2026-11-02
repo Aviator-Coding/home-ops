@@ -37,11 +37,8 @@ NIGHTLY_WF = ROOT / ".github" / "workflows" / "nightly-tests.yaml"
 # Measured 2026-10-31 (Opus code read plus a no-network sandbox run): these call out.
 EXPECTED_NIGHTLY = {
     "grafana-mcp-deploy-test.py",
-    "igpu-xe-allowids-test.py",
     "litellm-pr-reviewer-test.py",
     "litellm-sso-test.py",
-    "recyclarr-language-policy-test.py",
-    "recyclarr-quality-profile-test.py",
     "samba-shared-xml-test.py",
     "schematic-pcie-port-pm-test.py",
     "terraform-ci-workflows-test.py",
@@ -53,7 +50,6 @@ EXPECTED_GATE = {
     "backup-silent-failure-alerting-test.py",
     "ci-test-gate-test.py",
     "ci-success-workflow-test.py",
-    "corrupt-claim-recreation-contract-test.py",
     "flux-annotation-values-test.py",
     "hostpolicy-ceph-selector-test.py",
     "kopiur-stage0-test.py",
@@ -62,6 +58,7 @@ EXPECTED_GATE = {
     "kopiur-stage5-test.py",
     "pvc-mover-readable-check-test.py",
     "pvc-writable-check-test.py",
+    "risk-tier-test.py",
     "volsync-retired-expiry-test.py",
 }
 

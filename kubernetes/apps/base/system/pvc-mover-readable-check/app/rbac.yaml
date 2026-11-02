@@ -15,12 +15,9 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
-  # Mover identities must come from the live CRs: KOPIUR_PUID/PGID are
-  # overridden per claim and range from 0 to 10000 across the fleet, so a
+  # Mover identities must come from the live SnapshotPolicies: KOPIUR_PUID/PGID
+  # are overridden per claim and range from 0 to 10000 across the fleet, so a
   # component-default identity would measure the wrong thing entirely.
-  - apiGroups: ["volsync.backube"]
-    resources: ["replicationsources"]
-    verbs: ["get", "list"]
   - apiGroups: ["kopiur.home-operations.com"]
     resources: ["snapshotpolicies"]
     verbs: ["get", "list"]
@@ -49,7 +46,7 @@ rules:
 ---
 # One RoleBinding per namespace that holds a backup-covered claim. Keep in
 # lockstep with EXCLUDED_NAMESPACES in cronjob.yaml: a namespace that gains a
-# ReplicationSource or SnapshotPolicy and has no binding here is reported
+# SnapshotPolicy and has no binding here is reported
 # UNMEASURED (rbac) rather than silently passing.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

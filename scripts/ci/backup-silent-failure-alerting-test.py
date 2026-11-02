@@ -2,25 +2,22 @@
 # ci: gate
 """Behavioral regression test for backup silent-failure alerting.
 
-Prevents: stalled VolSync movers and empty or stale kopiur backups never raising an
-alert.
+Prevents: empty or stale kopiur backups never raising an alert, and a VolSync rule
+outliving the operator (its `absent()` alert would fire forever).
 
 Pins the 2026-08-31 monitoring blind-spot close:
 
-  1. VolSync ReplicationSources stuck Synchronizing=True/SyncInProgress are
-     indistinguishable from a healthy mid-sync. Alert on "no completed sync in
-     1.5x the destination schedule" via increase(volsync_sync_duration_seconds
-     _count) == 0, joined to a live cache PVC so deleted-RS metric leaks
-     (media/jellyfin-ceph) do not page forever. increase() is aggregated
-     `max by (obj_namespace, obj_name)` before the comparison so a frozen
-     counter from a departed replica cannot false-fire (six critical
-     VolSyncSyncStalledR2 alerts, 2026-09-06).
+  1. VolSync's stall rules (VolSyncSyncStalledCeph/Minio/R2, 2026-08-31) and the
+     rest of its PrometheusRule were removed with the operator (issue #2202 PR-6).
+     assert_volsync_rules_removed() keeps them out: VolSyncComponentAbsent is an
+     absent(up{job="volsync-metrics"}) rule, so it would page forever once the
+     operator is gone. Git history holds the stall-window promtool matrix.
   2. Kopiur SecurityContextCompatible is not exported to Prometheus; the chart's
      own Failed-phase alerts already cover uid-mismatch fallout. The remaining
      gap is a Succeeded snapshot that moved zero files (autobrr Stage 1 shape),
      covered by KopiurBackupEmpty on kopiur_policy_last_backup_files == 0.
   3. KopiurBackupStaleCeph / KopiurBackupStaleR2 split the chart's single 48h
-     warning (12 missed ceph runs) the way the VolSync stall rules split
+     warning (12 missed ceph runs) the way the old VolSync stall rules split
      theirs: 6h critical for policy=~".+-ceph$", 48h warning for
      policy=~".+-r2$". The live metric has no `repository` label.
 
@@ -28,33 +25,15 @@ This test does NOT grep source text as evidence. It:
 
   1. Loads the real PrometheusRule manifests Flux would apply.
   2. Feeds them to Prometheus' own rule unit-test engine (`promtool test rules`)
-     with synthetic series that model the live stuck opencode sources, healthy
-     fleet completions, the jellyfin leaked-series case, the recyclarr negative
-     case, and an empty kopiur policy.
+     with synthetic series that model an empty kopiur policy and stale and
+     fresh ceph/r2 policies.
   3. Asserts observable alert fire/silence and PromQL sample sets.
 
 Live cluster confirmation was already completed against the real
-kube-prometheus-stack Prometheus (port-forwarded) for the final cache-PVC-join
-expressions and is recorded in the PrometheusRule comments next to each alert.
-Fresh worktrees never carry kubeconfig (AGENTS.md); this CI gate therefore pins
-the same fire/silence matrix with promtool rather than re-querying the cluster.
-Recorded live results (final join version):
-
-  VolSyncSyncStalledCeph/Minio/R2
-  - Fires only for ai/opencode-ceph (increase==0 over 6h) and
-    ai/opencode-minio (increase==0 over 9h); ai/opencode-r2 correctly silent
-    (not yet due on its daily schedule).
-  - Join matches exactly 31 series per destination = live ReplicationSource
-    counts (31/31/31); all 93 live sources have a matching series (set
-    difference empty both ways).
-  - Excludes the 12 leaked stale series with no live RS/PVC/cache-PVC:
-    media/jellyfin, media/immich, selfhosted/rsshub,
-    selfhosted/rsshub-playwright (3 destinations each).
-  - downloads/recyclarr does not fire on any destination (VolSync counters,
-    not Job history - immune to successfulJobsHistoryLimit:0).
-  - All 12 VOLSYNC_CLAIM-overridden claims (radarr, bazarr, lidarr, prowlarr,
-    readarr, recyclarr, sonarr, sabnzbd, tdarr, esphome, zigbee2mqtt,
-    changedetection) are matched by the cache-PVC join on -ceph.
+kube-prometheus-stack Prometheus (port-forwarded) and is recorded in the
+PrometheusRule comments next to each alert. Fresh worktrees never carry
+kubeconfig (AGENTS.md); this CI gate therefore pins the same fire/silence matrix
+with promtool rather than re-querying the cluster. Recorded live results:
 
   KopiurBackupEmpty
   - Silent fleet-wide (every completed policy reports >0 files).
@@ -79,9 +58,11 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+# Removed with the operator (issue #2202 PR-6); must stay absent.
 VOLSYNC_RULE = (
     ROOT / "kubernetes/apps/base/system/volsync/app/prometheusrule.yaml"
 )
+RULE_ROOT = ROOT / "kubernetes"
 KOPIUR_RULE = (
     ROOT / "kubernetes/apps/base/system/kopiur/app/prometheusrule.yaml"
 )
@@ -93,13 +74,6 @@ PVC_WRITABLE_RULE = (
 PROMTOOL_IMAGE = os.environ.get(
     "PROMTOOL_IMAGE", "quay.io/prometheus/prometheus:v3.2.1"
 )
-
-# Destination schedule (nominal) -> stall window (1.5x), documented in the rule.
-STALL_WINDOWS = {
-    "VolSyncSyncStalledCeph": ("6h", "ceph", "4h"),
-    "VolSyncSyncStalledMinio": ("9h", "minio", "6h"),
-    "VolSyncSyncStalledR2": ("36h", "r2", "24h"),
-}
 
 # Kopiur dest-split staleness. Seconds in the expr, cadence for the comment.
 # Selector is the policy suffix: the live metric has no `repository` label.
@@ -268,19 +242,11 @@ def _write_rule_file(path: Path, rule: dict[str, Any]) -> None:
 
 def assert_routing_parity() -> dict[str, Any]:
     """Alerts must carry the same severity-label routing shape as existing backup rules."""
-    volsync = alerts_by_name(prometheus_rule(VOLSYNC_RULE))
     kopiur = alerts_by_name(prometheus_rule(KOPIUR_RULE))
     pvc = alerts_by_name(prometheus_rule(PVC_WRITABLE_RULE))
 
     # Existing backup / volume alerts route on severity only (no custom route key).
     for name, alert in {
-        **{k: volsync[k] for k in (
-            "VolSyncComponentAbsent",
-            "VolSyncVolumeOutOfSync",
-            "VolSyncSyncStalledCeph",
-            "VolSyncSyncStalledMinio",
-            "VolSyncSyncStalledR2",
-        )},
         **{k: kopiur[k] for k in (
             "KopiurComponentAbsent",
             "KopiurBackupEmpty",
@@ -297,13 +263,9 @@ def assert_routing_parity() -> dict[str, Any]:
         require(
             set(labels.keys()) <= {"severity"},
             f"{name}: unexpected alert labels {labels} - keep parity with "
-            "pvc-writable-check / existing volsync+kopiur rules (severity only)",
+            "pvc-writable-check / existing kopiur rules (severity only)",
         )
 
-    require(
-        volsync["VolSyncSyncStalledCeph"]["labels"]["severity"] == "critical",
-        "stalled VolSync syncs are critical (backup not running)",
-    )
     require(
         kopiur["KopiurBackupEmpty"]["labels"]["severity"] == "warning",
         "empty kopiur backup is warning (succeeded but contentless)",
@@ -332,50 +294,33 @@ def assert_routing_parity() -> dict[str, Any]:
     )
 
     return {
-        "volsync_stalled": [
-            "VolSyncSyncStalledCeph",
-            "VolSyncSyncStalledMinio",
-            "VolSyncSyncStalledR2",
-        ],
         "kopiur_empty": "KopiurBackupEmpty",
         "severity_shape": "severity-only",
     }
 
 
-def assert_window_contract(volsync_alerts: dict[str, dict[str, Any]]) -> None:
-    """Windows are 1.5x destination schedules, selected by obj_name suffix."""
-    for alert_name, (window, suffix, _nominal) in STALL_WINDOWS.items():
-        expr = volsync_alerts[alert_name].get("expr") or ""
-        require(
-            f"[{window}]" in expr,
-            f"{alert_name}: expected range window [{window}] in expr, got {expr!r}",
-        )
-        require(
-            f".+-{suffix}$" in expr or f".+-{suffix}" in expr,
-            f"{alert_name}: expected obj_name suffix filter for -{suffix}",
-        )
-        require(
-            'role="source"' in expr,
-            f"{alert_name}: must filter role=source",
-        )
-        require(
-            "kube_persistentvolumeclaim_info" in expr,
-            f"{alert_name}: must join live cache PVC to drop leaked series",
-        )
-        require(
-            "volsync-src-$1-cache" in expr or "volsync-src-" in expr,
-            f"{alert_name}: cache PVC join key must be volsync-src-<obj_name>-cache",
-        )
-        require(
-            volsync_alerts[alert_name].get("for") == "5m",
-            f"{alert_name}: for: must be 5m to match sibling VolSync alerts",
-        )
-        require(
-            "max by (obj_namespace, obj_name)" in expr,
-            f"{alert_name}: must aggregate away pod via max by "
-            "(obj_namespace, obj_name) before comparing increase==0 "
-            "(departed-replica frozen counters false-fire otherwise)",
-        )
+def assert_volsync_rules_removed() -> None:
+    """No PrometheusRule outlives the VolSync operator (issue #2202 PR-6).
+
+    VolSyncComponentAbsent was `absent(up{job="volsync-metrics"})`: with the
+    operator gone it would fire forever, and the stall and out-of-sync rules
+    would read metrics nothing exports. Every rendered rule file in the repo is
+    scanned, not just the old path, so a copy under another app also fails.
+    """
+    require(not VOLSYNC_RULE.exists(), f"{VOLSYNC_RULE.relative_to(ROOT)} is back")
+    offenders: list[str] = []
+    for path in sorted(RULE_ROOT.rglob("*.yaml")):
+        text = path.read_text()
+        if "PrometheusRule" not in text:
+            continue
+        for doc in load_docs(path):
+            if doc.get("kind") != "PrometheusRule":
+                continue
+            for name, alert in alerts_by_name(doc).items():
+                expr = str(alert.get("expr") or "")
+                if name.startswith("VolSync") or "volsync" in expr.lower():
+                    offenders.append(f"{path.relative_to(ROOT)}: {name}")
+    require(not offenders, f"VolSync alert rules outlive the operator: {offenders}")
 
 
 def assert_kopiur_stale_contract(kopiur_alerts: dict[str, dict[str, Any]]) -> None:
@@ -419,25 +364,17 @@ def assert_kopiur_stale_contract(kopiur_alerts: dict[str, dict[str, Any]]) -> No
 
 
 def assert_promtool_semantics() -> dict[str, Any]:
-    volsync_rule = prometheus_rule(VOLSYNC_RULE)
     kopiur_rule = prometheus_rule(KOPIUR_RULE)
-    volsync_alerts = alerts_by_name(volsync_rule)
     kopiur_alerts = alerts_by_name(kopiur_rule)
 
-    for name in STALL_WINDOWS:
-        require(name in volsync_alerts, f"missing alert {name}")
     require(
         "KopiurBackupEmpty" in kopiur_alerts, "missing alert KopiurBackupEmpty"
     )
     for name in KOPIUR_STALE:
         require(name in kopiur_alerts, f"missing alert {name}")
 
-    assert_window_contract(volsync_alerts)
     assert_kopiur_stale_contract(kopiur_alerts)
 
-    ceph_expr = volsync_alerts["VolSyncSyncStalledCeph"]["expr"]
-    minio_expr = volsync_alerts["VolSyncSyncStalledMinio"]["expr"]
-    r2_expr = volsync_alerts["VolSyncSyncStalledR2"]["expr"]
     empty_expr = kopiur_alerts["KopiurBackupEmpty"]["expr"]
     empty_summary = (kopiur_alerts["KopiurBackupEmpty"].get("annotations") or {}).get(
         "summary", ""
@@ -482,316 +419,11 @@ def assert_promtool_semantics() -> dict[str, Any]:
 
     with tempfile.TemporaryDirectory(prefix="backup-alert-promtool-") as tmp:
         work = Path(tmp)
-        _write_rule_file(work / "volsync_rules.yml", volsync_rule)
         _write_rule_file(work / "kopiur_rules.yml", kopiur_rule)
 
-        check_vs = _run_promtool(["check", "rules", "volsync_rules.yml"], work)
         check_kp = _run_promtool(["check", "rules", "kopiur_rules.yml"], work)
 
-        # Separate unit-test files: VolSync needs multi-hour range windows with a
-        # 1h series interval; KopiurBackupEmpty's for:15m needs 1m evaluation.
-        volsync_test = {
-            "rule_files": ["volsync_rules.yml"],
-            "evaluation_interval": "1h",
-            "tests": [
-                {
-                    "name": "volsync_stalled_fire_and_silence",
-                    "interval": "1h",
-                    "input_series": [
-                        # Blind spot 1 subject: ai/opencode-ceph stuck, cache PVC live
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="opencode-ceph",obj_namespace="ai",'
-                                'job="volsync-metrics"}'
-                            ),
-                            "values": _const_values(7, hours),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="ai",'
-                                'persistentvolumeclaim="volsync-src-opencode-ceph-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                        # ai/opencode-minio stuck
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="opencode-minio",obj_namespace="ai",'
-                                'job="volsync-metrics"}'
-                            ),
-                            "values": _const_values(3, hours),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="ai",'
-                                'persistentvolumeclaim="volsync-src-opencode-minio-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                        # ai/opencode-r2 still completing on daily cadence
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="opencode-r2",obj_namespace="ai",'
-                                'job="volsync-metrics"}'
-                            ),
-                            "values": _step_every(24, hours, start=1),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="ai",'
-                                'persistentvolumeclaim="volsync-src-opencode-r2-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                        # Healthy fleet samples (must stay silent)
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="sabnzbd-ceph",obj_namespace="downloads",'
-                                'job="volsync-metrics"}'
-                            ),
-                            "values": _step_every(4, hours, start=10),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="downloads",'
-                                'persistentvolumeclaim="volsync-src-sabnzbd-ceph-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="sabnzbd-minio",obj_namespace="downloads",'
-                                'job="volsync-metrics"}'
-                            ),
-                            "values": _step_every(6, hours, start=5),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="downloads",'
-                                'persistentvolumeclaim="volsync-src-sabnzbd-minio-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="hermes-ceph",obj_namespace="ai",'
-                                'job="volsync-metrics"}'
-                            ),
-                            "values": _step_every(4, hours, start=20),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="ai",'
-                                'persistentvolumeclaim="volsync-src-hermes-ceph-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                        # Explicit negative: downloads/recyclarr (healthy daily)
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="recyclarr-r2",obj_namespace="downloads",'
-                                'job="volsync-metrics"}'
-                            ),
-                            "values": _step_every(24, hours, start=1),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="downloads",'
-                                'persistentvolumeclaim="volsync-src-recyclarr-r2-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                        # Leaked series for deleted media/jellyfin-ceph (no cache PVC)
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="jellyfin-ceph",obj_namespace="media",'
-                                'job="volsync-metrics"}'
-                            ),
-                            "values": _const_values(9, hours),
-                        },
-                        # 2026-09-06 false-positive shape: departed replica
-                        # frozen at 0 increase, live leader still completing.
-                        # max-by must keep this silent.
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="paperless-ngx-r2",obj_namespace="selfhosted",'
-                                'job="volsync-metrics",pod="volsync-dead"}'
-                            ),
-                            "values": _const_values(2, hours),
-                        },
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="paperless-ngx-r2",obj_namespace="selfhosted",'
-                                'job="volsync-metrics",pod="volsync-leader"}'
-                            ),
-                            "values": _step_every(24, hours, start=1),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="selfhosted",'
-                                'persistentvolumeclaim="volsync-src-paperless-ngx-r2-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                        # Genuine stall after aggregation: every replica reads
-                        # zero. Must fire once (pod dimension gone).
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="syncthing-data-r2",obj_namespace="selfhosted",'
-                                'job="volsync-metrics",pod="volsync-dead-a"}'
-                            ),
-                            "values": _const_values(3, hours),
-                        },
-                        {
-                            "series": (
-                                'volsync_sync_duration_seconds_count{role="source",'
-                                'obj_name="syncthing-data-r2",obj_namespace="selfhosted",'
-                                'job="volsync-metrics",pod="volsync-dead-b"}'
-                            ),
-                            "values": _const_values(3, hours),
-                        },
-                        {
-                            "series": (
-                                'kube_persistentvolumeclaim_info{namespace="selfhosted",'
-                                'persistentvolumeclaim="volsync-src-syncthing-data-r2-cache"}'
-                            ),
-                            "values": _const_values(1, hours),
-                        },
-                    ],
-                    "promql_expr_test": [
-                        {
-                            "expr": ceph_expr,
-                            "eval_time": "40h",
-                            "exp_samples": [
-                                {
-                                    "labels": (
-                                        '{cachepvc="volsync-src-opencode-ceph-cache", '
-                                        'obj_name="opencode-ceph", '
-                                        'obj_namespace="ai"}'
-                                    ),
-                                    "value": 0,
-                                }
-                            ],
-                        },
-                        {
-                            "expr": minio_expr,
-                            "eval_time": "40h",
-                            "exp_samples": [
-                                {
-                                    "labels": (
-                                        '{cachepvc="volsync-src-opencode-minio-cache", '
-                                        'obj_name="opencode-minio", '
-                                        'obj_namespace="ai"}'
-                                    ),
-                                    "value": 0,
-                                }
-                            ],
-                        },
-                        {
-                            "expr": r2_expr,
-                            "eval_time": "40h",
-                            "exp_samples": [
-                                {
-                                    "labels": (
-                                        '{cachepvc="volsync-src-syncthing-data-r2-cache", '
-                                        'obj_name="syncthing-data-r2", '
-                                        'obj_namespace="selfhosted"}'
-                                    ),
-                                    "value": 0,
-                                }
-                            ],
-                        },
-                    ],
-                    "alert_rule_test": [
-                        {
-                            "eval_time": "40h",
-                            "alertname": "VolSyncSyncStalledCeph",
-                            "exp_alerts": [
-                                {
-                                    "exp_labels": {
-                                        "alertname": "VolSyncSyncStalledCeph",
-                                        "severity": "critical",
-                                        "cachepvc": "volsync-src-opencode-ceph-cache",
-                                        "obj_name": "opencode-ceph",
-                                        "obj_namespace": "ai",
-                                    },
-                                    "exp_annotations": {
-                                        "summary": (
-                                            "ai/opencode-ceph has had no completed VolSync "
-                                            "sync in over 6h (1.5x its 4h ceph schedule). "
-                                            "Its ReplicationSource may still read "
-                                            "Synchronizing=True the whole time, which looks "
-                                            "identical to a healthy mid-sync. Check "
-                                            "`kubectl -n ai describe replicationsource "
-                                            "opencode-ceph` for a wedged mover pod."
-                                        ),
-                                    },
-                                }
-                            ],
-                        },
-                        {
-                            "eval_time": "40h",
-                            "alertname": "VolSyncSyncStalledMinio",
-                            "exp_alerts": [
-                                {
-                                    "exp_labels": {
-                                        "alertname": "VolSyncSyncStalledMinio",
-                                        "severity": "critical",
-                                        "cachepvc": "volsync-src-opencode-minio-cache",
-                                        "obj_name": "opencode-minio",
-                                        "obj_namespace": "ai",
-                                    },
-                                    "exp_annotations": {
-                                        "summary": (
-                                            "ai/opencode-minio has had no completed VolSync "
-                                            "sync in over 9h (1.5x its 6h minio schedule). "
-                                            "Check `kubectl -n ai describe replicationsource "
-                                            "opencode-minio` for a wedged mover pod."
-                                        ),
-                                    },
-                                }
-                            ],
-                        },
-                        {
-                            "eval_time": "40h",
-                            "alertname": "VolSyncSyncStalledR2",
-                            "exp_alerts": [
-                                {
-                                    "exp_labels": {
-                                        "alertname": "VolSyncSyncStalledR2",
-                                        "severity": "critical",
-                                        "cachepvc": "volsync-src-syncthing-data-r2-cache",
-                                        "obj_name": "syncthing-data-r2",
-                                        "obj_namespace": "selfhosted",
-                                    },
-                                    "exp_annotations": {
-                                        "summary": (
-                                            "selfhosted/syncthing-data-r2 has had no "
-                                            "completed VolSync sync in over 36h (1.5x "
-                                            "its daily r2 schedule). Check `kubectl -n "
-                                            "selfhosted describe replicationsource "
-                                            "syncthing-data-r2` for a wedged mover pod."
-                                        ),
-                                    },
-                                }
-                            ],
-                        },
-                    ],
-                }
-            ],
-        }
-
+        # KopiurBackupEmpty's for:15m needs 1m evaluation.
         kopiur_test = {
             "rule_files": ["kopiur_rules.yml"],
             "evaluation_interval": "1m",
@@ -998,25 +630,19 @@ def assert_promtool_semantics() -> dict[str, Any]:
             ],
         }
 
-        _quote_values(volsync_test)
         _quote_values(kopiur_test)
         _quote_values(stale_test)
 
-        vs_path = work / "volsync_alerts_test.yml"
         kp_path = work / "kopiur_alerts_test.yml"
         stale_path = work / "kopiur_stale_test.yml"
-        vs_path.write_text(yaml.dump(volsync_test, sort_keys=False, width=1000))
         kp_path.write_text(yaml.dump(kopiur_test, sort_keys=False, width=1000))
         stale_path.write_text(yaml.dump(stale_test, sort_keys=False, width=1000))
-        vs_out = _run_promtool(["test", "rules", vs_path.name], work)
         kp_out = _run_promtool(["test", "rules", kp_path.name], work)
         stale_out = _run_promtool(["test", "rules", stale_path.name], work)
 
     return {
-        "check_volsync": check_vs.splitlines()[-1] if check_vs else "SUCCESS",
         "check_kopiur": check_kp.splitlines()[-1] if check_kp else "SUCCESS",
         "test_rules": "PASS",
-        "volsync_test_out_tail": vs_out[-200:],
         "kopiur_test_out_tail": kp_out[-200:],
         "stale_test_out_tail": stale_out[-200:],
     }
@@ -1027,22 +653,20 @@ def main() -> int:
     routing = assert_routing_parity()
     print(f"    OK severity_shape={routing['severity_shape']}")
 
+    print("==> no VolSync alert rule outlives the operator")
+    assert_volsync_rules_removed()
+    print("    OK")
+
     print("==> promtool check + unit-test rule semantics")
     semantics = assert_promtool_semantics()
     print(
-        f"    OK check_volsync={semantics['check_volsync']!r} "
-        f"check_kopiur={semantics['check_kopiur']!r} "
+        f"    OK check_kopiur={semantics['check_kopiur']!r} "
         f"test_rules={semantics['test_rules']}"
     )
 
     print("PASS: backup silent-failure alerting contracts hold")
     print("covered:")
-    print("  - VolSyncSyncStalledCeph fires only for stuck ai/opencode-ceph")
-    print("  - VolSyncSyncStalledMinio fires only for stuck ai/opencode-minio")
-    print("  - VolSyncSyncStalledR2 fires for all-replica stall, silent for")
-    print("    departed-pod + healthy-leader (2026-09-06 false-positive shape)")
-    print("  - leaked media/jellyfin-ceph series excluded by cache-PVC join")
-    print("  - downloads/recyclarr healthy series does not fire")
+    print("  - no VolSync alert rule outlives the operator (issue #2202 PR-6)")
     print("  - KopiurBackupEmpty fires only for zero-file policy after for:15m")
     print("  - KopiurBackupStaleCeph fires at 6h critical; r2 stays silent")
     print("  - KopiurBackupStaleR2 fires at 48h warning; fresh policies silent")

@@ -34,6 +34,25 @@ Three instances, required pod anti-affinity on hostname, 100Gi `ceph-block`
 each. One instance must tolerate `home-operations.com/dedicated`
 `PreferNoSchedule` or the spread cannot place the third pod.
 
+## TLS
+
+Never give a Cluster `serverTLSSecret` or `serverCASecret`. CNPG instances and the operator
+verify the server certificate against `serverCASecret` for replication and the status
+endpoint, so the cluster's internal trust would depend on the public chain. The
+sklab.dev Let's Encrypt chain is already `YR2` under `Root YR` cross-signed by `ISRG Root X1`;
+the next root change breaks replication reconnects on every database of the shared
+cluster. cert-manager also leaves `ca.crt` empty for ACME certificates. This was tried for
+DuckLake clients and rejected.
+
+`cluster-17` instead adds the LAN name of `postgres-17-lb` to the CNPG-issued certificate
+through `certificates.serverAltDNSNames` (`postgres-17.${SECRET_DOMAIN}`), so a LAN client
+can use `sslmode=verify-full` with the CNPG CA
+(`kubectl -n database get secret postgres-17-ca -o jsonpath='{.data.ca\.crt}'`). That CA is
+regenerated about every 90 days, so a copied CA goes stale. `sslmode=require` encrypts
+without authenticating the server. Changing the alt-name list reissues the server
+certificate on the shared cluster. If `verify-full` without a copied CA is ever needed,
+revisit a CNPG `Pooler` that terminates TLS with the sklab.dev certificate.
+
 ## postgres-18 (pgvector)
 
 `cluster-18/` is a second, empty Cluster on the `postgresql:18-system-trixie` image (`standard` has no barman-cloud

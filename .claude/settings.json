@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\""
+            "command": "GUARD_KUBECONFIG=\"${KUBECONFIG-__unset__}\" GUARD_TALOSCONFIG=\"${TALOSCONFIG-__unset__}\" python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\""
           }
         ]
       }

@@ -22,6 +22,8 @@ set -euo pipefail
 AGENT_KUBECONFIG="${HOME}/.kube/home-ops-agent"
 AGENT_TALOSCONFIG="${HOME}/.talos/home-ops-agent"
 DURATION="${AGENT_TOKEN_DURATION:-720h}"
+# `talosctl config new` asks one node for the certificate; the admin talosconfig lists all three.
+TALOS_NODE="${AGENT_TALOS_NODE:-10.10.10.11}"
 
 die() { echo "agent-credentials: $*" >&2; exit 1; }
 
@@ -81,7 +83,7 @@ print(datetime.datetime.fromtimestamp(claims["exp"], datetime.timezone.utc).isof
 ')"
 
 rm -f "${AGENT_TALOSCONFIG}"
-talosctl config new "${AGENT_TALOSCONFIG}" --roles os:reader --crt-ttl "${DURATION}"
+talosctl -n "${TALOS_NODE}" config new "${AGENT_TALOSCONFIG}" --roles os:reader --crt-ttl "${DURATION}"
 
 echo "wrote ${AGENT_KUBECONFIG} (token expires ${expiry})"
 echo "wrote ${AGENT_TALOSCONFIG} (os:reader, ttl ${DURATION})"
