@@ -27,7 +27,7 @@ spec:
       tag: "0.6.2"
       digest: sha256:cf5d2656a059a430ecf1eaf87eb58854f00692e2dfbe3b2476a6f88c441a44fb
     config:
-      repo: github://Aviator-Coding/home-ops
+      repo: github://skrumbach/home-ops
       # FluxInstance sync.path / flux-local --path. spec.path values still
       # resolve against the clone root (konflate RepoRoot), so this is the
       # entry point, not a chroot.

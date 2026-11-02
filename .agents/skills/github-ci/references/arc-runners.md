@@ -5,15 +5,15 @@ Namespace `actions-runner-system`. Image and chart pins live in the HelmReleases
 
 | HelmRelease | Repo | Extra |
 |---|---|---|
-| `gha-runner-scale-set-aviator-coding-home-ops` | `aviator-coding/home-ops` | talosctl init, 20Gi emptyDir work volume (sizeLimit enforced). Runs-on label is this name |
-| `gha-rs-ac-ai-k8s-sandbox` | `aviator-coding/ai-k8s-sandbox` | privileged `docker` DinD sidecar |
+| `gha-runner-scale-set-aviator-coding-home-ops` | `skrumbach/home-ops` | talosctl init, 20Gi emptyDir work volume (sizeLimit enforced). Runs-on label is this name |
+| `gha-rs-ac-ai-k8s-sandbox` | `skrumbach/ai-k8s-sandbox` | privileged `docker` DinD sidecar |
 
 Both: `minRunners: 1`, `maxRunners: 15` (a real queue ceiling, per set).
 Controller chart `gha-runner-scale-set-controller`. Listeners are
 `<scale-set>-*-listener`.
 
 Taskfile recipes and the maintenance CronJob cover **home-ops only**. Sandbox
-runners: `gh api repos/aviator-coding/ai-k8s-sandbox/actions/runners`.
+runners: `gh api repos/skrumbach/ai-k8s-sandbox/actions/runners`.
 
 ## Credentials
 
@@ -45,7 +45,7 @@ Controller health series is
 
 | Symptom | First action |
 |---|---|
-| Jobs queued, no pods | Listener logs, ExternalSecret `aviator-coding-runner-secret`, both sets against `maxRunners` |
+| Jobs queued, no pods | Listener logs, ExternalSecret `skrumbach-runner-secret`, both sets against `maxRunners` |
 | Pods Pending / CrashLoop | Node pressure, Ceph health, image pull events |
 | `GithubActionsRunnerControllerDown` | Controller logs, `flux get hr -n actions-runner-system` |
 | Runners live 2-30s, jobs stuck assigned | Ghost jobs. `task actions-runner:cancel-stuck-runs`, then `cleanup-stale-runners`. CronJob already cancels home-ops runs stuck >30m and deletes offline runners with no Pod |

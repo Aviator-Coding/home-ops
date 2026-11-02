@@ -20,8 +20,8 @@ spec:
       retries: 3
   values:
     annotations:
-      secret.reloader.stakater.com/reload: &secret aviator-coding-runner-secret
-    githubConfigUrl: https://github.com/aviator-coding/ai-k8s-sandbox
+      secret.reloader.stakater.com/reload: &secret skrumbach-runner-secret
+    githubConfigUrl: https://github.com/skrumbach/ai-k8s-sandbox
     githubConfigSecret: *secret
     minRunners: 1
     maxRunners: 15 # leaves headroom for other workloads
@@ -57,9 +57,9 @@ spec:
       metadata:
         annotations:
           # Force pod recreation on any secret change
-          secret.reloader.stakater.com/reload: aviator-coding-runner-secret
+          secret.reloader.stakater.com/reload: skrumbach-runner-secret
       spec:
-        # This runner builds container images for aviator-coding/ai-k8s-sandbox.
+        # This runner builds container images for skrumbach/ai-k8s-sandbox.
         # That repo's only workflow (.github/workflows/build.yml) runs uv/ruff/ty
         # and docker buildx - it touches neither the Kubernetes API nor talosctl,
         # so this pod gets no ServiceAccount token, no `serviceAccountName` (the

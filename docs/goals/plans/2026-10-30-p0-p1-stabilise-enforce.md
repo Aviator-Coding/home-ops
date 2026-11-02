@@ -97,7 +97,7 @@ Order: 1, 4, 5 → 2 → 3, 6, 7 → 7b → 8 → 9, 10, 11 → 12. Task 12 wait
 - [ ] **Step 1 (Haiku):** For each source, find the project's official OCI chart location from its own docs or README, and probe it with `helm show chart <oci-url> --version <current tag>`. Output a table: app, current url, upstream url or "none", probe result.
 - [ ] **Step 2:** Switch every source whose probe passed. Sources with no upstream OCI stay on the mirror and are listed in the PR body, with the reason they stay.
 - [ ] **Step 3:** Run Task 2 Steps 4–5 again for the changed sources. Expected: same results.
-- [ ] **Step 4:** Check the Renovate presets in `.renovaterc.json5`: `Aviator-Coding/mortyops` and the local `home-ops` presets. They are not community presets, so record "no change" in the PR body.
+- [ ] **Step 4:** Check the Renovate presets in `.renovaterc.json5`: `skrumbach/mortyops` and the local `home-ops` presets. They are not community presets, so record "no change" in the PR body.
 - [ ] **Step 5:** Commit `fix(flux): pull remaining charts from upstream registries`, then open the PR (tier high).
 
 ### Task 4: Make symlinks real again (spec 0.2, local only, no PR)
@@ -169,13 +169,13 @@ Order: 1, 4, 5 → 2 → 3, 6, 7 → 7b → 8 → 9, 10, 11 → 12. Task 12 wait
 - [ ] **Step 7 (OWNER, post-merge):**
   1. Move admin credentials: `mkdir -p ~/.kube ~/.talos && mv kubeconfig ~/.kube/home-ops-admin && mv talos/talosconfig ~/.talos/home-ops-admin`.
   2. Run `KUBECONFIG=~/.kube/home-ops-admin TALOSCONFIG=~/.talos/home-ops-admin scripts/agent-credentials.sh`.
-  3. Create a fine-grained GitHub token for agents, scoped to `Aviator-Coding/home-ops`: Contents RW, Pull requests RW, Issues RW, Actions R, Metadata R, no Administration. Store it in 1Password, and export it as `GH_TOKEN` for agent sessions through a gitignored `.mise.local.toml` that runs `op read`.
+  3. Create a fine-grained GitHub token for agents, scoped to `skrumbach/home-ops`: Contents RW, Pull requests RW, Issues RW, Actions R, Metadata R, no Administration. Store it in 1Password, and export it as `GH_TOKEN` for agent sessions through a gitignored `.mise.local.toml` that runs `op read`.
 - [ ] **Step 8: Record denials in spec §8**, using the agent credentials:
   - `kubectl auth can-i create pods -A` → `no`
   - `kubectl auth can-i get secrets -A` → `no`
   - `kubectl get hr -A` → lists
   - `talosctl config info` → `Roles: os:reader`
-  - `gh api repos/Aviator-Coding/home-ops/rulesets/21250320` → 403 or 404 (no Administration)
+  - `gh api repos/skrumbach/home-ops/rulesets/21250320` → 403 or 404 (no Administration)
   - a Claude session asked to run `kubectl -n ai delete pod x` → the hook's block reason
 
   Residual risk to record: a script that opens `~/.kube/home-ops-admin` directly is only stopped by the OS sandbox, which this plan does not enable.
@@ -328,11 +328,11 @@ Task 9 then classifies only the advisory tests: gate tests are offline by constr
 
 Prerequisite: Tasks 8–11 merged, and `CI Success` green on PRs for 3 consecutive days.
 
-- [ ] **Step 1:** Run `gh api repos/Aviator-Coding/home-ops/rulesets/21250320 > /tmp/ruleset-before.json`. Keep this file for rollback.
+- [ ] **Step 1:** Run `gh api repos/skrumbach/home-ops/rulesets/21250320 > /tmp/ruleset-before.json`. Keep this file for rollback.
 - [ ] **Step 2 (OWNER, break-glass dry run):** Rehearse the spec §3 procedure on a no-op docs PR:
-  1. `gh api -X PUT repos/Aviator-Coding/home-ops/rulesets/21250320 -f enforcement=disabled`
+  1. `gh api -X PUT repos/skrumbach/home-ops/rulesets/21250320 -f enforcement=disabled`
   2. Confirm the PR shows mergeable without checks.
-  3. `gh api -X PUT repos/Aviator-Coding/home-ops/rulesets/21250320 -f enforcement=active`
+  3. `gh api -X PUT repos/skrumbach/home-ops/rulesets/21250320 -f enforcement=active`
   4. Add a §8 row.
 - [ ] **Step 3 (OWNER):** `PUT` the ruleset with:
   - `bypass_actors: []`;
@@ -340,5 +340,5 @@ Prerequisite: Tasks 8–11 merged, and `CI Success` green on PRs for 3 consecuti
   - `required_status_checks` set to `[{"context": "CI Success", "integration_id": 15368}]`, with `strict_required_status_checks_policy: false`.
 
   Send the full JSON body from `/tmp/ruleset-before.json` with those two fields changed (`--input`).
-- [ ] **Step 4:** Run `gh api repos/Aviator-Coding/home-ops/rulesets/21250320 --jq '{bypass_actors, checks: [.rules[]|select(.type=="required_status_checks")|.parameters.required_status_checks[].context]}'`. Expected: `{"bypass_actors":[],"checks":["CI Success"]}`. Record D1 in §8.
+- [ ] **Step 4:** Run `gh api repos/skrumbach/home-ops/rulesets/21250320 --jq '{bypass_actors, checks: [.rules[]|select(.type=="required_status_checks")|.parameters.required_status_checks[].context]}'`. Expected: `{"bypass_actors":[],"checks":["CI Success"]}`. Record D1 in §8.
 - [ ] **Step 5:** Tick spec checkboxes 0.0–0.5 and 1.1–1.5 as each PR merges. P1 exits when `goal-metrics` shows ≥ 95% for 7 consecutive days. Record the exit in §8.

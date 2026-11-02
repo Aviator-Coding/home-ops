@@ -46,7 +46,7 @@ spec:
         {
           "platform": "github",
           "autodiscover": true,
-          "autodiscoverFilter": ["Aviator-Coding/home-ops"],
+          "autodiscoverFilter": ["skrumbach/home-ops"],
           "onboarding": false,
           "requireConfig": "required",
           "internalChecksFilter": "strict",

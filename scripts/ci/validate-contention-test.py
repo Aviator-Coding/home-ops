@@ -57,7 +57,7 @@ HOME_OPS_HR = (
     / "actions-runner-system"
     / "gha-runner-scale-set"
     / "app"
-    / "aviator-coding"
+    / "skrumbach"
     / "home-ops"
     / "helmrelease.yaml"
 )

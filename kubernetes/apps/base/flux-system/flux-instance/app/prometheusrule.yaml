@@ -67,6 +67,6 @@ spec:
               HelmRelease needs flux reconcile hr {{ $labels.name }} -n
               {{ $labels.exported_namespace }} --reset once fixed; a source on
               an auth or 404 error blocks every upgrade it serves.
-            runbook_url: https://github.com/Aviator-Coding/home-ops/blob/main/.agents/skills/flux-gitops/SKILL.md
+            runbook_url: https://github.com/skrumbach/home-ops/blob/main/.agents/skills/flux-gitops/SKILL.md
           labels:
             severity: warning

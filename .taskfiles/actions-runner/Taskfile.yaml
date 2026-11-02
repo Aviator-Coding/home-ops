@@ -4,7 +4,7 @@ version: '3'
 
 vars:
   NAMESPACE: actions-runner-system
-  REPO: aviator-coding/home-ops
+  REPO: skrumbach/home-ops
 
 tasks:
 
@@ -95,7 +95,7 @@ tasks:
       - echo "Resuming HelmReleases..."
       - flux resume hr -n {{.NAMESPACE}} gha-runner-scale-set-aviator-coding-home-ops
       - echo "Waiting for reconciliation..."
-      - flux reconcile ks -n flux-system actions-runner-gha-runner-scale-set-aviator-coding-home-ops --with-source
+      - flux reconcile ks -n flux-system gha-runner-scale-set-aviator-coding-home-ops --with-source
       - echo "Waiting for listener to be ready..."
       - sleep 10
       - kubectl wait --for=condition=ready pod -n {{.NAMESPACE}} -l app.kubernetes.io/component=listener --timeout=180s

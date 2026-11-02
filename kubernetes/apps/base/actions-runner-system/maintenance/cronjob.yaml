@@ -26,7 +26,7 @@ spec:
                     name: github-runner-maintenance-token
               env:
                 - name: REPO_OWNER
-                  value: "aviator-coding"
+                  value: "skrumbach"
                 - name: REPO_NAME
                   value: "home-ops"
                 - name: STUCK_RUN_MINUTES

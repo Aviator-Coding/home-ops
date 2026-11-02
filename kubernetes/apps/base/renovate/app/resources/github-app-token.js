@@ -5,7 +5,7 @@ const https = require("https");
 
 const APP_ID = process.env.GITHUB_APP_ID;
 const RAW_KEY = process.env.GITHUB_APP_PRIVATE_KEY;
-const ACCOUNT = process.env.GITHUB_APP_ACCOUNT || "Aviator-Coding";
+const ACCOUNT = process.env.GITHUB_APP_ACCOUNT || "skrumbach";
 
 if (!APP_ID || !RAW_KEY) {
   console.error("GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be set");
