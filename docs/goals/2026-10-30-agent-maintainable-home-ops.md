@@ -91,7 +91,7 @@ rather than trusted:
 The required check must never stop the owner from fixing a broken cluster. When
 `CI Success` cannot report (GitHub outage, broken workflow), the owner:
 
-1. Sets the ruleset to `disabled` (`gh api -X PUT repos/Aviator-Coding/home-ops/rulesets/21250320`
+1. Sets the ruleset to `disabled` (`gh api -X PUT repos/skrumbach/home-ops/rulesets/21250320`
    with `enforcement: disabled`).
 2. Merges the fix.
 3. Sets enforcement back to `active`.
@@ -110,7 +110,7 @@ All nine criteria must hold.
 
 | # | Criterion | Check |
 |---|---|---|
-| D1 | `CI Success` is the only required status check on `main`, and the bypass list is empty | `gh api repos/Aviator-Coding/home-ops/rulesets/21250320` |
+| D1 | `CI Success` is the only required status check on `main`, and the bypass list is empty | `gh api repos/skrumbach/home-ops/rulesets/21250320` |
 | D2 | At least 95% of PR runs of `CI Success` pass over 14 consecutive days, and no `scripts/ci` test that runs on PRs makes a network call (Flate and Image Pull are the only PR jobs that reach registries) | `gh run list` export; grep of the PR test set |
 | D3 | Renovate merges patch and digest updates itself, and no more than 5 Renovate PRs are open on any day of a 14-day window | daily `gh pr list --author app/mortyops` count |
 | D4 | `AGENTS.md` ≤ 80 lines; ≤ 4 workflow skills; ≤ 8 subsystem skills; ≤ 15 `scripts/ci/*-test.py`, each naming the data loss or outage it prevents in its docstring | `wc -l`, `ls`, docstring grep |
@@ -146,7 +146,7 @@ policy check on the agent's machine, not a security boundary: an agent with the 
 could bypass it. Task 2.6 (a bot identity) plus the ruleset is the boundary. Agents use the owner's
 GitHub token, so the owner cannot formally approve an agent's PR yet. Task 2.6 moves
 agent PRs to a separate bot identity. `CI Success` then requires an approving review
-from `Aviator-Coding` on `risk:normal` and `risk:high` PRs.
+from `skrumbach` on `risk:normal` and `risk:high` PRs.
 
 ### The loop each agent session runs
 
@@ -295,7 +295,7 @@ Add a dated row whenever an exit check or a definition-of-done criterion is meas
 | 2026-10-30 | 0.2 | `core.symlinks = true`; `.claude/skills -> ../.agents/skills` and `CLAUDE.md -> AGENTS.md` restored in both worktrees; `docs-budget-test.py` 1148 passed, 0 failed; a live session's skill list shows the 27 repo skills | local only |
 | 2026-10-30 | 0.3 | Root cause: `.git/config` held `core.symlinks = false` and `core.filemode = false`, the defaults of a clone made on Windows (`settings.local.json` still has a `PowerShell(...)` rule), so `.claude/skills` checked out as a 17-byte text file. The owner's shell removed it (`rm skills` in zsh history), and the directory with a copy of `image-generation` appeared at 22:39:40–44 outside any agent: no tool call in any session transcript between 22:37:09 (session `c082f6f6`) and 22:40:24 (session `f0936570`, slash commands only). Recurrence is stopped by `core.symlinks = true`, and `docs-budget-test.py` fails if the symlink regresses. No `AGENTS.md` change | local only |
 | 2026-10-31 | 0.0 | `d2fa343c` landed on `main` as #2146 | #2146 |
-| 2026-10-31 | 0.1 (remaining sources) | The 8 other `charts-mirror` sources (headlamp, external-dns ×2, tailscale-operator, volsync, descheduler, metrics-server, keda) all pull fine from the mirror. None has an anonymously pullable official OCI chart: ghcr.io and quay.io return 403, and registry.k8s.io returns not found. Each has an official HTTPS Helm repo (kubernetes-sigs.github.io/{headlamp,external-dns,descheduler,metrics-server}, pkgs.tailscale.com/helmcharts, backube.github.io/helm-charts, kedacore.github.io/charts). Per the plan they stay on the mirror; `FluxResourceNotReadyTooLong` (task 0.5) will catch the next 403. Renovate presets (`Aviator-Coding/mortyops`, local `.renovate/`) are not community presets: no change | fix/upstream-charts PR |
+| 2026-10-31 | 0.1 (remaining sources) | The 8 other `charts-mirror` sources (headlamp, external-dns ×2, tailscale-operator, volsync, descheduler, metrics-server, keda) all pull fine from the mirror. None has an anonymously pullable official OCI chart: ghcr.io and quay.io return 403, and registry.k8s.io returns not found. Each has an official HTTPS Helm repo (kubernetes-sigs.github.io/{headlamp,external-dns,descheduler,metrics-server}, pkgs.tailscale.com/helmcharts, backube.github.io/helm-charts, kedacore.github.io/charts). Per the plan they stay on the mirror; `FluxResourceNotReadyTooLong` (task 0.5) will catch the next 403. Renovate presets (`skrumbach/mortyops`, local `.renovate/`) are not community presets: no change | fix/upstream-charts PR |
 | 2026-10-31 | Plan change | Owner decision: gate on a few tests now. Evidence: in 59 of the last 60 Validate PR runs, `python-tests` was the only failing job (talos, bootstrap, terraform, renovate-config and docs-guards never failed). Recent causes were brittleness, not catches: the plex tag canary (#2149), the charts-mirror 403 and a factory.talos.dev SSL error. Tasks 1.1 and 1.2 now gate only `# ci: gate` tests; P3 test triage moves up to follow P1 | this file |
 | 2026-10-31 | Plan change | Owner decision: start P2 now, in parallel with the P1 exit window (D1 and 7 days). P3 and P4 stay gated | this file |
 | 2026-10-31 | 0.1 | #2147 merged. `flux get sources oci -A` shows 0 not Ready (cilium `1.18.6@sha256:e6af2ea4`, openebs `4.4.0@sha256:5aaf304b`); HelmRepository `system/intel` Ready; all 4 HelmReleases Ready on the same versions; `kube-system/ds/cilium` generation 13 before and after (3/3 ready); GpuDevicePlugin `xe` 3/3 | #2147 |

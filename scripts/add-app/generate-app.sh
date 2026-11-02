@@ -36,7 +36,7 @@ Examples:
 
   # parameterized instance (rare - see .agents/skills/flux-gitops/references/app-shapes.md "Parameterized instance")
   scripts/add-app/generate-app.sh actions-runner-system gha-runner-scale-set \
-    --shape=parameterized --key=aviator-coding --instance=home-ops
+    --shape=parameterized --key=skrumbach --instance=home-ops
 EOF
 }
 

@@ -1,7 +1,7 @@
-Aviator-Coding/home-ops
-Aviator-Coding/dotfiles
-Aviator-Coding/firstmate
-Aviator-Coding/super-simple-software-factory
+skrumbach/home-ops
+skrumbach/dotfiles
+skrumbach/firstmate
+skrumbach/super-simple-software-factory
 joryirving/home-ops
 joryirving/containers
 misospace/alert-triage

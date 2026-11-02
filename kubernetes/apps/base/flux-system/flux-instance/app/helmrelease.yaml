@@ -34,7 +34,7 @@ spec:
         - notification-controller
       sync:
         kind: GitRepository
-        url: "https://github.com/Aviator-Coding/home-ops.git"
+        url: "https://github.com/skrumbach/home-ops.git"
         ref: "refs/heads/main"
         path: kubernetes/clusters/main
         interval: 1h

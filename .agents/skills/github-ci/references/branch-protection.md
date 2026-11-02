@@ -5,7 +5,7 @@ enforcement `active`. It is a GitHub setting applied with `gh api`, not a
 manifest.
 
 ```bash
-gh api repos/Aviator-Coding/home-ops/rulesets/21250320
+gh api repos/skrumbach/home-ops/rulesets/21250320
 ```
 
 | Rule | Effect |

@@ -39,7 +39,7 @@ Flux path. Files that belong to the same deployable go in subdirectories
    Example: `database/cloudnative-pg/{operator,dashboard,pgadmin,cluster-17}`.
 3. **Parameterized instance.** The same chart, many named instances, nested
    under `app/<key>/<instance>/`. The only live case is
-   `actions-runner-system/gha-runner-scale-set/app/aviator-coding/{home-ops,ai-k8s-sandbox}`.
+   `actions-runner-system/gha-runner-scale-set/app/skrumbach/{home-ops,ai-k8s-sandbox}`.
    Different config on one chart is Helm `values:`, not this shape.
 
 ## Authoring traps

@@ -4,16 +4,16 @@
   // Platform automerge would merge on Labeler alone, before flate, Image Pull and validate finish. Skill `renovate`.
   platformAutomerge: false,
   extends: [
-    "github>Aviator-Coding/mortyops//ci/renovate/default.json5",
-    "github>Aviator-Coding/mortyops//ci/renovate/automerge-github-actions.json5",
-    "github>Aviator-Coding/mortyops//ci/renovate/automerge-mise.json5",
-    "github>Aviator-Coding/home-ops//.renovate/autoMerge.json5",
-    "github>Aviator-Coding/home-ops//.renovate/customManagers.json5",
-    "github>Aviator-Coding/home-ops//.renovate/grafanaDashboards.json5",
-    "github>Aviator-Coding/home-ops//.renovate/groups.json5",
-    "github>Aviator-Coding/home-ops//.renovate/labels.json5",
-    "github>Aviator-Coding/home-ops//.renovate/overrides.json5",
-    "github>Aviator-Coding/home-ops//.renovate/talos.json5",
+    "github>skrumbach/mortyops//ci/renovate/default.json5",
+    "github>skrumbach/mortyops//ci/renovate/automerge-github-actions.json5",
+    "github>skrumbach/mortyops//ci/renovate/automerge-mise.json5",
+    "github>skrumbach/home-ops//.renovate/autoMerge.json5",
+    "github>skrumbach/home-ops//.renovate/customManagers.json5",
+    "github>skrumbach/home-ops//.renovate/grafanaDashboards.json5",
+    "github>skrumbach/home-ops//.renovate/groups.json5",
+    "github>skrumbach/home-ops//.renovate/labels.json5",
+    "github>skrumbach/home-ops//.renovate/overrides.json5",
+    "github>skrumbach/home-ops//.renovate/talos.json5",
     // No :automergeBranch on purpose: renovate/** pushes get no status check, so branch automerge never merges. Do NOT re-add it. Skill `renovate`.
   ],
   ignorePaths: [

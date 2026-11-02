@@ -31,3 +31,4 @@ resources:
   - ./ocirepository.yaml
   - ./rbac.yaml
   - ./aviator-coding
+  - ./skrumbach

@@ -40,7 +40,7 @@ sys.modules["flux_suspended_alert_test"] = base
 _spec.loader.exec_module(base)
 
 ALERT_NAME = "FluxResourceNotReadyTooLong"
-RUNBOOK = "https://github.com/Aviator-Coding/home-ops/blob/main/.agents/skills/flux-gitops/SKILL.md"
+RUNBOOK = "https://github.com/skrumbach/home-ops/blob/main/.agents/skills/flux-gitops/SKILL.md"
 # Pushover truncates at 1024 runes and all objects share one notification group.
 MAX_DESCRIPTION = 400
 MINUTES = 60

@@ -140,12 +140,12 @@ metrics: true
 ui:
   title: Status | Gatus
   header: Status
-  link: https://github.com/Aviator-Coding
+  link: https://github.com/skrumbach
   buttons:
     - name: Github
-      link: https://github.com/Aviator-Coding
+      link: https://github.com/skrumbach
     - name: Homelab
-      link: https://github.com/Aviator-Coding/home-ops
+      link: https://github.com/skrumbach/home-ops
 
 web:
   port: ${WEB_PORT}

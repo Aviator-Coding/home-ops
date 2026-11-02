@@ -31,7 +31,7 @@ def check(cond: bool, msg: str) -> None:
 def base(**over):
     pr = {
         "state": "OPEN", "isDraft": False, "isCrossRepository": False, "baseRefName": "main",
-        "mergeable": "MERGEABLE", "author": "Aviator-Coding", "labels": ["risk:normal"],
+        "mergeable": "MERGEABLE", "author": "skrumbach", "labels": ["risk:normal"],
         "risk_labeler": "github-actions[bot]", "type_labelers": [],
         "files": ["kubernetes/apps/base/media/plex/app/helmrelease.yaml"], "files_complete": True,
         "checks": {"CI Success": GREEN, "AI PR Review": GREEN}, "jev_rc": 0,
@@ -55,7 +55,7 @@ check(not ok(base(files=["talos/machineconfig.yaml.j2"])), "a high path never me
 check(not ok(base(labels=["risk:low"])), "a label below the computed tier is refused")
 check(not ok(base(labels=["risk:low", "risk:normal"])), "two risk labels are refused")
 check(not ok(base(labels=[])), "no risk label, no merge")
-check(not ok(base(risk_labeler="Aviator-Coding")), "a risk label not set by the risk-tier bot is not trusted")
+check(not ok(base(risk_labeler="skrumbach")), "a risk label not set by the risk-tier bot is not trusted")
 check(not ok(base(files=["AGENTS.md"])), "agent-steering files need the owner")
 check(not ok(base(files=[".agents/skills/jev-decisions/scripts/jev_decide.py"])), "skill scripts need the owner")
 for gate in ("scripts/agent_merge.py", "scripts/ci/risk_tier.py", "scripts/ci/ai_review_gate.py",
@@ -71,7 +71,7 @@ check(not ok(base(isCrossRepository=True)), "fork PRs are refused")
 check(not ok(renovate("minor", "risk:normal")), "Renovate minor needs the owner")
 check(not ok(renovate("major", "risk:normal")), "Renovate major needs the owner")
 check(not ok(base(author=REN, labels=["risk:normal"])), "an untyped Renovate PR needs the owner")
-check(not ok(renovate("patch", "risk:low", type_labelers=["Aviator-Coding"])),
+check(not ok(renovate("patch", "risk:low", type_labelers=["skrumbach"])),
       "a type label not set by Renovate is not trusted")
 check(ok(renovate("patch", "risk:low", checks={"CI Success": GREEN,
                                               "AI PR Review": [{"app": 15368, "state": "SKIPPED"}]})),

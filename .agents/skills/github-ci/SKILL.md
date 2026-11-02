@@ -81,4 +81,4 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
   The rest run in the non-blocking `advisory-tests.yaml`; `# ci: nightly` files (network) only in `nightly-tests.yaml` ([scripts/ci/README.md](../../../scripts/ci/README.md)).
 - Docs gates (`docs-budget`, `doc-links`, `functional-comments-guard`) run in
   the `docs-guards` job. `functional-comments-guard` needs `DIFF_GUARD_BASE`.
-- Live ruleset: `gh api repos/Aviator-Coding/home-ops/rulesets/21250320`.
+- Live ruleset: `gh api repos/skrumbach/home-ops/rulesets/21250320`.

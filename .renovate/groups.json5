@@ -167,7 +167,7 @@
       "matchPackageNames": [
         "/siderolabs/talosctl/",
         "/siderolabs/installer/",
-        "/aviator-coding/talosctl-busybox/"
+        "/skrumbach/talosctl-busybox/"
       ],
       "group": {
         "commitMessageTopic": "{{{groupName}}} group"

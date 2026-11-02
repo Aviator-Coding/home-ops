@@ -17,7 +17,7 @@ fi
 
 mkdir -p "${HOME}/projects"
 if [[ ! -d "${HOME}/projects/home-ops/.git" ]]; then
-  git clone --filter=blob:none https://github.com/Aviator-Coding/home-ops.git "${HOME}/projects/home-ops" \
+  git clone --filter=blob:none https://github.com/skrumbach/home-ops.git "${HOME}/projects/home-ops" \
     || echo "WARN: home-ops clone failed; clone it from a session instead"
 fi
 
