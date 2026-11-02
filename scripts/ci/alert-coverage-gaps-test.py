@@ -257,6 +257,10 @@ def assert_cnpg_contract(alerts: dict[str, dict[str, Any]]) -> None:
     require("> 3600" in wal, "WAL stale threshold must be 1h")
     require("cnpg_pg_stat_archiver_last_archived_time > 0" in wal, "WAL stale must ignore a 0 timestamp")
     require("cnpg_pg_replication_in_recovery == 0" in wal, "WAL stale must select the primary")
+    require(
+        'unless on(pod) (cnpg_collector_pg_wal_archive_status{value="ready"} == 0)' in wal,
+        "WAL stale must stay quiet on an idle primary with no segment waiting (unless, so a missing series fails open)",
+    )
     require(alerts[WAL_STALE].get("for") == "10m", "WAL stale for: 10m")
     for name in (BACKUP_ABSENT, WAL_ABSENT):
         expr = alerts[name]["expr"]
@@ -307,6 +311,12 @@ def assert_cnpg_promtool(rule: dict[str, Any], alerts: dict[str, dict[str, Any]]
         _series("cnpg_collector_last_available_backup_timestamp", pod("pg-stale-wal"), fresh_backup),
         _series("cnpg_pg_stat_archiver_last_archived_time", pod("pg-stale-wal"), stale_wal),
         _series("cnpg_pg_replication_in_recovery", pod("pg-stale-wal"), primary),
+        _series("cnpg_collector_pg_wal_archive_status", {**pod("pg-stale-wal"), "value": "ready"}, _repeat(5, n)),
+        # Idle primary: old archive timestamp, nothing waiting. Must not fire WAL_STALE.
+        _series("cnpg_collector_last_available_backup_timestamp", pod("pg-idle"), fresh_backup),
+        _series("cnpg_pg_stat_archiver_last_archived_time", pod("pg-idle"), stale_wal),
+        _series("cnpg_pg_replication_in_recovery", pod("pg-idle"), primary),
+        _series("cnpg_collector_pg_wal_archive_status", {**pod("pg-idle"), "value": "ready"}, zero_ts),
         _series("cnpg_collector_last_available_backup_timestamp", pod("pg-replica"), zero_ts),
         _series("cnpg_pg_replication_in_recovery", pod("pg-replica"), standby),
         _series("cnpg_collector_last_available_backup_timestamp", pod("pg-demoted"), stale_backup),

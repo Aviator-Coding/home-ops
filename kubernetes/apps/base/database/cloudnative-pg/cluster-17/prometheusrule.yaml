@@ -102,7 +102,7 @@ spec:
             severity: warning
         - alert: PostgresWALArchiveStale
           annotations:
-            description: Primary {{ $labels.pod }} has not archived a WAL segment in over 1h. LastFailedArchiveTime does not cover an archiver that simply stops.
+            description: Primary {{ $labels.pod }} has not archived a WAL segment in over 1h and segments are waiting to be archived (or the ready count is missing). An idle primary with nothing waiting is excluded. LastFailedArchiveTime does not cover an archiver that simply stops.
             summary: Primary {{ $labels.pod }} has not archived a WAL segment in over 1h
           expr: |-
             (
@@ -110,6 +110,7 @@ spec:
             )
               and on(pod) (cnpg_pg_stat_archiver_last_archived_time > 0)
               and on(pod) (cnpg_pg_replication_in_recovery == 0)
+              unless on(pod) (cnpg_collector_pg_wal_archive_status{value="ready"} == 0)
           for: 10m
           labels:
             severity: warning
