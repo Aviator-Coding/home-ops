@@ -123,7 +123,7 @@ reader.
 |---|---|
 | `APP` | Object name prefix |
 | `KOPIUR_CLAIM` | PVC name when it differs from `APP` (`sonarr-config`). Also the name a rebuild provisions |
-| `KOPIUR_CAPACITY` | Create-time size. Must match the live claim |
+| `KOPIUR_CAPACITY` | Create-time size. Must match the live claim. Read only by `components/kopiur/pvc`; inert when the app's own `persistence` block creates the claim (wizarr) |
 | `KOPIUR_PUID` / `KOPIUR_PGID` | Mover identity. Default 1000 |
 | `KOPIUR_CACHE_CAPACITY` | Restore cache. Default `2Gi`. See [restore-and-cache.md](restore-and-cache.md) |
 | `KOPIUR_SCHEDULE_CEPH` | Default `H 1-23/4 * * *` (odd hours). Leave it |
