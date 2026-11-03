@@ -116,17 +116,24 @@ jobs:
       - name: Check talosctl
         run: talosctl version --client
 
-      # The retry absorbs transient failures talking to a real Talos node.
+      # The retry absorbs transient failures talking to a real Talos node. A registry
+      # NotFound (tag not published) never heals between attempts, so it fails at once.
       - name: Pull Image
         run: |
           for attempt in 1 2 3 4; do
             echo "::group::Attempt $attempt/4: talosctl image pull..."
-            if talosctl --nodes "$NODE" image pull "${MATRIX_IMAGE}"; then
+            if out=$(talosctl --nodes "$NODE" image pull "${MATRIX_IMAGE}" 2>&1); then
+              echo "${out}"
               echo "::endgroup::"
               echo "✓ Image pulled successfully"
               exit 0
             fi
+            echo "${out}"
             echo "::endgroup::"
+            if grep -q 'code = NotFound' <<<"${out}"; then
+              echo "::error::${MATRIX_IMAGE} does not exist in the registry (tag not published yet?)"
+              exit 1
+            fi
             if [ $attempt -lt 4 ]; then
               wait_time=$((20 * attempt))
               echo "✗ Attempt $attempt failed. Waiting ${wait_time}s before retry..."
