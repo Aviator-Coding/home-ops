@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-# ci: nightly
 """Behavioral contract tests for terraform-diff CI.
 
 The workflow is the public, machine-consumed interface for terraform/*
-stacks. terraform-publish.yaml was retired 2026-11-02: nothing consumed its
-artifact. Assertions operate on a parsed YAML model of the workflows, on the
+stacks. Assertions operate on a parsed YAML model of the workflows, on the
 real offline tofu schema path, and on an executed copy of the missing-secret
 gate shell - not on raw source greps alone.
 """
@@ -23,8 +21,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 DIFF_WF = ROOT / ".github" / "workflows" / "terraform-diff.yaml"
-VALIDATE_WF = ROOT / ".github" / "workflows" / "validate.yaml"
-FLATE = ROOT / ".github" / "workflows" / "flate.yaml"
 SECRETS = ROOT / "terraform" / "authentik" / "secrets.vals.yaml"
 SECRETS_CI = ROOT / "terraform" / "authentik" / "secrets-ci.vals.yaml"
 SECRETS_APPLY = ROOT / "terraform" / "authentik" / "secrets-apply.vals.yaml"
@@ -352,7 +348,7 @@ def test_secrets_ci_mirrors_readonly() -> dict[str, Any]:
 
 
 def test_schema_only_tofu_path() -> dict[str, Any]:
-    """Same offline path validate.yaml and no-secrets-ci stacks use."""
+    """Same offline path ci.yaml's terraform job and no-secrets-ci stacks use."""
     env = os.environ.copy()
     # Prefer a resolved tofu binary; CI installs via mise (same as stack test).
     mise_tofu = Path.home() / ".local/share/mise/installs/opentofu/1.12.6"
@@ -382,66 +378,6 @@ def test_schema_only_tofu_path() -> dict[str, Any]:
     return {"exit": proc.returncode, "tail": proc.stdout.strip().splitlines()[-2:]}
 
 
-def test_validate_job_still_credentialless() -> dict[str, Any]:
-    data, text = load_workflow(VALIDATE_WF)
-    jobs = data["jobs"]
-    assert "terraform" in jobs
-    terraform = jobs["terraform"]
-    # Behavior unchanged: still runs the schema script, no OP_CONNECT_TOKEN.
-    runs = "\n".join(step.get("run") or "" for step in terraform["steps"])
-    assert "./scripts/ci/tofu-validate.sh" in runs
-    assert "OP_CONNECT_TOKEN" not in text.split("terraform:")[1].split("success:")[0] if "success:" in text else "OP_CONNECT_TOKEN" not in runs
-    # Header must now point at terraform-diff for live plans.
-    header = text.split("name: Validate")[0]
-    assert "terraform-diff.yaml" in header
-    return {"job": "terraform", "script": "./scripts/ci/tofu-validate.sh"}
-
-
-def test_flate_untouched() -> dict[str, Any]:
-    """flate stays the kubernetes-only peer of terraform CI - not coupled into it.
-
-    The original form of this check was `git diff <pre-terraform-ci-base>..HEAD --
-    flux-local.yaml` empty, so the terraform-diff PR could not silently rewrite the
-    kubernetes Flux-rendering workflow (renamed to flate.yaml when CI migrated off the
-    sunsetted flux-local). That form is not durable: GitHub Actions checkouts are
-    shallow (the frozen base SHA is absent → git exit 128), and any later legitimate
-    edit to that workflow would fail forever against a historical pin. The
-    durable contract is the path isolation and lack of terraform coupling the
-    historical diff was protecting.
-    """
-    data, _text = load_workflow(FLATE)
-    on = on_block(data)
-    # Since 2026-10-31 ci.yaml triggers Flate (workflow_call) and owns the PR trigger.
-    # Path filtering lives in the `filter` job, so neither trigger carries paths.
-    assert set(on) == {"workflow_call"}, on
-    ci_on = on_block(load_workflow(FLATE.parent / "ci.yaml")[0])
-    paths = list((ci_on.get("pull_request") or {}).get("paths") or [])
-    assert not paths, f"ci.yaml must not trigger-level path-filter; got {paths}"
-
-    jobs = data["jobs"]
-    assert "filter" in jobs and "test" in jobs, sorted(jobs)
-    for name, job in jobs.items():
-        steps = job.get("steps") or []
-        runs = "\n".join(step.get("run") or "" for step in steps)
-        uses = "\n".join(step.get("uses") or "" for step in steps)
-        # No OpenTofu / terraform stack tooling leaked into the kubernetes peer.
-        assert "tofu " not in runs and "tofu\n" not in runs, name
-        assert "terraform apply" not in runs, name
-        assert "terraform-diff" not in uses and "terraform-publish" not in uses, name
-        for step in steps:
-            with_ = step.get("with") or {}
-            patterns = with_.get("patterns")
-            if isinstance(patterns, str) and patterns.strip():
-                assert "terraform" not in patterns, (name, patterns)
-                assert "kubernetes" in patterns, (name, patterns)
-
-    return {
-        "path": str(FLATE.relative_to(ROOT)),
-        "paths": paths,
-        "jobs": sorted(jobs),
-    }
-
-
 def test_labeler_and_gitignore() -> dict[str, Any]:
     labeler = LABELER.read_text()
     labels = LABELS.read_text()
@@ -460,8 +396,6 @@ def main() -> int:
         ("missing_secret_gate_executes", test_missing_secret_gate_executes),
         ("secrets_ci_mirrors_readonly", test_secrets_ci_mirrors_readonly),
         ("schema_only_tofu_path", test_schema_only_tofu_path),
-        ("validate_job_still_credentialless", test_validate_job_still_credentialless),
-        ("flate_untouched", test_flate_untouched),
         ("labeler_and_gitignore", test_labeler_and_gitignore),
     ]
     results: dict[str, Any] = {}

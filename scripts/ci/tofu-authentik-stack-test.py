@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-# ci: nightly
 """Behavioral checks for the Authentik OpenTofu adoption stack.
 
 Exercises the same offline contract CI and operators rely on:
 
   1. ``scripts/ci/tofu-validate.sh`` (real consumer: tofu fmt + validate,
      ``-backend=false``, no credentials).
-  2. The Validate workflow's terraform job is path-filtered, installs only
+  2. ci.yaml's terraform job is path-filtered, installs only
      opentofu, runs that script, and injects no secret env.
   3. The stack HCL (parsed via python-hcl2 into a typed model) pairs every
      *adopted* managed resource with an import, leaves the create-only LiteLLM
@@ -43,7 +42,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 STACK = ROOT / "terraform" / "authentik"
 VALIDATE_SH = ROOT / "scripts" / "ci" / "tofu-validate.sh"
-WORKFLOW = ROOT / ".github" / "workflows" / "validate.yaml"
+WORKFLOW = ROOT / ".github" / "workflows" / "ci.yaml"
 PUSHSECRET = (
     ROOT
     / "kubernetes"
@@ -388,8 +387,8 @@ def test_workflow_terraform_job() -> dict[str, Any]:
     wf = docs[0]
     jobs = wf["jobs"]
     if "terraform" not in jobs:
-        raise Failure("validate.yaml missing terraform job")
-    filt = jobs["filter"]["steps"]
+        raise Failure("ci.yaml missing terraform job")
+    filt = jobs["changes"]["steps"]
     tf_step = next(
         (
             s
@@ -399,7 +398,7 @@ def test_workflow_terraform_job() -> dict[str, Any]:
         None,
     )
     if tf_step is None:
-        raise Failure("filter job missing Terraform Changes step")
+        raise Failure("changes job missing Terraform Changes step")
     patterns = tf_step["with"]["patterns"]
     for required in ("terraform/**", "scripts/ci/tofu-validate.sh"):
         if required not in patterns:
@@ -425,11 +424,9 @@ def test_workflow_terraform_job() -> dict[str, Any]:
     if "opentofu" not in str(setup.get("with", {})):
         raise Failure("terraform job must install opentofu via mise")
 
-    # validate.yaml intentionally has no trigger-level `paths:` filter (see
-    # skill github-ci references/branch-protection.md) — a path miss there means the workflow never
-    # starts, so its check can never be required without blocking unrelated
-    # PRs. Path gating happens at the job level instead, asserted above via
-    # the `filter` job's Terraform Changes patterns.
+    # ci.yaml has no trigger-level `paths:` filter: a path miss there means the
+    # workflow never starts and the required check never posts. Path gating is
+    # per job, asserted above via the `changes` job's Terraform Changes patterns.
     on_block = wf.get("on", wf.get(True))
     if not isinstance(on_block, dict):
         raise Failure("workflow missing on: trigger block")

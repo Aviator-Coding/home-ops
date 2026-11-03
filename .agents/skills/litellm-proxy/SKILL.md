@@ -102,7 +102,7 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 
 - Offline: `for t in scripts/ci/litellm-*-test.py; do python3 "$t"; done` and
   `task flux:test:all`. Several tests drive the real `litellm` library pinned
-  to the proxy image; install it as `validate.yaml`'s `python-tests` job does.
+  to the proxy image; install it as `tests.yaml` does.
 - Live (read-only): `kubectl -n ai get litellmproxy,litellmmodel,litellmvirtualkey`
   (all `Ready=True`); a stale `Ready=False` may be controller backoff, check
   `lastTransitionTime` and operator logs.

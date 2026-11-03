@@ -6,8 +6,8 @@ CI" and points at docs/tdarr/flow-nodes/behavior-test.js. That harness already
 executes the reviewable node sources and after-flow embedded code and asserts
 observable outputs (guard_scope refusal, encoder-aware cargs, subconform track
 preservation, after-flow inputsDB.code, forceConform false, live/CI provenance
-labels). This script is the thin scripts/ci entrypoint that validate.yaml's
-python-tests job actually runs: it invokes that Node harness as a subprocess
+labels). This script is the thin scripts/ci entrypoint that tests.yaml
+actually runs: it invokes that Node harness as a subprocess
 and fails closed if the harness is missing, Node is missing, or the harness
 exits non-zero.
 
@@ -66,7 +66,7 @@ def main() -> int:
     if node is None:
         print(
             "Node.js is required to execute docs/tdarr/flow-nodes/behavior-test.js.\n"
-            "CI installs it via actions/setup-node on the python-tests job.",
+            "CI installs it via actions/setup-node in tests.yaml.",
             file=sys.stderr,
         )
         print(f"\n{failed} failed, {passed} passed")

@@ -73,8 +73,8 @@ Each is a warning needed before deciding to touch the subsystem; detail is in th
 - **`flate -n` filters the exit code; `task flux:test:all` is the gate.** Skill `flux-gitops`.
 - **`healthChecks` target the workload, never the HelmRelease, and a Kustomization that owns a kopiur claim keeps `wait` false (dependency gates like CRDs, operators and secret stores set `wait: true`).** Suspend a Kustomization before a live HelmRelease edit. `flux-system` is exempt from `cluster-apps`, so a git-only change to it never lands. Skill `flux-gitops`.
 - **Never add a helm `postRenderer: bash`** (breaks on Helm 4).
-- **Retiring an app or changing a pinned value can break a `scripts/ci` gate `flate` does not run.** Grep `scripts/ci/` first. `validate.yaml` is the only CI signal for `talos/`, `bootstrap/`, `.renovate/` and `terraform/`. Skill `github-ci`.
-- **Merging `.renovaterc.json5` or `.renovate/**` fires the renovate workflow.** Suspend it first. A Renovate bump of `talosupgrade.yaml` is an unattended node upgrade. Skill `renovate`.
+- **Retiring an app or changing a pinned value can break a `scripts/ci` gate `flate` does not run.** Grep `scripts/ci/` first. `ci.yaml` is the only CI signal for `talos/`, `bootstrap/`, `.renovate/` and `terraform/`; non-gate tests run only nightly (`tests.yaml`), so run a changed one locally. Skill `github-ci`.
+- **A Renovate bump of `talosupgrade.yaml` is an unattended node upgrade.** Skill `renovate`.
 
 **Nodes and storage**
 - **`talos/*.j2` changes are not applied by Flux.** `apply-node` restages only; kernel args and extensions need `just talos upgrade-node`. `machineconfig.yaml.j2`'s 6 version pins can drift from the live cluster (tuppr drives upgrades), so applying a stale template can downgrade a node: check `kubectl get nodes -o wide` first. Skill `talos-nodes`.

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ci: nightly
 """Semantic regression test for the talos-3 Arc Pro B70 PCIe runtime-PM mitigation.
 
 .agents/skills/talos-nodes/references/hardware.md [2026-08-24]: the B70's root port (00:01.0) can
@@ -54,7 +53,7 @@ REQUIRED_KERNEL_ARGS = (
 
 # factory.talos.dev is the real upgrade-node consumer, but the self-hosted runner
 # has seen intermittent TLS handshake timeouts on otherwise-successful POSTs
-# (python-tests job on PR #1487). Retry transient transport failures only -
+# (CI run on PR #1487). Retry transient transport failures only -
 # HTTP 4xx from the factory still fails immediately.
 FACTORY_HTTP_ATTEMPTS = 5
 FACTORY_HTTP_TIMEOUT_S = 30.0
@@ -87,7 +86,7 @@ def render_schematic() -> str:
         )
     except FileNotFoundError as exc:
         raise Failure(
-            "minijinja-cli not on PATH (python-tests must install "
+            "minijinja-cli not on PATH (tests.yaml must install "
             "aqua:mitsuhiko/minijinja; locally: mise install / PATH via mise bin-paths)"
         ) from exc
     if proc.returncode != 0:

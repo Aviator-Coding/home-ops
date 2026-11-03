@@ -22,10 +22,10 @@ reorder these. This test enforces:
      annotation must be captured by one of the customManager's matchStrings,
      i.e. its value still sits on the very next line.
 
-The base is DIFF_GUARD_BASE (the docs-guards job in validate.yaml sets it on
+The base is DIFF_GUARD_BASE (ci.yaml's lint job sets it on
 a full-history checkout); when it is set and cannot be resolved the diff guard
 fails. Unset, it tries `origin/main` and skips when that cannot be resolved
-(a shallow checkout such as the python-tests job, or a fresh local clone).
+(a shallow checkout such as gate-tests, or a fresh local clone).
 A deliberate removal (e.g. an image that stops being Renovate-tracked) goes in
 ALLOWED_REMOVALS with a reason for the PR that makes it.
 """

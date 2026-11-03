@@ -366,7 +366,7 @@ def ensure_renovate() -> str:
         return existing
     if not _node_on_path():
         raise Failure(
-            "node is required on PATH (python-tests installs it via actions/setup-node; "
+            "node is required on PATH (tests.yaml installs it via actions/setup-node; "
             "locally: provide node + RENOVATE_NODE_PATH or npm install renovate@44.52.1)"
         )
     # Last resort: npm install into a temp dir (needs network).

@@ -1,0 +1,117 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# Every scripts/ci test that is not a `# ci: gate` file or one of ci.yaml's three docs
+# guards. Never a PR check: runs nightly, on dispatch and when a test changes on main.
+# A failure opens or updates one issue labelled `ci-nightly`.
+# Pin: scripts/ci/workflow-contract-test.py. Skill `github-ci`.
+name: Tests
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/ci/**
+      - .github/workflows/tests.yaml
+      - .mise.toml
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Node runs docs/tdarr/flow-nodes/behavior-test.js (tdarr-flow-nodes-test.py) and
+      # renovate for talos-renovate-pin-test.py.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+
+      # What the tests shell out to. Versions come from .mise.toml: do not add @version
+      # (mise-action then installs a copy the shim never looks up).
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: python uv kubectl opentofu aqua:helm/helm aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:mitsuhiko/minijinja aqua:jqlang/jq
+          cache: false
+
+      # talos-renovate-pin-test.py drives this exact renovate release's own version logic.
+      - name: Install renovate for pin tests
+        run: |
+          mkdir -p /tmp/renovate-ci
+          npm install --prefix /tmp/renovate-ci --no-save --no-package-lock renovate@44.52.1
+          echo "RENOVATE_NODE_PATH=/tmp/renovate-ci/node_modules/renovate" >> "${GITHUB_ENV}"
+
+      # litellm[proxy] matches the cluster image so the LiteLLM tests exercise the real
+      # library. The tracked tag lives in LITELLM_VERSION (the docker customManager needs a
+      # vX.Y.Z value after `: `); the install strips the leading v.
+      - name: Install Python Test Dependencies
+        env:
+          # renovate: datasource=docker depName=ghcr.io/berriai/litellm-non_root
+          LITELLM_VERSION: v1.106.6
+        run: uv pip install --system pyyaml boto3 python-hcl2 "litellm[proxy]==${LITELLM_VERSION#v}"
+
+      # Standalone scripts, not pytest modules (scripts/ci/README.md). mapfile + count
+      # check: a process substitution's exit status is ignored, so an empty selection
+      # would otherwise pass.
+      - name: Run tests
+        run: |
+          mapfile -t files < <(grep -Lx '# ci: gate' scripts/ci/*-test.py \
+            | grep -vE '/(docs-budget|doc-links|functional-comments-guard)-test\.py$')
+          if (( ${#files[@]} == 0 )); then
+            echo "FAILED: no scripts/ci tests selected"
+            exit 1
+          fi
+          failed=()
+          for f in "${files[@]}"; do
+            echo "::group::${f}"
+            if ! python3 "${f}" </dev/null; then
+              echo "FAILED: ${f}"
+              failed+=("${f}")
+            fi
+            echo "::endgroup::"
+          done
+          printf '%s\n' "${failed[@]}" | sed '/^$/d' > failed.txt
+          (( ${#failed[@]} == 0 ))
+
+      - name: Open or update the ci-nightly issue
+        # failure() alone: a failed setup step (mise, npm, pip) also reports.
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly scripts/ci tests failed"
+          if [[ -s failed.txt ]]; then
+            failed="$(sed 's/^/- /' failed.txt)"
+          else
+            failed="- (setup failed before the tests ran; see the run)"
+          fi
+          body="$(printf '%s: %s\n\nFailed:\n%s\n' "$(date -I)" "${RUN_URL}" "${failed}")"
+          # One open issue: match the fixed title too, in case the label is missing.
+          existing="$(gh issue list --state open --search "in:title \"${title}\"" --json number,title \
+            --jq "map(select(.title == \"${title}\")) | .[0].number // empty")"
+          if [[ -n "${existing}" ]]; then
+            gh issue comment "${existing}" --body "${body}"
+          elif ! gh issue create --title "${title}" --label ci-nightly --body "${body}"; then
+            gh issue create --title "${title}" --body "${body}"
+          fi

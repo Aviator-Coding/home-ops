@@ -28,7 +28,7 @@ No ServiceMonitor. `app/prometheusrule.yaml` watches kube-state-metrics:
 
 ## Rollback to GitHub Actions
 
-1. Uncomment the `schedule` block in `.github/workflows/renovate.yaml` and merge.
+1. Add a `schedule` trigger to `.github/workflows/renovate.yaml` and merge.
 2. Optionally set `env.RENOVATE_DRY_RUN: full` on the HelmRelease if the
    in-cluster path should stop writing. Do not set that env to `"false"`.
 
@@ -46,7 +46,5 @@ writer.
 
 ## Config merge
 
-1. Disable or suspend the `Renovate` GitHub Actions workflow.
-2. Merge.
-3. Let the CronJob run, or start one job from it.
-4. Re-enable the workflow (the `push` trigger is the overlap; the schedule stays commented).
+Merge, then let the CronJob run or start one job from it. The workflow has no
+`push` trigger, so nothing else writes.

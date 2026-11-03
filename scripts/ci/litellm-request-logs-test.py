@@ -261,7 +261,7 @@ def test_runtime_spend_log_behaviour() -> None:
         record(
             "runtime_litellm_available",
             False,
-            "litellm not importable; install the litellm[proxy] version pinned in validate.yaml",
+            "litellm not importable; install the litellm[proxy] version pinned in tests.yaml",
         )
         return
 

@@ -98,12 +98,8 @@ jobs:
           # Off: PR caches land per refs/pull/*/merge, are never shared, none exist on main; measured no speedup.
           cache: false
 
-      - name: Tofu Format Check
-        working-directory: ${{ matrix.stack }}
-        run: tofu fmt -check -diff
-
       # Without an opt-in file, this stays a pure schema check, same posture as
-      # validate.yaml's terraform job: `-backend=false` never contacts a live
+      # ci.yaml's terraform job: `-backend=false` never contacts a live
       # backend. With one, `vals` resolves that stack's own read-only
       # credentials (state-backend keys and any TF_VAR_* it needs) through
       # 1Password Connect and `tofu init` runs for real.

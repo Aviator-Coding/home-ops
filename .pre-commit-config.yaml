@@ -51,7 +51,7 @@ repos:
         name: Check merge conflicts
 
   # Standard linters, resolved through mise (`mise exec`) so hooks use the .mise.toml pins
-  # and match the validate.yaml `lint` job. `language: system` keeps them out of pre-commit's
+  # and match the ci.yaml `lint` job. `language: system` keeps them out of pre-commit's
   # own env management. yamlfmt runs on commit (active since the repo-wide format PR).
   - repo: local
     hooks:

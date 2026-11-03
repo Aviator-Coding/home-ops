@@ -43,5 +43,5 @@ Secrets are `ref+op://Home-Lab/talos/*` via `vals`. Never put key material in a 
 ## Verify
 
 - Offline: `just talos render-config talos-1` needs `vals` and a `talosconfig`. Without them, render with `minijinja-cli`, substitute dummy base64 for `ref+op://` refs, then `talosctl machineconfig patch` and `talosctl validate -m metal -c <file>`. `just talos` itself still needs some `TALOSCONFIG` because `bootstrap/mod.just` calls `talosctl config info` at load.
-- CI: `.github/workflows/validate.yaml` schema gate, plus `scripts/ci/version-consistency.sh` and `scripts/ci/schematic-pcie-port-pm-test.py`. Green validate is not permission to `apply-node`.
+- CI: `.github/workflows/ci.yaml` `talos` schema job, plus `scripts/ci/version-consistency.sh` and `scripts/ci/schematic-pcie-port-pm-test.py`. Green CI is not permission to `apply-node`.
 - Live, before apply: `kubectl get nodes -o wide` against the template pins. After a talos-3 reboot: `devic.es/b70` allocatable is 99 on talos-3 and 0 on the others.

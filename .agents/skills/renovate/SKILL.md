@@ -1,23 +1,21 @@
 ---
 name: renovate
-description: "Read before editing .renovaterc.json5, .renovate/**, any # renovate: annotation or the renovate app, and before merging a Renovate PR that touches Talos, tuppr upgrade CRs, Ceph, LiteLLM or kopiur. Covers suspending the GHA workflow before a config merge, negated-regex pins instead of <X.Y.Z, docker isStable ignoring -alpha, and talosupgrade.yaml bumps being unattended node upgrades."
+description: "Read before editing .renovaterc.json5, .renovate/**, any # renovate: annotation or the renovate app, and before merging a Renovate PR that touches Talos, tuppr upgrade CRs, Ceph, LiteLLM or kopiur. Covers config merges, negated-regex pins instead of <X.Y.Z, docker isStable ignoring -alpha, and talosupgrade.yaml bumps being unattended node upgrades."
 ---
 
 # Renovate
 
 The live writer is the in-cluster CronJob
 (`kubernetes/apps/base/renovate/`, chart `oci://ghcr.io/renovatebot/charts/renovate`,
-every 4 hours). `.github/workflows/renovate.yaml` is the rollback path: its
-`schedule` is commented out. Its `push` trigger on `.renovaterc.json5` and
-`.renovate/**.json5` is still active.
+every 4 hours). `.github/workflows/renovate.yaml` is the rollback path and is
+manual-dispatch only (no schedule, no `push` trigger), so it never runs beside the CronJob.
 
 ## Tripwires
 
-1. **Suspend `.github/workflows/renovate.yaml` before merging a config change.**
-   The `push` trigger runs a GHA writer beside the CronJob. Resume after the
-   in-cluster pass (or `kubectl -n renovate create job --from=cronjob/renovate`
-   if a pass is needed immediately). Comment-only edits of `.renovate/**` still
-   fire it.
+1. **A config change lands on the next CronJob pass (up to 4 hours).** The
+   owner can start one at once with
+   `kubectl -n renovate create job --from=cronjob/renovate`. Do not dispatch
+   `renovate.yaml` while a CronJob pass runs: two writers race on the same branches.
 2. **Last match wins.** A later `packageRule` overrides an earlier one.
    Every `automerge: false` rule sits after the three blanket automerge rules.
    The "MUST stay after" comments are the ordering constraint. Sibling
@@ -42,8 +40,9 @@ every 4 hours). `.github/workflows/renovate.yaml` is the rollback path: its
    `ignoreTests: false` leaves them pending. mortyops' mise and
    github-actions presets set `ignoreTests: true`; later home-ops rules force
    it back to false, so those updates stay PRs.
-7. **`platformAutomerge: false`.** GitHub would otherwise merge when Labeler
-   alone is green. Skill `github-ci`.
+7. **`platformAutomerge: false`.** GitHub would otherwise merge on the required
+   checks alone, before the advisory Image Pull posts. Renovate's own merge waits
+   for every check. Skill `github-ci`.
 8. **`# renovate:` value stays on the next line.** The customManager and
    `functional-comments-guard` both require that. Do not edit those lines
    while condensing comments.

@@ -11,7 +11,7 @@ CI globs `scripts/ci/*-test.py`. A new file needs no workflow edit. The
 per-file docstring is the inventory. `scripts/ci/README.md` points here.
 
 Setup when a test shells out or imports litellm: the `.mise.toml` venv, then
-`uv pip install python-hcl2 "litellm[proxy]"` at the version `validate.yaml`
+`uv pip install python-hcl2 "litellm[proxy]"` at the version `tests.yaml`
 pins, and `PATH` with `mise bin-paths` plus the venv `bin` first.
 
 ## Before you change a value
