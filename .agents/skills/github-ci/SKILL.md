@@ -38,8 +38,7 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
    `scripts/ci/mise-install-args-test.py`.
 6. **Grep `scripts/ci/` before retiring an app or changing a pinned value.**
    `task flux:test:all` does not run these tests. Assert a relationship or a
-   pin's shape. Leave the `ARG TALOS_VERSION` canary in
-   `.github/docker/talosctl-busybox/Dockerfile` alone (skill `talos-nodes`).
+   pin's shape. Leave the `talosupgrade.yaml` pin test alone (skill `talos-nodes`).
    [scripts-ci.md](references/scripts-ci.md)
 7. **A stale runner client cert fails `image-pull` on every `kubernetes/**`
    PR.** `remote error: tls: expired certificate` is the node's apid rejecting

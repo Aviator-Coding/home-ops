@@ -23,7 +23,6 @@ WF = ROOT / ".github" / "workflows"
 
 LABELER = WF / "labeler.yaml"
 TAG = WF / "tag.yaml"
-BUILD = WF / "build-talosctl-busybox.yaml"
 IMAGE_PULL = WF / "image-pull.yaml"
 FLATE = WF / "flate.yaml"
 # Owns Flate's trigger and concurrency since 2026-10-31 (flate.yaml is workflow_call only).
@@ -264,57 +263,6 @@ def test_tag(f: Failures) -> dict[str, Any]:
     return evidence
 
 
-def test_build_talosctl(f: Failures) -> dict[str, Any]:
-    data, _text = load_workflow(BUILD)
-    evidence: dict[str, Any] = {"workflow": "build-talosctl-busybox.yaml"}
-
-    top_perm = data.get("permissions")
-    evidence["top_permissions"] = top_perm
-    f.check(
-        top_perm == {"contents": "read"},
-        f"build-talosctl top-level permissions must establish contents:read floor, got {top_perm}",
-    )
-
-    jobs = data.get("jobs") or {}
-    # Keep existing job-level elevation
-    build_jobs = [j for j in jobs.values() if (j.get("permissions") or {}).get("packages") == "write"]
-    f.check(build_jobs, "build job must keep packages:write elevation")
-    job = build_jobs[0]
-    job_perm = job.get("permissions") or {}
-    evidence["job_permissions"] = job_perm
-    f.check(
-        job_perm.get("contents") == "read" and job_perm.get("packages") == "write",
-        f"build job permissions must be contents:read + packages:write, got {job_perm}",
-    )
-    f.check(
-        "actions" not in job_perm,
-        "build job must not add unused actions:write",
-    )
-
-    steps = steps_of(job)
-    checkout = [s for s in steps if uses_action(s, "actions/checkout@")]
-    f.check(checkout, "build must checkout")
-    ck_token = (checkout[0].get("with") or {}).get("token", "")
-    evidence["checkout_token"] = ck_token
-    f.check(
-        not ck_token,
-        f"checkout must pass no token (public repo, read-only), got {ck_token!r}",
-    )
-
-    logins = [s for s in steps if uses_action(s, "docker/login-action@")]
-    f.check(logins, "build must docker login to GHCR")
-    password = (logins[0].get("with") or {}).get("password", "")
-    evidence["login_password"] = password
-    f.check(
-        "GITHUB_TOKEN" in str(password),
-        "docker/login-action must authenticate with GITHUB_TOKEN (needs packages:write)",
-    )
-    pushes = [s for s in steps if uses_action(s, "docker/build-push-action@")]
-    f.check(pushes, "build must invoke docker/build-push-action")
-    evidence["token_bindings"] = collect_token_bindings(job)
-    return evidence
-
-
 def test_image_pull(f: Failures) -> dict[str, Any]:
     data, text = load_workflow(IMAGE_PULL)
     ci_wf, _ = load_workflow(CI)
@@ -415,13 +363,12 @@ def main() -> int:
 
     report["labeler"] = test_labeler(failures)
     report["tag"] = test_tag(failures)
-    report["build_talosctl"] = test_build_talosctl(failures)
     report["image_pull"] = test_image_pull(failures)
     report["pr_concurrency"] = test_all_pr_workflows_have_concurrency(failures)
     report["success_gates"] = test_success_gates(failures)
 
     # Parseability of every changed workflow (consumer can load)
-    for path in (LABELER, TAG, BUILD, IMAGE_PULL):
+    for path in (LABELER, TAG, IMAGE_PULL):
         try:
             load_workflow(path)
         except Exception as exc:  # noqa: BLE001

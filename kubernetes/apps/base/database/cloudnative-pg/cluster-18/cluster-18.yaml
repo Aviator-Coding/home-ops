@@ -52,9 +52,8 @@ spec:
           # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/pgvector
           reference: ghcr.io/cloudnative-pg/pgvector:0.8.7-18-trixie@sha256:bc9da05b09950b5beca1ce77c9903432b666a6cb527e60c78c7943ebf328e3cb
       # TimescaleDB Community Edition (Timescale License: compression, continuous aggregates,
-      # policy jobs), built by .github/workflows/build-timescaledb-community.yaml. Content-addressed
-      # tag: after ANY edit in .github/docker/timescaledb-community set it to
-      # `python3 scripts/ci/timescaledb-community-test.py --print-tag`.
+      # policy jobs), built in the containers repo. Content-addressed
+      # tag: set it to the tag that repo publishes.
       # Not created in template1: each database that wants it runs CREATE EXTENSION timescaledb.
       - name: timescaledb
         image:

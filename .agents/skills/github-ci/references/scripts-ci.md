@@ -28,9 +28,8 @@ pins, and `PATH` with `mise bin-paths` plus the venv `bin` first.
    the limit). `request == limit` is allowed where there is no headroom.
 
 Leave `talos-renovate-pin-test.py::test_no_live_version_bump` as it is. It
-freezes `.github/docker/talosctl-busybox/Dockerfile` and
-`tuppr/upgrades/talosupgrade.yaml` for one historical reason, and it parses
-`ARG TALOS_VERSION=vX.Y.Z`. That default is a Renovate canary. Relaxing the
+freezes
+`tuppr/upgrades/talosupgrade.yaml` for one historical reason. Relaxing the
 gate to land an edit removes the canary.
 
 ## Docs and comments

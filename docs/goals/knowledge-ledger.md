@@ -233,7 +233,7 @@ Verdicts:
 | `scripts/ci/tdarr-flow-nodes-test.py` | CI runs the Tdarr safe-transcode Node harness and fails closed if it or Node is missing. | neither |  |  |
 | `scripts/ci/terraform-ci-workflows-test.py` (# ci: nightly) | The terraform-diff CI workflow meets its behavioral contract. | neither |  |  |
 | `scripts/ci/terraform-ci-workflows-test.py` `test_publish_workflow_shape` | `terraform-publish.yaml` pushes `terraform/` to `ghcr.io/skrumbach/manifests/terraform` on push to main. | neither | archive | — (workflow deleted 2026-11-02: no OCIRepository, doc or script consumed the artifact) |
-| `scripts/ci/timescaledb-community-test.py` | The TimescaleDB Community extension image build for postgres-18 is guarded. | neither |  |  |
+| `scripts/ci/timescaledb-community-test.py` | The cluster-18 TimescaleDB extension stays preloaded with telemetry off. | neither |  |  |
 | `scripts/ci/tofu-authentik-stack-test.py` (# ci: nightly) | The Authentik OpenTofu adoption stack passes its behavioral checks. | neither |  |  |
 | `scripts/ci/toolhive-session-probe-test.py` | The ToolHive MCP Session Gatus check is semantically correct. | neither |  |  |
 | `scripts/ci/toolhive-vmcp-scratch-test.py` | The vmcp tool optimizer builds a SQLite FTS5 index per session. | neither |  |  |
@@ -261,7 +261,6 @@ Verdicts:
 | `scripts/ci/wizarr-seed-test.py` `check_manifests` (PushSecret) | The PushSecret to 1Password keeps `deletionPolicy: None`. | data loss (it holds the only copy of the `CreatedOnce` admin password) | enforce | `kopiur-stage0-test.py` `test_no_pushsecret_deletes_its_item` (fleet-wide: no PushSecret sets `Delete`; ESO's default is `None`) |
 | `scripts/ci/wizarr-seed-test.py` `check_seed_fails_fast_on_missing_env` | A missing env var aborts the seed before it writes a half-configured server. | neither | keep | `.agents/skills/media-stack/references/friends.md` §One-time setup (sentence added) |
 | `scripts/ci/workflow-hardening-test.py` | The homeops-norms-iac CI workflows meet their hardening contract. | neither |  |  |
-| `scripts/ci/workflow-hardening-test.py` `test_build_talosctl` checkout token | `build-talosctl-busybox.yaml` checks out with a GitHub App token. | neither | archive | — (inverted 2026-11-02: the repo is public, checkout passes no token; the same test now asserts that) |
 | `.github/workflows/test-runner.yaml` | Weekly smoke of the ARC runner (uid, tools, Docker, file ops). | neither | archive | — (deleted 2026-11-02; `image-pull.yaml` `pull` exercises the runner on every kubernetes PR) |
 | `.github/workflows/codeql.yml` | Weekly CodeQL `actions` analysis on push to `.github/**`. | neither | archive | — (deleted 2026-11-02; `validate.yaml` `lint` runs zizmor and actionlint on every PR, as does pre-commit) |
 | `scripts/ci/xe-gpu-exporter-test.py` | system/xe-gpu-exporter turns DRM fdinfo into VRAM series. | neither | keep | `.agents/skills/intel-gpu/references/telemetry.md` "VRAM" (already stated). Note: the `Contract: scripts/ci/xe-gpu-exporter-test.py` comment in `kubernetes/apps/base/system/xe-gpu-exporter/app/resources/exporter.py` is stale on purpose (editing it restarts the DaemonSet through reloader); fix it with the next functional change to `exporter.py` |

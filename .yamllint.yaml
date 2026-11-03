@@ -13,4 +13,3 @@ ignore: |
   *.j2
   *.gotmpl
   **/templates/**
-  .github/docker/**

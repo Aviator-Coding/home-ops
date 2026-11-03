@@ -7,7 +7,7 @@ at or above that ceiling: nothing is both newer than current and under the cap.
 The Talos pin is `!/^v?1\.13\.3$/` on:
 
 - `ghcr.io/siderolabs/installer` (feeds `TalosUpgrade`, `rebootMode: powercycle`)
-- `ghcr.io/siderolabs/talosctl` (CLI image in `.github/docker/talosctl-busybox/Dockerfile`)
+- `ghcr.io/siderolabs/talosctl` (CLI image `ghcr.io/skrumbach/talosctl-busybox`, built in the containers repo)
 - `siderolabs/talos` (factory.talos.dev custom datasource, semver template)
 - `/factory\.talos\.dev/`
 

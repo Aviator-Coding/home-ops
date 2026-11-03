@@ -57,8 +57,8 @@ scale set is `task actions-runner:reset-scale-set`.
 
 ## What the home-ops runner cannot do
 
-- No Docker socket and no DinD. `renovate.yaml` and `build-talosctl-busybox.yaml`
-  stay on `ubuntu-latest` because they run `docker`.
+- No Docker socket and no DinD. `renovate.yaml` stays on
+  `ubuntu-latest` because it runs `docker`. Image builds live in the containers repo.
 - `podman` cannot run in any pod here: `/proc/sys/user/max_user_namespaces` is
   `0` on the Talos nodes. Enabling user namespaces is a machine-config change,
   not a runner Dockerfile change.
