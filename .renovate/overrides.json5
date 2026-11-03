@@ -75,5 +75,12 @@
       matchPackageNames: ["docker.io/plexinc/pms-docker"],
       versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[a-f0-9]+$",
     },
+    {
+      // Off-range node makes `npx renovate` resolve an old release and fail the config check (#2231). Raise with Renovate's engines.node.
+      description: "Keep workflow setup-node on the major Renovate's engines.node allows",
+      matchManagers: ["github-actions"],
+      matchDepNames: ["node"],
+      allowedVersions: "<25",
+    },
   ],
 }
