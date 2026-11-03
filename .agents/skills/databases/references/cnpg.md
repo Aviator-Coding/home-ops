@@ -64,9 +64,8 @@ No LB service, Gatus ConfigMap or own PrometheusRule: the `cluster-17` rules mat
 metric, not cluster. An extension image bump needs `ALTER EXTENSION vector UPDATE` per
 database. TimescaleDB is the Community Edition (Timescale License: compression, continuous
 aggregates), shipped as our own ImageVolume image
-`ghcr.io/skrumbach/timescaledb-community` from `.github/docker/timescaledb-community/`.
-Its tag is content-addressed: after any edit there, set the `cluster-18.yaml` reference to
-`python3 scripts/ci/timescaledb-community-test.py --print-tag`. It is preloaded, telemetry
+`ghcr.io/skrumbach/timescaledb-community`, built in the containers repo. Its tag is
+content-addressed there; set the `cluster-18.yaml` reference to the tag it publishes. It is preloaded, telemetry
 off, and created per database with `CREATE EXTENSION timescaledb`. The official
 `timescaledb-oss` image is Apache-2 only (no compression). A changed extension volume makes
 CNPG roll pods; a replica can keep its old pod spec and crash-loop, so delete that pod.

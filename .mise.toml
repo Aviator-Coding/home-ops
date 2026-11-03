@@ -43,7 +43,7 @@ MISE_LIST_ALL_VERSIONS = "false"
 "aqua:siderolabs/talos" = "1.14.5"
 "aqua:yannh/kubeconform" = "0.8.0"
 "aqua:nektos/act" = "0.2.89"
-# Standard linters: pre-commit hooks and the validate.yaml `lint` job. CI installs them via
+# Standard linters: pre-commit hooks and the ci.yaml `lint` job. CI installs them via
 # unversioned mise-action install_args so these pins stay the single source of truth.
 "aqua:rhysd/actionlint" = "1.7.12"
 "pipx:zizmor" = "1.31.1"
@@ -51,8 +51,8 @@ MISE_LIST_ALL_VERSIONS = "false"
 "pipx:yamllint" = "1.38.0"
 "aqua:google/yamlfmt" = "0.21.0"
 # promtool for scripts/ci/grafana-sa-provisioner-test.py PromQL rule evaluation.
-# CI python-tests installs this via unversioned mise-action install_args so this
-# pin is the single source of truth (scripts/ci/mise-install-args-test.py).
+# CI installs this via unversioned mise-action install_args so this pin is the
+# single source of truth (scripts/ci/workflow-contract-test.py).
 "aqua:prometheus/prometheus" = "3.15.1"
 uv = "0.13.6"
 1password-cli = "2.41.1"

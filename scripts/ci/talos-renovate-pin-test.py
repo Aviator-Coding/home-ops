@@ -17,8 +17,7 @@ comment in .renovate/overrides.json5):
   5. The four matchPackageNames must actually match the four packages that
      feed Talos upgrades (installer, talosctl, siderolabs/talos,
      factory.talos.dev image refs).
-  6. This change must not bump live Talos version pins (talosupgrade CR,
-     talosctl-busybox Dockerfile) - proposals only, attended captain apply.
+  6. This change must not bump live Talos version pins (talosupgrade CR) - proposals only, attended captain apply.
 
 Evidence is Renovate's own compiled logic (getRegexPredicate, filterVersions,
 docker isStable, applyPackageRules, matchRegexOrGlobList), not a source
@@ -50,7 +49,6 @@ TALOSUPGRADE = (
     / "upgrades"
     / "talosupgrade.yaml"
 )
-TALOSCTL_DOCKERFILE = ROOT / ".github" / "docker" / "talosctl-busybox" / "Dockerfile"
 
 TALOS_PACKAGES = [
     "ghcr.io/siderolabs/installer",
@@ -368,7 +366,7 @@ def ensure_renovate() -> str:
         return existing
     if not _node_on_path():
         raise Failure(
-            "node is required on PATH (python-tests installs it via actions/setup-node; "
+            "node is required on PATH (tests.yaml installs it via actions/setup-node; "
             "locally: provide node + RENOVATE_NODE_PATH or npm install renovate@44.52.1)"
         )
     # Last resort: npm install into a temp dir (needs network).
@@ -643,27 +641,14 @@ def _read_talosupgrade_version() -> str:
     return m.group(1)
 
 
-def _read_talosctl_busybox_version() -> str:
-    text = TALOSCTL_DOCKERFILE.read_text()
-    # Image tag is an ARG default (TALOS_VERSION=vX.Y.Z), not an inline FROM tag.
-    m = re.search(r"(?m)^ARG\s+TALOS_VERSION=(v[\d.]+)\s*$", text)
-    require(
-        m is not None,
-        f"could not parse ARG TALOS_VERSION from {TALOSCTL_DOCKERFILE}",
-    )
-    return m.group(1)
-
-
 def test_no_live_version_bump() -> None:
     """This PR must unfreeze proposals only - never apply a Talos upgrade."""
-    # Contract: the two live version pins exist and were not part of applying
+    # Contract: the live version pin exists and were not part of applying
     # an upgrade in this change. We assert they still resolve to a concrete
     # version string (files present + parseable). A behavioral "not bumped by
     # this PR" check is done via git against merge-base when available.
     tu = _read_talosupgrade_version()
-    tb = _read_talosctl_busybox_version()
     require(tu.startswith("v"), f"talosupgrade version malformed: {tu!r}")
-    require(tb.startswith("v"), f"talosctl-busybox tag malformed: {tb!r}")
 
     proc = subprocess.run(
         ["git", "rev-parse", "--verify", "MERGE_BASE_SENTINEL"],
@@ -689,7 +674,6 @@ def test_no_live_version_bump() -> None:
 
     for rel in (
         "kubernetes/apps/base/system-upgrade/tuppr/upgrades/talosupgrade.yaml",
-        ".github/docker/talosctl-busybox/Dockerfile",
     ):
         diff = subprocess.run(
             ["git", "diff", "--name-only", base, "HEAD", "--", rel],
@@ -744,7 +728,7 @@ def main() -> int:
         "renovate getRegexPredicate/filterVersions/isStable/applyPackageRules behavior",
         _probe,
     )
-    run("talosupgrade + talosctl-busybox not bumped by this change", test_no_live_version_bump)
+    run("talosupgrade not bumped by this change", test_no_live_version_bump)
 
     # Emit machine-readable probe summary for evidence capture when successful.
     if probe_holder.get("data") and not failures:

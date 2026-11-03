@@ -27,9 +27,8 @@ Each request line is LiteLLM's `POST /v1/decisions` body without `model`, plus a
 
 ## What Jev is good at, and not
 
-- **Good:** narrow, checkable yes/no rules about concrete text, one predicate per rule. The AI
-  review gate (`scripts/ci/ai_review_gate.py`) asks one predicate per blocker rule and caught 5 of
-  5 seeded blockers with 0 false failures (goal §8, D6).
+- **Good:** narrow, checkable yes/no rules about concrete text, one predicate per rule. Asking
+  one predicate per blocker rule caught 5 of 5 seeded blockers with 0 false failures.
 - **Weak:** holistic judgement. Asked for the risk tier and severity of a change that breaks a
   backup rule, it answered `low` and `minor` at low confidence while scoring the rule itself 0.93.
   Ask "does this break rule X?", never "is this safe?".

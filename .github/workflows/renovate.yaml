@@ -3,13 +3,7 @@
 name: Renovate
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .renovaterc.json5
-      - .renovate/**.json5
-  # No schedule: the in-cluster CronJob is the live writer. Skill `renovate`.
+  # Manual only: the in-cluster CronJob is the live writer. Skill `renovate`.
   workflow_dispatch:
     inputs:
       dryRun:

@@ -1,13 +1,12 @@
 # GitHub Actions workflows
 
-Which workflow runs where, and what `validate.yaml` does and does not prove:
+Which workflow runs where, and what `ci.yaml` does and does not prove:
 skill `github-ci`
 ([workflows.md](../../.agents/skills/github-ci/references/workflows.md)).
 
-`ci.yaml`'s `CI Success` is the one gate. It calls `flate.yaml` and
-`validate.yaml` on `ubuntu-latest`. `runs-on` in the workflow file wins over
-any table. The home-ops scale set has no Docker daemon. `renovate.yaml` and the image-build workflows stay on
-`ubuntu-latest` for that reason.
+`ci.yaml`'s `CI Success` is the one gate. Every job in it runs on
+`ubuntu-latest`. `image-pull.yaml` and `terraform-diff.yaml` need the cluster
+and are advisory. `tests.yaml` runs the non-gate `scripts/ci` tests nightly.
 
-Renovate's live writer is the in-cluster CronJob. This workflow's schedule
-is commented out. Skill `renovate`.
+Renovate's live writer is the in-cluster CronJob; `renovate.yaml` is
+manual-dispatch only. Skill `renovate`.

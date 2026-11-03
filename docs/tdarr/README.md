@@ -169,15 +169,9 @@ The offline half of all of this is pinned by
 `scripts/ci/tdarr-flow-nodes-test.py`, which executes the node sources and the
 bodies embedded in the flow artifact. It cannot check the live database.
 
-For that pin to mean anything, CI has to actually run it on a change to these
-files. `.github/workflows/validate.yaml` filters at **two** levels and the
-trigger wins: from PR #1530 until 2026-09-01 its `pythontests` per-job filter
-listed `docs/tdarr/**` while `on.pull_request.paths` did not, so a
-`docs/tdarr`-only PR started no workflow at all and this byte-check never ran -
-a dead filter pattern that read as coverage. Both levels now list it, and
-`scripts/ci/validate-contention-test.py::test_trigger_paths_cover_job_filters`
-fails if any per-job filter pattern is ever unreachable from the trigger paths
-again.
+`tdarr-flow-nodes-test.py` is a non-gate test: it runs in
+`.github/workflows/tests.yaml` (nightly, and on any `scripts/ci/**` change on
+main), not on PRs. Run it locally before pushing a change to these files.
 
 ## Also not GitOps
 

@@ -73,8 +73,8 @@ Each is a warning needed before deciding to touch the subsystem; detail is in th
 - **`flate -n` filters the exit code; `task flux:test:all` is the gate.** Skill `flux-gitops`.
 - **`healthChecks` target the workload, never the HelmRelease, and a Kustomization that owns a kopiur claim keeps `wait` false (dependency gates like CRDs, operators and secret stores set `wait: true`).** Suspend a Kustomization before a live HelmRelease edit. `flux-system` is exempt from `cluster-apps`, so a git-only change to it never lands. Skill `flux-gitops`.
 - **Never add a helm `postRenderer: bash`** (breaks on Helm 4).
-- **Retiring an app or changing a pinned value can break a `scripts/ci` gate `flate` does not run.** Grep `scripts/ci/` first. `validate.yaml` is the only CI signal for `talos/`, `bootstrap/`, `.renovate/` and `terraform/`. Skill `github-ci`.
-- **Merging `.renovaterc.json5` or `.renovate/**` fires the renovate workflow.** Suspend it first. A Renovate bump of `talosupgrade.yaml` is an unattended node upgrade. Skill `renovate`.
+- **Retiring an app or changing a pinned value can break a `scripts/ci` gate `flate` does not run.** Grep `scripts/ci/` first. `ci.yaml` is the only CI signal for `talos/`, `bootstrap/`, `.renovate/` and `terraform/`; non-gate tests run only nightly (`tests.yaml`), so run a changed one locally. Skill `github-ci`.
+- **A Renovate bump of `talosupgrade.yaml` is an unattended node upgrade.** Skill `renovate`.
 
 **Nodes and storage**
 - **`talos/*.j2` changes are not applied by Flux.** `apply-node` restages only; kernel args and extensions need `just talos upgrade-node`. `machineconfig.yaml.j2`'s 6 version pins can drift from the live cluster (tuppr drives upgrades), so applying a stale template can downgrade a node: check `kubectl get nodes -o wide` first. Skill `talos-nodes`.
@@ -115,7 +115,7 @@ just talos apply-node talos-1      # Apply config (node names, not IPs)
 for t in scripts/ci/*-test.py; do python3 "$t"; done   # CI gates, including docs-budget
 ```
 
-Agents run with read-only credentials, and `.claude/hooks/guard.py` blocks owner-only commands (`is_blocked()` is reusable by other harnesses). Owner writes: `HOME_OPS_KUBECONFIG=~/.kube/home-ops-admin HOME_OPS_TALOSCONFIG=~/.talos/home-ops-admin <command>`, in a shell that never starts an agent (the guard refuses to run when they are set). Setup and renewal: `scripts/agent-credentials.sh` header.
+Agents run with read-only credentials. Owner writes: `HOME_OPS_KUBECONFIG=~/.kube/home-ops-admin HOME_OPS_TALOSCONFIG=~/.talos/home-ops-admin <command>`, in a shell that never starts an agent. Setup and renewal: `scripts/agent-credentials.sh` header.
 
 Debugging: `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide`, `kubectl get snapshotpolicy,restore -A`. `kubeconfig` and `talos/talosconfig` stay gitignored for DR bootstrap only; `.private/` is local-only.
 
@@ -125,10 +125,7 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 
 | Skill | Load when touching (workflow skills: load at that step of every task) |
 |---|---|
-| `plan-task` | starting any issue or owner request: tier, PR limit, plan, owner approval |
-| `implement-task` | building an approved plan: worktree, gates, PR body, never merge, post-merge watch |
-| `review-pr` | reviewing a PR before it opens: fresh reviewer, issue + diff only |
-| `renovate-review` | a Renovate PR that did not merge itself (minor, major, risk:high) |
+| `renovate-review` | a Renovate PR that did not merge itself (minor, major) |
 | `flux-gitops` | apps, overlays, Flux healthChecks/wait/dependsOn, live HelmRelease tests |
 | `flux-substitution` | literal `${...}` in Flux-reconciled files, envsubst failures |
 | `app-workloads` | pod securityContext, fsGroup, probes, PVC mounts, linuxserver images |

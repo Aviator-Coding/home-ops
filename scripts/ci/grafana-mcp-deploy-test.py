@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ci: nightly
 """Semantic regression test for in-cluster grafana-mcp (toolhive MCPServer).
 
 Captain D5/A6: deploy mcp-grafana in-cluster under the ai/toolhive ownership

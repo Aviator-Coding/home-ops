@@ -16,7 +16,7 @@ enforceable on this LiteLLM/operator version; revisit at LiteLLM v1.104.0.
 | Piece | Where |
 |---|---|
 | Server | `kubernetes/apps/base/ai/litellm-pgvector/app/helmrelease.yaml`, ClusterIP `litellm-pgvector.ai.svc.cluster.local:8000`, no HTTPRoute |
-| Image | built from `.github/docker/litellm-pgvector/` (pinned upstream commit + local patches) by `.github/workflows/build-litellm-pgvector.yaml` into `ghcr.io/skrumbach/litellm-pgvector` |
+| Image | built in the containers repo into `ghcr.io/skrumbach/litellm-pgvector` |
 | Role, DB, `vector` extension, tables, seeded `default` store | `litellm-pgvector/app/dbinit.yaml` + `resources/schema.sql` |
 | Registration | `litellmproxy.yaml` `extraConfig.vector_store_registry` |
 | Embedding model | `models/qwen3-embedding-8b.yaml` (`qwen/qwen3-embedding-8b`, OpenRouter, metered) |
@@ -130,10 +130,8 @@ Match the `metadata->>'source'` too, so a wrong id cannot delete another row.
   Secret: `postgres-init` loads it too and would point its checks at the not
   yet created database, leaving the role with a NULL password while the Job
   reports Completed. The schema container sets its own `PG*` in `env`.
-- The server image tag is content-addressed: after any edit under
-  `.github/docker/litellm-pgvector/`, set the HelmRelease tag to
-  `python3 scripts/ci/litellm-pgvector-test.py --print-tag`. Never edit files
-  there casually (a comment changes the hash).
+- The server image tag is content-addressed and published by the containers repo: set the
+  HelmRelease tag to the tag it publishes.
 - The `vector` extension exists only because the shared postgres-17 image
   (`tensorchord/cloudnative-pgvecto.rs`) ships pgvector; an image swap there
   breaks the next db-init.

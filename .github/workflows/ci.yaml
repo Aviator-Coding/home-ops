@@ -1,9 +1,9 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-# The one required PR check: `CI Success` (goal D1). It calls Flate and Validate on
-# GitHub-hosted runners, so it reports while the cluster and its ARC runners are down.
-# Image Pull and the AI review stay on ARC and stay advisory. Pin:
-# scripts/ci/ci-success-workflow-test.py. Skill `github-ci`.
+# The one required PR check: `CI Success`. Every job runs on GitHub-hosted runners, so the
+# gate reports while the cluster and its ARC runners are down. Image Pull and Terraform Diff
+# need the cluster and stay advisory in their own files. Non-gate tests run in tests.yaml.
+# Pin: scripts/ci/workflow-contract-test.py. Skill `github-ci`.
 name: CI
 
 on:
@@ -19,47 +19,417 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Pinned exactly: the action's SHA-ref lookup falls back to "latest" when the tags API
+  # call fails. Keep in step with the action pin on the `uses:` lines and image-pull.yaml.
+  # renovate: datasource=github-releases depName=home-operations/flate
+  FLATE_VERSION: 0.6.5
+
 jobs:
-  flate:
-    uses: ./.github/workflows/flate.yaml
-    # Only the flate diff job comments on the PR; a called workflow cannot exceed the caller's grant.
+  changes:
+    # The only fork guard: a fork PR skips this job and, through `needs`, every job below;
+    # `CI Success` then fails it on purpose (push the branch to this repo to run CI).
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      kubernetes: ${{ steps.kubernetes.outputs.changed_files }}
+      talos: ${{ steps.talos.outputs.changed_files }}
+      versions: ${{ steps.versions.outputs.changed_files }}
+      bootstrap: ${{ steps.bootstrap.outputs.changed_files }}
+      renovate: ${{ steps.renovate.outputs.changed_files }}
+      terraform: ${{ steps.terraform.outputs.changed_files }}
+    steps:
+      - name: Kubernetes Changes
+        id: kubernetes
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
+        with:
+          patterns: |-
+            kubernetes/**/*
+            .github/workflows/ci.yaml
+
+      - name: Talos Changes
+        id: talos
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
+        with:
+          patterns: |-
+            talos/**
+            .github/workflows/ci.yaml
+            .mise.toml
+            scripts/ci/talos-validate.sh
+
+      - name: Version Pin Changes
+        id: versions
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
+        with:
+          patterns: |-
+            talos/**
+            kubernetes/apps/base/system-upgrade/**
+            kubernetes/apps/main/system-upgrade/**
+            .github/workflows/ci.yaml
+            .mise.toml
+            scripts/ci/version-consistency.sh
+
+      - name: Bootstrap Changes
+        id: bootstrap
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
+        with:
+          patterns: |-
+            bootstrap/**
+            .github/workflows/ci.yaml
+            .mise.toml
+
+      - name: Renovate Config Changes
+        id: renovate
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
+        with:
+          patterns: |-
+            .renovaterc.json5
+            .renovate/**
+            .github/workflows/ci.yaml
+
+      - name: Terraform Changes
+        id: terraform
+        uses: bjw-s-labs/action-changed-files@147be9638332cf68fd60714a610509d7a9360d60 # v0.7.0
+        with:
+          patterns: |-
+            terraform/**
+            .github/workflows/ci.yaml
+            .mise.toml
+            scripts/ci/tofu-validate.sh
+
+  flate-test:
+    if: ${{ needs.changes.outputs.kubernetes != '[]' }}
+    needs: changes
+    name: Flate - Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Empty base: otherwise the action exports FLATE_BASE and `flate test all` goes changed-only.
+      - name: Setup flate
+        uses: home-operations/flate/action@631b76b69c4e58c6f4d1cb01e23616fa61aebafa # v0.6.5
+        with:
+          version: ${{ env.FLATE_VERSION }}
+          base: ""
+
+      - name: Run flate test
+        run: flate test all --path kubernetes/clusters/main --no-progress
+
+  flate-diff:
+    if: ${{ needs.changes.outputs.kubernetes != '[]' }}
+    needs: changes
+    name: Flate - Diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write
-    secrets:
-      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
-      BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+    strategy:
+      matrix:
+        resource:
+          - hr
+          - ks
+      fail-fast: false
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-pull-requests: write
 
-  # validate.yaml reads no secret, so it gets none.
-  validate:
-    uses: ./.github/workflows/validate.yaml
+      # fetch-depth: 0 makes origin/<default> resolvable for --base.
+      - name: Checkout Pull Request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup flate
+        uses: home-operations/flate/action@631b76b69c4e58c6f4d1cb01e23616fa61aebafa # v0.6.5
+        with:
+          version: ${{ env.FLATE_VERSION }}
+          base: ""
+
+      # --strip-attr is omitted on purpose: passing any value REPLACES flate's default set.
+      - name: Run flate diff
+        env:
+          RESOURCE: ${{ matrix.resource }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          flate diff "${RESOURCE}" \
+            --path kubernetes/clusters/main \
+            --base "origin/${DEFAULT_BRANCH}" \
+            --no-progress \
+            --output diff > diff.patch
+
+      # 60000 bytes stays under GitHub's 65536-character comment limit.
+      - name: Truncate Diff
+        id: diff
+        run: |-
+          if [ "$(wc -c < diff.patch)" -gt 60000 ]; then
+            head -c 60000 diff.patch > diff.patch.tmp
+            mv diff.patch.tmp diff.patch
+          fi
+          if [ -s diff.patch ]; then
+            echo 'has-diff=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: ${{ steps.diff.outputs.has-diff == 'true' }}
+        name: Add Comment
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          header: ${{ github.event.pull_request.number }}/kubernetes/${{ matrix.resource }}
+          path: diff.patch
+          message: |-
+            ```diff
+            {{{content}}}
+            ```
+
+  talos:
+    if: ${{ needs.changes.outputs.talos != '[]' }}
+    needs: changes
+    name: Talos
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Same minijinja-cli and talosctl versions as `just talos render-config` (.mise.toml).
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: aqua:mitsuhiko/minijinja aqua:siderolabs/talos aqua:mikefarah/yq
+          cache: false
+
+      - name: Render and Validate Talos Configs
+        run: ./scripts/ci/talos-validate.sh
+
+  versions:
+    if: ${{ needs.changes.outputs.versions != '[]' }}
+    needs: changes
+    name: Versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: aqua:mikefarah/yq
+          cache: false
+
+      - name: Check Machineconfig Versions Against tuppr CRs
+        run: ./scripts/ci/version-consistency.sh
+
+  bootstrap:
+    if: ${{ needs.changes.outputs.bootstrap != '[]' }}
+    needs: changes
+    name: Bootstrap
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: aqua:kubernetes-sigs/kustomize aqua:yannh/kubeconform
+          cache: false
+
+      # Kustomize half only: bootstrap/helmfile/ renders through vals against 1Password,
+      # which CI has no credentials for. `just bootstrap cluster` is DR-only, so this is
+      # the only place a broken kustomization shows up before a disaster.
+      - name: Validate Bootstrap Kustomize Output
+        run: |
+          kustomize build bootstrap/kustomize/apps \
+            | kubeconform -strict -summary -schema-location default
+
+  renovate-config:
+    if: ${{ needs.changes.outputs.renovate != '[]' }}
+    needs: changes
+    name: Renovate Config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24" # renovate requires node ^24
+
+      # Unpinned on purpose: the in-cluster Renovate runs a current release, so the config
+      # must validate against current Renovate, not a frozen one.
+      - name: Validate Renovate Config
+        run: npx --yes --package renovate renovate-config-validator .renovaterc.json5 .renovate/*.json5
+
+  terraform:
+    if: ${{ needs.changes.outputs.terraform != '[]' }}
+    needs: changes
+    name: Terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: opentofu
+          cache: false
+
+      # Credential-less fmt + validate. Live read-only plans are terraform-diff.yaml.
+      - name: Format and Validate OpenTofu Stacks
+        run: ./scripts/ci/tofu-validate.sh
+
+  # Whole tree, no path filter. Tool versions come from .mise.toml, so install_args names
+  # the tools only. Full history gives functional-comments-guard its merge base.
+  lint:
+    needs: changes
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: python uv aqua:rhysd/actionlint pipx:zizmor aqua:koalaman/shellcheck pipx:yamllint
+          cache: false
+
+      - name: yamllint
+        run: yamllint -s .
+
+      - name: actionlint
+        run: actionlint
+
+      - name: zizmor
+        run: zizmor --offline --min-severity medium .github/workflows
+
+      # xargs -0 instead of `shellcheck $(git ls-files ...)`: unquoted expansion is itself SC2046.
+      - name: shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck
+
+      - name: Docs guards
+        env:
+          DIFF_GUARD_BASE: origin/${{ github.event.repository.default_branch }}
+        run: |
+          fail=0
+          for f in scripts/ci/docs-budget-test.py scripts/ci/doc-links-test.py scripts/ci/functional-comments-guard-test.py; do
+            echo "::group::${f}"
+            python3 "${f}" || fail=1
+            echo "::endgroup::"
+          done
+          exit "${fail}"
+
+  # Only scripts/ci files marked `# ci: gate` (at most 15, each naming the data loss or
+  # outage it prevents; scripts/ci/ci-test-gate-test.py). Every other test is tests.yaml.
+  gate-tests:
+    needs: changes
+    name: Gate Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Only what gate files call. Versions from .mise.toml; no @version here.
+      - name: Setup Tools
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install_args: python uv kubectl aqua:kubernetes-sigs/kustomize aqua:prometheus/prometheus aqua:jqlang/jq
+          cache: false
+
+      # boto3 is for volsync-retired-expiry-test.py.
+      - name: Install Python Test Dependencies
+        run: uv pip install --system pyyaml boto3
+
+      # mapfile + count check: a process substitution's exit status is ignored, so an
+      # empty or failed grep would otherwise run zero tests and pass.
+      - name: Run gate tests
+        run: |
+          mapfile -t gates < <(grep -lx '# ci: gate' scripts/ci/*-test.py)
+          if (( ${#gates[@]} == 0 )); then
+            echo "FAILED: no '# ci: gate' files found"
+            exit 1
+          fi
+          fail=0
+          for f in "${gates[@]}"; do
+            echo "::group::${f}"
+            if ! python3 "${f}" </dev/null; then
+              echo "FAILED: ${f}"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "${fail}"
 
   success:
     # always(), not !cancelled(): GitHub counts a skipped required check as passing, so a
-    # cancelled or superseded run must post red here, never skip. A skipped workflow (path
-    # filters found nothing) passes; failed or cancelled fails.
+    # cancelled run must post red here, never skip. Skipped jobs (no matching changes) pass.
     if: ${{ always() }}
     needs:
-      - flate
-      - validate
+      - changes
+      - flate-test
+      - flate-diff
+      - talos
+      - versions
+      - bootstrap
+      - renovate-config
+      - terraform
+      - lint
+      - gate-tests
     name: CI Success
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Fork PRs skip every job (fork guard), so a green result would mean nothing ran.
-      # Re-run the change from a same-repo branch (skill `github-ci`).
+      # Fork PRs skip every job, so a green result would mean nothing ran.
       - name: Fork PR?
         if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
           echo "Fork PRs are not tested here; push the branch to this repo to run CI."
           exit 1
 
-      - name: Any workflow failed or cancelled?
+      - name: Any job failed or cancelled?
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
           echo '${{ toJSON(needs.*.result) }}'
           exit 1
 
-      - name: All workflows passed or skipped
+      - name: All jobs passed or skipped
         if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: echo '${{ toJSON(needs.*.result) }}'

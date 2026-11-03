@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  # Keep in step with the action pin on the `uses:` line and with flate.yaml.
+  # Keep in step with the action pin on the `uses:` line and with ci.yaml.
   # renovate: datasource=github-releases depName=home-operations/flate
   FLATE_VERSION: 0.6.5
 
@@ -110,18 +110,11 @@ jobs:
       fail-fast: false
     env:
       MATRIX_IMAGE: ${{ matrix.image }}
-      TALOSCTL_VERSION: "1.12.0"
     steps:
-      - name: Verify talosctl (pre-installed via init container)
-        run: |
-          if command -v talosctl &> /dev/null; then
-            echo "talosctl is pre-installed"
-            talosctl version --client
-          else
-            echo "talosctl not found, installing..."
-            curl -fsSL https://talos.dev/install | sh
-            talosctl version --client
-          fi
+      # talosctl comes from the runner's talosctl-busybox init container (Renovate-tracked
+      # in the home-ops scale set HelmRelease); no download fallback.
+      - name: Check talosctl
+        run: talosctl version --client
 
       # The retry absorbs transient failures talking to a real Talos node.
       - name: Pull Image

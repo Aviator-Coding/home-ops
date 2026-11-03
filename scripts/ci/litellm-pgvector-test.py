@@ -7,25 +7,18 @@ qwen/qwen3-embedding-8b for both ingest and query. The pieces live in four place
 that nothing else keeps in agreement, and every way they can drift apart fails
 SILENTLY - the pods stay Ready and only searches go wrong:
 
-1. The image. BerriAI publishes no litellm-pgvector image, so
-   .github/docker/litellm-pgvector/ builds one under a CONTENT-ADDRESSED tag
-   (upstream commit + hash of the build directory). The HelmRelease must name
-   exactly the tag that directory builds to, or a Dockerfile change ships
-   nothing (old tag still deployed) or the pod pulls a tag no build produced.
-   .github/workflows/build-litellm-pgvector.yaml calls `--print-tag` here, so
-   the builder and this gate share one algorithm.
-2. The vector width. Upstream's Prisma schema hardcodes vector(1536);
+1. The vector width. Upstream's Prisma schema hardcodes vector(1536);
    Qwen3-Embedding-8B natively emits 4096, which no pgvector index can take
    (HNSW/IVFFlat cap `vector` at 2000), so the store requests 2000 through the
    `dimensions` parameter. schema.sql and EMBEDDING__DIMENSIONS must agree, or
    every insert is rejected, and the width must stay <= 2000 while schema.sql
    builds an HNSW index on it, or the Job fails and the store never exists.
-3. The embedding model. The server embeds each search query through LiteLLM
+2. The embedding model. The server embeds each search query through LiteLLM
    with its own virtual key. EMBEDDING__MODEL must be `openai/<name>` (the
    LiteLLM SDK needs a provider prefix to talk to the proxy), <name> must be the
    only model that key may call, and a LiteLLMModel must serve it. A query
    embedded by a different model returns confident nonsense, not an error.
-4. The registry. LiteLLM's vector_store_registry is a LIST, which the
+3. The registry. LiteLLM's vector_store_registry is a LIST, which the
    operator's typed `vectorStoreRegistry` field (type: object) cannot express,
    so it rides extraConfig. Its api_key must use a private env var, never
    PG_VECTOR_API_KEY - that name is PGVectorStoreConfig's fallback, and
@@ -39,9 +32,7 @@ negative test feeds the checker a mutated copy to prove it can go red.
 from __future__ import annotations
 
 import copy
-import hashlib
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -49,8 +40,6 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-DOCKER_DIR = ROOT / ".github" / "docker" / "litellm-pgvector"
-BUILD_WF = ROOT / ".github" / "workflows" / "build-litellm-pgvector.yaml"
 APP_DIR = ROOT / "kubernetes" / "apps" / "base" / "ai" / "litellm-pgvector" / "app"
 HELMRELEASE = APP_DIR / "helmrelease.yaml"
 SCHEMA_SQL = APP_DIR / "resources" / "schema.sql"
@@ -62,7 +51,6 @@ LITELLM_ES = LITELLM_DIR / "externalsecret.yaml"
 VIRTUAL_KEY = LITELLM_DIR / "virtualkeys" / "litellm-pgvector.yaml"
 MODELS_DIR = LITELLM_DIR / "models"
 
-IMAGE_REPOSITORY = "ghcr.io/skrumbach/litellm-pgvector"
 FALLBACK_ENV_NAMES = ("PG_VECTOR_API_KEY", "PG_VECTOR_API_BASE")
 
 
@@ -85,170 +73,9 @@ def one_doc(path: Path, kind: str) -> dict[str, Any]:
     return docs[0]
 
 
-# --- image tag -----------------------------------------------------------
-
-
-def build_context_files() -> list[Path]:
-    """Files git would ship in the build context (tracked + untracked-not-ignored)."""
-    out = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "."],
-        cwd=DOCKER_DIR,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.split("\n")
-    files = sorted({DOCKER_DIR / line for line in out if line})
-    return [f for f in files if f.is_file()]
-
-
-def upstream_commit(dockerfile_text: str) -> str:
-    match = re.search(r"^ARG LITELLM_PGVECTOR_COMMIT=([0-9a-f]{40})$", dockerfile_text, re.M)
-    require(match is not None, "Dockerfile: no full-SHA `ARG LITELLM_PGVECTOR_COMMIT=` pin")
-    return match.group(1)
-
-
-def image_tag(files: list[Path] | None = None) -> str:
-    """<upstream commit[:7]>-<sha256 over every context file's path and bytes>[:12]."""
-    files = build_context_files() if files is None else files
-    require(any(f.name == "Dockerfile" for f in files), "build context has no Dockerfile")
-    digest = hashlib.sha256()
-    for f in files:
-        rel = f.relative_to(DOCKER_DIR).as_posix().encode()
-        data = f.read_bytes()
-        digest.update(b"%d:%s\0%d:" % (len(rel), rel, len(data)))
-        digest.update(data)
-    commit = upstream_commit((DOCKER_DIR / "Dockerfile").read_text())
-    return f"{commit[:7]}-{digest.hexdigest()[:12]}"
-
-
 def helmrelease_container(hr: dict[str, Any]) -> dict[str, Any]:
     containers = hr["spec"]["values"]["controllers"]["litellm-pgvector"]["containers"]
     return containers["app"]
-
-
-def check_image(hr: dict[str, Any], expected_tag: str) -> str:
-    image = helmrelease_container(hr)["image"]
-    require(
-        image.get("repository") == IMAGE_REPOSITORY,
-        f"image repository {image.get('repository')!r} != {IMAGE_REPOSITORY!r}",
-    )
-    require(
-        image.get("tag") == expected_tag,
-        f"HelmRelease tag {image.get('tag')!r} but .github/docker/litellm-pgvector builds "
-        f"{expected_tag!r} - set values.controllers.litellm-pgvector.containers.app.image.tag "
-        f"to {expected_tag!r}",
-    )
-    return expected_tag
-
-
-def test_helmrelease_names_the_tag_the_build_context_produces() -> dict[str, Any]:
-    tag = check_image(one_doc(HELMRELEASE, "HelmRelease"), image_tag())
-    return {"tag": tag}
-
-
-def test_tag_changes_with_any_context_byte() -> dict[str, Any]:
-    files = build_context_files()
-    base = image_tag(files)
-    # Hash a mutated copy of the constraints file and prove the tag moves.
-    target = next(f for f in files if f.name == "constraints.txt")
-    original = target.read_bytes()
-    try:
-        target.write_bytes(original + b"\n# mutation\n")
-        mutated = image_tag(files)
-    finally:
-        target.write_bytes(original)
-    require(mutated != base, "tag did not change when constraints.txt changed")
-    require(image_tag(files) == base, "tag is not stable across two runs")
-    return {"base": base, "mutated": mutated}
-
-
-def build_workflow_steps() -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    wf = yaml.safe_load(BUILD_WF.read_text())
-    return wf, wf["jobs"]["build"]["steps"]
-
-
-def find_step(
-    steps: list[dict[str, Any]], *, id_: str | None = None, uses_prefix: str | None = None
-) -> dict[str, Any] | None:
-    for step in steps:
-        if id_ is not None and step.get("id") == id_:
-            return step
-        if uses_prefix is not None and str(step.get("uses", "")).startswith(uses_prefix):
-            return step
-    return None
-
-
-def run_command_lines(run_script: str) -> list[str]:
-    """Non-blank lines of a `run:` script that are not entirely a `#` comment."""
-    return [line.strip() for line in run_script.splitlines() if line.strip() and not line.strip().startswith("#")]
-
-
-def check_build_workflow(wf: dict[str, Any], steps: list[dict[str, Any]]) -> dict[str, Any]:
-    env = wf.get("env", {})
-    require(
-        env.get("IMAGE_NAME") == IMAGE_REPOSITORY.removeprefix("ghcr.io/"),
-        f"workflow env.IMAGE_NAME {env.get('IMAGE_NAME')!r} != {IMAGE_REPOSITORY.removeprefix('ghcr.io/')!r}",
-    )
-
-    tag_step = find_step(steps, id_="tag")
-    require(tag_step is not None, "no step with id: tag")
-    lines = run_command_lines(tag_step.get("run", ""))
-    require(
-        any("python3 scripts/ci/litellm-pgvector-test.py --print-tag" in line for line in lines),
-        "the tag step must run this script's --print-tag as a command, not just mention it in a comment",
-    )
-    require(
-        any("GITHUB_OUTPUT" in line and re.search(r"\btag=", line) for line in lines),
-        "the tag step must write its result to GITHUB_OUTPUT as 'tag'",
-    )
-
-    build_step = find_step(steps, uses_prefix="docker/build-push-action@")
-    require(build_step is not None, "no docker/build-push-action step")
-    with_ = build_step.get("with", {})
-    require(
-        with_.get("context") == ".github/docker/litellm-pgvector",
-        f"build-push context {with_.get('context')!r} != .github/docker/litellm-pgvector",
-    )
-    expected_tags = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}"
-    require(
-        with_.get("tags") == expected_tags,
-        f"build-push tags {with_.get('tags')!r} must be env.REGISTRY/env.IMAGE_NAME tagged with the tag step's output",
-    )
-    return {"image": f"{env.get('REGISTRY')}/{env.get('IMAGE_NAME')}"}
-
-
-def test_build_workflow_uses_this_algorithm() -> dict[str, Any]:
-    wf, steps = build_workflow_steps()
-    return check_build_workflow(wf, steps)
-
-
-def test_build_workflow_checker_refuses_wrong_wiring() -> dict[str, Any]:
-    wf, steps = build_workflow_steps()
-
-    wrong_tag = copy.deepcopy(steps)
-    find_step(wrong_tag, uses_prefix="docker/build-push-action@")["with"]["tags"] = (
-        "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-    )
-
-    commented_out = copy.deepcopy(steps)
-    find_step(commented_out, id_="tag")["run"] = (
-        "set -euo pipefail\n"
-        "# python3 scripts/ci/litellm-pgvector-test.py --print-tag\n"
-        'echo "tag=deadbeef" >> "$GITHUB_OUTPUT"\n'
-    )
-
-    refusals = {}
-    for label, mutated_steps in {
-        "build step tags a literal instead of the computed tag": wrong_tag,
-        "print-tag invocation only appears in a comment": commented_out,
-    }.items():
-        try:
-            check_build_workflow(wf, mutated_steps)
-        except Failure as exc:
-            refusals[label] = str(exc)
-        else:
-            raise Failure(f"checker accepted {label}")
-    return {"refused": sorted(refusals)}
 
 
 # --- vector width + embedding model -------------------------------------
@@ -555,14 +382,7 @@ def test_dbinit_env_checker_refuses_the_first_deploy_bug() -> dict[str, Any]:
 
 
 def main() -> int:
-    if sys.argv[1:] == ["--print-tag"]:
-        print(image_tag())
-        return 0
     tests = [
-        test_helmrelease_names_the_tag_the_build_context_produces,
-        test_tag_changes_with_any_context_byte,
-        test_build_workflow_uses_this_algorithm,
-        test_build_workflow_checker_refuses_wrong_wiring,
         test_embedding_width_and_model_agree,
         test_embedding_checker_refuses_upstream_width,
         test_embedding_model_retries_transient_400s,

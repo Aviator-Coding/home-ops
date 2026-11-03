@@ -11,7 +11,7 @@ CI globs `scripts/ci/*-test.py`. A new file needs no workflow edit. The
 per-file docstring is the inventory. `scripts/ci/README.md` points here.
 
 Setup when a test shells out or imports litellm: the `.mise.toml` venv, then
-`uv pip install python-hcl2 "litellm[proxy]"` at the version `validate.yaml`
+`uv pip install python-hcl2 "litellm[proxy]"` at the version `tests.yaml`
 pins, and `PATH` with `mise bin-paths` plus the venv `bin` first.
 
 ## Before you change a value
@@ -28,9 +28,8 @@ pins, and `PATH` with `mise bin-paths` plus the venv `bin` first.
    the limit). `request == limit` is allowed where there is no headroom.
 
 Leave `talos-renovate-pin-test.py::test_no_live_version_bump` as it is. It
-freezes `.github/docker/talosctl-busybox/Dockerfile` and
-`tuppr/upgrades/talosupgrade.yaml` for one historical reason, and it parses
-`ARG TALOS_VERSION=vX.Y.Z`. That default is a Renovate canary. Relaxing the
+freezes
+`tuppr/upgrades/talosupgrade.yaml` for one historical reason. Relaxing the
 gate to land an edit removes the canary.
 
 ## Docs and comments

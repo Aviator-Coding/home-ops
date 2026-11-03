@@ -32,7 +32,7 @@ test exists. For each prefix:
 Checks 1-5 are asserted structurally on the kustomize-rendered CR AND
 semantically by registering the rendered entries through LiteLLM's own
 `_register_pass_through_endpoint` and driving its own RouteChecks (litellm is
-pinned to the cluster image version by validate.yaml). The semantic checks are
+pinned to the cluster image version by tests.yaml). The semantic checks are
 then re-run against mutated copies (auth dropped, order swapped, catch-all
 removed) to prove each one can fail.
 

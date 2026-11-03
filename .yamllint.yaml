@@ -1,5 +1,5 @@
 ---
-# Standard YAML lint, run by the pre-commit `yamllint` hook and the validate.yaml `lint` job
+# Standard YAML lint, run by the pre-commit `yamllint` hook and the ci.yaml `lint` job
 # (`yamllint -s .`). Tightened only as far as the tree passes.
 extends: relaxed
 
@@ -13,4 +13,3 @@ ignore: |
   *.j2
   *.gotmpl
   **/templates/**
-  .github/docker/**

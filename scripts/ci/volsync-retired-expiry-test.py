@@ -396,9 +396,8 @@ def test_applier_is_dry_run_by_default_and_covers_all_destinations() -> None:
     """Execute apply_lifecycle.py's real main() and prove the safety gate behaviourally.
 
     boto3 is imported unconditionally by apply_lifecycle.py's main(); it is not a
-    hypothetical here, it is a transitive dependency of `litellm[proxy]`, which
-    `validate.yaml`'s python-tests job already installs for every other test in
-    this file's own suite. No network call is made - the S3 client is faked.
+    hypothetical here: `ci.yaml`'s gate-tests job installs boto3 for this file.
+    No network call is made - the S3 client is faked.
     """
     if not APPLIER.is_file():
         raise Failure("apply_lifecycle.py missing")

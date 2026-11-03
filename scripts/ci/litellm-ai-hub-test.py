@@ -18,7 +18,7 @@ Checks, each proven able to fail by the mutations at the end:
   3. Every registered model is either published or one of those three, so a
      new LiteLLMModel cannot silently miss the Hub - its author has to decide.
   4. Rendered through LiteLLM's own Router (pinned to the cluster image by
-     validate.yaml), every published group has a provider, and every
+     tests.yaml), every published group has a provider, and every
      in-cluster (local) model also has a mode and a context window. LiteLLM's
      cost map cannot resolve a local llama.cpp model, so a local LiteLLMModel
      without an `info` block publishes a blank row - the defect this test was

@@ -4,7 +4,7 @@ Two workflows, two strengths.
 
 | Workflow | What it does |
 |---|---|
-| `validate.yaml` terraform job, `scripts/ci/tofu-validate.sh` | `tofu fmt -check` and `tofu validate -backend=false`. No credentials. Cannot tell a destructive plan from a safe one |
+| `ci.yaml` terraform job, `scripts/ci/tofu-validate.sh` | `tofu fmt -check` and `tofu validate -backend=false`. No credentials. Cannot tell a destructive plan from a safe one |
 | `terraform-diff.yaml` | On same-repo PRs that touch `terraform/**`: real `tofu init` and `tofu plan -lock=false`, plan posted as a comment |
 
 `terraform-diff` runs on `gha-runner-scale-set-skrumbach-home-ops` because
