@@ -26,7 +26,7 @@
 - Every new or edited manifest keeps its first-line `# yaml-language-server: $schema=...` comment, using `kubernetes-schemas.pages.dev`.
 - Agents never merge, never run cluster writes, never change rulesets/labels/settings through `gh api`. Steps marked **OWNER** are run by the owner, or by an agent only after the owner's explicit go-ahead in that moment.
 - Before deleting any skill text or `scripts/ci` test, add its row to `docs/goals/knowledge-ledger.md` (verdict `enforce` / `keep` / `archive`). Data-loss/outage rows are never `archive`.
-- At most 2 open agent PRs at a time.
+- No cap on open agent PRs.
 - Local gate before every PR: `for t in scripts/ci/*-test.py; do python3 "$t" || echo "FAILED $t"; done` (shows no `FAILED` except the known `.claude/skills` symlink failure until Task 4 lands) and `flate test all --path kubernetes/clusters/main --no-progress` when `kubernetes/**` changed.
 - After merge: watch affected Flux objects until Ready (spec §5 step 7); a breaking merge gets a revert PR first.
 

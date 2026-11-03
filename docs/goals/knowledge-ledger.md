@@ -354,7 +354,7 @@ Verdicts:
 | `.agents/skills/observability/SKILL.md` §Where things live | Path table for Alertmanager, Gatus, kube-prometheus-stack and Grafana. | neither |  |  |
 | `.agents/skills/observability/SKILL.md` §Procedures | Links to the rule-traps, Alertmanager, Gatus and scrape-target references. | neither |  |  |
 | `.agents/skills/observability/SKILL.md` §Verify | Runs the docs-budget and doc-links tests and checks each rule expression against live Prometheus. | neither |  |  |
-| `.agents/skills/plan-task/SKILL.md` §Before planning | Checks the open agent PR limit of two and the owner-approval step before planning. | neither |  |  |
+| `.agents/skills/plan-task/SKILL.md` §Before planning | Checks the owner-approval step before planning. | neither |  |  |
 | `.agents/skills/plan-task/SKILL.md` §Risk tier | Forecasts the PR's risk tier from its planned paths with risk_tier.py. | neither |  |  |
 | `.agents/skills/plan-task/SKILL.md` §The plan comment | Template for the plan comment posted on the issue. | neither |  |  |
 | `.agents/skills/plan-task/SKILL.md` §Plan | Lists tier, implementer and reviewer tiers, approach, files and rollback in the plan. | neither |  |  |

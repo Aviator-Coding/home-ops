@@ -72,8 +72,7 @@ advisory tests your paths touch too. Put the result summary in the PR body.
    (run `--dry-run` first): it merges only when every check holds and says why when not.
    `risk:high`, Renovate minor/major, agent-steering and merge-gate changes are the owner's.
 5. Need to prove CI goes red? Use a separate draft PR titled "DO NOT MERGE" and close it
-   yourself; never push a breaking commit to a PR the owner may merge. The draft counts toward
-   the 2-open-PR limit.
+   yourself; never push a breaking commit to a PR the owner may merge.
 6. Update a pushed branch with `git merge origin/main`, never rebase plus force-push.
 
 ## After merge
@@ -85,7 +84,6 @@ flux get ks -A | grep -v True; flux get hr -A | grep -v True; flux get sources a
 kubectl -n <ns> get pods -o wide
 ```
 
-If the merge broke something, open a **revert PR first** (it counts toward the 2-PR
-limit, and a `risk:high` revert still needs the owner's merge); a forward fix waits until
+If the merge broke something, open a **revert PR first** (a `risk:high` revert still needs the owner's merge); a forward fix waits until
 the revert merges. Then close the issue, and put the goal checkbox tick and any §8
 evidence row in a later `risk:low` docs PR.

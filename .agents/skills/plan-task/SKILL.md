@@ -1,6 +1,6 @@
 ---
 name: plan-task
-description: "Read before starting any GitHub issue or owner request that changes the repo. Covers the risk tier from planned paths, the 2-open-PR limit, the plan format, and stopping for owner approval on risk:high. Workflow step 1-2 of docs/goals/2026-10-30-agent-maintainable-home-ops.md §5."
+description: "Read before starting any GitHub issue or owner request that changes the repo. Covers the risk tier from planned paths, the plan comment format, and stopping for owner approval on risk:high. Workflow step 1-2 of docs/goals/2026-10-30-agent-maintainable-home-ops.md §5."
 ---
 
 # Plan a task
@@ -12,10 +12,9 @@ This skill is the checklist for steps 1 and 2. Then use `implement-task`.
 
 ## Before planning
 
-1. **Capacity.** At most 2 open agent PRs. Count them:
-   `gh pr list --author @me --state open --json number,title`. Until agents have their own
-   identity (goal task 2.6) this also lists the owner's PRs; count only yours. At 2, stop and
-   report; read-only investigation is fine, opening a third PR is not.
+1. **Capacity.** No cap on open agent PRs. List yours with
+   `gh pr list --author @me --state open --json number,title` and keep PRs independent so
+   they can merge in any order.
 2. **Boundaries.** If the task needs a cluster write, a ruleset/label/settings change via
    `gh api`, retiring an app, changing a backup, or merging Renovate config, it needs the
    owner's go-ahead in that moment. Plan it as an **OWNER** step; never do it yourself.
@@ -61,6 +60,5 @@ Show it to the owner in the session; a run with no live session puts it in the P
 ## Splitting
 
 One task, one branch, one PR. If the plan needs two tiers or two subsystems that can merge
-independently, split it into two PRs. Goal checkbox ticks and §8 evidence rows that can
-only be written after the merge go in a later `risk:low` docs PR (it counts toward the
-2-PR limit).
+independently, split it into two issues. Goal checkbox ticks and §8 evidence rows that can
+only be written after the merge go in a later `risk:low` docs PR.

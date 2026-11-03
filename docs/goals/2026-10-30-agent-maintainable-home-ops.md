@@ -68,8 +68,7 @@ digests and patches, and keep 1 to 3 skills.
 - Rules live where any agent can read them: `AGENTS.md`, `.agents/`, issue templates,
   labels and CI. Nothing in the workflow depends on Claude-only config, so Hermes can
   run the same loop.
-- At most 2 open agent PRs at a time. The next task starts only after one merges or
-  closes.
+- No cap on open agent PRs; keep them independent.
 - The running stack stays as it is.
 
 ### Enforced, not just written
