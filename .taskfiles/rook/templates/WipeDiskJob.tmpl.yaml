@@ -21,7 +21,7 @@ spec:
       containers:
         - name: main
           # Pin to the same cephImage.tag as cluster/helmrelease.yaml (Tentacle).
-          image: quay.io/ceph/ceph:v20.2.4
+          image: quay.io/ceph/ceph:v20.2.5
           command: ["/bin/bash", "-c"]
           args:
             - |

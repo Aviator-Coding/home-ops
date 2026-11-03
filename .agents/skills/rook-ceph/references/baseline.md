@@ -6,10 +6,10 @@ Re-read the HelmRelease and `ceph config dump` before quoting a number. The old 
 
 | Layer | Value | Where |
 |---|---|---|
-| Rook operator | `ghcr.io/rook/ceph:v1.20.7` | operator deploy image; chart tag in `operator/ocirepository.yaml` |
-| Ceph | `quay.io/ceph/ceph:v20.2.4` (20.2.4 tentacle) | `cephImage.tag`; toolbox image matches |
-| Talos | v1.14.4, kernel `6.18.51-talos` | `kubectl get nodes`; tuppr `TalosUpgrade` and `machineconfig.yaml.j2` installer pin match |
-| Kubernetes | v1.36.5 | kubelet and control-plane images in `machineconfig.yaml.j2` |
+| Rook operator | `ghcr.io/rook/ceph:v1.20.9` | operator deploy image; chart tag in `operator/ocirepository.yaml` |
+| Ceph | `quay.io/ceph/ceph:v20.2.5` (20.2.5 tentacle) | `cephImage.tag`; toolbox image matches |
+| Talos | v1.14.5, kernel `6.18.58-talos` | `kubectl get nodes`; tuppr `TalosUpgrade` and `machineconfig.yaml.j2` installer pin match |
+| Kubernetes | v1.36.6 | kubelet and control-plane images in `machineconfig.yaml.j2` |
 
 `CONFIG_CEPH_FS`, `CONFIG_BLK_DEV_RBD` and `CONFIG_CEPH_LIB` are built-in on this kernel. Do not add a `machine.kernel.modules` entry for `rbd`.
 
@@ -38,7 +38,7 @@ Once a cap is set the OSD logs `Skip OSD benchmark test` and will not re-bench u
 
 `ceph config dump` (who column), not `ceph config get`.
 
-In Git and live: `osd_mclock_profile=high_client_ops`, `osd_recovery_max_active=3`, the six per-OSD caps, `rgw_sigv4_insecure=true`, `osd_memory_target=10737418240`.
+In Git and live: `osd_mclock_profile=high_client_ops`, `osd_recovery_max_active=3`, the six per-OSD caps, `rgw_sigv4_insecure=false`, `osd_memory_target=10737418240`.
 
 Live, not in Git (left by old `ceph config set`; Rook will not delete them):
 

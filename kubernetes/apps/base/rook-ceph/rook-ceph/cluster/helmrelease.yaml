@@ -95,9 +95,9 @@ spec:
           # Explicitly set realm to prevent orphan default zone/zonegroup creation
           rgw_realm: ceph-objectstore
 
-          # Keep true until a Tentacle image carrying ceph/ceph#71192 lands in the same commit, then prove unsigned content-type PUT 200 and unsigned x-amz-* 403.
-          # See skill rook-ceph.
-          rgw_sigv4_insecure: "true"
+          # false restores the CVE-2026-54330 x-amz-* check. v20.2.5 carries ceph/ceph#71192, so unsigned content-type PUTs pass.
+          # Keep the key: Rook does not delete a removed cephConfig key from the mon DB. See skill rook-ceph.
+          rgw_sigv4_insecure: "false"
       security:
         cephx:
           # Daemon keys are aes256k at generation 2. Next rotation sets keyGeneration to current+1. csi stays aes (kernel < 7.0).
@@ -129,7 +129,7 @@ spec:
             enabled: true
           - name: pg_autoscaler
             enabled: true
-          # Stays off until a Tentacle release ships rook/rook#18124 and ceph/ceph#71041 plus #71180. See skill rook-ceph.
+          # Stays off. No consumer of the Rook orchestrator; the v20.2.5 crash fixes are not a reason to enable it. See skill rook-ceph.
           - name: rook
             enabled: false
           # Stays off. It crash-reports through the disabled rook orchestrator. Re-enable only with that module. See skill rook-ceph.

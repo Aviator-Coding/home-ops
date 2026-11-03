@@ -6,19 +6,19 @@ Each one is a property of the current manifests. Git history holds the incident 
 
 `cephClusterSpec.security.cephx.daemon` is `keyType: aes256k`, `keyRotationPolicy: KeyGeneration`. Live status: osd and mgr report `keyType: aes256k` at `keyGeneration: 2`. `csi` is still `keyGeneration: 1` on Ceph 19.2.3 with no `aes256k`.
 
-- Never set `security.cephx.csi.keyType: aes256k`. The `csi-*` keys are used by krbd and the CephFS kernel client. `aes256k` needs Linux >= 7.0. Talos 1.14.1 ships kernel 6.18.51. Rotating those keys breaks every RBD map and CephFS mount.
+- Never set `security.cephx.csi.keyType: aes256k`. The `csi-*` keys are used by krbd and the CephFS kernel client. `aes256k` needs Linux >= 7.0. Talos 1.14.5 ships kernel 6.18.58. Rotating those keys breaks every RBD map and CephFS mount.
 - `keyGeneration` is CRD-validated `self >= oldSelf`. Removing the block does not un-rotate. Rollback only stops the next rotation.
 - `keyType` is pruned by a CRD older than Rook 1.20.5. Applying an `aes256k` rotation on an older Rook silently burns a generation as an `aes` rotation. Read `kubectl -n rook-ceph get cephcluster rook-ceph -o jsonpath='{.status.cephx}'` before bumping the generation.
 - Residual health: `AUTH_INSECURE_*` client-key warnings can be muted while the cluster is `HEALTH_OK`. That mute is the csi keys still on `aes`, not a reason to rotate them.
 - Next daemon rotation: set `keyGeneration` to current+1. A same-type csi generation bump is a separate change and needs `keepPriorKeyCountMax` for a soft cutover.
 
-## SigV4 and the quay.io/ceph automerge hole (PR #1401)
+## SigV4 and the quay.io/ceph automerge hole (PR #1401, flag cleared on v20.2.5)
 
-`cephConfig.client.rgw.rgw_sigv4_insecure: "true"` is load-bearing on v20.2.4. That release's CVE-2026-54330 fix rejects any header absent from `SignedHeaders` and wrongly requires `content-type` to be signed. minio-go's streaming signer never signs `content-type`, so every minio-go and restic `PutObject` returns 403 while GET and HEAD keep working. Ceph stays `HEALTH_OK`. The access-log line is `op=put_obj` `http_status=403` with the user unresolved (`-`).
+`cephConfig.client.rgw.rgw_sigv4_insecure` is explicitly `"false"`. v20.2.4's CVE-2026-54330 fix rejected any header absent from `SignedHeaders` and wrongly required `content-type` to be signed. minio-go's streaming signer never signs `content-type`, so every minio-go and restic `PutObject` returned 403 while GET and HEAD kept working, with Ceph `HEALTH_OK`. The access-log line is `op=put_obj` `http_status=403` with the user unresolved (`-`). PR #1401 set the flag to `"true"`, which also disabled the `x-amz-*` check that is the real CVE mitigation.
 
-The flag also disables the `x-amz-*` check that is the real CVE mitigation. Remove it only together with a `cephImage.tag` bump to a Tentacle build that contains ceph/ceph#71192, then prove an unsigned `content-type` PUT returns 200 and an unsigned `x-amz-*` header returns 403.
+v20.2.5 contains ceph/ceph#71192 (Tentacle backport #71364), so the flag went back to `"false"`. Keep the key rather than deleting it: Rook only sets `cephConfig` keys and does not remove a dropped key from the mon DB. Proof on a change: an unsigned `content-type` PUT returns 200 and an unsigned `x-amz-*` header returns 403. If a future Ceph image brings the PUT 403s back, setting `"true"` again is the stop-gap, not a fix.
 
-`quay.io/ceph/ceph` is not in the Rook chart group and has no `automerge: false` rule. `.renovate/overrides.json5` only limits it to stable `x.2.z` tags (`/^v?\d+\.2\.\d+$/`). Do not put that regex on `ghcr.io/rook/ceph`. Branch automerge is closed (`automergeType` is Renovate's default `pr`). The hole that remains: the generic "auto merge patch updates" rule still matches this image, so v20.2.4 to the next stable patch can merge a green PR and leave `rgw_sigv4_insecure: "true"` in place. A Ceph image bump is not done until the flag decision is in the same commit. Adding a never-automerge rule is a `.renovate/**` edit (skill `renovate`); do not fold it into an unrelated Rook PR, and do not merge a Renovate config change without suspending the GitHub Actions Renovate workflow first.
+`quay.io/ceph/ceph` is not in the Rook chart group and has no `automerge: false` rule. `.renovate/overrides.json5` only limits it to stable `x.2.z` tags (`/^v?\d+\.2\.\d+$/`). Do not put that regex on `ghcr.io/rook/ceph`. Branch automerge is closed (`automergeType` is Renovate's default `pr`). The generic "auto merge patch updates" rule still matches this image, so a stable patch can merge on green CI, and CI does not exercise RGW PUTs. After a Ceph bump, check the RGW log for `PUT` status codes. `.taskfiles/rook/templates/WipeDiskJob.tmpl.yaml` pins the same tag and is not Renovate-tracked; bump it by hand. Adding a never-automerge rule is a `.renovate/**` edit (skill `renovate`); do not fold it into an unrelated Rook PR, and do not merge a Renovate config change without suspending the GitHub Actions Renovate workflow first.
 
 ## Reclaim
 
@@ -33,7 +33,7 @@ The flag also disables the `x-amz-*` check that is the real CVE mitigation. Remo
 
 ## Modules, pools, classes
 
-- Mgr modules `rook` and `nfs` stay disabled. `rook` crash-loops through the Tentacle prometheus mgr module (`rook/rook#18124`, `ceph/ceph#71041`, `ceph/ceph#71180`). Re-enable it only when a Tentacle release ships those fixes. `nfs` crash-reports through that same orchestrator and has no consumer. Re-enable `nfs` only together with `rook`.
+- Mgr modules `rook` and `nfs` stay disabled. On v20.2.3 `rook` crash-looped through the prometheus mgr module (`rook/rook#18124`, closed stale, unfixed in Rook). v20.2.5 ships the Ceph-side fixes (`ceph/ceph#71041`, `#71180` via backport `#72275`), so enabling is possible, but nothing here consumes the orchestrator. Enable it only for a consumer, and watch `ceph crash ls-new` after. `nfs` has no consumer and needs `rook`; enable both together or neither.
 - The mgr dashboard stays removed (PR #1394). Do not re-enable it to satisfy a Gatus check that was pointed at a dead Service.
 - No `deviceClass` on pool `data0`. All OSDs are one class. A deviceClass put data0 on a shadow CRUSH root while every other pool used the default root, and the autoscaler then skipped every pool.
 - StorageClass parameters are immutable. Changing one means a new class and a migrate, not a helm values edit. `ceph-block` still says `compression_mode: aggressive`. That tags new RBD images only. The pool's `compression_mode: none` is what governs. Do not edit the class to match the pool.
