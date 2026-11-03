@@ -14,7 +14,6 @@ Runner below is the `runs-on` value in the file. The table in
 | `labeler.yaml` | `ubuntu-latest` | Path labels. The only required check. Skill [branch-protection.md](branch-protection.md) |
 | `label-sync.yaml` | `ubuntu-latest` | Sync labels from `.github/labels.yaml`. Deletes labels absent from the file |
 | `renovate.yaml` | `ubuntu-latest` | Rollback writer. Schedule commented out. `push` on Renovate config still fires. Skill `renovate` |
-| `ai-pr-review.yaml` | home-ops scale set | Advisory comment. Never a required check. Skill `litellm-proxy` |
 | `tag.yaml` | `ubuntu-latest` | Monthly CalVer tag plus release, through the bot App token |
 
 ## validate.yaml

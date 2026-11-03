@@ -35,8 +35,7 @@ the contexts have posted at least once. Until then, Labeler alone is the merge
 gate.
 
 `terraform-diff.yaml` still trigger-filters on `terraform/**`. A bad Terraform
-change is still seen by `validate.yaml`'s terraform job. `ai-pr-review.yaml`
-stays off the ruleset: it is advisory.
+change is still seen by `validate.yaml`'s terraform job.
 
 ## platformAutomerge
 

@@ -58,8 +58,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.filter.outputs.pythontests != '[]' }}
     needs: filter
     name: python-tests-advisory
-    # Advisory: never blocks a PR. Owner decision 2026-10-31
-    # (docs/goals/2026-10-30-agent-maintainable-home-ops.md). P3 keeps or deletes each test.
+    # Advisory: never blocks a PR.
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 20

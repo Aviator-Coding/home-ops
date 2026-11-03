@@ -63,13 +63,10 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
     from `externalsecret.yaml` while a model names it downs the whole proxy.
 13. **`litellm-dragonfly` is required**: without it limits and budgets are
     per worker and overshoot, even with `replicas: 1`.
-14. **The AI PR reviewer is advisory** (never a required check, never
-    `auto`; its own check fails only when the Jev gate finds a blocker), and rotating its key has a second, silent GitHub-secret step.
-    [pr-reviewer.md](references/pr-reviewer.md)
-15. **Never call `GET /spend/logs` without a filter** (it OOM-killed the
+14. **Never call `GET /spend/logs` without a filter** (it OOM-killed the
     proxy), and never zero historical spend to make a number look clean.
     [spend-logs.md](references/spend-logs.md)
-16. **Vector store: one model, one width** (`qwen/qwen3-embedding-8b` at
+15. **Vector store: one model, one width** (`qwen/qwen3-embedding-8b` at
     2000 dims), registry under `extraConfig`, and never export
     `PG_VECTOR_API_KEY`. [vector-store.md](references/vector-store.md)
 
@@ -87,7 +84,6 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 | Vector-store server | `kubernetes/apps/base/ai/litellm-pgvector/app/` |
 | Flux overlays | `kubernetes/apps/main/ai/litellm{,-operator,-pgvector}.yaml` |
 | Authentik OIDC provider | `terraform/authentik/litellm.tofu` (skill `authentik-terraform`) |
-| AI PR reviewer | `.github/workflows/ai-pr-review.yaml`, `.github/ai-review-rules.md` |
 | Human runbooks | `kubernetes/apps/base/ai/litellm/README.md` (prerequisites), [claude-code-subscription.md](references/claude-code-subscription.md) (client setup), [spend-logs.md](references/spend-logs.md) (reading request logs) |
 | CI gates | `scripts/ci/litellm-*-test.py` |
 

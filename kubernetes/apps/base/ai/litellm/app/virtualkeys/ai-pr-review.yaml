@@ -1,7 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmvirtualkey_v1alpha1.json
 # The AI PR reviewer's key. Also hand-copied into the GitHub secret LITELLM_PR_REVIEW_KEY, so rotation
-# has a second, silent step. Never give it auto. Skill litellm-proxy (references/pr-reviewer.md).
+# has a second, silent step. Never give it auto. Skill litellm-proxy.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMVirtualKey
 metadata:

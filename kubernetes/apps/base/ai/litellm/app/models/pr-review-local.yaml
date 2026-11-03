@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
 # The AI PR reviewer's alias: zero-priced, terminal (no cloud fallback), thinking off because the
 # action parses `content`. Never point the reviewer at chat-local or the classifier.
-# See skill litellm-proxy (references/pr-reviewer.md).
+# See skill litellm-proxy.
 apiVersion: litellm.home-operations.com/v1alpha1
 kind: LiteLLMModel
 metadata:
