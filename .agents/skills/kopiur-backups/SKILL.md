@@ -31,7 +31,10 @@ Comments that name an older tag are stale.
    `ssa: IfNotPresent` and must never carry `force: enabled`. `force` deletes
    the volume. `KOPIUR_CAPACITY` is create-time-only on a bound claim; grow
    with `kubectl patch`, and keep Git equal to the live size because a rebuild
-   provisions the Git value.
+   provisions the Git value. Only `components/kopiur/pvc` reads
+   `KOPIUR_CAPACITY`; an overlay that includes just `components/kopiur` (wizarr)
+   has an app-owned claim sized in its own `persistence` block, so the variable
+   is inert there.
 3. **Mover identity is measured from the files**, not from `runAsUser`.
    `KOPIUR_PUID` / `KOPIUR_PGID` default to 1000. A mismatch fails the backup
    closed (read-only staging, no `fsGroup` fixup). Authoritative table:

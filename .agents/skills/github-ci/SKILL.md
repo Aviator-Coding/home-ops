@@ -28,9 +28,7 @@ CI signal for `talos/`, `bootstrap/`, `.renovate/` and credential-less
    and `docker run` fail on `gha-runner-scale-set-skrumbach-home-ops`.
    [arc-runners.md](references/arc-runners.md)
 4. **A red `image-pull` that passes on rerun is ARC pool contention.** Each runner
-   gets a 20Gi emptyDir work volume (was a `ceph-block` PVC until 2026-11-02). Rerun. A red **AI review** means
-   it found a named blocker; a rerun replays the same verdict, so fix the line or push a
-   commit. Do not
+   gets a 20Gi emptyDir work volume (was a `ceph-block` PVC until 2026-11-02). Rerun. Do not
    move Flate or Validate back onto ARC: `CI Success` must report while the
    cluster is down (`ci-success-workflow-test.py`).
 5. **`jdx/mise-action` `install_args` names the tool only.** A `@version` pin
