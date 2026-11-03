@@ -63,7 +63,6 @@ Verdicts:
 
 | Source | Fact or invariant | Prevents | Verdict | Lands in |
 |---|---|---|---|---|
-| `scripts/ci/agent-guard-test.py` | Blocks owner-only cluster, Talos, Terraform and GitHub-settings writes by agents, including through wrappers. | neither |  |  |
 | `scripts/ci/ai-review-gate-test.py` | The AI review gate blocks at the threshold and returns no decision on refusal or a missing answer. | neither |  |  |
 | `scripts/ci/alert-coverage-gaps-test.py` (# ci: gate) | Backup-age, WAL-archiver and vanished-kopiur-policy alerts are promtool-valid and can actually fire. | data loss |  |  |
 | `scripts/ci/b70-bench-harness-test.py` | The B70 depth sweep and compare helpers produce labelled, side-by-side results. | neither | keep | `.agents/skills/b70-llm-serving/SKILL.md` "Where things live" (harness, `--label` and `b70-compare.py` already listed) |

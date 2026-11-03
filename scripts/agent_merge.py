@@ -2,8 +2,7 @@
 """Merge a risk:low or risk:normal PR for an agent (owner decision 2026-10-31, goal §3 and §5).
 
 risk:high, Renovate minor/major bumps, agent-steering files and the merge gate's own files
-stay with the owner. Direct `gh pr merge` stays denied to agents (.claude/settings.json,
-.claude/hooks/guard.py). This is a policy check, not a security boundary: it runs on the
+stay with the owner. Direct `gh pr merge` is no longer denied in .claude/settings.json. This is a policy check, not a security boundary: it runs on the
 agent's machine with the owner's token. The boundary is task 2.6 (bot identity) plus the ruleset.
 
     scripts/agent_merge.py <pr> [--dry-run]

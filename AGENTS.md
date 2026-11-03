@@ -115,7 +115,7 @@ just talos apply-node talos-1      # Apply config (node names, not IPs)
 for t in scripts/ci/*-test.py; do python3 "$t"; done   # CI gates, including docs-budget
 ```
 
-Agents run with read-only credentials, and `.claude/hooks/guard.py` blocks owner-only commands (`is_blocked()` is reusable by other harnesses). Owner writes: `HOME_OPS_KUBECONFIG=~/.kube/home-ops-admin HOME_OPS_TALOSCONFIG=~/.talos/home-ops-admin <command>`, in a shell that never starts an agent (the guard refuses to run when they are set). Setup and renewal: `scripts/agent-credentials.sh` header.
+Agents run with read-only credentials. Owner writes: `HOME_OPS_KUBECONFIG=~/.kube/home-ops-admin HOME_OPS_TALOSCONFIG=~/.talos/home-ops-admin <command>`, in a shell that never starts an agent. Setup and renewal: `scripts/agent-credentials.sh` header.
 
 Debugging: `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide`, `kubectl get snapshotpolicy,restore -A`. `kubeconfig` and `talos/talosconfig` stay gitignored for DR bootstrap only; `.private/` is local-only.
 
