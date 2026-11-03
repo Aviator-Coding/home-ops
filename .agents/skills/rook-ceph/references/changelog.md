@@ -20,5 +20,6 @@ Current config: [baseline.md](baseline.md). Emergency steps, RGW realm/zone, slo
 | OSD memory request 14Gi to 12Gi. Limit stays 14Gi. OSDs stay Burstable. | [#1736](https://github.com/skrumbach/home-ops/pull/1736) |
 | Operator memory limit set explicitly. `limits: {}` does not clear the chart's 512Mi. | [#1751](https://github.com/skrumbach/home-ops/pull/1751) |
 | Fourth RWX claim is `ai/pvc` `shared-files`, beside shared-downloads, tdarr and shared-xml. | [#1720](https://github.com/skrumbach/home-ops/pull/1720) |
+| `placement.all` tolerates `tuppr.home-operations.com/outdated`. A Failed TalosUpgrade kept that taint on every node, so Rook skipped all OSD updates on the v20.2.5 bump (#2240). | this PR |
 
 Mon-DB drift that is live and not in Git: `osd_max_backfills=1`, `osd_mclock_override_recovery_settings=true`, `osd_recovery_sleep_ssd=0.05`. A destroyed OSD can leave a `who=osd.N` key; `ceph config get` on a missing id returns the built-in default. The historical `osd.1` mclock override is not in the dump.
