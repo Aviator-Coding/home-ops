@@ -1,6 +1,6 @@
 ---
 name: rook-ceph
-description: "Read before editing kubernetes/apps/base/rook-ceph/**, a Ceph tunable, CephX keys, RGW/S3 settings, a Rook or Ceph version bump, or a storage class choice, and when triaging Ceph health, slow ops or an OSD that will not start. Covers GitOps-only config, the temporary rgw_sigv4_insecure flag, csi keys staying aes, the broken csi CephFS group, and rbd du --exact."
+description: "Read before editing kubernetes/apps/base/rook-ceph/**, a Ceph tunable, CephX keys, RGW/S3 settings, a Rook or Ceph version bump, or a storage class choice, and when triaging Ceph health, slow ops or an OSD that will not start. Covers GitOps-only config, rgw_sigv4_insecure staying false, csi keys staying aes, the broken csi CephFS group, and rbd du --exact."
 ---
 
 # Rook-Ceph: cluster config, CephX, RGW and OSD health
@@ -10,7 +10,7 @@ Rook is the only writer of Ceph config. A green `ceph status` does not mean RGW 
 ## Tripwires
 
 1. **GitOps only.** Change tunables in `cluster/helmrelease.yaml` `cephConfig`. Never `ceph config set` or `ceph auth` by hand. Before trusting a number, diff `ceph config dump` against that file. Three live keys are mon-DB drift, not Git: `osd_max_backfills=1`, `osd_mclock_override_recovery_settings=true`, `osd_recovery_sleep_ssd=0.05`. A destroyed OSD can also leave a `who=osd.N` row; `ceph config get` on a missing id returns the built-in default and looks like a stored key. Use the dump's who column. [baseline.md](references/baseline.md)
-2. **`rgw_sigv4_insecure: "true"` stays until the image bump that removes it.** Ceph v20.2.4 rejects minio-go PUTs (unsigned `content-type`) while GET/HEAD still succeed, so `HEALTH_OK` does not clear RGW. Clear the flag only in the same change as a Tentacle image that contains ceph/ceph#71192. `quay.io/ceph/ceph` has no never-automerge rule: a stable `x.2.z` patch still matches the generic patch automerge and can merge a green PR while leaving the flag set. [decisions.md](references/decisions.md)
+2. **`rgw_sigv4_insecure` stays explicitly `"false"`.** `"true"` disables the CVE-2026-54330 `x-amz-*` check. It was set only for v20.2.4, which rejected minio-go PUTs (unsigned `content-type`) while GET/HEAD still succeeded, so `HEALTH_OK` does not clear RGW. Do not delete the key: Rook leaves a removed `cephConfig` key in the mon DB. After any Ceph bump, check RGW logs for `PUT` 200. [decisions.md](references/decisions.md)
 3. **`security.cephx.csi` stays `aes`.** Kernel clients need Linux >= 7.0; these nodes run 6.18.x. Only `daemon` is on `aes256k`. `keyGeneration` only increases. A CRD older than Rook 1.20.5 prunes `keyType` and burns a generation on an `aes` rotation.
 4. **New RWX claims use `ceph-filesystem-rwx` (group `csi-rwx`).** The default `csi` subvolumegroup still returns `EINVAL` on create/getpath. Do not delete the `csi-rwx` CR because the image is past v20.2.2.
 5. **Judge reclaim with `rbd du --exact`.** Plain `rbd du` counts 4 MiB objects that still exist after 64 KiB discards. `mountOptions: [discard]` on `ceph-block` stays off. Weekly `fstrim` reaches mounted claims only.

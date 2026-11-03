@@ -109,5 +109,5 @@ Parquet files were reproducible test data with no offsite copy.
   ```
 
   `URL_STYLE 'path'` is required (RGW has no `rgw_dns_name`). Connect to Postgres directly,
-  not through a pooler. `rgw_sigv4_insecure` must stay set until the Ceph bump that removes
-  it (skill `rook-ceph`). TLS and the alt name: [cnpg.md](cnpg.md#tls).
+  not through a pooler. If PUTs 403 after a Ceph bump, see `rgw_sigv4_insecure`
+  in skill `rook-ceph`. TLS and the alt name: [cnpg.md](cnpg.md#tls).
