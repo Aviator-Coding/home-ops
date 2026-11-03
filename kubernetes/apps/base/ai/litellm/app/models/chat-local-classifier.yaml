@@ -20,7 +20,7 @@ spec:
       extra_body:
         chat_template_kwargs:
           enable_thinking: false
-  # Hub metadata only; keep identical on all five aliases.
+  # Hub metadata only; keep identical on all four aliases.
   info:
     mode: chat
     maxInputTokens: 262144

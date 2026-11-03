@@ -31,7 +31,7 @@ Otherwise one B70 hiccup turns every local-only key into a cloud spender.
 
 Terminal, and must stay so (CI: `scripts/ci/litellm-fallback-chain-test.py`,
 and `chat_local_has_no_cloud_fallback` in `litellm-auto-router-test.py`): `demo-priced-local`, `chat-local`,
-`chat-local-classifier`, `pr-review-local`, `embedding-local`, and the
+`chat-local-classifier`, `embedding-local`, and the
 four subscription pass-through models.
 
 - Targets must be the **`-metered`** CRs. The natural `claude-sonnet-5` is the

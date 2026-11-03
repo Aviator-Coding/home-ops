@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/litellm.home-operations.com/litellmmodel_v1alpha1.json
-# The zero-priced, TERMINAL local alias real traffic runs on (one of five aliases of the B70 backend).
+# The zero-priced, TERMINAL local alias real traffic runs on (one of four aliases of the B70 backend).
 # INVARIANT: no prices and no cloud fallback - it must never reach a paid API.
 # See skill litellm-proxy (references/model-catalog.md).
 apiVersion: litellm.home-operations.com/v1alpha1
@@ -15,7 +15,7 @@ spec:
     model: openai/${CHAT_MODEL_ID}
     apiBase: http://vllm-app.ai.svc.cluster.local:8000/v1
     apiKey: "not-needed" # llama.cpp server has no --api-key set
-  # Hub metadata only (proven inert); keep identical on all five aliases.
+  # Hub metadata only (proven inert); keep identical on all four aliases.
   info:
     mode: chat
     maxInputTokens: 262144

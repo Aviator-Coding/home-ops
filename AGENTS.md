@@ -143,7 +143,7 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 | `image-generation` | generating images, the `image-generation` LiteLLM key, `/v1/images/generations` |
 | `jev-decisions` | asking Jev yes/no rule checks, choices or scores (JSONL in/out), second-opinion gates |
 | `pvc-integrity-checks` | pvc-writable-check, pvc-mover-readable-check, their RBAC and alerts |
-| `litellm-proxy` | LiteLLM proxy/operator CRs, models, keys, fallbacks, PR reviewer |
+| `litellm-proxy` | LiteLLM proxy/operator CRs, models, keys, fallbacks |
 | `hermes-agent` | Hermes config, restarts, state.db, LLM/MCP routing, samba |
 | `ai-stack` | ai namespace apps, ToolHive, opencode/repo-wiki, AI app retirement |
 | `b70-llm-serving` | vllm and embedding-gpu flags, memory, alerts, embedding checks |

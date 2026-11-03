@@ -12,7 +12,6 @@ resources:
   - ./router-demo.yaml
   - ./repo-wiki.yaml
   - ./opencode.yaml
-  - ./ai-pr-review.yaml
   - ./agent-swarm-captain.yaml
   - ./agent-swarm-paid.yaml
   - ./agent-swarm-network-broker.yaml
