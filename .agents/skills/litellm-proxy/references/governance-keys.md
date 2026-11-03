@@ -68,7 +68,7 @@ re-sending the same no-op update forever.
 - A key created without the field, or regenerated after the spec dropped it,
   never hits this.
 
-This is also why the "inert" `maxBudget` on `repo-wiki`, `ai-pr-review` and
+This is also why the "inert" `maxBudget` on `repo-wiki` and
 `embedding-external` stays: deleting it would not remove the live cap, and it
 is the guard that matters the moment someone widens `models` to a priced alias.
 
@@ -151,7 +151,6 @@ reason:
 | `router-demo` | `auto` | routed-consumer smoke test |
 | `opencode` | `auto` | ai/opencode workspace |
 | `repo-wiki` | `chat-local` | ai/repo-wiki cron; `WIKI_MODEL` in its HelmRelease must match this allow-list |
-| `ai-pr-review` | `pr-review-local` | retired GitHub Actions reviewer (workflow removed); never `auto` |
 | `claude-code-subscription` | the four pass-through CRs | [claude-code-subscription.md](claude-code-subscription.md) |
 | `agent-swarm-captain`, `agent-swarm-network-broker` | `chat-local` | off-cluster agent-swarm runs; the broker's $1 is a lifetime cap (no `budgetDuration`, on purpose) |
 | `agent-swarm-paid` | `[]` (all) | off-cluster, $25 hard cap |
@@ -169,7 +168,7 @@ may use the local embedder). It is credential-less and zero-priced, so it
 never changes a key's money reach.
 
 Off-cluster consumers (`agent-swarm-*`, `mac-gnhf`) re-copy the value from
-1Password after any rotation. `ai-pr-review` also lives in a GitHub secret (`LITELLM_PR_REVIEW_KEY`).
+1Password after any rotation.
 
 ## Adding or changing a consumer
 

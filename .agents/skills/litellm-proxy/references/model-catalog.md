@@ -81,7 +81,7 @@ models first, then the key from `app/externalsecret.yaml`.
 - An explicit `0` is honoured, not read as unset
   (`use_custom_pricing_for_model` tests `is not None`).
 
-## The five aliases of the one local chat backend
+## The four aliases of the one local chat backend
 
 `openai/${CHAT_MODEL_ID}` (the loaded model's real name, ConfigMap `chat-model`)
 at `http://vllm-app.ai.svc.cluster.local:8000/v1`
@@ -94,10 +94,8 @@ carries exactly one property the others must not:
 | `chat-local` | zero | **none (terminal)** | on | real local traffic: auto SIMPLE/MEDIUM, fail-open pin, repo-wiki, local-only keys |
 | `chat-ha` | zero | `claude-sonnet-5-metered` | on | cloud-entitled keys that must survive a B70 outage |
 | `chat-local-classifier` | zero | none | **off** | the auto-router only |
-| `pr-review-local` | zero | none | **off** | the AI PR reviewer only |
 
-- Never add prices to `chat-local`, `chat-ha`, the classifier or
-  `pr-review-local`. Put any bigger synthetic budget on `demo-priced-local`.
+- Never add prices to `chat-local`, `chat-ha` or the classifier. Put any bigger synthetic budget on `demo-priced-local`.
 - Never add a cloud fallback to anything but `chat-ha`/`auto`.
 - Thinking-off (`additional.extra_body.chat_template_kwargs.enable_thinking:
   false`) is required wherever a consumer parses `content`: a reasoning model
@@ -130,9 +128,9 @@ The Hub lists exactly `litellmSettings.public_model_groups` on
 `app/litellmproxy.yaml`. The UI "make public" button returns 500 because
 `store_model_in_db` is false, so nothing can drift outside Git. **A new model
 is not on the Hub until its `modelName` is added there**, and
-`scripts/ci/litellm-ai-hub-test.py` fails until you do. Only three aliases
-stay unpublished (the test's `UNPUBLISHED` set): the classifier,
-`pr-review-local` and `demo-priced-local` (its synthetic price would display as
+`scripts/ci/litellm-ai-hub-test.py` fails until you do. Only two aliases
+stay unpublished (the test's `UNPUBLISHED` set): the classifier
+and `demo-priced-local` (its synthetic price would display as
 real). Publishing grants no access. `/public/*` is unauthenticated, but the
 route is LAN-only.
 
@@ -165,8 +163,8 @@ route is LAN-only.
   body) with `"model": "jev"`; LiteLLM 1.104.2+. It is absent from OpenRouter's
   `/models` list (only the per-model endpoints catalog has it), so do not treat
   it as unmatched. It is not published to the AI Hub (`UNPUBLISHED` in
-  `scripts/ci/litellm-ai-hub-test.py`) and only the `jev-decisions`,
-  `litellm-consume-projects` and `ai-pr-review` (retired reviewer) keys allow-list it. Spend is OpenRouter's
+  `scripts/ci/litellm-ai-hub-test.py`) and only the `jev-decisions` and
+  `litellm-consume-projects` keys allow-list it. Spend is OpenRouter's
   `usage.cost` (v1.104.3+), logged as call type `adecisions`/`asystemone`.
   Results: 200 decision; 403 "not allowed to access model" = key lacks `jev`;
   400 = malformed body; 429/budget = the key's limits.

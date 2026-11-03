@@ -12,10 +12,10 @@ Checks, each proven able to fail by the mutations at the end:
 
   1. Every published name is a registered LiteLLMModel `modelName`. A typo is
      not an error in LiteLLM - it renders a Hub row with no provider at all.
-  2. The three internal plumbing aliases stay unpublished (the router's
-     classifier, the CI reviewer's alias, and the demo-budget alias whose
+  2. The two internal plumbing aliases stay unpublished (the router's
+     classifier and the demo-budget alias whose
      synthetic governance price would display as a real one).
-  3. Every registered model is either published or one of those three, so a
+  3. Every registered model is either published or one of those two, so a
      new LiteLLMModel cannot silently miss the Hub - its author has to decide.
   4. Rendered through LiteLLM's own Router (pinned to the cluster image by
      tests.yaml), every published group has a provider, and every
@@ -52,7 +52,6 @@ PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 UNPUBLISHED = frozenset(
     {
         "chat-local-classifier",
-        "pr-review-local",
         "demo-priced-local",
         "jev",
         "grok-imagine-image",

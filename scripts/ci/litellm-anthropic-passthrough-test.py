@@ -25,7 +25,7 @@ consumes them (structured Gateway API objects, not source greps) and asserts:
      inventory Flux applies (orphan YAML in the directory is not enough).
 
 Live gateway proof (POST/GET /anthropic -> 404 text/plain "not found",
-POST /v1/chat/completions + /v1/messages still 200 via ai-pr-review key) is
+POST /v1/chat/completions + /v1/messages still 200 via a minted virtual key) is
 intentionally outside this unit: it needs the in-cluster envoy-internal
 listener and a minted virtual key. That evidence is produced during the
 pre-merge suspend/apply drill, not by CI.

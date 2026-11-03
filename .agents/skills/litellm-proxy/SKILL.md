@@ -1,6 +1,6 @@
 ---
 name: litellm-proxy
-description: "Read before touching ai/litellm, ai/litellm-operator or ai/litellm-pgvector: adding or editing a LiteLLMModel (any new or metered model), LiteLLMVirtualKey or LiteLLMProxy, prices, allow-lists, budgets, rate limits, fallbacks, pass-through routes, spend logs, the auto-router, Claude Code subscription models, or the AI PR reviewer. Also when a LiteLLM CR is stuck or the proxy bills unexpectedly."
+description: "Read before touching ai/litellm, ai/litellm-operator or ai/litellm-pgvector: adding or editing a LiteLLMModel (any new or metered model), LiteLLMVirtualKey or LiteLLMProxy, prices, allow-lists, budgets, rate limits, fallbacks, pass-through routes, spend logs, the auto-router, or Claude Code subscription models. Also when a LiteLLM CR is stuck or the proxy bills unexpectedly."
 ---
 
 # LiteLLM proxy, operator CRs, keys and models
@@ -19,7 +19,7 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
    cloud fallback may only sit on an alias every holder is already
    cloud-entitled to (today `chat-ha` and `auto`, both to
    `claude-sonnet-5-metered`). Never add one to `chat-local`,
-   `demo-priced-local`, the classifier, `pr-review-local`, `embedding-local` or a
+   `demo-priced-local`, the classifier, `embedding-local` or a
    pass-through model. [fallbacks.md](references/fallbacks.md)
 2. **A `LiteLLMModel` with no `apiKey` is not credential-less.** It falls back
    to the pod's metered `ANTHROPIC_API_KEY`. The four subscription
@@ -52,8 +52,8 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 9. **Never name a hand-written HTTPRoute `litellm`, never set `spec.route`**:
    the operator deletes the route on a later reconcile.
    [platform.md](references/platform.md)
-10. **Thinking models return empty `content`.** The classifier and
-    `pr-review-local` need `enable_thinking: false` declared on the model;
+10. **Thinking models return empty `content`.** The classifier
+    needs `enable_thinking: false` declared on the model;
     without it the router fails open on 100% of traffic while looking healthy.
     Image floor v1.93.0. [auto-router.md](references/auto-router.md)
 11. **Auto-router fail-open reads `complexity_router_default_model`**, not the

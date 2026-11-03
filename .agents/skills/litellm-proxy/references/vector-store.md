@@ -7,8 +7,7 @@ LiteLLM's Vector Stores API with the `pg_vector` provider, served by
 **Non-sensitive content only** (docs, references, repo knowledge; never
 personal documents or credentials). Captain decision "A with guardrail": the
 registry entry has no `team_id`, so every virtual key can search it and pull
-hits into chat via `file_search`, including the demo keys and `ai-pr-review`
-(which handles untrusted PR content). Team scoping is not declaratively
+hits into chat via `file_search`, including the demo keys. Team scoping is not declaratively
 enforceable on this LiteLLM/operator version; revisit at LiteLLM v1.104.0.
 
 ## Pieces
