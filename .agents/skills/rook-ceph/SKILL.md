@@ -19,7 +19,8 @@ Rook is the only writer of Ceph config. A green `ceph status` does not mean RGW 
 8. **OSD memory request stays 12Gi, limit 14Gi.** `osd_memory_target` (10 GiB) sizes the BlueStore cache, not RSS. The highest observed OSD working set is 9317 Mi. 10 Gi is not a free cut. Mon and logcollector stay Guaranteed (`requests == limits`). An empty `limits: {}` does not clear the operator chart's 512Mi default; the operator limit is an explicit 1Gi.
 9. **`rook` and `nfs` mgr modules stay off.** The rook module crash-looped and blocked node upgrades. `nfs` is unused and was evaluated with the discard work.
 10. **StorageClass parameters are immutable.** A change is a new class, not an edit. No `deviceClass` on pool `data0`. MDS anti-affinity stays preferred, not required. Ceph alert counters go through `increase()`, never a raw `> N` compare.
-11. **The metadata CronJob is not last-resort DR.** `ceph-backup-pvc` is OpenEBS hostpath on this cluster. A host wipe destroys it. Steps: `backup/RECOVERY-PROCEDURES.md`.
+11. **Every node taint needs a `placement.all` toleration, `PreferNoSchedule` included.** Rook counts a node with an untolerated taint as not a storage node. The operator then logs `0 of the 3 storage nodes are valid` and `not updating OSD N`, and the OSDs keep the old image while the CephCluster is `Ready` and `HEALTH_OK`. tuppr's `tuppr.home-operations.com/outdated` taint caused this after the v20.2.5 bump (#2240); a `Failed` TalosUpgrade keeps that taint on every node.
+12. **The metadata CronJob is not last-resort DR.** `ceph-backup-pvc` is OpenEBS hostpath on this cluster. A host wipe destroys it. Steps: `backup/RECOVERY-PROCEDURES.md`.
 
 ## Where things live
 

@@ -115,6 +115,10 @@ spec:
             - key: home-operations.com/dedicated
               operator: Exists
               effect: PreferNoSchedule
+            # Rook drops a node with any untolerated taint, PreferNoSchedule too: tuppr's taint skips every OSD update.
+            - key: tuppr.home-operations.com/outdated
+              operator: Exists
+              effect: PreferNoSchedule
       crashCollector:
         disable: false
       dashboard:
