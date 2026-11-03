@@ -63,7 +63,7 @@ Each is a warning needed before deciding to touch the subsystem; detail is in th
 - **NEVER put plaintext secrets in Git.** App secrets are ExternalSecret + 1Password; bootstrap/Talos secrets are `ref+op://Home-Lab/...` via `vals`. Never seed a Secret with client-side `kubectl apply`. There is no SOPS/age path. Do not store secrets in `**/resources/**` (Renovate ignores it).
 - **`Home-Lab` and `Homelab` are different vaults; Connect cannot see `Home-Lab`, and `SecretSynced` does not mean a non-empty value.** Skill `secrets-1password`.
 - **NEVER run `find /Users/coder`, `find $HOME` or any unbounded home search.** Tools are mise-managed; `kubeconfig` and `talosconfig` are absent in fresh worktrees and that is normal - report and continue.
-- **`kubectl`/`talosctl` use `.mise.toml`'s read-only `~/.kube/home-ops-agent` / `~/.talos/home-ops-agent`, and mise overrides a `KUBECONFIG=` prefix.** `Forbidden` on a write is by design; a missing file means the owner has not run `scripts/agent-credentials.sh`. Never pass another credential path (the guard blocks it).
+- **`kubectl`/`talosctl` default to `.mise.toml`'s read-only `~/.kube/home-ops-agent` / `~/.talos/home-ops-agent`.** `Forbidden` on a write means the read-only default is in use; a missing file means the owner has not run `scripts/agent-credentials.sh`. For a write the owner has approved in the current session, prefix `KUBECONFIG=~/.kube/home-ops-admin` / `TALOSCONFIG=~/.talos/home-ops-admin` (a `HOME_OPS_*` prefix does nothing in an agent shell).
 - **NEVER run `tofu apply` or `tofu destroy` in `terraform/authentik/` without an explicit, current go-ahead.** A green PR is not approval. Skill `authentik-terraform`.
 - **NEVER commit without the pre-commit hooks** (`task setup-dev-env`).
 
@@ -115,7 +115,7 @@ just talos apply-node talos-1      # Apply config (node names, not IPs)
 for t in scripts/ci/*-test.py; do python3 "$t"; done   # CI gates, including docs-budget
 ```
 
-Agents run with read-only credentials. Owner writes: `HOME_OPS_KUBECONFIG=~/.kube/home-ops-admin HOME_OPS_TALOSCONFIG=~/.talos/home-ops-admin <command>`, in a shell that never starts an agent. Setup and renewal: `scripts/agent-credentials.sh` header.
+Agents default to read-only credentials. Admin writes: `KUBECONFIG=~/.kube/home-ops-admin TALOSCONFIG=~/.talos/home-ops-admin <command>` (agent, with owner approval), or `HOME_OPS_KUBECONFIG=~/.kube/home-ops-admin HOME_OPS_TALOSCONFIG=~/.talos/home-ops-admin <command>` (owner shell via mise). Setup and renewal: `scripts/agent-credentials.sh` header.
 
 Debugging: `flux get ks -A`, `flux get hr -A`, `kubectl -n {ns} get pods -o wide`, `kubectl get snapshotpolicy,restore -A`. `kubeconfig` and `talos/talosconfig` stay gitignored for DR bootstrap only; `.private/` is local-only.
 
