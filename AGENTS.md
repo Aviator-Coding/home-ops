@@ -79,7 +79,8 @@ Each is a warning needed before deciding to touch the subsystem; detail is in th
 **Nodes and storage**
 - **`talos/*.j2` changes are not applied by Flux.** `apply-node` restages only; kernel args and extensions need `just talos upgrade-node`. `machineconfig.yaml.j2`'s 6 version pins can drift from the live cluster (tuppr drives upgrades), so applying a stale template can downgrade a node: check `kubectl get nodes -o wide` first. Skill `talos-nodes`.
 - **Before any node reboot: `ceph status` HEALTH_OK and `task rook:check-osd-device-paths` clean, one node at a time.** Never `just talos shutdown-node` for planned power work (`--force`, no drain); runbook skill `talos-nodes` `references/power-down-up.md`. A talos-3 reboot can drop the B70: power the dock first (`references/talos-3-b70-reboot.md`). Skills `rook-ceph`, `talos-nodes`.
-- **CephX rotation is GitOps-only: never `ceph auth` by hand, never `security.cephx.csi: aes256k`, `keyGeneration` only increases.** Keep `rgw_sigv4_insecure` explicitly `"false"` (deleting the key leaves the old value live); after a Ceph bump, RGW PUTs can 403 with `HEALTH_OK`. Skill `rook-ceph`.
+- **CephX rotation is GitOps-only: never `ceph auth` by hand, never `security.cephx.csi: aes256k`, `keyGeneration` only increases.** Skill `rook-ceph`.
+- **`rgw_sigv4_insecure` stays explicitly `"false"`, and after a Ceph bump RGW PUTs can 403 with `HEALTH_OK`.** Skill `rook-ceph`.
 - **The Ceph metadata backup (`ceph-backup-pvc`) is OpenEBS hostpath; a host wipe destroys it.** Emergency steps: `kubernetes/apps/base/rook-ceph/rook-ceph/backup/RECOVERY-PROCEDURES.md`.
 - **talos-3 carries a `PreferNoSchedule` taint; a hard `NoSchedule` strands drains.** A container with `limits.memory` and no `requests.memory` reserves the whole limit, so audit the Git manifest. Skill `node-scheduling`.
 - **Do not merge `system-controller` or `system-upgrade` into `system`.** Skill `system-namespaces`.

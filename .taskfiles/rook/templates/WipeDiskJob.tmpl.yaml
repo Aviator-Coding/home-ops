@@ -20,8 +20,8 @@ spec:
       hostNetwork: true
       containers:
         - name: main
-          # Pin to the same cephImage.tag as cluster/helmrelease.yaml (Tentacle).
-          image: quay.io/ceph/ceph:v20.2.5
+          # Set by task rook:reset-disk from cluster/helmrelease.yaml cephImage, so there is one pin.
+          image: ${ceph_image}
           command: ["/bin/bash", "-c"]
           args:
             - |
