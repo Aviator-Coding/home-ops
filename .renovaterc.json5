@@ -3,6 +3,9 @@
   dependencyDashboard: true,
   // Platform automerge would merge on Labeler alone, before flate, Image Pull and validate finish. Skill `renovate`.
   platformAutomerge: false,
+  // auto rebases every automerge PR each time main moves, which restarts CI, so a run never sees green checks and never merges.
+  // main does not require up-to-date branches (ruleset strict_required_status_checks_policy false). Skill `renovate`.
+  rebaseWhen: "conflicted",
   extends: [
     // Community base, pinned to a tag so an upstream push cannot change merge behaviour unreviewed. Bump the tag deliberately. Skill `renovate`.
     "github>home-operations/renovate-presets#11.0.0",
