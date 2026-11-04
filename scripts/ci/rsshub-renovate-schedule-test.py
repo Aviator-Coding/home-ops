@@ -27,8 +27,8 @@ Renovate's own compiled logic, not a reimplementation:
      the exact composed schedule, and rejects a deliberately broken variant
      - proving this test can fail and the syntax is not silently ignored.
   4. `isScheduledNow` (Renovate's own scheduler, with Settings.now overridden
-     to fixed instants under TZ=UTC, matching the comment "No repo-wide
-     timezone is configured, so this schedule runs in UTC") is true inside
+     to fixed instants under TZ=UTC; this checks the window's shape, while the
+     live schedule runs in America/New_York from .renovaterc.json5) is true inside
      the Monday-before-6am window, false everywhere else in that week
      including the day after and the day before, and true again exactly one
      week later - proving "once a week", not "once ever" or "still daily".
@@ -330,10 +330,9 @@ def run_renovate_probe(package_rules: list[dict]) -> dict:
     )
     # The composed schedule has no explicit timezone field, so Renovate's
     # scheduler falls back to the process's local time (luxon DateTime.local()).
-    # Pin the probe process to UTC to match the AGENTS.md/autoMerge.json5
-    # comment's stated assumption ("No repo-wide timezone is configured, so
-    # this schedule runs in UTC") rather than whatever timezone the sandbox
-    # happens to run in.
+    # Pin the probe process to UTC so the fixed instants below are stable
+    # whatever timezone the sandbox runs in. The live schedule uses the
+    # repo-wide America/New_York timezone; the weekly window shape is the same.
     env["TZ"] = "UTC"
     with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False) as fh:
         fh.write(RENOVATE_PROBE)

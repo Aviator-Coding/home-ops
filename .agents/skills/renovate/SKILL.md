@@ -22,11 +22,12 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
    exclusions match disjoint packages, so their order relative to each other
    does not matter. None of them may turn automerge back on.
 3. **Never-automerge list** (proposals still open as PRs): Renovate's own chart
-   (`matchFileNames: kubernetes/apps/base/renovate/**`), kopiur images, the four
-   Talos packages, the five Kubernetes control-plane/kubelet packages,
+   (`matchFileNames: kubernetes/apps/base/renovate/**`), kopiur images, Cilium
+   and Rook-Ceph (docker/helm, any update type), the four Talos packages, the five Kubernetes control-plane/kubelet packages,
    `ghcr.io/berriai/litellm-non_root`, and the CloudNativePG chart and operator
    image (1.31.0 removes the in-tree barman backup; skill `databases`). rsshub
-   digests stay `automerge: true` on `before 6am on monday` (UTC).
+   digests stay `automerge: true` on `before 6am on monday` (America/New_York,
+   set in `.renovaterc.json5`). 0.x minors open PRs but never automerge.
 4. **A version pin uses a negated regex, never a bare `<X.Y.Z`.**
    `allowedVersions` filters candidates. Once the tracked value passes a
    ceiling, Renovate proposes nothing. Talos excludes only v1.13.3:
@@ -35,11 +36,10 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
    dash-separated prefix. `v1.14.0-alpha.0` is a stable minor. The Talos
    automerge exclusion covers stable bumps too, because a merge of
    `talosupgrade.yaml` is an unattended powercycle.
-6. **No in-repo branch automerge.** Do not re-add `:automergeBranch` or
-   `automergeType: "branch"`. `renovate/**` pushes get no status check, so
-   `ignoreTests: false` leaves them pending. mortyops' mise and
-   github-actions presets set `ignoreTests: true`; later home-ops rules force
-   it back to false, so those updates stay PRs.
+6. **No branch automerge.** The base preset extends `:automergeBranch`, but
+   `renovate/**` pushes get no status check, so a branch automerge with
+   `ignoreTests: false` sits pending forever with no PR. Every automerge rule
+   in `autoMerge.json5` sets `automergeType: "pr"`; a new one must too.
 7. **`platformAutomerge: false`.** GitHub would otherwise merge on the required
    checks alone, before the advisory Image Pull posts. Renovate's own merge waits
    for every check. Skill `github-ci`.
@@ -55,11 +55,21 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
     upgrade. The same shape applies to `kubernetesupgrade.yaml` (kubelet).
     Skill `talos-nodes`.
 
+11. **GHCR and quay publish no release timestamp.** Renovate's default
+    `minimumReleaseAgeBehaviour` is timestamp-required, so a `minimumReleaseAge`
+    on a docker rule without `timestamp-optional` stalls the update silently in
+    the dashboard's "Pending Status Checks" (about 50 minors sat there until
+    November 2026).
+12. **The base preset is pinned (`#11.0.0`) and replaces mortyops.** Bump the
+    tag as a reviewed PR and re-check `functional-comments-guard-test.py`,
+    which mirrors the preset's annotated-dependency regex. PRs still come from
+    the `app/mortyops` GitHub App; the preset does not set the author.
+
 ## Where things live
 
 | What | Path |
 |---|---|
-| Preset chain | `.renovaterc.json5` `extends` (mortyops, then local files, last-match) |
+| Preset chain | `.renovaterc.json5` `extends` (`home-operations/renovate-presets` pinned by tag, then local files, last-match) |
 | Rules | `.renovate/{autoMerge,customManagers,grafanaDashboards,groups,labels,overrides,talos}.json5` |
 | In-cluster app | `kubernetes/apps/base/renovate/` |
 | GitHub App token | 1Password `Homelab/renovate` (`BOT_APP_ID`, `BOT_APP_PRIVATE_KEY`) |

@@ -58,6 +58,6 @@ reordered `# renovate:` line.
 
 No workflow triggers on `push` to `renovate/**` (every `push:` is `branches:
 [main]`). A branch-automerge update sits `pending` with zero checks.
-`ignoreTests: false` then refuses it. `:automergeBranch` is absent from
-`.renovaterc.json5` for that reason. Digest and patch rules leave
-`automergeType` unset, so they use Renovate's default `"pr"`.
+`ignoreTests: false` then refuses it. The base preset
+(`home-operations/renovate-presets`) extends `:automergeBranch`, so every
+automerge rule in `autoMerge.json5` sets `automergeType: "pr"` explicitly.
