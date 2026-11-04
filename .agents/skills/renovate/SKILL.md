@@ -40,6 +40,8 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
    `renovate/**` pushes get no status check, so a branch automerge with
    `ignoreTests: false` sits pending forever with no PR. Every automerge rule
    in `autoMerge.json5` sets `automergeType: "pr"`; a new one must too.
+   `rebaseWhen: "conflicted"` is required too: `auto` rebases automerge PRs
+   on every run, restarting CI, so they never merge.
 7. **`platformAutomerge: false`.** GitHub would otherwise merge on the required
    checks alone, before the advisory Image Pull posts. Renovate's own merge waits
    for every check. Skill `github-ci`.
