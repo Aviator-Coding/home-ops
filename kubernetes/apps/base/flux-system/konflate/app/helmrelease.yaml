@@ -21,11 +21,9 @@ spec:
     fullnameOverride: *app
     # `affinity` NotIn talos-3 is not needed: the talos-3 PreferNoSchedule taint (no toleration here)
     # keeps this app off it via the TaintToleration score. Skill `node-scheduling`, references/talos-3-ledger.md.
-    image:
-      # The chart stamps this digest at package time; keep it explicit so we never float on :latest/:rolling.
-      # Digest wins over tag in the chart helper.
-      tag: "0.6.2"
-      digest: sha256:cf5d2656a059a430ecf1eaf87eb58854f00692e2dfbe3b2476a6f88c441a44fb
+    # No image override: the chart pins its own image by digest at package time, so the image
+    # follows the chart version Renovate tracks in ocirepository.yaml. An override here is invisible
+    # to Renovate and froze the image at 0.6.2 while the chart moved on.
     config:
       repo: github://skrumbach/home-ops
       # FluxInstance sync.path / flux-local --path. spec.path values still
