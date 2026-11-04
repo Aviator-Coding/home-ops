@@ -70,6 +70,10 @@ KNOWN_UNCAPTURED: dict[str, str] = {
 # (path at HEAD, stripped functional line) -> reason. Scoped to one PR.
 ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
     (
+        "kubernetes/apps/base/database/cloudnative-pg/cluster-18/cluster-18.yaml",
+        "# renovate: datasource=docker depName=ghcr.io/cloudnative-pg/pgvector",
+    ): "pgvector ImageVolume removed: the postgresql `standard` image ships pgvector, tracked by the imageName annotation.",
+    (
         "kubernetes/apps/base/actions-runner-system/gha-runner-scale-set/app/skrumbach/home-ops/helmrelease.yaml",
         "# renovate: datasource=docker depName=ghcr.io/aviator-coding/talosctl-busybox",
     ): "GitHub account renamed aviator-coding to skrumbach; the annotation now names ghcr.io/skrumbach/talosctl-busybox.",

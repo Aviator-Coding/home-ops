@@ -1,7 +1,7 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
 # BerriAI/litellm-pgvector: the stateless server behind LiteLLM's pg_vector store (data lives in
-# postgres-17). ClusterIP only, no HTTPRoute. See skill litellm-proxy (references/vector-store.md).
+# postgres-18). ClusterIP only, no HTTPRoute. See skill litellm-proxy (references/vector-store.md).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

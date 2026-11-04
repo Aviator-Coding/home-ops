@@ -1,5 +1,5 @@
 ---
-# Second, OFF-SITE copy of the postgres-17 barman archive.
+# Second, OFF-SITE copy of the postgres-18 barman archive.
 # Skill `databases`.
 apiVersion: batch/v1
 kind: CronJob
@@ -73,7 +73,7 @@ spec:
                 - name: ARCHIVE_BUCKET
                   value: home-ops-postgres-cluster
                 - name: SERVER_NAME
-                  value: postgres17-v5
+                  value: postgres18-v2
                 # 35d, five days past the LAN 30d retention, so a LAN prune cannot race this copy.
                 # Skill `databases`.
                 - name: OFFSITE_RETENTION

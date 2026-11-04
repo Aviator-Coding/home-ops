@@ -66,7 +66,7 @@ spec:
     store_model_in_db: false
 
     # Full prompt/response capture into the Postgres spend log; the prompt lands
-    # in proxy_server_request, not messages. 30d matches the postgres-17 Barman
+    # in proxy_server_request, not messages. 30d matches the postgres-18 Barman
     # window ("30d", never "1mo"). references/spend-logs.md.
     store_prompts_in_spend_logs: true
     maximum_spend_logs_retention_period: "30d"

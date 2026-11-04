@@ -1,7 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/batch/job_v1.json
-# Creates the litellm role and database on shared postgres-17 (a Job, not a CNPG Database CR,
-# which would need spec.managed.roles on the shared Cluster). Idempotent; re-run by deleting the Job.
+# Creates the litellm role and database on shared postgres-18. Idempotent; re-run by deleting
+# the Job. The litellm-db DatabaseRole/Database CRs now own both, so this Job is redundant and
+# goes in the follow-up that removes the postgres-init containers.
 # See skill litellm-proxy (references/platform.md).
 apiVersion: batch/v1
 kind: Job

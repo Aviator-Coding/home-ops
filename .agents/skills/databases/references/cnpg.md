@@ -26,7 +26,7 @@ Bootstrap recovery source is the previous server name (`postgres17-v4`).
 Increment `serverName` on a restore so the new archive does not collide
 (archives so far: v3, v4, v5).
 
-Apps use `postgres-17-rw.database.svc.cluster.local:5432`, hardcoded in each
+Apps use `postgres-18-rw.database.svc.cluster.local:5432`, hardcoded in each
 app's ExternalSecret. A cutover updates those strings. It is not a
 1Password template.
 
@@ -53,23 +53,34 @@ without authenticating the server. Changing the alt-name list reissues the serve
 certificate on the shared cluster. If `verify-full` without a copied CA is ever needed,
 revisit a CNPG `Pooler` that terminates TLS with the sklab.dev certificate.
 
-## postgres-18 (pgvector)
+## postgres-18 (all apps)
 
-`cluster-18/` is a second, empty Cluster on the `postgresql:18-system-trixie` image (`standard` has no barman-cloud
-binaries, so ContinuousArchiving fails). pgvector arrives as an ImageVolume (`postgresql.extensions`, image
-`ghcr.io/cloudnative-pg/pgvector`), which needs the `ImageVolume` feature gate in
-`talos/machineconfig.yaml.j2`. `postInitTemplateSQL` creates `vector` in `template1`, so
-databases made later have it. Archive `serverName: postgres18-v1` in the same bucket.
-No LB service, Gatus ConfigMap or own PrometheusRule: the `cluster-17` rules match by
-metric, not cluster. An extension image bump needs `ALTER EXTENSION vector UPDATE` per
-database. TimescaleDB is the Community Edition (Timescale License: compression, continuous
-aggregates), shipped as our own ImageVolume image
-`ghcr.io/skrumbach/timescaledb-community`, built in the containers repo. Its tag is
-content-addressed there; set the `cluster-18.yaml` reference to the tag it publishes. It is preloaded, telemetry
-off, and created per database with `CREATE EXTENSION timescaledb`. The official
-`timescaledb-oss` image is Apache-2 only (no compression). A changed extension volume makes
-CNPG roll pods; a replica can keep its old pod spec and crash-loop, so delete that pod.
-No pg_cron: it has no official extension image. No app uses it yet; consumers still point at `postgres-17-rw`.
+`cluster-18/` is the shared Cluster for every app. It runs 3 instances on `openebs-hostpath`
+(local NVMe), so Postgres replication plus the WAL archive are the redundancy, not Ceph.
+hostpath has no quota; the `NodeFilesystem*` alerts cover `/var`. An instance whose node is
+drained stays Pending until that node returns. The image is `postgresql:18-standard-trixie`,
+which ships pgvector (`vector`); there are no extension image volumes. Renovate holds it to
+major 18 (`.renovate/overrides.json5`). Sync replication is `any 1`, `dataDurability:
+preferred`, `failoverQuorum: true`, with `failoverDelay: 30`.
+
+Backups go through the Barman Cloud plugin (`barman-cloud/`, ObjectStore `postgres` in
+`cluster-18/objectstore.yaml`), `serverName: postgres18-v2`. v1 is the archive of the empty
+cluster it replaced. The plugin renames the backup metrics to
+`barman_cloud_cloudnative_pg_io_*`; the backup-age rules accept either name.
+
+It was bootstrapped by a monolith `initdb.import` from postgres-17 with an explicit
+database and role list. Retired apps' databases (readarr, rreading-glasses, ducklake, `app`)
+and roles (immich, open-webui) were left behind on postgres-17. The `bootstrap` block only
+acts on a new Cluster.
+
+Roles and databases are `DatabaseRole`/`Database` CRs from `components/cnpg-database`,
+applied by a sibling Flux Kustomization `<app>-db` (targetNamespace `database`) in each
+app's overlay. The app's Kustomization `dependsOn` it. Both CRs are `retain`: deleting
+them never drops data, so app retirement includes a manual `DROP DATABASE`/`DROP ROLE`.
+The role password comes from the app's 1Password item (`POSTGRES_DB_USER_PASSWORD`, or
+`CNPG_PASSWORD_KEY`); a change there is applied to the role by CNPG.
+
+postgres-17 stays, untouched and unused, as the rollback target until it is retired.
 
 ## Health and metrics
 

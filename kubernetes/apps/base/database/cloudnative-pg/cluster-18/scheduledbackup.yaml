@@ -5,8 +5,12 @@ kind: ScheduledBackup
 metadata:
   name: postgres-18
 spec:
-  schedule: "@daily"
+  # Six fields, seconds first: daily at 03:00.
+  schedule: "0 0 3 * * *"
   immediate: true
   backupOwnerReference: self
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
   cluster:
     name: postgres-18

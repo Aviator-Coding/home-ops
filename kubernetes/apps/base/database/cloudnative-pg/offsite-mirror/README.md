@@ -1,4 +1,4 @@
-# postgres-17 off-site archive mirror
+# postgres-18 off-site archive mirror
 
 > **This mirror is SUSPENDED. It is installed but not running.**
 >
@@ -7,9 +7,9 @@
 > `CreateContainerConfigError`. Un-suspending is a deliberate one-line follow-up change -
 > the mirror is not designed to start itself the moment the credential appears, so that
 > "the off-site copy is live" is something a human asserted in git rather than a side
-> effect. **Until that follow-up lands, postgres-17 still has only one backup copy.**
+> effect. **Until that follow-up lands, postgres-18 still has only one backup copy.**
 
-Copies the `postgres-17` barman archive from the LAN TrueNAS MinIO to Cloudflare R2, so
+Copies the `postgres-18` barman archive from the LAN TrueNAS MinIO to Cloudflare R2, so
 the cluster's only Postgres backup copy stops being a single LAN target. Every one of the
 fleet's file volumes already has both a Ceph copy and an off-site copy; Postgres was the
 outlier.

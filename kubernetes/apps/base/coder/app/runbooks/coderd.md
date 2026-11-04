@@ -43,10 +43,10 @@ minutes. This may be due to a number of issues, including:
   similar to the following:
 
   ```console
-  [warn]  ping postgres: retrying  error="dial tcp postgres-17-rw.database.svc.cluster.local:5432: connect: connection refused"  try=3
+  [warn]  ping postgres: retrying  error="dial tcp postgres-18-rw.database.svc.cluster.local:5432: connect: connection refused"  try=3
   ```
 
-  The live DSN host is `postgres-17-rw.database.svc.cluster.local:5432`
+  The live DSN host is `postgres-18-rw.database.svc.cluster.local:5432`
   (`app/externalsecret.yaml`), not a ClusterIP.
 
 - Out-Of-Memory (OOM) kills due to memory usage (see [above](#coderdmemoryusage)),

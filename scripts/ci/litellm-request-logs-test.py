@@ -25,7 +25,7 @@ Renders the litellm-operator LiteLLMProxy CR the way file-mode does, then:
          month's length (28-31 days), so it is NOT a fixed 30-day span and is
          not a safe stand-in for "30d" - the actual reason "30d" is pinned
   7. Asserts the request-logs runbook is a published retrieval contract.
-  8. Asserts postgres-17 Barman retentionPolicy is 30d on the LAN NAS endpoint.
+  8. Asserts the postgres-18 Barman Cloud ObjectStore retentionPolicy is 30d on the LAN NAS endpoint.
 
 This is intentionally NOT a source-grep test: assertions are on the operator
 render output, CR semantic model, and live library call results.
@@ -48,9 +48,9 @@ PROXY_PATH = APP_DIR / "litellmproxy.yaml"
 RUNBOOK = REPO / ".agents/skills/litellm-proxy/references/spend-logs.md"
 README_APP = REPO / "kubernetes/apps/base/ai/litellm/README.md"
 SKILL_MD = REPO / ".agents/skills/litellm-proxy/SKILL.md"
-CLUSTER_17 = (
+OBJECT_STORE = (
     REPO
-    / "kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml"
+    / "kubernetes/apps/base/database/cloudnative-pg/cluster-18/objectstore.yaml"
 )
 
 # A multi-thousand-char prompt: deliberately over the 2048-char default cap.
@@ -193,19 +193,19 @@ def test_cr_config() -> dict:
 
 
 def test_barman_alignment() -> None:
-    docs = load_all_yaml(CLUSTER_17)
-    cluster = next(d for d in docs if d.get("kind") == "Cluster")
-    backup = (cluster.get("spec") or {}).get("backup") or {}
-    store = backup.get("barmanObjectStore") or {}
+    docs = load_all_yaml(OBJECT_STORE)
+    obj = next(d for d in docs if d.get("kind") == "ObjectStore")
+    spec = obj.get("spec") or {}
+    store = spec.get("configuration") or {}
     record(
-        "postgres17_barman_retention_is_30d",
-        backup.get("retentionPolicy") == "30d",
-        f"retentionPolicy={backup.get('retentionPolicy')!r}",
+        "postgres18_barman_retention_is_30d",
+        spec.get("retentionPolicy") == "30d",
+        f"retentionPolicy={spec.get('retentionPolicy')!r}",
     )
     endpoint = store.get("endpointURL") or ""
     dest = store.get("destinationPath") or ""
     record(
-        "postgres17_barman_is_lan_nas_minio",
+        "postgres18_barman_is_lan_nas_minio",
         endpoint.startswith("https://nas.") and "home-ops-postgres-cluster" in dest,
         f"endpoint={endpoint!r} dest={dest!r}",
     )
