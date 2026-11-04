@@ -37,6 +37,13 @@
       allowedVersions: "<2.3.0",
     },
     {
+      // A major bump needs a new archive serverName and matching extension images in the same change. Skill `databases`.
+      description: "Keep CloudNativePG Postgres operand images on major 18",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/cloudnative-pg/postgresql"],
+      allowedVersions: "/^18\\./",
+    },
+    {
       // EMQX Open-Source ended at 5.8.x; 5.9/5.10/6.x are Enterprise-only.
       description: "Keep EMQX broker on Open-Source 5.8.x",
       matchDatasources: ["docker"],
