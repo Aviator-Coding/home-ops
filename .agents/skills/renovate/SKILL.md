@@ -23,7 +23,7 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
    does not matter. None of them may turn automerge back on.
 3. **Never-automerge list** (proposals still open as PRs): Renovate's own chart
    (`matchFileNames: kubernetes/apps/base/renovate/**`), kopiur images, Cilium
-   and Rook-Ceph (docker/helm, any update type), the four Talos packages, the five Kubernetes control-plane/kubelet packages,
+   Rook-Ceph and `quay.io/ceph/ceph` (docker/helm, any update type), the four Talos packages, the five Kubernetes control-plane/kubelet packages,
    `ghcr.io/berriai/litellm-non_root`, and the CloudNativePG chart and operator
    image (1.31.0 removes the in-tree barman backup; skill `databases`). rsshub
    digests stay `automerge: true` on `before 6am on monday` (America/New_York,
@@ -48,8 +48,8 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
    while condensing comments.
 9. **`quay.io/ceph/ceph` stays on stable `x.2.z`**
    (`allowedVersions: "/^v?\\d+\\.2\\.\\d+$/"`). Do not apply that regex to
-   `ghcr.io/rook/ceph`. Those stable tags still match the blanket docker
-   automerge rules (as PRs).
+   `ghcr.io/rook/ceph`. Those stable tags open PRs but never automerge: the
+   Ceph version must be one the running Rook release supports.
 10. **A merged bump of `tuppr/upgrades/talosupgrade.yaml` upgrades nodes.**
     tuppr consumes that CR with `rebootMode: powercycle`. Treat it as a live
     upgrade. The same shape applies to `kubernetesupgrade.yaml` (kubelet).
