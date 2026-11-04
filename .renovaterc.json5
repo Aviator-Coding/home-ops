@@ -4,9 +4,11 @@
   // Platform automerge would merge on Labeler alone, before flate, Image Pull and validate finish. Skill `renovate`.
   platformAutomerge: false,
   extends: [
-    "github>skrumbach/mortyops//ci/renovate/default.json5",
-    "github>skrumbach/mortyops//ci/renovate/automerge-github-actions.json5",
-    "github>skrumbach/mortyops//ci/renovate/automerge-mise.json5",
+    // Community base, pinned to a tag so an upstream push cannot change merge behaviour unreviewed. Bump the tag deliberately. Skill `renovate`.
+    "github>home-operations/renovate-presets#11.0.0",
+    // The base sets no timezone; schedules (rsshub) have always run on America/New_York.
+    ":timezone(America/New_York)",
+    ":enablePreCommit",
     "github>skrumbach/home-ops//.renovate/autoMerge.json5",
     "github>skrumbach/home-ops//.renovate/customManagers.json5",
     "github>skrumbach/home-ops//.renovate/grafanaDashboards.json5",
@@ -14,11 +16,16 @@
     "github>skrumbach/home-ops//.renovate/labels.json5",
     "github>skrumbach/home-ops//.renovate/overrides.json5",
     "github>skrumbach/home-ops//.renovate/talos.json5",
-    // No :automergeBranch on purpose: renovate/** pushes get no status check, so branch automerge never merges. Do NOT re-add it. Skill `renovate`.
+    // The base extends :automergeBranch, but renovate/** pushes get no status check, so branch automerge never merges. Every automerge rule in autoMerge.json5 sets automergeType "pr". Skill `renovate`.
   ],
+  // The base extends :disableRateLimiting. Without a cap a config fix can release a whole backlog of automerging PRs in one pass.
+  prHourlyLimit: 4,
+  prConcurrentLimit: 15,
+  // The base preset's annotated-dependency manager scans every file; docs and CI tests quote the syntax as examples.
   ignorePaths: [
-    "**/*.sops.*",
     "**/resources/**",
+    "**/*.md",
+    "scripts/ci/**",
   ],
   flux: {
     managerFilePatterns: [

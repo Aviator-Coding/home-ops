@@ -45,15 +45,18 @@ BASE_REF = os.environ.get("DIFF_GUARD_BASE") or "origin/main"
 
 FUNCTIONAL = re.compile(r"(?:#|//)\s*(?:yaml-language-server:|renovate:)")
 RENOVATE_ANNOTATION = re.compile(r"(?:#|//)\s*renovate:.*?(datasource=\S+ depName=\S+)")
-# Mirrors .renovate/customManagers.json5 "Process annotated dependencies":
-# its managerFilePatterns and matchStrings (Python and JS agree on `.`/`\s`).
+# Mirrors "Process annotated dependencies" in the base preset
+# github>home-operations/renovate-presets#11.0.0 (default.json, extended by
+# .renovaterc.json5): managerFilePatterns `/.*/` and its single matchString
+# (Python and JS agree on `.`/`\s`). Re-check when the preset tag is bumped.
+# The preset scans every file; the guard checks the file types that carry real
+# annotations, so regex strings and docs quoting the syntax are not flagged.
 MANAGED_FILE = re.compile(r"(^|/).+\.(env|sh|ya?ml(\.j2)?)$")
 MATCH_STRINGS = (
     re.compile(
-        r"datasource=(?P<datasource>\S+) depName=(?P<depName>\S+)"
-        r"( repository=(?P<registryUrl>\S+))?\n.+(:\s|=)(&\S+\s)?(?P<currentValue>\S+)"
+        r"datasource=(?P<datasource>\S+) depName=(?P<depName>\S+)\n"
+        r".+(:\s|=)(&\S+\s)?[\"']?(?P<currentValue>[^\"'\s]+)[\"']?"
     ),
-    re.compile(r"datasource=(?P<datasource>\S+) depName=(?P<depName>\S+)\n.+/(?P<currentValue>(v|\d)[^/]+)"),
 )
 
 # Annotations the customManager already cannot capture. Each needs a reason;
@@ -69,6 +72,22 @@ KNOWN_UNCAPTURED: dict[str, str] = {
 
 # (path at HEAD, stripped functional line) -> reason. Scoped to one PR.
 ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
+    (
+        ".renovate/customManagers.json5",
+        "// # renovate: datasource=github-releases depName=k3s-io/k3s",
+    ): "Example comments deleted with the local annotated-dependency customManager: the base preset github>home-operations/renovate-presets#11.0.0 now owns that manager.",
+    (
+        ".renovate/customManagers.json5",
+        "// # renovate: datasource=helm depName=cilium repository=https://helm.cilium.io",
+    ): "Example comments deleted with the local annotated-dependency customManager: the base preset github>home-operations/renovate-presets#11.0.0 now owns that manager.",
+    (
+        ".renovate/customManagers.json5",
+        "// # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet",
+    ): "Example comments deleted with the local annotated-dependency customManager: the base preset github>home-operations/renovate-presets#11.0.0 now owns that manager.",
+    (
+        ".renovate/customManagers.json5",
+        "// # renovate: datasource=docker depName=ghcr.io/prometheus-operator/prometheus-operator",
+    ): "Example comments deleted with the local annotated-dependency customManager: the base preset github>home-operations/renovate-presets#11.0.0 now owns that manager.",
     (
         "kubernetes/apps/base/database/cloudnative-pg/cluster-18/cluster-18.yaml",
         "# renovate: datasource=docker depName=ghcr.io/cloudnative-pg/pgvector",

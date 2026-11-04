@@ -2,10 +2,11 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
-      // automergeType stays at the default "pr". Skill `renovate`.
+      // automergeType "pr" is explicit on every automerge rule: the base preset extends :automergeBranch. Skill `renovate`.
       description: "Auto merge all container digest updates",
       matchDatasources: ["docker"],
       automerge: true,
+      automergeType: "pr",
       matchUpdateTypes: ["digest"],
       ignoreTests: false,
     },
@@ -13,16 +14,38 @@
       description: "Auto merge all container and helm patch updates",
       matchDatasources: ["docker", "helm", "github-releases", "github-tags"],
       automerge: true,
+      automergeType: "pr",
       matchUpdateTypes: ["patch"],
       ignoreTests: false,
     },
     {
-      description: "Auto merge all container and helm minor updates",
+      // GHCR and quay publish no release timestamp; with the default timestamp-required the age check never passes and the update stalls in "Pending Status Checks". 0.x minors can break, so they open PRs without automerge. Skill `renovate`.
+      description: "Auto merge all container and helm minor updates (not 0.x)",
       matchDatasources: ["docker", "helm", "github-releases", "github-tags"],
       automerge: true,
+      automergeType: "pr",
       matchUpdateTypes: ["minor"],
+      matchCurrentVersion: "!/^v?0\\./",
+      minimumReleaseAge: "3 days",
+      minimumReleaseAgeBehaviour: "timestamp-optional",
+      ignoreTests: false,
+    },
+    {
+      // GitHub publishes release timestamps, so the age gate works here. PR, not branch: renovate/** pushes get no status check. Skill `renovate`.
+      description: "Auto merge GitHub Actions and mise tool updates as PRs after checks pass",
+      matchManagers: ["github-actions", "mise"],
+      matchUpdateTypes: ["minor", "patch", "digest"],
+      automerge: true,
+      automergeType: "pr",
       minimumReleaseAge: "3 days",
       ignoreTests: false,
+    },
+    {
+      // MUST stay after the blanket rules. CNI and storage: every reference repo reviews these by hand. Datasource-scoped, so aqua:cilium/cilium-cli and quay.io/ceph/ceph are not matched. Skill `renovate`.
+      description: "Never auto merge Cilium or Rook-Ceph - a bad CNI or storage-operator minor takes the cluster down",
+      matchDatasources: ["docker", "helm"],
+      matchPackageNames: ["/cilium/", "/rook-ceph/"],
+      automerge: false,
     },
     {
       // MUST stay after the three blanket automerge rules. Path match, not package name: a chart self-update must stay a reviewed PR. Skill `renovate`.
@@ -89,7 +112,7 @@
       automerge: false,
     },
     {
-      // MUST stay after the blanket digest rule. automerge stays true; the schedule only throttles the rolling latest tag to once a week, UTC. Skill `renovate`.
+      // MUST stay after the blanket digest rule. automerge stays true; the schedule only throttles the rolling latest tag to once a week, America/New_York (.renovaterc.json5 timezone). Skill `renovate`.
       description: "rsshub tracks a rolling `latest` tag that rebuilds many times a day - limit its digest updates to once a week instead of every rebuild",
       matchPackageNames: ["ghcr.io/diygod/rsshub"],
       matchUpdateTypes: ["digest"],

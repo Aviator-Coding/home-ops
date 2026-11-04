@@ -130,6 +130,19 @@ class DepUpdate:
     datasource: str
     update_type: str
     file_name: str
+    manager: str = "flux"
+    current_version: str = "1.0.0"
+
+
+def _match_pattern(pattern: str, value: str) -> bool:
+    """Renovate string matcher: `/re/` regex, `!/re/` negated regex, else exact."""
+    negated = pattern.startswith("!")
+    body = pattern[1:] if negated else pattern
+    if len(body) >= 2 and body.startswith("/") and body.endswith("/"):
+        hit = re.search(body[1:-1], value) is not None
+    else:
+        hit = body == value
+    return hit != negated
 
 
 def rule_matches(rule: dict[str, Any], dep: DepUpdate) -> bool:
@@ -145,6 +158,8 @@ def rule_matches(rule: dict[str, Any], dep: DepUpdate) -> bool:
         "matchUpdateTypes",
         "matchPackageNames",
         "matchFileNames",
+        "matchManagers",
+        "matchCurrentVersion",
         "automerge",
         "automergeType",
         "minimumReleaseAge",
@@ -169,8 +184,16 @@ def rule_matches(rule: dict[str, Any], dep: DepUpdate) -> bool:
     if update_types is not None and dep.update_type not in update_types:
         return False
 
+    managers = rule.get("matchManagers")
+    if managers is not None and dep.manager not in managers:
+        return False
+
+    current = rule.get("matchCurrentVersion")
+    if current is not None and not _match_pattern(current, dep.current_version):
+        return False
+
     names = rule.get("matchPackageNames")
-    if names is not None and dep.package_name not in names:
+    if names is not None and not any(_match_pattern(n, dep.package_name) for n in names):
         return False
 
     files = rule.get("matchFileNames")
@@ -246,14 +269,28 @@ def test_automerge_config_parses() -> list[dict[str, Any]]:
     cfg = parse_json5_comments(AUTOMERGE.read_text())
     rules = cfg.get("packageRules") or []
     require(isinstance(rules, list) and rules, "autoMerge.json5 has no packageRules")
-    # Exactly three blanket enable rules, then exclusions. Do not allow a fourth
-    # automerge:true blanket to slip in (that would widen automerge).
+    # Exactly three datasource blanket enable rules (digest/patch/minor) plus one
+    # manager rule for github-actions + mise (moved here from the retired mortyops
+    # presets, as automergeType "pr"). Do not allow another automerge:true rule to
+    # slip in (that would widen automerge).
     enable_rules = [r for r in rules if r.get("automerge") is True]
+    blanket = [r for r in enable_rules if "matchDatasources" in r]
+    manager = [r for r in enable_rules if "matchDatasources" not in r]
     require(
-        len(enable_rules) == 3,
-        f"expected exactly 3 automerge:true blanket rules (digest/patch/minor), "
-        f"got {len(enable_rules)} - do not widen automerge",
+        len(blanket) == 3 and len(manager) == 1,
+        f"expected 3 datasource blanket rules (digest/patch/minor) + 1 manager rule, "
+        f"got {len(blanket)} + {len(manager)} - do not widen automerge",
     )
+    require(
+        sorted(manager[0].get("matchManagers") or []) == ["github-actions", "mise"],
+        f"the manager automerge rule must cover exactly github-actions and mise: {manager[0]}",
+    )
+    for r in enable_rules:
+        require(
+            r.get("automergeType") == "pr",
+            f"every automerge rule must set automergeType pr (the base preset extends "
+            f":automergeBranch, and renovate/** pushes get no status check): {r.get('description')}",
+        )
     disable_rules = [r for r in rules if r.get("automerge") is False]
     require(
         len(disable_rules) >= 2,
@@ -404,6 +441,35 @@ def test_litellm_proxy_minor_is_reviewed(rules: list[dict[str, Any]]) -> None:
     )
 
 
+def test_cluster_critical_and_zero_ver_minors_are_reviewed(rules: list[dict[str, Any]]) -> None:
+    """Cilium and Rook-Ceph (docker/helm) never automerge; 0.x minors never automerge.
+
+    The Cilium/Rook rule is datasource-scoped, so the cilium-cli mise tool still
+    automerges, and quay.io/ceph/ceph is untouched. Before 2026-11 the only thing
+    stopping a Cilium minor from merging unattended was GHCR's missing timestamp.
+    """
+    held = [
+        DepUpdate("quay.io/cilium/charts/cilium", "docker", "minor", "kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml"),
+        DepUpdate("quay.io/cilium/charts/cilium", "docker", "patch", "kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml"),
+        DepUpdate("ghcr.io/rook/rook-ceph", "docker", "minor", "kubernetes/apps/base/rook-ceph/rook-ceph/app/ocirepository.yaml"),
+        DepUpdate("ghcr.io/rook/rook-ceph-cluster", "docker", "patch", "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/ocirepository.yaml"),
+    ]
+    for dep in held:
+        winner, idx = winning_automerge(rules, dep)
+        require(winner is False, f"{dep}: must not automerge (got {winner} from rule {idx})")
+    zero = DepUpdate("ghcr.io/stacklok/toolhive/toolhive-operator", "docker", "minor", "kubernetes/apps/base/ai/toolhive/app/helmrelease.yaml", current_version="0.42.1")
+    winner, idx = winning_automerge(rules, zero)
+    require(winner is not True, f"0.x minor must not automerge (got {winner} from rule {idx})")
+    still = [
+        DepUpdate("aqua:cilium/cilium-cli", "github-releases", "patch", ".mise.toml", manager="mise"),
+        DepUpdate("quay.io/ceph/ceph", "docker", "patch", "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml"),
+        DepUpdate("jdx/mise-action", "github-tags", "minor", ".github/workflows/ci.yaml", manager="github-actions"),
+    ]
+    for dep in still:
+        winner, idx = winning_automerge(rules, dep)
+        require(winner is True, f"{dep}: must still automerge (got {winner} from rule {idx})")
+
+
 def test_rendered_renovate_app_contract(docs: list[dict[str, Any]]) -> None:
     """Conditions 1-3 as shipped: silence alerts live; hostRules intentionally absent."""
     oci = [d for d in docs if d.get("kind") == "OCIRepository"]
@@ -504,6 +570,7 @@ def main() -> int:
         run("unrelated_updates_still_automerge", test_unrelated_updates_still_automerge, rules)
         run("kopiur_exclusion_still_wins", test_kopiur_exclusion_still_wins, rules)
         run("litellm_proxy_minor_is_reviewed", test_litellm_proxy_minor_is_reviewed, rules)
+        run("cluster_critical_and_zero_ver_minors_are_reviewed", test_cluster_critical_and_zero_ver_minors_are_reviewed, rules)
 
     docs = run("kustomize_build_renovate_app", kustomize_build, RENOVATE_APP)
     if docs is not None:

@@ -27,4 +27,13 @@
       datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}docker{{/if}}",
     },
   ],
+  packageRules: [
+    {
+      // The base preset points the kubernetes manager at every *.yaml(.j2); the regex managers above own talos/, so a second extraction would only duplicate them.
+      description: "Talos templates are owned by the regex managers in this file, not the kubernetes manager",
+      matchManagers: ["kubernetes"],
+      matchFileNames: ["talos/**"],
+      enabled: false,
+    },
+  ],
 }

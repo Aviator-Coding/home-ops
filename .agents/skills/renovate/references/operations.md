@@ -1,8 +1,9 @@
 # In-cluster Renovate
 
-CronJob every 4 hours. Community operators are not used. The GitHub App must
-keep access to `skrumbach/home-ops` and `skrumbach/mortyops` (preset
-`extends`). The CronJob mints a one-hour installation token
+CronJob every 4 hours. Community operators are not used (mogenius
+`renovate-operator` is the candidate; a migration is a separate plan). The GitHub
+App needs access to `skrumbach/home-ops`; the base preset
+`home-operations/renovate-presets` is public. The CronJob mints a one-hour installation token
 (`app/resources/github-app-token.js`). The script accepts PEM, escaped-newline
 PEM, or a headerless PKCS#1/PKCS#8 body.
 
