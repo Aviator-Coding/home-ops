@@ -1,0 +1,13 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# One app's role and database on the shared postgres-18 Cluster. Applied by a sibling
+# Flux Kustomization `<app>-db` (targetNamespace: database) in the app's own overlay.
+# Variables: APP, CNPG_ROLE, CNPG_DATABASE, optional CNPG_OP_ITEM (1Password item,
+# default APP) and CNPG_PASSWORD_KEY (default POSTGRES_DB_USER_PASSWORD).
+# Skill `databases`.
+resources:
+  - ./externalsecret.yaml
+  - ./databaserole.yaml
+  - ./database.yaml

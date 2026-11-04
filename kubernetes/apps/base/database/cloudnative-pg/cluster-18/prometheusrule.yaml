@@ -76,27 +76,28 @@ spec:
             severity: warning
         # Standbys export backup timestamp 0. Require timestamp > 0 and
         # in_recovery == 0. A primary at 0 is the *TimestampAbsent rules.
+        # The Barman Cloud plugin renames the in-tree cnpg_collector_* backup
+        # metrics to barman_cloud_cloudnative_pg_io_*; either one counts.
         # Skill databases.
         - alert: PostgresBackupStale
           annotations:
-            description: Primary {{ $labels.pod }} last completed a base backup more than 36h ago. ScheduledBackup postgres-17 is daily; standbys report this timestamp as 0 and are excluded.
+            description: Primary {{ $labels.pod }} last completed a base backup more than 36h ago. ScheduledBackup postgres-18 is daily; standbys report this timestamp as 0 and are excluded.
             summary: Primary {{ $labels.pod }} has not completed a Postgres base backup in over 36h
           expr: |-
             (
-              (time() - cnpg_collector_last_available_backup_timestamp) > 129600
+              (time() - (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp > 0 or cnpg_collector_last_available_backup_timestamp > 0)) > 129600
             )
-              and on(pod) (cnpg_collector_last_available_backup_timestamp > 0)
               and on(pod) (cnpg_pg_replication_in_recovery == 0)
           for: 15m
           labels:
             severity: warning
         - alert: PostgresBackupTimestampAbsent
           annotations:
-            description: Primary {{ $labels.pod }} has no positive cnpg_collector_last_available_backup_timestamp, so PostgresBackupStale cannot see it. Standbys report 0 by design and are excluded.
+            description: Primary {{ $labels.pod }} has no positive base-backup timestamp (barman_cloud_cloudnative_pg_io_* from the Barman Cloud plugin, or the in-tree cnpg_collector_* one), so PostgresBackupStale cannot see it. Standbys report 0 by design and are excluded.
             summary: Primary {{ $labels.pod }} is not reporting a Postgres base-backup timestamp
           expr: |-
             (cnpg_pg_replication_in_recovery == 0)
-              unless on(pod) (cnpg_collector_last_available_backup_timestamp > 0)
+              unless on(pod) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp > 0 or cnpg_collector_last_available_backup_timestamp > 0)
           for: 15m
           labels:
             severity: warning

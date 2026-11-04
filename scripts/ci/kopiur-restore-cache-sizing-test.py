@@ -90,7 +90,7 @@ PINNED: dict[str, tuple[str, str]] = {
         "24,054 entries and 17,278/17,281 files byte-identical to an independent ceph "
         "restore. See .agents/skills/kopiur-backups/references/restore-and-cache.md",
     ),
-    "downloads/radarr.yaml": (
+    "downloads/radarr.yaml#radarr": (
         "10Gi",
         "1.36 GiB snapshot against 1.95 GiB usable at the old 2Gi = 70% - the same cliff "
         "shape as media/tdarr with more runway. 10Gi clears the ~6.2 GiB plateau outright "

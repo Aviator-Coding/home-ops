@@ -3,7 +3,7 @@
     "1": {
       "Name": "Postgres 17 Cluster",
       "Group": "Servers",
-      "Host": "postgres-17-rw.database.svc.cluster.local",
+      "Host": "postgres-18-rw.database.svc.cluster.local",
       "Port": 5432,
       "MaintenanceDB": "postgres",
       "Username": "postgres",

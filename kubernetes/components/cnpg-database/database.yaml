@@ -1,0 +1,14 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/database_v1.json
+# retain: deleting this CR never drops the database. Dropping it is a manual step of
+# app retirement. Skill `databases`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: ${APP}
+spec:
+  cluster:
+    name: postgres-18
+  name: ${CNPG_DATABASE}
+  owner: ${CNPG_ROLE}
+  databaseReclaimPolicy: retain

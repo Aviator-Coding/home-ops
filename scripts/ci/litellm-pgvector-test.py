@@ -295,7 +295,13 @@ def test_registry_checker_refuses_fallback_name() -> dict[str, Any]:
 
 
 def test_overlay_is_wired() -> dict[str, Any]:
-    ks = one_doc(OVERLAY, "Kustomization")
+    # The overlay also carries the sibling `litellm-pgvector-db` (role + database CRs).
+    named = [
+        d for d in load_docs(OVERLAY)
+        if d.get("kind") == "Kustomization" and d["metadata"]["name"] == "litellm-pgvector"
+    ]
+    require(len(named) == 1, f"{OVERLAY.relative_to(ROOT)}: expected one Kustomization litellm-pgvector, found {len(named)}")
+    ks = named[0]
     deps = {d["name"] for d in ks["spec"].get("dependsOn", [])}
     for dep in ("litellm", "cloudnative-pg", "onepassword-store"):
         require(dep in deps, f"litellm-pgvector overlay must dependsOn {dep}")

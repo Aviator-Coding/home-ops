@@ -24,6 +24,8 @@ spec:
       failed: status.phase != 'ready'
       current: status.phase == 'ready'
   dependsOn:
+    - name: litellm-db
+      namespace: ai
     - name: onepassword-store
       namespace: security
     - name: dragonfly-operator
@@ -55,3 +57,43 @@ spec:
     substitute:
       APP: *app
       GATUS_GROUP: ai
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Role and database on the shared postgres-18 Cluster (retain: removing this never
+# drops data). Skill `databases`.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: litellm-db
+  namespace: ai
+spec:
+  targetNamespace: database
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: litellm
+  interval: 30m
+  timeout: 5m
+  path: ./kubernetes/components/cnpg-database
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  dependsOn:
+    - name: postgres-cluster-18
+      namespace: database
+    - name: onepassword-store
+      namespace: security
+  healthCheckExprs:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: DatabaseRole
+      current: status.applied == true
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Database
+      current: status.applied == true
+  wait: true
+  postBuild:
+    substitute:
+      APP: litellm
+      CNPG_ROLE: litellm
+      CNPG_DATABASE: litellm

@@ -20,6 +20,8 @@ spec:
     namespace: flux-system
   wait: false
   dependsOn:
+    - name: n8n-db
+      namespace: selfhosted
     - name: onepassword-store
       namespace: security
     - name: kopiur-repository
@@ -36,3 +38,43 @@ spec:
       APP: *app
       KOPIUR_CAPACITY: 8Gi
       KOPIUR_SCHEDULE_R2: "H 14 * * *"
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Role and database on the shared postgres-18 Cluster (retain: removing this never
+# drops data). Skill `databases`.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: n8n-db
+  namespace: selfhosted
+spec:
+  targetNamespace: database
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: n8n
+  interval: 30m
+  timeout: 5m
+  path: ./kubernetes/components/cnpg-database
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  dependsOn:
+    - name: postgres-cluster-18
+      namespace: database
+    - name: onepassword-store
+      namespace: security
+  healthCheckExprs:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: DatabaseRole
+      current: status.applied == true
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Database
+      current: status.applied == true
+  wait: true
+  postBuild:
+    substitute:
+      APP: n8n
+      CNPG_ROLE: n8n
+      CNPG_DATABASE: n8n

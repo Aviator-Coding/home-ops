@@ -51,7 +51,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 CNPG_RULE = (
     ROOT
-    / "kubernetes/apps/base/database/cloudnative-pg/cluster-17/prometheusrule.yaml"
+    / "kubernetes/apps/base/database/cloudnative-pg/cluster-18/prometheusrule.yaml"
 )
 KOPIUR_RULE = ROOT / "kubernetes/apps/base/system/kopiur/app/prometheusrule.yaml"
 GATUS_RULE = ROOT / "kubernetes/apps/base/monitoring/gatus/app/prometheusrule.yaml"
@@ -323,6 +323,16 @@ def assert_cnpg_promtool(rule: dict[str, Any], alerts: dict[str, dict[str, Any]]
         _series("cnpg_pg_stat_archiver_last_archived_time", pod("pg-demoted"), stale_wal),
         _series("cnpg_pg_replication_in_recovery", pod("pg-demoted"), standby),
         _series("cnpg_pg_replication_in_recovery", pod("pg-unmeasured"), primary),
+        # Barman Cloud plugin primary: the in-tree timestamp stays 0 and the plugin's
+        # renamed metric carries the backup. Fresh, so neither backup alert may fire.
+        _series("barman_cloud_cloudnative_pg_io_last_available_backup_timestamp", pod("pg-plugin"), fresh_backup),
+        _series("cnpg_collector_last_available_backup_timestamp", pod("pg-plugin"), zero_ts),
+        _series("cnpg_pg_stat_archiver_last_archived_time", pod("pg-plugin"), fresh_wal),
+        _series("cnpg_pg_replication_in_recovery", pod("pg-plugin"), primary),
+        # Plugin primary whose last backup is stale: BACKUP_STALE must fire.
+        _series("barman_cloud_cloudnative_pg_io_last_available_backup_timestamp", pod("pg-plugin-stale"), stale_backup),
+        _series("cnpg_pg_stat_archiver_last_archived_time", pod("pg-plugin-stale"), fresh_wal),
+        _series("cnpg_pg_replication_in_recovery", pod("pg-plugin-stale"), primary),
     ]
 
     def exp(name: str, pod_name: str) -> dict[str, Any]:
@@ -350,7 +360,7 @@ def assert_cnpg_promtool(rule: dict[str, Any], alerts: dict[str, dict[str, Any]]
                     {"eval_time": "4h", "alertname": WAL_STALE, "exp_alerts": [exp(WAL_STALE, "pg-stale-wal")]},
                     {"eval_time": "4h", "alertname": BACKUP_STALE, "exp_alerts": none},
                     {"eval_time": "38h", "alertname": BACKUP_STALE, "exp_alerts": none},
-                    {"eval_time": "40h", "alertname": BACKUP_STALE, "exp_alerts": [exp(BACKUP_STALE, "pg-stale-backup")]},
+                    {"eval_time": "40h", "alertname": BACKUP_STALE, "exp_alerts": [exp(BACKUP_STALE, "pg-stale-backup"), exp(BACKUP_STALE, "pg-plugin-stale")]},
                     {"eval_time": "40h", "alertname": WAL_STALE, "exp_alerts": [exp(WAL_STALE, "pg-stale-wal")]},
                     {"eval_time": "40h", "alertname": BACKUP_ABSENT, "exp_alerts": absent},
                     {"eval_time": "40h", "alertname": WAL_ABSENT, "exp_alerts": wal_absent},

@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/databaserole_v1.json
+# retain: deleting this CR (an app removed, a Flux prune) never drops the role.
+# Adoption resets every omitted attribute to its default, which matches the live
+# app roles (login only). Skill `databases`.
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: ${APP}
+spec:
+  cluster:
+    name: postgres-18
+  name: ${CNPG_ROLE}
+  login: true
+  passwordSecret:
+    name: ${APP}-pg-role
+  databaseRoleReclaimPolicy: retain
