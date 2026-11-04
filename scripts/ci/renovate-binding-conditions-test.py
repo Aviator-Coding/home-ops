@@ -442,10 +442,9 @@ def test_litellm_proxy_minor_is_reviewed(rules: list[dict[str, Any]]) -> None:
 
 
 def test_cluster_critical_and_zero_ver_minors_are_reviewed(rules: list[dict[str, Any]]) -> None:
-    """Cilium and Rook-Ceph (docker/helm) never automerge; 0.x minors never automerge.
+    """Cilium, Rook-Ceph and quay.io/ceph/ceph (docker/helm) never automerge; 0.x minors never automerge.
 
-    The Cilium/Rook rule is datasource-scoped, so the cilium-cli mise tool still
-    automerges, and quay.io/ceph/ceph is untouched. Before 2026-11 the only thing
+    The rule is datasource-scoped, so the cilium-cli mise tool still automerges. Before 2026-11 the only thing
     stopping a Cilium minor from merging unattended was GHCR's missing timestamp.
     """
     held = [
@@ -453,6 +452,8 @@ def test_cluster_critical_and_zero_ver_minors_are_reviewed(rules: list[dict[str,
         DepUpdate("quay.io/cilium/charts/cilium", "docker", "patch", "kubernetes/apps/base/kube-system/cilium/app/ocirepository.yaml"),
         DepUpdate("ghcr.io/rook/rook-ceph", "docker", "minor", "kubernetes/apps/base/rook-ceph/rook-ceph/app/ocirepository.yaml"),
         DepUpdate("ghcr.io/rook/rook-ceph-cluster", "docker", "patch", "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/ocirepository.yaml"),
+        DepUpdate("quay.io/ceph/ceph", "docker", "patch", "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml"),
+        DepUpdate("quay.io/ceph/ceph", "docker", "minor", "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml"),
     ]
     for dep in held:
         winner, idx = winning_automerge(rules, dep)
@@ -462,7 +463,6 @@ def test_cluster_critical_and_zero_ver_minors_are_reviewed(rules: list[dict[str,
     require(winner is not True, f"0.x minor must not automerge (got {winner} from rule {idx})")
     still = [
         DepUpdate("aqua:cilium/cilium-cli", "github-releases", "patch", ".mise.toml", manager="mise"),
-        DepUpdate("quay.io/ceph/ceph", "docker", "patch", "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml"),
         DepUpdate("jdx/mise-action", "github-tags", "minor", ".github/workflows/ci.yaml", manager="github-actions"),
     ]
     for dep in still:

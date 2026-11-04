@@ -41,10 +41,10 @@
       ignoreTests: false,
     },
     {
-      // MUST stay after the blanket rules. CNI and storage: every reference repo reviews these by hand. Datasource-scoped, so aqua:cilium/cilium-cli and quay.io/ceph/ceph are not matched. Skill `renovate`.
-      description: "Never auto merge Cilium or Rook-Ceph - a bad CNI or storage-operator minor takes the cluster down",
+      // MUST stay after the blanket rules. CNI and storage: every reference repo reviews these by hand. The Ceph image must match the Rook release, so it is reviewed too. Datasource-scoped, so aqua:cilium/cilium-cli is not matched. Skill `renovate`.
+      description: "Never auto merge Cilium, Rook-Ceph or the Ceph image - a bad CNI, storage operator or a Ceph version Rook does not support takes the cluster down",
       matchDatasources: ["docker", "helm"],
-      matchPackageNames: ["/cilium/", "/rook-ceph/"],
+      matchPackageNames: ["/cilium/", "/rook-ceph/", "quay.io/ceph/ceph"],
       automerge: false,
     },
     {
