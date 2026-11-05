@@ -83,6 +83,11 @@ spec:
     persistence:
       config:
         existingClaim: prowlarr-config
+      # v3 writes its data-protection key ring under /tmp; the root filesystem is read-only.
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
 
     route:
       app:
