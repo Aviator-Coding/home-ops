@@ -180,7 +180,7 @@ spec:
           codeserver:
             image:
               repository: ghcr.io/coder/code-server
-              tag: 4.133.0
+              tag: 4.145.0
             env:
               HOME: /opt/data
               TZ: ${CONFIG_TIMEZONE}
