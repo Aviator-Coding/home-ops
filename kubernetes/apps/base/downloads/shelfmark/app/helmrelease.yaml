@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: ghcr.io/calibrain/shelfmark-lite
-              tag: v1.4.0@sha256:edc889c12c4e54076432e5377b674fed4a1aaa934890f8a678bc5b38e5088a75
+              tag: v1.6.1@sha256:1f090c0b4ce3b80d0a2a05e54a469d652b6930ac84dd1fa8806e50c23ac1cccb
             env:
               # List form: app-template mangles bare PUID/PGID map keys (see the CWA release).
               - name: PUID
