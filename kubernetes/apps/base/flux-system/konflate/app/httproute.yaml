@@ -13,7 +13,7 @@ metadata:
     gethomepage.dev/name: konflate
     gethomepage.dev/app: *app
     gethomepage.dev/pod-selector: app.kubernetes.io/name=konflate
-    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
       conditions: ["[STATUS] == 200"]
 spec:

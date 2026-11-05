@@ -101,7 +101,7 @@ spec:
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/jellyseerr.svg
           gethomepage.dev/description: "Seerr is a unified request manager for Jellyfin, Plex, and Emby."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=seerr
-          external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+          external-dns.kubernetes.io/target: "external.${SECRET_DOMAIN}"
         hostnames:
           - seerr.${SECRET_DOMAIN}
         parentRefs:

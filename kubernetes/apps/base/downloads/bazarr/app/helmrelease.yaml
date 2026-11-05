@@ -140,7 +140,7 @@ spec:
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/bazarr.svg
           gethomepage.dev/description: "Bazarr - Subtitle Management"
           gethomepage.dev/pod-selector: app.kubernetes.io/name=bazarr
-          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
         hostnames:
           - bazarr.${SECRET_DOMAIN}
         parentRefs:

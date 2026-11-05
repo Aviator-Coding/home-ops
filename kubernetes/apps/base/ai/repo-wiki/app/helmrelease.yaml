@@ -155,7 +155,7 @@ spec:
           gethomepage.dev/group: AI
           gethomepage.dev/name: Repo Wiki
           gethomepage.dev/description: "AI-generated per-repo documentation"
-          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
           gatus.home-operations.com/endpoint: |-
             conditions: ["[STATUS] == 200"]
         hostnames:

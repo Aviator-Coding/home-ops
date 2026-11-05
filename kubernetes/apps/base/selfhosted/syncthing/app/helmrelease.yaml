@@ -99,7 +99,7 @@ spec:
           gethomepage.dev/group: Selfhosted
           gethomepage.dev/name: Syncthing
           gethomepage.dev/icon: syncthing.svg
-          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
         hostnames:
           - "syncthing.${SECRET_DOMAIN}"
         parentRefs:

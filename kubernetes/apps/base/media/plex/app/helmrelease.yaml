@@ -122,7 +122,7 @@ spec:
           gethomepage.dev/icon: https://raw.githubusercontent.com/loganmarchione/homelab-svg-assets/refs/heads/main/assets/plex.svg
           gethomepage.dev/description: "Plex is a media server for streaming to Plex clients."
           gethomepage.dev/pod-selector: app.kubernetes.io/name=plex
-          external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+          external-dns.kubernetes.io/target: "external.${SECRET_DOMAIN}"
           gatus.home-operations.com/endpoint: |-
             url: https://plex.${SECRET_DOMAIN}/identity
             conditions:

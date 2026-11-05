@@ -10,7 +10,7 @@ metadata:
     gethomepage.dev/group: database
     gethomepage.dev/name: *app
     gethomepage.dev/app: *app
-    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
     # Check /health, not `/`: bare `/` redirects to a third-party surrealdb.com
     # page that Gatus follows. Skill `databases`.
     gatus.home-operations.com/endpoint: |-
