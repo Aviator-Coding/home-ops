@@ -1,6 +1,6 @@
 # renovate
 
-In-cluster CronJob, every 4 hours. The GitHub Actions workflow is rollback
+In-cluster CronJob, hourly. The GitHub Actions workflow is rollback
 only: its schedule is commented out, and its `push` trigger still overlaps
 this writer. Suspend that workflow before merging `.renovaterc.json5` or
 `.renovate/**`.

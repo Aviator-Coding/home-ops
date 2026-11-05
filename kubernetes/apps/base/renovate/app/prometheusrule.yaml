@@ -34,7 +34,7 @@ spec:
           annotations:
             summary: >-
               In-cluster Renovate has not completed a successful run in over 8h
-              (two missed 4-hour cycles). Confirm the CronJob is not suspended
+              (eight missed hourly runs). Confirm the CronJob is not suspended
               and that the renovate 1Password item exists so the GitHub App
               token can be minted.
           labels:

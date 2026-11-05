@@ -22,8 +22,8 @@
     // The base extends :automergeBranch, but renovate/** pushes get no status check, so branch automerge never merges. Every automerge rule in autoMerge.json5 sets automergeType "pr". Skill `renovate`.
   ],
   // The base extends :disableRateLimiting. Without a cap a config fix can release a whole backlog of automerging PRs in one pass.
-  prHourlyLimit: 4,
-  prConcurrentLimit: 15,
+  prHourlyLimit: 10,
+  prConcurrentLimit: 20,
   // The base preset's annotated-dependency manager scans every file; docs and CI tests quote the syntax as examples.
   ignorePaths: [
     "**/resources/**",
