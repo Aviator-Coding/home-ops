@@ -1,6 +1,6 @@
 # In-cluster Renovate
 
-CronJob every 4 hours. Community operators are not used (mogenius
+CronJob hourly. Community operators are not used (mogenius
 `renovate-operator` is the candidate; a migration is a separate plan). The GitHub
 App needs access to `skrumbach/home-ops`; the base preset
 `home-operations/renovate-presets` is public. The CronJob mints a one-hour installation token

@@ -7,12 +7,12 @@ description: "Read before editing .renovaterc.json5, .renovate/**, any # renovat
 
 The live writer is the in-cluster CronJob
 (`kubernetes/apps/base/renovate/`, chart `oci://ghcr.io/renovatebot/charts/renovate`,
-every 4 hours). `.github/workflows/renovate.yaml` is the rollback path and is
+hourly). `.github/workflows/renovate.yaml` is the rollback path and is
 manual-dispatch only (no schedule, no `push` trigger), so it never runs beside the CronJob.
 
 ## Tripwires
 
-1. **A config change lands on the next CronJob pass (up to 4 hours).** The
+1. **A config change lands on the next CronJob pass (up to 1 hour).** The
    owner can start one at once with
    `kubectl -n renovate create job --from=cronjob/renovate`. Do not dispatch
    `renovate.yaml` while a CronJob pass runs: two writers race on the same branches.

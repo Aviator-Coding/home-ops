@@ -16,7 +16,7 @@ spec:
       repository: ghcr.io/renovatebot/renovate
       tag: 44.40.0
     cronjob:
-      schedule: "0 */4 * * *"
+      schedule: "0 * * * *"
       concurrencyPolicy: Forbid
       failedJobsHistoryLimit: 5
       successfulJobsHistoryLimit: 3
