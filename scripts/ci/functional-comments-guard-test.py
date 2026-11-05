@@ -73,6 +73,10 @@ KNOWN_UNCAPTURED: dict[str, str] = {
 # (path at HEAD, stripped functional line) -> reason. Scoped to one PR.
 ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
     (
+        "kubernetes/apps/base/monitoring/kromgo/app/resources/config.yaml",
+        "# yaml-language-server: $schema=https://raw.githubusercontent.com/kashalls/kromgo/main/config.schema.json",
+    ): "kromgo moved to home-operations/kromgo; the schema line now points at its 0.16 config.schema.json.",
+    (
         ".renovate/customManagers.json5",
         "// # renovate: datasource=github-releases depName=k3s-io/k3s",
     ): "Example comments deleted with the local annotated-dependency customManager: the base preset github>home-operations/renovate-presets#11.0.0 now owns that manager.",

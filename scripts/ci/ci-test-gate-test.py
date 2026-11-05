@@ -39,6 +39,7 @@ EXPECTED_GATE = {
     "kopiur-stage1-test.py",
     "kopiur-stage3-test.py",
     "kopiur-stage5-test.py",
+    "kromgo-public-config-test.py",
     "pvc-mover-readable-check-test.py",
     "pvc-writable-check-test.py",
     "volsync-retired-expiry-test.py",
