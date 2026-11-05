@@ -44,7 +44,7 @@ spec:
           app:
             image:
               repository: mirror.gcr.io/python
-              tag: 3.13-alpine
+              tag: 3.15-alpine
             command:
               - python3
               - /scripts/watchdog.py
