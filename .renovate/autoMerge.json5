@@ -48,6 +48,13 @@
       automerge: false,
     },
     {
+      // MUST stay after the blanket rules. Envoy Gateway tests one Envoy minor per release (v1.9 = 1.39.x, compatibility matrix); bump envoy with the gateway minor. Skill `renovate`.
+      description: "Never auto merge Envoy proxy minor or major versions - must match the Envoy Gateway release",
+      matchPackageNames: ["/(^|/)envoyproxy/envoy$/"],
+      matchUpdateTypes: ["minor", "major"],
+      automerge: false,
+    },
+    {
       // MUST stay after the blanket rules. A Python minor is a new ABI: native deps (PyO3 wheels such as litellm's fastuuid) lag it, and 3.15 broke the nightly tests (#1991). Skill `renovate`.
       description: "Never auto merge Python minor or major versions - mise tool and docker image",
       matchPackageNames: ["python", "/(^|/)python$/"],
