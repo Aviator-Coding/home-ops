@@ -503,7 +503,11 @@ def _have_kubectl() -> bool:
 
 def test_flux_substitute_reaches_route() -> None:
     """Simulate Flux postBuild envsubst for the tokens this app declares."""
-    ks = load_yaml(MAIN_KS_PATH)
+    # The overlay holds litellm and litellm-db: pick the app's Kustomization.
+    ks = next(
+        d for d in load_all_yaml(MAIN_KS_PATH)
+        if d.get("kind") == "Kustomization" and d.get("metadata", {}).get("name") == "litellm"
+    )
     sub = (ks.get("spec") or {}).get("postBuild", {}).get("substitute") or {}
     record(
         "flux_ks_defines_GATUS_GROUP_ai",
