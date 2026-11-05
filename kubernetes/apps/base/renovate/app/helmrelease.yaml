@@ -14,7 +14,7 @@ spec:
     image:
       # repository is set so helm-values tracks the runner; the self-update rule keeps bumps as reviewed PRs.
       repository: ghcr.io/renovatebot/renovate
-      tag: 44.218.0
+      tag: 44.219.0
     cronjob:
       schedule: "0 * * * *"
       concurrencyPolicy: Forbid
