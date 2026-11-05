@@ -32,7 +32,7 @@ ALLOWED: dict[str, set[str]] = {
     "hass.${SECRET_DOMAIN}": {"/"},
     "plex.${SECRET_DOMAIN}": {"/"},
     "seerr.${SECRET_DOMAIN}": {"/"},
-    "kromgo.${SECRET_DOMAIN}": {"/"},  # read-only status badges
+    "kromgo.${SECRET_DOMAIN}": {"/badges/"},  # public read-only badges; config pinned by kromgo-public-config-test.py
     "echo.${SECRET_DOMAIN}": {"/"},
     "n8n-webhook.${SECRET_DOMAIN}": {"/webhook", "/rest/oauth2-credential"},  # not the editor
     # Wizarr invite flow only; the admin UI is wizarr.${SECRET_DOMAIN} on envoy-internal.

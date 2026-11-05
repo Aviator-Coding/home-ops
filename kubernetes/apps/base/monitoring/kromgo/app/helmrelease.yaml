@@ -26,12 +26,14 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/kashalls/kromgo
-              tag: v0.10.0@sha256:965ecc92d68dc1a4a969397855367bbc70da03227a941ea607b73bb7e0b78fd6
+              # kashalls/kromgo moved to home-operations/kromgo (tags without the v prefix).
+              repository: ghcr.io/home-operations/kromgo
+              tag: 0.16.3@sha256:98775a53019250a517a09a0fb716404146d1aaa6fb1f67091c58345663e5b7b5
             env:
-              PROMETHEUS_URL: http://prometheus-operated.monitoring.svc.cluster.local:9090
-              SERVER_PORT: &port 80
-              HEALTH_PORT: &healthPort 8080
+              KROMGO_PROMETHEUS_URL: http://prometheus-operated.monitoring.svc.cluster.local:9090
+              KROMGO_SERVER_PORT: &port 8080
+              # No /metrics listener: nothing scrapes it, and the main port is the only one served.
+              KROMGO_METRICS_ENABLED: "false"
             probes:
               liveness: &probes
                 enabled: true
@@ -39,7 +41,7 @@ spec:
                 spec:
                   httpGet:
                     path: /readyz
-                    port: *healthPort
+                    port: *port
                   initialDelaySeconds: 0
                   periodSeconds: 10
                   timeoutSeconds: 1
@@ -66,20 +68,28 @@ spec:
         ports:
           http:
             port: *port
-          health:
-            port: *healthPort
+    # Public on purpose, no ExtAuth: the github.com/skrumbach profile workflow reads these
+    # badges anonymously. Only /badges/ is routed (no gallery, graphs or health paths), kromgo
+    # answers only the fixed queries in resources/config.yaml (query parameters never reach
+    # PromQL), and every query aggregates away identifying labels.
+    # scripts/ci/kromgo-public-config-test.py enforces both. Cloudflare sits in front.
     route:
       app:
         annotations:
           gatus.home-operations.com/endpoint: |-
-            conditions: ["[STATUS] == 200"]
+            url: https://kromgo.${SECRET_DOMAIN}/badges/cluster_node_count?format=json
+            conditions: ["[STATUS] == 200", "[BODY].id == cluster_node_count"]
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-external
             namespace: network
             sectionName: https
         rules:
-          - backendRefs:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /badges/
+            backendRefs:
               - identifier: app
                 port: *port
     persistence:
@@ -87,6 +97,6 @@ spec:
         type: configMap
         name: kromgo-configmap
         globalMounts:
-          - path: /kromgo/config.yaml
+          - path: /config/config.yaml
             subPath: config.yaml
             readOnly: true

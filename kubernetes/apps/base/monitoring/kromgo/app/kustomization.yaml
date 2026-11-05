@@ -2,9 +2,9 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# No SecurityPolicy on purpose: kromgo is public (see the route comment in helmrelease.yaml).
 resources:
   - ./helmrelease.yaml
-  - ./securitypolicy.yaml
 configMapGenerator:
   - name: kromgo-configmap
     files:
