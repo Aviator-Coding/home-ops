@@ -179,7 +179,7 @@ spec:
       # settings, plex scan, API) is not routed on this host.
       join:
         annotations:
-          external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+          external-dns.kubernetes.io/target: "external.${SECRET_DOMAIN}"
           # "/" is not routed on this host, so the default probe of the bare hostname always 404s.
           # /favicon.ico is an Exact route straight to the app.
           gatus.home-operations.com/endpoint: |-

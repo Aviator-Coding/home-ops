@@ -14,7 +14,7 @@ Host firewall policy is skill `cilium-host-policy`. ExtAuth ownership is skill
 ## Tripwires
 
 1. **The DNS target comes from the parent Gateway.** For the
-   `gateway-httproute` source, `external-dns.alpha.kubernetes.io/target` on the
+   `gateway-httproute` source, `external-dns.kubernetes.io/target` on the
    HTTPRoute does not decide the record. A route on both envoy gateways yields
    both targets, and the UniFi webhook keeps the first. Route-level targets
    that match their Gateway are documentation.

@@ -478,8 +478,8 @@ def test_httproute_internal_contract() -> None:
     )
     record(
         "httproute_external_dns_target_is_internal",
-        ann.get("external-dns.alpha.kubernetes.io/target") == "internal.${SECRET_DOMAIN}",
-        f"target={ann.get('external-dns.alpha.kubernetes.io/target')!r}",
+        ann.get("external-dns.kubernetes.io/target") == "internal.${SECRET_DOMAIN}",
+        f"target={ann.get('external-dns.kubernetes.io/target')!r}",
     )
     # Proxy CR must NOT also declare spec.route (would compete).
     proxy = load_yaml(PROXY_PATH)

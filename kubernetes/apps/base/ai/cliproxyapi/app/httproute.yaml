@@ -12,7 +12,7 @@ metadata:
     gethomepage.dev/name: CLIProxyAPI
     gethomepage.dev/description: "Subscription OAuth to OpenAI-compatible API proxy"
     gethomepage.dev/pod-selector: app.kubernetes.io/name=cliproxyapi
-    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
     gatus.home-operations.com/endpoint: |-
       url: https://cliproxyapi.${SECRET_DOMAIN}/healthz
       conditions:

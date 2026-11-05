@@ -89,7 +89,7 @@ spec:
           gethomepage.dev/group: Selfhosted
           gethomepage.dev/name: ntfy
           gethomepage.dev/icon: ntfy.svg
-          external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+          external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
         hostnames:
           - "ntfy.${SECRET_DOMAIN}"
         parentRefs:

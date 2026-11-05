@@ -14,7 +14,7 @@ metadata:
     gethomepage.dev/name: LiteLLM
     gethomepage.dev/description: "LLM governance proxy - virtual keys, budgets, fallback chains"
     gethomepage.dev/icon: litellm.png
-    external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
     # /health/readiness also covers the Postgres dependency.
     gatus.home-operations.com/endpoint: |-
       group: ${GATUS_GROUP}

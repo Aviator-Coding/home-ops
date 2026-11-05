@@ -5,7 +5,7 @@ kind: HTTPRoute
 metadata:
   name: authentik-outpost
   annotations:
-    external-dns.alpha.kubernetes.io/target: "external.${SECRET_DOMAIN}"
+    external-dns.kubernetes.io/target: "external.${SECRET_DOMAIN}"
     # Unannotated auto-discovery defaults to `[STATUS] == 200` on the bare /outpost.goauthentik.io prefix,
     # which the outpost 404s, so the check sat permanently red. /outpost.goauthentik.io/ping is its
     # unauthenticated liveness endpoint (204). This route backs the extAuth gate on every ext_authz-protected

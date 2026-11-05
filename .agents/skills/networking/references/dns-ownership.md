@@ -3,7 +3,7 @@
 Split DNS: `network/cloudflare-dns` is public, `network/unifi-dns` is the LAN
 webhook. Annotations:
 
-- `external-dns.alpha.kubernetes.io/target: "internal.${SECRET_DOMAIN}"` or
+- `external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"` or
   `"external.${SECRET_DOMAIN}"` on the **Gateway** is what the webhook uses
   for `gateway-httproute` sources.
 - The same annotation on an HTTPRoute is not the control. A dual-parent route
@@ -60,3 +60,9 @@ the healthy staleness sawtooth and stays true on a healthy controller.
 Short names and `ndots:5` make search-domain behavior matter. Busybox
 `nslookup` returns NXDOMAIN for a short name it should search. `getent hosts`
 follows `resolv.conf`. A trailing dot (`name.`) suppresses search.
+
+external-dns v0.22+ reads only the GA prefix `external-dns.kubernetes.io/`; an
+`external-dns.alpha.kubernetes.io/*` annotation is silently ignored. On chart
+1.23.0 (2026-11-04) the old prefix made `cloudflare-dns` drop the Gateway
+target, delete the public CNAMEs and fail on proxied A records for the
+gateway IP (Cloudflare 9003). Never reintroduce the `alpha.` prefix.

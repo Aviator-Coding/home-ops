@@ -48,7 +48,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 - Overlay Kustomization anchors: `name: &app myapp`, `namespace: &namespace myns`, referenced as `*app`, `*namespace`. Many overlays `dependsOn` `onepassword-store` in `security`.
 - Lowercase kebab-case names: `helmrelease.yaml`, `kustomization.yaml`, `externalsecret.yaml`, overlay `<app>.yaml`.
 - Commits: `type(scope): description`, types feat/fix/chore/ci/docs/refactor/test, scope is a container, helm, github-action, mise, talos, flux, deps or an app/namespace (`.commitlintrc.yaml`).
-- HTTPRoutes carry `gethomepage.dev/*` and `gatus.home-operations.com/endpoint` annotations. The parent Gateway's `external-dns.alpha.kubernetes.io/target` decides the DNS record, not a route annotation (skill `networking`).
+- HTTPRoutes carry `gethomepage.dev/*` and `gatus.home-operations.com/endpoint` annotations. The parent Gateway's `external-dns.kubernetes.io/target` decides the DNS record, not a route annotation (skill `networking`).
 - HelmRelease defaults (CRD CreateReplace, rollback recreate, upgrade remediation) are patched in by `cluster-apps`.
 - Flux substitution: `postBuild.substituteFrom` `cluster-secrets` plus an inline `substitute` map.
 - Task runner split is deliberate: `just` owns Talos, bootstrap and `kube` recipes; `task` owns the Rook suite and network diagnostics. Do not port one to the other.
