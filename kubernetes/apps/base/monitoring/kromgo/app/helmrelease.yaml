@@ -68,6 +68,11 @@ spec:
             port: *port
           health:
             port: *healthPort
+    # Public on purpose, no ExtAuth: the github.com/skrumbach profile workflow reads these
+    # metrics anonymously. kromgo can only answer the fixed queries in resources/config.yaml
+    # (query parameters never reach PromQL), and every query there is an aggregate with no
+    # hostnames, IPs, keys or prompts. Cloudflare (tunnel + proxied DNS) sits in front.
+    # Keep it that way: never add a query whose result labels identify anything.
     route:
       app:
         annotations:

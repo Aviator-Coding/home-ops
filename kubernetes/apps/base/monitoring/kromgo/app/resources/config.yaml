@@ -83,3 +83,80 @@ metrics:
       - { color: "green", min: 0, max: 0 }
       - { color: "red", min: 1, max: 9999 }
     title: Alerts
+
+  # ---------------------------------------------------------------------------
+  # Profile README (github.com/skrumbach). Everything below is PUBLIC: aggregates
+  # only — no model names except the loaded chat model, no keys, spend or prompts.
+  # ---------------------------------------------------------------------------
+  - name: cluster_node_ready_count
+    query: sum(kube_node_status_condition{condition="Ready", status="true"})
+    title: Ready
+
+  # AI gateway (LiteLLM), last 7 days (Prometheus keeps 14d). Sparse counters
+  # fall back to 0 so an idle week reads 0, not "no data".
+  - name: ai_tokens_7d
+    query: round(sum(increase(litellm_total_tokens_metric_total[7d])) or vector(0))
+    title: Tokens (7d)
+
+  - name: ai_requests_7d
+    query: round(sum(increase(litellm_proxy_total_requests_metric_total[7d])) or vector(0))
+    title: Requests (7d)
+
+  # Share of successful calls served by a local deployment. The auto-router's own
+  # classifier call is excluded, or every routed request would count locally twice.
+  - name: ai_local_share_7d
+    query: >-
+      round(100 *
+        (sum(increase(litellm_deployment_success_responses_total{litellm_model_name!~"claude-.*", requested_model!="chat-local-classifier"}[7d])) or vector(0))
+        / clamp_min(sum(increase(litellm_deployment_success_responses_total{requested_model!="chat-local-classifier"}[7d])), 1), 0.1)
+    suffix: "%"
+    title: Served locally
+
+  - name: ai_cache_hit_rate_7d
+    query: >-
+      round(100 *
+        (sum(increase(litellm_cache_hits_metric_total[7d])) or vector(0))
+        / clamp_min((sum(increase(litellm_cache_hits_metric_total[7d])) or vector(0)) + (sum(increase(litellm_cache_misses_metric_total[7d])) or vector(0)), 1), 0.1)
+    suffix: "%"
+    title: Cache hits
+
+  # Arc Pro B70 on talos-3 (skill intel-gpu, references/telemetry.md). VRAM from
+  # system/xe-gpu-exporter; temperature, fan and energy from the xe hwmon chip.
+  - name: gpu_vram_used_gib
+    query: round(sum(xe_gpu_vram_used_bytes{pdev="0000:03:00.0"}) / 2^30, 0.1)
+    title: VRAM used
+
+  - name: gpu_vram_total_gib
+    query: round(max(xe_gpu_vram_total_bytes{pdev="0000:03:00.0"}) / 2^30, 0.1)
+    title: VRAM
+
+  - name: gpu_temp_celsius
+    query: round(max(node_hwmon_temp_celsius{chip="0000:02:01_0_0000:03:00_0", sensor="temp2"}))
+    suffix: "°C"
+    title: GPU temp
+
+  - name: gpu_power_watts
+    query: round(sum(rate(node_hwmon_energy_joule_total{chip="0000:02:01_0_0000:03:00_0", sensor="energy1"}[5m])))
+    suffix: "w"
+    title: GPU power
+
+  - name: gpu_fan_rpm
+    query: round(max(node_hwmon_fan_rpm{chip="0000:02:01_0_0000:03:00_0", sensor="fan1"}))
+    title: GPU fan
+
+  # llama-server (ai/vllm) metrics. job="vllm" keeps the embedding server out.
+  # Decode t/s is tokens over busy seconds, so it is averaged over 24h: a live
+  # value is empty whenever the server is idle.
+  - name: llm_decode_tps_24h
+    query: round(sum(increase(llamacpp:tokens_predicted_total{job="vllm"}[24h])) / sum(increase(llamacpp:tokens_predicted_seconds_total{job="vllm"}[24h])))
+    title: Decode t/s
+
+  # The model label comes from the vllm ServiceMonitor relabeling (${CHAT_MODEL_ID}).
+  - name: llm_model
+    query: max by (model) (llamacpp:requests_processing{job="vllm"})
+    label: model
+    title: Model
+
+  - name: llm_requests_processing
+    query: sum(llamacpp:requests_processing{job="vllm"})
+    title: Active requests
