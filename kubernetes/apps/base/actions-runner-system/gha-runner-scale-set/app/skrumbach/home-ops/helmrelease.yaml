@@ -75,7 +75,7 @@ spec:
           # Pre-download talosctl to avoid downloading on every job
           - name: talosctl-installer
             # renovate: datasource=docker depName=ghcr.io/skrumbach/talosctl-busybox
-            image: ghcr.io/skrumbach/talosctl-busybox:v1.13.9
+            image: ghcr.io/skrumbach/talosctl-busybox:v1.14.5
             command: ["cp", "/usr/local/bin/talosctl", "/talos-bin/talosctl"]
             volumeMounts:
               - name: talos-bin
