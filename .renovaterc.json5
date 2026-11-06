@@ -24,6 +24,14 @@
   // The base extends :disableRateLimiting. Without a cap a config fix can release a whole backlog of automerging PRs in one pass.
   prHourlyLimit: 10,
   prConcurrentLimit: 20,
+  // GHCR/quay publish no release timestamp, so the minor and LiteLLM rules set minimumReleaseAgeBehaviour
+  // timestamp-optional on purpose. Renovate warns on every run that takes that path; it is policy, not a fault.
+  logLevelRemap: [
+    {
+      matchMessage: "/^Some release\\(s\\) did not have a releaseTimestamp/",
+      newLogLevel: "info",
+    },
+  ],
   // The base preset's annotated-dependency manager scans every file; docs and CI tests quote the syntax as examples.
   ignorePaths: [
     "**/resources/**",
