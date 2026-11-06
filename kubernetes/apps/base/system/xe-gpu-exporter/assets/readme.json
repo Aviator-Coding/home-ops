@@ -1,0 +1,70 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 system \u2022 GPU TELEMETRY",
+    "title": "xe-gpu-exporter",
+    "tagline": "Exports Intel xe VRAM use per card and per pod on every node, read from DRM fdinfo, because the xe driver publishes no VRAM counters in sysfs.",
+    "chips": [
+      "PORT 9105",
+      "READS /PROC",
+      "HOSTPID \u2022 SYS_PTRACE",
+      "READ-ONLY ROOTFS"
+    ],
+    "icon": "chart-line",
+    "status": "RECONCILED BY FLUX \u2022 system/xe-gpu-exporter"
+  },
+  "art": {
+    "about": "a process walker that reads GPU memory from file descriptor metadata",
+    "title": "How xe-gpu-exporter reads VRAM",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From every DRM file descriptor to one gauge per card",
+    "steps": [
+      {
+        "icon": "scan-eye",
+        "title": "Scan",
+        "text": "Each scrape of /metrics walks every /proc/<pid> on the node. Nothing is cached, so each reading is live.",
+        "scene": "an eye sweeping rows of process cards"
+      },
+      {
+        "icon": "link",
+        "title": "Find",
+        "text": "For each process it reads fd links and keeps the ones pointing at a /dev/dri renderD or card node, then reads their fdinfo.",
+        "scene": "linked file descriptors leading to a GPU"
+      },
+      {
+        "icon": "layers",
+        "title": "Sum",
+        "text": "Only clients with drm-driver xe count, once each. It adds drm-total-vram0 and drm-total-gtt per card and per pod UID.",
+        "scene": "memory blocks stacking into one column"
+      },
+      {
+        "icon": "chart-line",
+        "title": "Export",
+        "text": "It emits xe_gpu_vram_used_bytes, xe_gpu_gtt_used_bytes, xe_gpu_clients and per-process series. The card total comes from XE_VRAM_TOTALS_MIB.",
+        "scene": "a rising chart on a neon panel"
+      }
+    ],
+    "facts": [
+      {
+        "value": "9105",
+        "label": "metrics port"
+      },
+      {
+        "value": "30 S",
+        "label": "scrape interval"
+      },
+      {
+        "value": "32656",
+        "label": "MiB total configured for the B70"
+      },
+      {
+        "value": "128 MI",
+        "label": "memory limit per pod"
+      }
+    ]
+  }
+}
