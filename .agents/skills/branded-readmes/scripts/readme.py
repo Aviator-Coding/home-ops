@@ -178,6 +178,8 @@ def facts(d: Path) -> dict:
         names.add((md.get("name"), md.get("namespace")))
         comps = []
         kz = of.parent / "kustomization.yaml"
+        while not kz.exists() and kz.parent.parent != kz.parent:  # grouped overlays: main/<ns>/<group>/<app>.yaml
+            kz = kz.parent.parent / "kustomization.yaml"
         for doc in load_docs(kz):
             comps += [Path(c).name for c in doc.get("components", [])]
         f["kustomizations"].append({
@@ -266,17 +268,20 @@ def glance(f: dict, readme: Path) -> str:
                      + " (Flux Kustomization)"))
     for h in f["helm"]:
         src = f" from `{h['source']}`" if h["source"] else ""
-        rows.append(("Helm chart", f"`{h['chart']}`{src}, values in {link(Path(h['file']).name, h['file'], readme)}"))
+        chart = h["source"].rstrip("/").rsplit("/", 1)[-1] if str(h["source"]).startswith("oci://") else h["chart"]
+        rows.append(("Helm chart", f"`{chart}`{src}, values in {link(Path(h['file']).name, h['file'], readme)}"))
     if f["images"]:
         rows.append(("Images", ", ".join(f"`{i}`" for i in f["images"][:6]) + (" …" if len(f["images"]) > 6 else "")))
     deps = sorted({x for k in f["kustomizations"] for x in k["dependsOn"]})
     if deps:
         rows.append(("Depends on", ", ".join(f"`{x}`" for x in deps)))
     if f["needed_by"]:
-        rows.append(("Needed by", ", ".join(f"`{x}`" for x in f["needed_by"])))
+        nb, more = f["needed_by"][:12], len(f["needed_by"]) - 12
+        rows.append(("Needed by", ", ".join(f"`{x}`" for x in nb) + (f" and {more} more" if more > 0 else "")))
     for r in f["routes"]:
         hosts = ", ".join(f"`{h}`" for h in r["hostnames"]) or "`(no hostname)`"
-        rows.append(("Route", f"{hosts} via `{'`, `'.join(r['gateways'])}`" + (" (Gatus probed)" if r["gatus"] else "")))
+        name = f"`{r['name']}`: " if len(f["routes"]) > 1 else ""
+        rows.append(("Route", f"{name}{hosts} via `{'`, `'.join(r['gateways'])}`" + (" (Gatus probed)" if r["gatus"] else "")))
     for s in f["secrets"]:
         items = ", ".join(f"`{i}`" for i in s["items"])
         rows.append(("Secret", f"`{s['target']}` from {s['store']} item {items}"))
