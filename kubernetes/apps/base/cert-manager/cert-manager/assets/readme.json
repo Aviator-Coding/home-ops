@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 TLS \u2022 PKI",
+    "title": "cert-manager",
+    "tagline": "Issues and renews the wildcard certificate every Gateway serves, through Let's Encrypt DNS-01 on Cloudflare.",
+    "chips": [
+      "LET'S ENCRYPT",
+      "DNS-01 \u2022 CLOUDFLARE",
+      "HELM \u2022 OCI",
+      "2 REPLICAS \u2022 PDB"
+    ],
+    "icon": "shield-check",
+    "status": "RECONCILED BY FLUX \u2022 cert-manager/cert-manager"
+  },
+  "art": {
+    "about": "how a TLS certificate is issued",
+    "title": "How cert-manager issues TLS",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a DNS proof to a certificate on every Gateway",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Token",
+        "text": "ExternalSecret cloudflare-issuer pulls the Cloudflare DNS token from 1Password item cloudflare.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "file-key",
+        "title": "Request",
+        "text": "Certificate sklab-dev-production asks ClusterIssuer letsencrypt-production for the apex and *.domain.",
+        "scene": "a certificate document with a wildcard star"
+      },
+      {
+        "icon": "globe",
+        "title": "Prove",
+        "text": "cert-manager writes an _acme-challenge TXT record in Cloudflare and checks it over DNS-over-HTTPS.",
+        "scene": "a globe with a DNS record card labelled \"TXT\""
+      },
+      {
+        "icon": "badge-check",
+        "title": "Sign",
+        "text": "Let's Encrypt reads the TXT record and signs a 90-day certificate. The TXT record is removed.",
+        "scene": "a large seal stamping the certificate"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Serve",
+        "text": "Secret sklab-dev-production-tls feeds the HTTPS listeners of envoy-internal and envoy-external.",
+        "scene": "two gateway arches with a padlock"
+      }
+    ],
+    "facts": [
+      {
+        "value": "90 D",
+        "label": "certificate lifetime"
+      },
+      {
+        "value": "30 D",
+        "label": "left when renewal starts"
+      },
+      {
+        "value": "21 D",
+        "label": "left when the expiry alert fires"
+      },
+      {
+        "value": "2 \u00d7 3",
+        "label": "replicas: controller, webhook, cainjector"
+      }
+    ]
+  }
+}
