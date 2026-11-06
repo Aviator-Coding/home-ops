@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MEDIA \u2022 REQUESTS",
+    "title": "seerr",
+    "tagline": "Takes movie and series requests from the household and friends, checks Plex for what already exists, and keeps its state in Postgres.",
+    "chips": [
+      "POSTGRES \u2022 CNPG",
+      "GENERATED API KEY",
+      "ENVOY-EXTERNAL",
+      "KOPIUR \u2022 R2"
+    ],
+    "icon": "ticket",
+    "status": "RECONCILED BY FLUX \u2022 media/seerr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A request front on Postgres, with a generated key",
+    "steps": [
+      {
+        "icon": "database",
+        "title": "Database",
+        "text": "seerr-db creates a role and a database on the shared postgres-18 cluster. An init container runs before Seerr starts, with the database settings from the Secret.",
+        "scene": "a database cylinder with a small role badge"
+      },
+      {
+        "icon": "key-round",
+        "title": "Key",
+        "text": "The Password generator makes SEERR_API_KEY once. Seerr reads it from the Secret, and PushSecret writes it to 1Password item seerr-api.",
+        "scene": "a generated key card moving into a vault"
+      },
+      {
+        "icon": "ticket",
+        "title": "Request",
+        "text": "seerr.${SECRET_DOMAIN} on envoy-external is the request front door, and the only one the internet reaches for this app.",
+        "scene": "a ticket stub passing through a glowing gate"
+      },
+      {
+        "icon": "tv",
+        "title": "Scan",
+        "text": "Seerr reaches Plex at plex.media.svc:32400 over the in-cluster service, with its own Plex token. The CiliumNetworkPolicy admits it by name.",
+        "scene": "a film strip flowing into a library"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Keep",
+        "text": "kopiur snapshots the 2 GiB config claim to R2 each day.",
+        "scene": "snapshot cards flowing into a cloud bucket"
+      }
+    ],
+    "facts": [
+      {
+        "value": "5055",
+        "label": "HTTP port"
+      },
+      {
+        "value": "48",
+        "label": "characters in the generated key"
+      },
+      {
+        "value": "1 GI",
+        "label": "memory limit"
+      },
+      {
+        "value": "2 GI",
+        "label": "config claim"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Seerr turns a request into a Plex-visible title",
+    "title": "How Seerr handles a request",
+    "model": "gpt",
+    "subject": ""
+  }
+}
