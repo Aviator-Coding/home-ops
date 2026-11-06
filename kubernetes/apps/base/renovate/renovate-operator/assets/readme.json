@@ -1,0 +1,76 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 RENOVATE \u2022 OPERATOR",
+    "title": "renovate-operator",
+    "tagline": "Runs Renovate hourly against skrumbach/home-ops as Kubernetes Jobs, with metrics and alerts for failed or missing runs.",
+    "chips": [
+      "HOURLY \u2022 1 REPO",
+      "GITHUB APP AUTH",
+      "ONE ATTEMPT PER RUN",
+      "5 ALERTS"
+    ],
+    "icon": "git-pull-request",
+    "status": "RECONCILED BY FLUX \u2022 renovate/renovate-operator"
+  },
+  "art": {
+    "about": "a bot that opens dependency update pull requests on a schedule",
+    "title": "From the top of the hour to a Renovate pull request",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From the top of the hour to a dependency pull request",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Mint",
+        "text": "An ExternalSecret builds the GitHub App key from 1Password item renovate. The job exchanges it for an installation token.",
+        "scene": "a key being forged into a short-lived token"
+      },
+      {
+        "icon": "search",
+        "title": "Discover",
+        "text": "The RenovateJob home-ops runs at minute zero and finds skrumbach/home-ops through the App installation.",
+        "scene": "a magnifying lens over a repository icon"
+      },
+      {
+        "icon": "git-merge",
+        "title": "Update",
+        "text": "Renovate reads the repo config and opens one pull request per dependency change, with platform commits on.",
+        "scene": "branch lines merging into a cyan pull request"
+      },
+      {
+        "icon": "history",
+        "title": "Record",
+        "text": "Each run is a Job kept for 24 hours. A failed run is not retried; the next hourly run is the retry.",
+        "scene": "a timeline of identical job cards"
+      },
+      {
+        "icon": "bell-ring",
+        "title": "Alarm",
+        "text": "Five rules cover failed runs, missing runs, empty discovery, a suspended job and an absent operator.",
+        "scene": "a bell with a small pulse of light"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1 H",
+        "label": "run interval"
+      },
+      {
+        "value": "0",
+        "label": "retries per run"
+      },
+      {
+        "value": "24 H",
+        "label": "finished Jobs kept"
+      },
+      {
+        "value": "2 GI",
+        "label": "Job memory limit"
+      }
+    ]
+  }
+}
