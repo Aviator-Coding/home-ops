@@ -56,6 +56,8 @@ spec:
                 memory: 256Mi
     defaultPodOptions:
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         runAsNonRoot: true
         runAsUser: 65534
         runAsGroup: 65534

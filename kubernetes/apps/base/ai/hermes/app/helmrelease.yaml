@@ -211,6 +211,8 @@ spec:
       # app-template v5 defaults automountServiceAccountToken to false.
       automountServiceAccountToken: true
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         # s6 starts as root then drops to 10000; fsGroup makes the ceph-block
         # PVC group-writable so the dropped user owns its state at /opt/data.
         fsGroup: 10000
