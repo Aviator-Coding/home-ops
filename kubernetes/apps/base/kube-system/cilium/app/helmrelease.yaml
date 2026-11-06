@@ -28,7 +28,7 @@ spec:
       datapathMode: netkit
       masquerade: true
       preallocateMaps: true
-      tproxy: true
+      # No tproxy: Cilium >= 1.19 refuses bpf.tproxy with netkit and the agents fail to start. No L7/FQDN policy uses it.
     bpfClockProbe: true
     bgpControlPlane:
       enabled: true
