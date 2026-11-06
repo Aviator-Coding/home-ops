@@ -1,0 +1,72 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 TUPPR \u2022 UPGRADES",
+    "title": "tuppr",
+    "tagline": "Rolls Talos and Kubernetes upgrades across the nodes from the versions pinned in Git, and waits while storage is busy.",
+    "chips": [
+      "TALOS \u2022 KUBERNETES",
+      "POWERCYCLE REBOOTS",
+      "CEPH + KOPIUR GATES",
+      "2 REPLICAS"
+    ],
+    "icon": "circle-arrow-up",
+    "status": "RECONCILED BY FLUX \u2022 system-upgrade/tuppr"
+  },
+  "art": {
+    "about": "an operator that rolls OS and Kubernetes upgrades across cluster nodes, gated on storage health",
+    "title": "How tuppr rolls a Talos upgrade",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A version bump in Git becomes a gated node roll",
+    "steps": [
+      {
+        "icon": "tag",
+        "title": "Pin",
+        "text": "A version bump in the TalosUpgrade or KubernetesUpgrade CR is the upgrade. Renovate opens it as a pull request.",
+        "scene": "a pin on a blank card with abstract lines and no text"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Gate",
+        "text": "Before a node is touched, tuppr checks that no kopiur mover is running and that Ceph reports HEALTH_OK.",
+        "scene": "a gate with a Ceph hexagon and a mover icon"
+      },
+      {
+        "icon": "power",
+        "title": "Reboot",
+        "text": "The node is hard-reset with powercycle, then boots the new Talos image.",
+        "scene": "a server tower with a power symbol"
+      },
+      {
+        "icon": "timer",
+        "title": "Wait",
+        "text": "A failing check is retried, not skipped. A stuck mover holds the roll until it finishes.",
+        "scene": "an hourglass over a stalled line"
+      },
+      {
+        "icon": "badge-check",
+        "title": "Continue",
+        "text": "When the node is back and healthy, tuppr moves to the next one and the gates run again.",
+        "scene": "a row of healthy nodes with checkmarks"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "tuppr replicas"
+      },
+      {
+        "value": "3",
+        "label": "health gates per upgrade CR"
+      },
+      {
+        "value": "POWER",
+        "label": "reboot mode for every node"
+      }
+    ]
+  }
+}
