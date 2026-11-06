@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 NOTES SYNC",
+    "title": "obsidian-livesync",
+    "tagline": "Runs a single-node CouchDB that the Self-hosted LiveSync plugin syncs Obsidian vaults into, behind a login on the internal gateway.",
+    "chips": [
+      "SINGLE NODE",
+      "LOGIN REQUIRED",
+      "KOPIUR BACKUP",
+      "INTERNAL ONLY"
+    ],
+    "icon": "notebook-pen",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/obsidian-livesync"
+  },
+  "art": {
+    "about": "a single-node document database that syncs note vaults between devices",
+    "title": "How obsidian-livesync syncs a vault",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Vault changes in, one CouchDB store out",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Login",
+        "text": "ExternalSecret obsidian-livesync-secret fills the CouchDB user, password and cookie secret from 1Password item obsidian-livesync.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "file-text",
+        "title": "Config",
+        "text": "ConfigMap obsidian-livesync-config mounts local.ini over the image default: single node, a required login, and CORS for the Obsidian apps.",
+        "scene": "a config sheet with toggles"
+      },
+      {
+        "icon": "database",
+        "title": "Store",
+        "text": "CouchDB keeps the vault documents under /opt/couchdb/data on claim obsidian-livesync. Compaction runs at 70 percent fragmentation.",
+        "scene": "a document stack with a compactor"
+      },
+      {
+        "icon": "refresh-cw",
+        "title": "Sync",
+        "text": "The plugin pushes and pulls document chunks over HTTPS through envoy-internal. Documents up to 50 MB are accepted.",
+        "scene": "two laptop screens with arrows between them"
+      },
+      {
+        "icon": "archive",
+        "title": "Back up",
+        "text": "kopiur snapshots the claim to Ceph and R2 as UID and GID 5984, the identity measured from the files.",
+        "scene": "archive boxes beside a shield"
+      }
+    ],
+    "facts": [
+      {
+        "value": "50 MB",
+        "label": "max document size"
+      },
+      {
+        "value": "4 GI",
+        "label": "max HTTP request size"
+      },
+      {
+        "value": "5984",
+        "label": "runtime UID and GID"
+      },
+      {
+        "value": "2 GI",
+        "label": "data claim, backed up"
+      }
+    ]
+  }
+}
