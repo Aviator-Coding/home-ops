@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 OAUTH PROXY",
+    "title": "cliproxyapi",
+    "tagline": "Turns subscription OAuth logins into an OpenAI-compatible API that LiteLLM routes to.",
+    "chips": [
+      "OPENAI API",
+      "OAUTH TOKENS",
+      "INTERNAL ONLY",
+      "2 BACKUP TARGETS"
+    ],
+    "icon": "key-round",
+    "status": "RECONCILED BY FLUX \u2022 ai/cliproxyapi"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Subscription logins behind one API key",
+    "steps": [
+      {
+        "icon": "file-json",
+        "title": "Seed",
+        "text": "An init container copies the OAuth files from Secret cliproxyapi-seed onto the PVC, only when a file of that name is missing.",
+        "scene": "a sealed JSON file dropped into a vault"
+      },
+      {
+        "icon": "settings",
+        "title": "Config",
+        "text": "Secret cliproxyapi-config renders config.yaml with the client keys and the management key, mounted read-only at /config.",
+        "scene": "a gated panel with two keyholes"
+      },
+      {
+        "icon": "plug",
+        "title": "Serve",
+        "text": "The app listens on port 8317. HTTPRoute cliproxyapi on envoy-internal is the only way in, and LiteLLM is the main caller.",
+        "scene": "a single data plug feeding a router"
+      },
+      {
+        "icon": "refresh-cw",
+        "title": "Refresh",
+        "text": "The app rewrites refreshed tokens into /data/auths on the 1 Gi ceph-block claim. After the first seed the Secret never overwrites them.",
+        "scene": "a token rotating inside a ring"
+      },
+      {
+        "icon": "archive",
+        "title": "Back up",
+        "text": "Kopiur snapshots the claim to the local Ceph pool every few hours and to R2 once a day, so a lost volume restores the logins.",
+        "scene": "a stack of snapshot cards on a shelf"
+      }
+    ],
+    "facts": [
+      {
+        "value": "8317",
+        "label": "API port"
+      },
+      {
+        "value": "1 GI",
+        "label": "auth claim"
+      },
+      {
+        "value": "2",
+        "label": "backup targets"
+      },
+      {
+        "value": "1",
+        "label": "replica, Recreate"
+      }
+    ]
+  },
+  "art": {
+    "about": "an OAuth-backed API proxy that seeds subscription tokens and serves an OpenAI-compatible endpoint",
+    "title": "How CLIProxyAPI serves subscription logins",
+    "model": "gpt",
+    "subject": ""
+  }
+}
