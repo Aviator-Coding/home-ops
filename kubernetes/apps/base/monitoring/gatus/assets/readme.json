@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MONITORING \u2022 PROBES",
+    "title": "gatus",
+    "tagline": "Probes every routed app and the WAN on their own intervals, and turns the failures into Prometheus alerts.",
+    "chips": [
+      "ROUTE AUTO-DISCOVERY",
+      "SQLITE ON CEPH-BLOCK",
+      "ALERTS VIA PROMETHEUS",
+      "SIDECAR + HAND-WRITTEN"
+    ],
+    "icon": "activity",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/gatus"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Checks come from routes and from one hand-written file",
+    "steps": [
+      {
+        "icon": "radar",
+        "title": "Discover",
+        "text": "The gatus-sidecar watches HTTPRoutes and Services, and writes each route with a Gatus endpoint annotation into the shared config.",
+        "scene": "a radar sweep over a grid of route tiles"
+      },
+      {
+        "icon": "file-code",
+        "title": "Merge",
+        "text": "config.yaml adds what no route shows: the WAN, the Radarr queue, the Hermes gateway, and the ToolHive MCP session.",
+        "scene": "a stack of configuration cards"
+      },
+      {
+        "icon": "database",
+        "title": "Probe",
+        "text": "Gatus polls each endpoint on its own interval and keeps the results in SQLite on a 512 MiB ceph-block volume.",
+        "scene": "a probe pulse reaching a small database cylinder"
+      },
+      {
+        "icon": "bell-ring",
+        "title": "Alert",
+        "text": "Metrics reach Prometheus. GatusEndpointDown (external group, 5 min) is critical; GatusServiceDown (other groups, 10 min) is a warning.",
+        "scene": "a bell beside a warning triangle"
+      },
+      {
+        "icon": "layout-dashboard",
+        "title": "Show",
+        "text": "The status page is served on the internal Gateway. The Homepage Gatus widget reads the same API.",
+        "scene": "a dashboard of green and red status tiles"
+      }
+    ],
+    "facts": [
+      {
+        "value": "5 M",
+        "label": "external check before critical"
+      },
+      {
+        "value": "10 M",
+        "label": "app check before warning"
+      },
+      {
+        "value": "512 MI",
+        "label": "SQLite volume on ceph-block"
+      },
+      {
+        "value": "25 S",
+        "label": "MCP session timeout"
+      }
+    ]
+  },
+  "art": {
+    "about": "how an uptime checker turns route discovery and probes into alerts",
+    "title": "How gatus discovers and probes endpoints",
+    "model": "gpt",
+    "subject": ""
+  }
+}
