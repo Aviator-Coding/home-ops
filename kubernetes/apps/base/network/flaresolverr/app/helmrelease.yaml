@@ -56,6 +56,13 @@ spec:
                   periodSeconds: 5
                   timeoutSeconds: 5
                   failureThreshold: 30
+            securityContext:
+              allowPrivilegeEscalation: false
+              # Chrome writes profile and cache data under the image's root filesystem.
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - ALL
             resources:
               requests:
                 cpu: 10m
