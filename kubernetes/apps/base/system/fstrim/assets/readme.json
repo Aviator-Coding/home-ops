@@ -1,0 +1,76 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 system \u2022 STORAGE",
+    "title": "fstrim",
+    "tagline": "Once a week, discards unused blocks on every node's block mounts, so thin Ceph RBD volumes give back their space.",
+    "chips": [
+      "MON 00:00",
+      "ALL 3 NODES",
+      "PRIVILEGED \u2022 HOST NS",
+      "ALERT AFTER 8 D"
+    ],
+    "icon": "eraser",
+    "status": "RECONCILED BY FLUX \u2022 system/fstrim"
+  },
+  "art": {
+    "about": "a weekly job that enters the host mount namespace and discards unused blocks",
+    "title": "How fstrim reclaims Ceph space",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a Monday cron to a discard on every device",
+    "steps": [
+      {
+        "icon": "clock",
+        "title": "Schedule",
+        "text": "CronJob fstrim runs Mondays at 00:00 with one pod per node. A run never overlaps the last, and a start more than 10 minutes late is skipped.",
+        "scene": "a wall clock above a weekly calendar tick"
+      },
+      {
+        "icon": "server-cog",
+        "title": "Enter",
+        "text": "Each pod uses nsenter to join the kubelet's mount and network namespaces through /host/proc, so it sees the mounts that Ceph PVs live in.",
+        "scene": "a key sliding into a host namespace ring"
+      },
+      {
+        "icon": "layers",
+        "title": "Select",
+        "text": "awk reads mountinfo, keeps one mount per device (globalmount first), and skips read-only mounts and sources that are not under /dev.",
+        "scene": "stacked disk layers passing through a funnel"
+      },
+      {
+        "icon": "eraser",
+        "title": "Trim",
+        "text": "fstrim -v runs on each target. Any device that fails fails the run. A mount that vanished mid-run is skipped, not counted as a failure.",
+        "scene": "a block of disk cells being wiped clean"
+      },
+      {
+        "icon": "bell",
+        "title": "Watch",
+        "text": "FstrimJobFailed fires when the latest run failed or no run has succeeded for 8 days, and clears on the next good run.",
+        "scene": "a bell over a calendar with one date unmarked"
+      }
+    ],
+    "facts": [
+      {
+        "value": "MON",
+        "label": "weekly at 00:00"
+      },
+      {
+        "value": "3",
+        "label": "pods, spread one per node"
+      },
+      {
+        "value": "8 D",
+        "label": "without success before alert"
+      },
+      {
+        "value": "128 MI",
+        "label": "memory request and limit"
+      }
+    ]
+  }
+}
