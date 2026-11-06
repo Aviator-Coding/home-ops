@@ -6,14 +6,15 @@ Re-read the HelmRelease and `ceph config dump` before quoting a number. The old 
 
 | Layer | Value | Where |
 |---|---|---|
-| Rook operator | `ghcr.io/rook/ceph:v1.20.9` | operator deploy image; chart tag in `operator/ocirepository.yaml` |
+| Rook operator | `ghcr.io/rook/ceph:v1.21.2` | operator deploy image; chart tags in `operator/` and `cluster/ocirepository.yaml` carry no `v` prefix since 1.21 |
+| Ceph CSI | `ceph-csi-operator:v1.1.0`, `cephcsi:v3.18.1` | Rook's defaults: `rook-csi-operator-image-set-configmap` is empty since 1.21, so the operator picks them |
 | Ceph | `quay.io/ceph/ceph:v20.2.5` (20.2.5 tentacle) | `cephImage.tag`; toolbox image matches |
 | Talos | v1.14.5, kernel `6.18.58-talos` | `kubectl get nodes`; tuppr `TalosUpgrade` and `machineconfig.yaml.j2` installer pin match |
 | Kubernetes | v1.36.6 | kubelet and control-plane images in `machineconfig.yaml.j2` |
 
 `CONFIG_CEPH_FS`, `CONFIG_BLK_DEV_RBD` and `CONFIG_CEPH_LIB` are built-in on this kernel. Do not add a `machine.kernel.modules` entry for `rbd`.
 
-Topology: 3 nodes, 6 OSDs, `failureDomain: host`, pool size 3, `provider: host`, `requireMsgr2: true`, no separate cluster network. FSID is in Secret `rook-ceph-mon` key `fsid` and in the metadata backup. Do not paste it into a new manifest.
+Topology: 3 nodes, 6 OSDs, `failureDomain: host`, pool size 3, `provider: host`, `requireMsgr2: true` (since Rook 1.21.2 OSD, MGR and MDS also drop their msgr1 addresses; mons were already v2-only), no separate cluster network. FSID is in Secret `rook-ceph-mon` key `fsid` and in the metadata backup. Do not paste it into a new manifest.
 
 ## OSD map and mclock caps
 
