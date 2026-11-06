@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 VECTOR STORE",
+    "title": "litellm-pgvector",
+    "tagline": "The stateless server behind LiteLLM's pgvector store, keeping every embedding in the shared Postgres 18 cluster.",
+    "chips": [
+      "2000 DIMS",
+      "HNSW COSINE",
+      "CLUSTERIP ONLY",
+      "POSTGRES 18"
+    ],
+    "icon": "database",
+    "status": "RECONCILED BY FLUX \u2022 ai/litellm-pgvector"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Role, schema, then a stateless server",
+    "steps": [
+      {
+        "icon": "user-check",
+        "title": "Role",
+        "text": "The litellm-pgvector-db Kustomization creates the litellm_pgvector role and database on the shared postgres-18 cluster. Removing it keeps the data.",
+        "scene": "a key card issued for a locked room"
+      },
+      {
+        "icon": "table",
+        "title": "Schema",
+        "text": "A Job runs schema.sql as the superuser, creates the vector extension, then switches to the app role so the app owns its tables.",
+        "scene": "a table grid being drawn on a board"
+      },
+      {
+        "icon": "key-round",
+        "title": "Secrets",
+        "text": "Two ExternalSecrets feed the server its own connection string and API key, and the Job its superuser login. The server never sees the superuser password.",
+        "scene": "two sealed envelopes with separate keys"
+      },
+      {
+        "icon": "server",
+        "title": "Serve",
+        "text": "The stateless server answers OpenAI-style vector-store calls on port 8000. It has a ClusterIP Service and no HTTPRoute, so only LiteLLM reaches it.",
+        "scene": "a server rack behind a single door"
+      },
+      {
+        "icon": "scan-search",
+        "title": "Embed",
+        "text": "The server embeds search queries with qwen3-embedding-8b through LiteLLM, requested at 2000 dimensions, and searches the stored vectors with an HNSW cosine index.",
+        "scene": "vectors arranged along a search line"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2000",
+        "label": "vector width"
+      },
+      {
+        "value": "8000",
+        "label": "server port"
+      },
+      {
+        "value": "HNSW",
+        "label": "cosine index"
+      },
+      {
+        "value": "PG 18",
+        "label": "shared cluster"
+      }
+    ]
+  },
+  "art": {
+    "about": "a stateless vector store server that keeps embeddings in Postgres with an HNSW index and is reached only through a proxy",
+    "title": "How litellm-pgvector stores and searches vectors",
+    "model": "gpt",
+    "subject": ""
+  }
+}
