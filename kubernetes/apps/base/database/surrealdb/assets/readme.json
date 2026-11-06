@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DATABASE \u2022 SURREALDB",
+    "title": "surrealdb",
+    "tagline": "A single-writer SurrealDB on RocksDB, with a logical export taken inside every kopiur snapshot.",
+    "chips": [
+      "1 WRITER",
+      "20 GI RBD",
+      "EXPORT HOOK",
+      "INTERNAL ONLY"
+    ],
+    "icon": "database",
+    "status": "RECONCILED BY FLUX \u2022 database/surrealdb"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One writer, one export, two snapshot copies",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Login",
+        "text": "ExternalSecret surrealdb-secret pulls the root user and password from 1Password item surrealdb. The pod reads them as SURREAL_USER and SURREAL_PASS.",
+        "scene": "a key turning in a vault door"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Store",
+        "text": "One replica writes RocksDB under /data on a 20Gi ceph-block claim. The Recreate strategy detaches the old pod before the new one mounts the volume.",
+        "scene": "one data cylinder with a single arrow writing into it"
+      },
+      {
+        "icon": "database-backup",
+        "title": "Export",
+        "text": "Before each snapshot, kopiur runs surreal export inside the pod for the production database in the open_notebook namespace. A failed export fails the whole snapshot.",
+        "scene": "a dump file drawn out of a stack of database discs"
+      },
+      {
+        "icon": "archive",
+        "title": "Snapshot",
+        "text": "kopiur writes the snapshot to Ceph on its own schedule and to the R2 bucket on a second, daily schedule.",
+        "scene": "two archive boxes joined by a cyan data path"
+      },
+      {
+        "icon": "network",
+        "title": "Route",
+        "text": "HTTPRoute serves the API on envoy-internal. Gatus checks /health, because the bare root redirects to a third-party site.",
+        "scene": "a gateway arch with one path leading to a node"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1",
+        "label": "writer, RocksDB lock"
+      },
+      {
+        "value": "20 GI",
+        "label": "ceph-block claim"
+      },
+      {
+        "value": "2 M",
+        "label": "export hook timeout"
+      },
+      {
+        "value": "8000",
+        "label": "HTTP port"
+      }
+    ]
+  },
+  "art": {
+    "about": "a single-writer database backed up by a logical export inside each snapshot",
+    "title": "How SurrealDB is backed up",
+    "model": "gpt",
+    "subject": ""
+  }
+}
