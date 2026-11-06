@@ -1,0 +1,76 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 FLUX \u2022 INSTANCE",
+    "title": "flux-instance",
+    "tagline": "Declares the Flux controllers this cluster runs, syncs them from Git, and takes a GitHub webhook so pushes reconcile at once.",
+    "chips": [
+      "4 CONTROLLERS",
+      "SYNC EVERY 1 H",
+      "WEBHOOK \u2022 PUBLIC",
+      "OOM WATCH"
+    ],
+    "icon": "git-branch",
+    "status": "RECONCILED BY FLUX \u2022 flux-system/flux-instance"
+  },
+  "art": {
+    "about": "a Flux instance that syncs a cluster from Git and listens for webhooks",
+    "title": "How Flux syncs this cluster from Git",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a push on main to a reconcile in seconds",
+    "steps": [
+      {
+        "icon": "file-code",
+        "title": "Declare",
+        "text": "The FluxInstance named flux, created by this chart, pins the distribution and the four controllers to run.",
+        "scene": "a document of code with a gear"
+      },
+      {
+        "icon": "git-branch",
+        "title": "Sync",
+        "text": "The source controller pulls kubernetes/clusters/main from main every hour, so Git stays the source of truth.",
+        "scene": "a branching line converging into a cluster ring"
+      },
+      {
+        "icon": "webhook",
+        "title": "Hear",
+        "text": "GitHub posts a push event through the public gateway. The receiver checks its token and pokes flux-system.",
+        "scene": "a webhook socket receiving a signal over a gateway arch"
+      },
+      {
+        "icon": "settings",
+        "title": "Tune",
+        "text": "Patches add workers and memory for the kustomize, helm and source controllers, an in-memory kustomize build and an OOM watch.",
+        "scene": "a control panel with dials"
+      },
+      {
+        "icon": "eye",
+        "title": "Watch",
+        "text": "Four rules fire when the instance is missing or not ready, or a Flux object stays suspended or not Ready too long.",
+        "scene": "an eye over a ring of synced objects"
+      }
+    ],
+    "facts": [
+      {
+        "value": "4",
+        "label": "Flux controllers"
+      },
+      {
+        "value": "1 H",
+        "label": "Git sync interval"
+      },
+      {
+        "value": "95%",
+        "label": "Helm OOM watch threshold"
+      },
+      {
+        "value": "20",
+        "label": "kustomize workers, effective"
+      }
+    ]
+  }
+}
