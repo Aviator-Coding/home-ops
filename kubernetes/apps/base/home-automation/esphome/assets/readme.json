@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 IOT \u2022 ESPHOME",
+    "title": "esphome",
+    "tagline": "Builds and flashes ESPHome firmware for the IoT VLAN, with a code-server editor on the same config.",
+    "chips": [
+      "MULTUS NET1",
+      "FIXED 10.40.0.131",
+      "CODE-SERVER",
+      "KOPIUR \u2022 R2"
+    ],
+    "icon": "cpu",
+    "status": "RECONCILED BY FLUX \u2022 home-automation/esphome"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Dashboard on the IoT VLAN, config on Ceph",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Secrets",
+        "text": "ExternalSecret esphome-secrets renders secrets.yaml from items esphome and emqx: Wi-Fi, the MQTT login and the domain. The Git deploy key comes from item esphome.",
+        "scene": "a vault door opening onto a small key"
+      },
+      {
+        "icon": "network",
+        "title": "Address",
+        "text": "Multus adds net1 on multus-iot with a fixed 10.40.0.131 address, so the dashboard reaches devices on the IoT VLAN directly.",
+        "scene": "two network switches linked by a glowing cable"
+      },
+      {
+        "icon": "cpu",
+        "title": "Compile",
+        "text": "The esphome container compiles and flashes firmware from /config. Build cache is an emptyDir, and the 3 GiB limit leaves room for the compiler.",
+        "scene": "a microchip assembled from glowing blocks"
+      },
+      {
+        "icon": "code",
+        "title": "Edit",
+        "text": "code-server serves /config at /code/ on envoy-internal, with the deploy key mounted for git over SSH.",
+        "scene": "a code window floating above a circuit board"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Keep",
+        "text": "The kopiur component snapshots the esphome-config claim to R2 once a day.",
+        "scene": "snapshot cards sliding into a cloud bucket"
+      }
+    ],
+    "facts": [
+      {
+        "value": "3 GI",
+        "label": "compile memory limit"
+      },
+      {
+        "value": "5 GI",
+        "label": "config claim"
+      },
+      {
+        "value": "2000",
+        "label": "runs as UID and GID"
+      },
+      {
+        "value": "H 10",
+        "label": "daily backup window"
+      }
+    ]
+  },
+  "art": {
+    "about": "how ESPHome firmware is built and flashed onto IoT devices",
+    "title": "How ESPHome builds firmware for the IoT VLAN",
+    "model": "gpt",
+    "subject": ""
+  }
+}
