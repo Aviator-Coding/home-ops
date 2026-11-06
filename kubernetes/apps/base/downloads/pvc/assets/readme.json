@@ -1,0 +1,63 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 PVC",
+    "title": "downloads pvc",
+    "tagline": "Two claims for the download pipeline: RWX shared-downloads for the *arr apps, and RWO SABnzbd scratch that nothing backs up.",
+    "chips": [
+      "2 TI RWX",
+      "1.5 TI RWO",
+      "NOT BACKED UP",
+      "6 APPS + JANITOR"
+    ],
+    "icon": "hard-drive",
+    "status": "RECONCILED BY FLUX \u2022 downloads/pvc"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Scratch for assembly, shared space for imports",
+    "steps": [
+      {
+        "icon": "hard-drive-download",
+        "title": "Assemble",
+        "text": "sabnzbd-incomplete is a 1500Gi ceph-block claim. SABnzbd writes article files there, which keeps the small-file churn off CephFS.",
+        "scene": "tiny article blocks piling into a block-storage stack"
+      },
+      {
+        "icon": "folder-sync",
+        "title": "Share",
+        "text": "shared-downloads is a 2Ti ceph-filesystem-rwx claim, mounted read-write by SABnzbd and the *arr apps at /data/downloads.",
+        "scene": "several app nodes sharing one folder tree"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Unbacked",
+        "text": "Neither claim is in a backup engine, by design. The scratch is disposable, and an empty shared tree after a rebuild is expected, not a restore failure.",
+        "scene": "an open volume with no archive box beside it"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2 TI",
+        "label": "shared RWX claim"
+      },
+      {
+        "value": "1.5 TI",
+        "label": "SABnzbd scratch, RWO"
+      },
+      {
+        "value": "6+1",
+        "label": "apps and janitor mount it"
+      },
+      {
+        "value": "0",
+        "label": "backup engines"
+      }
+    ]
+  },
+  "art": {
+    "about": "two storage claims for a download pipeline, one scratch and one shared",
+    "title": "How the download volumes are laid out",
+    "model": "gpt",
+    "subject": ""
+  }
+}
