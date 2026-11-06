@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 DOCUMENTS",
+    "title": "paperless-ngx",
+    "tagline": "Ingests scanned documents from an inbox, OCRs them into a searchable archive, and keeps the originals on a backed-up media claim.",
+    "chips": [
+      "CNPG DATABASE",
+      "DRAGONFLY QUEUE",
+      "MEDIA BACKED UP",
+      "INTERNAL ONLY"
+    ],
+    "icon": "scan-text",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/paperless-ngx"
+  },
+  "art": {
+    "about": "a document management pipeline that ingests scanned pages, runs OCR and archives the originals",
+    "title": "How paperless-ngx ingests a scan",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From the inbox to an archive, originals kept",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Secret",
+        "text": "ExternalSecret paperless-ngx-secret fills the admin login, the secret key and the database login from 1Password items paperless-ngx and cloudnative-pg.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "database",
+        "title": "Database",
+        "text": "The cnpg-database component creates role and database paperless on postgres-18. init-db waits for them.",
+        "scene": "a database cylinder with a padlock"
+      },
+      {
+        "icon": "inbox",
+        "title": "Consume",
+        "text": "The consume claim is polled every 60 seconds, recursively. Subfolder names become tags.",
+        "scene": "a tray with scanned pages"
+      },
+      {
+        "icon": "scan-text",
+        "title": "OCR",
+        "text": "Two task workers OCR each file in English. The Dragonfly cache holds the task queue, so a restart drops queued tasks.",
+        "scene": "a page with highlighted text lines"
+      },
+      {
+        "icon": "archive",
+        "title": "Archive",
+        "text": "Originals and archived PDFs go to the media claim, which kopiur backs up. The consume inbox is deliberately not backed up.",
+        "scene": "archive boxes beside a shield"
+      }
+    ],
+    "facts": [
+      {
+        "value": "50 GI",
+        "label": "media claim, backed up"
+      },
+      {
+        "value": "10 GI",
+        "label": "data claim, backed up"
+      },
+      {
+        "value": "60 S",
+        "label": "consume poll interval"
+      },
+      {
+        "value": "2",
+        "label": "task workers"
+      }
+    ]
+  }
+}
