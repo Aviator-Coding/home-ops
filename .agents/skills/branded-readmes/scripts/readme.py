@@ -232,8 +232,13 @@ def facts(d: Path) -> dict:
         if kind == "ExternalSecret":
             keys = [x["extract"]["key"] for x in sp.get("dataFrom", []) if "extract" in x]
             keys += [x["remoteRef"]["key"] for x in sp.get("data", []) if "remoteRef" in x]
-            f["secrets"].append({"name": md.get("name"), "target": (sp.get("target") or {}).get("name", md.get("name")),
-                                 "store": (sp.get("secretStoreRef") or {}).get("name"), "items": sorted(set(keys))})
+            sec = {"name": md.get("name"), "target": (sp.get("target") or {}).get("name", md.get("name")),
+                   "store": (sp.get("secretStoreRef") or {}).get("name"), "items": sorted(set(keys))}
+            gens = [f"{g.get('kind')}/{g.get('name')}" for x in sp.get("dataFrom", [])
+                    if (g := (x.get("sourceRef") or {}).get("generatorRef"))]
+            if gens:  # only set when present, so other apps' source hashes stay unchanged
+                sec["generators"] = gens
+            f["secrets"].append(sec)
         if kind == "PushSecret":
             f["pushsecrets"].append({"name": md.get("name"), "items": sorted({x["match"]["remoteRef"]["remoteKey"]
                                      for x in sp.get("data", []) if "match" in x})})
@@ -284,7 +289,13 @@ def glance(f: dict, readme: Path) -> str:
         rows.append(("Route", f"{name}{hosts} via `{'`, `'.join(r['gateways'])}`" + (" (Gatus probed)" if r["gatus"] else "")))
     for s in f["secrets"]:
         items = ", ".join(f"`{i}`" for i in s["items"])
-        rows.append(("Secret", f"`{s['target']}` from {s['store']} item {items}"))
+        gens = ", ".join(f"`{g}`" for g in s.get("generators", []))
+        if s["store"] and items:
+            rows.append(("Secret", f"`{s['target']}` from {s['store']} item {items}" + (f", plus generator {gens}" if gens else "")))
+        elif gens:
+            rows.append(("Secret", f"`{s['target']}` generated in-cluster by {gens}"))
+        else:
+            rows.append(("Secret", f"`{s['target']}`" + (f" from {s['store']}" if s["store"] else "")))
     for s in f["pushsecrets"]:
         rows.append(("Pushes to 1Password", ", ".join(f"`{i}`" for i in s["items"])))
     for p in f["pvcs"]:
