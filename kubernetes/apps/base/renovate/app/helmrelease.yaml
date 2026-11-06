@@ -12,8 +12,10 @@ spec:
   values:
     fullnameOverride: *app
     image:
-      # repository is set so helm-values tracks the runner; the self-update rule keeps bumps as reviewed PRs.
-      repository: ghcr.io/renovatebot/renovate
+      # registry + repository let helm-values track the runner (the chart joins them; a
+      # registry-qualified repository renders ghcr.io/ghcr.io/...). The self-update rule keeps bumps as reviewed PRs.
+      registry: ghcr.io
+      repository: renovatebot/renovate
       tag: 44.221.1
     cronjob:
       schedule: "0 * * * *"
