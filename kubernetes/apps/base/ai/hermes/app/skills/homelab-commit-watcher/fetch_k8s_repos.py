@@ -340,12 +340,12 @@ _URL_DIRECTIVE_RE = re.compile(
     r"\b(?:fetch|visit|open|read|go to|click|follow|download)\b[^\n]{0,40}https?://",
     re.IGNORECASE,
 )
-_ZERO_WIDTH_RE = re.compile(r"[​-‏ - ⁠-⁯﻿]")
+_ZERO_WIDTH_RE = re.compile(r"[\u200b-\u200f\u2028-\u202f\u2060-\u206f\ufeff]")
 
 
 def _normalize_for_injection_scan(text: str) -> str:
     # NFKC folds fullwidth/homoglyph variants; strip zero-width to defeat
-    # `s​ystem:` style obfuscation.
+    # `s\u200bystem:` style obfuscation.
     return _ZERO_WIDTH_RE.sub("", unicodedata.normalize("NFKC", text))
 
 
