@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MONITORING \u2022 PUBLIC BADGES",
+    "title": "kromgo",
+    "tagline": "Answers a fixed list of Prometheus queries as public JSON badges, and nothing else, for the GitHub profile.",
+    "chips": [
+      "ENVOY-EXTERNAL",
+      "23 ALLOW-LISTED BADGES",
+      "2 REPLICAS",
+      "NO AUTH BY DESIGN"
+    ],
+    "icon": "badge-check",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/kromgo"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Only /badges/ leaves the cluster, and only for fixed queries",
+    "steps": [
+      {
+        "icon": "file-code",
+        "title": "Allow-list",
+        "text": "kromgo-configmap lists each badge with one PromQL query. Clients choose a badge id, never a query.",
+        "scene": "a card holding a short numbered list"
+      },
+      {
+        "icon": "route",
+        "title": "Route",
+        "text": "The HTTPRoute on envoy-external forwards only the /badges/ path. There is no ExtAuth in front, on purpose.",
+        "scene": "a single lit path through a gateway arch"
+      },
+      {
+        "icon": "search",
+        "title": "Query",
+        "text": "A request runs its one query against prometheus-operated. Results are cached for 300 seconds.",
+        "scene": "a magnifying glass over a line chart"
+      },
+      {
+        "icon": "braces",
+        "title": "Answer",
+        "text": "The reply is JSON with a label and a value. Every query aggregates away the labels, so no node, pod or IP leaves.",
+        "scene": "a JSON card with a checkmark"
+      },
+      {
+        "icon": "activity",
+        "title": "Watch",
+        "text": "Gatus checks the cluster_node_count badge through the public route, so a broken route raises an alert.",
+        "scene": "a heartbeat trace running across a badge"
+      }
+    ],
+    "facts": [
+      {
+        "value": "23",
+        "label": "allow-listed badges"
+      },
+      {
+        "value": "2",
+        "label": "replicas, rolling update"
+      },
+      {
+        "value": "300 S",
+        "label": "badge cache"
+      },
+      {
+        "value": "64 MI",
+        "label": "memory limit per replica"
+      }
+    ]
+  },
+  "art": {
+    "about": "how kromgo answers fixed PromQL queries as public JSON badges",
+    "title": "How kromgo serves badges",
+    "model": "gpt",
+    "subject": ""
+  }
+}
