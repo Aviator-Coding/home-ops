@@ -1,8 +1,8 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
-# Operator metrics (docs/operations/metrics.md upstream). Every series carries
-# renovate_job; absent() covers a dead operator, a missing ServiceMonitor and a
-# RenovateJob that Flux never applied.
+# Operator metrics (https://github.com/mogenius/renovate-operator/blob/main/docs/operations/metrics.md).
+# Every series carries renovate_job; absent() covers a dead operator, a missing
+# ServiceMonitor and a RenovateJob that Flux never applied.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
