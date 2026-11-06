@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 SMB",
+    "title": "samba",
+    "tagline": "Serves the Hermes shares to the Mac over SMB3, forcing every file to the agent's uid and gid 10000.",
+    "chips": [
+      "SMB3 ONLY",
+      "2 SHARES",
+      "UID 10000",
+      "LAN ONLY"
+    ],
+    "icon": "share-2",
+    "status": "RECONCILED BY FLUX \u2022 ai/samba"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One account, one identity, two shares",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Password",
+        "text": "The ExternalSecret renders the SMB password as a file at /run/secrets/pass, so the credential never enters the container environment.",
+        "scene": "a sealed key handed over in a locked box"
+      },
+      {
+        "icon": "user-check",
+        "title": "Identity",
+        "text": "The entrypoint creates the hermes account at uid and gid 10000, and smb.conf forces every session to that identity.",
+        "scene": "a plain ID badge on a lanyard, no text"
+      },
+      {
+        "icon": "folder-tree",
+        "title": "Shares",
+        "text": "[xml] exports /shared and [files] exports /files, both on RWX CephFS claims, behind one LoadBalancer address on the LAN.",
+        "scene": "two plain folders behind one gate, no text"
+      },
+      {
+        "icon": "lock",
+        "title": "Modes",
+        "text": "An init container chowns both roots and sets setgid 2770. A postStart hook sets it again once smbd is up, because the entrypoint strips it.",
+        "scene": "a permission seal pressed onto a folder"
+      },
+      {
+        "icon": "apple",
+        "title": "Finder",
+        "text": "SMB3 only on port 445. vfs_fruit keeps metadata in xattrs, and NFS ACLs are off, so Finder cannot change the owner back.",
+        "scene": "a laptop window pointing at a shared drive"
+      }
+    ],
+    "facts": [
+      {
+        "value": "445",
+        "label": "SMB3 port"
+      },
+      {
+        "value": "2",
+        "label": "shares"
+      },
+      {
+        "value": "10000",
+        "label": "forced uid and gid"
+      },
+      {
+        "value": "LAN",
+        "label": "LoadBalancer only"
+      }
+    ]
+  },
+  "art": {
+    "about": "an SMB file server that forces every session to one service identity and exports two shares",
+    "title": "How samba exports the Hermes shares",
+    "model": "gpt",
+    "subject": ""
+  }
+}
