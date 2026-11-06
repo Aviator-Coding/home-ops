@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 CHAT ON THE B70",
+    "title": "vllm",
+    "tagline": "Serves the household chat model from the single Arc B70 as llama.cpp, with a bounded prompt cache and alerts for host memory.",
+    "chips": [
+      "LLAMA.CPP SYCL",
+      "ARC PRO B70",
+      "256K CONTEXT",
+      "4 MEMORY ALERTS"
+    ],
+    "icon": "message-square",
+    "status": "RECONCILED BY FLUX \u2022 ai/vllm"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One card, one chat model, a bounded cache",
+    "steps": [
+      {
+        "icon": "download",
+        "title": "Model",
+        "text": "The pod downloads a Q3_K_M GGUF of the chat model on first start into a 50 Gi claim. A 30-minute startup probe covers that download.",
+        "scene": "a model file arriving on a card's memory"
+      },
+      {
+        "icon": "cpu",
+        "title": "Card",
+        "text": "The pod takes the single Arc Pro B70 through devic.es/b70 and runs llama.cpp on SYCL. vLLM cannot finish warming up this model on one card (intel/llm-scaler#382).",
+        "scene": "a single GPU board with one slot taken"
+      },
+      {
+        "icon": "database",
+        "title": "Cache",
+        "text": "A prompt cache capped at 4096 MiB, with a glibc tunable and the oneDNN attention pin, keeps host memory from growing without a bound.",
+        "scene": "a cache vessel with a fixed fill line"
+      },
+      {
+        "icon": "layers",
+        "title": "Priority",
+        "text": "The chat-gpu-high class outranks CI runners and tdarr, so the 8-CPU request is always schedulable on talos-3.",
+        "scene": "a priority ladder with one rung above the rest"
+      },
+      {
+        "icon": "route",
+        "title": "Alias",
+        "text": "The server is named ${CHAT_MODEL_ID}. LiteLLM reaches it at vllm-app on port 8000 as chat-local, so consumers never see the real model name.",
+        "scene": "a routing switch pointing at one port"
+      }
+    ],
+    "facts": [
+      {
+        "value": "256K",
+        "label": "context tokens"
+      },
+      {
+        "value": "12 GI",
+        "label": "memory request"
+      },
+      {
+        "value": "4",
+        "label": "memory alerts"
+      },
+      {
+        "value": "B70",
+        "label": "one card"
+      }
+    ]
+  },
+  "art": {
+    "about": "a local chat model server on one GPU, with a bounded prompt cache, host memory alerts and a LiteLLM alias in front",
+    "title": "How the chat model runs on one card",
+    "model": "gpt",
+    "subject": ""
+  }
+}
