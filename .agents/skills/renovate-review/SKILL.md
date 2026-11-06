@@ -21,6 +21,11 @@ gh pr list --author app/mortyops --state open --json number,title,labels \
 - Treat the `Kubernetes`, `Talos`, `Rook-Ceph`, `Cilium` and `Flux Operator` groups
   (`.renovate/groups.json5`) with extra care whatever their label: a `talosupgrade.yaml` or
   tuppr bump is an unattended node upgrade (skill `talos-nodes`).
+- A Python minor (`.renovate/autoMerge.json5` never automerges it) is judged per consumer,
+  not per version. Blocked: `.mise.toml` (CI installs litellm's test deps) and any image
+  with native wheels until each dep ships wheels for it (litellm `requires-python`,
+  `fastuuid` on PyPI). Not blocked: a stdlib-only script image such as `queue-watchdog`;
+  check its imports, then merge on green CI. Review each file of a mixed PR on its own.
 
 ## Check one PR
 
