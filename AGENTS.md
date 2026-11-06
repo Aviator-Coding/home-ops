@@ -35,7 +35,7 @@ Home-ops GitOps repo for a 3-node Talos Linux Kubernetes cluster managed by Flux
 | Talos config | `talos/machineconfig.yaml.j2`, `talos/nodes/*.yaml.j2`, `talos/schematic.yaml.j2` (skill `talos-nodes`) |
 | Tasks | `Taskfile.yaml` + `.taskfiles/` (`task --list-all`), `.justfile` + `*/mod.just` |
 | CI, branch protection | `.github/workflows/`; ruleset on `main` is applied via `gh api`, not in Git (skill `github-ci`) |
-| Renovate | `.renovaterc.json5` + `.renovate/`; in-cluster CronJob is the writer (skill `renovate`) |
+| Renovate | `.renovaterc.json5` + `.renovate/`; in-cluster renovate-operator is the writer (skill `renovate`) |
 | Authentik SSO | `terraform/authentik/` (skill `authentik-terraform`) |
 | AI stack | `kubernetes/apps/{main,base}/ai/` (skills `ai-stack`, `litellm-proxy`, `hermes-agent`) |
 | Gatus | `monitoring/gatus`; endpoints come from the `gatus.home-operations.com/endpoint` HTTPRoute annotation (skill `observability`) |

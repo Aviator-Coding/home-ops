@@ -62,7 +62,7 @@ Flux path. Files that belong to the same deployable go in subdirectories
 - **Literal `${...}` that is not a Flux variable fails the whole
   Kustomization.** Skill `flux-substitution`.
 - **Health checks and `wait: false`.** See the skill tripwires. Worked
-  CronJob check: `kubernetes/apps/main/renovate/renovate.yaml`.
+  Deployment check: `kubernetes/apps/main/renovate/renovate-operator.yaml`.
 - **A pod-options key the chart does not read is discarded with no flate
   error.** Skill `app-workloads`.
 - **Schema URL.** `kubernetes-schemas.pages.dev`. If that host does not

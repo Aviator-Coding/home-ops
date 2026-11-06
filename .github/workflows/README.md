@@ -8,5 +8,5 @@ skill `github-ci`
 `ubuntu-latest`. `image-pull.yaml` and `terraform-diff.yaml` need the cluster
 and are advisory. `tests.yaml` runs the non-gate `scripts/ci` tests nightly.
 
-Renovate's live writer is the in-cluster CronJob; `renovate.yaml` is
+Renovate's live writer is the in-cluster renovate-operator; `renovate.yaml` is
 manual-dispatch only. Skill `renovate`.

@@ -9,4 +9,5 @@ components:
   - ../../../components/alerts
 
 resources:
-  - ./renovate.yaml
+  - ./renovate-jobs.yaml
+  - ./renovate-operator.yaml
