@@ -1,0 +1,62 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 IMAGE MIRROR",
+    "title": "spegel",
+    "tagline": "Lets every node pull an image layer from a peer that already holds it, falling back to the upstream registry on a miss.",
+    "chips": [
+      "P2P \u2022 NO REGISTRY",
+      "ALL REGISTRIES (DEFAULT)",
+      "TALOS CRI PATH",
+      "FALLS BACK UPSTREAM"
+    ],
+    "icon": "share-2",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/spegel"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Pull from the nearest node that has the layer",
+    "steps": [
+      {
+        "icon": "route",
+        "title": "Redirect",
+        "text": "containerd on each node is pointed at a local mirror through host config written into /etc/cri/conf.d/hosts.",
+        "scene": "a path bending through a node-shaped junction"
+      },
+      {
+        "icon": "search",
+        "title": "Locate",
+        "text": "Each node announces the layers it holds to its peers. A pull asks the peers which node has the digest.",
+        "scene": "several nodes lighting up around a shared index"
+      },
+      {
+        "icon": "copy",
+        "title": "Serve",
+        "text": "A peer that holds the layer serves it from its own containerd content store, over HTTP, inside the cluster.",
+        "scene": "a layer block passing from one node to another"
+      },
+      {
+        "icon": "arrow-right-left",
+        "title": "Fall back",
+        "text": "A miss, or a timeout, sends the pull to the upstream registry. A missing peer never fails a pull.",
+        "scene": "a branch returning to the outer registry cloud"
+      }
+    ],
+    "facts": [
+      {
+        "value": "ALL",
+        "label": "registries mirrored, chart default"
+      },
+      {
+        "value": "20 MS",
+        "label": "mirror resolve timeout, chart default"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Spegel serves image layers between nodes",
+    "title": "How Spegel shares image layers",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  }
+}
