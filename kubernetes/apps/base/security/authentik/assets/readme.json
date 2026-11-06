@@ -1,0 +1,66 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SECURITY \u2022 SSO",
+    "title": "authentik",
+    "tagline": "Runs the identity provider for single sign-on, and the embedded outpost that gates ExtAuth routes at the gateway.",
+    "chips": [
+      "OIDC \u2022 SSO",
+      "EXTAUTH OUTPOST",
+      "POSTGRES",
+      "S3 MEDIA"
+    ],
+    "icon": "fingerprint",
+    "status": "RECONCILED BY FLUX \u2022 security/authentik"
+  },
+  "art": {
+    "about": "an identity provider with a database, a secret merge and a gateway gate",
+    "title": "How authentik signs in and gates apps",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Identity in Postgres, gates at the gateway",
+    "steps": [
+      {
+        "icon": "database",
+        "title": "Database",
+        "text": "authentik-db creates the role and database authentik on the shared CloudNativePG cluster before the app starts.",
+        "scene": "a database cylinder with a key slot"
+      },
+      {
+        "icon": "key-round",
+        "title": "Secrets",
+        "text": "ExternalSecret authentik-secret merges three 1Password items into one Secret, and Reloader restarts the pods when it changes.",
+        "scene": "three keys merging into one"
+      },
+      {
+        "icon": "server",
+        "title": "Serve",
+        "text": "The server and worker run flows and sessions. Sessions live in Postgres, cache sits on Dragonfly, and media goes to a Ceph bucket.",
+        "scene": "two server racks linked by a data path"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Gate",
+        "text": "The embedded outpost answers Envoy ExtAuth checks under /outpost.goauthentik.io, so an outage fails every gated app closed.",
+        "scene": "a padlock gate in front of an arch"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1 DB",
+        "label": "own role on the shared cluster"
+      },
+      {
+        "value": "10 G",
+        "label": "media bucket quota"
+      },
+      {
+        "value": "4",
+        "label": "worker task concurrency"
+      }
+    ]
+  }
+}
