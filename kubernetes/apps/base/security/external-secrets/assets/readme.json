@@ -1,0 +1,66 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SECURITY \u2022 SECRETS",
+    "title": "external-secrets",
+    "tagline": "Syncs 1Password items into Kubernetes Secrets through the Connect server, and pushes Secrets back where a PushSecret asks.",
+    "chips": [
+      "1PASSWORD CONNECT",
+      "CLUSTER STORES",
+      "PULL \u2022 PUSH",
+      "2 WEBHOOK REPLICAS"
+    ],
+    "icon": "vault",
+    "status": "RECONCILED BY FLUX \u2022 security/external-secrets"
+  },
+  "art": {
+    "about": "secrets pulled from a vault through a connect server and pushed back",
+    "title": "How external-secrets moves secrets",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Pull from 1Password, push back through a separate store",
+    "steps": [
+      {
+        "icon": "vault",
+        "title": "Connect",
+        "text": "onepassword-connect runs the Connect API and sync containers, reading the credentials file from key 1password-credentials.json in Secret onepassword-secret.",
+        "scene": "a vault with two doors"
+      },
+      {
+        "icon": "layers",
+        "title": "Stores",
+        "text": "ClusterSecretStore onepassword reads vaults in priority order. onepassword-automation writes to the Automation vault only.",
+        "scene": "three stacked vault drawers"
+      },
+      {
+        "icon": "refresh-cw",
+        "title": "Pull",
+        "text": "The controller turns each ExternalSecret into a Secret and refreshes it on the interval that ExternalSecret sets.",
+        "scene": "a document synced into a secret box"
+      },
+      {
+        "icon": "upload",
+        "title": "Push",
+        "text": "A PushSecret copies a Secret's keys into a 1Password item through the write store, so pushes cannot resolve into Homelab.",
+        "scene": "a sealed document leaving a box toward a vault"
+      }
+    ],
+    "facts": [
+      {
+        "value": "3",
+        "label": "vaults the read store searches"
+      },
+      {
+        "value": "2",
+        "label": "webhook replicas, with a PDB"
+      },
+      {
+        "value": "1",
+        "label": "vault the write store targets"
+      }
+    ]
+  }
+}
