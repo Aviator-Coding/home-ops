@@ -55,7 +55,8 @@
       automerge: false,
     },
     {
-      // MUST stay after the blanket rules. A Python minor is a new ABI: native deps (PyO3 wheels such as litellm's fastuuid) lag it, and 3.15 broke the nightly tests (#1991). Skill `renovate`.
+      // MUST stay after the blanket rules. A Python minor is a new ABI: native deps (PyO3 wheels such as litellm's fastuuid) lag it, and 3.15 broke the nightly tests (#1991).
+      // The hold is per consumer, not per version: a stdlib-only image (queue-watchdog) can merge on green CI. Skill `renovate-review`.
       description: "Never auto merge Python minor or major versions - mise tool and docker image",
       matchPackageNames: ["python", "/(^|/)python$/"],
       matchUpdateTypes: ["minor", "major"],
