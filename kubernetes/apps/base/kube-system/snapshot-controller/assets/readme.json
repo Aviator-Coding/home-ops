@@ -1,0 +1,62 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 CSI",
+    "title": "snapshot-controller",
+    "tagline": "Turns VolumeSnapshot objects into CSI snapshot calls, so kopiur can take Ceph block snapshots before it backs up a claim.",
+    "chips": [
+      "CRDS FROM THE CHART",
+      "CSI SNAPSHOTS",
+      "CEPH BLOCK CLASS",
+      "SERVICEMONITOR"
+    ],
+    "icon": "camera",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/snapshot-controller"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a snapshot request to a Ceph image",
+    "steps": [
+      {
+        "icon": "file-check-2",
+        "title": "Request",
+        "text": "A VolumeSnapshot names a claim and a VolumeSnapshotClass. The kopiur Ceph SnapshotPolicy uses the csi-ceph-blockpool class.",
+        "scene": "a document card pinned to a glowing claim block"
+      },
+      {
+        "icon": "git-branch",
+        "title": "Bind",
+        "text": "The controller binds the request to a VolumeSnapshotContent, and the class names the CSI driver and the pool.",
+        "scene": "two matching halves of a bracket joining"
+      },
+      {
+        "icon": "database",
+        "title": "Snapshot",
+        "text": "The Ceph CSI driver takes an RBD snapshot of the claim's image in the block pool. The controller records the handle.",
+        "scene": "a storage cylinder with a frozen layer"
+      },
+      {
+        "icon": "lock",
+        "title": "Ready",
+        "text": "The snapshot reads ready once the driver confirms it, and the backup reads that point-in-time copy rather than the live claim.",
+        "scene": "a locked layer beneath a live block"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1",
+        "label": "replica, chart default"
+      },
+      {
+        "value": "128 MI",
+        "label": "memory limit"
+      }
+    ]
+  },
+  "art": {
+    "about": "how a VolumeSnapshot becomes a Ceph RBD snapshot",
+    "title": "How a snapshot reaches Ceph",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  }
+}
