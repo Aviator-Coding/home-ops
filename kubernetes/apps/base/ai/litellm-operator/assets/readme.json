@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 OPERATOR",
+    "title": "litellm-operator",
+    "tagline": "Renders the LiteLLM proxy from Git-declared CRs, and rejects any LiteLLM object it cannot validate.",
+    "chips": [
+      "3 CR KINDS",
+      "FILE MODE",
+      "FAIL-CLOSED WEBHOOK",
+      "GIT IS THE SOURCE"
+    ],
+    "icon": "cog",
+    "status": "RECONCILED BY FLUX \u2022 ai/litellm-operator"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Git declares the gateway, the operator renders it",
+    "steps": [
+      {
+        "icon": "package",
+        "title": "Install",
+        "text": "The OCIRepository pulls the litellm-operator chart. The HelmRelease installs its CRDs and one controller Deployment in ai.",
+        "scene": "a sealed package being unpacked onto a shelf"
+      },
+      {
+        "icon": "file-code",
+        "title": "Declare",
+        "text": "LiteLLMProxy, LiteLLMModel and LiteLLMVirtualKey objects in ai/litellm are the source of truth (file apply mode, store_model_in_db false). Admin UI edits are unverified.",
+        "scene": "blueprint cards stacked in a tray"
+      },
+      {
+        "icon": "file-cog",
+        "title": "Render",
+        "text": "The operator writes config.yaml into a ConfigMap and rolls the LiteLLM proxy Deployment when the rendered file changes.",
+        "scene": "a gear turning a sheet into a config file"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Admit",
+        "text": "A failurePolicy Fail webhook checks every LiteLLM object at admission. With the operator down, the API server rejects them.",
+        "scene": "a checkpoint gate with a shield"
+      },
+      {
+        "icon": "ban",
+        "title": "Stay quiet",
+        "text": "LLMKube auto-registration is off, so the operator never mints a LiteLLMModel that Git did not declare.",
+        "scene": "an empty slot with a no sign"
+      }
+    ],
+    "facts": [
+      {
+        "value": "3",
+        "label": "CR kinds in use"
+      },
+      {
+        "value": "FILE",
+        "label": "apply mode"
+      },
+      {
+        "value": "FAIL",
+        "label": "webhook policy"
+      },
+      {
+        "value": "OFF",
+        "label": "llmkube autoRegister"
+      }
+    ]
+  },
+  "art": {
+    "about": "a Kubernetes operator that renders a LLM gateway configuration from custom resources and gates admission",
+    "title": "How litellm-operator renders the gateway",
+    "model": "gpt",
+    "subject": ""
+  }
+}
