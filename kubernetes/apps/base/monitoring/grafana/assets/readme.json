@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MONITORING \u2022 DASHBOARDS",
+    "title": "grafana",
+    "tagline": "Serves the cluster's dashboards from Git: the landing page, the Ceph, LiteLLM and Flux boards, and the rest from grafana.com.",
+    "chips": [
+      "SIDECAR-LOADED BOARDS",
+      "PROMETHEUS \u2022 LOKI",
+      "EMPTYDIR DATABASE",
+      "1 REPLICA"
+    ],
+    "icon": "chart-line",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/grafana"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Boards and datasources come from Git, not from the UI",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Admin",
+        "text": "ExternalSecret grafana-admin-secret pulls the admin user and password from 1Password item grafana. The chart reads them as existingSecret.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "layout-dashboard",
+        "title": "Boards",
+        "text": "Chart downloads from grafana.com load into folders. Labelled ConfigMaps from kustomize (grafana_dashboard) load through the sidecar.",
+        "scene": "a stack of dashboard panels in folders"
+      },
+      {
+        "icon": "database",
+        "title": "Datasources",
+        "text": "Prometheus, Loki and Alertmanager are provisioned. Prometheus sets a 1 minute time interval to match its scrape interval.",
+        "scene": "three cylinders joined to one panel"
+      },
+      {
+        "icon": "route",
+        "title": "Route",
+        "text": "The HTTPRoute serves Grafana on envoy-internal only. Anonymous access is off, so every viewer signs in.",
+        "scene": "a gateway arch with a padlock"
+      },
+      {
+        "icon": "image",
+        "title": "Render",
+        "text": "A renderer pod draws panels to images for alerts and shares. Its NetworkPolicy admits CoreDNS replies so rendering can resolve names.",
+        "scene": "a rendered panel image leaving a printer"
+      }
+    ],
+    "facts": [
+      {
+        "value": "3",
+        "label": "datasources provisioned"
+      },
+      {
+        "value": "1 M",
+        "label": "Prometheus time interval"
+      },
+      {
+        "value": "1",
+        "label": "replica, emptyDir database"
+      },
+      {
+        "value": "8",
+        "label": "named dashboard folders"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Grafana loads dashboards from Git and reads Prometheus and Loki",
+    "title": "How grafana loads its dashboards",
+    "model": "gpt",
+    "subject": ""
+  }
+}
