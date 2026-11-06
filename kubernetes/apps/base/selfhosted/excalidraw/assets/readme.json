@@ -1,0 +1,57 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 WHITEBOARD",
+    "title": "excalidraw",
+    "tagline": "Serves the Excalidraw whiteboard as a stateless static web app on the internal gateway.",
+    "chips": [
+      "STATELESS",
+      "NO PVC",
+      "INTERNAL ONLY",
+      "ONE REPLICA"
+    ],
+    "icon": "pencil-line",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/excalidraw"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One container, no state on the cluster",
+    "steps": [
+      {
+        "icon": "globe",
+        "title": "Route",
+        "text": "HTTPRoute excalidraw attaches to the https listener of envoy-internal, so the app is reachable on the internal domain only.",
+        "scene": "a globe with an internal gateway arch"
+      },
+      {
+        "icon": "box",
+        "title": "Serve",
+        "text": "One container serves the static bundle on port 80. Liveness and readiness probe the same port.",
+        "scene": "a single container block serving a page"
+      },
+      {
+        "icon": "pencil-line",
+        "title": "Draw",
+        "text": "Scenes live in the browser, not in the cluster. Nothing is written to a volume, so there is no claim to back up.",
+        "scene": "a whiteboard sketch of boxes and arrows"
+      }
+    ],
+    "facts": [
+      {
+        "value": "0",
+        "label": "PVCs: scenes stay in the browser"
+      },
+      {
+        "value": "1",
+        "label": "replica"
+      },
+      {
+        "value": "50 MI",
+        "label": "memory limit"
+      },
+      {
+        "value": "80",
+        "label": "container port"
+      }
+    ]
+  }
+}
