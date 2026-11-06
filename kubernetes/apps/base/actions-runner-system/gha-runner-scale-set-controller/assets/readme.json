@@ -1,0 +1,76 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 ARC \u2022 CONTROLLER",
+    "title": "gha-runner-scale-set-controller",
+    "tagline": "Runs the controller that turns GitHub job queues into runner pods, and alerts when they stall.",
+    "chips": [
+      "2 REPLICAS \u2022 PDB",
+      "7 ALERTS",
+      "PRIORITY CLASS",
+      "HELM \u2022 OCI"
+    ],
+    "icon": "gauge",
+    "status": "RECONCILED BY FLUX \u2022 actions-runner-system/gha-runner-scale-set-controller"
+  },
+  "art": {
+    "about": "a controller that scales CI runner pods from a job queue",
+    "title": "The runner controller and its alerts",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One controller, one priority class, seven alerts",
+    "steps": [
+      {
+        "icon": "package",
+        "title": "Install",
+        "text": "Flux installs the controller chart and its CRDs into actions-runner-system with two replicas.",
+        "scene": "a sealed package unpacking into two cubes"
+      },
+      {
+        "icon": "refresh-cw",
+        "title": "Reconcile",
+        "text": "The controller reconciles the runner scale sets declared by the two scale-set HelmReleases.",
+        "scene": "two gears meshing around a cyan ring"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Protect",
+        "text": "A PriorityClass ranks the controller and listeners above workloads, and a PDB keeps one replica up through drains.",
+        "scene": "a shield over two stacked towers"
+      },
+      {
+        "icon": "activity",
+        "title": "Measure",
+        "text": "A PodMonitor scrapes controller and listener metrics every 15 seconds, and a Grafana dashboard reads them.",
+        "scene": "a rising signal line over a dashboard grid"
+      },
+      {
+        "icon": "bell",
+        "title": "Alert",
+        "text": "Seven rules cover failure rate, idle runners, a down controller, slow startup, ghost jobs and listener restarts.",
+        "scene": "a bell with a small pulse of light"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "controller replicas"
+      },
+      {
+        "value": "1M",
+        "label": "runner PriorityClass value"
+      },
+      {
+        "value": "7",
+        "label": "alert rules"
+      },
+      {
+        "value": "15 S",
+        "label": "metrics scrape interval"
+      }
+    ]
+  }
+}
