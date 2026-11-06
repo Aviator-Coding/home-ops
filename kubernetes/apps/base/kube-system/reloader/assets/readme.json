@@ -1,0 +1,62 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 ROLLOUTS",
+    "title": "reloader",
+    "tagline": "Restarts a workload when a ConfigMap or Secret it reads changes, so new values reach running pods without a manual rollout.",
+    "chips": [
+      "ANNOTATION OPT-IN",
+      "READ-ONLY ROOT FS",
+      "PODMONITOR",
+      "HA FLAG SET"
+    ],
+    "icon": "refresh-cw",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/reloader"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Watch the inputs, roll the consumer",
+    "steps": [
+      {
+        "icon": "eye",
+        "title": "Watch",
+        "text": "Reloader watches every ConfigMap and Secret in the cluster through the API server, not through a polling loop.",
+        "scene": "an eye over a row of document cards"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Match",
+        "text": "A workload opts in with a reloader.stakater.com annotation, so only the pods that asked for a restart get one.",
+        "scene": "a tag clipped onto one of several stacked blocks"
+      },
+      {
+        "icon": "refresh-cw",
+        "title": "Change",
+        "text": "When the referenced data changes, Reloader updates the pod template. The Deployment, StatefulSet or DaemonSet then rolls.",
+        "scene": "a glowing ring turning around a pod template"
+      },
+      {
+        "icon": "layers-3",
+        "title": "Roll",
+        "text": "The rollout follows the workload's own strategy and PodDisruptionBudget, one pod at a time, so the restart does not drop the service.",
+        "scene": "pods replaced one by one on a conveyor"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "object kinds watched"
+      },
+      {
+        "value": "256 MI",
+        "label": "memory limit"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Reloader restarts pods after config changes",
+    "title": "How Reloader rolls pods on config change",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  }
+}
