@@ -1,0 +1,60 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 NETWORK \u2022 DEBUG",
+    "title": "echo",
+    "tagline": "Echoes back each request as Envoy forwards it, so you can see the headers and path a backend receives, behind Authentik.",
+    "chips": [
+      "HTTP \u2022 HTTPS",
+      "AUTHENTIK EXTAUTH",
+      "ENVOY-EXTERNAL",
+      "READ-ONLY ROOT"
+    ],
+    "icon": "scan-search",
+    "status": "RECONCILED BY FLUX \u2022 network/echo"
+  },
+  "art": {
+    "about": "a request passing an auth gate and coming back as an echo",
+    "title": "How echo reflects a request",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A request in, the request back out",
+    "steps": [
+      {
+        "icon": "shield-check",
+        "title": "Gate",
+        "text": "The SecurityPolicy echo-auth asks the Authentik embedded outpost about every request before Envoy forwards it.",
+        "scene": "a padlock at a gateway arch"
+      },
+      {
+        "icon": "route",
+        "title": "Route",
+        "text": "HTTPRoute echo attaches only to the HTTPS listener of envoy-external, on the echo host.",
+        "scene": "a single route leading to one door"
+      },
+      {
+        "icon": "scan-search",
+        "title": "Echo",
+        "text": "The container returns the method, path, headers and body to the caller, and logs each request except the health probe.",
+        "scene": "a mirror reflecting a request card"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1",
+        "label": "replica, no PDB"
+      },
+      {
+        "value": "64 MI",
+        "label": "memory request equals the limit"
+      },
+      {
+        "value": "1000",
+        "label": "non-root UID"
+      }
+    ]
+  }
+}
